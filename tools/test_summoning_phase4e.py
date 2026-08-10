@@ -83,7 +83,7 @@ def main() -> int:
                 "MOCK230_EXT_DEBUG": "1",
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "390",
-                "TORIRS_NET_CHEAT": "summoning_demo;drain summoning 1 0",
+                "TORIRS_NET_CHEAT": "summoning_unlock;summoning_demo;drain summoning 1 0",
                 # Right-click the projected imported obelisk, then choose its
                 # real second menu entry. These are ordinary input events, not
                 # a direct server-script or component-hook dispatch.

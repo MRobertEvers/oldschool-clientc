@@ -274,7 +274,7 @@ def render_panel(args: argparse.Namespace) -> tuple[int, str, Path]:
             saves,
             {
                 "TORIRS_MAX_FRAMES": "340",
-                "TORIRS_NET_CHEAT": "summoning_infuse_supplies",
+                "TORIRS_NET_CHEAT": "summoning_unlock;summoning_infuse_supplies",
                 "TORIRS_SIM_CLICK_AT": "240,465,205",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_NET_DEBUG": "1",
@@ -300,7 +300,7 @@ def make_pouch(args: argparse.Namespace) -> tuple[int, str, str, Path]:
             saves,
             {
                 "TORIRS_MAX_FRAMES": "560",
-                "TORIRS_NET_CHEAT": "summoning_infuse_supplies",
+                "TORIRS_NET_CHEAT": "summoning_unlock;summoning_infuse_supplies",
                 # The first click is the actual runtime loc. The second is the
                 # mounted row's center, after IF_OPENSUB has completed.
                 "TORIRS_SIM_CLICK_AT": "240,465,205;340,257,170",

@@ -98,7 +98,7 @@ def main() -> int:
             {
                 # This is provisioning only. The following UI click must consume
                 # the item through the real opheld4 server trigger.
-                "TORIRS_NET_CHEAT": "setlevel summoning 4;summoning_dreadfowl_pouch",
+                "TORIRS_NET_CHEAT": "summoning_unlock;setlevel summoning 4;summoning_dreadfowl_pouch",
                 "TORIRS_MAX_FRAMES": "430",
                 # Open the actual sidebar after the real item action so the
                 # exit frame proves the active portrait before the separate

@@ -1674,6 +1674,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(SUMMONING_CLIENT_LANE)/configs \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
@@ -1694,6 +1695,7 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(SUMMONING_CLIENT_LANE)/configs \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \

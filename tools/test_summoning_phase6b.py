@@ -67,7 +67,7 @@ def main() -> int:
         saves = Path(root) / "saves"; saves.mkdir()
         # Actual pouch summon, NPC Store menu, then Store a real backpack helm.
         first = run(saves, "220,540,230,1;270,540,260;420,450,250,1;435,450,283;475,200,205", 505,
-                    "setlevel summoning 52;summoning_spirit_terrorbird_pouch")
+                    "summoning_unlock;setlevel summoning 52;summoning_spirit_terrorbird_pouch")
         (OUT / "store.log").write_text(first)
         expect("You summon a Spirit terrorbird." in first, "real pouch did not summon terrorbird")
         expect("if-opensub: iface=971" in first, "real Store menu did not open BOB interface")

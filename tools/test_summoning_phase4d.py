@@ -203,7 +203,7 @@ def base_env(args: argparse.Namespace, saves: str) -> dict[str, str]:
             "MOCK230_SAVES": saves,
             "MOCK230_SCRIPTS": str(args.scripts.resolve()),
             "MOCK230_CACHE": str(args.cache.resolve()),
-            "TORIRS_NET_CHEAT": "summoning_demo",
+            "TORIRS_NET_CHEAT": "summoning_unlock;summoning_demo",
             "SDL_VIDEODRIVER": "dummy",
         }
     )

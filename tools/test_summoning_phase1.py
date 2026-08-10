@@ -131,13 +131,13 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="summoning_phase1_") as temporary:
         root = Path(temporary)
-        level1 = run("flag_on_level1", args.flag_on, Path(tempfile.mkdtemp(dir=root)))
+        level1 = run("flag_on_level1", args.flag_on, Path(tempfile.mkdtemp(dir=root)), "summoning_unlock")
         persistent_saves = Path(tempfile.mkdtemp(dir=root))
         level20 = run(
             "flag_on_level20",
             args.flag_on,
             persistent_saves,
-            "setlevel summoning 20",
+            "summoning_unlock;setlevel summoning 20",
         )
         persisted = run("flag_on_persisted", args.flag_on, persistent_saves)
         flagoff = run("flag_off", args.flag_off, Path(tempfile.mkdtemp(dir=root)))

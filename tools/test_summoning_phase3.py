@@ -53,10 +53,13 @@ def main() -> int:
         body_start = header.end()
         body_end = headers[index + 1].start() if index + 1 < len(headers) else len(source)
         body = source[body_start:body_end]
-        expect(
-            re.match(r"\s*if \(\^summoning_enabled = 0\)", body) is not None,
-            f"entry point lacks a top feature gate: [{name}]",
-        )
+        # Phase 7 extends the build-wide gate with a permanent account unlock.
+        # The two transition-only debug hooks must retain the build gate so a
+        # feature-off server cannot mint an unlocked save.
+        gate = r"\s*if \(~summoning_account_enabled = false\)"
+        if name in ("debugproc,summoning_unlock", "debugproc,summoning_lock"):
+            gate = r"\s*if \(\^summoning_enabled = 0\)"
+        expect(re.match(gate, body) is not None, f"entry point lacks a top feature gate: [{name}]")
 
     for token in (
         "[opheld1,summoning_spirit_wolf_pouch]",
@@ -94,17 +97,22 @@ def main() -> int:
             re.MULTILINE,
         )
     )
-    expect(
-        persisted
-        == {
+    familiar_persisted = {
             "summoning_familiar_active",
             "summoning_familiar_type",
             "summoning_familiar_ticks",
             "summoning_familiar_special",
             "summoning_familiar_special_clock",
             "summoning_familiar_point_accumulator",
-        },
+        }
+    expect(
+        persisted == familiar_persisted,
         "familiar state is not the six-field persisted type/timer contract",
+    )
+    expect(
+        re.search(r"^\[summoning_unlocked\]\n(?:[^\n]*\n)*?scope=perm$", varps, re.MULTILINE)
+        is not None,
+        "per-account Summoning unlock is not permanent",
     )
     expect(
         all(
