@@ -432,6 +432,12 @@ def check(root: Path) -> list[str]:
             match is not None and "npc_del;" in match.group(1),
             f"{QBD_ADDS}: {add_name} can respawn after an encounter-owned death",
         )
+        require(
+            match is not None
+            and match.group(1).index("npc_delay(1);")
+            < match.group(1).index("npc_del;"),
+            f"{QBD_ADDS}: {add_name} deletes before post-drop kill credit",
+        )
     require(
         npcs.get("rs2012_qbd_tortured_soul", {}).get("hitpoints") == 500,
         f"{QBD_NPCS}: tortured soul must retain its 500-LP interrupt pool",

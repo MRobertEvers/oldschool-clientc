@@ -15,9 +15,10 @@ The two historical targets are:
 
 1. Queen Black Dragon as released on **29 May 2012**, with an optional explicit
    `7 August 2012` stabilisation profile for the four fixes Jagex documented.
-2. Tormented demons after **While Guthix Sleeps**, using the pre-Evolution of
-   Combat state visible during 2012. Dragon limbs are excluded because they were
-   added on 20 November 2012 with the Evolution of Combat.
+2. Tormented demons as introduced with **While Guthix Sleeps** on 26 November
+   2008, using the pre-Evolution of Combat profile still visible during 2012.
+   Dragon limbs are excluded because they were added on 20 November 2012 with
+   the Evolution of Combat.
 
 The commonly repeated 22 May date for QBD is not the release date used here.
 Jagex's launch post is dated 29 May 2012 and says that the Queen had arrived.
@@ -182,6 +183,14 @@ four waves in phase 4.
   LP range as constants and marks it uncertain.
 - After its first cast a surviving soul uses weak, inaccurate melee (B).
 
+Souls and worms live in the same 2012-LP domain as the Queen but are ordinary
+mortal adds. Every successful player roll is multiplied by ten before reaching
+their 500/650-LP pools, while XP retains the original old-HP roll; a miss remains
+zero in both domains. They deliberately bypass QBD's 1,000-LP hit cap,
+intermission immunity, and leave-one-LP phase transition. Ordinary attacks,
+Royal-crossbow delayed splats, and all Dragon-claw splats share this preparation
+path, including the remaining-HP XP clamp on a killing hit.
+
 The 7 August profile prevents a summon and a shadow cast from overlapping
 within approximately ten seconds and keeps a soul from wandering immediately
 after teleport. The strict launch profile intentionally permits the documented
@@ -262,9 +271,10 @@ open727 encounter always uses NPC 15464. The current port retains 15464 and
 marks later-size variants for visual QA.
 
 open727 coughs one worm every ten ticks while an artefact remains unactivated;
-that cadence is retained as D. Killed souls and worms explicitly call
-`npc_del` after their death trigger, so mock230 cannot re-arm an ordinary NPC
-respawn clock; final-restoration cleanup removes surviving adds without rolling
+that cadence is retained as D. Killed souls and worms yield once after their
+drop/state trigger so generic post-kill credit still sees the dead NPC, then
+explicitly call `npc_del`; mock230 therefore cannot re-arm an ordinary NPC
+respawn clock. Final-restoration cleanup removes surviving adds without rolling
 their death drops.
 
 The authentic dynamic locs reveal each new path, while a per-candidate movement
@@ -602,8 +612,11 @@ Both packed tracks use source patch 1157 and the foreign index-14 setup; the
 closure contains 83 recorded samples in total. Entry sends 1119, the first
 artefact restoration changes to 1118, and shared leave/death/logout cleanup
 sends `midi_song(-1)` so the boss track cannot leak into an unmapped exterior
-region. Numeric IDs in source index 14 are a different namespace and must not
-be confused with music-track IDs.
+region. On the revision-239 wire, each positive scripted `midi_song` is carried
+in the client's V2 envelope `(0,60,60,0)`; that is destination transport
+behaviour, not a recovered 2012 encounter-timing claim. Numeric IDs in source
+index 14 are a different namespace and must not be confused with music-track
+IDs.
 
 ## 6. QBD reward contract
 
@@ -627,6 +640,14 @@ well as the server allocation. mock230 therefore creates the ten-slot custom
 container on first use, transmits it to the authentic coffer component, and
 persists its owned contents through save/logout; it is not a script-only name
 that disappears when the composed cache boots.
+
+The coffer is a compact reward ledger, so one source cell may legally display
+`dragon bones x5` even though bones are not stackable in a backpack. Both
+per-slot Take and Take all use one transfer primitive: backpack capacity is
+preflighted for five spaces and the claim materialises five separate one-bone
+cells, while banks and genuinely stackable items keep their full-count move.
+The runtime regression constructs this exact five-bone case and restores the
+original backpack/coffer state after proving the result.
 
 Source loc 70815 chooses its closed/open child through a revision-727 varbit
 whose numeric ID means an unrelated quest state in OSRS239. On every unclaimed
@@ -1136,7 +1157,10 @@ The following are completed machine checks, not a list of aspirations:
   click-through sentinel, and the destructive coffer-button bindings.
 - `tools/test_rs2012_qbd_combat_contract.py` proves the 600-tick antifire
   lifecycle, sourced QBD defence rows and typed hit routing, historical
-  650-LP/melee-and-Magic Giant Worm, one-life add cleanup, and outgoing maxima.
+  650-LP/melee-and-Magic Giant Worm, soul/worm ten-to-one LP and XP domains,
+  their exclusion from Queen-only phase rules, one-life post-kill cleanup, and
+  outgoing maxima. The host fixture kills a 500-LP time-stop caster and a
+  650-LP worm through the shared player-hit queues.
 - `tools/test_rs2012_qbd_lifecycle.py` plus the host fixture prove gated and
   manifest-only entry, per-step departure detection in arena and reward room,
   complete NPC/queue/UI/music/lock teardown, unclaimed-coffer preservation,
@@ -1144,7 +1168,9 @@ The following are completed machine checks, not a list of aspirations:
 - `tools/test_rs2012_qbd_reward_items.py` proves all 11 reversible kit maps,
   Royal tanning at both Ellis and Sbott, exact leather levels/quantities/XP,
   four journals and reclaim guards, equipment gates, kiteshield, bolts, and
-  all six imported note-link pairs.
+  all six imported note-link pairs. Its host-backed claim test also proves that
+  a compact five-bone reward becomes five legal one-item backpack cells through
+  both claim paths without losing or duplicating container state.
 - `tools/test_rs2012_td_lifecycle.py` plus the host fixture prove the authentic
   interior exit, arbitrary-teleport and logout cleanup, death reservation and
   safe grave placement, six-NPC teardown, clean re-entry, and allocator reuse.
@@ -1166,17 +1192,15 @@ The following are completed machine checks, not a list of aspirations:
 - The five floor overlays whose material operand is restricted to `u8` resolve
   to permanently reserved destinations 211–215. Model-only materials may
   safely occupy the remainder through 466.
-- `make -C src mock230-scripts` completes with **12,941 compiled scripts**;
+- `make -C src mock230-scripts` completes with **12,948 compiled scripts**;
   `make -C src mock230` and `make -C src test-ss-meta` pass. The server-only
   pack writes **8,340 records with zero unresolved names**.
-- Both ordinary- and composed-cache host runs load **12,877 runtime scripts**.
+- Both ordinary- and composed-cache host runs load **12,884 runtime scripts**.
   Their QBD and TD lifecycle/combat blocks, the exhaustive equipment gate, and
   the live composed coffer assertions pass; the latter also has zero
-  `unknown container 2000` or VM-abort diagnostics. The current shared branch's
-  full host suite nevertheless exits on three non-RS2012 assertions introduced
-  by concurrent work: one Hans patrol waypoint and two Inferno death-cleanup
-  expectations. They are recorded here rather than being misreported as an
-  all-green global suite.
+  `unknown container 2000`, post-kill Slayer-hook, or VM-abort diagnostics.
+  After the final add-death and patrol-fixture corrections, the complete
+  composed-cache host suite reports `mock230 selftest: all checks passed`.
 
 These checks establish reproducibility, dependency closure, map tuple fidelity,
 UI structure, script compilation, and the new engine primitives. They do not

@@ -21461,6 +21461,14 @@ mock230_world_selftest(void)
                     int dx;
                     int dz;
 
+                    /* A zero-pause patrol point is consumed at the beginning
+                     * of its next turn: LostCity advances the route and takes
+                     * the first step toward the following point in that same
+                     * turn.  Count the position we sampled before advancing,
+                     * otherwise a test that starts while Hans is already on a
+                     * point falsely claims he never occupied it. */
+                    if( prev_x == dest_x && prev_z == dest_z )
+                        stood_on = 1;
                     advance_npcs(&srv);
                     srv.tick++;
                     if( npc->x == dest_x && npc->z == dest_z )
