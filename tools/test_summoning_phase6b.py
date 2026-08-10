@@ -18,7 +18,11 @@ CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
 MANIFEST = REPO / "manifest_osrs239.ini"
 OUT = REPO / "build/summoning-phase6b"
-HELM = 1155
+# The actual BOB panel's backpack coordinate selects the starter leather gloves
+# after the fixed-side panel became live. Keep the save assertion tied to the
+# precise item exercised by the client interaction, rather than a stale screen
+# coordinate's former Bronze full helm target.
+HELM = 1059
 
 
 def run(saves: Path, clicks: str, frames: int, cheat: str = "") -> str:
@@ -65,15 +69,15 @@ def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="summoning_phase6b_") as root:
         saves = Path(root) / "saves"; saves.mkdir()
-        # Actual pouch summon, NPC Store menu, then Store a real backpack helm.
+        # Actual pouch summon, NPC Store menu, then Store a real backpack item.
         first = run(saves, "220,540,230,1;270,540,260;420,450,250,1;435,450,283;475,200,205", 505,
                     "summoning_unlock;setlevel summoning 52;summoning_spirit_terrorbird_pouch")
         (OUT / "store.log").write_text(first)
         expect("You summon a Spirit terrorbird." in first, "real pouch did not summon terrorbird")
         expect("if-opensub: iface=971" in first, "real Store menu did not open BOB interface")
-        expect("Store<col=ff9040> @lre@ Bronze full helm" in first, "real BOB Store row was not clicked")
-        expect(held(saves / "guest.ini"), "stored helm was not persisted in summoning_bob")
-        # Dismiss from a copy that still carries the helm.  This is deliberately
+        expect("Store<col=ff9040> @lre@ Leather gloves" in first, "real BOB Store row was not clicked")
+        expect(held(saves / "guest.ini"), "stored item was not persisted in summoning_bob")
+        # Dismiss from a copy that still carries the item. This is deliberately
         # separate from the withdraw copy: the ground spill must be sent through
         # the rev-239 enclosed-zone OBJ_ADD route, not silently dropped.
         spill_saves = Path(root) / "spill_saves"
@@ -81,13 +85,20 @@ def main() -> int:
         spill = run(spill_saves, "350,707,484;430,602,439", 470)
         (OUT / "dismiss-spill.log").write_text(spill)
         expect("You dismiss your familiar." in spill, "real sidebar Dismiss did not execute")
-        expect("has no OBJ_ADD -- dropping it" not in spill, "dismiss spill OBJ_ADD was dropped")
+        dismiss_at = spill.rfind("clickdbg: send op1 target=0x3c90007")
+        expect(
+            dismiss_at >= 0
+            and "NPC_COORD requires" not in spill[dismiss_at:]
+            and "has no OBJ_ADD -- dropping it" not in spill[dismiss_at:]
+            and "net: <- wire=80 name=22" in spill[dismiss_at:],
+            "dismiss spill did not reach the rev-239 enclosed-zone route",
+        )
         expect(not held(spill_saves / "guest.ini"), "Dismiss did not clear the BOB container")
         # No cheat: relog restores the familiar/container; open the same menu and withdraw.
         second = run(saves, "180,450,250,1;195,450,283;235,100,80", 280)
         (OUT / "relog-withdraw.log").write_text(second)
         expect("entity_sync: npc type replacement=26016" in second, "relog did not restore terrorbird")
-        expect("Withdraw<col=ff9040> @lre@ Bronze full helm" in second, "relog BOB panel did not render stored helm")
+        expect("Withdraw<col=ff9040> @lre@ Leather gloves" in second, "relog BOB panel did not render stored item")
         expect(not held(saves / "guest.ini"), "real Withdraw did not clear persisted BOB item")
     return finish(checks, errors)
 

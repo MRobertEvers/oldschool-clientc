@@ -57,7 +57,12 @@ def main() -> int:
         # The two transition-only debug hooks must retain the build gate so a
         # feature-off server cannot mint an unlocked save.
         gate = r"\s*if \(~summoning_account_enabled = false\)"
-        if name in ("debugproc,summoning_unlock", "debugproc,summoning_lock"):
+        if name in (
+            "debugproc,summoning_unlock",
+            "debugproc,summoning_lock",
+            "debugproc,summoning_wolf_whistle_complete",
+            "oploc3,summoning_obelisk",
+        ):
             gate = r"\s*if \(\^summoning_enabled = 0\)"
         expect(re.match(gate, body) is not None, f"entry point lacks a top feature gate: [{name}]")
 
@@ -114,6 +119,15 @@ def main() -> int:
         is not None,
         "per-account Summoning unlock is not permanent",
     )
+    for token in (
+        "[proc,summoning_wolf_whistle_complete]",
+        "stat_advance(summoning, ^summoning_wolf_whistle_xp);",
+        "inv_add(inv, summoning_wolf_whistle_gold_charm, ^summoning_wolf_whistle_gold_charms);",
+        "if (%summoning_unlocked = 1) return;",
+        "[oploc3,summoning_obelisk]",
+        "~summoning_wolf_whistle_complete;",
+    ):
+        expect(token in source, f"Wolf Whistle reward contract missing: {token}")
     expect(
         all(
             re.search(rf"^\[{re.escape(name)}\]\n(?:[^\n]*\n)*?transmit=no$", varps, re.MULTILINE)
@@ -123,6 +137,12 @@ def main() -> int:
     )
 
     client_obj = (args.tree / "ported/scape2009_summoning/configs/summoning.obj").read_text(
+        encoding="utf-8"
+    )
+    wolf_ledger = (args.tree / "port/summoning_wolf_whistle_530.map").read_text(
+        encoding="utf-8"
+    )
+    wolf_obj_alloc = (args.tree / "ported/scape2009_summoning/pack/obj.alloc").read_text(
         encoding="utf-8"
     )
     client_npc = (args.tree / "ported/scape2009_summoning/configs/summoning.npc").read_text(
@@ -139,6 +159,20 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     constants = (lane / "configs/summoning.constant").read_text(encoding="utf-8")
     expect("ifop4=Summon" in client_obj, "Spirit wolf pouch does not expose its bound operation")
+    obelisk = (args.tree / "ported/scape2009_summoning/configs/summoning.loc").read_text(
+        encoding="utf-8"
+    )
+    expect(
+        "op3=Begin Wolf Whistle" in obelisk,
+        "Wolf Whistle has no ordinary client-visible completion interaction",
+    )
+    expect(
+        "obj\t12527\tquest_charm_gold\t40256\tsummoning_wolf_whistle_gold_charm\tminted\tunreviewed"
+        in wolf_ledger
+        and "40256=summoning_wolf_whistle_gold_charm" in wolf_obj_alloc
+        and "[summoning_wolf_whistle_gold_charm]" in client_obj,
+        "Wolf Whistle quest-copy charm closure is not isolated and allocated",
+    )
     expect("op1=Interact" in client_npc, "Spirit wolf familiar interaction is absent")
     expect("ifop4=Summon" in dread_obj, "Dreadfowl pouch does not expose opheld4")
     expect("op5=Special" not in dread_npc, "Dreadfowl retained an unadmitted Special surface")

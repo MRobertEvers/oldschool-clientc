@@ -20,6 +20,7 @@ def main() -> int:
     parser.add_argument("--client", type=Path, default=REPO_ROOT / "src" / "torirs")
     parser.add_argument("--flag-on", type=Path, default=REPO_ROOT / "cache.osrs239.summoning")
     parser.add_argument("--flag-off", type=Path, default=REPO_ROOT / "cache.osrs239")
+    parser.add_argument("--scripts", type=Path, default=REPO_ROOT / "OSRS-Content/osrs239-content/server/scripts/build_summoning")
     parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "build" / "summoning-phase1")
     args = parser.parse_args()
@@ -37,6 +38,7 @@ def main() -> int:
         ("client", args.client),
         ("flag-on cache", args.flag_on / "main_file_cache.dat2"),
         ("flag-off cache", args.flag_off / "main_file_cache.dat2"),
+        ("feature server scripts", args.scripts / "script.dat"),
         ("manifest", args.manifest),
     ):
         expect(path.is_file(), f"missing {label}: {path}")
@@ -86,13 +88,20 @@ def main() -> int:
         "source: Summoning icon pixels are not rev-530 sprite pack 222",
     )
 
-    def run(name: str, cache: Path, saves: Path, cheat: str | None = None) -> str:
+    def run(
+        name: str,
+        cache: Path,
+        saves: Path,
+        cheat: str | None = None,
+        sim_oploc: str | None = None,
+    ) -> str:
         bmp = args.out / f"{name}.bmp"
         log_path = args.out / f"{name}.log"
         env = os.environ.copy()
         env.update(
             {
                 "MOCK230_SAVES": str(saves),
+                "MOCK230_SCRIPTS": str(args.scripts),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "430",
                 "TORIRS_EXIT_BMP": str(bmp),
@@ -104,6 +113,10 @@ def main() -> int:
             env["TORIRS_NET_CHEAT"] = cheat
         else:
             env.pop("TORIRS_NET_CHEAT", None)
+        if sim_oploc is not None:
+            env["TORIRS_SIM_OPLOC"] = sim_oploc
+        else:
+            env.pop("TORIRS_SIM_OPLOC", None)
         command = [
             str(args.client),
             str(cache),
@@ -131,6 +144,16 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="summoning_phase1_") as temporary:
         root = Path(temporary)
+        locked = run("account_locked", args.flag_on, Path(tempfile.mkdtemp(dir=root)))
+        wolf_saves = Path(tempfile.mkdtemp(dir=root))
+        wolf_complete = run(
+            "wolf_whistle_complete",
+            args.flag_on,
+            wolf_saves,
+            "tele 3224 3220",
+            "180,3,3224,3220,62201",
+        )
+        wolf_relog = run("wolf_whistle_relog", args.flag_on, wolf_saves)
         level1 = run("flag_on_level1", args.flag_on, Path(tempfile.mkdtemp(dir=root)), "summoning_unlock")
         persistent_saves = Path(tempfile.mkdtemp(dir=root))
         level20 = run(
@@ -142,7 +165,34 @@ def main() -> int:
         persisted = run("flag_on_persisted", args.flag_on, persistent_saves)
         flagoff = run("flag_off", args.flag_off, Path(tempfile.mkdtemp(dir=root)))
 
+        expect('text="Total level: 33"' in locked, "account_locked: total still includes Summoning")
+        wolf_save = (wolf_saves / "guest.ini").read_text(encoding="utf-8")
+        expect(
+            "Congratulations! You have completed Wolf Whistle!" in wolf_complete,
+            "Wolf Whistle obelisk interaction did not announce itself in the real client",
+        )
+        expect(
+            "sim_oploc: op=3 tile=3224,3220 loc=62201" in wolf_complete
+            and "summoning_wolf_whistle_complete' -> debugproc" not in wolf_complete,
+            "Wolf Whistle did not traverse the ordinary client OPLOC3 path",
+        )
+        expect(
+            "24 = 4 2760" in wolf_save,
+            "Wolf Whistle completion did not grant the source's 276 Summoning XP",
+        )
+        expect(
+            "40256 275" in wolf_save,
+            "Wolf Whistle completion did not persist 275 quest-copy gold charms",
+        )
+        expect("320<<16|34" in wolf_complete, "Wolf Whistle completion did not unlock the skill tab")
+        expect("320<<16|34" in wolf_relog, "Wolf Whistle unlock did not survive relog")
         expect("320<<16|34" in level1, "flag_on_level1: Summoning cell is absent")
+        expect(
+            "969<<16|0" in level1
+            and 'text="Summoning points: 1/1"' in level1
+            and "if-opensub: target" not in level1,
+            "flag_on_level1: familiar sidebar did not mount into the live gameframe",
+        )
         expect(
             "dynamic graphic=229 abs=639,388 25x25 hidden=0" in level1,
             "flag_on_level1: wolf-head sprite is not rendered in the right-hand row-8 cell",
@@ -166,13 +216,14 @@ def main() -> int:
         expect("320<<16|34" in persisted, "flag_on_persisted: Summoning cell is absent")
         expect('text="Total level: 53"' in persisted, "flag_on_persisted: total is not 53")
         expect('text="20"' in persisted, "flag_on_persisted: level 20 text is absent")
+        expect('text="Total level: 33"' not in persisted, "relog: account unlock did not persist")
         expect("320<<16|34" not in flagoff, "flag_off: Summoning cell leaked")
         expect('text="Total level: 33"' in flagoff, "flag_off: total is not 33")
 
     for error in errors:
         print(f"test_summoning_phase1: error: {error}", file=sys.stderr)
     print(f"test_summoning_phase1: {checked} checks, {len(errors)} errors")
-    print(f"test_summoning_phase1: four BMPs and logs in {args.out}")
+    print(f"test_summoning_phase1: seven BMPs and logs in {args.out}")
     return 1 if errors else 0
 
 

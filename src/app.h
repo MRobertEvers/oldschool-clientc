@@ -1687,4 +1687,17 @@ App_LootNotifyKill(
     int obj_id,
     int qty);
 
+/**
+ * Send one ordinary world-object operation through the live game's outbound
+ * protocol path. This is a headless acceptance hook: callers supply the
+ * cache-defined object id and absolute tile, so no content ids live in C.
+ */
+void
+App_SimulateLocOp(
+    struct App* app,
+    int op_num,
+    int abs_x,
+    int abs_z,
+    int loc_id);
+
 #endif

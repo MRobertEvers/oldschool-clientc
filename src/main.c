@@ -1060,6 +1060,56 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_OPLOC="frame,op,x,z,loc": send one normal object-menu
+         * operation once the mock session is live. Unlike a server diagnostic,
+         * this traverses the client's net_out_oploc encoder and the server's
+         * regular OPLOC route. All values stay in the invoking test, not C. */
+        {
+            static int sim_oploc_init = 0;
+            static long sim_oploc_frame = -1;
+            static long sim_oploc_op;
+            static long sim_oploc_x;
+            static long sim_oploc_z;
+            static long sim_oploc_id;
+            if( !sim_oploc_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_OPLOC");
+                char* end = NULL;
+                sim_oploc_init = 1;
+                if( spec && *spec )
+                {
+                    sim_oploc_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_op = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_x = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_z = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_id = strtol(end + 1, &end, 0);
+                    else
+                        sim_oploc_frame = -1;
+                }
+            }
+            if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
+            {
+                fprintf(
+                    stderr,
+                    "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
+                    sim_oploc_op,
+                    sim_oploc_x,
+                    sim_oploc_z,
+                    sim_oploc_id);
+                App_SimulateLocOp(
+                    &app,
+                    (int)sim_oploc_op,
+                    (int)sim_oploc_x,
+                    (int)sim_oploc_z,
+                    (int)sim_oploc_id);
+                sim_oploc_frame = -1;
+            }
+        }
+
         /* TORIRS_SIM_RUNSCRIPT="frame,script[,arg0[,arg1...]][;frame,...]":
          * run a clientscript by id at that main-loop frame, with up to four
          * int args.

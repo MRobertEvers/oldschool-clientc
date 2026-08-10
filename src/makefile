@@ -1932,12 +1932,13 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
 		echo "mock230-cache-summoning: verified 6 clientscript archives"
 
-test-summoning-phase1: mock230-cache-summoning mock230-scripts mock230-servpack
+test-summoning-phase1: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
 		EMBED_SERVER=1 TORIDRAW_OPT=1 all
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
 		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
-		--flag-off $(REPO_ROOT)/cache.osrs239 --manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
 test-summoning-phase4: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \

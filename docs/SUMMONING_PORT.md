@@ -2,8 +2,19 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phases 0–4 and all 77 bounded Phase-5 familiar/pouch cohorts are implemented. Phoenix
-is admitted as a non-audio asset closure; its unsafe synths and gameplay remain out of scope.
+**Status:** Phases 0–4 and all 77 bounded Phase-5 familiar/pouch cohorts are implemented. The
+completion lanes below supersede the former Phase-7 holdbacks for Wolf Whistle, safe audio, and
+the separately-lifecycled pets.
+
+### Completion authority — 2026-08-10
+
+The user explicitly authorized completing this port, including whatever bounded content is needed
+to remove the outstanding failure states. That authorizes new target-native quest interactions,
+the source-backed audio closure, and pet records/lifecycle work. It **does not** authorize a
+blanket promotion of the preserved `summoning_roster_530` experiment: every admitted record still
+needs its own ledger, source closure, feature-on stage inclusion, and fresh-save real-client proof.
+Unsafe synths remain withheld unless their source payload is transcoded and verified against the
+target codec.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -110,8 +121,9 @@ governs it. Do not scope, tier, or budget this port around the initial-field wid
 Consequences for this lane:
 
 - Port all 82 familiars. No tiering for id reasons.
-- Wilderness combat twins (`id+1`) and pets stay descoped for *behavioural* reasons (a separate
-  lifecycle, no wilderness in this tree), not id reasons.
+- Wilderness combat twins (`id+1`) remain descoped for behavioural reasons (no wilderness in this
+  tree). Pets are now an explicit completion lane with a separate lifecycle; they must never reuse
+  familiar ownership/timers.
 - `content_register.c` npc `server_base = 20000` is valid. Allocation and collision checks remain
   normal content-lane concerns; they are not wire-width budgeting.
 
@@ -504,9 +516,37 @@ as a 30-slot cache inventory and resolves through the ordinary container path. T
 documented shop prerequisite. The next slice binds a single admitted familiar to that inventory,
 then proves store/withdraw, dismiss spill, and logout/relog persistence in the real client.
 
-**Phase 7 — polish.** Sidebar tab if deferred · per-account unlock · Wolf Whistle · remaining
-sounds · pets (a separate lifecycle — stub the save shape now so it can be added later without a
-migration).
+**Phase 7 — polish.** Execute these slices in order; each client-visible slice retains its
+fresh-save framebuffer and logs.
+
+1. **7a — per-account unlock (done).** `summoning_unlocked` persists and synchronizes the
+   existing `content_restrict_summoning_serverside` varbit on login; every runtime Summoning
+   entry point requires that state. The sidebar now mounts through the canonical gameframe role,
+   so the encoder targets the root actually live for fixed and both resizable layouts. Fresh
+   locked/unlocked/relog acceptance is 42/0, and the real Spirit-terrorbird Store → relog →
+   Withdraw → Dismiss-spill regression passes.
+2. **7b — Wolf Whistle unlock writer (done).** The upstream completion contract is a
+   persisted unlock, 276 Summoning XP, and 275 gold charms. The generic gold charm was already
+   present (`12158 → 40002`); the missing closure was the quest-only reward copy
+   (`12527 → 40256`), whose verified charm model is deliberately a separate target item so it
+   cannot be infused. The idempotent completion writer now grants the persistent gate, 2760
+   ServerScript XP units, and 275 quest-copy charms; it is idempotent and covered through relog
+   in the real-client harness.
+3. **7c — safe audio closure (done).** Source synth 188 maps to the already cache-native
+   `summon_npc` record after a byte-identical payload check, so no new sound archive was admitted.
+   The real sidebar Call action now emits SYNTH_SOUND 188 (one loop, zero delay), retained in the
+   permanent client log. 4161/4164/4214/4265/4372 remain withheld until their 530 payloads are
+   transcoded and decoded by the target codec.
+4. **7d — first pet lifecycle.** Admit the smallest complete pet closure in a dedicated ledger.
+   Persist only pet-specific type/state, spawn it independently of familiar state, and prove
+   release, pickup/dismiss/death, and logout/relog in the real client.
+5. **7e — Wolf Whistle interaction (done).** A target-native `Begin Wolf Whistle` third
+   operation on the feature-on obelisk calls the existing idempotent writer and remains available
+   while the account is locked. The permanent harness sends the real client's `OPLOC3` packet,
+   retains the completion frame/log, and proves the persistent unlock through relog.
+6. **7f — completion audit.** For every remaining withheld audio or pet candidate, record either
+   an admitted closure with interaction proof or an explicit codec/asset reason it cannot ship.
+   The port is complete only when no queue row is left pending or in progress.
 
 ---
 

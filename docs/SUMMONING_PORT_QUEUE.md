@@ -52,6 +52,9 @@ Each tick ports **one** pending unblocked slice per [`PORTING_GUIDE.md`](PORTING
   everything `summoning_*`.
 - **Never park sibling content** to green a compile — no `*.skip`, no moving live trees aside.
   Fix your own slice (`PORTING_GUIDE` §7).
+- **Completion authority does not mean bulk promotion.** The user's completion authorization
+  permits required quest/audio/pet work, but every former review-only record still needs a
+  dedicated ledger, source closure, staged feature-on record, and real-client acceptance.
 - **A skip is not a pass.** Every summoning target must assert a non-zero check count.
 - **727 CS2 is foreign bytecode, not osrs239 source.** Preserve a raw instruction/operand plus
   stack-effect disassembly first, decompile with an explicit 727 dialect second, and only then
@@ -183,18 +186,25 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 5bh | Phoenix | 5 | **done** | Source `8575/14623` → target `27232/47232`; nine-row non-audio closure admitted. Unsafe synth sources `5776` and `5753` are deliberately withheld; Phoenix has no source `Familiar` class, so gameplay/audio remains out of scope. |
 | 6a | Inventory namespace prerequisite | 6 | **done** | `fields/inv.ini`, `[namespace:inv]`, and feature-on `summoning_bob` (30 slots) are present. `mock230-cache-summoning` bakes the record and the normal container resolver can allocate it; this also removes the documented shop prerequisite. |
 | 6b | First Beast of Burden familiar | 6 | **done** | Spirit terrorbird is the selected 12-slot proof familiar. `test-summoning-phase6b` proves real pouch → NPC Store menu → rendered BOB panel → Store, no-cheat relog persistence, real Withdraw, and sidebar Dismiss spill. Rev-239 `OBJ_ADD` state replay now uses the required enclosed-zone route. |
-| 7a | Per-account Summoning unlock | 7 | **pending** | Use the existing `content_restrict_summoning_serverside` client varbit and a persisted server-side gate; retain build-level isolation and prove locked/unlocked client behaviour on fresh saves. |
+| 7a | Per-account Summoning unlock + sidebar root sync | 7 | **done** | Persisted `summoning_unlocked` syncs `content_restrict_summoning_serverside` at login; runtime entries are account-gated; locked/unlocked/relog client acceptance is 42/0. Group 969 mounts through the live gameframe role, and the real Spirit-terrorbird Store → relog → Withdraw → Dismiss-spill regression passes. |
+| 7b | Wolf Whistle unlock writer | 7 | **done** | Upstream completion contract verified: persist unlock, grant 276 Summoning XP and 275 gold charms. Generic charm `12158→40002` was already admitted; the distinct quest-reward copy `12527→40256` has its own audited ledger and cannot enter infusion. `summoning_wolf_whistle_complete` is idempotent, persists the gate, grants 2760 ServerScript XP units and 275 copies, and has real-client/relog harness proof. |
+| 7c | Safe shared familiar audio | 7 | **done** | Source synth 188 is ledgered against cache-native `summon_npc` after a byte-identical payload check. The actual sidebar Call path emits SYNTH_SOUND 188 (one loop, zero delay), retained in the permanent real-client log. 4161/4164/4214/4265/4372 remain withheld until transcoded and verified. |
+| 7d | First pet lifecycle | 7 | **pending** | Admit one complete pet closure in its own ledger; implement separate persisted type/state and prove release, pickup/dismiss/death, and relog without reusing familiar timers/ownership. |
+| 7e | Wolf Whistle interaction | 7 | **done** | The feature-on obelisk exposes `Begin Wolf Whistle` as its third ordinary operation, available to locked accounts and wired directly to the idempotent writer. The permanent fresh-save harness sends the normal client `OPLOC3` packet, confirms the reward/state, and verifies the unlocked tab after relog. |
+| 7f | Completion audit | 7 | **pending** | Resolve every remaining audio/pet holdback to either an admitted, interaction-proven closure or an explicit codec/asset disposition. No Phase-7 row may remain open at completion. |
 
 Phases 5–7 (breadth, Beast of Burden, polish) are scoped in
 [`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9. Phase 5 is complete: the preserved generated
 experiment remains review-only and is not accepted merely because its importer dry-run succeeds.
-Phase 6 is complete. The next unblocked slice is 7a, the per-account Summoning unlock.
+Phases 6, 7a, 7b, 7c, and 7e are complete. The next unblocked slice is 7d, the separate pet
+lifecycle.
 
 ---
 
 ## Loop prompt
 
 Read [`SUMMONING_PORT.md`](SUMMONING_PORT.md) + `PORTING_GUIDE` §4/§4.5/§7; take the next pending
-unblocked slice (currently 7a); never park sibling lanes; verify (`mock230_pack --check-only`,
+unblocked slice (currently 7d); completion authority permits required bounded quest/audio/pet
+closures, never bulk review-only promotion; verify (`mock230_pack --check-only`,
 `make -C src mock230-scripts`, and the flag-off byte-identity check); update this file and the
 budget/opcode tables; re-arm. Stop only when the user stops the loop.

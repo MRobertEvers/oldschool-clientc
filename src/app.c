@@ -5413,6 +5413,28 @@ App_LootNotifyKill(
     }
 }
 
+void
+App_SimulateLocOp(
+    struct App* app,
+    int op_num,
+    int abs_x,
+    int abs_z,
+    int loc_id)
+{
+    assert(app);
+    APP_NET_SEND(
+        app,
+        net_out_oploc(
+            app->net->rev,
+            app->net->random_out,
+            _nsbuf,
+            sizeof(_nsbuf),
+            op_num,
+            abs_x,
+            abs_z,
+            loc_id));
+}
+
 /* Shared per-frame completion polls for async work (world load, textures,
  * deferred seq binds, tree refresh). Not run while BOOTING. */
 static void
@@ -12908,6 +12930,8 @@ App_PlaySound(
     int delay)
 {
     assert(app);
+    if( getenv("TORIRS_SOUND_DEBUG") )
+        fprintf(stderr, "sound: synth=%d loops=%d delay=%d\n", sound_id, loops, delay);
     RS_Audio_Synth(&app->audio, sound_id, loops, delay);
 }
 

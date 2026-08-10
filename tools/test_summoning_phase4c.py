@@ -85,6 +85,7 @@ def main() -> int:
                 "TORIRS_SIM_CLICK_AT": "210,617,154",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
+                "TORIRS_SOUND_DEBUG": "1",
             }
         )
         result = subprocess.run(
@@ -132,6 +133,10 @@ def main() -> int:
         "orb did not send its real IF_BUTTON1 packet",
     )
     expect("message_game: You call your familiar." in result.stdout, "orb click did not call")
+    expect(
+        "sound: synth=188 loops=1 delay=0" in result.stdout,
+        "familiar call did not emit the verified shared SYNTH_SOUND packet",
+    )
     expect("CS2VM2: abort" not in result.stdout, "orb clientscript aborted")
 
     for error in errors:
