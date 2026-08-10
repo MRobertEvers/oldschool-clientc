@@ -23,6 +23,9 @@ QBD_NPCS = QBD / "configs/rs2012_qbd.npc"
 QBD_COMBAT = QBD / "scripts/rs2012_qbd_combat.rs2"
 QBD_ADDS = QBD / "scripts/rs2012_qbd_adds.rs2"
 QBD_SESSION = QBD / "scripts/rs2012_qbd_session.rs2"
+QBD_SELFTEST = QBD / "scripts/rs2012_qbd_selftest.rs2"
+TD_PLAYER_HIT = SCRIPTS / "areas/area_rs2012_tormented_demons/scripts/rs2012_td_player_hit.rs2"
+DRAGON_CLAWS = SCRIPTS / "areas/area_rs2012_tormented_demons/scripts/rs2012_dragon_claws.rs2"
 ANTIFIRE_CONSTANTS = SCRIPTS / "player/configs/consumption/antifire.constant"
 ANTIFIRE_SCRIPT = SCRIPTS / "player/scripts/consumption/antifire_potion.rs2"
 LOGIN = SCRIPTS / "player/login.rs2"
@@ -273,6 +276,79 @@ def check(root: Path) -> list[str]:
     combat = (root / QBD_COMBAT).read_text(encoding="utf-8")
     adds = (root / QBD_ADDS).read_text(encoding="utf-8")
     session = (root / QBD_SESSION).read_text(encoding="utf-8")
+    shared_hit = (root / TD_PLAYER_HIT).read_text(encoding="utf-8")
+    claws = (root / DRAGON_CLAWS).read_text(encoding="utf-8")
+    selftest = (root / QBD_SELFTEST).read_text(encoding="utf-8")
+
+    add_predicate = re.search(
+        r"^\[proc,rs2012_qbd_is_add_type\]\(\)\(boolean\)\s*$\n(.*?)(?=^\[|\Z)",
+        shared_hit,
+        re.MULTILINE | re.DOTALL,
+    )
+    require(add_predicate is not None, f"{TD_PLAYER_HIT}: missing QBD-add predicate")
+    for add_name in ("rs2012_qbd_tortured_soul", "rs2012_qbd_giant_worm"):
+        require(
+            add_predicate is not None and f"npc_type = {add_name}" in add_predicate.group(1),
+            f"{TD_PLAYER_HIT}: {add_name} bypasses the revision-727 LP predicate",
+        )
+    for fragment in (
+        "def_boolean $qbd_add = ~rs2012_qbd_is_add_type;",
+        "$prepared = ~rs2012_qbd_prepare_add_player_hit($rolled_damage, $hit_success);",
+        "else if ($qbd = true | $qbd_add = true)",
+    ):
+        require(fragment in shared_hit, f"{TD_PLAYER_HIT}: missing QBD-add funnel contract: {fragment!r}")
+
+    add_prepare = re.search(
+        r"^\[proc,rs2012_qbd_prepare_add_player_hit\].*?$\n(.*?)(?=^\[|\Z)",
+        combat,
+        re.MULTILINE | re.DOTALL,
+    )
+    require(add_prepare is not None, f"{QBD_COMBAT}: missing mortal QBD-add LP adapter")
+    if add_prepare is not None:
+        body = add_prepare.group(1)
+        require(
+            "return(multiply($rolled_damage, ^rs2012_qbd_lp_scale));" in body,
+            f"{QBD_COMBAT}: QBD adds must convert old HP to revision-727 LP",
+        )
+        for forbidden in ("rs2012_qbd_hit_cap_lp", "rs2012_qbd_intermission", "sub(npc_stat(hitpoints), 1)"):
+            require(
+                forbidden not in body,
+                f"{QBD_COMBAT}: mortal QBD adds inherited Queen-only rule {forbidden!r}",
+            )
+
+    claws_queue = re.search(
+        r"^\[proc,rs2012_claws_queue_hit\].*?$\n(.*?)(?=^\[|\Z)",
+        claws,
+        re.MULTILINE | re.DOTALL,
+    )
+    require(claws_queue is not None, f"{DRAGON_CLAWS}: missing per-splat queue helper")
+    if claws_queue is not None:
+        body = claws_queue.group(1)
+        require(
+            body.count("~player_hit_npc_prepare(") == 1,
+            f"{DRAGON_CLAWS}: each claw splat must enter the shared hook exactly once",
+        )
+        require(
+            "~rs2012_qbd_is_add_type = true" in body,
+            f"{DRAGON_CLAWS}: remaining-HP clamp loses the QBD-add XP domain",
+        )
+
+    host_probe = re.search(
+        r"^\[proc,rs2012_qbd_add_hit_host_probe\]\s*$\n(.*?)(?=^\[|\Z)",
+        selftest,
+        re.MULTILINE | re.DOTALL,
+    )
+    require(host_probe is not None, f"{QBD_SELFTEST}: missing live QBD-add hit probe")
+    if host_probe is not None:
+        body = host_probe.group(1)
+        for fragment in (
+            "if (~rs2012_qbd_is_add_type = false)",
+            "if (npc_type = rs2012_qbd_giant_worm) $rolled_damage = 65;",
+            "$prepared, $xp_damage = ~player_hit_npc_prepare($rolled_damage, true);",
+            "%mock_quest_progress = add(multiply($prepared, 1000), $xp_damage);",
+            "npc_queue(2, $prepared, 0);",
+        ):
+            require(fragment in body, f"{QBD_SELFTEST}: incomplete live add probe: {fragment!r}")
     require(
         "$accurate = ~npc_player_hit_roll($accuracy_style);" in combat,
         f"{QBD_COMBAT}: QBD/add melee or Magic accuracy bypasses npc_player_hit_roll",
@@ -357,6 +433,10 @@ def check(root: Path) -> list[str]:
             f"{QBD_ADDS}: {add_name} can respawn after an encounter-owned death",
         )
     require(
+        npcs.get("rs2012_qbd_tortured_soul", {}).get("hitpoints") == 500,
+        f"{QBD_NPCS}: tortured soul must retain its 500-LP interrupt pool",
+    )
+    require(
         npcs.get("rs2012_qbd_giant_worm", {}).get("hitpoints") == 650,
         f"{QBD_NPCS}: giant worm must retain the 21-Jun-2012 650-LP pool",
     )
@@ -407,7 +487,7 @@ def main() -> int:
     print(
         "rs2012-qbd-combat: 600-tick potions, unique handlers, sourced NPC "
         "bonuses, calibrated rolls, accuracy routing, one-life adds, maxima, "
-        "and QBD protection OK"
+        "LP-domain dispatch, and QBD protection OK"
     )
     return 0
 

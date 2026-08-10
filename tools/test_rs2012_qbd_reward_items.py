@@ -63,6 +63,10 @@ def main() -> None:
         "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
         "rs2012_qbd_rewards.rs2"
     )
+    qbd_selftest = read(
+        "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
+        "rs2012_qbd_selftest.rs2"
+    )
     qbd_obj = read(
         "server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.obj"
     )
@@ -319,10 +323,35 @@ def main() -> None:
     ):
         raise AssertionError("bulk Take path transfers before capacity preflight")
 
+    runtime = block(qbd_selftest, "proc,rs2012_qbd_test_claim_expansion")
+    require(runtime, "inv_setslot(rs2012_qbd_rewardinv, $source_slot, dragon_bones, 5);", "runtime coffer fixture")
+    require(runtime, "~rs2012_qbd_transfer_reward(inv, dragon_bones, 5);", "runtime production transfer")
+    for slot in range(5):
+        require(
+            runtime,
+            f"inv_getobj(inv, $slot{slot}) ! dragon_bones | inv_getnum(inv, $slot{slot}) ! 1",
+            f"runtime backpack cell {slot}",
+        )
+        require(
+            runtime,
+            f"inv_delslot(inv, $slot{slot});",
+            f"runtime backpack restoration {slot}",
+        )
+    require(
+        runtime,
+        "inv_getobj(rs2012_qbd_rewardinv, $source_slot) ! null",
+        "runtime coffer source-removal assertion",
+    )
+    require(
+        qbd_selftest,
+        "[debugproc,rs2012qbdclaimtest]",
+        "runtime claim debug entry",
+    )
+
     print(
         "rs2012 QBD reward-item contract: 11 reversible kit maps, Royal "
         "tanning/crafting, 4 journals, wear gates, kite, bolts, and 6 note "
-        "closures; coffer unit-expanding claims OK"
+        "closures; coffer unit-expanding claims and runtime fixture OK"
     )
 
 

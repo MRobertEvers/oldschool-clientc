@@ -23148,9 +23148,9 @@ mock230_world_selftest(void)
                 /* A real wizard is the useful integration case for the same
                  * handoff: its Fire Strike queues a two-argument delayed
                  * player hit.  Check the queue at its source before the
-                 * projectile delay elapses, so a magic miss (which correctly
-                 * carries damage 0) cannot hide a lost queue or shifted
-                 * arguments. */
+                 * projectile delay elapses.  Normal casts may miss or roll
+                 * zero damage, so this fixture seeds a positive hit before
+                 * asserting the queue arguments. */
                 {
                     const struct SSVM_Script* damage =
                         SSVM_ProviderGetByName(srv.scripts, "[queue,combat_damage_player]");
@@ -26940,7 +26940,11 @@ mock230_world_selftest(void)
                 if( sentinel >= 0 )
                 {
                     srv.npcs[sentinel].spawn_pending = 0;
-                    srv.npcs[sentinel].timer_interval = 0;
+                    /* Zuk's timer intentionally does not trust the generic
+                     * active flag. Death must freeze it while still retaining
+                     * the NPC, otherwise a pre-armed actor can overwrite the
+                     * corpse animation before post-respawn cleanup. */
+                    srv.npcs[sentinel].timer_interval = 1;
                     srv.npcs[sentinel].mode = MOCK230_NPCMODE_NONE;
                 }
             }
@@ -26995,6 +26999,9 @@ mock230_world_selftest(void)
                            "the corpse animation should retain its reservation");
             SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
                            "the corpse animation should retain Inferno actors");
+            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].timer_interval == 0 &&
+                               srv.npcs[sentinel].mode == MOCK230_NPCMODE_NONE,
+                           "early death handling should freeze retained Inferno actors");
             if( damage && death && zuk_start )
             {
                 int pending_damage = 0;
@@ -27282,6 +27289,135 @@ mock230_world_selftest(void)
     }
 
     /*
+     * The Queen, her tortured souls, and the intermission worms all store
+     * revision-727 life points, but only the Queen owns a phase cap and a
+     * leave-one-LP transition. Exercise the actual shared player-hit funnel on
+     * both mortal add types: a 50 old-HP roll must kill a 500-LP channelled
+     * soul and award 50-domain XP, while 65 does the same to a 650-LP worm.
+     *
+     * The soul is marked as the active time-stop caster before its queued hit.
+     * Its real ai_queue3 has to run and clear that latch, which proves the
+     * scaled damage can interrupt the spell rather than merely changing a
+     * helper's arithmetic.
+     */
+    fprintf(stderr, "mock230 selftest: QBD adds share LP scaling but die normally\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* probe =
+                SSVM_ProviderGetByName(srv.scripts, "[proc,rs2012_qbd_add_hit_host_probe]");
+            int caster_alive =
+                mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_time_caster_alive");
+            int soul_type =
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_tortured_soul");
+            int worm_type =
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_giant_worm");
+            int soul = -1;
+            int worm = -1;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(probe && caster_alive >= 0 && soul_type > 0 && worm_type > 0,
+                           "the QBD-add hit fixture should resolve probe/varp/types: "
+                           "%p/%d/%d/%d",
+                           (void*)probe, caster_alive, soul_type, worm_type);
+
+            if( probe && caster_alive >= 0 && soul_type > 0 && worm_type > 0 )
+            {
+                soul = mock230_world_npc_spawn(
+                    &srv, soul_type, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(soul >= 0 && srv.npcs[soul].hitpoints == 500,
+                               "the time-stop soul should spawn with 500 LP, slot=%d hp=%d",
+                               soul, soul >= 0 ? srv.npcs[soul].hitpoints : -1);
+                if( soul >= 0 )
+                {
+                    struct Mock230Npc* npc = &srv.npcs[soul];
+
+                    npc->spawn_pending = 0;
+                    npc->timer_interval = 0;
+                    npc->script_vars[0] = 1; /* channelled-caster role */
+                    player->varps[caster_alive] = 1;
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(mock230_scripts_run_proc_on_npc(
+                                       &srv, "[proc,rs2012_qbd_add_hit_host_probe]", soul),
+                                   "the shared QBD-add hit probe should run on a soul");
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 500050 &&
+                                       npc->hitpoints == 500,
+                                   "a queued soul hit should prepare 500 LP / 50 XP before "
+                                   "landing, encoded=%d hp=%d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS],
+                                   npc->hitpoints);
+                    for( int tick = 0; tick < 8 && npc->active; tick++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(!npc->active && player->varps[caster_alive] == 0,
+                                   "the lethal scaled hit should retire the time-stop caster "
+                                   "and clear its latch, active=%d caster=%d hp=%d",
+                                   npc->active, player->varps[caster_alive], npc->hitpoints);
+                }
+
+                worm = mock230_world_npc_spawn(
+                    &srv, worm_type, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(worm >= 0 && srv.npcs[worm].hitpoints == 650,
+                               "the QBD intermission worm should spawn with 650 LP, "
+                               "slot=%d hp=%d",
+                               worm, worm >= 0 ? srv.npcs[worm].hitpoints : -1);
+                if( worm >= 0 )
+                {
+                    struct Mock230Npc* npc = &srv.npcs[worm];
+
+                    npc->spawn_pending = 0;
+                    npc->timer_interval = 0;
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(mock230_scripts_run_proc_on_npc(
+                                       &srv, "[proc,rs2012_qbd_add_hit_host_probe]", worm),
+                                   "the shared QBD-add hit probe should run on a worm");
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 650065 &&
+                                       npc->hitpoints == 650,
+                                   "a queued worm hit should prepare 650 LP / 65 XP before "
+                                   "landing, encoded=%d hp=%d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS],
+                                   npc->hitpoints);
+                    for( int tick = 0; tick < 8 && npc->active; tick++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(!npc->active,
+                                   "the lethal scaled hit should use the worm's ordinary "
+                                   "one-life death path, active=%d hp=%d",
+                                   npc->active, npc->hitpoints);
+                }
+            }
+
+            /* A failing death assertion must not poison the lifecycle fixture
+             * below with a live add or a borrowed time-caster flag. */
+            if( soul >= 0 && srv.npcs[soul].active )
+            {
+                mock230_world_npc_occupancy(&srv.npcs[soul], 0);
+                srv.npcs[soul].active = 0;
+                srv.npcs[soul].respawn_tick = -1;
+                mock230_zone_npc_refile(&srv, soul);
+            }
+            if( worm >= 0 && srv.npcs[worm].active )
+            {
+                mock230_world_npc_occupancy(&srv.npcs[worm], 0);
+                srv.npcs[worm].active = 0;
+                srv.npcs[worm].respawn_tick = -1;
+                mock230_zone_npc_refile(&srv, worm);
+            }
+            if( caster_alive >= 0 )
+                player->varps[caster_alive] = 0;
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    /*
      * QBD owns two different private squares over one reward lifecycle: the
      * arena, then (or on a later return) the Dragonkin coffer room. An
      * unrelated teleport does not know either handle and must not have its
@@ -27373,6 +27509,78 @@ mock230_world_selftest(void)
                 int queue_count = 0;
                 int hud_mounts = 0;
                 int coffer_mounts = 0;
+
+                /*
+                 * The Dragonkin coffer compresses five guaranteed dragon
+                 * bones into one display cell. Its production backpack move
+                 * must expand that synthetic count into five physical cells;
+                 * otherwise the generic inv_moveitem arm creates one illegal
+                 * "Dragon bones x5" backpack stack. The content fixture calls
+                 * the same transfer proc as both Take buttons and cleans up
+                 * only the five empty cells it recorded. Compare both backing
+                 * arrays afterward so an OK line cannot hide leaked test
+                 * state. This leg needs the composed cache, which supplies the
+                 * private ten-slot inv definition.
+                 */
+                if( mock230_bank_inv_size(qbd_reward_inv) == 10 )
+                {
+                    static struct Mock230Capture claim_capture;
+                    struct Mock230Container* reward_container =
+                        mock230_container_resolve(&srv, player, qbd_reward_inv);
+                    struct Mock230Item saved_backpack[MOCK230_INV_SLOTS];
+                    struct Mock230Item saved_coffer[10];
+                    int ran = MOCK230_TRIGGER_NONE;
+                    int said_ok = 0;
+                    int said_fail = 0;
+
+                    SELFTEST_CHECK(reward_container && reward_container->slots == 10,
+                                   "the QBD claim fixture should resolve its ten-slot coffer");
+                    if( reward_container && reward_container->slots == 10 )
+                    {
+                        memcpy(saved_backpack, player->inv, sizeof(saved_backpack));
+                        memcpy(saved_coffer, reward_container->items, sizeof(saved_coffer));
+                        mock230_capture_begin(&srv, &claim_capture);
+                        ran = mock230_scripts_run_debugproc(&srv, "rs2012qbdclaimtest");
+                        mock230_capture_end(&srv);
+
+                        for( int i = mock230_capture_find(
+                                 &claim_capture, 90 /* MESSAGE_GAME */, 0);
+                             i >= 0;
+                             i = mock230_capture_find(&claim_capture, 90, i + 1) )
+                        {
+                            const struct Mock230CapturedPacket* packet =
+                                &claim_capture.packets[i];
+                            const char* text;
+
+                            if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                                continue;
+                            text = (const char*)packet->data + 1;
+                            if( strstr(text, "rs2012qbdclaimtest OK") )
+                                said_ok = 1;
+                            if( strstr(text, "rs2012qbdclaimtest FAIL") )
+                            {
+                                said_fail = 1;
+                                fprintf(stderr, "  %s\n", text);
+                            }
+                        }
+                        SELFTEST_CHECK(ran == MOCK230_TRIGGER_RAN,
+                                       "::rs2012qbdclaimtest should reach content");
+                        SELFTEST_CHECK(said_ok && !said_fail,
+                                       "the runtime coffer claim should prove five x1 cells");
+                        SELFTEST_CHECK(memcmp(saved_backpack, player->inv,
+                                              sizeof(saved_backpack)) == 0,
+                                       "the runtime coffer claim should restore the backpack");
+                        SELFTEST_CHECK(memcmp(saved_coffer, reward_container->items,
+                                              sizeof(saved_coffer)) == 0,
+                                       "the runtime coffer claim should restore the coffer");
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "  SKIP  runtime QBD coffer claim requires "
+                            "cache.osrs239.rs2012\n");
+                }
 
                 /* The ordinary production-shaped debug command remains gated.
                  * The manifest command bypasses only that check and does not
