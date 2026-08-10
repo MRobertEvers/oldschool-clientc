@@ -105,6 +105,69 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 4f | Authored infusion interface and pouch production | 4 | **done** | fresh target IF3 group 970, mounted through `mainmodal`, with real 1/5/10/X/All row operations; imports blank pouch 12155 plus craft/charge seqs 9068/8509, but deliberately defers unsafe synth 4164. `oploc1` preserves the interacted loc and button production re-finds it before player/loc animation, recipe consumption, pouch add, and 4.8-XP award. `test-summoning-phase4f` 69/0 runs fresh-save render and make cases through real loc + `IF_BUTTON1`, verifies saved inputs/output/stat plus active→idle obelisk animation; full Make target passes |
 | 5a | Roster import boundary and provenance audit | 5 | **done** | Boundary records 82 pouch sources: 78 active familiar/pouch pairs and four explicitly deferred Sacred Clay pairs. Phase 5a itself admitted no breadth cohort; its later separately-owned Dreadfowl admission is listed below. The `summoning_roster_530` experiment remains review-only evidence (630 source files, 2,175 pack references, 1,365 ledger rows), neither deleted nor accepted; its last broad manifests remain archived under `summoning_port/review_only/`. Staging holds it out, including mixed pack rows, and rejects other generated cohorts, pets, unsafe synths, and `npc_sounds=yes`. Evidence: Phase-5a audit 94/0; ledger 1,541 required/1,418 rows/0 errors; staging 4,545/0, 3,785 review references held and 2,805 withheld, with 417 staged actual files and review exclusion 417/0; feature cache 16,998 records/0 errors, 187 assets/23 tables, CS2 6/0, ServerScript 12,963 scripts, `mock230_pack --check-only` 8,340/0; flag-off 25/0 |
 | 5b | First bounded familiar/pouch cohort | 5 | **done** | Sole admitted Dreadfowl closure: source NPC 6825/pouch 12043 → target NPC 26000/pouch 46000; models 120000–120002, ready/walk seq 23000/23001, animation 23000 and framemap 10000. Its nine-row separate ledger remains `minted`/`unreviewed`, not human signoff; no combat, pet, scroll/special, or audio closure. Structural/staging proof 202/0 preserves `summoning_roster_530` as review-only. Normal real-client proof 110/0 uses the actual menu chain `ifop4=Summon` → action 2231/op 5 → `IF_BUTTONX op=6` → `OPHELD4`, consumes rather than drops the pouch, renders model/head/ready animation plus normal-server `IF_SETNPCHEAD` `npc_head ... applied=1`, and proves persisted 400-tick/drain lifecycle plus real Call/Dismiss |
+| 5c | Second bounded familiar/pouch cohort | 5 | **done** | Source NPC 6794/spirit terrorbird + pouch 12007; target NPC 26016/pouch 46016; models 120032–120034; ready/walk seq 23032/23033, animation 23032 and framemap 10032. Its nine-row separate ledger remains `minted`/`unreviewed`; no combat, pet, scroll/special, or audio closure. Structural/staging evidence: generated config/assets added under `ported/scape2009_summoning/`; cohort ledger `port/summoning_spirit_terrorbird_530.map` has nine minted rows and the same boundary checks as 5b |
+| 5d | Third bounded familiar/pouch cohort | 5 | **done** | Source NPC 6841/Spirit spider + pouch 12059; target NPC 26032/pouch 46032; models 120064–120066; ready/walk seq 23064/23065, animation 23064 and framemap 10064. Its nine-row separate ledger remains `minted`/`unreviewed`; no combat, pet, scroll/special, or audio closure. Generated config/assets are isolated under `ported/scape2009_summoning/` and the allocation block is disjoint from all earlier admitted cohorts. |
+| 5e | Fourth bounded familiar/pouch cohort | 5 | **done** | Source NPC 6806/Thorny snail + pouch 12019; target NPC 26048/pouch 46048; models 120096–120098; ready/walk seq 23096/23097, animation 23096 and framemap 10096. Its nine-row separate ledger remains `minted`/`unreviewed`; no combat, pet, scroll/special, or audio closure. Generated config/assets are isolated under `ported/scape2009_summoning/` with a disjoint allocation block. |
+| 5f | Fifth bounded familiar/pouch cohort | 5 | **done** | Granite crab, source `6796/12009` → target `26064/46064`; nine-row asset closure, no audio or gameplay extras. |
+| 5g | Sixth bounded familiar/pouch cohort | 5 | **done** | Spirit mosquito, source `7331/12778` → target `26080/46080`; nine-row asset closure, no audio or gameplay extras. |
+| 5h | Seventh bounded familiar/pouch cohort | 5 | **done** | Desert wyrm, source `6831/12049` → target `26096/46096`; nine-row asset closure, no audio or gameplay extras. |
+| 5i | Eighth bounded familiar/pouch cohort | 5 | **done** | Spirit scorpion, source `6837/12055` → target `26112/46112`; nine-row asset closure, no audio or gameplay extras. |
+| 5j | Ninth bounded familiar/pouch cohort | 5 | **done** | Spirit Tz-Kih, source `7361/12808` → target `26128/46128`; nine-row asset closure, no audio or gameplay extras. |
+| 5k | Tenth bounded familiar/pouch cohort | 5 | **done** | Albino rat, source `6847/12067` → target `26144/46144`; nine-row asset closure. |
+| 5l | Eleventh bounded familiar/pouch cohort | 5 | **done** | Spirit kalphite, source `6994/12063` → target `26160/46160`; nine-row asset closure. |
+| 5m | Twelfth bounded familiar/pouch cohort | 5 | **done** | Compost mound, source `6871/12091` → target `26176/46176`; nine-row asset closure. |
+| 5n | Thirteenth bounded familiar/pouch cohort | 5 | **done** | Giant chinchompa, source `7353/12800` → target `26192/46192`; nine-row asset closure. |
+| 5o | Fourteenth bounded familiar/pouch cohort | 5 | **done** | Vampire bat, source `6835/12053` → target `26208/46208`; nine-row asset closure. |
+| 5p | Fifteenth bounded familiar/pouch cohort | 5 | **done** | Honey badger, source `6845/12065` → target `26224/46224`; nine-row asset closure. |
+| 5q | Sixteenth bounded familiar/pouch cohort | 5 | **done** | Beaver, source `6808/12021` → target `26240/46240`; nine-row asset closure. |
+| 5r | Seventeenth bounded familiar/pouch cohort | 5 | **done** | Void ravager, source `7370/12818` → target `26256/46256`; nine-row asset closure. |
+| 5s | Eighteenth bounded familiar/pouch cohort | 5 | **done** | Void spinner, source `7333/12780` → target `26272/46272`; nine-row asset closure. |
+| 5t | Nineteenth bounded familiar/pouch cohort | 5 | **done** | Void torcher, source `7351/12798` → target `26288/46288`; nine-row asset closure. |
+| 5u | Twentieth bounded familiar/pouch cohort | 5 | **done** | Bronze minotaur, source `6853/12073` → target `26304/46304`; nine-row asset closure. |
+| 5v | Twenty-first bounded familiar/pouch cohort | 5 | **done** | Iron minotaur, source `6855/12075` → target `26320/46320`; nine-row asset closure. |
+| 5w | Twenty-second bounded familiar/pouch cohort | 5 | **done** | Steel minotaur, source `6857/12077` → target `26336/46336`; nine-row asset closure. |
+| 5x | Twenty-third bounded familiar/pouch cohort | 5 | **done** | Mithril minotaur, source `6859/12079` → target `26352/46352`; nine-row asset closure. |
+| 5y | Twenty-fourth bounded familiar/pouch cohort | 5 | **done** | Adamant minotaur, source `6861/12081` → target `26368/46368`; nine-row asset closure. |
+| 5z | Twenty-fifth bounded familiar/pouch cohort | 5 | **done** | Rune minotaur, source `6863/12083` → target `26384/46384`; nine-row asset closure. |
+| 5aa | Twenty-sixth bounded familiar/pouch cohort | 5 | **done** | Bull ant, source `6867/12087` → target `26400/46400`; nine-row asset closure. |
+| 5ab | Twenty-seventh bounded familiar/pouch cohort | 5 | **done** | Macaw, source `6851/12071` → target `26416/46416`; nine-row asset closure. |
+| 5ac | Twenty-eighth bounded familiar/pouch cohort | 5 | **done** | Evil turnip, source `6833/12051` → target `26432/46432`; nine-row asset closure. |
+| 5ad | Twenty-ninth bounded familiar/pouch cohort | 5 | **done** | Spirit cockatrice, source `6875/12095` → target `26448/46448`; nine-row asset closure. |
+| 5ae | Thirtieth bounded familiar/pouch cohort | 5 | **done** | Spirit guthatrice, source `6877/12097` → target `26464/46464`; nine-row asset closure. |
+| 5af | Thirty-first bounded familiar/pouch cohort | 5 | **done** | Spirit saratrice, source `6879/12099` → target `26480/46480`; nine-row asset closure. |
+| 5ag | Thirty-second bounded familiar/pouch cohort | 5 | **done** | Spirit zamatrice, source `6881/12101` → target `26496/46496`; nine-row asset closure. |
+| 5ah | Thirty-third bounded familiar/pouch cohort | 5 | **done** | Spirit pengatrice, source `6883/12103` → target `26512/46512`; nine-row asset closure. |
+| 5ai | Thirty-fourth bounded familiar/pouch cohort | 5 | **done** | Spirit coraxatrice, source `6885/12105` → target `26528/46528`; nine-row asset closure. |
+| 5aj | Thirty-fifth bounded familiar/pouch cohort | 5 | **done** | Spirit vulatrice, source `6887/12107` → target `26544/46544`; nine-row asset closure. |
+| 5ak | Thirty-sixth bounded familiar/pouch cohort | 5 | **done** | Pyrelord, source `7377/12816` → target `26560/46560`; nine-row asset closure. |
+| 5al | Thirty-seventh bounded familiar/pouch cohort | 5 | **done** | Magpie, source `6824/12041` → target `26576/46576`; nine-row asset closure. |
+| 5am | Thirty-eighth bounded familiar/pouch cohort | 5 | **done** | Bloated leech, source `6843/12061` → target `26592/46592`; nine-row asset closure. |
+| 5an | Thirty-ninth bounded familiar/pouch cohort | 5 | **done** | Abyssal parasite, source `6818/12035` → target `26608/46608`; nine-row asset closure. |
+| 5ao | Fortieth bounded familiar/pouch cohort | 5 | **done** | Spirit jelly, source `6992/12027` → target `26624/46624`; nine-row asset closure. |
+| 5ap | Forty-first bounded familiar/pouch cohort | 5 | **done** | Ibis, source `6991/12531` → target `26640/46640`; nine-row asset closure. |
+| 5aq | Forty-second bounded familiar/pouch cohort | 5 | **done** | Spirit kyatt, source `7365/12812` → target `26656/46656`; nine-row asset closure. |
+| 5ar | Forty-third bounded familiar/pouch cohort | 5 | **done** | Spirit larupia, source `7337/12784` → target `26672/46672`; nine-row asset closure. |
+| 5as | Forty-fourth bounded familiar/pouch cohort | 5 | **done** | Spirit graahk, source `7363/12810` → target `26688/46688`; nine-row asset closure. |
+| 5at | Forty-fifth bounded familiar/pouch cohort | 5 | **done** | Karamthulhu overlord, source `6809/12023` → target `26704/46704`; nine-row asset closure. |
+| 5au | Forty-sixth bounded familiar/pouch cohort | 5 | **done** | Smoke devil, source `6865/12085` → target `26720/46720`; nine-row asset closure. |
+| 5av | Forty-seventh bounded familiar/pouch cohort | 5 | **done** | Abyssal lurker, source `6820/12037` → target `26736/46736`; nine-row asset closure. |
+| 5aw | Forty-eighth bounded familiar/pouch cohort | 5 | **done** | Spirit cobra, source `6802/12015` → target `26752/46752`; nine-row asset closure. |
+| 5ax | Forty-ninth bounded familiar/pouch cohort | 5 | **done** | Stranger plant, source `6827/12045` → target `26768/46768`; nine-row asset closure. |
+| 5ay | Fiftieth bounded familiar/pouch cohort | 5 | **done** | Barker toad, source `6889/12123` → target `26784/46784`; ten-row closure including four models. |
+| 5az | Fifty-first bounded familiar/pouch cohort | 5 | **done** | War tortoise, source `6815/12031` → target `26800/46800`; nine-row asset closure. |
+| 5ba | Fifty-second bounded familiar/pouch cohort | 5 | **done** | Bunyip, source `6813/12029` → target `26816/46816`; nine-row asset closure. |
+| 5bb | Fifty-third bounded familiar/pouch cohort | 5 | **done** | Fruit bat, source `6817/12033` → target `26832/46832`; nine-row asset closure. |
+| 5bc | Fifty-fourth bounded familiar/pouch cohort | 5 | **done** | Ravenous locust, source `7372/12820` → target `26848/46848`; nine-row asset closure. |
+| 5bd | Fifty-fifth bounded familiar/pouch cohort | 5 | **done** | Arctic bear, source `6839/12057` → target `26864/46864`; nine-row asset closure. |
+| 5be | Fifty-sixth bounded familiar/pouch cohort | 5 | **done** | Obsidian golem, source `7345/12792` → target `26896/46896`; nine-row asset closure. |
+| 5bf | Fifty-seventh bounded familiar/pouch cohort | 5 | **done** | Granite lobster, source `6849/12069` → target `26912/46912`; nine-row asset closure. |
+| 5bg | Fifty-eighth bounded familiar/pouch cohort | 5 | **done** | Praying mantis, source `6798/12011` → target `26928/46928`; nine-row asset closure. |
+| 5bi | Fifty-ninth bounded familiar/pouch cohort | 5 | **done** | Forge regent, source `7335/12782` → target `26944/46944`; nine-row asset closure. |
+| 5bj | Sixtieth bounded familiar/pouch cohort | 5 | **done** | Talon beast, source `7347/12794` → target `26960/46960`; nine-row asset closure. |
+| 5bk | Sixty-first bounded familiar/pouch cohort | 5 | **done** | Giant ent, source `6800/12013` → target `26976/46976`; nine-row asset closure. |
+| 5bl | Sixty-second bounded familiar/pouch cohort | 5 | **done** | Hydra, source `6811/12025` → target `26992/46992`; nine-row asset closure. |
+| 5bm | Sixty-third bounded familiar/pouch cohort | 5 | **done** | Spirit dagannoth, source `6804/12017` → target `27008/47008`; nine-row asset closure. |
+| 5bh | Phoenix | 5 | **deferred** | Dry run reports two synth assets; held for the documented unsafe-audio policy rather than admitted into the asset-only lane. |
 
 Phases 5–7 (breadth, Beast of Burden, polish) are scoped in
 [`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9. The active next slice must be a newly selected,
