@@ -95,6 +95,10 @@ def main() -> int:
     expect(result.returncode == 0, f"client exited {result.returncode}")
     expect(bmp.is_file() and bmp.stat().st_size > 54, "client wrote no framebuffer")
     expect("SKIP" not in result.stdout, "client run reported SKIP")
+    expect(
+        "this build has no embedded server" not in result.stdout,
+        "client was built without the embedded mock server",
+    )
     expect("released 536,186" in result.stdout, "Stats tab click did not execute")
     expect("move 620,430 right=1" in result.stdout, "Summoning menu did not open")
     expect("released 620,445" in result.stdout, "Summoning guide menu row was not selected")

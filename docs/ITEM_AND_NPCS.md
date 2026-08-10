@@ -380,45 +380,57 @@ is gone — it had no callers left once both encoders read the client's own map.
 
 ### Two index spaces, and which one limits what
 
-NPC_INFO carries two different numbers for an npc, and conflating them is how
-"the wire is 14 bits, so only 16k npcs can be near a player" gets said. They are
-not the same field and they do not bound the same thing:
+NPC_INFO carries two numbers for an npc, and conflating them is how "the wire is
+14 bits, so only 16k npcs can be near a player" gets said. The authority is the
+official RuneLite deob of rev 239 (`Statics.java:53065`):
 
-| | the **world slot** | the **list position** |
-|---|---|---|
-| where | the low-resolution ADD record | everything after that first ADD |
-| width | 14 bits classic, **16-bit index on v5** | an 8-bit count, then per-npc bits *in order* |
-| means | the server's own npc pool index | position in this client's tracked list |
-| the client | keys its entity registry on it (`WORLD_ENTITY_ID(kind, slot)`) | `SET`/`CLEAR` address by it, into `active_npcs[]` |
-| bounds | how many npcs may **exist** | how many one client may **track** |
-| here | `mock230_wire_npc_slot_max` | `MOCK230_TRACKED_NPC_MAX`, 255 |
+```java
+byte var20 = 16;                                    // index width
+int var21 = 1 << var20;                             // 65536
+if (buffer.readableBits(...) < var20 + 12) break;   // 16 + 12 guard
+int var22 = buffer.gBits(var20);                    // 16-bit index
+if (var21 - 1 == var22) break;                      // terminator 0xFFFF
+class112 npc = map.get(var22);                      // keyed by the index
+...
+class422 type = getNpcType(buffer.gBits(14));       // 14-bit TYPE
+```
 
-`src/game/rs_entity_sync.h` says it in one line: *"the server addresses entities
-by its own slot numbers … and, after the first ADD, only by position in the
-tracked list."* PLAYER_INFO is the same shape — an 11-bit world pid, then
-positions.
+| | the **index** | the **type** | the **list position** |
+|---|---|---|---|
+| width | 16 bits (v5), 14 (classic) | 14 bits | 8-bit count, then bits *in order* |
+| means | what this client calls the npc | its config/cache id | where it sits in the tracked list |
+| bounds | how many npcs one client can hold names for | how many npc records can exist | how many one client may **track** |
+| here | `MOCK230_CLIENT_NPC_SLOTS` | `MOCK230_NPC_TYPE_MAX` | `MOCK230_TRACKED_NPC_MAX`, 255 |
 
-So the world slot really does cap the world, and an earlier draft of this
-document had the number wrong: 14 bits is the **classic** wire, and the v5 wire
-this runs on writes a 16-bit index with `0xFFFF` as terminator. 23,139 npcs fit
-v5 with room to spare.
+**The index is a per-client name, not the world's slot.** The deob keys a *map*
+on it — nothing requires it to mean anything globally, only to be stable while
+this client is being told about the npc and unique among the npcs it holds. So
+`struct Mock230PlayerSlotMap` translates at the wire and nowhere else: the
+server keeps its own slot in the pool, the ZoneMap and every interaction, and
+the two sites that write an id go through `mock230_slotmap_acquire` /
+`_release`. The world pool's size stops being a protocol question.
 
-`mock230_world_build_entities` now checks `npc_slot_max` against
-`mock230_wire_npc_slot_max` at boot and says so out loud, because the failure
-mode is aliasing: a pool larger than the field gives two npcs one id, and the
-client draws one of them in both places. (`GameProtoRevTable.npc_slot_bits` says
-14 for osrs239 too, which is stale — that field feeds the classic reader in
-`pkt_npc_info.c` and nothing reads it for the v5 stream.)
+**A config id above 16,383 rides in CHANGE_TYPE**, which is the shim the classic
+path already had (`npc_initial_wire_type` writes 0 and the extended block
+carries the real id). Widening the add's type field to 16 is possible — RSProt
+models it as `npcInfoBitCount` — but only against a patched client, and the
+deob is the authority here.
 
-What is left before the whole roster can be live is memory, not protocol:
-`struct Mock230Npc` is 608 bytes, so 23,139 is 14.1 MB of pool, and the
-selftest's `struct Mock230Server srv` is the last stack-allocated one (the
-server binary's is `static`, the embed's is `calloc`'d). The AI cost is not the
-obstacle — measured, 993 live npcs run the suite in 29.4s and 3,427 in 30.3s.
+Three properties make the slot map safe, each asserted and each verified by
+mutating the implementation:
 
-(`rsareabuf` is the buffer these bits are *written* into — an arena-backed port
-of LostCity's `rsbuf`, where "area" is its allocation arena rather than a region
-of the map.)
+| mutation | what the suite said |
+|---|---|
+| hand every npc the same name | `no two tracked npcs should share one, 14 do` |
+| allocate a fresh name on every call | `asking again should give the same name, 15 moved` |
+| make `release` a no-op | `no name should outlive the npc it was given to, 4 do` |
+
+The second and third rows are there because the first versions of those checks
+did **not** catch their mutations. "Stable" was written as a re-encode, and a
+re-encode adds nothing because everything is already tracked, so no name is ever
+asked for; it had to be stated against `acquire` directly. "Released" was
+written without ever causing a removal, so it passed against a `release` that
+did nothing; it had to walk the player out of view first.
 
 ### What this cost the selftests
 

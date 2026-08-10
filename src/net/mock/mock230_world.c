@@ -11061,6 +11061,214 @@ mock230_world_selftest(void)
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             }
 
+            fprintf(stderr, "mock230 selftest: player action lock\n");
+            {
+                uint16_t lock_ops[] = { SS_OP_PLAYER_LOCK, SS_OP_RETURN };
+                int32_t lock_operands[] = { 0, 0 };
+                char* lock_strings[] = { NULL, NULL };
+                struct SSVM_Script lock_script = {
+                    .id = -1,
+                    .name = "[selftest,player_lock]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 2,
+                    .opcodes = lock_ops,
+                    .int_operands = lock_operands,
+                    .string_operands = lock_strings,
+                };
+                uint16_t unlock_ops[] = { SS_OP_PLAYER_UNLOCK, SS_OP_RETURN };
+                int32_t unlock_operands[] = { 0, 0 };
+                char* unlock_strings[] = { NULL, NULL };
+                struct SSVM_Script unlock_script = {
+                    .id = -1,
+                    .name = "[selftest,player_unlock]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 2,
+                    .opcodes = unlock_ops,
+                    .int_operands = unlock_operands,
+                    .string_operands = unlock_strings,
+                };
+                uint16_t damage_ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_DAMAGE, SS_OP_RETURN,
+                };
+                int32_t damage_operands[] = { 0, 0, 1, 0, 0 };
+                char* damage_strings[] = { NULL, NULL, NULL, NULL, NULL };
+                struct SSVM_Script damage_script = {
+                    .id = 0,
+                    .name = "[queue,selftest_locked_damage]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 5,
+                    .opcodes = damage_ops,
+                    .int_operands = damage_operands,
+                    .string_operands = damage_strings,
+                    .int_arg_count = 0,
+                };
+                struct SSVM_Provider damage_provider = {
+                    .scripts = &damage_script,
+                    .count = 1,
+                    .loaded = 1,
+                };
+                struct SSVM_Provider* saved_provider = srv.scripts;
+                int npc_slot;
+                int queue_slot = -1;
+                int hp_before;
+                int target_x;
+                int saved_hp_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+                int saved_hp_boosted = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+                int saved_hp_xp = player->stat_xp_tenths[MOCK230_STAT_HITPOINTS];
+                int saved_hp = player->hitpoints;
+                int saved_max_hp = player->max_hitpoints;
+                uint32_t saved_stat_dirty = player->stat_dirty;
+                uint8_t move[5];
+                uint8_t opnpc[2];
+                struct RSAreaBuf walk;
+
+                selftest_park_player(&srv, player->x, player->z);
+                /* The pre-login fixture starts at the engine floor of one HP;
+                 * make the queued hit observably non-lethal so death cleanup
+                 * is not what releases the lock in this half of the test. */
+                mock230_combat_set_level(player, MOCK230_STAT_HITPOINTS, 10);
+                player->login_scene_pending = 0;
+                player->rebuild_scene_pending = 0;
+                npc_slot = mock230_world_npc_spawn(
+                    &srv, 1, player->x + 8, player->z, player->level);
+                SELFTEST_CHECK(npc_slot >= 0,
+                               "the action-lock fixture should spawn an interaction target");
+
+                target_x = player->x + 2;
+                mock230_world_walk_to(&srv, target_x, player->z);
+                if( npc_slot >= 0 )
+                {
+                    struct Mock230Npc* npc = &srv.npcs[npc_slot];
+                    const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
+                    int size = info ? info->size : 1;
+
+                    player->combat_target = npc_slot;
+                    mock230_world_interaction_set(
+                        &srv, MOCK230_INTERACT_NPC, 2, npc_slot, npc->type,
+                        npc->x, npc->z, npc->level, size, size);
+                }
+                SELFTEST_CHECK(mock230_scripts_run_hook(
+                                   &srv, &lock_script, NULL, 0),
+                               "PLAYER_LOCK executes through the host VM");
+                SELFTEST_CHECK(player->action_locked,
+                               "player_lock marks the player action-locked");
+                SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0 &&
+                                   player->dest_z < 0,
+                               "player_lock clears the queued movement route");
+                SELFTEST_CHECK(player->combat_target < 0 &&
+                                   player->interaction.kind == MOCK230_INTERACT_NONE,
+                               "player_lock clears outgoing combat and interaction");
+
+                rsab_wrap(&walk, move, sizeof(move));
+                rsab_p1(&walk, 0);
+                rsab_p2(&walk, target_x);
+                rsab_p2(&walk, player->z);
+                mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move,
+                                     (int)rsab_len(&walk));
+                SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
+                               "movement input is rejected while action-locked");
+
+                if( npc_slot >= 0 )
+                {
+                    opnpc[0] = (uint8_t)(npc_slot >> 8);
+                    opnpc[1] = (uint8_t)npc_slot;
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc,
+                                         sizeof(opnpc));
+                    SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE &&
+                                       player->combat_target < 0,
+                                   "npc interaction input is rejected while action-locked");
+                }
+                SELFTEST_CHECK(player_action_packet(PKTOUT_NAME_OPHELD1) &&
+                                   player_action_packet(PKTOUT_NAME_IF_BUTTON1),
+                               "item and interface interactions share the action-lock gate");
+
+                srv.scripts = &damage_provider;
+                srv.script_env->provider = &damage_provider;
+                for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                {
+                    struct Mock230Queued* queued = &player->queue[i];
+
+                    if( queued->active )
+                        continue;
+                    memset(queued, 0, sizeof(*queued));
+                    queued->active = 1;
+                    queued->script_id = damage_script.id;
+                    queued->delay = 1;
+                    queued->kind = MOCK230_QUEUE_NORMAL;
+                    queue_slot = i;
+                    break;
+                }
+                hp_before = player->hitpoints;
+                SELFTEST_CHECK(queue_slot >= 0,
+                               "the locked-damage fixture should obtain a queue slot");
+                if( queue_slot >= 0 )
+                    mock230_scripts_process_queues(&srv);
+                SELFTEST_CHECK(queue_slot >= 0 && !player->queue[queue_slot].active &&
+                                   player->hitpoints == hp_before - 1,
+                               "queued damage executes while the player is action-locked");
+                SELFTEST_CHECK(player->action_locked,
+                               "non-lethal queued damage does not release the lock");
+                srv.scripts = saved_provider;
+                srv.script_env->provider = saved_provider;
+
+                SELFTEST_CHECK(mock230_scripts_run_hook(
+                                   &srv, &unlock_script, NULL, 0),
+                               "PLAYER_UNLOCK executes through the host VM");
+                SELFTEST_CHECK(!player->action_locked,
+                               "player_unlock restores player action input");
+                mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move,
+                                     (int)rsab_len(&walk));
+                SELFTEST_CHECK(player->dest_x == target_x,
+                               "movement input is accepted again after player_unlock");
+                mock230_world_steps_clear(player);
+                player->dest_x = -1;
+                player->dest_z = -1;
+                if( npc_slot >= 0 )
+                {
+                    mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc,
+                                         sizeof(opnpc));
+                    SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC,
+                                   "interaction input is accepted again after player_unlock");
+                    mock230_world_interaction_clear(&srv);
+                }
+
+                /* Death is a terminal encounter transition and must never
+                 * carry a time-stop lock into the death/respawn queue. Use the
+                 * synthetic provider so no content death sequence is armed. */
+                srv.scripts = &damage_provider;
+                srv.script_env->provider = &damage_provider;
+                SELFTEST_CHECK(mock230_scripts_run_hook(
+                                   &srv, &lock_script, NULL, 0),
+                               "the death cleanup fixture re-locks the player");
+                mock230_combat_hit_player(&srv, 0, player->hitpoints);
+                SELFTEST_CHECK(player->dying && !player->action_locked,
+                               "death clears the player action lock");
+                player->hitpoints = player->max_hitpoints;
+                mock230_combat_sync_hitpoints(player);
+                player->dying = 0;
+                srv.scripts = saved_provider;
+                srv.script_env->provider = saved_provider;
+
+                if( npc_slot >= 0 )
+                {
+                    mock230_world_npc_occupancy(&srv.npcs[npc_slot], 0);
+                    srv.npcs[npc_slot].active = 0;
+                    srv.npcs[npc_slot].respawn_tick = -1;
+                    mock230_zone_npc_refile(&srv, npc_slot);
+                }
+                player->stat_level[MOCK230_STAT_HITPOINTS] = saved_hp_level;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_hp_boosted;
+                player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = saved_hp_xp;
+                player->hitpoints = saved_hp;
+                player->max_hitpoints = saved_max_hp;
+                player->stat_dirty = saved_stat_dirty;
+                selftest_park_player(&srv, player->x, player->z);
+            }
+
             fprintf(stderr, "mock230 selftest: rev239 interface host VM/content\n");
             /* Exercise the interface host opcodes through real compiled
              * content, not just direct encoder calls. This pins stack argument

@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 349
-#define MOCK230_OPCODE_DECLARED_COUNT 431
+#define MOCK230_OPCODE_COVERAGE_COUNT 351
+#define MOCK230_OPCODE_DECLARED_COUNT 433
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +36,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11027
+#define MOCK230_OPCODE_VALUE_LIMIT 11029
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
