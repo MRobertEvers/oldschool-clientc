@@ -1,8 +1,8 @@
 # QBD / ToriDraw streaks and platform blanking — debug log
 
 Running investigation notes from the 2026-08-10 soft3d debug session
-(Cursor transcript [`ef81cb6f-4060-461f-9c36-78bcca267502`](../../.cursor/projects/Users-matthewevers-Documents-git-repos-3draster/agent-transcripts/ef81cb6f-4060-461f-9c36-78bcca267502/ef81cb6f-4060-461f-9c36-78bcca267502.jsonl),
-session id `ef81cb`).
+(Cursor agent transcript `ef81cb6f-4060-461f-9c36-78bcca267502`,
+debug session id `ef81cb`).
 
 This is separate from the arena/content repair log in
 [`rs2012_qbd_arena/README.md`](rs2012_qbd_arena/README.md). That doc covers
