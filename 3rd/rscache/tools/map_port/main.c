@@ -28,10 +28,12 @@
 #include "asset_access.h"
 #include "tool_profile.h"
 
+#include "archive.h"
 #include "dat2disk.h"
 #include "datatypes/dat2_config_flo.h"
 #include "datatypes/maps.h"
 #include "filelist.h"
+#include "reference_table.h"
 #include "rscache_profile.h"
 #include "xtea_config.h"
 
@@ -71,6 +73,9 @@ struct Square
 {
     int x;
     int z;
+    int terrain_archive;
+    int loc_archive;
+    int32_t xtea[4];
     struct RSCache_MapTerrain* terrain;
     struct RSCache_MapLocs* locs;
     int nonempty_tiles;
@@ -178,17 +183,114 @@ count_compare(const void* a, const void* b)
 static int
 counts_index(const struct IntCounts* counts, int id)
 {
-    int lo = 0;
-    int hi = counts->n;
-    while( lo < hi )
+    /* Floor allocation order is stable across incremental ports, rather than
+     * source-id sorted. The lists are tiny, so a linear lookup is both clearer
+     * and avoids accidentally depending on source order again. */
+    for( int i = 0; i < counts->n; i++ )
+        if( counts->v[i].id == id )
+            return i;
+    return -1;
+}
+
+static int
+named_map_archive_id(
+    struct RSCache_Dat2Disk* disk,
+    const char* kind,
+    int map_x,
+    int map_z)
+{
+    char name[32];
+    snprintf(name, sizeof(name), "%s%d_%d", kind, map_x, map_z);
+    int wanted = RSCache_ArchiveNameHashDat2(name);
+    int table_id = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_MAPS);
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT || !disk->tables[table_id] )
+        return -1;
+    const struct RSCache_ReferenceTable* table = disk->tables[table_id];
+    for( int i = 0; i < table->archive_count; i++ )
+        if( table->archives[i].index >= 0 && table->archives[i].identifier == wanted )
+            return table->archives[i].index;
+    return -1;
+}
+
+static int
+counts_preserve_alloc(
+    struct IntCounts* counts,
+    const char* path,
+    const char* symbol_prefix,
+    int allocation_base)
+{
+    FILE* in = fopen(path, "rb");
+    if( !in )
+        return errno == ENOENT;
+
+    struct IntCount* ordered = calloc((size_t)counts->n, sizeof(*ordered));
+    unsigned char* used = calloc((size_t)counts->n, 1);
+    if( !ordered || !used )
     {
-        int mid = lo + (hi - lo) / 2;
-        if( counts->v[mid].id < id )
-            lo = mid + 1;
-        else
-            hi = mid;
+        free(ordered);
+        free(used);
+        fclose(in);
+        return 0;
     }
-    return lo < counts->n && counts->v[lo].id == id ? lo : -1;
+
+    char line[2048];
+    int preserved = 0;
+    size_t prefix_len = strlen(symbol_prefix);
+    while( fgets(line, sizeof(line), in) )
+    {
+        char* end = NULL;
+        long destination = strtol(line, &end, 10);
+        if( end == line || *end != '=' ||
+            strncmp(end + 1, symbol_prefix, prefix_len) != 0 )
+            continue;
+        char* source_end = NULL;
+        long source = strtol(end + 1 + prefix_len, &source_end, 10);
+        if( source_end == end + 1 + prefix_len ||
+            (*source_end != '\0' && *source_end != '\r' && *source_end != '\n') )
+            continue;
+        int slot = (int)destination - allocation_base;
+        int source_index = counts_index(counts, (int)source);
+        if( slot < 0 || slot >= counts->n || source_index < 0 || used[source_index] ||
+            ordered[slot].count != 0 )
+        {
+            fprintf(stderr, "map_port: invalid or conflicting floor allocation in %s\n", path);
+            free(ordered);
+            free(used);
+            fclose(in);
+            return 0;
+        }
+        ordered[slot] = counts->v[source_index];
+        used[source_index] = 1;
+        preserved++;
+    }
+    fclose(in);
+
+    /* Existing allocations must occupy a contiguous prefix. New source ids,
+     * already sorted by the inventory pass, append after that prefix. */
+    for( int i = 0; i < preserved; i++ )
+    {
+        if( ordered[i].count == 0 )
+        {
+            fprintf(stderr, "map_port: floor allocation gap in %s\n", path);
+            free(ordered);
+            free(used);
+            return 0;
+        }
+    }
+    int append = preserved;
+    for( int i = 0; i < counts->n; i++ )
+        if( !used[i] )
+            ordered[append++] = counts->v[i];
+    if( append != counts->n )
+    {
+        free(ordered);
+        free(used);
+        return 0;
+    }
+    memcpy(counts->v, ordered, (size_t)counts->n * sizeof(*counts->v));
+    free(ordered);
+    free(used);
+    return 1;
 }
 
 static int
@@ -447,9 +549,14 @@ write_inventory(
     fprintf(out, "kind\tid\treferences\tdetail\n");
     for( int i = 0; i < square_count; i++ )
     {
-        fprintf(out, "square\t%d_%d\t%d\ttiles=%d;locs=%d\n", squares[i].x,
-                squares[i].z, squares[i].locs->locs_count, squares[i].nonempty_tiles,
-                squares[i].locs->locs_count);
+        fprintf(out,
+                "square\t%d_%d\t%d\ttiles=%d;locs=%d;terrain-archive=%d;"
+                "loc-archive=%d;xtea=%d,%d,%d,%d\n",
+                squares[i].x, squares[i].z, squares[i].locs->locs_count,
+                squares[i].nonempty_tiles, squares[i].locs->locs_count,
+                squares[i].terrain_archive, squares[i].loc_archive,
+                squares[i].xtea[0], squares[i].xtea[1], squares[i].xtea[2],
+                squares[i].xtea[3]);
         struct IntCounts per_square = { 0 };
         for( int spawn = 0; spawn < squares[i].locs->locs_count; spawn++ )
         {
@@ -878,6 +985,20 @@ main(int argc, char** argv)
     int ok = 1;
     for( int i = 0; ok && i < square_count; i++ )
     {
+        squares[i].terrain_archive =
+            named_map_archive_id(cache.disk, "m", squares[i].x, squares[i].z);
+        squares[i].loc_archive =
+            named_map_archive_id(cache.disk, "l", squares[i].x, squares[i].z);
+        int map_table = RSCache_Dat2DiskTableId(cache.disk, RSCACHE_DAT2_TABLE_MAPS);
+        int32_t* key = RSCache_XteaConfigFindKey(map_table, squares[i].loc_archive);
+        if( squares[i].terrain_archive < 0 || squares[i].loc_archive < 0 || !key )
+        {
+            fprintf(stderr, "map_port: source archive/key metadata missing for %d_%d\n",
+                    squares[i].x, squares[i].z);
+            ok = 0;
+            break;
+        }
+        memcpy(squares[i].xtea, key, sizeof(squares[i].xtea));
         squares[i].terrain =
             RSCache_MapTerrainNewFromCache(cache.disk, squares[i].x, squares[i].z);
         squares[i].locs = RSCache_MapLocsNewFromCache(cache.disk, squares[i].x, squares[i].z);
@@ -905,6 +1026,18 @@ main(int argc, char** argv)
     qsort(locs.v, (size_t)locs.n, sizeof(*locs.v), count_compare);
     qsort(underlays.v, (size_t)underlays.n, sizeof(*underlays.v), count_compare);
     qsort(overlays.v, (size_t)overlays.n, sizeof(*overlays.v), count_compare);
+
+    if( ok && opt.apply && opt.out )
+    {
+        char alloc_path[MAP_PORT_PATH];
+        snprintf(alloc_path, sizeof(alloc_path), "%s/pack/underlay.alloc", opt.out);
+        ok = counts_preserve_alloc(
+            &underlays, alloc_path, "rs2012_underlay_", opt.underlay_base);
+        snprintf(alloc_path, sizeof(alloc_path), "%s/pack/overlay.alloc", opt.out);
+        if( ok )
+            ok = counts_preserve_alloc(
+                &overlays, alloc_path, "rs2012_overlay_", opt.overlay_base);
+    }
 
     if( ok )
         ok = write_inventory(
