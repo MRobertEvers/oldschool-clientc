@@ -26,6 +26,13 @@ ToriRS_SoundFromRSCache(
     int sound_id,
     struct RSCache_SoundEffect* effect);
 
+/** Transfer an exactly decoded index-14 recorded sample into a playable sound.
+ * Ownership of `sample->samples` moves on success. */
+struct ToriRS_Sound*
+ToriRS_SoundFromRSCacheSample(
+    int sound_id,
+    struct RSCache_AudioSample* sample);
+
 /**
  * The PCM to hand the platform for one play, with the effect's loop span
  * repeated `loop_count` times (reference Wave.generate's loop expansion, which

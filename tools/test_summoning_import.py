@@ -31,14 +31,17 @@ def main() -> int:
         lane / "configs/summoning.npc",
         lane / "configs/summoning.obj",
         lane / "configs/summoning.loc",
+        lane / "configs/summoning.spotanim",
         lane / "configs/summoning.seq",
         lane / "pack/npc.alloc",
         lane / "pack/obj.alloc",
         lane / "pack/loc.alloc",
+        lane / "pack/spotanim.alloc",
         lane / "pack/seq.alloc",
         lane / "pack/npc.client",
         lane / "pack/obj.client",
         lane / "pack/loc.client",
+        lane / "pack/spotanim.client",
         lane / "pack/seq.client",
         lane / "pack/7_models.pack",
         lane / "pack/0_animations.pack",
@@ -49,12 +52,19 @@ def main() -> int:
         args.tree / "models/ported/scape2009_summoning/summoning_model_31279.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31553.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31686.model",
+        args.tree / "models/ported/scape2009_summoning/summoning_model_31427.model",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.memberpack",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2109.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2109.memberpack",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1990.anim",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1990.memberpack",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2053.anim",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2053.memberpack",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1491.base",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1901.base",
+        args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_0.base",
+        args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1775.base",
         args.tree / "port/summoning_530.map",
     ]
     errors: list[str] = []
@@ -85,8 +95,8 @@ def main() -> int:
     )
     expect(result.returncode == 0, f"dry-run exited {result.returncode}: {result.stdout}")
     expect(
-        "cachepack import (dry-run): npc=1 obj=3 loc=1" in result.stdout
-        and "model=6 seq=3 animset=2 framemap=2" in result.stdout,
+        "cachepack import (dry-run): npc=1 obj=3 loc=1 spotanim=1" in result.stdout
+        and "model=7 seq=5 animset=4 framemap=4" in result.stdout,
         "dry-run closure changed or did not execute",
     )
     for path in files:
@@ -106,6 +116,11 @@ def main() -> int:
     expect("op1=Infuse-pouch" in loc, "obelisk Infuse-pouch operation is absent")
     expect("op2=Renew-points" in loc, "obelisk Renew-points operation is absent")
     expect("shape1=" not in loc, "rev-643 nested-model decode leaked into the rev-530 loc")
+
+    spotanim = (lane / "configs/summoning.spotanim").read_text(encoding="utf-8")
+    expect("[summoning_renew_points_gfx]" in spotanim, "Renew-points gfx is not prefixed")
+    expect("model=100006" in spotanim, "Renew-points gfx does not use model 31427 mapping")
+    expect("anim=summoning_seq_7662" in spotanim, "Renew-points gfx sequence is absent")
 
     for invalid_model in (0, 591, 25189, 27753, 29547):
         expect(
@@ -134,6 +149,14 @@ def main() -> int:
         "seq\t8510\tseq_8510\t20002\tsummoning_seq_8510\tminted\tunreviewed",
         "frame_archive\t2109\tanimset_2109\t20001\tsummoning_animset_2109\tminted\tunreviewed",
         "framemap\t1901\tframemap_1901\t8001\tsummoning_framemap_1901\tminted\tunreviewed",
+        "spotanim\t1308\trenew_points_gfx\t20000\tsummoning_renew_points_gfx\tminted\tunreviewed",
+        "model\t31427\tmodel_31427\t100006\tsummoning_model_31427\tminted\tunreviewed",
+        "seq\t8502\tseq_8502\t20003\tsummoning_renew_points_anim\tminted\tunreviewed",
+        "seq\t7662\tseq_7662\t20004\tsummoning_seq_7662\tminted\tunreviewed",
+        "frame_archive\t1990\tanimset_1990\t20002\tsummoning_animset_1990\tminted\tunreviewed",
+        "frame_archive\t2053\tanimset_2053\t20003\tsummoning_animset_2053\tminted\tunreviewed",
+        "framemap\t0\tframemap_0\t8002\tsummoning_framemap_0\tminted\tunreviewed",
+        "framemap\t1775\tframemap_1775\t8003\tsummoning_framemap_1775\tminted\tunreviewed",
     ):
         expect(row in ledger, f"ledger row absent: {row}")
 

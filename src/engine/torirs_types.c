@@ -710,7 +710,8 @@ ToriRS_SoundSizeOf(const struct ToriRS_Sound* sound)
 {
     if( !sound )
         return 0;
-    return sizeof(*sound) + (size_t)(sound->sample_count > 0 ? sound->sample_count : 0);
+    size_t samples = (size_t)(sound->sample_count > 0 ? sound->sample_count : 0);
+    return sizeof(*sound) + (sound->pcm16 ? samples * sizeof(*sound->pcm16) : samples);
 }
 
 void
@@ -719,6 +720,7 @@ ToriRS_SoundFree(struct ToriRS_Sound* sound)
     if( !sound )
         return;
     free(sound->pcm);
+    free(sound->pcm16);
     free(sound);
 }
 

@@ -43,6 +43,7 @@ def main() -> None:
     imported = read("ported/rs2012_qbd_td/configs/rs2012.obj")
     leather = read("server/scripts/skill_crafting/scripts/leather/leather.rs2")
     tanner = read("server/scripts/areas/alkharid/scripts/tanner.rs2")
+    sbott = read("server/scripts/areas/area_canifis/scripts/sbott.rs2")
     disputed = read("server/scripts/skill_combat/configs/equipment_disputed.obj")
     level_rows = read("server/scripts/skill_combat/configs/levelrequire.dbrow")
     ranged = read("server/scripts/skill_combat/scripts/player/player_ranged.rs2")
@@ -104,6 +105,17 @@ def main() -> None:
         read("server/scripts/areas/alkharid/configs/tanner.constant"),
         "^tanner_dragonhide_cost = 20",
         "period 20-coin tanning cost",
+    )
+    require(
+        sbott,
+        "inv_total(inv, rs2012_obj_24372)",
+        "Sbott recognises Royal dragonhide",
+    )
+    require(sbott, "@tan_leather_choices;", "Sbott shares Royal tanning menu")
+    require(
+        read("server/scripts/areas/alkharid/configs/tanner.constant"),
+        "^werewolftanner_dragonhide_cost = 45",
+        "Sbott 45-coin tanning cost",
     )
 
     journal_ids = tuple(range(24368, 24372))

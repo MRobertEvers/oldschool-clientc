@@ -678,6 +678,7 @@ ToriDraw_SoundNew(
     int sample_rate,
     int loop_start,
     int loop_end,
+    bool ping_pong,
     int queue_delay)
 {
     struct ToriDraw_Sound* sound;
@@ -698,6 +699,7 @@ ToriDraw_SoundNew(
     sound->sample_rate = sample_rate;
     sound->loop_start = loop_start;
     sound->loop_end = loop_end;
+    sound->ping_pong = ping_pong;
     sound->queue_delay = queue_delay;
     return sound;
 }

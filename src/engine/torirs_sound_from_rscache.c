@@ -42,6 +42,31 @@ ToriRS_SoundFromRSCache(
     return sound;
 }
 
+struct ToriRS_Sound*
+ToriRS_SoundFromRSCacheSample(
+    int sound_id,
+    struct RSCache_AudioSample* sample)
+{
+    struct ToriRS_Sound* sound;
+
+    if( !sample || !sample->samples || sample->sample_count <= 0 || sample->sample_rate <= 0 )
+        return NULL;
+    sound = calloc(1, sizeof(*sound));
+    if( !sound )
+        return NULL;
+    sound->id = sound_id;
+    sound->pcm16 = sample->samples;
+    sample->samples = NULL;
+    sound->sample_count = sample->sample_count;
+    sound->sample_rate = sample->sample_rate;
+    sound->channels = 1;
+    sound->loop_start = sample->loop ? sample->loop_start : -1;
+    sound->loop_end = sample->loop ? sample->loop_end : -1;
+    sound->ping_pong = sample->loop;
+    sound->queue_delay = 0;
+    return sound;
+}
+
 uint8_t*
 ToriRS_SoundExpandLoops(
     const struct ToriRS_Sound* sound,

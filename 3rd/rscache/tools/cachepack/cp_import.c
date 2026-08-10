@@ -46,7 +46,7 @@ struct Import_Manifest
     char lane[256], ledger[512], prefix[96];
     int npc_base, obj_base, loc_base, spotanim_base;
     int model_base, seq_base, animset_base, framemap_base, synth_base;
-    int sample_setup_dest;
+    int sample_base, sample_identity_min, sample_setup_dest;
     int preserve_audio_ids;
     int legacy_scape2009;
     struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
@@ -175,6 +175,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
     m->animset_base = 20000;
     m->framemap_base = 8000;
     m->synth_base = 20000;
+    m->sample_base = 20000;
+    m->sample_identity_min = 0;
     m->sample_setup_dest = 20000;
     FILE* f = fopen(path, "rb");
     if( !f ) { fprintf(stderr, "cachepack import: cannot open manifest %s\n", path); return 0; }
@@ -211,6 +213,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "animset_base") == 0 ) { if( !parse_nonnegative(key, value, &m->animset_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "framemap_base") == 0 ) { if( !parse_nonnegative(key, value, &m->framemap_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "synth_base") == 0 ) { if( !parse_nonnegative(key, value, &m->synth_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "sample_base") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "sample_identity_min") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_identity_min) ) { fclose(f); return 0; } }
             else if( strcmp(key, "sample_setup_dest") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_setup_dest) ) { fclose(f); return 0; } }
             else if( strcmp(key, "preserve_audio_ids") == 0 )
             {
@@ -433,6 +437,29 @@ static int map_id(const struct Tool_IdMap* map, int source)
     return dest;
 }
 
+/* Raw rev-727 patches carry their sample archive ids internally, so the high
+ * sample namespace must remain identity-mapped. Low sequence/loc samples may
+ * collide with the destination's ordinary index-4 effects; allocate those in
+ * a disjoint range so the runtime's index-4-first lookup remains unambiguous. */
+static int map_samples_allocate(
+    struct Tool_IdMap* map,
+    const struct Import_Ints* samples,
+    const struct Import_Manifest* m)
+{
+    struct Import_Ints remapped = {0};
+    int ok = 1;
+    for( int i = 0; ok && i < samples->n; i++ )
+        if( samples->v[i] < m->sample_identity_min )
+            ok = ints_add(&remapped, samples->v[i]);
+    if( ok ) ok = map_allocate(map, &remapped, m->sample_base, m, "sample");
+    for( int i = 0; ok && i < samples->n; i++ )
+        if( samples->v[i] >= m->sample_identity_min )
+            ok = tool_id_map_put(map, samples->v[i], samples->v[i]);
+    free(remapped.v);
+    if( !ok ) tool_id_map_free(map);
+    return ok;
+}
+
 static int map_required(const struct Tool_IdMap* map, const char* kind, int source, int* out);
 
 static int map_has_unique_destinations(const struct Tool_IdMap* map, const char* kind)
@@ -639,7 +666,8 @@ static int save_ledger(const struct Import_Manifest* m,
                        const struct Tool_IdMap* seq_map,
                        const struct Tool_IdMap* frame_map,
                        const struct Tool_IdMap* fm_map,
-                       const struct Tool_IdMap* synth_map)
+                       const struct Tool_IdMap* synth_map,
+                       const struct Tool_IdMap* sample_map)
 {
     if( !m->ledger[0] ) return 1;
     char path[1400];
@@ -708,7 +736,8 @@ static int save_ledger(const struct Import_Manifest* m,
         char src[96], dst[320];
         snprintf(src, sizeof(src), "sample_%d", samples->v[i]);
         snprintf(dst, sizeof(dst), "%s_sample_%d", m->prefix, samples->v[i]);
-        ok = ledger_set(path, "sample", samples->v[i], src, samples->v[i], dst);
+        ok = ledger_set(path, "sample", samples->v[i], src,
+                        map_id(sample_map, samples->v[i]), dst);
     }
     for( int i = 0; ok && i < patches->n; i++ )
     {
@@ -1108,6 +1137,8 @@ static int collect_song_patches(struct Tool_Dat2Cache* src,
 static int collect_patch_samples(struct Tool_Dat2Cache* src,
                                  struct Import_Ints* synths,
                                  struct Import_Ints* samples,
+                                 struct Import_Ints* pinned_synths,
+                                 struct Import_Ints* pinned_samples,
                                  int patch_id)
 {
     struct Tool_Bytes raw = {0};
@@ -1133,9 +1164,11 @@ static int collect_patch_samples(struct Tool_Dat2Cache* src,
         if( id < 0 )
             continue;
         if( RSCache_MusicPatchNoteIsMusicSample(patch, note) )
-            ok = collect_audio_sound(src, synths, samples, id, 1);
+            ok = collect_audio_sound(src, synths, samples, id, 1) &&
+                 ints_add(pinned_samples, id);
         else
-            ok = collect_audio_sound(src, synths, samples, id, 0);
+            ok = collect_audio_sound(src, synths, samples, id, 0) &&
+                 ints_add(pinned_synths, id);
     }
     RSCache_MusicPatchFree(patch);
     return ok;
@@ -1235,6 +1268,7 @@ static int import_run(struct Import_Manifest* m, int apply)
 
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
     struct Import_Ints synths = {0}, samples = {0}, songs = {0}, patches = {0};
+    struct Import_Ints pinned_synths = {0}, pinned_samples = {0};
     struct Import_Ints npc_ids = {0}, obj_ids = {0}, loc_ids = {0};
     struct Import_Ints spot_ids = {0};
     for( int i = 0; i < m->models.n; i++ ) ints_add(&models, m->models.v[i].source_id);
@@ -1352,7 +1386,8 @@ static int import_run(struct Import_Manifest* m, int apply)
     for( int i = 0; ok && i < songs.n; i++ )
         ok = collect_song_patches(&src, &patches, songs.v[i]);
     for( int i = 0; ok && i < patches.n; i++ )
-        ok = collect_patch_samples(&src, &synths, &samples, patches.v[i]);
+        ok = collect_patch_samples(&src, &synths, &samples,
+                                   &pinned_synths, &pinned_samples, patches.v[i]);
     if( ok && (songs.n || patches.n || samples.n) )
     {
         if( !m->preserve_audio_ids )
@@ -1395,7 +1430,7 @@ static int import_run(struct Import_Manifest* m, int apply)
 
     struct Tool_IdMap npc_map = {0}, obj_map = {0}, loc_map = {0}, spot_map = {0};
     struct Tool_IdMap model_map = {0}, seq_map = {0}, frame_map = {0}, fm_map = {0};
-    struct Tool_IdMap synth_map = {0};
+    struct Tool_IdMap synth_map = {0}, sample_map = {0};
     ok = ok && map_allocate(&npc_map, &npc_ids, m->npc_base, m, "npc") &&
          map_allocate(&obj_map, &obj_ids, m->obj_base, m, "obj") &&
          map_allocate(&loc_map, &loc_ids, m->loc_base, m, "loc") &&
@@ -1405,6 +1440,7 @@ static int import_run(struct Import_Manifest* m, int apply)
          map_allocate(&frame_map, &frames, m->animset_base, m, "frame_archive") &&
          map_allocate(&fm_map, &framemaps, m->framemap_base, m, "framemap") &&
          map_allocate(&synth_map, &synths, m->synth_base, m, "synth") &&
+         map_samples_allocate(&sample_map, &samples, m) &&
          map_has_unique_destinations(&npc_map, "npc") &&
          map_has_unique_destinations(&obj_map, "obj") &&
          map_has_unique_destinations(&loc_map, "loc") &&
@@ -1413,7 +1449,34 @@ static int import_run(struct Import_Manifest* m, int apply)
          map_has_unique_destinations(&seq_map, "seq") &&
          map_has_unique_destinations(&frame_map, "frame_archive") &&
          map_has_unique_destinations(&fm_map, "framemap") &&
-         map_has_unique_destinations(&synth_map, "synth");
+         map_has_unique_destinations(&synth_map, "synth") &&
+         map_has_unique_destinations(&sample_map, "sample");
+    for( int i = 0; ok && i < pinned_synths.n; i++ )
+        if( map_id(&synth_map, pinned_synths.v[i]) != pinned_synths.v[i] )
+        {
+            fprintf(stderr,
+                    "cachepack import: raw patch synth %d cannot be remapped without rewriting the patch\n",
+                    pinned_synths.v[i]);
+            ok = 0;
+        }
+    for( int i = 0; ok && i < pinned_samples.n; i++ )
+        if( map_id(&sample_map, pinned_samples.v[i]) != pinned_samples.v[i] )
+        {
+            fprintf(stderr,
+                    "cachepack import: raw patch sample %d cannot be remapped without rewriting the patch\n",
+                    pinned_samples.v[i]);
+            ok = 0;
+        }
+    if( ok )
+        for( int i = 0; i < sample_map.count; i++ )
+            if( sample_map.entries[i].dest_id == m->sample_setup_dest )
+            {
+                fprintf(stderr,
+                        "cachepack import: sample setup destination %d collides with sample %d\n",
+                        m->sample_setup_dest, sample_map.entries[i].source_id);
+                ok = 0;
+                break;
+            }
 
     struct CP_Ctx emit; memset(&emit, 0, sizeof(emit)); emit.profile = to; emit.warn_limit = 20;
     snprintf(emit.srcdir, sizeof(emit.srcdir), "%s", m->to_tree);
@@ -1466,7 +1529,7 @@ static int import_run(struct Import_Manifest* m, int apply)
     {
         char name[320];
         snprintf(name, sizeof(name), "%s/%s_sample_%d", m->lane, m->prefix, samples.v[i]);
-        ok = lc_pack_set(&sample_pack, samples.v[i], name);
+        ok = lc_pack_set(&sample_pack, map_id(&sample_map, samples.v[i]), name);
     }
     for( int i = 0; ok && i < songs.n; i++ )
     {
@@ -1545,16 +1608,27 @@ static int import_run(struct Import_Manifest* m, int apply)
             for( int s = 0; ok && s < seq->frame_sounds.count; s++ )
             {
                 int mapped_sound = -1;
-                if( tool_id_map_lookup(&synth_map, seq->frame_sounds.sounds[s].id,
-                                       &mapped_sound) )
+                if( seq->rs2_727_vorbis_sounds )
+                {
+                    if( tool_id_map_lookup(&sample_map, seq->frame_sounds.sounds[s].id,
+                                           &mapped_sound) )
+                        seq->frame_sounds.sounds[s].id = mapped_sound;
+                    else
+                        ok = 0;
+                }
+                else if( tool_id_map_lookup(&synth_map, seq->frame_sounds.sounds[s].id,
+                                            &mapped_sound) )
                     seq->frame_sounds.sounds[s].id = mapped_sound;
-                else if( !ints_contains(&samples, seq->frame_sounds.sounds[s].id) )
+                else if( !tool_id_map_lookup(&sample_map, seq->frame_sounds.sounds[s].id,
+                                             &mapped_sound) )
                 {
                     fprintf(stderr,
                             "cachepack import: seq %d sound %d is in neither audio closure\n",
                             seqs.v[i], seq->frame_sounds.sounds[s].id);
                     ok = 0;
                 }
+                else
+                    seq->frame_sounds.sounds[s].id = mapped_sound;
             }
             int mapped = -1;
             if( seq->left_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->left_hand_item, &mapped) )
@@ -1705,7 +1779,9 @@ static int import_run(struct Import_Manifest* m, int apply)
                 int mapped = -1;
                 if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_id, &mapped) )
                     locs[i]->ambient_sound_id = mapped;
-                else if( !ints_contains(&samples, locs[i]->ambient_sound_id) )
+                else if( tool_id_map_lookup(&sample_map, locs[i]->ambient_sound_id, &mapped) )
+                    locs[i]->ambient_sound_id = mapped;
+                else
                     ok = 0;
             }
             for( int k = 0; ok && k < locs[i]->ambient_sound_id_count; k++ )
@@ -1713,7 +1789,9 @@ static int import_run(struct Import_Manifest* m, int apply)
                 int mapped = -1;
                 if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_ids[k], &mapped) )
                     locs[i]->ambient_sound_ids[k] = mapped;
-                else if( !ints_contains(&samples, locs[i]->ambient_sound_ids[k]) )
+                else if( tool_id_map_lookup(&sample_map, locs[i]->ambient_sound_ids[k], &mapped) )
+                    locs[i]->ambient_sound_ids[k] = mapped;
+                else
                     ok = 0;
             }
             locs[i]->_id = dest_id;
@@ -1747,7 +1825,8 @@ static int import_run(struct Import_Manifest* m, int apply)
         if( ok ) ok = save_ledger(m, &models, &seqs, &frames, &framemaps, &synths,
                                   &songs, &samples, &patches,
                                   &npc_map, &obj_map, &loc_map, &spot_map,
-                                  &model_map, &seq_map, &frame_map, &fm_map, &synth_map);
+                                  &model_map, &seq_map, &frame_map, &fm_map,
+                                  &synth_map, &sample_map);
     }
 
     for( int i = 0; i < m->npcs.n; i++ )
@@ -1761,11 +1840,12 @@ static int import_run(struct Import_Manifest* m, int apply)
     free(neutral); free(source_npcs); free(objects); free(spots); free(locs);
     free(models.v); free(seqs.v); free(frames.v); free(framemaps.v); free(synths.v);
     free(samples.v); free(songs.v); free(patches.v);
+    free(pinned_synths.v); free(pinned_samples.v);
     free(npc_ids.v); free(obj_ids.v); free(loc_ids.v); free(spot_ids.v);
     tool_id_map_free(&npc_map); tool_id_map_free(&obj_map);
     tool_id_map_free(&loc_map); tool_id_map_free(&spot_map);
     tool_id_map_free(&model_map); tool_id_map_free(&seq_map); tool_id_map_free(&frame_map);
-    tool_id_map_free(&fm_map); tool_id_map_free(&synth_map);
+    tool_id_map_free(&fm_map); tool_id_map_free(&synth_map); tool_id_map_free(&sample_map);
     lc_pack_free(&model_pack); lc_pack_free(&frame_pack); lc_pack_free(&fm_pack);
     lc_pack_free(&synth_pack); lc_pack_free(&song_pack); lc_pack_free(&sample_pack);
     lc_pack_free(&patch_pack); cp_names_free(&emit.names); tool_dat2_close(&src);

@@ -29,6 +29,10 @@ struct Dat2BuildCache
     struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_TABLE_COUNT];
     size_t map_buffer_bytes;
 
+    /** Foreign rev-727 index-14 setup copied at archive 16000. It must remain
+     * separate from OSRS archive 0 because their codebooks are incompatible. */
+    struct RSCache_VorbisSetup* rs2012_vorbis_setup;
+
     /*
      * Procedural texture state (RS2 / 643 only).
      *

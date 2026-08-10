@@ -511,9 +511,10 @@ struct ToriRS_AnimayaSkin
  * A sound effect, rendered.
  *
  * The cache stores sound effects as synthesiser programs, not recordings, so the
- * neutral type is what came out of running one: 8-bit unsigned mono PCM, which
- * is byte-for-byte a RIFF/WAVE payload and what every platform backend can take
- * with at most an integer conversion. 128 is silence.
+ * Synth effects use the era's 8-bit unsigned mono PCM (`pcm`, 128 is silence).
+ * Recorded index-14 effects use the decoder's exact signed 16-bit PCM
+ * (`pcm16`). Exactly one pointer is populated; publication normalises both to
+ * the mixer's signed 16-bit form without throwing away recorded-sample detail.
  *
  * `loop_start`/`loop_end` are the effect's loop span in samples. The server's
  * SYNTH_SOUND carries a repeat count, so the span is kept rather than baked in:
@@ -529,11 +530,13 @@ struct ToriRS_Sound
 {
     int id;
     uint8_t* pcm;
+    int16_t* pcm16;
     int sample_count;
     int sample_rate;
     int channels;
     int loop_start; /* -1 = the effect does not loop */
     int loop_end;
+    bool ping_pong;
     int queue_delay;
 };
 

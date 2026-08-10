@@ -73,6 +73,8 @@ struct ToriRS_MusicPlayer
     /** The Vorbis setup shared by every music sample (index 14 archive 0).
      *  Loaded once and kept: it is a few kilobytes and every sample needs it. */
     struct RSCache_VorbisSetup* vorbis_setup;
+    /** Rev-727 QBD tracks use a different setup copied to index 14:16000. */
+    struct RSCache_VorbisSetup* rs2012_vorbis_setup;
 
     enum ToriRS_MusicState state;
 

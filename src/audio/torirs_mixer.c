@@ -204,7 +204,7 @@ asset_load(
     slot->sound.sample_rate = command->sample_rate > 0 ? command->sample_rate : mixer->sample_rate;
     slot->sound.loop_start = command->loop_start;
     slot->sound.loop_end = command->loop_end;
-    slot->sound.ping_pong = false;
+    slot->sound.ping_pong = command->ping_pong;
     mixer->stats.assets_loaded++;
     if( generator )
         MIXER_TRACE(

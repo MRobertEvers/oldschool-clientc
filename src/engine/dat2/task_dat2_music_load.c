@@ -11,6 +11,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define RS2012_QBD_SONG_ID 1118
+#define RS2012_AWOKEN_SONG_ID 1119
+#define RS2012_SAMPLE_SETUP_ID 16000
+
 /*
  * Make a song playable: the track, its instruments, and their samples.
  *
@@ -64,6 +68,10 @@ struct Task_Dat2MusicLoad
     int pending_sample_table;
     int pending_sample_id;
     struct RSCache_MusicPatch* pending_patch;
+    bool pending_patch_borrowed;
+
+    /** These two raw rev-727 tracks must decode against setup 14:16000. */
+    bool rs2012_audio;
 
     int retained[TORIRS_MUSIC_MAX_PATCHES];
     int retained_count;
@@ -134,10 +142,14 @@ add_music_sample(
     struct RSCache_AudioSample* sample;
     bool ok;
 
-    if( !archive || !task->player->vorbis_setup )
+    const struct RSCache_VorbisSetup* setup = task->rs2012_audio
+                                                  ? task->player->rs2012_vorbis_setup
+                                                  : task->player->vorbis_setup;
+
+    if( !archive || !setup )
         return false;
     sample = RSCache_VorbisSampleNewDecode(
-        task->player->vorbis_setup, archive->data, archive->data_size);
+        setup, archive->data, archive->data_size);
     if( !sample )
         return false;
     ok = ToriRS_SoundBank_AddSample(
@@ -221,8 +233,30 @@ Task_Dat2MusicLoad_Run(
         goto done;
     }
 
-    /* 2. the shared Vorbis setup, once per session. */
-    if( !task->player->vorbis_setup )
+    /* 2. the matching shared Vorbis setup, once per session. Foreign samples
+     * cannot be decoded with OSRS archive 0 and must never replace it. */
+    if( task->rs2012_audio && !task->player->rs2012_vorbis_setup )
+    {
+        RSCache_IO_Dat2MusicLoad(
+            io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, RS2012_SAMPLE_SETUP_ID);
+        PT_YIELD(&task->pt);
+        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
+        if( archive )
+        {
+            task->player->rs2012_vorbis_setup =
+                RSCache_VorbisSetupNewDecode(archive->data, archive->data_size);
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+        if( !task->player->rs2012_vorbis_setup )
+        {
+            fprintf(stderr,
+                    "music: rev-727 setup index 14:%d is absent or invalid for QBD song %d\n",
+                    RS2012_SAMPLE_SETUP_ID, task->song_id);
+            task->failed = true;
+            goto done;
+        }
+    }
+    else if( !task->rs2012_audio && !task->player->vorbis_setup )
     {
         RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0);
         PT_YIELD(&task->pt);
@@ -238,32 +272,44 @@ Task_Dat2MusicLoad_Run(
     }
 
     /* 3 and 4. Each patch, then each sample its used notes reference. */
-    for( task->patch_index = 0; task->patch_index < task->song->patch_count; task->patch_index++ )
+    for( task->patch_index = 0;
+         !task->failed && task->patch_index < task->song->patch_count;
+         task->patch_index++ )
     {
         task->patch_id = task->song->patches[task->patch_index].patch_id;
 
         if( task->retained_count >= TORIRS_MUSIC_MAX_PATCHES )
             break;
-        if( ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id) )
+        struct ToriRS_SoundBankPatch* resident =
+            ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
+        task->pending_patch_borrowed = resident != NULL;
+        if( resident )
         {
-            /* Already resident from an earlier song. Retain it again so the two
-             * songs each hold a reference. */
-            ToriRS_SoundBank_RetainPatch(&task->player->bank, task->patch_id);
-            task->retained[task->retained_count++] = task->patch_id;
-            continue;
+            /* A later song can use different notes of the same patch. Walk its
+             * note manifest again and load any samples the earlier song did not
+             * need; QBD 1119 -> 1118 is exactly this case. */
+            task->pending_patch = resident->patch;
+        }
+        else
+        {
+            RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES, task->patch_id);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES);
+            if( !archive )
+            {
+                if( task->rs2012_audio ) task->failed = true;
+                continue;
+            }
+            task->pending_patch = RSCache_MusicPatchNewDecode(archive->data, archive->data_size);
+            RSCache_Dat2DiskArchiveFree(archive);
+            if( !task->pending_patch )
+            {
+                if( task->rs2012_audio ) task->failed = true;
+                continue;
+            }
         }
 
-        RSCache_IO_Dat2MusicLoad(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES, task->patch_id);
-        PT_YIELD(&task->pt);
-        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_PATCHES);
-        if( !archive )
-            continue;
-        task->pending_patch = RSCache_MusicPatchNewDecode(archive->data, archive->data_size);
-        RSCache_Dat2DiskArchiveFree(archive);
-        if( !task->pending_patch )
-            continue;
-
-        for( task->note_index = 0; task->note_index < 128; )
+        for( task->note_index = 0; !task->failed && task->note_index < 128; )
         {
             if( !next_missing_sample(
                     task,
@@ -288,7 +334,16 @@ Task_Dat2MusicLoad_Run(
                     ? RSCACHE_DAT2_TABLE_MUSIC_SAMPLES
                     : RSCACHE_DAT2_TABLE_SOUND_EFFECTS);
             if( task->pending_sample_table == TORIRS_SOUNDBANK_TABLE_MUSIC )
-                add_music_sample(task, archive, task->pending_sample_id);
+            {
+                bool added = add_music_sample(task, archive, task->pending_sample_id);
+                if( task->rs2012_audio && !added )
+                {
+                    fprintf(stderr,
+                            "music: rev-727 QBD sample %d is absent or invalid\n",
+                            task->pending_sample_id);
+                    task->failed = true;
+                }
+            }
             else
                 add_effect_sample(task, archive, task->pending_sample_id);
             RSCache_Dat2DiskArchiveFree(archive);
@@ -297,7 +352,16 @@ Task_Dat2MusicLoad_Run(
             task->note_index++;
         }
 
-        if( ToriRS_SoundBank_AddPatch(&task->player->bank, task->patch_id, task->pending_patch) )
+        if( task->pending_patch_borrowed )
+        {
+            struct ToriRS_SoundBankPatch* slot =
+                ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
+            ToriRS_SoundBank_ResolvePatch(&task->player->bank, slot);
+            ToriRS_SoundBank_RetainPatch(&task->player->bank, task->patch_id);
+            task->retained[task->retained_count++] = task->patch_id;
+        }
+        else if( ToriRS_SoundBank_AddPatch(
+                     &task->player->bank, task->patch_id, task->pending_patch) )
         {
             struct ToriRS_SoundBankPatch* slot =
                 ToriRS_SoundBank_FindPatch(&task->player->bank, task->patch_id);
@@ -306,6 +370,7 @@ Task_Dat2MusicLoad_Run(
             task->retained[task->retained_count++] = task->patch_id;
         }
         task->pending_patch = NULL;
+        task->pending_patch_borrowed = false;
     }
 
 done:
@@ -339,7 +404,8 @@ Task_Dat2MusicLoad_Free(struct ToriRS_Task* task_base)
 
     /* A task killed mid-walk still owns whatever it had decoded. */
     RSCache_MusicSongFree(task->song);
-    RSCache_MusicPatchFree(task->pending_patch);
+    if( !task->pending_patch_borrowed )
+        RSCache_MusicPatchFree(task->pending_patch);
     free(task);
 }
 
@@ -373,6 +439,8 @@ CreateTask_Dat2MusicLoad(
     task->song_table = source == TORIRS_MUSIC_SOURCE_JINGLE
                            ? RSCACHE_DAT2_TABLE_MUSIC_JINGLES
                            : RSCACHE_DAT2_TABLE_MUSIC_TRACKS;
+    task->rs2012_audio = task->song_table == RSCACHE_DAT2_TABLE_MUSIC_TRACKS &&
+                         (song_id == RS2012_QBD_SONG_ID || song_id == RS2012_AWOKEN_SONG_ID);
     PT_INIT(&task->pt);
     return &task->task;
 }

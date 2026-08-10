@@ -11,6 +11,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The imported rev-727 lane keeps its incompatible index-14 setup here and
+ * assigns recorded effects only in this high namespace. Ordinary OSRS effects
+ * are always tried first, which preserves the native table-4 contract. */
+#define RS2012_SAMPLE_SETUP_ID 16000
+#define RS2012_SAMPLE_ID_MIN 14000
+
 /*
  * Make one dat2 sound effect resident.
  *
@@ -45,6 +51,7 @@ Task_Dat2SoundLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_FileList* group = NULL;
     struct RSCache_SoundEffect* effect = NULL;
+    struct RSCache_AudioSample* sample = NULL;
     struct ToriRS_Sound* sound = NULL;
     char* record = NULL;
     int record_size = 0;
@@ -57,8 +64,69 @@ Task_Dat2SoundLoad_Run(
     archive = RSCache_IO_Dat2SoundDecode(io, 0);
     if( !archive )
     {
+        if( task->sound_id < RS2012_SAMPLE_ID_MIN )
+        {
+            if( getenv("TORIRS_AUDIO_DEBUG") )
+                fprintf(stderr, "dat2 sound: no archive for effect %d\n", task->sound_id);
+            PT_EXIT(&task->pt);
+        }
+
+        if( !task->bc->rs2012_vorbis_setup )
+        {
+            RSCache_IO_Dat2MusicLoad(
+                io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, RS2012_SAMPLE_SETUP_ID);
+            PT_YIELD(&task->pt);
+            archive = RSCache_IO_Dat2MusicDecode(
+                io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
+            if( archive )
+            {
+                task->bc->rs2012_vorbis_setup =
+                    RSCache_VorbisSetupNewDecode(archive->data, archive->data_size);
+                RSCache_Dat2DiskArchiveFree(archive);
+                archive = NULL;
+            }
+            if( !task->bc->rs2012_vorbis_setup )
+            {
+                fprintf(stderr,
+                        "dat2 sound: rev-727 Vorbis setup index 14:%d is absent or invalid\n",
+                        RS2012_SAMPLE_SETUP_ID);
+                PT_EXIT(&task->pt);
+            }
+        }
+
+        RSCache_IO_Dat2MusicLoad(
+            io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, task->sound_id);
+        PT_YIELD(&task->pt);
+        archive = RSCache_IO_Dat2MusicDecode(io, 0, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES);
+        if( !archive )
+        {
+            fprintf(stderr,
+                    "dat2 sound: high id %d is absent from effects and rev-727 samples\n",
+                    task->sound_id);
+            PT_EXIT(&task->pt);
+        }
+        sample = RSCache_VorbisSampleNewDecode(
+            task->bc->rs2012_vorbis_setup, archive->data, archive->data_size);
+        RSCache_Dat2DiskArchiveFree(archive);
+        archive = NULL;
+        if( !sample )
+        {
+            fprintf(stderr, "dat2 sound: rev-727 sample %d did not decode\n", task->sound_id);
+            PT_EXIT(&task->pt);
+        }
+        sound = ToriRS_SoundFromRSCacheSample(task->sound_id, sample);
+        RSCache_AudioSampleFree(sample);
+        sample = NULL;
+        if( !sound )
+        {
+            fprintf(stderr, "dat2 sound: rev-727 sample %d decoded empty\n", task->sound_id);
+            PT_EXIT(&task->pt);
+        }
+        CacheProvider_SoundAdd(&task->bc->base, task->sound_id, sound);
         if( getenv("TORIRS_AUDIO_DEBUG") )
-            fprintf(stderr, "dat2 sound: no archive for effect %d\n", task->sound_id);
+            fprintf(stderr,
+                    "dat2 sound: rev-727 sample %d decoded exactly, %d samples @ %d Hz\n",
+                    task->sound_id, sound->sample_count, sound->sample_rate);
         PT_EXIT(&task->pt);
     }
     /* file_count / file_ids arrive already filled: the platform layer holds the

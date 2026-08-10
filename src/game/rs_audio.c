@@ -345,14 +345,18 @@ publish_sound(
     if( !provider )
         return NULL;
     decoded = CacheProvider_SoundGet(provider, sound_id);
-    if( !decoded || !decoded->pcm || decoded->sample_count <= 0 )
+    if( !decoded || (!decoded->pcm && !decoded->pcm16) || decoded->sample_count <= 0 )
         return NULL;
 
     widened = malloc((size_t)decoded->sample_count * sizeof(int16_t));
     if( !widened )
         return NULL;
-    for( int i = 0; i < decoded->sample_count; i++ )
-        widened[i] = (int16_t)(((int)decoded->pcm[i] - 128) << 8);
+    if( decoded->pcm16 )
+        memcpy(widened, decoded->pcm16,
+               (size_t)decoded->sample_count * sizeof(*widened));
+    else
+        for( int i = 0; i < decoded->sample_count; i++ )
+            widened[i] = (int16_t)(((int)decoded->pcm[i] - 128) << 8);
 
     ToriDraw_SceneSoundAdd(
         scene,
@@ -363,6 +367,7 @@ publish_sound(
             decoded->sample_rate,
             decoded->loop_start,
             decoded->loop_end,
+            decoded->ping_pong,
             decoded->queue_delay));
     audio->assets_published++;
     /*
@@ -418,6 +423,7 @@ drain_scene_events(
             command.sample_rate = event->sound->sample_rate;
             command.loop_start = event->sound->loop_start;
             command.loop_end = event->sound->loop_end;
+            command.ping_pong = event->sound->ping_pong;
             command.source_id = event->sound_id;
             ToriRS_AudioQueue_Push(out, &command);
         }

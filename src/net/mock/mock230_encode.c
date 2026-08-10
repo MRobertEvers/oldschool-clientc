@@ -3393,6 +3393,19 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_id = player->anim_id;
                 ext.seq_delay = player->anim_delay;
             }
+            if( player->masks & MOCK230_PMASK_SPOTANIM )
+            {
+                /* The classic script/runtime surface has one attached-graphic
+                 * field. Revision 239 carries the same graphic in its indexed
+                 * spotanim block; slot zero is the direct equivalent. Keeping
+                 * this bridge here matters when ANIM and SPOTANIM_PL are set in
+                 * the same tick: both masks must survive into one extended-info
+                 * packet. */
+                ext.has_spotanim = 1;
+                ext.spotanim_slot = 0;
+                ext.spotanim_id = player->spotanim_id;
+                ext.spotanim_height_delay = player->spotanim_height_delay;
+            }
             ext.has_face = v5_face_from_classic(
                 &ext.face, player, player->masks, MOCK230_PMASK_FACE_ENTITY,
                 MOCK230_PMASK_FACE_COORD, player->face_entity, player->face_x,
@@ -3426,11 +3439,13 @@ mock230_send_player_info(struct Mock230Player* player)
             if( getenv("MOCK230_EXT_DEBUG") )
                 fprintf(stderr,
                         "ext player: masks=0x%x movement=%d/%d speed=%d hit=%d/%d "
-                        "seq=%d/%d face=%d appearance=%d exactmove=%d "
+                        "seq=%d/%d spotanim=%d/%d face=%d appearance=%d exactmove=%d "
                         "(%d,%d)->(%d,%d) %d..%d yaw=%d\n",
                         player->masks, movement, movement_value,
                         ext.has_temp_move_speed ? ext.temp_move_speed : -1, ext.hit_type,
-                        ext.hit_value, ext.seq_id, ext.seq_delay, ext.has_face,
+                        ext.hit_value, ext.seq_id, ext.seq_delay,
+                        ext.has_spotanim ? ext.spotanim_id : -1,
+                        ext.has_spotanim ? ext.spotanim_slot : -1, ext.has_face,
                         (int)rsab_len(&ap), ext.has_exact_move, ext.exact_start_x,
                         ext.exact_start_z, ext.exact_end_x, ext.exact_end_z,
                         ext.exact_start_cycle, ext.exact_end_cycle, ext.exact_facing);

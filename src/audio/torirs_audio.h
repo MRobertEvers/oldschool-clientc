@@ -195,6 +195,7 @@ struct ToriRS_AudioCommand
      *  loop_count != 0 repeat that span rather than the whole clip. */
     int loop_start;
     int loop_end;
+    bool ping_pong;
 
     /* VOICE_* */
     int voice_id;

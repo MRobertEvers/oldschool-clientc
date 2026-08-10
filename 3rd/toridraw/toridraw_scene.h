@@ -153,6 +153,7 @@ ToriDraw_SoundNew(
     int sample_rate,
     int loop_start,
     int loop_end,
+    bool ping_pong,
     int queue_delay);
 
 void

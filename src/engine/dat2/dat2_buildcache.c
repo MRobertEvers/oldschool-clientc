@@ -358,6 +358,8 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     Dat2GroupCache_Free(dat2_buildcache->group_cache);
     dat2_buildcache->group_cache = NULL;
     CacheProvider_FreeEngineCaches(&dat2_buildcache->base);
+    RSCache_VorbisSetupFree(dat2_buildcache->rs2012_vorbis_setup);
+    dat2_buildcache->rs2012_vorbis_setup = NULL;
 
     for( table_id = 0; table_id < RSCACHE_DAT2_TABLE_COUNT; table_id++ )
         dat2_buildcache->reference_tables[table_id] = NULL;

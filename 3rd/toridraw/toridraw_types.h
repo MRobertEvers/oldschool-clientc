@@ -304,6 +304,7 @@ struct ToriDraw_Sound
     int sample_rate;
     int loop_start;
     int loop_end;
+    bool ping_pong;
     /** Ticks of silence trimmed off the front (the reference's Wave.trim), which
      *  the game adds back to the server's play delay. Carried with the clip
      *  because it is a property of the clip, not of a play. */

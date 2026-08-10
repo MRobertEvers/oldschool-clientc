@@ -65,6 +65,7 @@ treated as canonical.
 - [Dragon claw, revision 49824, 11 November 2012](https://wiki.darkan.org/index.php?title=Dragon_claw&oldid=49824) (B)
 - [Jagex/Mod Ash recovery of the original TD levels, 23 January 2024](https://x.com/JagexAsh/status/1749777281675907450) (A, later primary-source recovery)
 - [Royal crossbow, revision 5952638, 18 July 2012](https://runescape.fandom.com/wiki/Royal_crossbow?oldid=5952638) (B)
+- [Royal crossbow mechanics, revision 145907, 5 October 2012](https://wiki.darkan.org/index.php?title=Royal_crossbow&oldid=145907) (B)
 - [Royal bolts, revision 6000529, 27 July 2012](https://runescape.fandom.com/wiki/Royal_bolts?oldid=6000529) (B)
 - [Dragon kiteshield, revision 6025214, 2 August 2012](https://runescape.fandom.com/wiki/Dragon_kiteshield?oldid=6025214) (B)
 - [Dragonbone upgrade kit, revision 6036646, 4 August 2012](https://runescape.fandom.com/wiki/Dragonbone_upgrade_kit?oldid=6036646) (B)
@@ -858,7 +859,8 @@ target HP ceilings, and XP-domain scaling remain correct for the special.
 Manifest: `ports/rs2012_qbd_td.ini`.
 
 Lane: `OSRS-Content/osrs239-content/ported/rs2012_qbd_td` plus matching
-`models/`, `animsets/`, `framemaps/`, and `synth/` ported subtrees.
+`models/`, `animsets/`, `framemaps/`, `synth/`, `samples/`, `patches/`, and
+`songs/` ported subtrees.
 
 Allocation bases:
 
@@ -872,10 +874,13 @@ Allocation bases:
 | sequence / animset | 22,000 |
 | framemap | 9,000 |
 | synth | 16,000 |
+| recorded-sound setup | 16,000 |
+| recorded-sound collision spill | 17,000+ |
+| music track / patch | fixed source IDs 1,118–1,119 / 1,157 |
 | interface | fixed 1,284–1,285 |
 | native clientscript | 13,000–13,001 |
-| material texture | 211–464 |
-| material sprite | 8,535–8,788 |
+| material texture | 211–466 |
+| material sprite | 8,535–8,790 |
 | QBD UI sprite | 13,000–13,031 |
 
 The loc base was deliberately moved from 60,000 to 63,000 after validation
@@ -883,13 +888,13 @@ found live OSRS239 locs through 62,200. The collision had also made coffer
 multiloc references resolve to unrelated spiral-stair symbols; reallocation
 corrected them to `rs2012_loc_70816/70817`.
 
-The definitive append-stable import ledger contains **9 NPCs, 63 objects,
-1,074 locations, 32 spot animations, 658 models, 76 sequences, 30 frame
-archives, 29 framemaps, and 29 index-4 synths**. Client closure adds two
-interfaces, two native clientscripts, 254 baked materials, and 286 total
-sprites: 254 material sprites at 8535–8788 plus 32 UI sprites at 13000–13031.
+The definitive append-stable import ledger contains **10 NPCs, 63 objects,
+1,074 locations, 32 spot animations, 660 models, 81 sequences, 31 frame
+archives, 29 framemaps, and 30 index-4 synths**. Client closure adds two
+interfaces, two native clientscripts, 256 baked materials, and 288 total
+sprites: 256 material sprites at 8535–8790 plus 32 UI sprites at 13000–13031.
 Interfaces 1284/1285 remain at their source IDs; material texture IDs occupy
-211–464. Sprite 13000 and clientscript 13000 do not collide because cache
+211–466. Sprite 13000 and clientscript 13000 do not collide because cache
 indices are separate namespaces. These are final recursive totals, not the
 earlier seed set.
 
@@ -940,13 +945,13 @@ sprites or other materials. OSRS239 expects sprite-backed texture records.
 
 The imported OB3 models preserve every texture ID and mapping array—QBD models
 70260/70267/70268 have 233/233/241 textured faces, TD model 44733 has 39, and
-crossbow 70257 has 47. The completed material bridge contains 254 rows: 233
+crossbow 70257 has 47. The completed material bridge contains 256 rows: 235
 direct face materials and 22 retexture materials (overlapping sets), plus 36
 transitive programs and six source sprites. It successfully bakes and remaps all
-658 models. This is a deterministic OSRS-compatible approximation, not an HD
+660 models. This is a deterministic OSRS-compatible approximation, not an HD
 shader claim: each graph becomes a 128x128, 6x7x6-palette sprite with alpha
-thresholded at 128. Of the rows, 202 are HD-only, 25 animate, five animate both
-axes, and 125 contain transparency; repeat/clamp, mipmap, shader, float and
+thresholded at 128. Of the rows, 204 are HD-only, 25 animate, five animate both
+axes, and 126 contain transparency; repeat/clamp, mipmap, shader, float and
 unverified program-tail differences still require source-client visual QA.
 
 Likewise, QBD sequence sounds are index-14 MIDI/Vorbis event IDs. The lane has
@@ -979,6 +984,7 @@ QBD:
 - `.../scripts/rs2012_qbd_combat.rs2`
 - `.../scripts/rs2012_qbd_adds.rs2`
 - `.../scripts/rs2012_qbd_rewards.rs2`
+- `.../scripts/rs2012_qbd_reward_items.rs2`
 - `.../scripts/rs2012_qbd_ui.rs2`
 - `.../scripts/rs2012_qbd_selftest.rs2`
 - `.../scripts/rs2012_royal_crossbow.rs2`
@@ -988,6 +994,7 @@ QBD:
 - `.../scripts/rs2012_qbd_hud_pool.cs2`
 - `.../scripts/rs2012_qbd_hud_pool_fade.cs2`
 - `.../pack/3_interfaces.pack`, `8_sprites.pack`, and `12_clientscripts.pack`
+- `.../pack/6_musictracks.pack`, `14_musicsamples.pack`, and `15_musicpatches.pack`
 
 TD:
 
@@ -1012,9 +1019,13 @@ Map/cache port:
 - `tools/test_stage_rs2012_overlay.py`
 - `tools/port_rs2012_qbd_ui.py`
 - `tools/test_rs2012_qbd_ui_port.py`
+- `tools/test_rs2012_qbd_combat_contract.py`
+- `tools/test_rs2012_qbd_reward_items.py`
+- `tools/test_rs2012_server_overlay.py`
 - `src/engine/proctex/test/rs2012_material_bake.c`
 - `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
 - `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
+- `manifest_osrs239_rs2012.ini` and the `mock230-cache-rs2012` make target
 
 Global integration is limited to the shared player-hit preparation point,
 ranged Royal-bolt/crossbow validation, QBD/TD death and logout cleanup, and
@@ -1038,9 +1049,9 @@ The following are completed machine checks, not a list of aspirations:
   NPC/object/location/spotanim/model/sequence/frame/framemap/synth dependency
   without an unknown key, source-ID leak, or allocation overlap with base
   OSRS239 or the separate Summoning lane.
-- The material bridge decodes, rewrites, encodes, and decodes all 658 destination
+- The material bridge decodes, rewrites, encodes, and decodes all 660 destination
   models. It retains texture-face counts and coordinate arrays and resolves all
-  254 material rows. This is a structural/codec assertion, not visual proof of
+  256 material rows. This is a structural/codec assertion, not visual proof of
   an HD shader match.
 - `tools/test_rs2012_map_port.py` proves 20 decoded source squares, 55,187 exact
   source placement tuples, 1,006 map-referenced loc configs, 12 underlays, and
@@ -1055,6 +1066,14 @@ The following are completed machine checks, not a list of aspirations:
   components, all 32 UI sprite groups, the 70127→110657 model and
   9390→22075 sequence references, clientscripts 13000/13001, the hidden
   click-through sentinel, and the destructive coffer-button bindings.
+- `tools/test_rs2012_qbd_combat_contract.py` proves the 600-tick antifire
+  lifecycle, sourced QBD defence rows and typed hit routing, historical
+  650-LP/melee-and-Magic Giant Worm, one-life add cleanup, and outgoing maxima.
+- `tools/test_rs2012_qbd_reward_items.py` proves all 11 reversible kit maps,
+  Royal tanning at both Ellis and Sbott, exact leather levels/quantities/XP,
+  four journals and reclaim guards, equipment gates, kiteshield, and bolts.
+- `tools/test_rs2012_server_overlay.py` proves imported allocation bands are
+  accepted by the server pack and that a colliding imported band fails hard.
 - The final sparse overlay contains **1,494 staged files**. `cachepack pack`
   accepts **1,278 config records and 1,058 asset archives**: 30 animation-frame
   archives, 29 framemaps, two interfaces, two native clientscripts, 29 synths,
@@ -1078,12 +1097,14 @@ capture.
 Two deterministic debug procedures are included and compile with the content
 tree, but were not executed through a connected game client during this work:
 
-- `::rs2012qbdtest` allocates the arena and performs 26 checks covering the
+- `::rs2012qbdtest` allocates the arena and performs 75 checks covering the
   four 18,750-LP pools, 75,000 total LP, 1/2/3/3 walls, 0/1/2/4 phase soul
   targets, launch-versus-7-August cooldown switches, time-stop durations,
   1,000-LP cap, phase-3 armour modifiers, intermission invulnerability,
-  Royal-crossbow cadence, ten coffer slots, and persistence of an unclaimed
-  reward through encounter cleanup.
+  Royal-crossbow cadence/damage bands/three-splat domain, Sir Rebrum's quest and
+  duplicate gates, all exact platform masks and phase unions, terminal queue
+  cleanup, ten coffer slots, and persistence of an unclaimed reward through
+  encounter cleanup.
 - `::rs2012tdtest` allocates the temple and performs 64 checks covering all six
   spawns and independent state, original combat stats, distance-aware style
   transitions, 310-LP pre-shield prayer accounting including misses, the 75%

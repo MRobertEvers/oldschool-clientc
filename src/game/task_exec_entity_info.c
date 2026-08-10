@@ -343,6 +343,13 @@ player_apply_op(
         break;
     }
     case PKT_PLAYER_INFO_OP_SEQUENCE:
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "player_info: sequence idx=%d id=%d delay=%d\n",
+                idx,
+                op->_sequence.sequence_id,
+                op->_sequence.delay);
         self->pending_seq = op->_sequence.sequence_id;
         self->pending_delay = op->_sequence.delay;
         return PLAYER_NEED_SEQ;
@@ -437,6 +444,14 @@ player_apply_op(
         }
         break;
     case PKT_PLAYER_INFO_OP_SPOTANIM:
+        if( getenv("TORIRS_NET_DEBUG") )
+            fprintf(
+                stderr,
+                "player_info: spotanim idx=%d id=%d height=%d delay=%d\n",
+                idx,
+                op->_spotanim.spotanim_id,
+                op->_spotanim.height_delay >> 16,
+                op->_spotanim.height_delay & 0xffff);
         World_PlayerSetSpotanim(
             world,
             idx,

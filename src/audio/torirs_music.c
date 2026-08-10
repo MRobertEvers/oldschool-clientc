@@ -74,6 +74,8 @@ ToriRS_Music_Free(struct ToriRS_MusicPlayer* player)
     ToriRS_SoundBank_Free(&player->bank);
     RSCache_VorbisSetupFree(player->vorbis_setup);
     player->vorbis_setup = NULL;
+    RSCache_VorbisSetupFree(player->rs2012_vorbis_setup);
+    player->rs2012_vorbis_setup = NULL;
 }
 
 void
