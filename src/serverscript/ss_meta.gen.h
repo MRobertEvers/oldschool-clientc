@@ -883,7 +883,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11030] = {
     [11025] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_VAR_GET */
     [11026] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_VAR_SET */
     [11027] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* PLAYER_LOCK */
-    [11028] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* PLAYER_UNLOCK */
+    [11028] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PLAYER_UNLOCK */
     [11029] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* WALKSTEP_COORD */
 };
 

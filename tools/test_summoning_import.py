@@ -53,6 +53,7 @@ def main() -> int:
         args.tree / "models/ported/scape2009_summoning/summoning_model_31553.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31686.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31427.model",
+        args.tree / "models/ported/scape2009_summoning/summoning_model_30826.model",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.memberpack",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2109.anim",
@@ -61,6 +62,8 @@ def main() -> int:
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1990.memberpack",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2053.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2053.memberpack",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2226.anim",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2226.memberpack",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1491.base",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1901.base",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_0.base",
@@ -95,8 +98,8 @@ def main() -> int:
     )
     expect(result.returncode == 0, f"dry-run exited {result.returncode}: {result.stdout}")
     expect(
-        "cachepack import (dry-run): npc=1 obj=3 loc=1 spotanim=1" in result.stdout
-        and "model=7 seq=5 animset=4 framemap=4" in result.stdout,
+        "cachepack import (dry-run): npc=1 obj=4 loc=1 spotanim=1" in result.stdout
+        and "model=8 seq=7 animset=5 framemap=4" in result.stdout,
         "dry-run closure changed or did not execute",
     )
     for path in files:
@@ -109,6 +112,11 @@ def main() -> int:
     expect("bastype=" not in npc and "swarm_walk" not in npc, "Bas/default animation leaked")
     expect("retex" not in npc, "cache-local NPC texture id leaked")
 
+    obj = (lane / "configs/summoning.obj").read_text(encoding="utf-8")
+    expect("[summoning_blank_pouch]" in obj, "blank pouch is not prefixed")
+    expect("model=100423" in obj, "blank pouch does not retain model 30826 mapping")
+    expect("stackable=1" in obj, "blank pouch did not retain its stackable policy")
+
     loc = (lane / "configs/summoning.loc").read_text(encoding="utf-8")
     expect("[summoning_obelisk]" in loc, "obelisk loc name is not prefixed")
     expect("models=100005" in loc, "obelisk did not retain its sole model 31686 mapping")
@@ -116,6 +124,11 @@ def main() -> int:
     expect("op1=Infuse-pouch" in loc, "obelisk Infuse-pouch operation is absent")
     expect("op2=Renew-points" in loc, "obelisk Renew-points operation is absent")
     expect("shape1=" not in loc, "rev-643 nested-model decode leaked into the rev-530 loc")
+
+    seq = (lane / "configs/summoning.seq").read_text(encoding="utf-8")
+    expect("[summoning_obelisk_charge]" in seq, "obelisk charge sequence is absent")
+    expect("[summoning_infuse_anim]" in seq, "pouch-infusion animation is absent")
+    expect("framestep=27" in seq, "pouch-infusion sequence lost its source frame step")
 
     spotanim = (lane / "configs/summoning.spotanim").read_text(encoding="utf-8")
     expect("[summoning_renew_points_gfx]" in spotanim, "Renew-points gfx is not prefixed")
@@ -143,6 +156,7 @@ def main() -> int:
         "obj\t12047\tspirit_wolf_pouch\t40000\tsummoning_spirit_wolf_pouch\tminted\tunreviewed",
         "obj\t12183\tshard\t40001\tsummoning_shard\tminted\tunreviewed",
         "obj\t12158\tcharm_gold\t40002\tsummoning_charm_gold\tminted\tunreviewed",
+        "obj\t12155\tblank_pouch\t40255\tsummoning_blank_pouch\tminted\tunreviewed",
         "framemap\t1491\tframemap_1491\t8000\tsummoning_framemap_1491\tminted\tunreviewed",
         "loc\t28716\tobelisk\t62201\tsummoning_obelisk\tminted\tunreviewed",
         "model\t31686\tmodel_31686\t100005\tsummoning_model_31686\tminted\tunreviewed",
@@ -157,6 +171,10 @@ def main() -> int:
         "frame_archive\t2053\tanimset_2053\t20003\tsummoning_animset_2053\tminted\tunreviewed",
         "framemap\t0\tframemap_0\t8002\tsummoning_framemap_0\tminted\tunreviewed",
         "framemap\t1775\tframemap_1775\t8003\tsummoning_framemap_1775\tminted\tunreviewed",
+        "model\t30826\tmodel_30826\t100423\tsummoning_model_30826\tminted\tunreviewed",
+        "seq\t8509\tseq_8509\t20310\tsummoning_obelisk_charge\tminted\tunreviewed",
+        "seq\t9068\tseq_9068\t20311\tsummoning_infuse_anim\tminted\tunreviewed",
+        "frame_archive\t2226\tanimset_2226\t20070\tsummoning_animset_2226\tminted\tunreviewed",
     ):
         expect(row in ledger, f"ledger row absent: {row}")
 

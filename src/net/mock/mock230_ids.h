@@ -104,6 +104,10 @@ struct Mock230Ids
      */
     int com_chatbox_modal;
 
+    /** Text under the music tab's `Playing:` label. Region music is selected
+     *  by C, so C must also tell the tab which named track it selected. */
+    int com_music_now_playing_text;
+
     /** The backpack's 28 cells hang off this one component, and an inventory op
      *  names it rather than a cell. */
     int com_inventory_items;

@@ -53,6 +53,8 @@ static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:sidemodal", &g_ids.com_gameframe_sidemodal },
         { MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:floater", &g_ids.com_gameframe_floater },
         { MOCK230_PACK_COMPONENT, "chatbox:chatmodal", &g_ids.com_chatbox_modal },
+        { MOCK230_PACK_COMPONENT, "music:now_playing_text",
+          &g_ids.com_music_now_playing_text },
         { MOCK230_PACK_COMPONENT, "worldmap:esckey", &g_ids.com_worldmap_esckey },
         { MOCK230_PACK_COMPONENT, "worldmap:close", &g_ids.com_worldmap_close },
         { MOCK230_PACK_COMPONENT, "inventory:items", &g_ids.com_inventory_items },

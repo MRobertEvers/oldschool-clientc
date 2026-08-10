@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import subprocess
 from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
 TREE = REPO / "OSRS-Content" / "osrs239-content"
 LANE = TREE / "ported" / "rs2012_qbd_td"
+DEFAULT_AUDIOPROBE = REPO / "3rd/rscache/tools/audioprobe/audioprobe"
 
 
 def require(condition: bool, message: str) -> None:
@@ -152,16 +154,90 @@ def verify_authority() -> None:
             "QBD music runtime setup selection is missing")
 
 
+def probe(audioprobe: Path, cache: Path, revision: str, *arguments: str) -> str:
+    completed = subprocess.run(
+        [str(audioprobe), str(cache), revision, *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    detail = (completed.stdout + completed.stderr).strip()
+    require(
+        completed.returncode == 0,
+        f"audioprobe {' '.join(arguments)} failed with status "
+        f"{completed.returncode}: {detail}",
+    )
+    return completed.stdout
+
+
+def verify_composed_cache(cache: Path, audioprobe: Path, revision: str) -> None:
+    """Decode the exact foreign closure after cachepack has composed it."""
+
+    require(cache.is_dir(), f"composed cache does not exist: {cache}")
+    require((cache / "main_file_cache.dat2").is_file(),
+            f"composed cache has no dat2 file: {cache}")
+    require(audioprobe.is_file(), f"audioprobe does not exist: {audioprobe}")
+
+    samples = parse_pack(TREE, "14_musicsamples.pack")
+    sample_ids = sorted(set(samples) - {16000})
+    require(len(sample_ids) == 83,
+            f"expected 83 recorded samples to probe, got {len(sample_ids)}")
+    for sample_id in sample_ids:
+        output = probe(
+            audioprobe,
+            cache,
+            revision,
+            "--sample-with-setup",
+            "16000",
+            str(sample_id),
+        )
+        require(f"music sample {sample_id}:" in output,
+                f"audioprobe did not report decoded sample {sample_id}")
+
+    expected_songs = {
+        1118: ("40 packed bytes -> 70 MIDI bytes", "patch 1157: 2 notes"),
+        1119: ("29 packed bytes -> 61 MIDI bytes", "patch 1157: 1 notes"),
+    }
+    for song_id, markers in expected_songs.items():
+        output = probe(audioprobe, cache, revision, "--song", str(song_id))
+        for marker in markers:
+            require(marker in output,
+                    f"song {song_id} decode output lacks {marker!r}")
+
+    patch_output = probe(audioprobe, cache, revision, "--patch", "1157")
+    require("patch 1157: 290/290 bytes consumed, 3 voiced notes" in patch_output,
+            "patch 1157 was not decoded completely")
+    for sample_id in (15645, 15646, 15647):
+        require(f"sample {sample_id} (music)" in patch_output,
+                f"patch 1157 does not retain music sample {sample_id}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--staged", type=Path,
                         help="also verify a tree produced by stage_rs2012_overlay.py")
+    parser.add_argument("--cache", type=Path,
+                        help="also decode the closure from a composed dat2 cache")
+    parser.add_argument("--audioprobe", type=Path, default=DEFAULT_AUDIOPROBE,
+                        help="audioprobe binary used with --cache")
+    parser.add_argument("--revision", default="osrs239",
+                        help="cache profile passed to audioprobe (default: osrs239)")
     args = parser.parse_args()
     verify_tree(TREE)
     verify_authority()
+    checks = ["source"]
     if args.staged is not None:
         verify_tree(args.staged.resolve())
-    print("rs2012 audio bridge: PASS (29 synths, 83 samples + setup, 2 songs, 1 patch)")
+        checks.append("staged")
+    if args.cache is not None:
+        verify_composed_cache(
+            args.cache.resolve(), args.audioprobe.resolve(), args.revision)
+        checks.append("composed cache: 83/83 samples, songs 1118/1119, patch 1157 decoded")
+    print(
+        "rs2012 audio bridge: PASS "
+        f"({'; '.join(checks)}; assets: 29 synths, 83 samples + setup, "
+        "2 songs, 1 patch)"
+    )
 
 
 if __name__ == "__main__":

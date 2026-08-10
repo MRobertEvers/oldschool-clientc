@@ -216,8 +216,8 @@ test_pointer_masks(void)
     CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
           "player_lock requires the protected active player");
     m = SSVM_OpcodeMeta(SS_OP_PLAYER_UNLOCK);
-    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
-          "player_unlock requires the protected active player");
+    CHECK(m->require == 0,
+          "player_unlock remains callable from a player-bound softtimer cleanup");
 
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */

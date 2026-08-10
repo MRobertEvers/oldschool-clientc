@@ -1210,6 +1210,50 @@ npc_death_step(
     }
 }
 
+/*
+ * Continue an OP -> AP combat handoff.
+ *
+ * A number of NPC-specific `[ai_opplayer2,<npc>]` handlers do not make a
+ * swing themselves.  They select `applayer<n>` and leave the actual ranged or
+ * magic action to `[ai_applayer<n>,<npc>]`.  That normally reaches
+ * `npc_run_mode`, but `advance_npcs` deliberately does not run modes while an
+ * NPC has a combat target: combat owns its movement.  Without this bridge the
+ * AP action is never called, so a wizard, witch, dragon, etc. simply stops at
+ * the first OP trigger.
+ *
+ * This is intentionally next-turn dispatch, rather than immediately running
+ * AP after OP.  Some OP handlers both attack and set AP for their following
+ * action; calling it in the same turn would double-fire those.  It also gives
+ * `npc_delay` ownership of special attack cadence: a parked AP script keeps
+ * its mode, and must not be re-entered until it resumes.
+ *
+ * As in `npc_run_mode`, clear before firing so a handler which selects another
+ * mode preserves that selection.  AP modes keep `combat_target` -- unlike
+ * targetless modes, they name the player the NPC is already fighting.
+ */
+static int
+npc_dispatch_combat_applayer_mode(
+    struct Mock230Server* srv,
+    struct Mock230Npc* npc,
+    int slot)
+{
+    int op;
+
+    if( npc->mode < MOCK230_NPCMODE_APPLAYER1 || npc->mode > MOCK230_NPCMODE_APPLAYER5 )
+        return 0;
+
+    /* `npc_delay` makes an NPC invalid for the rest of its turn.  The script
+     * which set AP commonly remains parked on that delay, so retain its mode
+     * and let phase_npcs resume it before trying the handoff again. */
+    if( srv->tick < npc->delayed_until || npc->active_script )
+        return 1;
+
+    op = npc->mode - MOCK230_NPCMODE_APPLAYER1;
+    npc->mode = MOCK230_NPCMODE_NONE;
+    mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_APPLAYER1 + op, npc->type, -1, slot);
+    return 1;
+}
+
 void
 mock230_combat_npc_tick(
     struct Mock230Server* srv,
@@ -1325,6 +1369,12 @@ mock230_combat_npc_tick(
 
     /* Facing is set above, before the approach returns early — an npc has to
      * face the player while chasing, not only once it arrives. */
+
+    /* A specialised OP handler may have selected an AP action.  The ordinary
+     * mode phase cannot consume it while this NPC is in combat (by design), so
+     * combat does it here before its next clock-owned OP swing. */
+    if( npc_dispatch_combat_applayer_mode(srv, npc, slot) )
+        return;
 
     if( npc->attack_clock > 0 )
     {

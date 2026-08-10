@@ -41,6 +41,7 @@ ASSET_ROOTS = (
 )
 CONFIG_SUFFIXES = {
     ".enum",
+    ".inv",
     ".npc",
     ".obj",
     ".loc",

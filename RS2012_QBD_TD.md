@@ -102,6 +102,19 @@ an exact denominator, this document does not manufacture certainty.
   through the first three restorations; the fourth clears them and exposes the
   reward stairs (B/C).
 
+The arena and reward room share a dedicated, player-owned QBD instance handle.
+A one-tick lifecycle watchdog detects any ordinary teleport out of either
+scene, preserves that teleport's destination, and idempotently clears the
+action lock, encounter queues/timers, walk gate, HUD/coffer transmission,
+music, and all QBD-owned NPCs before releasing the allocator slot. Death holds
+the slot through the corpse delay; logout and the explicit exit use the same
+cleanup path. An unclaimed ten-slot reward container and its permanent
+`reward_ready` flag survive all of those paths, so returning mounts a fresh
+reward instance without rerolling or losing the coffer. The normal portal and
+ordinary debug entry retain the 60 Summoning gate; only the composed-cache
+manifest's QA command bypasses that one gate, without changing the account's
+stats or quest state.
+
 ### 3.2 Phase matrix
 
 | Phase | Pool | Added mechanics | Wall waves | Souls | Artefact at pool end |
@@ -505,11 +518,12 @@ selector representation.
 - Soul sequences carry no embedded audio.
 
 Revision-727 sequence opcode 18 selects recorded index-14 audio; it is not an
-ordinary animation flag. The QBD scope has 47 primary frame events: seven
-index-4 synth events and 40 recorded events across 18 sequences/27 source IDs.
-Sir Rebrum's imported animation closure adds eight recorded events, making the
-full lane 55 primary events: 48 recorded plus seven synthesized. Every primary
-ID resolves in the destination packs.
+ordinary animation flag. QBD has 40 recorded frame events across 18
+sequences/27 source IDs. Tormented demons add seven index-4 synth events, so
+the two encounters account for 47 primary events. Sir Rebrum's imported
+animation closure adds eight recorded events, making the full lane 55 primary
+events: 48 recorded plus seven synthesized. Every primary ID resolves in the
+destination packs.
 
 The bridge preserves 83 recorded samples plus the source Vorbis setup at
 index 14 archive 16000. Runtime sound loading first tries native index 4, then
@@ -551,10 +565,11 @@ globals:
 - 1924: progress states 0 start, 1 pool 1 down, 2 artefact 1, through 8 complete;
 - 1925: time-stop overlay on/off.
 
-Interface 1284 is the 47-component Dragonkin coffer. Its ten-slot container is
-100 and offers Take/Bank/Discard/Examine plus Bank all, Abandon all, and Take
-all. Dependencies include sprites 7920–22, 8278, 8384–98, 8444–46 and client
-scripts 5399, 5400, 5409–11, 5415.
+Interface 1284 is the 47-component Dragonkin coffer. Its source ten-slot
+container is 100; the isolated destination record is cache-backed inventory
+2000, `rs2012_qbd_rewardinv`. It offers Take/Bank/Discard/Examine plus Bank
+all, Abandon all, and Take all. Dependencies include sprites 7920–22, 8278,
+8384–98, 8444–46 and client scripts 5399, 5400, 5409–11, 5415.
 
 Both complete visual trees are now packed at destination interfaces 1284/1285:
 82 components in total. Their 32 source sprite archives are allocated at
@@ -606,6 +621,12 @@ unclaimed coffer. The ported interface supports per-entry Take, Bank, Discard
 with confirmation, and Examine, plus Take all, Bank all, Abandon all with
 confirmation, and Close. The coffer changes to its empty loc only after the
 last entry is transferred or deliberately discarded.
+
+The same inventory definition is carried in the sparse client-cache lane as
+well as the server allocation. mock230 therefore creates the ten-slot custom
+container on first use, transmits it to the authentic coffer component, and
+persists its owned contents through save/logout; it is not a script-only name
+that disappears when the composed cache boots.
 
 Source loc 70815 chooses its closed/open child through a revision-727 varbit
 whose numeric ID means an unrelated quest state in OSRS239. On every unclaimed
@@ -662,6 +683,12 @@ physical book cannot reset unlock state.
 | 24368–24371 | four dragonkin journals |
 | 24372 / 24374 | royal hide / leather |
 | 24376 / 24379 / 24382 | royal vambraces / chaps / body |
+
+The isolated cache lane also imports the six source note partners 14473,
+14475, 14477, 14485, 15273, and 20269. They link back to the imported ruined
+armour parts, Dragon claws, rocktail, and infernal ashes rather than resolving
+their source numbers to unrelated OSRS239 placeholder items. A packed-cache
+round-trip and the reward-item regression cover every pair.
 
 Royal armour crafting is 87 Crafting for vambraces (1 leather, 94 XP), 89 for
 chaps (2, 188 XP), and 93 for body (3, 282 XP); it requires 80 Ranged and 40
@@ -739,6 +766,16 @@ The private fight is an identity copy of `40_89`, plane 0, entered at local
 `(2576,5732)`, or local `(39,40)`, `(49,33)`, `(47,21)`, `(32,27)`,
 `(28,32)`, and `(16,36)`. The route-boundary spawn `(2560,5742)` is not
 silently counted as a seventh arena demon.
+
+The six-demon encounter also owns a dedicated instance handle and a one-tick
+departure watchdog. Source loc 40260 is installed as the normal interior exit
+at local `(23,29)` and returns the player to `(2527,5827,p2)`. An arbitrary
+teleport, logout, or that exit removes exactly the six owned demons and frees
+the slot without moving an already-departed player. Death stops combat and
+despawns the demons immediately, retains the reservation through the corpse
+delay, then releases it; the grave/bones coordinate is redirected outside the
+reusable template first. Re-entry therefore receives a clean slot instead of
+stale demons from a prior occupant.
 
 ### 7.2 Definition and combat state
 
@@ -903,7 +940,7 @@ found live OSRS239 locs through 62,200. The collision had also made coffer
 multiloc references resolve to unrelated spiral-stair symbols; reallocation
 corrected them to `rs2012_loc_70816/70817`.
 
-The definitive append-stable import ledger contains **10 NPCs, 63 objects,
+The definitive append-stable import ledger contains **10 NPCs, 69 objects,
 1,074 locations, 32 spot animations, 660 models, 81 sequences, 31 frame
 archives, 29 framemaps, and 29 index-4 synths**. Client closure adds two
 interfaces, two native clientscripts, 256 baked materials, and 288 total
@@ -1044,7 +1081,9 @@ Map/cache port:
 - `tools/port_rs2012_qbd_ui.py`
 - `tools/test_rs2012_qbd_ui_port.py`
 - `tools/test_rs2012_qbd_combat_contract.py`
+- `tools/test_rs2012_qbd_lifecycle.py`
 - `tools/test_rs2012_qbd_reward_items.py`
+- `tools/test_rs2012_td_lifecycle.py`
 - `tools/test_rs2012_audio_bridge.py`
 - `tools/test_rs2012_server_overlay.py`
 - `3rd/rscache/tools/audioprobe/main.c`
@@ -1054,10 +1093,11 @@ Map/cache port:
 - `manifest_osrs239_rs2012.ini` and the `mock230-cache-rs2012` make target
 
 Global integration is limited to the shared player-hit preparation point,
-ranged Royal-bolt/crossbow validation, QBD/TD death and logout cleanup, and
-Thurgo's existing conversation entry, plus the dedicated Dragon-claws special
-dispatcher. Ordinary and reachable special attacks all enter the shared hit
-hook once. All named encounter content remains in the `rs2012` namespace.
+ranged Royal-bolt/crossbow validation, QBD/TD death, logout, and arbitrary
+departure cleanup, and Thurgo's existing conversation entry, plus the
+dedicated Dragon-claws special dispatcher. Ordinary and reachable special
+attacks all enter the shared hit hook once. All named encounter content remains
+in the `rs2012` namespace.
 
 ## 10. Build, staging, and verification
 
@@ -1095,9 +1135,17 @@ The following are completed machine checks, not a list of aspirations:
 - `tools/test_rs2012_qbd_combat_contract.py` proves the 600-tick antifire
   lifecycle, sourced QBD defence rows and typed hit routing, historical
   650-LP/melee-and-Magic Giant Worm, one-life add cleanup, and outgoing maxima.
+- `tools/test_rs2012_qbd_lifecycle.py` plus the host fixture prove gated and
+  manifest-only entry, per-step departure detection in arena and reward room,
+  complete NPC/queue/UI/music/lock teardown, unclaimed-coffer preservation,
+  clean re-entry, slot reuse, death, and logout.
 - `tools/test_rs2012_qbd_reward_items.py` proves all 11 reversible kit maps,
   Royal tanning at both Ellis and Sbott, exact leather levels/quantities/XP,
-  four journals and reclaim guards, equipment gates, kiteshield, and bolts.
+  four journals and reclaim guards, equipment gates, kiteshield, bolts, and
+  all six imported note-link pairs.
+- `tools/test_rs2012_td_lifecycle.py` plus the host fixture prove the authentic
+  interior exit, arbitrary-teleport and logout cleanup, death reservation and
+  safe grave placement, six-NPC teardown, clean re-entry, and allocator reuse.
 - `tools/test_rs2012_server_overlay.py` proves imported allocation bands are
   accepted by the server pack and that a colliding imported band fails hard.
 - `tools/test_rs2012_audio_bridge.py` proves the source and staged closure,
@@ -1106,7 +1154,7 @@ The following are completed machine checks, not a list of aspirations:
   synth/song/sample/patch bytes after composition; `audioprobe` decoded all
   83/83 foreign samples, both songs, and patch 1157 from the result.
 - The final sparse overlay contains **1,590 physical files**. `cachepack pack`
-  accepts **1,284 config records and 1,150 asset archives**: 31 animation-frame
+  accepts **1,290 config records and 1,150 asset archives**: 31 animation-frame
   archives, 29 framemaps, two interfaces, two native clientscripts, 29 synths,
   two songs, 84 index-14 sample/setup archives, one patch, 21 maps, 660 models,
   288 sprites, and one merged texture archive. The pack has zero failed configs,

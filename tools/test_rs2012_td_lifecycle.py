@@ -80,8 +80,8 @@ def main() -> None:
         "%map_instance_handle = $handle;",
         "%rs2012_td_handle = $handle;",
         "%rs2012_td_active = 1;",
-        "loc_add(~rs2012_td_coord(^rs2012_td_exit_lx, ^rs2012_td_exit_lz), rs2012_loc_40260, ^loc_east, centrepiece_straight, ^max_32bit_int);",
         "softtimer(rs2012_td_lifecycle, ^rs2012_td_lifecycle_ticks);",
+        "softtimer(rs2012_td_install_exit, ^rs2012_td_lifecycle_ticks);",
     )
     for fragment in required_enter:
         assert fragment in enter, f"entry lost lifecycle step: {fragment}"
@@ -89,6 +89,7 @@ def main() -> None:
     release = block(script, "proc,rs2012_td_release_handle")
     ordered = (
         "clearsofttimer(rs2012_td_lifecycle);",
+        "clearsofttimer(rs2012_td_install_exit);",
         "clearqueue(rs2012_td_damage_player);",
         "~rs2012_td_despawn_handle($handle);",
         "map_instance_free($handle);",
@@ -105,9 +106,19 @@ def main() -> None:
     assert "map_instance_find(coord) = $handle" in lifecycle
     assert "~rs2012_td_release_handle($handle);" in lifecycle
     assert "p_teleport" not in lifecycle, "external teleports must keep their destination"
+    assert block(script, "softtimer,rs2012_td_lifecycle").lstrip().startswith(
+        "~rs2012_td_lifecycle_tick;\n"
+    )
+    install_exit = block(script, "softtimer,rs2012_td_install_exit")
+    assert install_exit.index("clearsofttimer(rs2012_td_install_exit);") < (
+        install_exit.index("loc_add(")
+    )
+    assert "%rs2012_td_active = 0" in install_exit
+    assert "map_instance_find(coord) ! $handle" in install_exit
     assert (
-        block(script, "softtimer,rs2012_td_lifecycle").strip()
-        == "~rs2012_td_lifecycle_tick;"
+        "loc_add(~rs2012_td_coord(^rs2012_td_exit_lx, ^rs2012_td_exit_lz), "
+        "rs2012_loc_40260, ^loc_east, centrepiece_straight, ^max_32bit_int);"
+        in install_exit
     )
 
     leave = block(script, "proc,rs2012_td_leave")
@@ -130,11 +141,20 @@ def main() -> None:
     finish = block(script, "proc,rs2012_td_finish_death")
     assert "%rs2012_td_active = 0" in death
     assert "%rs2012_td_handle" in death
+    assert "clearsofttimer(rs2012_td_install_exit);" in death
     assert "map_instance_free" not in death
     assert "map_instance_free($handle);" in finish
     death_dispatch = DEATH.read_text(encoding="utf-8")
     assert "~rs2012_td_on_death;" in death_dispatch
     assert "~rs2012_td_finish_death($rs2012_td_death_handle);" in death_dispatch
+    assert (
+        "if ($rs2012_qbd_death_handle ! ^map_instance_none)" in death_dispatch
+        and "else if ($rs2012_td_death_handle ! ^map_instance_none)" in death_dispatch
+        and "$death_coord = ^rs2012_td_outside_safe;" in death_dispatch
+    ), "TD gravestones/bones must be redirected before the instance is released"
+    assert death_dispatch.index("$death_coord = ^rs2012_td_outside_safe;") < (
+        death_dispatch.index("~rs2012_td_finish_death($rs2012_td_death_handle);")
+    )
 
     assert constants["rs2012_td_lifecycle_ticks"] == 1
     assert (

@@ -46,6 +46,7 @@ def main() -> int:
         put(tree / "meta.ini", "[cache]\n")
         put(tree / "content.ini", "[content]\n")
         put(tree / "fields/loc.ini", "[name]\nclient=native\n")
+        put(tree / "configs/all.inv.compack", "0=base_inv\n")
         put(tree / "configs/all.loc.compack", "1=base_loc\n")
         put(lane / "PROVENANCE.md", "fixture\n")
         put(
@@ -59,7 +60,10 @@ def main() -> int:
             "loc\t70792\tloc_70792\t63001\trs2012_loc_70792\tminted\tunreviewed\n",
         )
         put(lane / "configs/rs2012.loc", "[rs2012_loc_1]\nname=Ported\n")
+        put(lane / "configs/rs2012.inv", "[rs2012_qbd_rewardinv]\nsize=10\n")
         put(lane / "configs/rs2012.overlay", "[rs2012_overlay_1]\ncolour=0x010203\n")
+        put(lane / "pack/inv.alloc", "2000=rs2012_qbd_rewardinv\n")
+        put(lane / "pack/inv.client", "rs2012_qbd_rewardinv\n")
         put(lane / "pack/loc.alloc", "63000=rs2012_loc_1\n")
         put(lane / "pack/loc.client", "rs2012_loc_1\n")
         put(lane / "pack/5_maps.pack", "10074=m39_90\n")
@@ -107,7 +111,7 @@ def main() -> int:
         with redirect_stdout(output):
             assert stage_module.stage(tree, out) == 0
         physical_count = sum(path.is_file() for path in out.rglob("*"))
-        assert physical_count == 31
+        assert physical_count == 35
         assert f"staged {physical_count} files" in output.getvalue()
 
         # Historical members 0/1 shadow only the disposable output.
@@ -138,6 +142,20 @@ def main() -> int:
         assert (out / "configs/all.loc.compack").read_text() == "1=base_loc\n"
         assert "[rs2012_loc_1]" in (out / "configs/rs2012.loc").read_text()
         assert (out / "pack/loc.alloc").read_text() == "63000=rs2012_loc_1\n"
+        # The QBD coffer is server-allocated but runtime sizing is cache-backed.
+        # Its sparse config, allocation and explicit client membership must
+        # therefore travel together; losing any one recreates an unknown
+        # container 2000 abort when the coffer calls inv_transmit.
+        assert (out / "configs/all.inv.compack").read_text() == "0=base_inv\n"
+        assert (out / "configs/rs2012.inv").read_text() == (
+            "[rs2012_qbd_rewardinv]\nsize=10\n"
+        )
+        assert (out / "pack/inv.alloc").read_text() == (
+            "2000=rs2012_qbd_rewardinv\n"
+        )
+        assert (out / "pack/inv.client").read_text() == (
+            "rs2012_qbd_rewardinv\n"
+        )
         # Every audio table required by the QBD lane is staged with both its
         # archive authority and exact payload; omitting songs used to make the
         # cache compose successfully but leave tracks 1118/1119 absent.

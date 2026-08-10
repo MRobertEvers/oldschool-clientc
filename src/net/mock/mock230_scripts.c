@@ -3304,6 +3304,59 @@ npc_base_stat(
 }
 
 /*
+ * `Npc.changeType()` obtains the new NpcType immediately.  The mock resolves
+ * the combat pieces of that type into the live npc when it spawns, so merely
+ * changing `type` leaves a transformed npc fighting with the old form's
+ * definition and animation rig.
+ *
+ * This is deliberately not a respawn.  Script vars, movement, mode, target,
+ * queue/timer state and the collision footprint belong to the instance and
+ * survive a change type in the reference.  In particular, `size`,
+ * `blockwalk`, and `blocksight` are stamped into the collision map at spawn;
+ * changing any of them here would require an unstamp/restamp and would make a
+ * normal visual transformation unexpectedly change its occupied tiles.
+ *
+ * `wander_radius` is the one cached navigation value that is otherwise read
+ * from the type on every reference wander turn, so reseed it alongside `def`.
+ * The saved damage is applied to the new hitpoint base, which is the
+ * reference's `newBase - (oldBase - oldCurrent)` rule.
+ */
+static void
+npc_changetype_rehydrate(
+    struct Mock230Npc* npc,
+    int type)
+{
+    const struct Mock230NpcDef* def;
+    int damage;
+    int base_hitpoints;
+
+    assert(npc);
+    def = mock230_content_npc(type);
+    if( !def )
+        def = mock230_content_npc_default();
+
+    damage = npc->base_hitpoints - npc->hitpoints;
+    base_hitpoints = def->hitpoints > 0 ? def->hitpoints : 1;
+
+    npc->type = type;
+    npc->def = def;
+    npc->wander_radius = def->nomove ? 0 : def->wanderrange;
+
+    npc->base_hitpoints = base_hitpoints;
+    npc->max_hitpoints = base_hitpoints;
+    npc->hitpoints = base_hitpoints - damage;
+    if( npc->hitpoints < 0 )
+        npc->hitpoints = 0;
+
+    npc->attack_seq = def->attack_anim;
+    npc->block_seq = def->defend_anim;
+    npc->death_seq = def->death_anim;
+    npc->attack_sound = def->attack_sound;
+    npc->block_sound = def->defend_sound;
+    npc->death_sound = def->death_sound;
+}
+
+/*
  * The container the *active* player means by `inv_id`.
  *
  * The registry (mock230_container.h) is what actually resolves this, and it
@@ -5779,6 +5832,7 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_NPC_CHANGETYPE_KEEPALL:
     case SS_OP_NPC_CHANGETYPE:
     {
         int32_t type;
@@ -5795,7 +5849,7 @@ mock230_script_command(
             SSVM_Abort(state, "npc_changetype with no active npc");
             return 1;
         }
-        npc->type = type;
+        npc_changetype_rehydrate(npc, type);
         npc->change_type = type;
         npc->masks |= MOCK230_NMASK_CHANGE_TYPE;
         (void)duration;
@@ -6291,6 +6345,11 @@ mock230_script_command(
         return 1;
 
     case SS_OP_PLAYER_UNLOCK:
+        /* Unlike PLAYER_LOCK, the inverse is deliberately pointer-free. A
+         * player-bound softtimer has no protected SSVM entity pointer, but is
+         * precisely where an activity must clear a stale time-stop lock after
+         * an unrelated teleport. The timer dispatcher has already selected
+         * srv->active_player, which is the only object this command touches. */
         mock230_world_player_unlock(srv);
         return 1;
 

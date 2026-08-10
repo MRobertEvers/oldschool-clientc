@@ -227,13 +227,9 @@ mock230_ops_npc(
      * the record, and an npc that has been through `npc_changetype` must read
      * the new type's.
      *
-     * The authored half is keyed on `npc->def`, and after a `npc_changetype`
-     * those two disagree — `SS_OP_NPC_CHANGETYPE` writes `npc->type` and leaves
-     * `npc->def` on the block the npc spawned from. That is pre-existing (every
-     * other reader of `def` has the same view, including `npc_stat` and the
-     * combat animations) and the reference does re-derive from the new type
-     * (`Npc.changeType` -> `NpcType.get`). Recorded rather than papered over:
-     * reseeding the def belongs with `npc_changetype`, not here.
+     * The authored half is keyed on `npc->def`.  `npc_changetype` rehydrates
+     * that pointer from the new type before this opcode can run, so the cache
+     * and authored halves continue to describe the same form.
      */
     case SS_OP_NPC_PARAM:
     {
@@ -563,19 +559,14 @@ mock230_ops_npc(
  *     add stops at `MOCK230_NPC_STAT_MAX`, sub cannot restore past the base.
  *     A stat boost is a negative drain, which `Mock230Npc.stat_drain` states.
  *
- * `npc_changetype_keepall` (36/17).
- *     Verified at Npc.ts:426-449: the *only* difference from `npc_changetype`
- *     is whether `levels[]`/`baseLevels[]` are re-derived from the new type.
- *     That used to read "the store the row above says does not exist here",
- *     which is no longer the reason — `stat_drain[]` exists — but the answer is
- *     unchanged, because nothing in this engine re-derives a level from a type
- *     on a changetype either way. So the two are the
- *     same operation in this engine, and the cheapest correct fix is one
- *     fallthrough line, `case SS_OP_NPC_CHANGETYPE_KEEPALL:` above
- *     `case SS_OP_NPC_CHANGETYPE:` in mock230_scripts.c. Not done here because
- *     the alternative from a domain file is to copy that case's body or to
- *     shadow a *working* opcode, and both are worse than one line by whoever
- *     holds the mock230_scripts.c exception.
+ * ~~`npc_changetype_keepall` (36/17)~~ — implemented as the fallthrough above
+ * `npc_changetype` in mock230_scripts.c.
+ *     Npc.ts:438-455 distinguishes it by retaining separate current/base stat
+ *     arrays.  This engine represents non-hitpoint bases through `npc->def`
+ *     and only stores their drain, so both labels use the same definition and
+ *     combat rehydration path.  That preserves the useful type-change state
+ *     (including damage) without pretending a visual transformation is a
+ *     respawn.
  *
  * `npc_heropoints` (13/13).
  *     NpcOps.ts:478 accumulates damage per attacking player into a table the

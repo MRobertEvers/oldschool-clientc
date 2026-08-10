@@ -29,6 +29,31 @@ def require(haystack: str, needle: str, context: str) -> None:
         raise AssertionError(f"{context}: missing {needle!r}")
 
 
+def config_field(config: str, field: str, context: str) -> str:
+    values = re.findall(rf"(?m)^{re.escape(field)}=(.+)$", config)
+    if len(values) != 1:
+        raise AssertionError(
+            f"{context}: expected exactly one {field}, found {len(values)}"
+        )
+    return values[0]
+
+
+def obj_ledger() -> dict[int, int]:
+    path = CONTENT / "port/rs2012_qbd_td.map"
+    rows: dict[int, int] = {}
+    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        fields = raw.split("\t")
+        if fields[0] != "obj":
+            continue
+        if len(fields) < 4:
+            raise AssertionError(f"{path}:{line_number}: incomplete object row")
+        source, destination = int(fields[1]), int(fields[3])
+        if source in rows:
+            raise AssertionError(f"{path}:{line_number}: duplicate object {source}")
+        rows[source] = destination
+    return rows
+
+
 def main() -> None:
     reward = read(
         "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
@@ -199,9 +224,39 @@ def main() -> None:
         "foreign crossbows reject Royal bolts",
     )
 
+    # These source objects are adjacent unnoted/noted pairs.  Omitting the
+    # note forms from the isolated import previously made cachepack resolve
+    # their numeric source IDs against unrelated OSRS239 objects (including
+    # placeholder knives and the white unicorn mask).
+    note_pairs = {
+        14472: (14473, 45007, 45063),
+        14474: (14475, 45008, 45064),
+        14476: (14477, 45009, 45065),
+        14484: (14485, 45010, 45066),
+        15272: (15273, 45011, 45067),
+        20268: (20269, 45062, 45068),
+    }
+    ledger = obj_ledger()
+    for unnoted, (noted, unnoted_dest, noted_dest) in note_pairs.items():
+        unnoted_name = f"rs2012_obj_{unnoted}"
+        noted_name = f"rs2012_obj_{noted}"
+        unnoted_block = block(imported, unnoted_name)
+        noted_block = block(imported, noted_name)
+        if config_field(unnoted_block, "certlink", unnoted_name) != noted_name:
+            raise AssertionError(f"{unnoted_name}: note link escaped RS2012 lane")
+        if config_field(noted_block, "certlink", noted_name) != unnoted_name:
+            raise AssertionError(f"{noted_name}: unnoted link escaped RS2012 lane")
+        if config_field(noted_block, "certtemplate", noted_name) != "template_for_cert":
+            raise AssertionError(f"{noted_name}: incorrect note template")
+        if ledger.get(unnoted) != unnoted_dest:
+            raise AssertionError(f"{unnoted_name}: published allocation changed")
+        if ledger.get(noted) != noted_dest:
+            raise AssertionError(f"{noted_name}: note allocation is not append-only")
+
     print(
         "rs2012 QBD reward-item contract: 11 reversible kit maps, Royal "
-        "tanning/crafting, 4 journals, wear gates, kite, and bolts OK"
+        "tanning/crafting, 4 journals, wear gates, kite, bolts, and 6 note "
+        "closures OK"
     )
 
 

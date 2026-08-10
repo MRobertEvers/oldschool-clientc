@@ -8948,10 +8948,11 @@ phase_info(struct Mock230Server* srv)
  * of a community region table with the cache's own DBTable 44; see
  * `tools/gen_music_regions.py` for provenance and `docs/AUDIO_ACCURACY.md` §2.
  *
- * Two things happen on entering a mapped square, in the reference's order:
- * unlock the track if it is not already unlocked, then play it. The unlock bit
- * is a real varp bit the music-player interface reads, so writing it is what
- * makes the track selectable afterwards rather than merely audible now.
+ * A mapped square first unlocks its track if necessary, then starts it and
+ * names it in the music tab. The unlock bit is a real varp bit the
+ * music-player interface reads, so writing it is what makes the track
+ * selectable afterwards rather than merely audible now. A MIDI_SONG has only
+ * an archive id, so it cannot by itself populate the tab's display name.
  */
 static const struct Mock230MusicRegion*
 mock230_music_for_region(int region)
@@ -8981,6 +8982,7 @@ mock230_music_enter_region(
     int map_x,
     int map_z)
 {
+    const struct Mock230Ids* ids = mock230_ids();
     const struct Mock230MusicRegion* track =
         mock230_music_for_region((map_x << 8) | map_z);
 
@@ -9024,6 +9026,10 @@ mock230_music_enter_region(
     if( player->music_track != track->song )
     {
         player->music_track = track->song;
+        /* Match the jukebox path: the UI learns the display name separately
+         * from the audio packet, which only identifies the cache archive. */
+        if( ids->com_music_now_playing_text > 0 )
+            mock230_send_if_settext(player, ids->com_music_now_playing_text, track->name);
         mock230_send_midi_song(player, track->song);
     }
 }
@@ -9442,6 +9448,48 @@ selftest_capture_find_varp_large(
             return i;
     }
     return -1;
+}
+
+/* Read the two IF_SETTEXT layouts so a region-music test verifies the name and
+ * its target component, not merely that some text packet was emitted. */
+static int
+selftest_capture_has_if_settext(
+    struct Mock230Capture const* capture,
+    struct Mock230Wire const* wire,
+    int component_id,
+    const char* expected)
+{
+    int opcode;
+
+    if( !capture || !wire || component_id <= 0 || !expected )
+        return 0;
+    opcode = mock230_wire_opcode(wire, PKT_NAME_IF_SETTEXT);
+    for( int i = 0; i < capture->count; i++ )
+    {
+        struct Mock230CapturedPacket const* packet = &capture->packets[i];
+        struct RSAreaBuf body;
+        char text[128];
+        int uid;
+
+        if( packet->opcode != opcode )
+            continue;
+        rsab_wrap(&body, (void*)packet->data, (size_t)packet->len);
+        if( strcmp(wire->name, "osrs239") == 0 )
+        {
+            if( rsab_gjstr(&body, text, sizeof(text), RSAB_JSTR_NUL) < 0 )
+                continue;
+            uid = rsab_g4_alt2(&body);
+        }
+        else
+        {
+            uid = rsab_g4(&body);
+            if( rsab_gjstr(&body, text, sizeof(text), RSAB_JSTR_NEWLINE) < 0 )
+                continue;
+        }
+        if( rsab_ok(&body) && uid == component_id && strcmp(text, expected) == 0 )
+            return 1;
+    }
+    return 0;
 }
 
 /* RUNCLIENTSCRIPT keeps its script id as the final big-endian int after the
@@ -9893,6 +9941,38 @@ selftest_find_npc(
             return i;
     }
     return -1;
+}
+
+/** Count active npcs of any listed type inside one absolute tile rectangle. */
+static int
+selftest_count_npcs_in_rect_types(
+    const struct Mock230Server* srv,
+    int x,
+    int z,
+    int width,
+    int height,
+    const int* npc_types,
+    int npc_type_count)
+{
+    int count = 0;
+
+    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+    {
+        const struct Mock230Npc* npc = &srv->npcs[slot];
+
+        if( !npc->active || npc->x < x || npc->x >= x + width || npc->z < z ||
+            npc->z >= z + height )
+            continue;
+        for( int type = 0; type < npc_type_count; type++ )
+        {
+            if( npc->type == npc_types[type] )
+            {
+                count++;
+                break;
+            }
+        }
+    }
+    return count;
 }
 
 /*
@@ -10405,6 +10485,10 @@ mock230_world_selftest(void)
                        "the two modal slots should be 161:16 and 161:74, got %d/%d",
                        MOCK230_COM_CHILD(ids->com_gameframe_mainmodal),
                        MOCK230_COM_CHILD(ids->com_gameframe_sidemodal));
+        SELFTEST_CHECK(ids->com_music_now_playing_text == MOCK230_COM(239, 4),
+                       "the music Playing label should be 239:4, got %d:%d",
+                       MOCK230_COM_GROUP(ids->com_music_now_playing_text),
+                       MOCK230_COM_CHILD(ids->com_music_now_playing_text));
         /*
          * 12:12, not the 12:13 this used to pin.
          *
@@ -10508,6 +10592,41 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(tick_end == capture.count - 1,
                        "SERVER_TICK_END should be last, was %d of %d", tick_end,
                        capture.count);
+    }
+
+    fprintf(stderr, "mock230 selftest: region music tab label\n");
+    {
+        static struct Mock230Capture capture;
+        const struct Mock230MusicRegion* track = &k_mock230_music_regions[0];
+        int old_song = player->music_track;
+        int old_unlock = player->varps[track->varp];
+        int text_at;
+        int midi_at;
+
+        /* Keep this a pure output test: the selected first row has a real
+         * unlock bit, but testing its UI label must not perturb the later
+         * varp/persistence cases. */
+        player->varps[track->varp] |= (int)(1u << track->bit);
+        player->music_track = -1;
+        mock230_capture_begin(&srv, &capture);
+        mock230_music_enter_region(player, track->region >> 8, track->region & 0xff);
+        mock230_capture_end(&srv);
+        player->music_track = old_song;
+        player->varps[track->varp] = old_unlock;
+
+        text_at = mock230_capture_find(
+            &capture, mock230_wire_opcode(srv.wire, PKT_NAME_IF_SETTEXT), 0);
+        midi_at =
+            mock230_capture_find(&capture, mock230_wire_opcode(srv.wire, PKT_NAME_MIDI_SONG), 0);
+        SELFTEST_CHECK(!capture.overflow, "the region-music capture must not overflow");
+        SELFTEST_CHECK(text_at >= 0 && midi_at >= 0 && text_at < midi_at,
+                       "a region track should name itself before MIDI_SONG (text=%d midi=%d)",
+                       text_at, midi_at);
+        SELFTEST_CHECK(selftest_capture_has_if_settext(&capture, srv.wire,
+                                                        ids->com_music_now_playing_text,
+                                                        track->name),
+                       "the region track should update music:now_playing_text to %s",
+                       track->name);
     }
 
     fprintf(stderr, "mock230 selftest: rev239 interface writer bytes\n");
@@ -11000,6 +11119,10 @@ mock230_world_selftest(void)
             {
                 const int var_slot = 3;
                 const int32_t var_value = 0x13579bdf;
+                const int changed_type =
+                    mock230_content_symbol(MOCK230_PACK_NPC, "shade_level1");
+                const struct Mock230NpcDef* changed_def =
+                    changed_type > 0 ? mock230_content_npc(changed_type) : NULL;
                 int first = mock230_world_npc_spawn(
                     &srv, 1, player->x + 8, player->z + 8, player->level);
                 int second = mock230_world_npc_spawn(
@@ -11048,7 +11171,7 @@ mock230_world_selftest(void)
                     SS_OP_NPC_VAR_GET, SS_OP_POP_VARP, SS_OP_RETURN,
                 };
                 int32_t change_get_operands[] = {
-                    2, INT32_MAX, 0, var_slot, 0,
+                    0, INT32_MAX, 0, var_slot, 0,
                     SELFTEST_VARP_QUEST_PROGRESS, 0,
                 };
                 char* change_get_strings[7] = { NULL };
@@ -11065,8 +11188,20 @@ mock230_world_selftest(void)
 
                 SELFTEST_CHECK(first >= 0 && second >= 0,
                                "two NPC instances should be available for isolation");
+                SELFTEST_CHECK(changed_type > 0 && changed_def != NULL,
+                               "shade_level1 should be available for changetype rehydration");
                 if( first >= 0 && second >= 0 )
                 {
+                    struct Mock230Npc* changed = &srv.npcs[first];
+                    int old_damage;
+                    int old_x;
+                    int old_z;
+                    int old_level;
+                    int old_size;
+                    int old_turnspeed;
+                    int old_blockwalk;
+                    int old_blocksight;
+
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
                                        &srv, &set_get_script, first),
@@ -11085,15 +11220,66 @@ mock230_world_selftest(void)
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                         "new NPC variables are zero and isolated per instance");
 
+                    /* The initially generic npc makes every rehydrated combat
+                     * field observable.  Keep the per-instance pieces busy so
+                     * this also proves a type change is not a respawn. */
+                    change_get_operands[0] = changed_type;
+                    changed->hitpoints = changed->base_hitpoints > 1
+                                            ? changed->base_hitpoints - 1
+                                            : 0;
+                    old_damage = changed->base_hitpoints - changed->hitpoints;
+                    old_x = changed->x;
+                    old_z = changed->z;
+                    old_level = changed->level;
+                    old_size = changed->size;
+                    old_turnspeed = changed->turnspeed;
+                    old_blockwalk = changed->blockwalk;
+                    old_blocksight = changed->blocksight;
+                    changed->mode = MOCK230_NPCMODE_APPLAYER1 + 1 /* applayer2 */;
+                    changed->combat_target = 0;
+                    changed->huntmode = MOCK230_HUNT_AGGRESSIVE;
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
                                        &srv, &change_get_script, first),
                                    "npc_changetype and npc_var_get execute together");
                     SELFTEST_CHECK(
-                        srv.npcs[first].type == 2 &&
-                            srv.npcs[first].script_vars[var_slot] == var_value &&
+                        changed_def && changed->type == changed_type &&
+                            changed->def == changed_def &&
+                            changed->base_hitpoints ==
+                                (changed_def->hitpoints > 0 ? changed_def->hitpoints : 1) &&
+                            changed->max_hitpoints == changed->base_hitpoints &&
+                            changed->hitpoints ==
+                                (changed->base_hitpoints - old_damage > 0
+                                     ? changed->base_hitpoints - old_damage
+                                     : 0) &&
+                            changed->attack_seq == changed_def->attack_anim &&
+                            changed->block_seq == changed_def->defend_anim &&
+                            changed->death_seq == changed_def->death_anim &&
+                            changed->attack_sound == changed_def->attack_sound &&
+                            changed->block_sound == changed_def->defend_sound &&
+                            changed->death_sound == changed_def->death_sound &&
+                            changed->wander_radius ==
+                                (changed_def->nomove ? 0 : changed_def->wanderrange) &&
+                            changed->script_vars[var_slot] == var_value &&
+                            changed->x == old_x && changed->z == old_z &&
+                            changed->level == old_level &&
+                            changed->mode == MOCK230_NPCMODE_APPLAYER1 + 1 &&
+                            changed->combat_target == 0 &&
+                            changed->huntmode == MOCK230_HUNT_AGGRESSIVE &&
+                            changed->size == old_size &&
+                            changed->turnspeed == old_turnspeed &&
+                            changed->blockwalk == old_blockwalk &&
+                            changed->blocksight == old_blocksight &&
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
-                        "npc_changetype preserves the instance's runtime variables");
+                        "npc_changetype rehydrates its combat definition without respawning it");
+
+                    change_get_ops[2] = SS_OP_NPC_CHANGETYPE_KEEPALL;
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(
+                        mock230_scripts_run_hook_on_npc(&srv, &change_get_script, second) &&
+                            changed_def && srv.npcs[second].type == changed_type &&
+                            srv.npcs[second].def == changed_def,
+                        "npc_changetype_keepall shares the changetype rehydration path");
 
                     mock230_world_npc_occupancy(&srv.npcs[first], 0);
                     srv.npcs[first].active = 0;
@@ -22839,6 +23025,57 @@ mock230_world_selftest(void)
                     if( runner >= 0 )
                         srv.npcs[runner].active = 0;
                 }
+
+                /* Combat has its own movement/attack pass, so it intentionally
+                 * bypasses npc_run_mode while combat_target is live.  An exact
+                 * [ai_opplayer2] handler that switches to AP must consequently
+                 * be consumed by combat itself.  The cache's test_combat NPC is
+                 * reserved for this fixture; its two triggers in selftest.rs2
+                 * make the otherwise invisible handoff a varp write. */
+                {
+                    int test_combat =
+                        mock230_content_symbol(MOCK230_PACK_NPC, "test_combat");
+                    int handoff = -1;
+
+                    SELFTEST_CHECK(test_combat >= 0,
+                                   "test_combat should be available for the AP handoff fixture");
+                    if( test_combat >= 0 )
+                    {
+                        mock230_world_set_active(&srv, player);
+                        handoff = mock230_world_npc_spawn(
+                            &srv, test_combat, player->x + 1, player->z, player->level);
+                    }
+                    SELFTEST_CHECK(handoff >= 0,
+                                   "the OP-to-AP combat handoff fixture should spawn");
+                    if( handoff >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv.npcs[handoff];
+
+                        npc->spawn_pending = 0;
+                        npc->combat_target = player->pid;
+                        npc->attack_clock = 0;
+                        npc->mode = MOCK230_NPCMODE_NONE;
+                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+
+                        /* The clock invokes OP first; its test handler selects
+                         * AP but does not perform the AP action yet. */
+                        mock230_combat_npc_tick(&srv, handoff);
+                        SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_APPLAYER1 + 1 &&
+                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                                       "a combat OP handler should leave AP pending until next turn");
+
+                        srv.tick++;
+                        mock230_combat_npc_tick(&srv, handoff);
+                        SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_NONE &&
+                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                                       "the next combat turn should dispatch [ai_applayer2] once");
+
+                        mock230_world_npc_occupancy(npc, 0);
+                        npc->active = 0;
+                        npc->respawn_tick = -1;
+                        mock230_zone_npc_refile(&srv, handoff);
+                    }
+                }
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -26100,7 +26337,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr,
-            "mock230 selftest: revision-239 Zuk seal change precedes synchronized collapse\n");
+            "mock230 selftest: revision-239 Zuk seal hands off to delayed flank collapse\n");
     {
         int loaded = mock230_scripts_load(&srv,
                                           "OSRS-Content/osrs239-content/server/scripts/build");
@@ -26292,18 +26529,18 @@ mock230_world_selftest(void)
                            "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
-                           "the collapse should follow Kronos's three-tick glyph delay; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 5,
+                           "the flank collapse should follow the glyph delay plus Zuk handoff; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
-            SELFTEST_CHECK(fade_in_tick == anim_tick,
-                           "fade-in and the flank animations must start together; "
-                           "got fade=%d anim=%d",
-                           fade_in_tick, anim_tick);
-            SELFTEST_CHECK(glyph_move_tick == anim_tick,
-                           "the glyph must take its first step on the flank LOC_ANIM tick; "
-                           "got glyph=%d anim=%d",
-                           glyph_move_tick, anim_tick);
+            SELFTEST_CHECK(fade_in_tick == zuk_tick,
+                           "fade-in must start with Zuk's intact-rock frame; "
+                           "got fade=%d zuk=%d",
+                           fade_in_tick, zuk_tick);
+            SELFTEST_CHECK(glyph_move_tick == zuk_tick,
+                           "the glyph must take its first step with Zuk's intact-rock frame; "
+                           "got glyph=%d zuk=%d",
+                           glyph_move_tick, zuk_tick);
             SELFTEST_CHECK(rocks_tick == anim_tick + 6,
                            "the settled flank rocks must appear on the 180-cycle "
                            "animation boundary; got anim=%d rocks=%d",
@@ -26346,8 +26583,8 @@ mock230_world_selftest(void)
                            total_pillar_seq);
             SELFTEST_CHECK(barrier_seen && !player->rebuild_scene_pending,
                            "the rev239 fixture should cross one acknowledged rebuild barrier");
-            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && zuk_tick == anim_tick,
-                           "TzKal-Zuk and the flank animations must start together; "
+            SELFTEST_CHECK(zuk_tick >= 0 && anim_tick >= 0 && anim_tick == zuk_tick + 1,
+                           "the flank animations must begin one tick after TzKal-Zuk; "
                            "got zuk=%d anim=%d",
                            zuk_tick, anim_tick);
 
@@ -26467,8 +26704,8 @@ mock230_world_selftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 4,
-                           "the repeated seal should preserve the glyph delay; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 5,
+                           "the repeated seal should preserve the delayed flank handoff; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,
@@ -26792,27 +27029,16 @@ mock230_world_selftest(void)
     }
 
     /*
-     * A logout gives a map-instance reservation back, and leaves the character
-     * saved on real map.
-     *
-     * Last leg on purpose: it ends by removing the player, and nothing after it
-     * would have one.
-     *
-     * What this is measuring, and why it is worth a permanent check rather than
-     * one headless run: a leaked reservation is invisible from inside the game.
-     * The pool is MOCK230_MAPINSTANCE_MAX wide, so the eighth leak is the first
-     * symptom, it lands in whatever content asked next, and it reads as "the
-     * Inferno could not be prepared right now". The saved coord is the worse
-     * half and quieter still — a character stored inside a square the allocator
-     * is free to re-issue logs back in on void, with no terrain to walk off.
-     *
-     * Both assertions fail if `[logout,_]` stops being dispatched, if
-     * `~map_instance_logout_release` is dropped from it, or if the dispatch
-     * moves below the save in `mock230_world_remove_player` — measured, by
-     * running the whole thing with an empty `[logout,_]`: the release line never
-     * prints and the save reads x = 6431.
+     * QBD owns two different private squares over one reward lifecycle: the
+     * arena, then (or on a later return) the Dragonkin coffer room. An
+     * unrelated teleport does not know either handle and must not have its
+     * destination replaced by QBD's ordinary exit. The one-tick soft timer is
+     * the activity boundary which releases that old square, deletes its
+     * indefinite NPCs, drains combat queues, unlocks time stop and closes the
+     * HUD while deliberately leaving the permanent reward bit/container alone.
      */
-    fprintf(stderr, "mock230 selftest: a logout releases the session's map instance\n");
+    fprintf(stderr,
+            "mock230 selftest: QBD departure preserves reward and reuses its instance\n");
     {
         int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
@@ -26825,12 +27051,557 @@ mock230_world_selftest(void)
         }
         else
         {
-            int32_t handle = 0;
+            const struct SSVM_Script* lifecycle =
+                SSVM_ProviderGetByName(srv.scripts, "[softtimer,rs2012_qbd_lifecycle]");
+            const struct SSVM_Script* wake =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,rs2012_qbd_wake]");
+            const struct SSVM_Script* hazard =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,rs2012_qbd_platform_hazard]");
+            const struct SSVM_Script* coffer_arrive =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,rs2012_qbd_coffer_arrive]");
+            int qbd_active = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_active");
+            int qbd_handle = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_handle");
+            int reward_ready =
+                mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_reward_ready");
+            int time_stopped =
+                mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_time_stopped");
+            int instance_handle =
+                mock230_content_symbol(MOCK230_PACK_VARP, "map_instance_handle");
+            int overlay_hud = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:overlay_hud");
+            int mainmodal = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:mainmodal");
+            int qbd_hud =
+                mock230_content_symbol(MOCK230_PACK_INTERFACE, "rs2012_qbd_hud");
+            int qbd_coffer =
+                mock230_content_symbol(MOCK230_PACK_INTERFACE, "rs2012_qbd_coffer");
+            int qbd_coffer_contents = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "rs2012_qbd_coffer:contents");
+            int qbd_coffer_close =
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "rs2012_qbd_coffer:close");
+            int qbd_reward_inv =
+                mock230_content_symbol(MOCK230_PACK_INV, "rs2012_qbd_rewardinv");
+            int qbd_coffer_loc =
+                mock230_content_symbol(MOCK230_PACK_LOC, "rs2012_loc_70816");
+            int qbd_types[6] = {
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_sleeping"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_default"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_crystal"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_hardened"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_tortured_soul"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_qbd_giant_worm"),
+            };
+            int handle = 0;
+            int base_x = 0;
+            int base_z = 0;
+            int width = 0;
+            int height = 0;
+            int coffer_baked;
+            int fixture_ok;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            coffer_baked = qbd_coffer_loc > 0 && mock230_loc_known(qbd_coffer_loc);
+            fixture_ok = lifecycle && wake && hazard && coffer_arrive && qbd_active >= 0 &&
+                         qbd_handle >= 0 && reward_ready >= 0 && time_stopped >= 0 &&
+                         instance_handle >= 0 && overlay_hud >= 0 && mainmodal >= 0 &&
+                         qbd_hud >= 0 && qbd_coffer >= 0 && qbd_coffer_contents >= 0 &&
+                         qbd_coffer_close >= 0 && qbd_reward_inv >= 0;
+            for( int i = 0; i < 6; i++ )
+                fixture_ok = fixture_ok && qbd_types[i] > 0;
+            SELFTEST_CHECK(fixture_ok,
+                           "the QBD lifecycle fixture should resolve scripts, varps, "
+                           "interfaces and six npc types");
+
+            if( fixture_ok )
+            {
+                int saved_summoning = player->stat_level[MOCK230_STAT_SUMMONING];
+                int reused;
+                int timer_count = 0;
+                int queue_count = 0;
+                int hud_mounts = 0;
+                int coffer_mounts = 0;
+
+                /* The ordinary production-shaped debug command remains gated.
+                 * The manifest command bypasses only that check and does not
+                 * turn the QA account into a level-60 Summoner. */
+                SELFTEST_CHECK(saved_summoning < 60,
+                               "the QBD gate fixture needs a sub-60 account, got %d",
+                               saved_summoning);
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbd") ==
+                                   MOCK230_TRIGGER_RAN,
+                               "the ordinary ::rs2012qbd command should resolve");
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
+                                   player->varps[qbd_active] == 0,
+                               "ordinary QBD debug entry must retain the 60 Summoning gate");
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdmanifest") ==
+                                   MOCK230_TRIGGER_RAN,
+                               "the manifest-only QBD entry should resolve");
+                SELFTEST_CHECK(player->stat_level[MOCK230_STAT_SUMMONING] == saved_summoning &&
+                                   player->stat_boosted[MOCK230_STAT_SUMMONING] ==
+                                       saved_summoning,
+                               "manifest entry must not mutate Summoning, base=%d boosted=%d",
+                               player->stat_level[MOCK230_STAT_SUMMONING],
+                               player->stat_boosted[MOCK230_STAT_SUMMONING]);
+
+                handle = mock230_mapinstance_find(player->x, player->z);
+                SELFTEST_CHECK(handle != 0 && mock230_mapinstance_live_count() == 1,
+                               "manifest entry should reserve one QBD arena, handle=%d live=%d",
+                               handle, mock230_mapinstance_live_count());
+                SELFTEST_CHECK(handle != 0 && mock230_mapinstance_bounds(
+                                                       handle, &base_x, &base_z, &width, &height),
+                               "the QBD arena should expose its owned rectangle");
+                SELFTEST_CHECK(player->varps[qbd_active] == 1 &&
+                                   player->varps[qbd_handle] == handle &&
+                                   player->varps[instance_handle] == handle,
+                               "QBD entry should record dedicated and generic ownership");
+                SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
+                                   &srv, base_x, base_z, width, height, qbd_types, 6) == 1,
+                               "a fresh QBD arena should contain exactly its sleeping queen");
+                SELFTEST_CHECK(player->music_track == 1119,
+                               "QBD arena entry should start Awoken (1119), got %d",
+                               player->music_track);
+
+                for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+                    timer_count += player->timers[i].active &&
+                                   player->timers[i].script_id == lifecycle->id;
+                for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                    queue_count += player->queue[i].active &&
+                                   (player->queue[i].script_id == wake->id ||
+                                    player->queue[i].script_id == hazard->id);
+                for( int i = 0; i < player->interfaces.mount_count; i++ )
+                    hud_mounts += player->interfaces.mounts[i].target_uid == overlay_hud &&
+                                  player->interfaces.mounts[i].interface_id == qbd_hud;
+                SELFTEST_CHECK(timer_count == 1 && queue_count == 2 && hud_mounts == 1,
+                               "QBD entry should arm one lifecycle, two opening queues and HUD; "
+                               "got %d/%d/%d",
+                               timer_count, queue_count, hud_mounts);
+
+                /* Stand in for victory's permanent reward handoff, then move
+                 * through the engine's ordinary teleport seam. The soft timer
+                 * must run despite the time-stop action lock. */
+                player->varps[reward_ready] = 1;
+                player->varps[time_stopped] = 1;
+                player->action_locked = 1;
+                mock230_world_teleport(&srv, 0, 3222, 3218);
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->x == 3222 && player->z == 3218 &&
+                                   player->level == 0,
+                               "QBD departure must preserve external teleport 3222,3218,0; "
+                               "got %d,%d,%d",
+                               player->x, player->z, player->level);
+                SELFTEST_CHECK(!player->action_locked,
+                               "QBD departure should unlock an active time stop");
+                SELFTEST_CHECK(player->music_track != 1119 && player->music_track != 1118,
+                               "QBD departure should clear its encounter songs, got %d",
+                               player->music_track);
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
+                                   player->varps[qbd_active] == 0 &&
+                                   player->varps[qbd_handle] == 0 &&
+                                   player->varps[instance_handle] == 0,
+                               "QBD departure should clear both ownership records");
+                SELFTEST_CHECK(player->varps[reward_ready] == 1,
+                               "QBD departure must preserve an unclaimed permanent coffer");
+                SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
+                                   &srv, base_x, base_z, width, height, qbd_types, 6) == 0,
+                               "QBD departure should despawn all arena-owned npcs");
+
+                timer_count = 0;
+                queue_count = 0;
+                hud_mounts = 0;
+                for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+                    timer_count += player->timers[i].active &&
+                                   player->timers[i].script_id == lifecycle->id;
+                for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                    queue_count += player->queue[i].active &&
+                                   (player->queue[i].script_id == wake->id ||
+                                    player->queue[i].script_id == hazard->id);
+                for( int i = 0; i < player->interfaces.mount_count; i++ )
+                    hud_mounts += player->interfaces.mounts[i].target_uid == overlay_hud;
+                SELFTEST_CHECK(timer_count == 0 && queue_count == 0 && hud_mounts == 0,
+                               "QBD departure should clear lifecycle/queues/HUD, got %d/%d/%d",
+                               timer_count, queue_count, hud_mounts);
+
+                /* The permanent bit routes the next entry into the coffer room,
+                 * using the just-released allocator slot. Its own lifecycle is
+                 * then tested by a second arbitrary departure. */
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdmanifest") ==
+                                   MOCK230_TRIGGER_RAN,
+                               "unclaimed reward should permit QBD coffer re-entry");
+                reused = mock230_mapinstance_find(player->x, player->z);
+                SELFTEST_CHECK(reused == handle && player->varps[qbd_handle] == reused &&
+                                   player->varps[reward_ready] == 1,
+                               "coffer re-entry should reuse QBD slot %d, got %d", handle,
+                               reused);
+                if( coffer_baked )
+                {
+                    struct Mock230Container* reward_container;
+                    int arrival_queues = 0;
+                    int contents_listeners = 0;
+                    int close_armed = 0;
+
+                    /* Debugprocs run between host ticks in this fixture. In a
+                     * live interaction phase 10 performs this rebuild before
+                     * the delay-one arrival queue is next eligible. */
+                    maybe_rebuild(&srv);
+                    for( int tick = 0; tick < 3; tick++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(
+                                player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        mock230_world_tick(&srv);
+                    }
+                    for( int i = 0; i < player->interfaces.mount_count; i++ )
+                        coffer_mounts +=
+                            player->interfaces.mounts[i].interface_id == qbd_coffer;
+                    SELFTEST_CHECK(
+                        coffer_mounts == 1,
+                        "reward re-entry should mount the Dragonkin coffer once, got %d",
+                        coffer_mounts);
+                    SELFTEST_CHECK(mock230_bank_inv_size(qbd_reward_inv) == 10,
+                                   "the composed cache should size QBD reward inv %d at 10, "
+                                   "got %d",
+                                   qbd_reward_inv, mock230_bank_inv_size(qbd_reward_inv));
+                    reward_container = mock230_container_resolve(
+                        &srv, player, qbd_reward_inv);
+                    if( reward_container )
+                    {
+                        for( int i = 0; i < reward_container->listener_count; i++ )
+                            contents_listeners +=
+                                reward_container->listeners[i].component == qbd_coffer_contents;
+                    }
+                    for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                        arrival_queues += player->queue[i].active &&
+                                          player->queue[i].script_id == coffer_arrive->id;
+                    for( int i = 0; i < player->interfaces.event_count; i++ )
+                        close_armed +=
+                            player->interfaces.events[i].component_uid == qbd_coffer_close &&
+                            player->interfaces.events[i].start == -1 &&
+                            player->interfaces.events[i].end == -1;
+                    SELFTEST_CHECK(reward_container && reward_container->slots == 10 &&
+                                       contents_listeners == 1,
+                                   "coffer arrival should finish inv_transmit onto contents; "
+                                   "container=%p slots=%d listeners=%d",
+                                   (void*)reward_container,
+                                   reward_container ? reward_container->slots : -1,
+                                   contents_listeners);
+                    SELFTEST_CHECK(arrival_queues == 0 && close_armed == 1 &&
+                                       player->active_script == NULL,
+                                   "coffer arrival should finish through its final event arm "
+                                   "without an SSVM abort; queue=%d close=%d active=%p",
+                                   arrival_queues, close_armed,
+                                   (void*)player->active_script);
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "  SKIP  live QBD coffer requires cache.osrs239.rs2012; "
+                            "exercising reward-room lifecycle\n");
+                }
+
+                mock230_world_teleport(&srv, 0, 3200, 3200);
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(player->x == 3200 && player->z == 3200 &&
+                                   mock230_mapinstance_live_count() == 0 &&
+                                   player->varps[reward_ready] == 1,
+                               "reward-room departure should preserve destination and coffer");
+                coffer_mounts = 0;
+                for( int i = 0; i < player->interfaces.mount_count; i++ )
+                    coffer_mounts += player->interfaces.mounts[i].target_uid == mainmodal;
+                SELFTEST_CHECK(coffer_mounts == 0,
+                               "reward-room departure should close its main modal");
+
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdmanifest") ==
+                                   MOCK230_TRIGGER_RAN,
+                               "cleaned reward room should remain re-enterable");
+                reused = mock230_mapinstance_find(player->x, player->z);
+                SELFTEST_CHECK(reused == handle && mock230_mapinstance_live_count() == 1,
+                               "second coffer re-entry should reuse one clean slot, got %d",
+                               reused);
+
+                /* Finish through the real logout path so this block leaves no
+                 * reservation or modal for TD's following fixture. */
+                SELFTEST_CHECK(mock230_scripts_run_trigger_specific(
+                                   &srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "QBD cleanup should remain race-safe through [logout,_]");
+                SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
+                                   player->varps[qbd_handle] == 0 &&
+                                   player->varps[reward_ready] == 1,
+                               "QBD logout should release the room without consuming reward");
+            }
+            mock230_scripts_free(&srv);
+        }
+    }
+
+    /*
+     * A private encounter owns more than the square the player happens to be
+     * standing in. Tormented Demons adds six indefinite-duration npcs and a
+     * dynamic cave opening; walking through that opening, an unrelated
+     * teleport, death and logout must all return the reservation without
+     * leaving those entities for the next tenant.
+     *
+     * Last leg on purpose: the generic control ends by removing the player, and
+     * nothing after it would have one.
+     *
+     * A leaked reservation is invisible from inside the game. The pool is
+     * MOCK230_MAPINSTANCE_MAX wide, so the eighth leak is the first symptom, it
+     * lands in whatever content asked next, and it reads as "the Inferno could
+     * not be prepared right now". A stale demon is quieter still: the allocator
+     * returns the same handle and square, so the next run starts with twelve.
+     */
+    fprintf(stderr,
+            "mock230 selftest: TD exit, departure, death and logout release its instance\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            const struct SSVM_Script* lifecycle =
+                SSVM_ProviderGetByName(srv.scripts, "[softtimer,rs2012_td_lifecycle]");
+            const struct SSVM_Script* install_exit =
+                SSVM_ProviderGetByName(srv.scripts, "[softtimer,rs2012_td_install_exit]");
+            const struct SSVM_Script* death =
+                SSVM_ProviderGetByName(srv.scripts, "[queue,player_death]");
+            int td_active = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_td_active");
+            int td_handle = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_td_handle");
+            int instance_handle =
+                mock230_content_symbol(MOCK230_PACK_VARP, "map_instance_handle");
+            int cave = mock230_content_symbol(MOCK230_PACK_LOC, "rs2012_loc_40260");
+            int td_types[3] = {
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_tormented_demon_melee"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_tormented_demon_magic"),
+                mock230_content_symbol(MOCK230_PACK_NPC, "rs2012_tormented_demon_ranged"),
+            };
+            int handle = 0;
+            int base_x = 0;
+            int base_z = 0;
+            int width = 0;
+            int height = 0;
+            int cave_baked;
+            int fixture_ok;
 
             selftest_reset_world(&srv, player, 402, 402);
             SELFTEST_CHECK(SSVM_ProviderGetByName(srv.scripts, "[logout,_]") != NULL,
                            "the tree should bind [logout,_] — without it this stanza "
                            "proves nothing");
+            SELFTEST_CHECK(lifecycle && install_exit && death,
+                           "the TD lifecycle/install and player-death scripts must be compiled");
+            cave_baked = cave > 0 && mock230_loc_known(cave);
+            fixture_ok = lifecycle && install_exit && death && td_active >= 0 &&
+                         td_handle >= 0 && instance_handle >= 0 && cave > 0 &&
+                         td_types[0] > 0 && td_types[1] > 0 && td_types[2] > 0;
+            SELFTEST_CHECK(fixture_ok,
+                           "the TD fixture symbols should resolve: varps=%d/%d/%d "
+                           "cave=%d npcs=%d/%d/%d",
+                           td_active, td_handle, instance_handle, cave, td_types[0],
+                           td_types[1], td_types[2]);
+
+            if( fixture_ok )
+            {
+                int cave_slot;
+                int reused;
+
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                                   MOCK230_TRIGGER_RAN,
+                               "::rs2012tdbypass should enter the production TD session");
+                handle = mock230_mapinstance_find(player->x, player->z);
+                SELFTEST_CHECK(handle != 0 && mock230_mapinstance_live_count() == 1,
+                               "TD entry should reserve one instance, handle=%d live=%d",
+                               handle, mock230_mapinstance_live_count());
+                SELFTEST_CHECK(handle != 0 &&
+                                   mock230_mapinstance_bounds(
+                                       handle, &base_x, &base_z, &width, &height),
+                               "the TD reservation should expose its owned rectangle");
+                if( handle != 0 && width > 0 && height > 0 )
+                {
+                    SELFTEST_CHECK(player->varps[td_active] == 1 &&
+                                       player->varps[td_handle] == handle &&
+                                       player->varps[instance_handle] == handle,
+                                   "entry should record dedicated and generic ownership, "
+                                   "got active=%d td=%d generic=%d handle=%d",
+                                   player->varps[td_active], player->varps[td_handle],
+                                   player->varps[instance_handle], handle);
+                    SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
+                                       &srv, base_x, base_z, width, height, td_types, 3) == 6,
+                                   "a fresh TD run should contain exactly six demons");
+
+                    /* An unrelated teleport knows nothing about TD. Its chosen
+                     * destination must survive while the one-tick soft timer
+                     * notices departure and deletes encounter-owned state. It
+                     * happens before the cave installer deliberately: release
+                     * must cancel that one-shot or it can mutate a reused slot. */
+                    selftest_park_player(&srv, 3222, 3218);
+                    mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->x == 3222 && player->z == 3218 &&
+                                       player->level == 0,
+                                   "departure cleanup must preserve the external teleport, "
+                                   "got %d,%d,%d",
+                                   player->x, player->z, player->level);
+                    SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
+                                       player->varps[td_active] == 0 &&
+                                       player->varps[td_handle] == 0 &&
+                                       player->varps[instance_handle] == 0,
+                                   "the departure watchdog should clear reservation and "
+                                   "ownership, live=%d active=%d td=%d generic=%d",
+                                   mock230_mapinstance_live_count(),
+                                   player->varps[td_active], player->varps[td_handle],
+                                   player->varps[instance_handle]);
+                    SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
+                                       &srv, base_x, base_z, width, height, td_types, 3) == 0,
+                                   "departure cleanup should delete all six demons");
+
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "the player should be able to re-enter after teleporting out");
+                    reused = mock230_mapinstance_find(player->x, player->z);
+                    SELFTEST_CHECK(reused == handle,
+                                   "the allocator should reuse the released TD slot, got %d "
+                                   "after %d",
+                                   reused, handle);
+                    SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
+                                       &srv, base_x, base_z, width, height, td_types, 3) == 6,
+                                   "slot reuse should spawn six, not retain or accumulate demons");
+
+                    /* Reproduce a socket disappearing after some other content
+                     * already moved the player. Coordinate-derived ownership
+                     * cannot find the arena now; the dedicated handle must. */
+                    selftest_park_player(&srv, 3200, 3200);
+                    SELFTEST_CHECK(mock230_scripts_run_trigger_specific(
+                                       &srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "the real [logout,_] dispatcher should run");
+                    SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
+                                       player->varps[td_active] == 0 &&
+                                       player->varps[td_handle] == 0 &&
+                                       player->varps[instance_handle] == 0,
+                                   "logout after external movement should release TD ownership");
+                    SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
+                                       &srv, base_x, base_z, width, height, td_types, 3) == 0,
+                                   "logout should leave no TD npcs in the reusable square");
+                    SELFTEST_CHECK(player->x == 2527 && player->z == 5827 &&
+                                       player->level == 2,
+                                   "TD logout should use its source-adjacent safe tile, got "
+                                   "%d,%d,%d",
+                                   player->x, player->z, player->level);
+
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "logout cleanup should permit another TD entry");
+                    reused = mock230_mapinstance_find(player->x, player->z);
+                    SELFTEST_CHECK(reused == handle &&
+                                       selftest_count_npcs_in_rect_types(
+                                           &srv, base_x, base_z, width, height, td_types, 3) == 6,
+                                   "logout/re-entry should reuse one clean slot, handle=%d "
+                                   "demons=%d",
+                                   reused,
+                                   selftest_count_npcs_in_rect_types(
+                                       &srv, base_x, base_z, width, height, td_types, 3));
+                    if( cave_baked )
+                    {
+                        /* The composed RS2012 cache contains 40260 and 40_89.
+                         * Let the one-shot record its out-of-scene loc, then
+                         * let the rebuild replay it into the active scene. */
+                        fprintf(stderr,
+                                "  TD live cave: composed cache record %d is present\n",
+                                cave);
+                        mock230_world_tick(&srv);
+                        cave_slot = mock230_scene_find_loc_id(
+                            base_x + 23, base_z + 29, 0, cave);
+                        SELFTEST_CHECK(cave_slot >= 0 &&
+                                           mock230_scripts_run_trigger_on_loc(
+                                               &srv, SS_TRIGGER_OPLOC1, cave,
+                                               mock230_loc_category(cave), cave_slot) ==
+                                               MOCK230_TRIGGER_RAN,
+                                       "climbing through the live cave should run TD's "
+                                       "normal exit");
+                    }
+                    else
+                    {
+                        /* The default selftest intentionally runs against the
+                         * pristine OSRS cache. The imported type is still in the
+                         * content pack, so exercise its real binding while the
+                         * MOCK230_CACHE=cache.osrs239.rs2012 run owns the visual
+                         * loc/scene assertion above. Do this before tick 1 so
+                         * release also proves it cancels the pending installer. */
+                        fprintf(stderr,
+                                "  SKIP  live TD cave requires cache.osrs239.rs2012; "
+                                "exercising its content binding\n");
+                        SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                                           &srv, SS_TRIGGER_OPLOC1, cave,
+                                           mock230_loc_category(cave), -1) ==
+                                           MOCK230_TRIGGER_RAN,
+                                       "the imported cave type should still bind TD's exit");
+                    }
+                    SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
+                                       selftest_count_npcs_in_rect_types(
+                                           &srv, base_x, base_z, width, height, td_types, 3) == 0 &&
+                                       player->x == 2527 && player->z == 5827 &&
+                                       player->level == 2,
+                                   "the cave exit should move outside and release all TD state");
+
+                    /* Death holds the square for the visible corpse delay, but
+                     * deletes combatants immediately. Its grave/bones target is
+                     * redirected before the held handle is finally released. */
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "the death fixture should enter a fresh TD run");
+                    reused = mock230_mapinstance_find(player->x, player->z);
+                    SELFTEST_CHECK(reused == handle,
+                                   "the death fixture should reuse the same instance slot");
+                    mock230_combat_hit_player(&srv, 0, player->hitpoints);
+                    mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->dying &&
+                                       mock230_mapinstance_live_count() == 1 &&
+                                       mock230_mapinstance_find(player->x, player->z) == handle,
+                                   "TD death should retain the arena during the corpse delay");
+                    SELFTEST_CHECK(player->varps[td_active] == 0 &&
+                                       player->varps[td_handle] == 0 &&
+                                       player->varps[instance_handle] == handle &&
+                                       selftest_count_npcs_in_rect_types(
+                                           &srv, base_x, base_z, width, height, td_types, 3) == 0,
+                                   "TD death should stop and despawn demons before p_delay");
+                    if( player->rebuild_scene_pending )
+                        mock230_world_handle(
+                            player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                    for( int tick = 0; tick < 8; tick++ )
+                        mock230_world_tick(&srv);
+                    SELFTEST_CHECK(!player->dying &&
+                                       mock230_mapinstance_live_count() == 0 &&
+                                       player->varps[instance_handle] == 0,
+                                   "completed TD death should release the held reservation");
+                    {
+                        int safe_bones = 0;
+                        int instance_bones = 0;
+
+                        for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
+                        {
+                            const struct Mock230GroundObj* obj = &srv.ground[slot];
+
+                            if( !obj->active || obj->obj_id != 526 /* bones */ )
+                                continue;
+                            safe_bones += obj->x == 2527 && obj->z == 5827 && obj->level == 2;
+                            instance_bones += obj->x >= base_x && obj->x < base_x + width &&
+                                              obj->z >= base_z && obj->z < base_z + height;
+                        }
+                        SELFTEST_CHECK(safe_bones == 1 && instance_bones == 0,
+                                       "TD death should place bones outside the freed square, "
+                                       "safe=%d inside=%d",
+                                       safe_bones, instance_bones);
+                    }
+                }
+            }
+
+            /* Generic control: content with no activity-specific teardown must
+             * still be covered by [logout,_]'s map-instance backstop and by the
+             * host fallback in world_remove_player. */
+            selftest_reset_world(&srv, player, 402, 402);
             /* `::mapinstance` and not the Inferno, deliberately. The subject is
              * the *reservation*, and the generic debugproc is the smallest thing
              * that holds one — an Inferno run would drag a fire cape, 68 waves of

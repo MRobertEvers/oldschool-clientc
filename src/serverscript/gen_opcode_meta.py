@@ -606,7 +606,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
     "PLAYER_LOCK": (1 << POINTER_BITS["p_active_player"], 0),
-    "PLAYER_UNLOCK": (1 << POINTER_BITS["p_active_player"], 0),
+    # Deliberately no PLAYER_UNLOCK mask. A player-bound softtimer has no
+    # protected pointer, yet it is the emergency activity-cleanup context that
+    # must be able to release a stale action lock after an external teleport.
+    # The mock host command addresses the session's active player directly,
+    # like IF_CLOSESUB above; it does not dereference an SSVM entity pointer.
     "WALKSTEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
