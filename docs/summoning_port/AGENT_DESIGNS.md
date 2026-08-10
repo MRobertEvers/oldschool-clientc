@@ -1276,7 +1276,7 @@ I re-measured the load-bearing claims from recon before designing. **Five recon 
 | `pack/stat.pack` ends at `22=construction` | verified, 23 lines | `23=sailing` is *missing* and must land **first**, or key 24 lands on a nameless hole. |
 | `RS_PLAYER_STATS_SKILL_COUNT 25` | `src/game/rs_player_stats.h:11` | Client already addresses stat 24. Stat 24 is the **last** slot — no headroom after. |
 | `MOCK230_STAT_COUNT = 23` | `src/net/mock/mock230.h:558` | → 25. `stat_dirty` is `uint32_t`; 25 bits fits. |
-| **92** free npc ids ≤ 16383; `npc_type_bits = 14` on osrs230 *and* osrs239 | computed over `configs/all.npc.compack`; `gameproto_rev_osrs239.c:113` | Hard ceiling. **`content_register.c:63` declares npc `server_base = 20000`, which is above the wire's own 16383 — the declared base is unusable.** ~60 familiars × 2 wilderness forms does not fit; ~10 does. This is the single strongest argument for tiering. |
+| **CORRECTED:** NPC_INFO's 14-bit value is a per-player client-local nearby-instance slot, not a cache NPC id | rev239 writer/reader regression: slot 321 + type 20000 | `content_register.c:63`'s `server_base = 20000` is valid. Rev239 carries the separate cache/config type in 16 bits. No roster tiering or id budget follows from the slot width. |
 | `script_8950` `case 23 → ~script8951(1) → ~script607 → %varbit18166`, and varbit 18166 is named **`content_restrict_sailing_serverside`** | `scripts/script_8950.cs2`, `configs/all.varbit.compack:16780` | **The feature flag already exists as a shipped, cache-native, per-skill, server-driven pattern.** Recon said "no content feature-flag mechanism exists" — wrong. Consumed by `script_393` (lock overlay) and `script_1007`/`1008`/`1320` (total level / total xp / F2P level), all as `if (~script8950($stat) = 0)`. |
 
 **Four corrections to recon** beyond those:
@@ -1316,7 +1316,7 @@ OSRS-Content/osrs239-content/
 │   ├── loc.client        loc.server             # EDIT: +summoning_obelisk
 │   ├── varp.server                              # EDIT: +8 summoning varps
 │   ├── npc.alloc  obj.alloc  loc.alloc          # NEW — written by ss_allocate.py (see slice E4)
-│   │   seq.alloc  spotanim.alloc  inv.alloc     #       (npc.alloc base must be 16294, NOT 20000 — see §5)
+│   │   seq.alloc  spotanim.alloc  inv.alloc     #       (npc.alloc base remains 20000 — see §5 correction)
 │   ├── 7_models.pack  8_sprites.pack            # EDIT: ported ids, named `ported_2009scape/summoning/...`
 │   ├── 0_animations.pack  1_skeletons.pack      # EDIT
 │   └── 3_interfaces.pack                        # EDIT: 969=summoning_side  970=summoning_bob  971=summoning_infuse
@@ -1564,7 +1564,10 @@ Engine changes (three, all small and all narrowing existing behaviour rather tha
 
 Also required, and *not* an opcode:
 
-4. **`ss_allocate.py` must learn `npc` — with base 16294, not 20000.** `content_register.c:63` declares npc `server_base = 20000`, which exceeds the wire's own `npc_type_bits = 14` ceiling of 16383. Any npc allocated at the declared base is untransmittable. Fix the register row to 16294 (one past `16293=poh_maggot_king_pet`) and add a `mock230_pack` validation that every server-allocatable namespace's base is inside its wire width. **This is a latent bug the port surfaced, and it should land as its own slice with its own test.**
+4. **CORRECTED: retain npc `server_base = 20000`.** The previous proposal confused the 14-bit
+   per-client nearby-instance slot with the cache/config type id. Rev239's separate type field is
+   16 bits and round-trips 20000. `ss_allocate.py` may learn `npc`, but must not move the base to
+   16294 or validate cache ids against the client-local slot width.
 
 Deliberately **not** doing: per-player npc visibility. NPC_INFO derives visibility from `active` + range per player, so everyone sees everyone's familiar — which is correct for RS and needs no work.
 
@@ -1732,7 +1735,10 @@ Containers here are LostCity's model: **resolve-or-create by inv id**, `mock230_
 
 ## 12. Tiering — 10 familiars, one per mechanic
 
-Justified by the hard ceiling: **92 free npc ids ≤ 16383**. 60 familiars × 2 wilderness forms + ~85 pets does not fit; 10 × 1 form does, and leaves 82. We port **no wilderness `id+1` forms** — there is no wilderness in this content tree, and `combat` is a declared column, not a cache inference.
+This ten-familiar grouping may still be useful as a mechanics-validation order, but **not as an
+id-budget tier**. The 14-bit value is a per-client nearby-instance slot; it does not constrain
+cache definitions. The settled Summoning scope is all 82 familiars. Wilderness `id+1` forms stay
+out because there is no wilderness in this content tree and `combat` is declared data.
 
 | # | familiar | npc / pouch | lvl | mechanic category it *uniquely* proves |
 |---|---|---|---|---|
@@ -1755,7 +1761,7 @@ Justified by the hard ceiling: **92 free npc ids ≤ 16383**. 60 familiars × 2 
 - **Teleport familiars, remote view, Macaw/Fruit bat drops** — each needs camera/ground-spawn work orthogonal to Summoning. Tier 3.
 - **Pets, incubator, Stealing Creation clay familiars, Phoenix** — a separate lifecycle (`Pet extends Familiar`, no timer, hunger/growth) that `FamiliarManager.parse` entangles with the familiar save blob. Explicitly out; stub the save shape so it can be added later without a migration.
 
-**Tier 2 (~20, cheap — data rows against mechanics tier 1 already built):** the remaining BoBs (Spirit terrorbird, War tortoise, Abyssal parasite/lurker/titan), the 6 minotaurs (one shared special), the 7 cockatrice variants (one shared special), the titans (Fire/Moss/Ice/Steel/Iron/Lava/Geyser/Swamp). Cost is asset transcode + a dbrow each; ~30 npc ids, still inside the ceiling.
+**Next mechanics group (~20):** the remaining BoBs (Spirit terrorbird, War tortoise, Abyssal parasite/lurker/titan), the 6 minotaurs (one shared special), the 7 cockatrice variants (one shared special), the titans (Fire/Moss/Ice/Steel/Iron/Lava/Geyser/Swamp). This is an implementation ordering only; there is no NPC-id ceiling to fit inside.
 
 **Tier 3:** target-picking specials, charm drop tables at scale (1,222 rev-530 npc ids needing translation), teleport/remote-view familiars, npc↔npc combat.
 
@@ -1776,7 +1782,7 @@ Justified by the hard ceiling: **92 free npc ids ≤ 16383**. 60 familiars × 2 
 3. Move them under `ported_2009scape/summoning/` and name them in `pack/7_models.pack`, `pack/0_animations.pack`, `pack/1_skeletons.pack` at ids from the declared bases (models 100000, animations 20000, skeletons 8000).
 4. Author the record in `.../configs/summoning_npcs.npc` — with **explicit `walkanim=` / `readyanim=`, not `bas_type_id`**. `RSCache_Dat2ConfigBasEncode` exists in the library but **`bas` is not a cachepack type**, so BasType cannot be authored from the tree; every rev-530 familiar uses `bas_type_id` with `standing_anim = -1` and would T-pose. `fields/npc.ini` declares `walkanim`/`readyanim` as `scope = client`, so this is a one-line-per-npc workaround that costs nothing and removes an entire tool dependency.
 5. `pack/npc.client` line + `pack/npc.server` line if it states any band field.
-6. Id from `pack/npc.alloc`, base **16294**.
+6. Id from `pack/npc.alloc`, base **20000**.
 7. A row in `port/summoning530.map`: `530_id ⟶ 239_id ⟶ disposition`.
 
 Same shape for a loc, plus `pack/loc.client`.
@@ -1830,7 +1836,7 @@ Same shape for a loc, plus `pack/loc.client`.
 - **E1** `cachepack membership --src … --types obj,inv,seq,spotanim` → creates `pack/*.client`/`*.server`. `content.ini` `membership = authored` blocks.
 - **E2** `fields/inv.ini` (`size` = `scope = client`).
 - **E3** Prove the add path with a throwaway: one obj at id 40000 named in `pack/obj.client`, bake, boot, `::give`. **All five existing `.client` files have zero data lines — nothing in this tree has ever added a record to the client cache.** Find the bugs here, on a two-line change, not under 300 summoning records.
-- **E4** `tools/ss_allocate.py`: add `npc, obj, loc, seq, spotanim, inv` to `SERVER_NAMESPACES`. **Fix `content_register.c:63` npc `server_base` 20000 → 16294** and add a `mock230_pack` check that every server-allocatable base sits inside its wire width (`npc_type_bits = 14` ⇒ 16383). Regression test.
+- **E4** `tools/ss_allocate.py`: add `npc, obj, loc, seq, spotanim, inv` to `SERVER_NAMESPACES`; retain npc `server_base = 20000`. Regression-test the actual distinction: 14-bit per-client instance slot, separate 16-bit rev239 cache type.
 - **E5** The directory skeleton of §1 + `PROVENANCE.md` + `port/summoning530.map` + a `tools/port_scape2009_summoning.py --check` wired into `make -C src test-port`.
 
 ### Phase F — engine: owner-bound familiars
@@ -1869,7 +1875,7 @@ H1 remaining BoBs · H2 minotaurs + cockatrices (shared specials) · H3 titans �
 
 ## RISKS / OPEN
 
-- **R1 — npc id ceiling is the hardest constraint.** 92 free ids ≤ 16383, measured. Tier 1 uses 11. Tier 2 uses ~30. There is no room for pets (~85 npcs) or wilderness forms (~60) without widening `npc_type_bits`, which is a protocol change the client's `pkt_npc_info.h` reader must match in lockstep — a mismatch does not fail the decode, it shifts every later field.
+- **R1 — CORRECTED: no 14-bit cache NPC-id ceiling.** The 14-bit field is the per-player client-local slot for nearby NPC instances. Rev239's separate cache type is 16 bits. The measured free run below 16384 is not a roster budget.
 - **R2 — missing-interface behaviour is unverified.** No handler was found for `IF_OPENSUB` targeting a group absent from the cache. If it hangs rather than logs-and-drops, "flag-off client, flag-on server" is a hard failure. **Verify this before Phase D**; it is a 10-minute experiment (`if_opensub` a nonexistent group against pristine `cache.osrs239`).
 - **R3 — `loc` `server_base = 70000` exceeds 16 bits.** Verify the loc-id width in `LOC_ADD_CHANGE` before allocating the obelisk; same class of bug as the npc base. obj base 40000 is under 65535 and is fine.
 - **R4 — the stats tab has no free cell.** `[universe]` is 190×261 with a 3×8 grid at 62px columns and `[total]` at y=241; `1 + 8*30 + 19 + 1 = 261` exactly. A 25th cell needs `[universe]` and `[total]` geometry changed, and the sidebar container that hosts it lives in gameframe 161 — **unverified whether rev-239's sidebar renders a taller 320 without clipping.**
@@ -1902,7 +1908,9 @@ Two more load-bearing facts confirmed:
 - **`cachepack`'s config walk has exactly two roots**: `static const char* const ROOTS[] = { "configs", "server/scripts" };` at `cp_pack.c:1669, 1788, 2169, 2605`. A top-level directory in the content tree is invisible to it.
 - **`RSCache_Dat2EditCommit` merges**: `dat2_edit_load_existing_files()` (`3rd/rscache/src/cache_edit.c:387`, called at `:513`) reads the base archive's existing files before applying puts, and `cp_pack.c:1576` puts **one file per record**. A *partial* source tree therefore preserves every base record it does not state. This is what makes a chained overlay bake viable.
 
-Hard ceiling worth stating now: `MOCK230_NPC_TYPE_BITS = 14` (`mock230.h:498`), matched by `.npc_type_bits = 14` in `src/net/rev/osrs239/gameproto_rev_osrs239.c:113` and read back by `src/game/task_exec_entity_info.c:1146`. Max cache npc id is **16293**. **90 free npc ids exist.** 2009scape ships ~166 familiar npc ids (78 familiars × wilderness twin, plus pets). The full roster does not fit. See Risk 2.
+**CORRECTED:** the old “hard ceiling” paragraph reversed the client-local NPC instance slot and
+the cache/config type id. Rev239 uses a 14-bit local slot and a separate 16-bit type; type 20000
+is a regression fixture. The full 82-familiar roster is not constrained by the slot width.
 
 ---
 
@@ -2009,7 +2017,7 @@ Two checks, both permanent:
 | Record kind | Effect | Severity |
 |---|---|---|
 | New objs (pouches, scrolls, charms) at id ≥ 40000 | Extra obj records the client never references. Inert. | none |
-| New npcs at 16294+ | Inert until spawned. | none |
+| New npcs at 20000+ | Inert until spawned. | none |
 | Edited `enum_681` slot 24 (Sailing → Summoning) | Skill tab cell 24 shows the Summoning name/icon; `stat(24)` is 1. `stat_totallevel` (`script_1007`) walks `enum_681` and would add it to Total level. | **cosmetic, expected** |
 | New interface group ≥ 969 | Never opened unless the server opens it. | none |
 | Edited `script_8950.cs2` | Only changes which stat the tab greys out. | none |
@@ -2139,7 +2147,7 @@ Every phase additionally: state persists across logout/login; no new silently-mi
 | # | Risk | Likelihood | Blast radius | Mitigation |
 |---|---|---|---|---|
 | **1** | **A test suite SKIPS because the data is absent, and a skip reads as a pass.** `test_cachepack_fidelity.sh` skips loudly with no cache; a pristine worktree skips whole suites. Every "green" claim about the summoning bake is suspect. | **high** | The entire verification story is worthless; regressions land silently | Make every summoning-relevant target **assert it ran**: `check_summoning_isolation.py` prints and requires a non-zero check count; the bake targets fail if the cache dir is missing rather than skipping. In CI-equivalent runs, grep the output for `SKIP` and fail. Never accept "tests passed" without the per-suite counts. |
-| **2** | **90 free npc ids vs ~166 familiar npc ids.** `MOCK230_NPC_TYPE_BITS = 14`, cache max 16293. | **certain** for a full port | The full familiar roster is unshippable as designed | Decide in Phase 0, not Phase 3. Options, in preference order: (a) **drop the `id+1` wilderness twins** (2009scape infers `combatFamiliar` from `NPCDefinition.forId(id+1).getName()` — replace with an explicit per-familiar flag in ported data, halving the id cost to ~78); (b) drop pets entirely from scope (they are a separate lifecycle sharing `Familiar`); (c) trim the roster to a tier. **Do not** widen `npc_type_bits` — the real rev-239 client reads 14 bits, so widening forks us off live-client compatibility. Track the budget as a column in the queue doc. |
+| **2** | **CORRECTED: confusing the 14-bit per-client instance slot with the cache NPC id.** | resolved | None for roster scope | Rev239 keeps the nearby slot at 14 bits and carries the separate cache/config type in 16 bits. Permanent regression: slot 321, type 20000. |
 | **3** | **Silent CS2 / codec declines.** `cachepack` prints one stderr line and ships base-cache bytes when a script fails to compile (`cp_decode.c:2447-2452`); 95 of the tree's 9,368 committed `.cs2` sources already do not recompile, **including `script_1904.cs2`** (the skill-guide builder). `RUNESTAR_CS2_NAMES` is an undeclared hard dependency at `$HOME/Documents/git_repos/cs2/...`. | high | A cache that boots, looks fine, and has no summoning in it | Run the standalone `cs2 compile` gate on the overlay's scripts *before* every bake and require `failed 0`. Refresh the stale sources with `cachepack unpack --assets=scripts` **selectively** (a blanket refresh overwrites the hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trips `check_crystal_set_contract.py`). Make `RUNESTAR_CS2_NAMES` a hard prerequisite check in the summoning targets. |
 | **4** | **Framemap V3→V1 transcode is a silent no-op.** `tools/common/cache_write.c:545-580` re-encodes without clearing `has_transform_actor`/`has_masks`/`tail`, so `RSCache_Dat2FramemapEncode` emits V3 blocks into a V1 cache. | high | Every ported familiar T-poses or animates to garbage, with no error | Fix it in Phase 0 with a test that fails on the current code (decode a real 530 framemap, downgrade, assert the byte length and the V1 shape). This is a **pre-existing library bug**; fixing it may move 634/727 behaviour — A/B before attributing anything to Summoning. |
 | **5** | **The chained overlay bake is unproven and the "add" path has never been run.** All five `pack/*.client` files have zero data lines; `PACK_ENTITY_SPLIT_PLAN.md §11.1` says step 4 "author" is unexercised. | high | Phase 0 slips; worst case the byte-identity design needs the cachepack `--overlay` fallback | Spike it first with a throwaway two-component interface at id 969 and one new obj at 40000, before designing anything on top. Budget a full day. Fallback is the third walk root (`CP_WALK_MAX_ROOTS = 4`). |
@@ -2200,9 +2208,9 @@ Engineer-days, assuming one experienced agent working this repo, and assuming Ph
 | **Total** | **63-97** | |
 
 Scope levers, in order of value:
-- **Drop pets entirely** — saves ~8 days and ~40 npc ids. Recommend.
-- **Drop wilderness combat twins** — saves ~5 days and halves the npc-id pressure. Recommend; replace the inferred `combatFamiliar` with an explicit ported-data flag.
+- **Drop pets entirely** — saves ~8 days because they are a separate lifecycle, not because of ids.
+- **Drop wilderness combat twins** — saves ~5 days and matches the absence of wilderness; replace the inferred `combatFamiliar` with an explicit ported-data flag.
 - **Defer the sidebar tab to Phase 5** — saves 4 days off the critical path.
-- **Cap the roster at ~20 familiars** — the difference between Phase 3 at 15 days and Phase 3 at 60.
+- **Order the roster by mechanics groups** — useful for review cadence, but the settled scope remains all 82.
 
 A "Phase 0 + Phase 1 only" deliverable — Summoning in the skill tab, one familiar you can summon, that follows you, that you can dismiss, behind a flag, with the flag-off cache proven byte-identical — is **22-32 days** and is the right thing to commit to first.

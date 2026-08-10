@@ -315,23 +315,21 @@ main(void)
         appearance[i] = (uint8_t)(i * 7 + 1);
 
     fprintf(stderr, "mock239-playerinfo: npc tail sentinel threshold\n");
-    /* The live failure packet had 13 high-resolution NPCs ending at bit 45,
-     * one byte of extended info and a writer-added sentinel: 3 + 8 + 16 = 27
-     * bits. The golden client requires 28 before it even reads an index. */
+    /* The widened codec uses a 14-bit per-client slot and a 26-bit lookahead. */
     CHECK(!mock239_npcinfo_tail_needs_sentinel(45, 1),
-          "bit 45 + one-byte mask omits the unreachable sentinel (11 < 28 bits)");
-    CHECK(mock239_npcinfo_tail_needs_sentinel(45, 4),
-          "bit 45 + four-byte mask terminates before the decoder can read it as an add");
+          "bit 45 + one-byte mask stays below the 26-bit guard");
+    CHECK(mock239_npcinfo_tail_needs_sentinel(45, 3),
+          "bit 45 + three-byte tail reaches the 26-bit guard");
     CHECK(!mock239_npcinfo_tail_needs_sentinel(48, 3),
-          "a byte-aligned three-byte tail remains below the 28-bit guard");
+          "a byte-aligned three-byte tail remains below the 26-bit guard");
     CHECK(mock239_npcinfo_tail_needs_sentinel(48, 4),
-          "a byte-aligned four-byte tail reaches the 28-bit guard");
+          "a byte-aligned four-byte tail reaches the 26-bit guard");
 
     fprintf(stderr, "mock239-playerinfo: npc entering-view payload\n");
     rsab_wrap(&buf, storage, sizeof(storage));
     rsab_bits(&buf);
     rsab_pbit(&buf, 8, 0);          /* old high-resolution count */
-    rsab_pbit(&buf, 16, 321);       /* server slot */
+    rsab_pbit(&buf, 14, 321);       /* per-client instance slot */
     rsab_pbit(&buf, 1, 1);          /* spawn cycle follows */
     rsab_pbit(&buf, 32, 0x12345678);
     rsab_pbit(&buf, 1, 0);          /* no extended block */
@@ -339,13 +337,15 @@ main(void)
     rsab_pbit(&buf, 3, 6);          /* golden facing table -> yaw 0 */
     rsab_pbit(&buf, 6, 2);          /* dz = 2 */
     rsab_pbit(&buf, 1, 1);          /* force jump */
-    rsab_pbit(&buf, 14, 3106);      /* npc type */
+    rsab_pbit(&buf, 16, 20000);     /* cache npc type, wider than 14 bits */
     rsab_bytes(&buf);
     {
         struct PktNpcInfoOp ops[32];
         struct PktNpcInfoOp const* delta = NULL;
         struct PktNpcInfoOp const* facing = NULL;
         struct PktNpcInfoOp const* spawn = NULL;
+        struct PktNpcInfoOp const* add = NULL;
+        struct PktNpcInfoOp const* type = NULL;
         int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 32);
 
         for( int i = 0; i < op_count; i++ )
@@ -353,7 +353,13 @@ main(void)
             if( ops[i].kind == PKT_NPC_INFO_OP_DELTA_XZ ) delta = &ops[i];
             if( ops[i].kind == PKT_NPC_INFO_OP_FACE_ANGLE ) facing = &ops[i];
             if( ops[i].kind == PKT_NPC_INFO_OP_SPAWN_CYCLE ) spawn = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID ) add = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE ) type = &ops[i];
         }
+        CHECK(add && add->_bitvalue == 321,
+              "npc entering-view slot remains the bounded client-local instance id");
+        CHECK(type && type->_bitvalue == 20000,
+              "npc cache/config id survives above the 14-bit slot range");
         CHECK(delta && delta->_delta_xz.dx == -1 && delta->_delta_xz.dz == 2 &&
                   delta->_delta_xz.jump,
               "npc entering-view delta keeps the jump bit");
@@ -367,15 +373,15 @@ main(void)
     rsab_wrap(&buf, storage, sizeof(storage));
     rsab_bits(&buf);
     rsab_pbit(&buf, 8, 0);
-    rsab_pbit(&buf, 16, 322);
+    rsab_pbit(&buf, 14, 322);
     rsab_pbit(&buf, 1, 0);       /* no spawn cycle */
     rsab_pbit(&buf, 1, 1);       /* extended tail follows */
     rsab_pbit(&buf, 6, 0);
     rsab_pbit(&buf, 3, 0);
     rsab_pbit(&buf, 6, 0);
     rsab_pbit(&buf, 1, 0);
-    rsab_pbit(&buf, 14, 3106);
-    rsab_pbit(&buf, 16, 0xffff); /* protect the byte tail from the add loop */
+    rsab_pbit(&buf, 16, 3106);
+    rsab_pbit(&buf, 14, 0x3fff); /* protect the byte tail from the add loop */
     rsab_bytes(&buf);
     rsab_p1(&buf, 0x40);         /* continuation + exact */
     rsab_p1(&buf, 0xda);         /* continuation + ops/name/level */

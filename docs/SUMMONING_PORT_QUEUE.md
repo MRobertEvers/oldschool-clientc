@@ -32,9 +32,9 @@ Each tick ports **one** pending unblocked slice per [`PORTING_GUIDE.md`](PORTING
    `SUMMONING_PORT.md` §7.
 4. **Summoning is stat 24, not 23.** 2009scape's `Skills.SUMMONING = 23` collides with Sailing,
    which is live in osrs239. Never copy the 530 stat id.
-5. **npc ids are not a constraint.** Separate work is in place to remove the npc id cap. Port the
-   full 82-familiar roster; do not tier, budget or scope around ids, and do not re-derive a ceiling
-   from the current NPC_INFO v5 reader — it is being changed. See
+5. **npc ids are not a constraint.** NPC_INFO's 14-bit value is the per-player client-local slot
+   of a nearby NPC instance, not its cache/config id. Rev239 carries the separate type id in 16
+   bits. Port the full roster; do not tier or budget around client-local slots. See
    [`SUMMONING_PORT.md`](SUMMONING_PORT.md) §1 F3.
 
 ## Non-negotiables
@@ -82,11 +82,11 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 2b | `SEQUENCE_RS2_530` + `OBJ_RS2_530` codecs | 2 | **done** | exact 530 sweeps: obj 14,654/14,654, seq 11,155/11,155; synthetic changed-opcode suite 17 checks; profile suite 140 checks; clean full rscache suite; true `HEAD` A/B identical for seq 1/100/5000 on both 634 and 727 |
 | 2c | `RSCache_Dat2FramemapEncodeCodec` — fixes a silent data bug | 2 | **done** | regression first failed to compile against missing API; now V3→V1/V2 and V3 preservation pass 8 checks; cache writer selects destination codec; roundtrip suite 246 checks |
 | 2d | Sharded RS2 config reader (`cp_common.c:58`) | 2 | **done** | real rs530 `cachepack unpack`: obj 14,654 + seq 11,155, first/last ids present, 0 short decodes/unresolved names; OSRS cachepack fidelity unchanged with lost-here=0 |
-| 2e | `cachepack import` subcommand | 2 | **done** | dry-run/apply/idempotence; Spirit wolf closure 1 npc, 1 obj, 3 models, 2 seqs, 1 animset, 1 framemap; 50-check permanent test; feature bake config 12/0 and CS2 3/0; exact config verify; 18-frame source/destination visual sheet; flag-off 25-file A/B identical; `mock230_pack --check-only` 0 errors; Phase 1 headless rerun 28/0 |
+| 2e | `cachepack import` subcommand | 2 | **done** | dry-run/apply/idempotence; Spirit wolf closure 1 npc, 3 objs (pouch/shards/gold charm), 5 models, 2 seqs, 1 animset, 1 framemap; 52-check permanent test; feature bake config 14/0 and CS2 3/0; exact config verify; 18-frame source/destination visual sheet; flag-off 25-file A/B identical; `mock230_pack --check-only` 0 errors; Phase 1 headless rerun 28/0 |
 | 2f | Texture map 680→210 + ledger `signoff` column | 2 | **blocked** | importer implements the settled drop-textures policy and preserves human ledger columns; the 680→210 mapping/signoff is deliberately irreducibly human and is not a dependency of the untextured Spirit wolf slice |
 | 3a | Owner-bound NPCs — `owner_pid`/`owner_gen`, `npc_run_mode`, `ai_*` dispatch, 3 opcodes | 3 | **done** | pid + nonzero login generation fails closed on slot reuse; two-player mode and real-VM ai_timer context checks; all three opcodes executed through VM; generated metadata/coverage current; rev230 world suite + 68-check metadata suite green. Rev239 full world suite remains pre-blocked by the concurrent 23,139-NPC/capture work (198 unrelated failures); ownership assertions themselves pass there |
-| 3b | npc `server_base` (`content_register.c:63`) alignment | 3 | blocked | follow the npc-id-cap-removal work; do not pick a number here |
-| 3c | Spirit wolf: assets, objs, `.rs2` triggers, timer, dismiss, headless proof | 3 | pending | the vertical slice |
+| 3b | npc `server_base` (`content_register.c:63`) alignment | 3 | **done** | retain base 20000. Fixed the reversed NPC_INFO model: nearby instance slot remains 14-bit/client-local; separate rev239 cache type is 16-bit. Writer/reader regression round-trips slot 321 with type 20000 |
+| 3c | Spirit wolf: assets, objs, `.rs2` triggers, timer, dismiss, headless proof | 3 | **in progress** | code complete: paired off/on ServerScript packs, every entry point gated, lifecycle persistence, owner/call/dismiss, one tick timer; 38 static/pack checks and feature-off headless pass. Re-running feature-on headless after the 3b protocol correction |
 
 Phases 4–7 (skill surfaces, breadth, Beast of Burden, polish) are scoped in
 [`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9 and will be seeded here after the Phase 3 review.

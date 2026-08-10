@@ -424,7 +424,7 @@ mock239_npcinfo_write_empty(struct RSAreaBuf* buf)
      * packet.
      *
      * The client's low-resolution loop only attempts to read an index when at
-     * least 16 + 12 bits remain; below that it stops. With no npcs and no
+     * least 14 + 12 bits remain; below that it stops. With no npcs and no
      * extended info there is nothing after the count, so it stops immediately
      * and consumes ONE byte. Writing the terminator anyway makes the packet
      * three bytes that the client reads one of, and it reports the difference
@@ -446,5 +446,5 @@ mock239_npcinfo_tail_needs_sentinel(
 {
     size_t const padding_bits = (8u - (bit_position & 7u)) & 7u;
 
-    return padding_bits + extended_bytes * 8u >= 28u;
+    return padding_bits + extended_bytes * 8u >= 26u;
 }

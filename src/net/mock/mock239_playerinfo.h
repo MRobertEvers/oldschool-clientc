@@ -201,16 +201,15 @@ mock239_playerinfo_write(
  *
  *     8 bits    how many high-resolution npcs follow
  *     ...       one update per high-resolution npc
- *     16 bits   an index per npc entering view, terminated by 0xFFFF
+ *     14 bits   a client-local instance slot per npc, terminated by 0x3FFF
  *
- * The index is 16 bits at this revision — the classic stream's is 14 — which is
- * the same id-space widening that moved the npc type field, and a decoder built
- * for the narrow form reads two npcs where there is one.
+ * The slot is not the NPC's cache/config id. This port keeps the slot at 14
+ * bits and widens the separate type field to 16 bits.
  *
- * The 0xFFFF terminator is required only when the padding plus extended-info
- * tail leaves at least 28 readable bits. That is the golden client's exact
- * `16 + 12` low-resolution-record guard. Below that threshold the client exits
- * before reading an index, so writing a sentinel makes it consume 0xffff as the
+ * The 0x3FFF terminator is required only when the padding plus extended-info
+ * tail leaves at least 26 readable bits. That is this codec's exact
+ * `14 + 12` low-resolution-record guard. Below that threshold the client exits
+ * before reading a slot, so writing a sentinel makes it consume 0x3fff as the
  * first extended mask instead.
  *
  * This writes the empty case only: no high-resolution npcs, no additions. That
@@ -221,7 +220,7 @@ mock239_playerinfo_write(
 void
 mock239_npcinfo_write_empty(struct RSAreaBuf* buf);
 
-/** Mirror the golden client's 28-bit low-resolution guard at the boundary
+/** Mirror the widened client's 26-bit low-resolution guard at the boundary
  * between the last add record and byte-aligned extended info. */
 int
 mock239_npcinfo_tail_needs_sentinel(

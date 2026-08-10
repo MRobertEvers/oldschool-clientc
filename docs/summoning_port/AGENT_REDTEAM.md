@@ -60,11 +60,13 @@ Worse: design-skill-and-cs2 does the opposite — adds slot **25**, keeps Sailin
 
 **[measured]** `src/net/mock/mock230.h:325` — `MOCK230_VARP_SERVER_HEADROOM = 1024`, so `MOCK230_VARP_COUNT = 6729`, against a `varp.alloc` high-water of 6225. design-flag-and-risk corrected this; design-skill-and-cs2 residual risk #8 still says *"`MOCK230_VARP_COUNT = 6217` is already exceeded… fix it before slice 10."* Delete it — it will send someone on a fix for a non-bug.
 
-### E5. design-server-content's npc-base fix is right but its mechanism isn't.
+### E5. CORRECTED — the review reversed NPC instance slots and cache type ids.
 
-The catch is real and is the best single find in the pack: **[measured]** `content_register.c:63` gives npc `server_base = 20000`; `src/net/rev/osrs239/gameproto_rev_osrs239.c:113` gives `.npc_type_bits = 14` → max 16383. An npc allocated at the declared base cannot be transmitted.
-
-But the proposed fix ("`ss_allocate.py`: add `npc, obj, loc, seq, spotanim, inv` to `SERVER_NAMESPACES`" + change the register row to 16294) has to contend with E1: `server_namespaces()` is a deliberately frozen tuple whose whole docstring is an argument against a second authority. And **[measured]** `configs/all.npc.compack` max is 16293 with **exactly 92 free ids ≤ 16383, in one run 16294..16383 (90 long)** — so the "fix" hands the entire remaining npc id space to Summoning and leaves nothing for any other lane, ever. That deserves saying out loud in the plan, not burying in a Phase E bullet.
+The earlier finding here was wrong. NPC_INFO's 14-bit value is the **per-player client-local
+slot of a nearby NPC instance**, not the cache/config NPC id. Revision 239 now keeps that slot
+at 14 bits and carries the separate cache type in 16 bits; a regression round-trips slot 321
+with type 20000. `content_register.c:63`'s `server_base = 20000` is therefore valid and must not
+be moved to 16294. The measured free run below 16384 is irrelevant to Summoning scope.
 
 ### E6. `loc` has the same latent bug and nobody checked it.
 
@@ -157,7 +159,9 @@ design-asset-pipeline is the only design that engages, and its T0–T4 tier stru
 
 That is honest. It is also not solved — it is converted from an invisible defect into a visible one, which is the right move but does not shrink the work. And **the other two designs simply assume the pipeline exists and works.** Every content estimate in them is downstream of an unbuilt, unvalidated tool.
 
-Runner-up, cheaper to hit and equally fatal: **92 free npc ids under a 14-bit wire field, against a declared `server_base` of 20000 that cannot be transmitted.** Only design-server-content found it. Nobody has verified what happens *today* if content allocates npc 20000 — the likely answer is silent truncation to `20000 & 0x3FFF = 3616`, i.e. the wrong NPC renders with no error, which is precisely the failure shape this repo's own memory notes are full of.
+The former runner-up about “92 free npc ids” was invalid for the same reason: it confused a
+client-local instance slot with a cache definition id. Type 20000 is now an explicit protocol
+regression case, not a truncation hypothesis.
 
 ---
 

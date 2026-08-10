@@ -179,12 +179,14 @@ enum
      *
      * These were one number, 256, annotated "the tracked count is an 8-bit
      * field on the wire, so this must stay under 256". The annotation is true
-     * about the *tracked* count and says nothing about the world: the stream's
-     * slot field is 14 bits, so the wire's own ceiling on how many npcs may
-     * exist is 16383, and the reference runs at exactly that
-     * (`NODE_MAX_NPCS`, default 16383). A protocol constant was standing in for
-     * a world capacity, which is the shape of bug where raising the roster
-     * silently corrupts a packet instead of failing.
+     * about the *tracked* count and says nothing about the world. NPC_INFO's
+     * 14-bit slot is local to one player's client and names a nearby instance;
+     * it is neither a cache type id nor a world-roster id.
+     *
+     * The mock currently reuses its world-pool slot as the client's local-slot
+     * number because MOCK230_NPC_MAX is only 4096. That is an implementation
+     * convenience, not protocol identity; a larger pool would add a per-player
+     * slot map rather than constrain cache NPC ids.
      *
      * So: MOCK230_NPC_MAX is a memory decision (336 bytes per npc, statically
      * allocated in the world), MOCK230_TRACKED_NPC_MAX is the wire's.
@@ -200,15 +202,13 @@ enum
      * 3392,3328). The rest is headroom for everything content npc_adds.
      *
      * **This is a memory decision and not a wire one**, and an earlier version
-     * of this comment had that wrong. The wire's ceiling is per revision and
-     * both are above the roster's needs at the window sizes here:
+     * of this comment had that wrong:
      *
-     *   classic (230)  MOCK230_NPC_SLOT_BITS, 14 -> 16,383 npcs addressable
-     *   v5 (239)       a 16-bit index (mock230_encode.c) -> 65,534
+     *   classic (230)  14-bit client-local instance slot
+     *   v5 (239)       14-bit client-local slot, separate 16-bit type id
      *
-     * So "the roster cannot all exist because the wire is 14 bits" was only
-     * ever true of the older wire, and is not what bounds this. What a *client*
-     * is told about is bounded by neither: it comes out of that client's
+     * The slot namespace belongs to each client, not to the cache and not to
+     * the world roster. What a *client* is told comes out of that client's
      * `Mock230PlayerArea`, and a 7x7 zone window cannot hold more npcs than the
      * stream's own MOCK230_TRACKED_NPC_MAX.
      */
@@ -220,9 +220,9 @@ enum
      *
      * The content tree states where every npc in OldSchool lives — 23,139 of
      * them. Creating all of them was what the roster loop used to do, and it
-     * worked while the roster was Lumbridge's 63. It cannot scale, and not
-     * because of memory: the npc slot on the wire is 14 bits, so 16,383 npcs is
-     * the most that can *exist* however much RAM there is.
+     * worked while the roster was Lumbridge's 63. It cannot scale as an eager
+     * in-memory strategy, but the wire is not the reason: the 14-bit slot is
+     * local to one client's nearby instances, not the world or cache namespace.
      *
      * So the roster is a statement about the world and the pool is a window on
      * to it. A spawn is realised when its home tile comes within
@@ -536,6 +536,14 @@ enum
     MOCK230_NPC_SLOT_BITS = 14,
     MOCK230_NPC_TYPE_BITS = 14,
     MOCK230_NPC_TYPE_MAX = (1 << MOCK230_NPC_TYPE_BITS) - 1,
+    /*
+     * The 14-bit type field above belongs only to the legacy/classic add
+     * record. Revision 239 keeps a 14-bit per-client instance slot but carries
+     * the separate cache/config id in 16 bits. The classic compatibility path
+     * can also bootstrap a higher id through CHANGE_TYPE. 0xffff is that
+     * block's "none" sentinel.
+     */
+    MOCK230_NPC_CONFIG_MAX = 65534,
 };
 
 /*

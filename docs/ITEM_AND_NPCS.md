@@ -234,10 +234,10 @@ comment defending that was right: the client is told about npcs within 15 tiles,
 but the player can walk, and an npc that does not exist until you approach it
 would pop into being with full hitpoints in front of you.
 
-It cannot survive the real roster, and not because of memory. **The npc slot on
-the wire is 14 bits**, so 16,383 npcs is the most that can exist however much
-RAM there is, and the roster is 23,139. A world-wide static roster can never be
-a world-wide live one.
+It cannot survive the real roster as an eager in-memory strategy. The wire is
+not the reason: the **14-bit npc slot is local to one player's client and names
+only nearby NPC instances**. It is neither a cache NPC id nor a world-roster
+slot. The separate rev239 cache/config id field is 16 bits.
 
 So the roster is a statement about the world and the pool is a window on to it:
 
@@ -380,17 +380,16 @@ is gone — it had no callers left once both encoders read the client's own map.
 
 ### What the wire actually limits
 
-An earlier draft of this document claimed the roster "cannot all be live"
-because the npc slot is 14 bits. That is true of the **classic** wire and not of
-the one this runs on:
+An earlier draft of this document incorrectly treated the NPC slot as a
+world-global namespace. It is a per-client nearby-instance namespace:
 
-| wire | npc index | npcs addressable |
+| wire | client-local instance slot | cache/config type id |
 |---|---|---|
-| classic (rev 230) | `MOCK230_NPC_SLOT_BITS`, 14 | 16,383 |
-| v5 (rev 239) | 16-bit index, `0xFFFF` terminator | 65,534 |
+| classic (rev 230) | 14-bit | legacy 14-bit add field (compatibility transform available) |
+| v5 (rev 239) | 14-bit, `0x3FFF` terminator | separate 16-bit field |
 
-So 23,139 fits the 239 wire with room to spare, and `MOCK230_NPC_MAX` is a
-memory decision — `struct Mock230Npc` is 608 bytes, so the full roster is 14.1 MB
+The 23,139-entry roster does not consume one client's slot namespace;
+`MOCK230_NPC_MAX` is a memory/window decision — `struct Mock230Npc` is 608 bytes, so the full roster is 14.1 MB
 of pool. Holding all of it needs two small changes and no new mechanism: the
 selftest's `struct Mock230Server srv` is the last stack-allocated one (the
 server binary's is `static`, the embed's is `calloc`'d), and the classic wire

@@ -2302,16 +2302,19 @@ npc_spawn(
 {
     const struct Mock230NpcDef* def;
 
-    /* A wider id would not fail loudly — it would truncate to a different,
-     * probably valid, npc. rev 230 states 14 bits, which covers the whole
-     * OldSchool npc space; the guard exists for the day that changes. */
-    if( type < 0 || type > MOCK230_NPC_TYPE_MAX )
+    /*
+     * NPC_INFO's nearby-entity slot is not the cache id namespace. Revision
+     * 239 keeps that per-client instance slot at 14 bits and carries the
+     * separate cache/config type in 16 bits. The legacy encoder can use its
+     * CHANGE_TYPE compatibility path. Reject only the reserved 0xffff value
+     * that the transformation block spells as "none".
+     */
+    if( type < 0 || type > MOCK230_NPC_CONFIG_MAX )
     {
         fprintf(
             stderr,
-            "mock230: npc type %d exceeds the %d-bit wire field; not spawned\n",
-            type,
-            MOCK230_NPC_TYPE_BITS);
+            "mock230: npc type %d exceeds the NPC config id wire range; not spawned\n",
+            type);
         return -1;
     }
 

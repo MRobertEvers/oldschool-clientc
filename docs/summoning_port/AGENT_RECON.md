@@ -2866,7 +2866,10 @@ Death credit is player-indexed: `Mock230Npc.death_credit_players[MOCK230_PLAYER_
 - **`run_trigger_script` sets ACTIVE_PLAYER from `srv->active_player` for `ai_*` triggers** (`mock230_scripts.c:1666`). A familiar's `[ai_timer]` reading `%summoning_*` reads a stale player. Needs owner-aware dispatch (or an explicit `npc_owner` pointer op).
 - **`phase_npcs` never calls `mock230_world_set_active`** — phase 4 runs with a leftover `active_player`. Any per-owner familiar behaviour must not run in phase 4 as written.
 - **npc uid has no generation counter** (`mock230_scripts.c:4585` states this outright). A familiar uid stashed in a varp across a despawn resolves to whatever npc took the slot. Needed for `npc_finduid($familiar)` to be safe over a session.
-- **npc id space: only 92 free ids ≤ 16383**, one contiguous run 16294..16383 (90). `MOCK230_NPC_TYPE_BITS = 14` (`mock230.h:498`) matches `GameProtoRevTable.npc_type_bits`; the cache already uses 16,292 ids up to 16293. 2009scape ships ~50 familiar NPC classes plus ~40 pets plus BoB/combat variants. This may not fit. Either widen the wire field (a protocol change the *client* must match) or re-use ids.
+- **CORRECTED: npc definition ids are not bounded by the 14-bit NPC slot.** That value is the
+  per-player client-local slot of a nearby NPC instance. Rev239 carries the separate cache type
+  in 16 bits, and type 20000 has a writer/reader regression. The measured 16294..16383 gap is
+  not an NPC-definition budget.
 - **`pack/npc.client` currently lists ZERO entities** — no npc has ever been added to the client cache from this tree. Familiars would be the first, exercising an untested `cachepack pack` route (`docs/PACK_ENTITY_SPLIT_PLAN.md §4 step 3`).
 - **No inv namespace / no inv type registry in content** (`[namespace:inv]` ABSENT, `fields/inv.ini` ABSENT, no `.inv` walker in `mock230_content.c`). A BoB inv id must be sized by the cache's config group 5 or `mock230_container_resolve` returns NULL and every op aborts. Same blocker that keeps `shop` blocked.
 - **`mock230_container_scope()` returns PLAYER unconditionally** — no shared/world scope, so a familiar-owned container can only be a player row (16 max per player). Fine for BoB; not fine if the container must survive the familiar's despawn independently.
@@ -2881,7 +2884,9 @@ Death credit is player-indexed: `Mock230Npc.death_credit_players[MOCK230_PLAYER_
 
 ## RISKS / UNKNOWNS
 
-1. **npc id ceiling is the single hardest constraint.** 92 free ids under the 14-bit wire field, measured exactly. Widening it means changing `GameProtoRevTable.npc_type_bits` and the client's `pkt_npc_info.h` reader in lockstep — a mismatch does not fail the decode, it shifts every later field (`mock230.h:493-497`). Verify the free-id count and the real familiar/pet count before committing to a design.
+1. **CORRECTED: there is no 14-bit cache NPC-id ceiling.** The 14-bit slot is client-local and
+   names nearby instances; the rev239 cache/config type is a separate 16-bit field. Do not use
+   the free-id count below 16384 to scope or tier the port.
 2. **Everything about the client half is out of this recon's scope and is ABSENT**: no summoning tab interface, no orb, no XP drop, no familiar models, no pouch/scroll sprites, no CS2. A working server with no client surface is invisible.
 3. `mock230_content_load_server_band` prints LOADED/MISSING/STALE — a stale band silently falls back to text overlays. New summoning npc/obj fields must survive `make -C src mock230-servpack` and the identical-to-text verification.
 4. `server/scripts/build/` and `server/pack/` are gitignored; a fresh checkout has no script pack, and the engine's trigger fallbacks are *gated on a pack being loaded* — so a summoning slice that appears not to run may just be an unbuilt pack.

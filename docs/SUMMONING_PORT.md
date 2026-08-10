@@ -93,19 +93,20 @@ category error.
 
 **The full 82-familiar roster is in scope with no id budgeting.**
 
-Planning initially treated the 14-bit npc type field in the osrs239 NPC_INFO v5 add-block
-(`src/net/rev/osrs239/osrs239_entity_info.c:1923`) as a hard ceiling of 16383, which — against a
-cache high-water of 16293 — would have left only ~90 free ids. **That is not a live constraint:
-separate work is in place to remove the npc id cap.** Do not scope, tier or budget this port
-around it, and do not re-derive the ceiling from the current v5 reader — it is being changed.
+Planning initially reversed two distinct namespaces in the osrs239 NPC_INFO v5 add-block. The
+**14-bit value is the per-player client-local slot of a nearby NPC instance**; it is not the
+NPC's cache/config id and says nothing about how many NPC definitions the cache may contain.
+The separate cache/config type field is 16 bits in the widened rev239 codec, so id 20000 is
+valid and is covered by a writer/reader regression. Do not scope, tier or budget this port
+around the client-local slot width.
 
 Consequences for this lane:
 
 - Port all 82 familiars. No tiering for id reasons.
 - Wilderness combat twins (`id+1`) and pets stay descoped for *behavioural* reasons (a separate
   lifecycle, no wilderness in this tree), not id reasons.
-- `ss_allocate.py` / `content_register.c` npc `server_base` should follow whatever the cap-removal
-  work settles on. Coordinate rather than picking a number here.
+- `content_register.c` npc `server_base = 20000` is valid. Allocation and collision checks remain
+  normal content-lane concerns; they are not wire-width budgeting.
 
 > **TODO:** link the cap-removal branch/doc here once it lands, so this section stops being the
 > only record of the decision.
@@ -153,8 +154,8 @@ New code required: ~900 LOC library + ~1,600 LOC `cachepack import`.
    **Prefer a dedicated clientscript for the Summoning cell alone** over rewriting the positioning
    of all 25 cells — strictly less blast radius on a panel whose builder (`script_1904.cs2`) is one
    of the 95 committed scripts that already fail to recompile.
-2. **Full roster — all 82 familiars.** No id budgeting; the npc id cap is being removed
-   separately (F3).
+2. **Full roster — all 82 familiars.** No id budgeting: the 14-bit value is a per-player
+   client-local nearby-instance slot, not the cache/config NPC id (F3).
 3. **First pass runs through Phase 3** — governance, the skill in the tab, the asset pipeline, and
    a summonable Spirit wolf. Review before breadth.
 
@@ -354,13 +355,13 @@ Verified pre-existing defects it must fix:
       11022** (`ss_opcode.h:453`). `NPC_FINDOWNED` removes the need for a uid varp and so dodges
       the uid-generation hazard rather than working around it. Log them in the queue's opcode-gap
       table and implement in the same slice (`PORTING_GUIDE` §2.4/§4.5)
-- [ ] npc `server_base` (`content_register.c:63`, currently 20000): align with whatever the
-      npc-id-cap-removal work settles on rather than picking a number here (F3)
+- [x] npc `server_base` (`content_register.c:63`, 20000) is retained; rev239 transmits the
+      separate cache/config id in 16 bits while the nearby instance slot remains 14 bits (F3)
 
 ### Content
 
-- [ ] Port npc 6829 assets (model, framemap, seqs) through the Phase 2 pipeline
-- [ ] Objs: `summoning_pouch_spirit_wolf`, `summoning_shard`, `summoning_charm_gold` — with
+- [x] Port npc 6829 assets (model, framemap, seqs) through the Phase 2 pipeline
+- [x] Objs: `summoning_pouch_spirit_wolf`, `summoning_shard`, `summoning_charm_gold` — with
       `pack/obj.client` created
 - [ ] `[opheld1,…]` → level check → `npc_add` → `npc_setowner` → `npc_setmode(playerfollow)`
 - [ ] **One** `[timer,summoning_tick]` at interval 1 carrying decay, point drain, special regen and
