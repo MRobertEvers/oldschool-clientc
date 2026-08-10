@@ -21,10 +21,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define TORIDRAW_SCENE_FULL          0u
-#define TORIDRAW_SCENE_SMALL         (1u << 0)
-#define TORIDRAW_SCENE_LAZY_TEXTURES (1u << 1)
-
 void
 ToriDraw_Init(void);
 

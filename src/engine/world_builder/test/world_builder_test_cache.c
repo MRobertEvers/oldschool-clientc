@@ -325,7 +325,7 @@ test_world_builder_cache_render(void)
     PlatformX_IO_InitDat2Disk(px, disk);
 
     ToriDraw_Init();
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     struct World* world = World_New();
     struct VarPManager varp;
     VarPManager_Init(&varp);

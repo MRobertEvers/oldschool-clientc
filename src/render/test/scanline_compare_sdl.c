@@ -1461,7 +1461,7 @@ main(
         CacheProvider_SetProfile(viewer.provider, &profile);
     }
 
-    viewer.scene = ToriDraw_SceneNew(0);
+    viewer.scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(viewer.scene);
 
     viewer.pane_branching = malloc(sizeof(int) * PANE_W * PANE_H);

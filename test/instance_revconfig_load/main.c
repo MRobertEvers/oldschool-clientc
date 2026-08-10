@@ -1833,7 +1833,8 @@ run_pipeline_test(
     struct LibToriPlatformX_IOReactor* reactor = LibToriPlatformX_IOReactorNew(cache);
     TEST_ASSERT(io && reactor, "io/reactor alloc");
 
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     TEST_ASSERT(scene != NULL, "scene alloc");
 
     struct ToriAuxLib* aux = ToriAuxLib_New(mode, scene);
@@ -2450,7 +2451,8 @@ test_hitbox_only_graphic_bake(void)
 static int
 test_rs_graphic_active_inactive_bake(void)
 {
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     TEST_ASSERT(scene != NULL, "scene alloc");
     test_scene_add_stub_sprite(scene, 100);
     test_scene_add_stub_sprite(scene, 101);
@@ -2525,7 +2527,8 @@ test_rs_graphic_active_inactive_bake(void)
 static int
 test_rs_graphic_active_only_no_inactive_fallback(void)
 {
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     TEST_ASSERT(scene != NULL, "scene alloc");
     test_scene_add_stub_sprite(scene, 102);
 

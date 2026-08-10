@@ -3316,7 +3316,7 @@ App_Init(
         assert(0 && "model_inst_cache init");
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
-    app->scene = ToriDraw_SceneNew(0);
+    app->scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
 

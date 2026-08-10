@@ -47,7 +47,7 @@ ev_init(void)
     if( g_scene )
         return;
     ToriDraw_Init();
-    g_scene = ToriDraw_SceneNew(0);
+    g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 }
 
 /* JS hands bytes over by writing into a block it asked for here. */

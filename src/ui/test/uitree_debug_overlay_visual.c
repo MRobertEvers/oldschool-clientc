@@ -652,7 +652,7 @@ visual_kitchen_sink(void)
 int
 main(void)
 {
-    g_scene = ToriDraw_SceneNew(0);
+    g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     if( !g_scene )
     {
         fprintf(stderr, "FAIL: could not create a scene\n");

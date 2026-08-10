@@ -998,15 +998,25 @@ prepare_model_outputs(
                     RSCache_ModelProvenanceFree(provenance);
                     goto fail;
                 }
-                /* RS727's material.valid is TextureLoader.isSd. The 2012 SD
-                 * client drops an invalid/HD-only selector before lighting and
-                 * shades this face from its underlying HSL colour. Forcing the
-                 * procedural program's shader input into an OSRS diffuse sprite
-                 * made QBD claws white/purple and every TD face use HD helper
-                 * maps as colour. Keep the baked asset in the lane, but make
-                 * the OSRS239 model follow the source SD selection rule. */
+                /* RS727's first material flag is the inverse of the source
+                 * client's `isGroundMesh`. When the model renderer rejects one
+                 * of those selectors it does not merely write texture=-1: the
+                 * source conversion clears the textured-face/UV state and
+                 * lights the OB3 face's own HSL tint. (OB2 is different: it
+                 * stores the texture id in its colour slot, so port_lostcity
+                 * must synthesize an average colour there.)
+                 *
+                 * Keeping the model's old colour here left QBD's texture-only
+                 * head/arm faces on their placeholder HSL, so only the mouth
+                 * rendered. Preserve the baked asset for inspection, but emit
+                 * the complete source fallback into the OSRS239 OB3. */
                 if( !materials->materials[source].valid )
                 {
+                    if( model->face_infos )
+                        model->face_infos[face] =
+                            (uint8_t)(model->face_infos[face] & 1);
+                    if( model->face_texture_coords )
+                        model->face_texture_coords[face] = -1;
                     model->face_textures[face] = (int16_t)-1;
                     g_hd_model_faces_dropped++;
                 }

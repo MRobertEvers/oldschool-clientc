@@ -7,6 +7,24 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define TORIDRAW_SCENE_FULL          0u
+#define TORIDRAW_SCENE_SMALL         (1u << 0)
+#define TORIDRAW_SCENE_LAZY_TEXTURES (1u << 1)
+
+/**
+ * Capacity tier for a scene's reusable model-render scratch buffers.
+ *
+ * The tier is deliberately separate from TORIDRAW_SCENE_SMALL: that flag
+ * selects the compact CSR face sorter, whereas this enum selects the normal
+ * full-sorter's model capacity.  HIGH_8K preserves the post-QBD limits.
+ */
+enum ToriDraw_ScratchBufferSize
+{
+    TORIDRAW_SCRATCH_BUFFER_LOW_2K,
+    TORIDRAW_SCRATCH_BUFFER_MED_4K,
+    TORIDRAW_SCRATCH_BUFFER_HIGH_8K,
+};
+
 bool
 ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene);
 
@@ -14,16 +32,22 @@ void
 ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene);
 
 struct ToriDraw_Scene*
-ToriDraw_SceneNew(uint32_t flags);
+ToriDraw_SceneNew(
+    uint32_t flags,
+    enum ToriDraw_ScratchBufferSize scratch_buffer_size);
 
 void
 ToriDraw_SceneFree(struct ToriDraw_Scene* scene);
 
 size_t
-ToriDraw_SceneSize(uint32_t flags);
+ToriDraw_SceneSize(
+    uint32_t flags,
+    enum ToriDraw_ScratchBufferSize scratch_buffer_size);
 
 void
-ToriDraw_ScenePrintSize(uint32_t flags);
+ToriDraw_ScenePrintSize(
+    uint32_t flags,
+    enum ToriDraw_ScratchBufferSize scratch_buffer_size);
 
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene);

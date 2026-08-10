@@ -137,7 +137,8 @@ main(
 
     ToriDraw_Init();
 
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     if( !scene )
     {
         fprintf(stderr, "ToriDraw_SceneNew failed\n");

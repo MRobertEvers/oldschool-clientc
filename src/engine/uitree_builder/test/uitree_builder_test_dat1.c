@@ -101,7 +101,7 @@ main(
     struct Dat1BuildCache* bc = dat1_buildcache_new();
     struct CacheProvider* provider = dat1_buildcache_as_provider(bc);
 
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(scene);
     struct UITreeSceneBridge bridge;
     UITreeSceneBridge_Init(&bridge, scene, provider);

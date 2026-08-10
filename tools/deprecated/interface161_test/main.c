@@ -1767,7 +1767,8 @@ main(
     if( want_sprites )
     {
         ToriDraw_Init();
-        scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL);
+        scene = ToriDraw_SceneNew(
+            TORIDRAW_SCENE_SMALL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
         if( !scene )
             fprintf(stderr, "warning: ToriDraw_SceneNew failed; sprite/model/obj draw skipped\n");
     }

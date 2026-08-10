@@ -162,7 +162,7 @@ test_builder_lifecycle(void)
 {
     ToriDraw_Init();
 
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     TEST_ASSERT(scene != NULL, "ToriDraw_SceneNew");
 
     struct World* world = World_New();

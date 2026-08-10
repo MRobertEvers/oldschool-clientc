@@ -389,7 +389,9 @@ test_d3d9_retained_execute_steady_state(void)
     memset(&long_animation, 0, sizeof(long_animation));
     memset(&short_animation, 0, sizeof(short_animation));
     ToriDraw_Init();
-    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_LAZY_TEXTURES);
+    scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_LAZY_TEXTURES,
+        TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     large_model = make_untextured_model(LARGE_FACE_COUNT);
     anchor_model = make_untextured_model(ANCHOR_FACE_COUNT);
     long_animation_ready = init_test_animation(&long_animation, LONG_FRAME_COUNT);
@@ -602,7 +604,9 @@ test_d3d9_static_batch_lifecycle(void)
     int cycle;
 
     ToriDraw_Init();
-    scene = ToriDraw_SceneNew(TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_LAZY_TEXTURES);
+    scene = ToriDraw_SceneNew(
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_LAZY_TEXTURES,
+        TORIDRAW_SCRATCH_BUFFER_LOW_2K);
     model = make_untextured_model(ANCHOR_FACE_COUNT);
     renderer = ToriRS_D3D9_New(320, 240);
     if( !scene || !model || !renderer ||

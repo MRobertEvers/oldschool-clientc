@@ -1046,6 +1046,15 @@ thresholded at 128. Of the rows, 204 are HD-only, 25 animate, five animate both
 axes, and 126 contain transparency; repeat/clamp, mipmap, shader, float and
 unverified program-tail differences still require source-client visual QA.
 
+The bridge also applies the revision-727 SD selection rule before writing each
+destination OB3. Faces whose material has `TextureLoader.isSd=false` discard
+that selector and retain their underlying HSL colour for ordinary destination
+lighting. This removed 274,715 invalid face selectors across the 660-model
+closure while retaining all 256 baked assets for inspection/future HD use. In
+particular, all nine TD materials and all three left-claw materials are HD-only;
+forcing their normal/noise graphs into diffuse sprites was the concrete cause
+of the previously white claw and apparently corrupt demon rendering.
+
 QBD recorded audio is bridged rather than copied into the wrong cache table.
 The foreign setup remains at index 14 archive 16000, all 83 samples retain exact
 source bytes (apart from the ledger-level 6249→17000 archive relocation), and
@@ -1123,7 +1132,8 @@ Map/cache port:
 - `src/engine/proctex/test/rs2012_material_bake.c`
 - `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
 - `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
-- `manifest_osrs239_rs2012.ini` and the `mock230-cache-rs2012` make target
+- `manifest_osrs239_rs2012.ini`, `manifest_osrs239_rs2012_td.ini`, and the
+  `mock230-cache-rs2012` make target
 
 Global integration is limited to the shared player-hit preparation point,
 ranged Royal-bolt/crossbow validation, QBD/TD death, logout, and arbitrary
@@ -1149,9 +1159,10 @@ The following are completed machine checks, not a list of aspirations:
   without an unknown key, source-ID leak, or allocation overlap with base
   OSRS239 or the separate Summoning lane.
 - The material bridge decodes, rewrites, encodes, and decodes all 660 destination
-  models. It retains texture-face counts and coordinate arrays and resolves all
-  256 material rows. This is a structural/codec assertion, not visual proof of
-  an HD shader match.
+  models. It preserves mapping arrays for selected SD materials, applies the
+  source SD fallback to 274,715 HD-only face selectors, and resolves all 256
+  material rows. This is a structural/codec assertion, not visual proof of an
+  HD shader match.
 - `tools/test_rs2012_map_port.py` proves 20 decoded source squares, 55,187 exact
   source placement tuples, 1,006 map-referenced loc configs, 12 underlays, and
   12 overlays; the surface placement is audited separately because it was
@@ -1202,10 +1213,10 @@ The following are completed machine checks, not a list of aspirations:
 - The five floor overlays whose material operand is restricted to `u8` resolve
   to permanently reserved destinations 211–215. Model-only materials may
   safely occupy the remainder through 466.
-- `make -C src mock230-scripts` completes with **12,948 compiled scripts**;
+- `make -C src mock230-scripts` completes with **12,963 compiled scripts**;
   `make -C src mock230` and `make -C src test-ss-meta` pass. The server-only
   pack writes **8,340 records with zero unresolved names**.
-- Both ordinary- and composed-cache host runs load **12,884 runtime scripts**.
+- Both ordinary- and composed-cache host runs load **12,899 runtime scripts**.
   Their QBD and TD lifecycle/combat blocks, the exhaustive equipment gate, and
   the live composed coffer assertions pass; the latter also has zero
   `unknown container 2000`, post-kill Slayer-hook, or VM-abort diagnostics.
@@ -1243,8 +1254,21 @@ debug account before deployment.
 
 ### 10.3 Live-client acceptance still required
 
-The following is the explicit manual/integration plan. None of these bullets is
-claimed complete merely because the scripts compile.
+A first destination-client visual pass is complete and recorded in
+`docs/rs2012_qbd_arena/README.md`. It proves the same-packet NPC replacement
+installs type 25003, the arena/platform/claw scene loads, and the corrected SD
+materials remove the white-claw and black-platform failures. Source TD
+8349/10921 and destination TD 25006/22017 also produce byte-identical four-yaw
+renders. The dylib-backed macOS ASan build exposed and verified the fix for a
+real renderer overflow: sleeping QBD has 6,223 vertices/9,012 faces and exceeded
+the former 4,096 projection buffers and 2,000-face priority stride. Full-scene
+limits are now 8,192 vertices, 16,384 faces, with a 16,384 priority stride and a
+pre-projection bounds check. Captures are kept under
+`docs/rs2012_qbd_arena/images/`.
+
+The following is the remaining explicit manual/integration plan. These bullets
+are not claimed complete merely because the scripts compile or a static frame
+renders.
 
 QBD run-through:
 
@@ -1343,10 +1367,11 @@ Media/world pass:
   clue reader/step/reward progression is a wider-content dependency and is not
   supplied here. Likewise, royal armour assets and requirements are present,
   while a full pre-EoC Crafting-interface recreation is outside this slice.
-- The material bridge is a deterministic 128x128 palette/alpha approximation,
-  not the RS727 HD procedural renderer. Animated axes, alpha, mipmaps, shader
-  parameters, repeat/clamp behavior, and unverified program tails require the
-  side-by-side visual pass in §10.3.
+- Selected SD materials use a deterministic 128x128 palette/alpha bridge and
+  HD-only selectors correctly fall back to lit HSL, but this is not the RS727
+  HD procedural renderer. Animated axes, alpha, mipmaps, shader parameters,
+  repeat/clamp behavior, and unverified program tails require the side-by-side
+  visual pass in §10.3.
 - All primary QBD sequence events, loc ambience references, and music payloads
   are bridged and decode from the composed cache. Random alternative IDs beyond
   the primary per-frame event are not representable in the destination sequence

@@ -343,7 +343,7 @@ harness_init(
     /* A scene per harness, like a scene per boot: assets from one cache must
      * not be visible to the next, or "how many assets are live" means nothing. */
     ToriDraw_SceneFree(g_scene);
-    g_scene = ToriDraw_SceneNew(0);
+    g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 
     harness->platform = PlatformAudio_New();
     PlatformAudio_Init(harness->platform, TORIRS_AUDIO_SAMPLE_RATE);
@@ -727,7 +727,7 @@ main(void)
 
     /* Clips are scene assets now, so the game layer needs a scene to publish
      * into even with nothing to draw. */
-    g_scene = ToriDraw_SceneNew(0);
+    g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 
     test_audio_settings_snapshot();
     test_queue_without_cache();

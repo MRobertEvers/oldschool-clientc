@@ -7090,7 +7090,7 @@ main(
     vm.canvas_w = CANVAS_W;
     vm.canvas_h = CANVAS_H;
 
-    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0);
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     if( !scene )
     {
         fprintf(stderr, "failed to create scene: %d\n", interface_id);

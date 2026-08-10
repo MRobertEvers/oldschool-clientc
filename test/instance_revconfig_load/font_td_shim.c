@@ -11,9 +11,12 @@
 #include <string.h>
 
 struct ToriDraw_Scene*
-ToriDraw_SceneNew(uint32_t flags)
+ToriDraw_SceneNew(
+    uint32_t flags,
+    enum ToriDraw_ScratchBufferSize scratch_buffer_size)
 {
     struct ToriDraw_Scene* scene = calloc(1, sizeof(*scene));
+    (void)scratch_buffer_size;
     if( !scene )
         return NULL;
     scene->flags = flags;
