@@ -16,7 +16,6 @@
 #include "datatypes/music_patch.h"
 #include "datatypes/music_song.h"
 #include "datatypes/sound_vorbis.h"
-#include "checksum.h"
 #include "filelist.h"
 #include "port_plan.h"
 #include "reference_table.h"
@@ -629,6 +628,9 @@ static int save_ledger(const struct Import_Manifest* m,
                        const struct Import_Ints* frames,
                        const struct Import_Ints* framemaps,
                        const struct Import_Ints* synths,
+                       const struct Import_Ints* songs,
+                       const struct Import_Ints* samples,
+                       const struct Import_Ints* patches,
                        const struct Tool_IdMap* npc_map,
                        const struct Tool_IdMap* obj_map,
                        const struct Tool_IdMap* loc_map,
@@ -687,6 +689,34 @@ static int save_ledger(const struct Import_Manifest* m,
     LEDGER_CLOSURE("framemap", framemaps, fm_map, "framemap");
     LEDGER_CLOSURE("synth", synths, synth_map, "synth");
 #undef LEDGER_CLOSURE
+    if( ok && (samples->n || songs->n) )
+    {
+        char dst[320];
+        snprintf(dst, sizeof(dst), "%s_sample_setup_727", m->prefix);
+        ok = ledger_set(path, "sample_setup", 0, "sample_setup_727",
+                        m->sample_setup_dest, dst);
+    }
+    for( int i = 0; ok && i < songs->n; i++ )
+    {
+        char src[96], dst[320];
+        snprintf(src, sizeof(src), "song_%d", songs->v[i]);
+        snprintf(dst, sizeof(dst), "%s_song_%d", m->prefix, songs->v[i]);
+        ok = ledger_set(path, "song", songs->v[i], src, songs->v[i], dst);
+    }
+    for( int i = 0; ok && i < samples->n; i++ )
+    {
+        char src[96], dst[320];
+        snprintf(src, sizeof(src), "sample_%d", samples->v[i]);
+        snprintf(dst, sizeof(dst), "%s_sample_%d", m->prefix, samples->v[i]);
+        ok = ledger_set(path, "sample", samples->v[i], src, samples->v[i], dst);
+    }
+    for( int i = 0; ok && i < patches->n; i++ )
+    {
+        char src[96], dst[320];
+        snprintf(src, sizeof(src), "patch_%d", patches->v[i]);
+        snprintf(dst, sizeof(dst), "%s_patch_%d", m->prefix, patches->v[i]);
+        ok = ledger_set(path, "patch", patches->v[i], src, patches->v[i], dst);
+    }
     return ok;
 }
 
@@ -1393,10 +1423,14 @@ static int import_run(struct Import_Manifest* m, int apply)
         : -1;
 
     struct LC_Pack model_pack = {0}, frame_pack = {0}, fm_pack = {0}, synth_pack = {0};
+    struct LC_Pack song_pack = {0}, sample_pack = {0}, patch_pack = {0};
     snprintf(model_pack.type, sizeof(model_pack.type), "7_models");
     snprintf(frame_pack.type, sizeof(frame_pack.type), "0_animations");
     snprintf(fm_pack.type, sizeof(fm_pack.type), "1_skeletons");
     snprintf(synth_pack.type, sizeof(synth_pack.type), "4_soundeffects");
+    snprintf(song_pack.type, sizeof(song_pack.type), "6_musictracks");
+    snprintf(sample_pack.type, sizeof(sample_pack.type), "14_musicsamples");
+    snprintf(patch_pack.type, sizeof(patch_pack.type), "15_musicpatches");
     for( int i = 0; ok && i < models.n; i++ )
     {
         char name[320]; snprintf(name, sizeof(name), "%s/%s_model_%d", m->lane, m->prefix, models.v[i]);
@@ -1422,6 +1456,30 @@ static int import_run(struct Import_Manifest* m, int apply)
         char name[320]; snprintf(name, sizeof(name), "%s/%s_synth_%d", m->lane, m->prefix, synths.v[i]);
         ok = lc_pack_set(&synth_pack, map_id(&synth_map, synths.v[i]), name);
     }
+    if( ok && (samples.n || songs.n) )
+    {
+        char name[320];
+        snprintf(name, sizeof(name), "%s/%s_sample_setup_727", m->lane, m->prefix);
+        ok = lc_pack_set(&sample_pack, m->sample_setup_dest, name);
+    }
+    for( int i = 0; ok && i < samples.n; i++ )
+    {
+        char name[320];
+        snprintf(name, sizeof(name), "%s/%s_sample_%d", m->lane, m->prefix, samples.v[i]);
+        ok = lc_pack_set(&sample_pack, samples.v[i], name);
+    }
+    for( int i = 0; ok && i < songs.n; i++ )
+    {
+        char name[320];
+        snprintf(name, sizeof(name), "%s/%s_song_%d", m->lane, m->prefix, songs.v[i]);
+        ok = lc_pack_set(&song_pack, songs.v[i], name);
+    }
+    for( int i = 0; ok && i < patches.n; i++ )
+    {
+        char name[320];
+        snprintf(name, sizeof(name), "%s/%s_patch_%d", m->lane, m->prefix, patches.v[i]);
+        ok = lc_pack_set(&patch_pack, patches.v[i], name);
+    }
 #define REGISTER_EXPORTS(field, cpkind, map) \
     for( int i = 0; ok && i < m->field.n; i++ ) { \
         char name[128]; canonical_name(m, name, sizeof(name), m->field.v[i].name); \
@@ -1435,9 +1493,10 @@ static int import_run(struct Import_Manifest* m, int apply)
 #undef REGISTER_EXPORTS
 
     printf("cachepack import (%s): npc=%d obj=%d loc=%d spotanim=%d model=%d seq=%d "
-           "animset=%d framemap=%d synth=%d\n", apply ? "apply" : "dry-run",
+           "animset=%d framemap=%d synth=%d song=%d sample=%d patch=%d\n",
+           apply ? "apply" : "dry-run",
            m->npcs.n, m->objs.n, m->locs.n, m->spotanims.n, models.n, seqs.n,
-           frames.n, framemaps.n, synths.n);
+           frames.n, framemaps.n, synths.n, songs.n, samples.n, patches.n);
 
     if( apply && ok )
     {
@@ -1449,6 +1508,17 @@ static int import_run(struct Import_Manifest* m, int apply)
             ok = write_frame_archive(m, &src, &to, &fm_map, frames.v[i]);
         for( int i = 0; ok && i < synths.n; i++ )
             ok = write_synth_asset(m, &src, synths.v[i]);
+        if( ok && (samples.n || songs.n) )
+            ok = write_sample_setup_asset(m, &src);
+        for( int i = 0; ok && i < samples.n; i++ )
+            ok = write_raw_audio_asset(m, &src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES,
+                                       samples.v[i], "samples", "sample", "sample");
+        for( int i = 0; ok && i < songs.n; i++ )
+            ok = write_raw_audio_asset(m, &src, RSCACHE_DAT2_TABLE_MUSIC_TRACKS,
+                                       songs.v[i], "songs", "song", "jmid");
+        for( int i = 0; ok && i < patches.n; i++ )
+            ok = write_raw_audio_asset(m, &src, RSCACHE_DAT2_TABLE_MUSIC_PATCHES,
+                                       patches.v[i], "patches", "patch", "patch");
 
         char configdir[1500], path[1550];
         snprintf(configdir, sizeof(configdir), "%s/%s/configs", m->to_tree, m->lane);
@@ -1472,21 +1542,20 @@ static int import_run(struct Import_Manifest* m, int apply)
                 ok = map_required(&frame_map, "chat frame archive", old, &nw);
                 seq->chat_frame_ids[f] = (nw << 16) | (seq->chat_frame_ids[f] & 0xffff);
             }
-            int external_sound_count = 0;
             for( int s = 0; ok && s < seq->frame_sounds.count; s++ )
             {
                 int mapped_sound = -1;
                 if( tool_id_map_lookup(&synth_map, seq->frame_sounds.sounds[s].id,
                                        &mapped_sound) )
                     seq->frame_sounds.sounds[s].id = mapped_sound;
-                else
-                    external_sound_count++;
+                else if( !ints_contains(&samples, seq->frame_sounds.sounds[s].id) )
+                {
+                    fprintf(stderr,
+                            "cachepack import: seq %d sound %d is in neither audio closure\n",
+                            seqs.v[i], seq->frame_sounds.sounds[s].id);
+                    ok = 0;
+                }
             }
-            if( external_sound_count )
-                fprintf(stderr,
-                        "cachepack import: seq %d retains %d index-14 MIDI/Vorbis events; "
-                        "OSRS needs the documented audio bridge\n",
-                        seqs.v[i], external_sound_count);
             int mapped = -1;
             if( seq->left_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->left_hand_item, &mapped) )
                 seq->left_hand_item = mapped;
@@ -1636,12 +1705,16 @@ static int import_run(struct Import_Manifest* m, int apply)
                 int mapped = -1;
                 if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_id, &mapped) )
                     locs[i]->ambient_sound_id = mapped;
+                else if( !ints_contains(&samples, locs[i]->ambient_sound_id) )
+                    ok = 0;
             }
             for( int k = 0; ok && k < locs[i]->ambient_sound_id_count; k++ )
             {
                 int mapped = -1;
                 if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_ids[k], &mapped) )
                     locs[i]->ambient_sound_ids[k] = mapped;
+                else if( !ints_contains(&samples, locs[i]->ambient_sound_ids[k]) )
+                    ok = 0;
             }
             locs[i]->_id = dest_id;
             uint32_t bound = RSCache_Dat2ConfigLocEncodeBound(locs[i]);
@@ -1663,12 +1736,16 @@ static int import_run(struct Import_Manifest* m, int apply)
         if( ok && frames.n ) ok = save_asset_pack(&frame_pack, m->to_tree, m->lane, "0_animations");
         if( ok && framemaps.n ) ok = save_asset_pack(&fm_pack, m->to_tree, m->lane, "1_skeletons");
         if( ok && synths.n ) ok = save_asset_pack(&synth_pack, m->to_tree, m->lane, "4_soundeffects");
+        if( ok && songs.n ) ok = save_asset_pack(&song_pack, m->to_tree, m->lane, "6_musictracks");
+        if( ok && samples.n ) ok = save_asset_pack(&sample_pack, m->to_tree, m->lane, "14_musicsamples");
+        if( ok && patches.n ) ok = save_asset_pack(&patch_pack, m->to_tree, m->lane, "15_musicpatches");
         if( ok && m->npcs.n ) ok = save_client_membership(m, "npc", &m->npcs, NULL, NULL);
         if( ok && m->objs.n ) ok = save_client_membership(m, "obj", &m->objs, NULL, NULL);
         if( ok && m->locs.n ) ok = save_client_membership(m, "loc", &m->locs, NULL, NULL);
         if( ok && m->spotanims.n ) ok = save_client_membership(m, "spotanim", &m->spotanims, NULL, NULL);
         if( ok && seqs.n ) ok = save_client_membership(m, "seq", NULL, &seqs, "seq");
         if( ok ) ok = save_ledger(m, &models, &seqs, &frames, &framemaps, &synths,
+                                  &songs, &samples, &patches,
                                   &npc_map, &obj_map, &loc_map, &spot_map,
                                   &model_map, &seq_map, &frame_map, &fm_map, &synth_map);
     }
@@ -1683,13 +1760,15 @@ static int import_run(struct Import_Manifest* m, int apply)
     for( int i = 0; i < m->locs.n; i++ ) RSCache_Dat2ConfigLocFree(locs ? locs[i] : NULL);
     free(neutral); free(source_npcs); free(objects); free(spots); free(locs);
     free(models.v); free(seqs.v); free(frames.v); free(framemaps.v); free(synths.v);
+    free(samples.v); free(songs.v); free(patches.v);
     free(npc_ids.v); free(obj_ids.v); free(loc_ids.v); free(spot_ids.v);
     tool_id_map_free(&npc_map); tool_id_map_free(&obj_map);
     tool_id_map_free(&loc_map); tool_id_map_free(&spot_map);
     tool_id_map_free(&model_map); tool_id_map_free(&seq_map); tool_id_map_free(&frame_map);
     tool_id_map_free(&fm_map); tool_id_map_free(&synth_map);
     lc_pack_free(&model_pack); lc_pack_free(&frame_pack); lc_pack_free(&fm_pack);
-    lc_pack_free(&synth_pack); cp_names_free(&emit.names); tool_dat2_close(&src);
+    lc_pack_free(&synth_pack); lc_pack_free(&song_pack); lc_pack_free(&sample_pack);
+    lc_pack_free(&patch_pack); cp_names_free(&emit.names); tool_dat2_close(&src);
     return ok;
 }
 

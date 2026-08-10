@@ -54,6 +54,7 @@ treated as canonical.
 - [QBD article, revision 5861300, 29 June 2012](https://runescape.fandom.com/wiki/Queen_Black_Dragon?oldid=5861300) (B)
 - [QBD article, last pre-rebalance revision 6053174, 6 August 2012](https://runescape.fandom.com/wiki/Queen_Black_Dragon?oldid=6053174) (B)
 - [QBD strategy, revision 5818963, 24 June 2012](https://runescape.fandom.com/wiki/Queen_Black_Dragon/Strategies?oldid=5818963) (B)
+- [Giant worm, revision 5795384, 21 June 2012](https://runescape.fandom.com/wiki/Giant_worm?oldid=5795384) (B)
 - [Jagex 7 August 2012 QBD changes](https://runescape.fandom.com/wiki/Update:Some_Like_it_Cold) (A)
 - [Later Jagex QBD unique-drop disclosure](https://www.runescape.com/drop-rates?set_lang=0) (A, later ruleset)
 - [Jagex While Guthix Sleeps launch post mirror, 26 November 2008](https://wiki.darkan.org/Update%3AWhile_Guthix_Sleeps) (A)
@@ -126,8 +127,12 @@ approximately ten-second cooldown on 7 August specifically to prevent unfair
 spamming of an unblockable attack (A).
 
 The code projects those values across the ten-to-one player boundary: 48 melee,
-53 ranged, 70–90 unprotected fire, and 10–23 protected fire. The exact
-accuracy formulas were not published and remain data constants.
+53 ranged, 70–90 unprotected fire, and 10–23 protected fire. The exact retail
+accuracy formulas were not published. The cache level 2,100 is therefore an
+explicit outgoing-accuracy proxy, while the exact open727 attack/defence bonus
+rows remain visible data. All QBD, soul, and worm hits use mock230's ordinary
+two-dice accuracy and style-specific equipment reduction before prayer or the
+time-stop accumulator; they are no longer unconditional random damage.
 
 ### 3.4 Moving fire wall
 
@@ -172,11 +177,14 @@ release behaviour (A).
 Crystal form resists Magic and is vulnerable to physical attacks. Hardened
 carapace resists Melee/Ranged and is vulnerable to Magic (A/B).
 
-No authoritative 2012 formula survived. open727 uses extreme defence-table
-swaps; later guides describe roughly ±25% damage and about a minute of state.
-The port uses a visible, configurable ±25% modifier for 40 ticks and an 80-tick
-cooldown. This is a fidelity reconstruction, not a claim that those exact
-numbers were retail source (D/E).
+No authoritative 2012 formula survived. open727 uses defence-table swaps:
+default `100/100/100/100/100`, crystal `10/10/10/200/10`, and hardened
+`200/200/200/10/200` for stab/slash/crush/Magic/Ranged. The port preserves
+those exact bonus rows for 40 ticks with an 80-tick cooldown and uses a labelled
+base-Defence adapter of 100. Against the deterministic representative attack
+roll this produces about 81%/57%/36% hit chance for weak/default/resistant
+styles. It deliberately does **not** add the later guide's unverified ±25%
+damage transform on top of the sourced accuracy change (D/E).
 
 ### 3.7 Soul siphon
 
@@ -231,16 +239,26 @@ forge/repair check.
 
 ### 3.10 Worm intermissions and artefacts
 
-Giant worm: level 123, size 2. It uses accurate Magic around 200 LP and some
-melee; Protect/Deflect Magic fully protects against the magic attack (B/C).
+Giant worm: level 123, size 2, **650 LP**. Its dated definition records both
+Melee and Magic, an approximate 200-LP maximum, and bones as the always-drop;
+Protect/Deflect Magic fully protects against the accurate magic attack (B/C).
 Contemporary prose says worms become larger in later phases, while the supplied
 open727 encounter always uses NPC 15464. The current port retains 15464 and
 marks later-size variants for visual QA.
 
 open727 coughs one worm every ten ticks while an artefact remains unactivated;
-that cadence is retained as D. Magical/raw platform tiles and the path to the
-next artefact are changed by the authentic dynamic loc set. The exact raw-tile
-damage cadence in open727 is not asserted as retail truth.
+that cadence is retained as D. Killed souls and worms explicitly call
+`npc_del` after their death trigger, so mock230 cannot re-arm an ordinary NPC
+respawn clock; final-restoration cleanup removes surviving adds without rolling
+their death drops.
+
+The authentic dynamic locs reveal each new path, while a per-candidate movement
+hook enforces open727's exact raw-platform masks below local z 28. Phase 2
+unlocks the 47-tile west mask, phase 3 the 87-tile west/east union, and phase 4
+the 99-tile west/east/centre union. Because `walkstep_coord` is checked for
+every candidate tile, a two-tile run cannot skip a locked square. Standing on
+raw magic deals 200 LP every fourth tick in the D profile; victory, death,
+logout, and the reward-room transition clear both the hazard and movement hook.
 
 Artefact order and arena-local coordinates:
 
@@ -573,6 +591,12 @@ with confirmation, and Examine, plus Take all, Bank all, Abandon all with
 confirmation, and Close. The coffer changes to its empty loc only after the
 last entry is transferred or deliberately discarded.
 
+Source loc 70815 chooses its closed/open child through a revision-727 varbit
+whose numeric ID means an unrelated quest state in OSRS239. On every unclaimed
+open the server replaces that controller with explicit closed loc 70816; after
+the final take/discard it changes only to explicit open/empty loc 70817. Modern
+account state can therefore neither hide nor pre-open this coffer.
+
 Always:
 
 - dragon bones x5;
@@ -625,26 +649,50 @@ physical book cannot reset unlock state.
 
 Royal armour crafting is 87 Crafting for vambraces (1 leather, 94 XP), 89 for
 chaps (2, 188 XP), and 93 for body (3, 282 XP); it requires 80 Ranged and 40
-Defence to wear (B). Item/config/model assets are ported even where the broader
-Crafting interface is outside the two encounter scripts.
+Defence to wear the body, while vambraces/chaps require 80 Ranged (B). Both
+standard tanners accept Royal hide: Ellis charges the period 20 coins and
+Sbott retains his existing 45-coin dragonhide premium. The ordinary
+needle/leather menu produces all three pieces with those exact levels,
+quantities, and XP.
+Royal crossbow/bolts require 85 Ranged, the Dragon kiteshield and converted
+dragon armour retain Defence 60, and converted Infinity pieces retain Defence
+25/Magic 50.
+
+The dragonbone kit has an Info action and converts exactly five Infinity plus
+six dragon items. Every converted item has a reversible Split action that
+returns the original and kit without loss. All four journals have readable
+period-adapted transcripts and confirmed Destroy actions; unlock state remains
+permanent, and any missing unlocked journal can be reclaimed from all three POH
+bookcase tiers without duplicating a copy already in backpack, bank, or an
+unclaimed coffer.
 
 ### 6.3 Royal crossbow lifecycle
 
 - 70 Smithing to assemble/forge; 85 Ranged to wield (A/B).
+- Song from the Depths itself is not recreated. A permanent completion handoff
+  gates imported Sir Rebrum (source NPC 15460, destination 25009) at his
+  authentic encampment spawn `(2991,3237)`. He supplies the coral crossbow only
+  after completion, only with free inventory space, and only when no coral,
+  unforged, complete, or degraded form exists in backpack, bank, or equipment.
 - Thurgo combines the coral crossbow and four tradeable QBD components into the
   unforged crossbow.
 - During phase 4 the player chooses `Brandish`; an extreme-fire pulse turns the
   unforged weapon into the bound, untradeable Royal crossbow.
 - It fires only Royal bolts.
-- Ten hours of combat degrade it. mock230 records 60,000 game ticks and subtracts
-  the actual attack cadence.
+- Ten hours of combat degrade it. mock230 records 60,000 effective attack ticks
+  and subtracts cadence five on Accurate/Longrange or four on Rapid, so Rapid
+  does not accidentally degrade the weapon after eight hours twenty minutes.
 - Re-brandishing the degraded crossbow in extreme fire repairs it. Thurgo also
   consumes another complete four-component set to repair a degraded crossbow;
   both historical paths are implemented.
-- Contemporary reverse engineering reported two delayed hits eight seconds
-  apart after a successful first hit. The compatibility implementation queues
-  those non-XP bleed hits; exact accumulation/minimum behaviour remains labelled B
-  community observation rather than official source.
+- The 5 October 2012 revision records three equal hits for a successful shot:
+  the first immediately, then two more about eight and sixteen seconds later.
+  Each hit rolls from 70–100% of a cap initially equal to 20% of the ordinary
+  maximum; after nine attacks at the same living target inside the bleed window
+  that cap becomes 25%. Trains stack. Each delayed splat resolves the target's
+  live QBD/TD protection and LP/XP domains exactly once at landing, retains the
+  launch combat style for XP, and terminates if the target is gone. These are B
+  community reverse-engineering results, not an official engine disclosure.
 
 ## 7. Tormented demons
 
@@ -874,10 +922,15 @@ The encounter needed small general engine primitives rather than QBD-specific C:
   `npc_changetype`;
 - corrected `npc_changetype(type,duration)` stack handling;
 - player action lock/unlock with central packet gating and live delayed damage;
+- hook-scoped `walkstep_coord` plus per-candidate walk-trigger evaluation, so
+  content can veto either tile of a running route without global collision;
 - hit-preparation hook returning both effective NPC-pool damage and XP damage.
 
 Compiler metadata, wire protocol, NPC-state isolation/respawn, action-lock,
-projectile, and mock-server selftests cover these paths.
+projectile, walk-step, and mock-server selftests cover these paths. QBD's
+script-created adds retire themselves on death; TD respawns deliberately remain
+live and their `[ai_spawn]` initializer resets prayer counters, shield clock,
+offensive style, and independent 27-tick timer for every new life.
 
 ### 8.4 Known media conversion boundary
 
