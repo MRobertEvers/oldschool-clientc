@@ -2877,6 +2877,14 @@ mock230_scripts_report_script_id_args(struct Mock230Server* srv)
             }
 
             checked++;
+            /* `walktrigger(null)` is the reference spelling for disarming the
+             * one-shot hook. The runtime stores -1 as its sentinel, so the
+             * pack validator must distinguish that intentional clear from a
+             * mistyped positive script id. Queue/timer commands do not share
+             * this contract and remain strict. */
+            if( script->opcodes[op] == SS_OP_WALKTRIGGER &&
+                script->int_operands[at] == -1 )
+                continue;
             target = SSVM_ProviderGet(srv->scripts, script->int_operands[at]);
             if( !target )
             {

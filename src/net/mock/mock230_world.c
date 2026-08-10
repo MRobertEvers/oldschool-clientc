@@ -23,6 +23,7 @@
 #include "mock230_ids.h"
 #include "mock230_save.h"
 #include "mock230_scene.h"
+#include "mock239_facing.h"
 #include "mock239_interface_inbound.h"
 #include "engine/world_builder/collision_map.h"
 #include "ss_trigger.h"
@@ -23289,6 +23290,7 @@ mock230_world_selftest(void)
         if( subject >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[subject];
+            int forced_name;
             int name;
             uint8_t payload[2];
 
@@ -23296,6 +23298,16 @@ mock230_world_selftest(void)
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
+            /* Make the two id spaces differ by construction. Without this,
+             * both inbound and outbound translation regressions can pass when
+             * this particular npc happens to receive its world-pool number as
+             * its client-local name. NPC_INFO must reuse the reservation. */
+            player->npc_slots.next =
+                (subject + 1) % MOCK230_CLIENT_NPC_SLOTS;
+            forced_name = mock230_slotmap_acquire(player, subject);
+            SELFTEST_CHECK(forced_name >= 0 && forced_name != subject,
+                           "the fixture should separate client npc %d from world npc %d",
+                           forced_name, subject);
             /*
              * Across a scene rebuild, which is the condition this was reported
              * under. A rebuild moves the build area, re-windows the roster and
@@ -23310,10 +23322,12 @@ mock230_world_selftest(void)
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);
 
-            /* Read the name out of the map the ENCODER filled, not by asking
-             * for one — the question is what went on the wire. */
+            /* Read back the name NPC_INFO used. Its acquire must preserve the
+             * reservation above rather than silently renaming the npc. */
             name = player->npc_slots.client_of[subject];
-            SELFTEST_CHECK(name >= 0, "the encoder should have named the npc it sent");
+            SELFTEST_CHECK(name == forced_name,
+                           "the encoder should send the reserved npc name %d, got %d",
+                           forced_name, name);
 
             payload[0] = (uint8_t)((name >> 8) & 0xff);
             payload[1] = (uint8_t)(name & 0xff);
@@ -23324,6 +23338,133 @@ mock230_world_selftest(void)
                                player->interaction.npc_slot == subject,
                            "clicking that name should target world npc %d, got kind %d slot %d",
                            subject, player->interaction.kind, player->interaction.npc_slot);
+
+            /*
+             * The return half of the same round trip: actor state keeps the
+             * canonical world slot, but each recipient's FACE_ENTITY must name
+             * the npc in that recipient's private NPC_INFO namespace. Before
+             * this translation the rev-239 client could not resolve the raw
+             * world slot and applied Face.Entity's fallback yaw 0 (south) on
+             * every tick of the approach.
+             *
+             * Exercise both writers. The packet probes are intentionally
+             * independent of the encoder: classic's face p2 follows its lone
+             * mask byte; rev 239's face-only extended block ends in the shared
+             * Entity payload (type, index, fallback angle).
+             */
+            {
+                static struct Mock230Capture face_capture;
+                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* wires[2] = {
+                    mock230_wire_by_name("osrs230"),
+                    mock230_wire_by_name("osrs239"),
+                };
+                int saved_face_entity = player->face_entity;
+                uint32_t saved_masks = player->masks;
+                int saved_place_dirty = player->place_dirty;
+                int saved_move_count = player->move_count;
+                int saved_tracked_player_count = player->tracked_player_count;
+                int saved_tracked_players[MOCK230_PLAYER_MAX];
+                uint8_t saved_player_tracked[MOCK230_PLAYER_MAX];
+                int saved_v5_playerinfo_sent = player->v5_playerinfo_sent;
+                int saved_v5_last_x = player->v5_last_x;
+                int saved_v5_last_z = player->v5_last_z;
+                int saved_v5_last_level = player->v5_last_level;
+
+                memcpy(saved_tracked_players, player->tracked_players,
+                       sizeof(saved_tracked_players));
+                memcpy(saved_player_tracked, player->player_tracked,
+                       sizeof(saved_player_tracked));
+
+                for( int revision = 0; revision < 2; revision++ )
+                {
+                    const struct Mock230Wire* wire = wires[revision];
+                    const struct Mock230CapturedPacket* packet = NULL;
+                    int opcode;
+                    int at;
+
+                    SELFTEST_CHECK(wire != NULL,
+                                   "the npc-facing regression needs wire revision %d",
+                                   revision == 0 ? 230 : 239);
+                    if( !wire )
+                        continue;
+
+                    srv.wire = wire;
+                    player->place_dirty = 0;
+                    player->move_count = 0;
+                    player->tracked_player_count = 0;
+                    player->masks = 0;
+                    player->face_entity = -1;
+                    mock230_player_set_face_entity(player);
+                    player->v5_playerinfo_sent = 1;
+                    player->v5_last_x = player->x;
+                    player->v5_last_z = player->z;
+                    player->v5_last_level = player->level;
+
+                    SELFTEST_CHECK(player->face_entity == subject &&
+                                       (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                                   "facing state should retain canonical world npc %d",
+                                   subject);
+
+                    mock230_capture_begin(&srv, &face_capture);
+                    mock230_send_player_info(player);
+                    mock230_capture_end(&srv);
+
+                    opcode = mock230_wire_opcode(wire, PKT_NAME_PLAYER_INFO);
+                    at = mock230_capture_find(&face_capture, opcode, 0);
+                    SELFTEST_CHECK(at >= 0,
+                                   "revision %d should emit PLAYER_INFO for npc facing",
+                                   wire->revision);
+                    if( at >= 0 )
+                        packet = &face_capture.packets[at];
+
+                    if( packet && wire->revision < 239 )
+                    {
+                        int face = packet->len >= 6
+                                       ? (packet->data[4] << 8) | packet->data[5]
+                                       : -1;
+
+                        SELFTEST_CHECK(packet->len >= 6 &&
+                                           (packet->data[3] &
+                                            MOCK230_PMASK_FACE_ENTITY) != 0,
+                                       "classic PLAYER_INFO should carry FACE_ENTITY");
+                        SELFTEST_CHECK(face == name,
+                                       "classic FACE_ENTITY should use client npc %d, got %d",
+                                       name, face);
+                    }
+                    else if( packet )
+                    {
+                        int len = packet->len;
+                        int face = len >= 5
+                                       ? (packet->data[len - 3] << 8) |
+                                             packet->data[len - 2]
+                                       : -1;
+
+                        SELFTEST_CHECK(len >= 5 && packet->data[len - 5] == 0 &&
+                                           packet->data[len - 4] == MOCK239_FACE_NPC &&
+                                           packet->data[len - 1] == 0,
+                                       "rev-239 PLAYER_INFO should end in an NPC Face.Entity");
+                        SELFTEST_CHECK(face == name,
+                                       "rev-239 Face.Entity should use client npc %d, got %d",
+                                       name, face);
+                    }
+                }
+
+                srv.wire = saved_wire;
+                player->face_entity = saved_face_entity;
+                player->masks = saved_masks;
+                player->place_dirty = saved_place_dirty;
+                player->move_count = saved_move_count;
+                player->tracked_player_count = saved_tracked_player_count;
+                memcpy(player->tracked_players, saved_tracked_players,
+                       sizeof(saved_tracked_players));
+                memcpy(player->player_tracked, saved_player_tracked,
+                       sizeof(saved_player_tracked));
+                player->v5_playerinfo_sent = saved_v5_playerinfo_sent;
+                player->v5_last_x = saved_v5_last_x;
+                player->v5_last_z = saved_v5_last_z;
+                player->v5_last_level = saved_v5_last_level;
+            }
 
             /* And the walk actually goes there. "The player does not path
              * toward the npc" is the same bug seen from the other end. */
