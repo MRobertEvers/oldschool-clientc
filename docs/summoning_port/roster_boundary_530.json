@@ -41,6 +41,34 @@
     ]
   },
   "admitted_cohorts": [],
+  "review_only_cohorts": [
+    {
+      "prefix": "summoning_roster_530",
+      "status": "preserved_experiment",
+      "entity_kind": "mixed_unreviewed",
+      "expected_ledger_rows": {
+        "npc": 253,
+        "obj": 252,
+        "seq": 305,
+        "model": 416,
+        "frame_archive": 66,
+        "framemap": 65,
+        "synth": 8
+      },
+      "expected_pet_npc_rows": 176,
+      "legacy_synth_sources": [
+        188,
+        4161,
+        4265,
+        4372,
+        5753,
+        5776,
+        5777,
+        5792
+      ],
+      "note": "Preserved another agent's generated import experiment. It is evidence only and is withheld from the feature-on stage until a Phase-5b cohort is admitted."
+    }
+  ],
   "reserved_generated_prefixes": [
     "summoning_roster_530"
   ]

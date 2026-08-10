@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +45,7 @@ ALLOWED_KINDS = {
 }
 NAMED_CONFIG_KINDS = {"npc", "obj", "loc", "seq", "spotanim", "interface"}
 ROOT_KINDS = {"npc", "obj"}
+GENERATED_COHORT_NAME = re.compile(r"^summoning_(?:roster|cohort)_[a-z0-9_]+$")
 ALLOWED_DISPOSITIONS = {
     "pending",
     "minted",
@@ -76,6 +78,14 @@ class Root:
 
 
 @dataclass(frozen=True)
+class ReviewOnlyCohort:
+    prefix: str
+    expected_ledger_rows: tuple[tuple[str, int], ...]
+    expected_pet_npc_rows: int
+    legacy_synth_sources: frozenset[int]
+
+
+@dataclass(frozen=True)
 class Boundary:
     deferred_slot: int
     safe_synth_sources: frozenset[int]
@@ -83,6 +93,7 @@ class Boundary:
     admitted_roots: frozenset[tuple[str, int]]
     vertical_support: frozenset[tuple[str, int]]
     admitted_cohorts: tuple[str, ...]
+    review_only_cohorts: tuple[ReviewOnlyCohort, ...]
     reserved_generated_prefixes: tuple[str, ...]
 
 
@@ -146,6 +157,59 @@ def _prefixes(value: object, label: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _review_only_cohorts(value: object) -> tuple[ReviewOnlyCohort, ...]:
+    """Parse preserved generated work that must not enter the feature cache.
+
+    Review-only data is intentionally retained because it is useful porting
+    evidence from another agent.  Its exact ledger footprint is part of the
+    boundary, which prevents that preservation exception from turning into an
+    open-ended way to add pets or unsafe synths.
+    """
+    if not isinstance(value, list) or not value:
+        raise ValueError("boundary review_only_cohorts must be a non-empty array")
+    cohorts: list[ReviewOnlyCohort] = []
+    prefixes: list[str] = []
+    for index, raw in enumerate(value, start=1):
+        label = f"review_only_cohorts[{index}]"
+        if not isinstance(raw, dict):
+            raise ValueError(f"boundary {label} must be an object")
+        prefix = raw.get("prefix")
+        if not isinstance(prefix, str) or not prefix.startswith("summoning_"):
+            raise ValueError(f"boundary {label}.prefix must start with 'summoning_'")
+        if raw.get("status") != "preserved_experiment":
+            raise ValueError(f"boundary {label}.status must be preserved_experiment")
+        counts = raw.get("expected_ledger_rows")
+        if not isinstance(counts, dict) or not counts:
+            raise ValueError(f"boundary {label}.expected_ledger_rows must be a non-empty object")
+        normalized_counts: list[tuple[str, int]] = []
+        for kind, count in counts.items():
+            if kind not in ALLOWED_KINDS:
+                raise ValueError(f"boundary {label} has unsupported row kind {kind!r}")
+            try:
+                count = int(count)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"boundary {label}.{kind} must be an integer") from exc
+            if count <= 0:
+                raise ValueError(f"boundary {label}.{kind} must be positive")
+            normalized_counts.append((kind, count))
+        try:
+            pet_count = int(raw["expected_pet_npc_rows"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"boundary {label}.expected_pet_npc_rows must be an integer") from exc
+        if pet_count < 0 or pet_count > dict(normalized_counts).get("npc", 0):
+            raise ValueError(f"boundary {label}.expected_pet_npc_rows is outside its NPC count")
+        synths = _id_set(raw.get("legacy_synth_sources"), f"{label}.legacy_synth_sources")
+        if synths != {188, 4161, 4265, 4372, 5753, 5776, 5777, 5792}:
+            raise ValueError(f"boundary {label}.legacy_synth_sources does not match the preserved experiment")
+        if dict(normalized_counts).get("synth") != len(synths):
+            raise ValueError(f"boundary {label} synth count disagrees with legacy_synth_sources")
+        prefixes.append(prefix)
+        cohorts.append(ReviewOnlyCohort(prefix, tuple(sorted(normalized_counts)), pet_count, synths))
+    if len(set(prefixes)) != len(prefixes):
+        raise ValueError("boundary review_only_cohorts contains duplicate prefixes")
+    return tuple(cohorts)
+
+
 def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -201,12 +265,29 @@ def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
     admitted_roots = source_pairs("admitted_root_sources")
     if not admitted_roots <= frozenset(roots):
         raise ValueError("boundary admits a root that is absent from the pouch manifest")
+    pairs: dict[str, set[tuple[str, int]]] = {}
+    for key, root in roots.items():
+        pair_name = root.src_name if root.kind == "npc" else (
+            root.src_name.removesuffix("_pouch").replace("_pouch_", "_")
+        )
+        pairs.setdefault(pair_name, set()).add(key)
+    for pair_name, pair_roots in pairs.items():
+        if len(pair_roots) != 2:
+            raise ValueError(f"pouch manifest has incomplete familiar/pouch pair {pair_name!r}")
+        admitted_count = len(pair_roots & admitted_roots)
+        if admitted_count not in {0, 2}:
+            raise ValueError(f"boundary admits only one half of familiar/pouch pair {pair_name!r}")
     vertical_support = source_pairs("vertical_support_sources")
     if any(kind in ROOT_KINDS and (kind, source_id) in roots for kind, source_id in vertical_support):
         raise ValueError("boundary vertical support must not duplicate a familiar/pouch root")
 
-    admitted_cohorts = _prefixes(data.get("admitted_cohorts", ["summoning_placeholder"]), "admitted_cohorts") \
-        if data.get("admitted_cohorts") else ()
+    raw_cohorts = data.get("admitted_cohorts")
+    if not isinstance(raw_cohorts, list):
+        raise ValueError("boundary admitted_cohorts must be an array")
+    admitted_cohorts = _prefixes(raw_cohorts, "admitted_cohorts") if raw_cohorts else ()
+    review_only_cohorts = _review_only_cohorts(data.get("review_only_cohorts"))
+    if set(admitted_cohorts) & {cohort.prefix for cohort in review_only_cohorts}:
+        raise ValueError("boundary cannot admit and review-hold the same cohort")
     reserved_generated_prefixes = _prefixes(
         data.get("reserved_generated_prefixes"), "reserved_generated_prefixes"
     )
@@ -217,18 +298,35 @@ def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
         admitted_roots,
         vertical_support,
         admitted_cohorts,
+        review_only_cohorts,
         reserved_generated_prefixes,
     )
 
 
+def _matches_prefix(name: str, prefix: str) -> bool:
+    return name == prefix or name.startswith(f"{prefix}_")
+
+
+def destination_review_cohort(name: str, boundary: Boundary) -> ReviewOnlyCohort | None:
+    if name == "-":
+        return None
+    return next(
+        (cohort for cohort in boundary.review_only_cohorts if _matches_prefix(name, cohort.prefix)),
+        None,
+    )
+
+
 def destination_is_reserved(name: str, boundary: Boundary) -> bool:
+    """Whether a generated destination has neither admission nor a review hold."""
     if name == "-":
         return False
-    for prefix in boundary.reserved_generated_prefixes:
-        if name == prefix or name.startswith(f"{prefix}_"):
-            return not any(name == admitted or name.startswith(f"{admitted}_")
-                           for admitted in boundary.admitted_cohorts)
-    return False
+    is_generated = GENERATED_COHORT_NAME.match(name) is not None or any(
+        _matches_prefix(name, prefix)
+        for prefix in boundary.reserved_generated_prefixes
+    )
+    return is_generated and destination_review_cohort(name, boundary) is None and not any(
+        _matches_prefix(name, admitted) for admitted in boundary.admitted_cohorts
+    )
 
 
 def parse_ledger(path: Path) -> tuple[list[Row], list[str]]:
@@ -264,11 +362,12 @@ def parse_ledger(path: Path) -> tuple[list[Row], list[str]]:
     return rows, errors
 
 
-def check(manifest_path: Path, tree: Path) -> int:
+def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
     ledger_path = tree / MAP_REL
     errors: list[str] = []
     try:
         roots = expected_roots(load_manifest(manifest_path))
+        boundary = load_boundary(boundary_path, roots)
     except ValueError as exc:
         print(f"port_summoning_ids: error: {exc}", file=sys.stderr)
         return 1
@@ -277,6 +376,9 @@ def check(manifest_path: Path, tree: Path) -> int:
     errors.extend(parse_errors)
     by_source: dict[tuple[str, int], Row] = {}
     by_destination: dict[tuple[str, int], Row] = {}
+    review_rows: dict[str, list[Row]] = {
+        cohort.prefix: [] for cohort in boundary.review_only_cohorts
+    }
 
     for row in rows:
         where = f"{ledger_path}:{row.line}"
@@ -291,6 +393,23 @@ def check(manifest_path: Path, tree: Path) -> int:
         if not row.signoff:
             errors.append(f"{where}: signoff must be stated")
         source_key = (row.kind, row.src_id)
+        review_cohort = destination_review_cohort(row.dst_name, boundary)
+        if review_cohort is not None:
+            review_rows[review_cohort.prefix].append(row)
+            if row.disposition != "minted" or row.signoff != "unreviewed":
+                errors.append(
+                    f"{where}: preserved experiment {review_cohort.prefix!r} must remain minted/unreviewed"
+                )
+        if (row.kind in ROOT_KINDS and source_key not in roots and
+                source_key not in boundary.vertical_support and review_cohort is None):
+            errors.append(
+                f"{where}: {row.kind} {row.src_id} is outside the Phase-5a familiar/pouch boundary"
+            )
+        if (row.kind == "synth" and row.src_id not in boundary.safe_synth_sources and
+                review_cohort is None):
+            errors.append(f"{where}: synth {row.src_id} is not the permitted source synth 188")
+        if destination_is_reserved(row.dst_name, boundary):
+            errors.append(f"{where}: destination {row.dst_name!r} belongs to an unadmitted roster cohort")
         previous = by_source.get(source_key)
         if previous is not None:
             errors.append(
@@ -326,17 +445,78 @@ def check(manifest_path: Path, tree: Path) -> int:
                 )
 
     checked = 0
-    for key, expected_name in roots.items():
+    for key, root in roots.items():
         row = by_source.get(key)
         if row is None:
-            errors.append(f"{ledger_path}: missing manifest root {key[0]} {key[1]} {expected_name}")
+            errors.append(f"{ledger_path}: missing manifest root {key[0]} {key[1]} {root.src_name}")
             continue
         checked += 1
-        if row.src_name != expected_name:
+        if row.src_name != root.src_name:
             errors.append(
                 f"{ledger_path}:{row.line}: source name {row.src_name!r}; "
-                f"manifest says {expected_name!r}"
+                f"manifest says {root.src_name!r}"
             )
+        admitted = key in boundary.admitted_roots
+        deferred = root.slot == boundary.deferred_slot
+        review_cohort = destination_review_cohort(row.dst_name, boundary)
+        if admitted:
+            if row.dst_id == "-":
+                errors.append(f"{ledger_path}:{row.line}: admitted root {key[0]} {key[1]} has no destination")
+        elif review_cohort is not None:
+            if deferred:
+                errors.append(
+                    f"{ledger_path}:{row.line}: deferred Sacred Clay root {key[0]} {key[1]} entered review cohort"
+                )
+        else:
+            expected_disposition = "deferred" if deferred else "pending"
+            if row.dst_id != "-" or row.dst_name != "-":
+                errors.append(
+                    f"{ledger_path}:{row.line}: unadmitted root {key[0]} {key[1]} must not claim a destination"
+                )
+            if row.disposition != expected_disposition or row.signoff != "unreviewed":
+                errors.append(
+                    f"{ledger_path}:{row.line}: unadmitted root {key[0]} {key[1]} must be "
+                    f"{expected_disposition}/unreviewed"
+                )
+
+    for source_id in boundary.safe_synth_sources:
+        row = by_source.get(("synth", source_id))
+        if row is None:
+            errors.append(f"{ledger_path}: missing safe synth candidate {source_id}")
+            continue
+        checked += 1
+        review_cohort = destination_review_cohort(row.dst_name, boundary)
+        if source_id not in boundary.admitted_synth_sources and review_cohort is None:
+            if (row.dst_id != "-" or row.dst_name != "-" or row.disposition != "pending" or
+                    row.signoff != "unreviewed"):
+                errors.append(
+                    f"{ledger_path}:{row.line}: unadmitted safe synth {source_id} must remain pending/unreviewed without a destination"
+                )
+
+    for cohort in boundary.review_only_cohorts:
+        cohort_rows = review_rows[cohort.prefix]
+        actual_counts: dict[str, int] = {}
+        for row in cohort_rows:
+            actual_counts[row.kind] = actual_counts.get(row.kind, 0) + 1
+        expected_counts = dict(cohort.expected_ledger_rows)
+        if actual_counts != expected_counts:
+            errors.append(
+                f"{ledger_path}: preserved experiment {cohort.prefix!r} row counts changed: "
+                f"expected {expected_counts}, got {actual_counts}"
+            )
+        pet_count = sum(row.kind == "npc" and row.src_name.startswith("pet_") for row in cohort_rows)
+        if pet_count != cohort.expected_pet_npc_rows:
+            errors.append(
+                f"{ledger_path}: preserved experiment {cohort.prefix!r} pet NPC count changed: "
+                f"expected {cohort.expected_pet_npc_rows}, got {pet_count}"
+            )
+        synth_sources = {row.src_id for row in cohort_rows if row.kind == "synth"}
+        if synth_sources != cohort.legacy_synth_sources:
+            errors.append(
+                f"{ledger_path}: preserved experiment {cohort.prefix!r} synth sources changed: "
+                f"expected {sorted(cohort.legacy_synth_sources)}, got {sorted(synth_sources)}"
+            )
+        checked += sum(expected_counts.values()) + 2
 
     if checked == 0:
         errors.append("summoning ledger check executed zero required-row checks")
@@ -350,13 +530,14 @@ def check(manifest_path: Path, tree: Path) -> int:
     return 1 if errors else 0
 
 
-def seed(manifest_path: Path, tree: Path) -> int:
+def seed(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
     ledger_path = tree / MAP_REL
     if ledger_path.exists():
         print(f"port_summoning_ids: refusing to overwrite existing {ledger_path}", file=sys.stderr)
         return 1
     try:
         roots = expected_roots(load_manifest(manifest_path))
+        boundary = load_boundary(boundary_path, roots)
     except ValueError as exc:
         print(f"port_summoning_ids: error: {exc}", file=sys.stderr)
         return 1
@@ -370,11 +551,14 @@ def seed(manifest_path: Path, tree: Path) -> int:
         "# Imported named records use the summoning_* prefix to prevent cross-namespace trigger capture.",
         "\t".join(HEADER),
     ]
-    for (kind, src_id), src_name in sorted(roots.items(), key=lambda item: (item[0][0], item[0][1])):
-        lines.append(f"{kind}\t{src_id}\t{src_name}\t-\t-\tpending\tunreviewed")
+    for (kind, src_id), root in sorted(roots.items(), key=lambda item: (item[0][0], item[0][1])):
+        disposition = "deferred" if root.slot == boundary.deferred_slot else "pending"
+        lines.append(f"{kind}\t{src_id}\t{root.src_name}\t-\t-\t{disposition}\tunreviewed")
+    for source_id in sorted(boundary.safe_synth_sources):
+        lines.append(f"synth\t{source_id}\tsynth_{source_id}\t-\t-\tpending\tunreviewed")
     ledger_path.parent.mkdir(parents=True, exist_ok=True)
     ledger_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"port_summoning_ids: seeded {len(roots)} rows in {ledger_path}")
+    print(f"port_summoning_ids: seeded {len(roots)} roots and {len(boundary.safe_synth_sources)} synth candidates in {ledger_path}")
     return 0
 
 
@@ -384,11 +568,12 @@ def main() -> int:
     action.add_argument("--check", action="store_true", help="validate the existing ledger")
     action.add_argument("--seed", action="store_true", help="create the ledger only if absent")
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument("--boundary", type=Path, default=DEFAULT_BOUNDARY)
     parser.add_argument("--tree", type=Path, default=DEFAULT_TREE)
     args = parser.parse_args()
     if args.seed:
-        return seed(args.manifest.resolve(), args.tree.resolve())
-    return check(args.manifest.resolve(), args.tree.resolve())
+        return seed(args.manifest.resolve(), args.boundary.resolve(), args.tree.resolve())
+    return check(args.manifest.resolve(), args.boundary.resolve(), args.tree.resolve())
 
 
 if __name__ == "__main__":

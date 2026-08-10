@@ -1,0 +1,11 @@
+npc_id,npc_name,gameval,framemap_id,seed_seqs,strict_covers
+25000,Queen Black Dragon,,9000,22021,true
+25001,Queen Black Dragon,,9000,22021,true
+25002,Queen Black Dragon,,9000,22021,true
+25003,Queen Black Dragon,,9000,22022,true
+25004,Tortured soul,,9001,22023 22024,true
+25005,Giant worm,,9003,22025,true
+25006,Tormented demon,,9002,22017 22016,false
+25007,Tormented demon,,9002,22017 22016,false
+25008,Tormented demon,,9002,22017 22016,false
+25009,Sir Rebrum,,9025,22076 22077 22078 22079 22080,false

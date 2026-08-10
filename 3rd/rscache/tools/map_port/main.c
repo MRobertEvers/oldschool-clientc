@@ -923,7 +923,10 @@ main(int argc, char** argv)
 {
     struct Options opt;
     memset(&opt, 0, sizeof(opt));
-    opt.underlay_base = 500;
+    /* Terrain underlay operands remain one byte in the destination map wire
+     * format.  OSRS239's base configs currently end at 241, so reserve the
+     * remaining byte-safe band rather than silently truncating 500+ ids. */
+    opt.underlay_base = 242;
     opt.overlay_base = 1000;
     for( int i = 1; i < argc; i++ )
     {
@@ -1038,6 +1041,14 @@ main(int argc, char** argv)
     qsort(locs.v, (size_t)locs.n, sizeof(*locs.v), count_compare);
     qsort(underlays.v, (size_t)underlays.n, sizeof(*underlays.v), count_compare);
     qsort(overlays.v, (size_t)overlays.n, sizeof(*overlays.v), count_compare);
+
+    if( ok && opt.underlay_base + underlays.n > 255 )
+    {
+        fprintf(stderr,
+                "map_port: underlay allocation %d..%d exceeds the one-byte map operand\n",
+                opt.underlay_base, opt.underlay_base + underlays.n - 1);
+        ok = 0;
+    }
 
     if( ok && opt.apply && opt.out )
     {

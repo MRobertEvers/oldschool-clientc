@@ -16,14 +16,18 @@ from __future__ import annotations
 import argparse
 import filecmp
 import hashlib
+import json
+import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
+DEFAULT_BOUNDARY = REPO_ROOT / "docs" / "summoning_port" / "roster_boundary_530.json"
 LANE = Path("ported") / "scape2009_summoning"
 ASSET_ROOTS = (
     "models",
@@ -47,10 +51,174 @@ CONFIG_SUFFIXES = {
 }
 INTERFACE_OVERLAYS = "interface_overlays"
 CONFIG_OVERLAYS = "config_overlays"
+ADMISSION_TEXT_SUFFIXES = {
+    ".alloc",
+    ".client",
+    ".compack",
+    ".constant",
+    ".cs2",
+    ".enum",
+    ".if",
+    ".loc",
+    ".npc",
+    ".obj",
+    ".pack",
+    ".seq",
+    ".spotanim",
+    ".varbit",
+    ".varp",
+}
+GENERATED_COHORT_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_(?:roster|cohort)_[a-z0-9_]+)")
+SYNTH_SOURCE_TOKEN = re.compile(r"(?:^|_)synth_(\d+)(?:$|_)")
+DIRECT_PET_RECORD_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_pet_[a-z0-9_]+)")
+NPC_SOUNDS_YES = re.compile(r"(?mi)^\s*npc_sounds\s*=\s*yes\s*$")
+
+
+@dataclass(frozen=True)
+class RosterAdmission:
+    admitted_cohorts: tuple[str, ...]
+    review_only_cohorts: tuple[str, ...]
+    safe_synths: frozenset[int]
 
 
 def fail(message: str) -> ValueError:
     return ValueError(f"stage_summoning_overlay: {message}")
+
+
+def load_roster_boundary(path: Path) -> RosterAdmission:
+    """Load the narrow Phase-5 roster admission contract.
+
+    The seven-column import ledger remains cachepack-compatible.  This separate
+    document answers a different question: which generated familiar cohorts are
+    allowed to enter the feature-on staging tree at all.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise fail(f"cannot read roster boundary {path}: {exc}") from exc
+    if not isinstance(data, dict) or data.get("schema") != 1 or data.get("phase") != "5a":
+        raise fail(f"roster boundary {path} must be schema 1 for Phase 5a")
+    cohorts = data.get("admitted_cohorts")
+    review_only = data.get("review_only_cohorts")
+    synths = data.get("safe_synth_sources")
+    if not isinstance(cohorts, list) or not all(
+        isinstance(prefix, str) and prefix.startswith("summoning_") for prefix in cohorts
+    ) or len(set(cohorts)) != len(cohorts):
+        raise fail("roster boundary admitted_cohorts must be summoning_ prefixes")
+    if not isinstance(synths, list):
+        raise fail("roster boundary safe_synth_sources must be an array")
+    try:
+        safe_synths = frozenset(int(source_id) for source_id in synths)
+    except (TypeError, ValueError) as exc:
+        raise fail("roster boundary safe_synth_sources must contain integers") from exc
+    if safe_synths != {188}:
+        raise fail("Phase 5a permits exactly safe synth source 188")
+    if not isinstance(review_only, list) or not review_only:
+        raise fail("roster boundary review_only_cohorts must be a non-empty array")
+    review_prefixes: list[str] = []
+    for index, cohort in enumerate(review_only, start=1):
+        if not isinstance(cohort, dict):
+            raise fail(f"review_only_cohorts[{index}] must be an object")
+        prefix = cohort.get("prefix")
+        if (not isinstance(prefix, str) or not prefix.startswith("summoning_") or
+                cohort.get("status") != "preserved_experiment"):
+            raise fail(f"review_only_cohorts[{index}] must be a preserved summoning_ experiment")
+        review_prefixes.append(prefix)
+    if len(set(review_prefixes)) != len(review_prefixes):
+        raise fail("roster boundary review_only_cohorts contains duplicate prefixes")
+    if set(cohorts) & set(review_prefixes):
+        raise fail("roster boundary cannot admit and review-hold the same cohort")
+    return RosterAdmission(tuple(cohorts), tuple(review_prefixes), safe_synths)
+
+
+def cohort_matches(token: str, prefix: str) -> bool:
+    return token == prefix or token.startswith(f"{prefix}_")
+
+
+def cohort_is_admitted(token: str, admission: RosterAdmission) -> bool:
+    return any(cohort_matches(token, prefix) for prefix in admission.admitted_cohorts)
+
+
+def cohort_is_review_only(token: str, admission: RosterAdmission) -> bool:
+    return any(cohort_matches(token, prefix) for prefix in admission.review_only_cohorts)
+
+
+def review_only_tokens(value: str, admission: RosterAdmission) -> set[str]:
+    return {
+        token for token in GENERATED_COHORT_TOKEN.findall(value)
+        if cohort_is_review_only(token, admission)
+    }
+
+
+def audit_roster_admission(tree: Path, lane: Path, boundary_path: Path) -> int:
+    """Fail closed on unknown generated work; hold known experiments out of stage."""
+    admission = load_roster_boundary(boundary_path)
+    errors: list[str] = []
+    checked = 0
+    review_only_hits = 0
+    roots = [lane]
+    roots.extend(tree / root_name / LANE for root_name in ASSET_ROOTS)
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in ensure_plain_tree(root, "Summoning admission input"):
+            checked += 1
+            relative = path.relative_to(tree).as_posix()
+            text = ""
+            if path.suffix in ADMISSION_TEXT_SUFFIXES:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            tokens = set(GENERATED_COHORT_TOKEN.findall(relative))
+            tokens.update(GENERATED_COHORT_TOKEN.findall(text))
+            for token in sorted(tokens):
+                checked += 1
+                review_only = cohort_is_review_only(token, admission)
+                if review_only:
+                    review_only_hits += 1
+                elif not cohort_is_admitted(token, admission):
+                    errors.append(f"unadmitted generated cohort {token!r} reaches {relative}")
+                if re.search(r"(?:^|_)pet(?:_|$)", token) and not review_only:
+                    errors.append(f"pet cohort {token!r} is deferred to Phase 7 ({relative})")
+
+            # The existing skill-guide taxonomy legitimately says “pets”; only
+            # a direct `summoning_pet_*` record or a generated roster cohort
+            # constitutes out-of-scope pet content here.
+            for token in sorted(set(DIRECT_PET_RECORD_TOKEN.findall(relative))):
+                checked += 1
+                if not review_only_tokens(relative, admission):
+                    errors.append(f"pet record {token!r} is deferred to Phase 7 ({relative})")
+            for line in text.splitlines():
+                for token in sorted(set(DIRECT_PET_RECORD_TOKEN.findall(line))):
+                    checked += 1
+                    if not review_only_tokens(line, admission):
+                        errors.append(f"pet record {token!r} is deferred to Phase 7 ({relative})")
+
+            if NPC_SOUNDS_YES.search(text):
+                checked += 1
+                errors.append(f"npc_sounds=yes opens an unreviewed synth closure ({relative})")
+
+            path_synth_sources = {int(source_id) for source_id in SYNTH_SOURCE_TOKEN.findall(relative)}
+            for source_id in sorted(path_synth_sources):
+                checked += 1
+                if source_id not in admission.safe_synths and not review_only_tokens(relative, admission):
+                    errors.append(f"unsafe synth source {source_id} reaches {relative}")
+            for line in text.splitlines():
+                for source_id_text in SYNTH_SOURCE_TOKEN.findall(line):
+                    source_id = int(source_id_text)
+                    checked += 1
+                    if source_id not in admission.safe_synths and not review_only_tokens(line, admission):
+                        errors.append(f"unsafe synth source {source_id} reaches {relative}")
+
+    if checked == 0:
+        errors.append("roster admission executed zero checks")
+    if errors:
+        joined = "\n".join(f"  - {error}" for error in errors[:20])
+        suffix = "\n  - ..." if len(errors) > 20 else ""
+        raise fail(f"roster admission rejected {len(errors)} artifact(s):\n{joined}{suffix}")
+    print(
+        f"stage_summoning_overlay: roster admission {checked} checks, 0 errors; "
+        f"{review_only_hits} review-only references held out"
+    )
+    return checked
 
 
 def ensure_plain_tree(root: Path, label: str) -> list[Path]:
@@ -77,6 +245,69 @@ def copy_tree(source: Path, destination: Path) -> int:
     for source_file in files:
         copy_file(source_file, destination / source_file.relative_to(source))
     return len(files)
+
+
+def copy_admitted_tree(
+    source: Path, destination: Path, admission: RosterAdmission
+) -> tuple[int, int]:
+    """Copy an input subtree while holding named review-only work out of stage.
+
+    Generated config/assets use cohort names in their filenames, but allocation
+    and member-pack files mix accepted records with review-only records.  The
+    latter are filtered line-by-line into the disposable stage; the originals
+    remain untouched in the content tree for later Phase-5b review.
+    """
+    if not source.exists():
+        return 0, 0
+    copied = 0
+    withheld = 0
+    for source_file in ensure_plain_tree(source, "Summoning source"):
+        relative = source_file.relative_to(source)
+        if review_only_tokens(relative.as_posix(), admission):
+            withheld += 1
+            continue
+        if source_file.suffix in ADMISSION_TEXT_SUFFIXES:
+            raw = source_file.read_bytes()
+            lines = raw.splitlines(keepends=True)
+            held_lines = [
+                line for line in lines
+                if review_only_tokens(line.decode("latin-1"), admission)
+            ]
+            if held_lines:
+                retained = b"".join(line for line in lines if line not in held_lines)
+                withheld += len(held_lines)
+                if not retained:
+                    continue
+                destination_file = destination / relative
+                destination_file.parent.mkdir(parents=True, exist_ok=True)
+                destination_file.write_bytes(retained)
+                copied += 1
+                continue
+        copy_file(source_file, destination / relative)
+        copied += 1
+    return copied, withheld
+
+
+def assert_review_only_absent(root: Path, admission: RosterAdmission) -> int:
+    """Prove that a preserved experiment did not leak into the staged tree."""
+    errors: list[str] = []
+    checked = 0
+    for path in ensure_plain_tree(root, "staged Summoning output"):
+        checked += 1
+        relative = path.relative_to(root).as_posix()
+        tokens = review_only_tokens(relative, admission)
+        if path.suffix in ADMISSION_TEXT_SUFFIXES:
+            tokens.update(review_only_tokens(path.read_bytes().decode("latin-1"), admission))
+        if tokens:
+            errors.append(f"review-only cohort {sorted(tokens)!r} leaked to {relative}")
+    if checked == 0:
+        errors.append("staged roster exclusion executed zero checks")
+    if errors:
+        joined = "\n".join(f"  - {error}" for error in errors[:20])
+        suffix = "\n  - ..." if len(errors) > 20 else ""
+        raise fail(f"review-only roster exclusion rejected {len(errors)} artifact(s):\n{joined}{suffix}")
+    print(f"stage_summoning_overlay: review-only exclusion {checked} checks, 0 errors")
+    return checked
 
 
 def apply_interface_overlays(tree: Path, lane: Path, out: Path) -> int:
@@ -174,16 +405,19 @@ def reset_output(tree: Path, out: Path) -> None:
     out.mkdir(parents=True)
 
 
-def stage(tree: Path, out: Path) -> int:
+def stage(tree: Path, out: Path, boundary_path: Path) -> int:
     tree = tree.resolve()
     out = out.resolve()
     lane = tree / LANE
     if not (lane / "PROVENANCE.md").is_file():
         raise fail(f"missing lane marker {lane / 'PROVENANCE.md'}")
     ensure_plain_tree(lane, "Summoning lane")
+    admission = load_roster_boundary(boundary_path.resolve())
+    audit_roster_admission(tree, lane, boundary_path.resolve())
     reset_output(tree, out)
 
     copied = 0
+    withheld = 0
     for required in (tree / "meta.ini", tree / "content.ini"):
         if not required.is_file() or required.is_symlink():
             raise fail(f"missing plain support file: {required}")
@@ -234,10 +468,15 @@ def stage(tree: Path, out: Path) -> int:
         if child.is_dir() and child.name in {INTERFACE_OVERLAYS, CONFIG_OVERLAYS}:
             continue
         if child.is_dir() and child.name in {"configs", "interfaces", "scripts", "pack", *ASSET_ROOTS}:
-            copied += copy_tree(child, out / child.name)
+            copied_here, withheld_here = copy_admitted_tree(child, out / child.name, admission)
+            copied += copied_here
+            withheld += withheld_here
         elif child.is_file() and child.suffix in CONFIG_SUFFIXES:
-            copy_file(child, out / "configs" / LANE / child.name)
-            copied += 1
+            if review_only_tokens(child.name, admission):
+                withheld += 1
+            else:
+                copy_file(child, out / "configs" / LANE / child.name)
+                copied += 1
         else:
             raise fail(f"unclassified lane entry: {child}")
 
@@ -248,7 +487,13 @@ def stage(tree: Path, out: Path) -> int:
     # only the provenance-marked subtree is copied into the second-pass view.
     for root_name in ASSET_ROOTS:
         source = tree / root_name / LANE
-        copied += copy_tree(source, out / root_name / LANE)
+        copied_here, withheld_here = copy_admitted_tree(source, out / root_name / LANE, admission)
+        copied += copied_here
+        withheld += withheld_here
+
+    if admission.review_only_cohorts and withheld == 0:
+        raise fail("review-only cohort is declared but stage withheld zero artifacts")
+    assert_review_only_absent(out, admission)
 
     generated = subprocess.run(
         [sys.executable, str(REPO_ROOT / "tools/gen_dbindex.py"),
@@ -265,7 +510,10 @@ def stage(tree: Path, out: Path) -> int:
 
     if copied == 0:
         raise fail("staged zero files")
-    print(f"stage_summoning_overlay: staged {copied} files in {out}")
+    print(
+        f"stage_summoning_overlay: staged {copied} files in {out}; "
+        f"withheld {withheld} review-only artifacts/rows"
+    )
     return 0
 
 
@@ -311,6 +559,7 @@ def compare_cache(before: Path, after: Path) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tree", type=Path, default=DEFAULT_TREE)
+    parser.add_argument("--boundary", type=Path, default=DEFAULT_BOUNDARY)
     parser.add_argument("--out", type=Path, help="directory to replace with the staged overlay")
     parser.add_argument(
         "--compare-cache",
@@ -327,7 +576,7 @@ def main() -> int:
             return compare_cache(*args.compare_cache)
         if args.out is None:
             parser.error("--out is required when staging")
-        return stage(args.tree, args.out)
+        return stage(args.tree, args.out, args.boundary)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 1

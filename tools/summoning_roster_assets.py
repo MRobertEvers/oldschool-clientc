@@ -56,8 +56,9 @@ def load_pouch_entities(path: Path) -> list[Entity]:
     records = json.loads(path.read_text(encoding="utf-8"))
     entities: list[Entity] = []
     for record in records:
-        # The four Sacred Clay pouches and Phoenix have slot -1 and are not
-        # familiar pouches; importing them would pull unrelated minigames in.
+        # The four Sacred Clay pouches have slot -1 and are not familiar
+        # pouches; importing them would pull unrelated minigames in. Phoenix
+        # is a normal slot-50 familiar and intentionally remains in scope.
         if record["slot"] < 0:
             continue
         name = record["name"].lower()
@@ -161,6 +162,64 @@ def build_manifest(
     return "\n".join(lines)
 
 
+def validate_candidate_manifest(manifest_text: str) -> None:
+    """Assert the non-negotiable Phase-5a candidate boundary.
+
+    This protects the generated INI itself as well as the source data that fed
+    it.  In particular, changing ``npc_sounds`` to ``yes`` would make
+    cachepack close over several source audio records that Phase 5a has not
+    reviewed.  The candidate stays deliberately separate from admission into
+    the feature-on staging tree.
+    """
+    section = ""
+    settings: dict[str, str] = {}
+    exports: dict[str, list[tuple[int, str]]] = {}
+    for line_number, raw in enumerate(manifest_text.splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+            continue
+        if "=" not in line:
+            raise ValueError(f"candidate manifest line {line_number} is not key=value: {raw!r}")
+        key, value = (part.strip() for part in line.split("=", 1))
+        if section == "import:scape2009":
+            if key in settings:
+                raise ValueError(f"candidate manifest repeats setting {key!r}")
+            settings[key] = value
+        elif section.startswith("export:"):
+            try:
+                source_id = int(key)
+            except ValueError as exc:
+                raise ValueError(
+                    f"candidate manifest line {line_number} has a non-integer source id {key!r}"
+                ) from exc
+            exports.setdefault(section.removeprefix("export:"), []).append((source_id, value))
+        else:
+            raise ValueError(f"candidate manifest line {line_number} is outside a supported section")
+
+    if settings.get("npc_sounds") != "no":
+        raise ValueError("Phase 5a candidate must set npc_sounds=no")
+    if settings.get("prefix") != "summoning_roster_530":
+        raise ValueError("Phase 5a candidate must use the reserved summoning_roster_530 prefix")
+    if set(exports) != {"npc", "obj", "seq", "synth"}:
+        raise ValueError("Phase 5a candidate must contain npc/obj/seq/synth export sections only")
+    for kind, rows in exports.items():
+        source_ids = [source_id for source_id, _ in rows]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError(f"candidate manifest duplicates {kind} source ids")
+        if any(not name or name == "-" for _, name in rows):
+            raise ValueError(f"candidate manifest has an unnamed {kind} export")
+        if any(re.search(r"(?:^|_)pet(?:_|$)", name) for _, name in rows):
+            raise ValueError("Phase 5a candidate must not export pet content")
+    synth_sources = {source_id for source_id, _ in exports["synth"]}
+    if synth_sources != SAFE_SYNTH_IDS:
+        raise ValueError(
+            f"Phase 5a candidate synth exports must be {sorted(SAFE_SYNTH_IDS)}, got {sorted(synth_sources)}"
+        )
+
+
 def write_csv(path: Path, entities: list[Entity], catalog: dict[int, dict[str, str]], combat: dict[int, dict[str, str]]) -> None:
     fields = [
         "entity_kind", "entry", "stage", "source_npc", "source_obj", "source_name",
@@ -242,6 +301,7 @@ def main() -> int:
     # Render into temporary sibling names so --check can be a strict, useful gate.
     csv_text_path = args.csv.with_suffix(args.csv.suffix + ".new")
     manifest_text = build_manifest(entities, combat, safe_direct_familiar_sound_ids(args.familiar_source))
+    validate_candidate_manifest(manifest_text)
     source_sound_text = sound_csv_text(args.familiar_source)
     write_csv(csv_text_path, entities, catalog, combat)
     csv_text = csv_text_path.read_text(encoding="utf-8")

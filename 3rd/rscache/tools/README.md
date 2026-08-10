@@ -242,6 +242,12 @@ overlay modern squares. `--base-tree` carries forward filepack members 2 and up
 from modern squares, so replacing terrain/loc does not discard OSRS auxiliary
 map payloads.
 
+Destination underlays default to configs 242 onward because the terrain wire
+operand is still one byte (`config id + 1`) even though OSRS239 widened the
+surrounding floor opcode. The importer fails if the requested band would exceed
+255; using a visually convenient high allocation silently truncates the id and
+loads an unrelated or missing underlay.
+
 Each inventory square records the resolved source terrain/loc archive ids and
 four XTEA words, making the source contract independently auditable. On an
 incremental `--apply`, existing `underlay.alloc` and `overlay.alloc` rows are
