@@ -52,6 +52,30 @@ neighbour must already be in `PAINT_STEP_GROUND` or later before this tile may p
 unless the tile has an active span flag in that direction (meaning it is the "outer" tile of
 the object and the span exception applies).
 
+### The seam exception (bucket only)
+
+The span exception above is keyed on **this** tile's spans, so it cannot fire when the
+neighbour is held by a loc that does not cover this tile. `painter_paint_bucket` adds a
+second escape for that case (`bucket_gate_blocks` /
+`bucket_neighbour_holds_only_nearer_scenery`): once the neighbour's own ground is down,
+and everything still keeping it from `PAINT_STEP_DONE` is scenery whose footprint reaches
+**closer to the eye** than the tile being gated, the gate is dropped.
+
+Why it is sound: a multi-tile loc is released at its *nearest* footprint tile, because that
+is the last of its tiles to get its ground. A loc that reaches nearer than the tile being
+held is therefore drawn nearer than that tile no matter what, and making the farther tile
+wait for it only inverts the sweep. A neighbour carrying a wall, wall decor, or any pending
+element that does not reach past this ring is disqualified and the reference wait stands.
+
+The case that forced it is the QBD arena floor: two 12×18 plane-0 locs (`x[38,49]` and
+`x[50,61]`, both `z[48,65]`) meeting on one column. When the eye tile lands on that column,
+`sx == camera_sx` makes both the west and the east gate apply, the neighbour across the
+seam belongs to the *other* loc, and the whole column was held until that loc was released
+five tiles from the eye — then emitted its floor, twenty tiles away, on top of it. On
+screen: a one-tile-wide strip of ground running up over the platform. `painter_paint_world3d`
+keeps the plain reference gate; the divergence is deliberate and is the bucket drain's, in
+the same way the bulk push below is.
+
 ### Loc stacking and draw order
 
 Both Client-TS (`World.fill` / `setSprite`) and the modern deob (`Scene.drawTile`) use the

@@ -1175,6 +1175,7 @@ context_from_handle(
                 ctx->zbuf_target.offset_x = ctx->offset_x;
                 ctx->zbuf_target.offset_y = ctx->offset_y;
                 ctx->zbuf_target.near_plane_z = ctx->near_plane_z;
+                ctx->zbuf_target.model_mid_z = scene->projected_vertex.z;
                 ctx->zbuf_target.parallel = toridraw_proj_is_parallel(camera->proj_mode);
 
                 ctx->zbuf_source.face_indices_a = ctx->face_indices_a;
@@ -1182,17 +1183,13 @@ context_from_handle(
                 ctx->zbuf_source.face_indices_c = ctx->face_indices_c;
                 ctx->zbuf_source.screen_vertices_x = ctx->vertex_x;
                 ctx->zbuf_source.screen_vertices_y = ctx->vertex_y;
+                ctx->zbuf_source.screen_vertices_z = ctx->vertex_z;
                 ctx->zbuf_source.orthographic_vertices_x =
                     ctx->orthographic_vertex_x_nullable;
                 ctx->zbuf_source.orthographic_vertices_y =
                     ctx->orthographic_vertex_y_nullable;
                 ctx->zbuf_source.orthographic_vertices_z =
                     ctx->orthographic_vertex_z_nullable;
-
-                /* The depth is read out of the orthographic scratch; without it
-                 * there is nothing to test against. */
-                if( !ctx->orthographic_vertex_z_nullable )
-                    ctx->zbuffered = false;
             }
         }
 #endif
@@ -1223,7 +1220,10 @@ ToriDraw_RasterWithFaceIndices(
         /* Rebased by the same amount as the frame buffer, so one offset walks
          * both — see the layout note on ToriDraw_Scene.zbuffer. */
         if( ctx.zbuffered )
+        {
+            ctx.zbuf_target.pixel_buffer = ctx.pixel_buffer;
             ctx.zbuf_target.zbuffer += clip_left + clip_top * stride;
+        }
 #endif
     }
 

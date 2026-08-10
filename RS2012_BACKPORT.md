@@ -16,7 +16,7 @@ Related: [`docs/qbd_toridraw_streaks_debug.md`](docs/qbd_toridraw_streaks_debug.
 
 ---
 
-## 1. Face render priorities — strip them
+## 1. Face render priorities — strip them, then author them
 
 ### Symptom
 
@@ -81,6 +81,70 @@ interpreting.
 `TORIDRAW_DEBUG_NDJSON=1 TORIDRAW_DEBUG_LOG=<path>` emits a `face_order` record
 per model with `has_priorities`. Before the strip the QBD was the only large
 arena model reporting `1`.
+
+### Better than stripping: author the bands from measurement
+
+Stripping recovers the depth sort, which is most of the win. It is not the
+ceiling, and on a lane that has since been re-packed *with* the RS727
+priorities (`OSRS-Content` `b9e6bc901 repack with priority`) it is not what is
+shipping either. `rs2012_face_priorities` replaces them with bands derived from
+the geometry rather than inherited from a renderer that never used them.
+
+```sh
+make -C src rs2012-face-priorities rs2012-model-view
+tools/rs2012_qbd_prio.sh                 # every QBD form, before/after scores
+```
+
+It never writes its input — `--in` and `--out` are separate paths, and the
+whole loop lands in `build/qbd_prio/`.
+
+Measured over 24 camera angles inside the client's own pitch clamp, counting
+pixels where the painter's sort leaves a surface behind the one a z-buffer
+would have shown:
+
+| QBD form | shipped (RS727 priorities) | priorities stripped | authored bands |
+|---|---:|---:|---:|
+| default | 11.80% | 4.28% | 4.18% |
+| crystal | 10.88% | — | 4.32% |
+| hardened | 11.81% | — | 4.48% |
+| tortured soul | 5.43% | — | 1.33% |
+| giant worm | 0.90% | — | 0.07% |
+
+The mean depth of an error falls with it, 119 units to 12 on the default form:
+what goes away is not edge filigree but whole far-side plates painting through
+the head.
+
+Three things the tool had to get right, each of which is a way to make the
+model *worse* if got wrong:
+
+1. **A feature is one band.** Features come from connected components (with
+   coincident vertices welded, because the import duplicates seams). Splitting
+   one surface across two bands stops its own halves interleaving, so the far
+   half paints over the near half.
+
+2. **A band is not a pairwise promise.** Putting A one band above B puts it
+   above everything else in B's band too. Authoring pair by pair reads as a win
+   on every pair and lands a small spike in front of the whole dragon —
+   measured at 4.5% going to 7.4%, with mean depth error 9 → 80. The assignment
+   is therefore solved globally, hill climbing a band per feature from
+   "everything in band 0" (which *is* the stripped behaviour, so the result
+   cannot score below it).
+
+3. **Only the angles the client can produce.** `app.c` clamps world camera
+   pitch to 128..383 of 2048. Sweeping the whole sphere asks every pair to
+   agree from underneath the model as well, almost none do, and every real
+   ordering gets scored away as a conflict.
+
+The tool also prints the ceiling before it starts: on the QBD, of 5.3% wrong
+pixels, 0.4 points are one feature sorting wrongly against *itself*, which no
+band can reach at all. That number is worth reading before spending a day on a
+model — a lane whose error is mostly intra-feature is not a priority problem.
+
+`rs2012_model_view` is the loop's other half: it renders a model through the
+real `RenderModel1Project` / `2SortFaces` / `3Raster` path, so the priorities
+under test are honoured exactly as the client honours them, and writes a
+multi-angle sheet, a sort-error mask, and — with `--compare` — the same model
+through the depth-tested kernels for a side-by-side.
 
 ---
 

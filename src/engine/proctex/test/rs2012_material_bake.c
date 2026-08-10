@@ -157,15 +157,78 @@ static int g_ground_mesh_model_faces_fallback;
 struct blend_variant
 {
     int source;   /* RS727 material id */
-    int hsl;      /* face colour that references it (hsl16) */
+    int hsl;      /* face colour CHROMA (hsl16 & 0xFF80) - see BLEND_TINT_LIGHTNESS */
     int dest_texture;
     int dest_sprite;
     int faces;    /* how many faces resolved to this variant */
 };
 
+/*
+ * The lightness a tint is taken at.
+ *
+ * A face colour's lightness is not the surface's brightness - the lighting
+ * pass overwrites it per vertex from the face normal, which is why an
+ * untextured face authored at lightness 0 still renders lit rather than black.
+ * A textured face gets the same treatment through its shade multiplier. So the
+ * tint has to be the face's chroma at a fixed reference lightness, and the
+ * raster supplies the rest; baking the authored lightness in would apply it
+ * twice and turn every lightness-0 face's mask into a black hole.
+ *
+ * 64 is the midpoint of the 0..127 range, where the palette gives the pure hue
+ * (it washes to white above and to black below).
+ */
+#define BLEND_TINT_LIGHTNESS 64
+#define BLEND_CHROMA_MASK 0xFF80
+
 static struct blend_variant g_blend_variants[MAX_BLEND_VARIANTS];
 static int g_blend_variant_count;
 static int g_blend_variant_overflow;
+
+/* Destination id allocator, shared by the per-material mappings and the
+ * variants above. allocate_material_mappings seeds it; variants are interned
+ * later, while the models are being remapped, and continue from the same
+ * cursor so the two can never hand out the same id. */
+static bool g_used_dest_texture[65536];
+static bool g_used_dest_sprite[65536];
+static int g_next_dest_texture;
+static int g_next_dest_sprite;
+
+/* HSL16 -> RGB888, the palette the caches store face colours in. Same
+ * conversion as 3rd/rscache/tools/anim_compare; kept local because this tool
+ * links neither the toridraw tables nor that tool. */
+static int
+hsl16_to_rgb(int hsl)
+{
+    double h = ((hsl >> 10) & 0x3f) / 64.0;
+    double s = ((hsl >> 7) & 0x7) / 8.0;
+    double l = (hsl & 0x7f) / 128.0;
+    double channel[3];
+    double q, p, t[3];
+
+    if( s <= 0.0 )
+    {
+        int grey = (int)(l * 255);
+        return (grey << 16) | (grey << 8) | grey;
+    }
+
+    q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+    p = 2.0 * l - q;
+    t[0] = h + 1.0 / 3.0;
+    t[1] = h;
+    t[2] = h - 1.0 / 3.0;
+    for( int i = 0; i < 3; i++ )
+    {
+        double c = t[i];
+        if( c < 0 ) c += 1;
+        if( c > 1 ) c -= 1;
+        if( c < 1.0 / 6.0 )       channel[i] = p + (q - p) * 6.0 * c;
+        else if( c < 0.5 )        channel[i] = q;
+        else if( c < 2.0 / 3.0 )  channel[i] = p + (q - p) * (2.0 / 3.0 - c) * 6.0;
+        else                      channel[i] = p;
+    }
+    return ((int)(channel[0] * 255) << 16) | ((int)(channel[1] * 255) << 8) |
+           (int)(channel[2] * 255);
+}
 
 /* The variant for (source, hsl), or NULL. */
 static struct blend_variant*
@@ -188,12 +251,24 @@ blend_variant_intern(int source, int hsl)
         g_blend_variant_overflow++;
         return NULL;
     }
+    while( g_next_dest_texture <= 65535 && g_used_dest_texture[g_next_dest_texture] )
+        g_next_dest_texture++;
+    while( g_next_dest_sprite <= 65535 && g_used_dest_sprite[g_next_dest_sprite] )
+        g_next_dest_sprite++;
+    if( g_next_dest_texture > INT16_MAX || g_next_dest_sprite > 65535 )
+    {
+        g_blend_variant_overflow++;
+        return NULL;
+    }
+
     found = &g_blend_variants[g_blend_variant_count++];
     found->source = source;
     found->hsl = hsl;
-    found->dest_texture = -1;
-    found->dest_sprite = -1;
+    found->dest_texture = g_next_dest_texture;
+    found->dest_sprite = g_next_dest_sprite;
     found->faces = 0;
+    g_used_dest_texture[g_next_dest_texture++] = true;
+    g_used_dest_sprite[g_next_dest_sprite++] = true;
     return found;
 }
 
@@ -399,6 +474,15 @@ mapping_source_for_dest(int dest_texture)
         {
             if( source >= 0 ) return -2;
             source = i;
+        }
+    /* A blend layer's colour variants are destinations too; the post-encode
+     * check walks every face id through here, so they have to resolve or a
+     * remapped model reads as having retained a source id. */
+    for( int i = 0; i < g_blend_variant_count; i++ )
+        if( g_blend_variants[i].dest_texture == dest_texture )
+        {
+            if( source >= 0 ) return -2;
+            source = g_blend_variants[i].source;
         }
     return source;
 }
@@ -684,8 +768,10 @@ collect_model_materials(
 static int
 allocate_material_mappings(void)
 {
-    bool used_textures[65536] = { false };
-    bool used_sprites[65536] = { false };
+    /* Shared with the blend-layer variants, which are interned later and take
+     * the next free ids from the same cursor. */
+    bool* used_textures = g_used_dest_texture;
+    bool* used_sprites = g_used_dest_sprite;
     for( int source = 0; source < MAX_TEXTURES; source++ )
     {
         if( !g_mapping[source].present ) continue;
@@ -751,6 +837,8 @@ allocate_material_mappings(void)
         used_textures[next_texture++] = true;
         used_sprites[next_sprite++] = true;
     }
+    g_next_dest_texture = next_texture;
+    g_next_dest_sprite = next_sprite;
     return 1;
 }
 
@@ -1148,6 +1236,34 @@ prepare_model_outputs(
                     model->face_textures[face] = (int16_t)-1;
                     g_ground_mesh_model_faces_fallback++;
                 }
+                /*
+                 * A blend layer resolves to the variant baked against this
+                 * face's own colour, not to the bare mask. Without it the face
+                 * draws the mask's greyscale literally - SD has no way to
+                 * recover the hue, because texturing the face is what discards
+                 * it. See struct blend_variant.
+                 */
+                else if( g_alpha_textures && g_textures[source].blend_layer &&
+                         model->face_colors )
+                {
+                    /* Keyed on chroma, not the whole colour: two faces of the
+                     * same hue differing only in authored lightness want the
+                     * same texture, because lightness comes from the raster. */
+                    int hsl = (int)model->face_colors[face] & BLEND_CHROMA_MASK;
+                    struct blend_variant* variant = blend_variant_intern(source, hsl);
+                    if( !variant )
+                    {
+                        fprintf(stderr,
+                                "rs2012_material_bake: blend variant table full at "
+                                "material %d colour %d\n",
+                                source, hsl);
+                        RSCache_ModelFree(model);
+                        RSCache_ModelProvenanceFree(provenance);
+                        goto fail;
+                    }
+                    variant->faces++;
+                    model->face_textures[face] = (int16_t)variant->dest_texture;
+                }
                 else
                     model->face_textures[face] =
                         (int16_t)g_mapping[source].dest_texture;
@@ -1265,8 +1381,42 @@ alpha_report(int source)
         100.0 * full / (BAKE_SIZE * BAKE_SIZE));
 }
 
+/*
+ * Brightest channel among the covered texels, i.e. what this mask's "full
+ * surface" reads as. A blend layer is a greyscale detail pattern whose overall
+ * level is whatever the HD program happened to produce - measured on this lane
+ * the three QBD masks peak at 255, 209 and 163 - so tinting by the raw value
+ * would darken the surface by an amount that means nothing. Normalising by the
+ * peak anchors the mask's brightest texel to the face colour and keeps the
+ * pattern's contrast below it.
+ */
 static int
-quantize_texture(int source, int32_t* pixels)
+blend_layer_peak(const struct texture_entry* entry)
+{
+    int peak = 0;
+    for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
+    {
+        uint32_t argb = (uint32_t)entry->argb[i];
+        if( (argb >> 24) == 0 )
+            continue;
+        for( int shift = 0; shift <= 16; shift += 8 )
+        {
+            int c = (int)((argb >> shift) & 0xFF);
+            if( c > peak )
+                peak = c;
+        }
+    }
+    return peak > 0 ? peak : 255;
+}
+
+/*
+ * `tint_rgb` is -1 for an ordinary material, or the RGB of the face colour
+ * that references this blend layer. See struct blend_variant: SD discards a
+ * textured face's hue and saturation, so the only place a mask can be combined
+ * with the surface colour it was authored against is here.
+ */
+static int
+quantize_texture_tinted(int source, int32_t* pixels, int tint_rgb)
 {
     if( g_alpha_report )
         alpha_report(source);
@@ -1284,6 +1434,8 @@ quantize_texture(int source, int32_t* pixels)
         entry->blend_layer = opaque * 2 < BAKE_SIZE * BAKE_SIZE;
     }
 
+    int peak = tint_rgb >= 0 ? blend_layer_peak(entry) : 255;
+
     for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
     {
         uint32_t argb = (uint32_t)entry->argb[i];
@@ -1299,6 +1451,16 @@ quantize_texture(int source, int32_t* pixels)
         int red = (int)((argb >> 16) & 0xFF);
         int green = (int)((argb >> 8) & 0xFF);
         int blue = (int)(argb & 0xFF);
+        if( tint_rgb >= 0 )
+        {
+            /* mask * tint, with the mask normalised to its own peak. */
+            red = red * ((tint_rgb >> 16) & 0xFF) / peak;
+            green = green * ((tint_rgb >> 8) & 0xFF) / peak;
+            blue = blue * (tint_rgb & 0xFF) / peak;
+            if( red > 255 ) red = 255;
+            if( green > 255 ) green = 255;
+            if( blue > 255 ) blue = 255;
+        }
         int r = (red * (PALETTE_RED_LEVELS - 1) + 127) / 255;
         int g = (green * (PALETTE_GREEN_LEVELS - 1) + 127) / 255;
         int b = (blue * (PALETTE_BLUE_LEVELS - 1) + 127) / 255;
@@ -1309,6 +1471,12 @@ quantize_texture(int source, int32_t* pixels)
         if( pixels ) pixels[i] = (int32_t)((out_alpha << 24) | (uint32_t)rgb);
     }
     return 1;
+}
+
+static int
+quantize_texture(int source, int32_t* pixels)
+{
+    return quantize_texture_tinted(source, pixels, -1);
 }
 
 static int
@@ -1488,15 +1656,29 @@ write_material_ledger(
     return ok;
 }
 
-static int
-write_sprite_asset(const char* to_tree, int source)
+/* Asset name for a material, or for one of its colour variants. The variant
+ * suffix is the face colour, so the name is stable across runs and a diff of
+ * the sprite pack says which colours a mask was used with. */
+static void
+sprite_asset_name(char* out, size_t capacity, int source, int hsl)
 {
-    char directory[2048], path[2300];
+    if( hsl < 0 )
+        snprintf(out, capacity, "rs2012_material_%d", source);
+    else
+        snprintf(out, capacity, "rs2012_material_%d_c%d", source, hsl);
+}
+
+static int
+write_sprite_asset_tinted(const char* to_tree, int source, int hsl)
+{
+    char name[64], directory[2048], path[2300];
+    sprite_asset_name(name, sizeof(name), source, hsl);
     snprintf(directory, sizeof(directory),
-             "%s/sprites/ported/rs2012_qbd_td/rs2012_material_%d", to_tree, source);
+             "%s/sprites/ported/rs2012_qbd_td/%s", to_tree, name);
     if( !mkdir_p(directory) ) return 0;
     int32_t* pixels = malloc((size_t)BAKE_SIZE * BAKE_SIZE * sizeof(*pixels));
-    if( !pixels || !quantize_texture(source, pixels) )
+    if( !pixels ||
+        !quantize_texture_tinted(source, pixels, hsl < 0 ? -1 : hsl16_to_rgb(hsl)) )
     {
         free(pixels);
         return 0;
@@ -1511,13 +1693,25 @@ write_sprite_asset(const char* to_tree, int source)
     snprintf(path, sizeof(path), "%s/pack.meta", directory);
     FILE* meta = fopen(path, "wb");
     if( !meta ) return 0;
-    fprintf(meta, "// RS727 procedural material %d baked for OSRS239.\n", source);
+    if( hsl < 0 )
+        fprintf(meta, "// RS727 procedural material %d baked for OSRS239.\n", source);
+    else
+        fprintf(meta,
+                "// RS727 procedural material %d (blend layer) tinted by face colour "
+                "hsl16 %d, baked for OSRS239.\n",
+                source, hsl);
     fprintf(meta, "count=1\npalette=%d\n", PALETTE_LENGTH);
     for( int index = 0; index < PALETTE_LENGTH; index++ )
         fprintf(meta, "p%d=0x%06X\n", index, palette_colour(index));
     fprintf(meta, "sprite0=%d,%d,%d,%d,0,0\n", BAKE_SIZE, BAKE_SIZE,
             BAKE_SIZE, BAKE_SIZE);
     return !ferror(meta) && fclose(meta) == 0;
+}
+
+static int
+write_sprite_asset(const char* to_tree, int source)
+{
+    return write_sprite_asset_tinted(to_tree, source, -1);
 }
 
 static int
@@ -1571,6 +1765,16 @@ write_sprite_pack(const char* to_tree)
             free(preserved);
             return 0;
         }
+    for( int i = 0; i < g_blend_variant_count; i++ )
+        if( preserved[g_blend_variants[i].dest_sprite] )
+        {
+            fprintf(stderr,
+                    "rs2012_material_bake: variant sprite %d collides with retained lane row\n",
+                    g_blend_variants[i].dest_sprite);
+            for( int id = 0; id <= 65535; id++ ) free(preserved[id]);
+            free(preserved);
+            return 0;
+        }
     if( !ensure_parent(path) )
     {
         for( int id = 0; id <= 65535; id++ ) free(preserved[id]);
@@ -1592,6 +1796,14 @@ write_sprite_pack(const char* to_tree)
             if( g_mapping[source].present && g_mapping[source].dest_sprite == destination )
                 fprintf(file, "%d=ported/rs2012_qbd_td/rs2012_material_%d\n",
                         destination, source);
+        for( int i = 0; i < g_blend_variant_count; i++ )
+            if( g_blend_variants[i].dest_sprite == destination )
+            {
+                char name[64];
+                sprite_asset_name(name, sizeof(name), g_blend_variants[i].source,
+                                  g_blend_variants[i].hsl);
+                fprintf(file, "%d=ported/rs2012_qbd_td/%s\n", destination, name);
+            }
     }
     int ok = !ferror(file) && fclose(file) == 0;
     for( int id = 0; id <= 65535; id++ ) free(preserved[id]);
@@ -1639,6 +1851,29 @@ write_texture_sources(
             if( speed ) fprintf(text_file, "speed=%d\n", speed);
             fputc('\n', text_file);
         }
+
+    /* Colour variants of the blend layers. Same record shape - they are
+     * ordinary alpha textures as far as the client is concerned; only the
+     * sprite behind them differs. */
+    for( int i = 0; i < g_blend_variant_count; i++ )
+    {
+        const struct blend_variant* variant = &g_blend_variants[i];
+        const struct RSCache_Dat2Material* material = &materials->materials[variant->source];
+        char name[64];
+        int direction = 0, speed = 0;
+
+        sprite_asset_name(name, sizeof(name), variant->source, variant->hsl);
+        material_animation(material, &direction, &speed);
+        fprintf(index_file, "%d=%s\n", variant->dest_texture, name);
+        fprintf(text_file, "[%s]\n", name);
+        fprintf(text_file, "averagehsl=%d\n", variant->hsl);
+        if( !g_textures[variant->source].transparent ) fprintf(text_file, "opaque=yes\n");
+        fprintf(text_file, "alpha=yes\n");
+        fprintf(text_file, "sprite1=%d,0,0\n", variant->dest_sprite);
+        if( direction ) fprintf(text_file, "direction=%d\n", direction);
+        if( speed ) fprintf(text_file, "speed=%d\n", speed);
+        fputc('\n', text_file);
+    }
     int ok = !ferror(text_file) && !ferror(index_file) &&
              fclose(text_file) == 0 && fclose(index_file) == 0;
     snprintf(pack_path, sizeof(pack_path),
@@ -1815,12 +2050,41 @@ main(int argc, char** argv)
                baked_count, ground_mesh, animated, dual_axis, source_transparent,
                baked_transparent, g_ground_mesh_model_faces_fallback);
         printf("  reserved overlays: 348->211 408->212 600->213 616->214 651->215\n");
+        if( g_alpha_textures )
+        {
+            int variant_faces = 0;
+            int variant_materials = 0;
+            int last_source = -1;
+            for( int i = 0; i < g_blend_variant_count; i++ )
+            {
+                variant_faces += g_blend_variants[i].faces;
+                if( g_blend_variants[i].source != last_source )
+                {
+                    variant_materials++;
+                    last_source = g_blend_variants[i].source;
+                }
+            }
+            printf("  blend-layer variants: %d textures over %d materials, %d faces\n",
+                   g_blend_variant_count, variant_materials, variant_faces);
+            int const shown = g_alpha_report ? g_blend_variant_count
+                                             : (g_blend_variant_count < 12 ? g_blend_variant_count : 12);
+            for( int i = 0; i < shown; i++ )
+                printf("    material %d colour hsl16 %-6d -> texture %d (%d faces)\n",
+                       g_blend_variants[i].source, g_blend_variants[i].hsl,
+                       g_blend_variants[i].dest_texture, g_blend_variants[i].faces);
+            if( g_blend_variant_count > shown )
+                printf("    ... %d more (--alpha-report lists all)\n",
+                       g_blend_variant_count - shown);
+        }
     }
 
     if( ok && apply )
     {
         for( int source = 0; ok && source < MAX_TEXTURES; source++ )
             if( g_mapping[source].present ) ok = write_sprite_asset(to_tree, source);
+        for( int i = 0; ok && i < g_blend_variant_count; i++ )
+            ok = write_sprite_asset_tinted(
+                to_tree, g_blend_variants[i].source, g_blend_variants[i].hsl);
         if( ok ) ok = write_sprite_pack(to_tree);
         if( ok ) ok = write_texture_sources(to_tree, materials);
         if( ok ) ok = write_material_ledger(ledger_path, materials);

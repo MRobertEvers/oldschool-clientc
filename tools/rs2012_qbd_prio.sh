@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 #
-# Face-priority iteration loop for the imported RS2012 lane.
+# Face-priority authoring loop for the RS2012 Queen Black Dragon lane.
 #
-# Builds the two tools, re-authors priorities into a SEPARATE output model
-# (the lane's .ob3 files are never written), renders before/after contact
-# sheets plus sort-error masks, and prints both scores so a priority edit is
-# judged by a number rather than by eye.
+# Builds the two tools, re-authors face render priorities for every QBD npc
+# form into a SEPARATE output tree (the lane's .ob3 files are never written),
+# renders before/after contact sheets, and prints the sort score for each form
+# so an edit is judged by a number instead of by eye.
 #
-#   tools/rs2012_qbd_prio.sh                       # QBD head+neck, default view
-#   tools/rs2012_qbd_prio.sh --strategy shell
-#   OUT=/tmp/qbd tools/rs2012_qbd_prio.sh --focus 0,-800,400 --radius 700
+#   tools/rs2012_qbd_prio.sh                    # every form, default sampling
+#   FORMS=default tools/rs2012_qbd_prio.sh      # just the one
+#   OUT=/tmp/qbd tools/rs2012_qbd_prio.sh --views 32 --pitches 8
+#
+# Extra arguments are passed to rs2012_face_priorities, so the sampling
+# density, the elevation range and --bulk-flex are all reachable from here.
 #
 # Outputs land in $OUT (default build/qbd_prio):
-#   before.bmp / before_err.bmp   the lane model as it ships today
-#   after.bmp  / after_err.bmp    the same model with authored priorities
-#   *.ob3                         the re-authored models, alongside not over
+#   rs2012_model_*.ob3        the re-authored models, alongside not over
+#   <form>_before.bmp/.png    the lane model as it ships today
+#   <form>_after.bmp/.png     the same geometry with authored bands
+#   <form>_after_err.bmp/.png sort-error mask: red = a surface behind the truth
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,9 +26,25 @@ cd "$repo"
 
 LANE="${LANE:-OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td}"
 OUT="${OUT:-build/qbd_prio}"
-# QBD "default" npc: model1 is the head/neck, model2 the wings/body plate.
-MODELS="${MODELS:-rs2012_model_70260 rs2012_model_69766}"
-VIEW_ARGS="${VIEW_ARGS:---angles 6 --pitch 0,220,1848 --tile 360}"
+FORMS="${FORMS:-default crystal hardened soul worm}"
+
+# Each form is the npc's model1 (+ model2 where it has one), because the client
+# merges them before it draws and priorities have to be chosen across the merge.
+models_for() {
+    case "$1" in
+        default)  echo "70260 69766" ;;   # rs2012_qbd_default / _sleeping
+        crystal)  echo "70267 69766" ;;   # rs2012_qbd_crystal
+        hardened) echo "70268 69766" ;;   # rs2012_qbd_hardened
+        soul)     echo "70761" ;;         # rs2012_qbd_tortured_soul
+        worm)     echo "69765" ;;         # rs2012_qbd_giant_worm
+        *) echo "rs2012_qbd_prio: unknown form $1" >&2; exit 2 ;;
+    esac
+}
+
+# The client's own camera pitch clamp (app.c: 128..383 of 2048) is what makes
+# the sheet representative; scoring from underneath would report breakage no
+# player can see.
+VIEW_ARGS="${VIEW_ARGS:---angles 8 --pitch 190,300,383 --tile 300}"
 
 toolchain="$repo/toolchain/mingw64/bin"
 if [ -d "$toolchain" ]; then
@@ -37,31 +57,37 @@ export PATH
 
 "$MAKE" -C src rs2012-model-view rs2012-face-priorities >/dev/null
 
-bin="src/build_win64"
-[ -x "$bin/rs2012_model_view.exe" ] || bin="src/build"
-view="$bin/rs2012_model_view"
-prio="$bin/rs2012_face_priorities"
-[ -x "$view" ] || view="$view.exe"
-[ -x "$prio" ] || prio="$prio.exe"
+for dir in src/build_win64 src/build; do
+    [ -x "$dir/rs2012_model_view" ] && bin="$dir" && ext="" && break
+    [ -x "$dir/rs2012_model_view.exe" ] && bin="$dir" && ext=".exe" && break
+done
+view="$bin/rs2012_model_view$ext"
+prio="$bin/rs2012_face_priorities$ext"
 
 mkdir -p "$OUT"
 
-before_args=()
-after_args=()
-for m in $MODELS; do
-    before_args+=(--model "$LANE/$m.ob3")
-    after_args+=(--model "$OUT/$m.ob3")
-    "$prio" --in "$LANE/$m.ob3" --out "$OUT/$m.ob3" "$@"
+score() { "$@" 2>&1 | sed -n 's/^sort score: //p'; }
+
+printf '%-10s %-34s %s\n' form before after
+for form in $FORMS; do
+    models="$(models_for "$form")"
+    in_args=() out_args=() before=() after=()
+    for m in $models; do
+        in_args+=(--in "$LANE/rs2012_model_$m.ob3")
+        out_args+=(--out "$OUT/rs2012_model_$m.ob3")
+        before+=(--model "$LANE/rs2012_model_$m.ob3")
+        after+=(--model "$OUT/rs2012_model_$m.ob3")
+    done
+
+    "$prio" "${in_args[@]}" "${out_args[@]}" "$@" >"$OUT/$form.report.txt"
+
+    b=$(score "$view" "${before[@]}" --out "$OUT/${form}_before.bmp" $VIEW_ARGS --score)
+    a=$(score "$view" "${after[@]}" --out "$OUT/${form}_after.bmp" \
+        --score-out "$OUT/${form}_after_err.bmp" $VIEW_ARGS)
+    printf '%-10s %-34s %s\n' "$form" "${b%%,*}" "${a%%,*}"
 done
 
-echo "--- before (lane model, no priorities) ---"
-"$view" "${before_args[@]}" --out "$OUT/before.bmp" --score-out "$OUT/before_err.bmp" \
-    $VIEW_ARGS
-echo "--- after (authored priorities) ---"
-"$view" "${after_args[@]}" --out "$OUT/after.bmp" --score-out "$OUT/after_err.bmp" \
-    $VIEW_ARGS
-
-# BMP is what the raster writes; PNG is what a viewer or an agent can read.
+# BMP is what the raster writes; PNG is what a viewer (or an agent) can read.
 python3 - "$OUT" <<'PY'
 import sys, pathlib
 try:
@@ -73,4 +99,4 @@ for bmp in out.glob("*.bmp"):
     Image.open(bmp).save(bmp.with_suffix(".png"))
 PY
 
-echo "sheets in $OUT"
+echo "models and sheets in $OUT; per-form reports in $OUT/<form>.report.txt"

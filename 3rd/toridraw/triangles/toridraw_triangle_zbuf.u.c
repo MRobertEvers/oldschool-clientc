@@ -24,23 +24,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-/**
- * Where the depth-tested kernels get their depth.
- *
- * Camera-space z, not screen_vertices_z: that array has the model's mid-z
- * subtracted out, which is harmless for a sort that only compares within one
- * model but is not a distance to the eye, and the perspective key is a
- * reciprocal of a distance to the eye.
- */
-static inline float
-toridraw_zbuf_vertex_key(
-    const int* RESTRICT orthographic_vertices_z,
-    int vertex,
-    bool parallel)
-{
-    return toridraw_zdepth_key(orthographic_vertices_z[vertex], parallel);
-}
-
 /** Destination and camera state shared by every face of one model. */
 struct ToriDraw_ZbufTarget
 {
@@ -53,6 +36,18 @@ struct ToriDraw_ZbufTarget
     int offset_x;
     int offset_y;
     int near_plane_z;
+    /**
+     * The model's camera-space centre depth, which the projection subtracted
+     * out of screen_vertices_z. Adding it back is how a vertex's distance to
+     * the eye is recovered, and the perspective key is a reciprocal of that
+     * distance, so it cannot be skipped.
+     *
+     * Deliberately not read out of the orthographic scratch, which would be the
+     * obvious source: the projection only fills that scratch for models that
+     * carry textures (the `_notex_` kernels skip it entirely), so an untextured
+     * model would read whatever the last textured one left there.
+     */
+    int model_mid_z;
     /** Parallel projection: depth is linear, so the key is a negated z rather
      *  than a reciprocal. Only changes how the key is derived. */
     bool parallel;
@@ -66,10 +61,28 @@ struct ToriDraw_ZbufFaceSource
     faceint_t* face_indices_c;
     int* screen_vertices_x;
     int* screen_vertices_y;
+    /** Camera z with the model's mid-z removed; see ZbufTarget.model_mid_z. */
+    int* screen_vertices_z;
+    /*
+     * Only the near-clip rebuild reads these, and only models with textures
+     * reach it (allow_near_clip is ToriDraw_ModelHasTextures) — which is
+     * exactly the set of models the projection fills them for.
+     */
     int* orthographic_vertices_x;
     int* orthographic_vertices_y;
     int* orthographic_vertices_z;
 };
+
+/** Depth key of a projected vertex. */
+static inline float
+toridraw_zbuf_vertex_key(
+    const struct ToriDraw_ZbufTarget* target,
+    const struct ToriDraw_ZbufFaceSource* src,
+    int vertex)
+{
+    return toridraw_zdepth_key(
+        src->screen_vertices_z[vertex] + target->model_mid_z, target->parallel);
+}
 
 /**
  * Rebuild a face that crosses the near plane, in the order the stock builders
@@ -131,8 +144,7 @@ toridraw_zbuf_build_near_clipped(
             out_x[count] = src->screen_vertices_x[v];
             out_y[count] = src->screen_vertices_y[v];
             out_shade[count] = shade[i];
-            out_key[count] = toridraw_zbuf_vertex_key(
-                src->orthographic_vertices_z, v, target->parallel);
+            out_key[count] = toridraw_zbuf_vertex_key(target, src, v);
             count++;
             continue;
         }
@@ -301,8 +313,7 @@ ToriDraw_TriangleFaceZBuffered(
             tri.x[i] = src->screen_vertices_x[corner[i]] + target->offset_x;
             tri.y[i] = src->screen_vertices_y[corner[i]] + target->offset_y;
             tri.shade[i] = shade[i];
-            tri.key[i] = toridraw_zbuf_vertex_key(
-                src->orthographic_vertices_z, corner[i], target->parallel);
+            tri.key[i] = toridraw_zbuf_vertex_key(target, src, corner[i]);
         }
     }
 

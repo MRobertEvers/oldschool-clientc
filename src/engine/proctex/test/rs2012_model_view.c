@@ -39,6 +39,13 @@
  *                   wrong.
  *   --out-zbuffer F where --compare writes the depth-tested sheet
  *   --diff-out F    where --compare writes the difference mask
+ *   --order-check   draw the model depth-tested twice, the second time with the
+ *                   face order reversed, and report the pixels that differ.
+ *                   A depth buffer that works makes OPAQUE output independent
+ *                   of the order faces arrive in, so this grades the kernels
+ *                   without needing a reference picture to compare against.
+ *                   Translucent faces are order-dependent by definition and are
+ *                   the expected residual.
  */
 
 #include "datatypes/model.h"
@@ -329,6 +336,10 @@ raster_id_z(
     const int* sx = scene->screen_vertices_x;
     const int* sy = scene->screen_vertices_y;
     const int* sz = scene->screen_vertices_z;
+    /* screen_vertices_z is camera depth with the model's centre depth removed;
+     * adding it back gives the distance to the eye, which is what the
+     * reciprocal below has to be taken of. */
+    int const mid_z = scene->projected_vertex.z;
 
     for( int i = 0; i < w * h; i++ )
     {
@@ -394,7 +405,26 @@ raster_id_z(
                 la = (double)w1 / (double)area;
                 lb = (double)w2 / (double)area;
                 lc = (double)w0 / (double)area;
-                z = (int)(la * az + lb * bz + lc * cz);
+
+                /*
+                 * Perspective-correct: depth is NOT linear in screen space, its
+                 * reciprocal is. Interpolating z directly bows the surface away
+                 * from where it really is between the corners, and on a model
+                 * the size of the QBD — thin, long, and spanning thousands of
+                 * units of depth — that error is comparable to the sorting
+                 * errors this is supposed to be measuring. A yardstick with the
+                 * same magnitude of error as the thing it grades measures
+                 * nothing.
+                 */
+                {
+                    double const inv_z = la / (double)(az + mid_z) +
+                                         lb / (double)(bz + mid_z) +
+                                         lc / (double)(cz + mid_z);
+
+                    if( !(inv_z > 0.0) )
+                        continue;
+                    z = (int)(1.0 / inv_z) - mid_z;
+                }
 
                 at = y * w + x;
                 id_painter[at] = f;
@@ -535,10 +565,18 @@ main(int argc, char** argv)
     bool do_score = false;
     const char* score_path = NULL;
     const char* reference_path = NULL;
+    bool zbuffered = false;
+    bool compare = false;
+    bool order_check = false;
+    long order_check_diff = 0;
+    long order_check_covered = 0;
+    const char* zbuffer_path = "model_view_zbuffer.bmp";
+    const char* diff_path = NULL;
     bool have_focus = false;
     int focus[3] = { 0, 0, 0 };
     int focus_radius = 0;
     struct score total = { 0, 0, 0 };
+    struct diff_score diff = { 0, 0, 0 };
 
     struct ToriDraw_Model* parts[MAX_MODELS];
     struct ToriDraw_Model* model = NULL;
@@ -553,6 +591,11 @@ main(int argc, char** argv)
     int* score_pixels = NULL;
     int* reference_pixels = NULL;
     int* reference_tile = NULL;
+    int* zbuffer_pixels = NULL;
+    int* zbuffer_tile = NULL;
+    int* diff_pixels = NULL;
+    int* order_tile = NULL;
+    uint8_t model_flags_base = 0;
     int cols, rows, sheet_w, sheet_h;
     int extent, distance;
     int center_y;
@@ -608,6 +651,29 @@ main(int argc, char** argv)
             reference_path = argv[++i];
             do_score = true;
         }
+        else if( strcmp(argv[i], "--zbuffer") == 0 )
+            zbuffered = true;
+        else if( strcmp(argv[i], "--order-check") == 0 )
+            order_check = true;
+        else if( strcmp(argv[i], "--compare") == 0 )
+        {
+            /* The comparison is only readable next to the sort-error mask, and
+             * that comes from the scorer. */
+            compare = true;
+            do_score = true;
+        }
+        else if( strcmp(argv[i], "--out-zbuffer") == 0 && i + 1 < argc )
+        {
+            zbuffer_path = argv[++i];
+            compare = true;
+            do_score = true;
+        }
+        else if( strcmp(argv[i], "--diff-out") == 0 && i + 1 < argc )
+        {
+            diff_path = argv[++i];
+            compare = true;
+            do_score = true;
+        }
         else if( strcmp(argv[i], "--focus") == 0 && i + 1 < argc )
         {
             if( sscanf(argv[++i], "%d,%d,%d", &focus[0], &focus[1], &focus[2]) != 3 )
@@ -631,6 +697,12 @@ main(int argc, char** argv)
         usage(argv[0]);
         return 2;
     }
+
+    /* The order check compares two DEPTH-TESTED renders, so the forward one has
+     * to be depth tested. --compare already produces it; on its own the primary
+     * sheet has to become it. */
+    if( order_check && !compare )
+        zbuffered = true;
 
     ToriDraw_Init();
 
@@ -705,6 +777,43 @@ main(int argc, char** argv)
         if( !reference_pixels || !reference_tile )
             goto done;
     }
+    if( compare )
+    {
+        zbuffer_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
+        zbuffer_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
+        if( !zbuffer_pixels || !zbuffer_tile )
+            goto done;
+        if( diff_path )
+        {
+            diff_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
+            if( !diff_pixels )
+                goto done;
+        }
+    }
+
+    /* The adaptor already sets bit 0 on every model it converts, and bit 0 is
+     * now the z-buffer opt-in, so the flag cannot be read as intent here. The
+     * viewer drives it explicitly per pass and keeps the rest of the flags. */
+    model_flags_base = (uint8_t)(model->flags & ~TORIDRAW_MODEL_FLAG_ZBUFFER);
+    if( compare )
+    {
+        zbuffer_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
+        zbuffer_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
+        if( !zbuffer_pixels || !zbuffer_tile )
+            goto done;
+    }
+    if( diff_path )
+    {
+        diff_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
+        if( !diff_pixels )
+            goto done;
+    }
+    if( order_check )
+    {
+        order_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
+        if( !order_tile )
+            goto done;
+    }
 
     /* screen = world * scale / z, so the distance that makes `extent` fill
      * 90% of a half-tile is extent * scale / (0.45 * tile). */
@@ -714,9 +823,16 @@ main(int argc, char** argv)
         distance = 100;
 
     scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K |
+            ((zbuffered || compare) ? TORIDRAW_SCENE_MODEL_ZBUFFER : 0u),
+        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     if( !scene )
         goto done;
+
+    /* The depth test is a per-model opt-in, so the switch is on the model, not
+     * on the renderer. Kept as a base + a bit so --compare can flip it between
+     * two rasters of one projection. */
+    model_flags_base = (uint8_t)(model->flags & ~TORIDRAW_MODEL_FLAG_ZBUFFER);
 
     /* Each tile renders into its own origin-anchored buffer and is then
      * blitted. The AABB cull compares the projected box against 0..width, so a
@@ -827,7 +943,111 @@ main(int argc, char** argv)
                                 score_pixels[to] = 0x203040;
                         }
             }
+
+            /* Without --compare the primary sheet is whichever family was
+             * asked for; with it the primary is always the painter's, so the
+             * two sheets sit side by side and the diff below means something. */
+            model->flags = (uint8_t)(model_flags_base |
+                                     ((zbuffered && !compare)
+                                          ? TORIDRAW_MODEL_FLAG_ZBUFFER
+                                          : 0u));
             ToriDraw_RenderModel3Raster(scene, &vp, &camera, tile_pixels, false);
+
+            if( compare )
+            {
+                /* Reproject before the second raster rather than reusing the
+                 * scratch: the raster families are allowed to write over the
+                 * screen-vertex arrays they consume, so a second pass off the
+                 * first pass's leftovers would not be the same picture. */
+                memset(zbuffer_tile, 0, (size_t)tile * (size_t)tile * sizeof(int));
+                model->flags = (uint8_t)(model_flags_base | TORIDRAW_MODEL_FLAG_ZBUFFER);
+                if( ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera) ==
+                        TORIDRAW_CULL_VISIBLE &&
+                    ToriDraw_RenderModel2SortFaces(hnd, scene) > 0 )
+                    ToriDraw_RenderModel3Raster(scene, &vp, &camera, zbuffer_tile, false);
+
+                diff_accumulate(
+                    &diff,
+                    tile * tile,
+                    tile_pixels,
+                    zbuffer_tile,
+                    id_painter,
+                    z_painter,
+                    id_zbuf,
+                    z_zbuf);
+
+                for( int row = 0; row < tile; row++ )
+                {
+                    memcpy(
+                        &zbuffer_pixels[(size_t)(ty + row) * (size_t)sheet_w + tx],
+                        &zbuffer_tile[(size_t)row * (size_t)tile],
+                        (size_t)tile * sizeof(int));
+                    if( !diff_pixels )
+                        continue;
+                    for( int col = 0; col < tile; col++ )
+                    {
+                        int const at = row * tile + col;
+                        int const to = (ty + row) * sheet_w + tx + col;
+                        bool const changed = tile_pixels[at] != zbuffer_tile[at];
+                        bool const was_wrong = id_painter[at] >= 0 &&
+                                               id_painter[at] != id_zbuf[at] &&
+                                               z_painter[at] > z_zbuf[at] + 1;
+
+                        /* Green: a pixel the sort had wrong and the depth test
+                         * changed. Red: changed where the sort was already
+                         * right. Blue: still wrong after the depth test — the
+                         * only colour that should be absent. */
+                        if( changed && was_wrong )
+                            diff_pixels[to] = 0x00C000;
+                        else if( changed )
+                            diff_pixels[to] = 0xC00000;
+                        else if( was_wrong )
+                            diff_pixels[to] = 0x0000FF;
+                        else
+                            diff_pixels[to] = id_painter[at] < 0 ? 0 : 0x203040;
+                    }
+                }
+            }
+        }
+
+        if( order_check )
+        {
+            /* Same projection, same faces, opposite order. The depth test is
+             * the only thing that can make the two agree, so any pixel that
+             * differs is either a translucent face (which composites in order
+             * by design) or a defect in the kernels. */
+            int* order;
+            int order_count;
+
+            memset(order_tile, 0, (size_t)tile * (size_t)tile * sizeof(int));
+            model->flags = (uint8_t)(model_flags_base | TORIDRAW_MODEL_FLAG_ZBUFFER);
+            if( ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera) ==
+                    TORIDRAW_CULL_VISIBLE &&
+                (order_count = ToriDraw_RenderModel2SortFaces(hnd, scene)) > 0 )
+            {
+                int* forward = (int*)malloc((size_t)order_count * sizeof(int));
+
+                if( forward )
+                {
+                    order = ToriDraw_FaceOrder(scene);
+                    memcpy(forward, order, (size_t)order_count * sizeof(int));
+                    for( int i = 0; i < order_count; i++ )
+                        order[i] = forward[order_count - 1 - i];
+                    ToriDraw_RenderModel3Raster(scene, &vp, &camera, order_tile, false);
+                    free(forward);
+
+                    for( int i = 0; i < tile * tile; i++ )
+                    {
+                        int const forward_pixel =
+                            compare ? zbuffer_tile[i] : tile_pixels[i];
+
+                        if( forward_pixel || order_tile[i] )
+                            order_check_covered++;
+                        if( forward_pixel != order_tile[i] )
+                            order_check_diff++;
+                    }
+                }
+            }
         }
 
         for( int row = 0; row < tile; row++ )
@@ -836,6 +1056,8 @@ main(int argc, char** argv)
                 &tile_pixels[(size_t)row * (size_t)tile],
                 (size_t)tile * sizeof(int));
     }
+
+    model->flags = model_flags_base;
 
     bmp_write_file(out_path, pixels, sheet_w, sheet_h);
     printf("rs2012_model_view: wrote %s (%dx%d, %d angles)\n", out_path, sheet_w, sheet_h, angles);
@@ -849,6 +1071,19 @@ main(int argc, char** argv)
         bmp_write_file(reference_path, reference_pixels, sheet_w, sheet_h);
         printf("rs2012_model_view: wrote %s (z-buffer reference)\n", reference_path);
     }
+    if( zbuffer_pixels )
+    {
+        bmp_write_file(zbuffer_path, zbuffer_pixels, sheet_w, sheet_h);
+        printf("rs2012_model_view: wrote %s (depth-tested)\n", zbuffer_path);
+    }
+    if( diff_pixels )
+    {
+        bmp_write_file(diff_path, diff_pixels, sheet_w, sheet_h);
+        printf(
+            "rs2012_model_view: wrote %s (green=fixed, red=changed-but-was-right, "
+            "blue=still wrong)\n",
+            diff_path);
+    }
     if( do_score )
         printf(
             "sort score: %ld/%ld pixels behind the true surface (%.3f%%), "
@@ -857,6 +1092,24 @@ main(int argc, char** argv)
             total.covered,
             total.covered ? 100.0 * (double)total.wrong / (double)total.covered : 0.0,
             total.wrong ? (double)total.depth_sum / (double)total.wrong : 0.0);
+    if( compare )
+        printf(
+            "depth test: %ld pixels changed, %ld of them on sort-wrong pixels "
+            "(%.1f%% of the %ld wrong); %ld wrong pixels left untouched\n",
+            diff.changed,
+            diff.changed_on_wrong,
+            total.wrong ? 100.0 * (double)diff.changed_on_wrong / (double)total.wrong : 0.0,
+            total.wrong,
+            diff.wrong_unchanged);
+    if( order_check )
+        printf(
+            "order check: %ld/%ld pixels differ when the face order is reversed "
+            "(%.3f%%)\n",
+            order_check_diff,
+            order_check_covered,
+            order_check_covered
+                ? 100.0 * (double)order_check_diff / (double)order_check_covered
+                : 0.0);
     rc = 0;
 
 done:
@@ -870,6 +1123,10 @@ done:
     free(score_pixels);
     free(reference_pixels);
     free(reference_tile);
+    free(zbuffer_pixels);
+    free(zbuffer_tile);
+    free(diff_pixels);
+    free(order_tile);
     ToriDraw_ModelFree(model);
     for( int i = 0; i < model_count; i++ )
         ToriDraw_ModelFree(parts[i]);

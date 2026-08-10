@@ -7282,6 +7282,11 @@ app_world_paint(struct App* app)
             cam_sx,
             cam_sz,
             cam_slevel);
+    /* TORIRS_PAINTER_W3D=1 runs the reference cascade (painter_paint_world3d)
+     * in the live client instead of the distance-bucket drain. A draw-order
+     * bug is either in the traversal or in the geometry it orders, and this is
+     * what separates the two: same scene, same frame, the other painter. Pair
+     * it with TORIRS_PIXOWNER to name what changed hands. */
     else if( getenv("TORIRS_PAINTER_W3D") )
         painter_paint_world3d(
             app->world->painter,
