@@ -3521,6 +3521,12 @@ mock230_script_command(
         SSVM_PushInt(state, coord_pack(player->level, player->x, player->z));
         return 1;
 
+    case SS_OP_WALKSTEP_COORD:
+        /* Populated only around the per-tile walktrigger call in
+         * advance_player. Zero is the RuneScript null coord everywhere else. */
+        SSVM_PushInt(state, player->walkstep_coord);
+        return 1;
+
     case SS_OP_WALKTRIGGER:
     {
         int32_t script_id;

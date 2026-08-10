@@ -464,6 +464,19 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # content owns its duration and calls the inverse explicitly.
     "PLAYER_LOCK": (11027, 0, 0, 0, 0),
     "PLAYER_UNLOCK": (11028, 0, 0, 0, 0),
+
+    # ---- content-owned per-step movement policy (11029) -----------------
+    #
+    # walkstep_coord()(coord)
+    #
+    # The destination tile of the step for which the active player's armed
+    # `[walktrigger,...]` is currently running, or null outside that hook.
+    # LostCity's controller `checkWalkStep(lastX,lastY,nextX,nextY)` gives
+    # encounter content this coordinate before *each* tile, but RuneScript's
+    # ordinary `coord` command only exposes the tile the player still occupies.
+    # The engine supplies geometry; the hook remains content-owned policy and
+    # can veto by doing the reference-standard `p_walk(coord)`.
+    "WALKSTEP_COORD": (11029, 0, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -594,6 +607,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
     "PLAYER_LOCK": (1 << POINTER_BITS["p_active_player"], 0),
     "PLAYER_UNLOCK": (1 << POINTER_BITS["p_active_player"], 0),
+    "WALKSTEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

@@ -3070,8 +3070,18 @@ exec_widget_set_model_kind(
         {
             int scene_model =
                 UITreeSceneBridge_EnsureNpcHead(host->bridge, request.model_id);
+            bool applied = false;
             if( scene_model >= 0 )
-                (void)UITree_ApplyModel(rs_cs2_tree(host), request.component_id, scene_model);
+                applied = UITree_ApplyModel(
+                    rs_cs2_tree(host), request.component_id, scene_model);
+            if( getenv("TORIRS_NPC_HEAD_DEBUG") )
+                fprintf(
+                    stderr,
+                    "npc_head: npc=%d component=0x%08x scene=%d applied=%d\n",
+                    request.model_id,
+                    (unsigned)request.component_id,
+                    scene_model,
+                    (int)applied);
         }
     }
     /* Player head/self/chathead (kinds 3/5/6): composite the local appearance

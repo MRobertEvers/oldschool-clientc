@@ -46,6 +46,16 @@ def main() -> int:
     base_interfaces = parse_pack(TREE / "pack/3_interfaces.pack")
     base_sprites = parse_pack(TREE / "pack/8_sprites.pack")
     ledger = parse_ledger(TREE / "port/rs2012_qbd_td.map")
+    clientscript_pack = parse_pack(lane / "pack/12_clientscripts.pack")
+    require(
+        clientscript_pack == {
+            13000: "rs2012_qbd_hud_pool",
+            13001: "rs2012_qbd_hud_pool_fade",
+        },
+        "native QBD HUD clientscript allocation drifted",
+    )
+    hud_script = lane / "scripts/rs2012_qbd_hud_pool.cs2"
+    require(hud_script.is_file() and not hud_script.is_symlink(), "HUD pool clientscript is missing")
 
     for ident, name in INTERFACES.items():
         require(interface_pack.get(ident) == name, f"missing interface {ident}={name}")
@@ -96,14 +106,19 @@ def main() -> int:
 
     hud = (lane / "interfaces/rs2012_qbd_hud.if").read_text()
     hud_blocks = component_blocks(hud)
-    require("hidden=yes" not in hud_blocks["root"], "HUD root is hidden")
+    # Source component 0 is a full-screen, no-click-through sentinel. It has no
+    # children; unhiding it would intercept every arena click while adding no
+    # visible HUD content. The rootless status/time components render on their
+    # own, exactly as in the source interface.
+    require("hidden=yes" in hud_blocks["root"], "HUD root must remain hidden")
     require("hidden=yes" in hud_blocks["time_overlay"], "time-stop overlay starts visible")
+    require("hidden=yes" in hud_blocks["damage_bar"], "damage-flash bar starts visible")
     require(field_values(hud, "model") == [ledger[("model", 70127)]], "HUD model mapping drifted")
     require(field_values(hud, "modelanim") == [ledger[("seq", 9390)]], "HUD sequence mapping drifted")
 
     print(
         "test_rs2012_qbd_ui_port: 2 interfaces, 82 named components, "
-        "32 sprite groups, references and destructive-button bindings OK"
+        "32 sprite groups, 2 native HUD scripts, references, HUD safety and destructive-button bindings OK"
     )
     return 0
 

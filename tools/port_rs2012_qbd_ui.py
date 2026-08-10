@@ -60,6 +60,7 @@ COMPONENT_NAMES = {
     },
     1285: {
         0: "root",
+        5: "green_bar",
         8: "artefact_1_dormant",
         9: "artefact_2_dormant",
         10: "artefact_3_dormant",
@@ -72,6 +73,10 @@ COMPONENT_NAMES = {
         17: "artefact_2_restored",
         18: "artefact_3_restored",
         19: "artefact_4_restored",
+        25: "damage_bar",
+        26: "damage_left",
+        27: "damage_fill",
+        28: "damage_right",
         29: "status",
         33: "time_overlay",
         34: "time_fill",

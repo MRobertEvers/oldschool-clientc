@@ -2535,6 +2535,10 @@ struct Mock230Player
      * when the engine fires it (the script re-arms itself while still frozen).
      */
     int walktrigger;
+    /** Candidate tile while an armed walktrigger is executing, packed as a
+     *  coord. Zero outside that narrow pre-step window. Encounter controllers
+     *  use WALKSTEP_COORD to apply content-owned per-tile traversal rules. */
+    int walkstep_coord;
 
     struct Mock230Queued queue[MOCK230_QUEUE_MAX];
     /** `Player.engineQueue`. Zone triggers only; see `enum Mock230QueueKind`. */
@@ -4438,8 +4442,8 @@ void
 mock230_scripts_process_timers(struct Mock230Server* srv);
 /**
  * Fire the player's armed walktrigger if any (LostCity `processWalktrigger`).
- * Call after pathing is set for the tick and before movement, when the player
- * has waypoints and is not delayed.
+ * Called by advance_player immediately before each planned tile; the candidate
+ * is exposed as WALKSTEP_COORD for that call and cleared afterwards.
  */
 void
 mock230_scripts_process_walktrigger(struct Mock230Server* srv);

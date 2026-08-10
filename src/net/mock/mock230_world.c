@@ -1886,15 +1886,15 @@ run_energy_flush(struct Mock230Server* srv)
     }
 }
 
-/* Consume up to `max_tiles` steps toward the current waypoint, recording the
- * direction of each so PLAYER_INFO can spell them out.
- *
- * Port of PathingEntity.validateAndAdvanceStep / takeStep: face the current
- * waypoint, try the diagonal via collision, else E/W, else N/S, else stall
- * keeping the waypoint. Never clear the route on a blocked step — a temporary
- * obstacle (another actor) is why the reference retains it. */
+/* Resolve the exact next tile toward the current waypoint without occupying
+ * it. Controller-style content needs this seam before each tile: the route's
+ * destination is not necessarily the next step, and a running tick can cross
+ * two independently gated tiles. */
 static int
-player_take_step(struct Mock230Player* player)
+player_plan_step(
+    struct Mock230Player* player,
+    int* next_x,
+    int* next_z)
 {
     int wp_x;
     int wp_z;
@@ -1903,8 +1903,6 @@ player_take_step(struct Mock230Player* player)
     int dir;
     int try_dx;
     int try_dz;
-    int prev_x;
-    int prev_z;
     int extra = player_travel_extra();
 
     assert(player);
@@ -1927,16 +1925,13 @@ player_take_step(struct Mock230Player* player)
     if( dx == 0 && dz == 0 )
         return -1;
 
-    prev_x = player->x;
-    prev_z = player->z;
-
     /* Prefer the diagonal when both axes differ. */
     try_dx = dx;
     try_dz = dz;
     dir = mock230_step_direction(try_dx, try_dz);
     if( dir >= 0 &&
         mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
-        goto step;
+        goto planned;
 
     /* Cardinally: E/W first, then N/S — PathingEntity.takeStep order. */
     if( dx != 0 )
@@ -1946,7 +1941,7 @@ player_take_step(struct Mock230Player* player)
         dir = mock230_step_direction(try_dx, try_dz);
         if( dir >= 0 &&
             mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
-            goto step;
+            goto planned;
     }
     if( dz != 0 )
     {
@@ -1955,22 +1950,50 @@ player_take_step(struct Mock230Player* player)
         dir = mock230_step_direction(try_dx, try_dz);
         if( dir >= 0 &&
             mock230_scene_can_step_extra(player->level, player->x, player->z, dir, extra) )
-            goto step;
+            goto planned;
     }
 
-    /* Blocked — stall, keep the waypoint; still record last_step. */
-    player->last_step_x = prev_x;
-    player->last_step_z = prev_z;
     return -1;
 
-step:
+planned:
+    *next_x = player->x + try_dx;
+    *next_z = player->z + try_dz;
+    return dir;
+}
+
+/* Consume one planned step, recording its direction so PLAYER_INFO can spell
+ * it out. Port of PathingEntity.validateAndAdvanceStep / takeStep: prefer the
+ * diagonal, then E/W, then N/S, and retain a blocked route because another
+ * actor may only occupy the tile temporarily. */
+static int
+player_take_step(struct Mock230Player* player)
+{
+    int next_x;
+    int next_z;
+    int dir;
+    int prev_x;
+    int prev_z;
+
+    assert(player);
+    prev_x = player->x;
+    prev_z = player->z;
+    dir = player_plan_step(player, &next_x, &next_z);
+    if( dir < 0 )
+    {
+        player->last_step_x = prev_x;
+        player->last_step_z = prev_z;
+        return -1;
+    }
+
     player_set_occupancy(player, 0);
-    player->x += try_dx;
-    player->z += try_dz;
+    player->x = next_x;
+    player->z = next_z;
     player_set_occupancy(player, 1);
     player->last_step_x = prev_x;
     player->last_step_z = prev_z;
-    if( player->x == wp_x && player->z == wp_z )
+    if( player->waypoint_index >= 0 &&
+        player->x == player->waypoints[player->waypoint_index].x &&
+        player->z == player->waypoints[player->waypoint_index].z )
         player->waypoint_index--;
     return dir;
 }
@@ -1993,32 +2016,6 @@ advance_player(struct Mock230Server* srv)
     player->running = player->run_toggle && player->run_energy > 0;
     max_tiles = player->running ? 2 : 1;
 
-    /*
-     * The walktrigger, fired before the step and only when there is a step to
-     * take. `player->walktrigger` has been written by `walktrigger(X)` since
-     * that opcode landed and read by nothing, so every `[walktrigger,…]` in the
-     * tree — the KBD's ice, the chaos druid's, Monkey Madness' landing — was
-     * armed and never ran.
-     *
-     * One-shot: cleared before the script runs, and the reference's scripts
-     * re-arm themselves while the condition still holds
-     * (`[walktrigger,pvp_frozen]` ends in `walktrigger(pvp_frozen)`). Clearing
-     * after would let a script that wants to stop firing keep firing.
-     *
-     * A frozen player is stopped by the script, not by the engine: the
-     * reference's answer is `p_walk(coord)` — walk to where you already are —
-     * which empties the route, so the loop below finds nothing to do. That is
-     * why this sits above the loop and why the engine has no player freeze
-     * flag to go with the npc one.
-     */
-    if( player->walktrigger >= 0 && player_has_waypoints(player) )
-    {
-        int script = player->walktrigger;
-
-        player->walktrigger = -1;
-        mock230_scripts_run_script_id(srv, script);
-    }
-
     player->move_count = 0;
     player->steps_taken = 0;
     {
@@ -2027,6 +2024,33 @@ advance_player(struct Mock230Server* srv)
 
         for( int i = 0; i < max_tiles; i++ )
         {
+            int next_x;
+            int next_z;
+            int planned = player_plan_step(player, &next_x, &next_z);
+
+            if( planned < 0 )
+            {
+                /* Keep player_take_step as the one place that records a
+                 * collision stall's last_step snapshot. */
+                player_take_step(player);
+                break;
+            }
+
+            /* LostCity's walktrigger is one-shot and content re-arms it when
+             * a policy remains active. Run it for each concrete tile, before
+             * occupancy changes. A script vetoes with p_walk(coord), exactly
+             * as the existing freeze scripts do. Re-plan afterwards because a
+             * non-vetoing hook is also allowed to replace the route. */
+            if( player->walktrigger >= 0 )
+            {
+                player->walkstep_coord =
+                    mock230_coord_pack(player->level, next_x, next_z);
+                mock230_scripts_process_walktrigger(srv);
+                player->walkstep_coord = 0;
+                if( !player_has_waypoints(player) )
+                    break;
+            }
+
             int dir = player_take_step(player);
             if( dir < 0 )
                 break;
@@ -8442,10 +8466,9 @@ phase_player(struct Mock230Player* player)
     /* Combat's every-tick pathToTarget — same pre-move slot as above, for the
      * engaged fight that no longer holds a latched interaction. */
     mock230_combat_player_approach(srv);
-    /* LostCity processInteraction: processWalktrigger when hasWaypoints, before
-     * updateMovement — freeze/stun scripts cancel the path via p_walk(coord). */
-    if( player_has_waypoints(player) )
-        mock230_scripts_process_walktrigger(srv);
+    /* advance_player fires an armed walktrigger immediately before each
+     * concrete tile. That preserves the ordinary freeze/stun veto and also
+     * gives controller-style content both tiles of a running tick. */
     advance_player(srv);
 
     if( player->interaction.kind != MOCK230_INTERACT_NONE )

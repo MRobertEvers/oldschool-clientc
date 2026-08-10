@@ -465,7 +465,10 @@ now consumes the source format exactly.
 
 Sequence-embedded QBD sound events reference revision-727 index 14, not the
 OSRS index-4 synth table. Alternative IDs at one frame are random alternatives,
-not simultaneous sounds.
+not simultaneous sounds. The source evidence below lists those alternatives;
+the destination sequence codec retains the primary event but currently consumes
+and discards the extra nested alternatives because OSRS239 has no matching
+selector representation.
 
 - Wake 16714: 14969, 14991, 15022, 14832, 14989, 14975, 14912, 14940,
   14992, 14914 across its marked frames.
@@ -481,9 +484,12 @@ not simultaneous sounds.
 - Worm turn 16787: 14921/15000/15014/14966/14922.
 - Soul sequences carry no embedded audio.
 
-The event references are retained in imported sequence configs. The audio
-transcode section below distinguishes retained references from actually
-renderable OSRS synth assets.
+The primary event references are retained in imported sequence configs. Across the
+whole lane there are 47 primary frame-sound events: seven resolve to copied
+index-4 synths, while 40 events in 18 sequences refer to 27 unique index-14
+IDs whose payloads have no OSRS239 sequence-sound carrier. The precise
+unbridged ID list is recorded in `ported/rs2012_qbd_td/PROVENANCE.md`; retained
+metadata is not misreported as audible fidelity.
 
 ### 5.5 Core locs and models
 
@@ -508,8 +514,9 @@ definitions exactly; this matters because many QBD models exceed 32,767.
 ### 5.6 Original interfaces and music
 
 Revision-727 interface 1285 is the 35-component QBD pool/artefact HUD. It uses
-sprites 10959–10968, hidden model 70127/sequence 9390, client scripts 6236 and
-6240, and globals:
+sprites 10959–10968, hidden model 70127/sequence 9390, and a foreign hook graph
+through source client scripts 6236, 6238, 6240–6242, and 6245. Those hooks read
+globals:
 
 - 1923: LP lost within the current pool;
 - 1924: progress states 0 start, 1 pool 1 down, 2 artefact 1, through 8 complete;
@@ -519,6 +526,31 @@ Interface 1284 is the 47-component Dragonkin coffer. Its ten-slot container is
 100 and offers Take/Bank/Discard/Examine plus Bank all, Abandon all, and Take
 all. Dependencies include sprites 7920–22, 8278, 8384–98, 8444–46 and client
 scripts 5399, 5400, 5409–11, 5415.
+
+Both complete visual trees are now packed at destination interfaces 1284/1285:
+82 components in total. Their 32 source sprite archives are allocated at
+13000–13031, HUD model 70127 maps to 110657, and sequence 9390 maps to 22075.
+The source `on*` hooks cannot execute in the OSRS239 dialect and are removed
+deliberately, not silently ignored. Server code replaces their authoritative
+encounter semantics: all dormant/active/restored artefact states, time-stop
+visibility, persistent coffer transmission, and every item/button action. Two
+native OSRS239 clientscripts, 13000 `rs2012_qbd_hud_pool` and 13001
+`rs2012_qbd_hud_pool_fade`, reproduce source scripts 6241/6242. The first clamps
+the real lost-LP value to 0–18,750, normalises it to the source script's 7,500
+scale, keeps at least one percent of green bar visible, and resizes the
+271-pixel bar in one-percent steps. It places a red strip over precisely the
+width lost since the previous update. The second adds 11 transparency per
+timer cycle and hides/detaches that strip at 243, matching the recovered source
+fade. The source full-screen `noclickthrough` sentinel remains hidden so it
+cannot consume arena clicks; the rootless status and time components still
+render.
+
+The source time-stop hook used a model-backed/fading presentation whose global
+carrier does not exist in OSRS239. The port currently shows and hides the
+authentic overlay component with a server-coloured green fill. Action lock,
+incoming damage, and one-hit release are exact server mechanics, but the
+source-client model/fade animation and foreign hover-only cosmetics remain
+manual visual follow-up rather than claimed fidelity.
 
 Music client IDs are 1119 `Awoken` and 1118 `Queen Black Dragon`, established
 through source script maps 1345/1351. Numeric IDs in source index 14 are a
@@ -532,6 +564,14 @@ The mature 29 June revision is the strongest complete pre-7-August table. A
 successful completion gives always-drops plus two configurable resource rolls,
 unique rolls, and an eligible journal. The port never rolls the generic rare
 drop table and never adds charms in the strict release profile (B).
+
+Rewards are rolled exactly once into a private, persistent ten-slot
+`rs2012_qbd_rewardinv`. A full backpack does not destroy a kill, and logout or
+leaving the room does not reroll it. Re-entry routes the player directly to the
+unclaimed coffer. The ported interface supports per-entry Take, Bank, Discard
+with confirmation, and Examine, plus Take all, Bank all, Abandon all with
+confirmation, and Close. The coffer changes to its empty loc only after the
+last entry is transferred or deliberately discarded.
 
 Always:
 
@@ -560,9 +600,12 @@ a number. Those rates are configurable and are not described as proven launch
 rates. A September 2012 Adventurer's Log sample also broadly supports the same
 order of rarity, but it postdates the 7 August rebalance.
 
-Journals are sequential and one-time: first guaranteed, then second common,
-third uncommon, fourth rare. The port stores journal progression separately
-from inventory so destroying a physical book cannot reset unlock state.
+Journals are sequential and one-time: first guaranteed, then the second at
+1/10, third at 1/25, and fourth at 1/40 in the executable reconstruction. The
+period pages establish only common/uncommon/rare labels for those later books,
+so the numeric chances remain configuration rather than claimed retail source.
+The port stores journal progression separately from inventory so destroying a
+physical book cannot reset unlock state.
 
 ### 6.2 Reward items
 
@@ -595,9 +638,9 @@ Crafting interface is outside the two encounter scripts.
 - It fires only Royal bolts.
 - Ten hours of combat degrade it. mock230 records 60,000 game ticks and subtracts
   the actual attack cadence.
-- Re-brandishing the degraded crossbow in extreme fire repairs it. The historical
-  alternative—Thurgo plus another complete component set—is retained as a
-  follow-up integration test.
+- Re-brandishing the degraded crossbow in extreme fire repairs it. Thurgo also
+  consumes another complete four-component set to repair a degraded crossbow;
+  both historical paths are implemented.
 - Contemporary reverse engineering reported two delayed hits eight seconds
   apart after a successful first hit. The compatibility implementation queues
   those non-XP bleed hits; exact accumulation/minimum behaviour remains labelled B
@@ -607,23 +650,45 @@ Crafting interface is outside the two encounter scripts.
 
 ### 7.1 Access and encounter layout
 
-Tormented demons are unlocked only after While Guthix Sleeps. The production
-entrance also requires the sapphire lantern route into the Ancient Guthix
-Temple. Six demons occupy the authentic temple combat area; instances preserve
-the source map-square layout rather than substituting modern OSRS WGS scenery.
+Tormented demons are unlocked only after While Guthix Sleeps. The complete WGS
+quest and sapphire-lantern puzzle are outside this encounter slice; production
+entry checks permanent server flag `%rs2012_wgs_complete` (varp 6245). Source
+loc 48248 is placed at `(2526,5828,p2)`, morphs through source varbit 7190, and
+its post-puzzle child 40260 is the unambiguous `Cave opening` / `Climb-through`
+route bound by the port. Debug entry bypasses the gate without setting quest
+progress. Puzzle tunnel locs 40273–40275 are intentionally not rebound.
 
-The source map closure contains `(40,89)`, `(39,89)`, `(39,90)`, `(39,91)`, and
-`(40,90)`. Exact map placement/XTEA/static-loc tables are generated by the map
-porter and appended to this section's audit table rather than guessed from
-open727 spawn code.
+Five authentic temple squares are imported. No cache evidence was found for
+`41_89`, so it is not fabricated:
+
+| Square | Region / world range | m/l archives | XTEA | Placements |
+|---|---|---|---|---:|
+| `40_89` | 10329; x 2560–2623, z 5696–5759 | 4159 / 4160 | `[769370878,-1231940040,-395526277,-1563597554]` | 4,194 |
+| `39_89` | 10073; x 2496–2559, z 5696–5759 | 2648 / 2649 | `[1714440207,1297605064,683265918,1501779755]` | 4,206 |
+| `39_90` | 10074; x 2496–2559, z 5760–5823 | 2318 / 2319 | `[274761362,1679929293,-903581645,-999712194]` | 4,279 |
+| `39_91` | 10075; x 2496–2559, z 5824–5887 | 4141 / 4142 | `[1551484478,1577386038,-378705686,547571118]` | 3,530 |
+| `40_90` | 10330; x 2560–2623, z 5760–5823 | 1167 / 1168 | `[-907752098,1554817455,-41175839,-2043434626]` | 4,308 |
+
+The private fight is an identity copy of `40_89`, plane 0, entered at local
+`(22,30)`. Its six demons are the source positions `(2599,5736)`,
+`(2609,5729)`, `(2607,5717)`, `(2592,5723)`, `(2588,5728)`, and
+`(2576,5732)`, or local `(39,40)`, `(49,33)`, `(47,21)`, `(32,27)`,
+`(28,32)`, and `(16,36)`. The route-boundary spawn `(2560,5742)` is not
+silently counted as a seventh arena demon.
 
 ### 7.2 Definition and combat state
 
 - NPC variants: 8349 melee prayer, 8350 magic prayer, 8351 ranged prayer (C).
 - Combat level 450, 3,260 LP, size 3, attack rate six ticks (B/C).
+- Later Jagex recovery gives the original base levels as Attack 255, Strength
+  166, Defence 300, Magic 255, and Ranged 255. These are configured and tested,
+  but labelled later primary evidence rather than a value published in 2012.
+- The separate open727 bonus rows are offence 450/0/0/450/450 and defence
+  200/350/350/200/250; they are not confused with base levels.
 - Maximum melee 189 LP; Magic/Ranged and rage splash approximately 269–270 LP
   (B). At the OSRS boundary these are 19 and 27 hitpoints.
-- Poison immune (B).
+- Poison immune historically (B). mock230 currently has no player-to-NPC poison
+  path, so this needs no encounter-specific suppression hook yet.
 - Player protection prayers fully negate the matching demon attack in this
   pre-EoC profile (B).
 - Demon attacks are distance-aware. A selected melee style is not silently
@@ -634,8 +699,10 @@ open727 spawn code.
 
 The release encounter changes offensive style on an approximately 16-second
 timer, independent of its six-tick ordinary attacks (B). It is not a block of
-exactly five attacks. The implementation uses a 27-game-tick timer and the
-10642 roar/rage sequence when transitioning.
+exactly five attacks. The implementation uses a 27-game-tick timer. Its Rage
+cast uses cache/open727-supported sequence 10918 and the Magic cast/projectile;
+10642 is retained in the cache lane but has no verified semantic label and is
+not assigned. Sequence 10924 is likewise imported but unassigned.
 
 The transition launches a small through-scenery area attack. Surviving period
 descriptions establish the attack and its approximate maximum, but not a
@@ -669,32 +736,72 @@ This is intentionally not the modern OSRS tormented-demon 20% reduction.
 
 ### 7.6 TD media
 
-| Asset | Source IDs |
-|---|---|
-| NPCs | 8349, 8350, 8351 |
-| Core sequences | 10917–10924; transition roar 10642 |
-| Spot animations | 1883 magic cast, 1884 projectile, 1885 impact, 1886 melee impact, 1887 ranged projectile, 1888 ranged cast |
-| Rig | framemap 2401 for sequence 10917 family |
+| Asset | Source → destination | Role |
+|---|---|---|
+| NPCs | 8349/8350/8351 → 25006/25007/25008 | Protect Melee/Magic/Ranged forms |
+| Model | 44733 → 110006 | shared TD body |
+| BAS | 910 flattened | ready 10921→22017; walk 10920→22016 |
+| Core sequences | 10917–10924 → 22013–22020 | death, Magic/Rage, Ranged, walk, ready, melee, defend, unassigned |
+| Extra sequence | 10642 → 22012 | imported, semantic role unverified |
+| Rig | frame archive 2682→22002; framemap 2401→9002 | core animation data |
+| Spot animations | 1883–1888 → 10025–10030 | Magic cast/projectile/impact, melee impact, Ranged projectile/cast |
+| Prayer icons | legacy indices 0/2/1 → sprite archive 440 indices 0/2/1 | visible current protection |
 
-The source-to-destination symbols are
-`rs2012_tormented_demon_melee/magic/ranged` and
-`rs2012_td_magic_cast/projectile/impact`, `rs2012_td_melee_impact`, and
-`rs2012_td_ranged_projectile/cast`. Full model/BAS/sound details are recorded in
-the generated port ledger and final cache audit.
+Spot models are 3082→110104, 44666→110105, 44637→110106,
+44629→110107, and 44621→110108. Ambient sound 5602 maps to synth 16000;
+sequence sounds 5609, 5562, 3835, 5622, and 5606 map to 16001–16005.
+Opcode-134 idle/crawl/walk/run ambience uses 16000 at radius 15. BAS 910 is
+flattened because OSRS239 has no compatible foreign BAS record, not because its
+movement information was discarded.
 
 ### 7.7 TD drops
 
-The port uses the pre-EoC-era reward family:
+Guaranteed drop is imported infernal ashes 20268 x1. The 23 October charm log
+records exact observed populations over 1,587 kills, each successful outcome a
+stack of three: gold 225, green 143, crimson 254, blue 651, and none 314. The
+implementation uses those observed counts directly while not claiming they are
+recovered engine probabilities.
 
-- dragon claws;
-- ruined dragon armour lump, slice, and shard for the dragon platebody;
-- charms and the period common/rare resource table;
-- no dragon limbs before the 20 November 2012 EoC addition.
+Independent tertiary rolls are Dragon claws 1/299 (contemporary Adventurer's
+Log estimate), a ruined-armour aggregate 1/384 followed by equal lump/slice/
+shard selection (1/1,152 each, the explicit midpoint of the observed period
+range), and a hard clue at an inferred 1/128. The clue uses a real packed hard
+clue item, but its reader/step system remains a wider-content dependency.
 
-Dragon claws are configured near the contemporary roughly 1/300 estimate. Exact
-period denominators for every ruined piece/common entry are not all official;
-they remain data constants with evidence labels. The code does not copy current
-OSRS tormented synapse or burning-claw drops.
+The archive gives quantities and qualitative rarity for ordinary drops, not
+denominators. The executable table is therefore a visible 128-slot
+reconstruction with one ordinary roll per kill. It includes the period weapons
+and rune armour; super defence, prayer potion and sharks; the published seed
+family; assorted herbs x8–11; diamonds x3–5; adamant bars x3–7; death/lava/law/
+blood runes; fire talismans; coins x3,000–15,000; and the functional local
+random-jewel slot. Spin tickets, ancient effigies, elite clues and court
+summons are documentation-only because their wider systems/assets are absent.
+Dragon limbs are excluded because they arrived with EoC on 20 November 2012.
+No current OSRS synapse or burning-claw rewards are reused.
+
+### 7.8 Imported Dragon claws
+
+Source object 14484 is imported as destination 45010 / `rs2012_obj_14484`,
+separate from modern OSRS `dragon_claws`. Its inventory/male/female models are
+44590/43660/43651 → 110019/110020/110021. The special uses sequence
+10961→22072, spot 1950→10031, spot model 44811→110458, dependent sequence
+10965→22073, and synths 4138/4140/4141→16026/16027/16028. Server projection
+retains 60 Attack, +56 Strength, 50% special energy and doubled slash accuracy.
+
+Slice and Dice implements the five period branches, with `H` the successful
+base roll:
+
+| First successful roll | Four hits |
+|---|---|
+| first | `H, H/2, H/4, H/2−H/4` |
+| second | `0, H, H/2, H−H/2` |
+| third | `0, 0, H, H`, with H capped to 75% ordinary maximum |
+| fourth | `0, 0, 0, 1.5H` |
+| none | `0, 0, 0, 0–7 LP` historical tail, scaled to the smallest visible mock hit while preserving zero |
+
+The hits are presented as two pairs. Every splat passes through the shared hit
+preparation hook exactly once, so TD prayer counters/shield, QBD caps/forms,
+target HP ceilings, and XP-domain scaling remain correct for the special.
 
 ## 8. Cache-port architecture
 
@@ -707,7 +814,7 @@ Lane: `OSRS-Content/osrs239-content/ported/rs2012_qbd_td` plus matching
 
 Allocation bases:
 
-| Namespace | Destination base |
+| Namespace | Destination allocation |
 |---|---:|
 | NPC | 25,000 |
 | obj | 45,000 |
@@ -717,17 +824,26 @@ Allocation bases:
 | sequence / animset | 22,000 |
 | framemap | 9,000 |
 | synth | 16,000 |
+| interface | fixed 1,284–1,285 |
+| native clientscript | 13,000–13,001 |
+| material texture | 211–464 |
+| material sprite | 8,535–8,788 |
+| QBD UI sprite | 13,000–13,031 |
 
 The loc base was deliberately moved from 60,000 to 63,000 after validation
 found live OSRS239 locs through 62,200. The collision had also made coffer
 multiloc references resolve to unrelated spiral-stair symbols; reallocation
 corrected them to `rs2012_loc_70816/70817`.
 
-The first full generic closure contained 9 NPCs, 62 objs, 54 dynamic locs, 31
-spotanims, 150 models, 61 sequences, 22 animation sets, 21 framemaps, and six
-index-4 TD synths. The complete explicit QBD sequence list adds six sequences
-without renumbering any established destination ID. Static map locs and their
-recursive model dependencies extend those totals in the map pass.
+The definitive append-stable import ledger contains **9 NPCs, 63 objects,
+1,074 locations, 32 spot animations, 658 models, 76 sequences, 30 frame
+archives, 29 framemaps, and 29 index-4 synths**. Client closure adds two
+interfaces, two native clientscripts, 254 baked materials, and 286 total
+sprites: 254 material sprites at 8535–8788 plus 32 UI sprites at 13000–13031.
+Interfaces 1284/1285 remain at their source IDs; material texture IDs occupy
+211–464. Sprite 13000 and clientscript 13000 do not collide because cache
+indices are separate namespaces. These are final recursive totals, not the
+earlier seed set.
 
 ### 8.2 Codec work required by revision 727
 
@@ -742,6 +858,9 @@ recursive model dependencies extend those totals in the map pass.
   not revision number.
 - V2 frame files resolve their embedded framemap ID rather than assuming the
   archive high bits identify the rig.
+- RS2 interface model/sequence/font operands use the late BigSmart branch when
+  `(interface_id > 1144)`; using the OSRS operand width corrupted the QBD HUD
+  model and coffer font dependencies.
 - Model transcode preserves textured-face IDs, coordinate arrays, and opaque
   tails instead of stripping them to make an encoder succeed.
 
@@ -767,22 +886,34 @@ table and index 9 contains property graphs, which can recursively sample index-8
 sprites or other materials. OSRS239 expects sprite-backed texture records.
 
 The imported OB3 models preserve every texture ID and mapping array—QBD models
-70260/70267/70268 have 233/233/241 textured faces, TD model 44733 has 39,
-crossbow 70257 has 47—but preserving references is not the same as providing
-pixels. The material pass therefore rasterises every referenced RS727 graph to
-an OSRS-compatible sprite-backed material and remaps the model faces. Until that
-pass and visual comparison succeed, a textured model may decode correctly but
-render with a missing/wrong material; validation must report this honestly.
+70260/70267/70268 have 233/233/241 textured faces, TD model 44733 has 39, and
+crossbow 70257 has 47. The completed material bridge contains 254 rows: 233
+direct face materials and 22 retexture materials (overlapping sets), plus 36
+transitive programs and six source sprites. It successfully bakes and remaps all
+658 models. This is a deterministic OSRS-compatible approximation, not an HD
+shader claim: each graph becomes a 128x128, 6x7x6-palette sprite with alpha
+thresholded at 128. Of the rows, 202 are HD-only, 25 animate, five animate both
+axes, and 125 contain transparency; repeat/clamp, mipmap, shader, float and
+unverified program-tail differences still require source-client visual QA.
 
-Likewise, QBD sequence sounds are index-14 MIDI/Vorbis event IDs. Six TD
-index-4 synth dependencies are directly portable. QBD audio requires decoding
-the index-14 sample/patch chain or rendering compatible samples; retaining event
-numbers alone is not called complete audio fidelity.
+Likewise, QBD sequence sounds are index-14 MIDI/Vorbis event IDs. The lane has
+29 real index-4 synth archives, but 40 primary events across 18 sequences still
+refer to 27 unbridged index-14 IDs. Extra alternative choices are source-only
+evidence. QBD audio requires decoding the index-14 sample/patch chain or
+rendering compatible samples; retaining event numbers alone is not called
+complete audio fidelity. Music client IDs 1118/1119 and the source loc-ambience
+references are documented but their music/audio payloads are not imported or
+played by this port.
 
-The original 1284/1285 interfaces also require component operand remapping,
-sprite allocation, CS2 dependency closure, and replacements for foreign global
-configs 1923–1925. Gameplay is not made dependent on those UI assets: server
-messages and encounter state remain authoritative while the UI port is tested.
+The original 1284/1285 visual trees are structurally complete and packed: 82
+components, 32 UI sprites, model 70127→110657 and sequence 9390→22075. Foreign
+hooks/client scripts 5399/5400/5409–11/5415 and 6236/6238/6240–42/6245 are
+intentionally not executed. Server IF writes, the generic OSRS239 inventory
+client, and native pool-bar scripts 13000/13001 replace the required behavior
+while server state remains authoritative. The structurally present source
+time-stop model/fade and hover-only effects are not represented by those two
+native scripts; the implemented overlay is the explicit server-driven fallback
+described in §5.6.
 
 ## 9. Implementation file index
 
@@ -790,13 +921,20 @@ QBD:
 
 - `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_grotworm_route.constant`
 - `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.constant`
-- `.../rs2012_qbd.npc`, `rs2012_qbd.obj`, `rs2012_qbd.varp`, `rs2012_qbd.dbrow`
+- `.../rs2012_qbd.npc`, `rs2012_qbd.obj`, `rs2012_qbd.varp`, `rs2012_qbd.dbrow`, `rs2012_qbd.inv`
 - `.../scripts/rs2012_qbd_session.rs2`
 - `.../scripts/rs2012_qbd_combat.rs2`
 - `.../scripts/rs2012_qbd_adds.rs2`
 - `.../scripts/rs2012_qbd_rewards.rs2`
+- `.../scripts/rs2012_qbd_ui.rs2`
+- `.../scripts/rs2012_qbd_selftest.rs2`
 - `.../scripts/rs2012_royal_crossbow.rs2`
 - `.../scripts/rs2012_grotworm_route.rs2`
+- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/interfaces/rs2012_qbd_hud.if`
+- `.../interfaces/rs2012_qbd_coffer.if` and their `.compack` files
+- `.../scripts/rs2012_qbd_hud_pool.cs2`
+- `.../scripts/rs2012_qbd_hud_pool_fade.cs2`
+- `.../pack/3_interfaces.pack`, `8_sprites.pack`, and `12_clientscripts.pack`
 
 TD:
 
@@ -806,6 +944,8 @@ TD:
 - `.../scripts/rs2012_td_player_hit.rs2`
 - `.../scripts/rs2012_td_drops.rs2`
 - `.../scripts/rs2012_td_selftest.rs2`
+- `.../configs/rs2012_dragon_claws.obj`
+- `.../scripts/rs2012_dragon_claws.rs2`
 
 Map/cache port:
 
@@ -817,11 +957,17 @@ Map/cache port:
 - `tools/test_rs2012_map_port.py`
 - `tools/test_rs2012_grotworm_routes.py`
 - `tools/test_stage_rs2012_overlay.py`
+- `tools/port_rs2012_qbd_ui.py`
+- `tools/test_rs2012_qbd_ui_port.py`
+- `src/engine/proctex/test/rs2012_material_bake.c`
+- `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
+- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
 
 Global integration is limited to the shared player-hit preparation point,
 ranged Royal-bolt/crossbow validation, QBD/TD death and logout cleanup, and
-Thurgo's existing conversation entry. All named encounter content remains in
-the `rs2012` namespace.
+Thurgo's existing conversation entry, plus the dedicated Dragon-claws special
+dispatcher. Ordinary and reachable special attacks all enter the shared hit
+hook once. All named encounter content remains in the `rs2012` namespace.
 
 ## 10. Build, staging, and verification
 
@@ -831,91 +977,192 @@ staged overlay, not by flattening foreign configs into the base OSRS239 source
 tree. The source-to-destination ledger is checked before every apply so adding a
 dependency cannot silently renumber an existing symbol.
 
-Required acceptance tests:
+### 10.1 Automated checks completed
 
-### Cache and media
+The following are completed machine checks, not a list of aspirations:
 
-- manifest dry run and apply produce the same ledger;
-- no allocation overlaps base OSRS239 or the Summoning lane;
-- every NPC/obj/loc/spotanim config compiles with no unresolved source ID;
-- each model decodes after destination pack; texture face counts and coordinate
-  arrays match source;
-- every sequence resolves at least one real animset/framemap and frame duration;
-- whole arena/reward/temple maps round-trip from RS727 decode through OSRS239
-  LostCity text and packed cache;
-- every scenery loc in those maps resolves to an imported destination loc;
-- procedural material screenshots match source-client renders for default,
-  crystal, hardened, soul, worm, all three TD forms, claws, coffer, and crossbow;
-- every embedded audio event resolves to an actual destination sound asset;
-- original HUD/coffer component trees load without stale model/sprite/script IDs.
+- `cachepack import` and the append-stable ledgers resolve every recursive
+  NPC/object/location/spotanim/model/sequence/frame/framemap/synth dependency
+  without an unknown key, source-ID leak, or allocation overlap with base
+  OSRS239 or the separate Summoning lane.
+- The material bridge decodes, rewrites, encodes, and decodes all 658 destination
+  models. It retains texture-face counts and coordinate arrays and resolves all
+  254 material rows. This is a structural/codec assertion, not visual proof of
+  an HD shader match.
+- `tools/test_rs2012_map_port.py` proves 20 decoded source squares, 55,187 exact
+  source placement tuples, 1,006 map-referenced loc configs, 12 underlays, and
+  12 overlays; the surface placement is audited separately because it was
+  server-dynamic in revision 727.
+- `tools/test_stage_rs2012_overlay.py` proves hermetic staging, including
+  retention of base map members 2–4 and unchanged source-tree hashes.
+- `tools/test_rs2012_grotworm_routes.py` proves all four bidirectional cave
+  links, nine option triggers (including the non-traversing `Investigate`), and
+  eight arrivals exactly one tile outside the rotated destination footprints.
+- `tools/test_rs2012_qbd_ui_port.py` proves interfaces 1284/1285, all 82 named
+  components, all 32 UI sprite groups, the 70127→110657 model and
+  9390→22075 sequence references, clientscripts 13000/13001, the hidden
+  click-through sentinel, and the destructive coffer-button bindings.
+- The final sparse overlay contains **1,494 staged files**. `cachepack pack`
+  accepts **1,278 config records and 1,058 asset archives**: 30 animation-frame
+  archives, 29 framemaps, two interfaces, two native clientscripts, 29 synths,
+  21 maps, 658 models, 286 sprites, and one merged texture archive. The pack has
+  zero failed configs, unknown keys, unresolved names, or indexed-missing
+  assets.
+- The five floor overlays whose material operand is restricted to `u8` resolve
+  to permanently reserved destinations 211–215. Model-only materials may
+  safely occupy the remainder through 464.
+- `make -C src mock230-scripts` completes with **12,829 compiled scripts**.
+  `make -C src mock230` and `./src/build/mock230 --selftest` complete with every
+  engine/compiler test passing and **12,762 runtime-loaded scripts**.
 
-The current map acceptance run proves 20 decoded source squares plus the
-preserved surface overlay, 55,187 exact source placement tuples, 1,006
-map-referenced loc configs, 12 underlays and 12 overlays. The real sparse stage
-contains 1,422 files and 21 map archives. The material-complete pack accepts
-1,278 config records and 1,022 asset archives: 30 animsets, 29 framemaps, 29
-synths, 21 maps, 658 models, 254 sprites, and one merged texture archive, with
-zero failed, unknown, unresolved, or indexed-missing assets. Map verification
-reports 2,951/2,951 total destination archives byte-exact, zero differing and
-zero unreadable. Hermetic staging tests separately prove base members 2–4 and
-all source-tree hashes are retained. The 254-row material ledger may allocate
-model-only textures above 255; `map_port` enforces the u8 limit only for an
-actual floor-overlay operand. Its five textured overlays resolve to the
-reserved destinations 211–215.
-The production route test additionally proves four bidirectional cave links,
-nine option triggers (including the non-traversing Investigate option), and
-eight arrivals exactly one tile outside their destination loc footprints.
-`make -C src mock230-scripts` compiles these with the full content tree: the
-current acceptance run emitted 12,806 scripts with no compiler error.
+These checks establish reproducibility, dependency closure, map tuple fidelity,
+UI structure, script compilation, and the new engine primitives. They do not
+turn a compiled encounter into a visually and aurally certified retail-client
+capture.
 
-### QBD gameplay
+### 10.2 Compiled encounter diagnostics
 
-- four transitions require exactly 18,750 effective LP each;
-- no hit exceeds 1,000 LP and QBD never reaches ordinary NPC death;
-- 1/2/3/3 walls and all three gap columns are reachable;
-- soul counts are 1/2/4 and shadows can kill souls/worms;
-- siphon damages living souls and heals QBD;
-- both armour forms apply the correct opposing style response only in phase 3+;
-- killing a time caster before completion cancels; after completion it does not;
-- locked player input is rejected while queued QBD damage continues and lands as
-  one release hit;
-- extreme fire scales with centre distance and forges/repairs a brandished
-  crossbow;
-- worm spawning and artefact order are exact; only the fourth clears adds;
-- death frees the instance and puts the grave outside the portal;
-- coffer always-drops, resource rolls, bank/take actions, and sequential journals
-  are deterministic under seeded RNG tests;
-- strict-launch and 7-Aug profiles differ only in documented switches.
+Two deterministic debug procedures are included and compile with the content
+tree, but were not executed through a connected game client during this work:
 
-### TD gameplay
+- `::rs2012qbdtest` allocates the arena and performs 26 checks covering the
+  four 18,750-LP pools, 75,000 total LP, 1/2/3/3 walls, 0/1/2/4 phase soul
+  targets, launch-versus-7-August cooldown switches, time-stop durations,
+  1,000-LP cap, phase-3 armour modifiers, intermission invulnerability,
+  Royal-crossbow cadence, ten coffer slots, and persistence of an unclaimed
+  reward through encounter cleanup.
+- `::rs2012tdtest` allocates the temple and performs 64 checks covering all six
+  spawns and independent state, original combat stats, distance-aware style
+  transitions, 310-LP pre-shield prayer accounting including misses, the 75%
+  shield and Darklight deadline, WGS-debug-gate isolation, the exact observed
+  charm populations, imported claw equipment/special parameters, and every
+  deterministic Slice and Dice branch.
 
-- six NPCs retain independent style/prayer/shield counters;
-- attack style changes by time, not a five-attack block;
-- matching player prayer fully blocks the demon attack;
-- 310 pre-shield LP triggers the correct protection, including miss/minimum-20
-  accounting;
-- active fire shield reduces damage by 75%; valid Darklight suppresses for 60
-  seconds and matching Protect Melee prevents suppression;
-- melee is not selected/wasted outside reach;
-- rage splash respects configured radius/maximum and collision intent;
-- all three forms use correct animation/GFX/projectile assets;
-- drops include claws/three ruined pieces, exclude dragon limbs and modern OSRS
-  uniques, and cleanly handle death/logout/instance ownership.
+Their existence and successful compilation are recorded separately from an
+actual `OK` result. A release operator should run both commands on a staged
+debug account before deployment.
 
-## 11. Uncertainties that must remain visible
+### 10.3 Live-client acceptance still required
 
-- No official source establishes exact 29 May QBD unique denominators.
+The following is the explicit manual/integration plan. None of these bullets is
+claimed complete merely because the scripts compile.
+
+QBD run-through:
+
+- drain exactly four pools without ordinary NPC death; verify the 1,000-LP cap,
+  intermission invulnerability, worm persistence, artefact order, final add
+  clear, completion stairs, death cleanup, exterior grave, and logout/re-entry;
+- exercise 1/2/3/3 wall waves and all three safe columns under walking and
+  running collision, then intercept shadows with souls and worms;
+- exercise both phase-3 armour forms, siphon, a cancelled time stop and a
+  completed time stop, including rejected input and accumulated one-hit damage;
+- compare centre/corner extreme fire and both forge and repair paths for the
+  brandished Royal crossbow;
+- inspect the 35-component HUD in each phase: green proportional pool bar, red
+  recent-damage strip and fade, every artefact state, and server-driven green
+  time overlay;
+- inspect the 47-component coffer and test per-slot Take/Bank/Discard/Examine,
+  Take all, Bank all, confirmed Abandon all, Close, full inventory/bank cases,
+  empty-loc transition, persistence across logout, and sequential journals;
+- run both strict-launch and 7-August profiles and confirm that only the
+  documented fire/soul/siphon scheduling switches differ;
+- statistically sample resource/unique/journal rewards. There is no seeded RNG
+  reward-distribution test in the current debug procedure.
+
+Tormented-demon run-through:
+
+- fight all six spawns long enough to verify per-NPC timer/style/prayer/shield
+  isolation, full player-prayer protection, distance-aware melee selection,
+  Rage collision, and Darklight disable/refresh/block behavior;
+- inspect all three prayer-headicon forms and every ready/walk/attack/defend/
+  death animation, projectile, impact, and movement sound in the packed client;
+- exercise all Dragon-claw success/failure branches in combat, checking the two
+  displayed hit pairs, 50% energy, doubled slash accuracy, shared hit-hook
+  accounting, target-HP ceilings, and XP;
+- sample ordinary, charm, claw, ruined-armour, and clue rolls; confirm no dragon
+  limbs, modern synapses, or burning claws appear; then verify death, logout,
+  route, and instance ownership cleanup.
+
+Media/world pass:
+
+- compare default/crystal/hardened QBD, soul, worm, all three TD forms, claws,
+  coffer, Royal crossbow, maps, animated textures, alpha edges, and interfaces
+  side-by-side with a revision-727 source client in equivalent camera/light
+  conditions;
+- walk every imported map seam and verify clipping, roofs, height transitions,
+  dynamic platform stages, portal footprints, projectile heights, and the
+  reconstructed surface-entrance angle;
+- audit each audible index-4 event and each music/ambient transition. The 27
+  index-14 IDs and music tracks 1118/1119 cannot pass until their payload chain
+  is bridged; they are intentionally listed as open work rather than resolving
+  to placeholder audio.
+
+## 11. Uncertainties and explicit boundaries
+
+### 11.1 Historical values not recoverable exactly
+
+- No official source establishes exact 29 May QBD unique denominators. The
+  configured later-Jagex rates are a labelled server reconstruction, and the
+  ordinary-resource weighting remains the documented period-table
+  interpretation.
+- Song from the Depths certainly reduced incoming QBD damage, but the inspected
+  sources do not establish a percentage. The gate does not invent one; this
+  benefit remains unimplemented pending defensible evidence.
 - The exact launch soul-shadow player formula and siphon heal formula are not
-  recoverable from the inspected snapshots.
+  recoverable from the inspected snapshots. Their ranges/amounts are exposed as
+  constants rather than disguised as source truth.
 - Three extreme-fire pulses are strong cache/later corroboration, not explicit
-  in the June strategy text.
-- QBD armour duration/modifiers and several projectile delays are reconstructed.
-- The precise TD rage radius and several ordinary-drop denominators remain
-  contemporary estimates.
-- open727 contains demonstrable encounter bugs: a duplicate melee branch where
-  Magic should be, post-shield prayer accounting, odd reset/switch behaviour,
-  random wasted melee at range, an unverified hard-coded AoE, five-attack style
-  blocks, and QBD phase/HP/reward divergences. None is silently preserved.
+  in the June strategy text. QBD armour duration/modifiers, some projectile
+  delays, and the Royal-crossbow delayed-hit edge cases are reconstructions.
+- Contemporary TD sources establish timed switching, Rage, and the qualitative
+  ordinary-drop rarities, but not a retail Rage radius or most denominators.
+  Radius 2, the 128-slot ordinary table, the 1/128 hard-clue roll, and the
+  1/1,152-per-piece ruined-armour midpoint remain named corrections points.
+- Extra IDs in an RS727 sequence opcode-13 sound set are random alternatives.
+  OSRS239 has no equivalent selector in this lane, so the destination sequence
+  retains only the primary event; alternatives remain recorded in §5.4 rather
+  than being played simultaneously or silently relabelled as imported assets.
 
-These are configuration and evidence boundaries, not invitations to replace
-2012 mechanics with current OSRS behaviour.
+### 11.2 Deliberate implementation limits
+
+- While Guthix Sleeps progression, its sapphire-lantern/light-creature puzzle,
+  and quest dialogue are not recreated. Production entry consumes the explicit
+  permanent completion flag and binds only the post-puzzle cave opening; the
+  debug bypass never grants quest completion.
+- The six-demon room is currently a one-player identity instance for safe
+  ownership and NPC-local state. Retail Ancient Guthix Temple was a shared
+  world space, so multiplayer aggression, competition, and loot ownership are
+  not reproduced.
+- mock230 has no player-to-NPC poison route, so the demon's poison immunity has
+  no active suppression hook. Period interactions with Verac's set effect,
+  holy water, dwarf cannons, combat familiars, and dreadnips have not received
+  encounter-specific compatibility or live QA.
+- The hard-clue tertiary roll produces a real packed hard-clue item, but the
+  clue reader/step/reward progression is a wider-content dependency and is not
+  supplied here. Likewise, royal armour assets and requirements are present,
+  while a full pre-EoC Crafting-interface recreation is outside this slice.
+- The material bridge is a deterministic 128x128 palette/alpha approximation,
+  not the RS727 HD procedural renderer. Animated axes, alpha, mipmaps, shader
+  parameters, repeat/clamp behavior, and unverified program tails require the
+  side-by-side visual pass in §10.3.
+- Forty QBD primary frame-sound events still point at 27 source index-14 IDs;
+  music 1118/1119 and source loc ambience also lack bridged payloads. TD and
+  the seven QBD events that use copied index-4 synths are structurally packed,
+  but complete QBD audio/music fidelity is not claimed.
+- The authentic HUD/coffer trees, sprites, pool-bar behavior, and coffer actions
+  are ported. The source-client time-stop model/fade and hover-only cosmetics
+  are not; the server-driven green fill is the visible fallback. Later-phase
+  giant-worm size variation also remains a visual-QA item.
+- Static map tuples are exact, but revision 727 did not contain the surface
+  entrance's dynamic placement stream. Its angle is reconstructed and remains
+  called out in the placement ledger.
+- The in-game `::rs2012qbdtest` and `::rs2012tdtest` diagnostics compile but
+  still require an attached-client run. Full fight timing, clipping, visual,
+  audio, reward-distribution, and persistence acceptance remains §10.3 work.
+
+open727 itself contains demonstrable encounter bugs: a duplicate melee branch
+where Magic should be, post-shield prayer accounting, odd reset/switch
+behaviour, random wasted melee at range, an unverified hard-coded AoE,
+five-attack style blocks, and QBD phase/HP/reward divergences. None is silently
+preserved. These are configuration and evidence boundaries, not invitations to
+replace 2012 mechanics with current OSRS behaviour.

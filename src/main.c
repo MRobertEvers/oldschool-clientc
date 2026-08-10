@@ -1739,10 +1739,10 @@ frame_loop_teardown(void)
                     continue;
                 fprintf(
                     stderr,
-                    "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d "
+                    "EMIT_EXIT[%d] kind=%d com=0x%08x (%d|%d) x=%d y=%d w=%d h=%d scene=%d model=%d "
                     "color=0x%06x filled=%d trans=%d tiled=%d clip=%d,%d %dx%d\n",
                     i, (int)d->kind, d->component_id, group, d->component_id & 0xFFFF,
-                    d->x, d->y, d->w, d->h, d->scene_id, d->color, d->filled, d->trans,
+                    d->x, d->y, d->w, d->h, d->scene_id, d->model_id, d->color, d->filled, d->trans,
                     d->tiled, d->clip.x, d->clip.y, d->clip.w, d->clip.h);
             }
         }
