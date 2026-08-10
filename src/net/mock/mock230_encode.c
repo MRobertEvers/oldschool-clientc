@@ -48,6 +48,7 @@
 
 static int v5_face_from_classic(
     struct Mock239Face* face,
+    struct Mock230Player const* recipient,
     uint32_t classic,
     uint32_t entity_mask,
     uint32_t coord_mask,
@@ -496,6 +497,28 @@ mock230_slotmap_world(
     if( !player || client_slot < 0 || client_slot >= MOCK230_CLIENT_NPC_SLOTS )
         return -1;
     return player->npc_slots.world_of[client_slot];
+}
+
+/*
+ * Translate an actor's canonical FACE_ENTITY target for one recipient.
+ *
+ * The mock keeps NPC targets as world-pool slots so one actor can be encoded
+ * for several observers. NPC_INFO, however, gives each observer a private NPC
+ * slot through Mock230PlayerSlotMap. Every FACE_ENTITY field on that observer's
+ * stream must use the same private slot or the client cannot resolve the actor
+ * and falls back to its supplied angle (yaw 0, due south, at revision 239).
+ * Player ids are already absolute in the classic id space and stay unchanged.
+ */
+static int
+mock230_face_entity_for_client(
+    const struct Mock230Player* recipient,
+    int face_entity)
+{
+    if( face_entity < 0 || face_entity >= MOCK230_FACE_PLAYER_BASE )
+        return face_entity;
+    if( !recipient || face_entity >= MOCK230_NPC_MAX )
+        return -1;
+    return recipient->npc_slots.client_of[face_entity];
 }
 
 /** Give back this client's name for `world_slot`. Idempotent. */
@@ -2641,6 +2664,7 @@ exact_move_yaw(int direction)
 static void
 put_player_extended(
     struct RSAreaBuf* buf,
+    struct Mock230Player const* recipient,
     struct Mock230Player* player,
     int force_appearance)
 {
@@ -2692,7 +2716,11 @@ put_player_extended(
         rsab_p1(buf, player->anim_delay);
     }
     if( mask & MOCK230_PMASK_FACE_ENTITY )
-        rsab_p2(buf, player->face_entity < 0 ? 0xffff : player->face_entity);
+    {
+        int const face_entity =
+            mock230_face_entity_for_client(recipient, player->face_entity);
+        rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
+    }
     if( mask & MOCK230_PMASK_SAY )
         rsab_pjstr(buf, player->say, RSAB_JSTR_NEWLINE);
     if( mask & MOCK230_PMASK_DAMAGE )
@@ -3366,7 +3394,7 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.seq_delay = player->anim_delay;
             }
             ext.has_face = v5_face_from_classic(
-                &ext.face, player->masks, MOCK230_PMASK_FACE_ENTITY,
+                &ext.face, player, player->masks, MOCK230_PMASK_FACE_ENTITY,
                 MOCK230_PMASK_FACE_COORD, player->face_entity, player->face_x,
                 player->face_z, 0);
             if( player->running && player->move_count > 0 &&
@@ -3581,7 +3609,7 @@ mock230_send_player_info(struct Mock230Player* player)
 
     /* --- extended info, byte aligned, in the order the bits queued it --- */
     for( int i = 0; i < queued_count; i++ )
-        put_player_extended(&buf, queued[i], queued_new[i]);
+        put_player_extended(&buf, player, queued[i], queued_new[i]);
 
     flush(player, &buf, OP_PLAYER_INFO, 2);
 
@@ -3659,6 +3687,7 @@ enum
 static int
 v5_face_from_classic(
     struct Mock239Face* face,
+    struct Mock230Player const* recipient,
     uint32_t classic,
     uint32_t entity_mask,
     uint32_t coord_mask,
@@ -3703,7 +3732,7 @@ v5_face_from_classic(
     else
     {
         face->entity_type = MOCK239_FACE_NPC;
-        face->entity_index = face_entity;
+        face->entity_index = mock230_face_entity_for_client(recipient, face_entity);
     }
     return 1;
 }
@@ -3750,6 +3779,7 @@ npc_initial_wire_type(const struct Mock230Npc* npc)
 static void
 put_npc_extended_v5(
     struct RSAreaBuf* buf,
+    struct Mock230Player const* recipient,
     struct Mock230Npc* npc,
     int force_face_latch)
 {
@@ -3758,7 +3788,7 @@ put_npc_extended_v5(
     int const hit = (classic & (MOCK230_NMASK_DAMAGE | MOCK230_NMASK_DAMAGE2)) != 0;
     struct Mock239Face face;
     int const has_face = v5_face_from_classic(
-        &face, classic, MOCK230_NMASK_FACE_ENTITY, MOCK230_NMASK_FACE_COORD,
+        &face, recipient, classic, MOCK230_NMASK_FACE_ENTITY, MOCK230_NMASK_FACE_COORD,
         npc->face_entity, npc->face_x, npc->face_z, force_face_latch);
 
     if( hit )
@@ -3868,6 +3898,7 @@ npc_extended_pending(const struct Mock230Npc* npc)
  */
 static int
 npc_extended_pending_v5(
+    struct Mock230Player const* recipient,
     const struct Mock230Npc* npc,
     int force_face_latch)
 {
@@ -3877,7 +3908,7 @@ npc_extended_pending_v5(
     struct Mock239Face face;
 
     return (npc->masks & supported) != 0 ||
-           v5_face_from_classic(&face, npc->masks, MOCK230_NMASK_FACE_ENTITY,
+           v5_face_from_classic(&face, recipient, npc->masks, MOCK230_NMASK_FACE_ENTITY,
                                 MOCK230_NMASK_FACE_COORD, npc->face_entity,
                                 npc->face_x, npc->face_z, force_face_latch);
 }
@@ -3893,6 +3924,7 @@ npc_extended_pending_v5(
 static void
 put_npc_extended(
     struct RSAreaBuf* buf,
+    struct Mock230Player const* recipient,
     struct Mock230Npc* npc,
     int force_face_latch,
     int force_type_latch)
@@ -3946,7 +3978,11 @@ put_npc_extended(
                     "observer but one sees it facing the wrong player\n",
                     npc->type, npc->face_entity);
         }
-        rsab_p2(buf, npc->face_entity < 0 ? 0xffff : npc->face_entity);
+        {
+            int const face_entity =
+                mock230_face_entity_for_client(recipient, npc->face_entity);
+            rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
+        }
     }
     if( mask & MOCK230_NMASK_SAY )
         rsab_pjstr(buf, npc->say, RSAB_JSTR_NEWLINE);
@@ -4087,7 +4123,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             }
             kept[kept_count++] = slot;
             {
-                int const extended = npc_extended_pending_v5(npc, 0);
+                int const extended = npc_extended_pending_v5(player, npc, 0);
 
                 if( npc->step_dir >= 0 )
                 {
@@ -4164,7 +4200,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
-            int const extended = npc_extended_pending_v5(npc, 1);
+            int const extended = npc_extended_pending_v5(player, npc, 1);
 
             /*
              * The client's name for this npc, 16 bits.
@@ -4212,7 +4248,7 @@ mock230_send_npc_info(struct Mock230Player* player)
         memset(extended_data, 0, sizeof(extended_data));
         rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
         for( int i = 0; i < queued_count; i++ )
-            put_npc_extended_v5(&extended_buf, &srv->npcs[queued[i]],
+            put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i]],
                                 queued_force_face[i]);
 
         /*
@@ -4411,7 +4447,7 @@ mock230_send_npc_info(struct Mock230Player* player)
     rsab_bytes(&buf);
 
     for( int i = 0; i < queued_count; i++ )
-        put_npc_extended(&buf, &srv->npcs[queued[i]], queued_force_face[i],
+        put_npc_extended(&buf, player, &srv->npcs[queued[i]], queued_force_face[i],
                          queued_force_type[i]);
 
     flush(player, &buf, OP_NPC_INFO, 2);

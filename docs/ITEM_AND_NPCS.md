@@ -380,24 +380,16 @@ is gone — it had no callers left once both encoders read the client's own map.
 
 ### Two index spaces, and which one limits what
 
-NPC_INFO carries two numbers for an npc, and conflating them is how "the wire is
-14 bits, so only 16k npcs can be near a player" gets said. The authority is the
-official RuneLite deob of rev 239 (`Statics.java:53065`):
-
-```java
-byte var20 = 16;                                    // index width
-int var21 = 1 << var20;                             // 65536
-if (buffer.readableBits(...) < var20 + 12) break;   // 16 + 12 guard
-int var22 = buffer.gBits(var20);                    // 16-bit index
-if (var21 - 1 == var22) break;                      // terminator 0xFFFF
-class112 npc = map.get(var22);                      // keyed by the index
-...
-class422 type = getNpcType(buffer.gBits(14));       // 14-bit TYPE
-```
+NPC_INFO carries two different numbers for an npc. The settled rev239 codec
+keeps the **per-player client-local nearby-instance slot at 14 bits** and carries
+the separate **cache/config type at 16 bits**. A permanent writer/reader
+regression round-trips slot 321 with type 20000. Reversing these fields is what
+created the false cache-id ceiling; do not infer either namespace from a deob
+snippet without first proving which revision and add-block shape it describes.
 
 | | the **index** | the **type** | the **list position** |
 |---|---|---|---|
-| width | 16 bits (v5), 14 (classic) | 14 bits | 8-bit count, then bits *in order* |
+| width | 14 bits | 16 bits in rev239 | 8-bit count, then bits *in order* |
 | means | what this client calls the npc | its config/cache id | where it sits in the tracked list |
 | bounds | how many npcs one client can hold names for | how many npc records can exist | how many one client may **track** |
 | here | `MOCK230_CLIENT_NPC_SLOTS` | `MOCK230_NPC_TYPE_MAX` | `MOCK230_TRACKED_NPC_MAX`, 255 |
@@ -410,11 +402,10 @@ server keeps its own slot in the pool, the ZoneMap and every interaction, and
 the two sites that write an id go through `mock230_slotmap_acquire` /
 `_release`. The world pool's size stops being a protocol question.
 
-**A config id above 16,383 rides in CHANGE_TYPE**, which is the shim the classic
-path already had (`npc_initial_wire_type` writes 0 and the extended block
-carries the real id). Widening the add's type field to 16 is possible — RSProt
-models it as `npcInfoBitCount` — but only against a patched client, and the
-deob is the authority here.
+**A config id above 16,383 is ordinary in rev239's 16-bit type field.** It does
+not consume extra client-local slots and needs no cache-id shim. The add and
+change-type paths must agree on that type width; slot 321/type 20000 pins the
+distinction in both writer and reader tests.
 
 **Both directions have to translate, and only one of them did.** The outbound
 half landed first and the inbound half did not, which made *every npc in the

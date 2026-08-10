@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
+import struct
 import subprocess
 import sys
 import tempfile
@@ -146,6 +148,16 @@ def main() -> int:
             "Summoning points: 0/1" in result.stdout,
             f"{label}: live Summoning point count did not render",
         )
+        for component, caption in ((5, "Call"), (7, "Dismiss")):
+            rect = emitted_rect(result.stdout, component)
+            expect(rect is not None, f"{label}: {caption} label did not reach the draw list")
+            if rect is not None:
+                orange = bmp_orange_count(bmp, rect)
+                expect(
+                    orange >= 8,
+                    f"{label}: {caption} label command was covered or invisible "
+                    f"({orange} orange pixels)",
+                )
         expect(
             "message_game: You summon a Spirit wolf." in result.stdout,
             f"{label}: setup did not summon the familiar",
@@ -223,6 +235,37 @@ def run_client(args: argparse.Namespace, env: dict[str, str]) -> subprocess.Comp
 
 def bounds_line(log: str, marker: str) -> str:
     return next((line for line in log.splitlines() if line.startswith("BOUNDS ") and marker in line), "")
+
+
+def emitted_rect(log: str, component: int) -> tuple[int, int, int, int] | None:
+    pattern = re.compile(
+        rf"EMIT_EXIT.*\(969\|{component}\).* x=(\d+) y=(\d+) w=(\d+) h=(\d+)"
+    )
+    matches = [pattern.search(line) for line in log.splitlines()]
+    match = next((item for item in reversed(matches) if item is not None), None)
+    return tuple(map(int, match.groups())) if match else None
+
+
+def bmp_orange_count(path: Path, rect: tuple[int, int, int, int]) -> int:
+    """Count visible Summoning-gold pixels in the central area of a 32-bit BMP."""
+    data = path.read_bytes()
+    offset = struct.unpack_from("<I", data, 10)[0]
+    width, height = struct.unpack_from("<ii", data, 18)
+    bits = struct.unpack_from("<H", data, 28)[0]
+    if bits != 32 or width <= 0 or height == 0:
+        return 0
+    top_down = height < 0
+    height = abs(height)
+    x, y, w, h = rect
+    count = 0
+    for py in range(max(0, y + 3), min(height, y + h - 3)):
+        row = py if top_down else height - 1 - py
+        for px in range(max(0, x + 8), min(width, x + w - 8)):
+            pos = offset + (row * width + px) * 4
+            blue, green, red = data[pos : pos + 3]
+            if red >= 170 and 65 <= green <= 210 and blue <= 100 and red >= green + 35:
+                count += 1
+    return count
 
 
 def finish(errors: list[str], checked: int, out: Path) -> int:

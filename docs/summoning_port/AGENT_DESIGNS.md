@@ -1,5 +1,13 @@
 
 
+> **Binding corrections for every design below:** the 14-bit NPC_INFO value is only a
+> per-player client-local nearby-instance slot. It is not a cache/config NPC id, and rev239's
+> separate type is 16 bits; all id-ceiling, free-run, roster-tier, or allocation-budget reasoning
+> based on 14 bits is superseded. Rev-727 CS2 is likewise not osrs239 source: preserve raw
+> instruction/operand plus stack-effect disassembly, decompile with an explicit 727 dialect, and
+> translate only accepted logic into newly authored osrs239 CS2. The plan and red-team document
+> remain authoritative over these historical designs.
+
 ===== DESIGN: design-asset-pipeline =====
 # 530 → 239 asset import pipeline — design
 

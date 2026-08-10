@@ -2,6 +2,16 @@
 
 Everything marked **[measured]** I ran against the two trees during this pass.
 
+## Post-review binding corrections
+
+- NPC_INFO's 14-bit value is the per-player client-local slot for a nearby NPC instance. It is
+  not the NPC definition. Rev239 carries the separate cache/config type in 16 bits; type 20000 is
+  regression-tested. No roster tier, id ceiling, or allocation budget follows from the slot.
+- Treat rev-727 clientscripts as a distinct, unverified dialect. Capture raw instructions,
+  operands, and stack effects before decompilation; use an explicit 727 dialect; then translate
+  relevant logic into newly authored osrs239 CS2. A readable decompile alone is not evidence of
+  dialect correctness.
+
 ---
 
 ## 1. FACTUAL ERRORS

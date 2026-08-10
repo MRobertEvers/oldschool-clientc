@@ -2,7 +2,7 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phase 0 in progress. Nothing gameplay-facing exists yet.
+**Status:** Phases 0–3 and Phase 4 slices 4a–4d are implemented; 4e is next.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -34,6 +34,11 @@ full config dumps.
 ⚠ **Every recon probe that used `--rev rs643` against the 530 cache is suspect.** `rs643` pins
 `FRAME_V2` (a rev-610 format), which corrupts every 530 animation frame it touches. Any frame or
 framemap number quoted in the recon doc must be re-measured against the real 530 profile.
+
+⚠ **A 727 CS2 decompile is not source.** Treat 727 as a separate, unverified opcode dialect:
+first preserve a raw instruction/operand and stack-effect disassembly, then decompile with an
+explicit 727 dialect, and only then decide whether its logic is relevant. Any accepted logic is
+rewritten as fresh osrs239 CS2; 727 output is never pasted or compiled as osrs239 source.
 
 ---
 
@@ -388,7 +393,7 @@ Varrock, log out and back in, it is still there, the timer expires, it leaves.
 
 ---
 
-## 9. Later phases (not in this pass)
+## 9. Current and later phases
 
 **Phase 4 — skill surfaces (~12–18 d).** Skill guide (dbtable 212/213). The former `dbindex`
 gap is closed: `tools/gen_dbindex.py` deterministically regenerates all 147 table indexes, and its
@@ -401,8 +406,13 @@ it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to 
 20000..20003, and authored clientscript 12000 redraws from dynamic/base stat 24. The originally
 proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
 it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls
-the active familiar. Sidebar tab (expensive — `side0..side13` is **full**, needs new components in *three*
-toplevels 161/548/164 plus row 14 in `enum_1137/1138/1139`). Obelisk via runtime `loc_add`, which
+the active familiar. The sidebar tab is now implemented in all three toplevels 161/548/164 with
+row 14 in `enum_1137/1138/1139`. Classic and Fixed reflow into eight 30px cells; Modern shifts its
+movable seven-tab strip left one cell and places the new stone/icon at the freed right edge. It
+uses the exact rev-530 sprite-222 wolf head (target graphic 229), opens group 969, and composes
+NPC 20000's packed chathead rather than a raw body or fallback model. Real-client acceptance
+asserts the final model draw id (`0x50004e20`), live points text, Call and Dismiss in every
+gameframe. Obelisk via runtime `loc_add`, which
 sidesteps `maps/` entirely. ⚠ `content_register.c:65` gives loc `server_base = 70000` and **no
 `loc_type_bits` field exists anywhere** in `src/net/rev/` — verify the loc wire width before
 allocating, or loc 70000 may truncate. Do not analogize this to NPC type 20000: rev239 NPC_INFO
@@ -445,6 +455,7 @@ migration).
 | 5 | **The membership add-path has never been run** — all five `pack/*.client` files have zero data lines | spike on a throwaway obj in Phase 0 before designing on top |
 | 6 | **Chained-overlay byte-identity is unproven** and the staging script does not exist | Phase 0 builds it; fallback is the third walk root (`CP_WALK_MAX_ROOTS = 4`) |
 | 7 | **Framemap/sequence codec fixes touch the whole RS2 branch** | A/B 634 and 727 before and after |
+| 8 | **727 CS2 may use a different opcode dialect** | preserve raw bytecode/instruction+stack disassembly first; decompile only with an explicit 727 dialect; translate accepted logic into newly authored osrs239 CS2 |
 
 **Standing hazards.** Never `git stash` here (a no-op push turns `pop` into restoring an old
 stash) · no ASAN on this Mac · `MOCK230_SAVES=$(mktemp -d)` on **every** headless run, baked into

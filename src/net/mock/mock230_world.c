@@ -18864,6 +18864,97 @@ mock230_world_selftest(void)
         }
         selftest_park_player(&srv, start_x, start_z);
 
+        /* QBD's controller gate is stricter than an ordinary destination
+         * check: checkWalkStep sees both candidate tiles of a running tick.
+         * This content probe permits `%rs2012_qbd_phase` candidates, records
+         * WALKSTEP_COORD, then vetoes the next with p_walk(coord). Testing it
+         * through advance_player proves a locked first or second tile cannot
+         * be skipped by running. */
+        {
+            const struct SSVM_Script* probe = SSVM_ProviderGetByName(
+                srv.scripts, "[walktrigger,rs2012_qbd_walkstep_probe]");
+            int phase_varp = mock230_world_varp("rs2012_qbd_phase");
+            int count_varp = mock230_world_varp("rs2012_qbd_platform_ticks");
+            int candidate_varp = mock230_world_varp("rs2012_qbd_soul_separation");
+
+            SELFTEST_CHECK(probe != NULL,
+                           "the QBD per-step movement probe should be in the script pack");
+            SELFTEST_CHECK(phase_varp >= 0 && count_varp >= 0 && candidate_varp >= 0,
+                           "the QBD movement probe varps should resolve");
+            if( probe && phase_varp >= 0 && count_varp >= 0 && candidate_varp >= 0 )
+            {
+                /* Zero permitted tiles: the first candidate is observed and
+                 * rejected before occupancy changes. */
+                selftest_park_player(&srv, start_x, start_z);
+                player->run_toggle = 1;
+                player->run_energy = MOCK230_RUN_ENERGY_MAX;
+                player->delayed_until = 0;
+                player->varps[phase_varp] = 0;
+                player->varps[count_varp] = 0;
+                player->varps[candidate_varp] = 0;
+                player->walktrigger = probe->id;
+                mock230_world_walk_to(&srv, start_x + 2, start_z + 2);
+                advance_player(&srv);
+                SELFTEST_CHECK(player->x == start_x && player->z == start_z &&
+                                   player->move_count == 0,
+                               "a gate on running tile one prevents all movement");
+                SELFTEST_CHECK(player->varps[count_varp] == 1 &&
+                                   player->varps[candidate_varp] == start_x + 1,
+                               "tile-one hook receives its concrete candidate, count=%d x=%d",
+                               player->varps[count_varp], player->varps[candidate_varp]);
+                SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
+                               "a tile-one veto clears the remaining route");
+
+                /* One permitted tile: running consumes the first, invokes the
+                 * re-armed hook for the second, and stops there. */
+                selftest_park_player(&srv, start_x, start_z);
+                player->run_toggle = 1;
+                player->run_energy = MOCK230_RUN_ENERGY_MAX;
+                player->varps[phase_varp] = 1;
+                player->varps[count_varp] = 0;
+                player->varps[candidate_varp] = 0;
+                player->walktrigger = probe->id;
+                mock230_world_walk_to(&srv, start_x + 2, start_z + 2);
+                advance_player(&srv);
+                SELFTEST_CHECK(player->x == start_x + 1 && player->z == start_z + 1 &&
+                                   player->move_count == 1,
+                               "a gate on running tile two cannot be skipped, moved=%d",
+                               player->move_count);
+                SELFTEST_CHECK(player->varps[count_varp] == 2 &&
+                                   player->varps[candidate_varp] == start_x + 2,
+                               "tile-two hook receives the second candidate, count=%d x=%d",
+                               player->varps[count_varp], player->varps[candidate_varp]);
+                SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
+                               "a tile-two veto clears the route after exactly one step");
+
+                /* Two permitted tiles: both hooks run and the ordinary run
+                 * reaches its destination. */
+                selftest_park_player(&srv, start_x, start_z);
+                player->run_toggle = 1;
+                player->run_energy = MOCK230_RUN_ENERGY_MAX;
+                player->varps[phase_varp] = 2;
+                player->varps[count_varp] = 0;
+                player->varps[candidate_varp] = 0;
+                player->walktrigger = probe->id;
+                mock230_world_walk_to(&srv, start_x + 2, start_z + 2);
+                advance_player(&srv);
+                SELFTEST_CHECK(player->x == start_x + 2 && player->z == start_z + 2 &&
+                                   player->move_count == 2,
+                               "two allowed candidates preserve ordinary running");
+                SELFTEST_CHECK(player->varps[count_varp] == 2 &&
+                                   player->varps[candidate_varp] == start_x + 2,
+                               "both allowed running candidates invoke the hook");
+
+                player->walktrigger = -1;
+                player->walkstep_coord = 0;
+                player->varps[phase_varp] = 0;
+                player->varps[count_varp] = 0;
+                player->varps[candidate_varp] = 0;
+                player->run_toggle = 0;
+                selftest_park_player(&srv, start_x, start_z);
+            }
+        }
+
         steps_clear(player);
         player->running = 0;
         mock230_world_walk_to(&srv, start_x + 4, start_z + 4);

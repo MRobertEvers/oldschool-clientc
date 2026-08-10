@@ -1,5 +1,12 @@
 
 
+> **Binding corrections for every report below:** NPC_INFO's 14-bit value is a per-player
+> client-local nearby-instance slot, not a cache/config NPC id; rev239 carries the separate type
+> in 16 bits. Any older ceiling, free-run, tier, or id-budget conclusion is void. Also, a 727 CS2
+> decompile is not trusted until raw instruction/operand and stack-effect disassembly has been
+> preserved and an explicit 727 dialect has produced the readable form; relevant logic must then
+> be rewritten as fresh osrs239 CS2.
+
 ===== RECON: scape-summoning-logic =====
 # 2009scape Summoning — server behavioural spec (recon)
 

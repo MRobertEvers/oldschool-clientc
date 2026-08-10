@@ -98,7 +98,7 @@ Identified gaps (all outside the rev table today):
 | Login handshake shape | `src/net/loginproto.c` | opcode 14/16, RSA block, ISAAC±50 seeding, 3-byte success tail, uid=1337, 9 jag CRCs |
 | Transport & framing | `src/net/net.c`, `packetbuffer.c` | raw TCP, ISAAC-encrypted opcode byte |
 | Appearance decode | `src/net/rev/packets/pkt_player_appearance.c` | Colocated 2026-08-04: one canonical 12-slot vocabulary + every wire spelling of it (classic and osrs239's two-array/`+0x800` shape) + an encoding-independent op-stream reader, mirroring pkt_npc_info.c's op list. `GameProtoRevTable.appearance_decode` selects the reader; NULL = classic. |
-| PLAYER_INFO / NPC_INFO bit layout | `pkt_player_info.c`, `pkt_npc_info.c` | classic bitcodec, NPC 14-bit slots |
+| PLAYER_INFO / NPC_INFO bit layout | `pkt_player_info.c`, `pkt_npc_info.c` | classic bitcodec; revision-specific per-client NPC slot and cache-type fields (the 14-bit slot is not a definition id) |
 | Scene-origin math | `task_gameproto_exec.c` / `World_ResetScene` | `(zone-6)*8` local-coord base (unified 2026-08-03; `scene_off` deleted) |
 | ClientCode constants | `src/game/rs_clientcode.h` | 254-era baked component behaviors (friends rows, bankmode, designer…) |
 | Minimenu action / button-type codes | `src/revconfig/revconfig.h` | 254-era action numbers (WALK=718, OPLOC1=625, …) |

@@ -51,6 +51,9 @@ Each tick ports **one** pending unblocked slice per [`PORTING_GUIDE.md`](PORTING
 - **Never park sibling content** to green a compile — no `*.skip`, no moving live trees aside.
   Fix your own slice (`PORTING_GUIDE` §7).
 - **A skip is not a pass.** Every summoning target must assert a non-zero check count.
+- **727 CS2 is foreign bytecode, not osrs239 source.** Preserve a raw instruction/operand plus
+  stack-effect disassembly first, decompile with an explicit 727 dialect second, and only then
+  decide whether to translate the logic into freshly authored osrs239 CS2.
 - **The real client is the acceptance authority.** Every client-visible slice must boot with a
   fresh `MOCK230_SAVES=$(mktemp -d)`, exercise the actual interaction path, and retain a rendered
   framebuffer plus logs. Required end-to-end proofs include familiar models/animations,
@@ -95,7 +98,7 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 4a | Deterministic dbindex generator + byte-identical regeneration tests | 4 | **done** | `gen_dbindex.py --check` verifies all 147 indexes; mutation regression is 156/0 and proves omitted/misordered keys fail before byte-exact repair; wired into `test-port`; isolation 642639/0, flag-off 25/0, pack 0 errors, fresh-save headless 28/0 |
 | 4b | Summoning skill-guide rows, events and live client `db_find` proof | 4 | **done** | corrected wolf-cell context menu/op2 opens `skill_guide_v2`; dbtables 212/213 render all six tabs plus the full Spirit wolf recipe, and obj 40000 enters the object/model renderer; fresh-save client acceptance 19/0 with retained BMP/log; feature bake is 16,978 records, 0 failed/unresolved, CS2 3/0, 147 indexes; all-content ServerScript compile emits 12,774 scripts; `mock230_pack --check-only` 0 errors; Overview remains bytecode-only and unmodified |
 | 4c | Summoning points orb | 4 | **done** | exact rev-530 interface-747 art (sprites 1200/1206/1244/1245) remapped to target 20000..20003; visible target position `x=89,y=128` avoids the fixed-client tab strip that hid the proposed `54,158`; authored script 12000 updates live on stat-24 transmit; real click sends interface-160 component-64 op1 and calls the active wolf; 19/0 fresh-save client checks, CS2 4/0, ServerScript 12,781 compiled, isolation 644,151/0, pack 0 errors |
-| 4d | Summoning sidebar access | 4 | **pending** | click/render in all three toplevels; do not displace Sailing |
+| 4d | Summoning sidebar access | 4 | **done** | exact rev-530 sprite-222 wolf icon at target graphic 229; tab 14 mounted in 161/548/164 without displacing Sailing; authored osrs239 script 12001 reflows Classic/Fixed and shifts Modern's movable row; group 969 uses script 12002 `if_setnpchead(npc_20000)` with no fallback model; final real-client command is `kind=5 model=1342197280`; Call/Dismiss use real IF_BUTTON1; 44/0 fresh-save client checks; CS2 6/0, feature bake 16,986 records and 171 asset archives with 0 failures/unresolved names. Shared `mock230-servpack` is currently blocked only by concurrent QBD/TD membership and animation-name errors |
 | 4e | Loc-id wire proof + runtime obelisk and Renew-points | 4 | **pending** | no maps; prove loc 70000 before `loc_add` |
 | 4f | Authored infusion interface and pouch production | 4 | **pending** | click/render/make a pouch in the real client; use osrs239 vocabulary; do not transcode interface 669 |
 

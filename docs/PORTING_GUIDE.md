@@ -782,7 +782,11 @@ calls into. So the procedure is *discover the client's surface first*:
 
 1. Find the interface + clientscripts in the cache (decompile; do not
    guess ids — `worldmap-open-click-session` and the bank both proved the
-   ids live in the scripts).
+   ids live in the scripts). For rev-727 material, first emit and retain a raw
+   instruction/operand listing with stack effects, then decompile with an explicitly selected 727
+   opcode dialect. Readable output is not proof that the dialect was right. Translate accepted
+   behavior into fresh target-revision CS2; never feed 727 output to the osrs239 compiler as though
+   it were source-compatible.
 2. Find the CS2 ops the scripts call (`3rd/rscache/src/cs2/cs2_command.gen.h`
    is the table; `src/cs2vm2/` is the VM) and which lack host
    implementations.
