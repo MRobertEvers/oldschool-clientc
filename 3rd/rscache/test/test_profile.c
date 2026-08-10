@@ -126,6 +126,7 @@ test_profile_for_identity(void)
 
     /* The 530 row preserves its critical boundary: skeleton V3, frame V1. */
     cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, 0);
+    RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_LOC], RSCACHE_CODEC_LOC_RS2_530);
     RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_FRAMEMAP], RSCACHE_CODEC_FRAMEMAP_V3);
     RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_FRAME], RSCACHE_CODEC_AUTO);
     RSCACHE_CHECK_EQ(RSCache_Dat2FrameCodecVersion(&cache), RSCACHE_CODEC_FRAME_V1);
@@ -322,11 +323,19 @@ test_loc_flags(void)
         RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 643, RSCACHE_QUIRK_NONE);
     flags = RSCache_Dat2ConfigLocFlags(&rs643);
     RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2);
+    RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS);
+
+    struct RSCache rs530 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, RSCACHE_QUIRK_NONE);
+    flags = RSCache_Dat2ConfigLocFlags(&rs530);
+    RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2);
+    RSCACHE_CHECK(!(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS));
 
     struct RSCache rs727 = RSCache_ProfileForIdentity(
         RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 727, RSCACHE_QUIRK_NONE);
     flags = RSCache_Dat2ConfigLocFlags(&rs727);
     RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2);
+    RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS);
     RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS);
 
     /* Archive revision path through ProfileForIdentity + SetGroupRevision. */

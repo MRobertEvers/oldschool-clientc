@@ -62,8 +62,12 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
      * is told which one it is. Routing it through CodecVersion rather than testing the
      * epoch here means a revision module can pin it explicitly. */
     int codec = RSCache_Dat2ConfigLocCodecVersion(cache);
-    if( codec == RSCACHE_CODEC_LOC_RS2 || codec == RSCACHE_CODEC_LOC_RS2_727 )
+    if( codec == RSCACHE_CODEC_LOC_RS2 || codec == RSCACHE_CODEC_LOC_RS2_727 ||
+        codec == RSCACHE_CODEC_LOC_RS2_530 )
         flags |= RSCACHE_CONFIG_LOC_DECODE_RS2;
+
+    if( codec == RSCACHE_CODEC_LOC_RS2 || codec == RSCACHE_CODEC_LOC_RS2_727 )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS;
 
     /* ObjectDefinition.method7965 in the supplied 727 client reads the nested
      * opcode-1 model ids, opcode-24 animation, opcode-77/92 transforms and
@@ -806,7 +810,7 @@ RSCache_Dat2ConfigLocDecodeOp(
         {
         case 1:
         {
-            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS )
             {
                 if( !loc_read_models_rs2(loc, buffer, flags) )
                     return false;
@@ -843,7 +847,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             break;
         case 5:
         {
-            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
+            if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS )
             {
                 /* Two nested blocks. The first is kept; the second is consumed and
                  * dropped, which is what the reference does with both — it only needs the

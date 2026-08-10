@@ -18871,6 +18871,7 @@ mock230_world_selftest(void)
          * WALKSTEP_COORD, then vetoes the next with p_walk(coord). Testing it
          * through advance_player proves a locked first or second tile cannot
          * be skipped by running. */
+        fprintf(stderr, "mock230 selftest: QBD per-step movement gate\n");
         {
             const struct SSVM_Script* probe = SSVM_ProviderGetByName(
                 srv.scripts, "[walktrigger,rs2012_qbd_walkstep_probe]");

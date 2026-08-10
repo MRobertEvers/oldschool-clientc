@@ -27,7 +27,7 @@ RSCache_ProfileDat2Rs530(void)
     cache.revision = 530;
     cache.quirks = RSCACHE_QUIRK_NONE;
 
-    cache.codec[RSCACHE_TYPE_LOC] = RSCACHE_CODEC_LOC_RS2;
+    cache.codec[RSCACHE_TYPE_LOC] = RSCACHE_CODEC_LOC_RS2_530;
     cache.codec[RSCACHE_TYPE_OVERLAY] = RSCACHE_CODEC_FLO_RS2;
     cache.codec[RSCACHE_TYPE_UNDERLAY] = RSCACHE_CODEC_FLO_RS2;
     cache.codec[RSCACHE_TYPE_FRAMEMAP] = RSCACHE_CODEC_FRAMEMAP_V3;

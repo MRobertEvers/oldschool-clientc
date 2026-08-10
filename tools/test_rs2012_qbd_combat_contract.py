@@ -22,6 +22,7 @@ QBD_CONSTANTS = QBD / "configs/rs2012_qbd.constant"
 QBD_NPCS = QBD / "configs/rs2012_qbd.npc"
 QBD_COMBAT = QBD / "scripts/rs2012_qbd_combat.rs2"
 QBD_ADDS = QBD / "scripts/rs2012_qbd_adds.rs2"
+QBD_SESSION = QBD / "scripts/rs2012_qbd_session.rs2"
 ANTIFIRE_CONSTANTS = SCRIPTS / "player/configs/consumption/antifire.constant"
 ANTIFIRE_SCRIPT = SCRIPTS / "player/scripts/consumption/antifire_potion.rs2"
 LOGIN = SCRIPTS / "player/login.rs2"
@@ -52,6 +53,18 @@ def npc_roll(level: int, bonus: int) -> int:
     """Mirror mock230's content-owned ``(level + 9) * (bonus + 64)``."""
 
     return (level + 9) * (bonus + 64)
+
+
+def hit_chance_basis_points(attack: int, defence: int) -> int:
+    """Exact two-uniform-dice chance from mock230, rounded to 0.01%."""
+
+    if attack > defence:
+        numerator = 2 * attack - defence
+        denominator = 2 * attack + 2
+    else:
+        numerator = attack
+        denominator = 2 * (defence + 1)
+    return round(10000 * numerator / denominator)
 
 
 def check(root: Path) -> list[str]:
@@ -169,8 +182,8 @@ def check(root: Path) -> list[str]:
         values = npcs.get(name, {})
         require(
             (values.get("attack"), values.get("magic"), values.get("ranged"), values.get("defence"))
-            == (2100, 2100, 2100, 1),
-            f"{QBD_NPCS}: {name} lost the labelled 2100/1 level adapters",
+            == (2100, 2100, 2100, 100),
+            f"{QBD_NPCS}: {name} lost the labelled 2100/100 level adapters",
         )
         require(
             tuple(values.get(f"param:{bonus}") for bonus in attack_bonus_names) == (0, 0, 0, 0, 0),
@@ -184,13 +197,13 @@ def check(root: Path) -> list[str]:
     add_expectations = {
         "rs2012_qbd_tortured_soul": {
             "attack": 147,
-            "defence": 1,
+            "defence": 100,
             "attack_bonuses": (112, 100, 100, 178, 4),
             "defence_bonuses": (175, 142, 285, 235, 195),
         },
         "rs2012_qbd_giant_worm": {
             "magic": 123,
-            "defence": 1,
+            "defence": 100,
             "attack_bonuses": (157, 100, 100, 88, 4),
             "defence_bonuses": (107, 198, 124, 178, 157),
         },
@@ -216,17 +229,17 @@ def check(root: Path) -> list[str]:
         "qbd_zero_bonus": npc_roll(2100, 0),
         "soul_stab": npc_roll(147, 112),
         "worm_magic": npc_roll(123, 88),
-        "qbd_weak_defence": npc_roll(1, 10),
-        "qbd_default_defence": npc_roll(1, 100),
-        "qbd_resistant_defence": npc_roll(1, 200),
+        "qbd_weak_defence": npc_roll(100, 10),
+        "qbd_default_defence": npc_roll(100, 100),
+        "qbd_resistant_defence": npc_roll(100, 200),
     }
     expected_rolls = {
         "qbd_zero_bonus": 134976,
         "soul_stab": 27456,
         "worm_magic": 20064,
-        "qbd_weak_defence": 740,
-        "qbd_default_defence": 1640,
-        "qbd_resistant_defence": 2640,
+        "qbd_weak_defence": 8066,
+        "qbd_default_defence": 17876,
+        "qbd_resistant_defence": 28776,
     }
     require(calibrated_rolls == expected_rolls, f"NPC hit-roll calibration changed: {calibrated_rolls}")
     require(
@@ -235,12 +248,36 @@ def check(root: Path) -> list[str]:
         < calibrated_rolls["qbd_resistant_defence"],
         "QBD weak/default/resistant defence ordering regressed",
     )
+    representative_defence = 21000
+    require(
+        {
+            "qbd": hit_chance_basis_points(calibrated_rolls["qbd_zero_bonus"], representative_defence),
+            "soul": hit_chance_basis_points(calibrated_rolls["soul_stab"], representative_defence),
+            "worm": hit_chance_basis_points(calibrated_rolls["worm_magic"], representative_defence),
+        }
+        == {"qbd": 9222, "soul": 6175, "worm": 4777},
+        "incoming QBD/add hit-chance calibration changed",
+    )
+    representative_attack = 21000
+    require(
+        tuple(
+            hit_chance_basis_points(representative_attack, calibrated_rolls[name])
+            for name in ("qbd_weak_defence", "qbd_default_defence", "qbd_resistant_defence")
+        )
+        == (8079, 5744, 3649),
+        "QBD weak/default/resistant hit-chance calibration changed",
+    )
 
     combat = (root / QBD_COMBAT).read_text(encoding="utf-8")
     adds = (root / QBD_ADDS).read_text(encoding="utf-8")
+    session = (root / QBD_SESSION).read_text(encoding="utf-8")
     require(
-        "if (~npc_player_hit_roll($accuracy_style) = false) return(0);" in combat,
-        f"{QBD_COMBAT}: QBD/add accuracy no longer routes through npc_player_hit_roll",
+        "$accurate = ~npc_player_hit_roll($accuracy_style);" in combat,
+        f"{QBD_COMBAT}: QBD/add melee or Magic accuracy bypasses npc_player_hit_roll",
+    )
+    require(
+        "randominc(~npc_ranged_attack_roll) > randominc(~player_defence_roll(^ranged_style))" in combat,
+        f"{QBD_COMBAT}: QBD Ranged does not use the dedicated NPC ranged roll",
     )
     require(
         combat.count("~rs2012_qbd_roll_player_damage(") == 2,
@@ -249,6 +286,40 @@ def check(root: Path) -> list[str]:
     require(
         adds.count("~rs2012_qbd_roll_player_damage(") == 3,
         f"{QBD_ADDS}: expected two soul and one worm accuracy calls",
+    )
+    for fragment in (
+        "$damage = ~gear_reduce_damage($damage, $style);",
+        "[queue,rs2012_qbd_damage_player](npc_uid $source, int $damage, int $style)",
+        "if (%rs2012_qbd_active = 0 | %rs2012_qbd_reward_ready = 1) return;",
+        "%rs2012_qbd_time_damage = add(%rs2012_qbd_time_damage, $damage);",
+        "queue*(rs2012_qbd_damage_player, 0)($source, $damage, $style);",
+    ):
+        require(fragment in combat, f"{QBD_COMBAT}: missing typed player-damage contract: {fragment!r}")
+    require(
+        "queue*(rs2012_qbd_damage_player, calc($duration / 30))(npc_uid, $damage, ^magic_style);" in adds,
+        f"{QBD_ADDS}: worm projectile bypasses typed QBD damage",
+    )
+    require(
+        "queue*(combat_damage_player" not in combat + adds,
+        "QBD/add damage still passes through the magic-only combat_damage_player queue",
+    )
+    require(
+        "if (%rs2012_qbd_active = 0 | %rs2012_qbd_reward_ready = 1 |\n"
+        "    %rs2012_qbd_phase ! 4 | %rs2012_qbd_intermission = 1) return;" in combat,
+        f"{QBD_COMBAT}: an extreme-fire pulse can escape into the reward transition",
+    )
+    for proc in ("rs2012_qbd_complete", "rs2012_qbd_clear_state"):
+        match = re.search(rf"^\[proc,{proc}\]\s*$\n(.*?)(?=^\[|\Z)", session, re.MULTILINE | re.DOTALL)
+        require(match is not None, f"{QBD_SESSION}: missing [{proc}] terminal path")
+        body = match.group(1) if match is not None else ""
+        for queue_name in ("rs2012_qbd_damage_player", "rs2012_qbd_extreme_pulse"):
+            require(
+                f"clearqueue({queue_name});" in body,
+                f"{QBD_SESSION}: [{proc}] does not clear {queue_name}",
+            )
+    require(
+        "multiply($damage, 75)" not in combat and "multiply($damage, 125)" not in combat,
+        f"{QBD_COMBAT}: unsupported +/-25% armour damage transform double-counts form defence",
     )
     for constant in (
         "rs2012_qbd_melee_max",

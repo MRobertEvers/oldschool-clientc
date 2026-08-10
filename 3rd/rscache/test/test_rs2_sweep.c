@@ -76,6 +76,9 @@ struct sweep
     int consumed_short;
     /* Opcode the decode stopped on, for records that did not consume exactly. */
     int stop_opcode[256];
+    /* First record id for each stop opcode, stored as id+1 so zero means absent. */
+    int stop_example_id[256];
+    int current_id;
     /*
      * False when the datatype has no `_consumed` field, so `consumed_exact` degrades to
      * "the decoder returned something". Reported under a different word, because a number
@@ -126,7 +129,11 @@ sweep_report(
                 best = op;
         if( best < 0 )
             break;
-        printf("      stopped on opcode %3d : %d\n", best, s->stop_opcode[best]);
+        printf(
+            "      stopped on opcode %3d : %d (example id %d)\n",
+            best,
+            s->stop_opcode[best],
+            s->stop_example_id[best] - 1);
         ((struct sweep*)s)->stop_opcode[best] = -s->stop_opcode[best];
     }
     for( int op = 0; op < 256; op++ )
@@ -151,9 +158,18 @@ note_stop(
 {
     s->consumed_short++;
     if( consumed > 0 && consumed <= size )
-        s->stop_opcode[data[consumed - 1]]++;
+    {
+        int opcode = data[consumed - 1];
+        s->stop_opcode[opcode]++;
+        if( s->stop_example_id[opcode] == 0 )
+            s->stop_example_id[opcode] = s->current_id + 1;
+    }
     else
+    {
         s->stop_opcode[0]++;
+        if( s->stop_example_id[0] == 0 )
+            s->stop_example_id[0] = s->current_id + 1;
+    }
 }
 
 typedef void (*sweep_visitor)(
@@ -288,6 +304,8 @@ sweep_table(
             {
                 if( files->file_sizes[f] <= 0 )
                     continue;
+                int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                s->current_id = (group << addr.group_shift) | file_id;
                 visit(profile, (const uint8_t*)files->files[f], files->file_sizes[f], s);
             }
             RSCache_FileListFree(files);
@@ -303,18 +321,16 @@ sweep_table(
  * single id against LocType.decodeOpcode when a *rendered* loc looks wrong even though the
  * whole corpus consumes exactly — exact consumption proves alignment, not interpretation.
  *
- *   test_rs2_sweep <root> loc <id>
+ *   test_rs2_sweep --rev <profile> <cache-dir> loc <id>
  */
 static int
-dump_loc(const char* root, int loc_id)
+dump_loc(const char* cache_dir, const struct RSCache* selected_profile, int loc_id)
 {
-    char path[1024];
-    snprintf(path, sizeof(path), "%s/cache.643", root);
     struct RSCache_Dat2Disk* disk;
     struct RSCache profile;
-    if( !open_643_cache(path, &disk, &profile) )
+    if( !open_cache_with_identity(cache_dir, selected_profile, &disk, &profile) )
     {
-        printf("no cache at %s\n", path);
+        printf("no cache at %s\n", cache_dir);
         return 1;
     }
 
@@ -809,7 +825,7 @@ main(int argc, char** argv)
     }
 
     if( positional > 2 && strcmp(pos[1], "loc") == 0 )
-        return dump_loc(root, atoi(pos[2]));
+        return dump_loc(root, &default_profile, atoi(pos[2]));
     if( positional > 2 && strcmp(pos[1], "model") == 0 )
         return dump_model(root, atoi(pos[2]));
     if( positional > 3 && strcmp(pos[1], "spawns") == 0 )

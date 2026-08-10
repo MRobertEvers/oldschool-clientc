@@ -228,10 +228,8 @@ struct RSCache_Dat2ConfigLoc
 /**
  * RS2 branch (the 643 era): opcodes 1 and 5 carry a *nested* model list.
  *
- * OSRS opcode 1 is `u8 count` then `count x (u16 model, u8 shape)`. RS2 inverts the
- * nesting: `u8 count` then per entry `u8 shape, u8 model_count, model_count x u16`, so one
- * shape owns a list of models rather than each model naming its shape. Opcode 5 is two of
- * those blocks back to back where OSRS has a bare model list.
+ * RS2-era opcode meanings that are independent of the model-list layout.  Rev 530
+ * already has those meanings, while retaining the earlier flat opcode 1/5 model lists.
  *
  * This is the difference that matters, not the handful of extra opcodes: reading an RS2
  * record with the OSRS shape desynchronises inside the very first opcode, and every
@@ -246,6 +244,13 @@ struct RSCache_Dat2ConfigLoc
 #define RSCACHE_CONFIG_LOC_DECODE_REV237_INT_MODEL_IDS 32
 /** Rev 237+: opcodes 100/101/102 EntityOps (102 is map_scene_id without this). */
 #define RSCACHE_CONFIG_LOC_DECODE_REV237_ENTITY_OPS 64
+/**
+ * Rev 643/727 nested model lists.  Opcode 1 is `u8 count`, then per entry
+ * `u8 shape, u8 model_count, model_count x model-id`; opcode 5 carries two such
+ * blocks.  This must not be inferred merely from the RS2 era: rev 530 uses the
+ * flat `count x (u16 model, u8 shape)` / `count x u16 model` forms.
+ */
+#define RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS 128
 
 /* --- codec versions -------------------------------------------------------- */
 /*
@@ -268,6 +273,8 @@ struct RSCache_Dat2ConfigLoc
  * as soon as a QBD-era model above 32767 appears.
  */
 #define RSCACHE_CODEC_LOC_RS2_727 3
+/** Rev 530 RS2 opcode semantics with the earlier flat opcode 1/5 model lists. */
+#define RSCACHE_CODEC_LOC_RS2_530 4
 
 /** Which loc codec this cache uses. */
 int

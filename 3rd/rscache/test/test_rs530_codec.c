@@ -1,5 +1,6 @@
 #include "rscache_test.h"
 
+#include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_sequence.h"
 #include "revisions/revisions.h"
@@ -11,6 +12,42 @@ rs530_profile(void)
 {
     return RSCache_ProfileForIdentity(
         RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, RSCACHE_QUIRK_NONE);
+}
+
+static void
+test_loc_530_obelisk_model_list(void)
+{
+    RSCACHE_TEST_GROUP("loc 530 flat opcode-5 model list");
+
+    /* Exact loc 28716 bytes from the rev-530 source cache.  Opcode 5 is
+     * `u8 count, count x u16 model`, not the nested rev-643 form. */
+    unsigned char record[] = {
+        15, 2, 14, 2, 29, 10, 39, 84, 24, 0x21, 0x3e,
+        30, 'I', 'n', 'f', 'u', 's', 'e', '-', 'p', 'o', 'u', 'c', 'h', 0,
+        31, 'R', 'e', 'n', 'e', 'w', '-', 'p', 'o', 'i', 'n', 't', 's', 0,
+        5, 1, 0x7b, 0xc6,
+        2, 'O', 'b', 'e', 'l', 'i', 's', 'k', 0,
+        0
+    };
+    struct RSCache profile = rs530_profile();
+    struct RSCache_Dat2ConfigLoc* loc = RSCache_Dat2ConfigLocNewDecodeProfile(
+        &profile, (char*)record, (int)sizeof(record));
+
+    RSCACHE_CHECK(loc != NULL);
+    RSCACHE_CHECK_EQ(loc->_consumed, sizeof(record));
+    RSCACHE_CHECK(loc->name && strcmp(loc->name, "Obelisk") == 0);
+    RSCACHE_CHECK_EQ(loc->size_x, 2);
+    RSCACHE_CHECK_EQ(loc->size_z, 2);
+    RSCACHE_CHECK_EQ(loc->seq_id, 8510);
+    RSCACHE_CHECK_EQ(loc->shapes_and_model_count, 1);
+    RSCACHE_CHECK(loc->shapes == NULL);
+    RSCACHE_CHECK(loc->lengths != NULL);
+    RSCACHE_CHECK_EQ(loc->lengths[0], 1);
+    RSCACHE_CHECK_EQ(loc->models[0][0], 31686);
+    RSCACHE_CHECK(loc->actions[0] && strcmp(loc->actions[0], "Infuse-pouch") == 0);
+    RSCACHE_CHECK(loc->actions[1] && strcmp(loc->actions[1], "Renew-points") == 0);
+
+    RSCache_Dat2ConfigLocFree(loc);
 }
 
 static void
@@ -87,6 +124,7 @@ int
 main(void)
 {
     printf("RS2 rev-530 config codec tests\n");
+    test_loc_530_obelisk_model_list();
     test_sequence_530_changed_opcodes();
     test_obj_530_changed_opcodes();
     RSCACHE_CHECK(rscache_test_checks > 0);
