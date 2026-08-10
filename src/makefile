@@ -1825,7 +1825,7 @@ mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 SUMMONING_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
 SUMMONING_OVERLAY_DIR = $(REPO_ROOT)/build/summoning-overlay
 SUMMONING_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
-SUMMONING_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.summoning
+SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.summoning
 
 test-summoning-cs2:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cs2
@@ -1872,7 +1872,7 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
 		--tree $(MOCK230_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
-	rm -rf $(REPO_ROOT)/cache.osrs239.summoning
+	rm -rf "$(SUMMONING_CACHE_DIR)"
 	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
 		$(CACHEPACK_BIN) pack --src $(SUMMONING_OVERLAY_DIR) \
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \

@@ -4,9 +4,11 @@ Everything marked **[measured]** I ran against the two trees during this pass.
 
 ## Post-review binding corrections
 
-- NPC_INFO's 14-bit value is the per-player client-local slot for a nearby NPC instance. It is
-  not the NPC definition. Rev239 carries the separate cache/config type in 16 bits; type 20000 is
-  regression-tested. No roster tier, id ceiling, or allocation budget follows from the slot.
+- An NPC_INFO v5 add carries a 16-bit per-client NPC index (`0xffff` terminator), then a 14-bit
+  initial definition. Definitions 16384..65535 set the add's extended/update flag and use
+  update-mask `0x1` to replace that definition in the same packet with a transformed unsigned
+  16-bit `p2Alt3` / `UShortLEAdd` value. Type 20000 is regression-tested. No roster tier, id
+  ceiling, or allocation budget follows from the direct initial-definition width.
 - `LOC_ADD_CHANGE_V2` is a different wire contract: its loc config id is an exact 16-bit
   `p2Alt3`. The generic loc base 70000 is unusable there and would truncate to 4464. The port maps
   source obelisk 28716 to free target loc 62201; do not transfer the NPC slot/type conclusion to
@@ -78,13 +80,14 @@ centred lone Summoning cell was wrong.
 
 **[measured]** `src/net/mock/mock230.h:325` — `MOCK230_VARP_SERVER_HEADROOM = 1024`, so `MOCK230_VARP_COUNT = 6729`, against a `varp.alloc` high-water of 6225. design-flag-and-risk corrected this; design-skill-and-cs2 residual risk #8 still says *"`MOCK230_VARP_COUNT = 6217` is already exceeded… fix it before slice 10."* Delete it — it will send someone on a fix for a non-bug.
 
-### E5. CORRECTED — the review reversed NPC instance slots and cache type ids.
+### E5. CORRECTED — the review reversed NPC_INFO's index and definition fields.
 
-The earlier finding here was wrong. NPC_INFO's 14-bit value is the **per-player client-local
-slot of a nearby NPC instance**, not the cache/config NPC id. Revision 239 now keeps that slot
-at 14 bits and carries the separate cache type in 16 bits; a regression round-trips slot 321
-with type 20000. `content_register.c:63`'s `server_base = 20000` is therefore valid and must not
-be moved to 16294. The measured free run below 16384 is irrelevant to Summoning scope.
+The earlier finding here was wrong. NPC_INFO v5 sends a **16-bit per-client NPC index**
+(`0xffff` terminator), then a **14-bit initial definition**. For ids 16384..65535, the add's
+extended/update flag and update-mask `0x1` replace that definition with the transformed unsigned
+16-bit `p2Alt3` / `UShortLEAdd` value in the same packet; a regression covers index 321 with type
+20000. `content_register.c:63`'s `server_base = 20000` is therefore valid and must not be moved
+to 16294. The measured free run below 16384 is irrelevant to Summoning scope.
 
 ### E6. CORRECTED — the loc wire risk was real and is now measured/fixed.
 
@@ -184,9 +187,9 @@ design-asset-pipeline is the only design that engages, and its T0–T4 tier stru
 
 That is honest. It is also not solved — it is converted from an invisible defect into a visible one, which is the right move but does not shrink the work. And **the other two designs simply assume the pipeline exists and works.** Every content estimate in them is downstream of an unbuilt, unvalidated tool.
 
-The former runner-up about “92 free npc ids” was invalid for the same reason: it confused a
-client-local instance slot with a cache definition id. Type 20000 is now an explicit protocol
-regression case, not a truncation hypothesis.
+The former runner-up about “92 free npc ids” was invalid because it treated the direct 14-bit
+initial-definition field as a cache-definition ceiling. Type 20000 is now an explicit
+extended-path protocol regression case, not a truncation hypothesis.
 
 ---
 

@@ -951,8 +951,26 @@ selftest(int npc_id, int seq_id)
         return 1;
     }
     fprintf(stderr, "  anim: %zu bytes, round-trip %d frames\n", ab.len, aback->frame_count);
-    ToriDraw_AnimationFree(aback);
 
+    const char* wire_dump = getenv("EV_DUMP_WIRE");
+    if( wire_dump )
+    {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s_model.bin", wire_dump);
+        FILE* out = fopen(path, "wb");
+        if( out )
+        {
+            fwrite(mb.data, 1, mb.len, out);
+            fclose(out);
+        }
+        snprintf(path, sizeof(path), "%s_anim.bin", wire_dump);
+        out = fopen(path, "wb");
+        if( out )
+        {
+            fwrite(ab.data, 1, ab.len, out);
+            fclose(out);
+        }
+    }
     /* Applying a frame is where a wrong rig binding shows: if the pose does not
      * move a single vertex the model and the animation do not agree. */
 

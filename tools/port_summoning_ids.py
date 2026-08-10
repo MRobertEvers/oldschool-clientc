@@ -82,6 +82,8 @@ class ReviewOnlyCohort:
     prefix: str
     expected_ledger_rows: tuple[tuple[str, int], ...]
     expected_pet_npc_rows: int
+    expected_source_files: int
+    expected_pack_references: int
     legacy_synth_sources: frozenset[int]
 
 
@@ -198,13 +200,29 @@ def _review_only_cohorts(value: object) -> tuple[ReviewOnlyCohort, ...]:
             raise ValueError(f"boundary {label}.expected_pet_npc_rows must be an integer") from exc
         if pet_count < 0 or pet_count > dict(normalized_counts).get("npc", 0):
             raise ValueError(f"boundary {label}.expected_pet_npc_rows is outside its NPC count")
+        try:
+            source_files = int(raw["expected_source_files"])
+            pack_references = int(raw["expected_pack_references"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"boundary {label}.expected_source_files/expected_pack_references must be integers"
+            ) from exc
+        if source_files <= 0 or pack_references <= 0:
+            raise ValueError(f"boundary {label} source-file and pack-reference counts must be positive")
         synths = _id_set(raw.get("legacy_synth_sources"), f"{label}.legacy_synth_sources")
         if synths != {188, 4161, 4265, 4372, 5753, 5776, 5777, 5792}:
             raise ValueError(f"boundary {label}.legacy_synth_sources does not match the preserved experiment")
         if dict(normalized_counts).get("synth") != len(synths):
             raise ValueError(f"boundary {label} synth count disagrees with legacy_synth_sources")
         prefixes.append(prefix)
-        cohorts.append(ReviewOnlyCohort(prefix, tuple(sorted(normalized_counts)), pet_count, synths))
+        cohorts.append(ReviewOnlyCohort(
+            prefix,
+            tuple(sorted(normalized_counts)),
+            pet_count,
+            source_files,
+            pack_references,
+            synths,
+        ))
     if len(set(prefixes)) != len(prefixes):
         raise ValueError("boundary review_only_cohorts contains duplicate prefixes")
     return tuple(cohorts)

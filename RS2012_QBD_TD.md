@@ -935,6 +935,16 @@ Lane: `OSRS-Content/osrs239-content/ported/rs2012_qbd_td` plus matching
 `models/`, `animsets/`, `framemaps/`, `synth/`, `samples/`, `patches/`, and
 `songs/` ported subtrees.
 
+#### Revision-239 NPC_INFO high-definition rule
+
+The per-client NPC index/slot is 16 bits; it is separate from the definition
+type. An initial NPC add carries only a 14-bit type field. Therefore the
+25,000–25,009 QBD/TD allocation is valid only when the add's update flag is set
+and the same `NPC_INFO` packet includes update-mask bit `0x1`. That block
+replaces the type with a transformed unsigned 16-bit `p2Alt3` / `UShortLEAdd`
+value. This transformation path—not a 16-bit add type—carries high definition
+IDs, so the 14-bit add field is not a hard global definition-ID cap.
+
 Allocation bases:
 
 | Namespace | Destination allocation |

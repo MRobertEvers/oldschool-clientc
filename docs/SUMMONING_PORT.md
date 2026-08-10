@@ -98,12 +98,13 @@ category error.
 
 **The full 82-familiar roster is in scope with no id budgeting.**
 
-Planning initially reversed two distinct namespaces in the osrs239 NPC_INFO v5 add-block. The
-**14-bit value is the per-player client-local slot of a nearby NPC instance**; it is not the
-NPC's cache/config id and says nothing about how many NPC definitions the cache may contain.
-The separate cache/config type field is 16 bits in the widened rev239 codec, so id 20000 is
-valid and is covered by a writer/reader regression. Do not scope, tier or budget this port
-around the client-local slot width.
+Planning initially reversed fields in the osrs239 NPC_INFO v5 add-block. Each add carries a
+**16-bit per-client NPC index** (with `0xffff` as the terminator), followed by a **14-bit initial
+NPC definition**. The 14-bit field is not a nearby-instance slot. For definition ids
+16384..65535, the add's extended/update flag is set and update-mask `0x1` supplies a replacement
+definition in the same packet as a transformed unsigned 16-bit `p2Alt3` / `UShortLEAdd` value.
+Thus type 20000 is valid; the extended-definition path, not the direct 14-bit initial field,
+governs it. Do not scope, tier, or budget this port around the initial-field width.
 
 Consequences for this lane:
 
@@ -161,8 +162,9 @@ New code required: ~900 LOC library + ~1,600 LOC `cachepack import`.
    of row 9 with Total level spanning the other two cells. This is the rev-530 arrangement with
    Sailing retained, not a centred lone Summoning cell. A dedicated clientscript owns the new
    Summoning cell; its icon nudge is the measured rev-530 `x=5` (`int3=2`) placement.
-2. **Full roster — all 82 familiars.** No id budgeting: the 14-bit value is a per-player
-   client-local nearby-instance slot, not the cache/config NPC id (F3).
+2. **Full roster — all 82 familiars.** No id budgeting: NPC_INFO directly sends a 14-bit initial
+   definition, but its same-packet extended/update path replaces high definitions with the
+   16-bit mask-`0x1` value (F3).
 3. **First pass runs through Phase 3** — governance, the skill in the tab, the asset pipeline, and
    a summonable Spirit wolf. Review before breadth.
 
@@ -364,8 +366,9 @@ Verified pre-existing defects it must fix:
       11022** (`ss_opcode.h:453`). `NPC_FINDOWNED` removes the need for a uid varp and so dodges
       the uid-generation hazard rather than working around it. Log them in the queue's opcode-gap
       table and implement in the same slice (`PORTING_GUIDE` §2.4/§4.5)
-- [x] npc `server_base` (`content_register.c:63`, 20000) is retained; rev239 transmits the
-      separate cache/config id in 16 bits while the nearby instance slot remains 14 bits (F3)
+- [x] npc `server_base` (`content_register.c:63`, 20000) is retained; an NPC_INFO add uses a
+      16-bit per-client index and 14-bit initial definition, then type 20000 takes the
+      extended/update + mask-`0x1` transformed-16-bit replacement path (F3)
 
 ### Content
 
@@ -416,9 +419,10 @@ gameframe. The obelisk is now installed by feature-gated, idempotent runtime `lo
 sidesteps `maps/` entirely. The rev239 `LOC_ADD_CHANGE_V2` measurement is settled: its loc config
 id is `p2Alt3`, exactly 16 bits, so the generic loc `server_base = 70000` cannot be used on this
 wire (70000 would truncate to 4464). The imported source loc 28716 is therefore mapped to the
-first free target id, 62201. This is deliberately different from NPC_INFO: its 14-bit value is a
-per-player nearby-instance slot, while the separate NPC cache/config type is 16 bits and type
-20000 is valid. Real-client acceptance picks loc 62201, selects its actual second menu option,
+first free target id, 62201. This is deliberately different from NPC_INFO: it has a 16-bit
+per-client NPC index, a 14-bit initial definition, and a same-packet extended/update + mask-`0x1`
+transformed-16-bit replacement for high definitions such as type 20000. Real-client acceptance
+picks loc 62201, selects its actual second menu option,
 restores points 0/1→1/1, decodes player sequence 20003 and spotanim 20000, combines the imported
 effect model, and verifies the visible green effect in the framebuffer. The infusion UI is a fresh IF3 group
 970 in target vocabulary, mounted through the `mainmodal` role alias; it does not transcode rev-530
@@ -438,6 +442,28 @@ what the `port/` ledger is for) · summoning potions (12140/12142/12144/12146 + 
 summon-sound table** (`Familiar.java:713` is a TODO) — one shared summon sound is a content
 *invention* and must be recorded as such. Only sound 188 is safe to byte-copy; 4161/4164/4214/4265/
 4372 are above the 3826 divergence point.
+
+**Phase 5a — roster boundary and provenance audit (done).**
+[`pouches_530.json`](summoning_port/pouches_530.json) records 82 source pouches: 78 active
+familiar/pouch pairs and four Sacred Clay pairs that remain explicitly deferred. The separate
+[`roster_boundary_530.json`](summoning_port/roster_boundary_530.json) allows the existing
+Spirit-wolf proof roots but admits no breadth cohort. It permits the documented safe source synth
+188 only as policy; it does not turn an unreviewed import into accepted content.
+
+The earlier generated `summoning_roster_530` import is preserved intact as review-only evidence:
+630 source files, 2,175 pack references, and 1,365 ledger rows. Its last broad CSV and INI manifests
+are retained byte-for-byte in [`summoning_port/review_only/`](summoning_port/review_only/), rather
+than being overwritten by the bounded candidate. It is neither deleted nor silently accepted.
+Feature-on staging withholds its cohort-named assets and its line-oriented mixed pack rows, then
+asserts that no review-only marker reaches the staged tree. The same audit fails closed for any
+other generated cohort, pet record, unsafe synth, or `npc_sounds=yes` closure. The permanent
+`test-summoning-phase5a` target performs 75 checks over that boundary, the ledger, archive hashes,
+preservation counts, and staging exclusion. Final evidence: isolated Phase-4f 69/0; staging
+admission 4,504/0 with 2,805 review-only artifacts/rows held; feature cache 16,994 records with
+0 failures, 182 asset archives, all 23 tables, and CS2 6/6; staged flag-off comparison 25/0;
+isolation 665,997/0; and `mock230_pack --check-only` 0 errors. Phase 5b—not 5a—may admit one
+bounded familiar/pouch cohort, after its animations, model, and real-client summon acceptance are
+reviewed.
 
 **Client acceptance for breadth:** every familiar must be summoned in the real client with its
 model and animations rendered, and every scroll must be activated through its actual client
@@ -462,7 +488,7 @@ migration).
 | 1 | **Texture map errors are undetectable by automation** — a wrong material renders plausibly and every verification tier passes | import untextured; per-model human render signoff in the ledger |
 | 2 | **A skipped suite reads as a pass.** A pristine worktree skips whole suites silently | every summoning target asserts a non-zero check count; grep runs for `SKIP` and fail |
 | 3 | **Silent CS2 decline** — `cp_decode.c:2447-2452` ships base-cache bytes and only a counter says so; **95 of 9,368** committed `.cs2` already fail to recompile, **including `script_1904.cs2`**, the skill-guide builder | standalone `cs2 compile` gate requiring `failed 0` before every bake. Refresh stale sources **selectively** — a blanket `--assets=scripts` unpack overwrites hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trips `check_crystal_set_contract.py`, a hard prerequisite of `mock230-cache`. `RUNESTAR_CS2_NAMES` is an undeclared hard dependency |
-| 4 | ~~14-bit NPC definition-id exhaustion~~ — **not a risk.** The premise confused the per-player nearby-instance slot with the separate cache/config type (F3) | keep the slot/type regression; do not scope this port around the client-local slot width |
+| 4 | ~~14-bit direct NPC-definition ceiling~~ — **not a risk.** High definitions use the add's extended/update flag plus mask `0x1` 16-bit replacement in the same packet (F3) | keep the direct/extended-definition regression; do not scope this port around the initial-field width |
 | 5 | **The membership add-path has never been run** — all five `pack/*.client` files have zero data lines | spike on a throwaway obj in Phase 0 before designing on top |
 | 6 | **Chained-overlay byte-identity is unproven** and the staging script does not exist | Phase 0 builds it; fallback is the third walk root (`CP_WALK_MAX_ROOTS = 4`) |
 | 7 | **Framemap/sequence codec fixes touch the whole RS2 branch** | A/B 634 and 727 before and after |

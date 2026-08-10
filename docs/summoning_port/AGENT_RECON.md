@@ -1,8 +1,11 @@
 
 
-> **Binding corrections for every report below:** NPC_INFO's 14-bit value is a per-player
-> client-local nearby-instance slot, not a cache/config NPC id; rev239 carries the separate type
-> in 16 bits. Any older ceiling, free-run, tier, or id-budget conclusion is void. Also, a 727 CS2
+> **Binding corrections for every report below:** an OSRS239 NPC_INFO v5 add carries a 16-bit
+> per-client NPC index (`0xffff` terminator), then a 14-bit initial NPC definition. Definition ids
+> 16384..65535 set the add's extended/update flag and use update-mask `0x1` to replace the
+> definition in the same packet with a transformed unsigned 16-bit `p2Alt3` / `UShortLEAdd`
+> value. Any older ceiling, free-run, tier, or id-budget conclusion based on the direct initial
+> field is void. Also, a 727 CS2
 > decompile is not trusted until raw instruction/operand and stack-effect disassembly has been
 > preserved and an explicit 727 dialect has produced the readable form; relevant logic must then
 > be rewritten as fresh osrs239 CS2. Separately, rev239 `LOC_ADD_CHANGE_V2` carries loc config ids
@@ -2880,10 +2883,11 @@ Death credit is player-indexed: `Mock230Npc.death_credit_players[MOCK230_PLAYER_
 - **`run_trigger_script` sets ACTIVE_PLAYER from `srv->active_player` for `ai_*` triggers** (`mock230_scripts.c:1666`). A familiar's `[ai_timer]` reading `%summoning_*` reads a stale player. Needs owner-aware dispatch (or an explicit `npc_owner` pointer op).
 - **`phase_npcs` never calls `mock230_world_set_active`** — phase 4 runs with a leftover `active_player`. Any per-owner familiar behaviour must not run in phase 4 as written.
 - **npc uid has no generation counter** (`mock230_scripts.c:4585` states this outright). A familiar uid stashed in a varp across a despawn resolves to whatever npc took the slot. Needed for `npc_finduid($familiar)` to be safe over a session.
-- **CORRECTED: npc definition ids are not bounded by the 14-bit NPC slot.** That value is the
-  per-player client-local slot of a nearby NPC instance. Rev239 carries the separate cache type
-  in 16 bits, and type 20000 has a writer/reader regression. The measured 16294..16383 gap is
-  not an NPC-definition budget.
+- **CORRECTED: npc definition ids are not bounded by the 14-bit initial field.** NPC_INFO v5
+  carries a 16-bit per-client index, then the 14-bit initial definition; high ids use the add's
+  extended/update flag plus update-mask `0x1` and its transformed unsigned 16-bit replacement in
+  the same packet. Type 20000 therefore has an extended-path writer/reader regression. The
+  measured 16294..16383 gap is not an NPC-definition budget.
 - **`pack/npc.client` currently lists ZERO entities** — no npc has ever been added to the client cache from this tree. Familiars would be the first, exercising an untested `cachepack pack` route (`docs/PACK_ENTITY_SPLIT_PLAN.md §4 step 3`).
 - **No inv namespace / no inv type registry in content** (`[namespace:inv]` ABSENT, `fields/inv.ini` ABSENT, no `.inv` walker in `mock230_content.c`). A BoB inv id must be sized by the cache's config group 5 or `mock230_container_resolve` returns NULL and every op aborts. Same blocker that keeps `shop` blocked.
 - **`mock230_container_scope()` returns PLAYER unconditionally** — no shared/world scope, so a familiar-owned container can only be a player row (16 max per player). Fine for BoB; not fine if the container must survive the familiar's despawn independently.
@@ -2898,9 +2902,10 @@ Death credit is player-indexed: `Mock230Npc.death_credit_players[MOCK230_PLAYER_
 
 ## RISKS / UNKNOWNS
 
-1. **CORRECTED: there is no 14-bit cache NPC-id ceiling.** The 14-bit slot is client-local and
-   names nearby instances; the rev239 cache/config type is a separate 16-bit field. Do not use
-   the free-id count below 16384 to scope or tier the port.
+1. **CORRECTED: there is no 14-bit cache NPC-id ceiling.** The add's 14-bit field is only the
+   initial definition; definitions 16384..65535 replace it through the same-packet
+   extended/update + mask-`0x1` transformed-16-bit path. Do not use the free-id count below 16384
+   to scope or tier the port.
 2. **Everything about the client half is out of this recon's scope and is ABSENT**: no summoning tab interface, no orb, no XP drop, no familiar models, no pouch/scroll sprites, no CS2. A working server with no client surface is invisible.
 3. `mock230_content_load_server_band` prints LOADED/MISSING/STALE — a stale band silently falls back to text overlays. New summoning npc/obj fields must survive `make -C src mock230-servpack` and the identical-to-text verification.
 4. `server/scripts/build/` and `server/pack/` are gitignored; a fresh checkout has no script pack, and the engine's trigger fallbacks are *gated on a pack being loaded* — so a summoning slice that appears not to run may just be an unbuilt pack.

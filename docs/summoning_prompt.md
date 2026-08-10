@@ -20,19 +20,24 @@ DECISIONS ALREADY SETTLED — do not re-litigate or re-derive:
   - Summoning is stat 24, NOT 23. Stat 23 is Sailing and is live end-to-end in osrs239.
   - Sailing is kept. Summoning is display slot 25 (enum_681 val=25,24); stats panel goes 3x9.
     Prefer a dedicated clientscript for the Summoning cell over repositioning all 25.
-  - Full roster: all 82 familiars. NPC definition/config ids are NOT constrained by the 14-bit
-    NPC_INFO slot. That slot names a nearby NPC instance in one player's client-local scene;
-    rev239 carries the separate cache type id in 16 bits. Do not tier, budget, or scope around
-    the client-local slot width.
+  - Full roster: all 82 familiars. An NPC_INFO v5 add sends a 16-bit per-client NPC index
+    (`0xffff` terminator), then a 14-bit initial definition. For types 16384..65535, its
+    extended/update flag plus update-mask `0x1` replaces that definition in the same packet with
+    a transformed unsigned 16-bit `p2Alt3` / `UShortLEAdd` value. Do not tier, budget, or scope
+    around the direct initial-definition width.
   - The feature flag already exists in the cache: script_8950 + a content_restrict_*_serverside
     varbit. Do NOT touch src/features/features.h — that is a client-era table, wrong layer.
   - Ported content lives in a marked lane: ported/scape2009_summoning/ and
     server/scripts/ported_scape2009_summoning/. §11 of the plan lists facts already confirmed —
     trust them, don't re-measure.
 
-SCOPE THIS PASS: Phase 0 (remaining slices) → Phase 1 → Phase 2 → Phase 3, stopping for review
-after the Spirit wolf vertical slice. Maps are out of scope; the obelisk goes in via runtime
-loc_add. Work one queue slice at a time and update SUMMONING_PORT_QUEUE.md after each.
+SCOPE THIS PASS: Resume at the next pending, unblocked slice in
+`SUMMONING_PORT_QUEUE.md`; that queue, not this prompt, is the current scope. Do not restart
+Phases 0–4 merely because this prompt is being reused. For Phase 5 work, preserve the generated
+`summoning_roster_530` experiment as review-only evidence: do not delete it, silently accept it,
+or let it enter the feature-on stage without an explicit boundary admission. A Phase-5b cohort
+needs its own bounded admission plus real-client model/animation/summon proof. Maps remain out of
+scope. Work one queue slice at a time and update `SUMMONING_PORT_QUEUE.md` after each.
 
 TRAPS — these have already burned time, don't rediscover them:
   - Any 530 measurement taken with --rev rs643 is SUSPECT (it pins a rev-610 frame format).
@@ -49,6 +54,9 @@ TRAPS — these have already burned time, don't rediscover them:
   - Never name a ported record exactly `summoning` — trigger subjects resolve first-match-wins
     across namespaces and mis-resolution is silent. Prefix everything summoning_*.
 
-DEFINITION OF DONE per slice: verified in the headless client, mock230_pack --check-only at 0
-errors, existing tests green, the flag-off bake proven byte-identical, and the queue doc updated.
+DEFINITION OF DONE per content slice: verified in the headless client, mock230_pack --check-only at
+0 errors, existing tests green, the flag-off bake proven byte-identical, and the queue doc updated.
+For a boundary/provenance-only slice, use permanent non-zero audit, mutation, staging-exclusion,
+and archive-integrity checks in place of a content render; it still needs the relevant cache and
+flag-off evidence before the queue row can be closed.
 Don't commit unless I ask.

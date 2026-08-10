@@ -56,6 +56,8 @@
         "synth": 8
       },
       "expected_pet_npc_rows": 176,
+      "expected_source_files": 630,
+      "expected_pack_references": 2175,
       "legacy_synth_sources": [
         188,
         4161,

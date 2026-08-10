@@ -952,9 +952,15 @@ that fails loudly on a stale band.*
    floor twice; and **the server NPC pool and each client's tracked-nearby
    count are two numbers**, 4096 and 255, now that NPC_INFO asks the zones who
    is nearby instead of scanning the world once per client. Neither number is
-   an NPC cache/config-id ceiling. NPC_INFO's 14-bit slot identifies one nearby
-   instance in one client's local table; the revision-specific type field
-   identifies the NPC definition.
+   an NPC cache/config-id ceiling. In the real rev239 v5 `NPC_INFO` add list,
+   the **16-bit per-client NPC index** identifies one nearby instance and
+   `0xffff` terminates that list. The following **14-bit field is the initial
+   NPC definition**, not a slot. A definition above `0x3fff` is still valid:
+   set the add-update flag and send update-mask bit `0x1` with the replacement
+   definition as transformed unsigned-16 `p2Alt3` / `UShortLEAdd` data in the
+   same packet. Thus there is no raw 14-bit NPC-type ceiling, but a v5 server
+   must implement that replacement path; it must not write the add type as a
+   direct 16-bit field.
    Do not generalize that result to loc configs. In rev239 `LOC_ADD_CHANGE_V2`
    writes the loc config id as `p2Alt3`, exactly 16 bits. A generic loc allocation
    at 70000 truncates on that wire; runtime-added locs need a collision-checked

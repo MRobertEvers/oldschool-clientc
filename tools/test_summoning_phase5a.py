@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import importlib.util
 import io
 import json
@@ -28,6 +29,13 @@ REPO = Path(__file__).resolve().parents[1]
 POUCHES = REPO / "docs/summoning_port/pouches_530.json"
 ROSTER_CSV = REPO / "docs/summoning_port/roster_assets_530.csv"
 ROSTER_MANIFEST = REPO / "docs/summoning_port/roster_assets_530.ini"
+REVIEW_ONLY_DIR = REPO / "docs/summoning_port/review_only"
+REVIEW_ONLY_ROSTER_CSV = REVIEW_ONLY_DIR / "roster_assets_530.csv"
+REVIEW_ONLY_ROSTER_MANIFEST = REVIEW_ONLY_DIR / "roster_assets_530.ini"
+REVIEW_ONLY_SHA256 = {
+    REVIEW_ONLY_ROSTER_CSV: "6a64fcc542d4cad7f67d77799d408b3eff888b8d4e041d1048088770717c9491",
+    REVIEW_ONLY_ROSTER_MANIFEST: "94773790c8a1f7d90cfafaeccbafea2a96997eebc69ba2a99ce46760c78c6e5a",
+}
 BOUNDARY = REPO / "docs/summoning_port/roster_boundary_530.json"
 TREE = REPO / "OSRS-Content/osrs239-content"
 LEDGER_TOOL = REPO / "tools/port_summoning_ids.py"
@@ -151,13 +159,27 @@ def main() -> int:
         else:
             expect(False, f"{label} stage mutation was accepted")
 
-    for path in (args.tree, args.pouches, args.roster_csv, args.roster_manifest, args.boundary):
+    for path in (
+        args.tree,
+        args.pouches,
+        args.roster_csv,
+        args.roster_manifest,
+        args.boundary,
+        *REVIEW_ONLY_SHA256,
+    ):
         expect(path.exists(), f"required input is missing: {path}")
     if errors:
         for error in errors:
             print(f"test_summoning_phase5a: error: {error}", file=sys.stderr)
         print(f"test_summoning_phase5a: {checked} checks, {len(errors)} errors")
         return 1
+
+    for path, expected_hash in REVIEW_ONLY_SHA256.items():
+        actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+        expect(
+            actual_hash == expected_hash,
+            f"preserved review-only roster changed: {path} ({actual_hash})",
+        )
 
     generated = subprocess.run(
         [sys.executable, str(ROSTER_TOOL), "--check"],
@@ -305,6 +327,29 @@ def main() -> int:
         "current ledger contains an unadmitted generated roster destination",
     )
 
+    review_prefix = review.prefix if review is not None else "summoning_roster_530"
+    source_roots = [args.tree / "ported/scape2009_summoning"]
+    source_roots.extend(args.tree / root / "ported/scape2009_summoning" for root in stage_module.ASSET_ROOTS)
+    source_candidate_files = [
+        path
+        for root in source_roots if root.exists()
+        for path in root.rglob("*")
+        if path.is_file() and review_prefix in path.name
+    ]
+    pack_root = args.tree / "ported/scape2009_summoning/pack"
+    source_pack_references = sum(
+        path.read_text(encoding="latin-1").count(review_prefix)
+        for path in pack_root.iterdir() if path.is_file()
+    )
+    expect(
+        len(source_candidate_files) == (review.expected_source_files if review is not None else -1),
+        f"preserved review-only source file count changed: {len(source_candidate_files)}",
+    )
+    expect(
+        source_pack_references == (review.expected_pack_references if review is not None else -1),
+        f"preserved review-only pack-reference count changed: {source_pack_references}",
+    )
+
     ledger_text = (args.tree / LEDGER_REL).read_text(encoding="utf-8")
     if not ledger_text.endswith("\n"):
         ledger_text += "\n"
@@ -370,6 +415,16 @@ def main() -> int:
         )
         cohort.unlink()
 
+        cohort.write_text("[summoning_roster_530_pet_probe]\n", encoding="utf-8")
+        try:
+            with redirect_stdout(baseline_output), redirect_stderr(baseline_output):
+                held_checks = stage_module.audit_roster_admission(stage_tree, lane, args.boundary)
+        except ValueError as exc:
+            expect(False, f"preserved review-only cohort was rejected: {exc}")
+        else:
+            expect(held_checks > 0, "preserved review-only cohort executed zero checks")
+        cohort.unlink()
+
         unsafe_pack = lane / "pack/4_soundeffects.pack"
         unsafe_pack.parent.mkdir(parents=True)
         unsafe_pack.write_text("9900=summoning_safe_synth_4161_probe\n", encoding="utf-8")
@@ -403,6 +458,39 @@ def main() -> int:
                 not marker_hits,
                 "real-tree stage contains reserved roster candidate data: " + ", ".join(marker_hits[:10]),
             )
+            expect(
+                not (staged / "pack/4_soundeffects.pack").exists(),
+                "review-only-only sound pack leaked into the staged tree",
+            )
+            post_source_files = [
+                path
+                for root in source_roots if root.exists()
+                for path in root.rglob("*")
+                if path.is_file() and review_prefix in path.name
+            ]
+            post_pack_references = sum(
+                path.read_text(encoding="latin-1").count(review_prefix)
+                for path in pack_root.iterdir() if path.is_file()
+            )
+            expect(
+                len(post_source_files) == len(source_candidate_files),
+                "feature-on staging modified preserved review-only source files",
+            )
+            expect(
+                post_pack_references == source_pack_references,
+                "feature-on staging modified preserved review-only pack entries",
+            )
+
+    server_sources = args.tree / "server/scripts"
+    server_review_hits = [
+        path.relative_to(server_sources).as_posix()
+        for path in server_sources.rglob("*")
+        if path.is_file() and review_prefix.encode("utf-8") in path.read_bytes()
+    ]
+    expect(
+        not server_review_hits,
+        "server source references a review-only roster cohort: " + ", ".join(server_review_hits[:10]),
+    )
 
     for error in errors:
         print(f"test_summoning_phase5a: error: {error}", file=sys.stderr)

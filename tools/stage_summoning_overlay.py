@@ -68,6 +68,11 @@ ADMISSION_TEXT_SUFFIXES = {
     ".varbit",
     ".varp",
 }
+# Only these files are line-oriented membership/allocation ledgers. A generated
+# cohort can be held out row-by-row here; configs, interfaces and scripts must
+# instead be isolated in a cohort-named file so their record structure cannot
+# be accidentally truncated.
+REVIEW_FILTER_SUFFIXES = {".alloc", ".client", ".pack"}
 GENERATED_COHORT_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_(?:roster|cohort)_[a-z0-9_]+)")
 SYNTH_SOURCE_TOKEN = re.compile(r"(?:^|_)synth_(\d+)(?:$|_)")
 DIRECT_PET_RECORD_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_pet_[a-z0-9_]+)")
@@ -266,7 +271,7 @@ def copy_admitted_tree(
         if review_only_tokens(relative.as_posix(), admission):
             withheld += 1
             continue
-        if source_file.suffix in ADMISSION_TEXT_SUFFIXES:
+        if source_file.suffix in REVIEW_FILTER_SUFFIXES:
             raw = source_file.read_bytes()
             lines = raw.splitlines(keepends=True)
             held_lines = [
@@ -283,6 +288,12 @@ def copy_admitted_tree(
                 destination_file.write_bytes(retained)
                 copied += 1
                 continue
+        elif source_file.suffix in ADMISSION_TEXT_SUFFIXES:
+            text = source_file.read_bytes().decode("latin-1")
+            if review_only_tokens(text, admission):
+                raise fail(
+                    f"review-only cohort must live in an isolated file or line-oriented pack: {source_file}"
+                )
         copy_file(source_file, destination / relative)
         copied += 1
     return copied, withheld
@@ -493,7 +504,6 @@ def stage(tree: Path, out: Path, boundary_path: Path) -> int:
 
     if admission.review_only_cohorts and withheld == 0:
         raise fail("review-only cohort is declared but stage withheld zero artifacts")
-    assert_review_only_absent(out, admission)
 
     generated = subprocess.run(
         [sys.executable, str(REPO_ROOT / "tools/gen_dbindex.py"),
@@ -507,6 +517,7 @@ def stage(tree: Path, out: Path, boundary_path: Path) -> int:
     if generated.returncode != 0:
         raise fail(f"dbindex regeneration failed:\n{generated.stdout}")
     print(generated.stdout, end="")
+    assert_review_only_absent(out, admission)
 
     if copied == 0:
         raise fail("staged zero files")

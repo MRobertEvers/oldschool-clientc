@@ -201,15 +201,18 @@ mock239_playerinfo_write(
  *
  *     8 bits    how many high-resolution npcs follow
  *     ...       one update per high-resolution npc
- *     14 bits   a client-local instance slot per npc, terminated by 0x3FFF
+ *     16 bits   a client-local instance index per npc, terminated by 0xFFFF
+ *     ...       each add record finishes with a 14-bit initial NPC type
  *
- * The slot is not the NPC's cache/config id. This port keeps the slot at 14
- * bits and widens the separate type field to 16 bits.
+ * The index is not the NPC's cache/config id. A type above 0x3FFF is sent as a
+ * valid 14-bit initial type plus the add record's update flag; the queued
+ * update then uses mask 0x1 and a transformed unsigned 16-bit (p2Alt3)
+ * replacement type in the same packet.
  *
- * The 0x3FFF terminator is required only when the padding plus extended-info
- * tail leaves at least 26 readable bits. That is this codec's exact
- * `14 + 12` low-resolution-record guard. Below that threshold the client exits
- * before reading a slot, so writing a sentinel makes it consume 0x3fff as the
+ * The 0xFFFF terminator is required only when the padding plus extended-info
+ * tail leaves at least 28 readable bits. That is this codec's exact
+ * `16 + 12` low-resolution-record guard. Below that threshold the client exits
+ * before reading an index, so writing a sentinel makes it consume 0xffff as the
  * first extended mask instead.
  *
  * This writes the empty case only: no high-resolution npcs, no additions. That
@@ -220,7 +223,7 @@ mock239_playerinfo_write(
 void
 mock239_npcinfo_write_empty(struct RSAreaBuf* buf);
 
-/** Mirror the widened client's 26-bit low-resolution guard at the boundary
+/** Mirror the client's 28-bit low-resolution guard at the boundary
  * between the last add record and byte-aligned extended info. */
 int
 mock239_npcinfo_tail_needs_sentinel(

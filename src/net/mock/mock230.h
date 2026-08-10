@@ -179,9 +179,10 @@ enum
      *
      * These were one number, 256, annotated "the tracked count is an 8-bit
      * field on the wire, so this must stay under 256". The annotation is true
-     * about the *tracked* count and says nothing about the world. NPC_INFO's
-     * 14-bit slot is local to one player's client and names a nearby instance;
-     * it is neither a cache type id nor a world-roster id.
+     * about the *tracked* count and says nothing about the world. In OSRS239
+     * v5, NPC_INFO's 16-bit index is local to one player's client and names a
+     * nearby instance; it is neither a cache type id nor a world-roster id.
+     * (The classic stream's equivalent index is 14 bits.)
      *
      * The mock currently reuses its world-pool slot as the client's local-slot
      * number because MOCK230_NPC_MAX is only 4096. That is an implementation
@@ -204,8 +205,10 @@ enum
      * **This is a memory decision and not a wire one**, and an earlier version
      * of this comment had that wrong:
      *
-     *   classic (230)  14-bit client-local instance slot
-     *   v5 (239)       14-bit client-local slot, separate 16-bit type id
+     *   classic (230)  14-bit client-local instance index
+     *   v5 (239)       16-bit client-local index; 14-bit initial type, with a
+     *                   same-packet mask-0x1 unsigned-16-bit replacement for
+     *                   a type above 0x3fff
      *
      * The slot namespace belongs to each client, not to the cache and not to
      * the world roster. What a *client* is told comes out of that client's
@@ -235,8 +238,9 @@ enum
      * The content tree states where every npc in OldSchool lives — 23,139 of
      * them. Creating all of them was what the roster loop used to do, and it
      * worked while the roster was Lumbridge's 63. It cannot scale as an eager
-     * in-memory strategy, but the wire is not the reason: the 14-bit slot is
-     * local to one client's nearby instances, not the world or cache namespace.
+     * in-memory strategy, but the wire is not the reason: the client-local
+     * instance index (16 bits on OSRS239 v5, 14 on classic) is not the world or
+     * cache namespace.
      *
      * So the roster is a statement about the world and the pool is a window on
      * to it. A spawn is realised when its home tile comes within
@@ -553,11 +557,10 @@ enum
     MOCK230_NPC_TYPE_BITS = 14,
     MOCK230_NPC_TYPE_MAX = (1 << MOCK230_NPC_TYPE_BITS) - 1,
     /*
-     * The 14-bit type field above belongs only to the legacy/classic add
-     * record. Revision 239 keeps a 14-bit per-client instance slot but carries
-     * the separate cache/config id in 16 bits. The classic compatibility path
-     * can also bootstrap a higher id through CHANGE_TYPE. 0xffff is that
-     * block's "none" sentinel.
+     * Revision 239 also has a 14-bit initial type. A config above that range
+     * is installed in the same NPC_INFO packet through its 0x1 transformation
+     * update, whose transformed unsigned-short operand carries 0..65535.
+     * 0xffff is the block's "none" sentinel.
      */
     MOCK230_NPC_CONFIG_MAX = 65534,
 };

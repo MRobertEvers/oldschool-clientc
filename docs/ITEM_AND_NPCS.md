@@ -235,9 +235,13 @@ but the player can walk, and an npc that does not exist until you approach it
 would pop into being with full hitpoints in front of you.
 
 It cannot survive the real roster as an eager in-memory strategy. The wire is
-not the reason: the **14-bit npc slot is local to one player's client and names
-only nearby NPC instances**. It is neither a cache NPC id nor a world-roster
-slot. The separate rev239 cache/config id field is 16 bits.
+not the reason: a real rev239 v5 add entry starts with a **16-bit per-client NPC
+index**, which names only a nearby instance for that client (`0xffff` terminates
+the add list). Its **14-bit field is the initial NPC definition**, not an
+instance name or a world-roster slot. Definitions above `0x3fff` are carried by
+the same packet's add-update path: update-mask bit `0x1` contains the
+transformed unsigned-16 `p2Alt3` / `UShortLEAdd` replacement definition. The
+14-bit initial field therefore is not a cache-id ceiling.
 
 So the roster is a statement about the world and the pool is a window on to it:
 
@@ -378,34 +382,36 @@ The per-entity radius row is there because the first version of that check did
 not exist: the mutation passed, which is how the gap was found. `mock230_zone_npcs_near`
 is gone — it had no callers left once both encoders read the client's own map.
 
-### Two index spaces, and which one limits what
+### The v5 add record has a client index and an initial definition
 
-NPC_INFO carries two different numbers for an npc. The settled rev239 codec
-keeps the **per-player client-local nearby-instance slot at 14 bits** and carries
-the separate **cache/config type at 16 bits**. A permanent writer/reader
-regression round-trips slot 321 with type 20000. Reversing these fields is what
-created the false cache-id ceiling; do not infer either namespace from a deob
-snippet without first proving which revision and add-block shape it describes.
+Do not collapse the real rev239 v5 `NPC_INFO` add entry into two direct
+16-bit fields. It has a **16-bit per-client NPC index** (with `0xffff` as the
+add-list terminator), then a **14-bit initial NPC definition**. The index names
+the nearby instance only for this client; the 14-bit field selects its initial
+definition and is not a slot.
 
-| | the **index** | the **type** | the **list position** |
+| field | wire encoding | means | limit / required handling |
 |---|---|---|---|
-| width | 14 bits | 16 bits in rev239 | 8-bit count, then bits *in order* |
-| means | what this client calls the npc | its config/cache id | where it sits in the tracked list |
-| bounds | how many npcs one client can hold names for | how many npc records can exist | how many one client may **track** |
-| here | `MOCK230_CLIENT_NPC_SLOTS` | `MOCK230_NPC_TYPE_MAX` | `MOCK230_TRACKED_NPC_MAX`, 255 |
+| client index | 16 bits | what this client calls the nearby npc | `0xffff` is reserved as the add-list terminator |
+| initial definition | 14 bits | initial cache/config id for the added npc | direct only through `0x3fff` |
+| replacement definition | add-update flag, then update-mask bit `0x1` and transformed unsigned-16 `p2Alt3` / `UShortLEAdd` | actual cache/config id when it exceeds `0x3fff` | sent in the same packet; this removes a raw 14-bit type ceiling |
+| tracked-list position | 8-bit count, then bits *in order* | where it sits in the tracked list | bounds how many one client may **track** |
 
-**The index is a per-client name, not the world's slot.** The deob keys a *map*
-on it — nothing requires it to mean anything globally, only to be stable while
-this client is being told about the npc and unique among the npcs it holds. So
-`struct Mock230PlayerSlotMap` translates at the wire and nowhere else: the
-server keeps its own slot in the pool, the ZoneMap and every interaction, and
-the two sites that write an id go through `mock230_slotmap_acquire` /
-`_release`. The world pool's size stops being a protocol question.
+**The client index is a per-client name, not the world's slot.** The deob keys
+a *map* on it — nothing requires it to mean anything globally, only to be
+stable while this client is being told about the npc and unique among the npcs
+it holds. So `struct Mock230PlayerSlotMap` translates at the wire and nowhere
+else: the server keeps its own slot in the pool, the ZoneMap and every
+interaction, and the two sites that write an id go through
+`mock230_slotmap_acquire` / `_release`. The world pool's size stops being a
+protocol question.
 
-**A config id above 16,383 is ordinary in rev239's 16-bit type field.** It does
-not consume extra client-local slots and needs no cache-id shim. The add and
-change-type paths must agree on that type width; slot 321/type 20000 pins the
-distinction in both writer and reader tests.
+**A config id above 16,383 is ordinary in rev239 only through the replacement
+path.** It does not consume another client index and needs no cache-id shim, but
+the server must set the add-update flag and write mask bit `0x1` plus the
+`p2Alt3` / `UShortLEAdd` unsigned-16 replacement. A regression with client
+index 321 and type 20000 must exercise that path, rather than treating the add
+record's type itself as 16 bits.
 
 **Both directions have to translate, and only one of them did.** The outbound
 half landed first and the inbound half did not, which made *every npc in the

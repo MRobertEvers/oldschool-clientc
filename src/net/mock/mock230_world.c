@@ -2374,11 +2374,11 @@ npc_spawn(
     const struct Mock230NpcDef* def;
 
     /*
-     * NPC_INFO's nearby-entity slot is not the cache id namespace. Revision
-     * 239 keeps that per-client instance slot at 14 bits and carries the
-     * separate cache/config type in 16 bits. The legacy encoder can use its
-     * CHANGE_TYPE compatibility path. Reject only the reserved 0xffff value
-     * that the transformation block spells as "none".
+     * NPC_INFO's nearby-entity index is not the cache id namespace. Revision
+     * 239 uses a 16-bit per-client index and a 14-bit initial type. A type
+     * above 0x3fff is installed through the same packet's mask-0x1 p2Alt3
+     * transformation update. Reject only the reserved 0xffff value that the
+     * transformation block spells as "none".
      */
     if( type < 0 || type > MOCK230_NPC_CONFIG_MAX )
     {

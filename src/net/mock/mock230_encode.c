@@ -3791,10 +3791,9 @@ npc_add_requires_transformation(const struct Mock230Npc* npc)
 }
 
 /*
- * The legacy/classic NPC_INFO format carries only 14 type bits in its initial
- * add. Its compatibility path can carry the actual config id in CHANGE_TYPE
- * in the same packet. Revision 239 does not use this shim: its instance slot
- * is 14 bits and its distinct config-id field is 16 bits.
+ * NPC_INFO carries only 14 type bits in its initial add. Revision 239 uses the
+ * same-packet TRANSFORMATION block (client mask bit 0x1) to bootstrap a
+ * 16-bit config id. The initial type is only a placeholder in that case.
  */
 static int
 npc_initial_wire_type(const struct Mock230Npc* npc)
@@ -3807,7 +3806,8 @@ put_npc_extended_v5(
     struct RSAreaBuf* buf,
     struct Mock230Player const* recipient,
     struct Mock230Npc* npc,
-    int force_face_latch)
+    int force_face_latch,
+    int force_type_latch)
 {
     uint32_t const classic = npc->masks;
     uint32_t flag = 0;
@@ -3828,7 +3828,7 @@ put_npc_extended_v5(
         flag |= V5_NPC_SAY;
     if( classic & MOCK230_NMASK_SPOTANIM )
         flag |= V5_NPC_SPOTANIM;
-    if( classic & MOCK230_NMASK_CHANGE_TYPE )
+    if( (classic & MOCK230_NMASK_CHANGE_TYPE) || force_type_latch )
         flag |= V5_NPC_TRANSFORMATION;
     if( has_face )
         flag |= V5_NPC_FACING;
@@ -3894,8 +3894,8 @@ put_npc_extended_v5(
         rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
         rsab_p4_alt2(buf, npc->spotanim_height_delay);
     }
-    if( classic & MOCK230_NMASK_CHANGE_TYPE )
-        rsab_p2_alt3(buf, npc->change_type);
+    if( flag & V5_NPC_TRANSFORMATION )
+        rsab_p2_alt3(buf, force_type_latch ? npc->type : npc->change_type);
         /* NpcTransformationEncoder */
     if( has_face )
         mock239_face_write_npc(buf, &face);
@@ -3915,10 +3915,10 @@ npc_extended_pending(const struct Mock230Npc* npc)
  * must also be omitted from the traversal's "extended info follows" bit.
  *
  * Queueing a face-only NPC while writing an empty v5 flag is not harmless.
- * The low-resolution reader decides whether it can read another 14-bit slot
+ * The low-resolution reader decides whether it can read another 16-bit index
  * from the number of bits left in the *whole* packet.  A short face-only block
  * can leave only 27 bits after the tracked section: too few for the reader to
- * consume our 0x3fff terminator. It then byte-aligns onto the terminator,
+     * consume our 0xffff terminator. It then byte-aligns onto the terminator,
  * reads 0xff as the extended flag and walks beyond the packet (the captured
  * failure was "66,9" on NPC_INFO).
  */
@@ -4071,15 +4071,18 @@ mock230_send_npc_info(struct Mock230Player* player)
      * The LOW-RESOLUTION adds are where it diverges, and every field moved:
      *
      *   classic   14-bit slot, 14-bit type, 5-bit dx, 5-bit dz, 1-bit extended
-     *   v5        14-bit client slot, 1-bit spawn-cycle flag (+32 bits if set),
+     *   v5        16-bit client index, 1-bit spawn-cycle flag (+32 bits if set),
      *             1-bit extended, 6-bit dx, 3-bit direction, 6-bit dz,
-     *             1-bit jump, 16-bit cache/config id
+     *             1-bit jump, 14-bit initial cache/config id
      *
-     * The id moved to the END and the deltas widened from 5 bits to 6, so a
+     * The initial type moved to the END and the deltas widened from 5 bits to 6, so a
      * client reading the classic record takes the type as part of the index and
      * places an npc that does not exist at a coordinate that is not there.
      *
-     * The terminator is a 14-bit 0x3FFF and it is NOT written here; see the
+     * A type above 0x3fff is added with a valid 14-bit placeholder and an
+     * extended update; mask 0x1 then carries the real transformed unsigned
+     * 16-bit (p2Alt3) type in the byte-aligned tail. The terminator is a
+     * 16-bit 0xFFFF and it is NOT written here; see the
      * end of the low-resolution loop for why it is only correct once extended
      * info follows it.
      */
@@ -4226,7 +4229,8 @@ mock230_send_npc_info(struct Mock230Player* player)
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
-            int const extended = npc_extended_pending_v5(player, npc, 1);
+            int const force_type = npc_add_requires_transformation(npc);
+            int const extended = npc_extended_pending_v5(player, npc, 1) || force_type;
 
             /*
              * The client's name for this npc, 16 bits.
@@ -4264,6 +4268,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             {
                 queued[queued_count++] = slot;
                 queued_force_face[queued_count - 1] = 1;
+                queued_force_type[queued_count - 1] = force_type;
             }
         }
 
@@ -4275,7 +4280,7 @@ mock230_send_npc_info(struct Mock230Player* player)
         rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
         for( int i = 0; i < queued_count; i++ )
             put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i]],
-                                queued_force_face[i]);
+                                queued_force_face[i], queued_force_type[i]);
 
         /*
          * The terminator, only when the golden client's low-resolution guard
@@ -4284,13 +4289,13 @@ mock230_send_npc_info(struct Mock230Player* player)
          * The client's low-resolution loop has two exits and the sentinel is
          * the second one: it first checks `readableBits() >= 16 + 12` and
          * returns if the buffer cannot hold another record, and only then reads
-         * a slot and compares it to 0x3FFF. `readableBits()` spans the WHOLE
+         * a slot and compares it to 0xFFFF. `readableBits()` spans the WHOLE
          * remaining packet, including the extended-info section, so the sentinel
          * is what stops it from reading extended-info bytes as another add.
          *
          * With nothing after the bit section there is nothing to stop: byte
          * alignment leaves at most 7 bits, the first check ends the loop, and a
-         * sentinel written anyway is 14 bits the client never consumes. It then
+         * sentinel written anyway is 16 bits the client never consumes. It then
          * fails its own end-of-packet check -- which is how the unconditional
          * version was found:
          *
@@ -4300,11 +4305,11 @@ mock230_send_npc_info(struct Mock230Player* player)
          * 145 bytes read of the 147 sent, and the two were the sentinel.
          *
          * The guard is not "does extended info exist". It is exactly
-         * `readableBits >= 14 + 12`. With 13 tracked NPCs, one NOMOVE extended
+         * `readableBits >= 16 + 12`. With 13 tracked NPCs, one NOMOVE extended
          * update leaves the bit cursor at 45 and a one-byte mask after three
          * padding bits: 11 readable bits without a sentinel, but only 27 even
          * after adding one. The client exits before reading the sentinel and
-         * then decodes the 0x3fff sentinel as the mask, producing a framing error on
+         * then decodes the 0xffff sentinel as the mask, producing a framing error on
          * the literal nine-byte packet. Mirror the guard instead.
          */
         if( mock239_npcinfo_tail_needs_sentinel(buf.bit_pos, rsab_len(&extended_buf)) )

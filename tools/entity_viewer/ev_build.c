@@ -180,6 +180,15 @@ ev_build_npc_model(
     for( int i = 0; i < npc->retexture_count; i++ )
         ToriDraw_ModelRetexture(merged, npc->retexture_to_find[i], npc->retexture_to_replace[i]);
 
+    /* Diagnostic-only silhouette mode. The viewer deliberately has no cache
+     * material provider, so foreign models whose every face is textured can
+     * otherwise render as a blank frame. Dropping the texture selectors here
+     * leaves the source face colours/geometry and makes source-vs-destination
+     * pose comparisons possible without changing the game cache. */
+    if( getenv("EV_STRIP_TEXTURES") && merged->face_textures )
+        for( int face = 0; face < merged->face_count; face++ )
+            merged->face_textures[face] = (faceint_t)-1;
+
     /* Npc opcodes 97/98. Missing here until now, so every npc with a scale of
      * its own — a giant, a small pet — rendered at the model's raw size. */
     if( npc->width_scale != 128 || npc->height_scale != 128 )

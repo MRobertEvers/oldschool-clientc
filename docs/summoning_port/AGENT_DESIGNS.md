@@ -1,9 +1,11 @@
 
 
-> **Binding corrections for every design below:** the 14-bit NPC_INFO value is only a
-> per-player client-local nearby-instance slot. It is not a cache/config NPC id, and rev239's
-> separate type is 16 bits; all id-ceiling, free-run, roster-tier, or allocation-budget reasoning
-> based on 14 bits is superseded. Rev-727 CS2 is likewise not osrs239 source: preserve raw
+> **Binding corrections for every design below:** an OSRS239 NPC_INFO v5 add carries a 16-bit
+> per-client NPC index (`0xffff` terminator), then a 14-bit initial NPC definition. For definition
+> ids 16384..65535, its extended/update flag and update-mask `0x1` replace that definition in the
+> same packet with a transformed unsigned 16-bit `p2Alt3` / `UShortLEAdd` value. Thus all
+> id-ceiling, free-run, roster-tier, or allocation-budget reasoning based on the direct 14-bit
+> field is superseded. Rev-727 CS2 is likewise not osrs239 source: preserve raw
 > instruction/operand plus stack-effect disassembly, decompile with an explicit 727 dialect, and
 > translate only accepted logic into newly authored osrs239 CS2. The plan and red-team document
 > remain authoritative over these historical designs. Loc ids are separate again:
@@ -1309,7 +1311,7 @@ I re-measured the load-bearing claims from recon before designing. **Five recon 
 | `pack/stat.pack` ends at `22=construction` | verified, 23 lines | `23=sailing` is *missing* and must land **first**, or key 24 lands on a nameless hole. |
 | `RS_PLAYER_STATS_SKILL_COUNT 25` | `src/game/rs_player_stats.h:11` | Client already addresses stat 24. Stat 24 is the **last** slot — no headroom after. |
 | `MOCK230_STAT_COUNT = 23` | `src/net/mock/mock230.h:558` | → 25. `stat_dirty` is `uint32_t`; 25 bits fits. |
-| **CORRECTED:** NPC_INFO's 14-bit value is a per-player client-local nearby-instance slot, not a cache NPC id | rev239 writer/reader regression: slot 321 + type 20000 | `content_register.c:63`'s `server_base = 20000` is valid. Rev239 carries the separate cache/config type in 16 bits. No roster tiering or id budget follows from the slot width. |
+| **CORRECTED:** NPC_INFO v5 has a 16-bit per-client index, then a 14-bit initial definition | rev239 writer/reader regression: index 321 + high definition 20000 | `content_register.c:63`'s `server_base = 20000` is valid. Type 20000 uses the same-packet extended/update + mask-`0x1` transformed-16-bit replacement. No roster tiering or id budget follows from the direct initial-field width. |
 | `script_8950` `case 23 → ~script8951(1) → ~script607 → %varbit18166`, and varbit 18166 is named **`content_restrict_sailing_serverside`** | `scripts/script_8950.cs2`, `configs/all.varbit.compack:16780` | **The feature flag already exists as a shipped, cache-native, per-skill, server-driven pattern.** Recon said "no content feature-flag mechanism exists" — wrong. Consumed by `script_393` (lock overlay) and `script_1007`/`1008`/`1320` (total level / total xp / F2P level), all as `if (~script8950($stat) = 0)`. |
 
 **Four corrections to recon** beyond those:
@@ -1597,10 +1599,11 @@ Engine changes (three, all small and all narrowing existing behaviour rather tha
 
 Also required, and *not* an opcode:
 
-4. **CORRECTED: retain npc `server_base = 20000`.** The previous proposal confused the 14-bit
-   per-client nearby-instance slot with the cache/config type id. Rev239's separate type field is
-   16 bits and round-trips 20000. `ss_allocate.py` may learn `npc`, but must not move the base to
-   16294 or validate cache ids against the client-local slot width.
+4. **CORRECTED: retain npc `server_base = 20000`.** The 14-bit field is the initial definition,
+   not a per-client NPC slot. Type 20000 round-trips through the add's extended/update flag and
+   update-mask `0x1`, whose replacement definition is transformed unsigned 16-bit
+   `p2Alt3` / `UShortLEAdd`. `ss_allocate.py` may learn `npc`, but must not move the base to 16294
+   or validate cache ids against the direct initial-definition width.
 
 Deliberately **not** doing: per-player npc visibility. NPC_INFO derives visibility from `active` + range per player, so everyone sees everyone's familiar — which is correct for RS and needs no work.
 
@@ -1769,8 +1772,9 @@ Containers here are LostCity's model: **resolve-or-create by inv id**, `mock230_
 ## 12. Tiering — 10 familiars, one per mechanic
 
 This ten-familiar grouping may still be useful as a mechanics-validation order, but **not as an
-id-budget tier**. The 14-bit value is a per-client nearby-instance slot; it does not constrain
-cache definitions. The settled Summoning scope is all 82 familiars. Wilderness `id+1` forms stay
+id-budget tier**. The 14-bit value is only the direct initial definition; high definitions use
+the same-packet extended update path and are not constrained by it. The settled Summoning scope is
+all 82 familiars. Wilderness `id+1` forms stay
 out because there is no wilderness in this content tree and `combat` is declared data.
 
 | # | familiar | npc / pouch | lvl | mechanic category it *uniquely* proves |
@@ -1869,7 +1873,7 @@ Same shape for a loc, plus `pack/loc.client`.
 - **E1** `cachepack membership --src … --types obj,inv,seq,spotanim` → creates `pack/*.client`/`*.server`. `content.ini` `membership = authored` blocks.
 - **E2** `fields/inv.ini` (`size` = `scope = client`).
 - **E3** Prove the add path with a throwaway: one obj at id 40000 named in `pack/obj.client`, bake, boot, `::give`. **All five existing `.client` files have zero data lines — nothing in this tree has ever added a record to the client cache.** Find the bugs here, on a two-line change, not under 300 summoning records.
-- **E4** `tools/ss_allocate.py`: add `npc, obj, loc, seq, spotanim, inv` to `SERVER_NAMESPACES`; retain npc `server_base = 20000`. Regression-test the actual distinction: 14-bit per-client instance slot, separate 16-bit rev239 cache type.
+- **E4** `tools/ss_allocate.py`: add `npc, obj, loc, seq, spotanim, inv` to `SERVER_NAMESPACES`; retain npc `server_base = 20000`. Regression-test the actual v5 path: 16-bit per-client index, 14-bit initial definition, then extended/update + mask-`0x1` transformed-16-bit replacement for type 20000.
 - **E5** The directory skeleton of §1 + `PROVENANCE.md` + `port/summoning530.map` + a `tools/port_scape2009_summoning.py --check` wired into `make -C src test-port`.
 
 ### Phase F — engine: owner-bound familiars
@@ -1908,9 +1912,9 @@ H1 remaining BoBs · H2 minotaurs + cockatrices (shared specials) · H3 titans �
 
 ## RISKS / OPEN
 
-- **R1 — CORRECTED: no 14-bit cache NPC-id ceiling.** The 14-bit field is the per-player client-local slot for nearby NPC instances. Rev239's separate cache type is 16 bits. The measured free run below 16384 is not a roster budget.
+- **R1 — CORRECTED: no 14-bit cache NPC-id ceiling.** The 14-bit field is the direct initial definition; ids 16384..65535 use the add's extended/update flag plus mask `0x1` transformed-16-bit replacement in the same packet. The measured free run below 16384 is not a roster budget.
 - **R2 — missing-interface behaviour is unverified.** No handler was found for `IF_OPENSUB` targeting a group absent from the cache. If it hangs rather than logs-and-drops, "flag-off client, flag-on server" is a hard failure. **Verify this before Phase D**; it is a 10-minute experiment (`if_opensub` a nonexistent group against pristine `cache.osrs239`).
-- **R3 — CORRECTED: `loc` `server_base = 70000` exceeds the measured wire.** Rev239 `LOC_ADD_CHANGE_V2` writes an exact 16-bit `p2Alt3`; 70000 truncates to 4464. Source obelisk 28716 is mapped to the free native-contiguous target id 62201. This is not analogous to NPC_INFO, whose 14-bit field is an instance slot and whose definition type is separate.
+- **R3 — CORRECTED: `loc` `server_base = 70000` exceeds the measured wire.** Rev239 `LOC_ADD_CHANGE_V2` writes an exact 16-bit `p2Alt3`; 70000 truncates to 4464. Source obelisk 28716 is mapped to the free native-contiguous target id 62201. This is not analogous to NPC_INFO, whose 14-bit field is an initial definition and whose high-definition update path is conditional.
 - **R4 — the stats tab has no free cell.** `[universe]` is 190×261 with a 3×8 grid at 62px columns and `[total]` at y=241; `1 + 8*30 + 19 + 1 = 261` exactly. A 25th cell needs `[universe]` and `[total]` geometry changed, and the sidebar container that hosts it lives in gameframe 161 — **unverified whether rev-239's sidebar renders a taller 320 without clipping.**
 - **R5 — `configs/` is machine-owned and `test-server-clean` guards it.** Whether a hand-added line in `configs/all.inv.compack` survives the next `cachepack unpack` is unverified (`content.ini:19-22` claims pack saves merge, but that guarantee is stated for `pack/<ns>.pack`, not for `all.<ns>.compack`). Prefer the rank-1 `.inv` route and prove it empirically in E3.
 - **R6 — no authored CS2 has ever existed in this tree.** Every `pack/12_clientscripts.pack` line is `<id>=script_<id>`; zero named script files, zero ids above the cache's. Also **95 of 9,368 committed `.cs2` sources do not compile back today** (stale, written by an older cachepack), including `script_1904.cs2` (the skill-guide layout builder, `unknown command '_1703'`). Fresh decompiles round-trip exactly, so `cachepack unpack --assets=scripts` is the fix — but it will overwrite the hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trip `tools/check_crystal_set_contract.py`, a hard prerequisite of `mock230-cache`. Re-apply those comments or unpack selectively.
@@ -1941,9 +1945,10 @@ Two more load-bearing facts confirmed:
 - **`cachepack`'s config walk has exactly two roots**: `static const char* const ROOTS[] = { "configs", "server/scripts" };` at `cp_pack.c:1669, 1788, 2169, 2605`. A top-level directory in the content tree is invisible to it.
 - **`RSCache_Dat2EditCommit` merges**: `dat2_edit_load_existing_files()` (`3rd/rscache/src/cache_edit.c:387`, called at `:513`) reads the base archive's existing files before applying puts, and `cp_pack.c:1576` puts **one file per record**. A *partial* source tree therefore preserves every base record it does not state. This is what makes a chained overlay bake viable.
 
-**CORRECTED:** the old “hard ceiling” paragraph reversed the client-local NPC instance slot and
-the cache/config type id. Rev239 uses a 14-bit local slot and a separate 16-bit type; type 20000
-is a regression fixture. The full 82-familiar roster is not constrained by the slot width.
+**CORRECTED:** the old “hard ceiling” paragraph reversed the NPC_INFO fields. Rev239 uses a
+16-bit per-client index followed by a 14-bit initial definition; type 20000 is carried by the
+same-packet extended/update + mask-`0x1` transformed-16-bit replacement path. The full
+82-familiar roster is not constrained by the direct initial-field width.
 
 ---
 
@@ -2100,7 +2105,7 @@ Not because Summoning is special, but because it is the first port that is **(a)
 2. **The id ledger** — the one thing no existing doc provides: rev-530 id → osrs239 id, per namespace, with disposition. Mirrors `port/names.map`'s contract (generated columns re-derived by `--check`, human columns never regenerated). Backed by new files `OSRS-Content/osrs239-content/port530/{npc,obj,seq,spotanim,model,sprite}.map` and a new `tools/port530_diff.py --check` wired into `make -C src test-port`. **`port/` today is LostCity-keyed and cannot host this** — its diff tools take a RuneScript content checkout as `--reference` and 2009scape has no `.rs2`, no `^constant`, no `pack/`.
 3. **The slice queue** — same `#`/status/notes shape as SCAPE2009.
 4. **The opcode gap log** — every new VM opcode, logged *before* C is written (PORTING_GUIDE §4.5 step 4).
-5. **The NPC mapping ledger** — a live rev-530 definition id → osrs239 cache/config id map, updated per slice. This is translation and collision bookkeeping, not a budget: the 14-bit NPC_INFO slot is a separate per-player nearby-instance identifier.
+5. **The NPC mapping ledger** — a live rev-530 definition id → osrs239 cache/config id map, updated per slice. This is translation and collision bookkeeping, not a budget: NPC_INFO's 14-bit field is only its direct initial definition, and high definitions use the extended update path.
 6. **Known-bad source data**, transcribed once so nobody copies it: `DOOMSPHERE_SCROLL` pouch `-1`; `DEADLY_CLAW_SCROLL` keyed to charm 12162 not pouch 12794; `THIEVING_FINGERS_SCROLL` xp `47` (should be 0.9); loc `28278` typo for `28728`; Void torcher/shifter 9400 ticks and Rune minotaur 15100 ticks are outliers that feed the drain divisor; npc 6883/6884 double-registered.
 
 ### 3.3 Also update
@@ -2182,7 +2187,7 @@ Every phase additionally: state persists across logout/login; no new silently-mi
 | # | Risk | Likelihood | Blast radius | Mitigation |
 |---|---|---|---|---|
 | **1** | **A test suite SKIPS because the data is absent, and a skip reads as a pass.** `test_cachepack_fidelity.sh` skips loudly with no cache; a pristine worktree skips whole suites. Every "green" claim about the summoning bake is suspect. | **high** | The entire verification story is worthless; regressions land silently | Make every summoning-relevant target **assert it ran**: `check_summoning_isolation.py` prints and requires a non-zero check count; the bake targets fail if the cache dir is missing rather than skipping. In CI-equivalent runs, grep the output for `SKIP` and fail. Never accept "tests passed" without the per-suite counts. |
-| **2** | **CORRECTED: confusing the 14-bit per-client instance slot with the cache NPC id.** | resolved | None for roster scope | Rev239 keeps the nearby slot at 14 bits and carries the separate cache/config type in 16 bits. Permanent regression: slot 321, type 20000. |
+| **2** | **CORRECTED: treating the direct 14-bit initial definition as an id ceiling.** | resolved | None for roster scope | Rev239's add has a 16-bit per-client index, then a 14-bit initial definition; type 20000 uses same-packet extended/update + mask-`0x1` transformed-16-bit replacement. Permanent regression: index 321, type 20000. |
 | **3** | **Silent CS2 / codec declines.** `cachepack` prints one stderr line and ships base-cache bytes when a script fails to compile (`cp_decode.c:2447-2452`); 95 of the tree's 9,368 committed `.cs2` sources already do not recompile, **including `script_1904.cs2`** (the skill-guide builder). `RUNESTAR_CS2_NAMES` is an undeclared hard dependency at `$HOME/Documents/git_repos/cs2/...`. | high | A cache that boots, looks fine, and has no summoning in it | Run the standalone `cs2 compile` gate on the overlay's scripts *before* every bake and require `failed 0`. Refresh the stale sources with `cachepack unpack --assets=scripts` **selectively** (a blanket refresh overwrites the hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trips `check_crystal_set_contract.py`). Make `RUNESTAR_CS2_NAMES` a hard prerequisite check in the summoning targets. |
 | **4** | **Framemap V3→V1 transcode is a silent no-op.** `tools/common/cache_write.c:545-580` re-encodes without clearing `has_transform_actor`/`has_masks`/`tail`, so `RSCache_Dat2FramemapEncode` emits V3 blocks into a V1 cache. | high | Every ported familiar T-poses or animates to garbage, with no error | Fix it in Phase 0 with a test that fails on the current code (decode a real 530 framemap, downgrade, assert the byte length and the V1 shape). This is a **pre-existing library bug**; fixing it may move 634/727 behaviour — A/B before attributing anything to Summoning. |
 | **5** | **The chained overlay bake is unproven and the "add" path has never been run.** All five `pack/*.client` files have zero data lines; `PACK_ENTITY_SPLIT_PLAN.md §11.1` says step 4 "author" is unexercised. | high | Phase 0 slips; worst case the byte-identity design needs the cachepack `--overlay` fallback | Spike it first with a throwaway two-component interface at id 969 and one new obj at 40000, before designing anything on top. Budget a full day. Fallback is the third walk root (`CP_WALK_MAX_ROOTS = 4`). |
@@ -2221,7 +2226,7 @@ One familiar, end to end, and the skill exists.
 Skill guide (dbtable 212/213 rows + the hand-edited `dbindex_21{2,3}.dbi` — **the single most fragile step in the whole port**, since no regenerator exists and a wrong order makes `db_find` silently miss). Points orb appended to `interfaces/orbs.if` (cache-built chrome, the lowest-risk authored UI in the tree — copy the `orb_prayer` block verbatim). Summoning sidebar tab (161 `side0..side13` is full — this needs new components in three toplevels and new stone/icon geometry; consider deferring to Phase 5). Obelisk locs + Renew-points. Infusion UI authored fresh in the 239 vocabulary (do **not** transcode 530's 669 — every `graphic=`/`font=` id needs remapping anyway).
 
 ### Phase 3 — Breadth
-Familiars grouped by shared mechanics, never by an NPC-id budget. Scrolls + special moves. Charm drops (the 1222-npc drop table needs a 530→239 cache/config id map; expect heavy attrition because definitions differ between revisions, not because of the 14-bit nearby-instance slot). Skill boosts. Foragers.
+Familiars grouped by shared mechanics, never by an NPC-id budget. Scrolls + special moves. Charm drops (the 1222-npc drop table needs a 530→239 cache/config id map; expect heavy attrition because definitions differ between revisions, not because of the direct 14-bit initial-definition field). Skill boosts. Foragers.
 
 ### Phase 4 — Beast of Burden
 `fields/inv.ini` + `[namespace:inv]` + the `.inv` walker + world-scoped `mock230_container_scope()`. Then BoB containers, interfaces, the logout `clear()` vs death `dismiss()` asymmetry.

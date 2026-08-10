@@ -109,8 +109,10 @@ static struct GameProtoRevTable k_rev_osrs239 = {
     .opcode_smart2 = 1,    /* ...and two of them once the opcode reaches 0x80 */
     .server_tick_ms = 600,
     .component_id_bytes = 4,
-    /* The bounded field is the per-client NPC instance slot. Cache/config
-     * ids are a separate 16-bit field in this port's widened NPC_INFO codec. */
+    /* These compatibility dimensions belong to the shared/classic reader.
+     * OSRS239 uses the dedicated v5 reader below: a 16-bit per-client index,
+     * a 14-bit initial type, and mask 0x1's transformed unsigned-16-bit type
+     * replacement for ids above 0x3fff. */
     .npc_slot_bits = 14,
     .npc_type_bits = 14,
     .login = &g_osrs239_login_vtable,
