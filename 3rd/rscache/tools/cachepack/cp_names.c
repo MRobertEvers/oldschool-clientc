@@ -8,17 +8,206 @@
 #include "reference_table.h"
 
 #include <ctype.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #ifdef _WIN32
 #include <direct.h>
 #define cp_mkdir(p) _mkdir(p)
 #else
-#include <sys/stat.h>
 #define cp_mkdir(p) mkdir(p, 0755)
 #endif
+
+static int
+compare_string_ptrs(
+    const void* lhs,
+    const void* rhs)
+{
+    const char* const* left = (const char* const*)lhs;
+    const char* const* right = (const char* const*)rhs;
+    return strcmp(*left, *right);
+}
+
+/** Merge one imported allocation file without giving either collision a winner. */
+static int
+merge_ported_alloc(
+    struct LC_Pack* target,
+    const char* path,
+    const char* type)
+{
+    struct LC_Pack layer;
+
+    if( !lc_pack_load(&layer, path, type, 0) )
+        return 0;
+    if( layer.malformed )
+    {
+        fprintf(stderr, "cachepack: %s has %d malformed allocation line(s)\n", path,
+                layer.malformed);
+        lc_pack_free(&layer);
+        return 0;
+    }
+
+    for( int id = 0; id < layer.max; id++ )
+    {
+        const char* name = id < layer.capacity && layer.names ? layer.names[id] : NULL;
+        const char* at_id =
+            id < target->capacity && target->names ? target->names[id] : NULL;
+        int at_name;
+
+        if( !name )
+            continue;
+        at_name = lc_pack_find(target, name);
+        if( at_id && strcmp(at_id, name) != 0 )
+        {
+            fprintf(stderr,
+                    "cachepack: %s %d is `%s` in an earlier allocation layer and `%s` "
+                    "in %s — imported allocation ids must be disjoint\n",
+                    type, id, at_id, name, path);
+            lc_pack_free(&layer);
+            return 0;
+        }
+        if( at_name >= 0 && at_name != id )
+        {
+            fprintf(stderr,
+                    "cachepack: `%s` is %s %d in an earlier allocation layer and %s %d "
+                    "in %s — one imported name cannot mean two ids\n",
+                    name, type, at_name, type, id, path);
+            lc_pack_free(&layer);
+            return 0;
+        }
+        if( !at_id && !lc_pack_set(target, id, name) )
+        {
+            lc_pack_free(&layer);
+            return 0;
+        }
+    }
+
+    lc_pack_free(&layer);
+    return 1;
+}
+
+int
+cp_names_load_ported_allocs(
+    struct CP_Names* names,
+    const char* srcdir)
+{
+    char root[1200];
+    DIR* handle;
+    struct dirent* entry;
+    char** lanes = NULL;
+    int lane_count = 0;
+    int lane_capacity = 0;
+    int ok = 1;
+
+    snprintf(root, sizeof(root), "%s/ported", srcdir);
+    handle = opendir(root);
+    if( !handle )
+        return 1; /* A content tree with no imported lanes is ordinary. */
+
+    while( (entry = readdir(handle)) != NULL )
+    {
+        char path[1400];
+        struct stat info;
+        char* copy;
+
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", root, entry->d_name);
+        if( stat(path, &info) != 0 || (info.st_mode & S_IFDIR) == 0 )
+            continue;
+        if( lane_count == lane_capacity )
+        {
+            int next = lane_capacity ? lane_capacity * 2 : 8;
+            char** grown = (char**)realloc(lanes, (size_t)next * sizeof(*grown));
+
+            if( !grown )
+            {
+                ok = 0;
+                break;
+            }
+            lanes = grown;
+            lane_capacity = next;
+        }
+        copy = strdup(entry->d_name);
+        if( !copy )
+        {
+            ok = 0;
+            break;
+        }
+        lanes[lane_count++] = copy;
+    }
+    closedir(handle);
+
+    /* Never let readdir order decide which path a collision diagnostic names. */
+    qsort(lanes, (size_t)lane_count, sizeof(*lanes), compare_string_ptrs);
+    for( int lane = 0; ok && lane < lane_count; lane++ )
+    {
+        for( int type_id = 0; ok && type_id < CP_TYPE_COUNT; type_id++ )
+        {
+            const char* type = cp_type(type_id)->name;
+            char path[1600];
+            struct stat info;
+
+            snprintf(path, sizeof(path), "%s/%s/pack/%s.alloc", root, lanes[lane], type);
+            if( stat(path, &info) != 0 )
+                continue;
+            if( (info.st_mode & S_IFREG) == 0 )
+            {
+                fprintf(stderr, "cachepack: imported allocation is not a regular file: %s\n",
+                        path);
+                ok = 0;
+                break;
+            }
+            ok = merge_ported_alloc(&names->alloc[type_id], path, type);
+        }
+    }
+
+    for( int i = 0; i < lane_count; i++ )
+        free(lanes[i]);
+    free(lanes);
+    if( !ok )
+        return 0;
+
+    /* Hold the imported layer against the cache member index too. The ordinary
+     * loader performs this check before this function is called; repeat it after
+     * the new layer exists instead of weakening that diagnostic. */
+    for( int type_id = 0; type_id < CP_TYPE_COUNT; type_id++ )
+    {
+        const struct CP_Type* type = cp_type(type_id);
+        const struct LC_Pack* pack = &names->packs[type_id];
+        const struct LC_Pack* alloc = &names->alloc[type_id];
+
+        for( int id = 0; id < alloc->max; id++ )
+        {
+            const char* name =
+                id < alloc->capacity && alloc->names ? alloc->names[id] : NULL;
+
+            if( !name )
+                continue;
+            if( id < pack->capacity && pack->names && pack->names[id] )
+            {
+                fprintf(stderr,
+                        "cachepack: %s %d is bound in both configs/all.%s.compack (`%s`) "
+                        "and an imported pack/%s.alloc (`%s`) — the layers must be disjoint\n",
+                        type->name, id, type->name, pack->names[id], type->name, name);
+                return 0;
+            }
+            if( lc_pack_find(pack, name) >= 0 )
+            {
+                fprintf(stderr,
+                        "cachepack: `%s` is named by both configs/all.%s.compack (%s %d) "
+                        "and an imported pack/%s.alloc (%s %d) — the layers must be disjoint\n",
+                        name, type->name, type->name, lc_pack_find(pack, name), type->name,
+                        type->name, id);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
 
 /**
  * Where a config type's member index lives: `configs/all.<type>.compack`.

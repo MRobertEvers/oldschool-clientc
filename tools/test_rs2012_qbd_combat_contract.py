@@ -339,6 +339,21 @@ def check(root: Path) -> list[str]:
             f"QBD/add maximum {constant} bypasses the shared accuracy helper",
         )
 
+    # Souls and worms are created with npc_add inside a private encounter.  A
+    # normal dead NPC is assigned its definition's respawn clock by mock230,
+    # so both death triggers must explicitly retire these one-life additions.
+    for add_name in ("rs2012_qbd_tortured_soul", "rs2012_qbd_giant_worm"):
+        match = re.search(
+            rf"^\[ai_queue3,{add_name}\]\s*$\n(.*?)(?=^\[|\Z)",
+            adds,
+            re.MULTILINE | re.DOTALL,
+        )
+        require(match is not None, f"{QBD_ADDS}: missing death trigger for {add_name}")
+        require(
+            match is not None and "npc_del;" in match.group(1),
+            f"{QBD_ADDS}: {add_name} can respawn after an encounter-owned death",
+        )
+
     protection_header = "[proc,rs2012_qbd_dragonfire_protection]()(int)"
     protection = combat.split(protection_header, 1)[-1].split("[proc,rs2012_qbd_melee]", 1)[0]
     potion_check = "if (%antifire_potion > 0 | %super_antifire_potion > 0)"
@@ -375,7 +390,8 @@ def main() -> int:
         return 1
     print(
         "rs2012-qbd-combat: 600-tick potions, unique handlers, sourced NPC "
-        "bonuses, calibrated rolls, accuracy routing, maxima, and QBD protection OK"
+        "bonuses, calibrated rolls, accuracy routing, one-life adds, maxima, "
+        "and QBD protection OK"
     )
     return 0
 

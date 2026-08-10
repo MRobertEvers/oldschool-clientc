@@ -300,6 +300,20 @@ cp_names_load(
     struct CP_Names* names,
     const char* srcdir);
 
+/**
+ * Layer `<srcdir>/ported/<lane>/pack/<type>.alloc` over the ordinary namespace
+ * view. Pack and membership call this because server overlays may name imported
+ * records. Import deliberately does not: saving one lane must not absorb every
+ * other lane's allocations.
+ *
+ * Conflicting ids or names are fatal; an identical repeated binding is merely
+ * redundant, matching the runtime symbol loader.
+ */
+int
+cp_names_load_ported_allocs(
+    struct CP_Names* names,
+    const char* srcdir);
+
 int
 cp_names_save(
     const struct CP_Names* names,

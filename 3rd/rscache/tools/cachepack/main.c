@@ -374,6 +374,16 @@ main(int argc, char** argv)
 
     if( !cp_names_load(&ctx.names, src_dir) )
         return 1;
+    /* `server/scripts` may overlay records minted by an isolated client lane.
+     * The compiler and runtime already layer each ported lane's pack; these commands
+     * must resolve the same names. Import intentionally keeps the root-only view
+     * so writing one lane cannot copy every other lane's ledger into it. */
+    if( (strcmp(command, "pack") == 0 || strcmp(command, "membership") == 0) &&
+        !cp_names_load_ported_allocs(&ctx.names, src_dir) )
+    {
+        cp_names_free(&ctx.names);
+        return 1;
+    }
 
     int rc = 1;
     if( strcmp(command, "unpack") == 0 || strcmp(command, "verify") == 0 )
