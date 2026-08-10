@@ -454,6 +454,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # defined; content gives each slot its own named constant.
     "NPC_VAR_GET": (11025, 1, 0, 1, 0),
     "NPC_VAR_SET": (11026, 2, 0, 0, 0),
+
+    # ---- player action lock (11027..11028) -------------------------------
+    #
+    # A boss mechanic may temporarily reject the player's own movement and
+    # action packets without making the player `busy`: busy/canAccess is the
+    # queue and timer gate, while a time-stop must keep delayed damage and
+    # queued encounter scripts moving. The lock owns only input/pathing state;
+    # content owns its duration and calls the inverse explicitly.
+    "PLAYER_LOCK": (11027, 0, 0, 0, 0),
+    "PLAYER_UNLOCK": (11028, 0, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -582,6 +592,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
+    "PLAYER_LOCK": (1 << POINTER_BITS["p_active_player"], 0),
+    "PLAYER_UNLOCK": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

@@ -384,11 +384,13 @@ Varrock, log out and back in, it is still there, the timer expires, it leaves.
 
 ## 9. Later phases (not in this pass)
 
-**Phase 4 — skill surfaces (~12–18 d).** Skill guide (dbtable 212/213). ⚠ **The most fragile step
-in the port:** no `dbindex` regenerator exists anywhere in `tools/`, and a wrong `.dbi` ordering
-makes `db_find` miss *silently* — build `tools/gen_dbindex.py` with a byte-identical-regeneration
-acceptance test first. Note `script_9176.cs2b` is **bytecode-only**, so the guide's Overview tab is
-unmodifiable. Summoning orb (lowest-risk authored UI — the minimap chrome is a *cache record*,
+**Phase 4 — skill surfaces (~12–18 d).** Skill guide (dbtable 212/213). The former `dbindex`
+gap is closed: `tools/gen_dbindex.py` deterministically regenerates all 147 table indexes, and its
+mutation test proves an omitted or misordered key fails before byte-exact repair. The Summoning
+rows live in the marked lane and the real client acceptance right-clicks the Summoning stats cell,
+sends op2, opens `skill_guide_v2`, renders the live Spirit wolf row through `db_find`, and sends its
+pouch through the object/model renderer. Note `script_9176.cs2b` is **bytecode-only**, so the
+guide's Overview tab remains unmodified. Summoning orb (lowest-risk authored UI — the minimap chrome is a *cache record*,
 interface 160 `orbs`, 57 components; copy the `orb_specenergy` block to (54,158) and hide the two
 inert orbs). Sidebar tab (expensive — `side0..side13` is **full**, needs new components in *three*
 toplevels 161/548/164 plus row 14 in `enum_1137/1138/1139`). Obelisk via runtime `loc_add`, which

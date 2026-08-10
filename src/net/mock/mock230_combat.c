@@ -727,6 +727,9 @@ mock230_combat_hit_player(
          * puts hitpoints back above zero — so even the length of the death is
          * the script's.
          */
+        /* A lock belongs to the live encounter action, never to the corpse or
+         * its respawn. The death queue itself must remain free to run. */
+        mock230_world_player_unlock(srv);
         player->dying = 1;
         mock230_combat_stop_player(srv);
         for( int i = 0; i < MOCK230_NPC_MAX; i++ )

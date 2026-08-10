@@ -6266,6 +6266,20 @@ mock230_script_command(
         SSVM_PushInt(state, !player_can_access(srv));
         return 1;
 
+    /*
+     * QBD-style time stop. This is intentionally not busy()/canAccess(): the
+     * latter is the queue gate, while delayed damage and encounter queues must
+     * keep running during the stop. World input dispatch and phase-5 pathing
+     * enforce the lock; scripts own when it ends.
+     */
+    case SS_OP_PLAYER_LOCK:
+        mock230_world_player_lock(srv);
+        return 1;
+
+    case SS_OP_PLAYER_UNLOCK:
+        mock230_world_player_unlock(srv);
+        return 1;
+
     /* ---- combat ---------------------------------------------------- */
 
     case SS_OP_P_OPNPC:

@@ -194,15 +194,15 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "lane") == 0 ) snprintf(m->lane, sizeof(m->lane), "%s", value);
             else if( strcmp(key, "ledger") == 0 ) snprintf(m->ledger, sizeof(m->ledger), "%s", value);
             else if( strcmp(key, "prefix") == 0 ) snprintf(m->prefix, sizeof(m->prefix), "%s", value);
-            else if( strcmp(key, "npc_base") == 0 && !parse_nonnegative(key, value, &m->npc_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "obj_base") == 0 && !parse_nonnegative(key, value, &m->obj_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "loc_base") == 0 && !parse_nonnegative(key, value, &m->loc_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "spotanim_base") == 0 && !parse_nonnegative(key, value, &m->spotanim_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "model_base") == 0 && !parse_nonnegative(key, value, &m->model_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "seq_base") == 0 && !parse_nonnegative(key, value, &m->seq_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "animset_base") == 0 && !parse_nonnegative(key, value, &m->animset_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "framemap_base") == 0 && !parse_nonnegative(key, value, &m->framemap_base) ) { fclose(f); return 0; }
-            else if( strcmp(key, "synth_base") == 0 && !parse_nonnegative(key, value, &m->synth_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "npc_base") == 0 ) { if( !parse_nonnegative(key, value, &m->npc_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "obj_base") == 0 ) { if( !parse_nonnegative(key, value, &m->obj_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "loc_base") == 0 ) { if( !parse_nonnegative(key, value, &m->loc_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "spotanim_base") == 0 ) { if( !parse_nonnegative(key, value, &m->spotanim_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "model_base") == 0 ) { if( !parse_nonnegative(key, value, &m->model_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "seq_base") == 0 ) { if( !parse_nonnegative(key, value, &m->seq_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "animset_base") == 0 ) { if( !parse_nonnegative(key, value, &m->animset_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "framemap_base") == 0 ) { if( !parse_nonnegative(key, value, &m->framemap_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "synth_base") == 0 ) { if( !parse_nonnegative(key, value, &m->synth_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "from_rev") != 0 && strcmp(key, "from_cache") != 0 &&
                      strcmp(key, "to_rev") != 0 && strcmp(key, "to_tree") != 0 &&
                      strcmp(key, "lane") != 0 && strcmp(key, "ledger") != 0 &&
@@ -540,6 +540,33 @@ static int map_required(const struct Tool_IdMap* map, const char* kind, int sour
     return 0;
 }
 
+static int archive_exists(struct Tool_Dat2Cache* src, enum RSCache_Dat2Table logical, int id)
+{
+    if( id < 0 ) return 0;
+    int table = RSCache_Dat2DiskTableId(src->disk, logical);
+    struct RSCache_Dat2DiskArchive* ar =
+        table == RSCACHE_DAT2_DISK_TABLE_ABSENT ? NULL :
+        RSCache_Dat2DiskArchiveNewLoad(src->disk, table, id);
+    int present = ar && RSCache_Dat2DiskArchiveInitMetadata(src->disk, ar);
+    if( ar ) RSCache_Dat2DiskArchiveFree(ar);
+    return present;
+}
+
+static int collect_index4_sound(struct Tool_Dat2Cache* src, struct Import_Ints* synths, int id)
+{
+    if( id < 0 ) return 1;
+    if( archive_exists(src, RSCACHE_DAT2_TABLE_SOUND_EFFECTS, id) )
+        return ints_add(synths, id);
+    /* Late RS2 animation/area definitions can select index 14 instead. That
+     * payload is not a synth and cannot be written into OSRS index 4. Keep its
+     * id in the config for the explicit audio bridge rather than lying about
+     * the asset type. */
+    if( archive_exists(src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, id) ) return 1;
+    fprintf(stderr, "cachepack import: referenced sound %d is absent from source indexes 4 and 14\n",
+            id);
+    return 0;
+}
+
 static int collect_sequence(struct Tool_Dat2Cache* src, int id,
                             struct Import_Ints* frames, struct Import_Ints* synths)
 {
@@ -556,8 +583,13 @@ static int collect_sequence(struct Tool_Dat2Cache* src, int id,
     for( int f = 0; ok && f < seq->chat_frame_id_count; f++ )
         if( seq->chat_frame_ids[f] >= 0 )
             ok = ints_add(frames, (seq->chat_frame_ids[f] >> 16) & 0xffff);
+    /* RS727 opcode 18 selects the later MIDI/Vorbis sound path (physical
+     * index 14), not the synthesised-effect path (index 4). The OSRS sequence
+     * format has no equivalent selector. Preserve those frame events in the
+     * config for an engine-side audio bridge, but only claim/import ids that
+     * the source sequence actually resolves through index 4 here. */
     for( int s = 0; ok && s < seq->frame_sounds.count; s++ )
-        ok = ints_add(synths, seq->frame_sounds.sounds[s].id);
+        ok = collect_index4_sound(src, synths, seq->frame_sounds.sounds[s].id);
     RSCache_Dat2ConfigSequenceFree(seq);
     return ok;
 }
@@ -744,7 +776,7 @@ static int write_synth_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     return ok;
 }
 
-static int import_run(const struct Import_Manifest* m, int apply)
+static int import_run(struct Import_Manifest* m, int apply)
 {
     struct RSCache from, to;
     if( !tool_resolve_profile(m->from_rev, NULL, NULL, NULL, NULL, &from) ||
@@ -753,225 +785,431 @@ static int import_run(const struct Import_Manifest* m, int apply)
     if( !tool_dat2_open(m->from_cache, &from, &src) ) return 0;
 
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
-    struct Tool_NeutralNpc* neutral = calloc((size_t)m->npcs.n, sizeof(*neutral));
-    struct RSCache_Dat2ConfigObj** objects = calloc((size_t)m->objs.n, sizeof(*objects));
-    int ok = neutral != NULL && objects != NULL;
+    struct Import_Ints synths = {0}, obj_ids = {0}, loc_ids = {0}, spot_ids = {0};
+    for( int i = 0; i < m->seqs.n; i++ ) ints_add(&seqs, m->seqs.v[i].source_id);
+    for( int i = 0; i < m->objs.n; i++ ) ints_add(&obj_ids, m->objs.v[i].source_id);
+    for( int i = 0; i < m->spotanims.n; i++ ) ints_add(&spot_ids, m->spotanims.v[i].source_id);
+
+    struct Tool_NeutralNpc* neutral = m->npcs.n ? calloc((size_t)m->npcs.n, sizeof(*neutral)) : NULL;
+    struct RSCache_Dat2ConfigNpc** source_npcs =
+        m->npcs.n ? calloc((size_t)m->npcs.n, sizeof(*source_npcs)) : NULL;
+    struct RSCache_Dat2ConfigObj** objects =
+        m->objs.n ? calloc((size_t)m->objs.n, sizeof(*objects)) : NULL;
+    struct RSCache_Dat2ConfigSpotanim** spots =
+        m->spotanims.n ? calloc((size_t)m->spotanims.n, sizeof(*spots)) : NULL;
+    struct RSCache_Dat2ConfigLoc** locs = NULL;
+    int ok = (!m->npcs.n || (neutral && source_npcs)) && (!m->objs.n || objects) &&
+             (!m->spotanims.n || spots);
 
     for( int n = 0; ok && n < m->npcs.n; n++ )
     {
         int exact = 0;
-        struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load_checked(&src, m->npcs.v[n].source_id, &exact);
-        if( !npc || !exact || !tool_neutral_npc_from_dat2(&src, npc, m->npcs.v[n].source_id, &neutral[n]) ) ok = 0;
-        if( npc ) RSCache_Dat2ConfigNpcFree(npc);
-        for( int i = 0; ok && i < neutral[n].models_count; i++ ) ok = ints_add(&models, neutral[n].models[i]);
-        for( int i = 0; ok && i < neutral[n].chathead_models_count; i++ ) ok = ints_add(&models, neutral[n].chathead_models[i]);
+        source_npcs[n] = tool_dat2_npc_load_checked(&src, m->npcs.v[n].source_id, &exact);
+        if( !source_npcs[n] || !exact || !tool_neutral_npc_from_dat2(
+                &src, source_npcs[n], m->npcs.v[n].source_id, &neutral[n]) ) ok = 0;
+        for( int i = 0; ok && i < neutral[n].models_count; i++ )
+            ok = ints_add(&models, neutral[n].models[i]);
+        for( int i = 0; ok && i < neutral[n].chathead_models_count; i++ )
+            ok = ints_add(&models, neutral[n].chathead_models[i]);
         for( int i = 0; ok && i < TOOL_ANIM_SLOT_COUNT; i++ )
             if( neutral[n].anim_present[i] ) ok = ints_add(&seqs, neutral[n].anim[i]);
+        if( ok && !m->legacy_scape2009 )
+        {
+            int sounds[] = { source_npcs[n]->sound_idle, source_npcs[n]->sound_crawl,
+                             source_npcs[n]->sound_walk, source_npcs[n]->sound_run };
+            for( int i = 0; ok && i < 4; i++ )
+                ok = collect_index4_sound(&src, &synths, sounds[i]);
+        }
     }
 
     for( int i = 0; ok && i < m->objs.n; i++ )
     {
         uint8_t* raw = NULL; int size = 0;
-        if( !record_load(&src, RSCACHE_TYPE_OBJ, m->objs.v[i].source_id, &raw, &size) ) { ok = 0; break; }
-        objects[i] = RSCache_Dat2ConfigObjNewDecodeProfile(&from, (char*)raw, size); free(raw);
-        if( !objects[i] || objects[i]->_consumed != size ) { ok = 0; break; }
-        int ids[] = { objects[i]->inventory_model_id, objects[i]->male_model_0, objects[i]->male_model_1,
-                      objects[i]->male_model_2, objects[i]->female_model_0, objects[i]->female_model_1,
-                      objects[i]->female_model_2, objects[i]->male_head_model, objects[i]->male_head_model_2,
-                      objects[i]->female_head_model, objects[i]->female_head_model_2 };
-        for( size_t k = 0; ok && k < sizeof(ids)/sizeof(ids[0]); k++ ) if( ids[k] > 0 ) ok = ints_add(&models, ids[k]);
+        if( !record_load(&src, RSCACHE_TYPE_OBJ, m->objs.v[i].source_id, &raw, &size) )
+        { ok = 0; break; }
+        objects[i] = RSCache_Dat2ConfigObjNewDecodeProfile(&from, (char*)raw, size);
+        free(raw);
+        if( !objects[i] || objects[i]->_consumed != size )
+        {
+            fprintf(stderr, "cachepack import: obj %d did not decode exactly\n",
+                    m->objs.v[i].source_id);
+            ok = 0; break;
+        }
+        int ids[] = { objects[i]->inventory_model_id, objects[i]->male_model_0,
+                      objects[i]->male_model_1, objects[i]->male_model_2,
+                      objects[i]->female_model_0, objects[i]->female_model_1,
+                      objects[i]->female_model_2, objects[i]->male_head_model,
+                      objects[i]->male_head_model_2, objects[i]->female_head_model,
+                      objects[i]->female_head_model_2 };
+        for( size_t k = 0; ok && k < sizeof(ids) / sizeof(ids[0]); k++ )
+            if( ids[k] > 0 ) ok = ints_add(&models, ids[k]);
+    }
+
+    for( int i = 0; ok && i < m->spotanims.n; i++ )
+    {
+        spots[i] = spotanim_load(&src, m->spotanims.v[i].source_id);
+        if( !spots[i] ) { ok = 0; break; }
+        ok = ints_add(&models, spots[i]->model);
+        if( ok && spots[i]->anim >= 0 ) ok = ints_add(&seqs, spots[i]->anim);
+    }
+
+    /* Loc transforms are a real config dependency. Pull the full transitive
+     * closure in and give implicit records deterministic source-id names. */
+    for( int i = 0; ok && i < m->locs.n; i++ )
+    {
+        struct RSCache_Dat2ConfigLoc* loc = loc_load(&src, m->locs.v[i].source_id);
+        if( !loc ) { ok = 0; break; }
+        for( int s = 0; ok && s < loc->shapes_and_model_count; s++ )
+            for( int k = 0; ok && k < loc->lengths[s]; k++ )
+                ok = ints_add(&models, loc->models[s][k]);
+        if( ok && loc->seq_id >= 0 ) ok = ints_add(&seqs, loc->seq_id);
+        for( int k = 0; ok && k < loc->random_seq_id_count; k++ )
+            ok = ints_add(&seqs, loc->random_seq_ids[k]);
+        if( ok ) ok = collect_index4_sound(&src, &synths, loc->ambient_sound_id);
+        for( int k = 0; ok && k < loc->ambient_sound_id_count; k++ )
+            ok = collect_index4_sound(&src, &synths, loc->ambient_sound_ids[k]);
+        for( int k = 0; ok && k < loc->transform_count; k++ )
+        {
+            int dep = loc->transforms[k];
+            if( dep < 0 || list_find(&m->locs, dep) >= 0 ) continue;
+            char generated[96]; snprintf(generated, sizeof(generated), "loc_%d", dep);
+            ok = list_add(&m->locs, dep, generated);
+        }
+        RSCache_Dat2ConfigLocFree(loc);
+    }
+    for( int i = 0; ok && i < m->locs.n; i++ ) ok = ints_add(&loc_ids, m->locs.v[i].source_id);
+    if( ok && m->locs.n )
+    {
+        locs = calloc((size_t)m->locs.n, sizeof(*locs));
+        if( !locs ) ok = 0;
+    }
+    for( int i = 0; ok && i < m->locs.n; i++ )
+    {
+        locs[i] = loc_load(&src, m->locs.v[i].source_id);
+        if( !locs[i] ) ok = 0;
     }
 
     for( int i = 0; ok && i < seqs.n; i++ )
-    {
-        struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(&src, seqs.v[i]);
-        if( !seq || seq->_consumed == 0 ) { if(seq) RSCache_Dat2ConfigSequenceFree(seq); ok = 0; break; }
-        for( int f = 0; f < seq->frame_count; f++ ) ok = ok && ints_add(&frames, (seq->frame_ids[f] >> 16) & 0xffff);
-        RSCache_Dat2ConfigSequenceFree(seq);
-    }
+        ok = collect_sequence(&src, seqs.v[i], &frames, &synths);
 
     for( int i = 0; ok && i < frames.n; i++ )
     {
         int table = RSCache_Dat2DiskTableId(src.disk, RSCACHE_DAT2_TABLE_ANIMATIONS);
-        struct RSCache_Dat2DiskArchive* ar = RSCache_Dat2DiskArchiveNewLoad(src.disk, table, frames.v[i]);
-        if( !ar || !RSCache_Dat2DiskArchiveInitMetadata(src.disk, ar) ) { if(ar)RSCache_Dat2DiskArchiveFree(ar); ok=0; break; }
-        struct RSCache_FileList* files = RSCache_FileListNewFromDecode(ar->data, ar->data_size, ar->file_count);
-        if( !files ) { RSCache_Dat2DiskArchiveFree(ar); ok=0; break; }
-        for( int f = 0; f < files->file_count; f++ )
-            if( files->file_sizes[f] >= 2 ) ok = ok && ints_add(&framemaps, RSCache_Dat2FramemapIdFromFrameArchive(files->files[f], files->file_sizes[f]));
+        struct RSCache_Dat2DiskArchive* ar =
+            RSCache_Dat2DiskArchiveNewLoad(src.disk, table, frames.v[i]);
+        if( !ar || !RSCache_Dat2DiskArchiveInitMetadata(src.disk, ar) )
+        { if( ar ) RSCache_Dat2DiskArchiveFree(ar); ok = 0; break; }
+        struct RSCache_FileList* files =
+            RSCache_FileListNewFromDecode(ar->data, ar->data_size, ar->file_count);
+        if( !files ) { RSCache_Dat2DiskArchiveFree(ar); ok = 0; break; }
+        for( int f = 0; ok && f < files->file_count; f++ )
+        {
+            int fm = RSCache_Dat2FrameFramemapIdFromFileProfile(
+                &src.profile, files->files[f], files->file_sizes[f]);
+            if( fm < 0 ) ok = 0;
+            else ok = ints_add(&framemaps, fm);
+        }
         RSCache_FileListFree(files); RSCache_Dat2DiskArchiveFree(ar);
     }
 
     struct Tool_IdMap model_map = {0}, seq_map = {0}, frame_map = {0}, fm_map = {0};
-    ok = ok && map_allocate(&model_map, &models, 100000) && map_allocate(&seq_map, &seqs, 20000) &&
-         map_allocate(&frame_map, &frames, 20000) && map_allocate(&fm_map, &framemaps, 8000);
+    struct Tool_IdMap synth_map = {0}, obj_map = {0}, loc_map = {0};
+    ok = ok && map_allocate(&model_map, &models, m->model_base) &&
+         map_allocate(&seq_map, &seqs, m->seq_base) &&
+         map_allocate(&frame_map, &frames, m->animset_base) &&
+         map_allocate(&fm_map, &framemaps, m->framemap_base) &&
+         map_allocate(&synth_map, &synths, m->synth_base) &&
+         map_allocate(&obj_map, &obj_ids, m->obj_base) &&
+         map_allocate(&loc_map, &loc_ids, m->loc_base);
 
     struct CP_Ctx emit; memset(&emit, 0, sizeof(emit)); emit.profile = to; emit.warn_limit = 20;
     snprintf(emit.srcdir, sizeof(emit.srcdir), "%s", m->to_tree);
     if( ok && !cp_names_load(&emit.names, m->to_tree) ) ok = 0;
 
-    struct LC_Pack model_pack = {0}, seq_asset_pack = {0}, fm_pack = {0};
+    struct LC_Pack model_pack = {0}, frame_pack = {0}, fm_pack = {0}, synth_pack = {0};
     snprintf(model_pack.type, sizeof(model_pack.type), "7_models");
-    snprintf(seq_asset_pack.type, sizeof(seq_asset_pack.type), "0_animations");
+    snprintf(frame_pack.type, sizeof(frame_pack.type), "0_animations");
     snprintf(fm_pack.type, sizeof(fm_pack.type), "1_skeletons");
-
+    snprintf(synth_pack.type, sizeof(synth_pack.type), "4_soundeffects");
     for( int i = 0; ok && i < models.n; i++ )
     {
-        char name[320]; snprintf(name, sizeof(name), "%s/summoning_model_%d", m->lane, models.v[i]);
-        lc_pack_set(&model_pack, map_id(&model_map, models.v[i]), name);
+        char name[320]; snprintf(name, sizeof(name), "%s/%s_model_%d", m->lane, m->prefix, models.v[i]);
+        ok = lc_pack_set(&model_pack, map_id(&model_map, models.v[i]), name);
     }
     for( int i = 0; ok && i < seqs.n; i++ )
     {
-        char name[128]; snprintf(name, sizeof(name), "summoning_seq_%d", seqs.v[i]);
-        lc_pack_set(&emit.names.alloc[CP_TYPE_SEQ], map_id(&seq_map, seqs.v[i]), name);
+        char name[128]; export_or_closure_name(m, &m->seqs, seqs.v[i], "seq", name, sizeof(name));
+        ok = lc_pack_set(&emit.names.alloc[CP_TYPE_SEQ], map_id(&seq_map, seqs.v[i]), name);
     }
     for( int i = 0; ok && i < frames.n; i++ )
     {
-        char name[320]; snprintf(name, sizeof(name), "%s/summoning_animset_%d", m->lane, frames.v[i]);
-        lc_pack_set(&seq_asset_pack, map_id(&frame_map, frames.v[i]), name);
+        char name[320]; snprintf(name, sizeof(name), "%s/%s_animset_%d", m->lane, m->prefix, frames.v[i]);
+        ok = lc_pack_set(&frame_pack, map_id(&frame_map, frames.v[i]), name);
     }
     for( int i = 0; ok && i < framemaps.n; i++ )
     {
-        char name[320]; snprintf(name, sizeof(name), "%s/summoning_framemap_%d", m->lane, framemaps.v[i]);
-        lc_pack_set(&fm_pack, map_id(&fm_map, framemaps.v[i]), name);
+        char name[320]; snprintf(name, sizeof(name), "%s/%s_framemap_%d", m->lane, m->prefix, framemaps.v[i]);
+        ok = lc_pack_set(&fm_pack, map_id(&fm_map, framemaps.v[i]), name);
     }
-    for( int i = 0; ok && i < m->npcs.n; i++ )
+    for( int i = 0; ok && i < synths.n; i++ )
     {
-        char name[128]; canonical_name(name, sizeof(name), m->npcs.v[i].name);
-        lc_pack_set(&emit.names.alloc[CP_TYPE_NPC], 20000 + i, name);
+        char name[320]; snprintf(name, sizeof(name), "%s/%s_synth_%d", m->lane, m->prefix, synths.v[i]);
+        ok = lc_pack_set(&synth_pack, map_id(&synth_map, synths.v[i]), name);
     }
-    for( int i = 0; ok && i < m->objs.n; i++ )
-    {
-        char name[128]; canonical_name(name, sizeof(name), m->objs.v[i].name);
-        lc_pack_set(&emit.names.alloc[CP_TYPE_OBJ], 40000 + i, name);
+#define REGISTER_EXPORTS(field, cpkind, base) \
+    for( int i = 0; ok && i < m->field.n; i++ ) { \
+        char name[128]; canonical_name(m, name, sizeof(name), m->field.v[i].name); \
+        ok = lc_pack_set(&emit.names.alloc[cpkind], m->base + i, name); \
     }
+    REGISTER_EXPORTS(npcs, CP_TYPE_NPC, npc_base);
+    REGISTER_EXPORTS(objs, CP_TYPE_OBJ, obj_base);
+    REGISTER_EXPORTS(locs, CP_TYPE_LOC, loc_base);
+    REGISTER_EXPORTS(spotanims, CP_TYPE_SPOTANIM, spotanim_base);
+#undef REGISTER_EXPORTS
 
-    printf("cachepack import (%s): npc=%d obj=%d model=%d seq=%d animset=%d framemap=%d\n",
-           apply ? "apply" : "dry-run", m->npcs.n, m->objs.n, models.n, seqs.n, frames.n, framemaps.n);
+    printf("cachepack import (%s): npc=%d obj=%d loc=%d spotanim=%d model=%d seq=%d "
+           "animset=%d framemap=%d synth=%d\n", apply ? "apply" : "dry-run",
+           m->npcs.n, m->objs.n, m->locs.n, m->spotanims.n, models.n, seqs.n,
+           frames.n, framemaps.n, synths.n);
 
     if( apply && ok )
     {
         for( int i = 0; ok && i < models.n; i++ )
-        {
-            struct Tool_Bytes raw = {0};
-            int table = RSCache_Dat2DiskTableId(src.disk, RSCACHE_DAT2_TABLE_MODELS);
-            if( !tool_dat2_archive_bytes(&src, table, models.v[i], &raw) ) { ok=0; break; }
-            struct RSCache_ModelProvenance* prov = NULL;
-            struct RSCache_Model* model = RSCache_ModelNewDecodeProvenance(raw.data, raw.size, &prov);
-            if( !model || !prov ) { tool_bytes_free(&raw); ok=0; break; }
-            free(model->face_textures); model->face_textures = NULL;
-            free(model->face_texture_coords); model->face_texture_coords = NULL;
-            free(model->texture_render_types); model->texture_render_types = NULL;
-            free(model->textured_p_coordinate); model->textured_p_coordinate = NULL;
-            free(model->textured_m_coordinate); model->textured_m_coordinate = NULL;
-            free(model->textured_n_coordinate); model->textured_n_coordinate = NULL;
-            model->textured_face_count = 0;
-            int format = prov->format == RSCACHE_MODEL_FORMAT_OB3 ? RSCACHE_MODEL_FORMAT_V3 : RSCACHE_MODEL_FORMAT_V2;
-            uint32_t bound = RSCache_ModelEncodeBound(model, prov); uint8_t* out = malloc(bound);
-            uint32_t n = out ? RSCache_ModelEncodeFormat(model, prov, format, out, bound) : 0;
-            char path[1500]; snprintf(path, sizeof(path), "%s/models/%s/summoning_model_%d.model", m->to_tree, m->lane, models.v[i]);
-            ok = n && write_bytes(path, out, n);
-            free(out); RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
-        }
+            ok = write_model_asset(m, &src, &model_map, models.v[i]);
         for( int i = 0; ok && i < framemaps.n; i++ )
-        {
-            struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(&src, framemaps.v[i]);
-            uint32_t bound = RSCache_Dat2FramemapEncodeBoundCodec(fm, RSCACHE_CODEC_FRAMEMAP_V1);
-            uint8_t* out = malloc(bound); uint32_t n = out ? RSCache_Dat2FramemapEncodeCodec(fm, RSCACHE_CODEC_FRAMEMAP_V1, out, bound) : 0;
-            char path[1500]; snprintf(path, sizeof(path), "%s/framemaps/%s/summoning_framemap_%d.base", m->to_tree, m->lane, framemaps.v[i]);
-            ok = fm && n && write_bytes(path, out, n); free(out); RSCache_Dat2FramemapFree(fm);
-        }
+            ok = write_framemap_asset(m, &src, &to, framemaps.v[i]);
         for( int i = 0; ok && i < frames.n; i++ )
-        {
-            int table = RSCache_Dat2DiskTableId(src.disk, RSCACHE_DAT2_TABLE_ANIMATIONS);
-            struct RSCache_Dat2DiskArchive* ar = RSCache_Dat2DiskArchiveNewLoad(src.disk, table, frames.v[i]);
-            if( !ar || !RSCache_Dat2DiskArchiveInitMetadata(src.disk, ar) ) { if(ar)RSCache_Dat2DiskArchiveFree(ar); ok=0; break; }
-            struct RSCache_FileList* files = RSCache_FileListNewFromDecode(ar->data, ar->data_size, ar->file_count);
-            for( int f = 0; files && f < files->file_count; f++ ) if( files->file_sizes[f] >= 2 )
-            { int old = RSCache_Dat2FramemapIdFromFrameArchive(files->files[f], files->file_sizes[f]); int nw = map_id(&fm_map, old); files->files[f][0]=(char)(nw>>8); files->files[f][1]=(char)nw; }
-            uint32_t bound = files ? RSCache_FileListEncodeBound(files) : 0; uint8_t* out = malloc(bound);
-            uint32_t n = out ? RSCache_FileListEncode(files, out, bound) : 0;
-            char path[1500]; snprintf(path, sizeof(path), "%s/animsets/%s/summoning_animset_%d.anim", m->to_tree, m->lane, frames.v[i]);
-            ok = files && n && write_bytes(path, out, n);
-            if( ok )
-            {
-                struct LC_Pack members = {0};
-                snprintf(members.type, sizeof(members.type), "frame");
-                for( int f = 0; f < ar->file_count; f++ )
-                {
-                    int file_id = ar->file_ids ? ar->file_ids[f] : f;
-                    char name[64]; snprintf(name, sizeof(name), "frame_%d", file_id);
-                    lc_pack_set(&members, file_id, name);
-                }
-                char stem[1500]; snprintf(stem, sizeof(stem), "%s/animsets/%s/summoning_animset_%d", m->to_tree, m->lane, frames.v[i]);
-                ok = cp_member_pack_save(&members, stem, "memberpack");
-                lc_pack_free(&members);
-            }
-            free(out); if(files)RSCache_FileListFree(files); RSCache_Dat2DiskArchiveFree(ar);
-        }
+            ok = write_frame_archive(m, &src, &to, &fm_map, frames.v[i]);
+        for( int i = 0; ok && i < synths.n; i++ )
+            ok = write_synth_asset(m, &src, synths.v[i]);
 
-        char configdir[1500]; snprintf(configdir, sizeof(configdir), "%s/%s/configs", m->to_tree, m->lane); mkdir_p(configdir);
-        char path[1550];
-        snprintf(path, sizeof(path), "%s/summoning.seq", configdir); FILE* seqout = fopen(path, "wb");
+        char configdir[1500], path[1550];
+        snprintf(configdir, sizeof(configdir), "%s/%s/configs", m->to_tree, m->lane);
+        mkdir_p(configdir);
+
+        snprintf(path, sizeof(path), "%s/%s.seq", configdir, m->prefix);
+        FILE* seqout = fopen(path, "wb");
         for( int i = 0; ok && seqout && i < seqs.n; i++ )
         {
             struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(&src, seqs.v[i]);
-            for( int f = 0; seq && f < seq->frame_count; f++ ) seq->frame_ids[f] = (map_id(&frame_map, (seq->frame_ids[f]>>16)&0xffff)<<16) | (seq->frame_ids[f]&0xffff);
-            free(seq->frame_sounds.frames); free(seq->frame_sounds.sounds); memset(&seq->frame_sounds,0,sizeof(seq->frame_sounds)); seq->rs2_530_sound_flag=false;
-            uint32_t bound = RSCache_Dat2ConfigSequenceEncodeBound(seq); uint8_t* bytes = malloc(bound);
+            if( !seq ) { ok = 0; break; }
+            for( int f = 0; ok && f < seq->frame_count; f++ )
+            {
+                int old = (seq->frame_ids[f] >> 16) & 0xffff, nw = -1;
+                ok = map_required(&frame_map, "frame archive", old, &nw);
+                seq->frame_ids[f] = (nw << 16) | (seq->frame_ids[f] & 0xffff);
+            }
+            for( int f = 0; ok && f < seq->chat_frame_id_count; f++ ) if( seq->chat_frame_ids[f] >= 0 )
+            {
+                int old = (seq->chat_frame_ids[f] >> 16) & 0xffff, nw = -1;
+                ok = map_required(&frame_map, "chat frame archive", old, &nw);
+                seq->chat_frame_ids[f] = (nw << 16) | (seq->chat_frame_ids[f] & 0xffff);
+            }
+            int external_sound_count = 0;
+            for( int s = 0; ok && s < seq->frame_sounds.count; s++ )
+            {
+                int mapped_sound = -1;
+                if( tool_id_map_lookup(&synth_map, seq->frame_sounds.sounds[s].id,
+                                       &mapped_sound) )
+                    seq->frame_sounds.sounds[s].id = mapped_sound;
+                else
+                    external_sound_count++;
+            }
+            if( external_sound_count )
+                fprintf(stderr,
+                        "cachepack import: seq %d retains %d index-14 MIDI/Vorbis events; "
+                        "OSRS needs the documented audio bridge\n",
+                        seqs.v[i], external_sound_count);
+            int mapped = -1;
+            if( seq->left_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->left_hand_item, &mapped) )
+                seq->left_hand_item = mapped;
+            if( seq->right_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->right_hand_item, &mapped) )
+                seq->right_hand_item = mapped;
+            uint32_t bound = RSCache_Dat2ConfigSequenceEncodeBound(seq);
+            uint8_t* bytes = malloc(bound);
             uint32_t n = bytes ? RSCache_Dat2ConfigSequenceEncode(&to, seq, bytes, bound) : 0;
-            char name[128]; snprintf(name,sizeof(name),"summoning_seq_%d",seqs.v[i]); ok = n && emit_config(&emit,CP_TYPE_SEQ,map_id(&seq_map,seqs.v[i]),name,bytes,(int)n,seqout);
+            char name[128]; export_or_closure_name(m, &m->seqs, seqs.v[i], "seq", name, sizeof(name));
+            ok = ok && n && emit_config(&emit, CP_TYPE_SEQ, map_id(&seq_map, seqs.v[i]),
+                                         name, bytes, (int)n, seqout);
             free(bytes); RSCache_Dat2ConfigSequenceFree(seq);
         }
-        if(seqout)fclose(seqout); else ok=0;
+        if( seqout ) fclose(seqout); else ok = 0;
 
-        snprintf(path, sizeof(path), "%s/summoning.npc", configdir); FILE* npcout = fopen(path, "wb");
-        for( int i=0; ok && npcout && i<m->npcs.n; i++ )
+        snprintf(path, sizeof(path), "%s/%s.npc", configdir, m->prefix);
+        FILE* npcout = fopen(path, "wb");
+        for( int i = 0; ok && npcout && i < m->npcs.n; i++ )
         {
-            /* Texture ids are cache-local.  The Summoning lane's checked-in
-             * policy is to drop them until a destination texture has received
-             * explicit visual sign-off. */
-            free(neutral[i].retexture_to_find);
-            free(neutral[i].retexture_to_replace);
-            neutral[i].retexture_to_find = NULL;
-            neutral[i].retexture_to_replace = NULL;
-            neutral[i].retexture_count = 0;
-            for(int k=0;k<neutral[i].models_count;k++)neutral[i].models[k]=map_id(&model_map,neutral[i].models[k]);
-            for(int k=0;k<neutral[i].chathead_models_count;k++)neutral[i].chathead_models[k]=map_id(&model_map,neutral[i].chathead_models[k]);
-            for(int k=0;k<TOOL_ANIM_SLOT_COUNT;k++)if(neutral[i].anim_present[k])neutral[i].anim[k]=map_id(&seq_map,neutral[i].anim[k]);
-            neutral[i].source_id=20000+i;
-            struct RSCache_Dat2ConfigNpc* npc = tool_neutral_npc_to_dat2(&neutral[i],&to,0,-1,NULL,NULL);
-            uint32_t bound=RSCache_Dat2ConfigNpcEncodeBound(npc); uint8_t* bytes=malloc(bound); uint32_t n=bytes?RSCache_Dat2ConfigNpcEncodeProfile(&to,npc,bytes,bound):0;
-            char name[128]; canonical_name(name,sizeof(name),m->npcs.v[i].name); ok=n&&emit_config(&emit,CP_TYPE_NPC,20000+i,name,bytes,(int)n,npcout);
+            if( m->legacy_scape2009 )
+            {
+                free(neutral[i].retexture_to_find); free(neutral[i].retexture_to_replace);
+                neutral[i].retexture_to_find = neutral[i].retexture_to_replace = NULL;
+                neutral[i].retexture_count = 0;
+            }
+            for( int k = 0; k < neutral[i].models_count; k++ )
+                neutral[i].models[k] = map_id(&model_map, neutral[i].models[k]);
+            for( int k = 0; k < neutral[i].chathead_models_count; k++ )
+                neutral[i].chathead_models[k] = map_id(&model_map, neutral[i].chathead_models[k]);
+            for( int k = 0; k < TOOL_ANIM_SLOT_COUNT; k++ )
+                if( neutral[i].anim_present[k] ) neutral[i].anim[k] = map_id(&seq_map, neutral[i].anim[k]);
+            neutral[i].source_id = m->npc_base + i;
+            struct RSCache_Dat2ConfigNpc* npc =
+                tool_neutral_npc_to_dat2(&neutral[i], &to, 0, -1, NULL, NULL);
+            if( npc && !m->legacy_scape2009 )
+            {
+                int* dst[] = { &npc->sound_idle, &npc->sound_crawl, &npc->sound_walk, &npc->sound_run };
+                int src_sound[] = { source_npcs[i]->sound_idle, source_npcs[i]->sound_crawl,
+                                    source_npcs[i]->sound_walk, source_npcs[i]->sound_run };
+                for( int s = 0; ok && s < 4; s++ )
+                    if( src_sound[s] >= 0 )
+                    {
+                        int mapped = -1;
+                        *dst[s] = tool_id_map_lookup(&synth_map, src_sound[s], &mapped)
+                                      ? mapped : src_sound[s];
+                    }
+                npc->sound_radius = source_npcs[i]->sound_radius;
+                npc->ambient_sound_volume = source_npcs[i]->ambient_sound_volume;
+                npc->has_render_priority = source_npcs[i]->has_render_priority;
+                npc->render_priority = source_npcs[i]->render_priority;
+                memcpy(npc->stats, source_npcs[i]->stats, sizeof(npc->stats));
+            }
+            uint32_t bound = npc ? RSCache_Dat2ConfigNpcEncodeBound(npc) : 0;
+            uint8_t* bytes = bound ? malloc(bound) : NULL;
+            uint32_t n = bytes ? RSCache_Dat2ConfigNpcEncodeProfile(&to, npc, bytes, bound) : 0;
+            char name[128]; canonical_name(m, name, sizeof(name), m->npcs.v[i].name);
+            ok = ok && n && emit_config(&emit, CP_TYPE_NPC, m->npc_base + i,
+                                         name, bytes, (int)n, npcout);
             free(bytes); RSCache_Dat2ConfigNpcFree(npc);
         }
-        if(npcout)fclose(npcout); else ok=0;
+        if( npcout ) fclose(npcout); else ok = 0;
 
-        snprintf(path, sizeof(path), "%s/summoning.obj", configdir); FILE* objout = fopen(path, "wb");
-        for( int i=0; ok && objout && i<m->objs.n; i++ )
+        snprintf(path, sizeof(path), "%s/%s.obj", configdir, m->prefix);
+        FILE* objout = fopen(path, "wb");
+        for( int i = 0; ok && objout && i < m->objs.n; i++ )
         {
-#define REMAP_OBJ_MODEL(field) if(objects[i]->field>0)objects[i]->field=map_id(&model_map,objects[i]->field)
-            REMAP_OBJ_MODEL(inventory_model_id); REMAP_OBJ_MODEL(male_model_0); REMAP_OBJ_MODEL(male_model_1); REMAP_OBJ_MODEL(male_model_2);
-            REMAP_OBJ_MODEL(female_model_0); REMAP_OBJ_MODEL(female_model_1); REMAP_OBJ_MODEL(female_model_2);
-            REMAP_OBJ_MODEL(male_head_model); REMAP_OBJ_MODEL(male_head_model_2); REMAP_OBJ_MODEL(female_head_model); REMAP_OBJ_MODEL(female_head_model_2);
+#define REMAP_OBJ_MODEL(field) if( objects[i]->field > 0 ) objects[i]->field = map_id(&model_map, objects[i]->field)
+            REMAP_OBJ_MODEL(inventory_model_id); REMAP_OBJ_MODEL(male_model_0);
+            REMAP_OBJ_MODEL(male_model_1); REMAP_OBJ_MODEL(male_model_2);
+            REMAP_OBJ_MODEL(female_model_0); REMAP_OBJ_MODEL(female_model_1);
+            REMAP_OBJ_MODEL(female_model_2); REMAP_OBJ_MODEL(male_head_model);
+            REMAP_OBJ_MODEL(male_head_model_2); REMAP_OBJ_MODEL(female_head_model);
+            REMAP_OBJ_MODEL(female_head_model_2);
 #undef REMAP_OBJ_MODEL
-            uint32_t bound=RSCache_Dat2ConfigObjEncodeBound(objects[i]); uint8_t* bytes=malloc(bound); uint32_t n=bytes?RSCache_Dat2ConfigObjEncodeProfile(&to,objects[i],bytes,bound):0;
-            char name[128]; canonical_name(name,sizeof(name),m->objs.v[i].name); ok=n&&emit_config(&emit,CP_TYPE_OBJ,40000+i,name,bytes,(int)n,objout); free(bytes);
+            int* refs[] = { &objects[i]->noted_id, &objects[i]->noted_template,
+                            &objects[i]->bought_id, &objects[i]->bought_template_id,
+                            &objects[i]->lend_id, &objects[i]->lend_template_id,
+                            &objects[i]->placeholder_id, &objects[i]->placeholder_template_id };
+            for( size_t r = 0; r < sizeof(refs) / sizeof(refs[0]); r++ )
+            {
+                int mapped = -1;
+                if( **refs >= 0 && tool_id_map_lookup(&obj_map, **refs, &mapped) ) **refs = mapped;
+            }
+            for( int r = 0; r < 10; r++ )
+            {
+                int mapped = -1;
+                if( objects[i]->count_obj[r] >= 0 &&
+                    tool_id_map_lookup(&obj_map, objects[i]->count_obj[r], &mapped) )
+                    objects[i]->count_obj[r] = mapped;
+            }
+            objects[i]->_id = m->obj_base + i;
+            uint32_t bound = RSCache_Dat2ConfigObjEncodeBound(objects[i]);
+            uint8_t* bytes = malloc(bound);
+            uint32_t n = bytes ? RSCache_Dat2ConfigObjEncodeProfile(&to, objects[i], bytes, bound) : 0;
+            char name[128]; canonical_name(m, name, sizeof(name), m->objs.v[i].name);
+            ok = n && emit_config(&emit, CP_TYPE_OBJ, m->obj_base + i,
+                                  name, bytes, (int)n, objout);
+            free(bytes);
         }
-        if(objout)fclose(objout); else ok=0;
+        if( objout ) fclose(objout); else ok = 0;
 
-        ok = ok && save_alloc(&emit,CP_TYPE_NPC,m->to_tree,m->lane) && save_alloc(&emit,CP_TYPE_OBJ,m->to_tree,m->lane) && save_alloc(&emit,CP_TYPE_SEQ,m->to_tree,m->lane);
-        ok = ok && save_asset_pack(&model_pack,m->to_tree,m->lane,"7_models") && save_asset_pack(&seq_asset_pack,m->to_tree,m->lane,"0_animations") && save_asset_pack(&fm_pack,m->to_tree,m->lane,"1_skeletons");
-        ok = ok && save_client_membership(m->to_tree,m->lane,"npc",&m->npcs,NULL) && save_client_membership(m->to_tree,m->lane,"obj",&m->objs,NULL) && save_client_membership(m->to_tree,m->lane,"seq",NULL,&seqs);
-        ok = ok && save_ledger(m,&models,&seqs,&frames,&framemaps,&model_map,&seq_map,&frame_map,&fm_map);
+        snprintf(path, sizeof(path), "%s/%s.spotanim", configdir, m->prefix);
+        FILE* spotout = fopen(path, "wb");
+        for( int i = 0; ok && spotout && i < m->spotanims.n; i++ )
+        {
+            spots[i]->model = map_id(&model_map, spots[i]->model);
+            if( spots[i]->anim >= 0 ) spots[i]->anim = map_id(&seq_map, spots[i]->anim);
+            if( spots[i]->terrain_mode )
+                fprintf(stderr, "cachepack import: spotanim %d terrain conformance has no OSRS config equivalent\n",
+                        m->spotanims.v[i].source_id);
+            uint32_t bound = RSCache_Dat2ConfigSpotanimEncodeBound(spots[i]);
+            uint8_t* bytes = malloc(bound);
+            uint32_t n = bytes ? RSCache_Dat2ConfigSpotanimEncodeRevision(
+                to.revision, spots[i], bytes, bound) : 0;
+            char name[128]; canonical_name(m, name, sizeof(name), m->spotanims.v[i].name);
+            ok = n && emit_config(&emit, CP_TYPE_SPOTANIM, m->spotanim_base + i,
+                                  name, bytes, (int)n, spotout);
+            free(bytes);
+        }
+        if( spotout ) fclose(spotout); else ok = 0;
+
+        snprintf(path, sizeof(path), "%s/%s.loc", configdir, m->prefix);
+        FILE* locout = fopen(path, "wb");
+        for( int i = 0; ok && locout && i < m->locs.n; i++ )
+        {
+            for( int s = 0; s < locs[i]->shapes_and_model_count; s++ )
+                for( int k = 0; k < locs[i]->lengths[s]; k++ )
+                    locs[i]->models[s][k] = map_id(&model_map, locs[i]->models[s][k]);
+            if( locs[i]->seq_id >= 0 ) locs[i]->seq_id = map_id(&seq_map, locs[i]->seq_id);
+            for( int k = 0; k < locs[i]->random_seq_id_count; k++ )
+                locs[i]->random_seq_ids[k] = map_id(&seq_map, locs[i]->random_seq_ids[k]);
+            for( int k = 0; ok && k < locs[i]->transform_count; k++ ) if( locs[i]->transforms[k] >= 0 )
+                ok = map_required(&loc_map, "loc transform", locs[i]->transforms[k], &locs[i]->transforms[k]);
+            if( locs[i]->ambient_sound_id >= 0 )
+            {
+                int mapped = -1;
+                if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_id, &mapped) )
+                    locs[i]->ambient_sound_id = mapped;
+            }
+            for( int k = 0; ok && k < locs[i]->ambient_sound_id_count; k++ )
+            {
+                int mapped = -1;
+                if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_ids[k], &mapped) )
+                    locs[i]->ambient_sound_ids[k] = mapped;
+            }
+            locs[i]->_id = m->loc_base + i;
+            uint32_t bound = RSCache_Dat2ConfigLocEncodeBound(locs[i]);
+            uint8_t* bytes = malloc(bound);
+            uint32_t n = bytes ? RSCache_Dat2ConfigLocEncode(&to, locs[i], bytes, bound) : 0;
+            char name[128]; canonical_name(m, name, sizeof(name), m->locs.v[i].name);
+            ok = ok && n && emit_config(&emit, CP_TYPE_LOC, m->loc_base + i,
+                                         name, bytes, (int)n, locout);
+            free(bytes);
+        }
+        if( locout ) fclose(locout); else ok = 0;
+
+#define SAVE_ALLOC_IF(field, kind) if( ok && m->field.n ) ok = save_alloc(&emit, kind, m->to_tree, m->lane)
+        SAVE_ALLOC_IF(npcs, CP_TYPE_NPC); SAVE_ALLOC_IF(objs, CP_TYPE_OBJ);
+        SAVE_ALLOC_IF(locs, CP_TYPE_LOC); SAVE_ALLOC_IF(spotanims, CP_TYPE_SPOTANIM);
+#undef SAVE_ALLOC_IF
+        if( ok && seqs.n ) ok = save_alloc(&emit, CP_TYPE_SEQ, m->to_tree, m->lane);
+        if( ok && models.n ) ok = save_asset_pack(&model_pack, m->to_tree, m->lane, "7_models");
+        if( ok && frames.n ) ok = save_asset_pack(&frame_pack, m->to_tree, m->lane, "0_animations");
+        if( ok && framemaps.n ) ok = save_asset_pack(&fm_pack, m->to_tree, m->lane, "1_skeletons");
+        if( ok && synths.n ) ok = save_asset_pack(&synth_pack, m->to_tree, m->lane, "4_soundeffects");
+        if( ok && m->npcs.n ) ok = save_client_membership(m, "npc", &m->npcs, NULL, NULL);
+        if( ok && m->objs.n ) ok = save_client_membership(m, "obj", &m->objs, NULL, NULL);
+        if( ok && m->locs.n ) ok = save_client_membership(m, "loc", &m->locs, NULL, NULL);
+        if( ok && m->spotanims.n ) ok = save_client_membership(m, "spotanim", &m->spotanims, NULL, NULL);
+        if( ok && seqs.n ) ok = save_client_membership(m, "seq", NULL, &seqs, "seq");
+        if( ok ) ok = save_ledger(m, &models, &seqs, &frames, &framemaps, &synths,
+                                  &model_map, &seq_map, &frame_map, &fm_map, &synth_map);
     }
 
-    for(int i=0;i<m->npcs.n;i++)tool_neutral_npc_free(&neutral[i]);
-    for(int i=0;i<m->objs.n;i++)if(objects[i])RSCache_Dat2ConfigObjFree(objects[i]);
-    free(neutral); free(objects); free(models.v); free(seqs.v); free(frames.v); free(framemaps.v);
-    tool_id_map_free(&model_map); tool_id_map_free(&seq_map); tool_id_map_free(&frame_map); tool_id_map_free(&fm_map);
-    lc_pack_free(&model_pack); lc_pack_free(&seq_asset_pack); lc_pack_free(&fm_pack);
-    cp_names_free(&emit.names); tool_dat2_close(&src);
+    for( int i = 0; i < m->npcs.n; i++ )
+    {
+        tool_neutral_npc_free(&neutral[i]);
+        RSCache_Dat2ConfigNpcFree(source_npcs[i]);
+    }
+    for( int i = 0; i < m->objs.n; i++ ) RSCache_Dat2ConfigObjFree(objects[i]);
+    for( int i = 0; i < m->spotanims.n; i++ ) RSCache_Dat2ConfigSpotanimFree(spots[i]);
+    for( int i = 0; i < m->locs.n; i++ ) RSCache_Dat2ConfigLocFree(locs ? locs[i] : NULL);
+    free(neutral); free(source_npcs); free(objects); free(spots); free(locs);
+    free(models.v); free(seqs.v); free(frames.v); free(framemaps.v); free(synths.v);
+    free(obj_ids.v); free(loc_ids.v); free(spot_ids.v);
+    tool_id_map_free(&model_map); tool_id_map_free(&seq_map); tool_id_map_free(&frame_map);
+    tool_id_map_free(&fm_map); tool_id_map_free(&synth_map); tool_id_map_free(&obj_map);
+    tool_id_map_free(&loc_map);
+    lc_pack_free(&model_pack); lc_pack_free(&frame_pack); lc_pack_free(&fm_pack);
+    lc_pack_free(&synth_pack); cp_names_free(&emit.names); tool_dat2_close(&src);
     return ok;
 }
 

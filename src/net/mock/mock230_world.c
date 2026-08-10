@@ -295,6 +295,52 @@ steps_clear(struct Mock230Player* player)
     mock230_world_steps_clear(player);
 }
 
+/*
+ * The part of player_lock that is about the actor, not the packet stream.
+ *
+ * Keep this separate from clear_pending_action: that function closes modals
+ * and can release the active script, while the script which called
+ * player_lock must keep executing (and its queued successors must keep
+ * draining). A time-stopped player gives up only the route/interaction they
+ * could otherwise continue without sending another packet.
+ */
+static void
+player_cancel_locked_actions(struct Mock230Player* player)
+{
+    int had_route;
+
+    assert(player);
+    had_route = player->waypoint_index >= 0 || player->dest_x >= 0 || player->dest_z >= 0;
+    steps_clear(player);
+    player->dest_x = -1;
+    player->dest_z = -1;
+    player->face_target_x = -1;
+    player->face_target_z = -1;
+    if( had_route )
+        player->clear_map_flag = 1;
+    mock230_combat_stop_player_at(player);
+}
+
+void
+mock230_world_player_lock(struct Mock230Server* srv)
+{
+    struct Mock230Player* player;
+
+    assert(srv);
+    player = srv->active_player;
+    assert(player);
+    player->action_locked = 1;
+    player_cancel_locked_actions(player);
+}
+
+void
+mock230_world_player_unlock(struct Mock230Server* srv)
+{
+    assert(srv);
+    assert(srv->active_player);
+    srv->active_player->action_locked = 0;
+}
+
 static int
 player_has_waypoints(struct Mock230Player const* player)
 {
@@ -6513,6 +6559,46 @@ struct Mock230PacketRoute
 };
 
 /*
+ * Packets which ask the player actor to do something in the game world.
+ *
+ * Keep transport/liveness, scene acknowledgements, camera telemetry and
+ * social/chat packets outside this set: an action lock is a boss mechanic, not
+ * a frozen connection. The contiguous ranges are canonical packet-name
+ * families (not revision opcodes), so the same gate covers rev 230 and 239.
+ */
+static int
+player_action_packet(int name)
+{
+    if( (name >= PKTOUT_NAME_OPOBJ1 && name <= PKTOUT_NAME_OPOBJU) ||
+        (name >= PKTOUT_NAME_OPNPC1 && name <= PKTOUT_NAME_OPNPCU) ||
+        (name >= PKTOUT_NAME_OPLOC1 && name <= PKTOUT_NAME_OPLOCU) ||
+        (name >= PKTOUT_NAME_OPPLAYER1 && name <= PKTOUT_NAME_OPPLAYERU) ||
+        (name >= PKTOUT_NAME_OPHELD1 && name <= PKTOUT_NAME_OPHELDU) ||
+        (name >= PKTOUT_NAME_INV_BUTTON1 && name <= PKTOUT_NAME_INV_BUTTOND) ||
+        (name >= PKTOUT_NAME_IF_BUTTON1 && name <= PKTOUT_NAME_IF_BUTTON10) ||
+        (name >= PKTOUT_NAME_RESUME_PAUSEBUTTON &&
+         name <= PKTOUT_NAME_RESUME_P_OBJDIALOG) )
+        return 1;
+
+    switch( name )
+    {
+    case PKTOUT_NAME_IF_BUTTON:
+    case PKTOUT_NAME_IF_BUTTONX:
+    case PKTOUT_NAME_IF_SUBOP:
+    case PKTOUT_NAME_IF_SCRIPT_TRIGGER:
+    case PKTOUT_NAME_IF_BUTTONT:
+    case PKTOUT_NAME_CLICK_WORLD_MAP:
+    case PKTOUT_NAME_MOVE_OPCLICK:
+    case PKTOUT_NAME_MOVE_MINIMAPCLICK:
+    case PKTOUT_NAME_MOVE_GAMECLICK:
+    case PKTOUT_NAME_CLIENT_CHEAT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
+/*
  * The routing table. Adding a packet is a line here plus a handler; nothing
  * else in the file has to change, which is the whole point of it being a table.
  */
@@ -6630,6 +6716,14 @@ mock230_world_handle(
     {
         if( srv->verbose )
             fprintf(stderr, "mock230: <- packet name %d dropped behind scene barrier\n",
+                    name);
+        return;
+    }
+
+    if( player->action_locked && player_action_packet(name) )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "mock230: <- player action packet name %d dropped while locked\n",
                     name);
         return;
     }
@@ -7084,6 +7178,8 @@ mock230_world_remove_player(
 
     if( !player || !player->active )
         return;
+    /* Session-local mechanic state must not reach [logout] or a reused slot. */
+    player->action_locked = 0;
     name37 = player->name37;
     /* Copied, not aliased: the slot this points into is reused by the next
      * login and the notification below runs after the slot has been released. */
@@ -7132,6 +7228,9 @@ mock230_world_remove_player(
         }
         mock230_world_set_active(srv, was_active == player ? NULL : was_active);
     }
+    /* A logout script may itself touch encounter state; the disconnected slot
+     * still leaves unlocked regardless. */
+    player->action_locked = 0;
 
     /*
      * The instance this session was standing in, released by default.
@@ -8280,6 +8379,27 @@ phase_player(struct Mock230Player* player)
     mock230_scripts_process_engine_queue(srv);
 
     /*
+     * An action lock is deliberately below every script/queue/timer phase.
+     * That placement is its contract: a queued projectile hit still executes,
+     * and a queued player_unlock can release the player for this same turn.
+     * What stays below the gate is exclusively actor-driven pathing and
+     * interaction. A queued script which tried to arm either while the lock
+     * remains set is cancelled here rather than resuming after the time-stop.
+     */
+    if( player->action_locked )
+    {
+        if( player_has_waypoints(player) || player->dest_x >= 0 ||
+            player->dest_z >= 0 || player->combat_target >= 0 ||
+            player->interaction.kind != MOCK230_INTERACT_NONE ||
+            player->face_entity != -1 || player->face_target_x != -1 )
+            player_cancel_locked_actions(player);
+        advance_player(srv);
+        run_energy_tick(srv, 0);
+        mock230_combat_player_tick(srv);
+        return;
+    }
+
+    /*
      * Face the interaction / combat target before approach can return early
      * and before tryInteract can clear it — LostCity PathingEntity.setFaceEntity
      * in processPlayers, before processInteraction.
@@ -9347,6 +9467,7 @@ selftest_park_player(
 {
     struct Mock230Player* player = srv->active_player;
 
+    mock230_world_player_unlock(srv);
     steps_clear(player);
     player->x = tile_x;
     player->z = tile_z;
@@ -22507,6 +22628,10 @@ mock230_world_selftest(void)
 
         player->tracked_count = 0;
         memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+        /* Tracking and names are two halves of one fact, so a test that drops
+         * one by hand has to drop the other — otherwise it manufactures exactly
+         * the orphaned names it goes on to assert the absence of. */
+        mock230_slotmap_reset(player);
         /*
          * Phase 8's order, by hand, because this test does not run a tick.
          *
@@ -22618,6 +22743,114 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(off_area == 0,
                        "and inside the build area the client has a scene for, %d do not",
                        off_area);
+
+        /*
+         * The per-client npc names.
+         *
+         * The wire's index is this client's name for an npc, not the world's
+         * slot (struct Mock230PlayerSlotMap), and two properties make that safe.
+         * They are asserted separately because they fail differently: a
+         * collision draws one npc in two places, and an unstable name makes an
+         * npc teleport-and-respawn every tick it is renamed.
+         */
+        {
+            int seen_client[MOCK230_CLIENT_NPC_SLOTS];
+            int collisions = 0;
+            int unnamed = 0;
+            int inconsistent = 0;
+            int moved = 0;
+            int before[MOCK230_TRACKED_NPC_MAX];
+            int before_count = player->tracked_count;
+
+            memset(seen_client, 0, sizeof(seen_client));
+            for( int i = 0; i < player->tracked_count; i++ )
+            {
+                int world = player->tracked[i];
+                int client = player->npc_slots.client_of[world];
+
+                before[i] = client;
+                if( client < 0 )
+                {
+                    unnamed++;
+                    continue;
+                }
+                /* The two directions have to agree, or a release frees
+                 * somebody else's name. */
+                if( player->npc_slots.world_of[client] != world )
+                    inconsistent++;
+                if( seen_client[client]++ )
+                    collisions++;
+            }
+            SELFTEST_CHECK(unnamed == 0, "every tracked npc should have a client name, %d "
+                           "do not", unnamed);
+            SELFTEST_CHECK(collisions == 0,
+                           "and no two tracked npcs should share one, %d do", collisions);
+            SELFTEST_CHECK(inconsistent == 0,
+                           "and the map should agree with itself both ways, %d do not",
+                           inconsistent);
+
+            /*
+             * Asking again gives the same name.
+             *
+             * Stated against `acquire` rather than by re-encoding, because
+             * re-encoding does not exercise it: the second NPC_INFO finds every
+             * npc already tracked and adds nothing, so no name is asked for and
+             * the check passes without testing anything. That version of this
+             * assertion was written first and a mutation that hands out a fresh
+             * name on every call sailed through it.
+             */
+            for( int i = 0; i < before_count; i++ )
+            {
+                if( before[i] < 0 )
+                    continue;
+                if( mock230_slotmap_acquire(player, player->tracked[i]) != before[i] )
+                    moved++;
+            }
+            SELFTEST_CHECK(moved == 0,
+                           "and asking again should give the same name, %d moved", moved);
+
+            /*
+             * And a name is given back when the npc leaves view.
+             *
+             * This has to WALK AWAY to mean anything. Checking for orphaned
+             * names without ever causing a removal passes against a `release`
+             * that does nothing at all — the first version of this did exactly
+             * that, and the mutation sailed through it. The leak is invisible
+             * in a short run either way (1024 names against 255 trackable
+             * npcs); it surfaces as a client that stops seeing new npcs after a
+             * few thousand walk-bys.
+             */
+            {
+                int orphaned = 0;
+                int held = 0;
+
+                for( int c = 0; c < MOCK230_CLIENT_NPC_SLOTS; c++ )
+                    held += player->npc_slots.world_of[c] >= 0;
+                SELFTEST_CHECK(held > 0, "the fixture should be holding some names to give back");
+
+                /* Somewhere with nothing in sight, so every tracked npc leaves
+                 * view and the removal path runs for all of them. */
+                selftest_park_player(&srv, base_x + 3, base_z + 3);
+                mock230_playerzonemap_move(player);
+                mock230_send_npc_info(player);
+
+                for( int c = 0; c < MOCK230_CLIENT_NPC_SLOTS; c++ )
+                {
+                    int world = player->npc_slots.world_of[c];
+                    int tracked = 0;
+
+                    if( world < 0 )
+                        continue;
+                    for( int i = 0; i < player->tracked_count; i++ )
+                        tracked = tracked || player->tracked[i] == world;
+                    if( !tracked )
+                        orphaned++;
+                }
+                SELFTEST_CHECK(orphaned == 0,
+                               "and no name should outlive the npc it was given to, %d do",
+                               orphaned);
+            }
+        }
 
         /* Put the world back under the player for the suites below. */
         srv.zone_x = saved_zone_x;

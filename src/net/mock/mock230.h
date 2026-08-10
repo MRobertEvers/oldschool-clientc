@@ -2217,6 +2217,11 @@ struct Mock230Player
      *  happens during it, is `[queue,player_death]`. There was a `death_tick`
      *  here, which meant the engine owned the length of a death. */
     int dying;
+    /** Reject the player's own movement/action packets while leaving the
+     *  simulation live. Unlike busy/canAccess this does not pause scripts,
+     *  queues, timers, or damage; content owns the duration through
+     *  player_lock()/player_unlock(). */
+    int action_locked;
     /** The overhead-icon bits for the appearance block. Content's, through
      *  HEADICONS_GET/SET — the engine neither knows nor asks which prayer put a
      *  bit here, which is exactly the reference's arrangement
@@ -3749,6 +3754,18 @@ mock230_world_ground_slot(
 /** Drop the player's queued route. */
 void
 mock230_world_steps_clear(struct Mock230Player* player);
+
+/**
+ * Suppress or restore player-originated movement and action input.
+ *
+ * Locking immediately abandons pathing, interaction, and outgoing combat.
+ * It deliberately does not make the player busy: queued scripts/timers and
+ * incoming combat keep advancing. Both functions act on `active_player`.
+ */
+void
+mock230_world_player_lock(struct Mock230Server* srv);
+void
+mock230_world_player_unlock(struct Mock230Server* srv);
 
 /** The player's plane changed: drop entity/zone tracking for the old plane so
  *  the new one is FULL_FOLLOWSed. Does **not** queue a scene rebuild — LOC_*

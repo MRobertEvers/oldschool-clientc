@@ -59,6 +59,10 @@ test_opcode_names(void)
              "npc runtime-var opcode name");
     CHECK_EQ(SSVM_OpcodeFromName("npc_var_set"), SS_OP_NPC_VAR_SET,
              "compiler command lookup sees npc_var_set");
+    CHECK_EQ(SSVM_OpcodeFromName("player_lock"), SS_OP_PLAYER_LOCK,
+             "compiler command lookup sees player_lock");
+    CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
+             "player unlock opcode name");
 
     /* A name must always come back, or the diagnostic that was trying to
      * explain a failure becomes the failure. */
@@ -143,6 +147,12 @@ test_command_arities(void)
     CHECK(m->int_in == 1 && m->int_out == 1, "npc_var_get(slot) -> int");
     m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_SET);
     CHECK(m->int_in == 2 && m->int_out == 0, "npc_var_set(slot, value)");
+    m = SSVM_OpcodeMeta(SS_OP_PLAYER_LOCK);
+    CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "player_lock() has no stack arguments");
+    m = SSVM_OpcodeMeta(SS_OP_PLAYER_UNLOCK);
+    CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "player_unlock() has no stack arguments");
 }
 
 static void
@@ -202,6 +212,12 @@ test_pointer_masks(void)
     m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_SET);
     CHECK(m->require == SSVM_PTR_ACTIVE_NPC,
           "npc_var_set requires the primary active npc");
+    m = SSVM_OpcodeMeta(SS_OP_PLAYER_LOCK);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "player_lock requires the protected active player");
+    m = SSVM_OpcodeMeta(SS_OP_PLAYER_UNLOCK);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "player_unlock requires the protected active player");
 
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */

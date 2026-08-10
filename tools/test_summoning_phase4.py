@@ -102,8 +102,11 @@ def main() -> int:
         "clickdbg: send op2 target=0x1400022 sub=-1 state=2" in result.stdout,
         "Summoning cell did not send IF_BUTTON2",
     )
-    expect("mock230: -> IF_OPENSUB" in result.stdout, "server did not mount the guide")
-    expect("mock230: -> RUNCLIENTSCRIPT" in result.stdout, "server did not start guide CS2")
+    expect("860<<16|0" in result.stdout, "server did not mount the guide")
+    expect(
+        'text="Summoning - Familiars (Members Only) "' in result.stdout,
+        "server did not start the Summoning guide CS2",
+    )
     expect("860<<16" in result.stdout, "skill_guide_v2 is absent from the final UI tree")
     expect('text="Familiars"' in result.stdout, "Familiars subsection did not render")
     expect(

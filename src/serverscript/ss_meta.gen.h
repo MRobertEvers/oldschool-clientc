@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11027] = {
+static const char* const g_ss_opcode_names[11029] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -438,6 +438,8 @@ static const char* const g_ss_opcode_names[11027] = {
     [11024] = "NPC_FINDOWNED",
     [11025] = "NPC_VAR_GET",
     [11026] = "NPC_VAR_SET",
+    [11027] = "PLAYER_LOCK",
+    [11028] = "PLAYER_UNLOCK",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -447,7 +449,7 @@ static const char* const g_ss_opcode_names[11027] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11027] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11029] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -879,6 +881,8 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11027] = {
     [11024] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* NPC_FINDOWNED */
     [11025] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_VAR_GET */
     [11026] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_VAR_SET */
+    [11027] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* PLAYER_LOCK */
+    [11028] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* PLAYER_UNLOCK */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

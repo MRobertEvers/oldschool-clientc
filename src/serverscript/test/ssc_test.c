@@ -1180,6 +1180,40 @@ test_npc_runtime_primitives(void)
 }
 
 static void
+test_player_action_lock_primitives(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+    int saw_lock = 0;
+    int saw_unlock = 0;
+
+    printf("player action-lock primitive commands\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,player_action_lock_primitives]\n"
+                         "player_lock();\n"
+                         "player_unlock();\n",
+                         "player action-lock primitives") )
+        return;
+
+    script = SSVM_ProviderGetByName(&fixture.provider,
+                                    "[proc,player_action_lock_primitives]");
+    CHECK(script != NULL, "the player action-lock primitive script compiled");
+    if( script )
+    {
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            saw_lock += script->opcodes[op] == SS_OP_PLAYER_LOCK;
+            saw_unlock += script->opcodes[op] == SS_OP_PLAYER_UNLOCK;
+        }
+    }
+    CHECK_EQ(saw_lock, 1, "player_lock compiles to its host opcode");
+    CHECK_EQ(saw_unlock, 1, "player_unlock compiles to its host opcode");
+
+    fixture_close(&fixture);
+}
+
+static void
 test_errors(void)
 {
     struct SSC_Symbols symbols;
@@ -1239,6 +1273,7 @@ main(void)
     test_coord_subject();
     test_implicit_return();
     test_npc_runtime_primitives();
+    test_player_action_lock_primitives();
     test_runclientscript_vararg();
     test_vararg_limits();
     test_duplicate_debugproc();

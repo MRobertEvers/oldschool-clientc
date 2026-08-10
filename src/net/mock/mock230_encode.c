@@ -4361,7 +4361,10 @@ mock230_send_npc_info(struct Mock230Player* player)
             int force_type = npc_add_requires_transformation(npc);
             int extended = npc_extended_pending(npc) || force_face || force_type;
 
-            rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, slot);
+            /* This client's name for the npc, same as the v5 path — the
+             * classic client keys its npc table by this index too, it is just
+             * 14 bits wide instead of 16. */
+            rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, mock230_slotmap_acquire(player, slot));
             rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc_initial_wire_type(npc));
             rsab_pbit(&buf, 5, dx & 0x1f);
             rsab_pbit(&buf, 5, dz & 0x1f);
