@@ -103,6 +103,13 @@ RSCache_Dat2ConfigNpcEncodeProfile(
 {
     if( !npc || !out )
         return 0;
+    if( npc->sound_idle < -1 || npc->sound_idle > 0xFFFE ||
+        npc->sound_crawl < -1 || npc->sound_crawl > 0xFFFE ||
+        npc->sound_walk < -1 || npc->sound_walk > 0xFFFE ||
+        npc->sound_run < -1 || npc->sound_run > 0xFFFE ||
+        npc->sound_radius < 0 || npc->sound_radius > 0xFF ||
+        npc->ambient_sound_volume < 0 || npc->ambient_sound_volume > 0xFF )
+        return 0;
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
@@ -384,6 +391,25 @@ RSCache_Dat2ConfigNpcEncodeProfile(
     {
         p1(&buffer, 116);
         p2(&buffer, npc->crawl_animation);
+    }
+
+    /* Movement ambience is an index-4 sound dependency, not a sequence frame
+     * event. Keep the four movement states and radius together exactly as
+     * opcode 134 stores them; -1 is the wire's 65535 sentinel. */
+    if( npc->sound_idle != -1 || npc->sound_crawl != -1 ||
+        npc->sound_walk != -1 || npc->sound_run != -1 || npc->sound_radius != 0 )
+    {
+        p1(&buffer, 134);
+        p2(&buffer, npc->sound_idle < 0 ? 0xFFFF : npc->sound_idle);
+        p2(&buffer, npc->sound_crawl < 0 ? 0xFFFF : npc->sound_crawl);
+        p2(&buffer, npc->sound_walk < 0 ? 0xFFFF : npc->sound_walk);
+        p2(&buffer, npc->sound_run < 0 ? 0xFFFF : npc->sound_run);
+        p1(&buffer, npc->sound_radius);
+    }
+    if( npc->ambient_sound_volume != 255 )
+    {
+        p1(&buffer, 140);
+        p1(&buffer, npc->ambient_sound_volume);
     }
 
     /* Opcodes 106 and 118 both carry the varbit/varp pair and the config list;

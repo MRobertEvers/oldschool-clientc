@@ -44,7 +44,7 @@ struct Import_Manifest
     int npc_base, obj_base, loc_base, spotanim_base;
     int model_base, seq_base, animset_base, framemap_base, synth_base;
     int legacy_scape2009;
-    struct Import_List npcs, objs, seqs, spotanims, locs, synths;
+    struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
 };
 
 static char* trim(char* s)
@@ -215,6 +215,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             }
         }
         else if( strcmp(section, "export:npc") == 0 || strcmp(section, "export:obj") == 0 ||
+                 strcmp(section, "export:model") == 0 ||
                  strcmp(section, "export:seq") == 0 || strcmp(section, "export:spotanim") == 0 ||
                  strcmp(section, "export:loc") == 0 || strcmp(section, "export:synth") == 0 )
         {
@@ -222,6 +223,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             snprintf(name, sizeof(name), "%s", *value ? value : key);
             struct Import_List* list = strcmp(section, "export:npc") == 0 ? &m->npcs :
                                        strcmp(section, "export:obj") == 0 ? &m->objs :
+                                       strcmp(section, "export:model") == 0 ? &m->models :
                                        strcmp(section, "export:seq") == 0 ? &m->seqs :
                                        strcmp(section, "export:spotanim") == 0 ? &m->spotanims :
                                        strcmp(section, "export:loc") == 0 ? &m->locs :
@@ -234,7 +236,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
     fclose(f);
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
         !m->prefix[0] || strchr(m->prefix, '/') ||
-        (m->npcs.n == 0 && m->objs.n == 0 && m->seqs.n == 0 &&
+        (m->npcs.n == 0 && m->objs.n == 0 && m->models.n == 0 && m->seqs.n == 0 &&
          m->spotanims.n == 0 && m->locs.n == 0 && m->synths.n == 0) )
     {
         fprintf(stderr, "cachepack import: manifest needs from_rev/from_cache/to_rev/to_tree and exports\n");
@@ -245,7 +247,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
 
 static void manifest_free(struct Import_Manifest* m)
 {
-    free(m->npcs.v); free(m->objs.v); free(m->seqs.v);
+    free(m->npcs.v); free(m->objs.v); free(m->models.v); free(m->seqs.v);
     free(m->spotanims.v); free(m->locs.v); free(m->synths.v);
 }
 
@@ -1015,6 +1017,7 @@ static int import_run(struct Import_Manifest* m, int apply)
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
     struct Import_Ints synths = {0}, npc_ids = {0}, obj_ids = {0}, loc_ids = {0};
     struct Import_Ints spot_ids = {0};
+    for( int i = 0; i < m->models.n; i++ ) ints_add(&models, m->models.v[i].source_id);
     for( int i = 0; i < m->seqs.n; i++ ) ints_add(&seqs, m->seqs.v[i].source_id);
     for( int i = 0; i < m->synths.n; i++ ) ints_add(&synths, m->synths.v[i].source_id);
     for( int i = 0; i < m->npcs.n; i++ ) ints_add(&npc_ids, m->npcs.v[i].source_id);

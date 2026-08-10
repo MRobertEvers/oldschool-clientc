@@ -217,19 +217,22 @@ XTEA-encrypted `lX_Z` scenery archives, one-byte floor opcodes, and source loc
 ids. OSRS 239 groups both streams under archive `(X << 8 | Z)`, uses two-byte
 floor opcodes, and needs the imported loc ids.
 
-Run the inventory pass first, append its unique `loc` rows to the asset import
-manifest, rerun that importer, then apply with the resulting ledger:
+From `3rd/rscache/tools`, run the inventory pass first, append its unique `loc`
+rows to the asset import manifest, rerun that importer, then apply with the
+resulting ledger:
 
 ```sh
-./map_port/map_port --rev rs727 --cache ../../cache.rs727_preeoc \
-  --squares 22_99,20_95,18_101,40_89 --inventory ../../build/maps.tsv
+./map_port/map_port --rev rs727 --cache ../../../cache.rs727_preeoc \
+  --squares 22_99,20_95,16_99,17_99,18_99,20_99,21_99,20_100,21_100,20_101,21_101,16_101,17_100,17_101,18_101,40_89,39_89,39_90,39_91,40_90 \
+  --inventory ../../../build/rs2012_map_inventory.tsv
 
-./map_port/map_port --rev rs727 --cache ../../cache.rs727_preeoc \
-  --squares 22_99,20_95,18_101,40_89 --inventory ../../build/maps.tsv \
-  --ledger ../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.map \
-  --material-ledger ../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv \
-  --out ../../OSRS-Content/osrs239-content/ported/rs2012_qbd_td \
-  --base-tree ../../OSRS-Content/osrs239-content --apply
+./map_port/map_port --rev rs727 --cache ../../../cache.rs727_preeoc \
+  --squares 22_99,20_95,16_99,17_99,18_99,20_99,21_99,20_100,21_100,20_101,21_101,16_101,17_100,17_101,18_101,40_89,39_89,39_90,39_91,40_90 \
+  --inventory ../../../build/rs2012_map_inventory.tsv \
+  --ledger ../../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.map \
+  --material-ledger ../../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv \
+  --out ../../../OSRS-Content/osrs239-content/ported/rs2012_qbd_td \
+  --base-tree ../../../OSRS-Content/osrs239-content --apply
 ```
 
 The output is `.jm2`/`.jl2`, `mX_Z.filepack`, map pack rows, and the exact set of
@@ -238,6 +241,18 @@ replace `content/maps`: staging chooses when the historical identity squares
 overlay modern squares. `--base-tree` carries forward filepack members 2 and up
 from modern squares, so replacing terrain/loc does not discard OSRS auxiliary
 map payloads.
+
+Each inventory square records the resolved source terrain/loc archive ids and
+four XTEA words, making the source contract independently auditable. On an
+incremental `--apply`, existing `underlay.alloc` and `overlay.alloc` rows are
+authoritative: newly discovered floors append after their established ids
+rather than shifting every previously emitted terrain operand.
+
+Server-dynamic source placements whose loc-map archive is absent are declared
+in the lane's `BASE_PLACEMENTS.tsv`. `tools/stage_rs2012_overlay.py` merges them
+into a disposable copy of the destination square through the loc import ledger;
+the checked-in OSRS terrain, loc member, filepack and auxiliary members remain
+unchanged.
 
 RS2 floor materials have fields OSRS floor configs cannot spell. In particular,
 RS2 underlays can name a textured material and RS2 overlay texture ids are u16,

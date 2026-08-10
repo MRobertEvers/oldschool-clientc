@@ -46,6 +46,16 @@ def main() -> int:
         put(tree / "fields/loc.ini", "[name]\nclient=native\n")
         put(tree / "configs/all.loc.compack", "1=base_loc\n")
         put(lane / "PROVENANCE.md", "fixture\n")
+        put(
+            lane / "BASE_PLACEMENTS.tsv",
+            "square\tlevel\tx\tz\tsource_loc\tshape\tangle\tevidence\n"
+            "46_50\t0\t44\t36\t70792\t10\t0\tfixture\n",
+        )
+        put(
+            tree / "port/rs2012_qbd_td.map",
+            "kind\tsource_id\tsource_name\tdest_id\tdest_name\tdisposition\tsignoff\n"
+            "loc\t70792\tloc_70792\t63001\trs2012_loc_70792\tminted\tunreviewed\n",
+        )
         put(lane / "configs/rs2012.loc", "[rs2012_loc_1]\nname=Ported\n")
         put(lane / "configs/rs2012.overlay", "[rs2012_overlay_1]\ncolour=0x010203\n")
         put(lane / "pack/loc.alloc", "63000=rs2012_loc_1\n")
@@ -69,6 +79,15 @@ def main() -> int:
             tree / "maps/m39_90/2.bin": b"aux two",
             tree / "maps/m39_90/3.bin": b"aux three",
             tree / "maps/m39_90/4.bin": b"aux four",
+            tree / "maps/m46_50.jm2": b"==== MAP ====\n0 0 0: h1\n",
+            tree / "maps/m46_50.jl2": b"==== LOC ====\n0 1 1: 10 10 0\n",
+            tree / "maps/m46_50.filepack": (
+                b"0=m46_50.jm2\n1=m46_50.jl2\n2=m46_50/2.bin\n"
+                b"3=m46_50/3.bin\n4=m46_50/4.bin\n"
+            ),
+            tree / "maps/m46_50/2.bin": b"surface aux two",
+            tree / "maps/m46_50/3.bin": b"surface aux three",
+            tree / "maps/m46_50/4.bin": b"surface aux four",
         }
         for path, data in base_files.items():
             put(path, data)
@@ -84,6 +103,22 @@ def main() -> int:
             assert (out / f"maps/m39_90/{ident}.bin").read_bytes() == base_files[
                 tree / f"maps/m39_90/{ident}.bin"
             ]
+        # The RS727 surface entrance was server-dynamic. The staged square
+        # keeps all base members and appends only the ledger-remapped loc.
+        assert (out / "maps/m46_50.jm2").read_bytes() == base_files[
+            tree / "maps/m46_50.jm2"
+        ]
+        assert (out / "maps/m46_50.jl2").read_text().endswith(
+            "0 44 36: 63001 10 0\n"
+        )
+        assert (out / "maps/m46_50.filepack").read_bytes() == base_files[
+            tree / "maps/m46_50.filepack"
+        ]
+        for ident in (2, 3, 4):
+            assert (out / f"maps/m46_50/{ident}.bin").read_bytes() == base_files[
+                tree / f"maps/m46_50/{ident}.bin"
+            ]
+        assert "11826=m46_50\n" in (out / "pack/5_maps.pack").read_text()
         # Config layers and their id authorities coexist in the sparse stage.
         assert (out / "configs/all.loc.compack").read_text() == "1=base_loc\n"
         assert "[rs2012_loc_1]" in (out / "configs/rs2012.loc").read_text()

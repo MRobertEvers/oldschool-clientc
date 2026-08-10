@@ -111,6 +111,12 @@ emit_npc(
     EMIT_BOOL(low_priority_follower_ops, "lowpriorityops");
     EMIT_INT(height, "height");
     EMIT_INT(category, "category");
+    EMIT_INT(sound_idle, "soundidle");
+    EMIT_INT(sound_crawl, "soundcrawl");
+    EMIT_INT(sound_walk, "soundwalk");
+    EMIT_INT(sound_run, "soundrun");
+    EMIT_INT(sound_radius, "soundradius");
+    EMIT_INT(ambient_sound_volume, "soundvolume");
     for( int i = 0; i < 6; i++ )
     {
         if( entry->stats[i] != defaults->stats[i] )
@@ -311,6 +317,18 @@ cp_pack_npc(
             ok = cp_parse_int(value, &entry->height);
         else if( strcmp(key, "category") == 0 )
             ok = cp_parse_int(value, &entry->category);
+        else if( strcmp(key, "soundidle") == 0 )
+            ok = cp_parse_int(value, &entry->sound_idle);
+        else if( strcmp(key, "soundcrawl") == 0 )
+            ok = cp_parse_int(value, &entry->sound_crawl);
+        else if( strcmp(key, "soundwalk") == 0 )
+            ok = cp_parse_int(value, &entry->sound_walk);
+        else if( strcmp(key, "soundrun") == 0 )
+            ok = cp_parse_int(value, &entry->sound_run);
+        else if( strcmp(key, "soundradius") == 0 )
+            ok = cp_parse_int(value, &entry->sound_radius);
+        else if( strcmp(key, "soundvolume") == 0 )
+            ok = cp_parse_int(value, &entry->ambient_sound_volume);
         else if( strcmp(key, "bastype") == 0 )
             ok = cp_parse_int(value, &entry->bas_type_id);
         else if( strcmp(key, "footprintsize") == 0 )

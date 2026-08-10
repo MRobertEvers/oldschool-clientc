@@ -19,7 +19,9 @@
  *
  * Usage:
  *   map_port --rev rs727 --cache cache.rs727_preeoc \
- *     --squares 22_99,20_95,18_101,40_89 --inventory build/maps.tsv
+ *     --squares 22_99,20_95,16_99,17_99,18_99,20_99,21_99,20_100,21_100,\
+ *       20_101,21_101,16_101,17_100,17_101,18_101,40_89,39_89,39_90,39_91,40_90 \
+ *     --inventory build/rs2012_map_inventory.tsv
  *
  *   map_port ... --ledger OSRS-Content/osrs239-content/port/rs2012_qbd_td.map \
  *     --out OSRS-Content/osrs239-content/ported/rs2012_qbd_td --apply
@@ -483,9 +485,9 @@ load_material_ledger(const char* path, struct LocMap** out_map, int* out_count)
         long source = strtol(fields[source_column], &source_end, 10);
         long dest = strtol(fields[dest_column], &dest_end, 10);
         if( !source_end || *source_end || !dest_end || *dest_end || source < 0 || dest < 0 ||
-            source > 0x7fffffffL || dest > 255 )
+            source > 0x7fffffffL || dest > 0x7fffffffL )
         {
-            fprintf(stderr, "map_port: %s:%d: invalid/u8-unsafe material mapping\n", path,
+            fprintf(stderr, "map_port: %s:%d: invalid material mapping\n", path,
                     line_number);
             free(map);
             fclose(file);
@@ -803,6 +805,16 @@ write_floor_configs(
             {
                 fprintf(stderr, "map_port: overlay %d material %d has no mapping\n",
                         overlays->v[i].id, floor.texture);
+                RSCache_Dat2ConfigOverlayFreeInplace(&floor);
+                free(data);
+                fclose(overlay_out);
+                return 0;
+            }
+            if( mapped > 255 )
+            {
+                fprintf(stderr,
+                        "map_port: overlay %d material %d maps outside the u8 texture band (%d)\n",
+                        overlays->v[i].id, floor.texture, mapped);
                 RSCache_Dat2ConfigOverlayFreeInplace(&floor);
                 free(data);
                 fclose(overlay_out);

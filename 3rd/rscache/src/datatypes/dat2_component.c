@@ -663,9 +663,20 @@ decode_if3_rs2(
     if( self->type == 6 )
     {
         self->modelType = 1;
-        self->modelId = g2(buf);
-        if( self->modelId == 65535 )
-            self->modelId = -1;
+        /* The live 727 client widens model/font/sequence references only for
+         * interfaces added after archive 1144 (IComponentDefinitions.decode,
+         * `ihash >> 16 > 1144`).  This is a transition inside one cache, not a
+         * cache-wide revision gate: reading interface 1285's model 70127 as a
+         * u16 produced 32769 and shifted its complete type-6 viewport block.
+         * BigSmart owns its own -1 sentinel; the older u16 form uses 65535. */
+        if( (self->id >> 16) > 1144 )
+            self->modelId = gbigsmart(buf);
+        else
+        {
+            self->modelId = g2(buf);
+            if( self->modelId == 65535 )
+                self->modelId = -1;
+        }
 
         int32_t model_flags = g1(buf);
         bool has_viewport = (model_flags & 0x1) != 0;
@@ -693,9 +704,14 @@ decode_if3_rs2(
             self->modelZoom = g2b(buf);
         }
 
-        self->modelSeqId = g2(buf);
-        if( self->modelSeqId == 65535 )
-            self->modelSeqId = -1;
+        if( (self->id >> 16) > 1144 )
+            self->modelSeqId = gbigsmart(buf);
+        else
+        {
+            self->modelSeqId = g2(buf);
+            if( self->modelSeqId == 65535 )
+                self->modelSeqId = -1;
+        }
         if( self->widthMode != 0 )
             self->anInt5957 = g2(buf);
         if( self->heightMode != 0 )
@@ -703,9 +719,14 @@ decode_if3_rs2(
     }
     if( self->type == 4 )
     {
-        self->textFont = g2(buf);
-        if( self->textFont == 65535 )
-            self->textFont = -1;
+        if( (self->id >> 16) > 1144 )
+            self->textFont = gbigsmart(buf);
+        else
+        {
+            self->textFont = g2(buf);
+            if( self->textFont == 65535 )
+                self->textFont = -1;
+        }
         free(self->text);
         self->text = read_jstring(buf);
         self->textLineHeight = g1(buf);

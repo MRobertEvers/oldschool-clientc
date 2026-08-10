@@ -24,6 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 LANE = Path("ported") / "rs2012_qbd_td"
+BASE_PLACEMENTS = "BASE_PLACEMENTS.tsv"
 ASSET_ROOTS = (
     "models",
     "animsets",
@@ -136,6 +137,78 @@ def parse_name_pack(path: Path) -> dict[int, str]:
     return names
 
 
+def parse_loc_ledger(path: Path) -> dict[int, int]:
+    """Read cachepack import's TSV authority for source->destination loc ids."""
+
+    if not path.is_file() or path.is_symlink():
+        raise fail(f"missing/non-plain import ledger: {path}")
+    lines = path.read_text().splitlines()
+    if not lines:
+        raise fail(f"empty import ledger: {path}")
+    header = lines[0].split("\t")
+    required = {"kind", "source_id", "dest_id"}
+    if not required <= set(header):
+        raise fail(f"import ledger lacks {sorted(required)}: {path}")
+    columns = {name: header.index(name) for name in required}
+    result: dict[int, int] = {}
+    destinations: set[int] = set()
+    for line_number, raw in enumerate(lines[1:], 2):
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        fields = raw.split("\t")
+        if max(columns.values()) >= len(fields) or fields[columns["kind"]] != "loc":
+            continue
+        try:
+            source = int(fields[columns["source_id"]])
+            destination = int(fields[columns["dest_id"]])
+        except ValueError as exc:
+            raise fail(f"{path}:{line_number}: non-numeric loc ledger id") from exc
+        if source in result or destination in destinations:
+            raise fail(f"{path}:{line_number}: duplicate loc ledger mapping")
+        result[source] = destination
+        destinations.add(destination)
+    return result
+
+
+def parse_base_placements(path: Path) -> list[tuple[str, int, int, int, int, int, int]]:
+    """Read dynamic RS727 placements which have no source loc-map archive."""
+
+    if not path.exists():
+        return []
+    if not path.is_file() or path.is_symlink():
+        raise fail(f"base placement metadata is not a plain file: {path}")
+    lines = path.read_text().splitlines()
+    expected = ["square", "level", "x", "z", "source_loc", "shape", "angle"]
+    if not lines or lines[0].split("\t")[: len(expected)] != expected:
+        raise fail(f"base placement metadata has the wrong header: {path}")
+    placements: list[tuple[str, int, int, int, int, int, int]] = []
+    seen: set[tuple[str, int, int, int, int, int, int]] = set()
+    for line_number, raw in enumerate(lines[1:], 2):
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        fields = raw.split("\t")
+        if len(fields) < len(expected):
+            raise fail(f"{path}:{line_number}: incomplete base placement")
+        square = fields[0]
+        if not re.fullmatch(r"\d+_\d+", square):
+            raise fail(f"{path}:{line_number}: malformed square {square}")
+        try:
+            values = tuple(int(value) for value in fields[1:7])
+        except ValueError as exc:
+            raise fail(f"{path}:{line_number}: non-numeric base placement") from exc
+        level, x, z, source_loc, shape, angle = values
+        if not 0 <= level <= 3 or not 0 <= x <= 63 or not 0 <= z <= 63:
+            raise fail(f"{path}:{line_number}: base placement coordinate out of range")
+        if source_loc < 0 or not 0 <= shape <= 63 or not 0 <= angle <= 3:
+            raise fail(f"{path}:{line_number}: base placement loc/shape/angle out of range")
+        record = (square, level, x, z, source_loc, shape, angle)
+        if record in seen:
+            raise fail(f"{path}:{line_number}: duplicate base placement")
+        seen.add(record)
+        placements.append(record)
+    return placements
+
+
 def config_block_names(path: Path) -> list[str]:
     return re.findall(r"^\[([^]]+)]\s*$", path.read_text(), re.MULTILINE)
 
@@ -235,6 +308,87 @@ def copy_base_map_members(tree: Path, lane: Path, out: Path) -> int:
     return copied
 
 
+def merge_base_placements(tree: Path, lane: Path, out: Path) -> int:
+    """Overlay server-dynamic RS727 locs onto preserved OSRS239 squares.
+
+    The Grotworm surface entrance was not encoded in revision 727's map index:
+    its l46_50 archive/key is absent even though loc 70792 and the authoritative
+    world coordinate survive.  This merge keeps the destination terrain and all
+    auxiliary members byte-for-byte, while appending the ledger-remapped loc to
+    a disposable staged copy of member 1.
+    """
+
+    placements = parse_base_placements(lane / BASE_PLACEMENTS)
+    if not placements:
+        return 0
+    ledger = parse_loc_ledger(tree / "port/rs2012_qbd_td.map")
+    map_pack_path = out / "pack/5_maps.pack"
+    if not map_pack_path.is_file():
+        raise fail(f"staged map pack is missing: {map_pack_path}")
+    map_names = parse_name_pack(map_pack_path)
+
+    copied = 0
+    grouped: dict[str, list[tuple[int, int, int, int, int, int]]] = {}
+    for square, level, x, z, source_loc, shape, angle in placements:
+        grouped.setdefault(square, []).append((level, x, z, source_loc, shape, angle))
+
+    for square, records in sorted(grouped.items()):
+        map_x, map_z = (int(value) for value in square.split("_"))
+        region = (map_x << 8) | map_z
+        map_name = f"m{square}"
+        if region in map_names or map_name in map_names.values():
+            raise fail(f"base placement square collides with historical map pack: {square}")
+
+        base_filepack = tree / f"maps/{map_name}.filepack"
+        if not base_filepack.is_file() or base_filepack.is_symlink():
+            raise fail(f"base placement filepack is missing/not plain: {base_filepack}")
+        members = parse_member_pack(base_filepack)
+        if not {0, 1} <= set(members):
+            raise fail(f"base placement square lacks terrain/loc members: {base_filepack}")
+        source_paths = {ident: tree / "maps" / member for ident, member in members.items()}
+        for source in source_paths.values():
+            if not source.is_file() or source.is_symlink():
+                raise fail(f"base placement member is missing/not plain: {source}")
+        before = {source: digest(source) for source in source_paths.values()}
+
+        terrain_source = source_paths[0]
+        loc_source = source_paths[1]
+        terrain_dest = out / "maps" / members[0]
+        loc_dest = out / "maps" / members[1]
+        filepack_dest = out / f"maps/{map_name}.filepack"
+        if terrain_dest.exists() or loc_dest.exists() or filepack_dest.exists():
+            raise fail(f"base placement destination already exists: {square}")
+        copy_file(terrain_source, terrain_dest)
+        loc_text = loc_source.read_text()
+        if "==== LOC ====" not in loc_text:
+            raise fail(f"base placement loc member has no LOC marker: {loc_source}")
+        appended: list[str] = []
+        for level, x, z, source_loc, shape, angle in records:
+            if source_loc not in ledger:
+                raise fail(f"base placement loc {source_loc} is absent from import ledger")
+            line = f"{level} {x} {z}: {ledger[source_loc]} {shape} {angle}"
+            if line in loc_text.splitlines() or line in appended:
+                raise fail(f"base placement already exists in {square}: {line}")
+            appended.append(line)
+        loc_dest.parent.mkdir(parents=True, exist_ok=True)
+        loc_dest.write_text(loc_text.rstrip() + "\n" + "\n".join(appended) + "\n")
+        copy_file(base_filepack, filepack_dest)
+        copied += 3
+        for ident, source in sorted(source_paths.items()):
+            if ident < 2:
+                continue
+            copy_file(source, out / "maps" / members[ident])
+            copied += 1
+        if {source: digest(source) for source in source_paths.values()} != before:
+            raise fail(f"base placement merge modified source bytes: {square}")
+        map_names[region] = map_name
+
+    map_pack_path.write_text(
+        "".join(f"{ident}={map_names[ident]}\n" for ident in sorted(map_names))
+    )
+    return copied
+
+
 def base_conflict_fingerprints(tree: Path, lane: Path) -> dict[Path, str]:
     """Hash base files whose staged destination has the same relative path."""
 
@@ -310,6 +464,10 @@ def stage(tree: Path, out: Path) -> int:
     for child in sorted(lane.iterdir()):
         if child.name == marker.name:
             continue
+        if child.name == BASE_PLACEMENTS:
+            # Evidence/merge metadata, consumed below rather than passed to
+            # cachepack as an unknown content source.
+            continue
         if child.is_dir() and child.name in allowed_lane_dirs:
             copied += copy_tree(child, out / child.name)
         elif child.is_file() and child.suffix in CONFIG_SUFFIXES:
@@ -332,6 +490,11 @@ def stage(tree: Path, out: Path) -> int:
     # The lane owns historical terrain/locs but not modern auxiliary members.
     # Copy exactly the >=2 payloads its merge-aware filepacks retained.
     copied += copy_base_map_members(tree, lane, out)
+
+    # Add source-era server placements whose map archive does not exist. This
+    # is deliberately last: it can reject any accidental collision with a
+    # historical member generated above.
+    copied += merge_base_placements(tree, lane, out)
 
     # Staging is an overlay into a disposable output. Hold that safety property
     # to bytes for every base path shadowed by the lane, especially the three TD

@@ -3,7 +3,7 @@
 Implementation, cache-port, and evidence record for the 2012 combat profile in
 `OSRS-Content` and `mock230`.
 
-Last updated: 9 August 2026.
+Last updated: 10 August 2026.
 
 ## 1. Scope and historical boundary
 
@@ -57,14 +57,21 @@ treated as canonical.
 - [Jagex 7 August 2012 QBD changes](https://runescape.fandom.com/wiki/Update:Some_Like_it_Cold) (A)
 - [Later Jagex QBD unique-drop disclosure](https://www.runescape.com/drop-rates?set_lang=0) (A, later ruleset)
 - [Jagex While Guthix Sleeps launch post mirror, 26 November 2008](https://wiki.darkan.org/Update%3AWhile_Guthix_Sleeps) (A)
-- [Tormented demon article, revision 6586274, 19 November 2012](https://runescape.wiki/w/Tormented_demon?oldid=6586274) (B)
-- [Tormented demon strategy, revision 6434662](https://runescape.wiki/w/Tormented_demon/Strategies?oldid=6434662) (B)
-- [Ancient Guthix Temple, revision 6545327](https://runescape.wiki/w/Ancient_Guthix_Temple?oldid=6545327) (B)
+- [Tormented demon, revision 54792, 14 November 2012](https://wiki.darkan.org/index.php?title=Tormented_demon&oldid=54792) (B)
+- [Tormented demon strategy, revision 66515, 17 October 2012](https://wiki.darkan.org/index.php?title=Tormented_demon/Strategies&oldid=66515) (B)
+- [Ancient Guthix Temple, revision 54809, 9 November 2012](https://wiki.darkan.org/index.php?title=Ancient_Guthix_Temple&oldid=54809) (B)
+- [Tormented-demon charm log, revision 65249, 23 October 2012](https://wiki.darkan.org/index.php?title=Charm:Tormented_demon&oldid=65249) (B)
+- [Dragon claw, revision 49824, 11 November 2012](https://wiki.darkan.org/index.php?title=Dragon_claw&oldid=49824) (B)
+- [Jagex/Mod Ash recovery of the original TD levels, 23 January 2024](https://x.com/JagexAsh/status/1749777281675907450) (A, later primary-source recovery)
 - [Royal crossbow, revision 5952638, 18 July 2012](https://runescape.fandom.com/wiki/Royal_crossbow?oldid=5952638) (B)
 - [Royal bolts, revision 6000529, 27 July 2012](https://runescape.fandom.com/wiki/Royal_bolts?oldid=6000529) (B)
 - [Dragon kiteshield, revision 6025214, 2 August 2012](https://runescape.fandom.com/wiki/Dragon_kiteshield?oldid=6025214) (B)
 - [Dragonbone upgrade kit, revision 6036646, 4 August 2012](https://runescape.fandom.com/wiki/Dragonbone_upgrade_kit?oldid=6036646) (B)
 - [Royal dragonhide, revision 5967117, 20 July 2012](https://runescape.fandom.com/wiki/Royal_dragonhide?oldid=5967117) (B)
+- [Grotworm surface cave entrance and object-map coordinate](https://runescape.wiki/w/Cave_entrance_(Grotworm_Lair)?oldid=36479017) (E)
+- [Grotworm cave exit and surface pairing](https://runescape.wiki/w/Cave_exit_(Grotworm_Lair)?oldid=36642689) (E)
+- [RuneScape map transform data for the three Grotworm levels](https://runescape.wiki/w/Module:Map_coordinates/transform-data.json) (E)
+- [OpenRS2 revision-727 verified XTEA set](https://archive.openrs2.org/caches/runescape/309/keys.json) (C)
 
 The archived wiki pages are evidence of what players had established at that
 date, not leaked source code. Where a revision only supplied “rare” rather than
@@ -205,8 +212,9 @@ clears on death, disconnect, and player reset. This is what makes the queued
 one-hit release semantics deterministic.
 
 Revision 727 used global config 1925 for the green overlay. OSRS239 has no
-compatible carrier for that foreign global config; the lock and messages are
-implemented, while the original overlay remains a documented UI-port item.
+compatible carrier for that foreign global config, so the server now drives
+the ported interface-1285 overlay directly while the action lock and delayed
+damage remain authoritative server state.
 
 ### 3.9 Extreme dragonfire
 
@@ -258,9 +266,10 @@ Artefact order and arena-local coordinates:
 
 Static source placements include the four dormant artefacts on plane 1 and the
 claws/platform machinery on plane 0. Significant plane-0 placements are right
-claw 70818 `(39? source 1447,6371)`, left claw 70822 `(1429,6371)`, central
-scenery 70788 `(1439,6365)`, and platform locs 70830/32/34/36/39/42. The whole
-square is ported rather than reconstructing only these visible records.
+claw 70818 at local `(39,35)` / source `(1447,6371)`, left claw 70822 at local
+`(21,35)` / source `(1429,6371)`, central scenery 70788 at `(1439,6365)`, and
+platform locs 70830/32/34/36/39/42. The whole square is ported rather than
+reconstructing only these visible records.
 
 Dynamic platform stages used by the controller:
 
@@ -286,17 +295,92 @@ The room depends on locs 84, 25636, 70813–70815, 71039, 71429/30/33–36/38/39
 72483, and 72504. Their recursive model/sequence closure is imported with the
 whole map, not substituted with OSRS scenery.
 
-### 4.3 Authentic approach portal
+### 4.3 Authentic Grotworm approach and portal
 
-- Portal loc 70812 at `(1200,6498,p0)`, region 4709 `(18,101)`.
-- XTEA `[928791872, 1258826681, -1528400880, 1334217208]`.
-- Archives `m18_101=7155`, `l18_101=7156`.
-- Nearby shortcut 70799 at `(1207,6506)`.
+The production route begins at surface cave entrance 70792 at
+`(2988,3236,p0)`, map square `(46,50)`, local `(44,36)`. This is the 22 May
+2012 Grotworm entrance east of Rimmington mine, not the visually similar Song
+from the Depths cave farther south. The page's contemporary object-map record
+supplies the coordinate and source ID. Revision 727 contains loc 70792 and its
+models, but neither the local key set nor OpenRS2's verified revision-727 key
+set contains an `l46_50` group. A direct cache lookup also finds no named loc
+archive. It was therefore a server-dynamic placement, not missing scenery that
+can honestly be claimed as decoded map data. `BASE_PLACEMENTS.tsv` records it;
+the sparse stager retains OSRS239 `m46_50` and appends only ledger-remapped loc
+70792 to a disposable copy of member 1. Shape 10 comes from the loc config;
+angle 0 retains its unrotated one-by-three footprint. Because the retail server
+placement stream is unavailable, that angle is a documented reconstruction,
+not a value decoded from `l46_50`.
 
-The complete Grotworm route continues through 70793/95 in region 4707,
-70794 in 4451, 70798 in 4453, 70797 in 5219, and 70796 in 5221. The encounter
-debug command can enter directly, but production entry is bound to imported
-portal 70812 and preserves the level-60 gate.
+The underground map is not merely the six squares containing clickable route
+objects. Boundary terrain and models occupy thirteen complete source squares,
+including the continuous middle-level corridor at `20_100` and its eastern
+edge squares. All thirteen are imported so walking between the openings does
+not cross an absent archive:
+
+| Square | Region | m archive | l archive | XTEA | Placements |
+|---|---:|---:|---:|---|---:|
+| `16_99` | 4195 | 7117 | 7118 | `[477331269,-1261056419,-1221718129,1502185528]` | 1,088 |
+| `17_99` | 4451 | 7168 | 7169 | `[-1909749566,258386662,8275989,315008195]` | 3,448 |
+| `18_99` | 4707 | 7137 | 7138 | `[-435342694,-1956791799,-570358413,-1529989129]` | 3,707 |
+| `20_99` | 5219 | 7139 | 7140 | `[1817994005,-1939081852,1483364481,986296098]` | 4,015 |
+| `21_99` | 5475 | 7125 | 7126 | `[1431497013,549444996,-1138684586,-2048667815]` | 1,115 |
+| `20_100` | 5220 | 7141 | 7142 | `[241390015,-1595154578,639556659,-1137712732]` | 3,471 |
+| `21_100` | 5476 | 7121 | 7122 | `[-1223211157,362322168,2034488860,165451212]` | 4 |
+| `20_101` | 5221 | 7127 | 7128 | `[-517702445,-1565676718,-1788593958,-1812459785]` | 3,946 |
+| `21_101` | 5477 | 7119 | 7120 | `[737530024,1576892563,564068280,-1179796355]` | 970 |
+| `16_101` | 4197 | 7143 | 7144 | `[-1426155942,-838747053,96059630,-1889001428]` | 1,327 |
+| `17_100` | 4452 | 7123 | 7124 | `[1905932215,-1526576869,-1403936829,1608882513]` | 1,088 |
+| `17_101` | 4453 | 7149 | 7150 | `[-1632718105,2121579019,1093321834,1255552106]` | 3,087 |
+| `18_101` | 4709 | 7155 | 7156 | `[928791872,1258826681,-1528400880,1334217208]` | 3,231 |
+
+The exact bidirectional topology is:
+
+1. Surface entrance 70792 `(2988,3236)` connects to cave exit 70793 at
+   `(1207,6370)`, square `18_99`, local `(55,34)`, shape 10, angle 1.
+2. The first/young-grotworm level runs across `16_99`, `17_99`, and `18_99`.
+   Its deeper opening 70794 is at `(1088,6359)`, local `(0,23)`, angle 3.
+3. 70794 connects to middle-level opening 70796 at `(1341,6487)`, square
+   `20_101`, local `(61,23)`, angle 1. The adjacent historic arrival cited for
+   this floor is `(1340,6488)`.
+4. The ordinary middle route traverses the six-square `20/21_99..101` area to
+   opening 70797 at `(1341,6379)`, square `20_99`, local `(61,43)`, angle 1.
+5. 70797 connects to the mature-grotworm opening 70798 at `(1088,6496)`,
+   square `17_101`, local `(0,32)`, angle 3; the adjacent arrival is
+   `(1090,6497)`.
+6. Shortcut 70795 at `(1179,6355)`, local `(27,19)`, angle 0 links the first
+   level directly to shortcut 70799 at `(1207,6506)`, local `(55,42)`, angle
+   0, bypassing the ordinary middle-level walk.
+7. Portal 70812 at `(1200,6498)`, square `18_101`, local `(48,34)`, shape 10,
+   angle 0 enters the private QBD arena and retains the level-60 Summoning gate.
+
+The ordinary cave links have isolated production handlers in
+`rs2012_grotworm_route.rs2`; the existing 70812 QBD handler remains in the
+session lifecycle and was not changed. Since the clickable centrepieces are
+multi-tile, each traversal lands exactly one tile outside the destination
+footprint:
+
+| Operated loc | Destination loc | Safe arrival | Relationship to footprint |
+|---:|---:|---:|---|
+| 70792 | 70793 | `(1206,6371,p0)` | west of the 4x4 cave exit |
+| 70793 | 70792 | `(2988,3235,p0)` | south of the 1x3 surface entrance |
+| 70794 | 70796 | `(1340,6488,p0)` | west of the rotated 2x3 opening; period-map arrival |
+| 70796 | 70794 | `(1090,6360,p0)` | east of the rotated 2x3 opening |
+| 70797 | 70798 | `(1090,6497,p0)` | east of the rotated 2x3 opening; period-map arrival |
+| 70798 | 70797 | `(1340,6380,p0)` | west of the rotated 2x3 opening |
+| 70795 op2 | 70799 | `(1206,6506,p0)` | west of the 2x2 climb-up |
+| 70799 | 70795 | `(1178,6355,p0)` | west of the 1x2 slide entrance |
+
+70795 op1 remains a non-traversing `Investigate` response and op2 performs the
+slide, matching its two imported cache options; 70799 op1 performs the return
+climb. `tools/test_rs2012_grotworm_routes.py` verifies every trigger, source
+placement, rotated footprint, exact destination, and one-tile separation.
+
+Across QBD, reward, Grotworm, and TD route maps the resulting contract is 20
+decoded source squares, 55,187 exact static placements, 1,006 map-referenced
+source loc IDs, 12 underlays, and 12 overlays, plus the single dynamic surface
+placement. Every static tuple retains source plane/local coordinate/shape/angle
+and changes only its loc ID through the import ledger.
 
 ## 5. QBD definition and media manifest
 
@@ -704,6 +788,7 @@ messages and encounter state remain authoritative while the UI port is tested.
 
 QBD:
 
+- `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_grotworm_route.constant`
 - `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.constant`
 - `.../rs2012_qbd.npc`, `rs2012_qbd.obj`, `rs2012_qbd.varp`, `rs2012_qbd.dbrow`
 - `.../scripts/rs2012_qbd_session.rs2`
@@ -711,6 +796,7 @@ QBD:
 - `.../scripts/rs2012_qbd_adds.rs2`
 - `.../scripts/rs2012_qbd_rewards.rs2`
 - `.../scripts/rs2012_royal_crossbow.rs2`
+- `.../scripts/rs2012_grotworm_route.rs2`
 
 TD:
 
@@ -720,6 +806,17 @@ TD:
 - `.../scripts/rs2012_td_player_hit.rs2`
 - `.../scripts/rs2012_td_drops.rs2`
 - `.../scripts/rs2012_td_selftest.rs2`
+
+Map/cache port:
+
+- `3rd/rscache/tools/map_port/main.c`
+- `ports/rs2012_qbd_td.ini`
+- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/maps/`
+- `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/BASE_PLACEMENTS.tsv`
+- `tools/stage_rs2012_overlay.py`
+- `tools/test_rs2012_map_port.py`
+- `tools/test_rs2012_grotworm_routes.py`
+- `tools/test_stage_rs2012_overlay.py`
 
 Global integration is limited to the shared player-hit preparation point,
 ranged Royal-bolt/crossbow validation, QBD/TD death and logout cleanup, and
@@ -751,6 +848,25 @@ Required acceptance tests:
   crystal, hardened, soul, worm, all three TD forms, claws, coffer, and crossbow;
 - every embedded audio event resolves to an actual destination sound asset;
 - original HUD/coffer component trees load without stale model/sprite/script IDs.
+
+The current map acceptance run proves 20 decoded source squares plus the
+preserved surface overlay, 55,187 exact source placement tuples, 1,006
+map-referenced loc configs, 12 underlays and 12 overlays. The real sparse stage
+contains 1,422 files and 21 map archives. The material-complete pack accepts
+1,278 config records and 1,022 asset archives: 30 animsets, 29 framemaps, 29
+synths, 21 maps, 658 models, 254 sprites, and one merged texture archive, with
+zero failed, unknown, unresolved, or indexed-missing assets. Map verification
+reports 2,951/2,951 total destination archives byte-exact, zero differing and
+zero unreadable. Hermetic staging tests separately prove base members 2–4 and
+all source-tree hashes are retained. The 254-row material ledger may allocate
+model-only textures above 255; `map_port` enforces the u8 limit only for an
+actual floor-overlay operand. Its five textured overlays resolve to the
+reserved destinations 211–215.
+The production route test additionally proves four bidirectional cave links,
+nine option triggers (including the non-traversing Investigate option), and
+eight arrivals exactly one tile outside their destination loc footprints.
+`make -C src mock230-scripts` compiles these with the full content tree: the
+current acceptance run emitted 12,806 scripts with no compiler error.
 
 ### QBD gameplay
 

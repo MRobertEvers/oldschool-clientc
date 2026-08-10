@@ -780,6 +780,18 @@ test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rsca
 		$(LDFLAGS)
 	cd .. && ./src/$(OBJ_DIR)/proctex_coverage
 
+# Reproducible, explicitly approximate RS727 procedural-material bridge used by
+# the isolated QBD/TD cache overlay. The binary defaults to dry-run; --apply is
+# required before it writes sprites, texture records, the ledger or remapped OB3s.
+rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
+		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
+		$(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_material_bake \
+		engine/proctex/test/rs2012_material_bake.c \
+		$(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bmp.o \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(LDFLAGS)
+
 # Sound end-to-end test: cache -> synth render -> game queue -> platform.
 # Links the SILENT audio backend instead of the SDL2 one (they define the same
 # symbols), so this runs headless with no device.
@@ -1639,6 +1651,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
+		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_OFF)
 
@@ -1658,6 +1671,7 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
+		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_ON)
 
@@ -1815,11 +1829,11 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
-			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 12000 >"$$log" 2>&1; \
-		cat "$$log"; grep -qx 'decompiled 4, failed 0, total 4' "$$log"; \
+			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 12000 12001 12002 >"$$log" 2>&1; \
+		cat "$$log"; grep -qx 'decompiled 6, failed 0, total 6' "$$log"; \
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
-		echo "mock230-cache-summoning: verified 4 clientscript archives"
+		echo "mock230-cache-summoning: verified 6 clientscript archives"
 
 test-summoning-phase1: mock230-cache-summoning mock230-scripts mock230-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \

@@ -18,6 +18,18 @@ from pathlib import Path
 SQUARES = (
     "22_99",
     "20_95",
+    "16_99",
+    "17_99",
+    "18_99",
+    "20_99",
+    "21_99",
+    "20_100",
+    "21_100",
+    "20_101",
+    "21_101",
+    "16_101",
+    "17_100",
+    "17_101",
     "18_101",
     "40_89",
     "39_89",
@@ -28,18 +40,56 @@ SQUARES = (
 BASE_EXTRA_SQUARES = {"39_90", "39_91", "40_90"}
 UNDERLAY_BASE = 500
 OVERLAY_BASE = 1000
+SOURCE_ARCHIVES = {
+    "22_99": (7174, 7175, (470121283, 1782907695, -131030477, -446458785)),
+    "20_95": (7157, 7158, (558713239, 1417714157, -302553027, -158448671)),
+    "16_99": (7117, 7118, (477331269, -1261056419, -1221718129, 1502185528)),
+    "17_99": (7168, 7169, (-1909749566, 258386662, 8275989, 315008195)),
+    "18_99": (7137, 7138, (-435342694, -1956791799, -570358413, -1529989129)),
+    "20_99": (7139, 7140, (1817994005, -1939081852, 1483364481, 986296098)),
+    "21_99": (7125, 7126, (1431497013, 549444996, -1138684586, -2048667815)),
+    "20_100": (7141, 7142, (241390015, -1595154578, 639556659, -1137712732)),
+    "21_100": (7121, 7122, (-1223211157, 362322168, 2034488860, 165451212)),
+    "20_101": (7127, 7128, (-517702445, -1565676718, -1788593958, -1812459785)),
+    "21_101": (7119, 7120, (737530024, 1576892563, 564068280, -1179796355)),
+    "16_101": (7143, 7144, (-1426155942, -838747053, 96059630, -1889001428)),
+    "17_100": (7123, 7124, (1905932215, -1526576869, -1403936829, 1608882513)),
+    "17_101": (7149, 7150, (-1632718105, 2121579019, 1093321834, 1255552106)),
+    "18_101": (7155, 7156, (928791872, 1258826681, -1528400880, 1334217208)),
+    "40_89": (4159, 4160, (769370878, -1231940040, -395526277, -1563597554)),
+    "39_89": (2648, 2649, (1714440207, 1297605064, 683265918, 1501779755)),
+    "39_90": (2318, 2319, (274761362, 1679929293, -903581645, -999712194)),
+    "39_91": (4141, 4142, (1551484478, 1577386038, -378705686, 547571118)),
+    "40_90": (1167, 1168, (-907752098, 1554817455, -41175839, -2043434626)),
+}
+ROUTE_LINKS = {
+    "18_99": {
+        (70793, 0, 55, 34, 10, 1),  # surface exit
+        (70795, 0, 27, 19, 10, 0),  # direct shortcut to level 3
+    },
+    "17_99": {(70794, 0, 0, 23, 10, 3)},
+    "20_99": {(70797, 0, 61, 43, 10, 1)},
+    "20_101": {(70796, 0, 61, 23, 10, 1)},
+    "17_101": {(70798, 0, 0, 32, 10, 3)},
+    "18_101": {
+        (70799, 0, 55, 42, 10, 0),
+        (70812, 0, 48, 34, 10, 0),
+    },
+}
 
 
 def read_inventory(
     path: Path,
 ) -> tuple[
     dict[str, int],
+    dict[str, tuple[int, int, tuple[int, int, int, int]]],
     set[int],
     set[int],
     set[int],
     dict[str, list[tuple[int, int, int, int, int, int]]],
 ]:
     square_counts: dict[str, int] = {}
+    square_metadata: dict[str, tuple[int, int, tuple[int, int, int, int]]] = {}
     locs: set[int] = set()
     underlays: set[int] = set()
     overlays: set[int] = set()
@@ -51,6 +101,15 @@ def read_inventory(
                 match = re.search(r"(?:^|;)locs=(\d+)(?:;|$)", row["detail"])
                 assert match, f"inventory square {ident} has no loc count"
                 square_counts[ident] = int(match.group(1))
+                terrain = re.search(r"(?:^|;)terrain-archive=(\d+)(?:;|$)", row["detail"])
+                loc = re.search(r"(?:^|;)loc-archive=(\d+)(?:;|$)", row["detail"])
+                xtea = re.search(r"(?:^|;)xtea=([-\d]+),([-\d]+),([-\d]+),([-\d]+)$", row["detail"])
+                assert terrain and loc and xtea, f"inventory square {ident} has no source metadata"
+                square_metadata[ident] = (
+                    int(terrain.group(1)),
+                    int(loc.group(1)),
+                    tuple(int(value) for value in xtea.groups()),
+                )
             elif kind == "loc":
                 locs.add(int(ident))
             elif kind == "underlay":
@@ -75,7 +134,7 @@ def read_inventory(
                 target = placements.setdefault(square, [])
                 assert ordinal == len(target), f"placement order gap in {square}"
                 target.append(record)
-    return square_counts, locs, underlays, overlays, placements
+    return square_counts, square_metadata, locs, underlays, overlays, placements
 
 
 def manifest_locs(path: Path) -> set[int]:
@@ -130,8 +189,11 @@ def main() -> int:
     tree = repo / "OSRS-Content/osrs239-content"
     lane = tree / "ported/rs2012_qbd_td"
     inventory_path = args.inventory or repo / "build/rs2012_map_inventory.tsv"
-    square_counts, source_locs, underlays, overlays, placements = read_inventory(inventory_path)
+    square_counts, square_metadata, source_locs, underlays, overlays, placements = read_inventory(inventory_path)
     assert set(square_counts) == set(SQUARES), "inventory square set drifted"
+    assert square_metadata == SOURCE_ARCHIVES, "source archive/XTEA contract drifted"
+    for square, links in ROUTE_LINKS.items():
+        assert links <= set(placements[square]), f"Grotworm route link drifted in {square}"
 
     manifest = manifest_locs(repo / "ports/rs2012_qbd_td.ini")
     assert source_locs <= manifest, f"manifest missing {sorted(source_locs - manifest)}"
@@ -191,16 +253,26 @@ def main() -> int:
         else:
             assert set(members) == {0, 1}
 
-    assert actual_loc_lines == sum(square_counts.values()) == 27_921
+    assert actual_loc_lines == sum(square_counts.values()) == 55_187
     assert seen_destination_locs <= destination_locs
-    assert len(config_blocks(lane / "configs/rs2012.underlay")) == len(underlays) == 11
+    assert len(config_blocks(lane / "configs/rs2012.underlay")) == len(underlays) == 12
     assert len(config_blocks(lane / "configs/rs2012.overlay")) == len(overlays) == 12
     assert len(pack_rows(lane / "pack/underlay.alloc")) == len(underlays)
     assert len(pack_rows(lane / "pack/overlay.alloc")) == len(overlays)
+    assert pack_rows(lane / "pack/underlay.alloc") == {
+        **{UNDERLAY_BASE + index: f"rs2012_underlay_{source}" for index, source in enumerate(
+            (52, 54, 65, 81, 89, 93, 98, 102, 107, 162, 163)
+        )},
+        UNDERLAY_BASE + 11: "rs2012_underlay_6",
+    }, "existing floor allocations shifted instead of appending"
+
+    base_rows = (lane / "BASE_PLACEMENTS.tsv").read_text().splitlines()
+    assert base_rows[1].split("\t")[:7] == ["46_50", "0", "44", "36", "70792", "10", "0"]
+    assert 70792 in manifest and ledger[70792] in destination_locs
 
     print(
         "rs2012 map port: PASS "
-        f"({len(SQUARES)} squares, {actual_loc_lines} placements, "
+        f"({len(SQUARES)} source squares + 1 base overlay, {actual_loc_lines} placements, "
         f"{len(source_locs)} loc configs, {len(underlays)} underlays, {len(overlays)} overlays)"
     )
     return 0

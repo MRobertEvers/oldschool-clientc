@@ -45,6 +45,8 @@ CONFIG_SUFFIXES = {
     ".varp",
     ".constant",
 }
+INTERFACE_OVERLAYS = "interface_overlays"
+CONFIG_OVERLAYS = "config_overlays"
 
 
 def fail(message: str) -> ValueError:
@@ -75,6 +77,87 @@ def copy_tree(source: Path, destination: Path) -> int:
     for source_file in files:
         copy_file(source_file, destination / source_file.relative_to(source))
     return len(files)
+
+
+def apply_interface_overlays(tree: Path, lane: Path, out: Path) -> int:
+    """Append marked component fragments to pristine interface sources.
+
+    An interface archive is encoded as one complete ``.if``/``.compack`` pair,
+    so a feature lane cannot express three appended toplevel components as a
+    second cache record.  Keep the authored delta in the lane and compose the
+    complete source only in the disposable feature-on stage.
+    """
+    # Keep the ordinary ``interfaces/`` shape below this root so the
+    # ServerScript compiler can consume the same component fragments through
+    # an additional --component-root without teaching it a staging convention.
+    overlay_root = lane / INTERFACE_OVERLAYS / "interfaces"
+    if not overlay_root.exists():
+        return 0
+    fragments = ensure_plain_tree(overlay_root, "Summoning interface overlays")
+    copied = 0
+    for fragment in sorted(fragments):
+        relative = fragment.relative_to(overlay_root)
+        if relative.suffix not in {".if", ".compack"}:
+            raise fail(f"interface overlay must be .if or .compack: {fragment}")
+        source = tree / "interfaces" / relative
+        destination = out / "interfaces" / relative
+        if not source.is_file() or source.is_symlink():
+            raise fail(f"interface overlay has no plain base source: {source}")
+        copy_file(source, destination)
+        base = destination.read_bytes()
+        addition = fragment.read_bytes()
+        separator = b"" if not base or base.endswith(b"\n") else b"\n"
+        destination.write_bytes(base + separator + addition)
+        copied += 1
+    return copied
+
+
+def split_config_records(path: Path) -> dict[str, list[str]]:
+    records: dict[str, list[str]] = {}
+    current: str | None = None
+    # The committed cache text is byte-preserving Latin-1; all.enum contains
+    # an intentional 0xa0 that is not valid standalone UTF-8.
+    for line in path.read_text(encoding="latin-1").splitlines():
+        if line.startswith("[") and line.endswith("]"):
+            current = line
+            if current in records:
+                raise fail(f"duplicate config record {current} in {path}")
+            records[current] = [line]
+        elif current is not None:
+            records[current].append(line)
+    return records
+
+
+def apply_config_overlays(tree: Path, lane: Path, out: Path) -> int:
+    """Expand append-only record fragments against the pristine config tree."""
+    overlay_root = lane / CONFIG_OVERLAYS
+    if not overlay_root.exists():
+        return 0
+    fragments = ensure_plain_tree(overlay_root, "Summoning config overlays")
+    copied = 0
+    for fragment in sorted(fragments):
+        if fragment.suffix not in CONFIG_SUFFIXES:
+            raise fail(f"config overlay has unsupported suffix: {fragment}")
+        base = tree / "configs" / f"all{fragment.suffix}"
+        if not base.is_file() or base.is_symlink():
+            raise fail(f"config overlay has no plain base source: {base}")
+        base_records = split_config_records(base)
+        additions = split_config_records(fragment)
+        composed: list[str] = []
+        for header, extra_lines in additions.items():
+            if header not in base_records:
+                raise fail(f"config overlay record is absent from {base}: {header}")
+            body = list(base_records[header])
+            while body and body[-1] == "":
+                body.pop()
+            body.extend(extra_lines[1:])
+            composed.extend(body)
+            composed.append("")
+        destination = out / "configs" / LANE / fragment.name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("\n".join(composed), encoding="latin-1")
+        copied += 1
+    return copied
 
 
 def reset_output(tree: Path, out: Path) -> None:
@@ -148,6 +231,8 @@ def stage(tree: Path, out: Path) -> int:
     for child in sorted(lane.iterdir()):
         if child.name == "PROVENANCE.md":
             continue
+        if child.is_dir() and child.name in {INTERFACE_OVERLAYS, CONFIG_OVERLAYS}:
+            continue
         if child.is_dir() and child.name in {"configs", "interfaces", "scripts", "pack", *ASSET_ROOTS}:
             copied += copy_tree(child, out / child.name)
         elif child.is_file() and child.suffix in CONFIG_SUFFIXES:
@@ -155,6 +240,9 @@ def stage(tree: Path, out: Path) -> int:
             copied += 1
         else:
             raise fail(f"unclassified lane entry: {child}")
+
+    copied += apply_interface_overlays(tree, lane, out)
+    copied += apply_config_overlays(tree, lane, out)
 
     # Large binary assets stay in their native roots in the source tree, but
     # only the provenance-marked subtree is copied into the second-pass view.
