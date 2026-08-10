@@ -1110,23 +1110,28 @@ Measured layout (the descending arc):
 | `orb_store` | 85,143 | 34×34 | 2396 |
 | `orb_contentrecom` | 54,163 | 34×34 | 2480 |
 
-The arc's 57×34 slots stop at `orb_specenergy`. The next position on the arc, **(54,158)**, overlaps `orb_contentrecom` and grazes `orb_store` — both of which are **inert in this tree** (measured: `orbs.rs2` arms only `runbutton`, `specbutton` and `xp_drops`; store/contentrecom have no `if_setevents` and no `[if_button]`). So: place the summoning orb at **x=54, y=158, 57×34**, and have its clientscript `if_sethide(true, …)` the two dead orbs when the flag is on. Additive and reversible.
+**Implemented correction:** `(54,158)` is behind the fixed client's side-tab strip; a framebuffer
+proved nearly the entire orb was occluded. The visible target position is **`x=89,y=128,57×34`**,
+immediately right of `orb_specenergy`, with no tab overlap. The clientscript still hides the two
+inert store/content-recommendation layers in the feature cache.
 
-**Model it on `orb_specenergy` (components 34-42), not the prayer orb**, because spec is the one with a clickable button — which is exactly what the special-move button is. Nine new components, ids 57..65:
+The implemented visual is more faithful than the proposed spec-orb copy: it ports the exact six
+visible components of rev-530 interface 747 and adds one target-only transparent call button.
+Eight new components occupy ids 57..64:
 
 ```
-57=orb_summoning          type=0  x=54 y=158 57×34   layer=orbs:universe
-58=summoning_backing      type=5  (orb frame sprite)
-59=summoningbutton        type=5  clickmask + op1 "Special move"     ← the special-move button
-60=summoning_text         type=4  the points number
-61=summoning_indicator    type=5  the fill sprite
-62=orb_summoning_empty    type=5  the drain sprite
-63=com_63                 type=5
-64=summoning_icon         type=5  graphic = sprite 20003
-65=summoning_spec_charge  type=4  the special-move point count (0..60)
+57=summoning_orb                type=0  x=89 y=128 57×34
+58=summoning_orb_backing        type=5  source sprite 1206 → target 20001
+59=summoning_orb_indicator      type=5  source sprite 1244 → target 20002
+60=summoning_orb_empty          type=0  source-sized clipping layer
+61=summoning_orb_empty_contents type=5  source sprite 1245 → target 20003
+62=summoning_orb_text           type=4  dynamic stat-24 points
+63=summoning_orb_icon           type=5  source sprite 1200 → target 20000
+64=summoning_orb_button         type=0  op1 "Call familiar"
 ```
 
-`onload = i:<new clientscript>, i:-2147483645, i:<child uids…>` — copy `orb_prayer`'s eight-argument shape verbatim.
+`onload` calls authored clientscript 12000, which registers a stat-24 transmit hook and restores
+the source 31px clip after the target's generic `orbs_update` helper computes text and colour.
 
 The clientscript is short, because `~orbs_update` already exists. From `script_82.cs2`:
 
@@ -1139,13 +1144,14 @@ That is it: **summoning points are the *dynamic* level of stat 24 and max points
 
 The special-move energy bar (0..60) is a separate scalar with no stat. Drive it from a server varp declared in the ported lane (`%summoning_special_points`, `transmit=yes`), read as `%var<id>` in the orb's clientscript — measured: `%var<id>` is a legal varp literal in this dialect (`%var0`, `%var1009`, … appear throughout `scripts/`).
 
-Arming, in the ported `.rs2`:
+Arming, in the ported `.rs2`, reuses the already implemented call action:
 ```
-if_setevents(orbs:summoningbutton, 0, 0, ^if_event_op1);
-[if_button,orbs:summoningbutton]
-~summoning_special_move;
+if_setevents(orbs:summoning_orb_button, 0, 0, ^if_event_op1);
+[if_button,orbs:summoning_orb_button]
+~summoning_call_familiar;
 ```
-— the same two-line shape `orbs.rs2:35,93` uses for `specbutton`.
+The real client sends interface-160 component-64 op1 and the server responds by calling the owned
+Spirit wolf. Scroll activation remains Phase 5 rather than being faked in the orb slice.
 
 ⚠️ **`orbs` is a shared record.** The orb ships to every player of that bake. Gate it with `if_sethide` from the clientscript on the same varp 4940 bit, following the `xp_drops` precedent (not in `gameframe.enum` at all; mounted by `~xpdrops_sync_mount` behind `%xpdrops_enabled`).
 

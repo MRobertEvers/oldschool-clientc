@@ -396,9 +396,12 @@ mutation test proves an omitted or misordered key fails before byte-exact repair
 rows live in the marked lane and the real client acceptance right-clicks the Summoning stats cell,
 sends op2, opens `skill_guide_v2`, renders the live Spirit wolf row through `db_find`, and sends its
 pouch through the object/model renderer. Note `script_9176.cs2b` is **bytecode-only**, so the
-guide's Overview tab remains unmodified. Summoning orb (lowest-risk authored UI — the minimap chrome is a *cache record*,
-interface 160 `orbs`, 57 components; copy the `orb_specenergy` block to (54,158) and hide the two
-inert orbs). Sidebar tab (expensive — `side0..side13` is **full**, needs new components in *three*
+guide's Overview tab remains unmodified. The Summoning-points orb is now live in interface 160:
+it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to target ids
+20000..20003, and authored clientscript 12000 redraws from dynamic/base stat 24. The originally
+proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
+it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls
+the active familiar. Sidebar tab (expensive — `side0..side13` is **full**, needs new components in *three*
 toplevels 161/548/164 plus row 14 in `enum_1137/1138/1139`). Obelisk via runtime `loc_add`, which
 sidesteps `maps/` entirely. ⚠ `content_register.c:65` gives loc `server_base = 70000` and **no
 `loc_type_bits` field exists anywhere** in `src/net/rev/` — verify the loc wire width before

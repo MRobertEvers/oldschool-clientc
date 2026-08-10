@@ -3165,9 +3165,21 @@ init_defaults(void)
     g_npc_default.death_delay = 2;
     g_npc_default.attackrate = 4;
     g_npc_default.attackrange = 1;
-    /* The reference's NpcType defaults, and the pair that decides how far a
-     * monster will follow you: 7 tiles from where it spawned, and it does
-     * follow. */
+    /*
+     * The reference's NpcType defaults, and the pair that decides how far a
+     * monster will roam and follow: 5 tiles of wander from where it spawned,
+     * and 7 of leash — `maxrange` defaults to `wanderrange + 2` in LostCity's
+     * `NpcType`, which is where both numbers come from.
+     *
+     * `wanderrange` was missing while `maxrange` was here, and the two are a
+     * pair. The consequence was invisible for as long as the roster was the 63
+     * hand-authored Lumbridge npcs, because their `.npc` blocks state it: an
+     * npc nothing describes got `wanderrange = 0`, which
+     * `mock230_world_npc_default_mode` reads as MODE_NONE and the roam block
+     * skips outright. On a world roster of 23,139 npcs, of which 22 files state
+     * a wanderrange, that is "most npcs never move".
+     */
+    g_npc_default.wanderrange = 5;
     g_npc_default.maxrange = 7;
     g_npc_default.givechase = 1;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */

@@ -785,6 +785,12 @@ cs2 infer-arity (--cache DIR --rev NAME | --raw DIR) [--names DIR] [id …]
 Turns a cache's table 12 into CS2 source and back. The language layer itself
 lives in the library (`src/cs2/`); this is the front end.
 
+`cs2 compile --src DIR` pre-scans every `.cs2` source in the batch before it
+compiles any of them. A leading numeric id comment plus the bracketed script
+header seed the script-name table, matching `cachepack`'s behaviour. This lets
+new authored scripts refer to one another—or install a callback to themselves—
+without requiring an already-packed cache entry or an external names-table row.
+
 ```sh
 # One script, out to ./decompiled/.
 git clone https://github.com/RuneStar/cs2 ~/cs2      # the name tables; see --names below

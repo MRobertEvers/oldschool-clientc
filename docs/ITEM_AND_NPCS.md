@@ -416,6 +416,34 @@ carries the real id). Widening the add's type field to 16 is possible — RSProt
 models it as `npcInfoBitCount` — but only against a patched client, and the
 deob is the authority here.
 
+**Both directions have to translate, and only one of them did.** The outbound
+half landed first and the inbound half did not, which made *every npc in the
+game unclickable*: the client echoes back the name it was given, `handle_opnpc`
+indexed the npc pool with it, and a name of 3 resolved to world slot 3 — a
+different npc, usually far away. The player walked somewhere else and was told
+"I can't reach that" while standing on top of what they had clicked.
+
+Every existing opnpc test passed throughout, because every one of them built its
+payload out of the world slot — they were simulating a client that does not
+exist. `selftest_npc_payload` is the fix on that side: a test names an npc the
+way a client does, through the map. `mock230_slotmap_world` is the fix on the
+server's: `OPNPC1-5`, `OPNPCU` and `OPNPCT` all go through it.
+
+`mock230 selftest: clicking an npc lands on the npc that was clicked` is the
+round trip — send NPC_INFO, read the name **out of the map the encoder filled**,
+click it, and assert both that the interaction targets that npc and that the
+player walks to within one tile of it. It does this across a scene rebuild,
+which is the condition it was reported under. It also asserts the *negative*:
+sending the world slot must NOT address the npc, or nothing is being translated
+at all.
+
+**Players need no such map**, and the reason is worth stating rather than
+assuming. The deob reads an 11-bit player index (`class104.java:157`), which is
+2,047 values against a `MOCK230_PLAYER_MAX` of 8 — the world pid fits the field
+with three orders of room, so the wire value and the world value coincide by
+construction. There is no inbound OPPLAYER handler yet either. If either of
+those changes, the seam is the same one.
+
 Three properties make the slot map safe, each asserted and each verified by
 mutating the implementation:
 
@@ -431,6 +459,27 @@ re-encode adds nothing because everything is already tracked, so no name is ever
 asked for; it had to be stated against `acquire` directly. "Released" was
 written without ever causing a removal, so it passed against a `release` that
 did nothing; it had to walk the player out of view first.
+
+### Why most of the world stood still
+
+Separately, and not a protocol bug at all: almost nothing wandered.
+
+`mock230_content.c` seeds its npc defaults from LostCity's `NpcType`, and that
+type defaults `wanderrange = 5` with `maxrange = wanderrange + 2`. This tree had
+`maxrange = 7` and no `wanderrange` — half of a pair. An npc no `.npc` block
+describes therefore came out with `wanderrange = 0`, which
+`mock230_world_npc_default_mode` reads as `MODE_NONE`, which the roam block
+skips outright.
+
+That was invisible for as long as the roster was 63 hand-authored Lumbridge
+npcs, because their blocks state a wanderrange. Against 23,139 spawns of 5,597
+distinct npcs, with 22 files in the tree stating one, it reads as "the world is
+full of statues".
+
+`mock230 selftest: an npc nothing describes still wanders` asserts it through
+the default def rather than by watching an npc walk — roaming is a 1-in-8 roll
+on a 5-to-30-tick timer, so waiting for a step would be a slow coin flip. What
+broke was the default, so the default is what is stated.
 
 ### What this cost the selftests
 

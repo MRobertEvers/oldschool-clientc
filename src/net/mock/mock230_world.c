@@ -3997,7 +3997,7 @@ handle_opnpc(
      * different npc, the walk went to that one's tile, and the player was told
      * "I can't reach that" while standing on top of the one they clicked.
      */
-    slot = rsab_g2(&buf);
+    slot = mock230_slotmap_world(srv->active_player, rsab_g2(&buf));
     if( !rsab_ok(&buf) || slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
     npc = &srv->npcs[slot];
@@ -23109,6 +23109,45 @@ mock230_world_selftest(void)
         mock230_world_tick(&srv);
     }
 
+    fprintf(stderr, "mock230 selftest: an npc nothing describes still wanders\n");
+    {
+        /*
+         * `wanderrange` is half of a pair with `maxrange`, and only `maxrange`
+         * had the reference's default. An npc no `.npc` block describes came
+         * out with `wanderrange = 0`, which is MODE_NONE, which the roam block
+         * skips — so on a 23,139-npc roster against 22 files that state a
+         * wanderrange, almost nothing in the world moved.
+         *
+         * Asserted through the *default def* rather than by watching an npc
+         * walk: roaming is a 1-in-8 roll on a 5-to-30-tick timer, so a test that
+         * waited for a step would be a slow coin flip. What broke was the
+         * default, and that is what this states.
+         */
+        const struct Mock230NpcDef* def = mock230_content_npc_default();
+
+        SELFTEST_CHECK(def && def->wanderrange > 0,
+                       "the default npc def should carry a wander range, got %d",
+                       def ? def->wanderrange : -1);
+        SELFTEST_CHECK(def && def->maxrange >= def->wanderrange,
+                       "and a leash at least as long as it, %d vs %d",
+                       def ? def->maxrange : -1, def ? def->wanderrange : -1);
+        {
+            int subject = selftest_require_npc(&srv, 3028, 3262, 3266, 0);
+
+            if( subject >= 0 )
+            {
+                SELFTEST_CHECK(srv.npcs[subject].wander_radius > 0,
+                               "and an npc spawned from it should be able to roam, got %d",
+                               srv.npcs[subject].wander_radius);
+                SELFTEST_CHECK(mock230_world_npc_default_mode(&srv.npcs[subject]) ==
+                                   MOCK230_NPCMODE_WANDER,
+                               "which is what makes its default mode wander");
+                srv.npcs[subject].active = 0;
+                mock230_zone_npc_refile(&srv, subject);
+            }
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: clicking an npc lands on the npc that was clicked\n");
     {
         /*
@@ -23143,6 +23182,16 @@ mock230_world_selftest(void)
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
+            /*
+             * Across a scene rebuild, which is the condition this was reported
+             * under. A rebuild moves the build area, re-windows the roster and
+             * re-files every npc, and the names a client holds have to survive
+             * all of it — the client shifts its kept entities by the base delta
+             * rather than re-learning them.
+             */
+            srv.zone_x = npc->x >> 3;
+            srv.zone_z = npc->z >> 3;
+            mock230_world_scene_rebuild(&srv);
             mock230_zone_sync_npcs(&srv);
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);

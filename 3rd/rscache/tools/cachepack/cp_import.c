@@ -44,7 +44,7 @@ struct Import_Manifest
     int npc_base, obj_base, loc_base, spotanim_base;
     int model_base, seq_base, animset_base, framemap_base, synth_base;
     int legacy_scape2009;
-    struct Import_List npcs, objs, seqs, spotanims, locs;
+    struct Import_List npcs, objs, seqs, spotanims, locs, synths;
 };
 
 static char* trim(char* s)
@@ -216,7 +216,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
         }
         else if( strcmp(section, "export:npc") == 0 || strcmp(section, "export:obj") == 0 ||
                  strcmp(section, "export:seq") == 0 || strcmp(section, "export:spotanim") == 0 ||
-                 strcmp(section, "export:loc") == 0 )
+                 strcmp(section, "export:loc") == 0 || strcmp(section, "export:synth") == 0 )
         {
             char name[96];
             snprintf(name, sizeof(name), "%s", *value ? value : key);
@@ -224,7 +224,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
                                        strcmp(section, "export:obj") == 0 ? &m->objs :
                                        strcmp(section, "export:seq") == 0 ? &m->seqs :
                                        strcmp(section, "export:spotanim") == 0 ? &m->spotanims :
-                                                                                &m->locs;
+                                       strcmp(section, "export:loc") == 0 ? &m->locs :
+                                                                           &m->synths;
             int source_id = -1;
             if( !parse_nonnegative("export id", key, &source_id) ||
                 !list_add_unique(list, source_id, name) ) { fclose(f); return 0; }
@@ -234,7 +235,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
         !m->prefix[0] || strchr(m->prefix, '/') ||
         (m->npcs.n == 0 && m->objs.n == 0 && m->seqs.n == 0 &&
-         m->spotanims.n == 0 && m->locs.n == 0) )
+         m->spotanims.n == 0 && m->locs.n == 0 && m->synths.n == 0) )
     {
         fprintf(stderr, "cachepack import: manifest needs from_rev/from_cache/to_rev/to_tree and exports\n");
         return 0;
@@ -245,7 +246,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
 static void manifest_free(struct Import_Manifest* m)
 {
     free(m->npcs.v); free(m->objs.v); free(m->seqs.v);
-    free(m->spotanims.v); free(m->locs.v);
+    free(m->spotanims.v); free(m->locs.v); free(m->synths.v);
 }
 
 static void manifest_ledger_path(
@@ -1015,6 +1016,7 @@ static int import_run(struct Import_Manifest* m, int apply)
     struct Import_Ints synths = {0}, npc_ids = {0}, obj_ids = {0}, loc_ids = {0};
     struct Import_Ints spot_ids = {0};
     for( int i = 0; i < m->seqs.n; i++ ) ints_add(&seqs, m->seqs.v[i].source_id);
+    for( int i = 0; i < m->synths.n; i++ ) ints_add(&synths, m->synths.v[i].source_id);
     for( int i = 0; i < m->npcs.n; i++ ) ints_add(&npc_ids, m->npcs.v[i].source_id);
     for( int i = 0; i < m->objs.n; i++ ) ints_add(&obj_ids, m->objs.v[i].source_id);
     for( int i = 0; i < m->spotanims.n; i++ ) ints_add(&spot_ids, m->spotanims.v[i].source_id);
