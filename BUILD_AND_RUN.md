@@ -1259,7 +1259,7 @@ across identical runs, and a suite whose failure count wanders cannot answer
 | rev-239 mock | `test-mock239-inbound`, `test-mock239-playerinfo`, `test-mock239-runclientscript`, `test-mock239-interface-setters`, `test-mock239-varp` |
 | mock230 | `test-mock230`, `test-mock230-dev`, `test-mock230-alt`, `test-mock230-bank`, `test-mock230-embed`, `test-mock230-param`, `test-mock230-loc`, `test-mock230-npc`, `test-mock230-interface-state` |
 | UI | `test-uitree`, `test-uitree-builder`, `test-uitree-builder-dat1`, `test-ui-slots`, `test-chat-widgets`, `test-minimenu-world`, `test-minimap`, `test-social`, `test-debug-overlay-visual`, `bench-uitree` |
-| World / render | `test-world`, `test-world-builder`, `test-light-model`, `test-animation-object-step`, `test-painters-occluders`, `test-painters-terrain-levels`, `test-scanline`, `test-rotate-blit`, `test-retained-renderer-leak`, `test-proctex-coverage` |
+| World / render | `test-world`, `test-world-builder`, `test-light-model`, `test-animation-object-step`, `test-scene-profiles`, `test-painters-occluders`, `test-painters-terrain-levels`, `test-scanline`, `test-rotate-blit`, `test-retained-renderer-leak`, `test-proctex-coverage` |
 | Cache / IO | `test-io-wire`, `test-js5`, `test-js5-server`, `test-cache-trim`, `test-revconfig`, `test-bootmanifest`, `test-rsareabuf` |
 | State | `test-varp`, `test-varc`, `test-inv`, `test-loot-store`, `test-db`, `test-cmdbus`, `test-task-order`, `check-no-drain` |
 | Audio | `test-sound` |

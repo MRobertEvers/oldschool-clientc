@@ -52,11 +52,25 @@ mock239_if_button_backpack_op(const struct Mock239IfButton* button)
 {
     if( !button || button->object_id == MOCK239_IF_OBJ_NONE )
         return 0;
-    if( button->op >= 2 && button->op <= 6 )
-        return button->op - 1;
-    if( button->op == 7 )
+    /* The revision-239 backpack's script_7779 uses enum_4303, rather than
+     * consecutive IF_BUTTONX operations: generic Use owns op 1, then its
+     * ObjType iop rows use 2, 3, 4, 6, and 7.  In particular, op 5 remains a
+     * component action and must not turn into OPHELD4. */
+    switch( button->op )
+    {
+    case 2:
+        return 1;
+    case 3:
+        return 2;
+    case 4:
+        return 3;
+    case 6:
+        return 4;
+    case 7:
         return 5;
-    return 0;
+    default:
+        return 0;
+    }
 }
 
 /** The exact inverse of class617.method13127 (signed ZigZag + unsigned LEB128). */

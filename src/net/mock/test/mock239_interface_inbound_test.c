@@ -107,6 +107,13 @@ check_buttons(void)
     static const uint8_t backpack_wield[] = {
         0x00, 0x95, 0x00, 0x00, 0x00, 0x05, 0x03, 0x49, 0x03,
     };
+    /* Dreadfowl pouch (46000), backpack slot 0, its cache iop4 Summon. The
+     * scripted rev239 backpack maps iop4 to wire op 6, which must fan back
+     * out to the content's classic OPHELD4 trigger. */
+    static const uint8_t backpack_dreadfowl_summon[] = {
+        0x00, 0x95, 0x00, 0x00, 0x00, 0x00, 0xb3, 0xb0, 0x06,
+    };
+    static const int backpack_objtype_ops[] = { 2, 3, 4, 6, 7 };
     struct Mock239IfButton got;
     uint8_t translated[32];
     int translated_len = -1;
@@ -160,18 +167,24 @@ check_buttons(void)
         mock239_if_button_decode(backpack_wield, sizeof(backpack_wield), 0, &got) &&
             mock239_if_button_backpack_op(&got) == 2,
         "backpack Wield modern op 3 normalizes to classic OPHELD2");
-    got.op = 2;
+    for( size_t i = 0; i < sizeof(backpack_objtype_ops) / sizeof(backpack_objtype_ops[0]); i++ )
+    {
+        got.op = backpack_objtype_ops[i];
+        CHECK(
+            mock239_if_button_backpack_op(&got) == (int)i + 1,
+            "backpack modern op %d normalizes to classic OPHELD%zu",
+            backpack_objtype_ops[i],
+            i + 1);
+    }
+    got.op = 5;
     CHECK(
-        mock239_if_button_backpack_op(&got) == 1,
-        "backpack first ObjType action modern op 2 normalizes to OPHELD1");
-    got.op = 6;
+        mock239_if_button_backpack_op(&got) == 0,
+        "backpack component op 5 is not misrouted as classic OPHELD4");
     CHECK(
-        mock239_if_button_backpack_op(&got) == 5,
-        "backpack fifth ObjType action modern op 6 normalizes to OPHELD5");
-    got.op = 7;
-    CHECK(
-        mock239_if_button_backpack_op(&got) == 5,
-        "backpack synthetic Drop modern op 7 normalizes to OPHELD5");
+        mock239_if_button_decode(
+            backpack_dreadfowl_summon, sizeof(backpack_dreadfowl_summon), 0, &got) &&
+            got.object_id == 46000 && got.op == 6 && mock239_if_button_backpack_op(&got) == 4,
+        "Dreadfowl iop4 Summon wire op 6 normalizes to classic OPHELD4");
     got.op = 10;
     CHECK(
         mock239_if_button_backpack_op(&got) == 0,

@@ -71,7 +71,7 @@ main(void)
         CHECK(frame == 2 && cycle == 1, "variable-length boundary preserves remainder");
     }
 
-    scene = ToriDraw_SceneNew(0);
+    scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     CHECK(scene != NULL, "scene allocation");
     if( scene )
     {

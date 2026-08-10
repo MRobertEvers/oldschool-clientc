@@ -23,6 +23,7 @@ enum ToriDraw_ScratchBufferSize
     TORIDRAW_SCRATCH_BUFFER_LOW_2K,
     TORIDRAW_SCRATCH_BUFFER_MED_4K,
     TORIDRAW_SCRATCH_BUFFER_HIGH_8K,
+    TORIDRAW_SCRATCH_BUFFER_SIZE_COUNT,
 };
 
 bool
@@ -31,6 +32,7 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene);
 void
 ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene);
 
+/** Allocate a scene with an explicit reusable model-render scratch tier. */
 struct ToriDraw_Scene*
 ToriDraw_SceneNew(
     uint32_t flags,
