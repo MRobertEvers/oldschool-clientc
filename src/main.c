@@ -3580,6 +3580,16 @@ main(
                             transport_name);
             }
 
+            /* One process must not quietly use two caches. The client and its
+             * JS5 reader already use the manifest-resolved `cfg.cache_dir`; pass
+             * that same directory through mock230's existing deployment knob
+             * before the embedded world starts. An explicit MOCK230_CACHE still
+             * wins, which preserves the diagnostic override. This matters for
+             * isolated cache overlays: their minted npc/loc ids do not exist in
+             * the pristine cache. */
+            if( transport_kind == NET_TRANSPORT_EMBED && !getenv("MOCK230_CACHE") )
+                setenv("MOCK230_CACHE", cfg.cache_dir, 0);
+
             sock = app.net ? NetTransport_New(transport_kind,
                                               cfg.connect_port > 0 ? cfg.connect_port : 43594,
                                               app.net->rev->name)

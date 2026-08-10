@@ -501,7 +501,7 @@ decode_sequence_rs2(
         case 18:
             if( !late_preeoc )
                 goto unknown_opcode;
-            def->rs2_727_cross_world_sound = true;
+            def->rs2_727_vorbis_sounds = true;
             break;
         case 19:
             if( !late_preeoc )
@@ -1249,7 +1249,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
             p1(&buffer, 15);
         if( def->rs2_727_unknown16 )
             p1(&buffer, 16);
-        if( def->rs2_727_cross_world_sound )
+        if( def->rs2_727_vorbis_sounds )
             p1(&buffer, 18);
     }
 

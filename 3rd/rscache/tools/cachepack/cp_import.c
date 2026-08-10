@@ -13,6 +13,10 @@
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/model.h"
+#include "datatypes/music_patch.h"
+#include "datatypes/music_song.h"
+#include "datatypes/sound_vorbis.h"
+#include "checksum.h"
 #include "filelist.h"
 #include "port_plan.h"
 #include "reference_table.h"
@@ -43,8 +47,11 @@ struct Import_Manifest
     char lane[256], ledger[512], prefix[96];
     int npc_base, obj_base, loc_base, spotanim_base;
     int model_base, seq_base, animset_base, framemap_base, synth_base;
+    int sample_setup_dest;
+    int preserve_audio_ids;
     int legacy_scape2009;
     struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
+    struct Import_List songs, patches, samples;
 };
 
 static char* trim(char* s)
@@ -169,6 +176,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
     m->animset_base = 20000;
     m->framemap_base = 8000;
     m->synth_base = 20000;
+    m->sample_setup_dest = 20000;
     FILE* f = fopen(path, "rb");
     if( !f ) { fprintf(stderr, "cachepack import: cannot open manifest %s\n", path); return 0; }
     char line[2048], section[64] = "";
@@ -204,6 +212,20 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "animset_base") == 0 ) { if( !parse_nonnegative(key, value, &m->animset_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "framemap_base") == 0 ) { if( !parse_nonnegative(key, value, &m->framemap_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "synth_base") == 0 ) { if( !parse_nonnegative(key, value, &m->synth_base) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "sample_setup_dest") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_setup_dest) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "preserve_audio_ids") == 0 )
+            {
+                if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
+                    m->preserve_audio_ids = 1;
+                else if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
+                    m->preserve_audio_ids = 0;
+                else
+                {
+                    fprintf(stderr, "cachepack import: preserve_audio_ids must be yes/no\n");
+                    fclose(f);
+                    return 0;
+                }
+            }
             else if( strcmp(key, "from_rev") != 0 && strcmp(key, "from_cache") != 0 &&
                      strcmp(key, "to_rev") != 0 && strcmp(key, "to_tree") != 0 &&
                      strcmp(key, "lane") != 0 && strcmp(key, "ledger") != 0 &&
@@ -217,7 +239,9 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
         else if( strcmp(section, "export:npc") == 0 || strcmp(section, "export:obj") == 0 ||
                  strcmp(section, "export:model") == 0 ||
                  strcmp(section, "export:seq") == 0 || strcmp(section, "export:spotanim") == 0 ||
-                 strcmp(section, "export:loc") == 0 || strcmp(section, "export:synth") == 0 )
+                 strcmp(section, "export:loc") == 0 || strcmp(section, "export:synth") == 0 ||
+                 strcmp(section, "export:song") == 0 || strcmp(section, "export:patch") == 0 ||
+                 strcmp(section, "export:sample") == 0 )
         {
             char name[96];
             snprintf(name, sizeof(name), "%s", *value ? value : key);
@@ -227,7 +251,10 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
                                        strcmp(section, "export:seq") == 0 ? &m->seqs :
                                        strcmp(section, "export:spotanim") == 0 ? &m->spotanims :
                                        strcmp(section, "export:loc") == 0 ? &m->locs :
-                                                                           &m->synths;
+                                       strcmp(section, "export:synth") == 0 ? &m->synths :
+                                       strcmp(section, "export:song") == 0 ? &m->songs :
+                                       strcmp(section, "export:patch") == 0 ? &m->patches :
+                                                                              &m->samples;
             int source_id = -1;
             if( !parse_nonnegative("export id", key, &source_id) ||
                 !list_add_unique(list, source_id, name) ) { fclose(f); return 0; }
@@ -237,7 +264,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
         !m->prefix[0] || strchr(m->prefix, '/') ||
         (m->npcs.n == 0 && m->objs.n == 0 && m->models.n == 0 && m->seqs.n == 0 &&
-         m->spotanims.n == 0 && m->locs.n == 0 && m->synths.n == 0) )
+         m->spotanims.n == 0 && m->locs.n == 0 && m->synths.n == 0 &&
+         m->songs.n == 0 && m->patches.n == 0 && m->samples.n == 0) )
     {
         fprintf(stderr, "cachepack import: manifest needs from_rev/from_cache/to_rev/to_tree and exports\n");
         return 0;
@@ -249,6 +277,7 @@ static void manifest_free(struct Import_Manifest* m)
 {
     free(m->npcs.v); free(m->objs.v); free(m->models.v); free(m->seqs.v);
     free(m->spotanims.v); free(m->locs.v); free(m->synths.v);
+    free(m->songs.v); free(m->patches.v); free(m->samples.v);
 }
 
 static void manifest_ledger_path(
@@ -782,23 +811,38 @@ static int archive_exists(struct Tool_Dat2Cache* src, enum RSCache_Dat2Table log
     return present;
 }
 
-static int collect_index4_sound(struct Tool_Dat2Cache* src, struct Import_Ints* synths, int id)
+static int collect_audio_sound(struct Tool_Dat2Cache* src,
+                               struct Import_Ints* synths,
+                               struct Import_Ints* samples,
+                               int id,
+                               int force_vorbis)
 {
     if( id < 0 ) return 1;
+    if( force_vorbis )
+    {
+        if( archive_exists(src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, id) )
+            return ints_add(samples, id);
+        fprintf(stderr,
+                "cachepack import: Vorbis-selected sound %d is absent from source index 14\n",
+                id);
+        return 0;
+    }
     if( archive_exists(src, RSCACHE_DAT2_TABLE_SOUND_EFFECTS, id) )
         return ints_add(synths, id);
-    /* Late RS2 animation/area definitions can select index 14 instead. That
-     * payload is not a synth and cannot be written into OSRS index 4. Keep its
-     * id in the config for the explicit audio bridge rather than lying about
-     * the asset type. */
-    if( archive_exists(src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, id) ) return 1;
+    /* Loc opcodes 168/169 select the recorded-audio path but that type bit has
+     * no OSRS239 LocType field. Existence is unambiguous in every imported
+     * rev-727 record: index 4 wins when both tables happen to use an id, and an
+     * index-14-only id is retained for the runtime fallback bridge. */
+    if( archive_exists(src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, id) )
+        return ints_add(samples, id);
     fprintf(stderr, "cachepack import: referenced sound %d is absent from source indexes 4 and 14\n",
             id);
     return 0;
 }
 
 static int collect_sequence(struct Tool_Dat2Cache* src, int id,
-                            struct Import_Ints* frames, struct Import_Ints* synths)
+                            struct Import_Ints* frames, struct Import_Ints* synths,
+                            struct Import_Ints* samples)
 {
     struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(src, id);
     if( !seq || seq->_consumed == 0 )
@@ -813,13 +857,13 @@ static int collect_sequence(struct Tool_Dat2Cache* src, int id,
     for( int f = 0; ok && f < seq->chat_frame_id_count; f++ )
         if( seq->chat_frame_ids[f] >= 0 )
             ok = ints_add(frames, (seq->chat_frame_ids[f] >> 16) & 0xffff);
-    /* RS727 opcode 18 selects the later MIDI/Vorbis sound path (physical
-     * index 14), not the synthesised-effect path (index 4). The OSRS sequence
-     * format has no equivalent selector. Preserve those frame events in the
-     * config for an engine-side audio bridge, but only claim/import ids that
-     * the source sequence actually resolves through index 4 here. */
+    /* RS727 opcode 18 is AnimationDefinitions.aBool5928: it selects
+     * MIDIInstrument/index 14 for every event. Preserve that lost type bit by
+     * putting those ids into the sample closure; the destination runtime
+     * resolves an index-4 miss through the copied index-14 lane. */
     for( int s = 0; ok && s < seq->frame_sounds.count; s++ )
-        ok = collect_index4_sound(src, synths, seq->frame_sounds.sounds[s].id);
+        ok = collect_audio_sound(src, synths, samples, seq->frame_sounds.sounds[s].id,
+                                 seq->rs2_727_vorbis_sounds);
     RSCache_Dat2ConfigSequenceFree(seq);
     return ok;
 }
@@ -1006,6 +1050,151 @@ static int write_synth_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     return ok;
 }
 
+static int collect_song_patches(struct Tool_Dat2Cache* src,
+                                struct Import_Ints* patches,
+                                int song_id)
+{
+    struct Tool_Bytes raw = {0};
+    if( !tool_dat2_archive_bytes(src, RSCACHE_DAT2_TABLE_MUSIC_TRACKS, song_id, &raw) )
+    {
+        fprintf(stderr, "cachepack import: music track %d is absent\n", song_id);
+        return 0;
+    }
+    struct RSCache_MusicSong* song =
+        RSCache_MusicSongNewDecode((const char*)raw.data, raw.size);
+    tool_bytes_free(&raw);
+    if( !song )
+    {
+        fprintf(stderr, "cachepack import: music track %d did not decode\n", song_id);
+        return 0;
+    }
+    int ok = 1;
+    for( int i = 0; ok && i < song->patch_count; i++ )
+        ok = ints_add(patches, song->patches[i].patch_id);
+    RSCache_MusicSongFree(song);
+    return ok;
+}
+
+static int collect_patch_samples(struct Tool_Dat2Cache* src,
+                                 struct Import_Ints* synths,
+                                 struct Import_Ints* samples,
+                                 int patch_id)
+{
+    struct Tool_Bytes raw = {0};
+    if( !tool_dat2_archive_bytes(src, RSCACHE_DAT2_TABLE_MUSIC_PATCHES, patch_id, &raw) )
+    {
+        fprintf(stderr, "cachepack import: music patch %d is absent\n", patch_id);
+        return 0;
+    }
+    struct RSCache_MusicPatch* patch =
+        RSCache_MusicPatchNewDecode((const char*)raw.data, raw.size);
+    int exact = patch && patch->_consumed == raw.size;
+    tool_bytes_free(&raw);
+    if( !exact )
+    {
+        fprintf(stderr, "cachepack import: music patch %d did not decode exactly\n", patch_id);
+        RSCache_MusicPatchFree(patch);
+        return 0;
+    }
+    int ok = 1;
+    for( int note = 0; ok && note < 128; note++ )
+    {
+        int id = RSCache_MusicPatchNoteSampleId(patch, note);
+        if( id < 0 )
+            continue;
+        if( RSCache_MusicPatchNoteIsMusicSample(patch, note) )
+            ok = collect_audio_sound(src, synths, samples, id, 1);
+        else
+            ok = collect_audio_sound(src, synths, samples, id, 0);
+    }
+    RSCache_MusicPatchFree(patch);
+    return ok;
+}
+
+static int write_raw_audio_asset(const struct Import_Manifest* m,
+                                 struct Tool_Dat2Cache* src,
+                                 enum RSCache_Dat2Table table,
+                                 int source_id,
+                                 const char* directory,
+                                 const char* stem,
+                                 const char* extension)
+{
+    struct Tool_Bytes raw = {0};
+    if( !tool_dat2_archive_bytes(src, table, source_id, &raw) )
+    {
+        fprintf(stderr, "cachepack import: %s %d is absent\n", stem, source_id);
+        return 0;
+    }
+    char path[1500];
+    snprintf(path, sizeof(path), "%s/%s/%s/%s_%s_%d.%s", m->to_tree, directory,
+             m->lane, m->prefix, stem, source_id, extension);
+    int ok = write_bytes(path, raw.data, (size_t)raw.size);
+    tool_bytes_free(&raw);
+    return ok;
+}
+
+static int write_sample_setup_asset(const struct Import_Manifest* m,
+                                    struct Tool_Dat2Cache* src)
+{
+    struct Tool_Bytes raw = {0};
+    if( !tool_dat2_archive_bytes(src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, &raw) )
+    {
+        fprintf(stderr, "cachepack import: source music-sample setup 0 is absent\n");
+        return 0;
+    }
+    struct RSCache_VorbisSetup* setup =
+        RSCache_VorbisSetupNewDecode((const char*)raw.data, raw.size);
+    if( !setup )
+    {
+        fprintf(stderr, "cachepack import: source music-sample setup 0 did not decode\n");
+        tool_bytes_free(&raw);
+        return 0;
+    }
+    RSCache_VorbisSetupFree(setup);
+    char path[1500];
+    snprintf(path, sizeof(path), "%s/samples/%s/%s_sample_setup_727.sample",
+             m->to_tree, m->lane, m->prefix);
+    int ok = write_bytes(path, raw.data, (size_t)raw.size);
+    tool_bytes_free(&raw);
+    return ok;
+}
+
+static int verify_sample_assets(struct Tool_Dat2Cache* src, const struct Import_Ints* samples)
+{
+    struct Tool_Bytes setup_raw = {0};
+    if( !tool_dat2_archive_bytes(src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, 0, &setup_raw) )
+        return 0;
+    struct RSCache_VorbisSetup* setup =
+        RSCache_VorbisSetupNewDecode((const char*)setup_raw.data, setup_raw.size);
+    tool_bytes_free(&setup_raw);
+    if( !setup )
+        return 0;
+    int ok = 1;
+    for( int i = 0; ok && i < samples->n; i++ )
+    {
+        struct Tool_Bytes raw = {0};
+        if( !tool_dat2_archive_bytes(
+                src, RSCACHE_DAT2_TABLE_MUSIC_SAMPLES, samples->v[i], &raw) )
+        {
+            fprintf(stderr, "cachepack import: music sample %d is absent\n", samples->v[i]);
+            ok = 0;
+            break;
+        }
+        struct RSCache_AudioSample* decoded = RSCache_VorbisSampleNewDecode(
+            setup, (const char*)raw.data, raw.size);
+        tool_bytes_free(&raw);
+        if( !decoded || decoded->sample_rate <= 0 || decoded->sample_count <= 0 )
+        {
+            fprintf(stderr, "cachepack import: music sample %d did not decode audibly\n",
+                    samples->v[i]);
+            ok = 0;
+        }
+        RSCache_AudioSampleFree(decoded);
+    }
+    RSCache_VorbisSetupFree(setup);
+    return ok;
+}
+
 static int import_run(struct Import_Manifest* m, int apply)
 {
     struct RSCache from, to;
@@ -1015,11 +1204,15 @@ static int import_run(struct Import_Manifest* m, int apply)
     if( !tool_dat2_open(m->from_cache, &from, &src) ) return 0;
 
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
-    struct Import_Ints synths = {0}, npc_ids = {0}, obj_ids = {0}, loc_ids = {0};
+    struct Import_Ints synths = {0}, samples = {0}, songs = {0}, patches = {0};
+    struct Import_Ints npc_ids = {0}, obj_ids = {0}, loc_ids = {0};
     struct Import_Ints spot_ids = {0};
     for( int i = 0; i < m->models.n; i++ ) ints_add(&models, m->models.v[i].source_id);
     for( int i = 0; i < m->seqs.n; i++ ) ints_add(&seqs, m->seqs.v[i].source_id);
     for( int i = 0; i < m->synths.n; i++ ) ints_add(&synths, m->synths.v[i].source_id);
+    for( int i = 0; i < m->samples.n; i++ ) ints_add(&samples, m->samples.v[i].source_id);
+    for( int i = 0; i < m->songs.n; i++ ) ints_add(&songs, m->songs.v[i].source_id);
+    for( int i = 0; i < m->patches.n; i++ ) ints_add(&patches, m->patches.v[i].source_id);
     for( int i = 0; i < m->npcs.n; i++ ) ints_add(&npc_ids, m->npcs.v[i].source_id);
     for( int i = 0; i < m->objs.n; i++ ) ints_add(&obj_ids, m->objs.v[i].source_id);
     for( int i = 0; i < m->spotanims.n; i++ ) ints_add(&spot_ids, m->spotanims.v[i].source_id);
@@ -1052,7 +1245,7 @@ static int import_run(struct Import_Manifest* m, int apply)
             int sounds[] = { source_npcs[n]->sound_idle, source_npcs[n]->sound_crawl,
                              source_npcs[n]->sound_walk, source_npcs[n]->sound_run };
             for( int i = 0; ok && i < 4; i++ )
-                ok = collect_index4_sound(&src, &synths, sounds[i]);
+                ok = collect_audio_sound(&src, &synths, &samples, sounds[i], 0);
         }
     }
 
@@ -1099,9 +1292,9 @@ static int import_run(struct Import_Manifest* m, int apply)
         if( ok && loc->seq_id >= 0 ) ok = ints_add(&seqs, loc->seq_id);
         for( int k = 0; ok && k < loc->random_seq_id_count; k++ )
             ok = ints_add(&seqs, loc->random_seq_ids[k]);
-        if( ok ) ok = collect_index4_sound(&src, &synths, loc->ambient_sound_id);
+        if( ok ) ok = collect_audio_sound(&src, &synths, &samples, loc->ambient_sound_id, 0);
         for( int k = 0; ok && k < loc->ambient_sound_id_count; k++ )
-            ok = collect_index4_sound(&src, &synths, loc->ambient_sound_ids[k]);
+            ok = collect_audio_sound(&src, &synths, &samples, loc->ambient_sound_ids[k], 0);
         for( int k = 0; ok && k < loc->transform_count; k++ )
         {
             int dep = loc->transforms[k];
@@ -1124,7 +1317,31 @@ static int import_run(struct Import_Manifest* m, int apply)
     }
 
     for( int i = 0; ok && i < seqs.n; i++ )
-        ok = collect_sequence(&src, seqs.v[i], &frames, &synths);
+        ok = collect_sequence(&src, seqs.v[i], &frames, &synths, &samples);
+
+    for( int i = 0; ok && i < songs.n; i++ )
+        ok = collect_song_patches(&src, &patches, songs.v[i]);
+    for( int i = 0; ok && i < patches.n; i++ )
+        ok = collect_patch_samples(&src, &synths, &samples, patches.v[i]);
+    if( ok && (songs.n || patches.n || samples.n) )
+    {
+        if( !m->preserve_audio_ids )
+        {
+            fprintf(stderr,
+                    "cachepack import: audio bridge needs preserve_audio_ids=yes; "
+                    "packed songs/patches carry ids internally\n");
+            ok = 0;
+        }
+        else if( ints_contains(&samples, m->sample_setup_dest) )
+        {
+            fprintf(stderr,
+                    "cachepack import: sample setup destination %d collides with a sample\n",
+                    m->sample_setup_dest);
+            ok = 0;
+        }
+        else
+            ok = verify_sample_assets(&src, &samples);
+    }
 
     for( int i = 0; ok && i < frames.n; i++ )
     {

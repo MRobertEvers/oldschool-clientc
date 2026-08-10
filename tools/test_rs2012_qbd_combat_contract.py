@@ -151,6 +151,7 @@ def check(root: Path) -> list[str]:
         "rs2012_qbd_ranged_max": 53,
         "rs2012_qbd_soul_melee_max": 26,
         "rs2012_qbd_worm_magic_max": 21,
+        "rs2012_qbd_worm_melee_max": 20,
         "rs2012_qbd_extreme_max": 97,
         "rs2012_qbd_fire_protected_min": 10,
         "rs2012_qbd_fire_protected_span": 14,
@@ -202,6 +203,7 @@ def check(root: Path) -> list[str]:
             "defence_bonuses": (175, 142, 285, 235, 195),
         },
         "rs2012_qbd_giant_worm": {
+            "attack": 123,
             "magic": 123,
             "defence": 100,
             "attack_bonuses": (157, 100, 100, 88, 4),
@@ -284,8 +286,8 @@ def check(root: Path) -> list[str]:
         f"{QBD_COMBAT}: expected exactly the melee and ranged accuracy calls",
     )
     require(
-        adds.count("~rs2012_qbd_roll_player_damage(") == 3,
-        f"{QBD_ADDS}: expected two soul and one worm accuracy calls",
+        adds.count("~rs2012_qbd_roll_player_damage(") == 4,
+        f"{QBD_ADDS}: expected two soul and both worm accuracy calls",
     )
     for fragment in (
         "$damage = ~gear_reduce_damage($damage, $style);",
@@ -333,6 +335,7 @@ def check(root: Path) -> list[str]:
         "rs2012_qbd_ranged_max",
         "rs2012_qbd_soul_melee_max",
         "rs2012_qbd_worm_magic_max",
+        "rs2012_qbd_worm_melee_max",
     ):
         require(
             re.search(rf"randominc\(\^{constant}\)", combat + adds) is None,
@@ -353,6 +356,19 @@ def check(root: Path) -> list[str]:
             match is not None and "npc_del;" in match.group(1),
             f"{QBD_ADDS}: {add_name} can respawn after an encounter-owned death",
         )
+    require(
+        npcs.get("rs2012_qbd_giant_worm", {}).get("hitpoints") == 650,
+        f"{QBD_NPCS}: giant worm must retain the 21-Jun-2012 650-LP pool",
+    )
+    worm_death = re.search(
+        r"^\[ai_queue3,rs2012_qbd_giant_worm\]\s*$\n(.*?)(?=^\[|\Z)",
+        adds,
+        re.MULTILINE | re.DOTALL,
+    )
+    require(
+        worm_death is not None and "obj_add(npc_coord, bones, 1" in worm_death.group(1),
+        f"{QBD_ADDS}: giant worm lost its period always-drop bones",
+    )
 
     protection_header = "[proc,rs2012_qbd_dragonfire_protection]()(int)"
     protection = combat.split(protection_header, 1)[-1].split("[proc,rs2012_qbd_melee]", 1)[0]

@@ -59,7 +59,10 @@ struct RSCache_Dat2ConfigSequence
      * opcode numbers mean unrelated Maya/sound fields on OldSchool. */
     bool rs2_727_tweened;
     bool rs2_727_unknown16;
-    bool rs2_727_cross_world_sound;
+    /** RS2 rev-727 opcode 18. The reference AnimationDefinitions.aBool5928
+     *  selects MIDIInstrument/index 14 instead of SoundEffect/index 4 for
+     *  every frame sound in this sequence. */
+    bool rs2_727_vorbis_sounds;
     struct RSCache_Dat2ConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 
     /** Bytes consumed by the last decode, set on reaching the terminating opcode 0.

@@ -1685,7 +1685,14 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # this the boot warns and falls back to the text parse — which is still a real
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
-mock230-servpack:
+.PHONY: test-rs2012-server-overlay mock230-cache-rs2012
+
+test-rs2012-server-overlay:
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	@cd $(REPO_ROOT) && python3 tools/test_rs2012_server_overlay.py \
+		--cachepack $(CACHEPACK_BIN)
+
+mock230-servpack: test-rs2012-server-overlay
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src OSRS-Content/osrs239-content --server-only
@@ -1772,6 +1779,38 @@ mock230-cache-check:
 		exit 1; \
 	fi; \
 	echo "mock230-cache-check: all $(words $(MOCK230_CACHE_TABLES)) tables present in $(MOCK230_CACHE_DIR)"
+
+# The cache-727 QBD/TD client records are isolated below `ported/` and therefore
+# do not enter an ordinary `mock230-cache` bake. Compose that marked lane through
+# its audited sparse stager, then verify the client-facing interface/sprite/script
+# archives against the resulting cache. `manifest_osrs239_rs2012.ini` points the
+# client at this directory; main.c hands the same resolved path to the embedded
+# mock, so scene/NPC reads and JS5 cannot fall back to pristine cache.osrs239.
+RS2012_OVERLAY_DIR = $(REPO_ROOT)/build/rs2012-overlay
+RS2012_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
+RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012
+
+mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
+	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
+	@test -f "$(RS2012_CACHE_BASE)/main_file_cache.dat2" || { \
+		echo "mock230-cache-rs2012: no base cache at $(RS2012_CACHE_BASE)" >&2; exit 1; }
+	@cd $(REPO_ROOT) && python3 tools/test_stage_rs2012_overlay.py
+	@cd $(REPO_ROOT) && python3 tools/stage_rs2012_overlay.py \
+		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR)
+	@test "$(abspath $(RS2012_CACHE_DIR))" != "$(REPO_ROOT)" -a \
+		"$(abspath $(RS2012_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_BASE))" -a \
+		"$(abspath $(RS2012_CACHE_DIR))" != "/" || { \
+		echo "mock230-cache-rs2012: unsafe output $(RS2012_CACHE_DIR)" >&2; exit 1; }
+	rm -rf "$(RS2012_CACHE_DIR)"
+	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
+		--src $(RS2012_OVERLAY_DIR) --base $(RS2012_CACHE_BASE) \
+		--out $(RS2012_CACHE_DIR) --rev osrs239 --assets --binary --gamevals
+	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(RS2012_CACHE_DIR)
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+		cd $(REPO_ROOT) && $(CACHEPACK_BIN) verify \
+			--cache $(RS2012_CACHE_DIR) --rev osrs239 --src $(RS2012_OVERLAY_DIR) \
+			--assets=interfaces,sprites,scripts --tmp "$$tmp"
+	@echo "mock230-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
 
 # The 2009scape Summoning client records are deliberately absent from the
 # ordinary content walk.  A feature-on cache is a second pass over the explicit
