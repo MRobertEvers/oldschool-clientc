@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "phase": "5a",
+  "source_manifest": "pouches_530.json",
+  "source_inventory": {
+    "pouch_records": 82,
+    "active_familiar_pairs": 78,
+    "deferred_sacred_clay_pairs": 4,
+    "deferred_slot": -1
+  },
+  "candidate_entity_kinds": [
+    "familiar",
+    "pouch"
+  ],
+  "deferred_entity_kinds": {
+    "pet": "Phase 7 lifecycle/save work",
+    "scroll": "later Phase 5 special-move slice",
+    "tertiary": "later Phase 5 source-name-resolution slice",
+    "potion": "later Phase 5 consumables slice"
+  },
+  "safe_synth_sources": [
+    188
+  ],
+  "admitted_synth_sources": [],
+  "admitted_root_sources": {
+    "npc": [
+      6829
+    ],
+    "obj": [
+      12047
+    ]
+  },
+  "vertical_support_sources": {
+    "obj": [
+      12155,
+      12158,
+      12183
+    ],
+    "loc": [
+      28716
+    ]
+  },
+  "admitted_cohorts": [],
+  "reserved_generated_prefixes": [
+    "summoning_roster_530"
+  ]
+}

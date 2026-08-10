@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an auditable RS530 Summoning familiar/pet asset manifest.
+"""Build the Phase-5a RS530 Summoning familiar/pouch candidate manifest.
 
 The cache alone answers *which sequences can pose an NPC*: its NPC definition
 points at a BAS (base-animation set), and the BAS supplies ready/walk sequences.
@@ -9,15 +9,16 @@ uses for melee, defence, and death animations.
 
 Run ``tools/entity_viewer/ev_catalog --rev rs530 ...`` once first.  This script
 then joins that catalog with the 82-entry pouch table, the source combat config,
-and ``Pets.java``.  It writes two generated artifacts:
+and the 82-entry pouch inventory.  It writes two generated artifacts:
 
 * a CSV that tells reviewers exactly why each animation is selected; and
 * a cachepack import manifest for the assets/configs (not gameplay behaviour).
 
-The manifest opts into NPC idle/walk/run sound closures and records the source
-calls separately for review.  The direct familiar sound table remains auditable
-because it contains cross-revision sound IDs whose gameplay semantics must not
-be inferred from the number alone.
+The Phase-5a manifest is deliberately a candidate, not cache admission.  It
+contains active familiar/pouch pairs only, disables NPC sound closures, and
+allows the one documented safe byte-copy synth (188).  The full direct-familiar
+sound table remains auditable separately because cross-revision sound IDs must
+not be inferred from their numbers.
 """
 
 from __future__ import annotations
@@ -35,14 +36,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SOURCE = REPO.parent / "2009scape"
 FAMILIAR_SOURCE = SOURCE / "Server/src/main/content/global/skill/summoning/familiar"
-# Pets.java contains the CAT_6 overgrown item id, but that id is absent from
-# the 530 object table distributed with this source cache.  Keep the NPC stage
-# in the roster; omit only the unavailable inventory definition.
-UNAVAILABLE_SOURCE_OBJECTS = {15092}
 # These were minted by the pre-existing Spirit-wolf proof.  The broad roster
 # manifest deliberately leaves them out so it can live in a separate config
 # prefix without emitting duplicate definitions for the same destination ID.
 PREEXISTING_EXPORTS = {("npc", 6829), ("obj", 12047)}
+SAFE_SYNTH_IDS = {188}
 
 
 @dataclass(frozen=True)
@@ -52,62 +50,6 @@ class Entity:
     stage: str
     npc_id: int
     obj_id: int | None
-
-
-def split_java_args(text: str) -> list[str]:
-    """Split a Java constructor argument list without mistaking commas in calls."""
-    parts: list[str] = []
-    start = 0
-    depth = 0
-    for index, char in enumerate(text):
-        if char == "(":
-            depth += 1
-        elif char == ")":
-            depth -= 1
-        elif char == "," and depth == 0:
-            parts.append(text[start:index].strip())
-            start = index + 1
-    parts.append(text[start:].strip())
-    return parts
-
-
-def extract_java_enum_calls(path: Path) -> list[tuple[str, list[str]]]:
-    """Extract enum constructor calls from Pets.java before its fields begin."""
-    text = path.read_text(encoding="utf-8")
-    begin = text.index("public enum Pets")
-    end = text.index("private static final Map", begin)
-    body = text[begin:end]
-    found: list[tuple[str, list[str]]] = []
-    cursor = 0
-    while True:
-        match = re.search(r"\b([A-Z][A-Z0-9_]*)\s*\(", body[cursor:])
-        if not match:
-            break
-        name = match.group(1)
-        open_at = cursor + match.end() - 1
-        depth = 0
-        close_at = open_at
-        while close_at < len(body):
-            char = body[close_at]
-            if char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-                if depth == 0:
-                    break
-            close_at += 1
-        if close_at >= len(body):
-            raise ValueError(f"unterminated Pets enum value {name}")
-        found.append((name, split_java_args(body[open_at + 1 : close_at])))
-        cursor = close_at + 1
-    return found
-
-
-def as_int(value: str, context: str) -> int:
-    try:
-        return int(value.strip())
-    except ValueError as exc:
-        raise ValueError(f"{context}: expected integer, got {value!r}") from exc
 
 
 def load_pouch_entities(path: Path) -> list[Entity]:
@@ -122,19 +64,6 @@ def load_pouch_entities(path: Path) -> list[Entity]:
         if name.endswith("_pouch"):
             name = name[: -len("_pouch")]
         entities.append(Entity("familiar", name, "familiar", record["npc"], record["pouch"]))
-    return entities
-
-
-def load_pet_entities(path: Path) -> list[Entity]:
-    entities: list[Entity] = []
-    for name, args in extract_java_enum_calls(path):
-        if len(args) < 8:
-            raise ValueError(f"Pets.{name}: expected at least eight constructor arguments")
-        items = [as_int(args[index], f"Pets.{name}") for index in range(3)]
-        npcs = [as_int(args[index], f"Pets.{name}") for index in range(3, 6)]
-        for stage, npc_id, obj_id in zip(("baby", "grown", "overgrown"), npcs, items):
-            if npc_id >= 0:
-                entities.append(Entity("pet", name.lower(), stage, npc_id, obj_id if obj_id >= 0 else None))
     return entities
 
 
@@ -156,9 +85,7 @@ def animation_id(config: dict[str, str], key: str) -> str:
 
 
 def entity_name(entity: Entity) -> str:
-    if entity.kind == "familiar":
-        return entity.entry
-    return f"pet_{entity.entry}_{entity.stage}"
+    return entity.entry
 
 
 def add_unique(target: OrderedDict[int, str], source_id: int, name: str) -> None:
@@ -172,6 +99,15 @@ def direct_familiar_sound_ids(familiar_source: Path) -> list[int]:
                    for match in pattern.finditer(path.read_text(encoding="utf-8"))})
 
 
+def safe_direct_familiar_sound_ids(familiar_source: Path) -> list[int]:
+    """Return only the explicitly reviewed source synths for this boundary."""
+    found = direct_familiar_sound_ids(familiar_source)
+    missing = SAFE_SYNTH_IDS - set(found)
+    if missing:
+        raise ValueError(f"safe synths are absent from familiar source: {sorted(missing)}")
+    return [sound_id for sound_id in found if sound_id in SAFE_SYNTH_IDS]
+
+
 def build_manifest(
     entities: list[Entity], combat: dict[int, dict[str, str]], direct_sounds: list[int]
 ) -> str:
@@ -182,10 +118,8 @@ def build_manifest(
         name = entity_name(entity)
         if ("npc", entity.npc_id) not in PREEXISTING_EXPORTS:
             add_unique(npcs, entity.npc_id, name)
-        if (entity.obj_id is not None and entity.obj_id not in UNAVAILABLE_SOURCE_OBJECTS
-                and ("obj", entity.obj_id) not in PREEXISTING_EXPORTS):
-            suffix = "pouch" if entity.kind == "familiar" else "item"
-            add_unique(objs, entity.obj_id, f"{name}_{suffix}")
+        if entity.obj_id is not None and ("obj", entity.obj_id) not in PREEXISTING_EXPORTS:
+            add_unique(objs, entity.obj_id, f"{name}_pouch")
         config = combat.get(entity.npc_id, {})
         for role, field in (
             ("attack", "melee_animation"),
@@ -200,8 +134,9 @@ def build_manifest(
 
     lines = [
         "# Generated by tools/summoning_roster_assets.py. Do not hand-edit.",
-        "# This imports client assets/configs only; gameplay and pet lifecycle remain authored content.",
-        "# Include the source NPC idle/walk/run synth closure; direct familiar calls are audited separately.",
+        "# Phase 5a candidate only: it is not an admitted feature-on cohort.",
+        "# Active familiar/pouch pairs only; pets, scrolls, tertiary ingredients and potions are deferred.",
+        "# NPC sound closure is deliberately disabled; source synth 188 is the only safe byte-copy candidate.",
         "[import:scape2009]",
         "from_rev=rs530",
         "from_cache=../../../2009scape/Server/data/cache",
@@ -209,9 +144,9 @@ def build_manifest(
         "to_tree=../../OSRS-Content/osrs239-content",
         "lane=ported/scape2009_summoning",
         "ledger=port/summoning_530.map",
-        "# A dedicated prefix prevents this batch from truncating the proof's summoning.* configs.",
+        "# A dedicated prefix prevents this candidate from truncating the proof's summoning.* configs.",
         "prefix=summoning_roster_530",
-        "npc_sounds=yes",
+        "npc_sounds=no",
         "",
         "[export:npc]",
     ]
@@ -255,9 +190,7 @@ def write_csv(path: Path, entities: list[Entity], catalog: dict[int, dict[str, s
                 "defend_seq": animation_id(config, "defence_animation"),
                 "death_seq": animation_id(config, "death_animation"),
                 "combat_audio": config.get("combat_audio", "") or "",
-                "asset_status": (
-                    "source_obj_missing" if entity.obj_id in UNAVAILABLE_SOURCE_OBJECTS else "catalogued"
-                ),
+                "asset_status": "catalogued",
             })
 
 
@@ -289,7 +222,6 @@ def sound_csv_text(familiar_source: Path) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pouches", type=Path, default=REPO / "docs/summoning_port/pouches_530.json")
-    parser.add_argument("--pets", type=Path, default=SOURCE / "Server/src/main/content/global/skill/summoning/pet/Pets.java")
     parser.add_argument("--familiar-source", type=Path, default=FAMILIAR_SOURCE)
     parser.add_argument("--npc-config", type=Path, default=SOURCE / "Server/data/configs/npc_configs.json")
     parser.add_argument("--catalog", type=Path, default=REPO / "out/rs530_summoning_anims/npc_catalog.csv")
@@ -299,7 +231,7 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="fail when generated outputs differ")
     args = parser.parse_args()
 
-    entities = load_pouch_entities(args.pouches) + load_pet_entities(args.pets)
+    entities = load_pouch_entities(args.pouches)
     catalog = load_catalog(args.catalog)
     combat = load_combat(args.npc_config)
     missing = sorted({entity.npc_id for entity in entities if entity.npc_id not in catalog})
@@ -309,7 +241,7 @@ def main() -> int:
 
     # Render into temporary sibling names so --check can be a strict, useful gate.
     csv_text_path = args.csv.with_suffix(args.csv.suffix + ".new")
-    manifest_text = build_manifest(entities, combat, direct_familiar_sound_ids(args.familiar_source))
+    manifest_text = build_manifest(entities, combat, safe_direct_familiar_sound_ids(args.familiar_source))
     source_sound_text = sound_csv_text(args.familiar_source)
     write_csv(csv_text_path, entities, catalog, combat)
     csv_text = csv_text_path.read_text(encoding="utf-8")
@@ -332,14 +264,13 @@ def main() -> int:
         args.sound_csv.write_text(source_sound_text, encoding="utf-8")
 
     familiar_count = sum(entity.kind == "familiar" for entity in entities)
-    pet_count = len(entities) - familiar_count
     combat_count = sum(
         bool(animation_id(combat.get(entity.npc_id, {}), field))
         for entity in entities
         for field in ("melee_animation", "defence_animation", "death_animation")
     )
     print(
-        f"summoning_roster_assets: {familiar_count} familiars, {pet_count} pet stages, "
+        f"summoning_roster_assets: {familiar_count} familiars, 0 pet stages (Phase 7 deferred), "
         f"{len({entity.npc_id for entity in entities})} unique NPCs, {combat_count} combat-role links; "
         f"{source_sound_text.count(chr(10)) - 1} source sound references"
     )

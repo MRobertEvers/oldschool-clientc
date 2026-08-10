@@ -22,6 +22,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "docs" / "summoning_port" / "pouches_530.json"
+DEFAULT_BOUNDARY = REPO_ROOT / "docs" / "summoning_port" / "roster_boundary_530.json"
 DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 MAP_REL = Path("port") / "summoning_530.map"
 
@@ -38,9 +39,11 @@ ALLOWED_KINDS = {
     "sprite",
     "texture",
     "sound",
+    "synth",
     "interface",
 }
 NAMED_CONFIG_KINDS = {"npc", "obj", "loc", "seq", "spotanim", "interface"}
+ROOT_KINDS = {"npc", "obj"}
 ALLOWED_DISPOSITIONS = {
     "pending",
     "minted",
@@ -64,6 +67,25 @@ class Row:
     line: int
 
 
+@dataclass(frozen=True)
+class Root:
+    kind: str
+    src_id: int
+    src_name: str
+    slot: int
+
+
+@dataclass(frozen=True)
+class Boundary:
+    deferred_slot: int
+    safe_synth_sources: frozenset[int]
+    admitted_synth_sources: frozenset[int]
+    admitted_roots: frozenset[tuple[str, int]]
+    vertical_support: frozenset[tuple[str, int]]
+    admitted_cohorts: tuple[str, ...]
+    reserved_generated_prefixes: tuple[str, ...]
+
+
 def canonical_name(value: str) -> str:
     return value.strip().lower()
 
@@ -78,15 +100,16 @@ def load_manifest(path: Path) -> list[dict[str, object]]:
     return data
 
 
-def expected_roots(manifest: list[dict[str, object]]) -> dict[tuple[str, int], str]:
-    roots: dict[tuple[str, int], str] = {}
+def expected_roots(manifest: list[dict[str, object]]) -> dict[tuple[str, int], Root]:
+    roots: dict[tuple[str, int], Root] = {}
     for index, entry in enumerate(manifest, start=1):
         try:
             pouch_name = canonical_name(str(entry["name"]))
             pouch_id = int(entry["pouch"])
             npc_id = int(entry["npc"])
+            slot = int(entry["slot"])
         except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(f"manifest entry {index} has an invalid name/pouch/npc: {exc}") from exc
+            raise ValueError(f"manifest entry {index} has an invalid name/pouch/npc/slot: {exc}") from exc
         # The extracted source table is irregular: three constants omit the
         # _POUCH suffix, while SACRED_CLAY_POUCH_1..4 put it before a variant
         # number.  Preserve the obj source spelling and only strip the marker
@@ -97,8 +120,115 @@ def expected_roots(manifest: list[dict[str, object]]) -> dict[tuple[str, int], s
             src_name = pouch_name if key == "obj" else familiar_name
             if row_key in roots:
                 raise ValueError(f"manifest duplicates {key} source id {name}")
-            roots[row_key] = src_name
+            roots[row_key] = Root(key, name, src_name, slot)
     return roots
+
+
+def _id_set(value: object, label: str) -> frozenset[int]:
+    if not isinstance(value, list):
+        raise ValueError(f"boundary {label} must be an array")
+    try:
+        result = frozenset(int(item) for item in value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"boundary {label} must contain integer ids") from exc
+    if len(result) != len(value) or any(item < 0 for item in result):
+        raise ValueError(f"boundary {label} must contain distinct non-negative ids")
+    return result
+
+
+def _prefixes(value: object, label: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"boundary {label} must be a non-empty array")
+    if not all(isinstance(item, str) and item.startswith("summoning_") for item in value):
+        raise ValueError(f"boundary {label} entries must start with 'summoning_'")
+    if len(set(value)) != len(value):
+        raise ValueError(f"boundary {label} contains duplicates")
+    return tuple(value)
+
+
+def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read boundary {path}: {exc}") from exc
+    if not isinstance(data, dict) or data.get("schema") != 1 or data.get("phase") != "5a":
+        raise ValueError(f"boundary {path} must be schema 1 for Phase 5a")
+
+    inventory = data.get("source_inventory")
+    if not isinstance(inventory, dict):
+        raise ValueError("boundary source_inventory must be an object")
+    try:
+        pouch_records = int(inventory["pouch_records"])
+        active_pairs = int(inventory["active_familiar_pairs"])
+        deferred_pairs = int(inventory["deferred_sacred_clay_pairs"])
+        deferred_slot = int(inventory["deferred_slot"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("boundary source_inventory has invalid counts") from exc
+
+    root_records = len(roots) // 2
+    active_records = len({root.src_id for root in roots.values() if root.kind == "npc" and root.slot >= 0})
+    deferred_records = len({root.src_id for root in roots.values() if root.kind == "npc" and root.slot == deferred_slot})
+    if (pouch_records, active_pairs, deferred_pairs) != (root_records, active_records, deferred_records):
+        raise ValueError(
+            "boundary source_inventory disagrees with pouch manifest: "
+            f"expected {(root_records, active_records, deferred_records)}, got "
+            f"{(pouch_records, active_pairs, deferred_pairs)}"
+        )
+    if data.get("candidate_entity_kinds") != ["familiar", "pouch"]:
+        raise ValueError("boundary candidate_entity_kinds must be exactly familiar/pouch")
+    deferred = data.get("deferred_entity_kinds")
+    if not isinstance(deferred, dict) or set(deferred) != {"pet", "scroll", "tertiary", "potion"}:
+        raise ValueError("boundary must explicitly defer pet, scroll, tertiary and potion")
+
+    safe_synth_sources = _id_set(data.get("safe_synth_sources"), "safe_synth_sources")
+    if safe_synth_sources != {188}:
+        raise ValueError("Phase 5a permits exactly the documented safe synth source 188")
+    admitted_synth_sources = _id_set(data.get("admitted_synth_sources"), "admitted_synth_sources")
+    if not admitted_synth_sources <= safe_synth_sources:
+        raise ValueError("boundary admits an unsafe synth source")
+
+    def source_pairs(key: str) -> frozenset[tuple[str, int]]:
+        raw = data.get(key)
+        if not isinstance(raw, dict):
+            raise ValueError(f"boundary {key} must be an object")
+        pairs: set[tuple[str, int]] = set()
+        for kind, ids in raw.items():
+            if kind not in ALLOWED_KINDS:
+                raise ValueError(f"boundary {key} has unsupported kind {kind!r}")
+            pairs.update((kind, source_id) for source_id in _id_set(ids, f"{key}.{kind}"))
+        return frozenset(pairs)
+
+    admitted_roots = source_pairs("admitted_root_sources")
+    if not admitted_roots <= frozenset(roots):
+        raise ValueError("boundary admits a root that is absent from the pouch manifest")
+    vertical_support = source_pairs("vertical_support_sources")
+    if any(kind in ROOT_KINDS and (kind, source_id) in roots for kind, source_id in vertical_support):
+        raise ValueError("boundary vertical support must not duplicate a familiar/pouch root")
+
+    admitted_cohorts = _prefixes(data.get("admitted_cohorts", ["summoning_placeholder"]), "admitted_cohorts") \
+        if data.get("admitted_cohorts") else ()
+    reserved_generated_prefixes = _prefixes(
+        data.get("reserved_generated_prefixes"), "reserved_generated_prefixes"
+    )
+    return Boundary(
+        deferred_slot,
+        safe_synth_sources,
+        admitted_synth_sources,
+        admitted_roots,
+        vertical_support,
+        admitted_cohorts,
+        reserved_generated_prefixes,
+    )
+
+
+def destination_is_reserved(name: str, boundary: Boundary) -> bool:
+    if name == "-":
+        return False
+    for prefix in boundary.reserved_generated_prefixes:
+        if name == prefix or name.startswith(f"{prefix}_"):
+            return not any(name == admitted or name.startswith(f"{admitted}_")
+                           for admitted in boundary.admitted_cohorts)
+    return False
 
 
 def parse_ledger(path: Path) -> tuple[list[Row], list[str]]:
