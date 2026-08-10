@@ -70,6 +70,7 @@ treated as canonical.
 - [Dragon kiteshield, revision 6025214, 2 August 2012](https://runescape.fandom.com/wiki/Dragon_kiteshield?oldid=6025214) (B)
 - [Dragonbone upgrade kit, revision 6036646, 4 August 2012](https://runescape.fandom.com/wiki/Dragonbone_upgrade_kit?oldid=6036646) (B)
 - [Royal dragonhide, revision 5967117, 20 July 2012](https://runescape.fandom.com/wiki/Royal_dragonhide?oldid=5967117) (B)
+- [Awoken music track](https://runescape.wiki/w/Awoken) and [Queen Black Dragon music track](https://runescape.wiki/w/Queen_Black_Dragon_(music_track)) (E; titles/order corroboration)
 - [Grotworm surface cave entrance and object-map coordinate](https://runescape.wiki/w/Cave_entrance_(Grotworm_Lair)?oldid=36479017) (E)
 - [Grotworm cave exit and surface pairing](https://runescape.wiki/w/Cave_exit_(Grotworm_Lair)?oldid=36642689) (E)
 - [RuneScape map transform data for the three Grotworm levels](https://runescape.wiki/w/Module:Map_coordinates/transform-data.json) (E)
@@ -503,12 +504,21 @@ selector representation.
 - Worm turn 16787: 14921/15000/15014/14966/14922.
 - Soul sequences carry no embedded audio.
 
-The primary event references are retained in imported sequence configs. Across the
-whole lane there are 47 primary frame-sound events: seven resolve to copied
-index-4 synths, while 40 events in 18 sequences refer to 27 unique index-14
-IDs whose payloads have no OSRS239 sequence-sound carrier. The precise
-unbridged ID list is recorded in `ported/rs2012_qbd_td/PROVENANCE.md`; retained
-metadata is not misreported as audible fidelity.
+Revision-727 sequence opcode 18 selects recorded index-14 audio; it is not an
+ordinary animation flag. The QBD scope has 47 primary frame events: seven
+index-4 synth events and 40 recorded events across 18 sequences/27 source IDs.
+Sir Rebrum's imported animation closure adds eight recorded events, making the
+full lane 55 primary events: 48 recorded plus seven synthesized. Every primary
+ID resolves in the destination packs.
+
+The bridge preserves 83 recorded samples plus the source Vorbis setup at
+index 14 archive 16000. Runtime sound loading first tries native index 4, then
+uses the foreign setup for the high imported sample namespace. Source sample
+6249 is the only ambiguous low ID and is explicitly remapped to 17000 in both
+the sequences and ledger. All 83 samples decode to signed 16-bit PCM from the
+composed cache. The extra members of nested random-alternative sets remain
+source evidence only: the OSRS239 sequence record can carry one event per frame,
+so it plays the primary rather than all alternatives or a fabricated mixture.
 
 ### 5.5 Core locs and models
 
@@ -572,8 +582,13 @@ source-client model/fade animation and foreign hover-only cosmetics remain
 manual visual follow-up rather than claimed fidelity.
 
 Music client IDs are 1119 `Awoken` and 1118 `Queen Black Dragon`, established
-through source script maps 1345/1351. Numeric IDs in source index 14 are a
-different namespace and must not be confused with music-track IDs.
+through source script maps 1345/1351 and open727's explicit controller calls.
+Both packed tracks use source patch 1157 and the foreign index-14 setup; the
+closure contains 83 recorded samples in total. Entry sends 1119, the first
+artefact restoration changes to 1118, and shared leave/death/logout cleanup
+sends `midi_song(-1)` so the boss track cannot leak into an unmapped exterior
+region. Numeric IDs in source index 14 are a different namespace and must not
+be confused with music-track IDs.
 
 ## 6. QBD reward contract
 
@@ -898,11 +913,19 @@ Interfaces 1284/1285 remain at their source IDs; material texture IDs occupy
 indices are separate namespaces. These are final recursive totals, not the
 earlier seed set.
 
+Audio closure adds 29 index-4 synth archives; 83 index-14 recorded samples plus
+the foreign setup; music tracks 1118/1119; and patch 1157. Those 116 archives
+contain 2,374,417 source payload bytes. The index-14 source/destination ledger
+is append-stable and records the sole 6249→17000 collision remap explicitly.
+
 ### 8.2 Codec work required by revision 727
 
 - Profile-specific spotanim grammar with BigSmart model/sequence references.
 - Profile-specific late-RS2 sequence grammar, including nested opcode-13 sound
   alternatives and opcodes 15/16/18/19/20/249.
+- Opcode 18's recorded-audio selector, foreign index-14 Vorbis setup/sample
+  closure, packed music-song/patch/sample codecs, and a setup-selectable audio
+  probe; treating those IDs as index-4 synths produced silence or false assets.
 - BAS type/codec for movement and render-animation dependencies.
 - Late-RS2 loc codec with BigSmart model/sequence/transform references and
   opcode-42 palettes; 73,893/73,893 exact-consumption sweep.
@@ -954,14 +977,15 @@ thresholded at 128. Of the rows, 204 are HD-only, 25 animate, five animate both
 axes, and 126 contain transparency; repeat/clamp, mipmap, shader, float and
 unverified program-tail differences still require source-client visual QA.
 
-Likewise, QBD sequence sounds are index-14 MIDI/Vorbis event IDs. The lane has
-29 real index-4 synth archives, but 40 primary events across 18 sequences still
-refer to 27 unbridged index-14 IDs. Extra alternative choices are source-only
-evidence. QBD audio requires decoding the index-14 sample/patch chain or
-rendering compatible samples; retaining event numbers alone is not called
-complete audio fidelity. Music client IDs 1118/1119 and the source loc-ambience
-references are documented but their music/audio payloads are not imported or
-played by this port.
+QBD recorded audio is bridged rather than copied into the wrong cache table.
+The foreign setup remains at index 14 archive 16000, all 83 samples retain exact
+source bytes (apart from the ledger-level 6249→17000 archive relocation), and
+runtime converts them through the exact decoder/16-bit PCM path. All 55 primary
+sequence events and all 103 loc-audio references resolve to one of the 29
+index-4 synths or 84 index-14 archives. Tracks 1118/1119 and patch 1157 are also
+packed and decoded. The remaining boundary is perceptual: no live SDL listening
+A/B against the 2012 client was performed, and nested alternative selectors are
+not expressible in the OSRS239 sequence format.
 
 The original 1284/1285 visual trees are structurally complete and packed: 82
 components, 32 UI sprites, model 70127→110657 and sequence 9390→22075. Foreign
@@ -1021,7 +1045,9 @@ Map/cache port:
 - `tools/test_rs2012_qbd_ui_port.py`
 - `tools/test_rs2012_qbd_combat_contract.py`
 - `tools/test_rs2012_qbd_reward_items.py`
+- `tools/test_rs2012_audio_bridge.py`
 - `tools/test_rs2012_server_overlay.py`
+- `3rd/rscache/tools/audioprobe/main.c`
 - `src/engine/proctex/test/rs2012_material_bake.c`
 - `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
 - `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
@@ -1074,15 +1100,20 @@ The following are completed machine checks, not a list of aspirations:
   four journals and reclaim guards, equipment gates, kiteshield, and bolts.
 - `tools/test_rs2012_server_overlay.py` proves imported allocation bands are
   accepted by the server pack and that a colliding imported band fails hard.
-- The final sparse overlay contains **1,494 staged files**. `cachepack pack`
-  accepts **1,278 config records and 1,058 asset archives**: 30 animation-frame
+- `tools/test_rs2012_audio_bridge.py` proves the source and staged closure,
+  fixed payload hashes, all 55 sequence events, 103 loc references, the
+  6249→17000 remap, and 1119→1118→stop dispatch. `cachepack verify` compares
+  synth/song/sample/patch bytes after composition; `audioprobe` decoded all
+  83/83 foreign samples, both songs, and patch 1157 from the result.
+- The final sparse overlay contains **1,590 physical files**. `cachepack pack`
+  accepts **1,284 config records and 1,150 asset archives**: 31 animation-frame
   archives, 29 framemaps, two interfaces, two native clientscripts, 29 synths,
-  21 maps, 658 models, 286 sprites, and one merged texture archive. The pack has
-  zero failed configs, unknown keys, unresolved names, or indexed-missing
-  assets.
+  two songs, 84 index-14 sample/setup archives, one patch, 21 maps, 660 models,
+  288 sprites, and one merged texture archive. The pack has zero failed configs,
+  unknown keys, unresolved names, or indexed-missing assets.
 - The five floor overlays whose material operand is restricted to `u8` resolve
   to permanently reserved destinations 211–215. Model-only materials may
-  safely occupy the remainder through 464.
+  safely occupy the remainder through 466.
 - `make -C src mock230-scripts` completes with **12,829 compiled scripts**.
   `make -C src mock230` and `./src/build/mock230 --selftest` complete with every
   engine/compiler test passing and **12,762 runtime-loaded scripts**.
@@ -1100,7 +1131,7 @@ tree, but were not executed through a connected game client during this work:
 - `::rs2012qbdtest` allocates the arena and performs 75 checks covering the
   four 18,750-LP pools, 75,000 total LP, 1/2/3/3 walls, 0/1/2/4 phase soul
   targets, launch-versus-7-August cooldown switches, time-stop durations,
-  1,000-LP cap, phase-3 armour modifiers, intermission invulnerability,
+  1,000-LP cap, phase-3 form changes and hit cap, intermission invulnerability,
   Royal-crossbow cadence/damage bands/three-splat domain, Sir Rebrum's quest and
   duplicate gates, all exact platform masks and phase unions, terminal queue
   cleanup, ten coffer slots, and persistence of an unclaimed reward through
@@ -1166,10 +1197,9 @@ Media/world pass:
 - walk every imported map seam and verify clipping, roofs, height transitions,
   dynamic platform stages, portal footprints, projectile heights, and the
   reconstructed surface-entrance angle;
-- audit each audible index-4 event and each music/ambient transition. The 27
-  index-14 IDs and music tracks 1118/1119 cannot pass until their payload chain
-  is bridged; they are intentionally listed as open work rather than resolving
-  to placeholder audio.
+- listen to every synthesized/recorded family and both music transitions against
+  the source client. Payload identity, codec decode, PCM transport and dispatch
+  are automated; mix, loudness, spatial falloff and perceptual A/B are not.
 
 ## 11. Uncertainties and explicit boundaries
 
@@ -1192,6 +1222,10 @@ Media/world pass:
   ordinary-drop rarities, but not a retail Rage radius or most denominators.
   Radius 2, the 128-slot ordinary table, the 1/128 hard-clue roll, and the
   1/1,152-per-piece ruined-armour midpoint remain named corrections points.
+- The 2012 TD page says the generic rare-drop table is reachable but does not
+  disclose its access denominator. The executable 128-slot reconstruction has
+  one explicit local random-jewel rung; it does not claim the page's entire
+  generic table or ring-of-wealth rate was recovered.
 - Extra IDs in an RS727 sequence opcode-13 sound set are random alternatives.
   OSRS239 has no equivalent selector in this lane, so the destination sequence
   retains only the primary event; alternatives remain recorded in §5.4 rather
@@ -1219,10 +1253,10 @@ Media/world pass:
   not the RS727 HD procedural renderer. Animated axes, alpha, mipmaps, shader
   parameters, repeat/clamp behavior, and unverified program tails require the
   side-by-side visual pass in §10.3.
-- Forty QBD primary frame-sound events still point at 27 source index-14 IDs;
-  music 1118/1119 and source loc ambience also lack bridged payloads. TD and
-  the seven QBD events that use copied index-4 synths are structurally packed,
-  but complete QBD audio/music fidelity is not claimed.
+- All primary QBD sequence events, loc ambience references, and music payloads
+  are bridged and decode from the composed cache. Random alternative IDs beyond
+  the primary per-frame event are not representable in the destination sequence
+  format, and a live listening comparison remains outstanding.
 - The authentic HUD/coffer trees, sprites, pool-bar behavior, and coffer actions
   are ported. The source-client time-stop model/fade and hover-only cosmetics
   are not; the server-driven green fill is the visible fallback. Later-phase

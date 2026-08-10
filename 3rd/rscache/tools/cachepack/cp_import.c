@@ -48,6 +48,7 @@ struct Import_Manifest
     int model_base, seq_base, animset_base, framemap_base, synth_base;
     int sample_base, sample_identity_min, sample_setup_dest;
     int preserve_audio_ids;
+    int npc_sounds;
     int legacy_scape2009;
     struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
     struct Import_List songs, patches, samples;
@@ -225,6 +226,19 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
                 else
                 {
                     fprintf(stderr, "cachepack import: preserve_audio_ids must be yes/no\n");
+                    fclose(f);
+                    return 0;
+                }
+            }
+            else if( strcmp(key, "npc_sounds") == 0 )
+            {
+                if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
+                    m->npc_sounds = 1;
+                else if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 || strcmp(value, "0") == 0 )
+                    m->npc_sounds = 0;
+                else
+                {
+                    fprintf(stderr, "cachepack import: npc_sounds must be yes/no\n");
                     fclose(f);
                     return 0;
                 }
@@ -1309,7 +1323,7 @@ static int import_run(struct Import_Manifest* m, int apply)
             ok = ints_add(&models, neutral[n].chathead_models[i]);
         for( int i = 0; ok && i < TOOL_ANIM_SLOT_COUNT; i++ )
             if( neutral[n].anim_present[i] ) ok = ints_add(&seqs, neutral[n].anim[i]);
-        if( ok && !m->legacy_scape2009 )
+        if( ok && (!m->legacy_scape2009 || m->npc_sounds) )
         {
             int sounds[] = { source_npcs[n]->sound_idle, source_npcs[n]->sound_crawl,
                              source_npcs[n]->sound_walk, source_npcs[n]->sound_run };
@@ -1684,7 +1698,7 @@ static int import_run(struct Import_Manifest* m, int apply)
                     &to,
                     prayer_headicon_archive,
                     m->npcs.v[i].source_id);
-            if( npc && !m->legacy_scape2009 )
+            if( npc && (!m->legacy_scape2009 || m->npc_sounds) )
             {
                 int* dst[] = { &npc->sound_idle, &npc->sound_crawl, &npc->sound_walk, &npc->sound_run };
                 int src_sound[] = { source_npcs[i]->sound_idle, source_npcs[i]->sound_crawl,

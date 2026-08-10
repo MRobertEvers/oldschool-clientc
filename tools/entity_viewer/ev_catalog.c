@@ -238,6 +238,7 @@ usage(const char* argv0)
         stderr,
         "Usage:\n"
         "  %s --rev NAME <cache_dir> [--names <content_dir>] [--out DIR] [--npc-scan-to ID]\n"
+        "      [--npc-only-range FIRST LAST]\n"
         "\n"
         "  --names DIR  OSRS-Content revision dir holding configs/all.{npc,seq}.compack;\n"
         "               without it pass 2 (name matches) is skipped\n"
@@ -254,6 +255,8 @@ main(int argc, char** argv)
     const char* names_dir = NULL;
     const char* out_dir = ".";
     int npc_scan_to = -1;
+    int npc_only_first = -1;
+    int npc_only_last = -1;
 
     for( int i = 1; i < argc; i++ )
     {
@@ -265,6 +268,11 @@ main(int argc, char** argv)
             out_dir = argv[++i];
         else if( strcmp(argv[i], "--npc-scan-to") == 0 && i + 1 < argc )
             npc_scan_to = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--npc-only-range") == 0 && i + 2 < argc )
+        {
+            npc_only_first = atoi(argv[++i]);
+            npc_only_last = atoi(argv[++i]);
+        }
         else if( argv[i][0] == '-' )
         {
             usage(argv[0]);
@@ -277,6 +285,11 @@ main(int argc, char** argv)
     if( !rev_name || !cache_dir )
     {
         usage(argv[0]);
+        return 1;
+    }
+    if( npc_only_first >= 0 && npc_only_last < npc_only_first )
+    {
+        fprintf(stderr, "--npc-only-range requires FIRST <= LAST\n");
         return 1;
     }
 
@@ -426,6 +439,22 @@ main(int argc, char** argv)
     {
         fprintf(stderr, "Failed to list npc ids\n");
         return 1;
+    }
+    if( npc_only_first >= 0 )
+    {
+        free(npc_ids);
+        npc_ids = NULL;
+        npc_count = 0;
+        for( int id = npc_only_first; id <= npc_only_last; id++ )
+        {
+            struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(&cache, id);
+            if( !npc ) continue;
+            RSCache_Dat2ConfigNpcFree(npc);
+            int* grown = realloc(npc_ids, (size_t)(npc_count + 1) * sizeof(*npc_ids));
+            if( !grown ) { free(npc_ids); return 1; }
+            npc_ids = grown;
+            npc_ids[npc_count++] = id;
+        }
     }
     if( npc_scan_to >= 0 )
     {
