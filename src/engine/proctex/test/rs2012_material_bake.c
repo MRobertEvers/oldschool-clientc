@@ -121,6 +121,7 @@ struct texture_entry
 static struct texture_entry g_textures[MAX_TEXTURES];
 static uint8_t g_reasons[MAX_TEXTURES];
 static struct material_mapping g_mapping[MAX_TEXTURES];
+static int g_hd_model_faces_dropped;
 
 static int
 int_compare(const void* lhs, const void* rhs)
@@ -963,6 +964,7 @@ static int
 prepare_model_outputs(
     struct RSCache_Dat2Disk* disk,
     int model_table,
+    const struct RSCache_Dat2MaterialTable* materials,
     const struct int_list* models,
     struct model_output** out_models)
 {
@@ -996,7 +998,21 @@ prepare_model_outputs(
                     RSCache_ModelProvenanceFree(provenance);
                     goto fail;
                 }
-                model->face_textures[face] = (int16_t)g_mapping[source].dest_texture;
+                /* RS727's material.valid is TextureLoader.isSd. The 2012 SD
+                 * client drops an invalid/HD-only selector before lighting and
+                 * shades this face from its underlying HSL colour. Forcing the
+                 * procedural program's shader input into an OSRS diffuse sprite
+                 * made QBD claws white/purple and every TD face use HD helper
+                 * maps as colour. Keep the baked asset in the lane, but make
+                 * the OSRS239 model follow the source SD selection rule. */
+                if( !materials->materials[source].valid )
+                {
+                    model->face_textures[face] = (int16_t)-1;
+                    g_hd_model_faces_dropped++;
+                }
+                else
+                    model->face_textures[face] =
+                        (int16_t)g_mapping[source].dest_texture;
             }
         uint32_t bound = RSCache_ModelEncodeBound(model, provenance);
         uint8_t* encoded = bound ? malloc(bound) : NULL;
@@ -1204,7 +1220,8 @@ material_approximation(
         append_flag(output, capacity, "alpha-threshold-128");
     if( material->anim_u && material->anim_v )
         append_flag(output, capacity, "dual-axis-animation-dominant-axis-only");
-    if( !material->valid ) append_flag(output, capacity, "hd-only-forced-sprite");
+    if( !material->valid )
+        append_flag(output, capacity, "hd-only-asset-retained;sd-model-fallback");
     if( !program->repeat_s || !program->repeat_t )
         append_flag(output, capacity, "repeat-clamp-semantics-baked-frame-only");
     if( material->mipmap ) append_flag(output, capacity, "mipmap-metadata-only");
@@ -1562,7 +1579,7 @@ main(int argc, char** argv)
         &sprite_dependency_count);
     if( ok ) ok = quantize_required_materials();
     if( ok ) ok = prepare_model_outputs(
-        disk, model_table, &models, &model_outputs);
+        disk, model_table, materials, &models, &model_outputs);
     if( ok ) ok = prepare_config_outputs(to_tree, config_outputs);
 
     int mappings = 0, model_materials = 0, retextures = 0, hd_only = 0;
@@ -1589,9 +1606,10 @@ main(int argc, char** argv)
                apply ? "apply" : "dry-run", models.count, mappings, model_materials,
                retextures, dependency_count, sprite_dependency_count);
         printf("  baked=%d hd_only=%d animated=%d dual_axis=%d "
-               "source_transparent=%d threshold_transparent=%d\n",
+               "source_transparent=%d threshold_transparent=%d "
+               "sd_fallback_faces=%d\n",
                baked_count, hd_only, animated, dual_axis, source_transparent,
-               baked_transparent);
+               baked_transparent, g_hd_model_faces_dropped);
         printf("  reserved overlays: 348->211 408->212 600->213 616->214 651->215\n");
     }
 

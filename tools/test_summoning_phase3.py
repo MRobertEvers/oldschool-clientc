@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Non-vacuous structural checks for the feature-gated Spirit wolf slice."""
+"""Structural regression for the bounded feature-gated familiar runtime."""
 
 from __future__ import annotations
 
@@ -42,18 +42,29 @@ def main() -> int:
     source = script_path.read_text(encoding="utf-8")
     headers = list(re.finditer(r"^\[([^\]]+)\](?:\([^\n]*)?\n", source, re.MULTILINE))
     expect(len(headers) >= 10, "too few callable entry points were inspected")
+    # Helpers are only reachable through gated runtime entries, so test actual
+    # trigger headers rather than requiring an artificial gate on pure typed
+    # selector procedures.
+    gated_prefixes = ("opheld", "opnpc", "oploc", "if_", "timer", "debugproc")
     for index, header in enumerate(headers):
+        name = header.group(1)
+        if not name.startswith(gated_prefixes):
+            continue
         body_start = header.end()
         body_end = headers[index + 1].start() if index + 1 < len(headers) else len(source)
         body = source[body_start:body_end]
         expect(
             re.match(r"\s*if \(\^summoning_enabled = 0\)", body) is not None,
-            f"entry point lacks a top feature gate: [{header.group(1)}]",
+            f"entry point lacks a top feature gate: [{name}]",
         )
 
     for token in (
         "[opheld1,summoning_spirit_wolf_pouch]",
-        "npc_add(movecoord(coord, 1, 0, 0), summoning_spirit_wolf, 0);",
+        "[opheld4,summoning_cohort_dreadfowl_dreadfowl_pouch]",
+        "~summoning_familiar_summon(^summoning_familiar_spirit_wolf, $consume);",
+        "~summoning_familiar_summon(^summoning_familiar_dreadfowl, $consume);",
+        "def_npc $npc = ~summoning_familiar_npc($type);",
+        "npc_add(movecoord(coord, 1, 0, 0), $npc, 0);",
         "npc_setowner;",
         "npc_setmode(playerfollow);",
         "[timer,summoning_tick]",
@@ -76,8 +87,32 @@ def main() -> int:
         expect(token in (args.tree / rel).read_text(encoding="utf-8"), f"missing lifecycle hook {token}")
 
     varps = (lane / "configs/summoning.varp").read_text(encoding="utf-8")
-    expect(varps.count("scope=perm") == 5, "familiar state is not five persisted varps")
-    expect(varps.count("transmit=no") == 5, "familiar state leaks server-only varps")
+    persisted = set(
+        re.findall(
+            r"^\[(summoning_familiar_[^\]]+)\]\n(?:[^\n]*\n)*?scope=perm$",
+            varps,
+            re.MULTILINE,
+        )
+    )
+    expect(
+        persisted
+        == {
+            "summoning_familiar_active",
+            "summoning_familiar_type",
+            "summoning_familiar_ticks",
+            "summoning_familiar_special",
+            "summoning_familiar_special_clock",
+            "summoning_familiar_point_accumulator",
+        },
+        "familiar state is not the six-field persisted type/timer contract",
+    )
+    expect(
+        all(
+            re.search(rf"^\[{re.escape(name)}\]\n(?:[^\n]*\n)*?transmit=no$", varps, re.MULTILINE)
+            for name in persisted
+        ),
+        "persisted familiar state leaks server-only varps",
+    )
 
     client_obj = (args.tree / "ported/scape2009_summoning/configs/summoning.obj").read_text(
         encoding="utf-8"
@@ -85,8 +120,40 @@ def main() -> int:
     client_npc = (args.tree / "ported/scape2009_summoning/configs/summoning.npc").read_text(
         encoding="utf-8"
     )
-    expect("ifop1=Summon" in client_obj, "pouch does not expose the bound opheld1 verb")
-    expect("op1=Call" in client_npc and "op2=Dismiss" in client_npc, "familiar ops are absent")
+    dread_obj = (
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_dreadfowl.obj"
+    ).read_text(encoding="utf-8")
+    dread_npc = (
+        args.tree / "ported/scape2009_summoning/configs/summoning_cohort_dreadfowl.npc"
+    ).read_text(encoding="utf-8")
+    familiar_cs2 = (
+        args.tree / "ported/scape2009_summoning/scripts/summoning_familiar_init.cs2"
+    ).read_text(encoding="utf-8")
+    constants = (lane / "configs/summoning.constant").read_text(encoding="utf-8")
+    expect("ifop4=Summon" in client_obj, "Spirit wolf pouch does not expose its bound operation")
+    expect("op1=Interact" in client_npc, "Spirit wolf familiar interaction is absent")
+    expect("ifop4=Summon" in dread_obj, "Dreadfowl pouch does not expose opheld4")
+    expect("op5=Special" not in dread_npc, "Dreadfowl retained an unadmitted Special surface")
+    expect(
+        "[opnpc1,summoning_cohort_dreadfowl_dreadfowl]" in source
+        and "[opnpc2,summoning_cohort_dreadfowl_dreadfowl]" in source,
+        "Dreadfowl call/dismiss handlers are absent",
+    )
+    expect(
+        "if_setnpchead(summoning_familiar:model, $npc);" in source
+        and "if_settext(summoning_familiar:title, $name);" in source
+        and "npc_20000" not in familiar_cs2,
+        "sidebar portrait/name is not selected by persisted familiar type",
+    )
+    for token in (
+        "^summoning_dreadfowl_level = 4",
+        "^summoning_dreadfowl_cost = 1",
+        "^summoning_dreadfowl_lifetime = 400",
+        "^summoning_dreadfowl_drain_interval = 100",
+        "%summoning_familiar_point_accumulator >= $drain_interval",
+        "%summoning_familiar_ticks > 0",
+    ):
+        expect(token in constants or token in source, f"missing Dreadfowl timer contract: {token}")
 
     for label, directory, value in (("off", args.off, 0), ("on", args.on, 1)):
         dat = directory / "script.dat"

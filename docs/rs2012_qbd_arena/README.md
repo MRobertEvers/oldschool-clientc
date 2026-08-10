@@ -32,6 +32,37 @@ material. Passing binary model round-trip tests therefore did not prove that
 the models render correctly in the OSRS239 client. Material and in-client
 screenshots remain the acceptance criterion.
 
+## 2026-08-10 — wire and renderer crash repaired
+
+The high-ID NPC transformation now installs sleeping QBD type 25003 and models
+110000/110001 at the expected five-tile footprint. The malformed west-edge
+mesh did not move when the NPC type changed, proving it was the left-claw
+location rather than the Queen.
+
+The working macOS ASan flavor then found the immediate crash: a full ToriDraw
+scene allocated projection and face-order buffers for 4,096 vertices/faces,
+while the merged sleeping QBD contains 6,223 vertices and 9,012 faces. Priority
+4 alone contains 6,484 faces, also exceeding the hidden 2,000-face priority
+stride. Full-scene capacities and stride-aware indexing are now explicit, with
+a pre-projection capacity guard. The composed encounter ran for 900 client
+frames under the dylib-backed sanitizer and exited normally.
+
+This capture is intentionally not called “fixed”: the NPC/wire crash is gone,
+but the left claw is still white, the platform is black, and the default camera
+does not frame QBD. It records the boundary between protocol/allocator repair
+and the remaining material/camera work.
+
+![After NPC and scene-capacity repair](images/03_after_npc_and_capacity_fix.png)
+
+The material cause is now concrete. RS727 material `valid` is the SD-selection
+bit, and all three left-claw materials plus all nine Tormented Demon materials
+are HD-only (`valid=0`). The first bridge forced their procedural shader inputs
+into OSRS diffuse sprites; material 285, for example, is pale normal/noise data,
+which is why the claw looked like a white malformed mass. The revised bridge
+retains every baked asset but drops HD-only selectors from destination model
+faces so OSRS239 lights their underlying HSL colours, matching the source 2012
+SD client.
+
 A second defect was in the server's revision-239 NPC encoder, not in the chosen
 25000–25009 allocation. The per-client NPC index is 16 bits, but an
 initial add contains only a 14-bit type field. For a high definition such as
@@ -75,6 +106,8 @@ the account's skills or quest state.
 - [x] Restore the macOS ASan dylib/static-SDL build path; plain sanitizer flags
   alone hang during dyld/allocator initialisation on macOS 26.
 - [ ] Isolate the OpenGL crash under an instrumented build.
+- [x] Identify and repair the QBD projection/face-order buffer overflow.
+- [x] Apply the source SD material-selection rule to imported model faces.
 - [ ] Validate QBD, claws, platforms, and TD with destination materials enabled.
 - [ ] Capture corrected QBD arena and QBD/TD model images.
 - [ ] Run the composed-cache, map, UI, combat, and client-launch regressions.

@@ -6,7 +6,9 @@ full rev-530 Summoning cache closure.  This test keeps that distinction
 mechanically enforceable: it validates the 78 familiar/pouch source pairs,
 the four deferred Sacred Clay pairs, the single safe source synth, and the
 fact that both the import ledger and feature-on staging reject breadth work
-that has not been admitted by ``roster_boundary_530.json``.
+that has not been admitted by ``roster_boundary_530.json``. Once Phase 5b
+opens, it also freezes the one Dreadfowl proof ledger and the retained
+review-only experiment's source fingerprint.
 """
 
 from __future__ import annotations
@@ -109,6 +111,61 @@ def file_contains(path: Path, needle: bytes) -> bool:
                 return True
             tail = data[-(len(needle) - 1):]
     return False
+
+
+def review_only_source_fingerprint(tree: Path, prefix: str, stage_module: ModuleType) -> str:
+    """Hash every preserved review-only input in a documented, stable order.
+
+    The review-only generated experiment is intentionally retained, not merely
+    counted.  Hash the exact files, membership rows, and primary-ledger rows
+    that carry its prefix so an accidental rewrite cannot be hidden by stable
+    aggregate counts.  Each record is length-delimited and domain-tagged to
+    keep filenames and bytes unambiguous.
+    """
+    digest = hashlib.sha256()
+
+    def add_record(domain: bytes, path: str | None, payload: bytes) -> None:
+        digest.update(domain + b"\0")
+        if path is not None:
+            path_bytes = path.encode("utf-8")
+            digest.update(len(path_bytes).to_bytes(8, "big"))
+            digest.update(path_bytes)
+        digest.update(len(payload).to_bytes(8, "big"))
+        digest.update(payload)
+
+    roots = [tree / "ported/scape2009_summoning"]
+    roots.extend(tree / root / "ported/scape2009_summoning" for root in stage_module.ASSET_ROOTS)
+    source_files = sorted({
+        path
+        for root in roots if root.exists()
+        for path in root.rglob("*")
+        if path.is_file() and prefix in path.relative_to(tree).as_posix()
+    }, key=lambda path: path.relative_to(tree).as_posix())
+    for path in source_files:
+        add_record(
+            b"review-source-file",
+            path.relative_to(tree).as_posix(),
+            path.read_bytes(),
+        )
+
+    pack_root = tree / "ported/scape2009_summoning/pack"
+    pack_records: list[tuple[str, bytes]] = []
+    if pack_root.exists():
+        for path in sorted((path for path in pack_root.iterdir() if path.is_file()),
+                           key=lambda path: path.relative_to(tree).as_posix()):
+            relative = path.relative_to(tree).as_posix()
+            pack_records.extend(
+                (relative, line)
+                for line in path.read_bytes().splitlines(keepends=True)
+                if prefix.encode("utf-8") in line
+            )
+    for relative, line in pack_records:
+        add_record(b"review-pack-line", relative, line)
+
+    for line in (tree / LEDGER_REL).read_bytes().splitlines(keepends=True):
+        if prefix.encode("utf-8") in line:
+            add_record(b"review-primary-ledger-row", None, line)
+    return digest.hexdigest()
 
 
 def main() -> int:
@@ -295,6 +352,13 @@ def main() -> int:
     expect(len(review_cohorts) == 1 and review_cohorts[0].prefix == "summoning_roster_530",
            "boundary must preserve exactly the known roster experiment as review-only")
     review = review_cohorts[0] if review_cohorts else None
+    if review is not None:
+        expect(
+            review.source_fingerprint_sha256 == review_only_source_fingerprint(
+                args.tree, review.prefix, stage_module
+            ),
+            "preserved review-only source fingerprint changed",
+        )
     review_rows = [
         row for row in rows
         if review is not None and ledger_module.destination_review_cohort(row.dst_name, boundary) == review
@@ -327,6 +391,96 @@ def main() -> int:
         "current ledger contains an unadmitted generated roster destination",
     )
 
+    # Phase 5b admits exactly one deliberately tiny first cohort.  Keep this
+    # assertion concrete rather than letting a boundary-file edit silently
+    # turn the Dreadfowl proof into a broader roster import.
+    expected_dreadfowl_counts = {
+        "npc": 1,
+        "obj": 1,
+        "model": 3,
+        "seq": 2,
+        "frame_archive": 1,
+        "framemap": 1,
+    }
+    expected_dreadfowl_sources = {
+        ("npc", 6825),
+        ("obj", 12043),
+        ("model", 30429),
+        ("model", 31147),
+        ("model", 30664),
+        ("seq", 5386),
+        ("seq", 7808),
+        ("frame_archive", 1399),
+        ("framemap", 1255),
+    }
+    expected_dreadfowl_ranges = {
+        "npc": (26000, 26015),
+        "obj": (46000, 46015),
+        "model": (120000, 120031),
+        "seq": (23000, 23031),
+        "frame_archive": (23000, 23031),
+        "framemap": (10000, 10031),
+    }
+    expected_dreadfowl_rows = {
+        ("npc", 6825): (
+            "dreadfowl", "26000", "summoning_cohort_dreadfowl_dreadfowl", "minted", "unreviewed"
+        ),
+        ("obj", 12043): (
+            "dreadfowl_pouch", "46000", "summoning_cohort_dreadfowl_dreadfowl_pouch", "minted", "unreviewed"
+        ),
+        ("model", 30429): (
+            "model_30429", "120000", "summoning_cohort_dreadfowl_model_30429", "minted", "unreviewed"
+        ),
+        ("model", 31147): (
+            "model_31147", "120001", "summoning_cohort_dreadfowl_model_31147", "minted", "unreviewed"
+        ),
+        ("model", 30664): (
+            "model_30664", "120002", "summoning_cohort_dreadfowl_model_30664", "minted", "unreviewed"
+        ),
+        ("seq", 5386): (
+            "seq_5386", "23000", "summoning_cohort_dreadfowl_seq_5386", "minted", "unreviewed"
+        ),
+        ("seq", 7808): (
+            "seq_7808", "23001", "summoning_cohort_dreadfowl_seq_7808", "minted", "unreviewed"
+        ),
+        ("frame_archive", 1399): (
+            "animset_1399", "23000", "summoning_cohort_dreadfowl_animset_1399", "minted", "unreviewed"
+        ),
+        ("framemap", 1255): (
+            "framemap_1255", "10000", "summoning_cohort_dreadfowl_framemap_1255", "minted", "unreviewed"
+        ),
+    }
+    cohort_ledgers = boundary.cohort_ledgers
+    expect(
+        len(cohort_ledgers) == 1 and cohort_ledgers[0].prefix == "summoning_cohort_dreadfowl",
+        "Phase 5b must admit exactly the Dreadfowl cohort ledger",
+    )
+    dreadfowl_cohort = cohort_ledgers[0] if cohort_ledgers else None
+    expect(
+        dreadfowl_cohort is not None and dict(dreadfowl_cohort.expected_ledger_rows) == expected_dreadfowl_counts,
+        "Dreadfowl cohort row boundary widened or changed",
+    )
+    expect(
+        dreadfowl_cohort is not None and dreadfowl_cohort.expected_sources == expected_dreadfowl_sources,
+        "Dreadfowl cohort source closure widened or changed",
+    )
+    expect(
+        dreadfowl_cohort is not None and dict(dreadfowl_cohort.destination_ranges) == expected_dreadfowl_ranges,
+        "Dreadfowl cohort destination reservations widened or changed",
+    )
+    cohort_rows, cohort_parse_errors = ledger_module.parse_ledger(
+        args.tree / (dreadfowl_cohort.ledger_rel if dreadfowl_cohort is not None else Path("missing.map"))
+    )
+    expect(not cohort_parse_errors, f"Dreadfowl cohort ledger cannot be parsed: {cohort_parse_errors}")
+    actual_dreadfowl_rows = {
+        (row.kind, row.src_id): (row.src_name, row.dst_id, row.dst_name, row.disposition, row.signoff)
+        for row in cohort_rows
+    }
+    expect(
+        actual_dreadfowl_rows == expected_dreadfowl_rows,
+        "Dreadfowl cohort ledger lost its exact nine-row minted closure",
+    )
+
     review_prefix = review.prefix if review is not None else "summoning_roster_530"
     source_roots = [args.tree / "ported/scape2009_summoning"]
     source_roots.extend(args.tree / root / "ported/scape2009_summoning" for root in stage_module.ASSET_ROOTS)
@@ -353,6 +507,28 @@ def main() -> int:
     ledger_text = (args.tree / LEDGER_REL).read_text(encoding="utf-8")
     if not ledger_text.endswith("\n"):
         ledger_text += "\n"
+
+    def expect_cohort_rejected(label: str, cohort_text: str, diagnostic: str) -> None:
+        if dreadfowl_cohort is None:
+            expect(False, f"{label} could not run without the Dreadfowl cohort ledger")
+            return
+        with tempfile.TemporaryDirectory(prefix=f"summoning_phase5b_{label}_") as temporary:
+            mutation_tree = Path(temporary) / "content"
+            primary_ledger = mutation_tree / LEDGER_REL
+            primary_ledger.parent.mkdir(parents=True)
+            primary_ledger.write_text(ledger_text, encoding="utf-8")
+            for cohort in cohort_ledgers:
+                source = args.tree / cohort.ledger_rel
+                destination = mutation_tree / cohort.ledger_rel
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                destination.write_bytes(source.read_bytes())
+            (mutation_tree / dreadfowl_cohort.ledger_rel).write_text(cohort_text, encoding="utf-8")
+            result, output = run_ledger_check(
+                ledger_module, args.pouches, args.boundary, mutation_tree
+            )
+            expect(result != 0, f"{label} cohort-ledger mutation was accepted")
+            expect(diagnostic in output, f"{label} rejection lacked {diagnostic!r}: {output}")
+
     mutation_rows = (
         (
             "pet",
@@ -392,6 +568,52 @@ def main() -> int:
     )
     for label, row, diagnostic in mutation_rows:
         expect_rejected(label, row, diagnostic, ledger_module, args.pouches, args.boundary, ledger_text)
+
+    if dreadfowl_cohort is not None:
+        dreadfowl_text = (args.tree / dreadfowl_cohort.ledger_rel).read_text(encoding="utf-8")
+        if not dreadfowl_text.endswith("\n"):
+            dreadfowl_text += "\n"
+        cohort_mutations = (
+            (
+                "cohort_extra_closure",
+                dreadfowl_text + (
+                    "model\t990100\tmodel_990100\t120003\t"
+                    "summoning_cohort_dreadfowl_model_990100\tminted\tunreviewed\n"
+                ),
+                "outside the exact",
+            ),
+            (
+                "cohort_unminted",
+                dreadfowl_text.replace("\tminted\tunreviewed", "\tmapped\tunreviewed", 1),
+                "must remain minted/unreviewed",
+            ),
+            (
+                "cohort_source_name",
+                dreadfowl_text.replace("\tdreadfowl\t26000\t", "\tprobe\t26000\t", 1),
+                "source name must be exactly",
+            ),
+            (
+                "cohort_target_name",
+                dreadfowl_text.replace(
+                    "summoning_cohort_dreadfowl_dreadfowl",
+                    "summoning_cohort_dreadfowl_probe",
+                    1,
+                ),
+                "destination name must be exactly",
+            ),
+            (
+                "cohort_target_range",
+                dreadfowl_text.replace("\t26000\t", "\t26016\t", 1),
+                "outside its admitted range",
+            ),
+            (
+                "cohort_primary_collision",
+                dreadfowl_text.replace("\t26000\t", "\t20001\t", 1),
+                "collides with primary ledger",
+            ),
+        )
+        for label, mutation, diagnostic in cohort_mutations:
+            expect_cohort_rejected(label, mutation, diagnostic)
 
     # The staging check must remain useful even when it is called separately
     # from a full cache build.  These fixtures deliberately contain no cache

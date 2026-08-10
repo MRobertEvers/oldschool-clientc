@@ -84,6 +84,7 @@ class ReviewOnlyCohort:
     expected_pet_npc_rows: int
     expected_source_files: int
     expected_pack_references: int
+    source_fingerprint_sha256: str
     legacy_synth_sources: frozenset[int]
 
 
@@ -226,6 +227,10 @@ def _review_only_cohorts(value: object) -> tuple[ReviewOnlyCohort, ...]:
             ) from exc
         if source_files <= 0 or pack_references <= 0:
             raise ValueError(f"boundary {label} source-file and pack-reference counts must be positive")
+        source_fingerprint = raw.get("source_fingerprint_sha256")
+        if (not isinstance(source_fingerprint, str) or
+                re.fullmatch(r"[0-9a-f]{64}", source_fingerprint) is None):
+            raise ValueError(f"boundary {label}.source_fingerprint_sha256 must be a lowercase SHA-256")
         synths = _id_set(raw.get("legacy_synth_sources"), f"{label}.legacy_synth_sources")
         if synths != {188, 4161, 4265, 4372, 5753, 5776, 5777, 5792}:
             raise ValueError(f"boundary {label}.legacy_synth_sources does not match the preserved experiment")
@@ -238,6 +243,7 @@ def _review_only_cohorts(value: object) -> tuple[ReviewOnlyCohort, ...]:
             pet_count,
             source_files,
             pack_references,
+            source_fingerprint,
             synths,
         ))
     if len(set(prefixes)) != len(prefixes):
@@ -255,7 +261,7 @@ def _root_pair_name(root: Root) -> str:
 def _cohort_ledger_path(value: object, label: str) -> Path:
     if not isinstance(value, str) or not value:
         raise ValueError(f"boundary {label}.ledger must be a non-empty relative path")
-    if "\\\\" in value:
+    if "\\" in value:
         raise ValueError(f"boundary {label}.ledger must use a repository-relative POSIX path")
     path = Path(value)
     if (path.is_absolute() or path.suffix != ".map" or len(path.parts) < 2 or
@@ -576,6 +582,192 @@ def parse_ledger(path: Path) -> tuple[list[Row], list[str]]:
     return rows, errors
 
 
+COHORT_GENERATED_SOURCE_PREFIXES = {
+    "model": "model",
+    "seq": "seq",
+    "frame_archive": "animset",
+    "framemap": "framemap",
+}
+
+
+def expected_cohort_source_name(
+    kind: str, source_id: int, roots: dict[tuple[str, int], Root]
+) -> str | None:
+    """Return the importer-owned source label when it is deterministic."""
+    root = roots.get((kind, source_id))
+    if root is not None:
+        return root.src_name
+    generated_prefix = COHORT_GENERATED_SOURCE_PREFIXES.get(kind)
+    if generated_prefix is None:
+        return None
+    return f"{generated_prefix}_{source_id}"
+
+
+def check_cohort_ledger(
+    cohort: CohortLedger,
+    tree: Path,
+    roots: dict[tuple[str, int], Root],
+    primary_destinations: dict[tuple[str, int], Row],
+    primary_destination_names: dict[tuple[str, str], Row],
+    cohort_destinations: dict[tuple[str, int], tuple[CohortLedger, Row]],
+    cohort_destination_names: dict[tuple[str, str], tuple[CohortLedger, Row]],
+) -> tuple[int, int, list[str]]:
+    """Validate one separately-owned Phase-5b closure ledger.
+
+    A source ID may appear in the review-only ledger as historical evidence,
+    but destinations and their reserved ranges must be wholly new.  This is
+    deliberately stricter than the primary ledger: all cohort rows are known
+    imports, so pending, omitted, or extra closure rows are boundary failures.
+    """
+    ledger_path = tree / cohort.ledger_rel
+    rows, errors = parse_ledger(ledger_path)
+    expected_counts = dict(cohort.expected_ledger_rows)
+    expected_ranges = dict(cohort.destination_ranges)
+    actual_counts: dict[str, int] = {}
+    actual_sources: set[tuple[str, int]] = set()
+    by_source: dict[tuple[str, int], Row] = {}
+    by_destination: dict[tuple[str, int], Row] = {}
+    by_destination_name: dict[tuple[str, str], Row] = {}
+
+    # A destination reservation must be entirely disjoint from the primary
+    # ledger, rather than merely avoiding the one target currently minted.
+    for kind, (lower, upper) in cohort.destination_ranges:
+        for (primary_kind, destination_id), primary_row in primary_destinations.items():
+            if primary_kind == kind and lower <= destination_id <= upper:
+                errors.append(
+                    f"{ledger_path}: reserved {kind} destination range {lower}..{upper} "
+                    f"overlaps primary target {destination_id} at {MAP_REL}:{primary_row.line}"
+                )
+
+    for row in rows:
+        where = f"{ledger_path}:{row.line}"
+        actual_counts[row.kind] = actual_counts.get(row.kind, 0) + 1
+        source_key = (row.kind, row.src_id)
+        actual_sources.add(source_key)
+
+        if row.kind not in ALLOWED_KINDS:
+            errors.append(f"{where}: unknown kind {row.kind!r}")
+        if row.src_id < 0:
+            errors.append(f"{where}: source id must be non-negative")
+        if not row.src_name or row.src_name == "-":
+            errors.append(f"{where}: source name must be stated")
+        expected_source_name = expected_cohort_source_name(row.kind, row.src_id, roots)
+        if expected_source_name is not None and row.src_name != expected_source_name:
+            errors.append(
+                f"{where}: source name must be exactly {expected_source_name!r}"
+            )
+        if source_key not in cohort.expected_sources:
+            errors.append(
+                f"{where}: source {row.kind} {row.src_id} is outside the exact "
+                f"{cohort.prefix!r} closure"
+            )
+        previous = by_source.get(source_key)
+        if previous is not None:
+            errors.append(
+                f"{where}: duplicate source {row.kind} {row.src_id} (first at line {previous.line})"
+            )
+        else:
+            by_source[source_key] = row
+
+        if (row.disposition, row.signoff) != ("minted", "unreviewed"):
+            errors.append(
+                f"{where}: admitted cohort rows must remain minted/unreviewed"
+            )
+        if (row.dst_id == "-") != (row.dst_name == "-"):
+            errors.append(f"{where}: destination id and name must both be '-' or both be stated")
+            continue
+        if row.dst_id == "-":
+            errors.append(f"{where}: admitted cohort row has no destination")
+            continue
+        try:
+            destination_id = int(row.dst_id)
+        except ValueError:
+            errors.append(f"{where}: invalid destination id {row.dst_id!r}")
+            continue
+        if destination_id < 0:
+            errors.append(f"{where}: destination id must be non-negative")
+            continue
+
+        expected_name = f"{cohort.prefix}_{expected_source_name or row.src_name}"
+        if row.dst_name != expected_name:
+            errors.append(
+                f"{where}: destination name must be exactly {expected_name!r}"
+            )
+        destination_range = expected_ranges.get(row.kind)
+        if destination_range is None:
+            errors.append(
+                f"{where}: kind {row.kind!r} has no admitted destination range"
+            )
+        else:
+            lower, upper = destination_range
+            if not lower <= destination_id <= upper:
+                errors.append(
+                    f"{where}: destination {row.kind} {destination_id} is outside "
+                    f"its admitted range {lower}..{upper}"
+                )
+
+        destination_key = (row.kind, destination_id)
+        previous_destination = by_destination.get(destination_key)
+        if previous_destination is not None:
+            errors.append(
+                f"{where}: duplicate destination {row.kind} {destination_id} "
+                f"(first at line {previous_destination.line})"
+            )
+        else:
+            by_destination[destination_key] = row
+        previous_primary = primary_destinations.get(destination_key)
+        if previous_primary is not None:
+            errors.append(
+                f"{where}: destination {row.kind} {destination_id} collides with primary ledger "
+                f"target at {MAP_REL}:{previous_primary.line}"
+            )
+        previous_cohort = cohort_destinations.get(destination_key)
+        if previous_cohort is not None:
+            previous_cohort_spec, previous_row = previous_cohort
+            errors.append(
+                f"{where}: destination {row.kind} {destination_id} collides with "
+                f"{previous_cohort_spec.prefix!r} at {tree / previous_cohort_spec.ledger_rel}:{previous_row.line}"
+            )
+        else:
+            cohort_destinations[destination_key] = (cohort, row)
+
+        name_key = (row.kind, row.dst_name)
+        previous_name = by_destination_name.get(name_key)
+        if previous_name is not None:
+            errors.append(
+                f"{where}: duplicate destination name {row.kind} {row.dst_name!r} "
+                f"(first at line {previous_name.line})"
+            )
+        else:
+            by_destination_name[name_key] = row
+        previous_primary_name = primary_destination_names.get(name_key)
+        if previous_primary_name is not None:
+            errors.append(
+                f"{where}: destination name {row.dst_name!r} collides with primary ledger "
+                f"target at {MAP_REL}:{previous_primary_name.line}"
+            )
+        previous_cohort_name = cohort_destination_names.get(name_key)
+        if previous_cohort_name is not None:
+            previous_cohort_spec, previous_row = previous_cohort_name
+            errors.append(
+                f"{where}: destination name {row.dst_name!r} collides with "
+                f"{previous_cohort_spec.prefix!r} at {tree / previous_cohort_spec.ledger_rel}:{previous_row.line}"
+            )
+        else:
+            cohort_destination_names[name_key] = (cohort, row)
+
+    if actual_counts != expected_counts:
+        errors.append(
+            f"{ledger_path}: exact row counts changed: expected {expected_counts}, got {actual_counts}"
+        )
+    if actual_sources != cohort.expected_sources:
+        errors.append(
+            f"{ledger_path}: exact source closure changed: expected "
+            f"{sorted(cohort.expected_sources)}, got {sorted(actual_sources)}"
+        )
+    return sum(expected_counts.values()), len(rows), errors
+
+
 def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
     ledger_path = tree / MAP_REL
     errors: list[str] = []
@@ -590,6 +782,7 @@ def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
     errors.extend(parse_errors)
     by_source: dict[tuple[str, int], Row] = {}
     by_destination: dict[tuple[str, int], Row] = {}
+    by_destination_name: dict[tuple[str, str], Row] = {}
     review_rows: dict[str, list[Row]] = {
         cohort.prefix: [] for cohort in boundary.review_only_cohorts
     }
@@ -624,6 +817,15 @@ def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
             errors.append(f"{where}: synth {row.src_id} is not the permitted source synth 188")
         if destination_is_reserved(row.dst_name, boundary):
             errors.append(f"{where}: destination {row.dst_name!r} belongs to an unadmitted roster cohort")
+        admitted_cohort = next(
+            (cohort for cohort in boundary.cohort_ledgers if _matches_prefix(row.dst_name, cohort.prefix)),
+            None,
+        )
+        if admitted_cohort is not None:
+            errors.append(
+                f"{where}: destination {row.dst_name!r} belongs in dedicated cohort ledger "
+                f"{admitted_cohort.ledger_rel}"
+            )
         previous = by_source.get(source_key)
         if previous is not None:
             errors.append(
@@ -651,6 +853,15 @@ def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
                     )
                 else:
                     by_destination[destination_key] = row
+                destination_name_key = (row.kind, row.dst_name)
+                previous_name = by_destination_name.get(destination_name_key)
+                if previous_name is not None:
+                    errors.append(
+                        f"{where}: duplicate destination name {row.kind} {row.dst_name!r} "
+                        f"(first at line {previous_name.line})"
+                    )
+                else:
+                    by_destination_name[destination_name_key] = row
             if row.dst_name == "summoning":
                 errors.append(f"{where}: bare destination name 'summoning' is forbidden")
             if row.kind in NAMED_CONFIG_KINDS and not row.dst_name.startswith("summoning_"):
@@ -732,6 +943,23 @@ def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
             )
         checked += sum(expected_counts.values()) + 2
 
+    cohort_destinations: dict[tuple[str, int], tuple[CohortLedger, Row]] = {}
+    cohort_destination_names: dict[tuple[str, str], tuple[CohortLedger, Row]] = {}
+    total_rows = len(rows)
+    for cohort in boundary.cohort_ledgers:
+        cohort_checked, cohort_rows, cohort_errors = check_cohort_ledger(
+            cohort,
+            tree,
+            roots,
+            by_destination,
+            by_destination_name,
+            cohort_destinations,
+            cohort_destination_names,
+        )
+        checked += cohort_checked
+        total_rows += cohort_rows
+        errors.extend(cohort_errors)
+
     if checked == 0:
         errors.append("summoning ledger check executed zero required-row checks")
 
@@ -739,7 +967,7 @@ def check(manifest_path: Path, boundary_path: Path, tree: Path) -> int:
         print(f"port_summoning_ids: error: {error}", file=sys.stderr)
     print(
         f"port_summoning_ids: checked {checked} required rows, "
-        f"{len(rows)} total rows, {len(errors)} errors"
+        f"{total_rows} total ledger rows, {len(errors)} errors"
     )
     return 1 if errors else 0
 
