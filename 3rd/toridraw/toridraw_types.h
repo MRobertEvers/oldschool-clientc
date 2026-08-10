@@ -85,8 +85,8 @@ struct ToriDraw_Bones
 };
 
 /**
- * Draw this model's own faces through the depth-tested kernels instead of
- * relying on the depth sort alone.
+ * Draw this model's faces through the depth-tested kernels instead of relying
+ * on the depth sort alone.
  *
  * Opt-in, and deliberately per model rather than per scene: the painter's sort
  * is what the content was authored against, and it is right for the
@@ -95,13 +95,13 @@ struct ToriDraw_Bones
  * because no single order over whole faces can express "these two triangles
  * each occlude the other". Those models set this and get the per-pixel answer.
  *
- * The scope is one model. The buffer is cleared before the model's faces and
- * never consulted across models, so this changes nothing about how the model
- * layers against the rest of the scene. See graphics/zdepth.h.
+ * Setting it makes the model reset the scene's z-buffer before it draws, so the
+ * depth test only ever resolves this model against itself and nothing changes
+ * about how it layers against the rest of the scene. See graphics/zdepth.h.
  *
- * Requires the scene to carry the depth scratch: TORIDRAW_SCENE_MODEL_ZBUFFER
- * at ToriDraw_SceneNew, or an explicit ToriDraw_SceneModelZBufferResize. With
- * no buffer the flag is inert and the model draws exactly as it did before.
+ * Requires the scene to carry the buffer: TORIDRAW_SCENE_MODEL_ZBUFFER at
+ * ToriDraw_SceneNew, or an explicit ToriDraw_SceneZBufferResize. With no buffer
+ * the flag is inert and the model draws exactly as it did before.
  */
 #define TORIDRAW_MODEL_FLAG_ZBUFFER ((uint8_t)(1u << 0))
 
@@ -495,21 +495,23 @@ struct ToriDraw_Scene
     struct ToriDraw_TextureState* tex_state;
 
     /*
-     * Per-model depth scratch, screen sized. NULL unless the scene was created
-     * with TORIDRAW_SCENE_MODEL_ZBUFFER (allocated lazily, on the first raster
-     * of a model that opts in) or a caller sized it up front. Only models
-     * carrying TORIDRAW_MODEL_FLAG_ZBUFFER read or write it, and only within
-     * their own raster pass — see graphics/zdepth.h for why the scope stops
-     * there.
+     * The scene's one z-buffer scratch, screen sized. NULL unless the scene was
+     * created with TORIDRAW_SCENE_MODEL_ZBUFFER (allocated lazily, on the first
+     * raster of a model that opts in) or a caller sized it up front.
      *
-     * `model_zbuffer_stride` is the row stride in ELEMENTS and matches the
-     * viewport stride the buffer was sized for, so a pixel at `offset` in the
-     * frame buffer is at the same `offset` here. Keeping the two layouts
-     * identical is what lets one offset walk both.
+     * Only models carrying TORIDRAW_MODEL_FLAG_ZBUFFER touch it, and each such
+     * model resets the region it draws into before drawing — see
+     * graphics/zdepth.h for why that reset is what bounds the effect to one
+     * model.
+     *
+     * `zbuffer_stride` is the row stride in ELEMENTS and matches the viewport
+     * stride the buffer was sized for, so a pixel at `offset` in the frame
+     * buffer is at the same `offset` here. Keeping the two layouts identical is
+     * what lets one offset walk both.
      */
-    torizdepth_t* model_zbuffer;
-    int model_zbuffer_stride;
-    int model_zbuffer_rows;
+    torizdepth_t* zbuffer;
+    int zbuffer_stride;
+    int zbuffer_rows;
 
     int* screen_vertices_x;
     int* screen_vertices_y;

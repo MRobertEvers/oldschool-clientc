@@ -4,14 +4,18 @@
 #include <stdbool.h>
 
 /*
- * Storage for the per-model depth scratch ("model z-buffer").
+ * Storage for the scene's z-buffer scratch ("model zbuffer").
  *
- * The buffer resolves a model's faces against EACH OTHER and nothing else: it
- * is cleared before every model that opts in, so a depth written by one model
- * can never reject a pixel of the next. That is the whole scope of it. Sorting
- * BETWEEN models stays the scene's job (painter's order over the element list),
- * which is what keeps the reference's layering rules intact — a z-buffer across
- * the whole scene would quietly overrule them.
+ * There is ONE buffer per scene, allocated once and reused. It is RESET at the
+ * start of each model that opts into depth testing, which is what confines its
+ * effect to that model: a depth written while drawing one model can never
+ * reject a pixel of the next, because the next opting-in model starts from a
+ * cleared buffer and models that do not opt in never read it at all.
+ *
+ * Sorting BETWEEN models therefore stays the scene's job (painter's order over
+ * the element list), which is what keeps the reference's layering rules intact
+ * — a z-buffer left standing across the whole scene would quietly overrule
+ * them.
  *
  * The stored value is a DEPTH KEY, not a depth: larger is nearer, and the
  * cleared state is the farthest key there is. Two things follow from that.

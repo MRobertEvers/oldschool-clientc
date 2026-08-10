@@ -136,6 +136,68 @@ static struct material_mapping g_mapping[MAX_TEXTURES];
 static int g_ground_mesh_model_faces_fallback;
 
 /*
+ * Blend-layer variants: one destination texture per (material, face colour).
+ *
+ * A blend layer is a mask, not a diffuse map - the shape is in its alpha and
+ * its RGB is a near-white noise field (see the QBD's 1218/1554/2164: a hair
+ * fringe, a blob patch and a torn fur edge, none with a single opaque texel).
+ * RS727 got the surface colour by combining that mask with the model's own
+ * colour. SD cannot: a textured face is `texel * lightness`, and the face's
+ * hue and saturation are discarded the moment it is textured.
+ *
+ * So the combine has to happen here, at bake time, which is what makes the
+ * result an SD-shaped asset rather than an HD program pointed at by a face:
+ * the mask's RGB is multiplied by the colour of the faces that reference it,
+ * and the alpha is kept as coverage. One material referenced by faces of
+ * several colours therefore needs several destination textures - hence a
+ * variant table rather than a second field on material_mapping.
+ */
+#define MAX_BLEND_VARIANTS 512
+
+struct blend_variant
+{
+    int source;   /* RS727 material id */
+    int hsl;      /* face colour that references it (hsl16) */
+    int dest_texture;
+    int dest_sprite;
+    int faces;    /* how many faces resolved to this variant */
+};
+
+static struct blend_variant g_blend_variants[MAX_BLEND_VARIANTS];
+static int g_blend_variant_count;
+static int g_blend_variant_overflow;
+
+/* The variant for (source, hsl), or NULL. */
+static struct blend_variant*
+blend_variant_find(int source, int hsl)
+{
+    for( int i = 0; i < g_blend_variant_count; i++ )
+        if( g_blend_variants[i].source == source && g_blend_variants[i].hsl == hsl )
+            return &g_blend_variants[i];
+    return NULL;
+}
+
+static struct blend_variant*
+blend_variant_intern(int source, int hsl)
+{
+    struct blend_variant* found = blend_variant_find(source, hsl);
+    if( found )
+        return found;
+    if( g_blend_variant_count >= MAX_BLEND_VARIANTS )
+    {
+        g_blend_variant_overflow++;
+        return NULL;
+    }
+    found = &g_blend_variants[g_blend_variant_count++];
+    found->source = source;
+    found->hsl = hsl;
+    found->dest_texture = -1;
+    found->dest_sprite = -1;
+    found->faces = 0;
+    return found;
+}
+
+/*
  * Faces naming a material whose first RS727 flag is clear have their texture
  * erased and fall back to the face's flat HSL colour. This is the correct
  * default and must stay on.

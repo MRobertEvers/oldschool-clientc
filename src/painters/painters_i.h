@@ -235,6 +235,31 @@ scenery_far_corner_dist(
     return span_x + span_z;
 }
 
+/*
+ * Manhattan distance from the camera tile to the NEAREST tile of an entity's
+ * footprint — the ring the drain actually emits it at. A loc is released only
+ * once every tile it covers has its ground down, and the last of those to
+ * happen is always the one closest to the eye, so this is where a multi-tile
+ * loc lands no matter how far its far corner reaches.
+ *
+ * The counterpart to scenery_far_corner_dist, which is the reference's
+ * loc-vs-loc sort key and answers a different question.
+ */
+static inline int
+scenery_near_corner_dist(
+    const struct PaintersElement* el,
+    int camera_sx,
+    int camera_sz)
+{
+    int min_x = (int)el->sx;
+    int max_x = min_x + (int)el->_scenery.size_x - 1;
+    int min_z = (int)el->sz;
+    int max_z = min_z + (int)el->_scenery.size_z - 1;
+    int dx = camera_sx < min_x ? min_x - camera_sx : (camera_sx > max_x ? camera_sx - max_x : 0);
+    int dz = camera_sz < min_z ? min_z - camera_sz : (camera_sz > max_z ? camera_sz - max_z : 0);
+    return dx + dz;
+}
+
 /* The reference tie-break: squared fine distance from the camera position to
  * the entity's centre (class112.java:1040-1046 uses the entity's stored fine
  * coords; ours is the footprint centre, the same point placement uses). */

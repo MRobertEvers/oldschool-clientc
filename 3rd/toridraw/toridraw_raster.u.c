@@ -85,6 +85,17 @@ struct ToriDrawModelRasterContext
     int cache_texture_opaque;
     int cache_texture_alpha_blended;
 
+    /* Depth-tested raster for this model. NULL unless the model carries
+     * TORIDRAW_MODEL_FLAG_ZBUFFER and the scene has a z-buffer; when set, every
+     * face of the model routes to the zbuf family instead of the stock kernels.
+     * The buffer has already been reset for this model, which is what keeps the
+     * test confined to it (triangles/toridraw_triangle_zbuf.u.c). */
+#ifndef TORIDRAW_PIXEL16
+    struct ToriDraw_ZbufTarget zbuf_target;
+    struct ToriDraw_ZbufFaceSource zbuf_source;
+#endif
+    bool zbuffered;
+
     /* Non-NULL only when TORIDRAW_RASTER_DEBUG >= 1. */
     struct ToriDraw_RasterDebugStats* raster_debug;
     /* #region agent log */
@@ -543,6 +554,36 @@ ToriDraw_RasterModelFace(
             }
             /* #endregion */
         }
+
+#ifndef TORIDRAW_PIXEL16
+        /* A z-buffered model routes every face here instead. The shades a flat
+         * face carries in colors_b/c are the TORIDRAWHSL16_FLAT selector, not
+         * colours, so it passes colors_a three times. */
+        if( ctx->zbuffered )
+        {
+            bool const flat = type == FACE_TYPE_FLAT;
+
+            ToriDraw_TriangleFaceZBuffered(
+                &ctx->zbuf_target,
+                &ctx->zbuf_source,
+                face,
+                flat ? TORIDRAW_ZBUF_MODE_FLAT : TORIDRAW_ZBUF_MODE_GOURAUD,
+                color_a,
+                flat ? color_a : color_b,
+                flat ? color_a : color_c,
+                alpha,
+                TORIDRAW_ZBUF_TEX_OPAQUE,
+                0,
+                0,
+                0,
+                NULL,
+                0,
+                ctx->allow_near_clip,
+                ctx->near_clipped);
+            return;
+        }
+#endif
+
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
@@ -677,6 +718,30 @@ ToriDraw_RasterModelFace(
             assert(tp_vertex < ctx->num_vertices);
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
+
+            if( ctx->zbuffered )
+            {
+                ToriDraw_TriangleFaceZBuffered(
+                    &ctx->zbuf_target,
+                    &ctx->zbuf_source,
+                    face,
+                    TORIDRAW_ZBUF_MODE_TEXTURE,
+                    color_a,
+                    color_b,
+                    color_c,
+                    0xFF,
+                    texture_alpha_blended ? TORIDRAW_ZBUF_TEX_ALPHA
+                                          : (texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
+                                                            : TORIDRAW_ZBUF_TEX_TRANSPARENT),
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    (int*)texels,
+                    texture_size,
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
+                break;
+            }
 
             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
@@ -871,6 +936,31 @@ ToriDraw_RasterModelFace(
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
 
+            if( ctx->zbuffered )
+            {
+                /* Flat-shaded: one lightness for the whole face. */
+                ToriDraw_TriangleFaceZBuffered(
+                    &ctx->zbuf_target,
+                    &ctx->zbuf_source,
+                    face,
+                    TORIDRAW_ZBUF_MODE_TEXTURE,
+                    color_a,
+                    color_a,
+                    color_a,
+                    0xFF,
+                    texture_alpha_blended ? TORIDRAW_ZBUF_TEX_ALPHA
+                                          : (texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
+                                                            : TORIDRAW_ZBUF_TEX_TRANSPARENT),
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    (int*)texels,
+                    texture_size,
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
+                break;
+            }
+
             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
             {
                 ToriDraw_TriangleFaceTextureFlatAffineV3(
@@ -1058,6 +1148,54 @@ context_from_handle(
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
         ctx->near_clipped = scene->near_clipped;
         ctx->raster_debug = NULL;
+        ctx->zbuffered = false;
+#ifndef TORIDRAW_PIXEL16
+        /* Opt-in per model; the scene's buffer is sized here on first use, so a
+         * caller that never draws a z-buffered model never pays for one. A
+         * failed allocation is not an error — the model simply draws by face
+         * order, exactly as it did before the flag existed. */
+        if( (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) != 0 )
+        {
+            int const clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
+            int const rows = clip_top + ctx->screen_height;
+            int const stride = ctx->stride;
+
+            if( !ToriDraw_SceneHasZBuffer(scene, stride, rows) &&
+                (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0 )
+                ToriDraw_SceneZBufferResize(scene, stride, rows);
+
+            if( ToriDraw_SceneHasZBuffer(scene, stride, rows) )
+            {
+                ctx->zbuffered = true;
+                ctx->zbuf_target.zbuffer = scene->zbuffer;
+                ctx->zbuf_target.stride = stride;
+                ctx->zbuf_target.screen_width = ctx->screen_width;
+                ctx->zbuf_target.screen_height = ctx->screen_height;
+                ctx->zbuf_target.camera_cot16 = ctx->camera_cot16;
+                ctx->zbuf_target.offset_x = ctx->offset_x;
+                ctx->zbuf_target.offset_y = ctx->offset_y;
+                ctx->zbuf_target.near_plane_z = ctx->near_plane_z;
+                ctx->zbuf_target.parallel = toridraw_proj_is_parallel(camera->proj_mode);
+
+                ctx->zbuf_source.face_indices_a = ctx->face_indices_a;
+                ctx->zbuf_source.face_indices_b = ctx->face_indices_b;
+                ctx->zbuf_source.face_indices_c = ctx->face_indices_c;
+                ctx->zbuf_source.screen_vertices_x = ctx->vertex_x;
+                ctx->zbuf_source.screen_vertices_y = ctx->vertex_y;
+                ctx->zbuf_source.orthographic_vertices_x =
+                    ctx->orthographic_vertex_x_nullable;
+                ctx->zbuf_source.orthographic_vertices_y =
+                    ctx->orthographic_vertex_y_nullable;
+                ctx->zbuf_source.orthographic_vertices_z =
+                    ctx->orthographic_vertex_z_nullable;
+
+                /* The depth is read out of the orthographic scratch; without it
+                 * there is nothing to test against. */
+                if( !ctx->orthographic_vertex_z_nullable )
+                    ctx->zbuffered = false;
+            }
+        }
+#endif
         break;
     }
     default:
@@ -1081,7 +1219,32 @@ ToriDraw_RasterWithFaceIndices(
         int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
         int stride = ctx.stride;
         ctx.pixel_buffer = pixel_buffer + clip_left + clip_top * stride;
+#ifndef TORIDRAW_PIXEL16
+        /* Rebased by the same amount as the frame buffer, so one offset walks
+         * both — see the layout note on ToriDraw_Scene.zbuffer. */
+        if( ctx.zbuffered )
+            ctx.zbuf_target.zbuffer += clip_left + clip_top * stride;
+#endif
     }
+
+#ifndef TORIDRAW_PIXEL16
+    /* Reset before the first face, not after the last: this is what confines
+     * the depth test to this model, so it has to happen even if the model turns
+     * out to draw nothing. */
+    if( ctx.zbuffered )
+        toridraw_zbuf_reset(
+            ctx.zbuf_target.zbuffer,
+            ctx.zbuf_target.stride,
+            ctx.screen_width,
+            ctx.screen_height,
+            ctx.vertex_x,
+            ctx.vertex_y,
+            ctx.num_vertices,
+            ctx.offset_x,
+            ctx.offset_y,
+            ctx.near_clipped,
+            ctx.zbuf_target.parallel);
+#endif
 
     struct ToriDraw_RasterDebugStats raster_debug_storage;
     if( toridraw_raster_debug_enabled() )

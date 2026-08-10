@@ -212,7 +212,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tmp_face_order);
     free(scene->tex_state);
     free(scene->anim_list);
-    free(scene->model_zbuffer);
+    free(scene->zbuffer);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -293,7 +293,7 @@ ToriDraw_SceneAllocBuffers(
 }
 
 bool
-ToriDraw_SceneModelZBufferResize(
+ToriDraw_SceneZBufferResize(
     struct ToriDraw_Scene* scene,
     int stride,
     int rows)
@@ -304,49 +304,47 @@ ToriDraw_SceneModelZBufferResize(
     if( !scene || stride <= 0 || rows <= 0 )
         return false;
 
-    /* Never shrink: the buffer is scratch, and a scene that has already drawn a
-     * large viewport would otherwise realloc back and forth between two
-     * viewports of different sizes. */
-    if( stride < scene->model_zbuffer_stride )
-        stride = scene->model_zbuffer_stride;
-    if( rows < scene->model_zbuffer_rows )
-        rows = scene->model_zbuffer_rows;
-    if( scene->model_zbuffer && stride == scene->model_zbuffer_stride &&
-        rows == scene->model_zbuffer_rows )
+    /* Never shrink: the buffer is scratch, and a scene alternating between two
+     * viewport sizes would otherwise realloc on every switch. */
+    if( stride < scene->zbuffer_stride )
+        stride = scene->zbuffer_stride;
+    if( rows < scene->zbuffer_rows )
+        rows = scene->zbuffer_rows;
+    if( scene->zbuffer && stride == scene->zbuffer_stride && rows == scene->zbuffer_rows )
         return true;
 
     want = (size_t)stride * (size_t)rows;
-    grown = (torizdepth_t*)realloc(scene->model_zbuffer, want * sizeof(torizdepth_t));
+    grown = (torizdepth_t*)realloc(scene->zbuffer, want * sizeof(torizdepth_t));
     if( !grown )
         return false;
 
-    scene->model_zbuffer = grown;
-    scene->model_zbuffer_stride = stride;
-    scene->model_zbuffer_rows = rows;
-    /* Contents are undefined until a model clears the region it draws into, so
+    scene->zbuffer = grown;
+    scene->zbuffer_stride = stride;
+    scene->zbuffer_rows = rows;
+    /* Contents are undefined until a model resets the region it draws into, so
      * there is nothing to preserve or initialise here. */
     return true;
 }
 
 void
-ToriDraw_SceneModelZBufferFree(struct ToriDraw_Scene* scene)
+ToriDraw_SceneZBufferFree(struct ToriDraw_Scene* scene)
 {
     if( !scene )
         return;
-    free(scene->model_zbuffer);
-    scene->model_zbuffer = NULL;
-    scene->model_zbuffer_stride = 0;
-    scene->model_zbuffer_rows = 0;
+    free(scene->zbuffer);
+    scene->zbuffer = NULL;
+    scene->zbuffer_stride = 0;
+    scene->zbuffer_rows = 0;
 }
 
 bool
-ToriDraw_SceneHasModelZBuffer(
+ToriDraw_SceneHasZBuffer(
     const struct ToriDraw_Scene* scene,
     int stride,
     int rows)
 {
-    return scene && scene->model_zbuffer && scene->model_zbuffer_stride >= stride &&
-           scene->model_zbuffer_rows >= rows;
+    return scene && scene->zbuffer && scene->zbuffer_stride >= stride &&
+           scene->zbuffer_rows >= rows;
 }
 
 struct ToriDraw_TextureState*
@@ -476,6 +474,10 @@ int g_toridraw_raster_scanline = 0;
 #include "triangles/toridraw_triangle_texture_transparent.u.c"
 #include "triangles/toridraw_triangle_texture_alpha.u.c"
 #include "triangles/toridraw_triangle_texture_affine.u.c"
+/* The depth-tested family draws through the 32-bit texture and blend paths, so
+ * it shares the PIXEL16 exclusion with them. Under a 16-bit target
+ * TORIDRAW_MODEL_FLAG_ZBUFFER is inert and models draw by face order alone. */
+#include "triangles/toridraw_triangle_zbuf.u.c"
 #endif
 #include "toridraw_render.u.c"
 #include "toridraw_raster.u.c"

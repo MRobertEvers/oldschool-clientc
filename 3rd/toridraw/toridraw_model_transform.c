@@ -385,6 +385,13 @@ ToriDraw_ModelNewMerge(
     out->vertex_count = total_vertices;
     out->face_count = total_faces;
     out->textured_face_count = total_textured_faces;
+    /* Render flags are per model, and the merged model IS the parts. A part that
+     * asked for the depth test (TORIDRAW_MODEL_FLAG_ZBUFFER) still needs it once
+     * merged — more so, since merging is what puts it in the same face order as
+     * whatever it interpenetrates. */
+    for( int i = 0; i < model_count; i++ )
+        if( models[i] )
+            out->flags |= models[i]->flags;
 
     if( total_vertices > 0 )
     {

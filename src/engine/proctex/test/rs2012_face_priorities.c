@@ -687,7 +687,10 @@ main(int argc, char** argv)
     int pitch_steps = 5;
     int res = 224;
     int rounds = 4;
+    double elev_min_deg = -20.0;
+    double elev_max_deg = 67.0;
     long min_pixels = 40;
+    bool bulk_flex = false;
 
     struct geometry g = { 0 };
     struct feature* features = NULL;
@@ -734,6 +737,8 @@ main(int argc, char** argv)
             do_report = true;
         else if( strcmp(argv[i], "--no-weld") == 0 )
             weld = false;
+        else if( strcmp(argv[i], "--bulk-flex") == 0 )
+            bulk_flex = true;
         else if( strcmp(argv[i], "--views") == 0 && i + 1 < argc )
             yaw_steps = atoi(argv[++i]);
         else if( strcmp(argv[i], "--pitches") == 0 && i + 1 < argc )
@@ -742,6 +747,14 @@ main(int argc, char** argv)
             res = atoi(argv[++i]);
         else if( strcmp(argv[i], "--rounds") == 0 && i + 1 < argc )
             rounds = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--elev") == 0 && i + 1 < argc )
+        {
+            if( sscanf(argv[++i], "%lf,%lf", &elev_min_deg, &elev_max_deg) != 2 )
+            {
+                usage(argv[0]);
+                return 2;
+            }
+        }
         else if( strcmp(argv[i], "--min-pixels") == 0 && i + 1 < argc )
             min_pixels = atol(argv[++i]);
         else
@@ -899,11 +912,24 @@ main(int argc, char** argv)
         !r.touched || !r.sx || !r.sy || !r.sz || !r.face_depth || !r.face_band || !r.face_order )
         goto done;
 
-    band = (int*)calloc((size_t)feature_count, sizeof(int));
+    band = (int*)malloc((size_t)feature_count * sizeof(int));
     net = (long*)malloc((size_t)feature_count * (size_t)feature_count * sizeof(long));
     previous = (int*)malloc((size_t)feature_count * sizeof(int));
     if( !band || !net || !previous )
         goto done;
+
+    /* Start in the middle, not at zero.
+     *
+     * The climb only ever moves one feature at a time, so from band 0 the only
+     * available move is "put this one over everything". The relation that
+     * actually wants expressing is usually the opposite -- a single feature
+     * needs to go BEHIND the rest, and reaching that from zero would take a
+     * coordinated move of every other feature at once, which single-feature
+     * hill climbing cannot find. From the middle both directions are one move
+     * away. compact_bands() slides the answer back down afterwards, so the
+     * starting band is scaffolding and not part of the result. */
+    for( int i = 0; i < feature_count; i++ )
+        band[i] = HARD_BANDS / 2;
 
     /* Measure, solve, and measure again against what was solved: the first
      * round's "what does the sort paint here" answer stops being true the
@@ -916,11 +942,21 @@ main(int argc, char** argv)
 
         for( int p = 0; p < pitch_steps; p++ )
         {
-            /* Pitch sweeps a half turn so the model is seen from above and
-             * below; an occlusion that only holds at eye level is not one. */
+            /* Only the elevations the client can actually produce.
+             *
+             * This is not a detail. Sweeping the whole sphere asks every pair
+             * to agree from underneath the model as well, and almost no pair
+             * on a closed creature does -- which is how a legitimate ordering
+             * gets scored away as a conflict. app.c clamps world camera pitch
+             * to 128..383 of 2048, i.e. 22.5 to 67.3 degrees looking DOWN, and
+             * nothing in the client unclamps it. The range is extended above
+             * the horizon only by as much as perspective gives on a model
+             * taller than the camera -- the Queen's head is twenty units up,
+             * and players do see its underside. */
             double pitch =
-                -PRIO_PI / 2.0 +
-                PRIO_PI * (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
+                elev_min_deg * PRIO_PI / 180.0 +
+                (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                    (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
             for( int y = 0; y < yaw_steps; y++ )
             {
                 struct view v;
@@ -1042,6 +1078,57 @@ main(int argc, char** argv)
             free(shown);
         }
 
+        /* Where the between-feature error actually sits, and what a band would
+         * cost there. A pair with a large fixable and a comparable breakable is
+         * a pair that swaps as the model turns: the error is real, and no band
+         * is the answer to it. */
+        printf(
+            "\nworst feature pairs (last round):\n%6s %6s %8s %8s %8s %5s %5s\n",
+            "over",
+            "under",
+            "fixable",
+            "breaks",
+            "net",
+            "bndA",
+            "bndB");
+        {
+            long* scratch = (long*)malloc(
+                (size_t)feature_count * (size_t)feature_count * sizeof(long));
+            if( scratch )
+            {
+                memcpy(
+                    scratch,
+                    fixable,
+                    (size_t)feature_count * (size_t)feature_count * sizeof(long));
+                for( int n = 0; n < 15; n++ )
+                {
+                    int ba = -1, bb = -1;
+                    long best = 0;
+                    for( int a = 0; a < feature_count; a++ )
+                        for( int b = 0; b < feature_count; b++ )
+                            if( scratch[(long)a * feature_count + b] > best )
+                            {
+                                best = scratch[(long)a * feature_count + b];
+                                ba = a;
+                                bb = b;
+                            }
+                    if( ba < 0 )
+                        break;
+                    printf(
+                        "%6d %6d %8ld %8ld %8ld %5d %5d\n",
+                        ba,
+                        bb,
+                        best,
+                        breakable[(long)ba * feature_count + bb],
+                        best - breakable[(long)ba * feature_count + bb],
+                        band[ba],
+                        band[bb]);
+                    scratch[(long)ba * feature_count + bb] = 0;
+                }
+                free(scratch);
+            }
+        }
+
         printf("\nseparations the bands actually buy:\n%6s %6s %10s\n", "over", "under", "net px");
         {
             long threshold = 0;
@@ -1078,8 +1165,21 @@ main(int argc, char** argv)
         if( !m->face_priorities )
             goto done;
         for( int f = 0; f < m->face_count; f++ )
-            m->face_priorities[f] =
-                (uint8_t)features[g.face_feature[inputs[i].face_base + f]].band;
+        {
+            int b = features[g.face_feature[inputs[i].face_base + f]].band;
+            /* --bulk-flex: the untouched bulk goes to priority 10 rather than
+             * band 0. That is not cosmetic. With the bulk flexible, a feature
+             * left in a hard band is no longer pinned in front of everything:
+             * the sorter splices the flexible run around it at the averaged
+             * depth of the occupied hard bands, so the feature sorts AS A UNIT
+             * at its own depth -- over the far half of the surface it sits on
+             * and under the near half. That is the behaviour a claw ring round
+             * a neck actually wants, and no arrangement of hard bands can
+             * express it. */
+            if( bulk_flex && b == 0 )
+                b = 10;
+            m->face_priorities[f] = (uint8_t)b;
+        }
         m->model_priority = 255;
 
         /* The encoder prefers the provenance's recorded header over anything

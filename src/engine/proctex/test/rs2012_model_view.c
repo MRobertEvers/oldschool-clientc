@@ -28,6 +28,17 @@
  *   --textures      keep face texture ids (default: stripped, no texture map)
  *   --ignore-priorities   render as if the model carried none
  *   --stats         print the face-priority histogram and model shape
+ *   --zbuffer       draw through the depth-tested kernels (the model opts in
+ *                   with TORIDRAW_MODEL_FLAG_ZBUFFER and the scene carries the
+ *                   z-buffer), so the model resolves itself per pixel
+ *   --compare       render BOTH ways and report what the depth test changed;
+ *                   writes the painter sheet to --out and the depth-tested one
+ *                   to --out-zbuffer, with --diff-out marking the pixels that
+ *                   differ. Implies --score, because the number worth knowing
+ *                   is how much of the change lands on pixels the sort had
+ *                   wrong.
+ *   --out-zbuffer F where --compare writes the depth-tested sheet
+ *   --diff-out F    where --compare writes the difference mask
  */
 
 #include "datatypes/model.h"
@@ -398,6 +409,28 @@ raster_id_z(
     }
 }
 
+/**
+ * Paint the z-buffer's answer, flat shaded, so the painter's sort can be seen
+ * against the picture the content was authored to produce.
+ *
+ * The client cannot render this and never will -- it is the RS727 z-buffer,
+ * reconstructed only to bound the argument. Whatever difference survives here
+ * is the entire budget any amount of priority authoring is competing for.
+ */
+static void
+raster_reference(
+    const struct ToriDraw_Model* m,
+    int n,
+    const int* id_zbuf,
+    int* out_pixels)
+{
+    for( int i = 0; i < n; i++ )
+    {
+        int const f = id_zbuf[i];
+        out_pixels[i] = f < 0 ? 0 : (int)ToriDraw_Hsl16ToRgb(m->face_colors_a[f]);
+    }
+}
+
 static void
 score_accumulate(
     struct score* s,
@@ -427,6 +460,50 @@ score_accumulate(
     }
 }
 
+/**
+ * What the depth test actually changed, and whether it changed the right things.
+ *
+ * A raw "N pixels differ" is not evidence: the depth-tested kernels shade per
+ * pixel where the stock ones shade per four, so a correct z-buffer moves some
+ * pixels for reasons that have nothing to do with depth. What answers the
+ * question is WHERE the differences land. The sort-error mask already says which
+ * pixels are showing a surface behind the true nearest, so splitting the
+ * differences by that mask separates "fixed something wrong" from "changed
+ * something that was already right".
+ */
+struct diff_score
+{
+    long changed;          /* pixels where the two renders disagree */
+    long changed_on_wrong; /* ...of those, ones the sort had wrong */
+    long wrong_unchanged;  /* sort-wrong pixels the depth test left alone */
+};
+
+static void
+diff_accumulate(
+    struct diff_score* d,
+    int n,
+    const int* painter_pixels,
+    const int* zbuf_pixels,
+    const int* id_painter,
+    const int* z_painter,
+    const int* id_zbuf,
+    const int* z_zbuf)
+{
+    for( int i = 0; i < n; i++ )
+    {
+        bool const changed = painter_pixels[i] != zbuf_pixels[i];
+        bool const was_wrong = id_painter[i] >= 0 && id_painter[i] != id_zbuf[i] &&
+                               z_painter[i] > z_zbuf[i] + 1;
+
+        if( changed )
+            d->changed++;
+        if( changed && was_wrong )
+            d->changed_on_wrong++;
+        if( !changed && was_wrong )
+            d->wrong_unchanged++;
+    }
+}
+
 static void
 usage(const char* argv0)
 {
@@ -435,7 +512,8 @@ usage(const char* argv0)
         "Usage: %s --model FILE.ob3 [--model FILE.ob3 ...] --out OUT.bmp\n"
         "       [--angles N] [--yaw0 N] [--pitch N] [--zoom F] [--tile N]\n"
         "       [--focus X,Y,Z] [--radius R]\n"
-        "       [--textures] [--ignore-priorities] [--stats] [--score]\n",
+        "       [--textures] [--ignore-priorities] [--stats] [--score]\n"
+        "       [--zbuffer] [--compare] [--out-zbuffer F] [--diff-out F]\n",
         argv0);
 }
 
@@ -456,6 +534,7 @@ main(int argc, char** argv)
     bool stats = false;
     bool do_score = false;
     const char* score_path = NULL;
+    const char* reference_path = NULL;
     bool have_focus = false;
     int focus[3] = { 0, 0, 0 };
     int focus_radius = 0;
@@ -472,6 +551,8 @@ main(int argc, char** argv)
     int* id_zbuf = NULL;
     int* z_zbuf = NULL;
     int* score_pixels = NULL;
+    int* reference_pixels = NULL;
+    int* reference_tile = NULL;
     int cols, rows, sheet_w, sheet_h;
     int extent, distance;
     int center_y;
@@ -520,6 +601,11 @@ main(int argc, char** argv)
         else if( strcmp(argv[i], "--score-out") == 0 && i + 1 < argc )
         {
             score_path = argv[++i];
+            do_score = true;
+        }
+        else if( strcmp(argv[i], "--reference-out") == 0 && i + 1 < argc )
+        {
+            reference_path = argv[++i];
             do_score = true;
         }
         else if( strcmp(argv[i], "--focus") == 0 && i + 1 < argc )
@@ -610,6 +696,13 @@ main(int argc, char** argv)
     {
         score_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         if( !score_pixels )
+            goto done;
+    }
+    if( reference_path )
+    {
+        reference_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
+        reference_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
+        if( !reference_pixels || !reference_tile )
             goto done;
     }
 
@@ -707,6 +800,16 @@ main(int argc, char** argv)
                     z_zbuf);
                 score_accumulate(&total, tile, tile, id_painter, z_painter, id_zbuf, z_zbuf);
 
+                if( reference_pixels )
+                {
+                    raster_reference(model, tile * tile, id_zbuf, reference_tile);
+                    for( int row = 0; row < tile; row++ )
+                        memcpy(
+                            &reference_pixels[(size_t)(ty + row) * (size_t)sheet_w + tx],
+                            &reference_tile[(size_t)row * (size_t)tile],
+                            (size_t)tile * sizeof(int));
+                }
+
                 /* The mask is the reason the score is actionable: a percentage
                  * says the sort is wrong, the mask says which feature. */
                 if( score_pixels )
@@ -741,6 +844,11 @@ main(int argc, char** argv)
         bmp_write_file(score_path, score_pixels, sheet_w, sheet_h);
         printf("rs2012_model_view: wrote %s (sort-error mask)\n", score_path);
     }
+    if( reference_pixels )
+    {
+        bmp_write_file(reference_path, reference_pixels, sheet_w, sheet_h);
+        printf("rs2012_model_view: wrote %s (z-buffer reference)\n", reference_path);
+    }
     if( do_score )
         printf(
             "sort score: %ld/%ld pixels behind the true surface (%.3f%%), "
@@ -760,6 +868,8 @@ done:
     free(id_zbuf);
     free(z_zbuf);
     free(score_pixels);
+    free(reference_pixels);
+    free(reference_tile);
     ToriDraw_ModelFree(model);
     for( int i = 0; i < model_count; i++ )
         ToriDraw_ModelFree(parts[i]);
