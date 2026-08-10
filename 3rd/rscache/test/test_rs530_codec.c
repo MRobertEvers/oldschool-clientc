@@ -15,6 +15,28 @@ rs530_profile(void)
 }
 
 static void
+test_loc_530_opcode_95_has_no_payload(void)
+{
+    RSCACHE_TEST_GROUP("loc 530 opcode 95 has no payload");
+
+    /* Exact loc 10836 bytes.  Opcode 95 is immediately followed by opcode 5;
+     * consuming a g2 here turns the model bytes into a false opcode. */
+    unsigned char record[] = { 19, 0, 95, 0x05, 0x01, 0x89, 0x93, 0 };
+    struct RSCache profile = rs530_profile();
+    struct RSCache_Dat2ConfigLoc* loc = RSCache_Dat2ConfigLocNewDecodeProfile(
+        &profile, (char*)record, (int)sizeof(record));
+
+    RSCACHE_CHECK(loc != NULL);
+    RSCACHE_CHECK_EQ(loc->_consumed, sizeof(record));
+    RSCACHE_CHECK_EQ(loc->contour_ground_type, 5);
+    RSCACHE_CHECK_EQ(loc->shapes_and_model_count, 1);
+    RSCACHE_CHECK_EQ(loc->lengths[0], 1);
+    RSCACHE_CHECK_EQ(loc->models[0][0], 35219);
+
+    RSCache_Dat2ConfigLocFree(loc);
+}
+
+static void
 test_loc_530_obelisk_model_list(void)
 {
     RSCACHE_TEST_GROUP("loc 530 flat opcode-5 model list");
@@ -124,6 +146,7 @@ int
 main(void)
 {
     printf("RS2 rev-530 config codec tests\n");
+    test_loc_530_opcode_95_has_no_payload();
     test_loc_530_obelisk_model_list();
     test_sequence_530_changed_opcodes();
     test_obj_530_changed_opcodes();

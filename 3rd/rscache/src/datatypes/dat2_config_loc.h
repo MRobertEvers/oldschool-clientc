@@ -251,6 +251,8 @@ struct RSCache_Dat2ConfigLoc
  * flat `count x (u16 model, u8 shape)` / `count x u16 model` forms.
  */
 #define RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS 128
+/** Rev 530 alone: opcode 95 selects contour type 5 and has no payload. */
+#define RSCACHE_CONFIG_LOC_DECODE_RS2_530 256
 
 /* --- codec versions -------------------------------------------------------- */
 /*

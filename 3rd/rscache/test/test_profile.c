@@ -329,6 +329,7 @@ test_loc_flags(void)
         RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, RSCACHE_QUIRK_NONE);
     flags = RSCache_Dat2ConfigLocFlags(&rs530);
     RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2);
+    RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_530);
     RSCACHE_CHECK(!(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS));
 
     struct RSCache rs727 = RSCache_ProfileForIdentity(

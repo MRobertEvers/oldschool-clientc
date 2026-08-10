@@ -66,6 +66,9 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
         codec == RSCACHE_CODEC_LOC_RS2_530 )
         flags |= RSCACHE_CONFIG_LOC_DECODE_RS2;
 
+    if( codec == RSCACHE_CODEC_LOC_RS2_530 )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_RS2_530;
+
     if( codec == RSCACHE_CODEC_LOC_RS2 || codec == RSCACHE_CODEC_LOC_RS2_727 )
         flags |= RSCACHE_CONFIG_LOC_DECODE_RS2_NESTED_MODELS;
 
@@ -1250,7 +1253,8 @@ RSCache_Dat2ConfigLocDecodeOp(
             else
             {
                 loc->contour_ground_type = 5;
-                g2(buffer);
+                if( !(flags & RSCACHE_CONFIG_LOC_DECODE_RS2_530) )
+                    loc->contour_ground_param = g2b(buffer);
             }
             break;
         }

@@ -30,12 +30,15 @@ def main() -> int:
     files = [
         lane / "configs/summoning.npc",
         lane / "configs/summoning.obj",
+        lane / "configs/summoning.loc",
         lane / "configs/summoning.seq",
         lane / "pack/npc.alloc",
         lane / "pack/obj.alloc",
+        lane / "pack/loc.alloc",
         lane / "pack/seq.alloc",
         lane / "pack/npc.client",
         lane / "pack/obj.client",
+        lane / "pack/loc.client",
         lane / "pack/seq.client",
         lane / "pack/7_models.pack",
         lane / "pack/0_animations.pack",
@@ -43,9 +46,15 @@ def main() -> int:
         args.tree / "models/ported/scape2009_summoning/summoning_model_30443.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31211.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_30591.model",
+        args.tree / "models/ported/scape2009_summoning/summoning_model_31279.model",
+        args.tree / "models/ported/scape2009_summoning/summoning_model_31553.model",
+        args.tree / "models/ported/scape2009_summoning/summoning_model_31686.model",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.memberpack",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2109.anim",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2109.memberpack",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1491.base",
+        args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1901.base",
         args.tree / "port/summoning_530.map",
     ]
     errors: list[str] = []
@@ -76,8 +85,8 @@ def main() -> int:
     )
     expect(result.returncode == 0, f"dry-run exited {result.returncode}: {result.stdout}")
     expect(
-        "cachepack import (dry-run): npc=1 obj=3" in result.stdout
-        and "seq=2 animset=1 framemap=1" in result.stdout,
+        "cachepack import (dry-run): npc=1 obj=3 loc=1" in result.stdout
+        and "model=6 seq=3 animset=2 framemap=2" in result.stdout,
         "dry-run closure changed or did not execute",
     )
     for path in files:
@@ -89,6 +98,20 @@ def main() -> int:
     expect("walkanim=summoning_seq_8291" in npc, "wolf walk animation is not explicit")
     expect("bastype=" not in npc and "swarm_walk" not in npc, "Bas/default animation leaked")
     expect("retex" not in npc, "cache-local NPC texture id leaked")
+
+    loc = (lane / "configs/summoning.loc").read_text(encoding="utf-8")
+    expect("[summoning_obelisk]" in loc, "obelisk loc name is not prefixed")
+    expect("models=100005" in loc, "obelisk did not retain its sole model 31686 mapping")
+    expect("anim=summoning_seq_8510" in loc, "obelisk animation is not explicit")
+    expect("op1=Infuse-pouch" in loc, "obelisk Infuse-pouch operation is absent")
+    expect("op2=Renew-points" in loc, "obelisk Renew-points operation is absent")
+    expect("shape1=" not in loc, "rev-643 nested-model decode leaked into the rev-530 loc")
+
+    for invalid_model in (0, 591, 25189, 27753, 29547):
+        expect(
+            not (args.tree / f"models/ported/scape2009_summoning/summoning_model_{invalid_model}.model").exists(),
+            f"stale model from desynchronized loc decode remains: {invalid_model}",
+        )
 
     member_lines = [
         line for line in (args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.memberpack")
@@ -106,6 +129,11 @@ def main() -> int:
         "obj\t12183\tshard\t40001\tsummoning_shard\tminted\tunreviewed",
         "obj\t12158\tcharm_gold\t40002\tsummoning_charm_gold\tminted\tunreviewed",
         "framemap\t1491\tframemap_1491\t8000\tsummoning_framemap_1491\tminted\tunreviewed",
+        "loc\t28716\tobelisk\t62201\tsummoning_obelisk\tminted\tunreviewed",
+        "model\t31686\tmodel_31686\t100005\tsummoning_model_31686\tminted\tunreviewed",
+        "seq\t8510\tseq_8510\t20002\tsummoning_seq_8510\tminted\tunreviewed",
+        "frame_archive\t2109\tanimset_2109\t20001\tsummoning_animset_2109\tminted\tunreviewed",
+        "framemap\t1901\tframemap_1901\t8001\tsummoning_framemap_1901\tminted\tunreviewed",
     ):
         expect(row in ledger, f"ledger row absent: {row}")
 
