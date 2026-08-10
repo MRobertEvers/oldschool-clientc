@@ -126,7 +126,12 @@ def check(tree: Path) -> int:
                 lane_script_rows[int(raw_id)] = name
             except ValueError:
                 errors.append(f"{lane_scripts}:{line_no}: invalid clientscript id")
-        expected_scripts = {393: "script_393", 1198: "summoning_stats_init", 8950: "script_8950"}
+        expected_scripts = {
+            393: "script_393",
+            1198: "summoning_stats_init",
+            8950: "script_8950",
+            12000: "summoning_orb_init",
+        }
         if lane_script_rows != expected_scripts:
             errors.append(f"{lane_scripts}: expected {expected_scripts}, got {lane_script_rows}")
         for name in lane_script_rows.values():

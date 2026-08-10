@@ -53,19 +53,20 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack fontbake audioprobe poser-gl
+.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity map_port packfile cs2 cachepack fontbake audioprobe poser-gl
 .DEFAULT_GOAL := all
 
 # poser-gl is not in `all`: it needs SDL2 and an OpenGL 3.3 context, which the
 # other tools do not, and a machine without SDL2 should still build the rest.
 # `make poser-gl` builds it.
-all: find_anims find_named anim_compare port_npc port_lostcity packfile cs2 cachepack fontbake audioprobe
+all: find_anims find_named anim_compare port_npc port_lostcity map_port packfile cs2 cachepack fontbake audioprobe
 
 find_anims: $(TOOLS)/find_anims/find_anims
 find_named: $(TOOLS)/find_named/find_named
 anim_compare: $(TOOLS)/anim_compare/anim_compare
 port_npc: $(TOOLS)/port_npc/port_npc
 port_lostcity: $(TOOLS)/port_lostcity/port_lostcity
+map_port: $(TOOLS)/map_port/map_port
 packfile: $(TOOLS)/packfile/packfile
 fontbake: $(TOOLS)/fontbake/fontbake
 audioprobe: $(TOOLS)/audioprobe/audioprobe
@@ -169,6 +170,12 @@ $(TOOLS)/audioprobe/audioprobe: $(TOOLS)/audioprobe/main.c $(COMMON_OBJS) $(LIB_
 $(TOOLS)/port_lostcity/port_lostcity: $(LC_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -I$(TOOLS)/port_lostcity -o $@ $^ -lm -lpthread
 
+# Profile-aware whole-square transcoder. Unlike cachepack's same-revision map
+# codec this joins RS2's separately named mX_Z/lX_Z archives, rewrites scenery
+# ids through an import ledger and emits modern LostCity jm2/jl2 source.
+$(TOOLS)/map_port/map_port: $(TOOLS)/map_port/main.c $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
+
 # No cache is opened here — pack files are text — so this links neither the
 # rscache unity nor the codecs.
 $(TOOLS)/packfile/packfile: $(PACKFILE_SRCS)
@@ -181,7 +188,7 @@ $(TOOLS)/cachepack/cachepack: $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
-		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2 \
+		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/map_port/map_port $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2 \
 		$(TOOLS)/cachepack/cachepack $(TOOLS)/fontbake/fontbake $(TOOLS)/audioprobe/audioprobe \
 		$(TOOLS)/poser-gl-c/poser-gl
 

@@ -152,9 +152,10 @@ New code required: ~900 LOC library + ~1,600 LOC `cachepack import`.
 
 1. **Sailing is kept.** Summoning becomes display slot **25** (`enum_681` gains `val=25,24`) and
    the stats panel goes to a **3×9 grid**. `stats.if [universe]` is 190×261 **[measured]**.
-   **Prefer a dedicated clientscript for the Summoning cell alone** over rewriting the positioning
-   of all 25 cells — strictly less blast radius on a panel whose builder (`script_1904.cs2`) is one
-   of the 95 committed scripts that already fail to recompile.
+   The visual order is Construction / Hunter / Summoning across row 8, then Sailing at the left
+   of row 9 with Total level spanning the other two cells. This is the rev-530 arrangement with
+   Sailing retained, not a centred lone Summoning cell. A dedicated clientscript owns the new
+   Summoning cell; its icon nudge is the measured rev-530 `x=5` (`int3=2`) placement.
 2. **Full roster — all 82 familiars.** No id budgeting: the 14-bit value is a per-player
    client-local nearby-instance slot, not the cache/config NPC id (F3).
 3. **First pass runs through Phase 3** — governance, the skill in the tab, the asset pipeline, and
@@ -259,10 +260,13 @@ proves byte-identity, and produces a screenshot — all before a single model is
       truncates the roster loop and drops every later skill from Total level), plus `enum_680`,
       `enum_108`, `enum_255`, `enum_5917`, `enum_1497`, `enum_1505`
 - [x] `interfaces/stats.compack` `34=summoning_stats_cell` (**[measured]** the file is 0..33 with `33=tooltip`)
-- [x] `stats.if` — a 25th cell and the 3×9 grid (per Decision 1, via a dedicated clientscript)
+- [x] `stats.if` — Summoning at `x=127,y=183`, Sailing at `x=1,y=209`, and Total level at
+      `x=64,y=209,width=126`; dedicated script 1198 builds the Summoning cell
 - [x] `script_8950.cs2` case 24 + a new `content_restrict_summoning_serverside` varbit
-- [x] One 25×25 skill icon. **[measured]** `sprites/staticons2_14..17` (ids 229–232) are
-      already-reserved 25×25 blanks with `pack.meta` and no BMP
+- [x] Exact rev-530 wolf-head skill icon: source sprite pack **222**, canvas
+      `25×25, crop 22×23, offset 0,2`, SHA-256
+      `89726834d13ce73b8fff38eb34567ed2e52c7757b2d8405577e801979e4178cd`; emitted through the
+      independently allocated target name `summoning_staticon` at target pack id 229
 - [x] Regression assertion that combat level does **not** move
 
 **No ServerScript compiler change is needed** — `ssc_compile.c:755-771` gives `STAT*` opcodes
@@ -283,10 +287,12 @@ Prefix everything `summoning_*` and add a `mock230_pack --check-only` rule that 
 it → survives logout → total level includes it → flag off hides it → flag-off bake proven
 byte-identical. Four BMPs.
 
-**Verified:** `make -C src test-summoning-phase1 PLATFORM_OBJ_BASE=build_summoning` performs 28
+**Verified:** `make -C src test-summoning-phase1 PLATFORM_OBJ_BASE=build_summoning` performs 36
 non-skipped checks and leaves the four BMPs plus logs in `build/summoning-phase1/`. The flag-on
 totals are 34 at level 1 and 53 at level 20; the second login restores `24 = 20 44700`; the
-pristine flag-off cache has no stats component 34 and remains total 33. The full mock selftest is
+pristine flag-off cache has no stats component 34 and remains total 33. The checks pin the exact
+wolf pixels and metadata, its rendered `x=639,y=388` client position, and Total level beside
+Sailing on the final row. The full mock selftest is
 currently pre-blocked by two failures in the separate dirty NPC-area subscription work
 (`slot=993 type=2862`), after the Summoning combat assertions themselves pass.
 

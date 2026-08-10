@@ -3990,6 +3990,13 @@ handle_opnpc(
     const struct Mock230NpcInfo* info;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
+    /*
+     * The client names the npc by what WE called it (Mock230PlayerSlotMap), so
+     * this is a translation and not a cast. Using the wire value as a pool
+     * index is how every npc became unclickable: the name resolved to a
+     * different npc, the walk went to that one's tile, and the player was told
+     * "I can't reach that" while standing on top of the one they clicked.
+     */
     slot = rsab_g2(&buf);
     if( !rsab_ok(&buf) || slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
@@ -4564,7 +4571,14 @@ handle_opnpct(
     const struct Mock230NpcInfo* info;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
-    slot = rsab_g2(&buf);
+    /*
+     * The client names the npc by what WE called it (Mock230PlayerSlotMap), so
+     * this is a translation and not a cast. Using the wire value as a pool
+     * index is how every npc became unclickable: the name resolved to a
+     * different npc, the walk went to that one's tile, and the player was told
+     * "I can't reach that" while standing on top of the one they clicked.
+     */
+    slot = mock230_slotmap_world(srv->active_player, rsab_g2(&buf));
     if( !rsab_ok(&buf) || slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
     if( !spell_tail(&buf, &spell) )
@@ -4725,7 +4739,14 @@ handle_opnpcu(
     const struct Mock230NpcInfo* info;
 
     rsab_wrap(&buf, (void*)payload, (size_t)len);
-    slot = rsab_g2(&buf);
+    /*
+     * The client names the npc by what WE called it (Mock230PlayerSlotMap), so
+     * this is a translation and not a cast. Using the wire value as a pool
+     * index is how every npc became unclickable: the name resolved to a
+     * different npc, the walk went to that one's tile, and the player was told
+     * "I can't reach that" while standing on top of the one they clicked.
+     */
+    slot = mock230_slotmap_world(srv->active_player, rsab_g2(&buf));
     if( !rsab_ok(&buf) || slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
     if( !useon_tail(srv, &buf, 2, &use_obj, &use_slot) )
@@ -9874,6 +9895,28 @@ selftest_find_npc(
  * to — so the store never opened and three checks failed for a reason that had
  * nothing to do with the store.
  */
+/*
+ * The two bytes a client would send to name `world_slot`.
+ *
+ * A test is standing in for a client, so it has to name npcs the way a client
+ * does — by whatever the server last told it (struct Mock230PlayerSlotMap), not
+ * by the world's own pool index. Building the payload out of the world slot
+ * worked for as long as the two numbers were the same number, which is to say
+ * until they were not.
+ */
+static void
+selftest_npc_payload(
+    struct Mock230Player* player,
+    int world_slot,
+    uint8_t* out)
+{
+    int name = mock230_slotmap_acquire(player, world_slot);
+
+    out[0] = (uint8_t)((name >> 8) & 0xff);
+    out[1] = (uint8_t)(name & 0xff);
+}
+
+
 static int
 selftest_require_npc(
     struct Mock230Server* srv,
@@ -11174,8 +11217,7 @@ mock230_world_selftest(void)
 
                 if( npc_slot >= 0 )
                 {
-                    opnpc[0] = (uint8_t)(npc_slot >> 8);
-                    opnpc[1] = (uint8_t)npc_slot;
+                    selftest_npc_payload(player, npc_slot, opnpc);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc,
                                          sizeof(opnpc));
                     SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE &&
@@ -11692,8 +11734,7 @@ mock230_world_selftest(void)
             hans = selftest_find_npc(&srv, 3105);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
             before = player->varps[SELFTEST_VARP_GREETING_COUNT];
-            payload[0] = (uint8_t)(hans >> 8);
-            payload[1] = (uint8_t)(hans & 0xff);
+            selftest_npc_payload(player, hans, payload);
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
             /* The click starts a walk; the script runs when the player gets
@@ -11757,8 +11798,7 @@ mock230_world_selftest(void)
             hans = selftest_find_npc(&srv, 3105);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
 
-            payload[0] = (uint8_t)(hans >> 8);
-            payload[1] = (uint8_t)(hans & 0xff);
+            selftest_npc_payload(player, hans, payload);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
             SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to Hans should complete");
 
@@ -11945,7 +11985,8 @@ mock230_world_selftest(void)
             static const int k_dialogue[] = { 95, 97, 94, 6 };
             int hans = selftest_find_npc(&srv, 3105);
             int continue_uid = (231 << 16) | 5;
-            uint8_t payload[2] = { (uint8_t)(hans >> 8), (uint8_t)(hans & 0xff) };
+            uint8_t payload[2];
+            selftest_npc_payload(player, hans, payload);
             uint8_t resume[4];
 
             mock230_capture_begin(&srv, &capture);
@@ -12074,7 +12115,8 @@ mock230_world_selftest(void)
              */
             {
                 int hans_slot = selftest_find_npc(&srv, 3105);
-                uint8_t opnpc[2] = { (uint8_t)(hans_slot >> 8), (uint8_t)(hans_slot & 0xff) };
+                uint8_t opnpc[2];
+                selftest_npc_payload(player, hans_slot, opnpc);
                 int rows_uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "chatmenu:options");
                 uint8_t button[6];
 
@@ -14084,8 +14126,7 @@ mock230_world_selftest(void)
                     int open_a;
                     int open_b;
 
-                    payload[0] = (uint8_t)(slot_npc >> 8);
-                    payload[1] = (uint8_t)(slot_npc & 0xff);
+                    selftest_npc_payload(player, slot_npc, payload);
                     mock230_capture_begin(&srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC3, payload, 2);
                     SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
@@ -14681,8 +14722,7 @@ mock230_world_selftest(void)
                     int varp_at = -1;
 
                     mock230_varbit_set(&srv, vb_master, 0);
-                    payload[0] = (uint8_t)(slot_npc >> 8);
-                    payload[1] = (uint8_t)(slot_npc & 0xff);
+                    selftest_npc_payload(player, slot_npc, payload);
                     mock230_capture_begin(&srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC5, payload, 2);
                     SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
@@ -15288,8 +15328,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(thieving == 17, "thieving should be stat 17, got %d", thieving);
                 if( guard >= 0 && thieving >= 0 )
                 {
-                    npc_payload[0] = (uint8_t)(guard >> 8);
-                    npc_payload[1] = (uint8_t)(guard & 0xff);
+                    selftest_npc_payload(player, guard, npc_payload);
                     player->stat_level[thieving] = 1;
                     player->stat_boosted[thieving] = 1;
                     player->active_script = NULL;
@@ -16848,8 +16887,7 @@ mock230_world_selftest(void)
                            "wielding the bow should select the ranged style, got %d",
                            player->varps[mock230_world_varp("damagetype")]);
 
-            payload[0] = (uint8_t)(goblin >> 8);
-            payload[1] = (uint8_t)(goblin & 0xff);
+            selftest_npc_payload(player, goblin, payload);
 
             srv.wire = wire239;
             mock230_capture_begin(&srv, &capture);
@@ -23071,6 +23109,103 @@ mock230_world_selftest(void)
         mock230_world_tick(&srv);
     }
 
+    fprintf(stderr, "mock230 selftest: clicking an npc lands on the npc that was clicked\n");
+    {
+        /*
+         * The round trip, end to end: what the server SENT as an npc's name is
+         * what the client sends BACK, and it has to resolve to that same npc
+         * and walk the player to it.
+         *
+         * Nothing tested this. NPC_INFO was changed to name npcs per client
+         * (struct Mock230PlayerSlotMap) and `handle_opnpc` went on indexing the
+         * npc pool with the wire value, so a name of 3 resolved to world slot 3
+         * — a different npc, usually far away. Every click walked somewhere
+         * else and answered "I can't reach that" while the player stood on top
+         * of what they had clicked. Every existing opnpc test passed throughout,
+         * because they all built their payload out of the world slot.
+         */
+        /*
+         * Far from the home tile on purpose. `[proc,selftest_npc_find]` asserts
+         * that a radius-3 search around 3222,3218 finds NO goblin — that is its
+         * negative case — so a fixture goblin three tiles from home silently
+         * turns that assertion into a failure about the wrong thing.
+         */
+        int subject = selftest_require_npc(&srv, 3028, 3262, 3262, 0);
+
+        SELFTEST_CHECK(subject >= 0, "the fixture npc should exist");
+        if( subject >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[subject];
+            int name;
+            uint8_t payload[2];
+
+            selftest_park_player(&srv, npc->x + 3, npc->z + 3);
+            player->tracked_count = 0;
+            memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+            mock230_slotmap_reset(player);
+            mock230_zone_sync_npcs(&srv);
+            mock230_playerzonemap_move(player);
+            mock230_send_npc_info(player);
+
+            /* Read the name out of the map the ENCODER filled, not by asking
+             * for one — the question is what went on the wire. */
+            name = player->npc_slots.client_of[subject];
+            SELFTEST_CHECK(name >= 0, "the encoder should have named the npc it sent");
+
+            payload[0] = (uint8_t)((name >> 8) & 0xff);
+            payload[1] = (uint8_t)(name & 0xff);
+            mock230_world_clear_pending_action(&srv);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
+
+            SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC &&
+                               player->interaction.npc_slot == subject,
+                           "clicking that name should target world npc %d, got kind %d slot %d",
+                           subject, player->interaction.kind, player->interaction.npc_slot);
+
+            /* And the walk actually goes there. "The player does not path
+             * toward the npc" is the same bug seen from the other end. */
+            selftest_settle(&srv, 40);
+            {
+                int dx = player->x - npc->x;
+                int dz = player->z - npc->z;
+
+                if( dx < 0 )
+                    dx = -dx;
+                if( dz < 0 )
+                    dz = -dz;
+                SELFTEST_CHECK(dx <= 1 && dz <= 1,
+                               "and walk the player to it, ended %d,%d from %d,%d", dx, dz,
+                               npc->x, npc->z);
+            }
+
+            /*
+             * And the two spaces really are distinct — otherwise the check
+             * above passes on a server that never translates at all.
+             */
+            if( name != subject )
+            {
+                mock230_world_clear_pending_action(&srv);
+                player->interaction.kind = MOCK230_INTERACT_NONE;
+                payload[0] = (uint8_t)((subject >> 8) & 0xff);
+                payload[1] = (uint8_t)(subject & 0xff);
+                mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
+                SELFTEST_CHECK(player->interaction.npc_slot != subject ||
+                               player->interaction.kind != MOCK230_INTERACT_NPC,
+                               "and the WORLD slot should not address it — if it does, "
+                               "nothing is being translated");
+            }
+
+            /* Put the world back where the suites below expect it: this block
+             * walked the player across the map and left an interaction open. */
+            mock230_world_clear_pending_action(&srv);
+            player->interaction.kind = MOCK230_INTERACT_NONE;
+            srv.npcs[subject].active = 0;
+            mock230_zone_npc_refile(&srv, subject);
+            selftest_park_player(&srv, g_home_x, g_home_z);
+            mock230_playerzonemap_move(player);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: npc queues and timers\n");
     {
         int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
@@ -23894,7 +24029,9 @@ mock230_world_selftest(void)
                     selftest_park_player(&srv, hnpc->x + 1, hnpc->z);
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     rsab_wrap(&out, payload, sizeof(payload));
-                    rsab_p2(&out, hans);
+                    /* The client's name for him, same as every other packet
+                     * that points at an npc. */
+                    rsab_p2(&out, mock230_slotmap_acquire(player, hans));
                     rsab_p2(&out, bucket);
                     rsab_p2(&out, SLOT_BUCKET);
                     rsab_p2(&out, 0);
@@ -24035,7 +24172,7 @@ mock230_world_selftest(void)
                             selftest_park_player(&srv, hnpc->x + 1, hnpc->z);
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                             rsab_wrap(&out, payload, sizeof(payload));
-                            rsab_p2(&out, hans);
+                            rsab_p2(&out, mock230_slotmap_acquire(player, hans));
                             rsab_p4(&out, spell);
                             mock230_world_handle(player, PKTOUT_NAME_OPNPCT, payload,
                                                  (int)rsab_len(&out));
@@ -24924,7 +25061,8 @@ mock230_world_selftest(void)
 
             if( cook_slot >= 0 && cookquest > 0 )
             {
-                uint8_t payload[2] = { (uint8_t)(cook_slot >> 8), (uint8_t)(cook_slot & 0xff) };
+                uint8_t payload[2];
+                selftest_npc_payload(player, cook_slot, payload);
                 int cooking = mock230_content_symbol(MOCK230_PACK_STAT, "cooking");
                 int cooking_xp_before;
                 int saved_x;

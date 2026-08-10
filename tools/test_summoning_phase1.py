@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
@@ -46,6 +47,44 @@ def main() -> int:
         return 1
 
     args.out.mkdir(parents=True, exist_ok=True)
+
+    content_lane = (
+        REPO_ROOT
+        / "OSRS-Content/osrs239-content/ported/scape2009_summoning"
+    )
+    stats_source = (content_lane / "interfaces/stats.if").read_text(encoding="utf-8")
+    icon_path = (
+        REPO_ROOT
+        / "OSRS-Content/osrs239-content/sprites/ported/scape2009_summoning"
+        / "summoning_staticon/0.bmp"
+    )
+    icon_meta = icon_path.with_name("pack.meta").read_text(encoding="utf-8")
+    expect(
+        "[sailing]\nif3=yes\ntype=0\nx=1\ny=209" in stats_source,
+        "source: Sailing is not the left cell of the final row",
+    )
+    expect(
+        "[total]\nif3=yes\ntype=0\nx=64\ny=209\nwidth=126\nheight=26"
+        in stats_source,
+        "source: Total level does not share the final row with Sailing",
+    )
+    expect(
+        "[summoning_stats_cell]\nif3=yes\ntype=0\nx=127\ny=183" in stats_source,
+        "source: Summoning is not contiguous with Construction and Hunter",
+    )
+    expect(
+        "onload=i:1198,i:-2147483645,i:20971553,i:25,i:2" in stats_source,
+        "source: Summoning does not use the rev-530 wolf-head x nudge",
+    )
+    expect(
+        "sprite0=25,25,22,23,0,2" in icon_meta,
+        "source: Summoning icon canvas metadata is not the rev-530 sprite",
+    )
+    expect(
+        hashlib.sha256(icon_path.read_bytes()).hexdigest()
+        == "89726834d13ce73b8fff38eb34567ed2e52c7757b2d8405577e801979e4178cd",
+        "source: Summoning icon pixels are not rev-530 sprite pack 222",
+    )
 
     def run(name: str, cache: Path, saves: Path, cheat: str | None = None) -> str:
         bmp = args.out / f"{name}.bmp"
@@ -104,6 +143,15 @@ def main() -> int:
         flagoff = run("flag_off", args.flag_off, Path(tempfile.mkdtemp(dir=root)))
 
         expect("320<<16|34" in level1, "flag_on_level1: Summoning cell is absent")
+        expect(
+            "dynamic graphic=229 abs=639,388 25x25 hidden=0" in level1,
+            "flag_on_level1: wolf-head sprite is not rendered in the right-hand row-8 cell",
+        )
+        expect(
+            "static font=494 color=0xffff00 text=\"Total level: 34\" abs=573,416 126x25"
+            in level1,
+            "flag_on_level1: Total level does not render beside Sailing",
+        )
         expect('text="Total level: 34"' in level1, "flag_on_level1: total is not 34")
         expect(
             "cheat 'setlevel summoning 20' -> debugproc not found" in level20

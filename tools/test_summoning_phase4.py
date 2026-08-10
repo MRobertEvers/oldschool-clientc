@@ -66,7 +66,7 @@ def main() -> int:
                 # Select Stats, open child 34's real context menu, then select
                 # its View Summoning guide row. This exercises the same menu and
                 # packet path a player uses rather than dispatching a hook.
-                "TORIRS_SIM_CLICK_AT": "150,536,186;230,620,430,1;260,620,445",
+                "TORIRS_SIM_CLICK_AT": "150,536,186;230,650,400,1;260,650,415",
                 "TORIRS_OBJICON_DEBUG": "1",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
@@ -100,8 +100,8 @@ def main() -> int:
         "client was built without the embedded mock server",
     )
     expect("released 536,186" in result.stdout, "Stats tab click did not execute")
-    expect("move 620,430 right=1" in result.stdout, "Summoning menu did not open")
-    expect("released 620,445" in result.stdout, "Summoning guide menu row was not selected")
+    expect("move 650,400 right=1" in result.stdout, "Summoning menu did not open")
+    expect("released 650,415" in result.stdout, "Summoning guide menu row was not selected")
     expect(
         "clickdbg: send op2 target=0x1400022 sub=-1 state=2" in result.stdout,
         "Summoning cell did not send IF_BUTTON2",

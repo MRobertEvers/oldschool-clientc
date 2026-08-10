@@ -636,6 +636,56 @@ pack_kind_name(enum Mock230PackKind kind)
     return k_names[kind];
 }
 
+/*
+ * Imported client lanes own minted ids outside the rank-0 cache's member
+ * compacks.  The ServerScript compiler layers each lane's pack directory over
+ * the ordinary symbols; the runtime must resolve server overlay headers through
+ * the same view (`[rs2012_tormented_demon_melee]`, for example), or the script
+ * compiles while its npc definition silently fails to load.
+ *
+ * Keep this generic over marked directories below `ported/`: Summoning and the
+ * RS2012 QBD/TD lane use the same `.alloc` contract, and future lanes should not
+ * require another hard-coded root in C.  `validate_symbols` below still rejects
+ * either a duplicate id with a different name or a duplicate name with a
+ * different id after all layers have been read.
+ */
+static int
+load_ported_pack_symbols(const char* dir)
+{
+    DIR* handle;
+    struct dirent* entry;
+    char ported[1024];
+    char lane[1024];
+    char path[1280];
+    int loaded = 0;
+
+    snprintf(ported, sizeof(ported), "%s/ported", dir);
+    handle = opendir(ported);
+    if( !handle )
+        return 0;
+    while( (entry = readdir(handle)) != NULL )
+    {
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(lane, sizeof(lane), "%s/%s", ported, entry->d_name);
+        if( !mock230_path_is_dir(lane) )
+            continue;
+        for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+        {
+            const char* name = pack_kind_name((enum Mock230PackKind)kind);
+
+            if( kind == MOCK230_PACK_COMPONENT )
+                continue; /* composed from lane interface compacks below */
+            snprintf(path, sizeof(path), "%s/pack/%s.pack", lane, name);
+            loaded += pack_load(&g_packs[kind], path);
+            snprintf(path, sizeof(path), "%s/pack/%s.alloc", lane, name);
+            loaded += pack_load(&g_packs[kind], path);
+        }
+    }
+    closedir(handle);
+    return loaded;
+}
+
 /**
  * 1 when this kind's records are files of a config archive, so its index is a
  * `.compack` beside `configs/all.<type>` rather than a pack in `pack/`.
@@ -3217,6 +3267,8 @@ mock230_content_load(const char* dir)
         snprintf(path, sizeof(path), "%s/pack/%s.alloc", dir, name);
         symbols += pack_load(&g_packs[kind], path);
     }
+    /* Same imported namespace layers passed to sscompile in the build. */
+    symbols += load_ported_pack_symbols(dir);
     /* After the loop: it needs the interface pack to already be loaded. */
     symbols += load_component_symbols_from_root(dir, 0);
     symbols += load_ported_component_symbols(dir);

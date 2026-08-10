@@ -11,6 +11,7 @@
  *   find_named --rev NAME <cache_dir> --npc ID
  *   find_named --rev NAME <cache_dir> --seq ID
  *   find_named --rev NAME <cache_dir> --spotanim ID
+ *   find_named --rev NAME <cache_dir> --model ID
  *   find_named --rev NAME <cache_dir> --scan-spotanim-model ID
  *
  * `--npc`, `--seq` and `--spotanim` dump one record in full. Sequences and
@@ -39,7 +40,9 @@ usage(const char* argv0)
         "  %s --rev NAME <cache_dir> --obj ID\n"
         "  %s --rev NAME <cache_dir> --seq ID\n"
         "  %s --rev NAME <cache_dir> --spotanim ID\n"
+        "  %s --rev NAME <cache_dir> --model ID\n"
         "  %s --rev NAME <cache_dir> --scan-spotanim-model ID\n",
+        argv0,
         argv0,
         argv0,
         argv0,
@@ -870,6 +873,32 @@ dump_model_stats(
         model->face_priorities ? "prios" : "-",
         model->face_alphas ? "alphas" : "-",
         model->face_textures ? "textures" : "-");
+    if( model->face_textures )
+    {
+        /* Material ids are signed u16 values on the decoded model (-1 means
+         * untextured). A sorted histogram makes the texture dependency closure
+         * auditable without turning a several-thousand-face model into a wall
+         * of repeated ids. */
+        int* material_faces = calloc(32768, sizeof(*material_faces));
+        int distinct = 0;
+        if( material_faces )
+        {
+            for( int i = 0; i < model->face_count; i++ )
+            {
+                int material = model->face_textures[i];
+                if( material < 0 || material >= 32768 )
+                    continue;
+                if( material_faces[material]++ == 0 )
+                    distinct++;
+            }
+            printf("  %-22s%d distinct:", "face texture ids", distinct);
+            for( int material = 0; material < 32768; material++ )
+                if( material_faces[material] )
+                    printf(" %d(x%d)", material, material_faces[material]);
+            printf("\n");
+            free(material_faces);
+        }
+    }
     for( int i = 0; i < model->face_count; i++ )
     {
         int info = model->face_infos ? model->face_infos[i] : 0;

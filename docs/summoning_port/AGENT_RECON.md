@@ -2384,6 +2384,11 @@ sprites/staticons2_13/pack.meta
 ```
 **FREE SLOTS ALREADY EXIST**: `staticons2_14..17` = sprite pack ids **229, 230, 231, 232**, each `count=1, palette=1, p0=0x000000, sprite0=25,25,0,0,0,0` and **no `0.bmp` at all** — 25×25 blanks the cache already reserves. A Summoning icon can drop into `sprites/staticons2_14/0.bmp` (id 229) with an updated `pack.meta` palette, or be given a brand-new id.
 
+**Implemented correction:** the source art is rev-530 sprite pack **222**, the wolf head visible at
+the right of the source stats row. It is exported byte-exactly with
+`sprite0=25,25,22,23,0,2` and remapped to the marked target name `summoning_staticon` at target
+id 229. The previous blue circular placeholder was not source art and has been removed.
+
 Adding a *new* sprite id (safer for a "ported content" folder): append `8535=summoning_icon` to `pack/8_sprites.pack`, create `sprites/summoning_icon/{0.bmp,pack.meta}`. Import walks the pack, not the directory (`cp_assets.c:1383-1387`) — *"a file whose name it does not list has no id to be written to"*. Current ceiling: max sprite id **8534**. `sprite_write`/`sprite_read` note (`cp_decode.c:2475-2497`): the palette is written and read back, never re-derived — a colour not in `pack.meta`'s palette snaps to the nearest entry and says so, so **a new icon needs its palette written into `pack.meta`**.
 
 ## 6. Precedent for modifying a cache clientscript
@@ -2408,7 +2413,7 @@ Adding a *new* sprite id (safer for a "ported content" folder): append `8535=sum
 | 3 | `configs/all.enum` :1027 `[enum_255]` | `val=24,<sprite id>` |
 | 4 | `configs/all.enum` :57474 `[enum_5917]` | `val=24,<silhouette id>` |
 | 5 | `configs/all.enum` :12767 `[enum_1497]` | `val=24,1` (members) |
-| 6 | `interfaces/stats.if` | new `[summoning]` block; resize `[universe]` (:5-12, 190×261) and move `[total]` (:374-382, y=241) |
+| 6 | `interfaces/stats.if` | `[summoning_stats_cell] x=127,y=183`; Sailing `x=1,y=209`; Total `x=64,y=209,width=126`; keep `[universe]` 190×261 |
 | 7 | `interfaces/stats.compack` | `34=summoning` |
 | 8 | `scripts/script_8950.cs2` | `case 24 : return(<flag>)` — the feature gate |
 | 9 | `scripts/script_9348.cs2` | `case 24 : return(%varbit…)` (unlock pulse; harmless if omitted, defaults 0) |

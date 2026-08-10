@@ -5338,6 +5338,11 @@ mock230_slotmap_acquire(
     struct Mock230Player* player,
     int world_slot);
 
+int
+mock230_slotmap_world(
+    const struct Mock230Player* player,
+    int client_slot);
+
 void
 mock230_slotmap_release(
     struct Mock230Player* player,

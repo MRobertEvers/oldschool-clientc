@@ -209,6 +209,43 @@ wield models. LostCity resolves `manwear`/`womanwear` by model *name*, so there
 is no naming convention to satisfy — whatever the model exporter called them is
 what the config references.
 
+## `map_port`
+
+Transcode whole late-RS2 map squares into an isolated modern-OldSchool source
+lane. This is not a raw archive copy: RS2 has separately named `mX_Z` terrain and
+XTEA-encrypted `lX_Z` scenery archives, one-byte floor opcodes, and source loc
+ids. OSRS 239 groups both streams under archive `(X << 8 | Z)`, uses two-byte
+floor opcodes, and needs the imported loc ids.
+
+Run the inventory pass first, append its unique `loc` rows to the asset import
+manifest, rerun that importer, then apply with the resulting ledger:
+
+```sh
+./map_port/map_port --rev rs727 --cache ../../cache.rs727_preeoc \
+  --squares 22_99,20_95,18_101,40_89 --inventory ../../build/maps.tsv
+
+./map_port/map_port --rev rs727 --cache ../../cache.rs727_preeoc \
+  --squares 22_99,20_95,18_101,40_89 --inventory ../../build/maps.tsv \
+  --ledger ../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.map \
+  --material-ledger ../../OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv \
+  --out ../../OSRS-Content/osrs239-content/ported/rs2012_qbd_td \
+  --base-tree ../../OSRS-Content/osrs239-content --apply
+```
+
+The output is `.jm2`/`.jl2`, `mX_Z.filepack`, map pack rows, and the exact set of
+referenced floor configs in isolated allocation bands. It intentionally does not
+replace `content/maps`: staging chooses when the historical identity squares
+overlay modern squares. `--base-tree` carries forward filepack members 2 and up
+from modern squares, so replacing terrain/loc does not discard OSRS auxiliary
+map payloads.
+
+RS2 floor materials have fields OSRS floor configs cannot spell. In particular,
+RS2 underlays can name a textured material and RS2 overlay texture ids are u16,
+while OSRS has no underlay texture operand and its overlay operand is u8. The tool
+keeps every representable colour/blend/hide field and records the original
+texture, scale and water fields in the inventory instead of silently pretending
+they crossed that format boundary.
+
 ### Rigged models need their labels remapped
 
 A rigged model does not name the joints it bends at. Each vertex carries a

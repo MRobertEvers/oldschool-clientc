@@ -20,6 +20,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -247,12 +248,151 @@ static void manifest_free(struct Import_Manifest* m)
     free(m->spotanims.v); free(m->locs.v);
 }
 
-static int map_allocate(struct Tool_IdMap* map, const struct Import_Ints* ids, int base)
+static void manifest_ledger_path(
+    const struct Import_Manifest* m,
+    char* path,
+    size_t path_size)
 {
-    tool_id_map_init(map);
+    if( !m->ledger[0] ) path[0] = '\0';
+    else if( m->ledger[0] == '/' ) snprintf(path, path_size, "%s", m->ledger);
+    else snprintf(path, path_size, "%s/%s", m->to_tree, m->ledger);
+}
+
+static int ints_contains(const struct Import_Ints* ids, int id)
+{
     for( int i = 0; i < ids->n; i++ )
-        if( !tool_id_map_put(map, ids->v[i], base + i) ) return 0;
-    return 1;
+        if( ids->v[i] == id ) return 1;
+    return 0;
+}
+
+/*
+ * Existing ledger allocations are public IDs: dependency discovery order may
+ * change when a manifest grows, but an already-published source ID must never
+ * move. Reserve every destination recorded for this kind (including records
+ * no longer in the current closure), reuse mappings for current records, then
+ * fill the first genuinely free IDs at or above the configured base.
+ */
+static int map_allocate(
+    struct Tool_IdMap* map,
+    const struct Import_Ints* ids,
+    int base,
+    const struct Import_Manifest* m,
+    const char* kind)
+{
+    struct Tool_IdMap prior, destinations;
+    struct Import_Ints reserved = {0};
+    char path[1400];
+    int ok = 1;
+
+    tool_id_map_init(map);
+    tool_id_map_init(&prior);
+    tool_id_map_init(&destinations);
+    manifest_ledger_path(m, path, sizeof(path));
+    if( path[0] )
+    {
+        FILE* ledger = fopen(path, "rb");
+        if( ledger )
+        {
+            char line[4096];
+            while( ok && fgets(line, sizeof(line), ledger) )
+            {
+                char row_kind[64], source_name[256], dest_text[64];
+                int source_id = -1;
+                int fields = sscanf(
+                    line,
+                    "%63[^\t]\t%d\t%255[^\t]\t%63[^\t]",
+                    row_kind,
+                    &source_id,
+                    source_name,
+                    dest_text);
+                if( fields != 4 || strcmp(row_kind, kind) != 0 ||
+                    strcmp(dest_text, "-") == 0 )
+                    continue;
+
+                char* end = NULL;
+                errno = 0;
+                long parsed = strtol(dest_text, &end, 10);
+                if( errno || !end || *end || parsed < 0 || parsed > INT_MAX )
+                {
+                    fprintf(
+                        stderr,
+                        "cachepack import: malformed ledger destination for %s %d: %s\n",
+                        kind,
+                        source_id,
+                        dest_text);
+                    ok = 0;
+                    break;
+                }
+                int dest_id = (int)parsed;
+                int existing = -1;
+                if( tool_id_map_lookup(&prior, source_id, &existing) )
+                {
+                    if( existing != dest_id )
+                    {
+                        fprintf(
+                            stderr,
+                            "cachepack import: duplicate ledger source for %s %d: %d and %d\n",
+                            kind,
+                            source_id,
+                            existing,
+                            dest_id);
+                        ok = 0;
+                    }
+                    continue;
+                }
+                if( tool_id_map_lookup(&destinations, dest_id, &existing) )
+                {
+                    fprintf(
+                        stderr,
+                        "cachepack import: duplicate ledger destination for %s %d: sources %d and %d\n",
+                        kind,
+                        dest_id,
+                        existing,
+                        source_id);
+                    ok = 0;
+                    break;
+                }
+                ok = tool_id_map_put(&prior, source_id, dest_id) &&
+                     tool_id_map_put(&destinations, dest_id, source_id) &&
+                     ints_add(&reserved, dest_id);
+            }
+            if( ferror(ledger) ) ok = 0;
+            fclose(ledger);
+        }
+        else if( errno != ENOENT )
+        {
+            fprintf(stderr, "cachepack import: cannot read ledger %s: %s\n", path, strerror(errno));
+            ok = 0;
+        }
+    }
+
+    for( int i = 0; ok && i < ids->n; i++ )
+    {
+        int dest_id = -1;
+        if( tool_id_map_lookup(&prior, ids->v[i], &dest_id) )
+            ok = tool_id_map_put(map, ids->v[i], dest_id);
+    }
+    int next = base;
+    for( int i = 0; ok && i < ids->n; i++ )
+    {
+        int ignored = -1;
+        if( tool_id_map_lookup(map, ids->v[i], &ignored) ) continue;
+        while( next < INT_MAX && ints_contains(&reserved, next) ) next++;
+        if( next == INT_MAX && ints_contains(&reserved, next) )
+        {
+            fprintf(stderr, "cachepack import: exhausted destination IDs for %s\n", kind);
+            ok = 0;
+            break;
+        }
+        ok = tool_id_map_put(map, ids->v[i], next) && ints_add(&reserved, next);
+        if( next < INT_MAX ) next++;
+    }
+
+    tool_id_map_free(&prior);
+    tool_id_map_free(&destinations);
+    free(reserved.v);
+    if( !ok ) tool_id_map_free(map);
+    return ok;
 }
 
 static int map_id(const struct Tool_IdMap* map, int source)
@@ -260,6 +400,26 @@ static int map_id(const struct Tool_IdMap* map, int source)
     int dest = source;
     tool_id_map_lookup(map, source, &dest);
     return dest;
+}
+
+static int map_required(const struct Tool_IdMap* map, const char* kind, int source, int* out);
+
+static int map_has_unique_destinations(const struct Tool_IdMap* map, const char* kind)
+{
+    for( int i = 0; i < map->count; i++ )
+        for( int k = i + 1; k < map->count; k++ )
+            if( map->entries[i].dest_id == map->entries[k].dest_id )
+            {
+                fprintf(
+                    stderr,
+                    "cachepack import: %s sources %d and %d both allocate destination %d\n",
+                    kind,
+                    map->entries[i].source_id,
+                    map->entries[k].source_id,
+                    map->entries[i].dest_id);
+                return 0;
+            }
+    return 1;
 }
 
 static int record_load(struct Tool_Dat2Cache* cache, enum RSCache_Type type, int id,
@@ -437,6 +597,10 @@ static int save_ledger(const struct Import_Manifest* m,
                        const struct Import_Ints* frames,
                        const struct Import_Ints* framemaps,
                        const struct Import_Ints* synths,
+                       const struct Tool_IdMap* npc_map,
+                       const struct Tool_IdMap* obj_map,
+                       const struct Tool_IdMap* loc_map,
+                       const struct Tool_IdMap* spot_map,
                        const struct Tool_IdMap* model_map,
                        const struct Tool_IdMap* seq_map,
                        const struct Tool_IdMap* frame_map,
@@ -445,32 +609,32 @@ static int save_ledger(const struct Import_Manifest* m,
 {
     if( !m->ledger[0] ) return 1;
     char path[1400];
-    if( m->ledger[0] == '/' ) snprintf(path, sizeof(path), "%s", m->ledger);
-    else snprintf(path, sizeof(path), "%s/%s", m->to_tree, m->ledger);
+    manifest_ledger_path(m, path, sizeof(path));
     int ok = 1;
     for( int i = 0; ok && i < m->npcs.n; i++ )
     {
         char dest[128]; canonical_name(m, dest, sizeof(dest), m->npcs.v[i].name);
         ok = ledger_set(path, "npc", m->npcs.v[i].source_id, m->npcs.v[i].name,
-                        m->npc_base + i, dest);
+                        map_id(npc_map, m->npcs.v[i].source_id), dest);
     }
     for( int i = 0; ok && i < m->objs.n; i++ )
     {
         char dest[128]; canonical_name(m, dest, sizeof(dest), m->objs.v[i].name);
         ok = ledger_set(path, "obj", m->objs.v[i].source_id, m->objs.v[i].name,
-                        m->obj_base + i, dest);
+                        map_id(obj_map, m->objs.v[i].source_id), dest);
     }
     for( int i = 0; ok && i < m->locs.n; i++ )
     {
         char dest[128]; canonical_name(m, dest, sizeof(dest), m->locs.v[i].name);
         ok = ledger_set(path, "loc", m->locs.v[i].source_id, m->locs.v[i].name,
-                        m->loc_base + i, dest);
+                        map_id(loc_map, m->locs.v[i].source_id), dest);
     }
     for( int i = 0; ok && i < m->spotanims.n; i++ )
     {
         char dest[128]; canonical_name(m, dest, sizeof(dest), m->spotanims.v[i].name);
         ok = ledger_set(path, "spotanim", m->spotanims.v[i].source_id,
-                        m->spotanims.v[i].name, m->spotanim_base + i, dest);
+                        m->spotanims.v[i].name,
+                        map_id(spot_map, m->spotanims.v[i].source_id), dest);
     }
 #define LEDGER_CLOSURE(kind, list, map, stem) \
     for( int i = 0; ok && i < (list)->n; i++ ) { \
@@ -530,6 +694,69 @@ loc_load(struct Tool_Dat2Cache* src, int id)
         return NULL;
     }
     return loc;
+}
+
+/* Pre-210 NPC opcode 102 stores only a prayer-headicon sprite index; its
+ * archive is implicit. Modern OSRS stores an explicit archive/index pair.
+ * Resolve that one well-known semantic dependency through the destination
+ * sprite pack instead of dropping the icon or leaking a source-cache id. */
+static int npc_copy_head_icons(
+    const struct RSCache_Dat2ConfigNpc* source,
+    struct RSCache_Dat2ConfigNpc* dest,
+    const struct RSCache* to,
+    int prayer_archive,
+    int source_id)
+{
+    if( source->head_icon_count <= 0 ) return 1;
+    if( !source->head_icon_archive_ids || !source->head_icon_sprite_index )
+    {
+        fprintf(stderr, "cachepack import: npc %d has malformed head icons\n", source_id);
+        return 0;
+    }
+    dest->head_icon_archive_ids =
+        malloc((size_t)source->head_icon_count * sizeof(*dest->head_icon_archive_ids));
+    dest->head_icon_sprite_index =
+        malloc((size_t)source->head_icon_count * sizeof(*dest->head_icon_sprite_index));
+    if( !dest->head_icon_archive_ids || !dest->head_icon_sprite_index )
+    {
+        free(dest->head_icon_archive_ids);
+        free(dest->head_icon_sprite_index);
+        dest->head_icon_archive_ids = NULL;
+        dest->head_icon_sprite_index = NULL;
+        return 0;
+    }
+    dest->head_icon_count = source->head_icon_count;
+    int modern =
+        (RSCache_Dat2ConfigNpcFlags(to) & RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS) != 0;
+    for( int i = 0; i < source->head_icon_count; i++ )
+    {
+        int archive = source->head_icon_archive_ids[i];
+        if( archive < 0 && modern )
+        {
+            if( prayer_archive < 0 )
+            {
+                fprintf(
+                    stderr,
+                    "cachepack import: npc %d needs destination sprite headicons_prayer\n",
+                    source_id);
+                return 0;
+            }
+            archive = prayer_archive;
+        }
+        else if( archive >= 0 && modern )
+        {
+            fprintf(
+                stderr,
+                "cachepack import: npc %d references explicit source head-icon archive %d; "
+                "sprite remapping is required\n",
+                source_id,
+                archive);
+            return 0;
+        }
+        dest->head_icon_archive_ids[i] = archive;
+        dest->head_icon_sprite_index[i] = source->head_icon_sprite_index[i];
+    }
+    return 1;
 }
 
 static int map_required(const struct Tool_IdMap* map, const char* kind, int source, int* out)
@@ -785,8 +1012,10 @@ static int import_run(struct Import_Manifest* m, int apply)
     if( !tool_dat2_open(m->from_cache, &from, &src) ) return 0;
 
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
-    struct Import_Ints synths = {0}, obj_ids = {0}, loc_ids = {0}, spot_ids = {0};
+    struct Import_Ints synths = {0}, npc_ids = {0}, obj_ids = {0}, loc_ids = {0};
+    struct Import_Ints spot_ids = {0};
     for( int i = 0; i < m->seqs.n; i++ ) ints_add(&seqs, m->seqs.v[i].source_id);
+    for( int i = 0; i < m->npcs.n; i++ ) ints_add(&npc_ids, m->npcs.v[i].source_id);
     for( int i = 0; i < m->objs.n; i++ ) ints_add(&obj_ids, m->objs.v[i].source_id);
     for( int i = 0; i < m->spotanims.n; i++ ) ints_add(&spot_ids, m->spotanims.v[i].source_id);
 
@@ -912,19 +1141,34 @@ static int import_run(struct Import_Manifest* m, int apply)
         RSCache_FileListFree(files); RSCache_Dat2DiskArchiveFree(ar);
     }
 
+    struct Tool_IdMap npc_map = {0}, obj_map = {0}, loc_map = {0}, spot_map = {0};
     struct Tool_IdMap model_map = {0}, seq_map = {0}, frame_map = {0}, fm_map = {0};
-    struct Tool_IdMap synth_map = {0}, obj_map = {0}, loc_map = {0};
-    ok = ok && map_allocate(&model_map, &models, m->model_base) &&
-         map_allocate(&seq_map, &seqs, m->seq_base) &&
-         map_allocate(&frame_map, &frames, m->animset_base) &&
-         map_allocate(&fm_map, &framemaps, m->framemap_base) &&
-         map_allocate(&synth_map, &synths, m->synth_base) &&
-         map_allocate(&obj_map, &obj_ids, m->obj_base) &&
-         map_allocate(&loc_map, &loc_ids, m->loc_base);
+    struct Tool_IdMap synth_map = {0};
+    ok = ok && map_allocate(&npc_map, &npc_ids, m->npc_base, m, "npc") &&
+         map_allocate(&obj_map, &obj_ids, m->obj_base, m, "obj") &&
+         map_allocate(&loc_map, &loc_ids, m->loc_base, m, "loc") &&
+         map_allocate(&spot_map, &spot_ids, m->spotanim_base, m, "spotanim") &&
+         map_allocate(&model_map, &models, m->model_base, m, "model") &&
+         map_allocate(&seq_map, &seqs, m->seq_base, m, "seq") &&
+         map_allocate(&frame_map, &frames, m->animset_base, m, "frame_archive") &&
+         map_allocate(&fm_map, &framemaps, m->framemap_base, m, "framemap") &&
+         map_allocate(&synth_map, &synths, m->synth_base, m, "synth") &&
+         map_has_unique_destinations(&npc_map, "npc") &&
+         map_has_unique_destinations(&obj_map, "obj") &&
+         map_has_unique_destinations(&loc_map, "loc") &&
+         map_has_unique_destinations(&spot_map, "spotanim") &&
+         map_has_unique_destinations(&model_map, "model") &&
+         map_has_unique_destinations(&seq_map, "seq") &&
+         map_has_unique_destinations(&frame_map, "frame_archive") &&
+         map_has_unique_destinations(&fm_map, "framemap") &&
+         map_has_unique_destinations(&synth_map, "synth");
 
     struct CP_Ctx emit; memset(&emit, 0, sizeof(emit)); emit.profile = to; emit.warn_limit = 20;
     snprintf(emit.srcdir, sizeof(emit.srcdir), "%s", m->to_tree);
     if( ok && !cp_names_load(&emit.names, m->to_tree) ) ok = 0;
+    int prayer_headicon_archive = ok
+        ? lc_pack_find(&emit.names.asset_packs[CP_ASSET_SPRITE], "headicons_prayer")
+        : -1;
 
     struct LC_Pack model_pack = {0}, frame_pack = {0}, fm_pack = {0}, synth_pack = {0};
     snprintf(model_pack.type, sizeof(model_pack.type), "7_models");
@@ -956,15 +1200,16 @@ static int import_run(struct Import_Manifest* m, int apply)
         char name[320]; snprintf(name, sizeof(name), "%s/%s_synth_%d", m->lane, m->prefix, synths.v[i]);
         ok = lc_pack_set(&synth_pack, map_id(&synth_map, synths.v[i]), name);
     }
-#define REGISTER_EXPORTS(field, cpkind, base) \
+#define REGISTER_EXPORTS(field, cpkind, map) \
     for( int i = 0; ok && i < m->field.n; i++ ) { \
         char name[128]; canonical_name(m, name, sizeof(name), m->field.v[i].name); \
-        ok = lc_pack_set(&emit.names.alloc[cpkind], m->base + i, name); \
+        ok = lc_pack_set(&emit.names.alloc[cpkind], \
+                         map_id(map, m->field.v[i].source_id), name); \
     }
-    REGISTER_EXPORTS(npcs, CP_TYPE_NPC, npc_base);
-    REGISTER_EXPORTS(objs, CP_TYPE_OBJ, obj_base);
-    REGISTER_EXPORTS(locs, CP_TYPE_LOC, loc_base);
-    REGISTER_EXPORTS(spotanims, CP_TYPE_SPOTANIM, spotanim_base);
+    REGISTER_EXPORTS(npcs, CP_TYPE_NPC, &npc_map);
+    REGISTER_EXPORTS(objs, CP_TYPE_OBJ, &obj_map);
+    REGISTER_EXPORTS(locs, CP_TYPE_LOC, &loc_map);
+    REGISTER_EXPORTS(spotanims, CP_TYPE_SPOTANIM, &spot_map);
 #undef REGISTER_EXPORTS
 
     printf("cachepack import (%s): npc=%d obj=%d loc=%d spotanim=%d model=%d seq=%d "
@@ -1051,9 +1296,17 @@ static int import_run(struct Import_Manifest* m, int apply)
                 neutral[i].chathead_models[k] = map_id(&model_map, neutral[i].chathead_models[k]);
             for( int k = 0; k < TOOL_ANIM_SLOT_COUNT; k++ )
                 if( neutral[i].anim_present[k] ) neutral[i].anim[k] = map_id(&seq_map, neutral[i].anim[k]);
-            neutral[i].source_id = m->npc_base + i;
+            int dest_id = map_id(&npc_map, m->npcs.v[i].source_id);
+            neutral[i].source_id = dest_id;
             struct RSCache_Dat2ConfigNpc* npc =
                 tool_neutral_npc_to_dat2(&neutral[i], &to, 0, -1, NULL, NULL);
+            if( npc )
+                ok = npc_copy_head_icons(
+                    source_npcs[i],
+                    npc,
+                    &to,
+                    prayer_headicon_archive,
+                    m->npcs.v[i].source_id);
             if( npc && !m->legacy_scape2009 )
             {
                 int* dst[] = { &npc->sound_idle, &npc->sound_crawl, &npc->sound_walk, &npc->sound_run };
@@ -1076,7 +1329,7 @@ static int import_run(struct Import_Manifest* m, int apply)
             uint8_t* bytes = bound ? malloc(bound) : NULL;
             uint32_t n = bytes ? RSCache_Dat2ConfigNpcEncodeProfile(&to, npc, bytes, bound) : 0;
             char name[128]; canonical_name(m, name, sizeof(name), m->npcs.v[i].name);
-            ok = ok && n && emit_config(&emit, CP_TYPE_NPC, m->npc_base + i,
+            ok = ok && n && emit_config(&emit, CP_TYPE_NPC, dest_id,
                                          name, bytes, (int)n, npcout);
             free(bytes); RSCache_Dat2ConfigNpcFree(npc);
         }
@@ -1086,6 +1339,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         FILE* objout = fopen(path, "wb");
         for( int i = 0; ok && objout && i < m->objs.n; i++ )
         {
+            int dest_id = map_id(&obj_map, m->objs.v[i].source_id);
 #define REMAP_OBJ_MODEL(field) if( objects[i]->field > 0 ) objects[i]->field = map_id(&model_map, objects[i]->field)
             REMAP_OBJ_MODEL(inventory_model_id); REMAP_OBJ_MODEL(male_model_0);
             REMAP_OBJ_MODEL(male_model_1); REMAP_OBJ_MODEL(male_model_2);
@@ -1110,12 +1364,12 @@ static int import_run(struct Import_Manifest* m, int apply)
                     tool_id_map_lookup(&obj_map, objects[i]->count_obj[r], &mapped) )
                     objects[i]->count_obj[r] = mapped;
             }
-            objects[i]->_id = m->obj_base + i;
+            objects[i]->_id = dest_id;
             uint32_t bound = RSCache_Dat2ConfigObjEncodeBound(objects[i]);
             uint8_t* bytes = malloc(bound);
             uint32_t n = bytes ? RSCache_Dat2ConfigObjEncodeProfile(&to, objects[i], bytes, bound) : 0;
             char name[128]; canonical_name(m, name, sizeof(name), m->objs.v[i].name);
-            ok = n && emit_config(&emit, CP_TYPE_OBJ, m->obj_base + i,
+            ok = n && emit_config(&emit, CP_TYPE_OBJ, dest_id,
                                   name, bytes, (int)n, objout);
             free(bytes);
         }
@@ -1125,6 +1379,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         FILE* spotout = fopen(path, "wb");
         for( int i = 0; ok && spotout && i < m->spotanims.n; i++ )
         {
+            int dest_id = map_id(&spot_map, m->spotanims.v[i].source_id);
             spots[i]->model = map_id(&model_map, spots[i]->model);
             if( spots[i]->anim >= 0 ) spots[i]->anim = map_id(&seq_map, spots[i]->anim);
             if( spots[i]->terrain_mode )
@@ -1135,7 +1390,7 @@ static int import_run(struct Import_Manifest* m, int apply)
             uint32_t n = bytes ? RSCache_Dat2ConfigSpotanimEncodeRevision(
                 to.revision, spots[i], bytes, bound) : 0;
             char name[128]; canonical_name(m, name, sizeof(name), m->spotanims.v[i].name);
-            ok = n && emit_config(&emit, CP_TYPE_SPOTANIM, m->spotanim_base + i,
+            ok = n && emit_config(&emit, CP_TYPE_SPOTANIM, dest_id,
                                   name, bytes, (int)n, spotout);
             free(bytes);
         }
@@ -1145,6 +1400,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         FILE* locout = fopen(path, "wb");
         for( int i = 0; ok && locout && i < m->locs.n; i++ )
         {
+            int dest_id = map_id(&loc_map, m->locs.v[i].source_id);
             for( int s = 0; s < locs[i]->shapes_and_model_count; s++ )
                 for( int k = 0; k < locs[i]->lengths[s]; k++ )
                     locs[i]->models[s][k] = map_id(&model_map, locs[i]->models[s][k]);
@@ -1165,12 +1421,12 @@ static int import_run(struct Import_Manifest* m, int apply)
                 if( tool_id_map_lookup(&synth_map, locs[i]->ambient_sound_ids[k], &mapped) )
                     locs[i]->ambient_sound_ids[k] = mapped;
             }
-            locs[i]->_id = m->loc_base + i;
+            locs[i]->_id = dest_id;
             uint32_t bound = RSCache_Dat2ConfigLocEncodeBound(locs[i]);
             uint8_t* bytes = malloc(bound);
             uint32_t n = bytes ? RSCache_Dat2ConfigLocEncode(&to, locs[i], bytes, bound) : 0;
             char name[128]; canonical_name(m, name, sizeof(name), m->locs.v[i].name);
-            ok = ok && n && emit_config(&emit, CP_TYPE_LOC, m->loc_base + i,
+            ok = ok && n && emit_config(&emit, CP_TYPE_LOC, dest_id,
                                          name, bytes, (int)n, locout);
             free(bytes);
         }
@@ -1191,6 +1447,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         if( ok && m->spotanims.n ) ok = save_client_membership(m, "spotanim", &m->spotanims, NULL, NULL);
         if( ok && seqs.n ) ok = save_client_membership(m, "seq", NULL, &seqs, "seq");
         if( ok ) ok = save_ledger(m, &models, &seqs, &frames, &framemaps, &synths,
+                                  &npc_map, &obj_map, &loc_map, &spot_map,
                                   &model_map, &seq_map, &frame_map, &fm_map, &synth_map);
     }
 
@@ -1204,10 +1461,11 @@ static int import_run(struct Import_Manifest* m, int apply)
     for( int i = 0; i < m->locs.n; i++ ) RSCache_Dat2ConfigLocFree(locs ? locs[i] : NULL);
     free(neutral); free(source_npcs); free(objects); free(spots); free(locs);
     free(models.v); free(seqs.v); free(frames.v); free(framemaps.v); free(synths.v);
-    free(obj_ids.v); free(loc_ids.v); free(spot_ids.v);
+    free(npc_ids.v); free(obj_ids.v); free(loc_ids.v); free(spot_ids.v);
+    tool_id_map_free(&npc_map); tool_id_map_free(&obj_map);
+    tool_id_map_free(&loc_map); tool_id_map_free(&spot_map);
     tool_id_map_free(&model_map); tool_id_map_free(&seq_map); tool_id_map_free(&frame_map);
-    tool_id_map_free(&fm_map); tool_id_map_free(&synth_map); tool_id_map_free(&obj_map);
-    tool_id_map_free(&loc_map);
+    tool_id_map_free(&fm_map); tool_id_map_free(&synth_map);
     lc_pack_free(&model_pack); lc_pack_free(&frame_pack); lc_pack_free(&fm_pack);
     lc_pack_free(&synth_pack); cp_names_free(&emit.names); tool_dat2_close(&src);
     return ok;

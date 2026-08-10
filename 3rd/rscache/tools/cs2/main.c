@@ -595,6 +595,69 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
     if( options->out_directory )
         tool_mkdir(options->out_directory);
 
+    /* cachepack already seeds this table from pack/12_clientscripts.pack plus
+     * each source header. The standalone compiler used by the zero-failure
+     * gate did not, so a newly authored clientscript could compile its body
+     * but could not name itself (or another new script) in a transmit hook.
+     * Pre-scan the whole batch before compiling any member: source order must
+     * not decide whether a callback resolves. */
+    DIR* seed_dir = opendir(options->source_path);
+    struct dirent* seed_entry;
+    while( seed_dir && (seed_entry = readdir(seed_dir)) )
+    {
+        size_t length = strlen(seed_entry->d_name);
+        if( length < 5 || strcmp(seed_entry->d_name + length - 4, ".cs2") != 0 )
+            continue;
+        char seed_path[2048];
+        snprintf(seed_path, sizeof(seed_path), "%s/%s", options->source_path,
+                 seed_entry->d_name);
+        int seed_size = 0;
+        uint8_t* seed_text = read_file(seed_path, &seed_size);
+        if( !seed_text )
+            continue;
+
+        int script_id = -1;
+        const char* cursor = (const char*)seed_text;
+        while( *cursor == ' ' || *cursor == '\t' || *cursor == '\n' || *cursor == '\r' )
+            cursor++;
+        if( cursor[0] == '/' && cursor[1] == '/' )
+        {
+            cursor += 2;
+            while( *cursor == ' ' )
+                cursor++;
+            if( *cursor >= '0' && *cursor <= '9' )
+                script_id = atoi(cursor);
+        }
+
+        const char* header = (const char*)seed_text;
+        while( *header )
+        {
+            while( *header == '\n' || *header == '\r' )
+                header++;
+            if( *header == '[' )
+                break;
+            const char* newline = strchr(header, '\n');
+            if( !newline )
+                break;
+            header = newline + 1;
+        }
+        const char* close = *header == '[' ? strchr(header, ']') : NULL;
+        if( script_id >= 0 && close )
+        {
+            size_t header_length = (size_t)(close - header + 1);
+            if( header_length < 1024 )
+            {
+                char name[1024];
+                memcpy(name, header, header_length);
+                name[header_length] = '\0';
+                RSCache_CS2_NamesSetScript(&names, script_id, name);
+            }
+        }
+        free(seed_text);
+    }
+    if( seed_dir )
+        closedir(seed_dir);
+
     DIR* dir = opendir(options->source_path);
     int ok = 0;
     int failed = 0;

@@ -471,6 +471,33 @@ mock230_slotmap_acquire(
     return -1;
 }
 
+/*
+ * The world npc this client means by `client_slot`, or -1.
+ *
+ * The inbound half, and leaving it out is what made every npc unclickable: the
+ * client echoes back the name the server gave it, and `handle_opnpc` was
+ * indexing the npc pool with it. A name of 3 resolved to world slot 3 — some
+ * other npc, usually far away — so the walk went somewhere else and the player
+ * was told "I can't reach that" while standing next to the thing they clicked.
+ *
+ * Every packet that names an npc has to come through here. There is no
+ * "probably the same number" case: the two spaces coincide only for whichever
+ * npcs happened to be named first, which is exactly the shape of bug that looks
+ * intermittent and is not.
+ */
+int
+mock230_slotmap_world(
+    const struct Mock230Player* player,
+    int client_slot)
+{
+    /* NULL-safe because the inbound handlers reach it through
+     * `srv->active_player`, and "whose turn is it" is a question with a
+     * `NULL` answer between sessions. */
+    if( !player || client_slot < 0 || client_slot >= MOCK230_CLIENT_NPC_SLOTS )
+        return -1;
+    return player->npc_slots.world_of[client_slot];
+}
+
 /** Give back this client's name for `world_slot`. Idempotent. */
 void
 mock230_slotmap_release(

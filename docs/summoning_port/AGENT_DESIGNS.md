@@ -655,24 +655,28 @@ That is one branch and one boolean, and it is the *only* C the feature flag need
 
 Icons are **not** all padded — measured `sprites/staticons_0/pack.meta` is `sprite0=25,25,25,25,0,0` (full-bleed 25×25). So shrinking the cell without moving the icon clips real art. Both must change together, and both files compile (proved in §3.4).
 
-**`interfaces/stats.if`** — 25 cells, pitch 26, `total` untouched:
+**Implemented correction — `interfaces/stats.if`** uses 25 cells at pitch 26, but Total is not
+left untouched:
 
 ```
 columns x = 1, 64, 127        (unchanged, width 62)
 rows    y = 1, 27, 53, 79, 105, 131, 157, 183, 209   (height 26)
-grid bottom = 235;  [total] stays at y=241 h=19;  [universe] stays 190×261
+grid bottom = 235;  [universe] stays 190×261
 ```
 
-Cell assignment is column-major, exactly as today (col1 = attack…construction, col2 = hitpoints…hunter, col3 = mining…sailing). **Summoning is the lone row-9 cell.** Recommended `x=64` (centred under the middle column) rather than `x=1`; either renders, `x=64` looks deliberate.
+The earlier centred-lone-cell recommendation was visually wrong. The correct assignment, proven
+against the supplied/reference layout in the real client, is Construction / Hunter / Summoning
+across row 8; Sailing is `x=1,y=209`; Total is `x=64,y=209,width=126,height=26` and spans the
+other two cells of row 9.
 
 New block, appended to `stats.if`:
 
 ```ini
-[summoning]
+[summoning_stats_cell]
 if3=yes
 type=0
-x=64
-y=209
+x=127
+y=183
 width=62
 height=26
 layer=20971520
@@ -681,8 +685,12 @@ name=
 targetverb=
 op1=*
 op2=*
-onload=i:393,i:-2147483645,i:20971553,i:25,i:0
+onload=i:1198,i:-2147483645,i:20971553,i:25,i:2
 ```
+
+The final `int3=2` makes the icon's local x position `3+2=5`, matching the measured rev-530
+wolf-head component. Script 1198 is the dedicated Summoning-cell copy; component 34 does not
+reuse script 393.
 
 and `interfaces/stats.compack` gains `34=summoning`, `35=tooltip` — **no.** `tooltip` is already file id 33 and the `.compack` is the id authority with holes legal; append **`34=summoning`** and leave `tooltip` at 33. Component ids are data, order in the `.if` is not.
 
@@ -811,7 +819,10 @@ Two traps to write into the runbook:
 Ranked, all of them real:
 
 1. **Re-decompile that id** (`cs2 roundtrip` proves it is exact; 1904 is the worked example). Covers the only known failure.
-2. **Author a new clientscript instead of editing one.** `pack/12_clientscripts.pack` has `server_base = 12000` (`content_register.c:142`) against a cache high-water of 9726 — ample. E.g. rather than editing 393, add `script_12000 = stats_init_summoning`, point only the `[summoning]` block's `onload` at it, and leave the 24 existing cells on 393. Cost: the new cell's geometry drifts from the others if 393 ever changes. **This is the right fallback for 393 specifically**, because it also removes the "one edit repositions 24 cells" blast radius.
+2. **Author a new clientscript for the new cell.** This is implemented, not a fallback: allocated
+   script 1198 is `summoning_stats_init`, and only component 34 calls it. The pitch-26 legacy-cell
+   adjustment remains in the gated script-393 overlay, while the wolf-specific nudge and new-cell
+   behavior are isolated in 1198.
 3. **Move the work into the interface record.** Cell backgrounds, the icon and the two texts can all be authored as real `type=5`/`type=4` children in `stats.if` with `graphic=`/`font=` set statically, leaving the clientscript to write only the numbers. Bigger `.if` diff, zero CS2 edit.
 4. **Do not shrink the grid at all.** Keep 3×8 at pitch 30 and put Summoning nowhere in the tab; reach the guide from the orb's op menu instead. Ugly, but it un-blocks the rest of the port.
 
@@ -932,12 +943,16 @@ This is the **first real use of the designed-but-unexercised add path** (all fiv
 
 ### 4.4 Icons and sprites
 
-Four sprites, all new, all allocated at the declared base — `content_register.c:183` gives `8_sprites` **`server_base = 20000`** against a cache high-water of **8534**:
+This proposal was superseded for the stats icon. The implemented icon is an exact export of
+rev-530 sprite pack 222, remapped to the marked target name
+`ported/scape2009_summoning/summoning_staticon` at target pack id 229. Source 222 is provenance;
+229 is the target allocation. Its exact canvas is `sprite0=25,25,22,23,0,2` and its SHA-256 is
+`89726834d13ce73b8fff38eb34567ed2e52c7757b2d8405577e801979e4178cd`.
+
+The remaining future guide/orb sprites still require independent target allocations:
 
 | id | pack name | size | consumer |
 |---|---|---|---|
-| 20000 | `ported_scape2009/summoning/staticon` | 25×25 | `enum_255` val=24 — the tab icon |
-| 20001 | `ported_scape2009/summoning/staticon_silhouette` | 25×25 | `enum_5917` val=24 |
 | 20002 | `ported_scape2009/summoning/guideicon` | 13×13 | `enum_1505` val=24 — guide title |
 | 20003 | `ported_scape2009/summoning/orbicon` | 20×20 | the orb (§6) |
 
@@ -953,7 +968,9 @@ sprite0=25,25,25,25,0,0     # mem_w,mem_h,crop_w,crop_h,off_x,off_y
 ```
 `cp_decode.c:2475-2497`: the palette is written and read back, never re-derived — **a colour absent from `pack.meta` snaps to the nearest entry** (and says so).
 
-⚠️ **Do not claim `staticons2_14..17` (sprite ids 229-232).** Measured: they exist as empty 25×25 reserved slots with `pack.meta` but no `0.bmp`. They are Jagex's reservations; claiming one is exactly the "copy the reference's id" mistake `port/names.map:22-25` forbids.
+The old warning against id 229 was too broad: copying the *source* id would be wrong, but source
+222 was not copied. The marked overlay deliberately gives the target name `summoning_staticon`
+the vacant target id 229 and records the 222→229 translation in `port/summoning_530.map`.
 
 ---
 
@@ -2018,7 +2035,7 @@ Two checks, both permanent:
 |---|---|---|
 | New objs (pouches, scrolls, charms) at id ≥ 40000 | Extra obj records the client never references. Inert. | none |
 | New npcs at 20000+ | Inert until spawned. | none |
-| Edited `enum_681` slot 24 (Sailing → Summoning) | Skill tab cell 24 shows the Summoning name/icon; `stat(24)` is 1. `stat_totallevel` (`script_1007`) walks `enum_681` and would add it to Total level. | **cosmetic, expected** |
+| Added `enum_681` slot 25 → stat 24 | Sailing remains slot 24; component 34 shows Summoning and `stat_totallevel` (`script_1007`) includes it. The corrected layout puts Summoning beside Hunter and Sailing beside Total. | **cosmetic, expected** |
 | New interface group ≥ 969 | Never opened unless the server opens it. | none |
 | Edited `script_8950.cs2` | Only changes which stat the tab greys out. | none |
 | New varbits / varps | Inert. | none |
@@ -2173,7 +2190,10 @@ Every phase additionally: state persists across logout/login; no new silently-mi
 
 One familiar, end to end, and the skill exists.
 
-- **Stat 24.** `pack/stat.pack` += `23=sailing`, `24=summoning`. `MOCK230_STAT_COUNT` 23→25 (one constant; `stat_dirty` is `uint32_t`, fine). Overlay: `enum_681` `val=24,24`, `enum_680`/`enum_108` string, `enum_255` icon, `interfaces/stats.compack` `24=summoning`, `stats.if` block rename + icon nudge, `script_8950.cs2` `case 23` removed. One sprite (drop into the already-reserved blank `sprites/staticons2_14`, pack id 229, or mint a new id).
+- **Stat 24.** `pack/stat.pack` += `23=sailing`, `24=summoning`; `MOCK230_STAT_COUNT` 23→25.
+  Overlay: `enum_681 val=25,24`, component `34=summoning_stats_cell`, dedicated script 1198,
+  `script_8950` case 24, and the corrected row layout. The exact source-222 wolf head is remapped
+  to the marked target sprite name at target id 229; Sailing is not displaced.
 - **Assets.** Port npc 6829 (+ its combat twin if the flag design keeps twins) with `port_npc --from-rev rs530 --to-rev osrs239`, then `cachepack unpack` the result into the ported folder. Model, framemap, seqs, the `bas` type — **note `bas` has no cachepack type**, so either add one or set explicit anim slots on the ported npc rather than relying on BAS.
 - **Objs.** `spirit_wolf_pouch`, `pouch`, `spirit_shards`, `gold_charm` at ids 40000+, with `pack/obj.client` created (`cachepack membership --types obj`) and a `[namespace:obj] membership = authored` block in the overlay's `content.ini`.
 - **Server.** `owner_pid` + generation counter on `Mock230Npc`; `NPC_SETOWNER`/`NPC_OWNER` opcodes; owner-aware `npc_run_mode` and `ai_*` dispatch. `[opheld1,spirit_wolf_pouch]` → level check → `npc_add` → `npc_setowner` → `npc_setmode(playerfollow)` → `settimer` for decay → dismiss. Points as `stat_base/stat_sub` on stat 24.

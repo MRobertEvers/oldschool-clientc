@@ -1603,6 +1603,7 @@ test-mock230-bank: mock230-bank
 MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
 SUMMONING_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_scape2009_summoning
 SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
+RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
 SUMMONING_CONSTANTS_OFF = $(REPO_ROOT)/build/summoning-constants-off
 SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # Allocate first, then compile.
@@ -1636,7 +1637,9 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
+		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_OFF)
 
 # The feature-on sibling. Sources and symbol packs are identical to the default
@@ -1653,7 +1656,9 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
+		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_ON)
 
 test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-playerinfo
@@ -1810,11 +1815,11 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
-			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 >"$$log" 2>&1; \
-		cat "$$log"; grep -qx 'decompiled 3, failed 0, total 3' "$$log"; \
+			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 12000 >"$$log" 2>&1; \
+		cat "$$log"; grep -qx 'decompiled 4, failed 0, total 4' "$$log"; \
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
-		echo "mock230-cache-summoning: verified 3 clientscript archives"
+		echo "mock230-cache-summoning: verified 4 clientscript archives"
 
 test-summoning-phase1: mock230-cache-summoning mock230-scripts mock230-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \

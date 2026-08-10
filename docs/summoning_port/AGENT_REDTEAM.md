@@ -54,7 +54,11 @@ The `i:24` is an **`enum_681` slot**, and **[measured]** `configs/all.enum` `[en
 
 design-flag-and-risk §0 argues stat 23 must not be touched (26 CS2 scripts read it), then §0 row 3 claims "no geometry change — Summoning takes the existing cell 24", then Phase 1 writes `enum_681 val=24,24` and "`script_8950.cs2` case 23 removed" — which **deletes Sailing from the client roster entirely**. That is a defensible design (Sailing is unimplemented server-side: `pack/stat.pack` **[measured]** stops at `22=construction`), but it is not "no change" and it contradicts its own §0.
 
-Worse: design-skill-and-cs2 does the opposite — adds slot **25**, keeps Sailing, and therefore *does* need the 3×9 pitch-26 grid rework of `[universe]` (190×261 **[measured]**), `script_393`'s three `cc_setposition` calls, and every cell's `y`. **Two incompatible designs for the same record are both in the plan.** Nothing downstream can proceed until this is settled.
+Settled implementation: slot **25** keeps Sailing and uses the pitch-26 grid. Construction /
+Hunter / Summoning are contiguous across row 8; Sailing moves to the left of row 9 and Total
+spans its other two cells. Component 34 uses dedicated script 1198 with the rev-530-measured
+wolf-head nudge, while the compressed legacy cells use the gated script-393 overlay. The former
+centred lone Summoning cell was wrong.
 
 ### E4. The varp-ceiling risk is stale and one design still carries it.
 
@@ -94,7 +98,10 @@ It isn't. `cachepack` refuses RS2 sharded config layouts outright — the design
 
 **3. `IF_OPENSUB` on a group absent from the cache.** Three designs flag it; none resolves it. design-flag-and-risk's mitigation is *"the flag is paired, so the mismatch is unreachable"* — but `MOCK230_SCRIPTS` (env) and `[cache:boot] dir=` (manifest) are independent knobs, `MOCK230_CACHE_DIR_DEFAULT` is **[measured]** `"cache.osrs239"` (pristine), and nothing binds them. That is a convention, not a mechanism.
 
-**4. Does the rev-239 sidebar render a modified interface 320?** **[measured]** `toplevel_osrs_stretch.compack` has `side0..side13`, `stone0..13`, `icon0..13` and 99 components total — no spare. design-skill-and-cs2's pitch-26 grid keeps 190×261 (correct) but rewrites `script_393` for **all 25 cells** with no render. Its own fallback #2 — a dedicated clientscript for the Summoning cell alone — is strictly safer and should be primary, not a fallback.
+**4. CORRECTED / VERIFIED.** The rev-239 sidebar renders the modified interface 320. Fresh-save
+headless runs show component 34, exact source-222 wolf pixels through target sprite 229, Sailing
+at the lower left, and Total beside it. The permanent test pins non-zero checks and the rendered
+coordinates; script 1198 is the dedicated Summoning-cell clientscript.
 
 **5. `dbindex` derivability.** **[measured]** no regenerator exists anywhere in `tools/` (grep hits only perf logs and `src/makefile`'s `task_dat2_dbindex_load.c`). design-skill-and-cs2's `tools/gen_dbindex.py` with a byte-identical-regeneration acceptance test is the right call and the only scheduled one. But the acceptance bar is itself unproven: nobody knows whether the committed `.dbi` ordering is derivable at all. If it isn't, the guide is hand-edited forever and `db_find` misses are silent.
 
