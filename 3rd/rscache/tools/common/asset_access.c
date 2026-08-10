@@ -506,7 +506,8 @@ tool_dat2_bas_load(
         int file_id = (archive->file_ids && i < archive->file_count) ? archive->file_ids[i] : i;
         if( file_id != bas_id )
             continue;
-        bas = RSCache_Dat2ConfigBasNewDecode(files->files[i], files->file_sizes[i]);
+        bas = RSCache_Dat2ConfigBasNewDecodeProfile(
+            &c->profile, files->files[i], files->file_sizes[i]);
         break;
     }
 

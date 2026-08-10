@@ -4260,6 +4260,57 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * Per-instance NPC integers. The slot is engine-bounded and content names
+     * it with a constant; values otherwise use the ServerScript int unchanged.
+     * The storage lives on Mock230Npc, so two NPCs of one type are isolated and
+     * npc_changetype naturally preserves it.
+     */
+    case SS_OP_NPC_VAR_GET:
+    {
+        int32_t slot;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &slot) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_var_get with no active npc");
+            return 1;
+        }
+        if( slot < 0 || slot >= MOCK230_NPC_VAR_MAX )
+        {
+            SSVM_Abort(state, "npc_var_get slot %d outside 0..%d", (int)slot,
+                       MOCK230_NPC_VAR_MAX - 1);
+            return 1;
+        }
+        SSVM_PushInt(state, npc->script_vars[slot]);
+        return 1;
+    }
+
+    case SS_OP_NPC_VAR_SET:
+    {
+        int32_t slot;
+        int32_t value;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &slot) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_var_set with no active npc");
+            return 1;
+        }
+        if( slot < 0 || slot >= MOCK230_NPC_VAR_MAX )
+        {
+            SSVM_Abort(state, "npc_var_set slot %d outside 0..%d", (int)slot,
+                       MOCK230_NPC_VAR_MAX - 1);
+            return 1;
+        }
+        npc->script_vars[slot] = value;
+        return 1;
+    }
+
     /* ---- players by uid, logging, gendered text --------------------- */
 
     case SS_OP_FINDUID:
@@ -5717,9 +5768,13 @@ mock230_script_command(
     case SS_OP_NPC_CHANGETYPE:
     {
         int32_t type;
+        int32_t duration;
         struct Mock230Npc* npc = active_npc(state);
 
-        if( !SSVM_PopInt(state, &type) )
+        /* engine.rs2 declares (npc type, int duration). Timed reversion is not
+         * modelled yet, but the argument still has to leave the stack and the
+         * type is the first value, not the top-most duration. */
+        if( !SSVM_PopInt(state, &duration) || !SSVM_PopInt(state, &type) )
             return 1;
         if( !npc )
         {
@@ -5729,6 +5784,7 @@ mock230_script_command(
         npc->type = type;
         npc->change_type = type;
         npc->masks |= MOCK230_NMASK_CHANGE_TYPE;
+        (void)duration;
         return 1;
     }
 
@@ -6315,9 +6371,10 @@ mock230_script_command(
 
     /*
      * projanim_pl(coord $from, player_uid $to, spotanim, fromHeight, toHeight,
-     * delay, duration, peak, arc) — engine.rs2:70, and `projanim_npc` (:72) is
-     * the same nine arguments against an npc. `ServerOps.ts` PROJANIM_PL /
-     * PROJANIM_NPC, both of which reduce to one `World.mapProjAnim` call.
+     * delay, duration, peak, arc) — engine.rs2:70; `projanim_npc` (:72) and
+     * `projanim_map` (:74) carry the same nine values with an npc uid or a
+     * destination coord in slot two. All three reduce to one
+     * `World.mapProjAnim` call; the coordinate form uses target 0.
      *
      * This is the arrow, the spell and the dragon's breath — every projectile in
      * the game. `skill_combat/scripts/projectile.rs2` wraps both, and every
@@ -6342,6 +6399,7 @@ mock230_script_command(
      * single-player limitation and not a decision — a tree with a real uid space
      * resolves it here.
      */
+    case SS_OP_PROJANIM_MAP:
     case SS_OP_PROJANIM_PL:
     case SS_OP_PROJANIM_NPC:
     {
@@ -6356,7 +6414,16 @@ mock230_script_command(
                 return 1;
         }
 
-        if( opcode == SS_OP_PROJANIM_NPC )
+        if( opcode == SS_OP_PROJANIM_MAP )
+        {
+            /* A coordinate target does not home on an entity. As in the
+             * reference, the destination level is ignored: the projectile is
+             * filed and rendered on the source coordinate's plane. */
+            dst_x = mock230_coord_x(values[1]);
+            dst_z = mock230_coord_z(values[1]);
+            target = 0;
+        }
+        else if( opcode == SS_OP_PROJANIM_NPC )
         {
             /* `npcUid & 0xffff` is the slot; the type in the high half is what
              * the reference checks and then comments out. */

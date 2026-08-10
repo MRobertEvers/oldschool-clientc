@@ -1,6 +1,8 @@
 #ifndef RSCACHE_DATATYPES_DAT2_CONFIG_SPOTANIM_H
 #define RSCACHE_DATATYPES_DAT2_CONFIG_SPOTANIM_H
 
+#include "../rscache_profile.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -31,6 +33,11 @@ struct RSCache_Dat2ConfigSpotanim
     int contrast;
     /** Opcode 10 — payload-free flag (present on some osrs239 records). */
     bool unknown10;
+    /** RS2 terrain-conformance mode and magnitude (opcodes 9, 11..16).
+     *  OldSchool has no equivalent field, so a cross-revision porter consumes
+     *  and reports these but deliberately does not encode them into OSRS. */
+    int terrain_mode;
+    int terrain_height;
     int recol_s[RSCACHE_SPOTANIM_COLOUR_SLOTS];
     int recol_d[RSCACHE_SPOTANIM_COLOUR_SLOTS];
     int retex_s[RSCACHE_SPOTANIM_COLOUR_SLOTS];
@@ -49,8 +56,26 @@ struct RSCache_Dat2ConfigSpotanim
     int _consumed;
 };
 
+/** OldSchool's u16/u32 model-id stream. */
+#define RSCACHE_CODEC_SPOTANIM_OSRS 1
+/** Late pre-EoC RS2: opcodes 1/2 are BigSmart and 9/11..16 describe terrain
+ * conformance. Verified against rev 727 SpotAnimDefinitions.method11227. */
+#define RSCACHE_CODEC_SPOTANIM_RS2_727 2
+
+/** Which spotanim opcode family this cache needs. */
+int
+RSCache_Dat2ConfigSpotanimCodecVersion(const struct RSCache* cache);
+
 struct RSCache_Dat2ConfigSpotanim*
 RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size);
+
+/** Profile-aware decoder. Required for RS2 because a bare revision cannot
+ * distinguish the RS2 and OldSchool lineages. */
+struct RSCache_Dat2ConfigSpotanim*
+RSCache_Dat2ConfigSpotanimNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size);
 
 /**
  * Encode a spotanim record.
@@ -87,6 +112,13 @@ RSCache_Dat2ConfigSpotanimInit(struct RSCache_Dat2ConfigSpotanim* spotanim);
 void
 RSCache_Dat2ConfigSpotanimDecodeInplace(
     struct RSCache_Dat2ConfigSpotanim* spotanim,
+    const void* data,
+    int data_size);
+
+void
+RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(
+    struct RSCache_Dat2ConfigSpotanim* spotanim,
+    const struct RSCache* cache,
     const void* data,
     int data_size);
 

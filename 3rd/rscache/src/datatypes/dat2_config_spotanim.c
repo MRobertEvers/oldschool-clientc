@@ -47,11 +47,17 @@ init_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s)
     s->angle = 0;
     s->ambient = 0;
     s->contrast = 0;
+    s->terrain_mode = 0;
+    s->terrain_height = -1;
 }
 
 static void
-decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer* buffer)
+decode_dat2_spotanim(
+    struct RSCache_Dat2ConfigSpotanim* s,
+    struct RSCache_Buffer* buffer,
+    int codec_version)
 {
+    bool rs2_727 = codec_version == RSCACHE_CODEC_SPOTANIM_RS2_727;
     while( true )
     {
         int opcode = g1(buffer);
@@ -59,9 +65,9 @@ decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer
             break;
 
         if( opcode == 1 )
-            s->model = g2(buffer);
+            s->model = rs2_727 ? gbigsmart(buffer) : g2(buffer);
         else if( opcode == 2 )
-            s->anim = g2(buffer);
+            s->anim = rs2_727 ? gbigsmart(buffer) : g2(buffer);
         else if( opcode == 3 )
             s->model = g4(buffer);
         else if( opcode == 4 )
@@ -74,20 +80,47 @@ decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer
             s->ambient = g1(buffer);
         else if( opcode == 8 )
             s->contrast = g1(buffer);
-        /* Opcode 9 is a debug/content name. Present in caches produced by
+        /* Opcode 9 is a debug/content name in OldSchool. Present in caches produced by
          * third-party packing tools (cache.osrs230 has "soul_wars" on spotanim 0)
          * and absent from stock Jagex ones (cache.jan2026 does not). It has to be
-         * consumed either way or the rest of the record misaligns. */
-        else if( opcode == 9 )
+         * consumed either way or the rest of the record misaligns. Late RS2 instead
+         * uses the same opcode as a payload-free terrain-conformance preset. */
+        else if( opcode == 9 && !rs2_727 )
         {
             free(s->name);
             s->name = gcstring(buffer);
+        }
+        else if( opcode == 9 && rs2_727 )
+        {
+            s->terrain_mode = 3;
+            s->terrain_height = 8224;
         }
         else if( opcode == 10 )
         {
             /* Payload-free flag. Not in RuneLite's SpotAnimLoader yet; verified
              * against cache.osrs239 where 39 records are `... 0a 00`. */
             s->unknown10 = true;
+        }
+        else if( opcode == 11 && rs2_727 )
+            s->terrain_mode = 1;
+        else if( opcode == 12 && rs2_727 )
+            s->terrain_mode = 4;
+        else if( opcode == 13 && rs2_727 )
+            s->terrain_mode = 5;
+        else if( opcode == 14 && rs2_727 )
+        {
+            s->terrain_mode = 2;
+            s->terrain_height = g1(buffer) * 256;
+        }
+        else if( opcode == 15 && rs2_727 )
+        {
+            s->terrain_mode = 3;
+            s->terrain_height = g2(buffer);
+        }
+        else if( opcode == 16 && rs2_727 )
+        {
+            s->terrain_mode = 3;
+            s->terrain_height = g4(buffer);
         }
         /* Recolour and retexture lists are **count-prefixed**: a u8 count, then
          * that many (from, to) u16 pairs. This is not the "one opcode per slot"
@@ -107,6 +140,13 @@ decode_dat2_spotanim(struct RSCache_Dat2ConfigSpotanim* s, struct RSCache_Buffer
     }
 
     s->_consumed = (int)buffer->position;
+}
+
+int
+RSCache_Dat2ConfigSpotanimCodecVersion(const struct RSCache* cache)
+{
+    return RSCache_CodecVersionOr(
+        cache, RSCACHE_TYPE_SPOTANIM, RSCACHE_CODEC_SPOTANIM_OSRS);
 }
 
 uint32_t
@@ -234,6 +274,19 @@ RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size)
     return s;
 }
 
+struct RSCache_Dat2ConfigSpotanim*
+RSCache_Dat2ConfigSpotanimNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size)
+{
+    struct RSCache_Dat2ConfigSpotanim* s = calloc(1, sizeof(*s));
+    if( !s )
+        return NULL;
+    RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(s, cache, data, data_size);
+    return s;
+}
+
 void
 RSCache_Dat2ConfigSpotanimInit(struct RSCache_Dat2ConfigSpotanim* spotanim)
 {
@@ -256,7 +309,26 @@ RSCache_Dat2ConfigSpotanimDecodeInplace(
     if( !data || data_size <= 0 )
         return;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
-    decode_dat2_spotanim(spotanim, &buffer);
+    decode_dat2_spotanim(spotanim, &buffer, RSCACHE_CODEC_SPOTANIM_OSRS);
+}
+
+void
+RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(
+    struct RSCache_Dat2ConfigSpotanim* spotanim,
+    const struct RSCache* cache,
+    const void* data,
+    int data_size)
+{
+    struct RSCache_Buffer buffer;
+
+    if( !spotanim )
+        return;
+    RSCache_Dat2ConfigSpotanimInit(spotanim);
+    if( !data || data_size <= 0 )
+        return;
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
+    decode_dat2_spotanim(
+        spotanim, &buffer, RSCache_Dat2ConfigSpotanimCodecVersion(cache));
 }
 
 void

@@ -168,7 +168,7 @@ static uint32_t
 codec_spotanim(struct CP_Ctx* ctx, const uint8_t* data, int size, uint8_t* out, uint32_t cap)
 {
     struct RSCache_Dat2ConfigSpotanim* entry =
-        RSCache_Dat2ConfigSpotanimNewDecode(ctx->profile.revision, (char*)data, size);
+        RSCache_Dat2ConfigSpotanimNewDecodeProfile(&ctx->profile, (char*)data, size);
     uint32_t written =
         RSCache_Dat2ConfigSpotanimEncodeRevision(ctx->profile.revision, entry, out, cap);
     RSCache_Dat2ConfigSpotanimFree(entry);

@@ -8,6 +8,9 @@
 #include "datatypes/dat2_config_npc.h"
 #include "datatypes/dat2_config_obj.h"
 #include "datatypes/dat2_config_sequence.h"
+#include "datatypes/dat2_config_loc.h"
+#include "datatypes/dat2_config_spotanim.h"
+#include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/model.h"
 #include "filelist.h"
@@ -36,8 +39,11 @@ struct Import_Ints { int* v; int n, cap; };
 struct Import_Manifest
 {
     char from_rev[64], from_cache[1024], to_rev[64], to_tree[1024];
-    char lane[256], ledger[512];
-    struct Import_List npcs, objs;
+    char lane[256], ledger[512], prefix[96];
+    int npc_base, obj_base, loc_base, spotanim_base;
+    int model_base, seq_base, animset_base, framemap_base, synth_base;
+    int legacy_scape2009;
+    struct Import_List npcs, objs, seqs, spotanims, locs;
 };
 
 static char* trim(char* s)
@@ -97,6 +103,18 @@ static int list_add(struct Import_List* l, int id, const char* name)
     return 1;
 }
 
+static int list_find(const struct Import_List* l, int id)
+{
+    for( int i = 0; i < l->n; i++ )
+        if( l->v[i].source_id == id ) return i;
+    return -1;
+}
+
+static int list_add_unique(struct Import_List* l, int id, const char* name)
+{
+    return list_find(l, id) >= 0 ? 1 : list_add(l, id, name);
+}
+
 static int ints_add(struct Import_Ints* l, int id)
 {
     if( id < 0 ) return 1;
@@ -121,10 +139,35 @@ static void join_manifest_path(char* out, size_t cap, const char* manifest, cons
     else snprintf(out, cap, "%s", value);
 }
 
+static int parse_nonnegative(const char* key, const char* value, int* out)
+{
+    char* end = NULL;
+    errno = 0;
+    long parsed = strtol(value, &end, 10);
+    if( errno || !end || *end || parsed < 0 || parsed > 0x7fffffffL )
+    {
+        fprintf(stderr, "cachepack import: %s must be a non-negative integer (got %s)\n",
+                key, value);
+        return 0;
+    }
+    *out = (int)parsed;
+    return 1;
+}
+
 static int manifest_load(const char* path, struct Import_Manifest* m)
 {
     memset(m, 0, sizeof(*m));
     snprintf(m->lane, sizeof(m->lane), "ported/scape2009_summoning");
+    snprintf(m->prefix, sizeof(m->prefix), "summoning");
+    m->npc_base = 20000;
+    m->obj_base = 40000;
+    m->loc_base = 20000;
+    m->spotanim_base = 20000;
+    m->model_base = 100000;
+    m->seq_base = 20000;
+    m->animset_base = 20000;
+    m->framemap_base = 8000;
+    m->synth_base = 20000;
     FILE* f = fopen(path, "rb");
     if( !f ) { fprintf(stderr, "cachepack import: cannot open manifest %s\n", path); return 0; }
     char line[2048], section[64] = "";
@@ -141,26 +184,56 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
         char* eq = strchr(s, '=');
         if( !eq ) { fclose(f); return 0; }
         *eq = '\0'; char* key = trim(s); char* value = trim(eq + 1);
-        if( strcmp(section, "import:scape2009") == 0 )
+        if( strcmp(section, "import") == 0 || strncmp(section, "import:", 7) == 0 )
         {
+            if( strcmp(section, "import:scape2009") == 0 ) m->legacy_scape2009 = 1;
             if( strcmp(key, "from_rev") == 0 ) snprintf(m->from_rev, sizeof(m->from_rev), "%s", value);
             else if( strcmp(key, "from_cache") == 0 ) join_manifest_path(m->from_cache, sizeof(m->from_cache), path, value);
             else if( strcmp(key, "to_rev") == 0 ) snprintf(m->to_rev, sizeof(m->to_rev), "%s", value);
             else if( strcmp(key, "to_tree") == 0 ) join_manifest_path(m->to_tree, sizeof(m->to_tree), path, value);
             else if( strcmp(key, "lane") == 0 ) snprintf(m->lane, sizeof(m->lane), "%s", value);
             else if( strcmp(key, "ledger") == 0 ) snprintf(m->ledger, sizeof(m->ledger), "%s", value);
+            else if( strcmp(key, "prefix") == 0 ) snprintf(m->prefix, sizeof(m->prefix), "%s", value);
+            else if( strcmp(key, "npc_base") == 0 && !parse_nonnegative(key, value, &m->npc_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "obj_base") == 0 && !parse_nonnegative(key, value, &m->obj_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "loc_base") == 0 && !parse_nonnegative(key, value, &m->loc_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "spotanim_base") == 0 && !parse_nonnegative(key, value, &m->spotanim_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "model_base") == 0 && !parse_nonnegative(key, value, &m->model_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "seq_base") == 0 && !parse_nonnegative(key, value, &m->seq_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "animset_base") == 0 && !parse_nonnegative(key, value, &m->animset_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "framemap_base") == 0 && !parse_nonnegative(key, value, &m->framemap_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "synth_base") == 0 && !parse_nonnegative(key, value, &m->synth_base) ) { fclose(f); return 0; }
+            else if( strcmp(key, "from_rev") != 0 && strcmp(key, "from_cache") != 0 &&
+                     strcmp(key, "to_rev") != 0 && strcmp(key, "to_tree") != 0 &&
+                     strcmp(key, "lane") != 0 && strcmp(key, "ledger") != 0 &&
+                     strcmp(key, "prefix") != 0 )
+            {
+                fprintf(stderr, "cachepack import: unknown import key %s\n", key);
+                fclose(f);
+                return 0;
+            }
         }
-        else if( strcmp(section, "export:npc") == 0 || strcmp(section, "export:obj") == 0 )
+        else if( strcmp(section, "export:npc") == 0 || strcmp(section, "export:obj") == 0 ||
+                 strcmp(section, "export:seq") == 0 || strcmp(section, "export:spotanim") == 0 ||
+                 strcmp(section, "export:loc") == 0 )
         {
             char name[96];
             snprintf(name, sizeof(name), "%s", *value ? value : key);
-            if( !list_add(strcmp(section, "export:npc") == 0 ? &m->npcs : &m->objs,
-                          atoi(key), name) ) { fclose(f); return 0; }
+            struct Import_List* list = strcmp(section, "export:npc") == 0 ? &m->npcs :
+                                       strcmp(section, "export:obj") == 0 ? &m->objs :
+                                       strcmp(section, "export:seq") == 0 ? &m->seqs :
+                                       strcmp(section, "export:spotanim") == 0 ? &m->spotanims :
+                                                                                &m->locs;
+            int source_id = -1;
+            if( !parse_nonnegative("export id", key, &source_id) ||
+                !list_add_unique(list, source_id, name) ) { fclose(f); return 0; }
         }
     }
     fclose(f);
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
-        (m->npcs.n == 0 && m->objs.n == 0) )
+        !m->prefix[0] || strchr(m->prefix, '/') ||
+        (m->npcs.n == 0 && m->objs.n == 0 && m->seqs.n == 0 &&
+         m->spotanims.n == 0 && m->locs.n == 0) )
     {
         fprintf(stderr, "cachepack import: manifest needs from_rev/from_cache/to_rev/to_tree and exports\n");
         return 0;
@@ -170,7 +243,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
 
 static void manifest_free(struct Import_Manifest* m)
 {
-    free(m->npcs.v); free(m->objs.v);
+    free(m->npcs.v); free(m->objs.v); free(m->seqs.v);
+    free(m->spotanims.v); free(m->locs.v);
 }
 
 static int map_allocate(struct Tool_IdMap* map, const struct Import_Ints* ids, int base)
@@ -210,10 +284,26 @@ static int record_load(struct Tool_Dat2Cache* cache, enum RSCache_Type type, int
     return *out != NULL;
 }
 
-static void canonical_name(char* out, size_t cap, const char* raw)
+static void canonical_name(const struct Import_Manifest* m, char* out, size_t cap, const char* raw)
 {
-    if( strncmp(raw, "summoning_", 10) == 0 ) snprintf(out, cap, "%s", raw);
-    else snprintf(out, cap, "summoning_%s", raw);
+    size_t n = strlen(m->prefix);
+    if( strncmp(raw, m->prefix, n) == 0 && raw[n] == '_' ) snprintf(out, cap, "%s", raw);
+    else snprintf(out, cap, "%s_%s", m->prefix, raw);
+}
+
+static void closure_name(const struct Import_Manifest* m, char* out, size_t cap,
+                         const char* kind, int source_id)
+{
+    snprintf(out, cap, "%s_%s_%d", m->prefix, kind, source_id);
+}
+
+static void export_or_closure_name(const struct Import_Manifest* m,
+                                   const struct Import_List* exports, int source_id,
+                                   const char* kind, char* out, size_t cap)
+{
+    int at = list_find(exports, source_id);
+    if( at >= 0 ) canonical_name(m, out, cap, exports->v[at].name);
+    else closure_name(m, out, cap, kind, source_id);
 }
 
 static int emit_config(struct CP_Ctx* ctx, enum CP_TypeId type, int id,
@@ -243,13 +333,13 @@ static int save_asset_pack(const struct LC_Pack* pack, const char* tree,
     return lc_pack_save(pack, path);
 }
 
-static int save_client_membership(const char* tree, const char* lane, const char* ns,
+static int save_client_membership(const struct Import_Manifest* m, const char* ns,
                                   const struct Import_List* exports,
-                                  const struct Import_Ints* ids)
+                                  const struct Import_Ints* ids, const char* closure_kind)
 {
     char path[1400];
     struct CP_Membership set;
-    char overlay[1400]; snprintf(overlay, sizeof(overlay), "%s/%s", tree, lane);
+    char overlay[1400]; snprintf(overlay, sizeof(overlay), "%s/%s", m->to_tree, m->lane);
     cp_membership_path(path, sizeof(path), overlay, ns, CP_MEMBERSHIP_CLIENT);
     if( !cp_membership_load(&set, path, ns, CP_MEMBERSHIP_CLIENT, 1) ) return 0;
     int ok = 1;
@@ -257,7 +347,7 @@ static int save_client_membership(const char* tree, const char* lane, const char
     {
         for( int i = 0; ok && i < exports->n; i++ )
         {
-            char name[128]; canonical_name(name, sizeof(name), exports->v[i].name);
+            char name[128]; canonical_name(m, name, sizeof(name), exports->v[i].name);
             ok = cp_membership_add(&set, name) >= 0;
         }
     }
@@ -265,7 +355,11 @@ static int save_client_membership(const char* tree, const char* lane, const char
     {
         for( int i = 0; ok && i < ids->n; i++ )
         {
-            char name[128]; snprintf(name, sizeof(name), "summoning_seq_%d", ids->v[i]);
+            char name[128];
+            if( strcmp(ns, "seq") == 0 )
+                export_or_closure_name(m, &m->seqs, ids->v[i], closure_kind, name, sizeof(name));
+            else
+                closure_name(m, name, sizeof(name), closure_kind, ids->v[i]);
             ok = cp_membership_add(&set, name) >= 0;
         }
     }
@@ -342,10 +436,12 @@ static int save_ledger(const struct Import_Manifest* m,
                        const struct Import_Ints* seqs,
                        const struct Import_Ints* frames,
                        const struct Import_Ints* framemaps,
+                       const struct Import_Ints* synths,
                        const struct Tool_IdMap* model_map,
                        const struct Tool_IdMap* seq_map,
                        const struct Tool_IdMap* frame_map,
-                       const struct Tool_IdMap* fm_map)
+                       const struct Tool_IdMap* fm_map,
+                       const struct Tool_IdMap* synth_map)
 {
     if( !m->ledger[0] ) return 1;
     char path[1400];
@@ -354,28 +450,297 @@ static int save_ledger(const struct Import_Manifest* m,
     int ok = 1;
     for( int i = 0; ok && i < m->npcs.n; i++ )
     {
-        char dest[128]; canonical_name(dest, sizeof(dest), m->npcs.v[i].name);
+        char dest[128]; canonical_name(m, dest, sizeof(dest), m->npcs.v[i].name);
         ok = ledger_set(path, "npc", m->npcs.v[i].source_id, m->npcs.v[i].name,
-                        20000 + i, dest);
+                        m->npc_base + i, dest);
     }
     for( int i = 0; ok && i < m->objs.n; i++ )
     {
-        char dest[128]; canonical_name(dest, sizeof(dest), m->objs.v[i].name);
+        char dest[128]; canonical_name(m, dest, sizeof(dest), m->objs.v[i].name);
         ok = ledger_set(path, "obj", m->objs.v[i].source_id, m->objs.v[i].name,
-                        40000 + i, dest);
+                        m->obj_base + i, dest);
+    }
+    for( int i = 0; ok && i < m->locs.n; i++ )
+    {
+        char dest[128]; canonical_name(m, dest, sizeof(dest), m->locs.v[i].name);
+        ok = ledger_set(path, "loc", m->locs.v[i].source_id, m->locs.v[i].name,
+                        m->loc_base + i, dest);
+    }
+    for( int i = 0; ok && i < m->spotanims.n; i++ )
+    {
+        char dest[128]; canonical_name(m, dest, sizeof(dest), m->spotanims.v[i].name);
+        ok = ledger_set(path, "spotanim", m->spotanims.v[i].source_id,
+                        m->spotanims.v[i].name, m->spotanim_base + i, dest);
     }
 #define LEDGER_CLOSURE(kind, list, map, stem) \
     for( int i = 0; ok && i < (list)->n; i++ ) { \
         char src[96], dst[320]; \
         snprintf(src, sizeof(src), stem "_%d", (list)->v[i]); \
-        snprintf(dst, sizeof(dst), "summoning_" stem "_%d", (list)->v[i]); \
+        closure_name(m, dst, sizeof(dst), stem, (list)->v[i]); \
         ok = ledger_set(path, kind, (list)->v[i], src, map_id(map, (list)->v[i]), dst); \
     }
     LEDGER_CLOSURE("model", models, model_map, "model");
-    LEDGER_CLOSURE("seq", seqs, seq_map, "seq");
+    for( int i = 0; ok && i < seqs->n; i++ )
+    {
+        char src[96], dst[320];
+        snprintf(src, sizeof(src), "seq_%d", seqs->v[i]);
+        export_or_closure_name(m, &m->seqs, seqs->v[i], "seq", dst, sizeof(dst));
+        ok = ledger_set(path, "seq", seqs->v[i], src, map_id(seq_map, seqs->v[i]), dst);
+    }
     LEDGER_CLOSURE("frame_archive", frames, frame_map, "animset");
     LEDGER_CLOSURE("framemap", framemaps, fm_map, "framemap");
+    LEDGER_CLOSURE("synth", synths, synth_map, "synth");
 #undef LEDGER_CLOSURE
+    return ok;
+}
+
+static struct RSCache_Dat2ConfigSpotanim*
+spotanim_load(struct Tool_Dat2Cache* src, int id)
+{
+    uint8_t* raw = NULL;
+    int size = 0;
+    if( !record_load(src, RSCACHE_TYPE_SPOTANIM, id, &raw, &size) ) return NULL;
+    struct RSCache_Dat2ConfigSpotanim* spot =
+        RSCache_Dat2ConfigSpotanimNewDecodeProfile(&src->profile, (char*)raw, size);
+    free(raw);
+    if( !spot || spot->_consumed != size )
+    {
+        fprintf(stderr, "cachepack import: spotanim %d did not decode exactly (%d/%d)\n",
+                id, spot ? spot->_consumed : 0, size);
+        RSCache_Dat2ConfigSpotanimFree(spot);
+        return NULL;
+    }
+    return spot;
+}
+
+static struct RSCache_Dat2ConfigLoc*
+loc_load(struct Tool_Dat2Cache* src, int id)
+{
+    uint8_t* raw = NULL;
+    int size = 0;
+    if( !record_load(src, RSCACHE_TYPE_LOC, id, &raw, &size) ) return NULL;
+    struct RSCache_Dat2ConfigLoc* loc =
+        RSCache_Dat2ConfigLocNewDecodeProfile(&src->profile, (char*)raw, size);
+    free(raw);
+    if( !loc || loc->_consumed != size )
+    {
+        fprintf(stderr, "cachepack import: loc %d did not decode exactly (%d/%d)\n",
+                id, loc ? loc->_consumed : 0, size);
+        RSCache_Dat2ConfigLocFree(loc);
+        return NULL;
+    }
+    return loc;
+}
+
+static int map_required(const struct Tool_IdMap* map, const char* kind, int source, int* out)
+{
+    if( source < 0 ) { *out = source; return 1; }
+    if( tool_id_map_lookup(map, source, out) ) return 1;
+    fprintf(stderr, "cachepack import: %s dependency %d was not allocated\n", kind, source);
+    return 0;
+}
+
+static int collect_sequence(struct Tool_Dat2Cache* src, int id,
+                            struct Import_Ints* frames, struct Import_Ints* synths)
+{
+    struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(src, id);
+    if( !seq || seq->_consumed == 0 )
+    {
+        fprintf(stderr, "cachepack import: cannot decode sequence %d\n", id);
+        RSCache_Dat2ConfigSequenceFree(seq);
+        return 0;
+    }
+    int ok = 1;
+    for( int f = 0; ok && f < seq->frame_count; f++ )
+        ok = ints_add(frames, (seq->frame_ids[f] >> 16) & 0xffff);
+    for( int f = 0; ok && f < seq->chat_frame_id_count; f++ )
+        if( seq->chat_frame_ids[f] >= 0 )
+            ok = ints_add(frames, (seq->chat_frame_ids[f] >> 16) & 0xffff);
+    for( int s = 0; ok && s < seq->frame_sounds.count; s++ )
+        ok = ints_add(synths, seq->frame_sounds.sounds[s].id);
+    RSCache_Dat2ConfigSequenceFree(seq);
+    return ok;
+}
+
+static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
+                             const struct Tool_IdMap* model_map, int source_id)
+{
+    struct Tool_Bytes raw = {0};
+    int table = RSCache_Dat2DiskTableId(src->disk, RSCACHE_DAT2_TABLE_MODELS);
+    if( !tool_dat2_archive_bytes(src, table, source_id, &raw) )
+    {
+        fprintf(stderr, "cachepack import: model %d is absent\n", source_id);
+        return 0;
+    }
+    struct RSCache_ModelProvenance* prov = NULL;
+    struct RSCache_Model* model = RSCache_ModelNewDecodeProvenance(raw.data, raw.size, &prov);
+    if( !model || !prov )
+    {
+        fprintf(stderr, "cachepack import: model %d cannot be decoded with provenance\n", source_id);
+        RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
+        return 0;
+    }
+
+    int format = prov->format;
+    if( m->legacy_scape2009 )
+    {
+        /* Historical compatibility: the checked-in Summoning lane was authored
+         * before texture dependency import existed and its tests require the
+         * same untextured V2/V3 output. New manifests never take this branch. */
+        free(model->face_textures); model->face_textures = NULL;
+        free(model->face_texture_coords); model->face_texture_coords = NULL;
+        free(model->texture_render_types); model->texture_render_types = NULL;
+        free(model->textured_p_coordinate); model->textured_p_coordinate = NULL;
+        free(model->textured_m_coordinate); model->textured_m_coordinate = NULL;
+        free(model->textured_n_coordinate); model->textured_n_coordinate = NULL;
+        model->textured_face_count = 0;
+        format = prov->format == RSCACHE_MODEL_FORMAT_OB3 ? RSCACHE_MODEL_FORMAT_V3
+                                                          : RSCACHE_MODEL_FORMAT_V2;
+    }
+
+    uint32_t bound = RSCache_ModelEncodeBound(model, prov);
+    uint8_t* out = malloc(bound);
+    uint32_t n = out ? RSCache_ModelEncodeFormat(model, prov, format, out, bound) : 0;
+    if( !n )
+        fprintf(stderr,
+                "cachepack import: model %d cannot be safely encoded (format=%d, textures=%s)\n",
+                source_id, format, model->face_textures ? "yes" : "no");
+
+    const char* ext = m->legacy_scape2009 ? "model" : cp_asset_extension(CP_ASSET_MODEL, out, (int)n);
+    char path[1500];
+    snprintf(path, sizeof(path), "%s/models/%s/%s_model_%d.%s", m->to_tree, m->lane,
+             m->prefix, source_id, ext);
+    int ok = n && write_bytes(path, out, n);
+    free(out); RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
+    (void)model_map;
+    return ok;
+}
+
+static int write_framemap_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
+                                const struct RSCache* to, int source_id)
+{
+    struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(src, source_id);
+    if( !fm )
+    {
+        fprintf(stderr, "cachepack import: framemap %d is absent\n", source_id);
+        return 0;
+    }
+    int codec = RSCache_Dat2FramemapCodecVersion(to);
+    uint32_t bound = RSCache_Dat2FramemapEncodeBoundCodec(fm, codec);
+    uint8_t* out = malloc(bound);
+    uint32_t n = out ? RSCache_Dat2FramemapEncodeCodec(fm, codec, out, bound) : 0;
+    char path[1500];
+    snprintf(path, sizeof(path), "%s/framemaps/%s/%s_framemap_%d.base", m->to_tree,
+             m->lane, m->prefix, source_id);
+    int ok = n && write_bytes(path, out, n);
+    if( !ok ) fprintf(stderr, "cachepack import: framemap %d transcode failed\n", source_id);
+    free(out); RSCache_Dat2FramemapFree(fm);
+    return ok;
+}
+
+static int write_frame_archive(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
+                               const struct RSCache* to, const struct Tool_IdMap* fm_map,
+                               int source_id)
+{
+    int table = RSCache_Dat2DiskTableId(src->disk, RSCACHE_DAT2_TABLE_ANIMATIONS);
+    struct RSCache_Dat2DiskArchive* ar =
+        RSCache_Dat2DiskArchiveNewLoad(src->disk, table, source_id);
+    if( !ar || !RSCache_Dat2DiskArchiveInitMetadata(src->disk, ar) )
+    {
+        fprintf(stderr, "cachepack import: frame archive %d is absent\n", source_id);
+        RSCache_Dat2DiskArchiveFree(ar);
+        return 0;
+    }
+    struct RSCache_FileList* files =
+        RSCache_FileListNewFromDecode(ar->data, ar->data_size, ar->file_count);
+    if( !files ) { RSCache_Dat2DiskArchiveFree(ar); return 0; }
+
+    int ok = 1;
+    int dst_codec = RSCache_Dat2FrameCodecVersion(to);
+    for( int f = 0; ok && f < files->file_count; f++ )
+    {
+        int file_id = ar->file_ids ? ar->file_ids[f] : f;
+        int old_fm = RSCache_Dat2FrameFramemapIdFromFileProfile(
+            &src->profile, files->files[f], files->file_sizes[f]);
+        int new_fm = -1;
+        if( old_fm < 0 || !map_required(fm_map, "framemap", old_fm, &new_fm) ) { ok = 0; break; }
+        struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(src, old_fm);
+        struct RSCache_Dat2Frame* frame = fm ? RSCache_Dat2FrameNewDecodeProfile(
+            &src->profile, file_id, fm, files->files[f], files->file_sizes[f]) : NULL;
+        if( !fm || !frame )
+        {
+            fprintf(stderr, "cachepack import: frame %d:%d V2 decode failed\n", source_id, file_id);
+            RSCache_Dat2FrameFree(frame); RSCache_Dat2FramemapFree(fm); ok = 0; break;
+        }
+        frame->framemap_id = new_fm;
+        fm->id = new_fm;
+        uint32_t bound = RSCache_Dat2FrameEncodeBoundCodec(frame, dst_codec);
+        char* encoded = malloc(bound);
+        uint32_t n = encoded ? RSCache_Dat2FrameEncodeCodec(
+            frame, dst_codec, fm, (uint8_t*)encoded, bound) : 0;
+        RSCache_Dat2FrameFree(frame); RSCache_Dat2FramemapFree(fm);
+        if( !n )
+        {
+            fprintf(stderr, "cachepack import: frame %d:%d V2->V1 transcode failed\n",
+                    source_id, file_id);
+            free(encoded); ok = 0; break;
+        }
+        free(files->files[f]);
+        files->files[f] = encoded;
+        files->file_sizes[f] = (int)n;
+    }
+
+    uint32_t bound = ok ? RSCache_FileListEncodeBound(files) : 0;
+    uint8_t* out = bound ? malloc(bound) : NULL;
+    uint32_t n = out ? RSCache_FileListEncode(files, out, bound) : 0;
+    char path[1500];
+    snprintf(path, sizeof(path), "%s/animsets/%s/%s_animset_%d.anim", m->to_tree,
+             m->lane, m->prefix, source_id);
+    ok = ok && n && write_bytes(path, out, n);
+    if( ok )
+    {
+        struct LC_Pack members = {0};
+        snprintf(members.type, sizeof(members.type), "frame");
+        for( int f = 0; f < ar->file_count; f++ )
+        {
+            int file_id = ar->file_ids ? ar->file_ids[f] : f;
+            char name[64]; snprintf(name, sizeof(name), "frame_%d", file_id);
+            lc_pack_set(&members, file_id, name);
+        }
+        char stem[1500];
+        snprintf(stem, sizeof(stem), "%s/animsets/%s/%s_animset_%d", m->to_tree,
+                 m->lane, m->prefix, source_id);
+        ok = cp_member_pack_save(&members, stem, "memberpack");
+        lc_pack_free(&members);
+    }
+    free(out); RSCache_FileListFree(files); RSCache_Dat2DiskArchiveFree(ar);
+    return ok;
+}
+
+static int write_synth_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
+                             int source_id)
+{
+    int table = RSCache_Dat2DiskTableId(src->disk, RSCACHE_DAT2_TABLE_SOUND_EFFECTS);
+    struct RSCache_Dat2DiskArchive* ar =
+        RSCache_Dat2DiskArchiveNewLoad(src->disk, table, source_id);
+    if( !ar || !RSCache_Dat2DiskArchiveInitMetadata(src->disk, ar) )
+    {
+        fprintf(stderr, "cachepack import: referenced synth %d is absent\n", source_id);
+        RSCache_Dat2DiskArchiveFree(ar);
+        return 0;
+    }
+    if( ar->file_count != 1 )
+    {
+        fprintf(stderr, "cachepack import: synth %d unexpectedly has %d members\n",
+                source_id, ar->file_count);
+        RSCache_Dat2DiskArchiveFree(ar);
+        return 0;
+    }
+    char path[1500];
+    snprintf(path, sizeof(path), "%s/synth/%s/%s_synth_%d.synth", m->to_tree,
+             m->lane, m->prefix, source_id);
+    int ok = write_bytes(path, ar->data, (size_t)ar->data_size);
+    RSCache_Dat2DiskArchiveFree(ar);
     return ok;
 }
 

@@ -35,4 +35,4 @@ correct ownership. **Silencing** that lane's files so yours compile is not.
 Fix **your** broken file (missing constant, unknown proc, bad symbol). Do not
 mute a sibling. If a sibling is genuinely broken, report it — do not park it.
 
-See `PORTING_GUIDE.md` §7, `CLAUDE.md`, and every `*_CONTENT_PORT_QUEUE.md`.
+See `PORTING_GUIDE.md` §7 and every `*_CONTENT_PORT_QUEUE.md`.

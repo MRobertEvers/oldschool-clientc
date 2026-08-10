@@ -444,6 +444,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "NPC_SETOWNER": (11022, 0, 0, 0, 0),
     "NPC_OWNER": (11023, 0, 0, 1, 0),
     "NPC_FINDOWNED": (11024, 0, 0, 1, 0),
+
+    # ---- script-owned per-npc runtime state (11025..11026) ---------------
+    #
+    # Varps belong to players and NPC config params belong to a type. Boss and
+    # encounter scripts need the third kind: a few integers belonging to one
+    # live NPC instance, preserved when that instance changes type and cleared
+    # when it respawns. The slot namespace is deliberately small and engine
+    # defined; content gives each slot its own named constant.
+    "NPC_VAR_GET": (11025, 1, 0, 1, 0),
+    "NPC_VAR_SET": (11026, 2, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -570,6 +580,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     ),
     "NPC_OWNER": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
+    "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

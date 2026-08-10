@@ -1,7 +1,8 @@
 /*
  * sscompile — RuneScript source to script.dat / script.idx.
  *
- *   sscompile --src DIR --out DIR [--pack DIR]... [--constants DIR]
+ *   sscompile --src DIR --out DIR [--pack DIR]... [--component-root DIR]...
+ *             [--constants DIR]
  *
  * --src        directory of .rs2 sources, searched recursively
  * --out        where script.dat and script.idx are written
@@ -9,6 +10,10 @@
  *              Repeatable, and later directories are loaded after earlier ones —
  *              a content tree splits its names between the ones the cache holds
  *              and the ones only the server has.
+ * --component-root
+ *              additional content roots holding interface member indexes. This is
+ *              how a feature overlay contributes component symbols without
+ *              leaking its records into the ordinary client walk.
  * --constants  root to search for .constant files (defaults to <src>)
  *
  * Sources are compiled in sorted path order so script ids are stable across
@@ -25,7 +30,8 @@ static void
 usage(void)
 {
     fprintf(stderr,
-            "usage: sscompile --src DIR --out DIR [--pack DIR]... [--constants DIR]\n");
+            "usage: sscompile --src DIR --out DIR [--pack DIR]... "
+            "[--component-root DIR]... [--constants DIR]\n");
 }
 
 int
@@ -35,6 +41,8 @@ main(int argc, char** argv)
     const char* out = NULL;
     const char* packs[8];
     int pack_count = 0;
+    const char* component_roots[8];
+    int component_root_count = 0;
     const char* constants = NULL;
     char pack_default[1024];
     char configs_default[1024];
@@ -66,6 +74,16 @@ main(int argc, char** argv)
         }
         else if( strcmp(argv[i], "--constants") == 0 && i + 1 < argc )
             constants = argv[++i];
+        else if( strcmp(argv[i], "--component-root") == 0 && i + 1 < argc )
+        {
+            if( component_root_count ==
+                (int)(sizeof(component_roots) / sizeof(component_roots[0])) )
+            {
+                fprintf(stderr, "sscompile: too many --component-root directories\n");
+                return 2;
+            }
+            component_roots[component_root_count++] = argv[++i];
+        }
         else
         {
             usage();
@@ -130,6 +148,18 @@ main(int argc, char** argv)
 
         snprintf(content_root, sizeof(content_root), "%s/../..", src);
         component_count = SSC_SymbolsLoadComponentDir(&symbols, content_root);
+    }
+    for( i = 0; i < component_root_count; i++ )
+    {
+        int loaded = SSC_SymbolsLoadComponentDir(&symbols, component_roots[i]);
+
+        if( loaded < 0 )
+        {
+            fprintf(stderr, "sscompile: no component indexes at %s (skipping)\n",
+                    component_roots[i]);
+            continue;
+        }
+        component_count += loaded;
     }
     constant_count = SSC_SymbolsLoadConstantDir(&symbols, constants);
     dbcolumn_count = SSC_SymbolsLoadDbTableDir(&symbols, constants);

@@ -945,9 +945,12 @@ that fails loudly on a stale band.*
    doors — two comments in two files described a mechanism that could not work);
    **a newly-loaded zone gets state and not the tick's events**, because the
    state already includes them and sending both put every ground obj on the
-   floor twice; and **the npc cap and the wire's tracked count are two
-   numbers**, 2048 and 255, now that NPC_INFO asks the zones who is nearby
-   instead of scanning the world once per client.
+   floor twice; and **the server NPC pool and each client's tracked-nearby
+   count are two numbers**, 4096 and 255, now that NPC_INFO asks the zones who
+   is nearby instead of scanning the world once per client. Neither number is
+   an NPC cache/config-id ceiling. NPC_INFO's 14-bit slot identifies one nearby
+   instance in one client's local table; the revision-specific type field
+   identifies the NPC definition.
    Re-measured rather than inherited: the zone-trigger count is 806
    (`zone` 262, `zoneexit` 165, `mapzone` 306, `mapzoneexit` 73) and the
    triage is right about it — but only **427** are zone-keyed. `mapzone` and

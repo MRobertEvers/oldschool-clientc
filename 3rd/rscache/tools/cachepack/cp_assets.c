@@ -549,7 +549,7 @@ cp_assets_name_models(struct CP_Ctx* ctx)
             if( !record )
                 continue;
             struct RSCache_Dat2ConfigSpotanim* spot =
-                RSCache_Dat2ConfigSpotanimNewDecode(ctx->profile.revision, (char*)record, size);
+                RSCache_Dat2ConfigSpotanimNewDecodeProfile(&ctx->profile, (char*)record, size);
             if( !spot )
                 continue;
             name_model(ctx, spot->model, "spot", cp_name_ensure(ctx, CP_TYPE_SPOTANIM, id), NULL);

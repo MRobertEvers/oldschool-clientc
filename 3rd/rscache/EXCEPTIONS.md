@@ -1899,14 +1899,13 @@ do. An exact-trigger match always wins outright.
 on LostCity_Server's architecture. Its full documentation is in `tools/README.md`;
 what belongs here are the places it stops short.
 
-### H1. `dbrow` and `dbtable` are unpack-only *(Gap)*
+### H1. `dbrow` and `dbtable` packing *(Resolved)*
 
-rscache decodes both (`dat2_config_db.c`) and encodes neither, so `pack` skips them
-and the base cache's records pass through unchanged. Writing an encoder from the
-decoder's struct would be an unvalidated guess at a format nothing in the repo can
-check, and a wrong dbrow does not fail loudly — it feeds a CS2 script a plausible
-value from the wrong column. The text is still emitted, since it is the only
-readable view of what a client database table declares.
+rscache now encodes both types; cachepack's verified sweeps cover all 16,711
+dbrows and 246 dbtables. The remaining silent-failure surface was table 21's
+derived indexes. `tools/gen_dbindex.py --check` now reconstructs all 147 `.dbi`
+archives from the rows and schemas byte-identically, and its mutation test
+proves omitted/misordered rows fail before packing.
 
 ### H2. The text layer is faithful; the codecs' losses are inherited *(Gap, measured)*
 

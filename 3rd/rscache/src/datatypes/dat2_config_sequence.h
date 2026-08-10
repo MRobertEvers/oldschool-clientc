@@ -55,6 +55,11 @@ struct RSCache_Dat2ConfigSequence
      *  is retained so a decoded record can be represented without pretending
      *  it is the later opcode-14 Maya/sound structure. */
     bool rs2_530_sound_flag;
+    /** Late pre-EoC RS2 additions. They are consumed separately because these
+     * opcode numbers mean unrelated Maya/sound fields on OldSchool. */
+    bool rs2_727_tweened;
+    bool rs2_727_unknown16;
+    bool rs2_727_cross_world_sound;
     struct RSCache_Dat2ConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 
     /** Bytes consumed by the last decode, set on reaching the terminating opcode 0.
@@ -84,6 +89,9 @@ struct RSCache_Dat2ConfigSequence
 /** RS2 rev 530: opcode 13 is a u16-count nested sound table and opcode 14 is
  *  a payload-free flag. This predates, but is not wire-compatible with, V1. */
 #define RSCACHE_CODEC_SEQUENCE_RS2_530 4
+/** Late pre-EoC RS2 retains 530's nested opcode-13 sound table and adds the
+ * payload-free 15/16/18 flags plus opcodes 19/20 sound modifiers and params. */
+#define RSCACHE_CODEC_SEQUENCE_RS2_727 5
 
 /** Archive revision at which the frame-sound record split (game rev 220). */
 #define RSCACHE_SEQUENCE_ARCHIVE_REV_220 1141

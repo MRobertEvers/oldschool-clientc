@@ -51,6 +51,11 @@ Each tick ports **one** pending unblocked slice per [`PORTING_GUIDE.md`](PORTING
 - **Never park sibling content** to green a compile — no `*.skip`, no moving live trees aside.
   Fix your own slice (`PORTING_GUIDE` §7).
 - **A skip is not a pass.** Every summoning target must assert a non-zero check count.
+- **The real client is the acceptance authority.** Every client-visible slice must boot with a
+  fresh `MOCK230_SAVES=$(mktemp -d)`, exercise the actual interaction path, and retain a rendered
+  framebuffer plus logs. Required end-to-end proofs include familiar models/animations,
+  skill-guide opening and live rows, orb/sidebar/infusion interactions, and every scroll special.
+  Pack/compiler/structural checks are prerequisites, never substitutes.
 
 ---
 
@@ -71,13 +76,13 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | # | slice | phase | status | notes |
 |---|---|---|---|---|
 | 0a | Amend the five skip-list lines | 0 | **done** | `PORTING_GUIDE` ×2, `SCAPE2009` ×2, `SKILLS` ×2 |
-| 0b | Resolve the `CLAUDE.md` citation gap | 0 | **blocked** | absent since `5cdb9c14`, looks accidental; 4 docs cite it as binding. Restoring changes agent behaviour repo-wide — needs a user decision |
+| 0b | Remove obsolete `CLAUDE.md` citations | 0 | **done** | user explicitly rejected restoring an agent-specific file; four stale citations removed; binding rules remain in `PORTING_GUIDE`, queue docs and the no-park cursor rule |
 | 0c | `port/summoning_530.map` + `tools/port_summoning_ids.py --check` + `test-port` row | 0 | **done** | 164 manifest roots checked, 0 errors; zero-row mutation fails. Aggregate `test-port` is pre-blocked by its existing 1,775 unsigned LostCity name-diff rows before this row runs |
 | 0d | Flag-off byte-identity harness (`stage_summoning_overlay.py`) | 0 | **done** | stages 30 support files with zero base records/assets; cache compare asserts non-zero files and rejects a byte mutation with SHA-256 evidence |
 | 0e | `check_summoning_isolation.py` (asserts non-zero check count) | 0 | **done** | 304,368 checks, 0 errors; injected `[summoning_leak]` in a flag-off client root fails |
 | 0f | Spike the pack membership add-path on a throwaway obj | 0 | **done** | temp id 40000: membership `1 client`, 0 disagreements; obj-only bake wrote 1 record/19 bytes, 0 failed/unknown/unresolved; temp tree/cache only |
 | 0g | Characterise `IF_OPENSUB` on a cache-absent group | 0 | **done** | headless pristine cache, temp group 969: logged missing pack + skipped mount; next script message rendered; BMP written; normal exit, no hang/crash |
-| 1a | Stat 24 end to end — `stat.pack`, `MOCK230_STAT_COUNT`, 7 enums, `stats.if` 3×9, `script_8950` case 24, icon | 1 | **done** | 28-check permanent headless target; four BMPs; totals 34→53; stat 24 persists at 20; flag-off has no cell 34 and 25 cache files are byte-identical; CS2 3/0; isolation 642,503/0; pristine `mock230_pack` 0 errors. Full mock suite is pre-blocked only by 2 failures in the separate dirty NPC-area subscription work |
+| 1a | Stat 24 end to end — `stat.pack`, `MOCK230_STAT_COUNT`, 7 enums, `stats.if` 3×9, `script_8950` case 24, icon | 1 | **done** | 28-check permanent headless target; four BMPs; totals 34→53; stat 24 persists at 20; flag-off has no cell 34 and 25 cache files are byte-identical; CS2 3/0; isolation 642,639/0; pristine `mock230_pack` 0 errors. Full mock suite is pre-blocked only by 2 failures in the separate dirty NPC-area subscription work |
 | 2a | `rev_dat2_rs530.c` profile + `revisions.c` rows | 2 | **done** | aliases `530`/`rs530`; explicit FRAMEMAP_V3, deliberately derived FRAME_V1; profile suite 134 checks; real cache npc 6829 resolves seed seqs 8297/8291 and framemap 1491 (codec noise is the next slice) |
 | 2b | `SEQUENCE_RS2_530` + `OBJ_RS2_530` codecs | 2 | **done** | exact 530 sweeps: obj 14,654/14,654, seq 11,155/11,155; synthetic changed-opcode suite 17 checks; profile suite 140 checks; clean full rscache suite; true `HEAD` A/B identical for seq 1/100/5000 on both 634 and 727 |
 | 2c | `RSCache_Dat2FramemapEncodeCodec` — fixes a silent data bug | 2 | **done** | regression first failed to compile against missing API; now V3→V1/V2 and V3 preservation pass 8 checks; cache writer selects destination codec; roundtrip suite 246 checks |
@@ -86,10 +91,16 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 2f | Texture map 680→210 + ledger `signoff` column | 2 | **blocked** | importer implements the settled drop-textures policy and preserves human ledger columns; the 680→210 mapping/signoff is deliberately irreducibly human and is not a dependency of the untextured Spirit wolf slice |
 | 3a | Owner-bound NPCs — `owner_pid`/`owner_gen`, `npc_run_mode`, `ai_*` dispatch, 3 opcodes | 3 | **done** | pid + nonzero login generation fails closed on slot reuse; two-player mode and real-VM ai_timer context checks; all three opcodes executed through VM; generated metadata/coverage current; rev230 world suite + 68-check metadata suite green. Rev239 full world suite remains pre-blocked by the concurrent 23,139-NPC/capture work (198 unrelated failures); ownership assertions themselves pass there |
 | 3b | npc `server_base` (`content_register.c:63`) alignment | 3 | **done** | retain base 20000. Fixed the reversed NPC_INFO model: nearby instance slot remains 14-bit/client-local; separate rev239 cache type is 16-bit. Writer/reader regression round-trips slot 321 with type 20000 |
-| 3c | Spirit wolf: assets, objs, `.rs2` triggers, timer, dismiss, headless proof | 3 | **in progress** | code complete: paired off/on ServerScript packs, every entry point gated, lifecycle persistence, owner/call/dismiss, one tick timer; 38 static/pack checks and feature-off headless pass. Re-running feature-on headless after the 3b protocol correction |
+| 3c | Spirit wolf: assets, objs, `.rs2` triggers, timer, dismiss, headless proof | 3 | **done** | paired off/on ServerScript packs; every entry point gated; visible type-20000 wolf in the real headless client; exactly one spawn on summon and persisted relog; call, dismiss and real timer-expiry paths; 40/0 slice checks, rev239 slot-321/type-20000 codec regression, CS2 3/0, server pack and `mock230_pack --check-only` 0 errors, flag-off no spawn/message |
+| 4a | Deterministic dbindex generator + byte-identical regeneration tests | 4 | **done** | `gen_dbindex.py --check` verifies all 147 indexes; mutation regression is 152/0 and proves omitted/misordered keys fail before byte-exact repair; wired into `test-port`; isolation 642639/0, flag-off 25/0, pack 0 errors, fresh-save headless 28/0 |
+| 4b | Summoning skill-guide rows, events and live client `db_find` proof | 4 | **in progress** | dbtables 212/213; click the Summoning stat, open guide, render real rows; Overview remains bytecode-only and is not modified |
+| 4c | Summoning points orb | 4 | **pending** | authored in interface 160; click and render it in the paired feature cache |
+| 4d | Summoning sidebar access | 4 | **pending** | click/render in all three toplevels; do not displace Sailing |
+| 4e | Loc-id wire proof + runtime obelisk and Renew-points | 4 | **pending** | no maps; prove loc 70000 before `loc_add` |
+| 4f | Authored infusion interface and pouch production | 4 | **pending** | click/render/make a pouch in the real client; use osrs239 vocabulary; do not transcode interface 669 |
 
-Phases 4–7 (skill surfaces, breadth, Beast of Burden, polish) are scoped in
-[`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9 and will be seeded here after the Phase 3 review.
+Phases 5–7 (breadth, Beast of Burden, polish) are scoped in
+[`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9 and will be seeded as Phase 4 completes.
 
 ---
 

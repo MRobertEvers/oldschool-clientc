@@ -313,8 +313,8 @@ cp_unpack_spotanim(
     struct CP_Lines* out)
 {
     struct RSCache_Dat2ConfigSpotanim* entry =
-        RSCache_Dat2ConfigSpotanimNewDecode(ctx->profile.revision, (char*)record,
-                                            record_size);
+        RSCache_Dat2ConfigSpotanimNewDecodeProfile(&ctx->profile, (char*)record,
+                                                   record_size);
     if( !entry )
         return 0;
     if( entry->_consumed != record_size )
@@ -352,8 +352,8 @@ cp_pack_spotanim(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    struct RSCache_Dat2ConfigSpotanim* entry = RSCache_Dat2ConfigSpotanimNewDecode(
-        ctx->profile.revision, (char*)cp_empty_record, (int)sizeof(cp_empty_record));
+    struct RSCache_Dat2ConfigSpotanim* entry = RSCache_Dat2ConfigSpotanimNewDecodeProfile(
+        &ctx->profile, (char*)cp_empty_record, (int)sizeof(cp_empty_record));
     if( !entry )
         return 0;
 

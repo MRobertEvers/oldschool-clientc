@@ -61,8 +61,15 @@ RSCache_Dat2ConfigLocFlags(const struct RSCache* cache)
     /* The codec version decides the stream shape; the flag is how the shared decoder body
      * is told which one it is. Routing it through CodecVersion rather than testing the
      * epoch here means a revision module can pin it explicitly. */
-    if( RSCache_Dat2ConfigLocCodecVersion(cache) == RSCACHE_CODEC_LOC_RS2 )
+    int codec = RSCache_Dat2ConfigLocCodecVersion(cache);
+    if( codec == RSCACHE_CODEC_LOC_RS2 || codec == RSCACHE_CODEC_LOC_RS2_727 )
         flags |= RSCACHE_CONFIG_LOC_DECODE_RS2;
+
+    /* ObjectDefinition.method7965 in the supplied 727 client reads the nested
+     * opcode-1 model ids, opcode-24 animation, opcode-77/92 transforms and
+     * opcode-106 animation alternatives with readBigSmart(). */
+    if( codec == RSCACHE_CODEC_LOC_RS2_727 )
+        flags |= RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS;
 
     if( RSCache_RevisionAtLeastOsrs(
             cache, RSCACHE_TYPE_LOC, 237, RSCACHE_GROUP_REVISION_UNKNOWN, false) )
@@ -697,7 +704,8 @@ RSCache_Dat2ConfigLocEncode(
 static bool
 loc_read_models_rs2(
     struct RSCache_Dat2ConfigLoc* loc,
-    struct RSCache_Buffer* buffer)
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
 {
     if( buffer->position >= buffer->size )
         return false;
@@ -728,9 +736,16 @@ loc_read_models_rs2(
 
         for( int j = 0; j < model_count; j++ )
         {
-            if( buffer->position + 2 > buffer->size )
+            if( buffer->position >= buffer->size )
                 return false;
-            loc->models[i][j] = g2(buffer);
+            uint32_t width =
+                ((flags & RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS) &&
+                 (buffer->data[buffer->position] & 0x80))
+                    ? 4u
+                    : 2u;
+            if( buffer->position + width > buffer->size )
+                return false;
+            loc->models[i][j] = LOC_READ_MODEL_ID(buffer, flags);
         }
     }
     return true;
@@ -738,7 +753,9 @@ loc_read_models_rs2(
 
 /** Consume a nested model list without storing it — opcode 5's second block. */
 static bool
-loc_skip_models_rs2(struct RSCache_Buffer* buffer)
+loc_skip_models_rs2(
+    struct RSCache_Buffer* buffer,
+    unsigned flags)
 {
     if( buffer->position >= buffer->size )
         return false;
@@ -750,9 +767,19 @@ loc_skip_models_rs2(struct RSCache_Buffer* buffer)
             return false;
         (void)g1(buffer); /* shape */
         int model_count = g1(buffer);
-        if( buffer->position + (uint32_t)(model_count * 2) > buffer->size )
-            return false;
-        buffer->position += (uint32_t)(model_count * 2);
+        for( int j = 0; j < model_count; j++ )
+        {
+            if( buffer->position >= buffer->size )
+                return false;
+            uint32_t width =
+                ((flags & RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS) &&
+                 (buffer->data[buffer->position] & 0x80))
+                    ? 4u
+                    : 2u;
+            if( buffer->position + width > buffer->size )
+                return false;
+            (void)LOC_READ_MODEL_ID(buffer, flags);
+        }
     }
     return true;
 }
@@ -781,7 +808,7 @@ RSCache_Dat2ConfigLocDecodeOp(
         {
             if( flags & RSCACHE_CONFIG_LOC_DECODE_RS2 )
             {
-                if( !loc_read_models_rs2(loc, buffer) )
+                if( !loc_read_models_rs2(loc, buffer, flags) )
                     return false;
                 break;
             }
@@ -822,9 +849,9 @@ RSCache_Dat2ConfigLocDecodeOp(
                  * dropped, which is what the reference does with both — it only needs the
                  * stream to stay aligned. Storing the first keeps the models a world
                  * render actually draws. */
-                if( !loc_read_models_rs2(loc, buffer) )
+                if( !loc_read_models_rs2(loc, buffer, flags) )
                     return false;
-                if( !loc_skip_models_rs2(buffer) )
+                if( !loc_skip_models_rs2(buffer, flags) )
                     return false;
                 break;
             }
@@ -1005,6 +1032,18 @@ RSCache_Dat2ConfigLocDecodeOp(
                     loc->retextures_to[i] = g2(buffer);
                 }
             }
+            break;
+        }
+        case 42:
+        {
+            /* RS2 per-model recolour palette indices.  OSRS has no equivalent
+             * loc opcode; consume it so the record remains aligned.  Importers
+             * can bake the selected palette into converted models when visual
+             * parity requires it. */
+            int count = g1(buffer);
+            if( buffer->position + (uint32_t)count > buffer->size )
+                return false;
+            buffer->position += (uint32_t)count;
             break;
         }
         case 44:

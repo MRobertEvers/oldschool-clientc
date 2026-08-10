@@ -500,7 +500,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3
+.PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb
 
 all: $(OBJ_DIR) $(TARGET)
@@ -1636,6 +1636,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--component-root $(SUMMONING_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_OFF)
 
 # The feature-on sibling. Sources and symbol packs are identical to the default
@@ -1652,9 +1653,10 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--component-root $(SUMMONING_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_ON)
 
-test-summoning-phase3: mock230-scripts mock230-scripts-summoning
+test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-playerinfo
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py
 
 # The server band, `mock230-scripts`' sibling (PORTING_GUIDE §3.6 item 1): the
@@ -1821,6 +1823,14 @@ test-summoning-phase1: mock230-cache-summoning mock230-scripts mock230-servpack
 		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
 		--flag-off $(REPO_ROOT)/cache.osrs239 --manifest $(REPO_ROOT)/manifest_osrs239.ini
 
+test-summoning-phase4: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
+	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
+		EMBED_SERVER=1 TORIDRAW_OPT=1 all
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4.py \
+		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
+		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
+		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it
 # is run by hand rather than as part of a build.
@@ -1962,7 +1972,7 @@ test-mock230-npc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 #
 # Deliberately does not include `make -C 3rd/rscache test` — that needs a cache and
 # takes minutes; it is the other half and is run on its own.
-.PHONY: test-servercodec test-content test-port test-membership
+.PHONY: test-servercodec test-content test-port test-membership test-dbindex
 test-content: test-content-register test-servercodec test-ss-symbols mock230-scripts mock230-servpack test-membership mock230-pack test-server-clean test-port
 	@echo "--- content: validating the tree against the cache ---"
 	@cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/mock230_pack$(PLATFORM_EXE_SUFFIX)
@@ -2117,12 +2127,16 @@ test-port:
 		--tree $(MOCK230_CONTENT_DIR) --check -v
 	@cd $(REPO_ROOT) && python3 tools/port_summoning_ids.py \
 		--tree $(MOCK230_CONTENT_DIR) --check
+	@cd $(REPO_ROOT) && python3 tools/gen_dbindex.py --check
 	@cd $(REPO_ROOT) && python3 tools/check_summoning_isolation.py \
 		--tree $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/ladder_import.py \
 		--content $(MOCK230_CONTENT_DIR) --check
 	@cd $(REPO_ROOT) && python3 tools/bank_import.py \
 		--content $(MOCK230_CONTENT_DIR) --check
+
+test-dbindex:
+	@cd $(REPO_ROOT) && python3 tools/test_gen_dbindex.py
 
 # The compiler's symbol table, against the register and the live tree.
 #

@@ -266,7 +266,9 @@ pack_load(
  * stays one pass and `mock230_ids.c` still asks for `"bankmain:items"`.
  */
 static int
-load_component_symbols(const char* dir)
+load_component_symbols_from_root(
+    const char* dir,
+    int additions_only)
 {
     const struct Pack* interfaces = &g_packs[MOCK230_PACK_INTERFACE];
     int loaded = 0;
@@ -290,18 +292,66 @@ load_component_symbols(const char* dir)
         for( int c = 0; c < children.count; c++ )
         {
             char full[512];
+            int uid;
+            const char* existing;
 
             if( children.entries[c].id < 0 || children.entries[c].id > 0xffff )
                 continue;
             snprintf(full, sizeof(full), "%s:%s", iface_name, children.entries[c].name);
-            pack_add(&g_packs[MOCK230_PACK_COMPONENT], full,
-                     (iface_id << 16) | children.entries[c].id);
+            uid = (iface_id << 16) | children.entries[c].id;
+            existing = mock230_content_symbol_name(MOCK230_PACK_COMPONENT, uid);
+            if( additions_only && existing )
+            {
+                if( strcmp(existing, full) != 0 )
+                    CONTENT_ERROR("%s: component %d:%d is both `%s` and `%s`\n",
+                                  path, iface_id, children.entries[c].id, existing, full);
+                continue;
+            }
+            pack_add(&g_packs[MOCK230_PACK_COMPONENT], full, uid);
             loaded++;
         }
         for( int c = 0; c < children.count; c++ )
             free(children.entries[c].name);
         free(children.entries);
     }
+    return loaded;
+}
+
+/*
+ * Marked client-content lanes may extend an existing interface without making
+ * that extension part of a flag-off cache bake.  Their RuneScript compiler is
+ * given the lane as a --component-root; the runtime needs the same name->uid
+ * view so it can find name-addressed component triggers.  Component uids above
+ * the script lookup-key's 21-bit subject range (including every stats child)
+ * cannot be recovered from the numeric trigger index alone.
+ *
+ * Loading these names does not mount an interface or expose a cache record.  It
+ * only lets an already-selected server script pack resolve a packet uid back to
+ * the spelling under which that pack was compiled.  Existing children must be
+ * restated identically; a lane can add a child, but cannot silently rename one.
+ */
+static int
+load_ported_component_symbols(const char* dir)
+{
+    DIR* handle;
+    struct dirent* entry;
+    char ported[1024];
+    char lane[1024];
+    int loaded = 0;
+
+    snprintf(ported, sizeof(ported), "%s/ported", dir);
+    handle = opendir(ported);
+    if( !handle )
+        return 0;
+    while( (entry = readdir(handle)) != NULL )
+    {
+        if( entry->d_name[0] == '.' )
+            continue;
+        snprintf(lane, sizeof(lane), "%s/%s", ported, entry->d_name);
+        if( mock230_path_is_dir(lane) )
+            loaded += load_component_symbols_from_root(lane, 1);
+    }
+    closedir(handle);
     return loaded;
 }
 
@@ -3168,7 +3218,8 @@ mock230_content_load(const char* dir)
         symbols += pack_load(&g_packs[kind], path);
     }
     /* After the loop: it needs the interface pack to already be loaded. */
-    symbols += load_component_symbols(dir);
+    symbols += load_component_symbols_from_root(dir, 0);
+    symbols += load_ported_component_symbols(dir);
 
     /* A symbol table that answers a name two ways is refused here rather than
      * resolved silently later. */

@@ -928,22 +928,23 @@ java.lang.RuntimeException: 66,9
     at client.method1743(...)
 ```
 
-The final NPC_INFO payload was the literal nine bytes
-`0d 3d e9 4a 81 c7 ff f8 00`. Golden-client bit traversal consumed 13 tracked
-entries and ended at bit 45 with one queued extended update. Its low-resolution
-loop only reads another NPC index when at least `16 + 12 = 28` bits remain.
-The old packet left 27 bits including its sentinel, so the client could not
-enter the loop to consume `ffff`; it byte-aligned, treated `ff` as the extended
-mask, and overran at offset 66 of a nine-byte packet.
+The original diagnosis incorrectly described the entering-view identifier as a
+16-bit NPC index. The corrected rev239 contract has two distinct fields: a
+14-bit per-player client-local slot for the nearby NPC instance (`0x3FFF` is
+the terminator), and a separate 16-bit cache/config type id in the add record.
+The low-resolution loop therefore attempts another slot only when at least
+`14 + 12 = 26` bits remain. Cache type 20000 is valid; it does not consume or
+overflow the 14-bit slot namespace.
 
 Two encoder errors combined at that boundary. A face-only NPC was marked as
 having extended information even though the v5 encoder intentionally has no
 FACE_ENTITY/FACE_COORD block, and sentinel emission used `queued_count > 0`
-instead of the golden 28-bit guard. The v5 pending-mask predicate now includes
+instead of the corrected 26-bit guard. The v5 pending-mask predicate now includes
 only blocks the v5 writer actually serialises, encodes the byte tail separately,
-and emits `ffff` exactly when padding plus the extended tail is at least 28
+and emits `0x3fff` exactly when padding plus the extended tail is at least 26
 bits. `mock239_npcinfo_tail_needs_sentinel` has focused bit-45 and byte-aligned
-threshold tests derived from the captured packet.
+threshold tests, and the codec suite independently round-trips client slot 321
+with cache type 20000 so the namespaces cannot be collapsed again.
 
 The final combined session then used the real Hans approach plus 24 independent
 terrain clicks. Its NPC log repeatedly crosses the original tracked-count 13

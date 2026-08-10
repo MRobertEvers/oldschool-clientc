@@ -20,9 +20,10 @@ DECISIONS ALREADY SETTLED — do not re-litigate or re-derive:
   - Summoning is stat 24, NOT 23. Stat 23 is Sailing and is live end-to-end in osrs239.
   - Sailing is kept. Summoning is display slot 25 (enum_681 val=25,24); stats panel goes 3x9.
     Prefer a dedicated clientscript for the Summoning cell over repositioning all 25.
-  - Full roster: all 82 familiars. NPC ids are NOT a constraint — separate work removes the cap.
-    Do not tier, budget, or scope around npc ids. Do not re-derive a ceiling from the NPC_INFO
-    v5 reader; it is being changed.
+  - Full roster: all 82 familiars. NPC definition/config ids are NOT constrained by the 14-bit
+    NPC_INFO slot. That slot names a nearby NPC instance in one player's client-local scene;
+    rev239 carries the separate cache type id in 16 bits. Do not tier, budget, or scope around
+    the client-local slot width.
   - The feature flag already exists in the cache: script_8950 + a content_restrict_*_serverside
     varbit. Do NOT touch src/features/features.h — that is a client-era table, wrong layer.
   - Ported content lives in a marked lane: ported/scape2009_summoning/ and

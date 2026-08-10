@@ -1475,8 +1475,8 @@ lc_export_spotanim(
         return -1;
     }
 
-    struct RSCache_Dat2ConfigSpotanim* spot = RSCache_Dat2ConfigSpotanimNewDecode(
-        ctx->src->profile.revision, (char*)bytes.data, bytes.size);
+    struct RSCache_Dat2ConfigSpotanim* spot = RSCache_Dat2ConfigSpotanimNewDecodeProfile(
+        &ctx->src->profile, (char*)bytes.data, bytes.size);
     if( spot && spot->_consumed != bytes.size )
     {
         lc_out_warn(

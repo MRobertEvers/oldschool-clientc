@@ -121,6 +121,9 @@ test_profile_for_identity(void)
     cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 643, 0);
     RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_LOC], RSCACHE_CODEC_LOC_RS2);
 
+    cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 727, 0);
+    RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_LOC], RSCACHE_CODEC_LOC_RS2_727);
+
     /* The 530 row preserves its critical boundary: skeleton V3, frame V1. */
     cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, 0);
     RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_FRAMEMAP], RSCACHE_CODEC_FRAMEMAP_V3);
@@ -320,6 +323,12 @@ test_loc_flags(void)
     flags = RSCache_Dat2ConfigLocFlags(&rs643);
     RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2);
 
+    struct RSCache rs727 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 727, RSCACHE_QUIRK_NONE);
+    flags = RSCache_Dat2ConfigLocFlags(&rs727);
+    RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_RS2);
+    RSCACHE_CHECK(flags & RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS);
+
     /* Archive revision path through ProfileForIdentity + SetGroupRevision. */
     struct RSCache by_archive = RSCache_ProfileForIdentity(
         RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, RSCACHE_REVISION_UNKNOWN, 0);
@@ -382,7 +391,11 @@ test_rs2_config_codec_boundaries(void)
         RSCache_Dat2ConfigSequenceCodecVersion(&rs634), RSCACHE_CODEC_SEQUENCE_V3);
     RSCACHE_CHECK_EQ(RSCache_Dat2ConfigObjCodecVersion(&rs634), RSCACHE_CODEC_OBJ_DEFAULT);
     RSCACHE_CHECK_EQ(
-        RSCache_Dat2ConfigSequenceCodecVersion(&rs727), RSCACHE_CODEC_SEQUENCE_V3);
+        RSCache_Dat2ConfigSequenceCodecVersion(&rs727), RSCACHE_CODEC_SEQUENCE_RS2_727);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigSpotanimCodecVersion(&rs727), RSCACHE_CODEC_SPOTANIM_RS2_727);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigBasCodecVersion(&rs727), RSCACHE_CODEC_BAS_RS2_727);
     RSCACHE_CHECK_EQ(
         RSCache_Dat2ConfigObjCodecVersion(&rs727), RSCACHE_CODEC_OBJ_RS2_BUILD670);
 }

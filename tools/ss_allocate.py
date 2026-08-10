@@ -333,25 +333,28 @@ def id_authority(tree, ns):
     return authority.get(ns, 'server')
 
 
-def declared_blocks(scripts_root, ns):
-    """Every `[name]` block in every `*.<ns>` config under the server tree."""
+def declared_blocks(source_roots, ns):
+    """Every allocated `[name]` block in the server tree and marked client lanes."""
     names = []
-    for base, _, files in os.walk(scripts_root):
-        for f in sorted(files):
-            if not f.endswith('.' + ns):
-                continue
-            with open(os.path.join(base, f), encoding='utf-8',
-                      errors='replace') as handle:
-                for line in handle:
-                    m = re.match(r'\s*\[([A-Za-z0-9_+.\-]+)\]\s*$', line)
-                    if not m:
-                        continue
-                    name = m.group(1)
-                    # A numeric block is the cache's own record, not ours.
-                    if re.fullmatch(re.escape(ns) + r'_\d+', name):
-                        continue
-                    if name not in names:
-                        names.append(name)
+    for source_root in source_roots:
+        if not os.path.isdir(source_root):
+            continue
+        for base, _, files in os.walk(source_root):
+            for f in sorted(files):
+                if not f.endswith('.' + ns):
+                    continue
+                with open(os.path.join(base, f), encoding='utf-8',
+                          errors='replace') as handle:
+                    for line in handle:
+                        m = re.match(r'\s*\[([A-Za-z0-9_+.\-]+)\]\s*$', line)
+                        if not m:
+                            continue
+                        name = m.group(1)
+                        # A numeric block is the cache's own record, not ours.
+                        if re.fullmatch(re.escape(ns) + r'_\d+', name):
+                            continue
+                        if name not in names:
+                            names.append(name)
     return names
 
 
@@ -407,13 +410,20 @@ def main():
         return 2
 
     namespaces = args.namespace or server_namespaces(args.tree)
+    source_roots = [scripts_root]
+    ported_root = os.path.join(args.tree, 'ported')
+    if os.path.isdir(ported_root):
+        source_roots.extend(
+            os.path.join(ported_root, lane, 'configs')
+            for lane in sorted(os.listdir(ported_root))
+        )
     bases = register_bases()
     dirty = False
     # A name that cannot be allocated is a failure in its own right, not a
     # pending change — so it fails the run with or without --check.
     failed = False
     for ns in namespaces:
-        declared = declared_blocks(scripts_root, ns)
+        declared = declared_blocks(source_roots, ns)
         if not declared:
             continue
         path = alloc_path(args.tree, ns)

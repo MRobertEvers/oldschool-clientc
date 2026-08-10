@@ -1141,6 +1141,45 @@ test_implicit_return(void)
 }
 
 static void
+test_npc_runtime_primitives(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+    int saw_get = 0;
+    int saw_set = 0;
+    int saw_projanim_map = 0;
+
+    printf("npc runtime primitive commands\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,npc_runtime_primitives]\n"
+                         "npc_var_set(3, 41);\n"
+                         "def_int $value = npc_var_get(3);\n"
+                         "projanim_map(0_50_50_10_10, 0_50_50_12_11, 123, "
+                         "1, 2, 3, 4, 5, 6);\n",
+                         "npc runtime primitives") )
+        return;
+
+    script = SSVM_ProviderGetByName(&fixture.provider,
+                                    "[proc,npc_runtime_primitives]");
+    CHECK(script != NULL, "the npc runtime primitive script compiled");
+    if( script )
+    {
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            saw_get += script->opcodes[op] == SS_OP_NPC_VAR_GET;
+            saw_set += script->opcodes[op] == SS_OP_NPC_VAR_SET;
+            saw_projanim_map += script->opcodes[op] == SS_OP_PROJANIM_MAP;
+        }
+    }
+    CHECK_EQ(saw_get, 1, "npc_var_get compiles to its host opcode");
+    CHECK_EQ(saw_set, 1, "npc_var_set compiles to its host opcode");
+    CHECK_EQ(saw_projanim_map, 1, "projanim_map compiles to its host opcode");
+
+    fixture_close(&fixture);
+}
+
+static void
 test_errors(void)
 {
     struct SSC_Symbols symbols;
@@ -1199,6 +1238,7 @@ main(void)
     test_trigger_subject();
     test_coord_subject();
     test_implicit_return();
+    test_npc_runtime_primitives();
     test_runclientscript_vararg();
     test_vararg_limits();
     test_duplicate_debugproc();

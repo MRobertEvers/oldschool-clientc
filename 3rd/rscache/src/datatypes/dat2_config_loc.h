@@ -261,6 +261,13 @@ struct RSCache_Dat2ConfigLoc
  */
 #define RSCACHE_CODEC_LOC_OSRS 1
 #define RSCACHE_CODEC_LOC_RS2 2
+/**
+ * Late pre-EoC RS2 locs retain the nested RS2 model-list shape, but every model,
+ * animation and transform reference is a BigSmart.  Treating revision 727 as
+ * the older u16 codec happens to decode small records and then loses alignment
+ * as soon as a QBD-era model above 32767 appears.
+ */
+#define RSCACHE_CODEC_LOC_RS2_727 3
 
 /** Which loc codec this cache uses. */
 int

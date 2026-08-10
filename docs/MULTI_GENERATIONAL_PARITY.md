@@ -745,10 +745,12 @@ ever matters.
     then crashes in its own init before any request (`cq.gh is null`). Ruled
     out: plugin-hub plugins, and a cache written by the 240 client.
   - `mock239_npcinfo_write_empty` — NPC_INFO v5 is ONE bit section, not four:
-    8-bit high-resolution count, then 16-bit npc indices terminated by 0xFFFF.
-    The index widened from 14 to 16 bits at this revision. The terminator is not
-    optional when extended info follows: the client's loop consumes indices
-    while the bit reader has bits, and that reader spans the rest of the packet.
+    an 8-bit high-resolution count, then 14-bit **per-player client-local nearby
+    instance slots** terminated by `0x3FFF`. An entering-view record separately
+    carries the 16-bit NPC cache/config type id. These are different namespaces:
+    type 20000 is legal and is regression-tested with slot 321. The terminator
+    is required only when the corrected `14 + 12 = 26`-bit lookahead can reach
+    bytes following the bit section.
 
 - **2026-08-04 — appearance colocated: one vocabulary, every wire spelling,
   one encoding-independent decoder.**

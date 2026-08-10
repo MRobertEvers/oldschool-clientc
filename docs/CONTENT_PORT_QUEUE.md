@@ -18,8 +18,8 @@ scripts build); update this file; re-arm. Stop only when the user stops the loop
 
 **Do not park sibling lanes.** Never rename `skill_construction/` →
 `skill_construction.skip`, `*.rs2.skip` POH/MTA scripts, or delete another
-queue's tree to green your compile. Fix your slice. See `CLAUDE.md`,
-PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
+queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
+`.cursor/rules/no-park-sibling-content.mdc`.
 
 | # | Slice | Status | Notes |
 |---|---|---|---|
@@ -1765,4 +1765,3 @@ PORTING_GUIDE §7, `.cursor/rules/no-park-sibling-content.mdc`.
 - slice 35y done: Alkh palace curtains + Priest Peril mausoleum gates
 - final: 12368 scripts; mock230_pack 0 errors
 - next pending: outward leftovers; MM AI/knockout/transmog deferred; CW/Trails deferred; skip blocked list + lavafish_loc + tomato throw (.coord) + duel closed chest (loc_3193 false-friend)
-

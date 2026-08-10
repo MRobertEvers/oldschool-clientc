@@ -244,6 +244,15 @@ type bits  npc type
    1 bit   extended info follows
 ```
 
+The two fields are different namespaces. `slot` identifies one NPC instance in
+this player's nearby/tracked client table; `type` selects the NPC
+definition/config used to render that instance. A slot width is therefore not
+a cache-id ceiling and does not limit how many NPC definitions the cache may
+contain. The server currently reuses its small pool index as the client-local
+slot as an implementation convenience; that numerical equality is not a
+protocol identity and would require a per-player mapping if the pool grew past
+the available local slots.
+
 Those two widths are **not constants**. The stream keeps its shape across
 revisions while individual fields widen with the game's id space, and a width
 that is too narrow does not fail — it truncates. OSRS 230 has ~12,000 npcs;
@@ -278,6 +287,12 @@ nothing. The terminator is derived from `slot_bits`, so it cannot drift out of
 step with the field it terminates. The mock writes the same two widths from
 `MOCK230_NPC_SLOT_BITS` / `MOCK230_NPC_TYPE_BITS`.
 
+Even the classic 14-bit initial-add type field is not a 14-bit cache namespace:
+the compatibility writer adds an out-of-range definition as placeholder type 0
+and carries the actual 16-bit cache/config id in the same packet's CHANGE_TYPE
+block. Rev239 needs no such shim because its add record already has the separate
+16-bit type field.
+
 The 21-bit loop guard deliberately did **not** become a parameter: it is the
 reference's own fixed margin and it decides whether the terminator is consumed
 before the byte-aligned extended-info section (§3.3), so changing it would shift
@@ -290,6 +305,11 @@ decode that still succeeds and simply describes a different npc.
 What this does *not* cover is a structural change. Real rev-230 `PLAYER_INFO`
 and `NPC_INFO` (§3.1) are a different format, not a rewidened one; that needs a
 second decoder, not a parameter.
+
+Rev239's v5 entering-view record makes the distinction explicit: a 14-bit
+client-local instance slot (`0x3FFF` terminator) and a separate 16-bit
+cache/config type. Its loop lookahead is `14 + 12 = 26` bits. The permanent
+regression uses slot 321 and type 20000.
 
 ### 3.3 The bit-section terminator is not optional, and the two streams disagree
 
@@ -2714,20 +2734,24 @@ clear pass `loc_del`ed whatever the map had standing near a circle site. It
 now asks `mock230_scene_find_loc_id`: corner tile and type both exact, the
 reference's `Zone.getLoc(x, z, locId)`.
 
-### The npc cap was a wire field standing in for a world capacity
+### The world pool is separate from the per-client nearby-slot namespace
 
 `MOCK230_NPC_MAX` was 256, annotated "the tracked count is an 8-bit field on the
-wire, so this must stay under 256". True about the *tracked* count and silent
-about the world: the stream's slot field is 14 bits, so the wire's own ceiling
-on how many npcs may exist is 16383, and the reference runs at exactly that
-(`NODE_MAX_NPCS`, default 16383). What made the world cap load-bearing was
-NPC_INFO scanning every slot in the world for every client every tick.
+wire, so this must stay under 256". That annotation conflated three separate
+things: the server's world/pool capacity, one player's tracked-nearby count,
+and the per-player client-local slot carried by NPC_INFO. The 14-bit slot does
+not identify the cache NPC type and is not a definition-id ceiling. The
+reference's `NODE_MAX_NPCS` default of 16383 is a server capacity choice, not a
+cache-id limit. What made the old world pool load-bearing was NPC_INFO scanning
+every server slot for every client every tick.
 
 It asks `mock230_zone_npcs_near` now — the npcs standing in the zones the
-15-tile add radius touches, at most 5x5 of them — so the two numbers are free to
-differ: `MOCK230_NPC_MAX` is 2048 (a memory decision: 336 bytes an npc,
+15-tile add radius touches, at most 5x5 of them — so the server pool and the
+per-client tracked count are free to differ: at this stage `MOCK230_NPC_MAX`
+was 2048 (a memory decision: 336 bytes an npc,
 statically allocated; the world struct is 940 KB) and
-`MOCK230_TRACKED_NPC_MAX` is 255 (the wire's). Lumbridge itself is 63 npcs, and
+`MOCK230_TRACKED_NPC_MAX` was 255. Neither number limits the cache/config type
+id. Lumbridge itself is 63 npcs, and
 the per-tick phases walk `srv->npc_slot_max` rather than the pool so raising the
 cap does not make the tick read as though it costs more.
 
@@ -5192,9 +5216,11 @@ unblocks the next:
    two files described a mechanism that could not work); **a newly-loaded zone
    gets state and *not* the tick's events**, because the state already includes
    them and sending both put every ground obj on the floor twice; and **the npc
-   cap and the wire's tracked count are two numbers** — 2048 and 255 — now that
-   NPC_INFO asks the zones who is nearby instead of scanning the world per
-   client.
+   server pool and the per-client tracked-nearby count are two numbers** — 2048
+   and 255 at that stage — now that NPC_INFO asks the zones who is nearby
+   instead of scanning the world per client. The 14-bit client-local instance
+   slot and the NPC cache/config type id are separate again; neither of those
+   capacity numbers is a cache-id ceiling.
 
    Still open and now the visible limit: **one scene origin for the whole
    world** (step 1's remainder). A loc revert aimed at a tile the moved scene no

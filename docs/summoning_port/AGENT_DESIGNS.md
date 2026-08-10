@@ -1221,7 +1221,7 @@ Four files skip-list Summoning and must be amended in the same change, or the ag
 | `docs/SCAPE2009_CONTENT_PORT_QUEUE.md:68` | `| Evil Turnip / summoning-linked patches | Summoning ecosystem |` |
 | `docs/SKILLS_CONTENT_PORT_QUEUE.md:101` | `| Summoning / Fist of Guthix / RS2-only | not in OSRS |` |
 
-Also: `SKILLS_CONTENT_PORT_QUEUE.md` claims *"Audit roster complete (23/23)"* at lines 148 and 348 — Summoning is row 24 and that claim breaks. And **`CLAUDE.md` is absent from the tree** (deleted in `5cdb9c14`) while `.cursor/rules/no-park-sibling-content.mdc` and `PORTING_GUIDE.md` §7 both cite it as binding; restore it (`git show 4a3f2645:CLAUDE.md`) or delete the citations.
+Also: `SKILLS_CONTENT_PORT_QUEUE.md` claims *"Audit roster complete (23/23)"* at lines 148 and 348 — Summoning is row 24 and that claim breaks. The former `CLAUDE.md` question is settled: do not restore an agent-specific file; stale citations were deleted by explicit user direction.
 
 Add a `docs/SUMMONING_PORT.md` topic doc and a `port/summoning_530.map` ledger under `make -C src test-port`, per §7's "docs are part of done".
 
@@ -1801,7 +1801,7 @@ Same shape for a loc, plus `pack/loc.client`.
 | A4 | `docs/SKILLS_CONTENT_PORT_QUEUE.md:101`, `:148`, `:348` | drop the skip row; add audit row #24; correct the "23/23 complete" claims |
 | A5 | `docs/SCAPE2009_CONTENT_PORT_QUEUE.md:265-282` | log **all four** new opcodes (11022–11024) + the `npc.alloc` base fix, **before any C is written** (§2.4/§4.5 step 4) |
 | A6 | `docs/SUMMONING_PORT.md` | new topic doc — "done" includes it (§7) |
-| A7 | `CLAUDE.md` | restore (deleted in `5cdb9c14`); it is still cited as binding by `.cursor/rules/no-park-sibling-content.mdc` and `PORTING_GUIDE §7` |
+| A7 | obsolete `CLAUDE.md` citations | remove; explicit user decision says the agent-specific file is intentionally absent |
 
 ### Phase B — cache toolchain (nothing lands in the tree until this works)
 
@@ -2055,7 +2055,9 @@ Two checks, both permanent:
 | `docs/SKILLS_CONTENT_PORT_QUEUE.md:101` | `\| Summoning / Fist of Guthix / RS2-only \| not in OSRS \|` | Split the row: Fist of Guthix stays, Summoning moves out. |
 | `docs/SKILLS_CONTENT_PORT_QUEUE.md:148, 348` | "Audit roster complete (23/23)" | Either add a #24 Summoning audit row and correct both counts, **or** state that Summoning is audited in its own queue and the 23/23 claim scopes to OSRS-native skills. Prefer the latter — less churn. |
 
-Also: **restore `CLAUDE.md`** (deleted in `5cdb9c14`, recoverable via `git show 4a3f2645:CLAUDE.md`). It is cited as binding by `.cursor/rules/no-park-sibling-content.mdc` (`alwaysApply: true`) and by `PORTING_GUIDE.md` §7, and it currently points at nothing. This is exactly the "expired reason" failure §2.4 item 7 exists to prevent, and any agent reading the cursor rule hits it.
+The former `CLAUDE.md` restoration proposal is rejected by explicit user direction. The correct
+governance fix is to remove its stale citations and keep binding rules in `PORTING_GUIDE.md`,
+queue documents and `.cursor/rules/no-park-sibling-content.mdc`.
 
 ### 3.2 A new `docs/SUMMONING_PORT_QUEUE.md` — yes, warranted
 
@@ -2065,7 +2067,7 @@ Not because Summoning is special, but because it is the first port that is **(a)
 2. **The id ledger** — the one thing no existing doc provides: rev-530 id → osrs239 id, per namespace, with disposition. Mirrors `port/names.map`'s contract (generated columns re-derived by `--check`, human columns never regenerated). Backed by new files `OSRS-Content/osrs239-content/port530/{npc,obj,seq,spotanim,model,sprite}.map` and a new `tools/port530_diff.py --check` wired into `make -C src test-port`. **`port/` today is LostCity-keyed and cannot host this** — its diff tools take a RuneScript content checkout as `--reference` and 2009scape has no `.rs2`, no `^constant`, no `pack/`.
 3. **The slice queue** — same `#`/status/notes shape as SCAPE2009.
 4. **The opcode gap log** — every new VM opcode, logged *before* C is written (PORTING_GUIDE §4.5 step 4).
-5. **The npc-id budget** — a live count against the 90-id ceiling, updated per slice. This is the doc's most valuable column.
+5. **The NPC mapping ledger** — a live rev-530 definition id → osrs239 cache/config id map, updated per slice. This is translation and collision bookkeeping, not a budget: the 14-bit NPC_INFO slot is a separate per-player nearby-instance identifier.
 6. **Known-bad source data**, transcribed once so nobody copies it: `DOOMSPHERE_SCROLL` pouch `-1`; `DEADLY_CLAW_SCROLL` keyed to charm 12162 not pouch 12794; `THIEVING_FINGERS_SCROLL` xp `47` (should be 0.9); loc `28278` typo for `28728`; Void torcher/shifter 9400 ticks and Rune minotaur 15100 ticks are outliers that feed the drain divisor; npc 6883/6884 double-registered.
 
 ### 3.3 Also update
@@ -2135,7 +2137,7 @@ Memory-debugging on this machine is `MallocScribble`, **not ASAN** (`ENABLE_ASAN
 | **0 Prerequisites** | `rev_dat2_rs530.c` exists and decodes rev-530 npc/obj/seq/model/framemap with a full exact-consumption sweep, not a spot check. The framemap V3→V1 transcode bug in `tools/common/cache_write.c:545-580` is fixed with a test that fails on the old code. `stage_summoning_overlay.py` produces a cache where `cmp` against the pass-1 bake differs only in the archives the overlay states. Docs amended. `check_summoning_isolation.py --check` green. Missing-interface behaviour empirically characterised. |
 | **1 Vertical slice** | With `manifest_osrs239_summoning.ini`: log in → Summoning shows in the skill tab at level 1 → `::setlevel summoning 20` raises it → use the pouch → one familiar spawns, follows across a region boundary, survives a logout/login, dismisses on click and on timer expiry. Proved by BMP screenshots at four points and a `::summontest` debugproc. `make -C src test-content` and `mock230_pack --check-only` green **on the flag-off tree**. Flag-off bake digest unchanged. |
 | **2 Skill surfaces** | Skill guide opens on Summoning and lists real rows from a new dbtable (with the `dbindex_21{2,3}.dbi` hand-edit verified by an actual `db_find` hit, not by inspection). Points orb renders and drains. Obelisk loc gives Renew-points. Infusion UI produces a pouch from ingredients with correct xp. |
-| **3 Breadth** | N familiars summonable, each with its own model/anims/sounds; scroll specials fire; the npc-id budget in the queue doc is under 90 and stated. |
+| **3 Breadth** | N familiars summonable, each with its own model/anims/sounds; scroll specials fire; every rev-530 definition id has a recorded osrs239 cache/config mapping. No acceptance criterion is derived from the client-local slot width. |
 | **4 Beast of Burden** | `fields/inv.ini` + `[namespace:inv]` landed (this unblocks `shop` too — bank the credit). BoB container opens, stores, withdraws, spills on death, **survives logout** (the `clear()` vs `dismiss()` asymmetry). |
 
 Every phase additionally: state persists across logout/login; no new silently-missing opcodes in `mock230_scripts_report_gaps`; **prove the assertion can fail** before claiming coverage (mutate the impl / unbind the script).
@@ -2165,7 +2167,7 @@ Every phase additionally: state persists across logout/login; no new silently-mi
 
 ### Phase 0 — Prerequisites and proof (nothing user-visible)
 
-`rev_dat2_rs530.c` + one row in `revisions.c` (auto-derives `FRAMEMAP_V3` + `FRAME_V1`; needs explicit `LOC_RS2`/`FLO_RS2`; **must not** copy 643's `FRAME_V2` pin). Full exact-consumption sweep over 530's npc/obj/seq/loc. Fix the framemap transcode bug. Fix or work around the RS2 sequence codec (`dat2_config_sequence.c:1139-1155` can never satisfy `RevisionAtLeastOsrs` on an rs2 profile → always V3 → 649 bad seqs at 530; this is a whole-RS2-branch bug). `stage_summoning_overlay.py` + the chained bake spike. `check_summoning_isolation.py`. Docs amendments + `SUMMONING_PORT_QUEUE.md` + restore `CLAUDE.md`. Characterise missing-interface behaviour.
+`rev_dat2_rs530.c` + one row in `revisions.c` (auto-derives `FRAMEMAP_V3` + `FRAME_V1`; needs explicit `LOC_RS2`/`FLO_RS2`; **must not** copy 643's `FRAME_V2` pin). Full exact-consumption sweep over 530's npc/obj/seq/loc. Fix the framemap transcode bug. Fix or work around the RS2 sequence codec (`dat2_config_sequence.c:1139-1155` can never satisfy `RevisionAtLeastOsrs` on an rs2 profile → always V3 → 649 bad seqs at 530; this is a whole-RS2-branch bug). `stage_summoning_overlay.py` + the chained bake spike. `check_summoning_isolation.py`. Docs amendments + `SUMMONING_PORT_QUEUE.md`; remove obsolete `CLAUDE.md` citations. Characterise missing-interface behaviour.
 
 ### Phase 1 — Vertical slice: Spirit wolf
 
@@ -2183,7 +2185,7 @@ One familiar, end to end, and the skill exists.
 Skill guide (dbtable 212/213 rows + the hand-edited `dbindex_21{2,3}.dbi` — **the single most fragile step in the whole port**, since no regenerator exists and a wrong order makes `db_find` silently miss). Points orb appended to `interfaces/orbs.if` (cache-built chrome, the lowest-risk authored UI in the tree — copy the `orb_prayer` block verbatim). Summoning sidebar tab (161 `side0..side13` is full — this needs new components in three toplevels and new stone/icon geometry; consider deferring to Phase 5). Obelisk locs + Renew-points. Infusion UI authored fresh in the 239 vocabulary (do **not** transcode 530's 669 — every `graphic=`/`font=` id needs remapping anyway).
 
 ### Phase 3 — Breadth
-Familiars in tiers against the npc-id budget. Scrolls + special moves. Charm drops (the 1222-npc drop table needs a 530→239 npc id map; expect heavy attrition). Skill boosts. Foragers.
+Familiars grouped by shared mechanics, never by an NPC-id budget. Scrolls + special moves. Charm drops (the 1222-npc drop table needs a 530→239 cache/config id map; expect heavy attrition because definitions differ between revisions, not because of the 14-bit nearby-instance slot). Skill boosts. Foragers.
 
 ### Phase 4 — Beast of Burden
 `fields/inv.ini` + `[namespace:inv]` + the `.inv` walker + world-scoped `mock230_container_scope()`. Then BoB containers, interfaces, the logout `clear()` vs death `dismiss()` asymmetry.

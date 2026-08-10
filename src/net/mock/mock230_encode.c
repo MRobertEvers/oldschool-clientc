@@ -418,6 +418,77 @@ wire_for(struct Mock230Player* player)
     return (srv && srv->wire) ? srv->wire : mock230_wire_default();
 }
 
+/* ------------------------------------------------------------------ */
+/* Per-client npc names                                                */
+/* ------------------------------------------------------------------ */
+
+/* The client's index field has to be able to hold every name we can allocate.
+ * 14 bits is the narrower of the two wires, so it is what this is checked
+ * against — a client slot the classic stream cannot express would alias. */
+typedef char mock230_client_slots_fit_the_wire
+    [MOCK230_CLIENT_NPC_SLOTS <= (1 << MOCK230_NPC_SLOT_BITS) - 1 ? 1 : -1];
+
+void
+mock230_slotmap_reset(struct Mock230Player* player)
+{
+    memset(player->npc_slots.world_of, 0xff, sizeof(player->npc_slots.world_of));
+    memset(player->npc_slots.client_of, 0xff, sizeof(player->npc_slots.client_of));
+    player->npc_slots.next = 0;
+}
+
+/*
+ * What this client calls `world_slot`, allocating a name if it has none.
+ *
+ * Returns -1 when every name is out, which cannot happen at
+ * MOCK230_CLIENT_NPC_SLOTS 1024 against MOCK230_TRACKED_NPC_MAX 255 — and is
+ * still checked, because the alternative to a refused add is a silently
+ * duplicated id.
+ */
+int
+mock230_slotmap_acquire(
+    struct Mock230Player* player,
+    int world_slot)
+{
+    struct Mock230PlayerSlotMap* map = &player->npc_slots;
+
+    if( world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+        return -1;
+    if( map->client_of[world_slot] >= 0 )
+        return map->client_of[world_slot];
+    for( int i = 0; i < MOCK230_CLIENT_NPC_SLOTS; i++ )
+    {
+        int candidate = (map->next + i) % MOCK230_CLIENT_NPC_SLOTS;
+
+        if( map->world_of[candidate] >= 0 )
+            continue;
+        map->world_of[candidate] = (int16_t)world_slot;
+        map->client_of[world_slot] = (int16_t)candidate;
+        map->next = (candidate + 1) % MOCK230_CLIENT_NPC_SLOTS;
+        return candidate;
+    }
+    fprintf(stderr, "mock230: pid %d has no free npc name for world slot %d\n", player->pid,
+            world_slot);
+    return -1;
+}
+
+/** Give back this client's name for `world_slot`. Idempotent. */
+void
+mock230_slotmap_release(
+    struct Mock230Player* player,
+    int world_slot)
+{
+    struct Mock230PlayerSlotMap* map = &player->npc_slots;
+    int client_slot;
+
+    if( world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+        return;
+    client_slot = map->client_of[world_slot];
+    if( client_slot < 0 )
+        return;
+    map->world_of[client_slot] = -1;
+    map->client_of[world_slot] = -1;
+}
+
 /** Does this player's world speak the v5 entity streams? */
 static int
 wire_is_v5(struct Mock230Player* player)
@@ -4061,13 +4132,23 @@ mock230_send_npc_info(struct Mock230Player* player)
         for( int i = 0; i < add_count; i++ )
         {
             int slot = adds[i];
+            int client_slot = mock230_slotmap_acquire(player, slot);
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
 
             int const extended = npc_extended_pending_v5(npc, 1);
 
-            rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, slot);
+            /*
+             * The client's name for this npc, 16 bits.
+             *
+             * The width is the deob's, not a choice: rev 239's low-resolution
+             * loop reads `byte var20 = 16; ... gBits(var20)` and terminates on
+             * `(1 << 16) - 1`, and its readable-bits guard is `var20 + 12`.
+             * The value is this client's, not the world's — see
+             * struct Mock230PlayerSlotMap.
+             */
+            rsab_pbit(&buf, 16, client_slot);
             rsab_pbit(&buf, 1, 0); /* no spawn cycle */
             rsab_pbit(&buf, 1, extended);
             rsab_pbit(&buf, 6, dx & 0x3f);
@@ -4080,7 +4161,16 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 3, npc->face_dir & 7);
             rsab_pbit(&buf, 6, dz & 0x3f);
             rsab_pbit(&buf, 1, 1); /* jump: appear on the tile */
-            rsab_pbit(&buf, 16, npc->type);
+            /*
+             * 14 bits, which is the deob's `gBits(14)` feeding its npc-type
+             * lookup — NOT 16. A config id above 16383 rides in CHANGE_TYPE in
+             * the same packet instead (npc_initial_wire_type), which is the
+             * shim the classic path has always used and which needs no patched
+             * client. Widening this field to 16 is possible — RSProt models it
+             * as `npcInfoBitCount` — but only against a client patched to read
+             * 16, and the deob is the authority here.
+             */
+            rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc_initial_wire_type(npc));
             if( extended )
             {
                 queued[queued_count++] = slot;
@@ -4103,7 +4193,7 @@ mock230_send_npc_info(struct Mock230Player* player)
          * can actually reach it.
          *
          * The client's low-resolution loop has two exits and the sentinel is
-         * the second one: it first checks `readableBits() >= 14 + 12` and
+         * the second one: it first checks `readableBits() >= 16 + 12` and
          * returns if the buffer cannot hold another record, and only then reads
          * a slot and compares it to 0x3FFF. `readableBits()` spans the WHOLE
          * remaining packet, including the extended-info section, so the sentinel
@@ -4129,7 +4219,7 @@ mock230_send_npc_info(struct Mock230Player* player)
          * the literal nine-byte packet. Mirror the guard instead.
          */
         if( mock239_npcinfo_tail_needs_sentinel(buf.bit_pos, rsab_len(&extended_buf)) )
-            rsab_pbit(&buf, MOCK230_NPC_SLOT_BITS, MOCK230_NPC_TERMINATOR);
+            rsab_pbit(&buf, 16, 0xffff);
         rsab_bytes(&buf);
 
         /*
@@ -4196,6 +4286,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 3);
             player->npc_tracked[slot] = 0;
+            mock230_slotmap_release(player, slot);
             continue;
         }
 

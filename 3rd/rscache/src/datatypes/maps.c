@@ -255,7 +255,12 @@ RSCache_MapTerrainNewFromCache(
         return NULL;
     }
 
-    map_terrain = RSCache_MapTerrainNewDecode(data, size, map_x, map_z);
+    map_terrain = RSCache_MapTerrainNewFromDecodeFlags(
+        data,
+        size,
+        map_x,
+        map_z,
+        RSCache_MapTerrainFlags(RSCache_Dat2DiskProfile(cache)));
     RSCache_FileListFree(files);
     if( !map_terrain )
     {

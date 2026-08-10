@@ -378,28 +378,47 @@ The per-entity radius row is there because the first version of that check did
 not exist: the mutation passed, which is how the gap was found. `mock230_zone_npcs_near`
 is gone — it had no callers left once both encoders read the client's own map.
 
-### What the wire actually limits
+### Two index spaces, and which one limits what
 
-An earlier draft of this document incorrectly treated the NPC slot as a
-world-global namespace. It is a per-client nearby-instance namespace:
+NPC_INFO carries two different numbers for an npc, and conflating them is how
+"the wire is 14 bits, so only 16k npcs can be near a player" gets said. They are
+not the same field and they do not bound the same thing:
 
-| wire | client-local instance slot | cache/config type id |
+| | the **world slot** | the **list position** |
 |---|---|---|
-| classic (rev 230) | 14-bit | legacy 14-bit add field (compatibility transform available) |
-| v5 (rev 239) | 14-bit, `0x3FFF` terminator | separate 16-bit field |
+| where | the low-resolution ADD record | everything after that first ADD |
+| width | 14 bits classic, **16-bit index on v5** | an 8-bit count, then per-npc bits *in order* |
+| means | the server's own npc pool index | position in this client's tracked list |
+| the client | keys its entity registry on it (`WORLD_ENTITY_ID(kind, slot)`) | `SET`/`CLEAR` address by it, into `active_npcs[]` |
+| bounds | how many npcs may **exist** | how many one client may **track** |
+| here | `mock230_wire_npc_slot_max` | `MOCK230_TRACKED_NPC_MAX`, 255 |
 
-The 23,139-entry roster does not consume one client's slot namespace;
-`MOCK230_NPC_MAX` is a memory/window decision — `struct Mock230Npc` is 608 bytes, so the full roster is 14.1 MB
-of pool. Holding all of it needs two small changes and no new mechanism: the
+`src/game/rs_entity_sync.h` says it in one line: *"the server addresses entities
+by its own slot numbers … and, after the first ADD, only by position in the
+tracked list."* PLAYER_INFO is the same shape — an 11-bit world pid, then
+positions.
+
+So the world slot really does cap the world, and an earlier draft of this
+document had the number wrong: 14 bits is the **classic** wire, and the v5 wire
+this runs on writes a 16-bit index with `0xFFFF` as terminator. 23,139 npcs fit
+v5 with room to spare.
+
+`mock230_world_build_entities` now checks `npc_slot_max` against
+`mock230_wire_npc_slot_max` at boot and says so out loud, because the failure
+mode is aliasing: a pool larger than the field gives two npcs one id, and the
+client draws one of them in both places. (`GameProtoRevTable.npc_slot_bits` says
+14 for osrs239 too, which is stale — that field feeds the classic reader in
+`pkt_npc_info.c` and nothing reads it for the v5 stream.)
+
+What is left before the whole roster can be live is memory, not protocol:
+`struct Mock230Npc` is 608 bytes, so 23,139 is 14.1 MB of pool, and the
 selftest's `struct Mock230Server srv` is the last stack-allocated one (the
-server binary's is `static`, the embed's is `calloc`'d), and the classic wire
-would need the window kept. The AI cost is not the obstacle — measured, 993 live
-npcs run the selftest in 29.4s and 3,427 in 30.3s.
+server binary's is `static`, the embed's is `calloc`'d). The AI cost is not the
+obstacle — measured, 993 live npcs run the suite in 29.4s and 3,427 in 30.3s.
 
 (`rsareabuf` is the buffer these bits are *written* into — an arena-backed port
 of LostCity's `rsbuf`, where "area" is its allocation arena rather than a region
-of the map. The ZoneMap decides who is nearby; `Mock230PlayerArea` decides who
-this client hears about.)
+of the map.)
 
 ### What this cost the selftests
 

@@ -620,10 +620,17 @@ WRAP_INIT(
     spotanim,
     struct RSCache_Dat2ConfigSpotanim,
     RSCache_Dat2ConfigSpotanimInit)
-WRAP_DECODE_INPLACE(
-    spotanim,
-    struct RSCache_Dat2ConfigSpotanim,
-    RSCache_Dat2ConfigSpotanimDecodeInplace)
+static int
+cpc_spotanim_decode(
+    const struct RSCache* cache, void* record, const uint8_t* src, int size)
+{
+    struct RSCache_Dat2ConfigSpotanim* rec =
+        (struct RSCache_Dat2ConfigSpotanim*)record;
+    if( !rec || !src || size < 0 )
+        return -1;
+    RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(rec, cache, src, size);
+    return rec->_consumed;
+}
 WRAP_BOUND(
     spotanim,
     struct RSCache_Dat2ConfigSpotanim,

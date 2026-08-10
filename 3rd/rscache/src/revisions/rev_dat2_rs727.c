@@ -2,6 +2,9 @@
 
 #include "../datatypes/dat2_config_npc.h"
 #include "../datatypes/dat2_config_obj.h"
+#include "../datatypes/dat2_config_sequence.h"
+#include "../datatypes/dat2_config_spotanim.h"
+#include "../datatypes/dat2_config_bas.h"
 
 /*
  * RuneScape 2, rev 727 — the last pre-EoC branch (`cache.rs727_preeoc`).
@@ -56,11 +59,14 @@ RSCache_ProfileDat2Rs727(void)
 
     /* Shared with 643 — the RS2 branch's structural differences from OldSchool,
      * none of which moved between the two revisions. */
-    cache.codec[RSCACHE_TYPE_LOC] = RSCACHE_CODEC_LOC_RS2;
+    cache.codec[RSCACHE_TYPE_LOC] = RSCACHE_CODEC_LOC_RS2_727;
     cache.codec[RSCACHE_TYPE_OVERLAY] = RSCACHE_CODEC_FLO_RS2;
     cache.codec[RSCACHE_TYPE_UNDERLAY] = RSCACHE_CODEC_FLO_RS2;
     cache.codec[RSCACHE_TYPE_FRAME] = RSCACHE_CODEC_FRAME_V2;
     cache.codec[RSCACHE_TYPE_FRAMEMAP] = RSCACHE_CODEC_FRAMEMAP_V3;
+    cache.codec[RSCACHE_TYPE_SEQUENCE] = RSCACHE_CODEC_SEQUENCE_RS2_727;
+    cache.codec[RSCACHE_TYPE_SPOTANIM] = RSCACHE_CODEC_SPOTANIM_RS2_727;
+    cache.codec[RSCACHE_TYPE_BAS] = RSCACHE_CODEC_BAS_RS2_727;
 
     /* New at this branch. Both would also be derived from revision >= 669/670,
      * but stating them keeps the revision the only thing a reader has to trust:

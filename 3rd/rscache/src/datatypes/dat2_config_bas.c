@@ -1,7 +1,9 @@
 #include "dat2_config_bas.h"
 
 #include "../rsbuffer.h"
+#include "../rscache_profile.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -12,8 +14,21 @@
 static void
 decode_bas_type(
     struct RSCache_Dat2ConfigBas* bas,
-    struct RSCache_Buffer* buffer)
+    struct RSCache_Buffer* buffer,
+    int codec_version)
 {
+    assert(
+        codec_version == RSCACHE_CODEC_BAS_RS2_U16 ||
+        codec_version == RSCACHE_CODEC_BAS_RS2_727);
+    const int bigsmart = codec_version == RSCACHE_CODEC_BAS_RS2_727;
+#define GSEQ(buf) (bigsmart ? gbigsmart((buf)) : g2((buf)))
+#define FIXSEQ(value)                                                                            \
+    do                                                                                            \
+    {                                                                                             \
+        if( !bigsmart && (value) == 0xFFFF )                                                      \
+            (value) = -1;                                                                         \
+    } while( 0 )
+
     for( ;; )
     {
         int opcode = g1(buffer);
@@ -25,17 +40,15 @@ decode_bas_type(
 
         if( opcode == 1 )
         {
-            bas->idle_seq_id = g2(buffer);
-            bas->walk_seq_id = g2(buffer);
-            if( bas->idle_seq_id == 0xFFFF )
-                bas->idle_seq_id = -1;
-            if( bas->walk_seq_id == 0xFFFF )
-                bas->walk_seq_id = -1;
+            bas->idle_seq_id = GSEQ(buffer);
+            bas->walk_seq_id = GSEQ(buffer);
+            FIXSEQ(bas->idle_seq_id);
+            FIXSEQ(bas->walk_seq_id);
         }
         else if( opcode >= 2 && opcode <= 9 )
         {
-            /* crawl/run variants — u16 each */
-            g2(buffer);
+            /* crawl/run variants */
+            GSEQ(buffer);
         }
         else if( opcode == 26 )
         {
@@ -48,6 +61,12 @@ decode_bas_type(
             (void)body_part;
             for( int i = 0; i < 6; i++ )
                 g2(buffer); /* signed short on the wire; value unused here */
+        }
+        else if( opcode == 28 )
+        {
+            int count = g1(buffer);
+            for( int i = 0; i < count; i++ )
+                g1(buffer);
         }
         else if( opcode == 29 )
         {
@@ -87,36 +106,37 @@ decode_bas_type(
         }
         else if( opcode == 38 || opcode == 39 )
         {
-            g2(buffer); /* idle left/right */
+            GSEQ(buffer); /* idle left/right */
         }
         else if( opcode == 40 )
         {
-            bas->walk_back_seq_id = g2(buffer);
-            if( bas->walk_back_seq_id == 0xFFFF )
-                bas->walk_back_seq_id = -1;
+            bas->walk_back_seq_id = GSEQ(buffer);
+            FIXSEQ(bas->walk_back_seq_id);
         }
         else if( opcode == 41 )
         {
-            bas->walk_left_seq_id = g2(buffer);
-            if( bas->walk_left_seq_id == 0xFFFF )
-                bas->walk_left_seq_id = -1;
+            bas->walk_left_seq_id = GSEQ(buffer);
+            FIXSEQ(bas->walk_left_seq_id);
         }
         else if( opcode == 42 )
         {
-            bas->walk_right_seq_id = g2(buffer);
-            if( bas->walk_right_seq_id == 0xFFFF )
-                bas->walk_right_seq_id = -1;
+            bas->walk_right_seq_id = GSEQ(buffer);
+            FIXSEQ(bas->walk_right_seq_id);
         }
-        else if( opcode >= 43 && opcode <= 51 )
+        else if( opcode >= 43 && opcode <= 45 )
         {
             g2(buffer);
+        }
+        else if( opcode >= 46 && opcode <= 51 )
+        {
+            GSEQ(buffer);
         }
         else if( opcode == 52 )
         {
             int count = g1(buffer);
             for( int i = 0; i < count; i++ )
             {
-                g2(buffer);
+                GSEQ(buffer);
                 g1(buffer);
             }
         }
@@ -137,18 +157,44 @@ decode_bas_type(
             g1(buffer);
             g2(buffer);
         }
+        else if( opcode == 56 )
+        {
+            g1(buffer);
+            g2(buffer);
+            g2(buffer);
+            g2(buffer);
+        }
         else
         {
             printf("BasType: Unknown opcode: %d\n", opcode);
             return;
         }
     }
+
+#undef FIXSEQ
+#undef GSEQ
 }
 
-struct RSCache_Dat2ConfigBas*
-RSCache_Dat2ConfigBasNewDecode(
+int
+RSCache_Dat2ConfigBasCodecVersion(const struct RSCache* cache)
+{
+    assert(cache);
+    int derived = RSCache_RevisionAtLeastRs2(
+                      cache,
+                      RSCACHE_TYPE_BAS,
+                      727,
+                      RSCACHE_GROUP_REVISION_UNKNOWN,
+                      false)
+                      ? RSCACHE_CODEC_BAS_RS2_727
+                      : RSCACHE_CODEC_BAS_RS2_U16;
+    return RSCache_CodecVersionOr(cache, RSCACHE_TYPE_BAS, derived);
+}
+
+static struct RSCache_Dat2ConfigBas*
+bas_new_decode(
     char* data,
-    int data_size)
+    int data_size,
+    int codec_version)
 {
     struct RSCache_Dat2ConfigBas* bas = calloc(1, sizeof(*bas));
     if( !bas )
@@ -162,8 +208,25 @@ RSCache_Dat2ConfigBasNewDecode(
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
-    decode_bas_type(bas, &buffer);
+    decode_bas_type(bas, &buffer, codec_version);
     return bas;
+}
+
+struct RSCache_Dat2ConfigBas*
+RSCache_Dat2ConfigBasNewDecode(
+    char* data,
+    int data_size)
+{
+    return bas_new_decode(data, data_size, RSCACHE_CODEC_BAS_RS2_U16);
+}
+
+struct RSCache_Dat2ConfigBas*
+RSCache_Dat2ConfigBasNewDecodeProfile(
+    const struct RSCache* cache,
+    char* data,
+    int data_size)
+{
+    return bas_new_decode(data, data_size, RSCache_Dat2ConfigBasCodecVersion(cache));
 }
 
 uint32_t

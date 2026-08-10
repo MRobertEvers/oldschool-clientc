@@ -108,8 +108,9 @@ Consequences for this lane:
 - `content_register.c` npc `server_base = 20000` is valid. Allocation and collision checks remain
   normal content-lane concerns; they are not wire-width budgeting.
 
-> **TODO:** link the cap-removal branch/doc here once it lands, so this section stops being the
-> only record of the decision.
+The same distinction is now stated in the queue, red-team review, recon/design reports,
+`ITEM_AND_NPCS.md`, `osrs230_mockserver.md`, `MULTI_GENERATIONAL_PARITY.md`, the live-server
+handoff and `PORTING_GUIDE.md`; F3 is not the only record of it.
 
 ### F4 — The cross-revision asset importer does not exist. This is the project.
 
@@ -227,12 +228,9 @@ deleting the lane until that is fixed.
 - [x] `docs/SKILLS_CONTENT_PORT_QUEUE.md:101` — Summoning is no longer skipped
 - [x] `docs/SKILLS_CONTENT_PORT_QUEUE.md:349` — the "Audit roster complete (23/23)" claim now says
       Summoning is a 24th row deliberately outside that count
-- [ ] **`CLAUDE.md` is absent** — deleted in `5cdb9c14` ("ranged combat and crystal bow"), 19
-      lines, and it looks accidental: it was the only doc removed in a combat commit. Four files
-      still cite it as binding (`CONTENT_PORT_QUEUE.md:21`, `SCAPE2009…:478`, `map_instances.md:15`,
-      `.cursor/rules/no-park-sibling-content.mdc:38`). Restore with
-      `git show 4a3f2645:CLAUDE.md > CLAUDE.md`, or delete the four citations. **Decide with the
-      user — restoring it changes agent behaviour repo-wide, beyond this port.**
+- [x] **No `CLAUDE.md` prerequisite.** The user explicitly rejected restoring an agent-specific
+      file. The four stale citations were deleted; binding process rules remain in
+      `PORTING_GUIDE.md`, the queue documents and `.cursor/rules/no-park-sibling-content.mdc`.
 - [ ] `docs/SUMMONING_PORT_QUEUE.md` — the per-slice loop doc, in the house queue format
 - [ ] `port/summoning_530.map` ledger + `tools/port_summoning_ids.py --check`, wired into
       `make -C src test-port`
@@ -363,10 +361,11 @@ Verified pre-existing defects it must fix:
 - [x] Port npc 6829 assets (model, framemap, seqs) through the Phase 2 pipeline
 - [x] Objs: `summoning_pouch_spirit_wolf`, `summoning_shard`, `summoning_charm_gold` — with
       `pack/obj.client` created
-- [ ] `[opheld1,…]` → level check → `npc_add` → `npc_setowner` → `npc_setmode(playerfollow)`
-- [ ] **One** `[timer,summoning_tick]` at interval 1 carrying decay, point drain, special regen and
+- [x] `[opheld1,…]` → level check → `npc_add` → `npc_setowner` → `npc_setmode(playerfollow)`
+- [x] **One** `[timer,summoning_tick]` at interval 1 carrying decay, point drain, special regen and
       both warnings. `MOCK230_TIMER_MAX = 8` per player and existing content already competes
-- [ ] Dismiss, logout, death, call-familiar
+- [x] Dismiss, logout, death, call-familiar. Verified with a visible type-20000 Spirit wolf,
+      call, persisted relog reconstruction, explicit dismiss and real timer-expiry paths
 
 ⚠ Ported npcs must set **explicit `walkanim=`/`readyanim=`**, not `bas_type_id`. `bas` is not a
 cachepack type, so every rev-530 familiar (which uses `bas_type_id` with `standing_anim = -1`)
@@ -394,8 +393,10 @@ interface 160 `orbs`, 57 components; copy the `orb_specenergy` block to (54,158)
 inert orbs). Sidebar tab (expensive — `side0..side13` is **full**, needs new components in *three*
 toplevels 161/548/164 plus row 14 in `enum_1137/1138/1139`). Obelisk via runtime `loc_add`, which
 sidesteps `maps/` entirely. ⚠ `content_register.c:65` gives loc `server_base = 70000` and **no
-`loc_type_bits` field exists anywhere** in `src/net/rev/` — verify the wire width before
-allocating, or 70000 truncates the way npc 20000 does. Infusion UI authored fresh in the 239
+`loc_type_bits` field exists anywhere** in `src/net/rev/` — verify the loc wire width before
+allocating, or loc 70000 may truncate. Do not analogize this to NPC type 20000: rev239 NPC_INFO
+has already been corrected and regression-tested as a 14-bit client-local slot plus a separate
+16-bit cache/config type. Infusion UI authored fresh in the 239
 vocabulary; do not transcode 530's interface 669.
 
 **Phase 5 — breadth.** 82 familiars · 67 scroll objs · special moves · the ~60 tertiary ingredients
@@ -405,6 +406,11 @@ what the `port/` ledger is for) · summoning potions (12140/12142/12144/12146 + 
 summon-sound table** (`Familiar.java:713` is a TODO) — one shared summon sound is a content
 *invention* and must be recorded as such. Only sound 188 is safe to byte-copy; 4161/4164/4214/4265/
 4372 are above the 3826 divergence point.
+
+**Client acceptance for breadth:** every familiar must be summoned in the real client with its
+model and animations rendered, and every scroll must be activated through its actual client
+interaction with visible/logged special-move effects. Definition presence or a successful bake
+alone is not acceptance.
 
 **Phase 6 — Beast of Burden (~8–12 d), blocked on an unrelated prerequisite.** `fields/inv.ini` and
 `[namespace:inv]` do not exist — the same gap that keeps `shop` unportable. `mock230_container_resolve`
@@ -424,7 +430,7 @@ migration).
 | 1 | **Texture map errors are undetectable by automation** — a wrong material renders plausibly and every verification tier passes | import untextured; per-model human render signoff in the ledger |
 | 2 | **A skipped suite reads as a pass.** A pristine worktree skips whole suites silently | every summoning target asserts a non-zero check count; grep runs for `SKIP` and fail |
 | 3 | **Silent CS2 decline** — `cp_decode.c:2447-2452` ships base-cache bytes and only a counter says so; **95 of 9,368** committed `.cs2` already fail to recompile, **including `script_1904.cs2`**, the skill-guide builder | standalone `cs2 compile` gate requiring `failed 0` before every bake. Refresh stale sources **selectively** — a blanket `--assets=scripts` unpack overwrites hand-authored comments in `script_73.cs2`/`script_7304.cs2` and trips `check_crystal_set_contract.py`, a hard prerequisite of `mock230-cache`. `RUNESTAR_CS2_NAMES` is an undeclared hard dependency |
-| 4 | ~~npc id exhaustion~~ — **not a risk.** Separate work removes the cap (F3) | none; do not scope this port around npc ids |
+| 4 | ~~14-bit NPC definition-id exhaustion~~ — **not a risk.** The premise confused the per-player nearby-instance slot with the separate cache/config type (F3) | keep the slot/type regression; do not scope this port around the client-local slot width |
 | 5 | **The membership add-path has never been run** — all five `pack/*.client` files have zero data lines | spike on a throwaway obj in Phase 0 before designing on top |
 | 6 | **Chained-overlay byte-identity is unproven** and the staging script does not exist | Phase 0 builds it; fallback is the third walk root (`CP_WALK_MAX_ROOTS = 4`) |
 | 7 | **Framemap/sequence codec fixes touch the whole RS2 branch** | A/B 634 and 727 before and after |

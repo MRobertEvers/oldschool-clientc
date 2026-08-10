@@ -55,6 +55,10 @@ test_opcode_names(void)
              "opcode 0");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_RETURN), "RETURN"), 0, "opcode 21");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_JOIN_STRING), "JOIN_STRING"), 0, "opcode 37");
+    CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_NPC_VAR_GET), "NPC_VAR_GET"), 0,
+             "npc runtime-var opcode name");
+    CHECK_EQ(SSVM_OpcodeFromName("npc_var_set"), SS_OP_NPC_VAR_SET,
+             "compiler command lookup sees npc_var_set");
 
     /* A name must always come back, or the diagnostic that was trying to
      * explain a failure becomes the failure. */
@@ -130,6 +134,15 @@ test_command_arities(void)
     /* [command,oc_name](obj $obj)(string) */
     m = SSVM_OpcodeMeta(SS_OP_OC_NAME);
     CHECK(m->int_in == 1 && m->str_out == 1, "oc_name(obj) -> string");
+
+    m = SSVM_OpcodeMeta(SS_OP_PROJANIM_MAP);
+    CHECK(m->int_in == 9 && m->int_out == 0,
+          "projanim_map(from, to, spotanim, heights, timing, arc)");
+
+    m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_GET);
+    CHECK(m->int_in == 1 && m->int_out == 1, "npc_var_get(slot) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_SET);
+    CHECK(m->int_in == 2 && m->int_out == 0, "npc_var_set(slot, value)");
 }
 
 static void
@@ -183,6 +196,12 @@ test_pointer_masks(void)
     m = SSVM_OpcodeMeta(SS_OP_NPC_FINDOWNED);
     CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER && m->int_out == 1,
           "npc_findowned requires protected player and returns boolean");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_GET);
+    CHECK(m->require == SSVM_PTR_ACTIVE_NPC,
+          "npc_var_get requires the primary active npc");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_SET);
+    CHECK(m->require == SSVM_PTR_ACTIVE_NPC,
+          "npc_var_set requires the primary active npc");
 
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */

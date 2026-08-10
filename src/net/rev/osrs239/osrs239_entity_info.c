@@ -1875,24 +1875,24 @@ osrs239_npc_info_read(
     }
 
     /*
-     * Entering-view records: a 14-bit per-client instance slot terminated by
-     * 0x3FFF, then
+     * Entering-view records: a 16-bit index terminated by 0xFFFF, then
      * spawn-cycle, extended, a 6-bit dx, a 3-bit facing, a 6-bit dz, a jump bit
-     * and a 16-bit cache/config type. The classic record is 5-bit deltas with
-     * the type BEFORE them and no facing at all, so reading one as the other places an
+     * and a 14-bit type. The classic record is 5-bit deltas with the type
+     * BEFORE them and no facing at all, so reading one as the other places an
      * npc that does not exist at a coordinate that is not there.
      *
-     * The 26-bit guard is the slot width plus the client's fixed 12-bit
-     * low-resolution lookahead. The terminator is only written when
+     * The 28-bit guard is the client's own — 16 index bits plus its fixed
+     * 12-bit low-resolution lookahead, `readableBits() < var20 + 12` in the
+     * rev-239 deob. The terminator is only written when
      * extended-info bytes follow, so with nothing after the bit section the
      * loop has to stop on remaining width instead.
      */
-    while( Net_BitBufferBitPos(&buf) + 26 <= len * 8 )
+    while( Net_BitBufferBitPos(&buf) + 28 <= len * 8 )
     {
         static uint16_t const k_spawn_facing[8] = {
             768, 1024, 1280, 512, 1536, 256, 0, 1792,
         };
-        int slot = Net_BitBufferGbits(&buf, 14);
+        int slot = Net_BitBufferGbits(&buf, 16);
         int has_spawn_cycle;
         uint32_t spawn_cycle = 0;
         int extended;
@@ -1903,7 +1903,7 @@ osrs239_npc_info_read(
         int npc_type;
         struct PktNpcInfoOp* op;
 
-        if( slot == 0x3fff )
+        if( slot == 0xffff )
             break;
 
         op = npc_op(&r, PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID);
@@ -1922,7 +1922,7 @@ osrs239_npc_info_read(
         if( dz > 31 )
             dz -= 64;
         jump = Net_BitBufferGbits(&buf, 1);
-        npc_type = Net_BitBufferGbits(&buf, 16);
+        npc_type = Net_BitBufferGbits(&buf, 14);
 
         op = npc_op(&r, PKT_NPC_INFO_OPBITS_NPCTYPE);
         if( op )

@@ -7532,6 +7532,9 @@ mock230_world_player_init(struct Mock230Player* player)
      * connects is content's — `[proc,newplayer_inv]` and `[proc,newplayer_bank]`
      * in player/newplayer.rs2, called from [login,_]. */
     mock230_bank_init_player(player);
+    /* This client has no names for anybody yet. Explicit rather than relying on
+     * the memset above, because 0 is a valid client slot and -1 is "free". */
+    mock230_slotmap_reset(player);
 }
 
 /* ------------------------------------------------------------------ */
@@ -7725,6 +7728,32 @@ mock230_world_build_entities(struct Mock230Server* srv)
         }
         fprintf(stderr, "mock230: npc roster %d spawn(s), %d standing, slot_max=%d\n",
                 count, srv->static_npcs_live, srv->npc_slot_max);
+        /*
+         * Config ids the wire cannot state in an add record.
+         *
+         * NPC_INFO's add carries MOCK230_NPC_TYPE_BITS of type — 14, which is
+         * the deob's `gBits(14)`. A larger config id is legal and reaches the
+         * client through CHANGE_TYPE in the same packet
+         * (`npc_initial_wire_type`), so this is a note rather than an error;
+         * what it protects against is that shim quietly being removed while
+         * content still allocates above the field.
+         *
+         * Not to be confused with the npc's *index*, which is 16 bits and is
+         * this client's own name for it (struct Mock230PlayerSlotMap) — that
+         * one no longer has anything to do with how big the world pool is.
+         */
+        {
+            int wide = 0;
+
+            for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+                if( srv->npcs[slot].active && srv->npcs[slot].type > MOCK230_NPC_TYPE_MAX )
+                    wide++;
+            if( wide )
+                fprintf(stderr,
+                        "mock230: %d npc(s) carry a config id above %d — reaching the client "
+                        "through CHANGE_TYPE, not the add record\n",
+                        wide, MOCK230_NPC_TYPE_MAX);
+        }
     }
 
     /* Ground objs, from the same map squares. Duration -1 marks them spawns,
@@ -10725,6 +10754,189 @@ mock230_world_selftest(void)
                 other->active = 0;
                 srv.player_count = player->pid + 1;
                 mock230_world_set_active(&srv, player);
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            }
+
+            fprintf(stderr, "mock230 selftest: coordinate projectile host opcode\n");
+            {
+                static struct Mock230Capture projectile_capture;
+                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+                const int spotanim = 32760;
+                uint16_t ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PROJANIM_MAP, SS_OP_RETURN,
+                };
+                int32_t operands[] = {
+                    mock230_coord_pack(player->level, player->x, player->z),
+                    mock230_coord_pack(player->level, player->x + 2, player->z + 1),
+                    spotanim, 40, 0, 1, 5, 16, 64, 0, 0,
+                };
+                char* strings[11] = { NULL };
+                struct SSVM_Script script = {
+                    .id = -1,
+                    .name = "[selftest,projanim_map]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 11,
+                    .opcodes = ops,
+                    .int_operands = operands,
+                    .string_operands = strings,
+                };
+
+                SELFTEST_CHECK(wire239 != NULL,
+                               "the osrs239 wire adapter should exist for projanim_map");
+                if( wire239 )
+                {
+                    selftest_park_player(&srv, player->x, player->z);
+                    srv.wire = wire239;
+                    mock230_capture_begin(&srv, &projectile_capture);
+                    SELFTEST_CHECK(mock230_scripts_run_hook(&srv, &script, NULL, 0),
+                                   "PROJANIM_MAP executes through the host VM");
+                    mock230_world_tick(&srv);
+                    mock230_capture_end(&srv);
+                    srv.wire = saved_wire;
+                    SELFTEST_CHECK(selftest_rev239_zone_count(
+                                       &projectile_capture, PKT_NAME_MAP_PROJANIM,
+                                       spotanim) == 1,
+                                   "projanim_map emits one coordinate-targeted "
+                                   "MAP_PROJANIM carrying spotanim %d",
+                                   spotanim);
+                }
+            }
+
+            fprintf(stderr, "mock230 selftest: per-npc runtime variables\n");
+            {
+                const int var_slot = 3;
+                const int32_t var_value = 0x13579bdf;
+                int first = mock230_world_npc_spawn(
+                    &srv, 1, player->x + 8, player->z + 8, player->level);
+                int second = mock230_world_npc_spawn(
+                    &srv, 1, player->x + 10, player->z + 8, player->level);
+                uint16_t set_get_ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_NPC_VAR_SET, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_NPC_VAR_GET, SS_OP_POP_VARP, SS_OP_RETURN,
+                };
+                int32_t set_get_operands[] = {
+                    var_slot, var_value, 0, var_slot, 0,
+                    SELFTEST_VARP_QUEST_PROGRESS, 0,
+                };
+                char* set_get_strings[7] = { NULL };
+                struct SSVM_Script set_get_script = {
+                    .id = -1,
+                    .name = "[selftest,npc_var_set_get]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 7,
+                    .opcodes = set_get_ops,
+                    .int_operands = set_get_operands,
+                    .string_operands = set_get_strings,
+                };
+                uint16_t get_ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_NPC_VAR_GET,
+                    SS_OP_POP_VARP, SS_OP_RETURN,
+                };
+                int32_t get_operands[] = {
+                    var_slot, 0, SELFTEST_VARP_QUEST_PROGRESS, 0,
+                };
+                char* get_strings[4] = { NULL };
+                struct SSVM_Script get_script = {
+                    .id = -1,
+                    .name = "[selftest,npc_var_get]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 4,
+                    .opcodes = get_ops,
+                    .int_operands = get_operands,
+                    .string_operands = get_strings,
+                };
+                uint16_t change_get_ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_NPC_CHANGETYPE, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_NPC_VAR_GET, SS_OP_POP_VARP, SS_OP_RETURN,
+                };
+                int32_t change_get_operands[] = {
+                    2, INT32_MAX, 0, var_slot, 0,
+                    SELFTEST_VARP_QUEST_PROGRESS, 0,
+                };
+                char* change_get_strings[7] = { NULL };
+                struct SSVM_Script change_get_script = {
+                    .id = -1,
+                    .name = "[selftest,npc_var_changetype]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 7,
+                    .opcodes = change_get_ops,
+                    .int_operands = change_get_operands,
+                    .string_operands = change_get_strings,
+                };
+
+                SELFTEST_CHECK(first >= 0 && second >= 0,
+                               "two NPC instances should be available for isolation");
+                if( first >= 0 && second >= 0 )
+                {
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       &srv, &set_get_script, first),
+                                   "npc_var_set/get execute through the host VM");
+                    SELFTEST_CHECK(
+                        srv.npcs[first].script_vars[var_slot] == var_value &&
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
+                        "npc_var_get returns the value npc_var_set stored");
+
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       &srv, &get_script, second),
+                                   "npc_var_get executes on a second NPC");
+                    SELFTEST_CHECK(
+                        srv.npcs[second].script_vars[var_slot] == 0 &&
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                        "new NPC variables are zero and isolated per instance");
+
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       &srv, &change_get_script, first),
+                                   "npc_changetype and npc_var_get execute together");
+                    SELFTEST_CHECK(
+                        srv.npcs[first].type == 2 &&
+                            srv.npcs[first].script_vars[var_slot] == var_value &&
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
+                        "npc_changetype preserves the instance's runtime variables");
+
+                    mock230_world_npc_occupancy(&srv.npcs[first], 0);
+                    srv.npcs[first].active = 0;
+                    srv.npcs[first].respawn_tick = srv.tick;
+                    mock230_combat_respawn_tick(&srv);
+                    SELFTEST_CHECK(
+                        srv.npcs[first].active &&
+                            srv.npcs[first].script_vars[var_slot] == 0,
+                        "respawn clears per-life NPC runtime variables");
+
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       &srv, &get_script, first) &&
+                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                                   "npc_var_get observes the respawn reset");
+                }
+
+                if( first >= 0 && srv.npcs[first].active )
+                {
+                    mock230_world_npc_occupancy(&srv.npcs[first], 0);
+                    srv.npcs[first].active = 0;
+                    srv.npcs[first].respawn_tick = -1;
+                    mock230_zone_npc_refile(&srv, first);
+                }
+                if( second >= 0 && srv.npcs[second].active )
+                {
+                    mock230_world_npc_occupancy(&srv.npcs[second], 0);
+                    srv.npcs[second].active = 0;
+                    srv.npcs[second].respawn_tick = -1;
+                    mock230_zone_npc_refile(&srv, second);
+                }
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             }
 

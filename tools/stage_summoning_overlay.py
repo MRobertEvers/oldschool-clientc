@@ -17,6 +17,7 @@ import argparse
 import filecmp
 import hashlib
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -118,6 +119,29 @@ def stage(tree: Path, out: Path) -> int:
         copy_file(compack, out / "configs" / compack.name)
         copied += 1
 
+    # Client dbrows and DB_FIND indexes are one derived unit. The feature tree
+    # adds rows to cache tables 212/213, so the stage needs the base row/schema
+    # text and index templates as lookup context before gen_dbindex appends the
+    # authored rows. These copies exist only in the disposable flag-on stage.
+    for name in ("all.dbrow", "all.dbtable"):
+        source = tree / "configs" / name
+        if not source.is_file() or source.is_symlink():
+            raise fail(f"missing plain database source: {source}")
+        copy_file(source, out / "configs" / name)
+        copied += 1
+    copied += copy_tree(tree / "dbindex", out / "dbindex")
+
+    dbrow_alloc = tree / "pack" / "dbrow.alloc"
+    if not dbrow_alloc.is_file() or dbrow_alloc.is_symlink():
+        raise fail(f"missing plain dbrow allocation ledger: {dbrow_alloc}")
+    copy_file(dbrow_alloc, out / "pack" / "dbrow.alloc")
+    copied += 1
+    dbindex_pack = tree / "pack" / "21_dbtableindex.pack"
+    if not dbindex_pack.is_file() or dbindex_pack.is_symlink():
+        raise fail(f"missing plain dbindex archive pack: {dbindex_pack}")
+    copy_file(dbindex_pack, out / "pack" / "21_dbtableindex.pack")
+    copied += 1
+
     # Lane directories mirror their destination in the staged root.  Config
     # records may also be placed directly under the lane; keep those in a
     # provenance-named subdirectory of the config walk.
@@ -137,6 +161,19 @@ def stage(tree: Path, out: Path) -> int:
     for root_name in ASSET_ROOTS:
         source = tree / root_name / LANE
         copied += copy_tree(source, out / root_name / LANE)
+
+    generated = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools/gen_dbindex.py"),
+         "--content", str(out), "--write"],
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if generated.returncode != 0:
+        raise fail(f"dbindex regeneration failed:\n{generated.stdout}")
+    print(generated.stdout, end="")
 
     if copied == 0:
         raise fail("staged zero files")

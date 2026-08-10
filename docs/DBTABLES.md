@@ -30,9 +30,11 @@ caches, where 36 is the only string type.
 In table 21, file 0 of a table's archive is the master index (every row id) and
 file N ≥ 1 is the inverted index for column N-1. `DB_FIND` reads a column file,
 `DB_FINDALL` the master. **It is a projection of the dbrows, not authored
-content** (`cp_decode.c:4352`) — cachepack round-trips it byte-exactly rather
-than recomputing it, so a hand edit would survive and silently disagree with the
-rows it claims to index. Do not make one.
+content** (`cp_decode.c:4352`). `tools/gen_dbindex.py` now re-derives all 147
+index archives from `all.dbrow`/`all.dbtable`, retaining only the existing
+binary entry order as an encoding hint. `--check` is wired into `test-port` and
+rejects an omitted or misordered row; do not hand-edit a `.dbi` without running
+the generator.
 
 The client reads all of this through CS2's `DB_*` opcodes, 7500–7510.
 

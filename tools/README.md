@@ -58,6 +58,18 @@ make -C src check-crystal-set-contract
 
 Full incident: [`../docs/CRYSTAL_SET_COMMAND.md`](../docs/CRYSTAL_SET_COMMAND.md).
 
+### `gen_dbindex.py`
+
+Re-derives table-21 inverted indexes from `configs/all.dbrow` and
+`configs/all.dbtable`. Existing binary entry order is retained only as an
+encoding hint; row membership is always regenerated. The check is byte-exact
+across all 147 index archives and is part of `test-port`.
+
+```bash
+python3 tools/gen_dbindex.py --check
+make -C src test-dbindex  # includes omitted/misordered-row mutation controls
+```
+
 ### `win_window_screenshot.py`
 
 **What it does:** **Windows only.** Library-style helpers to capture a top-level visible window (by PID/HWND) to a 24-bit BMP via `PrintWindow` + GDI.

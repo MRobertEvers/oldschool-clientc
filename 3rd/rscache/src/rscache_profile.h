@@ -131,6 +131,9 @@ enum RSCache_Type
     RSCACHE_TYPE_CLIENTSCRIPT,
     RSCACHE_TYPE_WORLDMAP,
     RSCACHE_TYPE_SOUND,
+    /** RS2 render-animation/base-animation-set config (group 32). Kept after
+     *  the long-standing slots so adding the codec does not renumber them. */
+    RSCACHE_TYPE_BAS,
     RSCACHE_TYPE_COUNT,
 };
 

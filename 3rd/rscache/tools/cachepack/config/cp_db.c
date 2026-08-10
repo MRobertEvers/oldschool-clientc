@@ -137,6 +137,28 @@ db_type_code(const char* text)
     return (int)value;
 }
 
+/** The config namespace named by one DB tuple type, or -1 for scalar/asset
+ *  types cachepack cannot resolve through a config pack. */
+static int
+db_type_ref_type(int code)
+{
+    switch( code )
+    {
+    case 6: return CP_TYPE_SEQ;
+    case 13: return CP_TYPE_OBJ; /* namedobj */
+    case 23: return CP_TYPE_SPOTANIM;
+    case 30: return CP_TYPE_LOC;
+    case 32: return CP_TYPE_NPC;
+    case 33: return CP_TYPE_OBJ;
+    case 39: return CP_TYPE_INV;
+    case 59: return CP_TYPE_MAPELEMENT;
+    case 73: return CP_TYPE_STRUCT;
+    case 74: return CP_TYPE_DBROW;
+    case 209: return CP_TYPE_VARP;
+    default: return -1;
+    }
+}
+
 /**
  * Append `text` with `,` and `\` escaped. Returns the new write offset.
  *
@@ -380,6 +402,7 @@ ensure_column(struct RSCache_DbColumn** cols, int* count, int c)
  */
 static int
 parse_columns(
+    struct CP_Ctx* ctx,
     const struct CP_Config* config,
     const char* legacy_types_key,
     const char* values_key,
@@ -504,8 +527,29 @@ parse_columns(
                 }
                 else
                 {
+                    int ref_type = db_type_ref_type(c->types[f]);
+
                     v->is_string = false;
-                    v->int_value = (int)strtol(one, NULL, 10);
+                    if( ref_type >= 0 )
+                    {
+                        if( !cp_resolve_ref(ctx, (enum CP_TypeId)ref_type, one,
+                                            &v->int_value) )
+                            goto fail;
+                    }
+                    else
+                    {
+                        char* end;
+                        long parsed = strtol(one, &end, 10);
+
+                        if( end == one || *end )
+                        {
+                            cp_warn(ctx, &ctx->warn_unresolved_name,
+                                    "dbrow [%s] type %d requires an integer, got '%s'",
+                                    config->debugname, c->types[f], one);
+                            goto fail;
+                        }
+                        v->int_value = (int)parsed;
+                    }
                 }
             }
             c->tuple_count++;
@@ -567,7 +611,7 @@ cp_pack_dbrow(
         if( strcmp(config->lines[i].key, "table") == 0 )
             cp_resolve_ref(ctx, CP_TYPE_DBTABLE, config->lines[i].value, &entry.table_id);
     }
-    if( !parse_columns(config, "types", "values", &entry.columns, &entry.column_count) )
+    if( !parse_columns(ctx, config, "types", "values", &entry.columns, &entry.column_count) )
         return refuse(ctx, "dbrow", config);
 
     written = RSCache_Dat2ConfigDbRowEncode(&entry, out, out_capacity);
@@ -590,7 +634,7 @@ cp_pack_dbtable(
     entry.id = id;
     /* A dbtable's lines are prefixed: the emitter writes `defaulttypes=` and
      * `defaults=`, because a table declares defaults where a row carries values. */
-    if( !parse_columns(config, "defaulttypes", "defaults", &entry.columns,
+    if( !parse_columns(ctx, config, "defaulttypes", "defaults", &entry.columns,
                        &entry.column_count) )
         return refuse(ctx, "dbtable", config);
 

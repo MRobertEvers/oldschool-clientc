@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    232  host commands
+ *    235  host commands
  *      9  host commands (db)
  *      8  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    346  total, of 429 declared opcodes
+ *    349  total, of 431 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 346
-#define MOCK230_OPCODE_DECLARED_COUNT 429
+#define MOCK230_OPCODE_COVERAGE_COUNT 349
+#define MOCK230_OPCODE_DECLARED_COUNT 431
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +36,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11025
+#define MOCK230_OPCODE_VALUE_LIMIT 11027
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -83,6 +83,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1015, /* SS_OP_MAP_MULTIWAY (host commands) */
     1016, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
     1017, /* SS_OP_MOVECOORD (host commands) */
+    1019, /* SS_OP_PROJANIM_MAP (host commands) */
     1021, /* SS_OP_SPOTANIM_MAP (host commands) */
     1022, /* SS_OP_WORLD_DELAY (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
@@ -386,6 +387,8 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11022, /* SS_OP_NPC_SETOWNER (host commands) */
     11023, /* SS_OP_NPC_OWNER (host commands) */
     11024, /* SS_OP_NPC_FINDOWNED (host commands) */
+    11025, /* SS_OP_NPC_VAR_GET (host commands) */
+    11026, /* SS_OP_NPC_VAR_SET (host commands) */
 };
 
 #endif

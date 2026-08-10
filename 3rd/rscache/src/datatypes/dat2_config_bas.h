@@ -3,6 +3,16 @@
 
 #include <stdint.h>
 
+struct RSCache;
+
+/** Early RS2 BAS sequence references are u16 with 65535 as the sentinel. */
+#define RSCACHE_CODEC_BAS_RS2_U16 1
+/** The 727 client reads BAS sequence references as BigSmart values. */
+#define RSCACHE_CODEC_BAS_RS2_727 2
+
+int
+RSCache_Dat2ConfigBasCodecVersion(const struct RSCache* cache);
+
 /**
  * Base Animation Set (BAS)
  * BasType / render-animation config (RS2 config group 32).
@@ -27,6 +37,12 @@ struct RSCache_Dat2ConfigBas
 
 struct RSCache_Dat2ConfigBas*
 RSCache_Dat2ConfigBasNewDecode(
+    char* data,
+    int data_size);
+
+struct RSCache_Dat2ConfigBas*
+RSCache_Dat2ConfigBasNewDecodeProfile(
+    const struct RSCache* cache,
     char* data,
     int data_size);
 

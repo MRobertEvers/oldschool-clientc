@@ -340,8 +340,8 @@ load_spotanim(
                          : ((archive_id << addr.group_shift) | (file_id & addr.file_mask));
         if( global != id || files->file_sizes[i] <= 0 )
             continue;
-        out = RSCache_Dat2ConfigSpotanimNewDecode(
-            c->profile.revision, files->files[i], files->file_sizes[i]);
+        out = RSCache_Dat2ConfigSpotanimNewDecodeProfile(
+            &c->profile, files->files[i], files->file_sizes[i]);
         break;
     }
     RSCache_FileListFree(files);

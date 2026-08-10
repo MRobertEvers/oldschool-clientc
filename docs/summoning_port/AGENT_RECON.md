@@ -3319,7 +3319,10 @@ Memory debugging: `MallocScribble`, **not** ASAN.
 
 ## 6. Binding project rules
 
-**`CLAUDE.md` — ABSENT.** Not in the working tree and not at `HEAD`; deleted in commit `5cdb9c14` "ranged combat and crystal bow". Last content at `4a3f2645` (19 lines) — and it is still cited as authoritative by `.cursor/rules/no-park-sibling-content.mdc` ("See `PORTING_GUIDE.md` §7, `CLAUDE.md`…") and by `PORTING_GUIDE.md` §7. Its rules (recover with `git show 4a3f2645:CLAUDE.md`): read PORTING_GUIDE first; no game-facing strings/ids/constants in C; grep LostCity per §2.2 and state where it lives; never copy ids; re-measure instead of trusting prose; **done = verified headless + `mock230_pack --check-only` 0 errors + tests green + topic doc updated**; never park sibling content. **GUESS: restoring `CLAUDE.md` should be part of this plan** — a rule cited by an alwaysApply cursor rule and pointing at a missing file is exactly the "expired reason" failure §2.4 item 7 is about.
+**Resolved governance note:** `CLAUDE.md` is intentionally absent and is not a prerequisite.
+The user explicitly rejected restoring an agent-specific file. Its stale citations were removed;
+the applicable rules remain in `PORTING_GUIDE.md`, the queue documents, and
+`.cursor/rules/no-park-sibling-content.mdc`.
 
 **`.cursor/rules/` — 2 files, both `alwaysApply: true`:**
 - `no-park-sibling-content.mdc` — forbids `*.skip` directories/files, moving trees to `/tmp` or `.mta_restore_backup`, deleting/emptying another lane's `configs/`/`scripts/`, stripping sibling hooks from shared spell/combat/skill files, and *instructing* a park in summaries/todos/loop prompts. Live trees named: `skill_construction/`, `minigame_mta/`. (Note: a `.mta_restore_backup/` directory exists at repo root — evidence this has been violated before.)
@@ -3337,7 +3340,8 @@ Memory debugging: `MallocScribble`, **not** ASAN.
 3. `docs/PORTING_GUIDE.md:35` and `:683` — drop "Summoning" from both skip clauses.
 4. `docs/SKILLS_CONTENT_PORT_QUEUE.md:101` — drop the Summoning skip row; decide whether a #24 Audit roster row is added (and correct the "23/23 complete" claims at L148/L348 if so).
 5. Add new SCAPE2009 queue rows (`36…`) + an entry in that file's **Opcode gap log** (L265–282) for every new VM op, **before** any C is written.
-6. Restore `CLAUDE.md` (or delete the two dangling citations).
+6. ~~Restore `CLAUDE.md`~~ — resolved by explicit user decision: do not restore it; remove stale
+   citations instead.
 7. Write a topic doc (`docs/SUMMONING*.md`) as part of "done", per §7 last bullet, and log each slice in the queue.
 
 **Method (per §2 / §4.1)**
@@ -3386,6 +3390,7 @@ Memory debugging: `MallocScribble`, **not** ASAN.
 6. **`dbtable`/`dbrow` have no client encoder** (`cp_types.c:98,:101`). Fine for server-side tables; fatal if summoning needs a client-readable dbrow (e.g. a CS2-driven familiar list).
 7. **Interfaces are the wall.** The osrs239 cache has no summoning orb/panel; §4.2 says port per-interface on demand by *driving an existing rev-230 interface* — but there is nothing to drive. Authoring a new IF3 interface + CS2 is not something any existing content slice has done; the 19-interface survey (§5.4) covers only interfaces the cache already carries.
 8. **Doc-amendment blast radius.** Un-skipping Evil Turnip touches the live `skill_farming/` tree (rows 1a–1g `done`); un-skipping Wolf Whistle creates a Taverley area with no existing queue row. Both risk a §7 violation by a parallel agent that reads the old skip list.
-9. **`CLAUDE.md` is missing** yet cited as binding by an `alwaysApply` cursor rule and by `PORTING_GUIDE` §7. Any agent following the cursor rule's pointer finds nothing.
+9. ~~Missing `CLAUDE.md` citation~~ — resolved. It is intentionally absent and stale citations
+   were removed by explicit user direction.
 10. **Unmeasured in this recon:** whether summoning gamevals/varbits exist in the osrs239 cache (only 5 `summon`-matching obj names and 5 npc names, plus `delrith_seen_summoning_cutscene` varbit 2569 and `league_task_cerberus_summoned` 10923 — all unrelated); the true opcode gap for familiar entities (a familiar is neither `SSVM_ENT_NPC` nor a player and may need a new entity kind, which is the shape that blocked `opobj` for months); the rev-530 → osrs239 name-resolution rate for summoning subjects.
 11. **Numbers in this report taken from prose in the docs** (fallback-row counts 4 vs 5, opcode coverage 260/401, "23/23 skills") — §7 says distrust them; re-measure from `mock230_opcode_coverage.gen.h` and boot output under `MOCK230_VERBOSE=1` before planning against any of them.

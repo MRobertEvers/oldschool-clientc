@@ -663,15 +663,17 @@ walk_suffix(
 void
 mock230_db_load(const char* dir)
 {
+    char scripts[1024];
+
     mock230_db_free();
-    /* Both passes here, not one walk: see the file header.
-     *
-     * `configs/all.dbtable` / `all.dbrow` are the machine export
-     * (`columndef=` / `values=`) and are not this grammar — walking them used
-     * to leave 246 zero-column stubs that shadowed any later cache fill. They
-     * are skipped by name; the binary records land via mock230_db_load_cache. */
-    walk_suffix(dir, ".dbtable", load_dbtable_file);
-    walk_suffix(dir, ".dbrow", load_dbrow_file);
+    /* Server DB source has exactly one root. Client cache exports and flagged
+     * client lanes use a different grammar (`columndef=` / `values=`), and the
+     * binary loader below is their route into this runtime. Walking the whole
+     * content tree made a feature-only client dbrow look like malformed server
+     * content before its valid cache record was loaded. */
+    snprintf(scripts, sizeof(scripts), "%s/server/scripts", dir);
+    walk_suffix(scripts, ".dbtable", load_dbtable_file);
+    walk_suffix(scripts, ".dbrow", load_dbrow_file);
 }
 
 void

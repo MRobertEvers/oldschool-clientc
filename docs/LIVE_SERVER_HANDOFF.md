@@ -46,6 +46,8 @@ Each of these alone bricked the session; they were stacked:
    opcode N` runs with size=0 interleaved with occasional plausible packets.
 4. **NPC_INFO slot width** — rev 254 new-NPC block is `gbits(14)` slot,
    terminator 16383 (Client.ts `getNpcPosNewVis`), not v0-245_2's 13/8191.
+   This is the client's local slot for one nearby NPC instance, not the cache
+   NPC definition/type id; the type is a separate field in the add record.
    One bit off → garbage npc type ids + all NPCs on one tile. Fixed in
    `src/net/rev/pkt_npc_info.c` (+ `src/net/test/entity_decode_test.c`).
 5. **Scene coordinate spaces** — ~~server "local" coords are relative to the

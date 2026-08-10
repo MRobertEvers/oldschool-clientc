@@ -216,6 +216,20 @@ enum
     MOCK230_TRACKED_NPC_MAX = 255,
 
     /*
+     * How many distinct npc names one client can have outstanding.
+     *
+     * A client never holds more than MOCK230_TRACKED_NPC_MAX npcs, so 255 names
+     * would do. The headroom is for the one case that would otherwise bite: a
+     * name released this tick and handed to a different npc in the same packet.
+     * With 1024 and rotating allocation that cannot happen in any realistic
+     * churn, and the cost is 2KB per client.
+     *
+     * It must also fit the wire's index field, which is 16 bits on v5 and 14 on
+     * classic — see the static assertion in mock230_encode.c.
+     */
+    MOCK230_CLIENT_NPC_SLOTS = 1024,
+
+    /*
      * How much of the world roster is standing up at any moment.
      *
      * The content tree states where every npc in OldSchool lives — 23,139 of
@@ -376,6 +390,8 @@ enum
     MOCK230_GROUND_MAX = 4096,
     /** Pending `[ai_queue<n>]` entries per npc. */
     MOCK230_NPC_QUEUE_MAX = 4,
+    /** Script-owned integer state slots carried by each live npc instance. */
+    MOCK230_NPC_VAR_MAX = 16,
 
     /**
      * Where an npc is in the death sequence — `Mock230Npc.death_stage`.
@@ -1769,6 +1785,18 @@ struct Mock230Npc
     int stat_drain[MOCK230_STAT_COUNT];
 
     /**
+     * Small, script-owned runtime state belonging to this NPC instance.
+     *
+     * Player varps cannot represent two demons protecting from different
+     * styles, and config params belong to the NPC type rather than to one live
+     * instance. These slots fill that gap. They are zeroed by the spawn memset
+     * and explicitly on respawn, but deliberately survive `npc_changetype` so
+     * a phased boss does not lose its encounter state when its visible form
+     * changes. Content assigns meanings with named slot constants.
+     */
+    int32_t script_vars[MOCK230_NPC_VAR_MAX];
+
+    /**
      * Whether this npc hunts, as `npc_sethuntmode` last left it — seeded from
      * `def->huntmode` at spawn.
      *
@@ -2052,6 +2080,38 @@ struct Mock230PlayerZone
      * client is never re-told about and never updated on.
      */
     uint8_t loaded;
+};
+
+/*
+ * World npc slot <-> this client's npc slot.
+ *
+ * NPC_INFO's low-resolution ADD names an npc by a 16-bit index, and the client
+ * keys a map on it (RuneLite deob rev 239, `Statics.java`: `byte var20 = 16;`
+ * … `map.get(var22)`). Nothing in the client requires that index to mean
+ * anything globally — it only has to be stable for as long as THIS client is
+ * being told about the npc, and unique among the npcs it currently holds.
+ *
+ * So it is a per-client name, and translating at the wire is what stops the
+ * world's pool size from being a protocol question. The server keeps its own
+ * slot everywhere — the pool, the ZoneMap, every interaction — and only the two
+ * places that write an id on the wire go through here.
+ *
+ * The alternative, and what this replaces, was reusing the world slot as the
+ * client's index. That works and costs nothing right up until the world pool
+ * outgrows the field, at which point two npcs share an id and the client draws
+ * one of them in both places, silently.
+ */
+struct Mock230PlayerSlotMap
+{
+    /** Client slot -> world npc slot, -1 when the client slot is free. */
+    int16_t world_of[MOCK230_CLIENT_NPC_SLOTS];
+    /** World npc slot -> client slot, -1 when this client has no name for it. */
+    int16_t client_of[MOCK230_NPC_MAX];
+    /** Rotating allocation hint. Rotating rather than lowest-free on purpose:
+     *  reusing a just-released slot for a different npc inside one packet is
+     *  the one ordering the client cannot absorb, and spreading allocation
+     *  makes that vanishingly rare instead of the common case. */
+    int next;
 };
 
 struct Mock230PlayerZoneMap
@@ -2356,6 +2416,8 @@ struct Mock230Player
      * the replay too, and because it is the question the wire asks.
      */
     struct Mock230PlayerZoneMap zonemap;
+    /** What this client calls each npc it is being told about. See the type. */
+    struct Mock230PlayerSlotMap npc_slots;
     /** Packed zone this client was last in, or -1. */
     int zone_index;
     /**
@@ -5249,5 +5311,19 @@ void
 mock230_send_player_info(struct Mock230Player* player);
 void
 mock230_send_npc_info(struct Mock230Player* player);
+
+/* Per-client npc names — see struct Mock230PlayerSlotMap. */
+void
+mock230_slotmap_reset(struct Mock230Player* player);
+
+int
+mock230_slotmap_acquire(
+    struct Mock230Player* player,
+    int world_slot);
+
+void
+mock230_slotmap_release(
+    struct Mock230Player* player,
+    int world_slot);
 
 #endif

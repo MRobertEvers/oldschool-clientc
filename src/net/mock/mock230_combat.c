@@ -1374,6 +1374,9 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          */
         npc->mode = mock230_world_npc_default_mode(npc);
         npc->huntmode = npc_def(npc)->huntmode;
+        /* Runtime vars describe one life, not one pool slot. A type change
+         * keeps them; a respawn is the boundary that clears them. */
+        memset(npc->script_vars, 0, sizeof(npc->script_vars));
         npc->patrol_index = 0;
         npc->patrol_pause = 0;
         npc->attack_clock = 0;
