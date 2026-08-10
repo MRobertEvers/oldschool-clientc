@@ -226,6 +226,8 @@ ToriDraw_SceneAllocBuffers(
     scene->depth_levels = caps->depth_levels;
     scene->depth_stride = caps->depth_stride;
     scene->priority_stride = caps->priority_stride;
+    scene->flex_prio_capacity =
+        caps->flex_prio11 < caps->flex_prio12 ? caps->flex_prio11 : caps->flex_prio12;
 
     scene->screen_vertices_x = malloc((size_t)caps->max_vertices * sizeof(int));
     scene->screen_vertices_y = malloc((size_t)caps->max_vertices * sizeof(int));

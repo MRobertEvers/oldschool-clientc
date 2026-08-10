@@ -35,9 +35,10 @@ SCOPE THIS PASS: Resume at the next pending, unblocked slice in
 `SUMMONING_PORT_QUEUE.md`; that queue, not this prompt, is the current scope. Do not restart
 Phases 0–4 merely because this prompt is being reused. For Phase 5 work, preserve the generated
 `summoning_roster_530` experiment as review-only evidence: do not delete it, silently accept it,
-or let it enter the feature-on stage without an explicit boundary admission. A Phase-5b cohort
-needs its own bounded admission plus real-client model/animation/summon proof. Maps remain out of
-scope. Work one queue slice at a time and update `SUMMONING_PORT_QUEUE.md` after each.
+or let it enter the feature-on stage without an explicit boundary admission. A newly admitted
+Phase-5 cohort needs its own bounded admission plus real-client model/animation/summon proof.
+Maps remain out of scope. Work one queue slice at a time and update
+`SUMMONING_PORT_QUEUE.md` after each.
 
 TRAPS — these have already burned time, don't rediscover them:
   - Any 530 measurement taken with --rev rs643 is SUSPECT (it pins a rev-610 frame format).

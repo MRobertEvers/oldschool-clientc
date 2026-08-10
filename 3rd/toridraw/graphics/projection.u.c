@@ -417,35 +417,250 @@ project_orthographic_fast_pitchyaw(
     projected_vertex->z = z_final_scene;
 }
 
+/*
+ * Return floor(p * (camera_cot16 >> 6) / 1024) * 512 without forming the
+ * potentially overflowing product.  Splitting p at 10 bits keeps both
+ * multiplies in 32 bits for every value accepted by the texture-plane range
+ * gate below.  This function is triangle setup, but it deliberately remains
+ * 32-bit as the software renderer also targets i686.
+ */
+static inline bool
+project_scale_unit_try(
+    int p,
+    int camera_cot16,
+    int* out)
+{
+    int const cot_scaled = camera_cot16 >> 6;
+    int const p_hi = p >> 10;
+    int const p_lo = p - p_hi * 1024;
+    int hi_product;
+    int lo_product;
+    int scaled;
+
+    if( cot_scaled <= 0 )
+        return false;
+    if( p_hi > INT_MAX / cot_scaled || p_hi < INT_MIN / cot_scaled )
+        return false;
+    if( p_lo > INT_MAX / cot_scaled )
+        return false;
+
+    hi_product = p_hi * cot_scaled;
+    lo_product = (p_lo * cot_scaled) >> 10;
+    if( hi_product > INT_MAX - lo_product )
+        return false;
+    scaled = hi_product + lo_product;
+
+    if( scaled > INT_MAX / UNIT_SCALE || scaled < INT_MIN / UNIT_SCALE )
+        return false;
+    *out = scaled * UNIT_SCALE;
+    return true;
+}
+
 static inline int
 project_scale_unit(
     int p,
     int camera_cot16)
 {
-    int cot_fov_half_ish16 = camera_cot16;
+    int scaled;
+    bool const ok = project_scale_unit_try(p, camera_cot16, &scaled);
 
-    static const int scale_angle = 6;
-    int cot_fov_half_ish_scaled = cot_fov_half_ish16 >> scale_angle;
+    assert(ok);
+    return ok ? scaled : 0;
+}
 
-    // Apply FOV scaling to x and y coordinates
+/* One numerator plane (A, B, or C) for perspective texture coordinates.
+ * `z` is the camera-space normal until prepare succeeds; `base` is then its
+ * projected screen-centre term. */
+struct ToriDraw_TexturePlaneTerm32
+{
+    int x;
+    int y;
+    int z;
+    int base;
+};
 
-    // unit scale 9, angle scale 16
-    // then 6 bits of valid x/z. (31 - 25 = 6), signed int.
+struct ToriDraw_TexturePlane32
+{
+    struct ToriDraw_TexturePlaneTerm32 term[3];
+    int shift;
+};
 
-    // if valid x is -Screen_width/2 to Screen_width/2
-    // And the max resolution we allow is 1600 (either dimension)
-    // then x_bits_max = 10; because 2^10 = 1024 > (1600/2)
+static inline int
+toridraw_sar1(int value)
+{
+    /* Symmetric and convergent: unlike arithmetic -1 >> 1, this reaches zero. */
+    return value / 2;
+}
 
-    // If we have 6 bits of valid x then x_bits_max - z_clip_bits < 6
-    // i.e. x/z < 2^6 or x/z < 64
+static inline unsigned
+toridraw_abs_u32(int value)
+{
+    return value < 0 ? 0u - (unsigned)value : (unsigned)value;
+}
 
-    // Suppose we allow z > 16, so z_clip_bits = 4
-    // then x_bits_max < 10, so 2^9, which is 512
+static inline bool
+toridraw_magnitude_add_product(unsigned* magnitude, unsigned value, unsigned extent)
+{
+    unsigned product;
+    unsigned sum;
 
-    p *= cot_fov_half_ish_scaled;
-    p >>= 16 - scale_angle;
+#if defined(__GNUC__) || defined(__clang__)
+    if( __builtin_mul_overflow(value, extent, &product) ||
+        __builtin_add_overflow(*magnitude, product, &sum) )
+        return false;
+#else
+    if( value != 0 && extent > UINT_MAX / value )
+        return false;
+    product = value * extent;
+    if( *magnitude > UINT_MAX - product )
+        return false;
+    sum = *magnitude + product;
+#endif
 
-    return SCALE_UNIT(p);
+    if( sum > (unsigned)INT_MAX )
+        return false;
+    *magnitude = sum;
+    return true;
+}
+
+static inline bool
+ToriDraw_TexturePlaneTermFits32(
+    const struct ToriDraw_TexturePlaneTerm32* term,
+    unsigned half_width,
+    unsigned half_height)
+{
+    unsigned magnitude = toridraw_abs_u32(term->base);
+
+    if( magnitude > (unsigned)INT_MAX )
+        return false;
+    return toridraw_magnitude_add_product(
+               &magnitude, toridraw_abs_u32(term->x), half_width) &&
+           toridraw_magnitude_add_product(
+               &magnitude, toridraw_abs_u32(term->y), half_height);
+}
+
+/* Add a product modulo 2^32 without signed-overflow UB, then decode the result
+ * as a signed value.  TexturePlaneTermFits32 proves the mathematical endpoint
+ * is representable; this helper only avoids an oversized intermediate such as
+ * step_x * full_span_width in the affine path. */
+static inline int
+toridraw_add_mul32(int base, int step, int distance)
+{
+    unsigned const bits =
+        (unsigned)base + (unsigned)step * (unsigned)distance;
+
+    if( bits <= (unsigned)INT_MAX )
+        return (int)bits;
+    return -1 - (int)(UINT_MAX - bits);
+}
+
+/*
+ * A, B, and C are homogeneous: texture coordinates are A/C and B/C.  Dividing
+ * all nine plane terms by the same power of two therefore preserves the map,
+ * apart from discarded low precision, while bounding every hot-loop value.
+ *
+ * Each screen evaluation is base + x*dx + y*dy.  Testing that expression at
+ * the viewport's maximum centered extents proves that every row/span value is
+ * representable.  Affine's potentially wider step*count intermediate uses
+ * toridraw_add_mul32.  This work happens once per triangle; all scanline and
+ * span arithmetic remains 32-bit.
+ */
+/* #region agent log */
+/** Largest normalization shift ToriDraw_TexturePlanePrepare32 has needed, and
+ *  how many triangles it refused outright. Reported per model by the raster
+ *  debug line: every bit of shift is a bit of uv precision discarded, so a
+ *  large value here is a striped/banded texture rather than a lost face. */
+static int g_toridraw_tex_plane_max_shift = 0;
+static int g_toridraw_tex_plane_rejected = 0;
+/* #endregion */
+
+static inline bool
+ToriDraw_TexturePlanePrepare32(
+    struct ToriDraw_TexturePlane32* plane,
+    int screen_width,
+    int screen_height,
+    int camera_cot16)
+{
+    unsigned half_width;
+    unsigned half_height;
+    int pre_shift = 0;
+
+    if( screen_width <= 0 || screen_height <= 0 )
+        return false;
+    /* Perspective spans inspect the coordinate eight pixels ahead even for a
+     * short tail, so retain that small amount of horizontal headroom. */
+    half_width =
+        (unsigned)screen_width / 2u + (unsigned)(screen_width & 1) + 8u;
+    half_height = (unsigned)screen_height / 2u + (unsigned)(screen_height & 1);
+
+    /* First make the projection-scale result itself representable.  This is
+     * normally zero iterations; very large imported coordinates take the same
+     * common shift on all three planes. */
+    for( ;; )
+    {
+        bool projected = true;
+        for( int i = 0; i < 3; i++ )
+        {
+            if( !project_scale_unit_try(
+                    plane->term[i].z, camera_cot16, &plane->term[i].base) )
+            {
+                projected = false;
+                break;
+            }
+        }
+        if( projected )
+            break;
+        if( pre_shift++ >= 30 )
+        {
+            /* #region agent log */
+            g_toridraw_tex_plane_rejected++;
+            /* #endregion */
+            return false;
+        }
+        for( int i = 0; i < 3; i++ )
+        {
+            plane->term[i].x = toridraw_sar1(plane->term[i].x);
+            plane->term[i].y = toridraw_sar1(plane->term[i].y);
+            plane->term[i].z = toridraw_sar1(plane->term[i].z);
+        }
+    }
+
+    plane->shift = pre_shift;
+    for( ;; )
+    {
+        bool fits = true;
+        for( int i = 0; i < 3; i++ )
+        {
+            if( !ToriDraw_TexturePlaneTermFits32(
+                    &plane->term[i], half_width, half_height) )
+            {
+                fits = false;
+                break;
+            }
+        }
+        if( fits )
+            break;
+        if( plane->shift++ >= 30 )
+        {
+            /* #region agent log */
+            g_toridraw_tex_plane_rejected++;
+            /* #endregion */
+            return false;
+        }
+        for( int i = 0; i < 3; i++ )
+        {
+            plane->term[i].x = toridraw_sar1(plane->term[i].x);
+            plane->term[i].y = toridraw_sar1(plane->term[i].y);
+            plane->term[i].base = toridraw_sar1(plane->term[i].base);
+        }
+    }
+
+    /* #region agent log */
+    if( plane->shift > g_toridraw_tex_plane_max_shift )
+        g_toridraw_tex_plane_max_shift = plane->shift;
+    /* #endregion */
+
+    return plane->term[2].x != 0 || plane->term[2].y != 0 || plane->term[2].base != 0;
 }
 
 static inline int

@@ -1187,9 +1187,12 @@ belongs to unrelated reward-point stores. Then the survey's own readiness
 triage found `shop_server_reqs.md` describes something **blocked three ways**,
 not ready: `shopmain.if` carries no `onload=` at all, so the panel cannot draw
 itself and needs a server-driven `shop_main_init(inv,int,int,int,string)`;
-LostCity's shop invs are `scope=shared` while `container_for` resolves only off
-`active_player`; and `restock=`/`stockN=`/`scope=` have nowhere to live,
-because there is no `fields/inv.ini` and no `[namespace:inv]` in `content.ini`.
+LostCity's shop invs are `scope=shared` while private containers resolve per
+player; and `restock=`/`stockN=`/`scope=` still have no server-side inventory
+definition, listener fan-out, or durable world-state policy. Phase 6a now has
+`fields/inv.ini` and `[namespace:inv]`, but deliberately declares only the
+cache-native `size` needed by private containers — that does not make shops
+shared or stocked.
 Two of those three are the cross-cutting blockers §5.4 names — the fixed
 1-int/2-string shape of `runclientscript_ss`, and `container_for` needing to be
 a registry rather than a fourth `if`. **Both are discharged as of 2026-08-02**
@@ -1198,8 +1201,9 @@ a registry rather than a fourth `if`. **Both are discharged as of 2026-08-02**
 sharpened the third rather than clearing it: the registry resolves as
 `(srv, player, inv_id)` and branches on `owner_kind`, so a world-scoped
 container is expressible, but `mock230_container_scope()` classifies everything
-as per-player because the client cache has no `scope` field to read. `shop` is
-now blocked on exactly one thing, `fields/inv.ini` + `[namespace:inv]`.
+as per-player because the client cache has no server `scope` field to read.
+Private inventory records can now be staged/cache-baked; `shop` remains blocked
+on the separate server-scope/listener/stock implementation.
 
 **Phase 5 — modern features** (§5)
 XP-drops VM loop fix → friends/ignore/PM decode + service → clan chat →

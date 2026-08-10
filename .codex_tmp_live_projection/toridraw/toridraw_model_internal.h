@@ -1,0 +1,17 @@
+#ifndef TORIDRAW_MODEL_INTERNAL_H
+#define TORIDRAW_MODEL_INTERNAL_H
+
+#include "toridraw_model.h"
+
+#define model_bounds_cylinder ToriDraw_ModelGetBoundsCylinder
+#define model_has_textures ToriDraw_ModelHasTextures
+#define model_get_face_priority ToriDraw_ModelGetFacePriority
+#define model_vertex_count ToriDraw_ModelGetVertexCount
+#define model_face_count ToriDraw_ModelGetFaceCount
+#define model_vertices_x ToriDraw_ModelGetVerticesX
+#define model_vertices_y ToriDraw_ModelGetVerticesY
+#define model_vertices_z ToriDraw_ModelGetVerticesZ
+#define model_as_full ToriDraw_ModelAsFull
+#define faceprio_unpack ToriDraw_ModelGetFacePriority
+
+#endif

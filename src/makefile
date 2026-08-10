@@ -33,6 +33,21 @@ MEMTRACE ?= 0
 # ENABLE_ASAN=1 is a distinct object/link flavor. On macOS it also selects a
 # static SDL link and the dyld interpose dylib required by LLVM #182943.
 ENABLE_ASAN ?= 0
+# ENABLE_UBSAN=1 instruments ToriDraw only, and only for the two checks that
+# matter to the rasterizer: signed overflow and out-of-range shifts. Scoped to
+# ToriDraw because a whole-client -fsanitize=undefined buries the signal, and
+# scoped to those two checks because they are the ones that silently produce a
+# wrong pixel rather than a crash. Errors abort rather than recover, so the
+# first one names its file and line.
+#
+# Pair it with TORIDRAW_NO_SIMD=1: UBSan does not instrument vector types or
+# NEON/SSE intrinsics at all, so an overflowing lane in a *_simd.*.u.c kernel is
+# invisible to it. The scalar fallback is plain C and is checked normally.
+ENABLE_UBSAN ?= 0
+# TORIDRAW_NO_SIMD=1 forces the portable scalar projection kernels on every
+# host. A rendering difference between this and the default build localises a
+# defect to the SIMD kernels.
+TORIDRAW_NO_SIMD ?= 0
 # TORIDRAW_OPT=1: Soft3D/ToriDraw at -O2 regardless of OPT. Default 0.
 #   make -C src TORIDRAW_OPT=1 EMBED_SERVER=1 torirs
 TORIDRAW_OPT ?= 0
@@ -77,6 +92,16 @@ ASAN_SUFFIX = _asan
 else
 ASAN_SUFFIX =
 endif
+ifeq ($(ENABLE_UBSAN),1)
+UBSAN_SUFFIX = _ubsan
+else
+UBSAN_SUFFIX =
+endif
+ifeq ($(TORIDRAW_NO_SIMD),1)
+NOSIMD_SUFFIX = _nosimd
+else
+NOSIMD_SUFFIX =
+endif
 ifeq ($(TORIDRAW_OPT),1)
 TORIDRAW_OPT_SUFFIX = _tdo
 else
@@ -88,10 +113,10 @@ else
 EMBED_SERVER_SUFFIX =
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
@@ -237,6 +262,26 @@ ifeq ($(PLATFORM),macos)
 ASAN_DYLD_SHIM := $(OBJ_DIR)/asan_dyld_shim.dylib
 ASAN_COMPAT_SRC := platform/asan_compat.c
 endif
+endif
+
+ifeq ($(TORIDRAW_NO_SIMD),1)
+# The selection ladder in graphics/projection16_simd.u.c (and its zdiv twin)
+# picks a kernel from the host's ISA macros unless the matching *_DISABLED is
+# defined. Define all of them and every host lands on the scalar file.
+TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
+	-DSSE2_DISABLED=1 -DSSE_DISABLED=1
+endif
+
+ifeq ($(ENABLE_UBSAN),1)
+# Deliberately not `shift`: ToriDraw's fixed-point code left-shifts negative
+# values in several places (toridraw_lighting.c:170 among them), which is UB by
+# the letter of the standard but wraps as intended on every target here. Those
+# reports fire first and hide the arithmetic ones. UBSAN_CHECKS is overridable
+# on the command line when that class is what is being investigated.
+UBSAN_CHECKS ?= signed-integer-overflow
+TORIDRAW_CFLAGS += -fsanitize=$(UBSAN_CHECKS) -fno-sanitize-recover=$(UBSAN_CHECKS)
+# Only ToriDraw is instrumented, but the runtime still has to be linked in.
+LDFLAGS += -fsanitize=undefined
 endif
 
 ASAN_DYLD_SHIM ?=
@@ -521,7 +566,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5b-runtime
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1882,6 +1927,20 @@ test-summoning-phase5b:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b.py \
 		--tree $(MOCK230_CONTENT_DIR)
 
+test-summoning-phase5c-corpus:
+	@cd $(REPO_ROOT) && python3 tools/generate_summoning_corpus.py --check
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5c_corpus.py
+
+# Phase 6a adds only a cache-native, player-owned BoB inventory foundation.
+# UI, actual familiar transfer rules, and shared shop scope remain separate.
+test-summoning-phase6:
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6.py \
+		--tree $(MOCK230_CONTENT_DIR)
+
+test-summoning-phase6-cache:
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6_cache.py \
+		--cache $(SUMMONING_CACHE_DIR)
+
 # Runtime proof is intentionally separate from the cache and port gates. It
 # retains the Phase-5b structural/staging fingerprint as a prerequisite, builds
 # a normal non-ASAN embedded client, and drives a fresh real pouch UI.
@@ -1907,7 +1966,7 @@ test-summoning-byte-identity:
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
 		--compare-cache "$(SUMMONING_CACHE_BEFORE)" "$(SUMMONING_CACHE_AFTER)"
 
-mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-cs2
+mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-phase6 test-summoning-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
 		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
@@ -1919,6 +1978,7 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
+	@$(MAKE) --no-print-directory test-summoning-phase6-cache
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 12000 12001 12002 >"$$log" 2>&1; \
@@ -2247,7 +2307,7 @@ test-membership:
 # reason stated above it: a bar in a command nobody types is not covered. The
 # name diff needs the LostCity checkout and says so and passes when it is absent
 # — a bar that cannot run has not failed.
-test-port: test-summoning-phase5a test-summoning-phase5b
+test-port: test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-phase6
 	@echo "--- port: the name-resolution gate ---"
 	@cd $(REPO_ROOT) && python3 tools/ss_unresolved.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -2371,6 +2431,13 @@ test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_profile_test \
 		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
 	./$(OBJ_DIR)/scene_profile_test
+
+# Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
+# winding, then the clipped polygon receives the real front-face test.
+test-near-clip: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/near_clip_test \
+		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+	./$(OBJ_DIR)/near_clip_test
 
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the
 # real fixed-function D3D9 command dispatcher and drives its retained resource

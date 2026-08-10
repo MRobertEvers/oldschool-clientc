@@ -21225,10 +21225,10 @@ mock230_world_selftest(void)
             player->bank.dirty = 0;
         }
 
-        /* 7. The world half of the seam exists and is empty by construction —
-         *    `scope` needs fields/inv.ini, which is another lane's file. */
+        /* 7. Phase 6a establishes a cache-sized private container, not shared
+         *    shop scope. The world half stays empty by construction. */
         SELFTEST_CHECK(mock230_container_scope(inv_collection) == MOCK230_CONTAINER_PLAYER,
-                       "no inv classifies as world-scoped yet (fields/inv.ini is the hole)");
+                       "private invs do not classify as world-scoped before shop scope exists");
         SELFTEST_CHECK(row->owner_kind == MOCK230_CONTAINER_PLAYER && row->owner == player,
                        "a per-player row knows its owner without asking active_player");
 

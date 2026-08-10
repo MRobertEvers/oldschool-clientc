@@ -391,9 +391,8 @@ def main() -> int:
         "current ledger contains an unadmitted generated roster destination",
     )
 
-    # Phase 5b admits exactly one deliberately tiny first cohort.  Keep this
-    # assertion concrete rather than letting a boundary-file edit silently
-    # turn the Dreadfowl proof into a broader roster import.
+    # Keep the original Dreadfowl proof concrete while allowing later cohorts
+    # to own their own exact ledger.
     expected_dreadfowl_counts = {
         "npc": 1,
         "obj": 1,
@@ -452,10 +451,11 @@ def main() -> int:
     }
     cohort_ledgers = boundary.cohort_ledgers
     expect(
-        len(cohort_ledgers) == 1 and cohort_ledgers[0].prefix == "summoning_cohort_dreadfowl",
-        "Phase 5b must admit exactly the Dreadfowl cohort ledger",
+        any(cohort.prefix == "summoning_cohort_dreadfowl" for cohort in cohort_ledgers),
+        "admitted cohorts must retain the Dreadfowl ledger",
     )
-    dreadfowl_cohort = cohort_ledgers[0] if cohort_ledgers else None
+    dreadfowl_cohort = next((cohort for cohort in cohort_ledgers
+                             if cohort.prefix == "summoning_cohort_dreadfowl"), None)
     expect(
         dreadfowl_cohort is not None and dict(dreadfowl_cohort.expected_ledger_rows) == expected_dreadfowl_counts,
         "Dreadfowl cohort row boundary widened or changed",

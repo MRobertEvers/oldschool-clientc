@@ -460,7 +460,7 @@ Feature-on staging withholds its cohort-named assets and its line-oriented mixed
 asserts that no review-only marker reaches the staged tree. The same audit fails closed for any
 other generated cohort, pet record, unsafe synth, or `npc_sounds=yes` closure. The permanent
 `test-summoning-phase5a` target performs 94 checks over that boundary, the ledger, archive hashes,
-preservation counts, and staging exclusion. Current evidence: `port_summoning_ids.py --check`
+preservation counts, and staging exclusion. Closure evidence: `port_summoning_ids.py --check`
 reports 1,541 required rows and 1,418 total ledger rows, 0 errors; staging admission is 4,545/0,
 with 3,785 review-only references held and 2,805 withheld, yielding 417 staged actual files and a
 417/0 review-exclusion check; the feature cache is 16,998 records/0 errors, 187 asset archives/23
@@ -487,15 +487,36 @@ one-point summon and 100-tick drain boundary, and exercise
 real sidebar Call and Dismiss. The retained logs and framebuffers are under
 `build/summoning-phase5b-runtime/`.
 
+**Phase 5c — corpus familiar/pouch cohort (planned).** The next bounded slice is the 45-pair
+baseline familiar corpus: the 76 remaining active pouch pairs less Phoenix and the 30
+Beast-of-Burden/forager pairs that remain Phase-6 container work. It will accept only the common
+summon/render/lifecycle surface; specials, combat, scrolls, storage, foraging, boosts, healing,
+teleports, source audio, and other differentiated behavior remain explicit later work. The exact
+membership, admission/import process, generated runtime registry, full real-client matrix, and
+completion gates are in
+[`summoning_port/PHASE_5C_CORPUS_COHORT_PLAN.md`](summoning_port/PHASE_5C_CORPUS_COHORT_PLAN.md).
+
 **Client acceptance for breadth:** every familiar must be summoned in the real client with its
 model and animations rendered, and every scroll must be activated through its actual client
 interaction with visible/logged special-move effects. Definition presence or a successful bake
 alone is not acceptance.
 
-**Phase 6 — Beast of Burden (~8–12 d), blocked on an unrelated prerequisite.** `fields/inv.ini` and
-`[namespace:inv]` do not exist — the same gap that keeps `shop` unportable. `mock230_container_resolve`
-returns NULL for an inv the cache does not size and every container op aborts. Its own slice, its
-own acceptance, credited against `shop` too. Must not block Phases 1–5.
+**Phase 6a — private Beast-of-Burden container foundation (done).** The old “missing inv namespace”
+premise was stale: `inv` already has a cache name table, a server allocation floor, dynamic
+player-owned container resolution, generic transmit, and generic save/load. This slice formalizes its
+one native field (`fields/inv.ini: inv.size`), declares authored inventory membership, and adds the
+feature-on-only `summoning_bob` record at ID 2001 with 30 slots. Its allocation and client membership
+live in the marked Summoning lane; the ordinary cache sees neither the config nor a client membership.
+`test-summoning-phase6` passes 26/0, including allocation freshness, mutation controls, disposable
+staging, review-only exclusion, and source immutability. A disposable cache bake writes 16,999 records
+with 0 failed/unknown/unresolved and read-back `inv_2001 size=30`; the cache gate is 7/0. Staging remains
+4,548/0 with 3,785 review-only references held. An ordinary inv-only bake remains 1,026 records with
+no ID 2001, and the flag-off comparison remains 25/0.
+
+**Phase 6b — a real BoB/forager cohort (pending).** This still needs an admitted familiar and pouch,
+actual storage UI plus `inv_transmit`, transfer/overflow rules, summon/dismiss/relog lifecycle, and a
+fresh-save real-client proof. Phase 6a deliberately does **not** define shared `scope`, stock, restock,
+or stack policy; it is not shop work and it does not claim any of the 30 deferred familiar roots work yet.
 
 **Phase 7 — polish.** Sidebar tab if deferred · per-account unlock · Wolf Whistle · remaining
 sounds · pets (a separate lifecycle — stub the save shape now so it can be added later without a

@@ -37,15 +37,15 @@
  * boot for every inv id. An inv the cache does not size cannot be registered,
  * which is the correct answer: it is not a container, it is a typo.
  *
- * **`scope` is not classified.** `mock230_container_scope` returns
- * MOCK230_CONTAINER_PLAYER for everything, because the field it needs is
- * decoded from LostCity's server-side `inv.dat` (opcode 1) and does not exist
- * in the client cache at all — `3rd/rscache/src/datatypes/dat2_config_inv.c`
- * reads only size (2) and params (249). This tree has no `fields/inv.ini` and
- * no `[namespace:inv]` in `content.ini` for `scope=`/`restock=`/`stockN=` to
- * live in. Until that lands, the world table is empty by construction. That is
- * the concrete reason `shop` is still blocked and is stated here rather than
- * discovered later.
+ * **`scope` is not classified.** Phase 6a declares the cache-native `size`
+ * field and routes private feature-lane inventories, which is enough for a
+ * player-owned Beast-of-Burden container. It intentionally does not invent a
+ * server `scope`, `restock`, `stockN`, or stack-policy field: the client cache
+ * has none (`dat2_config_inv.c` reads only size (2) and params (249)).
+ * `mock230_container_scope` therefore still returns MOCK230_CONTAINER_PLAYER
+ * for every inv. A shared shop needs a real server-side definition/parser plus
+ * player-qualified listener fan-out and durable world-state policy; the world
+ * table remains empty until that separate slice lands.
  */
 
 #include <stdint.h>
@@ -68,8 +68,9 @@ enum
 /**
  * Which table owns `inv_id`.
  *
- * One function, so that landing `fields/inv.ini` is a change to one body rather
- * than to every call site. See the header comment for why it is a constant now.
+ * One function, so that landing server-side inv scope semantics is a change to
+ * one body rather than to every call site. See the header comment for why it is
+ * a constant through the private-container foundation.
  */
 int
 mock230_container_scope(int32_t inv_id);

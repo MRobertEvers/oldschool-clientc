@@ -2802,28 +2802,34 @@ app_sync_textures(struct App* app)
     for( int i = 0; i < id_count; i++ )
     {
         int const id = ids[i];
+        int already_pending = 0;
+
         if( id >= 0 && id < 2048 && app->bridge.texture_failed[id] )
             continue;
         if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
             continue;
+
+        /* A model may be rebuilt while its first texture request is still in
+         * flight. Do the pending-set test before creating the task; the old
+         * order queued another decoder for every rebuild and only deduplicated
+         * the publish list afterwards. */
+        for( int p = 0; p < app->tex_pending_count; p++ )
+            if( app->tex_pending[p] == id )
+            {
+                already_pending = 1;
+                break;
+            }
+        if( already_pending )
+            continue;
+
         if( !CacheProvider_TextureHas(app->provider, id) )
         {
             struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, id);
             if( task )
                 ToriRS_TaskQueue_Add(app->runner.queue, task);
         }
-        /* Track for the publish poll (dedupe; the set is tiny). */
-        {
-            int seen = 0;
-            for( int p = 0; p < app->tex_pending_count; p++ )
-                if( app->tex_pending[p] == id )
-                {
-                    seen = 1;
-                    break;
-                }
-            if( !seen && app->tex_pending_count < 512 )
-                app->tex_pending[app->tex_pending_count++] = id;
-        }
+        if( app->tex_pending_count < 512 )
+            app->tex_pending[app->tex_pending_count++] = id;
     }
 }
 
@@ -2833,22 +2839,43 @@ app_sync_textures(struct App* app)
 static void
 app_sync_textures_poll(struct App* app)
 {
+    int ready[512];
+    int ready_count = 0;
     int kept = 0;
+    int const queue_idle = !app->runner.queue || !app->runner.queue->head;
 
     if( app->tex_pending_count == 0 )
         return;
 
-    if( UITreeSceneBridge_PublishTextures(&app->bridge, app->tex_pending, app->tex_pending_count) )
-        app->need_redraw = 1;
-
     for( int i = 0; i < app->tex_pending_count; i++ )
     {
         int id = app->tex_pending[i];
-        int failed = (id >= 0 && id < 2048) ? app->bridge.texture_failed[id] : 1;
-        if( !CacheProvider_TextureHas(app->provider, id) && !failed )
+
+        if( id < 0 || id >= 2048 || app->bridge.texture_failed[id] )
+            continue;
+        if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
+            continue;
+        if( CacheProvider_TextureHas(app->provider, id) )
+        {
+            ready[ready_count++] = id;
+            continue;
+        }
+
+        /* A missing provider entry does not mean a failed texture while its
+         * async load is still queued. Publishing it here used to mark it
+         * failed on the very next frame, before a busy task runner reached the
+         * request; every affected model face was then skipped forever. Once
+         * the queue drains, absence is a real terminal load failure. */
+        if( queue_idle )
+            app->bridge.texture_failed[id] = 1;
+        else
             app->tex_pending[kept++] = id;
     }
     app->tex_pending_count = kept;
+
+    if( ready_count > 0 &&
+        UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count) )
+        app->need_redraw = 1;
 }
 
 /*

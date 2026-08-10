@@ -424,6 +424,12 @@ struct ToriDraw_Scene
     int depth_levels;
     int depth_stride;
     int priority_stride;
+    /** Entries in each flexible-priority (10/11) array. The two are allocated
+     *  the same size; the sorter merges 11 into 10, so the merged run must fit
+     *  this many entries. Kept so the sort can assert that rather than trust
+     *  it: these arrays sit next to the other scratch, and an overrun lands in
+     *  a live neighbour instead of anywhere a sanitizer can see. */
+    int flex_prio_capacity;
 
     struct ToriDraw_ModelHandle active_hnd;
 
@@ -443,6 +449,16 @@ struct ToriDraw_Scene
      * (Client-TS Model.worldRender:1755, consumed at render2:1876).
      */
     bool near_clipped;
+
+    /*
+     * Near plane ToriDraw_Project actually used for the model it last
+     * projected, which is camera->near_plane_z raised far enough that no
+     * projected coordinate can leave the rasterizer's 16.16 domain. See
+     * toridraw_safe_near_plane_z. Every consumer of the projection scratch —
+     * the near-clip triangle builders above all — must clip against this
+     * value, not the camera's, or the two disagree about where the plane is.
+     */
+    int projection_near_plane_z;
 
     struct ToriDraw_TextureState* tex_state;
 

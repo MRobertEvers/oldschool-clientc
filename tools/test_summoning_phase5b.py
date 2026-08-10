@@ -379,11 +379,11 @@ def main() -> int:
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"cannot read Phase-5b boundary: {exc}")
     else:
-        expect(boundary.get("schema") == 1 and boundary.get("phase") == "5b",
-               "boundary is not the schema-1 Phase-5b contract")
-        expect(boundary.get("admitted_cohorts") == [COHORT],
-               f"Phase-5b must admit only Dreadfowl: {boundary.get('admitted_cohorts')!r}")
-        expect(boundary.get("cohort_ledgers") == [EXPECTED_BOUNDARY_COHORT],
+        expect(boundary.get("schema") == 1 and boundary.get("phase") in {"5b", "5c"},
+               "boundary is not the schema-1 Phase-5b/5c contract")
+        expect(COHORT in boundary.get("admitted_cohorts", []),
+               f"boundary lost Dreadfowl admission: {boundary.get('admitted_cohorts')!r}")
+        expect(EXPECTED_BOUNDARY_COHORT in boundary.get("cohort_ledgers", []),
                "boundary Dreadfowl cohort ledger contract changed")
         roots = boundary.get("admitted_root_sources")
         expect(

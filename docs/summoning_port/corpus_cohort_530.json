@@ -1,0 +1,1945 @@
+{
+  "schema": 1,
+  "phase": "5c",
+  "prefix": "summoning_cohort_corpus",
+  "source_manifest": "pouches_530.json",
+  "source_policy": "fixed_pair_allowlist",
+  "preserved_type_ids": {
+    "none": 0,
+    "spirit_wolf": 1,
+    "dreadfowl": 2
+  },
+  "profiles": [
+    {
+      "type": 3,
+      "source_npc": 6841,
+      "source_pouch": 12059,
+      "source_name": "spirit_spider",
+      "slot": 2,
+      "display_name": "Spirit spider",
+      "level": 10,
+      "cost": 2,
+      "summon_xp": 0.2,
+      "lifetime_ticks": 1500,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26016,
+        "pouch": 46016,
+        "name": "summoning_cohort_corpus_spirit_spider",
+        "pouch_name": "summoning_cohort_corpus_spirit_spider_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[3]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_spider]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100009,
+        100010
+      ],
+      "ready_source_target": "summoning_roster_530_seq_5326",
+      "walk_source_target": "summoning_roster_530_seq_5325",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 4,
+      "source_npc": 7331,
+      "source_pouch": 12778,
+      "source_name": "spirit_mosquito",
+      "slot": 5,
+      "display_name": "Spirit mosquito",
+      "level": 17,
+      "cost": 2,
+      "summon_xp": 0.5,
+      "lifetime_ticks": 1200,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26017,
+        "pouch": 46017,
+        "name": "summoning_cohort_corpus_spirit_mosquito",
+        "pouch_name": "summoning_cohort_corpus_spirit_mosquito_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[6]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_mosquito]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100015,
+        100016
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8035",
+      "walk_source_target": "summoning_roster_530_seq_8038",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 5,
+      "source_npc": 6837,
+      "source_pouch": 12055,
+      "source_name": "spirit_scorpion",
+      "slot": 7,
+      "display_name": "Spirit scorpion",
+      "level": 19,
+      "cost": 2,
+      "summon_xp": 0.9,
+      "lifetime_ticks": 1700,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26018,
+        "pouch": 46018,
+        "name": "summoning_cohort_corpus_spirit_scorpion",
+        "pouch_name": "summoning_cohort_corpus_spirit_scorpion_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[8]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_scorpion]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100019,
+        100020
+      ],
+      "ready_source_target": "summoning_roster_530_seq_6252",
+      "walk_source_target": "summoning_roster_530_seq_6253",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 6,
+      "source_npc": 7361,
+      "source_pouch": 12808,
+      "source_name": "spirit_tz_kih",
+      "slot": 8,
+      "display_name": "Spirit Tz-Kih",
+      "level": 22,
+      "cost": 3,
+      "summon_xp": 1.1,
+      "lifetime_ticks": 1600,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26019,
+        "pouch": 46019,
+        "name": "summoning_cohort_corpus_spirit_tz_kih",
+        "pouch_name": "summoning_cohort_corpus_spirit_tz_kih_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[9]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_tz_kih]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100021,
+        100022
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8255",
+      "walk_source_target": "summoning_roster_530_seq_8256",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 7,
+      "source_npc": 7353,
+      "source_pouch": 12800,
+      "source_name": "giant_chinchompa",
+      "slot": 12,
+      "display_name": "Giant chinchompa",
+      "level": 29,
+      "cost": 1,
+      "summon_xp": 2.9,
+      "lifetime_ticks": 3100,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26020,
+        "pouch": 46020,
+        "name": "summoning_cohort_corpus_giant_chinchompa",
+        "pouch_name": "summoning_cohort_corpus_giant_chinchompa_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[13]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_giant_chinchompa]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100029,
+        100030
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7751",
+      "walk_source_target": "summoning_roster_530_seq_7750",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 8,
+      "source_npc": 6835,
+      "source_pouch": 12053,
+      "source_name": "vampire_bat",
+      "slot": 13,
+      "display_name": "Vampire bat",
+      "level": 31,
+      "cost": 4,
+      "summon_xp": 1.5,
+      "lifetime_ticks": 3300,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26021,
+        "pouch": 46021,
+        "name": "summoning_cohort_corpus_vampire_bat",
+        "pouch_name": "summoning_cohort_corpus_vampire_bat_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[14]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_vampire_bat]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100031,
+        100032
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8271",
+      "walk_source_target": "summoning_roster_530_seq_8273",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 9,
+      "source_npc": 6845,
+      "source_pouch": 12065,
+      "source_name": "honey_badger",
+      "slot": 14,
+      "display_name": "Honey badger",
+      "level": 32,
+      "cost": 4,
+      "summon_xp": 1.6,
+      "lifetime_ticks": 2500,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26022,
+        "pouch": 46022,
+        "name": "summoning_cohort_corpus_honey_badger",
+        "pouch_name": "summoning_cohort_corpus_honey_badger_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[15]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_honey_badger]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100033,
+        100034
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7924",
+      "walk_source_target": "summoning_roster_530_seq_7923",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 10,
+      "source_npc": 7333,
+      "source_pouch": 12780,
+      "source_name": "void_spinner",
+      "slot": 17,
+      "display_name": "Void spinner",
+      "level": 34,
+      "cost": 4,
+      "summon_xp": 0.7,
+      "lifetime_ticks": 2700,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26023,
+        "pouch": 46023,
+        "name": "summoning_cohort_corpus_void_spinner",
+        "pouch_name": "summoning_cohort_corpus_void_spinner_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[18]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_void_spinner]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100039,
+        100040
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8171",
+      "walk_source_target": "summoning_roster_530_seq_8175",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 11,
+      "source_npc": 7351,
+      "source_pouch": 12798,
+      "source_name": "void_torcher",
+      "slot": 18,
+      "display_name": "Void torcher",
+      "level": 34,
+      "cost": 4,
+      "summon_xp": 0.7,
+      "lifetime_ticks": 9400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26024,
+        "pouch": 46024,
+        "name": "summoning_cohort_corpus_void_torcher",
+        "pouch_name": "summoning_cohort_corpus_void_torcher_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[19]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_void_torcher]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100041,
+        100042
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8233",
+      "walk_source_target": "summoning_roster_530_seq_8234",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 12,
+      "source_npc": 7367,
+      "source_pouch": 12814,
+      "source_name": "void_shifter",
+      "slot": 19,
+      "display_name": "Void shifter",
+      "level": 34,
+      "cost": 4,
+      "summon_xp": 0.7,
+      "lifetime_ticks": 9400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26025,
+        "pouch": 46025,
+        "name": "summoning_cohort_corpus_void_shifter",
+        "pouch_name": "summoning_cohort_corpus_void_shifter_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[20]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_void_shifter]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100043,
+        100044
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8129",
+      "walk_source_target": "summoning_roster_530_seq_8128",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 13,
+      "source_npc": 6853,
+      "source_pouch": 12073,
+      "source_name": "bronze_minotaur",
+      "slot": 64,
+      "display_name": "Bronze minotaur",
+      "level": 36,
+      "cost": 3,
+      "summon_xp": 3.6,
+      "lifetime_ticks": 3000,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26026,
+        "pouch": 46026,
+        "name": "summoning_cohort_corpus_bronze_minotaur",
+        "pouch_name": "summoning_cohort_corpus_bronze_minotaur_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[21]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_bronze_minotaur]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100045,
+        100046
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8021",
+      "walk_source_target": "summoning_roster_530_seq_8022",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 14,
+      "source_npc": 6855,
+      "source_pouch": 12075,
+      "source_name": "iron_minotaur",
+      "slot": 65,
+      "display_name": "Iron minotaur",
+      "level": 46,
+      "cost": 9,
+      "summon_xp": 4.6,
+      "lifetime_ticks": 3700,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26027,
+        "pouch": 46027,
+        "name": "summoning_cohort_corpus_iron_minotaur",
+        "pouch_name": "summoning_cohort_corpus_iron_minotaur_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[22]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_iron_minotaur]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100045,
+        100046
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8021",
+      "walk_source_target": "summoning_roster_530_seq_8022",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 15,
+      "source_npc": 6857,
+      "source_pouch": 12077,
+      "source_name": "steel_minotaur",
+      "slot": 66,
+      "display_name": "Steel minotaur",
+      "level": 56,
+      "cost": 9,
+      "summon_xp": 5.6,
+      "lifetime_ticks": 4600,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26028,
+        "pouch": 46028,
+        "name": "summoning_cohort_corpus_steel_minotaur",
+        "pouch_name": "summoning_cohort_corpus_steel_minotaur_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[23]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_steel_minotaur]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100045,
+        100046
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8021",
+      "walk_source_target": "summoning_roster_530_seq_8022",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 16,
+      "source_npc": 6859,
+      "source_pouch": 12079,
+      "source_name": "mithril_minotaur",
+      "slot": 67,
+      "display_name": "Mithril minotaur",
+      "level": 66,
+      "cost": 9,
+      "summon_xp": 6.6,
+      "lifetime_ticks": 5500,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26029,
+        "pouch": 46029,
+        "name": "summoning_cohort_corpus_mithril_minotaur",
+        "pouch_name": "summoning_cohort_corpus_mithril_minotaur_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[24]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_mithril_minotaur]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100045,
+        100046
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8021",
+      "walk_source_target": "summoning_roster_530_seq_8022",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 17,
+      "source_npc": 6861,
+      "source_pouch": 12081,
+      "source_name": "adamant_minotaur",
+      "slot": 68,
+      "display_name": "Adamant minotaur",
+      "level": 76,
+      "cost": 9,
+      "summon_xp": 7.6,
+      "lifetime_ticks": 6600,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26030,
+        "pouch": 46030,
+        "name": "summoning_cohort_corpus_adamant_minotaur",
+        "pouch_name": "summoning_cohort_corpus_adamant_minotaur_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[25]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_adamant_minotaur]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100045,
+        100046
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8021",
+      "walk_source_target": "summoning_roster_530_seq_8022",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 18,
+      "source_npc": 6863,
+      "source_pouch": 12083,
+      "source_name": "rune_minotaur",
+      "slot": 69,
+      "display_name": "Rune minotaur",
+      "level": 86,
+      "cost": 9,
+      "summon_xp": 8.6,
+      "lifetime_ticks": 15100,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26031,
+        "pouch": 46031,
+        "name": "summoning_cohort_corpus_rune_minotaur",
+        "pouch_name": "summoning_cohort_corpus_rune_minotaur_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[26]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_rune_minotaur]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100045,
+        100046
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8021",
+      "walk_source_target": "summoning_roster_530_seq_8022",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 19,
+      "source_npc": 7377,
+      "source_pouch": 12816,
+      "source_name": "pyrelord",
+      "slot": 30,
+      "display_name": "Pyrelord",
+      "level": 46,
+      "cost": 5,
+      "summon_xp": 2.3,
+      "lifetime_ticks": 3200,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26032,
+        "pouch": 46032,
+        "name": "summoning_cohort_corpus_pyrelord",
+        "pouch_name": "summoning_cohort_corpus_pyrelord_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[37]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_pyrelord]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100067,
+        100068
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8077",
+      "walk_source_target": "summoning_roster_530_seq_8076",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 20,
+      "source_npc": 6843,
+      "source_pouch": 12061,
+      "source_name": "bloated_leech",
+      "slot": 32,
+      "display_name": "Bloated leech",
+      "level": 49,
+      "cost": 5,
+      "summon_xp": 2.4,
+      "lifetime_ticks": 3400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26033,
+        "pouch": 46033,
+        "name": "summoning_cohort_corpus_bloated_leech",
+        "pouch_name": "summoning_cohort_corpus_bloated_leech_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[39]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_bloated_leech]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100071,
+        100072
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7654",
+      "walk_source_target": "summoning_roster_530_seq_7653",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 21,
+      "source_npc": 6992,
+      "source_pouch": 12027,
+      "source_name": "spirit_jelly",
+      "slot": 35,
+      "display_name": "Spirit jelly",
+      "level": 55,
+      "cost": 6,
+      "summon_xp": 5.5,
+      "lifetime_ticks": 4300,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26034,
+        "pouch": 46034,
+        "name": "summoning_cohort_corpus_spirit_jelly",
+        "pouch_name": "summoning_cohort_corpus_spirit_jelly_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[42]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_jelly]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100077,
+        100078
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8572",
+      "walk_source_target": "summoning_roster_530_seq_8575",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 22,
+      "source_npc": 7365,
+      "source_pouch": 12812,
+      "source_name": "spirit_kyatt",
+      "slot": 37,
+      "display_name": "Spirit kyatt",
+      "level": 57,
+      "cost": 6,
+      "summon_xp": 5.7,
+      "lifetime_ticks": 4900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26035,
+        "pouch": 46035,
+        "name": "summoning_cohort_corpus_spirit_kyatt",
+        "pouch_name": "summoning_cohort_corpus_spirit_kyatt_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[44]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_kyatt]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100081,
+        100082
+      ],
+      "ready_source_target": "summoning_roster_530_seq_5225",
+      "walk_source_target": "summoning_roster_530_seq_5226",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 23,
+      "source_npc": 7337,
+      "source_pouch": 12784,
+      "source_name": "spirit_larupia",
+      "slot": 38,
+      "display_name": "Spirit larupia",
+      "level": 57,
+      "cost": 6,
+      "summon_xp": 5.7,
+      "lifetime_ticks": 4900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26036,
+        "pouch": 46036,
+        "name": "summoning_cohort_corpus_spirit_larupia",
+        "pouch_name": "summoning_cohort_corpus_spirit_larupia_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[45]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_larupia]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100083,
+        100084
+      ],
+      "ready_source_target": "summoning_roster_530_seq_5225",
+      "walk_source_target": "summoning_roster_530_seq_5226",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 24,
+      "source_npc": 7363,
+      "source_pouch": 12810,
+      "source_name": "spirit_graahk",
+      "slot": 39,
+      "display_name": "Spirit graahk",
+      "level": 57,
+      "cost": 6,
+      "summon_xp": 5.7,
+      "lifetime_ticks": 4900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26037,
+        "pouch": 46037,
+        "name": "summoning_cohort_corpus_spirit_graahk",
+        "pouch_name": "summoning_cohort_corpus_spirit_graahk_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[46]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_graahk]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100085,
+        100086
+      ],
+      "ready_source_target": "summoning_roster_530_seq_5225",
+      "walk_source_target": "summoning_roster_530_seq_5226",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 25,
+      "source_npc": 6809,
+      "source_pouch": 12023,
+      "source_name": "karamthulhu",
+      "slot": 40,
+      "display_name": "Karamthulhu overlord",
+      "level": 58,
+      "cost": 6,
+      "summon_xp": 5.8,
+      "lifetime_ticks": 4400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26038,
+        "pouch": 46038,
+        "name": "summoning_cohort_corpus_karamthulhu",
+        "pouch_name": "summoning_cohort_corpus_karamthulhu_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[47]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_karamthulhu]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100087,
+        100088
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7968",
+      "walk_source_target": "summoning_roster_530_seq_7961",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 26,
+      "source_npc": 6865,
+      "source_pouch": 12085,
+      "source_name": "smoke_devil",
+      "slot": 41,
+      "display_name": "Smoke devil",
+      "level": 61,
+      "cost": 7,
+      "summon_xp": 3.0,
+      "lifetime_ticks": 4100,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26039,
+        "pouch": 46039,
+        "name": "summoning_cohort_corpus_smoke_devil",
+        "pouch_name": "summoning_cohort_corpus_smoke_devil_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[48]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_smoke_devil]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100089,
+        100090
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7815",
+      "walk_source_target": "summoning_roster_530_seq_7814",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 27,
+      "source_npc": 6802,
+      "source_pouch": 12015,
+      "source_name": "spirit_cobra",
+      "slot": 43,
+      "display_name": "Spirit cobra",
+      "level": 63,
+      "cost": 6,
+      "summon_xp": 3.1,
+      "lifetime_ticks": 5600,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26040,
+        "pouch": 46040,
+        "name": "summoning_cohort_corpus_spirit_cobra",
+        "pouch_name": "summoning_cohort_corpus_spirit_cobra_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[50]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_cobra]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100093,
+        100094
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8155",
+      "walk_source_target": "summoning_roster_530_seq_8158",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 28,
+      "source_npc": 6889,
+      "source_pouch": 12123,
+      "source_name": "barker_toad",
+      "slot": 45,
+      "display_name": "Barker toad",
+      "level": 66,
+      "cost": 7,
+      "summon_xp": 1.0,
+      "lifetime_ticks": 800,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26041,
+        "pouch": 46041,
+        "name": "summoning_cohort_corpus_barker_toad",
+        "pouch_name": "summoning_cohort_corpus_barker_toad_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[52]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_barker_toad]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100097,
+        100098,
+        100099
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7258",
+      "walk_source_target": "summoning_roster_530_seq_7259",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 29,
+      "source_npc": 6813,
+      "source_pouch": 12029,
+      "source_name": "bunyip",
+      "slot": 47,
+      "display_name": "Bunyip",
+      "level": 68,
+      "cost": 7,
+      "summon_xp": 1.4,
+      "lifetime_ticks": 4400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26042,
+        "pouch": 46042,
+        "name": "summoning_cohort_corpus_bunyip",
+        "pouch_name": "summoning_cohort_corpus_bunyip_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[54]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_bunyip]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100102,
+        100103
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7738",
+      "walk_source_target": "summoning_roster_530_seq_7735",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 30,
+      "source_npc": 7372,
+      "source_pouch": 12820,
+      "source_name": "ravenous_locust",
+      "slot": 49,
+      "display_name": "Ravenous locust",
+      "level": 70,
+      "cost": 4,
+      "summon_xp": 1.5,
+      "lifetime_ticks": 2400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26043,
+        "pouch": 46043,
+        "name": "summoning_cohort_corpus_ravenous_locust",
+        "pouch_name": "summoning_cohort_corpus_ravenous_locust_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[56]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_ravenous_locust]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100106,
+        100107
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7992",
+      "walk_source_target": "summoning_roster_530_seq_7991",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 31,
+      "source_npc": 6839,
+      "source_pouch": 12057,
+      "source_name": "arctic_bear",
+      "slot": 50,
+      "display_name": "Arctic bear",
+      "level": 71,
+      "cost": 8,
+      "summon_xp": 1.1,
+      "lifetime_ticks": 2800,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26044,
+        "pouch": 46044,
+        "name": "summoning_cohort_corpus_arctic_bear",
+        "pouch_name": "summoning_cohort_corpus_arctic_bear_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[57]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_arctic_bear]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100108,
+        100109
+      ],
+      "ready_source_target": "summoning_roster_530_seq_4919",
+      "walk_source_target": "summoning_roster_530_seq_4923",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 32,
+      "source_npc": 7345,
+      "source_pouch": 12792,
+      "source_name": "obsidian_golem",
+      "slot": 51,
+      "display_name": "Obsidian golem",
+      "level": 73,
+      "cost": 8,
+      "summon_xp": 7.3,
+      "lifetime_ticks": 5500,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26045,
+        "pouch": 46045,
+        "name": "summoning_cohort_corpus_obsidian_golem",
+        "pouch_name": "summoning_cohort_corpus_obsidian_golem_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[59]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_obsidian_golem]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100112,
+        100113
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8047",
+      "walk_source_target": "summoning_roster_530_seq_8046",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 33,
+      "source_npc": 6798,
+      "source_pouch": 12011,
+      "source_name": "praying_mantis",
+      "slot": 53,
+      "display_name": "Praying mantis",
+      "level": 75,
+      "cost": 8,
+      "summon_xp": 3.6,
+      "lifetime_ticks": 6900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26046,
+        "pouch": 46046,
+        "name": "summoning_cohort_corpus_praying_mantis",
+        "pouch_name": "summoning_cohort_corpus_praying_mantis_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[61]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_praying_mantis]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100116,
+        100117
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8067",
+      "walk_source_target": "summoning_roster_530_seq_8072",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 34,
+      "source_npc": 7335,
+      "source_pouch": 12782,
+      "source_name": "forge_regent_beast",
+      "slot": 54,
+      "display_name": "Forge regent",
+      "level": 76,
+      "cost": 9,
+      "summon_xp": 1.5,
+      "lifetime_ticks": 4500,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26047,
+        "pouch": 46047,
+        "name": "summoning_cohort_corpus_forge_regent_beast",
+        "pouch_name": "summoning_cohort_corpus_forge_regent_beast"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[62]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_forge_regent_beast]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100118,
+        100119
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7867",
+      "walk_source_target": "summoning_roster_530_seq_7868",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 35,
+      "source_npc": 7347,
+      "source_pouch": 12794,
+      "source_name": "talon_beast",
+      "slot": 55,
+      "display_name": "Talon beast",
+      "level": 77,
+      "cost": 9,
+      "summon_xp": 3.8,
+      "lifetime_ticks": 4900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26048,
+        "pouch": 46048,
+        "name": "summoning_cohort_corpus_talon_beast",
+        "pouch_name": "summoning_cohort_corpus_talon_beast_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[63]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_talon_beast]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100120,
+        100121
+      ],
+      "ready_source_target": "summoning_roster_530_seq_5986",
+      "walk_source_target": "summoning_roster_530_seq_5987",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 36,
+      "source_npc": 6811,
+      "source_pouch": 12025,
+      "source_name": "hydra",
+      "slot": 60,
+      "display_name": "Hydra",
+      "level": 80,
+      "cost": 9,
+      "summon_xp": 1.6,
+      "lifetime_ticks": 4900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26049,
+        "pouch": 46049,
+        "name": "summoning_cohort_corpus_hydra",
+        "pouch_name": "summoning_cohort_corpus_hydra_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[65]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_hydra]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100124,
+        100125
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7938",
+      "walk_source_target": "summoning_roster_530_seq_7941",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 37,
+      "source_npc": 6804,
+      "source_pouch": 12017,
+      "source_name": "spirit_dagannoth",
+      "slot": 61,
+      "display_name": "Spirit dagannoth",
+      "level": 83,
+      "cost": 9,
+      "summon_xp": 4.1,
+      "lifetime_ticks": 5700,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26050,
+        "pouch": 46050,
+        "name": "summoning_cohort_corpus_spirit_dagannoth",
+        "pouch_name": "summoning_cohort_corpus_spirit_dagannoth_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[66]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_spirit_dagannoth]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100126,
+        100127
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7781",
+      "walk_source_target": "summoning_roster_530_seq_7784",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 38,
+      "source_npc": 6822,
+      "source_pouch": 12039,
+      "source_name": "unicorn_stallion",
+      "slot": 70,
+      "display_name": "Unicorn stallion",
+      "level": 88,
+      "cost": 9,
+      "summon_xp": 1.8,
+      "lifetime_ticks": 5400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26051,
+        "pouch": 46051,
+        "name": "summoning_cohort_corpus_unicorn_stallion",
+        "pouch_name": "summoning_cohort_corpus_unicorn_stallion_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[67]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_unicorn_stallion]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100128,
+        100129
+      ],
+      "ready_source_target": "summoning_roster_530_seq_6374",
+      "walk_source_target": "summoning_roster_530_seq_6373",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 39,
+      "source_npc": 6869,
+      "source_pouch": 12089,
+      "source_name": "wolpertinger",
+      "slot": 72,
+      "display_name": "Wolpertinger",
+      "level": 92,
+      "cost": 10,
+      "summon_xp": 4.5,
+      "lifetime_ticks": 6200,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26052,
+        "pouch": 46052,
+        "name": "summoning_cohort_corpus_wolpertinger",
+        "pouch_name": "summoning_cohort_corpus_wolpertinger_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[68]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_wolpertinger]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100130,
+        100131
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8301",
+      "walk_source_target": "summoning_roster_530_seq_8302",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 40,
+      "source_npc": 7355,
+      "source_pouch": 12802,
+      "source_name": "fire_titan",
+      "slot": 57,
+      "display_name": "Fire titan",
+      "level": 79,
+      "cost": 9,
+      "summon_xp": 7.9,
+      "lifetime_ticks": 6200,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26053,
+        "pouch": 46053,
+        "name": "summoning_cohort_corpus_fire_titan",
+        "pouch_name": "summoning_cohort_corpus_fire_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[70]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_fire_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100134,
+        100135
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7831",
+      "walk_source_target": "summoning_roster_530_seq_7828",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 41,
+      "source_npc": 7357,
+      "source_pouch": 12804,
+      "source_name": "moss_titan",
+      "slot": 58,
+      "display_name": "Moss titan",
+      "level": 79,
+      "cost": 9,
+      "summon_xp": 7.9,
+      "lifetime_ticks": 6400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26054,
+        "pouch": 46054,
+        "name": "summoning_cohort_corpus_moss_titan",
+        "pouch_name": "summoning_cohort_corpus_moss_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[71]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_moss_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100136,
+        100137
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7841",
+      "walk_source_target": "summoning_roster_530_seq_7838",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 42,
+      "source_npc": 7359,
+      "source_pouch": 12806,
+      "source_name": "ice_titan",
+      "slot": 59,
+      "display_name": "Ice titan",
+      "level": 79,
+      "cost": 9,
+      "summon_xp": 7.9,
+      "lifetime_ticks": 6200,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26055,
+        "pouch": 46055,
+        "name": "summoning_cohort_corpus_ice_titan",
+        "pouch_name": "summoning_cohort_corpus_ice_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[72]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_ice_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100138,
+        100139
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8186",
+      "walk_source_target": "summoning_roster_530_seq_7847",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 43,
+      "source_npc": 7341,
+      "source_pouch": 12788,
+      "source_name": "lava_titan",
+      "slot": 62,
+      "display_name": "Lava titan",
+      "level": 83,
+      "cost": 9,
+      "summon_xp": 8.3,
+      "lifetime_ticks": 6100,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26056,
+        "pouch": 46056,
+        "name": "summoning_cohort_corpus_lava_titan",
+        "pouch_name": "summoning_cohort_corpus_lava_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[73]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_lava_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100140,
+        100141
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7978",
+      "walk_source_target": "summoning_roster_530_seq_7977",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 44,
+      "source_npc": 7329,
+      "source_pouch": 12776,
+      "source_name": "swamp_titan",
+      "slot": 63,
+      "display_name": "Swamp titan",
+      "level": 85,
+      "cost": 9,
+      "summon_xp": 4.2,
+      "lifetime_ticks": 5600,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26057,
+        "pouch": 46057,
+        "name": "summoning_cohort_corpus_swamp_titan",
+        "pouch_name": "summoning_cohort_corpus_swamp_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[74]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_swamp_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100142,
+        100143
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8220",
+      "walk_source_target": "summoning_roster_530_seq_8219",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 45,
+      "source_npc": 7339,
+      "source_pouch": 12786,
+      "source_name": "geyser_titan",
+      "slot": 71,
+      "display_name": "Geyser titan",
+      "level": 89,
+      "cost": 9,
+      "summon_xp": 8.9,
+      "lifetime_ticks": 6900,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26058,
+        "pouch": 46058,
+        "name": "summoning_cohort_corpus_geyser_titan",
+        "pouch_name": "summoning_cohort_corpus_geyser_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[75]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_geyser_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100144,
+        100145
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7876",
+      "walk_source_target": "summoning_roster_530_seq_7877",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 46,
+      "source_npc": 7375,
+      "source_pouch": 12822,
+      "source_name": "iron_titan",
+      "slot": 74,
+      "display_name": "Iron titan",
+      "level": 95,
+      "cost": 10,
+      "summon_xp": 4.7,
+      "lifetime_ticks": 6000,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26059,
+        "pouch": 46059,
+        "name": "summoning_cohort_corpus_iron_titan",
+        "pouch_name": "summoning_cohort_corpus_iron_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[77]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_iron_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100148,
+        100149
+      ],
+      "ready_source_target": "summoning_roster_530_seq_7949",
+      "walk_source_target": "summoning_roster_530_seq_7952",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    },
+    {
+      "type": 47,
+      "source_npc": 7343,
+      "source_pouch": 12790,
+      "source_name": "steel_titan",
+      "slot": 76,
+      "display_name": "Steel titan",
+      "level": 99,
+      "cost": 10,
+      "summon_xp": 4.9,
+      "lifetime_ticks": 6400,
+      "drain": {
+        "model": "accumulator_mod_100",
+        "interval_ticks": 100,
+        "points": 1
+      },
+      "target": {
+        "npc": 26060,
+        "pouch": 46060,
+        "name": "summoning_cohort_corpus_steel_titan",
+        "pouch_name": "summoning_cohort_corpus_steel_titan_pouch"
+      },
+      "source_fields": {
+        "pouch": "docs/summoning_port/pouches_530.json#entry[78]",
+        "render": "ported/scape2009_summoning/configs/summoning_roster_530.npc:[summoning_roster_530_steel_titan]",
+        "closure": "OSRS-Content/osrs239-content/port/summoning_530.map (checked extraction input)"
+      },
+      "body_head_source_targets": [
+        100150,
+        100151
+      ],
+      "ready_source_target": "summoning_roster_530_seq_8186",
+      "walk_source_target": "summoning_roster_530_seq_8189",
+      "deferred_capabilities": [
+        "special",
+        "scroll",
+        "combat",
+        "audio",
+        "tertiary",
+        "potion"
+      ]
+    }
+  ],
+  "deferred": {
+    "phase_6_roots": [
+      6794,
+      6796,
+      6800,
+      6806,
+      6808,
+      6815,
+      6817,
+      6818,
+      6820,
+      6824,
+      6827,
+      6831,
+      6833,
+      6847,
+      6849,
+      6851,
+      6867,
+      6871,
+      6873,
+      6875,
+      6877,
+      6879,
+      6881,
+      6883,
+      6885,
+      6887,
+      6991,
+      6994,
+      7349,
+      7370
+    ],
+    "phoenix": 7369,
+    "sacred_clay": 4
+  },
+  "expected_closure": {
+    "npc": 45,
+    "obj": 45
+  }
+}
