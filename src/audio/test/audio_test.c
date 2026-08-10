@@ -1179,6 +1179,82 @@ test_midi_seek(void)
 }
 
 static void
+test_music_fade_voice(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+
+    /* The current song only needs enough state for a pending replacement to
+     * begin its ramp. Music is a generator asset now, so this must address its
+     * voice rather than the retired push-stream API. */
+    player.current_song = 42;
+    player.current_source = TORIRS_MUSIC_SOURCE_TRACK;
+    player.current_loop = true;
+    player.stream_open = true;
+    player.state = TORIRS_MUSIC_PLAYING;
+    ToriRS_Music_Request(
+        &player, 77, TORIRS_MUSIC_SOURCE_TRACK, true, 600, 600);
+    CHECK_EQ(player.state, TORIRS_MUSIC_FADING);
+    CHECK_EQ(player.request_fade_in_ms, 600);
+
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK_EQ(queue.count, 1);
+    CHECK_EQ(queue.commands[0].kind, TORIRS_AUDIO_CMD_VOICE_UPDATE);
+    CHECK_EQ(queue.commands[0].voice_id, TORIRS_MUSIC_VOICE_ID);
+    CHECK_EQ(queue.commands[0].volume, 0);
+    CHECK_EQ(queue.commands[0].pan, TORIRS_AUDIO_PAN_CENTRE);
+    CHECK_EQ(queue.commands[0].fade_ms, 600);
+
+    ToriRS_Music_Free(&player);
+
+    /* The matching incoming ramp is published when an installed song opens
+     * its generator asset.  A minimal SMF avoids pulling the cache into this
+     * state-machine test; only its playable MIDI bytes matter here. */
+    {
+        uint8_t smf[256];
+        int smf_size = build_test_smf(smf);
+        struct RSCache_MusicSong* song = calloc(1, sizeof(*song));
+
+        CHECK(song != NULL);
+        if( song )
+        {
+            song->midi = malloc((size_t)smf_size);
+            CHECK(song->midi != NULL);
+            if( song->midi )
+            {
+                memcpy(song->midi, smf, (size_t)smf_size);
+                song->midi_size = smf_size;
+                song->track_count = 1;
+                song->division = 96;
+
+                ToriRS_Music_Init(&player);
+                memset(&queue, 0, sizeof(queue));
+                ToriRS_Music_Request(
+                    &player, 77, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 600);
+                ToriRS_Music_Installed(
+                    &player, 77, TORIRS_MUSIC_SOURCE_TRACK, song, NULL, 0, &queue);
+                ToriRS_Music_Tick(&player, NULL, &queue);
+                CHECK_EQ(queue.count, 3);
+                CHECK_EQ(queue.commands[0].kind, TORIRS_AUDIO_CMD_ASSET_LOAD);
+                CHECK_EQ(queue.commands[1].kind, TORIRS_AUDIO_CMD_VOICE_START);
+                CHECK_EQ(queue.commands[1].voice_id, TORIRS_MUSIC_VOICE_ID);
+                CHECK_EQ(queue.commands[1].volume, 0);
+                CHECK_EQ(queue.commands[2].kind, TORIRS_AUDIO_CMD_VOICE_UPDATE);
+                CHECK_EQ(queue.commands[2].voice_id, TORIRS_MUSIC_VOICE_ID);
+                CHECK_EQ(queue.commands[2].volume, TORIRS_AUDIO_VOLUME_MAX);
+                CHECK_EQ(queue.commands[2].fade_ms, 600);
+                ToriRS_Music_Free(&player);
+            }
+            else
+                free(song);
+        }
+    }
+}
+
+static void
 test_music_swap_state(void)
 {
     struct ToriRS_MusicPlayer player;
@@ -1274,6 +1350,7 @@ main(
 
     GROUP("midi seek and song swap");
     test_midi_seek();
+    test_music_fade_voice();
     test_music_swap_state();
 
     GROUP("render a real song");

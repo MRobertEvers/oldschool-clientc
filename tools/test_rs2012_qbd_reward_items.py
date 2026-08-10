@@ -59,6 +59,10 @@ def main() -> None:
         "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
         "rs2012_qbd_reward_items.rs2"
     )
+    coffer = read(
+        "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
+        "rs2012_qbd_rewards.rs2"
+    )
     qbd_obj = read(
         "server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.obj"
     )
@@ -253,10 +257,72 @@ def main() -> None:
         if ledger.get(noted) != noted_dest:
             raise AssertionError(f"{noted_name}: note allocation is not append-only")
 
+    # The coffer is a compact display container: it may hold five unstackable
+    # dragon bones in one cell. Backpack claims must expand that synthetic cell
+    # into five one-item cells, whereas the bank and stackable objects retain a
+    # full-count move. Pin the shared primitive and both UI claim paths so a
+    # future direct inv_moveitem cannot silently recreate an illegal stack.
+    transfer = block(coffer, "proc,rs2012_qbd_transfer_reward")
+    require(
+        transfer,
+        "if ($destination = bank | oc_stackable($item) = true)",
+        "coffer bank/stackable transfer branch",
+    )
+    require(
+        transfer,
+        "inv_moveitem(rs2012_qbd_rewardinv, $destination, $item, $amount);",
+        "coffer full-count bank/stackable move",
+    )
+    require(
+        transfer,
+        "inv_del(rs2012_qbd_rewardinv, $item, $amount);",
+        "coffer unstackable source removal",
+    )
+    require(
+        transfer,
+        "while ($given < $amount)",
+        "coffer unstackable unit loop",
+    )
+    require(
+        transfer,
+        "inv_add($destination, $item, 1);",
+        "coffer one-unit backpack insertion",
+    )
+    bulk_transfer = block(coffer, "proc,rs2012_qbd_transfer_rewards")
+    slot_claim = block(coffer, "proc,rs2012_qbd_claim_slot")
+    for claim_path, context in (
+        (bulk_transfer, "bulk Take path"),
+        (slot_claim, "per-slot Take path"),
+    ):
+        require(
+            claim_path,
+            "~rs2012_qbd_transfer_reward($destination, $item, $amount);",
+            context,
+        )
+        if "inv_moveitem(rs2012_qbd_rewardinv" in claim_path:
+            raise AssertionError(f"{context}: bypasses unit-expanding transfer")
+
+    can_claim = block(coffer, "proc,rs2012_qbd_can_claim")
+    require(
+        can_claim,
+        "$spaces = add($spaces, $amount);",
+        "bulk backpack unstackable preflight",
+    )
+    require(
+        slot_claim,
+        "def_int $spaces = $amount;",
+        "per-slot backpack unstackable preflight",
+    )
+    claim_all = block(coffer, "proc,rs2012_qbd_claim")
+    if claim_all.index("~rs2012_qbd_can_claim(inv)") > claim_all.index(
+        "~rs2012_qbd_transfer_rewards(inv)"
+    ):
+        raise AssertionError("bulk Take path transfers before capacity preflight")
+
     print(
         "rs2012 QBD reward-item contract: 11 reversible kit maps, Royal "
         "tanning/crafting, 4 journals, wear gates, kite, bolts, and 6 note "
-        "closures OK"
+        "closures; coffer unit-expanding claims OK"
     )
 
 

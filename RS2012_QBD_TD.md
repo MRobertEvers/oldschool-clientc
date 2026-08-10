@@ -934,15 +934,16 @@ Allocation bases:
 | material texture | 211–466 |
 | material sprite | 8,535–8,790 |
 | QBD UI sprite | 13,000–13,031 |
+| QBD reward inventory | 2,000 |
 
 The loc base was deliberately moved from 60,000 to 63,000 after validation
 found live OSRS239 locs through 62,200. The collision had also made coffer
 multiloc references resolve to unrelated spiral-stair symbols; reallocation
 corrected them to `rs2012_loc_70816/70817`.
 
-The definitive append-stable import ledger contains **10 NPCs, 69 objects,
-1,074 locations, 32 spot animations, 660 models, 81 sequences, 31 frame
-archives, 29 framemaps, and 29 index-4 synths**. Client closure adds two
+The definitive append-stable import ledger contains **one inventory, 10 NPCs,
+69 objects, 1,074 locations, 32 spot animations, 660 models, 81 sequences, 31
+frame archives, 29 framemaps, and 29 index-4 synths**. Client closure adds two
 interfaces, two native clientscripts, 256 baked materials, and 288 total
 sprites: 256 material sprites at 8535–8790 plus 32 UI sprites at 13000–13031.
 Interfaces 1284/1285 remain at their source IDs; material texture IDs occupy
@@ -1056,6 +1057,7 @@ QBD:
 - `.../scripts/rs2012_qbd_hud_pool_fade.cs2`
 - `.../pack/3_interfaces.pack`, `8_sprites.pack`, and `12_clientscripts.pack`
 - `.../pack/6_musictracks.pack`, `14_musicsamples.pack`, and `15_musicpatches.pack`
+- `.../configs/rs2012.inv` and `.../pack/inv.alloc` / `inv.client`
 
 TD:
 
@@ -1153,18 +1155,28 @@ The following are completed machine checks, not a list of aspirations:
   6249→17000 remap, and 1119→1118→stop dispatch. `cachepack verify` compares
   synth/song/sample/patch bytes after composition; `audioprobe` decoded all
   83/83 foreign samples, both songs, and patch 1157 from the result.
-- The final sparse overlay contains **1,590 physical files**. `cachepack pack`
-  accepts **1,290 config records and 1,150 asset archives**: 31 animation-frame
-  archives, 29 framemaps, two interfaces, two native clientscripts, 29 synths,
-  two songs, 84 index-14 sample/setup archives, one patch, 21 maps, 660 models,
-  288 sprites, and one merged texture archive. The pack has zero failed configs,
-  unknown keys, unresolved names, or indexed-missing assets.
+- The final sparse overlay contains **1,593 physical files**. `cachepack pack`
+  accepts **1,291 config records and 1,150 asset archives**: one ten-slot
+  inventory, 31 animation-frame archives, 29 framemaps, two interfaces, two
+  native clientscripts, 29 synths, two songs, 84 index-14 sample/setup
+  archives, one patch, 21 maps, 660 models, 288 sprites, and one merged texture
+  archive. The pack has zero failed configs, unknown keys, unresolved names,
+  or indexed-missing assets; its inventory group round-trips 1,027/1,027
+  records exactly.
 - The five floor overlays whose material operand is restricted to `u8` resolve
   to permanently reserved destinations 211–215. Model-only materials may
   safely occupy the remainder through 466.
-- `make -C src mock230-scripts` completes with **12,829 compiled scripts**.
-  `make -C src mock230` and `./src/build/mock230 --selftest` complete with every
-  engine/compiler test passing and **12,762 runtime-loaded scripts**.
+- `make -C src mock230-scripts` completes with **12,941 compiled scripts**;
+  `make -C src mock230` and `make -C src test-ss-meta` pass. The server-only
+  pack writes **8,340 records with zero unresolved names**.
+- Both ordinary- and composed-cache host runs load **12,877 runtime scripts**.
+  Their QBD and TD lifecycle/combat blocks, the exhaustive equipment gate, and
+  the live composed coffer assertions pass; the latter also has zero
+  `unknown container 2000` or VM-abort diagnostics. The current shared branch's
+  full host suite nevertheless exits on three non-RS2012 assertions introduced
+  by concurrent work: one Hans patrol waypoint and two Inferno death-cleanup
+  expectations. They are recorded here rather than being misreported as an
+  all-green global suite.
 
 These checks establish reproducibility, dependency closure, map tuple fidelity,
 UI structure, script compilation, and the new engine primitives. They do not

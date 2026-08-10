@@ -2,7 +2,7 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phases 0–3 and Phase 4 slices 4a–4e are implemented; 4f is next.
+**Status:** Phases 0–4 are implemented; Phase 5 breadth is next.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -420,8 +420,16 @@ first free target id, 62201. This is deliberately different from NPC_INFO: its 1
 per-player nearby-instance slot, while the separate NPC cache/config type is 16 bits and type
 20000 is valid. Real-client acceptance picks loc 62201, selects its actual second menu option,
 restores points 0/1→1/1, decodes player sequence 20003 and spotanim 20000, combines the imported
-effect model, and verifies the visible green effect in the framebuffer. Infusion UI authored fresh in the 239
-vocabulary; do not transcode 530's interface 669.
+effect model, and verifies the visible green effect in the framebuffer. The infusion UI is a fresh IF3 group
+970 in target vocabulary, mounted through the `mainmodal` role alias; it does not transcode rev-530
+interface 669 or its foreign clientscript. Its Spirit wolf row exposes ordinary target operations for
+1/5/10/X/All. Obelisk op1 records the actual interacted `loc_coord`; the button handler re-finds that loc
+before it plays source sequence 9068 as the player animation, imported source sequence 8509 as the charge
+animation, and the existing 8510 idle reset. It consumes a gold charm, imported blank pouch (source 12155),
+wolf bones, and seven shards into a Spirit wolf pouch plus 4.8 XP (48 target tenths). The unsafe source craft
+synth 4164 is intentionally deferred. `test-summoning-phase4f` runs two fresh-save real-client cases: one
+retains the rendered panel/framebuffer, and one clicks the live loc then real `IF_BUTTON1` row, asserts the
+player and active→idle loc animations, and parses the saved inventory/stat result.
 
 **Phase 5 — breadth.** 82 familiars · 67 scroll objs · special moves · the ~60 tertiary ingredients
 (mostly a 530→239 obj **name-resolution** pass — most already exist under different ids; this is

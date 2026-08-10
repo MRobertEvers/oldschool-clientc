@@ -24,8 +24,8 @@
  * There is exactly one of each: a generator holds its own playback position, so
  * the mixer refuses a second voice on it.
  */
-#define MUSIC_ASSET_ID 0x40000000
-#define MUSIC_VOICE_ID 0x40000000
+#define MUSIC_ASSET_ID TORIRS_MUSIC_ASSET_ID
+#define MUSIC_VOICE_ID TORIRS_MUSIC_VOICE_ID
 
 #define MUSIC_TRACE(...)                                                                           \
     do                                                                                             \
@@ -528,15 +528,20 @@ ToriRS_Music_Tick(
         return;
 
     /* Fade-out before a switch. Counted in ticks so it is frame-rate
-     * independent; the actual ramp is the stream's, applied by the mixer. */
+     * independent; the actual ramp belongs to the music voice in the mixer. */
     if( player->fade_ticks > 0 )
     {
         if( player->fade_ticks == (player->request_fade_out_ms + 19) / 20 && player->stream_open &&
             out )
         {
-            ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_STREAM_VOLUME);
-            command.stream_id = player->stream_id;
+            /* Music used to be a pushed STREAM, but is now a generator asset
+             * played by MUSIC_VOICE_ID. STREAM_VOLUME therefore cannot find it
+             * and quietly does nothing; fade the actual voice, as open_stream
+             * already does for the incoming track. */
+            ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_VOICE_UPDATE);
+            command.voice_id = MUSIC_VOICE_ID;
             command.volume = 0;
+            command.pan = TORIRS_AUDIO_PAN_CENTRE;
             command.fade_ms = player->request_fade_out_ms;
             ToriRS_AudioQueue_Push(out, &command);
         }

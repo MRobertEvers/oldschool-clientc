@@ -908,9 +908,10 @@ osrs239_parse(
         fade_out_speed = RSProt_BufferG2Le_add128(&c);
         if( p->id == 65535 )
             p->id = -1;
-        /* Speeds are client cycles; the player works in milliseconds. The
-         * delays above are a pre-roll the player does not need -- a switch here
-         * already waits on the load, which is longer than any of them. */
+        /* Speeds are client cycles; the player works in milliseconds.  Keep
+         * decoding both delays for the fixed V2 layout, but the current
+         * one-generator backend only represents ramp lengths.  Its mapped
+         * region profile deliberately sends both delays as zero. */
         p->fade_in_ms = fade_in_speed * 20;
         p->fade_out_ms = fade_out_speed * 20;
         return c.err ? 0 : 1;

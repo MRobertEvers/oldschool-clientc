@@ -1883,22 +1883,33 @@ mock230_send_synth_sound(
 }
 
 void
-mock230_send_midi_song(
+mock230_send_midi_song_envelope(
     struct Mock230Player* player,
-    int id)
+    int id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed)
 {
     struct RSAreaBuf buf;
     open_packet(&buf, 16);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);
         if( pl && pl->midi_song )
-        {
-            /* Old MIDI_SONG semantics expressed through V2: immediate fade
-             * out, 60-cycle fade, 60-cycle start delay, immediate fade in. */
-            pl->midi_song(&buf, id, 0, 60, 60, 0);
-        }
+            pl->midi_song(
+                &buf, id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
     }
     flush(player, &buf, OP_MIDI_SONG, 0);
+}
+
+void
+mock230_send_midi_song(
+    struct Mock230Player* player,
+    int id)
+{
+    /* script9630's reference wire fallback: fade the old track over 60
+     * cycles, start the next after 60, then set its gain immediately. */
+    mock230_send_midi_song_envelope(player, id, 0, 60, 60, 0);
 }
 
 /*

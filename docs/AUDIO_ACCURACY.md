@@ -271,6 +271,36 @@ music preference is AUTO, sends `MIDI_SONG <archiveId>` and pushes the track nam
 into the music-player widget. The client just plays what it is told; it has no
 region table.
 
+### 2.1.1 The rev-239 transition envelope
+
+`MIDI_SONG` in rev 239 is the fixed ten-byte `MIDI_SONG_V2` packet, not merely a
+song id.  Its five `p2` values are, in wire order:
+
+| wire field | reference scheduler argument | meaning |
+|---|---|---|
+| fade-in delay | `fadeInDelay` | client cycles before the incoming song starts |
+| fade-out delay | `fadeOutDelay` | client cycles before the outgoing song starts fading |
+| song id | song archive id | incoming track |
+| fade-in speed | `fadeInSpeed` | incoming ramp duration in client cycles |
+| fade-out speed | `fadeOutSpeed` | outgoing ramp duration in client cycles |
+
+The supplied rev-239 deob's packet handler (`client.java`) passes those values
+to `Statics.method10330` as `(fadeOutDelay, fadeOutSpeed, fadeInDelay,
+fadeInSpeed)`.  Its scheduler first loads the incoming song and patches, then
+starts two independent branches: outgoing delay → fade-out → removal, and
+incoming delay → start at zero gain → fade-in.  The tasks run once per nominal
+20 ms client cycle, so a speed of 30 is a 600 ms linear ramp.  With separate
+players, the reference can therefore crossfade two songs when the delays
+overlap.
+
+There are two useful reference profiles in the cache scripts.  `script_9630`
+uses the fallback `0/60/60/0`: fade the old song for 1.2 s, start the next song
+after 1.2 s, and give it full gain immediately.  `script_9628`, used by
+`script_9632` and `script_9633` with duration 30, explicitly requests
+`0/30/0/30`: simultaneous 600 ms fade-out and fade-in.  The live map server is
+outside this reference client, so its chosen packet profile cannot be inferred
+from client code alone.
+
 Region id is the map square: `regionId = ((x >> 6) << 8) | (z >> 6)`, so region
 12854 = square (50, 54) = the tile block at (3200, 3456) — Varrock.
 
@@ -359,6 +389,18 @@ every 64 tiles).
 
 `MIDI_SONG` / `_WITHSECONDARY` / `MIDI_SWAP` / `MIDI_JINGLE` / `MIDI_SONG_STOP`
 were already parsed and played client-side; nothing there needed changing.
+
+For mapped region changes mock230 now emits the reference-proven `0/30/0/30`
+envelope and updates the music-tab label before the packet.  The local backend
+has one generator synth/voice, unlike the reference's concurrently active
+players: it fades the outgoing voice, hands the synth to the loaded incoming
+song, then fades that voice in.  This gives an audible 600 ms fade-out and
+600 ms fade-in, but it is a serialized approximation rather than a true
+overlapping crossfade; a faithful overlap needs a second synth, asset and voice
+with separate lifetime handling.  The generic `mock230_send_midi_song` keeps
+the `script_9630` **wire** fallback for callers that did not request a
+transition profile; the local common packet representation intentionally keeps
+only the two ramp lengths.
 
 ## 3. Combat, weapon and loc sounds
 
@@ -640,9 +682,10 @@ Tests that hold this work:
 | target | what it would catch |
 |---|---|
 | `make -C src test-sound` | the effect queue's schedule, including `test_late_load_timing` — the one that sees a clip arriving after its due time |
-| `make -C src test-midi-packets` | the SOUND_AREA layout, and that a SOUND_AREA does not truncate the zone batch after it |
+| `make -C src test-audio` | the generator-backed music voice receives real outgoing and incoming `VOICE_UPDATE` ramps rather than the retired stream-volume command |
+| `make -C src test-midi-packets` | the V2 MIDI field transforms and the SOUND_AREA layout, including that a SOUND_AREA does not truncate the zone batch after it |
+| `MOCK230_REV=osrs239 ./src/build/mock230 --selftest` | among much else, the carrier-varp rule, music-tab label ordering, and the region's `0/30/0/30` V2 envelope |
 | `3rd/rscache/build/test_soundscape <root>` | the group-15 format, byte-exact over the whole cache |
-| `make -C src test-mock230` | among much else, the carrier-varp rule the music unlock has to obey |
 
 Two traps worth repeating from [[audio-harness-and-measurement-traps]]:
 

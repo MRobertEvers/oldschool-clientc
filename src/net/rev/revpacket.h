@@ -648,10 +648,11 @@ struct PktMidiSong
      * Fade envelope, in milliseconds, from MIDI_SONG_V2.
      *
      * The wire carries four numbers in client cycles -- a delay and a speed for
-     * each direction. Only the speeds are a fade *length*; the delays are a
-     * pre-roll the player does not need, because a switch here already waits
-     * for the load. Zero on the pre-V2 form, which reads correctly as "switch
-     * immediately".
+     * each direction.  The reference scheduler uses all four and can overlap
+     * two players.  This common packet representation currently retains the
+     * two ramp lengths only: the local one-generator backend serializes a
+     * handoff and cannot represent reference-style overlap.  Its explicit
+     * region profile has zero delays.
      */
     int fade_out_ms;
     int fade_in_ms;

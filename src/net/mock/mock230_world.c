@@ -9030,7 +9030,10 @@ mock230_music_enter_region(
          * from the audio packet, which only identifies the cache archive. */
         if( ids->com_music_now_playing_text > 0 )
             mock230_send_if_settext(player, ids->com_music_now_playing_text, track->name);
-        mock230_send_midi_song(player, track->song);
+        /* script9628 uses this proven reference profile for musical state
+         * changes: 30 client cycles (600 ms) down and up. The backend has one
+         * synthesizer, so it serializes rather than overlaps the two ramps. */
+        mock230_send_midi_song_envelope(player, track->song, 0, 30, 0, 30);
     }
 }
 
@@ -9487,6 +9490,50 @@ selftest_capture_has_if_settext(
                 continue;
         }
         if( rsab_ok(&body) && uid == component_id && strcmp(text, expected) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+/* MIDI_SONG_V2 is not merely a song id: its four timing fields drive the
+ * reference client's outgoing and incoming ramps. Read the mock's rev-239
+ * body directly so a region test pins the chosen profile on the wire. */
+static int
+selftest_capture_has_midi_song_envelope(
+    struct Mock230Capture const* capture,
+    struct Mock230Wire const* wire,
+    int song_id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed)
+{
+    int opcode;
+
+    if( !capture || !wire || strcmp(wire->name, "osrs239") != 0 )
+        return 0;
+    opcode = mock230_wire_opcode(wire, PKT_NAME_MIDI_SONG);
+    for( int i = 0; i < capture->count; i++ )
+    {
+        struct Mock230CapturedPacket const* packet = &capture->packets[i];
+        struct RSAreaBuf body;
+        int got_fade_in_delay;
+        int got_fade_out_delay;
+        int got_song;
+        int got_fade_in_speed;
+        int got_fade_out_speed;
+
+        if( packet->opcode != opcode || packet->len != 10 )
+            continue;
+        rsab_wrap(&body, (void*)packet->data, (size_t)packet->len);
+        got_fade_in_delay = rsab_g2_alt1(&body);
+        got_fade_out_delay = rsab_g2(&body);
+        got_song = rsab_g2_alt3(&body);
+        got_fade_in_speed = rsab_g2(&body);
+        got_fade_out_speed = rsab_g2_alt3(&body);
+        if( rsab_ok(&body) && got_song == song_id && got_fade_out_delay == fade_out_delay &&
+            got_fade_out_speed == fade_out_speed && got_fade_in_delay == fade_in_delay &&
+            got_fade_in_speed == fade_in_speed )
             return 1;
     }
     return 0;
@@ -10627,6 +10674,10 @@ mock230_world_selftest(void)
                                                         track->name),
                        "the region track should update music:now_playing_text to %s",
                        track->name);
+        if( strcmp(srv.wire->name, "osrs239") == 0 )
+            SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
+                               &capture, srv.wire, track->song, 0, 30, 0, 30),
+                           "the region track should carry the 30-cycle in/out fade profile");
     }
 
     fprintf(stderr, "mock230 selftest: rev239 interface writer bytes\n");
@@ -16316,7 +16367,10 @@ mock230_world_selftest(void)
          *
          * Bounds rather than exact ticks: `^death_delay` and `^respawn_coord`
          * live in player/configs/death.constant, and a test that restated them
-         * would be the same duplication the C constants were.
+         * would be the same duplication the C constants were. The initial
+         * LostCity `p_delay(1)` is different: it is the shape of the death
+         * protocol itself, so pin its parked deadline before measuring the
+         * rest of the sequence loosely.
          */
         int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
@@ -16356,6 +16410,20 @@ mock230_world_selftest(void)
                            "player death clears the armed combat interaction");
             SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
                            "both sides release their face latch on player death");
+
+            /* The reference leaves one quiet tick between the fatal splat and
+             * cancelling the action / starting human_death. `p_delay(1)` at
+             * tick T parks until T+2. Without this check a port that plays the
+             * animation immediately and only waits for ^death_delay still
+             * reaches every eventual-respawn assertion below. */
+            mock230_world_tick(&srv);
+            ticks++;
+            SELFTEST_CHECK(player->dying && player->active_script != NULL,
+                           "the first death turn should still be a parked corpse");
+            SELFTEST_CHECK(player->delayed_until == srv.tick + 2,
+                           "LostCity's initial p_delay(1) should wait through one quiet "
+                           "turn, due %d got %d",
+                           srv.tick + 2, player->delayed_until);
 
             /* Generous but finite: the script's delay plus the ticks its own
              * commands cost. Never reviving is the failure being tested for. */
@@ -23076,6 +23144,96 @@ mock230_world_selftest(void)
                         mock230_zone_npc_refile(&srv, handoff);
                     }
                 }
+
+                /* A real wizard is the useful integration case for the same
+                 * handoff: its Fire Strike queues a two-argument delayed
+                 * player hit.  Check the queue at its source before the
+                 * projectile delay elapses, so a magic miss (which correctly
+                 * carries damage 0) cannot hide a lost queue or shifted
+                 * arguments. */
+                {
+                    const struct SSVM_Script* damage =
+                        SSVM_ProviderGetByName(srv.scripts, "[queue,combat_damage_player]");
+                    int wizard = mock230_content_symbol(MOCK230_PACK_NPC, "wizard");
+                    int wizard_slot = -1;
+                    int queued = 0;
+                    int start_hitpoints = 0;
+                    uint64_t saved_rng = srv.script_env->rng;
+
+                    SELFTEST_CHECK(wizard >= 0 && damage != NULL,
+                                   "wizard magic fixture needs the NPC type and damage queue");
+                    if( wizard >= 0 && damage )
+                    {
+                        selftest_reset_world(&srv, player, 402, 402);
+                        mock230_world_set_active(&srv, player);
+                        /* Keep the fixture alive through several shots while
+                         * leaving its magic defence at the level-one baseline.
+                         * The action lock suppresses its auto-retaliation but
+                         * deliberately does not pause queued projectile hits. */
+                        player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->hitpoints = 99;
+                        mock230_combat_sync_hitpoints(player);
+                        player->action_locked = 1;
+                        player->damage_type = -1;
+                        start_hitpoints = player->hitpoints;
+                        wizard_slot = mock230_world_npc_spawn(
+                            &srv, wizard, player->x + 2, player->z, player->level);
+                    }
+                    SELFTEST_CHECK(wizard_slot >= 0,
+                                   "wizard magic fixture should spawn a wizard");
+                    if( wizard_slot >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv.npcs[wizard_slot];
+
+                        npc->spawn_pending = 0;
+                        npc->combat_target = player->pid;
+                        npc->attack_clock = 0;
+                        /* This starts the Java-compatible RNG at rolls which
+                         * make the low-defence fixture hit and draw a positive
+                         * value from randominc(4). The normal game sequence
+                         * remains random; restore it below. */
+                        SSVM_EnvSeed(srv.script_env, 0);
+                        mock230_combat_npc_tick(&srv, wizard_slot);
+
+                        for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
+                        {
+                            const struct Mock230Queued* entry = &player->queue[i];
+
+                            if( entry->active && entry->script_id == damage->id )
+                            {
+                                queued = 1;
+                                SELFTEST_CHECK(entry->argc == 2,
+                                               "Fire Strike must queue npc uid and damage, got %d argument(s)",
+                                               entry->argc);
+                                SELFTEST_CHECK(entry->args[0] == wizard_slot,
+                                               "Fire Strike queue must retain its caster uid, got %d",
+                                               entry->args[0]);
+                                SELFTEST_CHECK(entry->args[1] > 0,
+                                               "the seeded Fire Strike should carry positive damage, got %d",
+                                               entry->args[1]);
+                                break;
+                            }
+                        }
+                        SELFTEST_CHECK(queued,
+                                       "wizard Fire Strike should enqueue combat_damage_player");
+
+                        for( int tick = 0; tick < 8 && player->damage_type < 0; tick++ )
+                            mock230_world_tick(&srv);
+                        SELFTEST_CHECK(player->damage_type >= 0,
+                                       "the queued Fire Strike must drain into a player hitsplat");
+                        SELFTEST_CHECK(player->hitpoints < start_hitpoints,
+                                       "the positive Fire Strike must lower player HP, %d -> %d",
+                                       start_hitpoints, player->hitpoints);
+
+                        mock230_world_npc_occupancy(npc, 0);
+                        npc->active = 0;
+                        npc->respawn_tick = -1;
+                        mock230_zone_npc_refile(&srv, wizard_slot);
+                        mock230_world_player_unlock(&srv);
+                    }
+                    srv.script_env->rng = saved_rng;
+                }
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
@@ -26737,21 +26895,30 @@ mock230_world_selftest(void)
                 SSVM_ProviderGetByName(srv.scripts, "[queue,inferno_zuk_start]");
             int inferno_active =
                 mock230_content_symbol(MOCK230_PACK_VARP, "inferno_active");
+            int inferno_death_pending =
+                mock230_content_symbol(MOCK230_PACK_VARP, "inferno_death_pending");
             int instance_handle =
                 mock230_content_symbol(MOCK230_PACK_VARP, "map_instance_handle");
+            int zuk_type = mock230_content_symbol(
+                MOCK230_PACK_NPC, "inferno_tzkalzuk_placeholder");
             int overlay_hud = mock230_content_symbol(
                 MOCK230_PACK_COMPONENT, "toplevel_osrs_stretch:overlay_hud");
             int inferno_hud =
                 mock230_content_symbol(MOCK230_PACK_INTERFACE, "inferno_hp_hud");
             int handle;
             int damage_slot = -1;
+            int sentinel = -1;
+            int death_ticks = 1;
 
             selftest_reset_world(&srv, player, 402, 402);
             SELFTEST_CHECK(damage && death && zuk_start,
                            "the Inferno death fixture requires its three real queue scripts");
-            SELFTEST_CHECK(inferno_active >= 0 && instance_handle >= 0,
-                           "the Inferno session varps should resolve, got %d/%d",
-                           inferno_active, instance_handle);
+            SELFTEST_CHECK(inferno_active >= 0 && inferno_death_pending >= 0 &&
+                               instance_handle >= 0,
+                           "the Inferno session varps should resolve, got %d/%d/%d",
+                           inferno_active, inferno_death_pending, instance_handle);
+            SELFTEST_CHECK(zuk_type > 0, "the Inferno sentinel npc should resolve, got %d",
+                           zuk_type);
             SELFTEST_CHECK(overlay_hud >= 0 && inferno_hud >= 0,
                            "the Inferno HUD mount should resolve, got %d/%d", overlay_hud,
                            inferno_hud);
@@ -26761,6 +26928,26 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(handle != 0 && mock230_mapinstance_live_count() == 1,
                            "::zuk should hold one instance, handle=%d live=%d", handle,
                            mock230_mapinstance_live_count());
+            /* A real arena actor, deliberately quiesced so the fixture only
+             * measures death teardown. The former inferno_on_death called
+             * inferno_clear_session on the very first corpse turn and removed
+             * this immediately. It must stay until the player has revived at
+             * an external coordinate. */
+            if( zuk_type > 0 )
+            {
+                sentinel = mock230_world_npc_spawn(
+                    &srv, zuk_type, player->x + 1, player->z, player->level);
+                if( sentinel >= 0 )
+                {
+                    srv.npcs[sentinel].spawn_pending = 0;
+                    srv.npcs[sentinel].timer_interval = 0;
+                    srv.npcs[sentinel].mode = MOCK230_NPCMODE_NONE;
+                }
+            }
+            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active &&
+                               mock230_mapinstance_find(
+                                   srv.npcs[sentinel].x, srv.npcs[sentinel].z) == handle,
+                           "the Inferno corpse fixture should have one arena actor");
             if( overlay_hud >= 0 && inferno_hud >= 0 )
                 mock230_send_if_opensub(player, MOCK230_COM_GROUP(overlay_hud),
                                         MOCK230_COM_CHILD(overlay_hud), inferno_hud, 1);
@@ -26800,9 +26987,14 @@ mock230_world_selftest(void)
             mock230_world_tick(&srv);
             SELFTEST_CHECK(inferno_active >= 0 && player->varps[inferno_active] == 0,
                            "the first death turn should stop Zuk before p_delay");
+            SELFTEST_CHECK(inferno_death_pending >= 0 &&
+                               player->varps[inferno_death_pending] == 1,
+                           "the first death turn should defer Inferno teardown");
             SELFTEST_CHECK(mock230_mapinstance_live_count() == 1 &&
                                mock230_mapinstance_find(player->x, player->z) == handle,
                            "the corpse animation should retain its reservation");
+            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
+                           "the corpse animation should retain Inferno actors");
             if( damage && death && zuk_start )
             {
                 int pending_damage = 0;
@@ -26817,9 +27009,10 @@ mock230_world_selftest(void)
                     pending_death += player->queue[i].script_id == death->id;
                     pending_start += player->queue[i].script_id == zuk_start->id;
                 }
-                SELFTEST_CHECK(pending_damage == 0 && pending_death == 0 &&
-                                   pending_start == 0,
-                               "death should drain Zuk hit/start/death queues, got %d/%d/%d",
+                SELFTEST_CHECK(pending_damage == 0 && pending_start == 0 &&
+                                   pending_death == 1,
+                               "early death handling should cancel Zuk work but retain the "
+                               "delayed death queue, got hit/start/death %d/%d/%d",
                                pending_damage, pending_start, pending_death);
             }
             if( overlay_hud >= 0 )
@@ -26828,8 +27021,9 @@ mock230_world_selftest(void)
 
                 for( int i = 0; i < player->interfaces.mount_count; i++ )
                     mounted += player->interfaces.mounts[i].target_uid == overlay_hud;
-                SELFTEST_CHECK(mounted == 0,
-                               "death should unmount the Inferno HP overlay, got %d", mounted);
+                SELFTEST_CHECK(mounted == 1,
+                               "the corpse phase should retain the Inferno HP overlay, got %d",
+                               mounted);
             }
 
             /* The live revision-239 client acknowledges the instance scene
@@ -26839,19 +27033,78 @@ mock230_world_selftest(void)
                 mock230_world_handle(
                     player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
 
-            for( int i = 0; i < 8; i++ )
+            /* Every corpse turn must still own its original arena. The first
+             * non-dying state is deliberately checked before the queued
+             * teardown runs: p_teleport and stat_heal happen in the death
+             * queue, while inferno_death_cleanup is a following queue turn. */
+            while( player->dying && death_ticks < 20 )
+            {
                 mock230_world_tick(&srv);
+                death_ticks++;
+                if( player->dying )
+                {
+                    SELFTEST_CHECK(mock230_mapinstance_live_count() == 1 &&
+                                       mock230_mapinstance_find(player->x, player->z) == handle,
+                                   "Inferno must remain live throughout death tick %d",
+                                   death_ticks);
+                    SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
+                                   "Inferno actors must survive death tick %d", death_ticks);
+                    if( player->rebuild_scene_pending )
+                        mock230_world_handle(
+                            player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                }
+            }
+            SELFTEST_CHECK(!player->dying && player->hitpoints == player->max_hitpoints,
+                           "the player should wake once at full HP, dying=%d hp=%d/%d",
+                           player->dying, player->hitpoints, player->max_hitpoints);
+            SELFTEST_CHECK(mock230_mapinstance_live_count() == 1 &&
+                               mock230_mapinstance_find(player->x, player->z) == 0 &&
+                               instance_handle >= 0 && player->varps[instance_handle] == handle,
+                           "the revived player must be outside an still-owned Inferno before "
+                           "cleanup, live=%d coord-handle=%d player-handle=%d",
+                           mock230_mapinstance_live_count(),
+                           mock230_mapinstance_find(player->x, player->z),
+                           instance_handle >= 0 ? player->varps[instance_handle] : -1);
+            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
+                           "Inferno actors should outlive the corpse and respawn turn");
+            if( overlay_hud >= 0 )
+            {
+                int mounted = 0;
+
+                for( int i = 0; i < player->interfaces.mount_count; i++ )
+                    mounted += player->interfaces.mounts[i].target_uid == overlay_hud;
+                SELFTEST_CHECK(mounted == 1,
+                               "the Inferno overlay should survive until deferred cleanup, got %d",
+                               mounted);
+            }
+
+            /* The revive teleport may arm the revision-239 scene barrier. It
+             * is external now, so acknowledge it before allowing the queued
+             * teardown's next eligible player turn. */
+            if( player->rebuild_scene_pending )
+                mock230_world_handle(
+                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+            mock230_world_tick(&srv);
             SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
-                           "the completed death should release the Inferno instance");
+                           "post-respawn cleanup should release the Inferno instance");
             SELFTEST_CHECK(instance_handle >= 0 && player->varps[instance_handle] == 0,
                            "and clear the player's instance handle, got %d",
                            instance_handle >= 0 ? player->varps[instance_handle] : -1);
             SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == 0,
                            "the respawn should be outside the released instance at %d,%d",
                            player->x, player->z);
-            SELFTEST_CHECK(!player->dying && player->hitpoints == player->max_hitpoints,
-                           "the player should wake once at full HP, dying=%d hp=%d/%d",
-                           player->dying, player->hitpoints, player->max_hitpoints);
+            SELFTEST_CHECK(sentinel >= 0 && !srv.npcs[sentinel].active,
+                           "deferred cleanup should despawn retained Inferno actors");
+            if( overlay_hud >= 0 )
+            {
+                int mounted = 0;
+
+                for( int i = 0; i < player->interfaces.mount_count; i++ )
+                    mounted += player->interfaces.mounts[i].target_uid == overlay_hud;
+                SELFTEST_CHECK(mounted == 0,
+                               "deferred cleanup should unmount the Inferno HP overlay, got %d",
+                               mounted);
+            }
             {
                 int hp = player->hitpoints;
 

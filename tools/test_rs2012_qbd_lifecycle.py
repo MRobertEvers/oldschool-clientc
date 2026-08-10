@@ -20,6 +20,7 @@ CONSTANTS = QBD / "configs/rs2012_qbd.constant"
 MANIFEST = ROOT / "manifest_osrs239_rs2012.ini"
 LOGOUT = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
 DEATH = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
+WORLD = ROOT / "src/net/mock/mock230_world.c"
 
 
 def block(text: str, header: str) -> str:
@@ -158,9 +159,22 @@ def main() -> None:
     assert "~rs2012_qbd_on_death;" in death_dispatch
     assert "~rs2012_qbd_finish_death($rs2012_qbd_death_handle);" in death_dispatch
 
+    # The composed-cache host fixture must observe work performed on both
+    # sides of inv_transmit.  Merely seeing the modal is insufficient because
+    # rs2012_qbd_coffer_open mounts it immediately before transmitting ID 2000.
+    world = WORLD.read_text(encoding="utf-8")
+    for fragment in (
+        "mock230_bank_inv_size(qbd_reward_inv) == 10",
+        "contents_listeners == 1",
+        "arrival_queues == 0 && close_armed == 1",
+        "player->active_script == NULL",
+    ):
+        assert fragment in world, f"QBD host coffer completion fixture lost {fragment}"
+
     print(
         "rs2012 QBD lifecycle: PASS "
-        "(owned handle, one-tick departure, preserved coffer, manifest-only gate bypass)"
+        "(owned handle, one-tick departure, preserved coffer, cache-backed coffer "
+        "completion, manifest-only gate bypass)"
     )
 
 

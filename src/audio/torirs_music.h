@@ -65,6 +65,12 @@ enum ToriRS_MusicSource
 /** Patch ids retained for the song currently loaded. */
 #define TORIRS_MUSIC_MAX_PATCHES 64
 
+/* The generator-backed music player owns one dedicated mixer asset and voice.
+ * Keep their ids public to its regression tests; ordinary game code still goes
+ * through ToriRS_Music_* rather than issuing commands against them directly. */
+#define TORIRS_MUSIC_ASSET_ID 0x40000000
+#define TORIRS_MUSIC_VOICE_ID 0x40000000
+
 struct ToriRS_MusicPlayer
 {
     struct ToriRS_SoundBank bank;

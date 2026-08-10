@@ -5090,7 +5090,6 @@ void
 mock230_send_run_weight(
     struct Mock230Player* player,
     int kilograms);
-/** Revision-adapted MIDI_SONG; rev 239 writes the 10-byte V2 envelope. */
 void
 mock230_send_ambientsound_start(
     struct Mock230Player* player,
@@ -5102,10 +5101,26 @@ mock230_send_ambientsound_stop(
     struct Mock230Player* player,
     int fade);
 
+/** Revision-adapted MIDI_SONG; rev 239 writes the 10-byte V2 envelope. */
 void
 mock230_send_midi_song(
     struct Mock230Player* player,
     int id);
+/**
+ * Send MIDI_SONG with its complete V2 envelope. All four timing arguments are
+ * client cycles (20 ms), exactly as the reference scheduler receives them:
+ * outgoing delay/duration, then incoming delay/duration. The ordinary sender
+ * retains script9630's default profile; region music uses this entry point for
+ * its explicit fade-in/fade-out profile.
+ */
+void
+mock230_send_midi_song_envelope(
+    struct Mock230Player* player,
+    int id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed);
 /* SYNTH_SOUND. Declared here because two callers want it: `SS_OP_SOUND_SYNTH`,
  * where a script asks for a noise, and mock230_combat.c, where an npc makes one
  * without a script being involved. */
