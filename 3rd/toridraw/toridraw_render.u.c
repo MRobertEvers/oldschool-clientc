@@ -337,6 +337,8 @@ static inline int
 bucket_sort_by_average_depth(
     faceint_t* RESTRICT face_depth_buckets,
     faceint_t* RESTRICT face_depth_bucket_counts,
+    int depth_levels,
+    int depth_stride,
     int model_min_depth,
     int num_faces,
     const int* RESTRICT vx,
@@ -346,7 +348,7 @@ bucket_sort_by_average_depth(
     const faceint_t* RESTRICT face_b,
     const faceint_t* RESTRICT face_c)
 {
-    int min_d = 1500;
+    int min_d = depth_levels;
     int max_d = 0;
 
     for( int f = 0; f < num_faces; f++ )
@@ -365,19 +367,19 @@ bucket_sort_by_average_depth(
             int z_sum = vz[a] + vz[b] + vz[c];
             int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
 
-            if( (unsigned int)depth_avg < 1500 )
+            if( (unsigned int)depth_avg < (unsigned int)depth_levels )
             {
                 const int count = face_depth_bucket_counts[depth_avg];
-                /* The << 9 fixes bucket capacity at 512 faces per depth level.
+                /* The configured stride fixes bucket capacity per depth level.
                  * Nothing bounded `count` before, so a model with more than
                  * 512 front-facing triangles at one quantized depth (a large
                  * flat wall seen edge-on, a terrain patch) wrote into the next
                  * depth's bucket and silently corrupted the draw order. Drop
                  * the overflow instead. */
-                if( count < 512 )
+                if( count < depth_stride )
                 {
                     face_depth_bucket_counts[depth_avg] = count + 1;
-                    face_depth_buckets[(depth_avg << 9) + count] = (faceint_t)f;
+                    face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
 
                     if( depth_avg < min_d )
                         min_d = depth_avg;
@@ -411,14 +413,17 @@ partition_and_accumulate_faces_by_priority(
     int* flex_prio11_face_to_depth,
     int* flex_prio12_face_to_depth,
     int* counts,
+    int depth_levels,
+    int depth_stride,
+    int priority_stride,
     faceint_t* face_depth_buckets,
     faceint_t* face_depth_bucket_counts,
     const uint8_t* face_priorities,
     int depth_lower_bound,
     int depth_upper_bound)
 {
-    if( depth_upper_bound >= 1500 )
-        depth_upper_bound = 1499;
+    if( depth_upper_bound >= depth_levels )
+        depth_upper_bound = depth_levels - 1;
 
     for( int depth = depth_upper_bound; depth >= depth_lower_bound; depth-- )
     {
@@ -426,14 +431,14 @@ partition_and_accumulate_faces_by_priority(
         if( face_count == 0 )
             continue;
 
-        faceint_t* faces = &face_depth_buckets[depth << 9];
+        faceint_t* faces = &face_depth_buckets[depth * depth_stride];
         for( int i = 0; i < face_count; i++ )
         {
             faceint_t face_idx = faces[i];
             int prio = faceprio_unpack(face_priorities, face_idx);
             int n = counts[prio];
 
-            face_priority_buckets[prio * 2000 + n] = face_idx;
+            face_priority_buckets[prio * priority_stride + n] = face_idx;
 
             if( prio < 10 )
             {
@@ -466,7 +471,8 @@ sort_face_draw_order(
     int* flex_prio12_face_to_depth,
     int* face_draw_order,
     faceint_t* face_priority_buckets,
-    int* counts)
+    int* counts,
+    int priority_stride)
 {
     int average_depth1_2 = 0;
     int count1_2 = counts[1] + counts[2];
@@ -525,7 +531,8 @@ sort_face_draw_order(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+            face_draw_order[order_index++] =
+                face_priority_buckets[prio * priority_stride + i];
         }
     }
 
@@ -540,7 +547,8 @@ sort_face_draw_order(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+            face_draw_order[order_index++] =
+                face_priority_buckets[prio * priority_stride + i];
         }
     }
 
@@ -555,7 +563,8 @@ sort_face_draw_order(
     {
         for( int i = 0; i < counts[prio]; i++ )
         {
-            face_draw_order[order_index++] = face_priority_buckets[prio * 2000 + i];
+            face_draw_order[order_index++] =
+                face_priority_buckets[prio * priority_stride + i];
         }
     }
 
@@ -607,6 +616,8 @@ ToriDraw_ComputeProjectedFaceOrder(
     int bounds = bucket_sort_by_average_depth(
         scene->tmp_depth_faces,
         scene->tmp_depth_face_count,
+        scene->depth_levels,
+        scene->depth_stride,
         model_min_depth,
         face_count,
         scene->screen_vertices_x,
@@ -622,13 +633,15 @@ ToriDraw_ComputeProjectedFaceOrder(
     if( !face_priorities )
     {
         int order_index = 0;
-        for( int depth = model_max_depth; depth < 1500 && depth >= model_min_depth; depth-- )
+        for( int depth = model_max_depth;
+             depth < scene->depth_levels && depth >= model_min_depth;
+             depth-- )
         {
             int bucket_count = (int)scene->tmp_depth_face_count[depth];
             if( bucket_count == 0 )
                 continue;
 
-            faceint_t* faces = &scene->tmp_depth_faces[depth << 9];
+            faceint_t* faces = &scene->tmp_depth_faces[depth * scene->depth_stride];
             for( int j = 0; j < bucket_count; j++ )
             {
                 scene->tmp_face_order[order_index++] = faces[j];
@@ -650,6 +663,9 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->tmp_flex_prio11_face_to_depth,
         scene->tmp_flex_prio12_face_to_depth,
         counts,
+        scene->depth_levels,
+        scene->depth_stride,
+        scene->priority_stride,
         scene->tmp_depth_faces,
         scene->tmp_depth_face_count,
         face_priorities,
@@ -662,7 +678,8 @@ ToriDraw_ComputeProjectedFaceOrder(
         scene->tmp_flex_prio12_face_to_depth,
         scene->tmp_face_order,
         scene->tmp_priority_faces,
-        counts);
+        counts,
+        scene->priority_stride);
 }
 
 static inline int
@@ -1417,6 +1434,15 @@ ToriDraw_Project(
     struct ToriDraw_Camera* camera)
 {
     struct ProjectedVertex center_projection;
+
+    /* Every projection and sort scratch array is scene-capacity bounded. A
+     * 2012 QBD is 6,223 vertices / 9,012 faces after its two model parts are
+     * merged, so the old 4,096 assumptions wrote beyond six separate buffers.
+     * Refuse an unsupported model before touching any array; full scenes now
+     * carry a large enough declared capacity for the imported encounter. */
+    if( model_vertex_count(hnd) > scene->max_vertices ||
+        model_face_count(hnd) > scene->max_faces )
+        return TORIDRAW_CULL_ERROR;
 
     int cull = TORIDRAW_CULL_VISIBLE;
 

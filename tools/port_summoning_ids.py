@@ -88,6 +88,22 @@ class ReviewOnlyCohort:
 
 
 @dataclass(frozen=True)
+class CohortLedger:
+    """A separately owned, explicitly admitted Phase-5b import ledger.
+
+    The broad ``summoning_roster_530`` ledger is preserved as evidence only.
+    An admitted cohort must therefore use a separate map file and declare its
+    complete source closure and destination reservation up front.
+    """
+
+    prefix: str
+    ledger_rel: Path
+    expected_ledger_rows: tuple[tuple[str, int], ...]
+    expected_sources: frozenset[tuple[str, int]]
+    destination_ranges: tuple[tuple[str, tuple[int, int]], ...]
+
+
+@dataclass(frozen=True)
 class Boundary:
     deferred_slot: int
     safe_synth_sources: frozenset[int]
@@ -95,6 +111,7 @@ class Boundary:
     admitted_roots: frozenset[tuple[str, int]]
     vertical_support: frozenset[tuple[str, int]]
     admitted_cohorts: tuple[str, ...]
+    cohort_ledgers: tuple[CohortLedger, ...]
     review_only_cohorts: tuple[ReviewOnlyCohort, ...]
     reserved_generated_prefixes: tuple[str, ...]
 
@@ -228,13 +245,188 @@ def _review_only_cohorts(value: object) -> tuple[ReviewOnlyCohort, ...]:
     return tuple(cohorts)
 
 
+def _root_pair_name(root: Root) -> str:
+    """Return the shared familiar label for either half of a pouch pair."""
+    if root.kind == "npc":
+        return root.src_name
+    return root.src_name.removesuffix("_pouch").replace("_pouch_", "_")
+
+
+def _cohort_ledger_path(value: object, label: str) -> Path:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"boundary {label}.ledger must be a non-empty relative path")
+    if "\\\\" in value:
+        raise ValueError(f"boundary {label}.ledger must use a repository-relative POSIX path")
+    path = Path(value)
+    if (path.is_absolute() or path.suffix != ".map" or len(path.parts) < 2 or
+            path.parts[0] != "port" or any(part in {"", ".", ".."} for part in path.parts) or
+            path.as_posix() != value):
+        raise ValueError(f"boundary {label}.ledger must be a safe port/*.map relative path")
+    return path
+
+
+def _cohort_ledgers(
+    value: object,
+    phase: str,
+    admitted_cohorts: tuple[str, ...],
+    admitted_roots: frozenset[tuple[str, int]],
+    roots: dict[tuple[str, int], Root],
+) -> tuple[CohortLedger, ...]:
+    """Parse the closed Phase-5b cohort-ledger contract.
+
+    Source IDs may intentionally duplicate rows in the preserved review-only
+    experiment.  Destination IDs/names may not: every admitted cohort owns a
+    new, disjoint range in a separate ledger.
+    """
+    if phase == "5a":
+        if value not in (None, []):
+            raise ValueError("Phase 5a must not declare dedicated cohort ledgers")
+        if admitted_cohorts:
+            raise ValueError("Phase 5a must not admit a generated cohort")
+        return ()
+
+    if not isinstance(value, list) or not value:
+        raise ValueError("Phase 5b must declare at least one dedicated cohort ledger")
+    if not admitted_cohorts:
+        raise ValueError("Phase 5b cohort ledgers require admitted_cohorts")
+
+    cohorts: list[CohortLedger] = []
+    prefixes: list[str] = []
+    ledger_paths: list[Path] = []
+    all_pair_roots: dict[str, frozenset[tuple[str, int]]] = {}
+    for key, root in roots.items():
+        all_pair_roots.setdefault(_root_pair_name(root), frozenset())
+    # Rebuild the values rather than mutating frozensets above; this keeps the
+    # resulting pair contract easy to read and avoids a second source of truth.
+    all_pair_roots = {
+        pair_name: frozenset(
+            key for key, root in roots.items() if _root_pair_name(root) == pair_name
+        )
+        for pair_name in all_pair_roots
+    }
+
+    for index, raw in enumerate(value, start=1):
+        label = f"cohort_ledgers[{index}]"
+        if not isinstance(raw, dict):
+            raise ValueError(f"boundary {label} must be an object")
+        prefix = raw.get("prefix")
+        if not isinstance(prefix, str) or not prefix.startswith("summoning_cohort_"):
+            raise ValueError(f"boundary {label}.prefix must start with 'summoning_cohort_'")
+        if prefix not in admitted_cohorts:
+            raise ValueError(f"boundary {label}.prefix is not in admitted_cohorts")
+        ledger_rel = _cohort_ledger_path(raw.get("ledger"), label)
+
+        raw_counts = raw.get("expected_ledger_rows")
+        if not isinstance(raw_counts, dict) or not raw_counts:
+            raise ValueError(f"boundary {label}.expected_ledger_rows must be a non-empty object")
+        counts: dict[str, int] = {}
+        for kind, raw_count in raw_counts.items():
+            if kind not in ALLOWED_KINDS:
+                raise ValueError(f"boundary {label} has unsupported row kind {kind!r}")
+            try:
+                count = int(raw_count)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"boundary {label}.{kind} must be an integer") from exc
+            if count <= 0:
+                raise ValueError(f"boundary {label}.{kind} must be positive")
+            counts[kind] = count
+
+        raw_sources = raw.get("expected_sources")
+        if not isinstance(raw_sources, dict) or set(raw_sources) != set(counts):
+            raise ValueError(
+                f"boundary {label}.expected_sources must name exactly the expected row kinds"
+            )
+        sources: set[tuple[str, int]] = set()
+        for kind, count in counts.items():
+            source_ids = _id_set(raw_sources[kind], f"{label}.expected_sources.{kind}")
+            if len(source_ids) != count:
+                raise ValueError(
+                    f"boundary {label}.expected_sources.{kind} has {len(source_ids)} ids; expected {count}"
+                )
+            sources.update((kind, source_id) for source_id in source_ids)
+
+        raw_ranges = raw.get("destination_ranges")
+        if not isinstance(raw_ranges, dict) or set(raw_ranges) != set(counts):
+            raise ValueError(
+                f"boundary {label}.destination_ranges must name exactly the expected row kinds"
+            )
+        ranges: dict[str, tuple[int, int]] = {}
+        for kind, count in counts.items():
+            raw_range = raw_ranges[kind]
+            if not isinstance(raw_range, list) or len(raw_range) != 2:
+                raise ValueError(f"boundary {label}.destination_ranges.{kind} must be a [first, last] pair")
+            try:
+                lower, upper = (int(raw_range[0]), int(raw_range[1]))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"boundary {label}.destination_ranges.{kind} must contain integer ids"
+                ) from exc
+            if lower < 0 or upper < lower:
+                raise ValueError(f"boundary {label}.destination_ranges.{kind} is invalid")
+            if upper - lower + 1 < count:
+                raise ValueError(
+                    f"boundary {label}.destination_ranges.{kind} cannot hold {count} target ids"
+                )
+            ranges[kind] = (lower, upper)
+
+        cohort_roots = frozenset(source for source in sources if source[0] in ROOT_KINDS)
+        if not cohort_roots:
+            raise ValueError(f"boundary {label} must include a familiar/pouch root pair")
+        if not cohort_roots <= admitted_roots:
+            raise ValueError(f"boundary {label} claims a root that is not admitted")
+        for source in cohort_roots:
+            root = roots.get(source)
+            if root is None:
+                raise ValueError(f"boundary {label} claims a root absent from the pouch manifest")
+            pair_roots = all_pair_roots[_root_pair_name(root)]
+            if not pair_roots <= cohort_roots:
+                raise ValueError(
+                    f"boundary {label} must include both familiar/pouch roots for {_root_pair_name(root)!r}"
+                )
+
+        prefixes.append(prefix)
+        ledger_paths.append(ledger_rel)
+        cohorts.append(CohortLedger(
+            prefix,
+            ledger_rel,
+            tuple(sorted(counts.items())),
+            frozenset(sources),
+            tuple(sorted(ranges.items())),
+        ))
+
+    if len(set(prefixes)) != len(prefixes):
+        raise ValueError("boundary cohort_ledgers contains duplicate prefixes")
+    if len(set(ledger_paths)) != len(ledger_paths):
+        raise ValueError("boundary cohort_ledgers contains duplicate ledger paths")
+    if set(prefixes) != set(admitted_cohorts):
+        raise ValueError("boundary admitted_cohorts must each have exactly one dedicated ledger")
+
+    # Ranges are reservations, not merely hints.  Two cohorts may use the
+    # same numerical IDs only when their cache kinds differ.
+    for left_index, left in enumerate(cohorts):
+        for right in cohorts[left_index + 1:]:
+            for kind, (left_lower, left_upper) in left.destination_ranges:
+                right_range = dict(right.destination_ranges).get(kind)
+                if right_range is None:
+                    continue
+                right_lower, right_upper = right_range
+                if max(left_lower, right_lower) <= min(left_upper, right_upper):
+                    raise ValueError(
+                        f"boundary cohort destination ranges overlap for {kind}: "
+                        f"{left.prefix!r} and {right.prefix!r}"
+                    )
+    return tuple(cohorts)
+
+
 def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read boundary {path}: {exc}") from exc
-    if not isinstance(data, dict) or data.get("schema") != 1 or data.get("phase") != "5a":
-        raise ValueError(f"boundary {path} must be schema 1 for Phase 5a")
+    if (not isinstance(data, dict) or data.get("schema") != 1 or
+            data.get("phase") not in {"5a", "5b"}):
+        raise ValueError(f"boundary {path} must be schema 1 for Phase 5a or 5b")
+    phase = str(data["phase"])
 
     inventory = data.get("source_inventory")
     if not isinstance(inventory, dict):
@@ -303,6 +495,9 @@ def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
     if not isinstance(raw_cohorts, list):
         raise ValueError("boundary admitted_cohorts must be an array")
     admitted_cohorts = _prefixes(raw_cohorts, "admitted_cohorts") if raw_cohorts else ()
+    cohort_ledgers = _cohort_ledgers(
+        data.get("cohort_ledgers"), phase, admitted_cohorts, admitted_roots, roots
+    )
     review_only_cohorts = _review_only_cohorts(data.get("review_only_cohorts"))
     if set(admitted_cohorts) & {cohort.prefix for cohort in review_only_cohorts}:
         raise ValueError("boundary cannot admit and review-hold the same cohort")
@@ -316,6 +511,7 @@ def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
         admitted_roots,
         vertical_support,
         admitted_cohorts,
+        cohort_ledgers,
         review_only_cohorts,
         reserved_generated_prefixes,
     )

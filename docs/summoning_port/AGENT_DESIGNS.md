@@ -1600,7 +1600,7 @@ Engine changes (three, all small and all narrowing existing behaviour rather tha
 Also required, and *not* an opcode:
 
 4. **CORRECTED: retain npc `server_base = 20000`.** The 14-bit field is the initial definition,
-   not a per-client NPC slot. Type 20000 round-trips through the add's extended/update flag and
+   not a per-client NPC index. Type 20000 round-trips through the add's extended/update flag and
    update-mask `0x1`, whose replacement definition is transformed unsigned 16-bit
    `p2Alt3` / `UShortLEAdd`. `ss_allocate.py` may learn `npc`, but must not move the base to 16294
    or validate cache ids against the direct initial-definition width.
@@ -2175,7 +2175,7 @@ Memory-debugging on this machine is `MallocScribble`, **not ASAN** (`ENABLE_ASAN
 | **0 Prerequisites** | `rev_dat2_rs530.c` exists and decodes rev-530 npc/obj/seq/model/framemap with a full exact-consumption sweep, not a spot check. The framemap V3→V1 transcode bug in `tools/common/cache_write.c:545-580` is fixed with a test that fails on the old code. `stage_summoning_overlay.py` produces a cache where `cmp` against the pass-1 bake differs only in the archives the overlay states. Docs amended. `check_summoning_isolation.py --check` green. Missing-interface behaviour empirically characterised. |
 | **1 Vertical slice** | With `manifest_osrs239_summoning.ini`: log in → Summoning shows in the skill tab at level 1 → `::setlevel summoning 20` raises it → use the pouch → one familiar spawns, follows across a region boundary, survives a logout/login, dismisses on click and on timer expiry. Proved by BMP screenshots at four points and a `::summontest` debugproc. `make -C src test-content` and `mock230_pack --check-only` green **on the flag-off tree**. Flag-off bake digest unchanged. |
 | **2 Skill surfaces** | Skill guide opens on Summoning and lists real rows from a new dbtable (with the `dbindex_21{2,3}.dbi` hand-edit verified by an actual `db_find` hit, not by inspection). Points orb renders and drains. Obelisk loc gives Renew-points. Infusion UI produces a pouch from ingredients with correct xp. |
-| **3 Breadth** | N familiars summonable, each with its own model/anims/sounds; scroll specials fire; every rev-530 definition id has a recorded osrs239 cache/config mapping. No acceptance criterion is derived from the client-local slot width. |
+| **3 Breadth** | N familiars summonable, each with its own model/anims/sounds; scroll specials fire; every rev-530 definition id has a recorded osrs239 cache/config mapping. No acceptance criterion is derived from the direct initial-definition width. |
 | **4 Beast of Burden** | `fields/inv.ini` + `[namespace:inv]` landed (this unblocks `shop` too — bank the credit). BoB container opens, stores, withdraws, spills on death, **survives logout** (the `clear()` vs `dismiss()` asymmetry). |
 
 Every phase additionally: state persists across logout/login; no new silently-missing opcodes in `mock230_scripts_report_gaps`; **prove the assertion can fail** before claiming coverage (mutate the impl / unbind the script).

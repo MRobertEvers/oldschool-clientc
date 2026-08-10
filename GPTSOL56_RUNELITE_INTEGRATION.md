@@ -841,7 +841,7 @@ server script. The literal inbound test and the Hans self-test both use the
 six-byte packet rather than substituting IF_BUTTON1.
 
 The final clean session used an actual right-click `Talk-to Hans` menu action,
-not a direct server trigger. It walked to NPC slot 26, opened the dialogue,
+not a direct server trigger. It walked to NPC index 26, opened the dialogue,
 selected row 1 with real AWT input, logged
 `RESUME_PAUSEBUTTON 219:1 sub=1`, advanced to the selected player line, and
 completed the conversation. Evidence is `02_hans_menu.png` through
@@ -928,23 +928,24 @@ java.lang.RuntimeException: 66,9
     at client.method1743(...)
 ```
 
-The original diagnosis incorrectly described the entering-view identifier as a
-16-bit NPC index. The corrected rev239 contract has two distinct fields: a
-14-bit per-player client-local slot for the nearby NPC instance (`0x3FFF` is
-the terminator), and a separate 16-bit cache/config type id in the add record.
-The low-resolution loop therefore attempts another slot only when at least
-`14 + 12 = 26` bits remain. Cache type 20000 is valid; it does not consume or
-overflow the 14-bit slot namespace.
+The original diagnosis was still wrong about the entering/add fields. The
+official rev239 v5 contract begins an entry with a **16-bit per-client NPC
+index**; `0xffff` terminates the add list. It then sends a **14-bit initial NPC
+definition**. That 14-bit field is neither the client index nor a direct
+16-bit type field. For a definition above `0x3fff`, the server sets the
+add-update flag and includes update-mask bit `0x1` with the replacement
+definition as transformed unsigned-16 `p2Alt3` / `UShortLEAdd` data in the same
+packet. Cache type 20000 is valid through that replacement path, so there is no
+raw 14-bit definition ceiling.
 
 Two encoder errors combined at that boundary. A face-only NPC was marked as
 having extended information even though the v5 encoder intentionally has no
-FACE_ENTITY/FACE_COORD block, and sentinel emission used `queued_count > 0`
-instead of the corrected 26-bit guard. The v5 pending-mask predicate now includes
-only blocks the v5 writer actually serialises, encodes the byte tail separately,
-and emits `0x3fff` exactly when padding plus the extended tail is at least 26
-bits. `mock239_npcinfo_tail_needs_sentinel` has focused bit-45 and byte-aligned
-threshold tests, and the codec suite independently round-trips client slot 321
-with cache type 20000 so the namespaces cannot be collapsed again.
+FACE_ENTITY/FACE_COORD block, and sentinel emission used `queued_count > 0`.
+The v5 pending-mask predicate must include only blocks the writer serialises,
+and the add-list boundary must use the 16-bit `0xffff` terminator rather than
+the obsolete `0x3fff` / 14-bit-index rule. Its tests must also round-trip client
+index 321 with type 20000 through add-update mask `0x1` and the transformed
+unsigned-16 replacement, not by treating the add type as directly 16 bits.
 
 The final combined session then used the real Hans approach plus 24 independent
 terrain clicks. Its NPC log repeatedly crosses the original tracked-count 13

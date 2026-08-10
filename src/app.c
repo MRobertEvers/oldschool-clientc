@@ -15148,6 +15148,17 @@ App_WorldApplyNpcType(
             for( int i = 0; i < 5; i++ )
                 snprintf(
                     npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
+            if( getenv("TORIRS_NET_DEBUG") )
+                fprintf(
+                    stderr,
+                    "entity_sync: npc type replacement=%d element=%d tile=%d,%d size=%d "
+                    "model=%s\n",
+                    npc_type,
+                    element_id,
+                    npc->grid_position.x,
+                    npc->grid_position.z,
+                    npc->size,
+                    model ? "installed" : "missing");
         }
     }
     app_sync_textures(app);

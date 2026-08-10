@@ -98,7 +98,7 @@ Identified gaps (all outside the rev table today):
 | Login handshake shape | `src/net/loginproto.c` | opcode 14/16, RSA block, ISAAC±50 seeding, 3-byte success tail, uid=1337, 9 jag CRCs |
 | Transport & framing | `src/net/net.c`, `packetbuffer.c` | raw TCP, ISAAC-encrypted opcode byte |
 | Appearance decode | `src/net/rev/packets/pkt_player_appearance.c` | Colocated 2026-08-04: one canonical 12-slot vocabulary + every wire spelling of it (classic and osrs239's two-array/`+0x800` shape) + an encoding-independent op-stream reader, mirroring pkt_npc_info.c's op list. `GameProtoRevTable.appearance_decode` selects the reader; NULL = classic. |
-| PLAYER_INFO / NPC_INFO bit layout | `pkt_player_info.c`, `pkt_npc_info.c` | classic bitcodec; revision-specific per-client NPC slot and cache-type fields (the 14-bit slot is not a definition id) |
+| PLAYER_INFO / NPC_INFO bit layout | `pkt_player_info.c`, `pkt_npc_info.c` | classic bitcodec; real rev239 v5 instead adds a 16-bit per-client NPC index (`0xffff` terminator), then a 14-bit initial definition. A type above `0x3fff` uses the add-update flag and update-mask `0x1` with transformed unsigned-16 `p2Alt3` / `UShortLEAdd` replacement data in the same packet, so there is no raw 14-bit type ceiling. |
 | Scene-origin math | `task_gameproto_exec.c` / `World_ResetScene` | `(zone-6)*8` local-coord base (unified 2026-08-03; `scene_off` deleted) |
 | ClientCode constants | `src/game/rs_clientcode.h` | 254-era baked component behaviors (friends rows, bankmode, designer…) |
 | Minimenu action / button-type codes | `src/revconfig/revconfig.h` | 254-era action numbers (WALK=718, OPLOC1=625, …) |
@@ -744,13 +744,16 @@ ever matters.
   - 1.12.33 passes the revision gate (`JS5 session opened at revision 239`) and
     then crashes in its own init before any request (`cq.gh is null`). Ruled
     out: plugin-hub plugins, and a cache written by the 240 client.
-  - `mock239_npcinfo_write_empty` — NPC_INFO v5 is ONE bit section, not four:
-    an 8-bit high-resolution count, then 14-bit **per-player client-local nearby
-    instance slots** terminated by `0x3FFF`. An entering-view record separately
-    carries the 16-bit NPC cache/config type id. These are different namespaces:
-    type 20000 is legal and is regression-tested with slot 321. The terminator
-    is required only when the corrected `14 + 12 = 26`-bit lookahead can reach
-    bytes following the bit section.
+  - `mock239_npcinfo_write_empty` — the canonical NPC_INFO v5 add rule is
+    distinct from the legacy classic bitcodec: an entering/add entry begins
+    with a 16-bit **per-client NPC index**, and `0xffff` terminates the add
+    list. Its next type field is a 14-bit **initial NPC definition**, not a
+    client index and not a direct 16-bit type. For a definition above `0x3fff`,
+    the writer must set the add-update flag and include update-mask bit `0x1`
+    with a transformed unsigned-16 `p2Alt3` / `UShortLEAdd` replacement
+    definition in the same packet. Type 20000 is therefore valid, but a
+    regression using client index 321 must exercise the replacement path; there
+    is no raw 14-bit NPC-definition ceiling.
 
 - **2026-08-04 — appearance colocated: one vocabulary, every wire spelling,
   one encoding-independent decoder.**

@@ -33,7 +33,7 @@ the models render correctly in the OSRS239 client. Material and in-client
 screenshots remain the acceptance criterion.
 
 A second defect was in the server's revision-239 NPC encoder, not in the chosen
-25000–25009 allocation. The per-client NPC index/slot is 16 bits, but an
+25000–25009 allocation. The per-client NPC index is 16 bits, but an
 initial add contains only a 14-bit type field. For a high definition such as
 25000, the add's update flag must be set and that same `NPC_INFO` packet must
 carry update-mask bit `0x1`: its replacement type is the transformed unsigned
@@ -72,6 +72,8 @@ the account's skills or quest state.
 - [x] Preserve high NPC IDs through the revision-239 transformation update.
 - [x] Reallocate and regenerate all RS2012 terrain underlays within the byte
   domain.
+- [x] Restore the macOS ASan dylib/static-SDL build path; plain sanitizer flags
+  alone hang during dyld/allocator initialisation on macOS 26.
 - [ ] Isolate the OpenGL crash under an instrumented build.
 - [ ] Validate QBD, claws, platforms, and TD with destination materials enabled.
 - [ ] Capture corrected QBD arena and QBD/TD model images.

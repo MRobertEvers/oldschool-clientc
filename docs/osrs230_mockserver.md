@@ -234,24 +234,24 @@ do.
 
 ### 3.2 Field widths in the info streams are revision state
 
-The single sharpest edge here. The classic new-npc record is:
+The single sharpest edge here. The legacy classic new-npc record is:
 
 ```
-slot bits  npc slot          (all-ones = section terminator)
-type bits  npc type
+index bits client-local npc index (all-ones = section terminator)
+type bits  npc definition
    5 bits  dx from the local player
    5 bits  dz from the local player
    1 bit   extended info follows
 ```
 
-The two fields are different namespaces. `slot` identifies one NPC instance in
+The two fields are different namespaces. `index` identifies one NPC instance in
 this player's nearby/tracked client table; `type` selects the NPC
-definition/config used to render that instance. A slot width is therefore not
+definition/config used to render that instance. An index width is therefore not
 a cache-id ceiling and does not limit how many NPC definitions the cache may
 contain. The server currently reuses its small pool index as the client-local
-slot as an implementation convenience; that numerical equality is not a
+index as an implementation convenience; that numerical equality is not a
 protocol identity and would require a per-player mapping if the pool grew past
-the available local slots.
+the available local indices.
 
 Those two widths are **not constants**. The stream keeps its shape across
 revisions while individual fields widen with the game's id space, and a width
@@ -275,7 +275,7 @@ The widths are now stated per revision rather than hard-coded:
 ```c
 /* GameProtoRevTable — 0 means the classic width, so lc254 / lc245_2 need
    no entry and are byte-for-byte unchanged. */
-int npc_slot_bits;   /* 0 = classic 14 */
+int npc_slot_bits;   /* legacy member name: 0 = classic 14-bit client index */
 int npc_type_bits;   /* 0 = classic 11 (max id 2047) */
 ```
 
@@ -287,11 +287,15 @@ nothing. The terminator is derived from `slot_bits`, so it cannot drift out of
 step with the field it terminates. The mock writes the same two widths from
 `MOCK230_NPC_SLOT_BITS` / `MOCK230_NPC_TYPE_BITS`.
 
-Even the classic 14-bit initial-add type field is not a 14-bit cache namespace:
-the compatibility writer adds an out-of-range definition as placeholder type 0
-and carries the actual 16-bit cache/config id in the same packet's CHANGE_TYPE
-block. Rev239 needs no such shim because its add record already has the separate
-16-bit type field.
+Even the legacy classic 14-bit initial-add definition is not a 14-bit cache
+namespace: the compatibility writer adds an out-of-range definition as
+placeholder type 0 and carries the actual 16-bit cache/config id in the same
+packet's CHANGE_TYPE block. That compatibility behavior must not be mistaken
+for rev239 v5 having a direct 16-bit add type. Its real add record starts with
+a 16-bit per-client NPC index, followed by a 14-bit **initial definition**. For
+a definition above `0x3fff`, the server sets the add-update flag and sends
+update-mask bit `0x1` with the replacement definition as transformed
+unsigned-16 `p2Alt3` / `UShortLEAdd` data in the same packet.
 
 The 21-bit loop guard deliberately did **not** become a parameter: it is the
 reference's own fixed margin and it decides whether the terminator is consumed
@@ -306,10 +310,14 @@ What this does *not* cover is a structural change. Real rev-230 `PLAYER_INFO`
 and `NPC_INFO` (§3.1) are a different format, not a rewidened one; that needs a
 second decoder, not a parameter.
 
-Rev239's v5 entering-view record makes the distinction explicit: a 14-bit
-client-local instance slot (`0x3FFF` terminator) and a separate 16-bit
-cache/config type. Its loop lookahead is `14 + 12 = 26` bits. The permanent
-regression uses slot 321 and type 20000.
+Rev239 v5 is a structural change, not a widened classic field. Its entering/add
+record uses a 16-bit per-client NPC index (`0xffff` terminates the add list) and
+a 14-bit initial definition. The 14-bit field is not an instance index. Types
+above `0x3fff` are represented by the add-update flag plus update-mask bit
+`0x1` and a transformed unsigned-16 `p2Alt3` / `UShortLEAdd` replacement
+definition in the same packet. Consequently there is no raw 14-bit definition
+ceiling, but a v5 writer must implement that replacement path. The regression
+case should use client index 321 and type 20000 through it.
 
 ### 3.3 The bit-section terminator is not optional, and the two streams disagree
 
@@ -775,11 +783,11 @@ animation, and they do not face what they are fighting" — and each of them is
 the kind that has no error anywhere.
 
 **Facing was written into the wrong half of an id space.** `FACE_ENTITY` reads
-below 32768 as an *npc slot* and at or above it as `32768 + player index`
+below 32768 as an *npc index* and at or above it as `32768 + player index`
 (`world_cycle.c`, `WORLD_FACING_*`). At the time, `UPDATE_PID` told every client
 it was index 2047 — the same number that terminates the player stream — so "face
 the player" on the wire was **34815**. The mock wrote the bare 2047,
-which the client resolved as npc slot 2047. That slot never exists, the lookup
+which the client resolved as npc index 2047. That index never exists, the lookup
 returned NULL, the branch fell through, and every npc in a fight kept whatever
 yaw it had been walking with. The selftest asserts the id space rather than "not
 -1", because the wrong value is a *plausible* one.
@@ -1037,10 +1045,10 @@ That tick has both a traversal change and a revision-239 extended `SAY` block.
 `playerescape` also updates the NPC's facing state, but rev239 has no compatible
 writer for the combined FACING block, so a face-only change must not claim an
 extended block. The encoder queues only fields its v5 writer serialises, writes
-the byte-aligned extension tail separately, and emits the `0xffff` add-list
-sentinel only when padding plus that tail reaches the client's 28-bit
-low-resolution guard. Otherwise RuneLite can consume the sentinel as an
-extended-mask byte and reject the complete NPC_INFO packet.
+the byte-aligned extension tail separately, and emits the **16-bit** `0xffff`
+per-client-index add-list terminator only when padding plus that tail reaches
+the client's 28-bit low-resolution guard. Otherwise RuneLite can consume the
+sentinel as an extended-mask byte and reject the complete NPC_INFO packet.
 
 The world self-test selects row 2 through the literal six-byte dynamic
 `RESUME_PAUSEBUTTON`, advances the player reply, and runs the delayed escape
@@ -2734,16 +2742,20 @@ clear pass `loc_del`ed whatever the map had standing near a circle site. It
 now asks `mock230_scene_find_loc_id`: corner tile and type both exact, the
 reference's `Zone.getLoc(x, z, locId)`.
 
-### The world pool is separate from the per-client nearby-slot namespace
+### The world pool is separate from the per-client nearby-index namespace
 
 `MOCK230_NPC_MAX` was 256, annotated "the tracked count is an 8-bit field on the
 wire, so this must stay under 256". That annotation conflated three separate
 things: the server's world/pool capacity, one player's tracked-nearby count,
-and the per-player client-local slot carried by NPC_INFO. The 14-bit slot does
-not identify the cache NPC type and is not a definition-id ceiling. The
-reference's `NODE_MAX_NPCS` default of 16383 is a server capacity choice, not a
-cache-id limit. What made the old world pool load-bearing was NPC_INFO scanning
-every server slot for every client every tick.
+and the per-player client-local index carried by a v5 NPC_INFO add record. In
+rev239 that index is 16 bits and `0xffff` terminates the add list; its separate
+14-bit field is the initial NPC definition, not an index. A type above `0x3fff`
+uses the add-update flag and update-mask bit `0x1` to carry a transformed
+unsigned-16 `p2Alt3` / `UShortLEAdd` replacement definition in the same packet.
+So there is no raw 14-bit definition-id ceiling, but the server must encode the
+replacement path. The reference's `NODE_MAX_NPCS` default of 16383 is a server
+capacity choice, not a cache-id limit. What made the old world pool load-bearing
+was NPC_INFO scanning every server slot for every client every tick.
 
 It asks `mock230_zone_npcs_near` now — the npcs standing in the zones the
 15-tile add radius touches, at most 5x5 of them — so the server pool and the
@@ -5218,9 +5230,11 @@ unblocks the next:
    them and sending both put every ground obj on the floor twice; and **the npc
    server pool and the per-client tracked-nearby count are two numbers** — 2048
    and 255 at that stage — now that NPC_INFO asks the zones who is nearby
-   instead of scanning the world per client. The 14-bit client-local instance
-   slot and the NPC cache/config type id are separate again; neither of those
-   capacity numbers is a cache-id ceiling.
+   instead of scanning the world per client. The v5 16-bit client-local NPC
+   index and the 14-bit initial definition are separate fields; a type above
+   `0x3fff` must be replaced through add-update mask bit `0x1` with its
+   `p2Alt3` / `UShortLEAdd` unsigned-16 value. Neither capacity number is a
+   cache-id ceiling.
 
    Still open and now the visible limit: **one scene origin for the whole
    world** (step 1's remainder). A loc revert aimed at a tile the moved scene no

@@ -415,7 +415,15 @@ Not done, in the order that unblocks the most:
 1. **NPC_INFO v5 is not written**, and PLAYER_INFO v5 carries only the local
    player — other players are held in low resolution and never promoted, so the
    high-resolution movement opcodes and the low-to-high transition are read by
-   the client and written by nobody. `mock239_playerinfo.h` says where.
+   the client and written by nobody. `mock239_playerinfo.h` says where. The
+   writer must follow the official v5 add layout: a 16-bit per-client NPC index
+   (`0xffff` terminates the add list), followed by a 14-bit **initial NPC
+   definition**. The initial definition is not a slot and is not directly
+   16 bits. For an id above `0x3fff`, set the add-update flag and emit
+   update-mask bit `0x1` with the replacement definition as transformed
+   unsigned-16 `p2Alt3` / `UShortLEAdd` data in the same packet. That update
+   path means there is no raw 14-bit NPC-definition ceiling, but it is required
+   server behavior.
 2. ~~**The server's login block is still the 230 shape.**~~ **Done** — see §5b.
    The server reads `serverVersion`, the OTP discriminator and the XTEA body,
    and checks the RSA encryption-check byte. It does not verify the 23 archive

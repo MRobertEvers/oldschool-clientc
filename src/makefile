@@ -30,6 +30,9 @@ OPT ?= 0
 #   make -C src MEMTRACE=1 web          web, traced      -> build-web/torirs.js
 # See tools/memtrace/README.md.
 MEMTRACE ?= 0
+# ENABLE_ASAN=1 is a distinct object/link flavor. On macOS it also selects a
+# static SDL link and the dyld interpose dylib required by LLVM #182943.
+ENABLE_ASAN ?= 0
 # TORIDRAW_OPT=1: Soft3D/ToriDraw at -O2 regardless of OPT. Default 0.
 #   make -C src TORIDRAW_OPT=1 EMBED_SERVER=1 torirs
 TORIDRAW_OPT ?= 0
@@ -69,6 +72,11 @@ MEMTRACE_SUFFIX = _mt
 else
 MEMTRACE_SUFFIX =
 endif
+ifeq ($(ENABLE_ASAN),1)
+ASAN_SUFFIX = _asan
+else
+ASAN_SUFFIX =
+endif
 ifeq ($(TORIDRAW_OPT),1)
 TORIDRAW_OPT_SUFFIX = _tdo
 else
@@ -80,10 +88,10 @@ else
 EMBED_SERVER_SUFFIX =
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
@@ -219,9 +227,19 @@ TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS)
 
 ifeq ($(ENABLE_ASAN),1)
-CFLAGS += -fsanitize=address -fno-omit-frame-pointer
+CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+RSCACHE_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+RSPROT_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+COMPRESS_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+TORIDRAW_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
 LDFLAGS += -fsanitize=address
+ifeq ($(PLATFORM),macos)
+ASAN_DYLD_SHIM := $(OBJ_DIR)/asan_dyld_shim.dylib
+ASAN_COMPAT_SRC := platform/asan_compat.c
 endif
+endif
+
+ASAN_DYLD_SHIM ?=
 
 # --- Heap instrumentation (MEMTRACE=1) -----------------------------------
 # -fno-builtin-* has to reach every translation unit, not just the tracer: the
@@ -249,6 +267,7 @@ endif
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	platform/platform_sdl2_renderer_soft3d.c \
+	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
 	$(JS5_SRCS) \
 	render/torirs_frame.c render/torirs_pick.c \
@@ -519,9 +538,14 @@ $(TARGET): FORCE
 FORCE:
 endif
 
-$(TARGET): $(OBJS)
+$(OBJ_DIR)/asan_dyld_shim.dylib: platform/asan_dyld_shim.c | $(OBJ_DIR)
+	$(CC) -dynamiclib -fblocks -DTORIRS_ENABLE_ASAN=1 \
+		-install_name @loader_path/$(notdir $(OBJ_DIR))/asan_dyld_shim.dylib \
+		-o $@ $<
+
+$(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(ASAN_DYLD_SHIM)
 	@echo $(OBJ_DIR) > .last_flavor
 
 # --- Web target ----------------------------------------------------------

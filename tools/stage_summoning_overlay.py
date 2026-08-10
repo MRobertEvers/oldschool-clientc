@@ -101,8 +101,9 @@ def load_roster_boundary(path: Path) -> RosterAdmission:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise fail(f"cannot read roster boundary {path}: {exc}") from exc
-    if not isinstance(data, dict) or data.get("schema") != 1 or data.get("phase") != "5a":
-        raise fail(f"roster boundary {path} must be schema 1 for Phase 5a")
+    if (not isinstance(data, dict) or data.get("schema") != 1 or
+            data.get("phase") not in {"5a", "5b"}):
+        raise fail(f"roster boundary {path} must be schema 1 for Phase 5a or 5b")
     cohorts = data.get("admitted_cohorts")
     review_only = data.get("review_only_cohorts")
     synths = data.get("safe_synth_sources")

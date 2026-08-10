@@ -113,6 +113,22 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   PLATFORM_TARGET_MEMTRACE_SUFFIX := _mt
 
   ifeq ($(PLATFORM),macos)
+    # A dynamically linked SDL may allocate before ASan's interceptors finish
+    # initialising on macOS 26. The static archive avoids that startup edge;
+    # src/makefile supplies the matching dyld interpose shim.
+    ifeq ($(ENABLE_ASAN),1)
+      SDL_LIBS := $(shell sdl2-config --static-libs 2>/dev/null)
+      ifeq ($(strip $(SDL_LIBS)),)
+        SDL_LIBS := $(shell pkg-config --libs --static sdl2 2>/dev/null)
+      endif
+      ifeq ($(strip $(SDL_LIBS)),)
+        SDL_LIBS := -L/opt/homebrew/lib -Wl,-force_load,/opt/homebrew/lib/libSDL2.a \
+                    -framework CoreAudio -framework AudioToolbox -framework CoreVideo \
+                    -framework Cocoa -framework Carbon -framework IOKit \
+                    -framework QuartzCore -framework Metal -lobjc
+      endif
+      PLATFORM_LDFLAGS := -lm $(SDL_LIBS)
+    endif
     PLATFORM_LDFLAGS += -framework OpenGL
     PLATFORM_STRIP_LDFLAGS := -Wl,-dead_strip
     # ld64 has no --wrap. The tracer instead defines malloc/free as strong

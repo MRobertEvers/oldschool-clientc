@@ -11,8 +11,8 @@ Everything marked **[measured]** I ran against the two trees during this pass.
   ceiling, or allocation budget follows from the direct initial-definition width.
 - `LOC_ADD_CHANGE_V2` is a different wire contract: its loc config id is an exact 16-bit
   `p2Alt3`. The generic loc base 70000 is unusable there and would truncate to 4464. The port maps
-  source obelisk 28716 to free target loc 62201; do not transfer the NPC slot/type conclusion to
-  loc configs.
+  source obelisk 28716 to free target loc 62201; do not transfer NPC_INFO's conditional
+  extended-definition path to loc configs.
 - Treat rev-727 clientscripts as a distinct, unverified dialect. Capture raw instructions,
   operands, and stack effects before decompilation; use an explicit 727 dialect; then translate
   relevant logic into newly authored osrs239 CS2. A readable decompile alone is not evidence of

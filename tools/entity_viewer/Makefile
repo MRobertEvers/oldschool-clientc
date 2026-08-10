@@ -9,6 +9,8 @@
 # one file both compile, so the format they speak has a single definition.
 
 CC      ?= cc
+ENABLE_ASAN ?= 0
+HOST_OS := $(shell uname -s)
 REPO    := $(abspath ../..)
 RSCACHE := $(REPO)/3rd/rscache
 THIRD   := $(REPO)/3rd
@@ -25,6 +27,19 @@ INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) -I$(COMMON) -I$(P
 CFLAGS  ?= -std=c11 -g -O2 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
 CFLAGS  += $(INCLUDES)
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
+
+ifeq ($(ENABLE_ASAN),1)
+CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+DEP_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
+ASAN_LDFLAGS := -fsanitize=address
+ifeq ($(HOST_OS),Darwin)
+ASAN_COMPAT_OBJ = $(BUILD)/asan_compat.o
+ASAN_DYLD_SHIM = $(BUILD)/asan_dyld_shim.dylib
+endif
+endif
+
+ASAN_COMPAT_OBJ ?=
+ASAN_DYLD_SHIM ?=
 
 BUILD := build
 
@@ -87,8 +102,16 @@ $(BUILD)/ev_catalog.o: ev_catalog.c | $(BUILD)
 $(BUILD)/lc_pack.o: $(PORTLC)/lc_pack.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
-ev_catalog: $(BUILD)/ev_catalog.o $(BUILD)/lc_pack.o $(COMMON_OBJS) $(DEP_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+$(BUILD)/asan_compat.o: $(REPO)/src/platform/asan_compat.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/asan_dyld_shim.dylib: $(REPO)/src/platform/asan_dyld_shim.c | $(BUILD)
+	$(CC) -dynamiclib -fblocks -DTORIRS_ENABLE_ASAN=1 \
+		-install_name @loader_path/build/asan_dyld_shim.dylib -o $@ $<
+
+ev_catalog: $(BUILD)/ev_catalog.o $(BUILD)/lc_pack.o $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
 # ---- server: rscache + toridraw, natively --------------------------------
 
@@ -136,8 +159,9 @@ ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
 		$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
 		$(BUILD)/toridraw_animation_from_rscache.o \
 		$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
-		$(BUILD)/toridraw_model_sprite.o $(COMMON_OBJS) $(DEP_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+		$(BUILD)/toridraw_model_sprite.o $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
 # ---- browser: toridraw only, to WebAssembly ------------------------------
 #

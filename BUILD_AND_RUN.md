@@ -1332,8 +1332,18 @@ make -C src io-server
 
 Detail: [`tools/memtrace/README.md`](tools/memtrace/README.md).
 
-> **No AddressSanitizer on macOS here.** `ENABLE_ASAN=1` hangs. Use
-> `MallocScribble=1 MallocPreScribble=1` with the SIM harness instead.
+On macOS, use the repository's complete ASan flavor rather than adding
+`-fsanitize=address` by hand:
+
+```sh
+make -C src ENABLE_ASAN=1 EMBED_SERVER=1 torirs
+```
+
+That flavor statically links SDL, compiles `platform/asan_compat.c`, and links
+`build_asan_es/asan_dyld_shim.dylib`. The dylib interposes the macOS 26
+`dyld_shared_cache_iterate_text` startup path that otherwise hangs while the
+ASan allocator is initialising (LLVM #182943). `MallocScribble=1` remains a
+useful independent diagnostic, but it is not a substitute for this ASan build.
 
 ---
 

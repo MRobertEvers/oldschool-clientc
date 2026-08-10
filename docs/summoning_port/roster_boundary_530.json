@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "phase": "5a",
+  "phase": "5b",
   "source_manifest": "pouches_530.json",
   "source_inventory": {
     "pouch_records": 82,
@@ -24,10 +24,12 @@
   "admitted_synth_sources": [],
   "admitted_root_sources": {
     "npc": [
-      6829
+      6829,
+      6825
     ],
     "obj": [
-      12047
+      12047,
+      12043
     ]
   },
   "vertical_support_sources": {
@@ -40,7 +42,39 @@
       28716
     ]
   },
-  "admitted_cohorts": [],
+  "admitted_cohorts": [
+    "summoning_cohort_dreadfowl"
+  ],
+  "cohort_ledgers": [
+    {
+      "prefix": "summoning_cohort_dreadfowl",
+      "ledger": "port/summoning_dreadfowl_530.map",
+      "expected_ledger_rows": {
+        "npc": 1,
+        "obj": 1,
+        "model": 3,
+        "seq": 2,
+        "frame_archive": 1,
+        "framemap": 1
+      },
+      "expected_sources": {
+        "npc": [6825],
+        "obj": [12043],
+        "model": [30429, 31147, 30664],
+        "seq": [5386, 7808],
+        "frame_archive": [1399],
+        "framemap": [1255]
+      },
+      "destination_ranges": {
+        "npc": [26000, 26015],
+        "obj": [46000, 46015],
+        "model": [120000, 120031],
+        "seq": [23000, 23031],
+        "frame_archive": [23000, 23031],
+        "framemap": [10000, 10031]
+      }
+    }
+  ],
   "review_only_cohorts": [
     {
       "prefix": "summoning_roster_530",
@@ -58,6 +92,7 @@
       "expected_pet_npc_rows": 176,
       "expected_source_files": 630,
       "expected_pack_references": 2175,
+      "source_fingerprint_sha256": "38fba6ae2d12930d3133ab22ea4844b4a9559e45c4e631aff26d55f23fe36aa9",
       "legacy_synth_sources": [
         188,
         4161,

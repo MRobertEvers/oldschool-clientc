@@ -3895,8 +3895,10 @@ put_npc_extended_v5(
         rsab_p4_alt2(buf, npc->spotanim_height_delay);
     }
     if( flag & V5_NPC_TRANSFORMATION )
+    {
+        /* NpcTransformationEncoder: unsigned little-endian/add short. */
         rsab_p2_alt3(buf, force_type_latch ? npc->type : npc->change_type);
-        /* NpcTransformationEncoder */
+    }
     if( has_face )
         mock239_face_write_npc(buf, &face);
 
