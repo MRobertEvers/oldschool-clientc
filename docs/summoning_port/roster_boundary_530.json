@@ -87,7 +87,21 @@
       7347,
       6800,
       6811,
-      6804
+      6804,
+      6822,
+      6869,
+      6873,
+      7355,
+      7357,
+      7359,
+      7341,
+      7329,
+      7339,
+      7349,
+      7375,
+      7343,
+      7367,
+      8575
     ],
     "obj": [
       12047,
@@ -153,7 +167,21 @@
       12794,
       12013,
       12025,
-      12017
+      12017,
+      12039,
+      12089,
+      12093,
+      12802,
+      12804,
+      12806,
+      12788,
+      12776,
+      12786,
+      12796,
+      12822,
+      12790,
+      12814,
+      14623
     ]
   },
   "vertical_support_sources": {
@@ -175,7 +203,75 @@
     "summoning_cohort_spirit_mosquito",
     "summoning_cohort_desert_wyrm",
     "summoning_cohort_spirit_scorpion",
-    "summoning_cohort_spirit_tz_kih"
+    "summoning_cohort_spirit_tz_kih",
+    "summoning_cohort_albino_rat",
+    "summoning_cohort_spirit_kalphite",
+    "summoning_cohort_compost_mound",
+    "summoning_cohort_giant_chinchompa",
+    "summoning_cohort_vampire_bat",
+    "summoning_cohort_honey_badger",
+    "summoning_cohort_beaver",
+    "summoning_cohort_void_ravager",
+    "summoning_cohort_void_spinner",
+    "summoning_cohort_void_torcher",
+    "summoning_cohort_bronze_minotaur",
+    "summoning_cohort_iron_minotaur",
+    "summoning_cohort_steel_minotaur",
+    "summoning_cohort_mithril_minotaur",
+    "summoning_cohort_adamant_minotaur",
+    "summoning_cohort_rune_minotaur",
+    "summoning_cohort_bull_ant",
+    "summoning_cohort_macaw",
+    "summoning_cohort_evil_turnip",
+    "summoning_cohort_spirit_cockatrice",
+    "summoning_cohort_spirit_guthatrice",
+    "summoning_cohort_spirit_saratrice",
+    "summoning_cohort_spirit_zamatrice",
+    "summoning_cohort_spirit_pengatrice",
+    "summoning_cohort_spirit_coraxatrice",
+    "summoning_cohort_spirit_vulatrice",
+    "summoning_cohort_pyrelord",
+    "summoning_cohort_magpie",
+    "summoning_cohort_bloated_leech",
+    "summoning_cohort_abyssal_parasite",
+    "summoning_cohort_spirit_jelly",
+    "summoning_cohort_ibis",
+    "summoning_cohort_spirit_kyatt",
+    "summoning_cohort_spirit_larupia",
+    "summoning_cohort_spirit_graahk",
+    "summoning_cohort_karamthulhu",
+    "summoning_cohort_smoke_devil",
+    "summoning_cohort_abyssal_lurker",
+    "summoning_cohort_spirit_cobra",
+    "summoning_cohort_stranger_plant",
+    "summoning_cohort_barker_toad",
+    "summoning_cohort_war_tortoise",
+    "summoning_cohort_bunyip",
+    "summoning_cohort_fruit_bat",
+    "summoning_cohort_ravenous_locust",
+    "summoning_cohort_arctic_bear",
+    "summoning_cohort_obsidian_golem",
+    "summoning_cohort_granite_lobster",
+    "summoning_cohort_praying_mantis",
+    "summoning_cohort_forge_regent",
+    "summoning_cohort_talon_beast",
+    "summoning_cohort_giant_ent",
+    "summoning_cohort_hydra",
+    "summoning_cohort_spirit_dagannoth",
+    "summoning_cohort_unicorn_stallion",
+    "summoning_cohort_wolpertinger",
+    "summoning_cohort_pack_yak",
+    "summoning_cohort_fire_titan",
+    "summoning_cohort_moss_titan",
+    "summoning_cohort_ice_titan",
+    "summoning_cohort_lava_titan",
+    "summoning_cohort_swamp_titan",
+    "summoning_cohort_geyser_titan",
+    "summoning_cohort_abyssal_titan",
+    "summoning_cohort_iron_titan",
+    "summoning_cohort_steel_titan",
+    "summoning_cohort_void_shifter",
+    "summoning_cohort_phoenix"
   ],
   "cohort_ledgers": [
     {
@@ -648,6 +744,66 @@
       "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
       "expected_sources": {"npc": [6804], "obj": [12017], "model": [30528, 31213, 30604], "seq": [7781, 7784], "frame_archive": [1930], "framemap": [1737]},
       "destination_ranges": {"npc": [27008, 27023], "obj": [47008, 47023], "model": [122016, 122047], "seq": [25016, 25047], "frame_archive": [25016, 25047], "framemap": [12016, 12047]}
+    },
+    {
+      "prefix": "summoning_cohort_unicorn_stallion", "ledger": "port/summoning_unicorn_stallion_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [6822], "obj": [12039], "model": [31101, 31223, 30811], "seq": [6374, 6373], "frame_archive": [1639], "framemap": [1472]}, "destination_ranges": {"npc": [27024, 27039], "obj": [47024, 47039], "model": [122048, 122079], "seq": [25048, 25079], "frame_archive": [25048, 25079], "framemap": [12048, 12079]}
+    },
+    {
+      "prefix": "summoning_cohort_wolpertinger", "ledger": "port/summoning_wolpertinger_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [6869], "obj": [12089], "model": [30475, 31221, 30758], "seq": [8301, 8302], "frame_archive": [1933], "framemap": [1716]}, "destination_ranges": {"npc": [27040, 27055], "obj": [47040, 47055], "model": [122080, 122111], "seq": [25080, 25111], "frame_archive": [25080, 25111], "framemap": [12080, 12111]}
+    },
+    {
+      "prefix": "summoning_cohort_pack_yak", "ledger": "port/summoning_pack_yak_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [6873], "obj": [12093], "model": [23892, 31230, 30837], "seq": [5785, 5781], "frame_archive": [1490], "framemap": [1338]}, "destination_ranges": {"npc": [27056, 27071], "obj": [47056, 47071], "model": [122112, 122143], "seq": [25112, 25143], "frame_archive": [25112, 25143], "framemap": [12112, 12143]}
+    },
+    {
+      "prefix": "summoning_cohort_fire_titan", "ledger": "port/summoning_fire_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7355], "obj": [12802], "model": [30536, 31255, 30743], "seq": [7831, 7828], "frame_archive": [1916], "framemap": [1751]}, "destination_ranges": {"npc": [27072, 27087], "obj": [47072, 47087], "model": [122144, 122175], "seq": [25144, 25175], "frame_archive": [25144, 25175], "framemap": [12144, 12175]}
+    },
+    {
+      "prefix": "summoning_cohort_moss_titan", "ledger": "port/summoning_moss_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7357], "obj": [12804], "model": [30472, 31163, 30846], "seq": [7841, 7838], "frame_archive": [1954], "framemap": [1740]}, "destination_ranges": {"npc": [27088, 27103], "obj": [47088, 47103], "model": [122176, 122207], "seq": [25176, 25207], "frame_archive": [25176, 25207], "framemap": [12176, 12207]}
+    },
+    {
+      "prefix": "summoning_cohort_ice_titan", "ledger": "port/summoning_ice_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7359], "obj": [12806], "model": [30470, 45462, 30836], "seq": [8186, 7847], "frame_archive": [1954], "framemap": [1740]}, "destination_ranges": {"npc": [27104, 27119], "obj": [47104, 47119], "model": [122208, 122239], "seq": [25208, 25239], "frame_archive": [25208, 25239], "framemap": [12208, 12239]}
+    },
+    {
+      "prefix": "summoning_cohort_lava_titan", "ledger": "port/summoning_lava_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7341], "obj": [12788], "model": [30481, 31234, 30697], "seq": [7978, 7977], "frame_archive": [1953], "framemap": [1734]}, "destination_ranges": {"npc": [27120, 27135], "obj": [47120, 47135], "model": [122240, 122271], "seq": [25240, 25271], "frame_archive": [25240, 25271], "framemap": [12240, 12271]}
+    },
+    {
+      "prefix": "summoning_cohort_swamp_titan", "ledger": "port/summoning_swamp_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7329], "obj": [12776], "model": [30539, 31165, 30589], "seq": [8220, 8219], "frame_archive": [1925], "framemap": [1753]}, "destination_ranges": {"npc": [27136, 27151], "obj": [47136, 47151], "model": [122272, 122303], "seq": [25272, 25303], "frame_archive": [25272, 25303], "framemap": [12272, 12303]}
+    },
+    {
+      "prefix": "summoning_cohort_geyser_titan", "ledger": "port/summoning_geyser_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7339], "obj": [12786], "model": [30538, 31164, 30769], "seq": [7876, 7877], "frame_archive": [1927], "framemap": [1714]}, "destination_ranges": {"npc": [27152, 27167], "obj": [47152, 47167], "model": [122304, 122335], "seq": [25304, 25335], "frame_archive": [25304, 25335], "framemap": [12304, 12335]}
+    },
+    {
+      "prefix": "summoning_cohort_abyssal_titan", "ledger": "port/summoning_abyssal_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7349], "obj": [12796], "model": [30474, 31162, 30830], "seq": [7690, 7687], "frame_archive": [1954], "framemap": [1740]}, "destination_ranges": {"npc": [27168, 27183], "obj": [47168, 47183], "model": [122336, 122367], "seq": [25336, 25367], "frame_archive": [25336, 25367], "framemap": [12336, 12367]}
+    },
+    {
+      "prefix": "summoning_cohort_iron_titan", "ledger": "port/summoning_iron_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7375], "obj": [12822], "model": [30473, 31159, 30754], "seq": [7949, 7952], "frame_archive": [1954], "framemap": [1740]}, "destination_ranges": {"npc": [27184, 27199], "obj": [47184, 47199], "model": [122368, 122399], "seq": [25368, 25399], "frame_archive": [25368, 25399], "framemap": [12368, 12399]}
+    },
+    {
+      "prefix": "summoning_cohort_steel_titan", "ledger": "port/summoning_steel_titan_530.map", "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7343], "obj": [12790], "model": [30469, 31161, 30737], "seq": [8186, 8189], "frame_archive": [1954], "framemap": [1740]}, "destination_ranges": {"npc": [27200, 27215], "obj": [47200, 47215], "model": [122400, 122431], "seq": [25400, 25431], "frame_archive": [25400, 25431], "framemap": [12400, 12431]}
+    },
+    {
+      "prefix": "summoning_cohort_void_shifter", "ledger": "port/summoning_void_shifter_530.map",
+      "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [7367], "obj": [12814], "model": [30436, 31233, 30799], "seq": [8129, 8128], "frame_archive": [1919], "framemap": [1742]},
+      "destination_ranges": {"npc": [27216, 27231], "obj": [47216, 47231], "model": [122432, 122463], "seq": [25432, 25463], "frame_archive": [25432, 25463], "framemap": [12432, 12463]}
+    },
+    {
+      "prefix": "summoning_cohort_phoenix", "ledger": "port/summoning_phoenix_530.map",
+      "expected_ledger_rows": {"npc": 1, "obj": 1, "model": 3, "seq": 2, "frame_archive": 1, "framemap": 1},
+      "expected_sources": {"npc": [8575], "obj": [14623], "model": [45411, 45305, 45437], "seq": [11092, 11094], "frame_archive": [2710], "framemap": [2430]},
+      "destination_ranges": {"npc": [27232, 27247], "obj": [47232, 47247], "model": [122464, 122495], "seq": [25464, 25495], "frame_archive": [25464, 25495], "framemap": [12464, 12495]}
     }
   ],
   "review_only_cohorts": [

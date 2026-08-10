@@ -2,8 +2,8 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phases 0–4 and the bounded Phase-5b Dreadfowl cohort are implemented; the remaining
-Phase-5 breadth is next.
+**Status:** Phases 0–4 and all 77 bounded Phase-5 familiar/pouch cohorts are implemented. Phoenix
+is admitted as a non-audio asset closure; its unsafe synths and gameplay remain out of scope.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -449,8 +449,9 @@ summon-sound table** (`Familiar.java:713` is a TODO) — one shared summon sound
 familiar/pouch pairs and four Sacred Clay pairs that remain explicitly deferred. The separate
 [`roster_boundary_530.json`](summoning_port/roster_boundary_530.json) originally allowed only the
 existing Spirit-wolf proof roots; its one later, separately owned Phase-5b admission is Dreadfowl.
-That does not admit any entry from the broad generated roster. The boundary permits the documented
-safe source synth 188 only as policy; it does not turn an unreviewed import into accepted content.
+The boundary now admits the separately-owned clean familiar/pouch cohorts listed in the queue. It
+still permits only the documented safe source synth 188 as policy; it does not turn an unreviewed
+import into accepted content.
 
 The earlier generated `summoning_roster_530` import is preserved intact as review-only evidence:
 630 source files, 2,175 pack references, and 1,365 ledger rows. Its last broad CSV and INI manifests
@@ -468,7 +469,7 @@ tables, CS2 6/0, ServerScript 12,963 scripts, and `mock230_pack --check-only` 8,
 flag-off comparison remains 25/0. Phase 5a did not accept the broad roster; the separately owned
 Phase-5b closure below does not change its review-only status.
 
-**Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The sole admitted breadth closure
+**Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The first admitted breadth closure
 is source NPC 6825 / pouch 12043 to target NPC 26000 / pouch 46000. Its exact closure is body,
 head, and pouch models 120000/120001/120002 from source 30429/31147/30664; ready/walk sequences
 23000/23001 from source 5386/7808; animation archive 1399 at target 23000; and framemap 1255 at
@@ -476,7 +477,7 @@ target 10000. The separate nine-row Dreadfowl ledger is deliberately `minted`/`u
 not a human material or signoff approval. No combat, pet, scroll/special-move, or audio closure is
 accepted with this cohort.
 
-`test-summoning-phase5b` passes 202/0 while preserving the broad review-only footprint. The
+`test-summoning-phase5b` passes 202/0 while preserving the broad review-only footprint and the
 normal embedded-client acceptance, `test-summoning-phase5b-runtime`, passes 110/0 using the actual
 right-click Dreadfowl-pouch menu: authored `ifop4=Summon` appears as native action 2231/op 5,
 serializes as dynamic `IF_BUTTONX op=6`, dispatches canonically to `OPHELD4`, consumes the pouch,
@@ -487,15 +488,21 @@ one-point summon and 100-tick drain boundary, and exercise
 real sidebar Call and Dismiss. The retained logs and framebuffers are under
 `build/summoning-phase5b-runtime/`.
 
+**Phase-5 breadth status:** 77 familiar/pouch cohorts are admitted with dedicated ledgers and
+disjoint target ranges. Phoenix is a nine-row non-audio closure; source synths 5776 and 5753 are
+withheld because they are outside the safe audio policy, and its missing `Familiar` class keeps
+gameplay out of scope.
+
 **Client acceptance for breadth:** every familiar must be summoned in the real client with its
 model and animations rendered, and every scroll must be activated through its actual client
 interaction with visible/logged special-move effects. Definition presence or a successful bake
 alone is not acceptance.
 
-**Phase 6 — Beast of Burden (~8–12 d), blocked on an unrelated prerequisite.** `fields/inv.ini` and
-`[namespace:inv]` do not exist — the same gap that keeps `shop` unportable. `mock230_container_resolve`
-returns NULL for an inv the cache does not size and every container op aborts. Its own slice, its
-own acceptance, credited against `shop` too. Must not block Phases 1–5.
+**Phase 6 — Beast of Burden (~8–12 d), prerequisite complete.** The shared inventory foundation
+now declares `fields/inv.ini` and `[namespace:inv]`; the feature-on `summoning_bob` record bakes
+as a 30-slot cache inventory and resolves through the ordinary container path. This also clears the
+documented shop prerequisite. The next slice binds a single admitted familiar to that inventory,
+then proves store/withdraw, dismiss spill, and logout/relog persistence in the real client.
 
 **Phase 7 — polish.** Sidebar tab if deferred · per-account unlock · Wolf Whistle · remaining
 sounds · pets (a separate lifecycle — stub the save shape now so it can be added later without a

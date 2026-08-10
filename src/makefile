@@ -1893,6 +1893,9 @@ test-summoning-phase5b-runtime: test-summoning-phase5b mock230-cache-summoning m
 		--scripts $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning \
 		--manifest $(REPO_ROOT)/manifest_osrs239.ini
 
+test-summoning-phase6b: mock230-cache-summoning mock230-scripts-summoning
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6b.py
+
 test-summoning-import:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_import.py

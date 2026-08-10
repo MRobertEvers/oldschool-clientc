@@ -167,18 +167,34 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 5bk | Sixty-first bounded familiar/pouch cohort | 5 | **done** | Giant ent, source `6800/12013` → target `26976/46976`; nine-row asset closure. |
 | 5bl | Sixty-second bounded familiar/pouch cohort | 5 | **done** | Hydra, source `6811/12025` → target `26992/46992`; nine-row asset closure. |
 | 5bm | Sixty-third bounded familiar/pouch cohort | 5 | **done** | Spirit dagannoth, source `6804/12017` → target `27008/47008`; nine-row asset closure. |
-| 5bh | Phoenix | 5 | **deferred** | Dry run reports two synth assets; held for the documented unsafe-audio policy rather than admitted into the asset-only lane. |
+| 5bn | Sixty-fourth bounded familiar/pouch cohort | 5 | **done** | Unicorn stallion, source `6822/12039` → target `27024/47024`; nine-row asset closure. |
+| 5bo | Sixty-fifth bounded familiar/pouch cohort | 5 | **done** | Wolpertinger, source `6869/12089` → target `27040/47040`; nine-row asset closure. |
+| 5bp | Sixty-sixth bounded familiar/pouch cohort | 5 | **done** | Pack yak, source `6873/12093` → target `27056/47056`; nine-row asset closure. |
+| 5bq | Sixty-seventh bounded familiar/pouch cohort | 5 | **done** | Fire titan, source `7355/12802` → target `27072/47072`; nine-row asset closure. |
+| 5br | Sixty-eighth bounded familiar/pouch cohort | 5 | **done** | Moss titan, source `7357/12804` → target `27088/47088`; nine-row asset closure. |
+| 5bs | Sixty-ninth bounded familiar/pouch cohort | 5 | **done** | Ice titan, source `7359/12806` → target `27104/47104`; nine-row asset closure. |
+| 5bt | Seventieth bounded familiar/pouch cohort | 5 | **done** | Lava titan, source `7341/12788` → target `27120/47120`; nine-row asset closure. |
+| 5bu | Seventy-first bounded familiar/pouch cohort | 5 | **done** | Swamp titan, source `7329/12776` → target `27136/47136`; nine-row asset closure. |
+| 5bv | Seventy-second bounded familiar/pouch cohort | 5 | **done** | Geyser titan, source `7339/12786` → target `27152/47152`; nine-row asset closure. |
+| 5bw | Seventy-third bounded familiar/pouch cohort | 5 | **done** | Abyssal titan, source `7349/12796` → target `27168/47168`; nine-row asset closure. |
+| 5bx | Seventy-fourth bounded familiar/pouch cohort | 5 | **done** | Iron titan, source `7375/12822` → target `27184/47184`; nine-row asset closure. |
+| 5by | Seventy-fifth bounded familiar/pouch cohort | 5 | **done** | Steel titan, source `7343/12790` → target `27200/47200`; nine-row asset closure. |
+| 5bz | Seventy-sixth bounded familiar/pouch cohort | 5 | **done** | Void shifter, source `7367/12814` → target `27216/47216`; nine-row asset closure. |
+| 5bh | Phoenix | 5 | **done** | Source `8575/14623` → target `27232/47232`; nine-row non-audio closure admitted. Unsafe synth sources `5776` and `5753` are deliberately withheld; Phoenix has no source `Familiar` class, so gameplay/audio remains out of scope. |
+| 6a | Inventory namespace prerequisite | 6 | **done** | `fields/inv.ini`, `[namespace:inv]`, and feature-on `summoning_bob` (30 slots) are present. `mock230-cache-summoning` bakes the record and the normal container resolver can allocate it; this also removes the documented shop prerequisite. |
+| 6b | First Beast of Burden familiar | 6 | **done** | Spirit terrorbird is the selected 12-slot proof familiar. `test-summoning-phase6b` proves real pouch → NPC Store menu → rendered BOB panel → Store, no-cheat relog persistence, real Withdraw, and sidebar Dismiss spill. Rev-239 `OBJ_ADD` state replay now uses the required enclosed-zone route. |
+| 7a | Per-account Summoning unlock | 7 | **pending** | Use the existing `content_restrict_summoning_serverside` client varbit and a persisted server-side gate; retain build-level isolation and prove locked/unlocked client behaviour on fresh saves. |
 
 Phases 5–7 (breadth, Beast of Burden, polish) are scoped in
-[`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9. The active next slice must be a newly selected,
-separately bounded Phase-5 cohort. The preserved generated Phase-5 experiment remains review-only
-and is not accepted merely because its importer dry-run succeeds.
+[`SUMMONING_PORT.md`](SUMMONING_PORT.md) §9. Phase 5 is complete: the preserved generated
+experiment remains review-only and is not accepted merely because its importer dry-run succeeds.
+Phase 6 is complete. The next unblocked slice is 7a, the per-account Summoning unlock.
 
 ---
 
 ## Loop prompt
 
 Read [`SUMMONING_PORT.md`](SUMMONING_PORT.md) + `PORTING_GUIDE` §4/§4.5/§7; take the next pending
-unblocked slice; never park sibling lanes; verify (`mock230_pack --check-only`,
+unblocked slice (currently 7a); never park sibling lanes; verify (`mock230_pack --check-only`,
 `make -C src mock230-scripts`, and the flag-off byte-identity check); update this file and the
 budget/opcode tables; re-arm. Stop only when the user stops the loop.

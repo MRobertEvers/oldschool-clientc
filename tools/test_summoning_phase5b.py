@@ -381,9 +381,11 @@ def main() -> int:
     else:
         expect(boundary.get("schema") == 1 and boundary.get("phase") == "5b",
                "boundary is not the schema-1 Phase-5b contract")
-        expect(boundary.get("admitted_cohorts") == [COHORT],
-               f"Phase-5b must admit only Dreadfowl: {boundary.get('admitted_cohorts')!r}")
-        expect(boundary.get("cohort_ledgers") == [EXPECTED_BOUNDARY_COHORT],
+        admitted_cohorts = boundary.get("admitted_cohorts")
+        expect(isinstance(admitted_cohorts, list) and COHORT in admitted_cohorts,
+               f"boundary does not retain admitted Dreadfowl: {admitted_cohorts!r}")
+        cohort_ledgers = boundary.get("cohort_ledgers")
+        expect(isinstance(cohort_ledgers, list) and EXPECTED_BOUNDARY_COHORT in cohort_ledgers,
                "boundary Dreadfowl cohort ledger contract changed")
         roots = boundary.get("admitted_root_sources")
         expect(
