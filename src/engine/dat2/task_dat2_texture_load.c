@@ -23,6 +23,10 @@ struct TextureLayer
     int height;
     const int* palette; /* RGB entries */
     int palette_length;
+    /* Per-pixel coverage from the sprite's alpha plane (dat2 FLAG_ALPHA), used
+     * only by an alpha-blended texture. NULL when the sprite has none, which is
+     * every stock texture sprite. */
+    const uint8_t* pixel_alphas;
     int blend_type; /* from dat2 sprite_types; 0 = replace */
 };
 
@@ -380,6 +384,18 @@ task_dat2_texture_load_clear_packs(struct Task_Dat2TextureLoad* task)
     task->sprite_index = 0;
 }
 
+
+/** Replace a texel's alpha with the sprite's per-pixel coverage.
+ *  The palette supplies colour only: indices are shared between pixels, so two
+ *  pixels of the same colour would otherwise be forced to the same coverage. */
+static inline int
+texture_apply_pixel_alpha(int texel, const uint8_t* pixel_alphas, int index)
+{
+    if( !pixel_alphas )
+        return texel;
+    return (int)(((uint32_t)pixel_alphas[index] << 24) | ((uint32_t)texel & 0x00FFFFFFu));
+}
+
 static struct ToriRS_Texture*
 texture_bake(
     const struct TextureLayer* layers,
@@ -429,12 +445,6 @@ texture_bake(
             int alpha = 0xff;
             if( (layer->palette[pi] & 0xf8f8ff) == 0 )
                 alpha = 0;
-            /* An alpha-blended texture carries real coverage in the source
-             * palette's top byte. The stock rule above collapses it to 0 or
-             * 255, which is the colour key - exactly what such a texture exists
-             * to avoid - so take the byte as authored instead. */
-            if( alpha_blended )
-                alpha = (layer->palette[pi] >> 24) & 0xFF;
             adjusted_palette[pi] = (alpha << 24) | ToriRS_TextureGammaBlend(layer->palette[pi], 0.8);
         }
 
@@ -445,6 +455,12 @@ texture_bake(
             if( (adjusted_palette[palette_index] & 0xf8f8ff) == 0 )
                 opaque = false;
         }
+
+        /* An alpha-blended texture takes its coverage from the sprite's alpha
+         * plane, per pixel. The palette cannot carry it: indices are shared, so
+         * two pixels of the same colour would be forced to the same coverage. */
+        if( alpha_blended && !layer->pixel_alphas )
+            alpha_blended = false;
 
         if( getenv("TORIRS_TEX_DEBUG") )
             fprintf(
@@ -465,7 +481,11 @@ texture_bake(
                 for( pixel_index = 0; pixel_index < layer->width * layer->height; pixel_index++ )
                 {
                     int palette_index = layer->palette_pixels[pixel_index];
-                    pixels[pixel_index] = adjusted_palette[palette_index];
+                    pixels[pixel_index] = alpha_blended
+                                              ? texture_apply_pixel_alpha(
+                                                    adjusted_palette[palette_index],
+                                                    layer->pixel_alphas, pixel_index)
+                                              : adjusted_palette[palette_index];
                 }
             }
             else if( layer->width == 64 && dest_size == 128 )
@@ -477,8 +497,13 @@ texture_bake(
                 {
                     for( y = 0; y < dest_size; y++ )
                     {
-                        int palette_index = layer->palette_pixels[((x >> 1) << 6) + (y >> 1)];
-                        pixels[pixel_index++] = adjusted_palette[palette_index];
+                        int src_index = ((x >> 1) << 6) + (y >> 1);
+                        int palette_index = layer->palette_pixels[src_index];
+                        pixels[pixel_index++] =
+                            alpha_blended ? texture_apply_pixel_alpha(
+                                                adjusted_palette[palette_index],
+                                                layer->pixel_alphas, src_index)
+                                          : adjusted_palette[palette_index];
                     }
                 }
             }
@@ -491,9 +516,13 @@ texture_bake(
                 {
                     for( y = 0; y < dest_size; y++ )
                     {
-                        int palette_index =
-                            layer->palette_pixels[(y << 1) + ((x << 1) << 7)];
-                        pixels[pixel_index++] = adjusted_palette[palette_index];
+                        int src_index = (y << 1) + ((x << 1) << 7);
+                        int palette_index = layer->palette_pixels[src_index];
+                        pixels[pixel_index++] =
+                            alpha_blended ? texture_apply_pixel_alpha(
+                                                adjusted_palette[palette_index],
+                                                layer->pixel_alphas, src_index)
+                                          : adjusted_palette[palette_index];
                     }
                 }
             }
@@ -556,6 +585,7 @@ texture_from_sprite_packs(
         layers[i].height = sprite->height;
         layers[i].palette = pack->palette;
         layers[i].palette_length = pack->palette_length;
+        layers[i].pixel_alphas = sprite->pixel_alphas;
         layers[i].blend_type = 0;
         if( i > 0 && def->sprite_types )
             layers[i].blend_type = def->sprite_types[i - 1];

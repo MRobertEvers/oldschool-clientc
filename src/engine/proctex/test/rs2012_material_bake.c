@@ -1062,8 +1062,7 @@ prepare_model_outputs(
                  * Note this keeps genuine cutouts: their alpha is already 0 or
                  * 255, so they key exactly and are not blend layers.
                  */
-                if( g_ground_mesh_fallback &&
-                    (!materials->materials[source].valid || g_textures[source].blend_layer) )
+                if( g_ground_mesh_fallback && !materials->materials[source].valid )
                 {
                     if( model->face_infos )
                         model->face_infos[face] =
@@ -1211,7 +1210,9 @@ quantize_texture(int source, int32_t* pixels)
     {
         uint32_t argb = (uint32_t)entry->argb[i];
         int alpha = (int)(argb >> 24);
-        if( alpha < 128 )
+        /* A blend layer is emitted with its coverage intact - thresholding is
+         * exactly what destroys it - so only a fully clear texel drops out. */
+        if( entry->blend_layer ? (alpha == 0) : (alpha < 128) )
         {
             if( pixels ) pixels[i] = 0;
             entry->transparent = true;
@@ -1225,7 +1226,8 @@ quantize_texture(int source, int32_t* pixels)
         int b = (blue * (PALETTE_BLUE_LEVELS - 1) + 127) / 255;
         int index = 1 + (r * PALETTE_GREEN_LEVELS + g) * PALETTE_BLUE_LEVELS + b;
         int rgb = palette_colour(index);
-        if( pixels ) pixels[i] = (int32_t)(0xFF000000u | (uint32_t)rgb);
+        uint32_t out_alpha = entry->blend_layer ? (uint32_t)alpha : 0xFFu;
+        if( pixels ) pixels[i] = (int32_t)((out_alpha << 24) | (uint32_t)rgb);
     }
     return 1;
 }
@@ -1548,6 +1550,10 @@ write_texture_sources(
             fprintf(text_file, "[rs2012_material_%d]\n", source);
             fprintf(text_file, "averagehsl=%d\n", material->average_hsl);
             if( !g_textures[source].transparent ) fprintf(text_file, "opaque=yes\n");
+            /* A blend layer keeps its coverage instead of being colour-keyed;
+             * the raster blends it per texel. See
+             * ToriDraw_Texture::alpha_blended. */
+            if( g_textures[source].blend_layer ) fprintf(text_file, "alpha=yes\n");
             fprintf(text_file, "sprite1=%d,0,0\n", g_mapping[source].dest_sprite);
             if( direction ) fprintf(text_file, "direction=%d\n", direction);
             if( speed ) fprintf(text_file, "speed=%d\n", speed);

@@ -225,6 +225,139 @@ test_post_clip_winding(void)
     CHECK(back_lit == 0, "back-facing clipped polygon must be culled after clipping (lit=%d)", back_lit);
 }
 
+/*
+ * Vertices the clipper creates must be projected at the camera's scale, like
+ * the ones the projection kernels keep.
+ *
+ * Everything above runs at scale 512, which is the single value at which a
+ * clip vertex projected through the old `SCALE_UNIT(p) / z` was right by
+ * accident. The live world camera derives its scale from the viewport height,
+ * so this drives the same geometry at two scales and requires the drawn shape
+ * to scale with them. Under the bug the kept vertices halve and the clipped
+ * ones do not, which widens the polygon instead of shrinking it.
+ */
+#define SCALED_NEAR_Z 50
+
+/* Camera space. A is behind the near plane; B and C straddle it far enough
+ * that both clip intersections are interior to their edges. Chosen so the
+ * whole polygon stays inside the viewport at both scales below — a shape the
+ * screen clamps would report the viewport's size, not the projection's. */
+static const int g_scaled_ortho_x[3] = { 10, 20, -20 };
+static const int g_scaled_ortho_y[3] = { 5, -10, 15 };
+static const int g_scaled_ortho_z[3] = { 40, 60, 100 };
+
+static void
+seed_scaled_triangle(struct ToriDraw_Scene* scene, int scale)
+{
+    for( int i = 0; i < 3; i++ )
+    {
+        scene->orthographic_vertices_x[i] = g_scaled_ortho_x[i];
+        scene->orthographic_vertices_y[i] = g_scaled_ortho_y[i];
+        scene->orthographic_vertices_z[i] = g_scaled_ortho_z[i];
+        scene->screen_vertices_z[i] = g_scaled_ortho_z[i];
+
+        if( g_scaled_ortho_z[i] < SCALED_NEAR_Z )
+        {
+            /* What the clipping projection kernels park for a behind-the-eye
+             * vertex; y is left undivided there, so nothing may read it. */
+            scene->screen_vertices_x[i] = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
+            scene->screen_vertices_y[i] = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
+            continue;
+        }
+        scene->screen_vertices_x[i] = g_scaled_ortho_x[i] * scale / g_scaled_ortho_z[i];
+        scene->screen_vertices_y[i] = g_scaled_ortho_y[i] * scale / g_scaled_ortho_z[i];
+    }
+
+    scene->near_clipped = true;
+    scene->projection_near_plane_z = SCALED_NEAR_Z;
+}
+
+/** Width of the drawn polygon's bounding box, or -1 if nothing was drawn. */
+static int
+render_scaled_width(int scale)
+{
+    struct Fixture fx;
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K);
+    struct ToriDraw_ViewPort viewport = {
+        .width = VIEW_W,
+        .height = VIEW_H,
+        .stride = VIEW_W,
+        .x_center = VIEW_W / 2,
+        .y_center = VIEW_H / 2,
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = VIEW_W,
+        .clip_bottom = VIEW_H,
+    };
+    struct ToriDraw_Camera camera = {
+        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
+        .proj_scale = scale,
+        .near_plane_z = SCALED_NEAR_Z,
+    };
+    size_t const view_pixels = (size_t)VIEW_W * VIEW_H;
+    toripixel_t* pixels = malloc(view_pixels * sizeof(*pixels));
+    int min_x = VIEW_W;
+    int max_x = -1;
+
+    CHECK(scene != NULL, "scene allocation, scale=%d", scale);
+    CHECK(pixels != NULL, "pixel allocation, scale=%d", scale);
+    if( !scene || !pixels )
+    {
+        free(pixels);
+        ToriDraw_SceneFree(scene);
+        return -1;
+    }
+
+    fixture_init(&fx, 0);
+    seed_scaled_triangle(scene, scale);
+    scene->active_hnd = fx.hnd;
+
+    for( size_t i = 0; i < view_pixels; i++ )
+        pixels[i] = CLEAR_PIXEL;
+
+    CHECK(
+        ToriDraw_RenderModel2SortFaces(fx.hnd, scene) == 1,
+        "clipped face must survive the sort, scale=%d",
+        scale);
+    ToriDraw_RenderModel3Raster(scene, &viewport, &camera, pixels, false);
+
+    for( int y = 0; y < VIEW_H; y++ )
+        for( int x = 0; x < VIEW_W; x++ )
+            if( pixels[(size_t)y * VIEW_W + x] != CLEAR_PIXEL )
+            {
+                if( x < min_x )
+                    min_x = x;
+                if( x > max_x )
+                    max_x = x;
+            }
+
+    free(pixels);
+    ToriDraw_SceneFree(scene);
+    return max_x < 0 ? -1 : max_x - min_x + 1;
+}
+
+static void
+test_clip_vertices_follow_camera_scale(void)
+{
+    int wide = render_scaled_width(512);
+    int half = render_scaled_width(256);
+
+    CHECK(wide > 0, "clipped polygon must rasterize at scale 512 (width=%d)", wide);
+    CHECK(half > 0, "clipped polygon must rasterize at scale 256 (width=%d)", half);
+    if( wide <= 0 || half <= 0 )
+        return;
+
+    /* Halving the scale halves the projection; a couple of pixels of slack
+     * covers the integer divides. The old code left the two clip vertices at
+     * scale 512 regardless, which reports ~204 against an expected ~136. */
+    CHECK(
+        half * 2 >= wide - 3 && half * 2 <= wide + 3,
+        "clip vertices must scale with the camera: width 512=%d, 256=%d (expected ~%d)",
+        wide,
+        half,
+        wide / 2);
+}
+
 int
 main(void)
 {
@@ -233,6 +366,7 @@ main(void)
     test_sorter_keeps_sentinel_face(TORIDRAW_SCENE_FULL);
     test_sorter_keeps_sentinel_face(TORIDRAW_SCENE_SMALL);
     test_post_clip_winding();
+    test_clip_vertices_follow_camera_scale();
 
     if( failures )
         return 1;

@@ -303,8 +303,15 @@ corner (4 monotone runs for a full box, verifiable by walking the emitted
 `PNTR_CMD_TERRAIN` distances). The seed generator remains, but only as the liveness
 fallback for tiles a span cycle strands — it is no longer what drives the traversal.
 
-The bulk push costs one extra queue insert per tile: ~6% on a worst-case paint
-(radius 50, 4 levels, 4000 locs: 1.96 → 2.09 ms), nothing on the drawn set.
+The bulk push is not an upfront seed build — no allocation, no extra pass, just three
+stores per tile inside the classify loop that already visits every tile, and the
+`PainterSeedGen` stays lazy. It pays for itself: with the whole box queued the drain
+no longer empties early, so on a normal frame the seed generator is never initialised
+at all (measured on radius 50 / 4 levels / 4000 locs: 1.00 → 0.00 generator inits,
+4.00 → 0.00 seeds taken, 106 → 0 generator scan steps per paint). Min-of-7 timings on
+the same scenes are unchanged to marginally faster (radius 25: 0.300 → 0.280 ms;
+radius 50: 2.190 → 2.180 ms; radius 90: 3.480 → 3.430 ms), and bucket stays
+1.3–1.6× faster than `painter_paint_world3d` on all three.
 
 ### Main loop
 

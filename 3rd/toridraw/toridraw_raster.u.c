@@ -83,6 +83,7 @@ struct ToriDrawModelRasterContext
     const int* cache_texels;
     int cache_texture_size;
     int cache_texture_opaque;
+    int cache_texture_alpha_blended;
 
     /* Non-NULL only when TORIDRAW_RASTER_DEBUG >= 1. */
     struct ToriDraw_RasterDebugStats* raster_debug;
@@ -386,6 +387,7 @@ ToriDraw_RasterModelFace(
     const int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
+    int texture_alpha_blended = false;
     if( ctx->face_textures != NULL )
         texture_id = ctx->face_textures[face];
     else
@@ -412,6 +414,7 @@ ToriDraw_RasterModelFace(
             texels = ctx->cache_texels;
             texture_size = ctx->cache_texture_size;
             texture_opaque = ctx->cache_texture_opaque;
+            texture_alpha_blended = ctx->cache_texture_alpha_blended;
 
             if( color_c == TORIDRAWHSL16_FLAT )
                 goto textured_flat;
@@ -457,11 +460,13 @@ ToriDraw_RasterModelFace(
         texels = texture->texels;
         texture_size = texture->width;
         texture_opaque = texture->opaque;
+        texture_alpha_blended = texture->alpha_blended;
 
         ctx->cache_texture_id = texture_id;
         ctx->cache_texels = texels;
         ctx->cache_texture_size = texture_size;
         ctx->cache_texture_opaque = texture_opaque;
+        ctx->cache_texture_alpha_blended = texture_alpha_blended;
 
         if( color_c == TORIDRAWHSL16_FLAT )
             goto textured_flat;
@@ -695,6 +700,41 @@ ToriDraw_RasterModelFace(
                     (int*)texels,
                     texture_size,
                     texture_opaque,
+                    ctx->near_plane_z,
+                    ctx->offset_x,
+                    ctx->offset_y,
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
+            }
+            /* Per-texel alpha: blend rather than colour-key. Checked before
+             * opaque because such a texture is never marked opaque, and before
+             * transparent because that path would threshold it into holes. */
+            else if( texture_alpha_blended )
+            {
+                ToriDraw_TriangleFaceTextureBlendAlpha(
+                    ctx->pixel_buffer,
+                    ctx->stride,
+                    ctx->screen_width,
+                    ctx->screen_height,
+                    ctx->camera_cot16,
+                    face,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    ctx->face_indices_a,
+                    ctx->face_indices_b,
+                    ctx->face_indices_c,
+                    ctx->vertex_x,
+                    ctx->vertex_y,
+                    ctx->vertex_z,
+                    ctx->orthographic_vertex_x_nullable,
+                    ctx->orthographic_vertex_y_nullable,
+                    ctx->orthographic_vertex_z_nullable,
+                    ctx->colors_a,
+                    ctx->colors_b,
+                    ctx->colors_c,
+                    (int*)texels,
+                    texture_size,
                     ctx->near_plane_z,
                     ctx->offset_x,
                     ctx->offset_y,
@@ -986,6 +1026,7 @@ context_from_handle(
         ctx->cache_texels = NULL;
         ctx->cache_texture_size = 0;
         ctx->cache_texture_opaque = 0;
+        ctx->cache_texture_alpha_blended = 0;
         ctx->flags = 0;
         if( smooth )
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;

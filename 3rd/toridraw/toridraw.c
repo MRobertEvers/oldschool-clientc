@@ -416,6 +416,7 @@ int g_toridraw_raster_scanline = 0;
 #ifndef TORIDRAW_PIXEL16
 #include "triangles/toridraw_triangle_texture_opaque.u.c"
 #include "triangles/toridraw_triangle_texture_transparent.u.c"
+#include "triangles/toridraw_triangle_texture_alpha.u.c"
 #include "triangles/toridraw_triangle_texture_affine.u.c"
 #endif
 #include "toridraw_render.u.c"

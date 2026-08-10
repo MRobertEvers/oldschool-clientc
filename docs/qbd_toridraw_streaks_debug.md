@@ -13,7 +13,7 @@ corruption** of the Queen Black Dragon and nearby geometry.
 
 | Symptom | Where seen | Status |
 |---|---|---|
-| Long stretched / corrupted polygons (“streaks”) on QBD | Soft3d arena, close camera; isolation viewer looks fine | **Still open** |
+| Long stretched / corrupted polygons (“streaks”) on QBD | Soft3d arena, close camera; isolation viewer looks fine | **Fixed** — near-clip vertices were projected at a hardcoded scale 512; see [below](#root-cause-near-clip-vertices-were-projected-at-a-hardcoded-scale) |
 | Missing body parts / dark blob at some angles | Soft3d arena | Partially improved after safe-near; not fully cleared |
 | Floor tiles vanish at some camera angles | Soft3d arena | Reported; not root-caused |
 | Center strip of platform blanks out | Soft3d arena | **Still open** |
@@ -51,6 +51,44 @@ activates near-plane / large-projection paths the isolated view never hits.
 | J | Texture span UV scan signed overflow | **Confirmed + fixed** | UBSan abort: `tex.span.scalar.u.c:493` — `u_scan/v_scan += step_*` with values like `-2111117872 + -301868496`. Stack: transparent perspective blend → QBD textured faces. The overflow turned out to be one of **three** faults in the same V path — see [Root cause: the span V path](#root-cause-the-span-v-path). |
 | J2 | NEON non-v3 spans still `continue` on `w == 0` | **Confirmed + fixed** | `tex.span.neon.u.c` kept the pre-repair block loop the other four ISAs had already fixed: the `continue` skipped the `au/bv/cw` advance **and** `offset += 8`, so one degenerate block leaves every later block writing 8 px left of where it belongs, and a trip on the first block drops the whole span. Live on Apple Silicon; invisible on the `TORIDRAW_NO_SIMD=1` builds used for UBSan. |
 | J3 | v3 **opaque** spans never clamped `u` | **Confirmed + fixed** | All five ISAs' `..._opaque_blend_branching_lerp8_v3_ordered` used a raw `(int)(au * inv_w)` and relied on `u_mask`, so u **wrapped** where the reference clamps, and an out-of-range quotient hit the same undefined float→int conversion as V. The transparent twins clamped correctly — a silent divergence between the two. |
+
+## Root cause: near-clip vertices were projected at a hardcoded scale
+
+**Fixed.** `ToriDraw_TriangleLerpPlaneProjecti` (`triangles/toridraw_triangle_clip.u.c`)
+ended in `SCALE_UNIT(p) / near_plane_z` — the reference projection frozen at
+scale 512. The projection kernels project a vertex they *keep* as
+`x * (camera_cot16 >> 1) >> 6`, then `/ z` (`projection16_simd.u.c:101`), i.e.
+at the camera's own scale.
+
+The two only agree when the camera projects at exactly 512. `9d4b97a9`
+("make the projection scale a real parameter") made the scale real everywhere
+else and named four hardcoded 512s it removed; this was a fifth it missed. The
+live world camera derives its scale from the viewport height
+(`app.c` — `scale = vp_h * zoom / 334`), so it is essentially never 512.
+
+Consequence: on any face crossing the near plane, the vertices the clipper
+*creates* land `512/scale` times too far from the screen centre while the
+vertices it *keeps* land correctly. The polygon is torn between two scales —
+long stretched triangles radiating from the model. It only bites on geometry
+close enough to clip, which is why the isolation viewer (framed far away, and
+at the default 512) was clean while the arena camera inside the QBD's
+~4791-unit sphere was not.
+
+Fix: `camera_cot16` is now a parameter of `ToriDraw_TriangleLerpPlaneProjecti`
+/ `...Projectf` and is threaded through all 12 near-clip builders (the 8
+textured ones already carried it for their uv basis; flat/gouraud gained it).
+144 call sites.
+
+Regression test: `test_clip_vertices_follow_camera_scale` in
+`toridraw_near_clip_test.c` renders one clipped triangle at scale 512 and 256
+and requires the drawn width to halve. Every other case in that file pins
+scale 512 — the one value at which this bug is invisible, which is why nothing
+caught it. Negative control (helper reverted to `SCALE_UNIT`): reports
+`512=270, 256=204` against an expected ~135.
+
+```sh
+make -C src test-near-clip
+```
 
 ## Root cause: the span V path
 
