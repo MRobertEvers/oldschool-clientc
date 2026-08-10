@@ -16,7 +16,8 @@
  * This is independent of the vertex/face scratch tier below.  Large imported
  * models can fit HIGH_8K's projection and face-order arrays while still having
  * a bounding-sphere diameter greater than 1,500; without this flag their
- * otherwise valid faces fall outside the depth table and are omitted.
+ * otherwise valid faces fall outside the depth table and are omitted.  In a
+ * full scene the dense sorter adds about 14.56 MiB versus the reference depth.
  */
 #define TORIDRAW_SCENE_DEPTH_16K     (1u << 2)
 
