@@ -8,10 +8,9 @@
  * bends wrongly. The only reliable way to tell a good correspondence from a bad
  * one is to watch both play the same motion and see which frames diverge.
  *
- * Left panel is the source (a dat2 cache and a sequence id). Right panel is the
- * port (a directory of `.ob2` body models and the `.anim` animset the exporter
- * wrote). Frames are paired by index, which holds because an exported animset
- * carries its sequence's frames in order.
+ * Left panel is the source (a dat2 cache and a sequence id). Right panel may be
+ * another dat2 cache (the foreign-cache import path) or the older directory of
+ * `.ob2` body models plus a `.anim` animset. Frames are paired by index.
  *
  * Usage:
  *   anim_compare --a-rev osrs239 --a-cache cache.osrs239 --a-seq 7514
@@ -19,6 +18,8 @@
  *                --out /tmp/cmp [flags]
  *
  *   --a-model ID       pose this model instead of the player body, and
+ *   --b-cache DIR --b-rev REV --b-seq ID --b-model ID
+ *                      load the imported side from a baked dat2 cache
  *   --b-model FILE     the matching `.ob2` — for animations that are not player
  *                      animations, such as a spotanim rigged to its own framemap
  *   --frames LO-HI     only this frame range
@@ -635,7 +636,7 @@ load_side_dat2(
         fprintf(stderr, "anim_compare: seq %d absent\n", seq_id);
         return 0;
     }
-    framemap_id = tool_dat2_seq_framemap_id(&cache, seq, 0);
+    framemap_id = tool_dat2_seq_framemap_id(&cache, seq, 1);
     fm = tool_dat2_framemap_load(&cache, framemap_id);
     if( !fm )
     {
@@ -1047,12 +1048,14 @@ main(int argc, char** argv)
 {
     const char* a_rev = NULL;
     const char* a_cache = NULL;
+    const char* b_rev = NULL;
+    const char* b_cache = NULL;
     const char* b_models = NULL;
     const char* b_anim = NULL;
     const char* out = "anim_compare_out";
-    const char* b_model = NULL;
+    const char* b_model_arg = NULL;
     int a_model = -1;
-    int a_seq = -1, lo = 0, hi = -1, pw = 320, ph = 400, yaw = 0, scale = 0;
+    int a_seq = -1, b_seq = -1, lo = 0, hi = -1, pw = 320, ph = 400, yaw = 0, scale = 0;
     int by_label = 0, sheet = 0, report = 0, motion = 0;
     struct Rig ra, rb;
 
@@ -1068,12 +1071,18 @@ main(int argc, char** argv)
             a_cache = argv[++i];
         else if( strcmp(argv[i], "--a-seq") == 0 && i + 1 < argc )
             a_seq = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--b-rev") == 0 && i + 1 < argc )
+            b_rev = argv[++i];
+        else if( strcmp(argv[i], "--b-cache") == 0 && i + 1 < argc )
+            b_cache = argv[++i];
+        else if( strcmp(argv[i], "--b-seq") == 0 && i + 1 < argc )
+            b_seq = atoi(argv[++i]);
         else if( strcmp(argv[i], "--b-models") == 0 && i + 1 < argc )
             b_models = argv[++i];
         else if( strcmp(argv[i], "--a-model") == 0 && i + 1 < argc )
             a_model = atoi(argv[++i]);
         else if( strcmp(argv[i], "--b-model") == 0 && i + 1 < argc )
-            b_model = argv[++i];
+            b_model_arg = argv[++i];
         else if( strcmp(argv[i], "--b-anim") == 0 && i + 1 < argc )
             b_anim = argv[++i];
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
@@ -1100,11 +1109,16 @@ main(int argc, char** argv)
             return 2;
         }
     }
-    if( !a_rev || !a_cache || a_seq < 0 || (!b_models && !b_model) || !b_anim )
+    int b_dat2 = b_cache || b_rev || b_seq >= 0;
+    int b_dat1 = b_models || b_anim || (b_model_arg && !b_dat2);
+    if( !a_rev || !a_cache || a_seq < 0 || b_dat2 == b_dat1 ||
+        (b_dat2 && (!b_cache || !b_rev || b_seq < 0)) ||
+        (b_dat1 && ((!b_models && !b_model_arg) || !b_anim)) )
     {
         fprintf(stderr,
                 "Usage: anim_compare --a-rev REV --a-cache DIR --a-seq ID\n"
-                "                    --b-models DIR | --b-model FILE.ob2  --b-anim FILE.anim\n"
+                "                    (--b-cache DIR --b-rev REV --b-seq ID [--b-model ID])\n"
+                "                 or (--b-models DIR | --b-model FILE.ob2) --b-anim FILE.anim\n"
                 "                    [--a-model ID   compare one model, not the player body]\n"
                 "                    [--out DIR] [--frames LO-HI] [--size WxH]\n"
                 "                    [--yaw N] [--scale N] [--by-label] [--sheet]\n");
@@ -1113,8 +1127,12 @@ main(int argc, char** argv)
 
     if( !load_side_dat2(&ra, a_rev, a_cache, a_seq, a_model) )
         return 1;
-    if( !load_side_dat1(&rb, b_models, b_model, b_anim) )
-        return 1;
+    if( b_dat2 )
+    {
+        int b_model_id = b_model_arg ? atoi(b_model_arg) : -1;
+        if( !load_side_dat2(&rb, b_rev, b_cache, b_seq, b_model_id) ) return 1;
+    }
+    else if( !load_side_dat1(&rb, b_models, b_model_arg, b_anim) ) return 1;
 
     printf("A %-28s verts=%6d faces=%6d transforms=%3d frames=%d\n",
            ra.name, ra.vertex_count, ra.face_count, ra.transform_count, ra.frame_count);

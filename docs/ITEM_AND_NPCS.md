@@ -291,27 +291,40 @@ for. It never fired by **one tile** — `maybe_rebuild` re-centres at
 `MOCK230_REBUILD_MARGIN` (16) and the npc view was 15, two constants in two
 files with nothing connecting them.
 
-`struct Mock230PlayerArea` is the missing half:
+There are two zone maps now, and the names say which is which:
 
 ```c
-int zones[MOCK230_ZONE_ACTIVE_MAX];  int zone_count;   /* the subscription */
-int loaded[MOCK230_ZONE_ACTIVE_MAX]; int loaded_count; /* state already sent  */
-int built_zone_x, built_zone_z;                        /* the clip it assumed */
+struct Mock230ZoneMap        /* the WORLD's, authoritative, unbounded         */
+    zones keyed by packed index -> { locs, objs, npcs, players }
+
+struct Mock230PlayerZoneMap  /* one CLIENT's — a subscription, holds no entity */
+    struct Mock230PlayerZone { int index; uint8_t loaded; } zones[196];
+    int count;
+    int built_zone_x, built_zone_z;   /* the clip this window assumed */
 ```
+
+`loaded` sits **on the zone entry**, which it did not at first. It was a second
+parallel array, and two arrays that must be added to and removed from together
+are two arrays that can disagree — invisibly, because a zone marked loaded but
+no longer subscribed is one the client is never re-told about and never updated
+on. Folding it onto the entry deleted the reconciliation block at the top of
+`mock230_zone_update_player` outright.
 
 **The list is maintained; the entities in it are not.** That split is the whole
 design:
 
 - The window changes only when the player crosses a zone boundary, and then
   only at its edges — 7 columns leave, 7 enter, 42 are untouched. So
-  `mock230_area_move` is a set difference, runs in phase 8, and costs two
-  compares for a player who has not changed zone. `window_holds` is the one
-  place the window's shape is written down.
+  `mock230_playerzonemap_move` is a set difference, runs in phase 8, and costs
+  three compares for a player who has not changed zone. `window_holds` is the
+  one place the window's shape is written down.
 - What is *standing* in those zones changes constantly, so the packet builders
-  walk the list when they need to know. `mock230_area_npcs` /
-  `mock230_area_players` apply the plane and the view radius while collecting —
-  filtering afterwards would let the result fill with entities 20 tiles away and
-  drop ones at 5, unreachable at 63 npcs and ordinary at 23,139.
+  walk the list when they need to know. `mock230_playerzonemap_npcs` /
+  `_players` apply the plane and the view radius while collecting, **per
+  entity**. Per zone is not enough and that was a real defect: a zone straddling
+  the edge of the radius contributes everything in it, up to 7 tiles past the
+  range, and `out` is bounded — so a dense fringe fills it with entities the
+  encoder will discard and crowds out ones genuinely beside the player.
 
 **Materialising the entity lists was tried and reverted.** Pushing membership
 changes from the map into each subscriber is faster in principle and fails
@@ -357,8 +370,13 @@ Every check was verified by mutating the implementation:
 |---|---|
 | drop the build-area clip in `window_holds` | `inside the build area the client has a scene for, 2 do not` |
 | drop the plane filter in `area_entities` | `on the player's own plane, 1 do not` |
-| never drop a zone leaving the window | `the same packet re-adds him, so the client still holds him` |
+| drop the per-entity radius filter | `within the radius asked for, 12 are not` |
+| carry no `loaded` flag across a window move | `the shot must reach the client as a MAP_PROJANIM …, got 0` |
 | (pre-refactor) `mock230_zone_npcs_near` | `every tracked npc should stand in a zone the player holds, 14 of 29 do not` |
+
+The per-entity radius row is there because the first version of that check did
+not exist: the mutation passed, which is how the gap was found. `mock230_zone_npcs_near`
+is gone — it had no callers left once both encoders read the client's own map.
 
 ### What the wire actually limits
 

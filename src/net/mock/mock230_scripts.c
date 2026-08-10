@@ -1603,6 +1603,19 @@ trigger_requires_active_npc(int trigger)
            (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5);
 }
 
+/** Engine-driven npc triggers run in their owned player's context when one is
+ * bound. This is intentionally narrower than `trigger_requires_active_npc`:
+ * an ordinary player click already has the correct active player. */
+static int
+trigger_is_ai_npc(int trigger)
+{
+    return (trigger >= SS_TRIGGER_AI_APNPC1 && trigger <= SS_TRIGGER_AI_OPNPC5) ||
+           trigger == SS_TRIGGER_AI_TIMER || trigger == SS_TRIGGER_AI_SPAWN ||
+           trigger == SS_TRIGGER_AI_DESPAWN || trigger == SS_TRIGGER_AI_WALKTRIGGER ||
+           (trigger >= SS_TRIGGER_AI_QUEUE1 && trigger <= SS_TRIGGER_AI_QUEUE20) ||
+           (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5);
+}
+
 /** `[opnpc2,goblin]`, or `[opnpc2,3105]` when the id has no name. */
 static const char*
 trigger_label(
@@ -1739,6 +1752,9 @@ run_trigger_impl(
     int report)
 {
     const struct SSVM_Script* script;
+    struct Mock230Player* saved_player;
+    struct Mock230Player* context_player;
+    int result;
 
     if( !srv->scripts_ok )
         return MOCK230_TRIGGER_NONE;
@@ -1780,7 +1796,22 @@ run_trigger_impl(
         }
     }
 
-    return run_trigger_script(srv, script, npc_slot, loc_slot);
+    context_player = srv->active_player;
+    if( trigger_is_ai_npc(trigger) && npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX &&
+        srv->npcs[npc_slot].owner_gen != 0 )
+    {
+        /* A dead generation produces no player context. Falling back here
+         * would hand the familiar's timer/queue script to a replacement login
+         * or to whichever player happened to run the preceding phase. */
+        context_player = mock230_world_npc_owner(srv, &srv->npcs[npc_slot]);
+        if( !context_player )
+            return MOCK230_TRIGGER_FAILED;
+    }
+    saved_player = srv->active_player;
+    mock230_world_set_active(srv, context_player);
+    result = run_trigger_script(srv, script, npc_slot, loc_slot);
+    mock230_world_set_active(srv, saved_player);
+    return result;
 }
 
 int
@@ -4172,6 +4203,60 @@ mock230_script_command(
          */
         npc->timer_interval = interval > 0 ? interval : 0;
         npc->timer_clock = 0;
+        return 1;
+    }
+
+    /* The sole engine relation familiars need. Content owns when the relation
+     * is created and removed; the host owns the pool-slot generation that
+     * makes it safe across logout and reuse. */
+    case SS_OP_NPC_SETOWNER:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc || !player )
+        {
+            SSVM_Abort(state, "npc_setowner requires an active npc and player");
+            return 1;
+        }
+        mock230_world_npc_set_owner(npc, player);
+        return 1;
+    }
+
+    case SS_OP_NPC_OWNER:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+        struct Mock230Player* owner;
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_owner with no active npc");
+            return 1;
+        }
+        owner = mock230_world_npc_owner(srv, npc);
+        SSVM_PushInt(state, owner ? owner->pid : -1);
+        return 1;
+    }
+
+    case SS_OP_NPC_FINDOWNED:
+    {
+        if( !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+
+            if( !npc->active || mock230_world_npc_owner(srv, npc) != player )
+                continue;
+            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, npc);
+            state->host_tag = slot + 1;
+            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
+        SSVM_PushInt(state, 0);
         return 1;
     }
 

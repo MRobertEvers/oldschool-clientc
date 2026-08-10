@@ -306,9 +306,9 @@ record).
 - [x] `RSCache_Dat2FramemapEncodeCodec` — **fixes the confirmed silent data bug** (~40 LOC). Write
       a test that fails on today's code first
 - [x] Sharded RS2 config reader — lift the `cp_common.c:58` refusal (~80 LOC)
-- [ ] `cachepack import` — manifest, closure walk, id remap, tree writer, ledger (~1,600 LOC)
-- [ ] `anim_compare --b-cache/--b-rev/--b-seq/--b-model` (~200 LOC)
-- [ ] `pack/{obj,seq,spotanim}.client` + `content.ini` membership blocks
+- [x] `cachepack import` — manifest, closure walk, id remap, tree writer, ledger (~1,600 LOC)
+- [x] `anim_compare --b-cache/--b-rev/--b-seq/--b-model` (~200 LOC)
+- [x] `pack/{obj,seq,spotanim}.client` + `content.ini` membership blocks
 
 ⚠ Pin `FRAMEMAP_V3` (the threshold is exactly ≥530 — pin it so the boundary is a declaration rather
 than an off-by-one) but **do not pin FRAME**; it must auto-derive V1. Copying rs643's `FRAME_V2`
@@ -345,12 +345,12 @@ Verified pre-existing defects it must fix:
 - `npc_uid` has no generation counter (`mock230_scripts.c:4585` says so) — a stashed uid resolves to
   whoever took the slot.
 
-- [ ] `struct Mock230Npc` gains `int owner_pid; uint32_t owner_gen;` (zeroed by `npc_spawn`, so an
+- [x] `struct Mock230Npc` gains `int owner_pid; uint32_t owner_gen;` (zeroed by `npc_spawn`, so an
       unowned npc is unchanged)
-- [ ] `npc_run_mode` resolves from `owner_pid` when set, else today's behaviour — **narrowing, not
+- [x] `npc_run_mode` resolves from `owner_pid` when set, else today's behaviour — **narrowing, not
       branching**
-- [ ] `run_trigger_script` prefers `npc->owner_pid` for `ai_*` triggers on owned npcs
-- [ ] Opcodes `NPC_SETOWNER` / `NPC_OWNER` / `NPC_FINDOWNED` in the extra band — **next free is
+- [x] `run_trigger_script` prefers `npc->owner_pid` for `ai_*` triggers on owned npcs
+- [x] Opcodes `NPC_SETOWNER` / `NPC_OWNER` / `NPC_FINDOWNED` in the extra band — **next free is
       11022** (`ss_opcode.h:453`). `NPC_FINDOWNED` removes the need for a uid varp and so dodges
       the uid-generation hazard rather than working around it. Log them in the queue's opcode-gap
       table and implement in the same slice (`PORTING_GUIDE` §2.4/§4.5)

@@ -60,9 +60,9 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 
 | opcode | id | signature | semantics | slice | status |
 |---|---:|---|---|---|---|
-| `NPC_SETOWNER` | 11022 | `()` | bind the active npc to the active player (pid + login generation) | 3a | pending |
-| `NPC_OWNER` | 11023 | `()(int)` | owner pid, `-1` if unowned | 3a | pending |
-| `NPC_FINDOWNED` | 11024 | `()(boolean)` | find the active player's owned npc, set it active | 3a | pending |
+| `NPC_SETOWNER` | 11022 | `()` | bind the active npc to the active player (pid + login generation) | 3a | done |
+| `NPC_OWNER` | 11023 | `()(int)` | owner pid, `-1` if unowned | 3a | done |
+| `NPC_FINDOWNED` | 11024 | `()(boolean)` | find the active player's owned npc, set it active | 3a | done |
 
 ---
 
@@ -82,9 +82,9 @@ New Server VM opcodes this lane adds. Extra band, next free **11022** (`ss_opcod
 | 2b | `SEQUENCE_RS2_530` + `OBJ_RS2_530` codecs | 2 | **done** | exact 530 sweeps: obj 14,654/14,654, seq 11,155/11,155; synthetic changed-opcode suite 17 checks; profile suite 140 checks; clean full rscache suite; true `HEAD` A/B identical for seq 1/100/5000 on both 634 and 727 |
 | 2c | `RSCache_Dat2FramemapEncodeCodec` — fixes a silent data bug | 2 | **done** | regression first failed to compile against missing API; now V3→V1/V2 and V3 preservation pass 8 checks; cache writer selects destination codec; roundtrip suite 246 checks |
 | 2d | Sharded RS2 config reader (`cp_common.c:58`) | 2 | **done** | real rs530 `cachepack unpack`: obj 14,654 + seq 11,155, first/last ids present, 0 short decodes/unresolved names; OSRS cachepack fidelity unchanged with lost-here=0 |
-| 2e | `cachepack import` subcommand | 2 | **in_progress** | ~1,600 LOC, the big one |
-| 2f | Texture map 680→210 + ledger `signoff` column | 2 | pending | irreducibly human, 1–2 weeks |
-| 3a | Owner-bound NPCs — `owner_pid`/`owner_gen`, `npc_run_mode`, `ai_*` dispatch, 3 opcodes | 3 | pending | fixes a documented pre-existing defect |
+| 2e | `cachepack import` subcommand | 2 | **done** | dry-run/apply/idempotence; Spirit wolf closure 1 npc, 1 obj, 3 models, 2 seqs, 1 animset, 1 framemap; 50-check permanent test; feature bake config 12/0 and CS2 3/0; exact config verify; 18-frame source/destination visual sheet; flag-off 25-file A/B identical; `mock230_pack --check-only` 0 errors; Phase 1 headless rerun 28/0 |
+| 2f | Texture map 680→210 + ledger `signoff` column | 2 | **blocked** | importer implements the settled drop-textures policy and preserves human ledger columns; the 680→210 mapping/signoff is deliberately irreducibly human and is not a dependency of the untextured Spirit wolf slice |
+| 3a | Owner-bound NPCs — `owner_pid`/`owner_gen`, `npc_run_mode`, `ai_*` dispatch, 3 opcodes | 3 | **done** | pid + nonzero login generation fails closed on slot reuse; two-player mode and real-VM ai_timer context checks; all three opcodes executed through VM; generated metadata/coverage current; rev230 world suite + 68-check metadata suite green. Rev239 full world suite remains pre-blocked by the concurrent 23,139-NPC/capture work (198 unrelated failures); ownership assertions themselves pass there |
 | 3b | npc `server_base` (`content_register.c:63`) alignment | 3 | blocked | follow the npc-id-cap-removal work; do not pick a number here |
 | 3c | Spirit wolf: assets, objs, `.rs2` triggers, timer, dismiss, headless proof | 3 | pending | the vertical slice |
 

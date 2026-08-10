@@ -173,6 +173,17 @@ test_pointer_masks(void)
     m = SSVM_OpcodeMeta(SS_OP_NPC_SAY);
     CHECK(m->require & SSVM_PTR_ACTIVE_NPC, "npc_say requires active_npc");
 
+    m = SSVM_OpcodeMeta(SS_OP_NPC_SETOWNER);
+    CHECK((m->require & (SSVM_PTR_ACTIVE_NPC | SSVM_PTR_PROTECTED_PLAYER)) ==
+              (SSVM_PTR_ACTIVE_NPC | SSVM_PTR_PROTECTED_PLAYER),
+          "npc_setowner requires active_npc and protected player");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_OWNER);
+    CHECK(m->require == SSVM_PTR_ACTIVE_NPC && m->int_out == 1,
+          "npc_owner requires active_npc and returns one int");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_FINDOWNED);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER && m->int_out == 1,
+          "npc_findowned requires protected player and returns boolean");
+
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */
     m = SSVM_OpcodeMeta(SS_OP_ADD);

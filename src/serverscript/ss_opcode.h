@@ -448,10 +448,13 @@
 #define SS_OP_NPC_FROZEN 11019
 #define SS_OP_OC_PLACEHOLDER 11020
 #define SS_OP_OC_UNPLACEHOLDER 11021
+#define SS_OP_NPC_SETOWNER 11022
+#define SS_OP_NPC_OWNER 11023
+#define SS_OP_NPC_FINDOWNED 11024
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11022
+#define SS_OPCODE_MAX 11025
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 426
+#define SS_OPCODE_COUNT 429
 
 #endif

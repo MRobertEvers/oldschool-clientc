@@ -435,6 +435,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # what `oc_cert` / `oc_uncert` do and what every caller branches on.
     "OC_PLACEHOLDER": (11020, 1, 0, 1, 0),
     "OC_UNPLACEHOLDER": (11021, 1, 0, 1, 0),
+
+    # ---- owner-bound runtime npcs (11022..11024) --------------------------
+    #
+    # A familiar is a world npc with one engine relation content cannot encode:
+    # the exact player login it belongs to. The generation is intentionally not
+    # exposed; it is the engine's stale-handle guard, not gameplay state.
+    "NPC_SETOWNER": (11022, 0, 0, 0, 0),
+    "NPC_OWNER": (11023, 0, 0, 1, 0),
+    "NPC_FINDOWNED": (11024, 0, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -555,6 +564,12 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # with no active npc is a null deref rather than a refusal.
     "NPC_FREEZE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FROZEN": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETOWNER": (
+        (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
+        0,
+    ),
+    "NPC_OWNER": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

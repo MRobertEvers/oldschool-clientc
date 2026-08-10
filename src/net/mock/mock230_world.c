@@ -133,12 +133,6 @@ mock230_world_npc_roam_stagger(
     npc->next_roam_tick = srv->tick + random_range(srv, 5, 30);
 }
 
-static int
-sign_of(int value)
-{
-    return value > 0 ? 1 : (value < 0 ? -1 : 0);
-}
-
 static void
 say(
     struct Mock230Server* srv,
@@ -2476,6 +2470,39 @@ mock230_world_npc_spawn(
     return npc_spawn(srv, type, x, z, level);
 }
 
+struct Mock230Player*
+mock230_world_npc_owner(
+    struct Mock230Server* srv,
+    const struct Mock230Npc* npc)
+{
+    struct Mock230Player* player;
+
+    if( !srv || !npc || npc->owner_gen == 0 || npc->owner_pid < 0 ||
+        npc->owner_pid >= MOCK230_PLAYER_MAX )
+        return NULL;
+    player = &srv->players[npc->owner_pid];
+    if( !player->active || player->login_generation != npc->owner_gen )
+        return NULL;
+    return player;
+}
+
+void
+mock230_world_npc_set_owner(
+    struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    if( !npc )
+        return;
+    if( !player || !player->active )
+    {
+        npc->owner_pid = 0;
+        npc->owner_gen = 0;
+        return;
+    }
+    npc->owner_pid = player->pid;
+    npc->owner_gen = player->login_generation;
+}
+
 /*
  * PathingEntity.takeStep against the current waypoint. Returns 1 when the npc
  * moved. Never uses mock230_scene_route — occupancy gates every attempt.
@@ -2771,6 +2798,12 @@ npc_run_mode(
 {
     struct Mock230Player* player = srv->active_player;
     int range;
+
+    /* Owned npcs narrow every player-facing mode to the player they belong to.
+     * A stale owner fails closed; falling back to the current phase's player
+     * would transfer the familiar after logout or pid reuse. */
+    if( npc->owner_gen != 0 )
+        player = mock230_world_npc_owner(srv, npc);
 
     if( !player || npc->mode == MOCK230_NPCMODE_NONE || npc->mode == MOCK230_NPCMODE_NULL )
         return 0;
@@ -7011,13 +7044,18 @@ mock230_world_add_player(
     for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
     {
         struct Mock230Player* player = &srv->players[i];
+        uint32_t generation;
 
         if( player->active )
             continue;
+        generation = player->login_generation + 1;
+        if( generation == 0 )
+            generation = 1;
         memset(player, 0, sizeof(*player));
         player->active = 1;
         player->world = srv;
         player->pid = i;
+        player->login_generation = generation;
         player->session = session;
         mock230_ifstate_init(&player->interfaces);
         if( i >= srv->player_count )
@@ -7197,7 +7235,7 @@ mock230_world_remove_player(
      * have to go: the zones' subscriber lists hold this pid, and the player's
      * own filing holds them.
      */
-    mock230_area_clear(player);
+    mock230_playerzonemap_clear(player);
     player->active = 0;
     mock230_zone_player_refile(srv, player->pid);
     player->session = NULL;
@@ -7336,11 +7374,13 @@ mock230_world_player_init(struct Mock230Player* player)
         struct Mock230Server* world = player->world;
         struct Mock230Session* session = player->session;
         int pid = player->pid;
+        uint32_t login_generation = player->login_generation;
 
         memset(player, 0, sizeof(*player));
         player->world = world;
         player->session = session;
         player->pid = pid;
+        player->login_generation = login_generation;
         player->active = 1;
         mock230_ifstate_init(&player->interfaces);
     }
@@ -8671,7 +8711,7 @@ phase_zones(struct Mock230Server* srv)
     {
         if( !player->world )
             continue;
-        mock230_area_move(player);
+        mock230_playerzonemap_move(player);
     }
 }
 
@@ -9918,7 +9958,8 @@ mock230_world_selftest(void)
      * session wrote into `saves/` and assert against state no line of it sets.
      * A run whose result depends on a file from a previous run is not a test.
      */
-    setenv("MOCK230_SAVES", "build/selftest_saves", 1);
+    if( !getenv("MOCK230_SAVES") )
+        setenv("MOCK230_SAVES", "build/selftest_saves", 1);
     remove(mock230_save_path(""));
     /* No session: a world with no client. Every mock230_send still builds its
      * payload and still reaches the capture hook, then writes nothing — which
@@ -9964,6 +10005,46 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(player->active, "and is marked live in the pool");
         SELFTEST_CHECK(player->session == NULL,
                        "and no session — this world has no client");
+
+        /* Owner handles are a (pid, login-generation) pair, not a borrowed
+         * active_player. Two live players prove follow/facing chooses the
+         * owner; reusing the owner's slot proves it does not transfer. */
+        {
+            struct Mock230Server owners;
+            struct Mock230Player* first;
+            struct Mock230Player* other;
+            struct Mock230Player* replacement;
+            struct Mock230Npc* familiar;
+            uint32_t first_generation;
+
+            memset(&owners, 0, sizeof(owners));
+            first = mock230_world_add_player(&owners, NULL);
+            other = mock230_world_add_player(&owners, NULL);
+            familiar = &owners.npcs[0];
+            familiar->active = 1;
+            familiar->mode = MOCK230_NPCMODE_PLAYERFACE;
+            familiar->face_entity = -1;
+            familiar->turnspeed = 32;
+            owners.npc_slot_max = 1;
+            mock230_world_npc_set_owner(familiar, first);
+            first_generation = first->login_generation;
+
+            SELFTEST_CHECK(first_generation != 0 && other != NULL,
+                           "two player logins get a non-zero generation");
+            SELFTEST_CHECK(mock230_world_npc_owner(&owners, familiar) == first,
+                           "an owner handle resolves its exact login");
+            SELFTEST_CHECK(npc_run_mode(&owners, familiar, 0) == 1 &&
+                               familiar->face_entity == MOCK230_FACE_PLAYER_BASE + first->pid,
+                           "an owned npc faces its owner, not active_player");
+
+            first->active = 0;
+            replacement = mock230_world_add_player(&owners, NULL);
+            SELFTEST_CHECK(replacement == first &&
+                               replacement->login_generation != first_generation,
+                           "a reused pid advances its login generation");
+            SELFTEST_CHECK(mock230_world_npc_owner(&owners, familiar) == NULL,
+                           "a stale owner handle does not transfer to the replacement");
+        }
 
         SELFTEST_CHECK(mock230_ids_resolve() == 0, "every id should resolve");
 
@@ -10502,6 +10583,147 @@ mock230_world_selftest(void)
              */
             SELFTEST_CHECK(mock230_scripts_report_script_id_args(&srv) == 0,
                            "every script-id argument should name a script of that kind");
+
+            /* Drive the ai_* dispatch through a real VM state. The script
+             * writes the active player's varp; with player 1 deliberately
+             * current, only ownership can make the write land on player 0. */
+            {
+                uint16_t ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_POP_VARP,
+                    SS_OP_RETURN,
+                };
+                int32_t operands[] = {
+                    77,
+                    SELFTEST_VARP_QUEST_PROGRESS,
+                    0,
+                };
+                char* strings[] = { NULL, NULL, NULL };
+                struct SSVM_Script script = {
+                    .id = 0,
+                    .name = "[ai_timer,owner_probe]",
+                    .source_path = "<selftest>",
+                    .lookup_key = (int32_t)SSVM_LookupKey(
+                        SS_TRIGGER_AI_TIMER, SS_LOOKUP_TYPE, 1),
+                    .op_count = 3,
+                    .opcodes = ops,
+                    .int_operands = operands,
+                    .string_operands = strings,
+                };
+                struct SSVM_KeyEntry by_key = {
+                    .key = SSVM_LookupKey(SS_TRIGGER_AI_TIMER, SS_LOOKUP_TYPE, 1),
+                    .id = 0,
+                };
+                struct SSVM_Provider provider = {
+                    .scripts = &script,
+                    .count = 1,
+                    .loaded = 1,
+                    .by_key = &by_key,
+                    .by_key_count = 1,
+                };
+                struct SSVM_Provider* saved_provider = srv.scripts;
+                struct Mock230Player* other = mock230_world_add_player(&srv, NULL);
+                struct Mock230Npc* familiar = &srv.npcs[srv.npc_slot_max];
+                int slot = srv.npc_slot_max++;
+
+                memset(familiar, 0, sizeof(*familiar));
+                familiar->active = 1;
+                familiar->type = 1;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                other->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+
+                {
+                    uint16_t set_ops[] = { SS_OP_NPC_SETOWNER, SS_OP_RETURN };
+                    int32_t set_operands[] = { 0, 0 };
+                    char* set_strings[] = { NULL, NULL };
+                    struct SSVM_Script set_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_setowner]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 2,
+                        .opcodes = set_ops,
+                        .int_operands = set_operands,
+                        .string_operands = set_strings,
+                    };
+                    uint16_t owner_ops[] = {
+                        SS_OP_NPC_OWNER, SS_OP_POP_VARP, SS_OP_RETURN,
+                    };
+                    int32_t owner_operands[] = {
+                        0, SELFTEST_VARP_QUEST_PROGRESS, 0,
+                    };
+                    char* owner_strings[] = { NULL, NULL, NULL };
+                    struct SSVM_Script owner_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_owner]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 3,
+                        .opcodes = owner_ops,
+                        .int_operands = owner_operands,
+                        .string_operands = owner_strings,
+                    };
+                    uint16_t find_ops[] = {
+                        SS_OP_NPC_FINDOWNED, SS_OP_NPC_OWNER,
+                        SS_OP_POP_VARP, SS_OP_RETURN,
+                    };
+                    int32_t find_operands[] = {
+                        0, 0, SELFTEST_VARP_QUEST_PROGRESS, 0,
+                    };
+                    char* find_strings[] = { NULL, NULL, NULL, NULL };
+                    struct SSVM_Script find_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_findowned]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 4,
+                        .opcodes = find_ops,
+                        .int_operands = find_operands,
+                        .string_operands = find_strings,
+                    };
+
+                    mock230_world_set_active(&srv, player);
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       &srv, &set_script, slot),
+                                   "NPC_SETOWNER executes through the VM");
+                    SELFTEST_CHECK(mock230_world_npc_owner(&srv, familiar) == player,
+                                   "NPC_SETOWNER binds the active player login");
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       &srv, &owner_script, slot) &&
+                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
+                                           player->pid,
+                                   "NPC_OWNER returns the bound pid");
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(mock230_scripts_run_hook(
+                                       &srv, &find_script, NULL, 0) &&
+                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
+                                           player->pid,
+                                   "NPC_FINDOWNED finds and activates the familiar");
+                }
+
+                mock230_world_set_active(&srv, other);
+                srv.scripts = &provider;
+                srv.script_env->provider = &provider;
+
+                SELFTEST_CHECK(mock230_scripts_run_trigger(
+                                   &srv, SS_TRIGGER_AI_TIMER, 1, -1, slot) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "an owned npc's ai_timer executes");
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 77 &&
+                                   other->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                               "ai_timer uses the owner, not active_player");
+                SELFTEST_CHECK(srv.active_player == other,
+                               "ai dispatch restores the phase's active player");
+
+                srv.scripts = saved_provider;
+                srv.script_env->provider = saved_provider;
+                familiar->active = 0;
+                srv.npc_slot_max = slot;
+                other->active = 0;
+                srv.player_count = player->pid + 1;
+                mock230_world_set_active(&srv, player);
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            }
 
             fprintf(stderr, "mock230 selftest: rev239 interface host VM/content\n");
             /* Exercise the interface host opcodes through real compiled
@@ -21209,7 +21431,6 @@ mock230_world_selftest(void)
      */
     fprintf(stderr, "mock230 selftest: bank worn view (equip / unequip / mask)\n");
     {
-        struct Mock230Bank* bank = &player->bank;
         int loaded;
         int if2;
         int sword_slot = 2;
@@ -22040,8 +22261,8 @@ mock230_world_selftest(void)
          * happen proves nothing. So the build area is moved *off* the player
          * directly and NPC_INFO is called without a tick around it.
          *
-         * Reverting mock230_encode.c to `mock230_zone_npcs_near` fails this
-         * with a dozen npcs named.
+         * Dropping the build-area clip in `window_holds` fails this with a
+         * dozen npcs named.
          */
         int saved_zone_x = srv.zone_x;
         int saved_zone_z = srv.zone_z;
@@ -22050,6 +22271,7 @@ mock230_world_selftest(void)
         int off_area = 0;
         int area_stray = 0;
         int area_offplane = 0;
+        int area_outrange = 0;
         int base_x;
         int base_z;
 
@@ -22082,23 +22304,23 @@ mock230_world_selftest(void)
         mock230_zone_sync_npcs(&srv);
         mock230_zone_sync_objs(&srv);
         mock230_zone_sync_players(&srv);
-        mock230_area_move(player);
+        mock230_playerzonemap_move(player);
         mock230_send_npc_info(player);
 
-        SELFTEST_CHECK(player->area.zone_count > 0,
-                       "the player should hold some zones, got %d", player->area.zone_count);
+        SELFTEST_CHECK(player->zonemap.count > 0,
+                       "the player should hold some zones, got %d", player->zonemap.count);
 
         /*
          * What the client's zone list yields, before anything encodes from it.
          *
-         * `mock230_area_npcs` is what both entity streams walk, so the property
+         * `mock230_playerzonemap_npcs` is what both entity streams walk, so the property
          * worth stating is about that walk rather than about any one packet:
          * everything it returns stands in a zone the client subscribes to, and
          * on the client's own plane.
          */
         {
             int seen[MOCK230_TRACKED_NPC_MAX];
-            int seen_count = mock230_area_npcs(player, MOCK230_NPC_VIEW_TILES, seen,
+            int seen_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES, seen,
                                                MOCK230_TRACKED_NPC_MAX);
 
             SELFTEST_CHECK(seen_count > 0, "the area should yield some npcs to check");
@@ -22108,18 +22330,35 @@ mock230_world_selftest(void)
                 int index = mock230_zone_index(npc->x, npc->z, npc->level);
                 int held = 0;
 
-                for( int z = 0; z < player->area.zone_count; z++ )
-                    held = held || player->area.zones[z] == index;
+                for( int z = 0; z < player->zonemap.count; z++ )
+                    held = held || player->zonemap.zones[z].index == index;
                 if( !held )
                     area_stray++;
                 if( npc->level != player->level )
                     area_offplane++;
+                /*
+                 * And within the radius that was asked for, per entity.
+                 *
+                 * The zone box alone is not this: a zone straddling the edge of
+                 * the radius contributes everything in it, up to 7 tiles past
+                 * the range. `out` is bounded, so a dense fringe fills it with
+                 * entities the encoder will discard and crowds out ones
+                 * genuinely beside the player — silent, and reachable now the
+                 * world roster is 23,139 rather than 63.
+                 */
+                if( npc->x < player->x - MOCK230_NPC_VIEW_TILES ||
+                    npc->x > player->x + MOCK230_NPC_VIEW_TILES ||
+                    npc->z < player->z - MOCK230_NPC_VIEW_TILES ||
+                    npc->z > player->z + MOCK230_NPC_VIEW_TILES )
+                    area_outrange++;
             }
             SELFTEST_CHECK(area_stray == 0,
                            "everything the area yields should stand in a zone it subscribes "
                            "to, %d do not", area_stray);
             SELFTEST_CHECK(area_offplane == 0,
                            "and on the player's own plane, %d do not", area_offplane);
+            SELFTEST_CHECK(area_outrange == 0,
+                           "and within the radius asked for, %d are not", area_outrange);
         }
         SELFTEST_CHECK(player->tracked_count > 0,
                        "and be tracking something, or there is nothing to check");
@@ -22134,9 +22373,9 @@ mock230_world_selftest(void)
                 continue;
             checked++;
             index = mock230_zone_index(npc->x, npc->z, npc->level);
-            for( int z = 0; z < player->area.zone_count; z++ )
+            for( int z = 0; z < player->zonemap.count; z++ )
             {
-                if( player->area.zones[z] == index )
+                if( player->zonemap.zones[z].index == index )
                 {
                     held = 1;
                     break;

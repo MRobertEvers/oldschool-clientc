@@ -1527,6 +1527,34 @@ import_one(
             }
         }
 
+        /* A raw multi-file payload normally inherits its child ids from an
+         * archive already present in --base.  A foreign import mints a brand
+         * new archive, so there is no reference-table entry to inherit from.
+         * `<base>.memberpack` states only that metadata while the adjacent raw
+         * file continues to carry the already-encoded FileList payload. */
+        if( payload && file_count == 0 )
+        {
+            struct LC_Pack members;
+            cp_member_pack_load(&members, base, "memberpack", asset->pack);
+            if( members.max > 0 )
+            {
+                int count = 0;
+                for( int member = 0; member < members.max; member++ )
+                    if( members.names && members.names[member] ) count++;
+                file_ids = malloc((size_t)count * sizeof(int));
+                if( !file_ids && count > 0 )
+                {
+                    lc_pack_free(&members);
+                    free(payload);
+                    tool_prefetch_end(&prefetch);
+                    return 0;
+                }
+                for( int member = 0; member < members.max; member++ )
+                    if( members.names && members.names[member] ) file_ids[file_count++] = member;
+            }
+            lc_pack_free(&members);
+        }
+
         if( !payload )
         {
             /*

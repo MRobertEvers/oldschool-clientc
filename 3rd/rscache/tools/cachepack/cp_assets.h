@@ -194,9 +194,10 @@ struct CP_Asset
 };
 
 /**
- * `<archive>.compack` / `<archive>.filepack` — an archive's member list.
+ * `<archive>.compack` / `<archive>.filepack` / `<archive>.memberpack` — an
+ * archive's member list.
  *
- * `kind` is `"compack"` or `"filepack"`; `path_stem` is the archive's path without
+ * `kind` is `"compack"`, `"filepack"`, or `"memberpack"`; `path_stem` is the archive's path without
  * an extension, so the index lands beside it in the table's own folder. A missing
  * file loads as an empty pack, which is how an archive gets its first index.
  *

@@ -1,6 +1,7 @@
 #include "cachepack.h"
 
 #include "cp_assets.h"
+#include "cp_import.h"
 #include "tool_profile.h"
 
 #include <stdlib.h>
@@ -241,6 +242,8 @@ main(int argc, char** argv)
         usage();
         return 0;
     }
+    if( strcmp(command, "import") == 0 )
+        return cp_import_command(argc - 2, argv + 2);
     const char* cache_dir = NULL;
     const char* out_dir = NULL;
     const char* base_dir = NULL;

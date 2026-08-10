@@ -301,6 +301,11 @@ tool_neutral_npc_to_dat2(
     struct RSCache_Dat2ConfigNpc* npc = calloc(1, sizeof(*npc));
     if( !npc )
         return NULL;
+    /* calloc is not the semantic default for dat2 NPCs: absent animation,
+     * category, height and sound ids are -1, and several flags/scales have
+     * non-zero defaults.  Starting from zero used to turn every absent
+     * movement slot into seq 0 when a BasType was flattened. */
+    RSCache_Dat2ConfigNpcInit(npc);
 
     npc->name = tool_strdup(n->name);
     npc->size = n->size > 0 ? n->size : 1;

@@ -64,6 +64,7 @@
 
 struct Mock230Server;
 struct Mock230Player;
+struct Mock230PlayerZone;
 
 /** What a zone's membership lists hold. One enum rather than the `is_npc`
  *  boolean `refile` took, because there are three kinds now and a boolean that
@@ -287,28 +288,6 @@ mock230_zone_obj_refile(
     int slot);
 
 /**
- * Npc slots within `radius` tiles of (x, z) on `level`.
- *
- * The world's own proximity query, and no longer what NPC_INFO asks: a tile box
- * is not clipped to the build area, so near its edge this answers with npcs
- * standing outside the region a client has a scene for. What a client is told
- * about comes from `struct Mock230PlayerArea` instead. This stays for the
- * world-side callers that genuinely want "who is near this tile" with no client
- * in the question.
- *
- * Returns the number written to `out`, never more than `max`.
- */
-int
-mock230_zone_npcs_near(
-    struct Mock230Server* srv,
-    int x,
-    int z,
-    int level,
-    int radius,
-    int* out,
-    int max);
-
-/**
  * Move `player`'s zone subscription to wherever the player now stands.
  *
  * Phase 8, after the map reconciles membership. A set difference, not a
@@ -320,7 +299,7 @@ mock230_zone_npcs_near(
  * drops them. Everything after that is pushed by the map — see `refile`.
  */
 void
-mock230_area_move(struct Mock230Player* player);
+mock230_playerzonemap_move(struct Mock230Player* player);
 
 /**
  * Unsubscribe from every zone and empty the area.
@@ -330,31 +309,40 @@ mock230_area_move(struct Mock230Player* player);
  * a client that no longer claims the zone.
  */
 void
-mock230_area_clear(struct Mock230Player* player);
+mock230_playerzonemap_clear(struct Mock230Player* player);
 
 /**
  * Who is standing in this client's subscribed zones, right now.
  *
  * Walked at the moment a packet needs it rather than kept up to date, which is
  * what makes it impossible for the answer to be stale — it is derived from the
- * authoritative map every time it is asked. The plane and the view radius are
- * applied inside, so `out` holds only what the caller could actually send.
+ * authoritative world map every time it is asked. Plane and view radius are
+ * applied inside, PER ENTITY, so `out` holds only what the caller could
+ * actually send: a zone straddling the edge of the radius otherwise contributes
+ * everything in it, up to 7 tiles past the range, and a bounded `out` then
+ * loses entities that are genuinely beside the player.
  *
- * `mock230_area_npcs` fills npc slots, `mock230_area_players` fills pids.
+ * `_npcs` fills npc slots, `_players` fills pids.
  */
 int
-mock230_area_npcs(
-    const struct Mock230Player* player,
+mock230_playerzonemap_npcs(
+    struct Mock230Player* player,
     int radius,
     int* out,
     int max);
 
 int
-mock230_area_players(
-    const struct Mock230Player* player,
+mock230_playerzonemap_players(
+    struct Mock230Player* player,
     int radius,
     int* out,
     int max);
+
+/** This client's entry for `index`, or NULL when it does not hold that zone. */
+struct Mock230PlayerZone*
+mock230_playerzonemap_find(
+    struct Mock230Player* player,
+    int index);
 
 /* ------------------------------------------------------------------ */
 /* Loc records                                                         */

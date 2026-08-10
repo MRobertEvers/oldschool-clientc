@@ -319,23 +319,6 @@ enum
      */
     MOCK230_PLAYER_VIEW_TILES = 15,
 
-    /*
-     * What one client's area can hold — and the only npc ceiling in this server
-     * that is a statement about the game rather than about memory.
-     *
-     * The world map is unbounded by design: every npc, obj and player is filed
-     * in it and nothing there is sized to a client. What is bounded is the 7x7
-     * zone window a client subscribes to, which is 56x56 tiles across four
-     * planes. OldSchool's densest ground (Varrock) runs about 0.011 npcs per
-     * tile, so a full window is a few dozen; 1024 is two orders of margin and
-     * still 4KB per client.
-     *
-     * Overflow is loud rather than silent (`area_list_add`), because the
-     * failure it would otherwise produce is a client never being told about an
-     * npc standing in front of it.
-     */
-    MOCK230_AREA_NPC_MAX = 1024,
-    MOCK230_AREA_PLAYER_MAX = MOCK230_PLAYER_MAX,
 
     /*
      * Player variables the scripts can read and write.
@@ -1666,6 +1649,11 @@ struct Mock230Npc
     int x, z, level;
     int spawn_x, spawn_z, spawn_level;
     int wander_radius;
+    /** The player this runtime npc belongs to. `owner_gen == 0` is unowned;
+     *  the generation makes a reused pid fail closed instead of transferring
+     *  a familiar to whoever logged into the vacated slot. */
+    int owner_pid;
+    uint32_t owner_gen;
     /** Index into the content roster (`mock230_content_npc_spawns`) when this
      *  npc is the world standing one of its spawns up, and -1 when content
      *  npc_added it. Only the first kind is retired when the window moves; an
@@ -2014,60 +2002,65 @@ mock230_npc_face_clear_if_idle(struct Mock230Npc* npc)
 }
 
 /*
- * One client's view of the world — the zones it subscribes to and the entities
- * standing in them.
+ * ── Two zone maps, and the difference between them ───────────────────
  *
- * The world has a `Mock230ZoneMap`: zones keyed by packed index, each holding
- * the npcs, objs and players standing in it. That is the right structure for
- * *the world*, and it is the wrong one to answer "what goes in this client's
- * area packets", because that question is per client and the map is shared.
+ * `Mock230ZoneMap` (mock230_zone.c) is the WORLD's, and it is the authority:
+ * every npc, obj and player in the game is filed in it, keyed by packed zone
+ * index. Nothing about it is sized to what one client can see, and nothing
+ * should be — a roster of 23,139 npcs is a fact about the world, not about
+ * anybody's screen.
  *
- * Before this, the per-client answer did not live anywhere. It was four flat
- * arrays — a zone window, a loaded-zone set, and two `tracked` bitmaps — and
- * each of the three area packets re-derived its own candidates: PLAYER_INFO
- * walked the whole player pool and applied a tile radius, NPC_INFO asked the
- * map for a tile box, and the zone flush walked the window. Three answers to
- * one question, so they could and did disagree: the tile box is not clipped to
- * the build area and the window is, which is how NPC_INFO came to name npcs
- * standing outside the region the client has a scene for.
+ * `Mock230PlayerZoneMap` is one CLIENT's, and it is a *subscription*: the zones
+ * that client is being kept up to date on, plus what it has already been told
+ * about each. It holds no entities. Asked who is standing nearby, it walks its
+ * own zone list against the world map and answers from the authority — so the
+ * answer cannot be stale, which a materialised copy maintained by push could
+ * be, silently.
  *
- * So it is one structure, refreshed once per tick in phase 8, and the three
- * encoders read it rather than each asking the world their own way. Being
- * *materialised* rather than queried is the point: a snapshot two packets share
- * cannot disagree with itself, and it can be asserted about (see the
- * `NPC_INFO tracks only the player's own zones` selftest) which a query
- * scattered across two files could not.
+ * The split is what makes the two limits independent. The world's size is a
+ * memory question; what reaches a client is bounded by a 7x7 zone window and by
+ * the stream's own MOCK230_TRACKED_NPC_MAX, and neither of those grows when the
+ * world does.
  *
- * What it is NOT is a copy of the world. It holds slot ids, refreshed each
- * tick from the map's membership lists; the entities themselves stay where
- * they are. The cost is a few hundred ints per client.
+ * Before this existed there was no per-client structure at all. A client's view
+ * was four flat arrays and each of the three area packets re-derived its own
+ * candidates — a pool walk, a tile box, a zone window — which disagreed at the
+ * build area's edge, where only the zone window is clipped.
  */
-struct Mock230PlayerArea
+
+/** One zone as a client sees it. */
+struct Mock230PlayerZone
 {
+    /** Packed zone index — the same key the world map is keyed by, so a client
+     *  zone and a world zone are always talking about the same 8x8 tiles. */
+    int index;
     /**
-     * The subscription: the 7x7 zone window around the player, all four
-     * planes, clipped to the 13x13 build area. Recomputed when the player
-     * changes zone. This is the authority on "does this client hold that
-     * zone", and every other field here is derived from it.
+     * 1 once this client has been sent the zone's full state.
+     *
+     * On the entry rather than in a second parallel array, which is what it
+     * used to be. Two arrays that have to be added to and removed from together
+     * are two arrays that can disagree, and the disagreement here is
+     * invisible: a zone marked loaded but no longer subscribed is a zone the
+     * client is never re-told about and never updated on.
      */
-    int zones[MOCK230_ZONE_ACTIVE_MAX];
-    int zone_count;
-    /** The subset of `zones` the client has been sent full state for. A zone
-     *  in `zones` but not here gets FULL_FOLLOWS; one in both gets this tick's
-     *  events. */
-    int loaded[MOCK230_ZONE_ACTIVE_MAX];
-    int loaded_count;
+    uint8_t loaded;
+};
+
+struct Mock230PlayerZoneMap
+{
+    struct Mock230PlayerZone zones[MOCK230_ZONE_ACTIVE_MAX];
+    int count;
 
     /**
-     * The build-area origin the window was last computed against.
+     * The build-area origin this window was clipped against.
      *
      * The window is a function of TWO things — the player's zone and the build
      * area it is clipped to — and only the first is obvious. Re-centring the
      * scene moves the clip under a standing player, so a move that only watched
      * `zone_index` left the subscription describing a build area that no longer
      * exists. Every path that re-centres happens to call
-     * `mock230_zone_player_reset` today, which forced a recompute by accident;
-     * this makes the dependency the thing that is checked.
+     * `mock230_zone_player_reset`, which forced a recompute by accident; this
+     * makes the dependency the thing that is checked.
      */
     int built_zone_x, built_zone_z;
 };
@@ -2132,6 +2125,10 @@ struct Mock230Player
      * having to know.
      */
     int pid;
+
+    /** Bumped whenever this pool slot is assigned to a new login. Never zero,
+     *  because zero is the unowned sentinel on Mock230Npc. */
+    uint32_t login_generation;
 
     int x, z, level;
     /** Whether this tick's steps are being run rather than walked. Derived
@@ -2350,7 +2347,7 @@ struct Mock230Player
      * "does this client hold that zone", because the answer covers the locs and
      * the replay too, and because it is the question the wire asks.
      */
-    struct Mock230PlayerArea area;
+    struct Mock230PlayerZoneMap zonemap;
     /** Packed zone this client was last in, or -1. */
     int zone_index;
     /**
@@ -3539,6 +3536,18 @@ mock230_world_npc_spawn(
     int x,
     int z,
     int level);
+
+/** Resolve an npc's owner, rejecting a logged-out or reused player slot. */
+struct Mock230Player*
+mock230_world_npc_owner(
+    struct Mock230Server* srv,
+    const struct Mock230Npc* npc);
+
+/** Bind an npc to this exact player login. NULL clears the relation. */
+void
+mock230_world_npc_set_owner(
+    struct Mock230Npc* npc,
+    const struct Mock230Player* player);
 
 /** Add (1) or remove (0) this npc's occupancy flags from the collision map. */
 void
