@@ -25,6 +25,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* #region agent log — texture publish trace, defined in app.c. */
+int
+app_tex_trace_enabled(void);
+/* #endregion */
+
 #define BRIDGE_SPRITE_MAP_CAP 4096
 #define BRIDGE_MODEL_MAP_CAP 4096
 #define BRIDGE_OBJ_ICON_MAP_CAP 4096
@@ -1270,12 +1275,18 @@ UITreeSceneBridge_PublishTextures(
         struct ToriDraw_Texture* texture;
 
         if( texture_id < 0 || texture_id >= 2048 )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
             continue;
+        }
 
         rs = CacheProvider_TextureGet(bridge->provider, texture_id);
         if( !rs )
         {
             bridge->texture_failed[texture_id] = 1;
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
         }
 
@@ -1283,10 +1294,29 @@ UITreeSceneBridge_PublishTextures(
         if( !texture )
         {
             bridge->texture_failed[texture_id] = 1;
+            if( app_tex_trace_enabled() )
+                fprintf(
+                    stderr,
+                    "tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
+                    texture_id,
+                    (void*)rs->texels,
+                    rs->width,
+                    rs->height);
             continue;
         }
 
         ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
+        if( app_tex_trace_enabled() )
+            fprintf(
+                stderr,
+                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d alpha_blended=%d)\n",
+                texture_id,
+                UITreeSceneBridge_TextureResident(bridge, texture_id) ? "resident"
+                                                                      : "SET BUT NOT RESIDENT",
+                texture->width,
+                texture->height,
+                texture->opaque,
+                texture->alpha_blended);
         published++;
     }
     return published;

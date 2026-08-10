@@ -445,7 +445,12 @@ ToriDraw_RasterModelFace(
 
             if( debug_enabled && texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY )
             {
-                skip_tally[texture_id]++;
+                /* First miss on an id, printed where it happens: the every-500
+                 * tally cannot say when an id started missing, only that it
+                 * has. Interleaved with the host's tex_trace frame lines this
+                 * is what dates the miss against the publish. */
+                if( ++skip_tally[texture_id] == 1 )
+                    fprintf(stderr, "raster_tex_skip: first miss id=%d\n", texture_id);
                 if( ++skip_total % 500 == 1 )
                     fprintf(
                         stderr,
@@ -711,6 +716,24 @@ ToriDraw_RasterModelFace(
              * transparent because that path would threshold it into holes. */
             else if( texture_alpha_blended )
             {
+                /* #region agent log — TORIRS_RASTER_TEX_DEBUG=1 counts faces
+                 * that actually reach the per-texel-alpha kernel. Until the
+                 * bake started emitting the record's alpha byte this branch
+                 * had never executed, and nothing else distinguishes "the
+                 * texture is flagged" from "the flag reached the raster". */
+                {
+                    static int alpha_faces = 0;
+                    static int alpha_debug = -1;
+                    if( alpha_debug < 0 )
+                        alpha_debug = getenv("TORIRS_RASTER_TEX_DEBUG") ? 1 : 0;
+                    if( alpha_debug && ++alpha_faces % 500 == 1 )
+                        fprintf(
+                            stderr,
+                            "raster_tex_alpha: faces=%d id=%d\n",
+                            alpha_faces,
+                            texture_id);
+                }
+                /* #endregion */
                 ToriDraw_TriangleFaceTextureBlendAlpha(
                     ctx->pixel_buffer,
                     ctx->stride,

@@ -155,6 +155,18 @@ static int g_ground_mesh_model_faces_fallback;
  */
 static bool g_ground_mesh_fallback = true;
 
+/*
+ * --alpha-textures: emit blend layers as alpha-blended textures rather than
+ * letting them keep the colour-key path.
+ *
+ * OFF by default because the record is written but the client then fails to
+ * publish the texture at all (skip_tex_miss rises to ~218 on the QBD), so the
+ * faces are dropped instead of drawn. The raster and loader support is in
+ * place and builds; the unresolved link is between the extended texture record
+ * and the texture publish. Turn this on to work on that.
+ */
+static bool g_alpha_textures = false;
+
 static int
 int_compare(const void* lhs, const void* rhs)
 {
@@ -1062,7 +1074,9 @@ prepare_model_outputs(
                  * Note this keeps genuine cutouts: their alpha is already 0 or
                  * 255, so they key exactly and are not blend layers.
                  */
-                if( g_ground_mesh_fallback && !materials->materials[source].valid )
+                if( g_ground_mesh_fallback &&
+                    (!materials->materials[source].valid ||
+                     (!g_alpha_textures && g_textures[source].blend_layer)) )
                 {
                     if( model->face_infos )
                         model->face_infos[face] =
@@ -1158,6 +1172,8 @@ palette_colour(int index)
  * a blend the key cannot represent and has to be composited instead. */
 static bool g_alpha_report = false;
 
+
+
 static void
 alpha_report(int source)
 {
@@ -1212,7 +1228,7 @@ quantize_texture(int source, int32_t* pixels)
         int alpha = (int)(argb >> 24);
         /* A blend layer is emitted with its coverage intact - thresholding is
          * exactly what destroys it - so only a fully clear texel drops out. */
-        if( entry->blend_layer ? (alpha == 0) : (alpha < 128) )
+        if( (g_alpha_textures && entry->blend_layer) ? (alpha == 0) : (alpha < 128) )
         {
             if( pixels ) pixels[i] = 0;
             entry->transparent = true;
@@ -1226,7 +1242,8 @@ quantize_texture(int source, int32_t* pixels)
         int b = (blue * (PALETTE_BLUE_LEVELS - 1) + 127) / 255;
         int index = 1 + (r * PALETTE_GREEN_LEVELS + g) * PALETTE_BLUE_LEVELS + b;
         int rgb = palette_colour(index);
-        uint32_t out_alpha = entry->blend_layer ? (uint32_t)alpha : 0xFFu;
+        uint32_t out_alpha =
+            (g_alpha_textures && entry->blend_layer) ? (uint32_t)alpha : 0xFFu;
         if( pixels ) pixels[i] = (int32_t)((out_alpha << 24) | (uint32_t)rgb);
     }
     return 1;
@@ -1553,7 +1570,8 @@ write_texture_sources(
             /* A blend layer keeps its coverage instead of being colour-keyed;
              * the raster blends it per texel. See
              * ToriDraw_Texture::alpha_blended. */
-            if( g_textures[source].blend_layer ) fprintf(text_file, "alpha=yes\n");
+            if( g_alpha_textures && g_textures[source].blend_layer )
+                fprintf(text_file, "alpha=yes\n");
             fprintf(text_file, "sprite1=%d,0,0\n", g_mapping[source].dest_sprite);
             if( direction ) fprintf(text_file, "direction=%d\n", direction);
             if( speed ) fprintf(text_file, "speed=%d\n", speed);
@@ -1639,6 +1657,8 @@ main(int argc, char** argv)
             g_ground_mesh_fallback = false;
         else if( strcmp(argv[i], "--alpha-report") == 0 )
             g_alpha_report = true;
+        else if( strcmp(argv[i], "--alpha-textures") == 0 )
+            g_alpha_textures = true;
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
         {
             usage(argv[0]);

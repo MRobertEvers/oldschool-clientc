@@ -212,6 +212,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tmp_face_order);
     free(scene->tex_state);
     free(scene->anim_list);
+    free(scene->model_zbuffer);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -289,6 +290,63 @@ ToriDraw_SceneAllocBuffers(
     }
 
     return true;
+}
+
+bool
+ToriDraw_SceneModelZBufferResize(
+    struct ToriDraw_Scene* scene,
+    int stride,
+    int rows)
+{
+    torizdepth_t* grown;
+    size_t want;
+
+    if( !scene || stride <= 0 || rows <= 0 )
+        return false;
+
+    /* Never shrink: the buffer is scratch, and a scene that has already drawn a
+     * large viewport would otherwise realloc back and forth between two
+     * viewports of different sizes. */
+    if( stride < scene->model_zbuffer_stride )
+        stride = scene->model_zbuffer_stride;
+    if( rows < scene->model_zbuffer_rows )
+        rows = scene->model_zbuffer_rows;
+    if( scene->model_zbuffer && stride == scene->model_zbuffer_stride &&
+        rows == scene->model_zbuffer_rows )
+        return true;
+
+    want = (size_t)stride * (size_t)rows;
+    grown = (torizdepth_t*)realloc(scene->model_zbuffer, want * sizeof(torizdepth_t));
+    if( !grown )
+        return false;
+
+    scene->model_zbuffer = grown;
+    scene->model_zbuffer_stride = stride;
+    scene->model_zbuffer_rows = rows;
+    /* Contents are undefined until a model clears the region it draws into, so
+     * there is nothing to preserve or initialise here. */
+    return true;
+}
+
+void
+ToriDraw_SceneModelZBufferFree(struct ToriDraw_Scene* scene)
+{
+    if( !scene )
+        return;
+    free(scene->model_zbuffer);
+    scene->model_zbuffer = NULL;
+    scene->model_zbuffer_stride = 0;
+    scene->model_zbuffer_rows = 0;
+}
+
+bool
+ToriDraw_SceneHasModelZBuffer(
+    const struct ToriDraw_Scene* scene,
+    int stride,
+    int rows)
+{
+    return scene && scene->model_zbuffer && scene->model_zbuffer_stride >= stride &&
+           scene->model_zbuffer_rows >= rows;
 }
 
 struct ToriDraw_TextureState*

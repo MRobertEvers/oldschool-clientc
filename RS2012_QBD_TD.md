@@ -92,7 +92,7 @@ an exact denominator, this document does not manufacture certainty.
   damage reduction; no percentage is invented here (A).
 - On death, the grave is placed outside the Summoning-restricted door (A).
 - QBD begins asleep. Contemporary strategy text describes about 30 seconds
-  before detection; the port uses the 25.08-second wake sequence after a short
+  before detection; the port uses the 16.72-second wake sequence after a short
   presentation delay (B/C).
 - QBD is never killed. The player drains four life-force pools and restores the
   four dragonkin artefacts, forcing her back to sleep (A/B).
@@ -448,27 +448,33 @@ run/walk 16883/16884; 2500 uses movement 16786 and turn variants 16787.
 
 ### 5.2 Sequences
 
-Durations are cache frame duration totals in 30 ms units.
+Durations are cache frame duration totals in 20 ms units (this engine's
+animation cycle — see `APP_LOGIC_TICK_MS` in `src/app.c`). An earlier revision
+of this table used 30 ms units, which is not what the engine actually plays
+sequences at; that mismatch is what made `^rs2012_qbd_wake_anim_ticks` fire
+the wake->fight NPC swap ~14 ticks after sequence 16714 had already finished
+and the queen visibly reverted to her sleeping idle pose. The wake constant is
+now derived from the corrected 16.72 s figure below.
 
 | Sequence | Meaning | Duration |
 |---:|---|---:|
-| 16714 | wake | 25.08 s |
-| 16715 | active idle | 11.52 s |
-| 16716 | sleeping idle | 11.52 s |
-| 16717 | centre melee | 2.70 s |
-| 16718 | ranged sweep | 3.60 s |
-| 16721 | ordinary breath | 2.70 s |
-| 16742 | return to sleep | 13.68 s |
-| 16743 / 16744 | west/east melee | 2.70 s each |
-| 16745 | extreme breath | 9.00 s |
-| 16746 | wall cast | 4.50 s |
-| 16747 / 16748 | cough worm / stop cough | 1.20 / 1.80 s |
-| 16758 / 16759 | left/right claw | 14.76 / 4.26 s |
-| 16766 / 16768 / 16771 / 16774 | restoration / activate / complete / exit | 2.70 / 1.80 / 1.80 / 0.90 s |
-| 16778 / 16779 / 16782 | worm death / defence / attack | 2.70 / 1.80 / 2.70 s |
-| 16786 / 16787 | worm move / turn-ambient | 3.33 / 1.44 s |
-| 16859 / 16861 / 16864 | soul death / teleport / cast | 2.28 / 1.80 / 2.91 s |
-| 16883 / 16884 | soul run / walk | 1.80 s each |
+| 16714 | wake | 16.72 s |
+| 16715 | active idle | 7.68 s |
+| 16716 | sleeping idle | 7.68 s |
+| 16717 | centre melee | 1.80 s |
+| 16718 | ranged sweep | 2.40 s |
+| 16721 | ordinary breath | 1.80 s |
+| 16742 | return to sleep | 9.12 s |
+| 16743 / 16744 | west/east melee | 1.80 s each |
+| 16745 | extreme breath | 6.00 s |
+| 16746 | wall cast | 3.00 s |
+| 16747 / 16748 | cough worm / stop cough | 0.80 / 1.20 s |
+| 16758 / 16759 | left/right claw | 9.84 / 2.84 s |
+| 16766 / 16768 / 16771 / 16774 | restoration / activate / complete / exit | 1.80 / 1.20 / 1.20 / 0.60 s |
+| 16778 / 16779 / 16782 | worm death / defence / attack | 1.80 / 1.20 / 1.80 s |
+| 16786 / 16787 | worm move / turn-ambient | 2.22 / 0.96 s |
+| 16859 / 16861 / 16864 | soul death / teleport / cast | 1.52 / 1.20 / 1.94 s |
+| 16883 / 16884 | soul run / walk | 1.20 s each |
 
 The RS727 sequence codec is not the OSRS codec: opcode 13 contains nested sound
 sets and later opcodes differ. The importer now decodes that grammar explicitly.

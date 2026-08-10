@@ -96,4 +96,19 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_x,
     int screen_y);
 
+/** The same test for a GROUND TILE mesh, which the reference does not pick
+ *  through Model.draw at all: World3D.drawTileUnderlay / drawTileOverlay run
+ *  their pointInsideTriangle click test BEFORE the `!== 12345678` colour gate,
+ *  so a tile triangle whose colour says "draw nothing" still sets
+ *  clickTileX/clickTileZ. A tile decoded from a 0xFF00FF overlay (or from no
+ *  underlay at all) is therefore invisible AND clickable in the reference,
+ *  where the same face on a model would be neither. */
+bool
+ToriDraw_ProjectedTileMouseHitTest(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y);
+
 #endif

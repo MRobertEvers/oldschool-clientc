@@ -2,6 +2,7 @@
 #define TORIDRAW_TYPES_H
 
 #include "graphics/projection.h"
+#include "graphics/zdepth.h"
 #include "toridraw_intrusive_list.h"
 
 #include <stdbool.h>
@@ -82,6 +83,27 @@ struct ToriDraw_Bones
     boneint_t** bones;
     boneint_t* bones_sizes;
 };
+
+/**
+ * Draw this model's own faces through the depth-tested kernels instead of
+ * relying on the depth sort alone.
+ *
+ * Opt-in, and deliberately per model rather than per scene: the painter's sort
+ * is what the content was authored against, and it is right for the
+ * overwhelming majority of models. It is wrong for a model whose parts
+ * genuinely interpenetrate — a wing through a body, a jaw through a skull —
+ * because no single order over whole faces can express "these two triangles
+ * each occlude the other". Those models set this and get the per-pixel answer.
+ *
+ * The scope is one model. The buffer is cleared before the model's faces and
+ * never consulted across models, so this changes nothing about how the model
+ * layers against the rest of the scene. See graphics/zdepth.h.
+ *
+ * Requires the scene to carry the depth scratch: TORIDRAW_SCENE_MODEL_ZBUFFER
+ * at ToriDraw_SceneNew, or an explicit ToriDraw_SceneModelZBufferResize. With
+ * no buffer the flag is inert and the model draws exactly as it did before.
+ */
+#define TORIDRAW_MODEL_FLAG_ZBUFFER ((uint8_t)(1u << 0))
 
 struct ToriDraw_Model
 {
@@ -471,6 +493,23 @@ struct ToriDraw_Scene
     int projection_near_plane_z;
 
     struct ToriDraw_TextureState* tex_state;
+
+    /*
+     * Per-model depth scratch, screen sized. NULL unless the scene was created
+     * with TORIDRAW_SCENE_MODEL_ZBUFFER (allocated lazily, on the first raster
+     * of a model that opts in) or a caller sized it up front. Only models
+     * carrying TORIDRAW_MODEL_FLAG_ZBUFFER read or write it, and only within
+     * their own raster pass — see graphics/zdepth.h for why the scope stops
+     * there.
+     *
+     * `model_zbuffer_stride` is the row stride in ELEMENTS and matches the
+     * viewport stride the buffer was sized for, so a pixel at `offset` in the
+     * frame buffer is at the same `offset` here. Keeping the two layouts
+     * identical is what lets one offset walk both.
+     */
+    torizdepth_t* model_zbuffer;
+    int model_zbuffer_stride;
+    int model_zbuffer_rows;
 
     int* screen_vertices_x;
     int* screen_vertices_y;

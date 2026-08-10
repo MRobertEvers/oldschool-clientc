@@ -874,6 +874,29 @@ rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
+.PHONY: rs2012-model-view rs2012-face-priorities
+
+# OB3 viewer: renders a model through the real project/sort/raster path and
+# writes a multi-angle contact sheet. The iteration loop for face-priority
+# authoring -- no cache, no window, no game.
+RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
+	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+	$(OBJ_DIR)/bmp.o
+rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
+		engine/proctex/test/rs2012_model_view.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/torirs_types.c \
+		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
+
+# Face-priority authoring for the imported lane: splits a model into connected
+# features, reports them, and writes a priority band per feature.
+rs2012-face-priorities: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_face_priorities \
+		engine/proctex/test/rs2012_face_priorities.c \
+		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
+
 # Sound end-to-end test: cache -> synth render -> game queue -> platform.
 # Links the SILENT audio backend instead of the SDL2 one (they define the same
 # symbols), so this runs headless with no device.
@@ -1284,10 +1307,10 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/world_test
 
-test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
 		render/test/pick_face_test.c \
-		$(OBJ_DIR)/toridraw_unity.o
+		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/pick_face_test
 
 test-trig-tables-share: $(OBJ_DIR)
@@ -1447,6 +1470,15 @@ test-scanline: $(OBJ_DIR)
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_test \
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
+
+# The per-texel-alpha span kernel against a per-channel reference blend: what
+# the opaque and transparent kernels' tests cannot cover, because those two
+# treat a texel as all-or-nothing. Standalone TU, no cache or disk.
+test-texture-alpha-blend: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texture_alpha_blend_test \
+		$(TORIDRAW_DIR)/toridraw_texture_alpha_blend_test.c -lm
+	./$(OBJ_DIR)/texture_alpha_blend_test
 
 # Side-by-side viewer: a textured, alpha-blended model out of a dat1 cache
 # rendered with both raster families plus an amplified difference pane.
