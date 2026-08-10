@@ -47,25 +47,111 @@ cp_group_open_disk(
     if( !disk_cache || !disk_cache->disk )
         return 0;
 
-    (void)ctx;
     const struct CP_Type* t = cp_type(type);
     struct RSCache_RecordAddress addr =
         RSCache_RecordAddressFor(&disk_cache->profile, t->rs_type);
-    if( addr.group_shift != 0 )
-    {
-        fprintf(
-            stderr,
-            "cachepack: %s is sharded across groups in this cache — this tool handles the "
-            "OldSchool config-group layout only\n",
-            t->name);
-        return 0;
-    }
-
-    int table = RSCache_Dat2DiskTableId(disk_cache->disk, RSCACHE_DAT2_TABLE_CONFIGS);
+    int table = RSCache_Dat2DiskTableId(disk_cache->disk, addr.table);
     if( table == RSCACHE_DAT2_DISK_TABLE_ABSENT )
         return 0;
 
-    group->archive = RSCache_Dat2DiskArchiveNewLoad(disk_cache->disk, table, t->config_kind);
+    if( addr.group_shift != 0 )
+    {
+        struct RSCache_Dat2DiskArchive* ref =
+            RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk_cache->disk, table);
+        if( !ref )
+            return 0;
+        struct RSCache_ReferenceTable* refs =
+            RSCache_ReferenceTableNewDecode(ref->data, ref->data_size);
+        RSCache_Dat2DiskArchiveFree(ref);
+        if( !refs )
+            return 0;
+
+        group->files = calloc(1, sizeof(*group->files));
+        if( !group->files )
+        {
+            RSCache_ReferenceTableFree(refs);
+            return 0;
+        }
+
+        int capacity = 0;
+        for( int g = 0; g < refs->id_count; g++ )
+        {
+            int group_id = refs->ids[g];
+            struct RSCache_Dat2DiskArchive* archive =
+                RSCache_Dat2DiskArchiveNewLoad(disk_cache->disk, table, group_id);
+            if( !archive )
+                continue;
+            if( !RSCache_Dat2DiskArchiveInitMetadata(disk_cache->disk, archive) ||
+                archive->file_count <= 0 )
+            {
+                RSCache_Dat2DiskArchiveFree(archive);
+                continue;
+            }
+            struct RSCache_FileList* files = RSCache_FileListNewFromDecode(
+                archive->data, archive->data_size, archive->file_count);
+            if( !files )
+            {
+                RSCache_Dat2DiskArchiveFree(archive);
+                continue;
+            }
+
+            int need = group->count + files->file_count;
+            if( need > capacity )
+            {
+                int next = capacity ? capacity : 256;
+                while( next < need )
+                    next *= 2;
+                char** grown_files =
+                    realloc(group->files->files, (size_t)next * sizeof(char*));
+                int* grown_sizes =
+                    realloc(group->files->file_sizes, (size_t)next * sizeof(int));
+                int* grown_ids = realloc(group->owned_ids, (size_t)next * sizeof(int));
+                if( !grown_files || !grown_sizes || !grown_ids )
+                {
+                    /* Preserve whichever successful reallocations moved so the
+                     * common cleanup path still owns every allocation. */
+                    if( grown_files ) group->files->files = grown_files;
+                    if( grown_sizes ) group->files->file_sizes = grown_sizes;
+                    if( grown_ids ) group->owned_ids = grown_ids;
+                    RSCache_FileListFree(files);
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    RSCache_ReferenceTableFree(refs);
+                    cp_group_free(group);
+                    return 0;
+                }
+                group->files->files = grown_files;
+                group->files->file_sizes = grown_sizes;
+                group->owned_ids = grown_ids;
+                capacity = next;
+            }
+
+            for( int f = 0; f < files->file_count; f++ )
+            {
+                int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                int out = group->count++;
+                group->files->files[out] = files->files[f];
+                group->files->file_sizes[out] = files->file_sizes[f];
+                group->owned_ids[out] = (group_id << addr.group_shift) | file_id;
+                files->files[f] = NULL; /* ownership moved to aggregate */
+            }
+            group->files->file_count = group->count;
+            RSCache_FileListFree(files);
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+        RSCache_ReferenceTableFree(refs);
+
+        group->ids = group->owned_ids;
+        if( group->count <= 0 )
+        {
+            cp_group_free(group);
+            return 0;
+        }
+        (void)ctx;
+        return 1;
+    }
+
+    int config_group = addr.group >= 0 ? addr.group : t->config_kind;
+    group->archive = RSCache_Dat2DiskArchiveNewLoad(disk_cache->disk, table, config_group);
     if( !group->archive )
         return 0;
     if( !RSCache_Dat2DiskArchiveInitMetadata(disk_cache->disk, group->archive) ||
@@ -134,6 +220,7 @@ cp_group_free(struct CP_Group* group)
         RSCache_FileListFree(group->files);
     if( group->archive )
         RSCache_Dat2DiskArchiveFree(group->archive);
+    free(group->owned_ids);
     memset(group, 0, sizeof(*group));
 }
 
@@ -1061,4 +1148,3 @@ cp_indexed_key(
         return -1;
     return value - 1;
 }
-

@@ -22089,101 +22089,38 @@ mock230_world_selftest(void)
                        "the player should hold some zones, got %d", player->area.zone_count);
 
         /*
-         * The area's own consistency, before anything encoded from it.
+         * What the client's zone list yields, before anything encodes from it.
          *
-         * `player->area` is the one snapshot PLAYER_INFO, NPC_INFO and the zone
-         * flush all read, so the property worth stating is about the structure
-         * rather than about any one packet: everything it lists stands in a
-         * zone it subscribes to. Both halves, because both are collected by the
-         * same loop and a filter dropped from one of them would otherwise only
-         * show up in whichever stream is exercised elsewhere.
-         */
-        for( int i = 0; i < player->area.npc_count; i++ )
-        {
-            struct Mock230Npc* npc = &srv.npcs[player->area.npcs[i]];
-            int index = mock230_zone_index(npc->x, npc->z, npc->level);
-            int held = 0;
-
-            for( int z = 0; z < player->area.zone_count; z++ )
-                held = held || player->area.zones[z] == index;
-            if( !held )
-                area_stray++;
-        }
-        for( int i = 0; i < player->area.player_count; i++ )
-        {
-            struct Mock230Player* other = &srv.players[player->area.players[i]];
-            int index = mock230_zone_index(other->x, other->z, other->level);
-            int held = 0;
-
-            for( int z = 0; z < player->area.zone_count; z++ )
-                held = held || player->area.zones[z] == index;
-            if( !held )
-                area_stray++;
-        }
-        SELFTEST_CHECK(area_stray == 0,
-                       "everything the area lists should stand in a zone the area holds, "
-                       "%d do not", area_stray);
-
-        /*
-         * And the audit: the incrementally maintained list must equal what a
-         * from-scratch walk of the subscription produces.
-         *
-         * This is the check the push model exists to earn. Subscribe,
-         * unsubscribe and the map's own pushes each maintain `area.npcs` by
-         * delta, and every one of them can drop a change silently — the client
-         * simply never hears about an npc, and nothing anywhere says so. The
-         * cheap version of this bug is already in the history of this file: a
-         * retired roster npc kept its slot in a zone list, was handed to the
-         * next spawn, and sat in a client's area under the wrong identity.
+         * `mock230_area_npcs` is what both entity streams walk, so the property
+         * worth stating is about that walk rather than about any one packet:
+         * everything it returns stands in a zone the client subscribes to, and
+         * on the client's own plane.
          */
         {
-            int expect[MOCK230_AREA_NPC_MAX];
-            int expect_count = mock230_area_audit_npcs(player, expect, MOCK230_AREA_NPC_MAX);
-            int missing = 0;
-            int extra = 0;
+            int seen[MOCK230_TRACKED_NPC_MAX];
+            int seen_count = mock230_area_npcs(player, MOCK230_NPC_VIEW_TILES, seen,
+                                               MOCK230_TRACKED_NPC_MAX);
 
-            for( int i = 0; i < expect_count; i++ )
+            SELFTEST_CHECK(seen_count > 0, "the area should yield some npcs to check");
+            for( int i = 0; i < seen_count; i++ )
             {
-                int found = 0;
+                struct Mock230Npc* npc = &srv.npcs[seen[i]];
+                int index = mock230_zone_index(npc->x, npc->z, npc->level);
+                int held = 0;
 
-                for( int j = 0; j < player->area.npc_count; j++ )
-                    found = found || player->area.npcs[j] == expect[i];
-                if( !found )
-                    missing++;
+                for( int z = 0; z < player->area.zone_count; z++ )
+                    held = held || player->area.zones[z] == index;
+                if( !held )
+                    area_stray++;
+                if( npc->level != player->level )
+                    area_offplane++;
             }
-            for( int i = 0; i < player->area.npc_count; i++ )
-            {
-                int found = 0;
-
-                for( int j = 0; j < expect_count; j++ )
-                    found = found || expect[j] == player->area.npcs[i];
-                if( !found )
-                    extra++;
-            }
-            SELFTEST_CHECK(missing == 0 && extra == 0,
-                           "the incremental area should equal a from-scratch rebuild, "
-                           "%d missing and %d extra of %d", missing, extra, expect_count);
+            SELFTEST_CHECK(area_stray == 0,
+                           "everything the area yields should stand in a zone it subscribes "
+                           "to, %d do not", area_stray);
+            SELFTEST_CHECK(area_offplane == 0,
+                           "and on the player's own plane, %d do not", area_offplane);
         }
-        /*
-         * The plane filter, asserted on what is TRACKED rather than on the
-         * area.
-         *
-         * The area deliberately holds every plane: it is a subscription, and a
-         * loc change one storey up has to reach this client. So an npc upstairs
-         * in the area is correct, and the single-plane rule belongs to the
-         * entity streams, which is where the filter now lives. Checking it here
-         * is what keeps that filter falsifiable — removing it from
-         * mock230_encode.c fails this line.
-         */
-        for( int i = 0; i < player->tracked_count; i++ )
-            if( srv.npcs[player->tracked[i]].active &&
-                srv.npcs[player->tracked[i]].level != player->level )
-                area_offplane++;
-        SELFTEST_CHECK(area_offplane == 0,
-                       "and every tracked npc should be on the player's plane, %d is not",
-                       area_offplane);
-        SELFTEST_CHECK(player->area.npc_count > 0,
-                       "and the area should have collected some npcs to check");
         SELFTEST_CHECK(player->tracked_count > 0,
                        "and be tracking something, or there is nothing to check");
         for( int i = 0; i < player->tracked_count; i++ )

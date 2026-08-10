@@ -47,6 +47,8 @@ RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
      * shared decoder body, so a revision module can pin it. */
     if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_BUILD670 )
         return RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670;
+    if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_530 )
+        return RSCACHE_CONFIG_OBJ_DECODE_RS2_530;
 
     if( !RSCache_IsOsrs(cache) )
         return 0;
@@ -495,6 +497,9 @@ RSCache_Dat2ConfigObjInit(struct RSCache_Dat2ConfigObj* object)
     object->shift_click_drop_index = -2;
     object->bought_id = -1;
     object->bought_template_id = -1;
+    object->item_type = 0;
+    object->lend_id = -1;
+    object->lend_template_id = -1;
     object->placeholder_id = -1;
     object->placeholder_template_id = -1;
 
@@ -634,6 +639,138 @@ obj_b670_read_pairs(
             (*out_from)[i] = from;
             (*out_to)[i] = to;
         }
+    }
+}
+
+/* ---- RS2 rev 530 ------------------------------------------------------- */
+
+/*
+ * Exact wire table from 2009scape's ItemDefinition.parseDefinition. This is
+ * deliberately a whole codec: opcodes 23/25 have no trailing offset byte,
+ * opcode 42 is a counted byte array, and 96/121-130 do not exist in the modern
+ * OldSchool body with these meanings.
+ */
+static bool
+obj_decode_op_rs2_530(
+    struct RSCache_Dat2ConfigObj* object,
+    int opcode,
+    struct RSCache_Buffer* buffer)
+{
+    switch( opcode )
+    {
+    case 1: object->inventory_model_id = g2(buffer); return true;
+    case 2: obj_b670_read_string(buffer, &object->name); return true;
+    case 3: obj_b670_read_string(buffer, &object->examine); return true;
+    case 4: object->zoom2d = g2(buffer); return true;
+    case 5: object->xan2d = g2(buffer); return true;
+    case 6: object->yan2d = g2(buffer); return true;
+    case 7: object->offset_x2d = g2b(buffer); return true;
+    case 8: object->offset_y2d = g2b(buffer); return true;
+    case 10: return true; /* unused, payload-free in the 530 client */
+    case 11: object->stacking_behaviour = 1; return true;
+    case 12: object->cost = g4(buffer); return true;
+    case 16: object->is_members = true; return true;
+
+    case 23: object->male_model_0 = g2(buffer); return true;
+    case 24: object->male_model_1 = g2(buffer); return true;
+    case 25: object->female_model_0 = g2(buffer); return true;
+    case 26: object->female_model_1 = g2(buffer); return true;
+
+    case 30:
+    case 31:
+    case 32:
+    case 33:
+    case 34:
+        obj_b670_read_string(buffer, &object->actions[opcode - 30]);
+        return true;
+    case 35:
+    case 36:
+    case 37:
+    case 38:
+    case 39:
+        obj_b670_read_string(buffer, &object->if_actions[opcode - 35]);
+        return true;
+
+    case 40:
+    case 41:
+    {
+        int count = g1(buffer);
+        int** from = opcode == 40 ? &object->recolors_from : &object->retextures_from;
+        int** to = opcode == 40 ? &object->recolors_to : &object->retextures_to;
+        int* stored = opcode == 40 ? &object->recolor_count : &object->retexture_count;
+        free(*from);
+        free(*to);
+        *from = count ? malloc((size_t)count * sizeof(int)) : NULL;
+        *to = count ? malloc((size_t)count * sizeof(int)) : NULL;
+        *stored = (*from && *to) ? count : 0;
+        for( int i = 0; i < count; i++ )
+        {
+            int a = g2(buffer);
+            int b = g2(buffer);
+            if( *stored )
+            {
+                (*from)[i] = a;
+                (*to)[i] = b;
+            }
+        }
+        return true;
+    }
+    case 42:
+    {
+        int count = g1(buffer);
+        for( int i = 0; i < count; i++ )
+            g1(buffer);
+        return true;
+    }
+    case 65: object->ge_tradeable = true; return true;
+    case 78: object->male_model_2 = g2(buffer); return true;
+    case 79: object->female_model_2 = g2(buffer); return true;
+    case 90: object->male_head_model = g2(buffer); return true;
+    case 91: object->female_head_model = g2(buffer); return true;
+    case 92: object->male_head_model_2 = g2(buffer); return true;
+    case 93: object->female_head_model_2 = g2(buffer); return true;
+    case 95: object->zan2d = g2(buffer); return true;
+    case 96: object->item_type = g1b(buffer); return true;
+    case 97: object->noted_id = g2(buffer); return true;
+    case 98: object->noted_template = g2(buffer); return true;
+
+    case 100:
+    case 101:
+    case 102:
+    case 103:
+    case 104:
+    case 105:
+    case 106:
+    case 107:
+    case 108:
+    case 109:
+        object->count_obj[opcode - 100] = g2(buffer);
+        object->count_co[opcode - 100] = g2(buffer);
+        return true;
+    case 110: object->resize_x = g2(buffer); return true;
+    case 111: object->resize_y = g2(buffer); return true;
+    case 112: object->resize_z = g2(buffer); return true;
+    case 113: object->ambient = g1b(buffer); return true;
+    case 114: object->contrast = g1b(buffer) * 5; return true;
+    case 115: object->team = g1(buffer); return true;
+    case 121: object->lend_id = g2(buffer); return true;
+    case 122: object->lend_template_id = g2(buffer); return true;
+
+    case 125:
+    case 126:
+        g1(buffer); g1(buffer); g1(buffer);
+        return true;
+    case 127:
+    case 128:
+    case 129:
+    case 130:
+        g1(buffer); g2(buffer);
+        return true;
+    case 249:
+        RSCache_BufferReadParams(buffer, &object->params);
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -909,6 +1046,8 @@ RSCache_Dat2ConfigObjDecodeOp(
 {
         /* A different stream, not a wider field: dispatch whole rather than
          * threading build-670 exceptions through every case below. */
+        if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_530 )
+            return obj_decode_op_rs2_530(object, opcode, buffer);
         if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670 )
             return obj_decode_op_rs2_b670(object, opcode, buffer);
 
@@ -1255,14 +1394,23 @@ RSCache_Dat2ConfigObjDecodeInplaceFlags(
     while( true )
     {
         if( buffer.position >= buffer.size )
+        {
+            object->_consumed = (int)buffer.position;
             return;
+        }
 
         int opcode = g1(&buffer);
         if( opcode == 0 )
+        {
+            object->_consumed = (int)buffer.position;
             return;
+        }
 
         if( !RSCache_Dat2ConfigObjDecodeOp(object, opcode, &buffer, (unsigned)flags) )
+        {
+            object->_consumed = (int)buffer.position;
             return;
+        }
     }
 }
 uint32_t

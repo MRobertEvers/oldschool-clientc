@@ -46,6 +46,10 @@ RSCache_ProfileDat1Lc245_2(void);
 
 /* --- dat2 / js5 era ----------------------------------------------------- */
 
+/** Rev 530 / January 2009 (`2009scape/Server/data/cache`). */
+struct RSCache
+RSCache_ProfileDat2Rs530(void);
+
 /** The 643 / RS2 branch (`cache.643`). game=rs2 epoch=dat2 revision=643. */
 struct RSCache
 RSCache_ProfileDat2Rs643(void);
@@ -108,7 +112,7 @@ RSCache_ProfileDat2Osrs239(void);
 
 /**
  * Profile by name, matching the manifest/CLI vocabulary: "lc254", "lc245_2",
- * "osrs230", "xrsps233", "osrs239", "osrs184", "kronos", "643", "727".
+ * "osrs230", "xrsps233", "osrs239", "osrs184", "kronos", "530", "643", "727".
  * Returns false and leaves *out untouched when the name is unknown.
  */
 bool

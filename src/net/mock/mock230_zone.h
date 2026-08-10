@@ -333,15 +333,26 @@ void
 mock230_area_clear(struct Mock230Player* player);
 
 /**
- * What `player->area.npcs` should contain, recomputed from the map.
+ * Who is standing in this client's subscribed zones, right now.
  *
- * The audit for an incrementally maintained structure. A push model's failure
- * is a change that never arrives — silent by construction — so the slow answer
- * has to be obtainable for a test to compare against.
+ * Walked at the moment a packet needs it rather than kept up to date, which is
+ * what makes it impossible for the answer to be stale — it is derived from the
+ * authoritative map every time it is asked. The plane and the view radius are
+ * applied inside, so `out` holds only what the caller could actually send.
+ *
+ * `mock230_area_npcs` fills npc slots, `mock230_area_players` fills pids.
  */
 int
-mock230_area_audit_npcs(
+mock230_area_npcs(
     const struct Mock230Player* player,
+    int radius,
+    int* out,
+    int max);
+
+int
+mock230_area_players(
+    const struct Mock230Player* player,
+    int radius,
     int* out,
     int max);
 

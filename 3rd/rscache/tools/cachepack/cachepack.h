@@ -539,15 +539,15 @@ cp_warn(
 /* ---- record access ------------------------------------------------------ */
 
 /**
- * One config group, opened once and walked.
+ * One config type, opened once and walked.
  *
  * A config type is a single archive holding one file per record, so the whole
  * type is one decompression. Loading per record instead would re-inflate a
  * 56,000-file archive once per loc.
  *
- * Only the unsharded (OldSchool config-group) layout is handled — the RS2 branch
- * puts these types in their own tables addressed by `id >> shift`, and this tool
- * is for OldSchool caches. A sharded profile is refused rather than mis-addressed.
+ * OldSchool types are normally one config archive. RS2 types may span a table of
+ * groups addressed by `id >> shift`; those groups are flattened here into the
+ * same ascending record view so unpack/decode/name discovery need no era branch.
  */
 struct CP_Group
 {
@@ -555,6 +555,8 @@ struct CP_Group
     struct RSCache_FileList* files;
     /** Record id per index, ascending as the container stores them. */
     const int* ids;
+    /** Non-NULL when `ids` is an aggregate allocated for a sharded table. */
+    int* owned_ids;
     int count;
 };
 

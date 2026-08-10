@@ -23,6 +23,7 @@
 #include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_npc.h"
 #include "datatypes/dat2_config_obj.h"
+#include "datatypes/dat2_config_sequence.h"
 #include "datatypes/dat2_proctexture.h"
 #include "datatypes/maps.h"
 #include "datatypes/model.h"
@@ -187,18 +188,35 @@ visit_obj(
     int size,
     struct sweep* s)
 {
-    /* obj has no profile overload and no _consumed field, so this can only report
-     * "the decoder returned something" — enough to tell a hard failure from a
-     * silent misread, not enough to prove alignment. See `measures_consumption`. */
-    (void)profile;
-    struct RSCache_Dat2ConfigObj* obj = RSCache_Dat2ConfigObjNewDecode((char*)data, size);
+    struct RSCache_Dat2ConfigObj* obj =
+        RSCache_Dat2ConfigObjNewDecodeProfile(profile, (char*)data, size);
     s->records++;
-    s->measures_consumption = false;
     if( !obj )
         note_stop(s, data, size, -1);
-    else
+    else if( obj->_consumed == size )
         s->consumed_exact++;
+    else
+        note_stop(s, data, size, obj->_consumed);
     RSCache_Dat2ConfigObjFree(obj);
+}
+
+static void
+visit_sequence(
+    const struct RSCache* profile,
+    const uint8_t* data,
+    int size,
+    struct sweep* s)
+{
+    struct RSCache_Dat2ConfigSequence* sequence =
+        RSCache_Dat2ConfigSequenceNewDecodeProfile(profile, (char*)data, size);
+    s->records++;
+    if( !sequence )
+        note_stop(s, data, size, -1);
+    else if( sequence->_consumed == size )
+        s->consumed_exact++;
+    else
+        note_stop(s, data, size, sequence->_consumed);
+    RSCache_Dat2ConfigSequenceFree(sequence);
 }
 
 static void
@@ -810,6 +828,7 @@ main(int argc, char** argv)
         { "loc", RSCACHE_TYPE_LOC, visit_loc },
         { "obj", RSCACHE_TYPE_OBJ, visit_obj },
         { "npc", RSCACHE_TYPE_NPC, visit_npc },
+        { "sequence", RSCACHE_TYPE_SEQUENCE, visit_sequence },
     };
 
     printf("rs2 sweep (root %s)\n", root);

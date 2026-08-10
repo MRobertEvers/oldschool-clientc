@@ -2059,25 +2059,6 @@ struct Mock230PlayerArea
     int loaded_count;
 
     /**
-     * The npcs and players standing in `zones` and within view — the candidate
-     * sets NPC_INFO and PLAYER_INFO add from.
-     *
-     * Bounded by what the wire can carry rather than by what the world holds,
-     * which is the whole reason a world roster of 23,139 npcs needs no ceiling
-     * of its own: a client is only ever told about its own zones, and a 7x7
-     * zone window cannot hold more npcs than the stream's own 255.
-     *
-     * The view radius is applied while collecting rather than afterwards. A
-     * filter applied after would let these fill with npcs 20 tiles away and
-     * drop ones at 5 — unreachable while the roster was 63 npcs and ordinary
-     * now.
-     */
-    int npcs[MOCK230_AREA_NPC_MAX];
-    int npc_count;
-    int players[MOCK230_AREA_PLAYER_MAX];
-    int player_count;
-
-    /**
      * The build-area origin the window was last computed against.
      *
      * The window is a function of TWO things — the player's zone and the build

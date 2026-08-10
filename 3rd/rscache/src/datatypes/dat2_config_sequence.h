@@ -51,6 +51,10 @@ struct RSCache_Dat2ConfigSequence
     char* debug_name;
     /** V3 opcode 19 — sounds audible across worlds. */
     bool sounds_cross_world_view;
+    /** RS2 rev-530 opcode 14. Its client meaning is unknown, but the bare flag
+     *  is retained so a decoded record can be represented without pretending
+     *  it is the later opcode-14 Maya/sound structure. */
+    bool rs2_530_sound_flag;
     struct RSCache_Dat2ConfigFrameSoundMap frame_sounds; // Map of frame index to sound data
 
     /** Bytes consumed by the last decode, set on reaching the terminating opcode 0.
@@ -77,6 +81,9 @@ struct RSCache_Dat2ConfigSequence
 #define RSCACHE_CODEC_SEQUENCE_V1 1
 #define RSCACHE_CODEC_SEQUENCE_V2 2
 #define RSCACHE_CODEC_SEQUENCE_V3 3
+/** RS2 rev 530: opcode 13 is a u16-count nested sound table and opcode 14 is
+ *  a payload-free flag. This predates, but is not wire-compatible with, V1. */
+#define RSCACHE_CODEC_SEQUENCE_RS2_530 4
 
 /** Archive revision at which the frame-sound record split (game rev 220). */
 #define RSCACHE_SEQUENCE_ARCHIVE_REV_220 1141
@@ -122,7 +129,7 @@ RSCache_Dat2ConfigSequenceEncode(
     uint32_t out_capacity);
 
 /** As RSCache_Dat2ConfigSequenceEncode, for callers that already know the codec
- *  version (RSCACHE_CODEC_SEQUENCE_V1..V3). */
+ *  version (RSCACHE_CODEC_SEQUENCE_V1..V3 or RS2_530). */
 uint32_t
 RSCache_Dat2ConfigSequenceEncodeCodec(
     const struct RSCache_Dat2ConfigSequence* def,

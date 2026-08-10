@@ -194,15 +194,31 @@ RSCache_Dat2FramemapEncodeBound(const struct RSCache_Dat2Framemap* def)
 {
     if( !def )
         return 0;
+    int codec = def->has_masks ? RSCACHE_CODEC_FRAMEMAP_V3 :
+                def->has_transform_actor ? RSCACHE_CODEC_FRAMEMAP_V2 :
+                                           RSCACHE_CODEC_FRAMEMAP_V1;
+    return RSCache_Dat2FramemapEncodeBoundCodec(def, codec);
+}
+
+uint32_t
+RSCache_Dat2FramemapEncodeBoundCodec(
+    const struct RSCache_Dat2Framemap* def,
+    int codec_version)
+{
+    if( !def )
+        return 0;
+    if( codec_version < RSCACHE_CODEC_FRAMEMAP_V1 ||
+        codec_version > RSCACHE_CODEC_FRAMEMAP_V3 )
+        return 0;
 
     /* 1 length byte, then a type byte and a group-length byte per entry, then one
      * byte per bone in every group. Plus optional actor / masks / tail. */
     uint32_t total = 1u + (uint32_t)def->length * 2u;
     for( int i = 0; i < def->length; i++ )
         total += (uint32_t)def->bone_groups_lengths[i];
-    if( def->has_transform_actor )
+    if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V2 )
         total += (uint32_t)def->length;
-    if( def->has_masks )
+    if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V3 )
         total += (uint32_t)def->length * 2u;
     if( def->tail_size > 0 )
         total += (uint32_t)def->tail_size;
@@ -215,15 +231,33 @@ RSCache_Dat2FramemapEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
+    if( !def )
+        return 0;
+    int codec = def->has_masks ? RSCACHE_CODEC_FRAMEMAP_V3 :
+                def->has_transform_actor ? RSCACHE_CODEC_FRAMEMAP_V2 :
+                                           RSCACHE_CODEC_FRAMEMAP_V1;
+    return RSCache_Dat2FramemapEncodeCodec(def, codec, out, out_capacity);
+}
+
+uint32_t
+RSCache_Dat2FramemapEncodeCodec(
+    const struct RSCache_Dat2Framemap* def,
+    int codec_version,
+    uint8_t* out,
+    uint32_t out_capacity)
+{
     if( !def || !out )
         return 0;
-    if( def->has_transform_actor && !def->transform_actor )
+    if( codec_version < RSCACHE_CODEC_FRAMEMAP_V1 ||
+        codec_version > RSCACHE_CODEC_FRAMEMAP_V3 )
         return 0;
-    if( def->has_masks && !def->masks )
+    if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V2 && !def->transform_actor )
+        return 0;
+    if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V3 && !def->masks )
         return 0;
     if( def->tail_size > 0 && !def->tail )
         return 0;
-    if( out_capacity < RSCache_Dat2FramemapEncodeBound(def) )
+    if( out_capacity < RSCache_Dat2FramemapEncodeBoundCodec(def, codec_version) )
         return 0;
 
     struct RSCache_Buffer buffer;
@@ -237,13 +271,13 @@ RSCache_Dat2FramemapEncode(
     for( int i = 0; i < def->length; i++ )
         p1(&buffer, def->types[i]);
 
-    if( def->has_transform_actor )
+    if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V2 )
     {
         for( int i = 0; i < def->length; i++ )
             p1(&buffer, def->transform_actor[i]);
     }
 
-    if( def->has_masks )
+    if( codec_version >= RSCACHE_CODEC_FRAMEMAP_V3 )
     {
         for( int i = 0; i < def->length; i++ )
             p2(&buffer, def->masks[i]);

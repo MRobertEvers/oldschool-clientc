@@ -3130,6 +3130,8 @@ mock230_send_player_info(struct Mock230Player* player)
     int queued_new[MOCK230_PLAYER_MAX + 1];
     int queued_count = 0;
     int kept[MOCK230_PLAYER_MAX];
+    int nearby[MOCK230_PLAYER_MAX];
+    int nearby_count;
     int kept_count = 0;
 
     open_packet(&buf, 4096);
@@ -3445,9 +3447,11 @@ mock230_send_player_info(struct Mock230Player* player)
      * liveness tests — but it now decides over candidates that are, by
      * construction, in a zone this client holds.
      */
-    for( int i = 0; i < player->area.player_count; i++ )
+    nearby_count = mock230_area_players(player, MOCK230_PLAYER_VIEW_TILES, nearby,
+                                        MOCK230_PLAYER_MAX);
+    for( int i = 0; i < nearby_count; i++ )
     {
-        int pid = player->area.players[i];
+        int pid = nearby[i];
         struct Mock230Player* other = &srv->players[pid];
         int dx;
         int dz;
@@ -3857,6 +3861,8 @@ mock230_send_npc_info(struct Mock230Player* player)
      * so remember that order while writing the bits. queued_force_face marks
      * enter-view slots that must re-emit a latched FACE_ENTITY. */
     int queued[MOCK230_TRACKED_NPC_MAX];
+    int nearby[MOCK230_TRACKED_NPC_MAX];
+    int nearby_count;
     int queued_force_face[MOCK230_TRACKED_NPC_MAX];
     int queued_count = 0;
     int kept[MOCK230_TRACKED_NPC_MAX];
@@ -3988,9 +3994,11 @@ mock230_send_npc_info(struct Mock230Player* player)
          * mock230_zone_npcs_active: a raw box reaches outside the build area
          * near its edge, and an npc the client has no scene for is placed at a
          * coordinate that does not exist for it. */
-        for( int i = 0; i < player->area.npc_count; i++ )
+        nearby_count = mock230_area_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
+                                         MOCK230_TRACKED_NPC_MAX);
+        for( int i = 0; i < nearby_count; i++ )
         {
-            int slot = player->area.npcs[i];
+            int slot = nearby[i];
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx;
             int dz;
@@ -4201,9 +4209,11 @@ mock230_send_npc_info(struct Mock230Player* player)
      */
     /* Same query as the v5 path above, and it has to be the same: the two
      * encoders differ in how they spell an add, not in who is addable. */
-    for( int i = 0; i < player->area.npc_count; i++ )
+    nearby_count = mock230_area_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
+                                     MOCK230_TRACKED_NPC_MAX);
+    for( int i = 0; i < nearby_count; i++ )
     {
-        int slot = player->area.npcs[i];
+        int slot = nearby[i];
         struct Mock230Npc* npc = &srv->npcs[slot];
         int dx, dz;
         if( !npc->active || player->npc_tracked[slot] )

@@ -565,11 +565,13 @@ tool_port_commit_dat2(
             if( fm )
             {
                 fm->id = dst_id;
-                uint32_t bound = RSCache_Dat2FramemapEncodeBound(fm);
+                int dst_codec = RSCache_Dat2FramemapCodecVersion(&dst->profile);
+                uint32_t bound = RSCache_Dat2FramemapEncodeBoundCodec(fm, dst_codec);
                 uint8_t* enc = malloc(bound);
                 if( enc )
                 {
-                    uint32_t n = RSCache_Dat2FramemapEncode(fm, enc, bound);
+                    uint32_t n =
+                        RSCache_Dat2FramemapEncodeCodec(fm, dst_codec, enc, bound);
                     if( n )
                         RSCache_Dat2EditPutArchive(edit, skel_table, dst_id, enc, n);
                     free(enc);

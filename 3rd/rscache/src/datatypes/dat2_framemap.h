@@ -167,9 +167,24 @@ RSCache_Dat2FramemapEncode(
     uint8_t* out,
     uint32_t out_capacity);
 
+/** Encode for an explicit destination wire format. Arrays introduced after
+ *  that format are intentionally omitted; required arrays must be present. */
+uint32_t
+RSCache_Dat2FramemapEncodeCodec(
+    const struct RSCache_Dat2Framemap* def,
+    int codec_version,
+    uint8_t* out,
+    uint32_t out_capacity);
+
 /** Exact output size for RSCache_Dat2FramemapEncode. */
 uint32_t
 RSCache_Dat2FramemapEncodeBound(const struct RSCache_Dat2Framemap* def);
+
+/** Exact output size for RSCache_Dat2FramemapEncodeCodec. */
+uint32_t
+RSCache_Dat2FramemapEncodeBoundCodec(
+    const struct RSCache_Dat2Framemap* def,
+    int codec_version);
 
 void
 RSCache_Dat2FramemapFree(struct RSCache_Dat2Framemap* framemap);

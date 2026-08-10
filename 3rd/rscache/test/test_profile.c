@@ -63,6 +63,19 @@ test_named_profiles(void)
     RSCACHE_CHECK_EQ(cache.quirks, 0u);
     RSCACHE_CHECK(RSCache_IsOsrs(&cache));
 
+    RSCACHE_CHECK(RSCache_ProfileByName("rs530", &cache));
+    RSCACHE_CHECK_EQ(cache.game, RSCACHE_GAME_RS2);
+    RSCACHE_CHECK_EQ(cache.epoch, RSCACHE_EPOCH_DAT2);
+    RSCACHE_CHECK_EQ(cache.revision, 530);
+    RSCACHE_CHECK_EQ(cache.quirks, 0u);
+    RSCACHE_CHECK(RSCache_IsRs2Dat2(&cache));
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FrameCodecVersion(&cache), RSCACHE_CODEC_FRAME_V1);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2FramemapCodecVersion(&cache), RSCACHE_CODEC_FRAMEMAP_V3);
+    RSCACHE_CHECK(RSCache_ProfileByName("530", &cache));
+    RSCACHE_CHECK_EQ(cache.revision, 530);
+
     RSCACHE_CHECK(RSCache_ProfileByName("643", &cache));
     RSCACHE_CHECK_EQ(cache.game, RSCACHE_GAME_RS2);
     RSCACHE_CHECK_EQ(cache.epoch, RSCACHE_EPOCH_DAT2);
@@ -107,6 +120,12 @@ test_profile_for_identity(void)
     /* RS2 dat2 exact match borrows loc codec pin. */
     cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 643, 0);
     RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_LOC], RSCACHE_CODEC_LOC_RS2);
+
+    /* The 530 row preserves its critical boundary: skeleton V3, frame V1. */
+    cache = RSCache_ProfileForIdentity(RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, 0);
+    RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_FRAMEMAP], RSCACHE_CODEC_FRAMEMAP_V3);
+    RSCACHE_CHECK_EQ(cache.codec[RSCACHE_TYPE_FRAME], RSCACHE_CODEC_AUTO);
+    RSCACHE_CHECK_EQ(RSCache_Dat2FrameCodecVersion(&cache), RSCACHE_CODEC_FRAME_V1);
 }
 
 static void
@@ -342,6 +361,32 @@ test_font_metrics_codec_version(void)
         RSCache_Dat2FontMetricsCodecVersion(&kronos), RSCACHE_CODEC_FONT_METRICS_V1);
 }
 
+static void
+test_rs2_config_codec_boundaries(void)
+{
+    RSCACHE_TEST_GROUP("RS2 config codec boundaries");
+
+    struct RSCache rs530 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 530, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigSequenceCodecVersion(&rs530), RSCACHE_CODEC_SEQUENCE_RS2_530);
+    RSCACHE_CHECK_EQ(RSCache_Dat2ConfigObjCodecVersion(&rs530), RSCACHE_CODEC_OBJ_RS2_530);
+
+    /* Slice 2b is a profile pin, not a branch-wide inference. These assertions
+     * are the 634/727 A/B guard: their selected codecs must remain unchanged. */
+    struct RSCache rs634 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 634, RSCACHE_QUIRK_VOID_RS634_NO_XTEAS);
+    struct RSCache rs727 = RSCache_ProfileForIdentity(
+        RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 727, RSCACHE_QUIRK_NONE);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigSequenceCodecVersion(&rs634), RSCACHE_CODEC_SEQUENCE_V3);
+    RSCACHE_CHECK_EQ(RSCache_Dat2ConfigObjCodecVersion(&rs634), RSCACHE_CODEC_OBJ_DEFAULT);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigSequenceCodecVersion(&rs727), RSCACHE_CODEC_SEQUENCE_V3);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigObjCodecVersion(&rs727), RSCACHE_CODEC_OBJ_RS2_BUILD670);
+}
+
 int
 main(void)
 {
@@ -355,5 +400,6 @@ main(void)
     test_map_locs_encrypted();
     test_loc_flags();
     test_font_metrics_codec_version();
+    test_rs2_config_codec_boundaries();
     return rscache_test_report("profile");
 }

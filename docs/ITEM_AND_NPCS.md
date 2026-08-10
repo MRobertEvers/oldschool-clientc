@@ -268,86 +268,97 @@ be **disjoint**. (Ardougne rather than Varrock: Varrock is 208 tiles from the
 castle and OUT is 224, so 709 Lumbridge npcs are still legitimately standing
 there and the check would read as a bug in the sync.)
 
-### Every client gets its own view: `Mock230PlayerArea`
+### Every client subscribes to the world map: `Mock230PlayerArea`
 
-**How much a client hears about never changed and could not**: NPC_INFO clamps
-adds to ±`MOCK230_NPC_VIEW_TILES` (15) and caps at `MOCK230_TRACKED_NPC_MAX`
-(255); the high-resolution loop iterates `tracked_count`, never `npc_slot_max`.
-Per-client cost is bounded by what the client can see, at 63 npcs in the world
-or at 23,139.
+The world's `Mock230ZoneMap` is authoritative and **unbounded** — every npc, obj
+and player in the game is filed in it, and nothing about it is sized to what one
+client can see. What is bounded is the other end: the 7×7 zone window one client
+subscribes to. Those are two structures, not one structure with a limit on it.
 
-**Which entities it could name was a different question, and nothing owned it.**
-The world has a `Mock230ZoneMap` — zones keyed by packed index, each holding the
-npcs and objs standing in it — and that is the right structure for the *world*.
-There was no equivalent for a *client*. A client's view was four flat arrays
-(`active_zones`, `loaded_zones`, `npc_tracked[]`, `player_tracked[]`), and each
-of the three area packets re-derived its own candidates:
+Before this there was no second structure. A client's view was four flat arrays,
+and each of the three area packets re-derived its own candidates:
 
-| packet | how it found candidates | bounded by |
+| packet | candidates from | bounded by |
 |---|---|---|
-| PLAYER_INFO | walked the whole player pool | a raw ±15 tile test |
+| PLAYER_INFO | a walk of the whole player pool | a raw ±15 tile test |
 | NPC_INFO | `mock230_zone_npcs_near`, a tile box | a raw ±15 tile box |
-| zone flush | walked `active_zones` | the build area |
+| zone flush | a walk of `active_zones` | the build area |
 
-Three answers to one question, so they could disagree — and did. `active_zones`
-is clipped to the 13×13 build area; a tile box is clipped to nothing. Near that
-edge NPC_INFO named npcs standing outside the 104×104 region the client has a
-scene for, and the client was told to place an entity at a coordinate it does
-not have: the same failure mode as a missing SET_NPC_UPDATE_ORIGIN, and as
-quiet. Players had the identical defect, hidden behind `MOCK230_PLAYER_MAX` 8
-making the wrong question cheap to ask.
+Three answers to one question, so they disagreed. Only the zone window is
+clipped to the build area; a tile box is clipped to nothing. Near that edge
+NPC_INFO named npcs standing outside the 104×104 region the client has a scene
+for. It never fired by **one tile** — `maybe_rebuild` re-centres at
+`MOCK230_REBUILD_MARGIN` (16) and the npc view was 15, two constants in two
+files with nothing connecting them.
 
-It never fired for npcs, by **one tile**: `maybe_rebuild` re-centres once the
-player is within `MOCK230_REBUILD_MARGIN` (16) tiles of an edge, and the view is
-15. Two constants in two files with nothing connecting them.
-
-So the per-client view is now a structure — `struct Mock230PlayerArea`, one per
-player:
+`struct Mock230PlayerArea` is the missing half:
 
 ```c
 int zones[MOCK230_ZONE_ACTIVE_MAX];  int zone_count;   /* the subscription */
 int loaded[MOCK230_ZONE_ACTIVE_MAX]; int loaded_count; /* state already sent  */
-int npcs[MOCK230_TRACKED_NPC_MAX];   int npc_count;    /* who is in them      */
-int players[MOCK230_PLAYER_MAX];     int player_count;
+int built_zone_x, built_zone_z;                        /* the clip it assumed */
 ```
 
-`mock230_area_refresh` fills it once per tick in **phase 8**, immediately after
-the map reconciles membership, and all three encoders read it. Four things fell
-out of writing it down:
+**The list is maintained; the entities in it are not.** That split is the whole
+design:
+
+- The window changes only when the player crosses a zone boundary, and then
+  only at its edges — 7 columns leave, 7 enter, 42 are untouched. So
+  `mock230_area_move` is a set difference, runs in phase 8, and costs two
+  compares for a player who has not changed zone. `window_holds` is the one
+  place the window's shape is written down.
+- What is *standing* in those zones changes constantly, so the packet builders
+  walk the list when they need to know. `mock230_area_npcs` /
+  `mock230_area_players` apply the plane and the view radius while collecting —
+  filtering afterwards would let the result fill with entities 20 tiles away and
+  drop ones at 5, unreachable at 63 npcs and ordinary at 23,139.
+
+**Materialising the entity lists was tried and reverted.** Pushing membership
+changes from the map into each subscriber is faster in principle and fails
+silently in practice: a push that never arrives leaves a client missing an npc
+standing in front of it with nothing anywhere to say so. Building it surfaced
+three real bugs (below), and then the walk turned out to cost a few hundred hash
+probes per tick at `MOCK230_PLAYER_MAX` clients — so the version that cannot be
+stale won. The bugs were kept.
+
+Five things fell out, and three were latent defects:
 
 - **Players joined the ZoneMap.** Zones tracked npcs and objs and not players,
-  which is why PLAYER_INFO had to scan the pool. `mock230_zone_sync_players`
-  files them beside the others, and `refile`'s `is_npc` boolean became
-  `enum Mock230ZoneKind`.
-- **The refresh moved ahead of the entity streams.** It used to happen inside
-  `mock230_zone_update_player`, which runs *after* both of them in
-  `phase_client_out`, so a player who changed zone this tick had their adds
-  judged against last tick's window.
-- **The collector trusts the entity's tile, not its filing.** Membership and
-  position agree right after the sync, and "right after" is a fact about one
-  call site rather than a property of the function. An entity whose filing is
-  stale is skipped rather than listed under a zone it has left.
-- **`zone_index` vs `zone_filed`.** Players now have both and they are
-  opposites: the window latch is reset to -1 on every scene rebuild, so filing
-  off it would unfile the player on every rebuild and never re-file them.
+  which is why PLAYER_INFO had to scan the pool. `refile`'s `is_npc` boolean
+  became `enum Mock230ZoneKind`.
+- **The window depends on the build area too**, not just the player's zone.
+  Re-centring the scene moves the clip under a standing player. Every re-centre
+  happens to call `mock230_zone_player_reset`, so it worked by accident;
+  `built_zone_x`/`built_zone_z` make the dependency the thing that is checked.
+- **`npc_spawn` now unfiles the slot it is about to reuse**, which
+  `mock230_zone.h` has always asked pool allocators to do. Every path that frees
+  an npc clears `active` and not all of them refile; the tick's reconcile papers
+  over that because it only sees the end state, and cannot when a slot is freed
+  and re-handed inside one tick. This was live — a retired roster npc sat in a
+  client's view under the *next* spawn's identity.
+- **Logout clears the subscription.** A pid is a pool index, so a subscription
+  left behind is inherited by whoever logs into that slot next.
+- **`zone_index` vs `built_zone_*`.** The first is the "have I moved" latch,
+  reset to -1 on every scene rebuild; the second is what the window was clipped
+  against. Conflating them is how a stale window survives a re-centre.
 
-A compile-time assertion states `MOCK230_NPC_VIEW_TILES < MOCK230_REBUILD_MARGIN`
-so the margin cannot silently close.
+A compile-time assertion states
+`MOCK230_NPC_VIEW_TILES < MOCK230_REBUILD_MARGIN` so the margin cannot silently
+close.
 
-`mock230 selftest: NPC_INFO tracks only the player's own zones` asserts three
-things — everything the area lists stands in a zone the area subscribes to,
-everything in it is on the player's own plane (the subscription spans all four
-planes on purpose, the entity streams do not), and everything the client ends up
-*tracking* is inside the build area. It has to **build** the edge rather than
-walk to one, because a player who walks there is re-centred first.
+`mock230 selftest: NPC_INFO tracks only the player's own zones` asserts that
+everything the area yields stands in a zone it subscribes to and is on the
+player's plane, and that everything the client ends up *tracking* is inside the
+build area. It has to **build** the edge case rather than walk to one, because a
+player who walks to the boundary is re-centred before the view can overhang.
+Every check was verified by mutating the implementation:
 
-Each check was verified by mutation:
-
-| mutation | result |
+| mutation | what the suite said |
 |---|---|
-| drop the build-area clip in `rebuild_active` | `FAIL … inside the build area …, 9 do not` |
-| drop the plane filter in `mock230_area_refresh` | `FAIL and on the player's own plane, 1 do not` |
-| (before the refactor) use `mock230_zone_npcs_near` | `FAIL … 14 of 29 do not` |
+| drop the build-area clip in `window_holds` | `inside the build area the client has a scene for, 2 do not` |
+| drop the plane filter in `area_entities` | `on the player's own plane, 1 do not` |
+| never drop a zone leaving the window | `the same packet re-adds him, so the client still holds him` |
+| (pre-refactor) `mock230_zone_npcs_near` | `every tracked npc should stand in a zone the player holds, 14 of 29 do not` |
 
 ### What the wire actually limits
 

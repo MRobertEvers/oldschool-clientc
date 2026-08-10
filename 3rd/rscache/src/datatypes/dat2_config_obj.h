@@ -11,6 +11,8 @@
 struct RSCache_Dat2ConfigObj
 {
     int _id;
+    /** Bytes consumed by the last decode, including opcode 0 on success. */
+    int _consumed;
 
     // Null terminated strings
     char* name;
@@ -93,6 +95,11 @@ struct RSCache_Dat2ConfigObj
     int bought_id;
     int bought_template_id;
 
+    /** RS2 rev-530 opcode 96 and lending links (121/122). */
+    int item_type;
+    int lend_id;
+    int lend_template_id;
+
     int placeholder_id;
     int placeholder_template_id;
 
@@ -123,6 +130,8 @@ struct RSCache_Dat2ConfigObj
  * dat2_config_loc.h.
  */
 #define RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670 16
+/** RS2 rev 530 exact item opcode stream. */
+#define RSCACHE_CONFIG_OBJ_DECODE_RS2_530 32
 
 /*
  * Codec versions. A field that merely got wider is absorbed by
@@ -132,6 +141,8 @@ struct RSCache_Dat2ConfigObj
 #define RSCACHE_CODEC_OBJ_DEFAULT 1
 /** RS2 build 670+: varuint model ids and the later opcode set. */
 #define RSCACHE_CODEC_OBJ_RS2_BUILD670 2
+/** RS2 rev 530: bare 23/25 model ids plus opcodes 96 and 121-130. */
+#define RSCACHE_CODEC_OBJ_RS2_530 3
 
 /** Which obj codec this cache uses. */
 int

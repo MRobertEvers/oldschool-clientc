@@ -252,19 +252,19 @@ The slice none of the designs proposed and the right first move: it settles the 
 exercises the overlay and membership mechanisms on trivial records, proves the CS2 compile gate,
 proves byte-identity, and produces a screenshot — all before a single model is transcoded.
 
-- [ ] `pack/stat.pack` += `23=sailing`, `24=summoning`
-- [ ] `MOCK230_STAT_COUNT` 23 → 25 (`src/net/mock/mock230.h:558`; 40 call sites, all bounds or
+- [x] `pack/stat.pack` += `23=sailing`, `24=summoning`
+- [x] `MOCK230_STAT_COUNT` 23 → 25 (`src/net/mock/mock230.h:558`; 40 call sites, all bounds or
       array sizes; `stat_dirty` is `uint32_t`, 25 bits fits; `mock230_save.c` is id-keyed ini so
       saves stay forward/backward compatible)
-- [ ] Cache overlay: `enum_681` `val=25,24` (**keys must stay contiguous** — a hole silently
+- [x] Cache overlay: `enum_681` `val=25,24` (**keys must stay contiguous** — a hole silently
       truncates the roster loop and drops every later skill from Total level), plus `enum_680`,
       `enum_108`, `enum_255`, `enum_5917`, `enum_1497`, `enum_1505`
-- [ ] `interfaces/stats.compack` `34=summoning` (**[measured]** the file is 0..33 with `33=tooltip`)
-- [ ] `stats.if` — a 25th cell and the 3×9 grid (per Decision 1, via a dedicated clientscript)
-- [ ] `script_8950.cs2` case 24 + a new `content_restrict_summoning_serverside` varbit
-- [ ] One 25×25 skill icon. **[measured]** `sprites/staticons2_14..17` (ids 229–232) are
+- [x] `interfaces/stats.compack` `34=summoning_stats_cell` (**[measured]** the file is 0..33 with `33=tooltip`)
+- [x] `stats.if` — a 25th cell and the 3×9 grid (per Decision 1, via a dedicated clientscript)
+- [x] `script_8950.cs2` case 24 + a new `content_restrict_summoning_serverside` varbit
+- [x] One 25×25 skill icon. **[measured]** `sprites/staticons2_14..17` (ids 229–232) are
       already-reserved 25×25 blanks with `pack.meta` and no BMP
-- [ ] Regression assertion that combat level does **not** move
+- [x] Regression assertion that combat level does **not** move
 
 **No ServerScript compiler change is needed** — `ssc_compile.c:755-771` gives `STAT*` opcodes
 `base_hint = SSC_SYM_STAT`, so `stat_base(summoning)` / `stat_advance(summoning, …)` resolve the
@@ -284,6 +284,13 @@ Prefix everything `summoning_*` and add a `mock230_pack --check-only` rule that 
 it → survives logout → total level includes it → flag off hides it → flag-off bake proven
 byte-identical. Four BMPs.
 
+**Verified:** `make -C src test-summoning-phase1 PLATFORM_OBJ_BASE=build_summoning` performs 28
+non-skipped checks and leaves the four BMPs plus logs in `build/summoning-phase1/`. The flag-on
+totals are 34 at level 1 and 53 at level 20; the second login restores `24 = 20 44700`; the
+pristine flag-off cache has no stats component 34 and remains total 33. The full mock selftest is
+currently pre-blocked by two failures in the separate dirty NPC-area subscription work
+(`slot=993 type=2862`), after the Summoning combat assertions themselves pass.
+
 ---
 
 ## 7. Phase 2 — Asset import pipeline · ~15–25 d
@@ -293,12 +300,12 @@ cachepack already owns both halves of the destination format (`cp_unpack_npc(ctx
 `ctx->profile` and emits tree text; point the profile at 530 and the same function emits a 530
 record).
 
-- [ ] `3rd/rscache/src/revisions/rev_dat2_rs530.c` + 2 rows in `revisions.c` (~70 LOC)
-- [ ] `SEQUENCE_RS2_530` codec — op 13 u16 count, op 14 bare flag (~120 LOC)
-- [ ] `OBJ_RS2_530` codec — 96/121/122/125-130; 23/25 with no trailing byte (~60 LOC)
-- [ ] `RSCache_Dat2FramemapEncodeCodec` — **fixes the confirmed silent data bug** (~40 LOC). Write
+- [x] `3rd/rscache/src/revisions/rev_dat2_rs530.c` + 2 rows in `revisions.c` (~70 LOC)
+- [x] `SEQUENCE_RS2_530` codec — op 13 u16 count, op 14 bare flag (~120 LOC)
+- [x] `OBJ_RS2_530` codec — 96/121/122/125-130; 23/25 with no trailing byte (~60 LOC)
+- [x] `RSCache_Dat2FramemapEncodeCodec` — **fixes the confirmed silent data bug** (~40 LOC). Write
       a test that fails on today's code first
-- [ ] Sharded RS2 config reader — lift the `cp_common.c:58` refusal (~80 LOC)
+- [x] Sharded RS2 config reader — lift the `cp_common.c:58` refusal (~80 LOC)
 - [ ] `cachepack import` — manifest, closure walk, id remap, tree writer, ledger (~1,600 LOC)
 - [ ] `anim_compare --b-cache/--b-rev/--b-seq/--b-model` (~200 LOC)
 - [ ] `pack/{obj,seq,spotanim}.client` + `content.ini` membership blocks

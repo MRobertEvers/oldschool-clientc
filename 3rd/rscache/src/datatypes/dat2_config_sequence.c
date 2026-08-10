@@ -378,6 +378,126 @@ handle_frame_sounds_226_plus(
     }
 }
 
+/*
+ * RuneScape rev 530's sequence stream is not RuneLite's later "V1" stream.
+ * The scalar/frame opcodes 1..12 match, but opcode 13 is the nested table from
+ * 2009scape's AnimationDefinition: u16 frame count, then for each frame a u8
+ * sound count, one packed u24 sound and (when count > 1) u16 extra sound ids.
+ * Opcode 14 is a bare flag. Treating 530 as V1 reads the high byte of the u16
+ * count as the count and immediately desynchronises the record.
+ */
+static void
+decode_sequence_rs2_530(
+    struct RSCache_Dat2ConfigSequence* def,
+    struct RSCache_Buffer* buffer)
+{
+    while( buffer->position < buffer->size )
+    {
+        int opcode = g1(buffer);
+        if( opcode == 0 )
+        {
+            def->_consumed = (int)buffer->position;
+            return;
+        }
+
+        switch( opcode )
+        {
+        case 1:
+        {
+            int count = g2(buffer);
+            def->frame_count = count;
+            def->frame_lengths = calloc((size_t)count, sizeof(int));
+            def->frame_ids = calloc((size_t)count, sizeof(int));
+            for( int i = 0; i < count; i++ )
+                def->frame_lengths[i] = g2(buffer);
+            for( int i = 0; i < count; i++ )
+                def->frame_ids[i] = g2(buffer);
+            for( int i = 0; i < count; i++ )
+                def->frame_ids[i] += g2(buffer) << 16;
+            break;
+        }
+        case 2:
+            def->frame_step = g2(buffer);
+            break;
+        case 3:
+        {
+            int count = g1(buffer);
+            def->interleave_leave = calloc((size_t)count + 1, sizeof(int));
+            for( int i = 0; i < count; i++ )
+                def->interleave_leave[i] = g1(buffer);
+            def->interleave_leave[count] = 9999999;
+            break;
+        }
+        case 4:
+            def->stretches = true;
+            break;
+        case 5:
+            def->forced_priority = g1(buffer);
+            break;
+        case 6:
+            def->left_hand_item = g2(buffer);
+            break;
+        case 7:
+            def->right_hand_item = g2(buffer);
+            break;
+        case 8:
+            def->max_loops = g1(buffer);
+            break;
+        case 9:
+            def->precedence_animating = g1(buffer);
+            break;
+        case 10:
+            def->priority = g1(buffer);
+            break;
+        case 11:
+            def->reply_mode = g1(buffer);
+            break;
+        case 12:
+        {
+            int count = g1(buffer);
+            def->chat_frame_id_count = count;
+            def->chat_frame_ids = calloc((size_t)count, sizeof(int));
+            for( int i = 0; i < count; i++ )
+                def->chat_frame_ids[i] = g2(buffer);
+            for( int i = 0; i < count; i++ )
+                def->chat_frame_ids[i] += g2(buffer) << 16;
+            break;
+        }
+        case 13:
+        {
+            int frame_count = g2(buffer);
+            for( int frame = 0; frame < frame_count; frame++ )
+            {
+                int sound_count = g1(buffer);
+                if( sound_count <= 0 )
+                    continue;
+
+                struct RSCache_Dat2ConfigFrameSound sound = { 0 };
+                decode_frame_sound_v1(&sound, buffer);
+                if( sound.id >= 1 && sound.loops >= 1 )
+                    add_frame_sound(&def->frame_sounds, frame, sound);
+
+                /* The public structure stores one sound per frame. Preserve the
+                 * first and consume the remaining ids to keep exact alignment. */
+                for( int i = 1; i < sound_count; i++ )
+                    g2(buffer);
+            }
+            break;
+        }
+        case 14:
+            def->rs2_530_sound_flag = true;
+            break;
+        default:
+            /* Unknown payload width: stop at the opcode rather than turning a
+             * payload byte into a false terminator. */
+            def->_consumed = (int)buffer->position;
+            return;
+        }
+    }
+
+    def->_consumed = (int)buffer->position;
+}
+
 static void
 decode_sequence_v1(
     struct RSCache_Dat2ConfigSequence* def,
@@ -843,6 +963,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
     RSCache_BufferInit(&buffer, out, out_capacity);
 
     bool is_v3 = codec_version == RSCACHE_CODEC_SEQUENCE_V3;
+    bool is_rs2_530 = codec_version == RSCACHE_CODEC_SEQUENCE_RS2_530;
 
     /*
      * The opcode *numbers* move between eras, not just the record shapes:
@@ -942,7 +1063,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
             p2(&buffer, (def->chat_frame_ids[i] >> 16) & 0xFFFF);
     }
 
-    if( def->anim_maya_id != 0 )
+    if( !is_rs2_530 && def->anim_maya_id != 0 )
     {
         p1(&buffer, opcode_maya_id);
         p4(&buffer, def->anim_maya_id);
@@ -952,7 +1073,28 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
     {
         p1(&buffer, opcode_sounds);
 
-        if( is_v3 )
+        if( is_rs2_530 )
+        {
+            /* Rev 530 uses a u16 outer count and a u8 count per frame. The
+             * structure retains one sound per frame, so emit that canonical
+             * representable subset. */
+            int highest = frame_sound_highest_frame(&def->frame_sounds);
+            int count = highest + 1;
+            p2(&buffer, count);
+            for( int frame = 0; frame < count; frame++ )
+            {
+                const struct RSCache_Dat2ConfigFrameSound* sound =
+                    frame_sound_for_frame(&def->frame_sounds, frame);
+                p1(&buffer, sound ? 1 : 0);
+                if( sound )
+                {
+                    int bits = (sound->id << 8) | ((sound->loops & 7) << 4) |
+                               (sound->location & 15);
+                    p3(&buffer, bits);
+                }
+            }
+        }
+        else if( is_v3 )
         {
             /* v3 stores the frame explicitly, so only real entries are written. */
             p2(&buffer, def->frame_sounds.count);
@@ -1001,7 +1143,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
         }
     }
 
-    if( def->anim_maya_start != 0 || def->anim_maya_end != 0 )
+    if( !is_rs2_530 && (def->anim_maya_start != 0 || def->anim_maya_end != 0) )
     {
         p1(&buffer, opcode_maya_range);
         p2(&buffer, def->anim_maya_start);
@@ -1016,7 +1158,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
         p1b(&buffer, def->vertical_offset);
     }
 
-    if( def->anim_maya_masks )
+    if( !is_rs2_530 && def->anim_maya_masks )
     {
         int count = 0;
         for( int i = 0; i < 256; i++ )
@@ -1034,7 +1176,7 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
         }
     }
 
-    if( def->debug_name )
+    if( !is_rs2_530 && def->debug_name )
     {
         p1(&buffer, 18);
         pjstr(&buffer, def->debug_name, RSCACHE_JSTR_TERMINATOR_NULL);
@@ -1042,6 +1184,8 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
 
     if( is_v3 && def->sounds_cross_world_view )
         p1(&buffer, 19);
+    if( is_rs2_530 && def->rs2_530_sound_flag )
+        p1(&buffer, 14);
 
     p1(&buffer, 0);
     return buffer.position;
@@ -1123,6 +1267,9 @@ decode_sequence_codec(
 {
     switch( codec_version )
     {
+    case RSCACHE_CODEC_SEQUENCE_RS2_530:
+        decode_sequence_rs2_530(def, buffer);
+        break;
     case RSCACHE_CODEC_SEQUENCE_V1:
         decode_sequence_v1(def, buffer);
         break;
