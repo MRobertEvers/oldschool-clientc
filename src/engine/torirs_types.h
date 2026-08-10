@@ -124,6 +124,10 @@ struct ToriRS_Texture
     int width;
     int height;
     bool opaque;
+    /* Per-texel alpha in the top byte of each texel, rather than the stock
+     * colour key. Set only by the extended texture record; see
+     * RSCACHE_TEXTURE_V2_ALPHA_BYTE. */
+    bool alpha_blended;
     int animation_direction;
     int animation_speed;
     int average_hsl;

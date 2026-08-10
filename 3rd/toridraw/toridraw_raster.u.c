@@ -391,6 +391,20 @@ ToriDraw_RasterModelFace(
     else
         texture_id = -1;
 
+    /* #region agent log */
+    /* TORIDRAW_SKIP_TEXTURED=1: drop every textured face instead of drawing it.
+     * A bisect knob for docs/qbd_toridraw_streaks_debug.md - it answers whether
+     * a given artifact comes from the textured span path or from
+     * gouraud/flat, without having to reason about which faces are which. */
+    {
+        static int skip_textured = -1;
+        if( skip_textured < 0 )
+            skip_textured = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
+        if( skip_textured && texture_id != -1 )
+            return;
+    }
+    /* #endregion */
+
     if( texture_id != -1 )
     {
         if( texture_id == ctx->cache_texture_id )
@@ -503,6 +517,11 @@ ToriDraw_RasterModelFace(
                 dbg->drawn_flat++;
             else
                 dbg->drawn_gouraud++;
+            /* Gouraud faces only. A flat face carries TORIDRAWHSL16_FLAT
+             * (0xFF7F) in color_c as a selector, not a colour, so including
+             * them pinned this at 65407 for every model and hid the real
+             * spread. */
+            if( type != FACE_TYPE_FLAT && color_c != TORIDRAWHSL16_FLAT )
             {
                 int const dab = abs(color_a - color_b);
                 int const dbc = abs(color_b - color_c);
@@ -536,6 +555,7 @@ ToriDraw_RasterModelFace(
                     ctx->colors_c,
                     ctx->face_alphas_nullable,
                     ctx->near_plane_z,
+                    ctx->camera_cot16,
                     ctx->offset_x,
                     ctx->offset_y,
                     ctx->stride,
@@ -563,6 +583,7 @@ ToriDraw_RasterModelFace(
                     ctx->colors_c,
                     ctx->face_alphas_nullable,
                     ctx->near_plane_z,
+                    ctx->camera_cot16,
                     ctx->offset_x,
                     ctx->offset_y,
                     ctx->stride,
@@ -591,6 +612,7 @@ ToriDraw_RasterModelFace(
                 ctx->colors_a,
                 ctx->face_alphas_nullable,
                 ctx->near_plane_z,
+                ctx->camera_cot16,
                 ctx->offset_x,
                 ctx->offset_y,
                 ctx->stride,

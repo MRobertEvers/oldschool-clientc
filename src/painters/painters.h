@@ -229,6 +229,11 @@ enum PaintersElementKind
     PNTRELEM_GROUND_OBJECT,
 };
 
+/** Widest loc footprint the painter tracks, per axis. Bounded by the uint8_t
+ *  fields on NormalScenery; the largest real content is the rs2012 QBD arena
+ *  floor at 20 tiles. */
+#define PAINTER_SCENERY_MAX_SIZE 255
+
 /** Flags on NormalScenery — draw-order hints for stacked locs / raised ground items. */
 enum PaintersSceneryFlags
 {
@@ -248,8 +253,21 @@ enum PaintersSceneryFlags
 struct NormalScenery
 {
     uint16_t entity;
-    uint8_t size_x : 4;
-    uint8_t size_z : 4;
+    /*
+     * Tile footprint, 1..PAINTER_SCENERY_MAX_SIZE.
+     *
+     * These were 4-bit fields, which silently clamped anything wider than 15.
+     * A clamped footprint is not a cosmetic loss: compute_normal_scenery_spans
+     * derives each covered tile's span flags from the clamped maximum, so the
+     * loc stops waiting on the ground of the tiles past the cut and emits
+     * early. The ground beyond then paints over it - a strip of terrain lying
+     * on top of a floor. The rs2012 QBD arena floor (12x18 and 20x7 pieces) is
+     * exactly that case; see docs/qbd_toridraw_streaks_debug.md.
+     *
+     * Full bytes land in what was padding, so the struct is the same size.
+     */
+    uint8_t size_x;
+    uint8_t size_z;
     /** Reference Model.minY / bottomY — height above ground for spriteOccluded. */
     uint16_t model_height;
     /** Bitfield of PaintersSceneryFlags. */

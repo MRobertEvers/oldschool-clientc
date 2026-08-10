@@ -48,7 +48,54 @@ activates near-plane / large-projection paths the isolated view never hits.
 | I | SIMD projection wrap (`x_scene * cot15` etc.) | **Not supported as sole cause** | Headless differential: 0 mismatches. Streaks **persist** on `TORIDRAW_NO_SIMD=1` scalar build. Note: UBSan does **not** instrument NEON/SSE. |
 | α | `alpha_blend` signed overflow | **Confirmed + fixed** | UBSan: `15466510 * 175` in `graphics/alpha.h` via gouraud path. Fixed with unsigned arithmetic. |
 | SL | Sharelight adjacency stack overrun | **Confirmed + fixed** | `gather_adjacent_tiles` needed 97 slots for 7×7 footprint; buffer was 96. Capacity now derived from `SHARELIGHT_MAX_ELEMENT_TILES`. |
-| J | Texture span UV scan signed overflow | **Confirmed, not yet fixed** | UBSan abort: `tex.span.scalar.u.c:493` — `u_scan/v_scan += step_*` with values like `-2111117872 + -301868496`. Stack: transparent perspective blend → QBD textured faces. Strongest current lead for streaks. |
+| J | Texture span UV scan signed overflow | **Confirmed + fixed** | UBSan abort: `tex.span.scalar.u.c:493` — `u_scan/v_scan += step_*` with values like `-2111117872 + -301868496`. Stack: transparent perspective blend → QBD textured faces. The overflow turned out to be one of **three** faults in the same V path — see [Root cause: the span V path](#root-cause-the-span-v-path). |
+| J2 | NEON non-v3 spans still `continue` on `w == 0` | **Confirmed + fixed** | `tex.span.neon.u.c` kept the pre-repair block loop the other four ISAs had already fixed: the `continue` skipped the `au/bv/cw` advance **and** `offset += 8`, so one degenerate block leaves every later block writing 8 px left of where it belongs, and a trip on the first block drops the whole span. Live on Apple Silicon; invisible on the `TORIDRAW_NO_SIMD=1` builds used for UBSan. |
+| J3 | v3 **opaque** spans never clamped `u` | **Confirmed + fixed** | All five ISAs' `..._opaque_blend_branching_lerp8_v3_ordered` used a raw `(int)(au * inv_w)` and relied on `u_mask`, so u **wrapped** where the reference clamps, and an out-of-range quotient hit the same undefined float→int conversion as V. The transparent twins clamped correctly — a silent divergence between the two. |
+
+## Root cause: the span V path
+
+The perspective span kernels draw 8 pixels at a time and fit a straight line
+between the exact uv at the block's two endpoints. The reference rasterizer
+(`docs/raster_scanlines_thedaneeffect.txt`) instead divides **per pixel**, and
+clamps `u` to `[7, 16256]` while letting `v` wrap through `v1 & 0x3f80`.
+
+ToriDraw inherited the clamp on u and the wrap on v, but the 8-pixel fit broke
+the wrap in three separate ways. All three only bite when `w` goes small —
+which is exactly what a texture plane passing near the eye does, and what the
+camera sitting inside the QBD's ~4791-unit bounding sphere guarantees.
+
+1. **The float reciprocal loses the bits that matter.** `cur_v = (int)(bv * inv_w)`
+   carries ~24 bits. Only the low `log2(texture_width)` bits of the row index
+   survive `v_mask`, so once `|bv/w|` passes ~2^21 the ulp exceeds one texel row
+   and the sampled row is arbitrary. The fix2 capture's quotients were ~1e7.
+2. **The out-of-range float→int conversion is undefined**, and on x86 yields
+   `INT_MIN` — a whole block pinned to one wrong row.
+3. **`cur_v << texture_shift` and `v_scan += step_v` overflow int.** This is the
+   reported UBSan abort. It is the *symptom* that made the other two findable.
+
+And a fourth, structural: once a block's V delta exceeds a texture tile, the
+straight line is not an approximation of the hyperbola at all. It sweeps the
+texture smoothly where the true mapping jumps — a **smooth ramp instead of
+noise, which is what reads as a streak**. Making the arithmetic merely *defined*
+would have silenced UBSan and left the streaks on screen.
+
+Measured against an exact per-pixel divide, `3rd/toridraw/toridraw_texture_span_uv_test.c`:
+
+| case | HEAD max row error | after | notes |
+|---|---|---|---|
+| `benign-floor` / `benign-wall` | 1 | 1 | ordinary lerp8 error; unchanged |
+| `w-small-bigv` | **64** (max possible) | 0 | ~400/512 px wrong |
+| `w-crosses-zero` (±) | **64** | 0 | ~420/512 px wrong |
+| `w-one`, `huge-bv-w-one` | **64** | 0 | |
+| UBSan `signed-integer-overflow` | **traps** | clean | |
+
+64 is the maximum distance on a 128-row wrapping axis, i.e. the row was not
+merely off — it was uncorrelated with the truth.
+
+> The left-shift-of-negative that `-fsanitize=shift` reports in these kernels is
+> **not** part of this bug. It fires on completely benign geometry, GCC/Clang
+> define it, and `UBSAN_CHECKS` excludes it deliberately. Chasing it is a
+> detour.
 
 ## Fixes landed (keep until visual verification)
 
@@ -71,7 +118,28 @@ activates near-plane / large-projection paths the isolated view never hits.
    `SHARELIGHT_MAX_ELEMENT_TILES` (32); up-front assert; debug log when
    footprint &gt; 6×6.
 
-6. **Build knobs** (`src/makefile`):
+6. **Perspective span uv** — new
+   `3rd/toridraw/graphics/raster/texture/span/tex.span_uv.h` owns the rules:
+   - `tex_span_v_quotient` keeps V exact, using the float reciprocal only
+     inside the range where it still carries the row bits and falling back to
+     an integer divide outside it (cold — the fast path is unchanged).
+   - `tex_span_u_quotient` clamps **in float**, so an out-of-range quotient is
+     never converted.
+   - `tex_span_v_scan_start` folds the row before shifting; `(cur_v << shift) &
+     v_mask` and `(cur_v & (width-1)) << shift` are equal, and the second
+     cannot overflow.
+   - `tex_span_lerp8_v_fits` gates the linear fit on the block moving less than
+     a tile; blocks that fail (and blocks with `w_n == 0`, which have no far
+     endpoint) go through `tex_span_exact_block`, a per-pixel divide matching
+     the reference.
+
+   Applied to all four perspective kernels (`{opaque,transparent}` ×
+   `{lerp8, lerp8_v3}`). Those four functions contain **no intrinsics in any
+   ISA file** — they are scalar control flow around the peer-declared 8-pixel
+   kernels — so they are now byte-identical across `scalar / neon / sse2 /
+   sse41 / avx`. That sync is what closed J2 and J3, which were pure drift.
+
+7. **Build knobs** (`src/makefile`):
    - `TORIDRAW_NO_SIMD=1` → scalar kernels (`_nosimd` objdir).
    - `ENABLE_UBSAN=1` → signed-integer-overflow on ToriDraw (`_ubsan` objdir).
    - Lighting’s shift-of-negative is noisy; UBSan scope was narrowed so it
@@ -167,21 +235,102 @@ overflow alone.
 - Widening the whole raster hot path to 64-bit (explicitly avoided per
   product preference; safe-near + special cases preferred).
 
+## Root cause: RS2012 face render priorities
+
+**Fixed.** The QBD was the only large arena model reporting `has_priorities: 1`
+(the platform and the 8155/2111-face pieces were all pure depth sort).
+
+Face render priorities are a painter's-algorithm crutch: with no depth buffer
+the artist pins a face into a draw band so it lands in front of or behind its
+neighbours regardless of depth. The RS727 client these models came from
+resolved visibility with a **z-buffer**, so their priority bytes never had to
+order anything and do not describe a usable painter order. ToriDraw honoured
+them, which overrode the depth sort — the neck sorted inside-out, near faces
+behind far ones.
+
+`src/engine/proctex/test/rs2012_strip_priorities.c` (`make -C src
+rs2012-strip-priorities`) drops them from the lane's OB3 assets: 504 of 660
+models carried priorities (161 per-face, 343 whole-model). The property travels
+with the content that has it, so OSRS models keep their meaningful priorities.
+
+Note for anyone extending it: the encoder prefers the *provenance's* recorded
+header over anything derived from the model, and rejects a header claiming
+per-face priorities (255) when the array is gone. `header_flags[1]` is that
+byte and has to be cleared too — otherwise 504 of 660 models fail to encode.
+
+Re-pack afterwards; models are assets:
+
+```sh
+make -C src rs2012-strip-priorities && src/build/rs2012_strip_priorities --apply
+make -C src mock230-cache-rs2012
+```
+
+## The grey QBD is not a missing texture
+
+Do not "fix" this by referencing the HD-only materials. It was tried.
+
+The lane bakes 256 materials, but `valid=0` for **204** of them, and
+`rs2012_material_bake` erases the texture on every face naming one — 274,715
+lane faces — falling back to the face's flat HSL colour. That looks like the
+cause of the untextured grey, and it is not: referencing those 204 instead
+renders the arena as **blown-out white shards**, because they are HD-only
+programs whose baked 128×128 approximation is not a diffuse map. The source
+client agrees — `TextureLoader.isSd` selects them out and falls back to the
+face colour, which is exactly what the fallback reproduces.
+
+The materials *are* fully authored and present: 256 sprites (8535–8790), the
+`texture_0` archive, and `port/rs2012_qbd_td.materials.tsv`. The QBD samples
+them (ids inside the baked 211–466 range) with `skip_tex_miss: 0`.
+
+If the encounter should show material detail, the fix is upstream — making
+those materials genuinely SD-usable, or an HD-capable renderer — not disabling
+the fallback. `--no-ground-mesh-fallback` exists only to re-run the experiment.
+
+## Tests
+
+`3rd/toridraw/toridraw_texture_span_uv_test.c` drives each perspective span
+kernel directly and compares the texel every pixel actually sampled against an
+exact per-pixel divide. The texture encodes its own coordinates and the shade is
+the identity multiplier (256), so a framebuffer word decodes straight back to
+the `(u, v)` the kernel sampled.
+
+```sh
+cc -std=c11 -O2 -Wall -Wextra -I3rd/toridraw \
+   -o /tmp/span_uv 3rd/toridraw/toridraw_texture_span_uv_test.c -lm && /tmp/span_uv
+
+# scalar kernels (what TORIDRAW_NO_SIMD=1 builds)
+cc -std=c11 -O2 -Wall -Wextra -I3rd/toridraw \
+   -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 -DSSE2_DISABLED=1 \
+   -o /tmp/span_uv_scalar 3rd/toridraw/toridraw_texture_span_uv_test.c -lm && /tmp/span_uv_scalar
+
+# with the overflow check the live client uses
+cc -std=c11 -O1 -g -I3rd/toridraw \
+   -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 -DSSE2_DISABLED=1 \
+   -fsanitize=signed-integer-overflow -fno-sanitize-recover=all \
+   -o /tmp/span_uv_ubsan 3rd/toridraw/toridraw_texture_span_uv_test.c -lm && /tmp/span_uv_ubsan
+```
+
+`3rd/toridraw/toridraw_scanline_parity_test.c` still passes on scalar / sse2 /
+sse41 / avx2.
+
 ## Next steps (suggested)
 
-1. **Instrument** the transparent lerp8_v3 scanline for `|cur_v|`, `|w|`,
-   `w==0` skip counts, and shift/add overflow-would-happen — confirm whether
-   extreme V quotients correlate with streak frames / platform blanking.
-2. **Fix** the confirmed span overflow with defined modular UV scan arithmetic
-   (unsigned accumulators matching `u_mask`/`v_mask`), and/or reject or
-   saturate blocks when `|B/C|` is pathological near `C≈0`.
-3. Apply the same discipline to sibling NEON/SSE/AVX span twins.
-4. Re-check platform strip separately if it remains after textured-path fix
-   (large flat models ~8509 faces draw with `drawn_textured: 0` in logs —
-   may be a different subsystem than QBD streaks).
-5. Only after interactive visual confirmation: remove `#region agent log`
-   instrumentation; decide whether safe-near stays permanent or is replaced by
-   a screen-space guard-band clipper.
+1. **Visual confirmation in the arena is still outstanding** — everything above
+   is measured against the reference mapping in a harness, not seen on screen.
+   Enter the QBD arena at the angle that showed streaks and check.
+2. Re-check the **platform strip** separately if it remains (large flat models
+   ~8509 faces draw with `drawn_textured: 0` in logs — likely a different
+   subsystem than QBD streaks).
+3. Re-check **floor tiles vanishing**: the `w_n == 0` block that used to be
+   drawn as a fabricated flat gradient is now drawn per pixel, which is the
+   horizon band. If floors changed, this is why.
+4. Only after visual confirmation: remove `#region agent log` instrumentation;
+   decide whether safe-near stays permanent or is replaced by a screen-space
+   guard-band clipper.
+5. `tex.span.{neon,sse2,sse41,avx}.u.c` had silently drifted from `scalar` on
+   these four functions. Worth a lint that asserts they stay identical, since
+   nothing in the build catches an ISA-specific regression on a machine that
+   does not run that ISA.
 
 ## Key files
 

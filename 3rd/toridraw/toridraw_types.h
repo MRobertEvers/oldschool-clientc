@@ -257,6 +257,16 @@ struct ToriDraw_Texture
     int width;
     int height;
     bool opaque;
+    /*
+     * Each texel carries its own alpha in bits 24-31 and is blended over the
+     * framebuffer, instead of the stock colour key where a texel is drawn or
+     * skipped whole.
+     *
+     * Stock content never sets this. It exists for imported material that
+     * varies continuously in alpha, which a colour key can only represent by
+     * thresholding into holes the source never had.
+     */
+    bool alpha_blended;
     int animation_direction;
     int animation_speed;
 };

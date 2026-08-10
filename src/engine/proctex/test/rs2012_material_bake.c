@@ -116,12 +116,44 @@ struct texture_entry
     bool rendered;
     bool source_transparent;
     bool transparent;
+    /*
+     * True when the source has no fully-opaque texels, i.e. it is a continuous
+     * alpha blend layer rather than a diffuse map or a cutout.
+     *
+     * OSRS239 textures carry colour-key transparency, not alpha: a texel is
+     * either drawn or skipped. A cutout survives that (its alpha is already 0
+     * or 255); a blend layer does not, because thresholding a smooth gradient
+     * invents holes that were never in the source. Measured on this lane, the
+     * two are completely separated - every diffuse map is 100% alpha 255, and
+     * every blend layer is 0%.
+     */
+    bool blend_layer;
 };
 
 static struct texture_entry g_textures[MAX_TEXTURES];
 static uint8_t g_reasons[MAX_TEXTURES];
 static struct material_mapping g_mapping[MAX_TEXTURES];
 static int g_ground_mesh_model_faces_fallback;
+
+/*
+ * Faces naming a material whose first RS727 flag is clear have their texture
+ * erased and fall back to the face's flat HSL colour. This is the correct
+ * default and must stay on.
+ *
+ * It strips 274,715 lane faces, which looks like the reason the QBD renders as
+ * untextured grey - but referencing those 204 materials instead was tried and
+ * is worse: the arena renders as blown-out white shards, because they are
+ * HD-only programs whose baked 128x128 approximation is not a diffuse map. The
+ * source client agrees; `TextureLoader.isSd` selects them out and falls back to
+ * the face colour, which is exactly what this reproduces.
+ *
+ * So the grey QBD is not caused by this fallback. If the encounter should show
+ * material detail, the fix is upstream - which materials are classified SD-
+ * usable, or an HD-capable renderer - not disabling this.
+ *
+ * --no-ground-mesh-fallback exists only to re-run that experiment.
+ */
+static bool g_ground_mesh_fallback = true;
 
 static int
 int_compare(const void* lhs, const void* rhs)
@@ -1012,7 +1044,26 @@ prepare_model_outputs(
                  * slot, so port_lostcity must synthesize an average colour.
                  * The baked material remains available for inspection and a
                  * future renderer that carries the full 727 contract. */
-                if( !materials->materials[source].valid )
+                /*
+                 * A blend layer cannot be expressed as an OSRS239 texture.
+                 * Destination textures are colour-keyed - a texel is drawn or
+                 * skipped - so a continuous alpha gradient has to be
+                 * thresholded, which invents holes the source never had. The
+                 * geometry behind then shows through them; on the QBD's neck
+                 * that was the striping.
+                 *
+                 * `valid` does not catch these. The QBD's three materials are
+                 * all valid=1 yet contain no fully-opaque texel at all (alpha
+                 * 255 covers 0.0% of each), while every genuine diffuse map in
+                 * the lane is 100% alpha 255. Both take the flat-colour
+                 * fallback, which is the same thing the source client's SD path
+                 * does with a material it cannot sample.
+                 *
+                 * Note this keeps genuine cutouts: their alpha is already 0 or
+                 * 255, so they key exactly and are not blend layers.
+                 */
+                if( g_ground_mesh_fallback &&
+                    (!materials->materials[source].valid || g_textures[source].blend_layer) )
                 {
                     if( model->face_infos )
                         model->face_infos[face] =
@@ -1101,12 +1152,61 @@ palette_colour(int index)
     return rgb ? rgb : 1;
 }
 
+/* --alpha-report: where the source alpha actually sits, per material.
+ * The destination has colour-key transparency, not alpha, so the shape of this
+ * histogram decides the right conversion: alpha that is almost all 0 or 255 is
+ * a genuine cutout and keys cleanly, while alpha spread through the middle is
+ * a blend the key cannot represent and has to be composited instead. */
+static bool g_alpha_report = false;
+
+static void
+alpha_report(int source)
+{
+    struct texture_entry* entry = &g_textures[source];
+    int zero = 0, low = 0, high = 0, full = 0;
+
+    if( !entry->argb )
+        return;
+    for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
+    {
+        int alpha = (int)(((uint32_t)entry->argb[i]) >> 24);
+        if( alpha == 0 )
+            zero++;
+        else if( alpha < 128 )
+            low++;
+        else if( alpha < 255 )
+            high++;
+        else
+            full++;
+    }
+    printf(
+        "  material %-5d alpha: 0=%5.1f%%  1-127=%5.1f%%  128-254=%5.1f%%  255=%5.1f%%\n",
+        source,
+        100.0 * zero / (BAKE_SIZE * BAKE_SIZE),
+        100.0 * low / (BAKE_SIZE * BAKE_SIZE),
+        100.0 * high / (BAKE_SIZE * BAKE_SIZE),
+        100.0 * full / (BAKE_SIZE * BAKE_SIZE));
+}
+
 static int
 quantize_texture(int source, int32_t* pixels)
 {
+    if( g_alpha_report )
+        alpha_report(source);
     struct texture_entry* entry = &g_textures[source];
     if( !entry->argb ) return 0;
     entry->transparent = false;
+
+    /* A diffuse map or a cutout has fully-opaque texels; a blend layer has
+     * none. See struct texture_entry::blend_layer. */
+    {
+        int opaque = 0;
+        for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
+            if( (((uint32_t)entry->argb[i]) >> 24) == 255 )
+                opaque++;
+        entry->blend_layer = opaque * 2 < BAKE_SIZE * BAKE_SIZE;
+    }
+
     for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
     {
         uint32_t argb = (uint32_t)entry->argb[i];
@@ -1529,6 +1629,10 @@ main(int argc, char** argv)
         if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc ) cache_path = argv[++i];
         else if( strcmp(argv[i], "--tree") == 0 && i + 1 < argc ) to_tree = argv[++i];
         else if( strcmp(argv[i], "--apply") == 0 ) apply = true;
+        else if( strcmp(argv[i], "--no-ground-mesh-fallback") == 0 )
+            g_ground_mesh_fallback = false;
+        else if( strcmp(argv[i], "--alpha-report") == 0 )
+            g_alpha_report = true;
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
         {
             usage(argv[0]);

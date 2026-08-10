@@ -276,22 +276,45 @@ The perimeter seed state is held in a `PainterSeedGen` local on the stack (see b
 
 ### Per-frame setup
 
-A single O(R²·L) loop handles all five initialisation tasks in one pass:
+A single O(R²·L) loop handles all initialisation tasks in one pass:
 - zero `tile_paints` fields (`step`, `queue_count`, `near_wall_flags`),
 - zero `in_heap`,
 - compute Manhattan distance into `dist[]`,
 - classify each tile (`PAINT_STEP_READY` or `PAINT_STEP_DONE`),
-- accumulate `tiles_remaining`.
+- accumulate `tiles_remaining`,
+- **push every READY tile into its distance bucket**.
 
 The perimeter seed generator is initialised lazily on the first queue drain.
+
+#### Why the bulk push (and not a seed-driven cascade)
+
+The whole draw box being in the queue up front is what makes the drain a single
+globally distance-ordered sweep: all four quadrants advance toward the eye together,
+ring by ring, which is the ordering the renderer wants for geometry that straddles a
+quadrant boundary.
+
+Between commits `b8e0fa6e` (2026-06-25) and this one the setup only *counted* ready
+tiles and let the perimeter seed generator drive the traversal one seed per drain,
+copying world3d. Because a tile's ground-pass dependencies all point outward — away
+from the eye, into the same quadrant — the first seed's wave floods its entire
+quadrant before the queue ever drains again. The box then painted **one corner at a
+time**: R² tiles from d=2R down to d≈0, then a jump back out to d≈2R for the next
+corner (4 monotone runs for a full box, verifiable by walking the emitted
+`PNTR_CMD_TERRAIN` distances). The seed generator remains, but only as the liveness
+fallback for tiles a span cycle strands — it is no longer what drives the traversal.
+
+The bulk push costs one extra queue insert per tile: ~6% on a worst-case paint
+(radius 50, 4 levels, 4000 locs: 1.96 → 2.09 ms), nothing on the drawn set.
 
 ### Main loop
 
 ```
 for (;;):
+  // the queue starts holding every READY tile, keyed by distance
   if bucket queue is empty:
     if tiles_remaining == 0: break
-    advance seed_idx until a READY seed is found; push it, set check_adjacent = (phase == 1)
+    // liveness fallback only: a span cycle stranded something
+    advance seed_gen until a READY seed is found; push it, set check_adjacent = (phase == 1)
     if no seed found: break
 
   tile = bucket_pop()          // farthest distance first, LIFO within a bucket

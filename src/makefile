@@ -862,6 +862,18 @@ rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscac
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(LDFLAGS)
 
+.PHONY: rs2012-strip-priorities
+
+# RS2012 models were authored against a z-buffered client, so their face render
+# priorities never ordered anything; honouring them overrides ToriDraw's depth
+# sort. Rewrites the lane's OB3 assets, so re-run mock230-cache-rs2012 after.
+rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_strip_priorities \
+		engine/proctex/test/rs2012_strip_priorities.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
 # Sound end-to-end test: cache -> synth render -> game queue -> platform.
 # Links the SILENT audio backend instead of the SDL2 one (they define the same
 # symbols), so this runs headless with no device.

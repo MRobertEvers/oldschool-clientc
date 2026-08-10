@@ -612,6 +612,72 @@ test_flagged_tile_survives_a_level_mask(void)
     painter_free(p);
 }
 
+/*
+ * The bucket drain is one globally distance-ordered sweep: terrain comes out
+ * farthest-first for the WHOLE box, so all four quadrants advance toward the
+ * eye together.
+ *
+ * The failure this pins is not subtle once measured but invisible in a
+ * screenshot: if the setup pass stops bulk-pushing ready tiles and lets the
+ * perimeter seed generator drive instead, the first seed's wave floods its
+ * entire quadrant (every ground dependency points outward, into the same
+ * quadrant) before the queue drains and the next seed is taken. The box then
+ * paints one corner at a time and the distance sequence restarts at ~2R three
+ * times — a near tile of the first quadrant emitted ahead of a far tile of the
+ * next. See docs/painter_bucket_vs_world3d.md, "Why the bulk push".
+ */
+static void
+test_bucket_emits_one_globally_distance_ordered_sweep(void)
+{
+#define ORDER_SCENE 24
+#define ORDER_CAM 12
+    struct Painter* p = painter_new(ORDER_SCENE, ORDER_SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersBuffer* buf = painter_buffer_new();
+    int prev = -1;
+    int runs = 1;
+    int emitted = 0;
+    int x, z;
+
+    printf("the bucket drain is one distance-ordered sweep, not one corner at a time\n");
+    painter_set_draw_distance(p, ORDER_SCENE);
+    for( x = 0; x < ORDER_SCENE; x++ )
+        for( z = 0; z < ORDER_SCENE; z++ )
+        {
+            painter_tile_set_terrain_levels(p, x, z, 0, 1u << 0);
+            painter_tile_set_terrain_levels(p, x, z, 1, 0);
+            painter_tile_set_terrain_levels(p, x, z, 2, 0);
+            painter_tile_set_terrain_levels(p, x, z, 3, 0);
+        }
+
+    painter_paint_bucket(p, buf, ORDER_CAM, ORDER_CAM, 0);
+
+    for( int i = 0; i < buf->command_count; i++ )
+    {
+        int tx, tz, d;
+        if( buf->commands[i]._bf_kind != PNTR_CMD_TERRAIN )
+            continue;
+        tx = (int)buf->commands[i]._terrain._bf_terrain_x;
+        tz = (int)buf->commands[i]._terrain._bf_terrain_z;
+        d = abs(tx - ORDER_CAM) + abs(tz - ORDER_CAM);
+        if( prev >= 0 && d > prev )
+            runs++;
+        prev = d;
+        emitted++;
+    }
+
+    expect(emitted > 0, "the box emitted terrain at all");
+    expect(runs == 1, "terrain distance never increases — a single farthest-first sweep");
+    if( runs != 1 )
+        printf("       (%d monotone runs over %d tiles: the box painted %d corners in turn)\n",
+               runs, emitted, runs);
+
+    free(buf->commands);
+    free(buf);
+    painter_free(p);
+#undef ORDER_SCENE
+#undef ORDER_CAM
+}
+
 int
 main(void)
 {
@@ -626,6 +692,7 @@ main(void)
     test_vis_below_reveals_the_tiles_ground_decor();
     test_stack_base_does_not_defer_static_locs();
     test_ready_batch_sorts_by_far_corner();
+    test_bucket_emits_one_globally_distance_ordered_sweep();
 
     if( g_failures )
     {

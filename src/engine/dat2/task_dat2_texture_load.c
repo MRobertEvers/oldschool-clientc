@@ -387,7 +387,8 @@ texture_bake(
     int dest_size,
     int animation_direction,
     int animation_speed,
-    int average_hsl)
+    int average_hsl,
+    bool alpha_blended)
 {
     struct ToriRS_Texture* texture;
     int* pixels;
@@ -428,6 +429,12 @@ texture_bake(
             int alpha = 0xff;
             if( (layer->palette[pi] & 0xf8f8ff) == 0 )
                 alpha = 0;
+            /* An alpha-blended texture carries real coverage in the source
+             * palette's top byte. The stock rule above collapses it to 0 or
+             * 255, which is the colour key - exactly what such a texture exists
+             * to avoid - so take the byte as authored instead. */
+            if( alpha_blended )
+                alpha = (layer->palette[pi] >> 24) & 0xFF;
             adjusted_palette[pi] = (alpha << 24) | ToriRS_TextureGammaBlend(layer->palette[pi], 0.8);
         }
 
@@ -505,7 +512,8 @@ texture_bake(
     texture->texels = pixels;
     texture->width = dest_size;
     texture->height = dest_size;
-    texture->opaque = opaque;
+    texture->opaque = opaque && !alpha_blended;
+    texture->alpha_blended = alpha_blended;
     texture->animation_direction = animation_direction;
     texture->animation_speed = animation_speed;
     texture->average_hsl = average_hsl;
@@ -559,7 +567,8 @@ texture_from_sprite_packs(
         dest_size,
         def->animation_direction,
         def->animation_speed,
-        def->average_hsl);
+        def->average_hsl,
+        def->alpha_blended);
     free(layers);
     return texture;
 }

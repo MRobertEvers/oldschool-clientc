@@ -33,6 +33,22 @@ toridraw_dbg_enabled(void)
     return on;
 }
 
+/** TORIDRAW_DEBUG_LOG=<path> overrides the sink. The default above is a macOS
+ *  absolute path, so on any other host fopen fails and every record is dropped
+ *  silently - which reads exactly like "the instrumentation says nothing is
+ *  wrong". */
+static const char*
+toridraw_dbg_log_path(void)
+{
+    static const char* path = NULL;
+    if( !path )
+    {
+        const char* v = getenv("TORIDRAW_DEBUG_LOG");
+        path = (v && v[0] != '\0') ? v : TORIDRAW_DBG_LOG_PATH;
+    }
+    return path;
+}
+
 static const char*
 toridraw_dbg_run_id(void)
 {
@@ -68,7 +84,7 @@ toridraw_dbg_log(
         return;
     budget--;
 
-    f = fopen(TORIDRAW_DBG_LOG_PATH, "a");
+    f = fopen(toridraw_dbg_log_path(), "a");
     if( !f )
         return;
     fprintf(
@@ -1030,7 +1046,7 @@ bucket_sort_by_average_depth(
          * screen-space winding does not exist yet. The reference buckets it
          * unconditionally and performs the real winding test after building
          * the near-plane polygon. */
-        if( clip_candidate || winding > 0 )
+        if( clip_candidate || toridraw_winding_front_facing(winding) )
         {
             int z_sum = vz[a] + vz[b] + vz[c];
             int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
@@ -1469,7 +1485,7 @@ ToriDraw_ComputeProjectedFaceOrder(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
-        face_priorities = m->face_priorities;
+        face_priorities = toridraw_ignore_priorities() ? NULL : m->face_priorities;
         face_count = m->face_count;
         break;
     }
@@ -1628,7 +1644,7 @@ bucket_sort_by_average_depth_small(
             winding = dx1 * dy2 - dy1 * dx2;
         }
 
-        if( clip_candidate || winding > 0 )
+        if( clip_candidate || toridraw_winding_front_facing(winding) )
         {
             int z_sum = vz[a] + vz[b] + vz[c];
             int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
@@ -1895,7 +1911,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
-        face_priorities = m->face_priorities;
+        face_priorities = toridraw_ignore_priorities() ? NULL : m->face_priorities;
         face_count = m->face_count;
         break;
     }

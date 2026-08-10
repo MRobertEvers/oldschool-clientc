@@ -284,16 +284,26 @@ painter_paint_bucket(
         radius,
         draw_mask);
 
-    /* Contiguous row setup: reset + classify + count. Distance is derived at push. */
+    /* Contiguous row setup: reset + classify + count + bulk push.
+     *
+     * Every READY tile enters its distance bucket here, so the drain is a single
+     * globally distance-ordered sweep: all four quadrants advance toward the eye
+     * together, ring by ring. Seeding one perimeter tile per drain instead (the
+     * world3d cascade model, which this loop used to copy) lets the first seed's
+     * wave flood its entire quadrant before the next seed is taken — the box then
+     * paints one corner at a time, and a near tile of the first quadrant lands
+     * ahead of a far tile of the next. The perimeter seed generator below stays
+     * as the liveness fallback for tiles a span cycle strands; it is no longer
+     * what drives the traversal. */
     int tiles_remaining = 0;
     int tiles_in_box = 0;
+    bucket_reset(w);
     for( int s = min_level; s < max_level; s++ )
     {
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             int row = min_draw_x + z * width + s * level_stride;
             int adz = abs(z - camera_sz);
-            (void)adz;
             int span_lo = min_draw_x;
             int span_hi = max_draw_x; /* exclusive end of visible band */
             int row_culled = 0;
@@ -371,6 +381,8 @@ painter_paint_bucket(
                 tiles_remaining++;
                 if( painter_wedgelog_armed() )
                     painter_wedgelog_event(ti, "MARK", NULL);
+                bucket_push(w, paints, ti, abs(x - camera_sx) + adz);
+                BUCKET_PERF_INCREMENT(perf_pushes);
             }
         }
     }
@@ -393,8 +405,6 @@ painter_paint_bucket(
     struct PaintersElementCommand* cmd_base = buffer->commands;
     struct PaintersElementCommand* cmd_cur = cmd_base;
     struct PaintersElementCommand* cmd_end = cmd_base + buffer->command_capacity;
-
-    bucket_reset(w);
 
     /* Incremental seed generator — initialized lazily on the first queue drain so frames
      * where the cascade covers all tiles pay zero seed-iteration cost. */
