@@ -5753,7 +5753,10 @@ app_settle_cs2_frame(struct App* app)
         if( stat != TASK_RUNNER_IDLE )
             return stat;
         if( !app_cs2_enqueue_followups(app) )
+        {
+            app->runner.frame_settle_pending = 0;
             return TASK_RUNNER_IDLE;
+        }
     }
 }
 
@@ -5819,6 +5822,10 @@ app_logic_tick(struct App* app)
                  APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
         {
             App_FlushPendingClientScripts(app);
+            /* Same recovery fence for a connection whose tick was cut short:
+             * once we intentionally fall back to the held scripts, allow the
+             * resulting fully-settled state to publish too. */
+            app->server_tick_open = 0;
             redraw = 1;
         }
     }
@@ -7572,9 +7579,10 @@ app_world_mouse_gate(
      * revconfig-baked tree; a rev-230 tree is the cache's own IF3 gameframe and
      * has neither, so the check above is dead there and every interface the
      * server mounted was transparent to the world. `UITree_PointBlocksWorld`
-     * asks the tree instead of the slot table: a modal mount or a
-     * `noClickThrough` layer over this point stops the world. Overlay/tab
-     * mounts stay transparent unless their own records raise that flag.
+     * asks the tree instead of the slot table: a type-0 mount owns its clipped
+     * host rectangle (including blank space outside a smaller mounted root),
+     * while a `noClickThrough` layer owns its own bounds. Overlay/tab mounts
+     * stay transparent unless their own records raise that flag.
      */
     if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
         return 0;
@@ -13753,7 +13761,8 @@ App_RunOnce(
         int budget = booting ? 512 : 32;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
         int steps = 0;
-        int settling_cs2 = !booting && app->runner_had_work;
+        int settling_cs2 =
+            !booting && (app->runner_had_work || app->runner.frame_settle_pending);
 
         if( settling_cs2 )
         {
@@ -13784,8 +13793,10 @@ App_RunOnce(
             app->busy_frames++;
             app->busy_steps += steps;
         }
+        if( settling_cs2 && stat != TASK_RUNNER_IDLE )
+            app->runner_had_work = 1;
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
-        if( app->runner_had_work && stat == TASK_RUNNER_IDLE )
+        if( settling_cs2 && stat == TASK_RUNNER_IDLE )
         {
             app->runner_had_work = 0;
             app->pending_tree_refresh = 1;
@@ -13869,8 +13880,7 @@ App_RunOnce(
      * state packets from that tick.  Its accompanying IF_SETHIDE/IF_SETTEXT
      * packets may already have mutated the live tree; retain the prior frame
      * until the script has actually been dispatched and settled. */
-    if( app->pending_clientscript_count > 0 || app->exec_runner_had_work ||
-        app->server_tick_open )
+    if( !App_FrameSettled(app) )
         return 0;
 
     /* Per-frame interaction: returns intents; the app applies event context
@@ -14564,6 +14574,14 @@ App_RunOnce(
                         app->need_redraw = 1;
                 }
             }
+            /* cc_dragpickup's hook can itself raise resize/trigger/transmit
+             * work.  It belongs to the same click transaction. */
+            stat = app_settle_cs2_frame(app);
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                app->runner_had_work = 1;
+                return 0;
+            }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
             {
                 UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -14573,8 +14591,7 @@ App_RunOnce(
 
     /* Never publish a tree while a fenced server clientscript has not run.
      * This second gate covers a script request raised during interaction. */
-    if( app->pending_clientscript_count > 0 || app->runner_had_work ||
-        app->exec_runner_had_work || app->server_tick_open )
+    if( !App_FrameSettled(app) )
         return 0;
 
     if( app->need_redraw )
@@ -14645,6 +14662,15 @@ App_RunOnce(
         return 1;
     }
     return 0;
+}
+
+int
+App_FrameSettled(struct App const* app)
+{
+    assert(app);
+    return !app->runner_had_work && !app->runner.frame_settle_pending &&
+           !app->exec_runner_had_work && !app->server_tick_open &&
+           app->pending_clientscript_count == 0;
 }
 
 void

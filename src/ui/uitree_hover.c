@@ -171,20 +171,40 @@ find_hovered_recursive(
             child_scroll_y += component->scroll_y;
     }
 
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    /* Rendering visits InterfaceParent roots after ordinary children and does
+     * not apply the host's own scroll to them. Hover must use that same order
+     * and origin or a mounted control can draw in one place and fire hover
+     * hooks in another. Type-0 capture also clears hover selected underneath
+     * the host before the mounted subtree gets its turn. */
+    int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
+    int const has_mounts = mount_rec >= 0;
+    int const mount_type = has_mounts ? tree->interface_parents[mount_rec].type : -1;
+    for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
-        find_hovered_recursive(
-            tree,
-            host,
-            child,
-            mouse_x,
-            mouse_y,
-            child_scroll_x,
-            child_scroll_y,
-            &child_clip,
-            &child_surface,
-            out_hovered_component_id);
+        if( mount_sweep == 1 && mount_type == 0 )
+            *out_hovered_component_id = -1;
+
+        for( int32_t child = component->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            int const is_mount =
+                has_mounts &&
+                UITree_ChildMountType(
+                    tree, component->component_id, &tree->components[child]) >= 0;
+            if( is_mount != mount_sweep )
+                continue;
+            find_hovered_recursive(
+                tree,
+                host,
+                child,
+                mouse_x,
+                mouse_y,
+                is_mount ? scroll_off_x : child_scroll_x,
+                is_mount ? scroll_off_y : child_scroll_y,
+                &child_clip,
+                &child_surface,
+                out_hovered_component_id);
+        }
     }
 }
 

@@ -68,8 +68,11 @@ def main() -> int:
         expect("DreadfowlNPC.java: Dreadfowl Strike" in execute and
                "npc_findcombat = false" in execute and
                "summoning_special_move_dreadfowl_strike_projectile" in execute and
+               "if ($distance > 8)" in execute and
                "npc_finduid($familiar) = false | npc_finduid($target) = false" in execute,
                "Dreadfowl Strike lacks combat-target validation, its admitted projectile, or generation revalidation")
+        expect(execute.count("if ($distance > 8)") >= 3,
+               "projectile combat specials no longer reject a target beyond the source eight-tile limit")
         expect("npc_combat_stat(npc_stat(magic), npc_param(magicattack))" in execute and
                "npc_defence_roll(^magic_style)" in execute and "randominc(3)" in execute,
                "Dreadfowl Strike does not use the familiar's magic roll and source max hit")
@@ -84,6 +87,7 @@ def main() -> int:
                "Electric Lash lacks its source projectile or max hit")
         expect("VampireBatNPC.java: Vampyre Touch" in execute and
                "randominc(11)" in execute and "randominc(9) < 4" in execute and
+               "if (npc_range(npc_coord) > 8)" in execute and
                "stat_heal(hitpoints, 2, 0);" in execute,
                "Vampyre Touch lacks its manual hit or 40% owner-heal branch")
         expect(commit.index("inv_del(inv, $scroll, 1);") < commit.index("stat_advance(summoning,"),

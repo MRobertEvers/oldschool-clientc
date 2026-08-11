@@ -1682,6 +1682,12 @@ App_RunOnce(
     uint64_t now_ms,
     struct LibToriRS_Input* input);
 
+/** True only when the live UI tree is eligible to produce a new frame.  While
+ * false, hosts must present/copy the last committed framebuffer rather than
+ * calling App_Render against a partially-applied CS2/server transaction. */
+int
+App_FrameSettled(struct App const* app);
+
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
  * mutation (slot mounts, packet-driven component changes).

@@ -694,7 +694,8 @@ frame_loop_step(void)
                     &series_step,
                     &series_count);
         }
-        if( series_start >= 0 && series_written < series_count && frame_count >= series_start &&
+        if( App_FrameSettled(&app) && series_start >= 0 && series_written < series_count &&
+            frame_count >= series_start &&
             (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
         {
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));

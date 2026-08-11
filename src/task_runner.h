@@ -22,6 +22,9 @@ struct TaskRunner
     struct ToriRS_TaskQueue* queue;
     struct ToriRS_IO* io;
     struct PlatformX_IO* px;
+    /* A CS2 task has joined this queue and the tree/display list must not be
+     * published until its whole host follow-up fixed point has settled. */
+    int frame_settle_pending;
 };
 
 enum TaskRunnerStat

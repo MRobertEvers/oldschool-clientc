@@ -1640,8 +1640,9 @@ UITree_ReclaimInterfaceGroup(
  * argument), or -1 when it is an ordinary child.
  *
  * The distinction remains load-bearing for draw/layout behavior and world
- * input: modal roots block the scene across their panel, while overlay/tab
- * mounts remain transparent unless they declare noClickThrough themselves.
+ * input: a modal blocks the scene across its clipped mount-host rectangle,
+ * while overlay/tab mounts remain transparent unless they declare
+ * noClickThrough themselves.
  */
 int
 UITree_ChildMountType(
