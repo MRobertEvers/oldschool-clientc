@@ -489,6 +489,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # targeted trigger can retain its primary target while `.npc_*` addresses
     # the familiar actor.
     "NPC_FINDOWNED2": (11031, 0, 0, 1, 0),
+
+    # obj_add_private(coord, obj, count, duration, private_ticks)
+    #
+    # The familiar foragers create owner-only floor loot before it becomes
+    # public.  OBJ_ADD cannot express that receiver window; assigning it to the
+    # engine rather than publishing drops and trying to hide them in content
+    # keeps the ownership check on every packet and take path.
+    "OBJ_ADD_PRIVATE": (11032, 5, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------

@@ -7650,6 +7650,32 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `obj_add_private(coord, obj, count, duration, private_ticks)` — the
+     * owner-filtered counterpart to OBJ_ADD. Familiar foragers use the source
+     * game's one-hundred-tick owner window; the world owns visibility and
+     * promotion, so a forged ground-target packet cannot bypass it.
+     */
+    case SS_OP_OBJ_ADD_PRIVATE:
+    {
+        int32_t values[5];
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !srv->active_player )
+        {
+            SSVM_Abort(state, "obj_add_private: no active player");
+            return 1;
+        }
+        mock230_world_obj_add_private(srv, values[1], values[2], coord_x(values[0]),
+                                      coord_z(values[0]), coord_level(values[0]),
+                                      values[3] > 0 ? values[3] : -1, values[4]);
+        return 1;
+    }
+
     /* ---- stats ----------------------------------------------------- */
 
     /*

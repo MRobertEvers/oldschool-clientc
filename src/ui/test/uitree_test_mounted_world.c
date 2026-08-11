@@ -51,6 +51,7 @@ test_mounted_world_resize(void)
     int const underlay_uid = (500 << 16) | 3;
     int const modal_root_uid = (600 << 16) | 0;
     int const modal_rect_uid = (600 << 16) | 1;
+    int const modal_scroll_uid = (600 << 16) | 2;
     int const saved_root_w = UITREE_LAYOUT_ROOT_W;
     int const saved_root_h = UITREE_LAYOUT_ROOT_H;
     struct UITree* tree = UITree_New(8);
@@ -94,11 +95,15 @@ test_mounted_world_resize(void)
     int32_t modal_rect =
         UITree_TestPushXy(tree, modal_root, UIELEM_RS_RECT, modal_rect_uid, 12, 14, 72, 38);
     tree->components[modal_rect].behavior.button_type = 1;
+    tree->components[modal_rect].behavior.click_mask |= UITREE_FLAG_DRAG_ON;
     tree->components[modal_rect].behavior.over_color = 0xFFFFFF;
     strncpy(
         tree->components[modal_rect].menu_options.ops[0],
         "Mounted action",
         sizeof(tree->components[modal_rect].menu_options.ops[0]) - 1);
+    int32_t modal_scroll =
+        UITree_TestPushXy(tree, modal_root, UIELEM_RS_LAYER, modal_scroll_uid, 82, 8, 30, 64);
+    tree->components[modal_scroll].u.rs_layer.scroll_height = 160;
     (void)UITree_InterfaceParentSet(tree, mount_host_uid, 600, 0);
     UITree_Reparent(tree, modal_root, mount_host);
 
@@ -174,6 +179,28 @@ test_mounted_world_resize(void)
         TEST_ASSERT(
             UITree_HitTestInteractive(tree, &host, rect_hit_x, rect_hit_y) == modal_rect,
             "mounted modal input ignores host-local scroll like rendering");
+        TEST_ASSERT(
+            UITree_FindDropTarget(tree, rect_hit_x, rect_hit_y, -1) == modal_rect_uid,
+            "mounted drop targeting ignores host-local scroll like rendering");
+
+        {
+            struct UITreeScrollbarHitInfo sb;
+            int const scrollbar_x = resized_panel_x + 82 + 30 + 8;
+            int const scrollbar_y = resized_panel_y + 8 + 8;
+            TEST_ASSERT(
+                UITree_FindScrollbarAt(tree, &host, scrollbar_x, scrollbar_y, &sb) &&
+                    sb.layer_index == modal_scroll && sb.kind == UITREE_SCROLLBAR_V_UP,
+                "mounted native scrollbar hit ignores host-local scroll like rendering");
+            TEST_ASSERT(
+                !UITree_FindScrollbarAt(
+                    tree,
+                    &host,
+                    scrollbar_x - HOST_SCROLL_X,
+                    scrollbar_y - HOST_SCROLL_Y,
+                    &sb) ||
+                    sb.layer_index != modal_scroll,
+                "mounted native scrollbar rejects host-scroll-shifted stale position");
+        }
 
         int32_t menu_nodes[8];
         int const menu_count =

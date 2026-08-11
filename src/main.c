@@ -546,6 +546,32 @@ interactive_render_present(
     }
 }
 
+/* App_RunOnce returned no frame commit.  The software surface can safely
+ * re-upload its retained pixels (useful after a window expose), but swapping an
+ * undrawn GL backbuffer can alternate to older contents and a D3D9 DISCARD
+ * swapchain explicitly does not preserve its backbuffer.  Leave GPU front
+ * buffers alone; the window/compositor retains the last committed frame. */
+static void
+interactive_present_retained(
+    struct PlatformSDL2* sdl,
+    struct ToriRS_GL3* gl3,
+    struct ToriRS_D3D9* d3d9)
+{
+#if defined(TORIRS_HAVE_D3D9)
+    if( d3d9 )
+        return;
+#else
+    (void)d3d9;
+#endif
+#if defined(TORIRS_HAVE_GL3)
+    if( gl3 )
+        return;
+#else
+    (void)gl3;
+#endif
+    PlatformSDL2_Present(sdl);
+}
+
 
 /* --- the interactive frame loop -----------------------------------------
  *
@@ -1574,29 +1600,11 @@ frame_loop_step(void)
             interactive_render_present(&app, sdl, gl3, d3d9);
         }
     }
-#if defined(TORIRS_HAVE_D3D9)
-    else if( d3d9 )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            ToriRS_D3D9_Present(d3d9);
-        }
-    }
-#endif
-#if defined(TORIRS_HAVE_GL3)
-    else if( gl3 )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            PlatformSDL2_PresentGL(sdl);
-        }
-    }
-#endif
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            PlatformSDL2_Present(sdl);
+            interactive_present_retained(sdl, gl3, d3d9);
         }
     }
 

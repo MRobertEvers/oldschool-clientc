@@ -890,6 +890,7 @@ struct App
      * yet executed.  The live tree may contain only part of that tick, so the
      * renderer retains the preceding committed frame while this is set. */
     int server_tick_open;
+    int server_tick_open_cycle;
     /** Logic cycle the oldest held script has been waiting since, so a fence
      *  that never arrives (a tick cut short by a disconnect) cannot strand it. */
     int pending_clientscript_cycle;

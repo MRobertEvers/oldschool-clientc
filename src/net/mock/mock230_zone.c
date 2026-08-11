@@ -903,9 +903,7 @@ obj_event(
         return;
     memset(&event, 0, sizeof(event));
     event.kind = kind;
-    /* No obj on this floor belongs to anyone in particular yet; the reference's
-     * per-receiver loot is what this field is here for. */
-    event.receiver_pid = -1;
+    event.receiver_pid = obj->receiver_pid;
     event.pos = zone_pos(obj->x, obj->z);
     event.id = obj->obj_id;
     event.count = new_count;
@@ -1244,11 +1242,11 @@ write_state(
         struct Mock230GroundObj* obj = &srv->ground[zone->objs[i]];
         struct Mock230ZoneEvent event;
 
-        if( !obj->active )
+        if( !obj->active || !mock230_world_ground_visible_to(srv, zone->objs[i], player->pid) )
             continue;
         memset(&event, 0, sizeof(event));
         event.kind = MOCK230_ZONE_EV_OBJ_ADD;
-        event.receiver_pid = -1;
+        event.receiver_pid = obj->receiver_pid;
         event.pos = zone_pos(obj->x, obj->z);
         event.id = obj->obj_id;
         event.count = obj->count;

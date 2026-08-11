@@ -61,6 +61,8 @@ test_opcode_names(void)
              "compiler command lookup sees npc_var_set");
     CHECK_EQ(SSVM_OpcodeFromName("player_lock"), SS_OP_PLAYER_LOCK,
              "compiler command lookup sees player_lock");
+    CHECK_EQ(SSVM_OpcodeFromName("obj_add_private"), SS_OP_OBJ_ADD_PRIVATE,
+             "compiler command lookup sees private ground drops");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
              "player unlock opcode name");
 
@@ -153,6 +155,9 @@ test_command_arities(void)
     m = SSVM_OpcodeMeta(SS_OP_PLAYER_UNLOCK);
     CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "player_unlock() has no stack arguments");
+    m = SSVM_OpcodeMeta(SS_OP_OBJ_ADD_PRIVATE);
+    CHECK(m->int_in == 5 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "obj_add_private(coord, obj, count, duration, private_ticks)");
 }
 
 static void

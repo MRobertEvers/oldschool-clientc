@@ -5810,7 +5810,11 @@ app_logic_tick(struct App* app)
                  * SERVER_TICK_END clears this after its exec task has run. */
                 if( app->server_tick_fence_seen &&
                     packet.packet_type != PKT_NAME_SERVER_TICK_END )
+                {
+                    if( !app->server_tick_open )
+                        app->server_tick_open_cycle = app->logic_cycle;
                     app->server_tick_open = 1;
+                }
                 if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
                     fence_queued = 1;
                 ToriRS_TaskQueue_Add(
@@ -5837,6 +5841,16 @@ app_logic_tick(struct App* app)
             /* Same recovery fence for a connection whose tick was cut short:
              * once we intentionally fall back to the held scripts, allow the
              * resulting fully-settled state to publish too. */
+            app->server_tick_open = 0;
+            redraw = 1;
+        }
+        else if( drained && app->server_tick_open &&
+                 app->logic_cycle - app->server_tick_open_cycle >=
+                     APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
+        {
+            /* A fence can be lost without a RUNCLIENTSCRIPT in the tick.  The
+             * same bounded disconnect recovery must release the visual latch
+             * or the last committed frame would be retained forever. */
             app->server_tick_open = 0;
             redraw = 1;
         }

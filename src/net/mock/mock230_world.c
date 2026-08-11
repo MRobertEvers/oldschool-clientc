@@ -871,7 +871,8 @@ mock230_world_interaction_set(
         {
             const struct Mock230GroundObj* obj = &srv->ground[i];
 
-            if( obj->active && obj->obj_id == target_id && obj->x == tile_x &&
+            if( mock230_world_ground_visible_to(srv, i, srv->active_player->pid) &&
+                obj->obj_id == target_id && obj->x == tile_x &&
                 obj->z == tile_z && obj->level == level )
             {
                 interaction->target_generation = (uint32_t)obj->generation;
@@ -1019,7 +1020,8 @@ interaction_target(
         {
             struct Mock230GroundObj* obj = &srv->ground[i];
 
-            if( !obj->active || obj->obj_id != interaction->target_id )
+            if( !mock230_world_ground_visible_to(srv, i, srv->active_player->pid) ||
+                obj->obj_id != interaction->target_id )
                 continue;
             if( obj->x != interaction->x || obj->z != interaction->z )
                 continue;
@@ -3330,15 +3332,17 @@ advance_npcs(struct Mock230Server* srv)
  * cleared there rather than being trusted across it.
  */
 
-int
-mock230_world_obj_add(
+static int
+world_obj_add(
     struct Mock230Server* srv,
     int obj_id,
     int count,
     int x,
     int z,
     int level,
-    int duration)
+    int duration,
+    int receiver_pid,
+    int private_ticks)
 {
     if( obj_id < 0 || count <= 0 )
         return -1;
@@ -3347,7 +3351,7 @@ mock230_world_obj_add(
      * merge — three separate coin piles on one tile is not a thing the client
      * can draw — and merging a non-stackable one is wrong, so the count is
      * only combined when the cache says it stacks. */
-    if( mock230_objinfo(obj_id)->stackable )
+    if( receiver_pid < 0 && mock230_objinfo(obj_id)->stackable )
     {
         for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
         {
@@ -3395,11 +3399,58 @@ mock230_world_obj_add(
         obj->despawn_tick = duration > 0 ? srv->tick + duration : -1;
         obj->respawn_tick = -1;
         obj->is_spawn = duration < 0;
+        obj->receiver_pid = receiver_pid;
+        obj->public_tick = receiver_pid >= 0 && private_ticks > 0
+                         ? srv->tick + private_ticks : -1;
         mock230_zone_obj_refile(srv, i);
         mock230_zone_obj_added(srv, i);
         return i;
     }
     return -1;
+}
+
+int
+mock230_world_obj_add(
+    struct Mock230Server* srv,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration)
+{
+    return world_obj_add(srv, obj_id, count, x, z, level, duration, -1, 0);
+}
+
+int
+mock230_world_obj_add_private(
+    struct Mock230Server* srv,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration,
+    int private_ticks)
+{
+    if( private_ticks <= 0 || !srv->active_player )
+        return mock230_world_obj_add(srv, obj_id, count, x, z, level, duration);
+    return world_obj_add(srv, obj_id, count, x, z, level, duration,
+                         srv->active_player->pid, private_ticks);
+}
+
+int
+mock230_world_ground_visible_to(
+    const struct Mock230Server* srv,
+    int slot,
+    int pid)
+{
+    const struct Mock230GroundObj* obj;
+
+    if( slot < 0 || slot >= MOCK230_GROUND_MAX )
+        return 0;
+    obj = &srv->ground[slot];
+    return obj->active && (obj->receiver_pid < 0 || obj->receiver_pid == pid);
 }
 
 /*
@@ -3464,6 +3515,16 @@ ground_tick(struct Mock230Server* srv)
             }
             continue;
         }
+        if( obj->receiver_pid >= 0 && obj->public_tick >= 0 && srv->tick >= obj->public_tick )
+        {
+            /* The owner has a private pile on the client already. Remove that
+             * view first, then publish a normal zone add to everyone so it
+             * cannot become a duplicate stack for the owner. */
+            mock230_zone_obj_removed(srv, i);
+            obj->receiver_pid = -1;
+            obj->public_tick = -1;
+            mock230_zone_obj_added(srv, i);
+        }
         if( obj->despawn_tick >= 0 && srv->tick >= obj->despawn_tick )
             ground_clear(srv, i);
     }
@@ -3511,7 +3572,8 @@ mock230_world_ground_find(
     {
         const struct Mock230GroundObj* obj = &srv->ground[i];
 
-        if( !obj->active || obj->obj_id != obj_id )
+        if( !mock230_world_ground_visible_to(srv, i, srv->active_player->pid) ||
+            obj->obj_id != obj_id )
             continue;
         if( obj->x != x || obj->z != z || obj->level != level )
             continue;
@@ -17966,6 +18028,28 @@ mock230_world_selftest(void)
         mock230_capture_end(&srv);
         SELFTEST_CHECK(selftest_enclosed_has(&capture, 120 /* OBJ_ADD */),
                        "a drop should reach the client as an enclosed OBJ_ADD");
+
+        /* A familiar forager's drop begins owner-private. It must not be
+         * discoverable by a forged target from another player, and its expiry
+         * turns it into a normal public pile rather than deleting it. */
+        slot = mock230_world_obj_add_private(&srv, 1511 /* logs */, 1, 3223, 3218, 0,
+                                             mock230_ids()->lootdrop_duration, 2);
+        SELFTEST_CHECK(slot >= 0, "a private drop gets a ground slot");
+        SELFTEST_CHECK(slot < 0 || mock230_world_ground_visible_to(&srv, slot, player->pid),
+                       "the owner can see a private drop");
+        SELFTEST_CHECK(slot < 0 || !mock230_world_ground_visible_to(&srv, slot,
+                                                                      player->pid + 1),
+                       "another player cannot see or take a private drop");
+        if( slot >= 0 )
+        {
+            mock230_world_tick(&srv);
+            mock230_world_tick(&srv);
+            SELFTEST_CHECK(srv.ground[slot].active && srv.ground[slot].receiver_pid < 0,
+                           "the private window promotes the surviving drop to public");
+            SELFTEST_CHECK(mock230_world_ground_visible_to(&srv, slot, player->pid + 1),
+                           "the promoted drop is visible to other players");
+            mock230_world_ground_take(&srv, slot);
+        }
 
         /*
          * And the other half: a client that has *not* been told about the zone

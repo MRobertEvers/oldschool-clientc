@@ -96,6 +96,13 @@ active_obj(
         SSVM_Abort(state, "%s: the active obj is gone", SSVM_OpcodeName(opcode));
         return NULL;
     }
+    if( !srv->active_player ||
+        !mock230_world_ground_visible_to(srv, slot, srv->active_player->pid) )
+    {
+        SSVM_Abort(state, "%s: the active obj is not visible to this player",
+                   SSVM_OpcodeName(opcode));
+        return NULL;
+    }
     return &srv->ground[slot];
 }
 
