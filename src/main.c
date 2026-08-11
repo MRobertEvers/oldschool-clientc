@@ -570,14 +570,6 @@ static struct AppConfig cfg = {
     /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
     .spawn_x = -1,
     .spawn_z = -1,
-    /* -1 = built-in spawn-hotkey defaults; TORIRS_SPAWN_* still overrides. */
-    .spawn_npc_id = -1,
-    .spawn_obj_id = -1,
-    .spawn_spotanim_id = -1,
-    .spawn_spotanim_height = -1,
-    .spawn_spotanim_delay = -1,
-    .spawn_proj_model_id = -1,
-    .spawn_proj_seq_id = -1,
 };
 
 static struct PlatformSDL2* sdl;

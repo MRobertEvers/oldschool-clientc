@@ -96,10 +96,10 @@ enum AppUiLogic
     APP_UI_LOGIC_CS2 = 2,
 };
 
-/* Optional developer controls configured by `[debug:hotkeys]`. The zero value
- * in AppConfig is TORIRSK_UNKNOWN, so a zero-initialized config has every
- * debug binding disabled. Arrow-key orbit controls are game input rather than
- * developer shortcuts and are intentionally not part of this table. */
+/* Hardcoded targets named by manifest `[action:<name>]` declarations. The
+ * manifest's `[debug:hotkeys]` section binds keys to those named actions;
+ * nothing is bound in a zero-initialized config. Arrow-key orbit controls are
+ * game input rather than developer shortcuts and are intentionally absent. */
 enum AppDebugHotkey
 {
     APP_DEBUG_HOTKEY_CAMERA_FORWARD,
@@ -126,6 +126,16 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_COUNT
 };
 
+#define APP_DEBUG_HOTKEY_MAX 64
+#define APP_DEBUG_HOTKEY_ARGS_CAP 512
+
+struct AppDebugHotkeyBinding
+{
+    enum LibToriRS_KeyCode key;
+    enum AppDebugHotkey target;
+    char args[APP_DEBUG_HOTKEY_ARGS_CAP];
+};
+
 struct AppConfig
 {
     char const* cache_dir;
@@ -149,18 +159,10 @@ struct AppConfig
      *  cache yields terrain (which is not encrypted) with **zero locs**. */
     int spawn_x;
     int spawn_z;
-    /** Debug spawn-hotkey ids from `[spawn:hotkeys]`. -1 = built-in default;
-     *  TORIRS_SPAWN_* env vars still override (env > manifest > built-in). */
-    int spawn_npc_id;
-    int spawn_obj_id;
-    int spawn_spotanim_id;
-    int spawn_spotanim_height;
-    int spawn_spotanim_delay;
-    int spawn_proj_model_id;
-    int spawn_proj_seq_id;
-    /** Developer-only keyboard shortcuts from `[debug:hotkeys]`. Each entry is
-     *  enum LibToriRS_KeyCode; TORIRSK_UNKNOWN means disabled (the default). */
-    enum LibToriRS_KeyCode debug_hotkeys[APP_DEBUG_HOTKEY_COUNT];
+    /** Resolved `[debug:hotkeys]` key -> `[action:<name>]` bindings. Empty by
+     *  default. `args` retains the action's optional `a=` payload. */
+    struct AppDebugHotkeyBinding debug_hotkeys[APP_DEBUG_HOTKEY_MAX];
+    int debug_hotkey_count;
     /** RevConfig layout INI — the tree's shape. Every root tree comes from the
      * RevConfig builder; a cache gameframe is one *element* of that layout
      * (`type=rs_iface`), not a competing root. NULL/"" = none, in which case the
@@ -645,9 +647,9 @@ struct App
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;
     /** Chat input focus. When set, typed keys feed the chat input line and the
-     *  debug camera/world hotkeys (WASD/M/spawn digits) are suppressed so they
-     *  cannot fire while composing a message. Clicking the chat region focuses;
-     *  clicking elsewhere or pressing Escape unfocuses. */
+     *  manifest-configured debug shortcuts are suppressed so they cannot fire
+     *  while composing a message. Clicking the chat region focuses; clicking
+     *  elsewhere or pressing Escape unfocuses. */
     int chat_input_active;
     /** Minimenu chat-line seam (points at app_chat_line_at). */
     struct RS_MinimenuChatSource chat_source;

@@ -44,7 +44,12 @@ def main() -> int:
         commit = text[text.index("[proc,summoning_familiar_special_commit]") : text.index("[proc,summoning_familiar_special_target_execute]")]
         validate = text[text.index("[proc,summoning_familiar_special_validate]") : text.index("[proc,summoning_familiar_special_commit]")]
 
-        expected_xp = {3: 8, 6: 2, 11: 23, 22: 6, 43: 19, 47: 7, 53: 73, 59: 79, 60: 79, 61: 79, 74: 45}
+        expected_xp = {
+            3: 8, 6: 2, 11: 23,
+            18: 7, 19: 7, 20: 7, 21: 7,
+            22: 6, 43: 19, 47: 7, 53: 73,
+            59: 79, 60: 79, 61: 79, 74: 45,
+        }
         execute_types = {
             int(value)
             for condition in re.findall(r"if \(([^)]*)\) \{", execute)
@@ -86,6 +91,13 @@ def main() -> int:
         expect("add(stat_base(hitpoints), 8)" in execute and
                "You are already at maximum hitpoints!" in execute,
                "Titan's Constitution does not validate its overheal ceiling")
+        expect("if ($type = 18 | $type = 19 | $type = 20 | $type = 21)" in execute and
+               "p_delay(2);" in execute and "p_telejump(0_41_35_41_34);" in execute,
+               "Call to Arms does not retain its shared delayed Pest Control teleport")
+        expect("summoning_special_move_call_to_arms_start" in execute and
+               "summoning_special_move_call_to_arms_end" in execute and
+               "npc_findowned2 = false" in execute,
+               "Call to Arms lacks its remapped visuals or delayed familiar revalidation")
         overlay = interface[interface.index("[special_overlay]") : interface.index("[special_overlay_icon]")]
         expect("clickmask=129024" in overlay and "targetverb=Cast" in overlay,
                "the Summoning overlay is not a five-kind target component")
@@ -111,7 +123,7 @@ def main() -> int:
         print(f"test_summoning_specials: error: {exc}", file=sys.stderr)
         return 1
 
-    print("test_summoning_specials: target surface, generation handles, transaction and 11 owner-local rows, 0 errors")
+    print("test_summoning_specials: target surface, generation handles, transaction and 15 source-backed rows, 0 errors")
     return 0
 
 

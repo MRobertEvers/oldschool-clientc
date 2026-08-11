@@ -198,6 +198,12 @@ def main() -> int:
                "shared source special-move sequence 7660 is not imported")
         expect("[export:spotanim]\n1316=gfx\n" in special_text,
                "shared source special-move spotanim 1316 is not imported")
+        for source, name in ((8136, "call_to_arms_start"), (8137, "call_to_arms_end")):
+            expect(f"{source}={name}" in special_text,
+                   f"Call to Arms source sequence {source} is not imported")
+        for source, name in ((1503, "call_to_arms_start_gfx"), (1502, "call_to_arms_end_gfx")):
+            expect(f"{source}={name}" in special_text,
+                   f"Call to Arms source graphic {source} is not imported")
         special_ledger = (args.tree / "port/summoning_special_moves_530.map").read_text(
             encoding="utf-8"
         )
@@ -207,6 +213,14 @@ def main() -> int:
         expect(re.search(r"^spotanim\t1316\t.*\t20003\tsummoning_special_move_gfx\t",
                          special_ledger, re.MULTILINE) is not None,
                "shared special-move graphic is absent from its translation ledger")
+        for source, name in ((8136, "call_to_arms_start"), (8137, "call_to_arms_end")):
+            expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Call to Arms source sequence {source} is absent from its ledger")
+        for source, name in ((1503, "call_to_arms_start_gfx"), (1502, "call_to_arms_end_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Call to Arms source graphic {source} is absent from its ledger")
 
         server = (args.tree / "server/scripts/ported_scape2009_summoning/scripts/"
                   "summoning_spirit_wolf.rs2").read_text(encoding="utf-8")
@@ -234,7 +248,7 @@ def main() -> int:
                "spotanim_pl(summoning_special_move_gfx, 0, 0);" in server,
                "successful scroll use does not play the shared special visualization")
         expect("inv_del(inv, $scroll, 1);" in server and
-               "%summoning_familiar_special = sub(%summoning_familiar_special, $cost);" in server,
+               "~summoning_familiar_special_cost($type)" in server,
                "successful scroll use does not consume its scroll and special points")
     except (AssertionError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"test_summoning_scroll_assets: error: {exc}", file=sys.stderr)

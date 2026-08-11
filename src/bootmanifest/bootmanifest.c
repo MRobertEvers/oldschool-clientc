@@ -13,8 +13,8 @@
 #include <string.h>
 
 _Static_assert(
-    BOOTMANIFEST_DEBUG_HOTKEY_COUNT == APP_DEBUG_HOTKEY_COUNT,
-    "BootManifest and AppConfig debug-hotkey tables must stay in sync");
+    BOOTMANIFEST_DEBUG_HOTKEY_MAX <= APP_DEBUG_HOTKEY_MAX,
+    "AppConfig must hold every manifest debug-hotkey binding");
 
 /* Join a manifest-relative value onto the manifest's directory. Absolute
  * values (leading '/') and empty base copy through unchanged. */
@@ -47,31 +47,8 @@ bm_parse_crc_list(char const* value, int32_t out[9])
     return n == 9;
 }
 
-/* Parse a non-negative int for [spawn:hotkeys]. Returns 1 and writes *out on
- * success; on failure prints a named stderr line and returns 0. */
-static int
-bm_parse_nonneg_int(char const* key, char const* value, int* out)
-{
-    char* end = NULL;
-    long v;
-
-    assert(key && value && out);
-    v = strtol(value, &end, 10);
-    if( end == value || *end != '\0' || v < 0 )
-    {
-        fprintf(
-            stderr,
-            "bootmanifest: [spawn:hotkeys] %s must be a non-negative int, got '%s'\n",
-            key,
-            value);
-        return 0;
-    }
-    *out = (int)v;
-    return 1;
-}
-/* Like bm_parse_nonneg_int, but skips surrounding blanks and stops at a `;`/`#`
- * so a value can carry a trailing comment. Only [ui:gameframe] uses it — see the
- * note at its case in bm_set_kv. */
+/* Parse a non-negative int while allowing surrounding blanks and a trailing
+ * comment. Only [ui:gameframe] uses it — see its case in bm_set_kv. */
 static int
 bm_parse_padded_int(char const* key, char const* value, int* out)
 {
@@ -186,7 +163,7 @@ enum bm_section
     BM_SECTION_UI,
     BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_UI_VARC,
-    BM_SECTION_SPAWN,
+    BM_SECTION_ACTION,
     BM_SECTION_DEBUG_HOTKEYS,
     BM_SECTION_FEATURES,
     BM_SECTION_RENDER,
@@ -214,8 +191,8 @@ bm_section_of(char const* header)
         return BM_SECTION_UI_VARC;
     if( strncmp(header, "ui:", 3) == 0 )
         return BM_SECTION_UI;
-    if( strncmp(header, "spawn:", 6) == 0 )
-        return BM_SECTION_SPAWN;
+    if( strncmp(header, "action:", 7) == 0 )
+        return BM_SECTION_ACTION;
     if( strcmp(header, "debug:hotkeys") == 0 )
         return BM_SECTION_DEBUG_HOTKEYS;
     if( strncmp(header, "features:", 9) == 0 )
@@ -232,6 +209,7 @@ bm_set_kv(
     struct BootManifest* bm,
     char const* manifest_dir,
     enum bm_section section,
+    char const* section_name,
     char const* key,
     char const* value)
 {
@@ -617,61 +595,9 @@ bm_set_kv(
         return;
     }
 
-    case BM_SECTION_SPAWN:
-        if( strcmp(key, "npc") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_npc_id = v;
-            return;
-        }
-        if( strcmp(key, "obj") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_obj_id = v;
-            return;
-        }
-        if( strcmp(key, "spotanim") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_spotanim_id = v;
-            return;
-        }
-        if( strcmp(key, "spotanim_height") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_spotanim_height = v;
-            return;
-        }
-        if( strcmp(key, "spotanim_delay") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_spotanim_delay = v;
-            return;
-        }
-        if( strcmp(key, "proj_model") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_proj_model_id = v;
-            return;
-        }
-        if( strcmp(key, "proj_seq") == 0 )
-        {
-            int v;
-            if( bm_parse_nonneg_int(key, value, &v) )
-                bm->spawn_proj_seq_id = v;
-            return;
-        }
-        break;
-
-    case BM_SECTION_DEBUG_HOTKEYS:
+    case BM_SECTION_ACTION:
     {
-        static char const* const action_names[APP_DEBUG_HOTKEY_COUNT] = {
+        static char const* const target_names[APP_DEBUG_HOTKEY_COUNT] = {
             "camera_forward",   "camera_back",    "camera_left",     "camera_right",
             "camera_up",        "camera_down",    "camera_unlock",   "world_reload",
             "paint_toggle",     "paint_more",     "paint_less",      "paint_more_100",
@@ -679,64 +605,101 @@ bm_set_kv(
             "spawn_projectile", "spawn_spotanim", "entity_spotanim", "damage_test",
             "debug_overlay"
         };
-        enum LibToriRS_KeyCode parsed = TORIRSK_UNKNOWN;
-        int action = -1;
+        char const* name = section_name + 7;
+        struct BootManifestDebugAction* action = NULL;
 
-        for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
-            if( strcmp(key, action_names[i]) == 0 )
+        if( !name[0] )
+        {
+            fprintf(stderr, "bootmanifest: [action:<name>] requires a name\n");
+            bm->debug_hotkey_error = 1;
+            return;
+        }
+        for( int i = 0; i < bm->debug_action_count; i++ )
+            if( strcmp(bm->debug_actions[i].name, name) == 0 )
             {
-                action = i;
+                action = &bm->debug_actions[i];
                 break;
             }
-        if( action < 0 )
-            break;
-
-        if( strcmp(value, "off") == 0 || strcmp(value, "none") == 0 )
-            parsed = TORIRSK_UNKNOWN;
-        else if( value[0] && !value[1] && value[0] >= 'a' && value[0] <= 'z' )
-            parsed = (enum LibToriRS_KeyCode)(TORIRSK_A + value[0] - 'a');
-        else if( value[0] && !value[1] && value[0] >= '0' && value[0] <= '9' )
-            parsed = (enum LibToriRS_KeyCode)(TORIRSK_0 + value[0] - '0');
-        else
+        if( !action )
         {
-            static struct
+            if( bm->debug_action_count >= BOOTMANIFEST_DEBUG_ACTION_MAX )
             {
-                char const* name;
-                enum LibToriRS_KeyCode key;
-            } const named[] = {
-                { "escape",    TORIRSK_ESCAPE    },
-                { "enter",     TORIRSK_RETURN    },
-                { "return",    TORIRSK_RETURN    },
-                { "backspace", TORIRSK_BACKSPACE },
-                { "insert",    TORIRSK_INSERT    },
-                { "delete",    TORIRSK_DELETE    },
-                { "shift",     TORIRSK_SHIFT     },
-                { "ctrl",      TORIRSK_CTRL      },
-                { "tab",       TORIRSK_TAB       },
-                { "space",     TORIRSK_SPACE     },
-                { "left",      TORIRSK_LEFT      },
-                { "right",     TORIRSK_RIGHT     },
-                { "up",        TORIRSK_UP        },
-                { "down",      TORIRSK_DOWN      },
-                { "page_up",   TORIRSK_PAGE_UP   },
-                { "page_down", TORIRSK_PAGE_DOWN },
-                { "comma",     TORIRSK_COMMA     },
-            };
+                fprintf(stderr, "bootmanifest: at most %d debug actions\n",
+                        BOOTMANIFEST_DEBUG_ACTION_MAX);
+                bm->debug_hotkey_error = 1;
+                return;
+            }
+            action = &bm->debug_actions[bm->debug_action_count++];
+            snprintf(action->name, sizeof(action->name), "%s", name);
+            action->target = -1;
+        }
+        if( strcmp(key, "t") == 0 )
+        {
+            for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
+                if( strcmp(value, target_names[i]) == 0 )
+                {
+                    action->target = i;
+                    return;
+                }
+            fprintf(stderr, "bootmanifest: [action:%s] has unknown target '%s'\n", name, value);
+            bm->debug_hotkey_error = 1;
+            return;
+        }
+        if( strcmp(key, "a") == 0 )
+        {
+            snprintf(action->args, sizeof(action->args), "%s", value);
+            return;
+        }
+        break;
+    }
+
+    case BM_SECTION_DEBUG_HOTKEYS:
+    {
+        enum LibToriRS_KeyCode parsed = TORIRSK_UNKNOWN;
+        static struct
+        {
+            char const* name;
+            enum LibToriRS_KeyCode key;
+        } const named[] = {
+            { "escape",    TORIRSK_ESCAPE    }, { "enter",   TORIRSK_RETURN    },
+            { "return",    TORIRSK_RETURN    }, { "backspace", TORIRSK_BACKSPACE },
+            { "insert",    TORIRSK_INSERT    }, { "delete",  TORIRSK_DELETE    },
+            { "shift",     TORIRSK_SHIFT     }, { "ctrl",    TORIRSK_CTRL      },
+            { "tab",       TORIRSK_TAB       }, { "space",   TORIRSK_SPACE     },
+            { "left",      TORIRSK_LEFT      }, { "right",   TORIRSK_RIGHT     },
+            { "up",        TORIRSK_UP        }, { "down",    TORIRSK_DOWN      },
+            { "page_up",   TORIRSK_PAGE_UP   }, { "page_down", TORIRSK_PAGE_DOWN },
+            { "comma",     TORIRSK_COMMA     },
+        };
+
+        if( key[0] && !key[1] && key[0] >= 'a' && key[0] <= 'z' )
+            parsed = (enum LibToriRS_KeyCode)(TORIRSK_A + key[0] - 'a');
+        else if( key[0] && !key[1] && key[0] >= '0' && key[0] <= '9' )
+            parsed = (enum LibToriRS_KeyCode)(TORIRSK_0 + key[0] - '0');
+        else
             for( size_t i = 0; i < sizeof(named) / sizeof(named[0]); i++ )
-                if( strcmp(value, named[i].name) == 0 )
+                if( strcmp(key, named[i].name) == 0 )
                 {
                     parsed = named[i].key;
                     break;
                 }
-            if( parsed == TORIRSK_UNKNOWN )
-            {
-                fprintf(
-                    stderr, "bootmanifest: [debug:hotkeys] %s has unknown key '%s'\n", key, value);
-                return;
-            }
+        if( parsed == TORIRSK_UNKNOWN )
+        {
+            fprintf(stderr, "bootmanifest: [debug:hotkeys] has unknown key '%s'\n", key);
+            bm->debug_hotkey_error = 1;
+            return;
         }
-        bm->debug_hotkeys[action] = parsed;
-        bm->debug_hotkeys_set[action] = 1;
+        if( bm->debug_hotkey_count >= BOOTMANIFEST_DEBUG_HOTKEY_MAX )
+        {
+            fprintf(stderr, "bootmanifest: at most %d debug hotkeys\n",
+                    BOOTMANIFEST_DEBUG_HOTKEY_MAX);
+            bm->debug_hotkey_error = 1;
+            return;
+        }
+        bm->debug_hotkeys[bm->debug_hotkey_count].key = parsed;
+        snprintf(bm->debug_hotkeys[bm->debug_hotkey_count].action,
+                 sizeof(bm->debug_hotkeys[bm->debug_hotkey_count].action), "%s", value);
+        bm->debug_hotkey_count++;
         return;
     }
 
@@ -896,13 +859,6 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     bm->features_ground_click_nearest = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
-    bm->spawn_npc_id = -1;
-    bm->spawn_obj_id = -1;
-    bm->spawn_spotanim_id = -1;
-    bm->spawn_spotanim_height = -1;
-    bm->spawn_spotanim_delay = -1;
-    bm->spawn_proj_model_id = -1;
-    bm->spawn_proj_seq_id = -1;
     /* -1 rather than 0: a chatbox may legitimately have no input line or no
      * scroll layer, and 0 is a real component child id. */
     bm->chatbox_messages = -1;
@@ -945,6 +901,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     ini_reader_init(&reader);
 
     enum bm_section section = BM_SECTION_NONE;
+    char section_name[BOOTMANIFEST_DEBUG_NAME_CAP + 8] = { 0 };
     struct INIElement element = { 0 };
     int parse_result = TORI_INI_ERR_OK;
     while( (parse_result = ini_reader_next(
@@ -953,6 +910,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         switch( element.kind )
         {
         case INI_ELEMENT_SECTION:
+            snprintf(section_name, sizeof(section_name), "%s", element._section.name);
             section = bm_section_of(element._section.name);
             if( section == BM_SECTION_REVCONFIG )
                 snprintf(bm->revconfig_inline, sizeof(bm->revconfig_inline), "%s", path);
@@ -963,7 +921,13 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
                     element._section.name);
             break;
         case INI_ELEMENT_KEYVAL:
-            bm_set_kv(bm, manifest_dir, section, element._keyval.name, element._keyval.value);
+            bm_set_kv(
+                bm,
+                manifest_dir,
+                section,
+                section_name,
+                element._keyval.name,
+                element._keyval.value);
             break;
         case INI_ELEMENT_SECTION_END:
         case INI_ELEMENT_UNDEFINED:
@@ -984,6 +948,32 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
             reader.offset);
         return -1;
     }
+
+    for( int i = 0; i < bm->debug_action_count; i++ )
+        if( bm->debug_actions[i].target < 0 )
+        {
+            fprintf(stderr, "bootmanifest: [action:%s] is missing required t=\n",
+                    bm->debug_actions[i].name);
+            bm->debug_hotkey_error = 1;
+        }
+    for( int i = 0; i < bm->debug_hotkey_count; i++ )
+    {
+        int found = 0;
+        for( int j = 0; j < bm->debug_action_count; j++ )
+            if( strcmp(bm->debug_hotkeys[i].action, bm->debug_actions[j].name) == 0 )
+            {
+                found = 1;
+                break;
+            }
+        if( !found )
+        {
+            fprintf(stderr, "bootmanifest: [debug:hotkeys] references unknown action '%s'\n",
+                    bm->debug_hotkeys[i].action);
+            bm->debug_hotkey_error = 1;
+        }
+    }
+    if( bm->debug_hotkey_error )
+        return -1;
 
     /* All four identity keys are required. Missing one is user input, not an
      * assert — report and fail the load. */
@@ -1160,23 +1150,22 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->spawn_x = bm->spawn_x;
         cfg->spawn_z = bm->spawn_z;
     }
-    if( bm->spawn_npc_id >= 0 )
-        cfg->spawn_npc_id = bm->spawn_npc_id;
-    if( bm->spawn_obj_id >= 0 )
-        cfg->spawn_obj_id = bm->spawn_obj_id;
-    if( bm->spawn_spotanim_id >= 0 )
-        cfg->spawn_spotanim_id = bm->spawn_spotanim_id;
-    if( bm->spawn_spotanim_height >= 0 )
-        cfg->spawn_spotanim_height = bm->spawn_spotanim_height;
-    if( bm->spawn_spotanim_delay >= 0 )
-        cfg->spawn_spotanim_delay = bm->spawn_spotanim_delay;
-    if( bm->spawn_proj_model_id >= 0 )
-        cfg->spawn_proj_model_id = bm->spawn_proj_model_id;
-    if( bm->spawn_proj_seq_id >= 0 )
-        cfg->spawn_proj_seq_id = bm->spawn_proj_seq_id;
-    for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
-        if( bm->debug_hotkeys_set[i] )
-            cfg->debug_hotkeys[i] = bm->debug_hotkeys[i];
+    if( bm->debug_hotkey_count > 0 )
+    {
+        cfg->debug_hotkey_count = 0;
+        for( int i = 0; i < bm->debug_hotkey_count; i++ )
+            for( int j = 0; j < bm->debug_action_count; j++ )
+                if( strcmp(bm->debug_hotkeys[i].action, bm->debug_actions[j].name) == 0 )
+                {
+                    struct AppDebugHotkeyBinding* binding =
+                        &cfg->debug_hotkeys[cfg->debug_hotkey_count++];
+                    binding->key = (enum LibToriRS_KeyCode)bm->debug_hotkeys[i].key;
+                    binding->target = (enum AppDebugHotkey)bm->debug_actions[j].target;
+                    snprintf(binding->args, sizeof(binding->args), "%s",
+                             bm->debug_actions[j].args);
+                    break;
+                }
+    }
 }
 
 void

@@ -660,7 +660,7 @@ queue_path_as_waypoints(
  * Fill waypoints from a BFS to (x, z). Used for ground clicks and as the body
  * of walk_to_approach when the approach is EXACT.
  */
-static void
+static int
 waypoints_walk_to(
     struct Mock230Player* player,
     int x,
@@ -681,9 +681,29 @@ waypoints_walk_to(
          * correct answer.
          */
         player->waypoint_index = -1;
-        return;
+        player->dest_x = -1;
+        player->dest_z = -1;
+        return 0;
     }
     queue_path_as_waypoints(player, path_x, path_z, steps);
+
+    /* collision_map_route_tiles returns walk order, so its final tile is the
+     * actual arrival.  That differs from (x,z) when the official move-near
+     * fallback answers an unreachable ground click, such as Inferno lava.
+     * Keeping the raw click here discarded the result of Statics.method5592:
+     * movement used the nearest path, but destination state and SET_MAP_FLAG
+     * still named the blocked tile. */
+    if( steps > 0 )
+    {
+        player->dest_x = path_x[steps - 1];
+        player->dest_z = path_z[steps - 1];
+    }
+    else
+    {
+        player->dest_x = player->x;
+        player->dest_z = player->z;
+    }
+    return 1;
 }
 
 static void
@@ -726,13 +746,16 @@ mock230_world_walk_to(
     player->dest_x = x;
     player->dest_z = z;
     player->steps_taken = 0;
-    waypoints_walk_to(player, x, z);
+    if( !waypoints_walk_to(player, x, z) )
+        return;
 
-    /* Server owns the yellow cross: scene-local destination. */
+    /* Server owns the yellow cross: scene-local routed destination.  For an
+     * unreachable click this is the move-near arrival, not the raw click. */
     base_x = mock230_scene_base_x();
     base_z = mock230_scene_base_z();
     if( base_x >= 0 && player->waypoint_index >= 0 )
-        mock230_send_set_map_flag(player, x - base_x, z - base_z);
+        mock230_send_set_map_flag(
+            player, player->dest_x - base_x, player->dest_z - base_z);
 }
 
 void
