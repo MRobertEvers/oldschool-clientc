@@ -928,6 +928,13 @@ rs2012-face-priorities: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
 		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
 		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
 
+.PHONY: rs2012-model-diff
+# Field-by-field decode diff of two OB3s: did a decode-modify-encode trip
+# corrupt anything it was not supposed to touch? The write tools verify counts
+# and priorities; this verifies colors, textures, uv, bones, alpha, vertices.
+rs2012-model-diff: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_diff 		engine/proctex/test/rs2012_model_diff.c 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
 # Sound end-to-end test: cache -> synth render -> game queue -> platform.
 # Links the SILENT audio backend instead of the SDL2 one (they define the same
 # symbols), so this runs headless with no device.

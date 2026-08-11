@@ -202,6 +202,47 @@ waits on the summoning lane compiling again (or its `script.dat` being
 refreshed by its owner). Nothing in this port blocks on it, and nothing in
 this port caused it.
 
+**5. The white-materials incident, and the two rules it bought.** The first
+live run of the encounter rendered the QBD flat white — "none of the
+materials are rendering." Diagnosis, in the order it actually went:
+
+```sh
+# a field-by-field decode diff of original vs ported, because the tool's own
+# decode check only verifies counts and priorities:
+make -C src rs2012-model-diff
+src/build*/rs2012_model_diff rs2012_model_70260.ob3 rs2012_model_70260_authored.ob3
+#   face_colors identical, face_textures identical, texture coords identical,
+#   bones identical; only vertices (the +-6 fuzz) and priorities differ
+```
+
+The model file was innocent. The sprite-verify failure was innocent too —
+every UI sprite in the white screenshot drew perfectly, which is a better
+sprite test than the verifier. What broke was **identity**: the repoint served
+id 110000 from a file named `rs2012_model_70260_authored`, and the material /
+HD-variant layer keys its associations by model identity. A name no ledger
+knows means no materials, and textured faces fall to flat white.
+
+Fix: keep the **names**, swap the **contents**. The authored bytes now live at
+the stock paths (`rs2012_model_70260.ob3`), the originals are preserved as
+`*_original.ob3`, and the A/B npc 25010 (renamed `QBD_Original_Unported`)
+carries the originals. Every name-keyed system resolves exactly as before.
+
+One more trap inside the fix: the first repack after the content swap shipped
+the OLD bytes anyway, because `build/rs2012-overlay/` still held a stale copy
+and the staging step does not overwrite an existing staged file. Same-path
+content changes need `rm -rf build/rs2012-overlay` before
+`make -C src mock230-cache-rs2012`. Verified after the clean repack:
+
+```
+cache 110000 sha1 65456e2c66e1  = authored   (encounter model1)
+cache 110001 sha1 ce8e94e865d6  = authored   (encounter model2)
+cache 110660 = the preserved original        (A/B npc 25010)
+```
+
+Rules bought: **ported bytes go under the original identity, never a new
+name**; and **a content-only change must clear the staged overlay or it
+silently ships the old bytes**.
+
 ---
 
 ## 1. What actually breaks, and why
