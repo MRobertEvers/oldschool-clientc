@@ -14,6 +14,7 @@ SERVER = REPO / (
     "scripts/summoning_spirit_wolf.rs2"
 )
 MOCK_HOST = REPO / "src/net/mock/mock230_scripts.c"
+MOCK_INV = REPO / "src/net/mock/mock230_ops_inv.c"
 MOCK_WORLD = REPO / "src/net/mock/mock230_world.c"
 MOCK_HEADER = REPO / "src/net/mock/mock230.h"
 INTERFACE = REPO / (
@@ -21,6 +22,10 @@ INTERFACE = REPO / (
     "interfaces/summoning_familiar.if"
 )
 SPECIAL_MANIFEST = REPO / "docs/summoning_port/special_move_assets_530.ini"
+COMBAT_PROFILES = REPO / (
+    "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/"
+    "configs/summoning_special_combat.npc"
+)
 
 
 def expect(condition: bool, message: str) -> None:
@@ -32,10 +37,12 @@ def main() -> int:
     try:
         text = SERVER.read_text(encoding="utf-8")
         mock_host = MOCK_HOST.read_text(encoding="utf-8")
+        mock_inv = MOCK_INV.read_text(encoding="utf-8")
         mock_world = MOCK_WORLD.read_text(encoding="utf-8")
         mock_header = MOCK_HEADER.read_text(encoding="utf-8")
         interface = INTERFACE.read_text(encoding="utf-8")
         special_manifest = SPECIAL_MANIFEST.read_text(encoding="utf-8")
+        combat_profiles = COMBAT_PROFILES.read_text(encoding="utf-8")
         execute = text[
             text.index("[proc,summoning_familiar_special_execute]") : text.index("[proc,summoning_familiar_special_xp]")
         ]
@@ -50,10 +57,12 @@ def main() -> int:
         validate = text[text.index("[proc,summoning_familiar_special_validate]") : text.index("[proc,summoning_familiar_special_commit]")]
 
         expected_xp = {
-            1: 1, 2: 1, 3: 8, 4: 2, 5: 2, 6: 2, 8: 2, 11: 23, 13: 6, 15: 11,
-            18: 7, 19: 7, 20: 7, 21: 7,
-            22: 6, 23: 8, 32: 23, 33: 47, 34: 24, 37: 11, 38: 57, 43: 19, 44: 31, 46: 10, 47: 7, 49: 14, 51: 11, 53: 73,
-            54: 37, 59: 79, 60: 79, 61: 79, 62: 16, 72: 18, 74: 45,
+            1: 1, 2: 1, 3: 8, 4: 2, 5: 2, 6: 2, 7: 5, 8: 2, 11: 23, 13: 6, 15: 11,
+            17: 7, 18: 7, 19: 7, 20: 7, 21: 7,
+            22: 6, 23: 8, 24: 21, 25: 9, 26: 9, 27: 9, 28: 9, 29: 9, 30: 9, 31: 9,
+            32: 23, 33: 47, 34: 24, 35: 11, 36: 55, 37: 11, 38: 57, 39: 57, 43: 19, 44: 31, 46: 10, 47: 7, 49: 14, 51: 11, 53: 73,
+            48: 14, 54: 37, 59: 79, 60: 79, 61: 79, 62: 16, 66: 36, 67: 46,
+            68: 56, 69: 66, 70: 76, 71: 86, 72: 18, 73: 89, 74: 45, 75: 19, 76: 47, 77: 48,
         }
         execute_types = {
             int(value)
@@ -69,7 +78,10 @@ def main() -> int:
             int(kind): int(value)
             for kind, value in re.findall(r"if \(\$type = (\d+)\) return\((\d+)\);", xp)
         }
-        expect(execute_types | target_execute_types == set(expected_xp),
+        # Forge Regent's source-faithful atomic transfer is prepared below but
+        # deliberately unroutable pending a real PvP/multicombat legality
+        # primitive.  It is not an enabled handler and must not receive XP.
+        expect(execute_types | target_execute_types == set(expected_xp) | {56},
                "implemented special handlers drifted from their XP rows")
         expect(xp_rows == expected_xp, "special XP is not the configured tenths-of-XP value")
         expect("if (~summoning_familiar_special_execute(%summoning_familiar_type) = false) return;" in handler,
@@ -118,6 +130,68 @@ def main() -> int:
                "summoning_special_move_barker_toad_toad_bark_impact_gfx" in execute and
                "randominc(8)" in execute,
                "Toad Bark lacks its source impact graphic or maximum hit")
+        expect("GeyserTitanNPC.java: Boil" in execute and
+               "summoning_special_move_geyser_titan_boil_projectile" in execute and
+               "spotanim_npc(summoning_special_move_geyser_titan_boil_gfx, 315, 0);" in execute and
+               "divide($defbonus, 40)" in execute and "randominc($maxhit)" in execute,
+               "Boil lacks its source defence-based maximum hit, projectile, or impact")
+        expect("CockatriceFamiliarNPC.java: Petrifying Gaze" in execute and
+               "summoning_special_move_petrifying_gaze_projectile" in execute and
+               "npc_statsub($drainstat, 3, 0);" in execute and
+               "if ($type = 25) $drainstat = defence;" in execute and
+               "if ($type = 27) $drainstat = prayer;" in execute and
+               "if ($type = 30) $drainstat = summoning;" in execute and
+               "randominc(10)" in execute,
+               "Petrifying Gaze lacks its shared skill-drain mapping, projectile, or source maximum hit")
+        expect("MinotaurFamiliarNPC.java: Bull Rush" in execute and
+               "summoning_special_move_bull_rush_projectile" in execute and
+               "if ($type = 71) $maxhit = 20;" in execute and
+               "random($maxhit)" in execute and "npc_freeze(4)" in execute and
+               "$type != 66 & $type != 71 & random(10) < 6" in execute,
+               "Bull Rush lacks its shared max-hit mapping, delayed stun, or admitted projectile")
+        expect("EvilTurnipNPC.java: Evil Flames" in execute and
+               "npc_statheal(hitpoints, 2, 0);" in execute and
+               "npc_statsub(magic, 1, 0);" in execute and
+               "summoning_special_move_evil_turnip_evil_flames_projectile" in execute,
+               "Evil Flames lacks its source familiar heal, Magic drain, or projectile")
+        expect("AbyssalParasiteNPC.java: Abyssal Drain" in execute and
+               "npc_statsub(prayer, add(1, random(3)), 0);" in execute and
+               "summoning_special_move_abyssal_parasite_abyssal_drain_projectile" in execute and
+               "randominc(7)" in execute,
+               "Abyssal Drain lacks its source prayer drain, projectile, or maximum hit")
+        expect("SpiritJellyNPC.java: Dissolve" in execute and
+               "npc_statsub(attack, 3, 0);" in execute and
+               "summoning_special_move_spirit_jelly_dissolve_projectile" in execute and
+               "randominc(13)" in execute,
+               "Dissolve lacks its source Attack drain, projectile, or maximum hit")
+        expect("SpiritLarupiaNPC.java: Rending" in execute and
+               "npc_statsub(strength, 1, 0);" in execute and
+               "summoning_special_move_rending_projectile" in execute and
+               "random(10)" in execute,
+               "Rending lacks its one-below-base Strength drain, projectile, or source maximum hit")
+        expect("AbyssalTitanNPC.kt: Essence Shipment" in execute and
+               "inv_total(summoning_bob, summoning_special_move_rune_essence)" in execute and
+               "inv_freespace(bank) < $needed" in execute and
+               "inv_moveitem_uncert(summoning_bob, bank, summoning_special_move_pure_essence, $bob_pure);" in execute and
+               "summoning_special_move_abyssal_titan_essence_shipment" in execute,
+               "Essence Shipment lacks its BoB totals, combined bank preflight, atomic moves, or visual")
+        expect("BunyipNPC.java: Swallow Whole" in target_execute and
+               "~summoning_bunyip_cooking_level(last_item)" in target_execute and
+               "inv_delslot(inv, last_slot);" in target_execute and
+               "summoning_special_move_bunyip_swallow_whole" in target_execute,
+               "Swallow Whole lacks its source cooking gate, exact selected-item removal, or familiar visual")
+        expect("PackYakNPC.java: Winter Storage" in target_execute and
+               "oc_param(last_item, unbankable) = 1" in target_execute and
+               "inv_itemspace2(bank, $bankitem, 1, ^max_32bit_int)" in target_execute and
+               "inv_moveitem_uncert(inv, bank, last_item, 1);" in target_execute and
+               "summoning_special_move_pack_yak_winter_storage_gfx" in target_execute,
+               "Winter Storage lacks its bankability check, atomic note-aware move, capacity preflight, or visual")
+        expect("BeaverNPC.java: Multichop" in target_execute and
+               "db_find(woodcutting_trees:tree, $tree_type);" in target_execute and
+               "if (npc_range($tree) > 5)" in target_execute and
+               "p_delay($travel);" in target_execute and "p_delay(11);" in target_execute and
+               "~summoning_beaver_log(random(11))" in target_execute,
+               "Multichop lacks its source tree gate, range, timed window, or log rewards")
         expect("SpiritKyattNPC.java: Ambush" in execute and
                "npc_tele(movecoord(coord, 1, 0, 0));" in execute and
                "npc_setmode(playerfollow);" in execute,
@@ -195,6 +269,29 @@ def main() -> int:
                ".stat_heal(hitpoints, 0, 15);" in target_execute and
                "summoning_special_move_unicorn_stallion_healing_aura_gfx" in target_execute,
                "Healing Aura does not retain its selected-player 15% source heal or familiar visual")
+        expect("ForgeRegentNPC.java: Inferno" in target_execute and
+               ".inv_freespace(inv) < 1" in target_execute and
+               ".inv_delslot(worn, $slot);" in target_execute and
+               ".inv_add(inv, $remove, 1);" in target_execute and
+               ".spotanim_pl(summoning_special_move_forge_regent_inferno_target_gfx, 0, 0);" in target_execute and
+               "if ($type = 72) return(2); // Unicorn stallion" in text and
+               "if ($type = 56 | $type = 72) return(2);" not in text,
+               "Forge Regent Inferno is not safely prepared and gated pending PvP policy")
+        expect("SpiritMosquitoNPC.java: Pester" in execute and
+               "~npc_melee_attack_roll(^stab_style)" in execute and
+               "~npc_melee_maxhit" in execute and
+               "summoning_special_move_spirit_mosquito_pester_gfx" in execute,
+               "Spirit Mosquito Pester does not use its source melee profile and special visual")
+        mosquito_profile = combat_profiles[
+            combat_profiles.index("[summoning_cohort_spirit_mosquito_spirit_mosquito]"):
+        ]
+        expect("attack=28" in mosquito_profile and "strength=24" in mosquito_profile and
+               "defence=25" in mosquito_profile and "param=stabattack,45" in mosquito_profile and
+               "param=strengthbonus,53" in mosquito_profile,
+               "Spirit Mosquito's source combat profile is incomplete")
+        expect("SSVM_Active(state, SSVM_ENT_PLAYER)" in mock_inv and
+               "SSVM_SECONDARY, &srv->players[player_slot]" in mock_host,
+               "targeted-player dotted container operations no longer use the selected player")
         expect("CompostMoundNPC.java: Generate Compost" in target_execute and
                "~farming_compost_set_count($bin, ^farming_compost_capacity);" in target_execute and
                "random(10) != 1" in target_execute and
@@ -215,6 +312,28 @@ def main() -> int:
                "Volcanic Strength lacks the source familiar graphic")
         expect("if ($type = 59 | $type = 60 | $type = 61)" in execute,
                "the Titan's Constitution family is not shared")
+        normal_tick = text[
+            text.index("[proc,summoning_familiar_normal_combat_tick]"):
+            text.index("[proc,summoning_macaw_herb]")
+        ]
+        expect("%summoning_familiar_type != 76" in normal_tick and
+               "map_multiway(coord)" in normal_tick and
+               "npc_findcombat = false" in normal_tick and
+               "npc_finduid($familiar) = false" in normal_tick and
+               "npc_walk($target_coord)" in normal_tick and
+               "npc_var_set(^summoning_npcvar_charged_attack, 0)" in normal_tick and
+               "npc_queue(2, $extra_one, 0);" in normal_tick and
+               "npc_queue(2, $extra_two, 0);" in normal_tick,
+               "Iron Titan lacks a generation-safe multiway normal swing or its two charged hits")
+        expect("IronTitanNPC.java: Iron Within" in execute and
+               "summoning_special_move_iron_titan_swing" in execute and
+               "summoning_special_move_iron_titan_iron_within_gfx" in execute,
+               "Iron Within lacks its source charge state or admitted visuals")
+        iron_profile = combat_profiles[
+            combat_profiles.index("[summoning_cohort_iron_titan_iron_titan]"):]
+        expect("hitpoints=694" in iron_profile and "attack=65" in iron_profile and
+               "param=crushattack,100" in iron_profile and "param=strengthbonus,100" in iron_profile,
+               "Iron Titan's source combat profile is incomplete")
         expect("add(stat_base(hitpoints), 8)" in execute and
                "You are already at maximum hitpoints!" in execute,
                "Titan's Constitution does not validate its overheal ceiling")
@@ -250,11 +369,14 @@ def main() -> int:
                "interaction->kind == MOCK230_INTERACT_PLAYER ? interaction->npc_slot : -1" in mock_world and
                "(struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);" in mock_host,
                "selected player casts do not bind a secondary recipient for dotted target operations")
+        expect("container_row(srv, player, inv_id)" in mock_host and
+               "mock230_container_resolve(srv, player ? player : srv->active_player, inv_id)" in mock_inv,
+               "dotted inventory commands do not resolve containers against the selected secondary player")
     except (AssertionError, OSError, ValueError) as exc:
         print(f"test_summoning_specials: error: {exc}", file=sys.stderr)
         return 1
 
-    print("test_summoning_specials: target surface, generation handles, transaction and 35 source-backed rows, 0 errors")
+    print("test_summoning_specials: target surface, generation handles, 59 enabled rows plus gated Forge scaffold, 0 errors")
     return 0
 
 

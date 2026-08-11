@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sys
 
-from summoning_special_registry import IMPLEMENTED, records
+from summoning_special_registry import IMPLEMENTED, SOURCE_INCOMPLETE, records
 
 
 def main() -> int:
@@ -24,6 +24,9 @@ def main() -> int:
         )
         assert all(row.provenance != "needs_citation" for row in rows if row.state not in {"source_gap", "source_incomplete"}), (
             "specified behavior lacks source provenance"
+        )
+        assert SOURCE_INCOMPLETE == {16}, (
+            "the Honey badger's unconsumed local charge must remain explicitly incomplete"
         )
     except (AssertionError, KeyError, OSError, ValueError, IndexError) as exc:
         print(f"test_summoning_special_registry: error: {exc}", file=sys.stderr)

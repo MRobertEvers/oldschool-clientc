@@ -3390,16 +3390,17 @@ npc_changetype_rehydrate(
  * because a `scope=shared` container has no player to read. What is left here
  * is the ServerScript adaptor: a `.`-less container op acts on the primary
  * player, which is LostCity's `ScriptState.activePlayer` and is the correct
- * source *for this layer*. The `.` dialect is where a secondary player would
- * come from; it is decoded and discarded today (`(void)dot;` below), which is
- * one of the things standing between here and trading.
+ * source *for this layer*. The `.` dialect chooses the secondary player, which
+ * lets a targeted special inspect or mutate its validated recipient's
+ * containers without replacing the owner used by its common resource commit.
  */
 static struct Mock230Container*
 container_row(
     struct Mock230Server* srv,
+    struct Mock230Player* player,
     int32_t inv_id)
 {
-    return mock230_container_resolve(srv, srv->active_player, inv_id);
+    return mock230_container_resolve(srv, player, inv_id);
 }
 
 /** The inventory currently listening on `component`, before stoptransmit drops
@@ -3429,10 +3430,11 @@ container_listener_row(
 static struct Mock230Item*
 container_for(
     struct Mock230Server* srv,
+    struct Mock230Player* player,
     int32_t inv_id,
     int* out_slots)
 {
-    struct Mock230Container* row = container_row(srv, inv_id);
+    struct Mock230Container* row = container_row(srv, player, inv_id);
 
     *out_slots = row ? row->slots : 0;
     return row ? row->items : NULL;
@@ -3445,10 +3447,11 @@ container_for(
 static void
 container_dirty(
     struct Mock230Server* srv,
+    struct Mock230Player* player,
     int32_t inv_id,
     int slot)
 {
-    mock230_container_mark(container_row(srv, inv_id), slot);
+    mock230_container_mark(container_row(srv, player, inv_id), slot);
 }
 
 /* `push_typed_param` moved to mock230_ops_param.c as
@@ -3876,7 +3879,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        row = container_row(srv, values[0]);
+        row = container_row(srv, player, values[0]);
         if( !row )
         {
             SSVM_Abort(state, "inv_add on unknown container %d", values[0]);
@@ -3913,7 +3916,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        items = container_for(srv, values[0], &slots);
+        items = container_for(srv, player, values[0], &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_del on unknown container %d", values[0]);
@@ -3943,7 +3946,7 @@ mock230_script_command(
              * (undefined; `i` reaches 1409). Same defect as the one inv_add's
              * comment already records; this is the second copy of it.
              */
-            container_dirty(srv, values[0], i);
+            container_dirty(srv, player, values[0], i);
         }
         return 1;
     }
@@ -3968,7 +3971,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        items = container_for(srv, values[0], &slots);
+        items = container_for(srv, player, values[0], &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_delslot on unknown container %d", values[0]);
@@ -3979,7 +3982,7 @@ mock230_script_command(
         items[values[1]].obj_id = -1;
         items[values[1]].count = 0;
         /* Through the registry, for the reason inv_del's comment gives. */
-        container_dirty(srv, values[0], (int)values[1]);
+        container_dirty(srv, player, values[0], (int)values[1]);
         return 1;
     }
 
@@ -3995,7 +3998,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        items = container_for(srv, values[0], &slots);
+        items = container_for(srv, player, values[0], &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_total on unknown container %d", values[0]);
@@ -4033,7 +4036,7 @@ mock230_script_command(
             SSVM_Abort(state, "inv_totalcat with category %d (0 means unset)", values[1]);
             return 1;
         }
-        items = container_for(srv, values[0], &slots);
+        items = container_for(srv, player, values[0], &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_totalcat on unknown container %d", values[0]);
@@ -4059,7 +4062,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
-        items = container_for(srv, inv_id, &slots);
+        items = container_for(srv, player, inv_id, &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_freespace on unknown container %d", inv_id);
@@ -7368,7 +7371,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        row = container_row(srv, values[0]);
+        row = container_row(srv, player, values[0]);
         if( !row )
         {
             SSVM_Abort(state, "inv_setvar on unknown container %d", values[0]);
@@ -7395,7 +7398,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &key_obj) || !SSVM_PopInt(state, &slot) ||
             !SSVM_PopInt(state, &inv_id) )
             return 1;
-        row = container_row(srv, inv_id);
+        row = container_row(srv, player, inv_id);
         if( !row )
         {
             SSVM_Abort(state, "inv_getvar on unknown container %d", inv_id);
@@ -8149,7 +8152,7 @@ mock230_script_command(
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        row = container_row(srv, values[0]);
+        row = container_row(srv, player, values[0]);
         if( !row )
         {
             SSVM_Abort(state, "inv_setslot on unknown container %d", values[0]);
@@ -8175,7 +8178,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &slot) || !SSVM_PopInt(state, &inv_id) )
             return 1;
-        items = container_for(srv, inv_id, &slots);
+        items = container_for(srv, player, inv_id, &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_getobj/getnum on unknown container %d", inv_id);
@@ -8214,7 +8217,7 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &limit) || !SSVM_PopInt(state, &count) ||
             !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &inv_id) )
             return 1;
-        items = container_for(srv, inv_id, &slots);
+        items = container_for(srv, player, inv_id, &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_itemspace on unknown container %d", inv_id);
@@ -8264,8 +8267,8 @@ mock230_script_command(
         if( !SSVM_PopInt(state, &to_slot) || !SSVM_PopInt(state, &from_slot) ||
             !SSVM_PopInt(state, &to_inv) || !SSVM_PopInt(state, &from_inv) )
             return 1;
-        from_items = container_for(srv, from_inv, &from_slots);
-        to_items = container_for(srv, to_inv, &to_slots);
+        from_items = container_for(srv, player, from_inv, &from_slots);
+        to_items = container_for(srv, player, to_inv, &to_slots);
         if( !from_items || !to_items )
         {
             SSVM_Abort(state, "inv_movetoslot between containers %d and %d", from_inv, to_inv);
@@ -8279,8 +8282,8 @@ mock230_script_command(
             from_items[from_slot] = to_items[to_slot];
             to_items[to_slot] = swap;
         }
-        container_dirty(srv, from_inv, (int)from_slot);
-        container_dirty(srv, to_inv, (int)to_slot);
+        container_dirty(srv, player, from_inv, (int)from_slot);
+        container_dirty(srv, player, to_inv, (int)to_slot);
         return 1;
     }
 
@@ -8299,7 +8302,7 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &inv_id) )
             return 1;
-        items = container_for(srv, inv_id, &slots);
+        items = container_for(srv, player, inv_id, &slots);
         if( !items )
         {
             SSVM_Abort(state, "inv_clear on unknown container %d", inv_id);
@@ -8309,7 +8312,7 @@ mock230_script_command(
         {
             items[i].obj_id = -1;
             items[i].count = 0;
-            container_dirty(srv, inv_id, i);
+            container_dirty(srv, player, inv_id, i);
         }
         return 1;
     }
@@ -8344,7 +8347,7 @@ mock230_script_command(
          */
         if( inv_id == mock230_ids()->inv_bank )
         {
-            struct Mock230Container* row = container_row(srv, inv_id);
+            struct Mock230Container* row = container_row(srv, player, inv_id);
             int used = 0;
 
             if( !row )

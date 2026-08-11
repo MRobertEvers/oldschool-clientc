@@ -227,6 +227,45 @@ def main() -> int:
                "Vampyre Touch's source animation is not imported")
         expect("1323=vampire_bat_vampyre_touch_gfx" in special_text,
                "Vampyre Touch's source graphic is not imported")
+        for source, name in ((7762, "petrifying_gaze"), (8026, "bull_rush")):
+            expect(f"{source}={name}" in special_text,
+                   f"shared direct-combat source sequence {source} is not imported")
+        expect("5229=rending" in special_text,
+               "Rending's source sequence is not imported")
+        for source, name in ((1467, "petrifying_gaze_gfx"),
+                             (1468, "petrifying_gaze_projectile"),
+                             (1469, "petrifying_gaze_impact_gfx"),
+                             (1496, "bull_rush_gfx"),
+                             (1497, "bull_rush_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"shared direct-combat source graphic {source} is not imported")
+        for source, name in ((1370, "rending_gfx"), (1371, "rending_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Rending source graphic {source} is not imported")
+        expect("7722=beaver_multichop" in special_text,
+               "Multichop's source animation is not imported")
+        for source, name in ((1393, "forge_regent_inferno_target_gfx"),
+                             (1394, "forge_regent_inferno_gfx")):
+            expect(f"{source}={name}" in special_text,
+                   f"Forge Regent source graphic {source} is not imported")
+        expect("8183=iron_titan_swing" in special_text and
+               "1450=iron_titan_iron_within_gfx" in special_text,
+               "Iron Within's source normal-swing sequence or charge graphic is not imported")
+        for source, name in ((8257, "spirit_tz_kih_fireball_assault"),
+                             (7758, "giant_chinchompa_explode"),
+                             (7820, "smoke_devil_dust_cloud")):
+            expect(f"{source}={name}" in special_text,
+                   f"bounded-area familiar source sequence {source} is not imported")
+        expect("1364=giant_chinchompa_explode_gfx" in special_text,
+               "Giant Chinchompa's source graphic is not imported")
+        for source, name in ((1511, "beaver_logs"), (2862, "beaver_achey_tree_logs"),
+                             (1521, "beaver_oak_logs"), (1519, "beaver_willow_logs"),
+                             (6333, "beaver_teak_logs"), (10810, "beaver_arctic_pine_logs"),
+                             (1517, "beaver_maple_logs"), (6332, "beaver_mahogany_logs"),
+                             (12581, "beaver_eucalyptus_logs"), (960, "beaver_yew_logs"),
+                             (8778, "beaver_magic_logs")):
+            expect(f"{source}={name}" in special_text,
+                   f"Multichop source log {source} is not imported")
         special_ledger = (args.tree / "port/summoning_special_moves_530.map").read_text(
             encoding="utf-8"
         )
@@ -275,6 +314,57 @@ def main() -> int:
         expect(re.search(r"^spotanim\t1323\t.*\tsummoning_special_move_vampire_bat_vampyre_touch_gfx\t",
                          special_ledger, re.MULTILINE) is not None,
                "Vampyre Touch graphic is absent from its ledger")
+
+        for source, name in ((7762, "petrifying_gaze"), (8026, "bull_rush")):
+            expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"shared direct-combat sequence {source} is absent from its ledger")
+        expect(re.search(r"^seq\t5229\t.*\tsummoning_special_move_rending\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Rending sequence is absent from its ledger")
+        for source, name in ((1467, "petrifying_gaze_gfx"),
+                             (1468, "petrifying_gaze_projectile"),
+                             (1469, "petrifying_gaze_impact_gfx"),
+                             (1496, "bull_rush_gfx"),
+                             (1497, "bull_rush_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"shared direct-combat graphic {source} is absent from its ledger")
+        for source, name in ((1370, "rending_gfx"), (1371, "rending_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Rending graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t7722\t.*\tsummoning_special_move_beaver_multichop\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Multichop animation is absent from its translation ledger")
+        for source, name in ((1393, "forge_regent_inferno_target_gfx"),
+                             (1394, "forge_regent_inferno_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Forge Regent graphic {source} is absent from its translation ledger")
+        expect(re.search(r"^seq\t8183\t.*\tsummoning_special_move_iron_titan_swing\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1450\t.*\tsummoning_special_move_iron_titan_iron_within_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Iron Within's source animation closure is absent from its ledger")
+        for source, name in ((8257, "spirit_tz_kih_fireball_assault"),
+                             (7758, "giant_chinchompa_explode"),
+                             (7820, "smoke_devil_dust_cloud")):
+            expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"bounded-area familiar source sequence {source} is absent from its ledger")
+        expect(re.search(r"^spotanim\t1364\t.*\tsummoning_special_move_giant_chinchompa_explode_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Giant Chinchompa's source graphic is absent from its ledger")
+        for source, name in ((1511, "beaver_logs"), (2862, "beaver_achey_tree_logs"),
+                             (1521, "beaver_oak_logs"), (1519, "beaver_willow_logs"),
+                             (6333, "beaver_teak_logs"), (10810, "beaver_arctic_pine_logs"),
+                             (1517, "beaver_maple_logs"), (6332, "beaver_mahogany_logs"),
+                             (12581, "beaver_eucalyptus_logs"), (960, "beaver_yew_logs"),
+                             (8778, "beaver_magic_logs")):
+            expect(re.search(rf"^obj\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Multichop log {source} is absent from its ledger")
 
         server = (args.tree / "server/scripts/ported_scape2009_summoning/scripts/"
                   "summoning_spirit_wolf.rs2").read_text(encoding="utf-8")

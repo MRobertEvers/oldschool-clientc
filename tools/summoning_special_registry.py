@@ -27,10 +27,16 @@ SERVER = REPO / (
     "scripts/summoning_spirit_wolf.rs2"
 )
 
-IMPLEMENTED = frozenset((1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 18, 19, 20, 21, 22, 23, 32, 33, 34, 37, 38, 43, 44, 46, 47, 49, 51, 53, 54, 59, 60, 61, 62, 72, 74))
+IMPLEMENTED = frozenset((1, 2, 3, 4, 5, 6, 7, 8, 11, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 43, 44, 46, 47, 48, 49, 51, 53, 54, 59, 60, 61, 62, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77))
 SOURCE_GAPS = frozenset((12, 41, 52, 55, 57, 58, 63, 64, 65))
-SOURCE_DEFECTS = frozenset((9, 45))
-SOURCE_INCOMPLETE = frozenset()
+# Bunyip's Fish enum includes four non-cookable entries, then dereferences a
+# null CookableItems row; the live handler corrects that known source defect.
+SOURCE_DEFECTS = frozenset((9, 45, 48))
+# Honey badger's local class can set its charged bit but never consumes it in
+# an attack hook.  Treat that missing semantic as incomplete source, rather
+# than inventing a multiplier or duration from the visual alone.
+SOURCE_INCOMPLETE = frozenset((16,))
+SOURCE_GAP_FIXTURE = "docs/summoning_port/SPECIAL_SOURCE_GAP_FIXTURES.json"
 TARGET_KINDS = {
     1: "npc", 13: "scenery", 17: "scenery", 32: "inventory_item",
     44: "inventory_item", 48: "inventory_item", 50: "npc_or_player",
@@ -194,7 +200,10 @@ def records() -> list[SpecialRecord]:
             target_kind=TARGET_KINDS.get(kind, "self_or_combat"),
             handler="summoning_familiar_special_execute" if kind in IMPLEMENTED else "unavailable",
             state=state,
-            provenance="2009scape" if state not in {"source_gap", "source_incomplete"} else "needs_citation",
+            provenance=(
+                SOURCE_GAP_FIXTURE if state == "source_gap" else
+                "2009scape" if state != "source_incomplete" else "needs_citation"
+            ),
             asset_bundle="call_to_arms" if kind in CALL_TO_ARMS else "shared_cast",
         ))
     return result
