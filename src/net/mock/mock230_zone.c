@@ -903,9 +903,7 @@ obj_event(
         return;
     memset(&event, 0, sizeof(event));
     event.kind = kind;
-    /* No obj on this floor belongs to anyone in particular yet; the reference's
-     * per-receiver loot is what this field is here for. */
-    event.receiver_pid = -1;
+    event.receiver_pid = obj->receiver_pid;
     event.pos = zone_pos(obj->x, obj->z);
     event.id = obj->obj_id;
     event.count = new_count;
@@ -1244,15 +1242,28 @@ write_state(
         struct Mock230GroundObj* obj = &srv->ground[zone->objs[i]];
         struct Mock230ZoneEvent event;
 
-        if( !obj->active )
+        if( !obj->active || !mock230_world_ground_visible_to(srv, zone->objs[i], player->pid) )
             continue;
         memset(&event, 0, sizeof(event));
         event.kind = MOCK230_ZONE_EV_OBJ_ADD;
-        event.receiver_pid = -1;
+        event.receiver_pid = obj->receiver_pid;
         event.pos = zone_pos(obj->x, obj->z);
         event.id = obj->obj_id;
         event.count = obj->count;
-        mock230_send_zone_sub(player, &event);
+        /* Rev-239 ground-object prots have no top-level opcode: they must be
+         * carried as an ordinal-prefixed PARTIAL_ENCLOSED record even during
+         * the initial zone-state replay.  Sending the classic standalone form
+         * resolves OBJ_ADD to -1 and silently loses persistent floor loot. */
+        if( mock230_zone_sub_standalone(srv->wire, event.kind) )
+            mock230_send_zone_sub(player, &event);
+        else
+        {
+            uint8_t one[256];
+            int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one), &event);
+            if( written > 0 )
+                mock230_send_zone_enclosed(player, obj->x >> 3, obj->z >> 3,
+                                            obj->level, one, written);
+        }
     }
     for( int i = 0; i < zone->loc_count; i++ )
     {

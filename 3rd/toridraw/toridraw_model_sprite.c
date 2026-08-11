@@ -395,6 +395,11 @@ ToriDraw_RenderModelExtentsAtWidget(
     int raster_origin_y = raster_clip_top + ((raster_clip_bottom - raster_clip_top) >> 1);
 
     scene->active_hnd = hnd;
+    /* Widget models are projected directly, independently of the world camera.
+     * Do not inherit the previous world model's near-clipped state: widget
+     * screen Z is model-relative (as in Model.objRender), so treating it as
+     * camera-space depth clips ordinary animated faces. */
+    scene->near_clipped = false;
 
     if( !orthographic )
     {
@@ -468,6 +473,7 @@ ToriDraw_RenderModelExtentsAtWidget(
     camera.near_plane_z = WIDGET_MODEL_NEAR;
     camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
     camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.texture_affine = 1;
 
     ToriDraw_RenderModel2SortFaces(hnd, scene);
     ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);

@@ -20,6 +20,7 @@ def main() -> int:
     parser.add_argument("--client", type=Path, default=REPO_ROOT / "src" / "torirs")
     parser.add_argument("--flag-on", type=Path, default=REPO_ROOT / "cache.osrs239.summoning")
     parser.add_argument("--flag-off", type=Path, default=REPO_ROOT / "cache.osrs239")
+    parser.add_argument("--scripts", type=Path, default=REPO_ROOT / "OSRS-Content/osrs239-content/server/scripts/build_summoning")
     parser.add_argument("--manifest", type=Path, default=REPO_ROOT / "manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO_ROOT / "build" / "summoning-phase1")
     args = parser.parse_args()
@@ -37,6 +38,7 @@ def main() -> int:
         ("client", args.client),
         ("flag-on cache", args.flag_on / "main_file_cache.dat2"),
         ("flag-off cache", args.flag_off / "main_file_cache.dat2"),
+        ("feature server scripts", args.scripts / "script.dat"),
         ("manifest", args.manifest),
     ):
         expect(path.is_file(), f"missing {label}: {path}")
@@ -60,21 +62,92 @@ def main() -> int:
     )
     icon_meta = icon_path.with_name("pack.meta").read_text(encoding="utf-8")
     expect(
-        "[sailing]\nif3=yes\ntype=0\nx=1\ny=209" in stats_source,
-        "source: Sailing is not the left cell of the final row",
+        "[sailing]\nif3=yes\ntype=0\nx=127\ny=211" in stats_source,
+        "source: Sailing moved out of its native grid cell",
     )
     expect(
-        "[total]\nif3=yes\ntype=0\nx=64\ny=209\nwidth=126\nheight=26"
+        "[total]\nif3=yes\ntype=0\nx=64\ny=241\nwidth=126\nheight=30"
         in stats_source,
-        "source: Total level does not share the final row with Sailing",
+        "source: Total level is not a two-cell box on the scrollable ninth row",
     )
     expect(
-        "[summoning_stats_cell]\nif3=yes\ntype=0\nx=127\ny=183" in stats_source,
-        "source: Summoning is not contiguous with Construction and Hunter",
+        "[summoning_stats_cell]\nif3=yes\ntype=0\nx=1\ny=241\nwidth=62\nheight=30"
+        in stats_source,
+        "source: Summoning is not the first cell on the scrollable ninth row",
+    )
+    stats_script = (content_lane / "scripts/summoning_stats_init.cs2").read_text(
+        encoding="utf-8"
+    )
+    native_stats_script = (content_lane / "scripts/script_393.cs2").read_text(
+        encoding="utf-8"
+    )
+    expect(
+        "if_setscrollsize(190, 271, $viewport7);" in stats_script
+        and "if_setscrollpos(0, 0, $viewport7);" in stats_script,
+        "source: Summoning stats clientscript does not create a scrollable viewport",
+    )
+    expect(
+        'if_setonscrollwheel("summoning_stats_scroll($viewport7, event_mousey)", $viewport7);'
+        in stats_script
+        and (content_lane / "scripts/summoning_stats_scroll.cs2").is_file(),
+        "source: Summoning stats viewport has no IF3 wheel handler",
     )
     expect(
         "onload=i:1198,i:-2147483645,i:20971553,i:25,i:2" in stats_source,
         "source: Summoning does not use the rev-530 wolf-head x nudge",
+    )
+    summoning_cell = stats_source.split("[summoning_stats_cell]", 1)[1]
+    expect(
+        "clickmask=6" in summoning_cell
+        and "op1=*" in summoning_cell
+        and "op2=*" in summoning_cell,
+        "source: Summoning stats cell is not clickable",
+    )
+    expect(
+        "cc_setposition(calc(3 + $int3), 0, ^setpos_abs_left, ^setpos_abs_top);"
+        in stats_script
+        and "cc_setposition(calc(3 + $int3), 4, ^setpos_abs_left, ^setpos_abs_top);"
+        in native_stats_script,
+        "source: Summoning/native skill icon offsets are not independently aligned",
+    )
+    expect(
+        "cc_setposition(32, 4, ^setpos_abs_left, ^setpos_abs_top);" in stats_script
+        and "cc_setposition(32, 4, ^setpos_abs_left, ^setpos_abs_top);"
+        in native_stats_script,
+        "source: skill levels are shifted above their native vertical position",
+    )
+    expect(
+        "if_setsize(126, 30, ^setsize_abs, ^setsize_abs, stats:25);"
+        in stats_script,
+        "source: Total XP box is not a full-height ninth-row panel",
+    )
+    expect(
+        "[com_26]\nif3=yes\ntype=5\nx=36\nwidth=36\nheight=36"
+        in stats_source
+        and "[com_27]\nif3=yes\ntype=5\nx=72\nwidth=36\nheight=36"
+        in stats_source
+        and "graphic=20025" in stats_source
+        and "graphic=20023" in stats_source
+        and "graphic=20024" in stats_source,
+        "source: Total XP panel does not use the original extended border sprites",
+    )
+    expect(
+        stats_source.count("graphic=20025\nhidden=yes") == 2,
+        "source: unused Total XP middle strips can protrude behind the border caps",
+    )
+    expect(
+        'if_setop(2, "View <col=ff981f><$string0></col> guide", $component0);'
+        in stats_script
+        and 'if_setop(1, "Toggle <col=ff981f><$string0></col> XP", $component0);'
+        in stats_script
+        and 'if_setop(1, "View <col=ff981f><$string0></col> guide", $component0);'
+        in stats_script,
+        "source: Summoning clientscript does not install click operations",
+    )
+    expect(
+        'if_setonvartransmit("summoning_stats_init($component0, $int1, $int2, $int3)'
+        in stats_script,
+        "source: Summoning can regain native click operations after a var transmit",
     )
     expect(
         "sprite0=25,25,22,23,0,2" in icon_meta,
@@ -86,13 +159,21 @@ def main() -> int:
         "source: Summoning icon pixels are not rev-530 sprite pack 222",
     )
 
-    def run(name: str, cache: Path, saves: Path, cheat: str | None = None) -> str:
+    def run(
+        name: str,
+        cache: Path,
+        saves: Path,
+        cheat: str | None = None,
+        sim_oploc: str | None = None,
+        sim_wheel: str | None = None,
+    ) -> str:
         bmp = args.out / f"{name}.bmp"
         log_path = args.out / f"{name}.log"
         env = os.environ.copy()
         env.update(
             {
                 "MOCK230_SAVES": str(saves),
+                "MOCK230_SCRIPTS": str(args.scripts),
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "430",
                 "TORIRS_EXIT_BMP": str(bmp),
@@ -104,6 +185,16 @@ def main() -> int:
             env["TORIRS_NET_CHEAT"] = cheat
         else:
             env.pop("TORIRS_NET_CHEAT", None)
+        if sim_oploc is not None:
+            env["TORIRS_SIM_OPLOC"] = sim_oploc
+        else:
+            env.pop("TORIRS_SIM_OPLOC", None)
+        if sim_wheel is not None:
+            env["TORIRS_SIM_WHEEL"] = sim_wheel
+            env["TORIRS_TRACE_DRAG"] = "1"
+        else:
+            env.pop("TORIRS_SIM_WHEEL", None)
+            env.pop("TORIRS_TRACE_DRAG", None)
         command = [
             str(args.client),
             str(cache),
@@ -131,26 +222,74 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="summoning_phase1_") as temporary:
         root = Path(temporary)
-        level1 = run("flag_on_level1", args.flag_on, Path(tempfile.mkdtemp(dir=root)))
+        locked = run("account_locked", args.flag_on, Path(tempfile.mkdtemp(dir=root)))
+        wolf_saves = Path(tempfile.mkdtemp(dir=root))
+        wolf_complete = run(
+            "wolf_whistle_complete",
+            args.flag_on,
+            wolf_saves,
+            "tele 3224 3220",
+            "180,3,3224,3220,62201",
+        )
+        wolf_relog = run("wolf_whistle_relog", args.flag_on, wolf_saves)
+        level1 = run(
+            "flag_on_level1",
+            args.flag_on,
+            Path(tempfile.mkdtemp(dir=root)),
+            "summoning_unlock",
+            sim_wheel="300,600,300,-1,1",
+        )
         persistent_saves = Path(tempfile.mkdtemp(dir=root))
         level20 = run(
             "flag_on_level20",
             args.flag_on,
             persistent_saves,
-            "setlevel summoning 20",
+            "summoning_unlock;setlevel summoning 20",
         )
         persisted = run("flag_on_persisted", args.flag_on, persistent_saves)
         flagoff = run("flag_off", args.flag_off, Path(tempfile.mkdtemp(dir=root)))
 
-        expect("320<<16|34" in level1, "flag_on_level1: Summoning cell is absent")
+        expect('text="Total level: 33"' in locked, "account_locked: total still includes Summoning")
+        wolf_save = (wolf_saves / "guest.ini").read_text(encoding="utf-8")
         expect(
-            "dynamic graphic=229 abs=639,388 25x25 hidden=0" in level1,
-            "flag_on_level1: wolf-head sprite is not rendered in the right-hand row-8 cell",
+            "Congratulations! You have completed Wolf Whistle!" in wolf_complete,
+            "Wolf Whistle obelisk interaction did not announce itself in the real client",
         )
         expect(
-            "static font=494 color=0xffff00 text=\"Total level: 34\" abs=573,416 126x25"
+            "sim_oploc: op=3 tile=3224,3220 loc=62201" in wolf_complete
+            and "summoning_wolf_whistle_complete' -> debugproc" not in wolf_complete,
+            "Wolf Whistle did not traverse the ordinary client OPLOC3 path",
+        )
+        expect(
+            "24 = 4 2760" in wolf_save,
+            "Wolf Whistle completion did not grant the source's 276 Summoning XP",
+        )
+        expect(
+            "40256 275" in wolf_save,
+            "Wolf Whistle completion did not persist 275 quest-copy gold charms",
+        )
+        expect("320<<16|34" in wolf_complete, "Wolf Whistle completion did not unlock the skill tab")
+        expect("320<<16|34" in wolf_relog, "Wolf Whistle unlock did not survive relog")
+        expect("320<<16|34" in level1, "flag_on_level1: Summoning cell is absent")
+        expect(
+            "969<<16|0" in level1
+            and 'text="Summoning points: 1/1"' in level1
+            and "if-opensub: target" not in level1,
+            "flag_on_level1: familiar sidebar did not mount into the live gameframe",
+        )
+        expect(
+            "dynamic graphic=229 abs=513,450 25x25 hidden=0" in level1,
+            "flag_on_level1: wolf-head sprite is not rendered in row nine",
+        )
+        expect(
+            "static font=494 color=0xffff00 text=\"Total level: 34\" abs=573,448 126x29"
             in level1,
-            "flag_on_level1: Total level does not render beside Sailing",
+            "flag_on_level1: two-cell Total level box does not render beside Summoning",
+        )
+        expect(
+            "setscrollpos id=20971520 req_sy=10 max_y=10 applied_sy=10 "
+            "scroll_h=271 abs_h=261" in level1,
+            "flag_on_level1: mouse wheel did not scroll the Summoning stats viewport",
         )
         expect('text="Total level: 34"' in level1, "flag_on_level1: total is not 34")
         expect(
@@ -166,13 +305,14 @@ def main() -> int:
         expect("320<<16|34" in persisted, "flag_on_persisted: Summoning cell is absent")
         expect('text="Total level: 53"' in persisted, "flag_on_persisted: total is not 53")
         expect('text="20"' in persisted, "flag_on_persisted: level 20 text is absent")
+        expect('text="Total level: 33"' not in persisted, "relog: account unlock did not persist")
         expect("320<<16|34" not in flagoff, "flag_off: Summoning cell leaked")
         expect('text="Total level: 33"' in flagoff, "flag_off: total is not 33")
 
     for error in errors:
         print(f"test_summoning_phase1: error: {error}", file=sys.stderr)
     print(f"test_summoning_phase1: {checked} checks, {len(errors)} errors")
-    print(f"test_summoning_phase1: four BMPs and logs in {args.out}")
+    print(f"test_summoning_phase1: seven BMPs and logs in {args.out}")
     return 1 if errors else 0
 
 

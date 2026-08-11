@@ -807,11 +807,14 @@ soft3d_draw_model(
      * projection only until the next model projects, and a model whose faces
      * all sort away must still pick. */
     if( soft->pick_enabled && cmd->pickable && cmd->element_id >= 0 &&
-        (cmd->pick_aabb ? ToriDraw_ProjectedModelContainsAabb(
+        (cmd->pick_aabb   ? ToriDraw_ProjectedModelContainsAabb(
                               soft->scene, soft->pick_mouse_x, soft->pick_mouse_y)
-                        : ToriDraw_ProjectedModelMouseHitTest(
-                              soft->scene, cmd->model, &soft->view_port_3d, soft->pick_mouse_x,
-                              soft->pick_mouse_y)) )
+         : cmd->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
+                                   soft->scene, cmd->model, &soft->view_port_3d,
+                                   soft->pick_mouse_x, soft->pick_mouse_y)
+                             : ToriDraw_ProjectedModelMouseHitTest(
+                                   soft->scene, cmd->model, &soft->view_port_3d,
+                                   soft->pick_mouse_x, soft->pick_mouse_y)) )
         ToriRS_PickHitsAdd(
             &soft->pick_hits,
             cmd->element_id,

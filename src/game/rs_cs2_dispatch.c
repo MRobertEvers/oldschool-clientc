@@ -135,6 +135,7 @@ RS_CS2_DispatchHook(
     /* Enqueue only — the app's per-frame pump drives it. The task queue is a
      * strict serial FIFO, so hook ordering is preserved across IO yields. */
     ToriRS_TaskQueue_Add(runner->queue, task);
+    runner->frame_settle_pending = 1;
 }
 
 void
@@ -168,6 +169,7 @@ RS_CS2_RunScript(
     if( !task )
         return;
     ToriRS_TaskQueue_Add(runner->queue, task);
+    runner->frame_settle_pending = 1;
 }
 
 /*
@@ -265,6 +267,8 @@ RS_CS2_PumpTransmits(
      * conditions. See that comment for what the hand-written list cost. */
     if( !RS_CS2_TransmitsPending(host) )
         return;
+
+    runner->frame_settle_pending = 1;
 
     /* Inv hooks re-run on unhide OR a container change. The container filter
      * mirrors the var one: a plain UPDATE_INV only re-runs the hooks that list

@@ -53,13 +53,21 @@ def main() -> int:
         body_start = header.end()
         body_end = headers[index + 1].start() if index + 1 < len(headers) else len(source)
         body = source[body_start:body_end]
-        expect(
-            re.match(r"\s*if \(\^summoning_enabled = 0\)", body) is not None,
-            f"entry point lacks a top feature gate: [{name}]",
-        )
+        # Phase 7 extends the build-wide gate with a permanent account unlock.
+        # The two transition-only debug hooks must retain the build gate so a
+        # feature-off server cannot mint an unlocked save.
+        gate = r"\s*if \(~summoning_account_enabled = false\)"
+        if name in (
+            "debugproc,summoning_unlock",
+            "debugproc,summoning_lock",
+            "debugproc,summoning_wolf_whistle_complete",
+            "oploc3,summoning_obelisk",
+        ):
+            gate = r"\s*if \(\^summoning_enabled = 0\)"
+        expect(re.match(gate, body) is not None, f"entry point lacks a top feature gate: [{name}]")
 
     for token in (
-        "[opheld1,summoning_spirit_wolf_pouch]",
+        "[opheld4,summoning_spirit_wolf_pouch]",
         "[opheld4,summoning_cohort_dreadfowl_dreadfowl_pouch]",
         "~summoning_familiar_summon(^summoning_familiar_spirit_wolf, $consume);",
         "~summoning_familiar_summon(^summoning_familiar_dreadfowl, $consume);",
@@ -79,6 +87,20 @@ def main() -> int:
             haystack = (args.tree / "server/scripts/player/death.rs2").read_text(encoding="utf-8")
         expect(token in haystack, f"missing gameplay contract: {token}")
 
+    # Every staged pouch exposes Summon through interface operation four; a
+    # mismatched or absent server trigger falls through to the default message.
+    pouch_configs = [
+        args.tree / "ported/scape2009_summoning/configs/summoning.obj",
+        *sorted((args.tree / "ported/scape2009_summoning/configs").glob("summoning_cohort_*.obj")),
+    ]
+    summon_pouches = [
+        header
+        for path in pouch_configs
+        for header in re.findall(r"^\[([^]]+)\](?:(?!^\[).)*^ifop4=Summon$", path.read_text(encoding="utf-8"), re.MULTILINE | re.DOTALL)
+    ]
+    unbound = [pouch for pouch in summon_pouches if f"[opheld4,{pouch}]" not in source]
+    expect(not unbound, f"Summon has no opheld4 handler for: {', '.join(unbound)}")
+
     for rel, token in (
         ("server/scripts/player/login.rs2", "~summoning_login;"),
         ("server/scripts/player/logout.rs2", "~summoning_logout;"),
@@ -94,18 +116,32 @@ def main() -> int:
             re.MULTILINE,
         )
     )
-    expect(
-        persisted
-        == {
+    familiar_persisted = {
             "summoning_familiar_active",
             "summoning_familiar_type",
             "summoning_familiar_ticks",
             "summoning_familiar_special",
             "summoning_familiar_special_clock",
             "summoning_familiar_point_accumulator",
-        },
+        }
+    expect(
+        persisted == familiar_persisted,
         "familiar state is not the six-field persisted type/timer contract",
     )
+    expect(
+        re.search(r"^\[summoning_unlocked\]\n(?:[^\n]*\n)*?scope=perm$", varps, re.MULTILINE)
+        is not None,
+        "per-account Summoning unlock is not permanent",
+    )
+    for token in (
+        "[proc,summoning_wolf_whistle_complete]",
+        "stat_advance(summoning, ^summoning_wolf_whistle_xp);",
+        "inv_add(inv, summoning_wolf_whistle_gold_charm, ^summoning_wolf_whistle_gold_charms);",
+        "if (%summoning_unlocked = 1) return;",
+        "[oploc3,summoning_obelisk]",
+        "~summoning_wolf_whistle_complete;",
+    ):
+        expect(token in source, f"Wolf Whistle reward contract missing: {token}")
     expect(
         all(
             re.search(rf"^\[{re.escape(name)}\]\n(?:[^\n]*\n)*?transmit=no$", varps, re.MULTILINE)
@@ -115,6 +151,12 @@ def main() -> int:
     )
 
     client_obj = (args.tree / "ported/scape2009_summoning/configs/summoning.obj").read_text(
+        encoding="utf-8"
+    )
+    wolf_ledger = (args.tree / "port/summoning_wolf_whistle_530.map").read_text(
+        encoding="utf-8"
+    )
+    wolf_obj_alloc = (args.tree / "ported/scape2009_summoning/pack/obj.alloc").read_text(
         encoding="utf-8"
     )
     client_npc = (args.tree / "ported/scape2009_summoning/configs/summoning.npc").read_text(
@@ -129,8 +171,35 @@ def main() -> int:
     familiar_cs2 = (
         args.tree / "ported/scape2009_summoning/scripts/summoning_familiar_init.cs2"
     ).read_text(encoding="utf-8")
+    sidebar_cs2 = (
+        args.tree / "ported/scape2009_summoning/scripts/summoning_sidebar_layout.cs2"
+    ).read_text(encoding="utf-8")
+    wornitems_overlay = (
+        args.tree
+        / "ported/scape2009_summoning/interface_overlays/interfaces/wornitems.if"
+    ).read_text(encoding="utf-8")
+    interface_pack = (
+        args.tree / "ported/scape2009_summoning/pack/3_interfaces.pack"
+    ).read_text(encoding="utf-8")
+    familiar_if = (
+        args.tree / "ported/scape2009_summoning/interfaces/summoning_familiar.if"
+    ).read_text(encoding="utf-8")
     constants = (lane / "configs/summoning.constant").read_text(encoding="utf-8")
     expect("ifop4=Summon" in client_obj, "Spirit wolf pouch does not expose its bound operation")
+    obelisk = (args.tree / "ported/scape2009_summoning/configs/summoning.loc").read_text(
+        encoding="utf-8"
+    )
+    expect(
+        "op3=Begin Wolf Whistle" in obelisk,
+        "Wolf Whistle has no ordinary client-visible completion interaction",
+    )
+    expect(
+        "obj\t12527\tquest_charm_gold\t40256\tsummoning_wolf_whistle_gold_charm\tminted\tunreviewed"
+        in wolf_ledger
+        and "40256=summoning_wolf_whistle_gold_charm" in wolf_obj_alloc
+        and "[summoning_wolf_whistle_gold_charm]" in client_obj,
+        "Wolf Whistle quest-copy charm closure is not isolated and allocated",
+    )
     expect("op1=Interact" in client_npc, "Spirit wolf familiar interaction is absent")
     expect("ifop4=Summon" in dread_obj, "Dreadfowl pouch does not expose opheld4")
     expect("op5=Special" not in dread_npc, "Dreadfowl retained an unadmitted Special surface")
@@ -140,10 +209,46 @@ def main() -> int:
         "Dreadfowl call/dismiss handlers are absent",
     )
     expect(
-        "if_setnpchead(summoning_familiar:model, $npc);" in source
+        "~summoning_familiar_body_model(%summoning_familiar_type)" in source
+        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in source
+        and "if_setanim(summoning_familiar:model, $ready_seq);" in source
         and "if_settext(summoning_familiar:title, $name);" in source
         and "npc_20000" not in familiar_cs2,
-        "sidebar portrait/name is not selected by persisted familiar type",
+        "sidebar body model, animation, or name is not selected by persisted familiar type",
+    )
+    expect(
+        source.count("if_opensub(wornitems:universe, summoning_familiar, 1);") == 1
+        and "if_closesub(wornitems:universe);" not in source
+        and source.count("if_sethide(summoning_familiar:universe,") == 4,
+        "sidebar switching must reuse one mounted familiar interface",
+    )
+    expect(
+        "interface_969:" not in sidebar_cs2
+        and sidebar_cs2.count("if_sethide(true, interface_387:") == 10
+        and sidebar_cs2.count("if_sethide(false, interface_387:") == 10,
+        "sidebar switch does not hide exactly the five Equipment-page controls",
+    )
+    expect(
+        sidebar_cs2.count("if_setsize(25, 25") == 3
+        and sidebar_cs2.count("if_setsize(33, 36") == 3,
+        "redstone Summoning icon does not restore its compact size or Equipment geometry",
+    )
+    expect(
+        "[summoning_entry]" in wornitems_overlay
+        and "[summoning_entry_icon]" in wornitems_overlay
+        and "op1=Call follower" not in wornitems_overlay
+        and "[if_button1,wornitems:call_follower]" in source
+        and "~summoning_call_familiar;" in source
+        and "[if_button1,wornitems:summoning_entry]" in source,
+        "Summoning entry replaced the native Call follower control",
+    )
+    expect(
+        "387=wornitems" in interface_pack,
+        "wornitems overlay is not admitted to the feature cache's interface pack",
+    )
+    expect(
+        "noclickthrough=yes" in familiar_if,
+        "familiar root does not block input from reaching the equipment page beneath it",
     )
     for token in (
         "^summoning_dreadfowl_level = 4",

@@ -1022,12 +1022,26 @@ drain_queue(
         if( entry->delay > 0 )
             continue;
         if( !player_can_access(srv) )
+        {
+            if( getenv("TORIRS_ANIM_DEBUG") )
+                fprintf(
+                    stderr,
+                    "queue: script=%d BLOCKED tick=%d delayed_until=%d mainmodal=%d "
+                    "chatmodal=%d\n",
+                    entry->script_id,
+                    srv->tick,
+                    srv->active_player->delayed_until,
+                    srv->active_player->mainmodal_group,
+                    srv->active_player->chatmodal_group);
             continue;
+        }
 
         script_id = entry->script_id;
         memcpy(args, entry->args, sizeof(args));
         argc = entry->argc;
         entry->active = 0;
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr, "queue: script=%d FIRE tick=%d\n", script_id, srv->tick);
         run_script_id(srv, script_id, args, argc, -1, 1, "queue");
     }
 }
@@ -1652,7 +1666,8 @@ run_trigger_script(
     struct Mock230Server* srv,
     const struct SSVM_Script* script,
     int npc_slot,
-    int loc_slot)
+    int loc_slot,
+    int player_slot)
 {
     struct SSVM_State* state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
     if( state )
@@ -1678,6 +1693,15 @@ run_trigger_script(
      * response to player input. */
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+
+    /* Targeted player casts keep their owner as active_player so a script's
+     * common post-operation commit cannot debit the recipient. The selected
+     * live player occupies active_player2 instead. The interaction layer
+     * already checked its login generation immediately before dispatch; the
+     * secondary pointer is deliberately optional for ordinary triggers. */
+    if( player_slot >= 0 && player_slot < MOCK230_PLAYER_MAX &&
+        srv->players[player_slot].active && &srv->players[player_slot] != srv->active_player )
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_SECONDARY, &srv->players[player_slot]);
 
     if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
     {
@@ -1748,6 +1772,7 @@ run_trigger_impl(
     int category,
     int npc_slot,
     int loc_slot,
+    int player_slot,
     int chain,
     int report)
 {
@@ -1809,7 +1834,7 @@ run_trigger_impl(
     }
     saved_player = srv->active_player;
     mock230_world_set_active(srv, context_player);
-    result = run_trigger_script(srv, script, npc_slot, loc_slot);
+    result = run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
     mock230_world_set_active(srv, saved_player);
     return result;
 }
@@ -1822,7 +1847,7 @@ mock230_scripts_run_trigger(
     int category,
     int npc_slot)
 {
-    return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 1, 1);
+    return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, -1, 1, 1);
 }
 
 /*
@@ -1851,7 +1876,7 @@ mock230_scripts_run_trigger_lastint(
 
     srv->pending_last_int = last_int;
     srv->pending_last_int_valid = 1;
-    rc = run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 1, 1);
+    rc = run_trigger_impl(srv, trigger, type, category, npc_slot, -1, -1, 1, 1);
     srv->pending_last_int = saved;
     srv->pending_last_int_valid = saved_valid;
     return rc;
@@ -1908,7 +1933,7 @@ mock230_scripts_run_trigger_on_loc(
     int category,
     int loc_slot)
 {
-    return run_trigger_impl(srv, trigger, type, category, -1, loc_slot, 1, 1);
+    return run_trigger_impl(srv, trigger, type, category, -1, loc_slot, -1, 1, 1);
 }
 
 /*
@@ -1934,7 +1959,7 @@ mock230_scripts_run_script_id(struct Mock230Server* srv, int script_id)
     script = &srv->scripts->scripts[script_id];
     if( !script )
         return;
-    run_trigger_script(srv, script, -1, -1);
+    run_trigger_script(srv, script, -1, -1, -1);
 }
 
 int
@@ -1945,7 +1970,7 @@ mock230_scripts_run_trigger_specific(
     int category,
     int npc_slot)
 {
-    return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, 0, 1);
+    return run_trigger_impl(srv, trigger, type, category, npc_slot, -1, -1, 0, 1);
 }
 
 /*
@@ -1970,7 +1995,8 @@ mock230_scripts_run_spell_trigger(
     struct Mock230Server* srv,
     int trigger,
     int spell_component,
-    int npc_slot)
+    int npc_slot,
+    int player_slot)
 {
     const struct SSVM_Script* script;
     const char* component;
@@ -1983,7 +2009,7 @@ mock230_scripts_run_spell_trigger(
     /* Specific and unreported, as run_if_button_trigger's key rung is: an
      * `[apnpct,_]` wildcard would swallow every cast in the game, and a miss
      * here is the *expected* case (see above), not something to report. */
-    result = run_trigger_impl(srv, trigger, spell_component, -1, npc_slot, -1, 0, 0);
+    result = run_trigger_impl(srv, trigger, spell_component, -1, npc_slot, -1, player_slot, 0, 0);
     if( result != MOCK230_TRIGGER_NONE )
         return result;
 
@@ -2005,7 +2031,7 @@ mock230_scripts_run_spell_trigger(
             fprintf(stderr, "mock230: no trigger for %s\n", name);
         return MOCK230_TRIGGER_NONE;
     }
-    return run_trigger_script(srv, script, npc_slot, -1);
+    return run_trigger_script(srv, script, npc_slot, -1, player_slot);
 }
 
 /*
@@ -2033,7 +2059,7 @@ run_if_button_trigger(
     /* *Specific*: `IfButtonHandler` uses getByTriggerSpecific, so a component
      * with no script of its own does not fall through to some `[if_button,_]`
      * that would then swallow every click in the game. */
-    result = run_trigger_impl(srv, trigger, uid, -1, -1, -1, 0, 0);
+    result = run_trigger_impl(srv, trigger, uid, -1, -1, -1, -1, 0, 0);
     if( result != MOCK230_TRIGGER_NONE )
         return result;
 
@@ -2044,7 +2070,7 @@ run_if_button_trigger(
     script = SSVM_ProviderGetByName(srv->scripts, name);
     if( !script )
         return MOCK230_TRIGGER_NONE;
-    return run_trigger_script(srv, script, -1, -1);
+    return run_trigger_script(srv, script, -1, -1, -1);
 }
 
 int
@@ -2191,7 +2217,7 @@ mock230_scripts_run_trigger_at(
 
     if( !script )
         return MOCK230_TRIGGER_NONE;
-    return run_trigger_script(srv, script, -1, -1);
+    return run_trigger_script(srv, script, -1, -1, -1);
 }
 
 int
@@ -2352,7 +2378,7 @@ mock230_scripts_run_opheldu(
         }
         return MOCK230_TRIGGER_NONE;
     }
-    return run_trigger_script(srv, script, -1, -1);
+    return run_trigger_script(srv, script, -1, -1, -1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -3437,9 +3463,15 @@ mock230_script_command(
     int dot)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    struct Mock230Player* player = srv->active_player;
+    struct Mock230Player* player =
+        (struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);
 
-    (void)dot;
+    /* Most commands are authored against the owner primary. A dotted player
+     * command deliberately addresses active_player2, which is how a targeted
+     * player special can affect its selected recipient without changing the
+     * owner used by the common Summoning resource commit. */
+    if( !player )
+        player = srv->active_player;
 
     /* Per-domain handlers first. Each returns 1 when it owns the opcode; see the
      * note on mock230_ops_db in mock230.h for why the split grows this way. */
@@ -4327,6 +4359,50 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_NPC_FINDOWNED2:
+    {
+        if( !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+
+            if( !npc->active || mock230_world_npc_owner(srv, npc) != player )
+                continue;
+            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, npc);
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
+        SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    case SS_OP_NPC_FINDCOMBAT:
+    {
+        int slot = player ? player->combat_target : -1;
+        struct Mock230Npc* npc;
+
+        if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        npc = &srv->npcs[slot];
+        if( !npc->active || npc->death_tick >= 0 || npc->level != player->level )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, npc);
+        state->host_tag = slot + 1;
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
     /*
      * Per-instance NPC integers. The slot is engine-bounded and content names
      * it with a constant; values otherwise use the ServerScript int unchanged.
@@ -4764,14 +4840,9 @@ mock230_script_command(
         return 1;
     }
 
-    /*
-     * The active npc's uid, which is its slot.
-     *
-     * The mirror of NPC_FINDUID below, and it carries the same caveat: the
-     * reference packs a generation counter beside the index so a uid that
-     * outlives its npc fails to resolve, and this server does not. Content
-     * holding one across a despawn gets whatever took the slot.
-     */
+    /* A content-visible uid is generation:slot.  Keeping the slot in the low
+     * 16 bits preserves the projectile wire convention while making handles
+     * safe across a despawn and pool-slot reuse. */
     case SS_OP_NPC_UID:
     {
         int slot = (int)state->host_tag - 1;
@@ -4781,7 +4852,8 @@ mock230_script_command(
             SSVM_Abort(state, "npc_uid with no active npc");
             return 1;
         }
-        SSVM_PushInt(state, slot);
+        SSVM_PushInt(state, (int32_t)(((uint32_t)srv->npcs[slot].generation << 16) |
+                                     (uint32_t)(slot & 0xffff)));
         return 1;
     }
 
@@ -4791,21 +4863,17 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        /*
-         * An npc uid is its slot here. The reference packs a generation counter
-         * beside the index so a reused slot fails the lookup; this server has
-         * no such counter, so a uid that outlives its npc resolves to whatever
-         * took the slot. Content holding a uid across a despawn is rare and the
-         * honest fix is the counter, not a guess — this is the one place the
-         * difference is visible, so it is stated here.
-         */
-        if( uid < 0 || uid >= MOCK230_NPC_MAX || !srv->npcs[uid].active )
+        int slot = (int)((uint32_t)uid & 0xffffu);
+        uint16_t generation = (uint16_t)((uint32_t)uid >> 16);
+
+        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
+            generation == 0 || srv->npcs[slot].generation != generation )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[uid]);
-        state->host_tag = uid + 1;
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+        state->host_tag = slot + 1;
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
         SSVM_PushInt(state, 1);
         return 1;
@@ -6512,11 +6580,11 @@ mock230_script_command(
         }
         else if( opcode == SS_OP_PROJANIM_NPC )
         {
-            /* `npcUid & 0xffff` is the slot; the type in the high half is what
-             * the reference checks and then comments out. */
-            int slot = (int)values[1] & 0xffff;
+            int slot = (int)((uint32_t)values[1] & 0xffffu);
+            uint16_t generation = (uint16_t)((uint32_t)values[1] >> 16);
 
-            if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+            if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
+                generation == 0 || srv->npcs[slot].generation != generation )
             {
                 SSVM_Abort(state, "projanim_npc: npc uid %d is not a live npc",
                            (int)values[1]);
@@ -6609,6 +6677,15 @@ mock230_script_command(
         player->run_energy_sent = -1;
         return 1;
     }
+
+    /*
+     * runenergy() is the script-visible percentage (0..100), not the mock's
+     * hundredths-of-a-percent storage.  It is needed by effects such as Bull
+     * Ant's Unburden to reject a full bar before committing their scroll.
+     */
+    case SS_OP_RUNENERGY:
+        SSVM_PushInt(state, player->run_energy / 100);
+        return 1;
 
     /*
      * Camera family — LostCity PlayerOps CAM_* (coord → scene-local via the
@@ -7429,6 +7506,20 @@ mock230_script_command(
         return 1;
     }
 
+    /* `map_loc(coord)` — whether an active scenery footprint covers this
+     * tile. Spirit Spider uses the same source guard before placing eggs, so
+     * decorative but non-blocking scenery cannot receive a ground drop. */
+    case SS_OP_MAP_LOC:
+    {
+        int32_t coord;
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        SSVM_PushInt(state, mock230_scene_find_loc(coord_x(coord), coord_z(coord),
+                                                    coord_level(coord), -1) >= 0);
+        return 1;
+    }
+
     /*
      * How many players stand inside a rectangle.
      *
@@ -7588,6 +7679,32 @@ mock230_script_command(
                     &srv->players[i], MOCK230_SCRIPT_LOOTTRACKER_ADD_LOOT, args, 4);
             }
         }
+        return 1;
+    }
+
+    /*
+     * `obj_add_private(coord, obj, count, duration, private_ticks)` — the
+     * owner-filtered counterpart to OBJ_ADD. Familiar foragers use the source
+     * game's one-hundred-tick owner window; the world owns visibility and
+     * promotion, so a forged ground-target packet cannot bypass it.
+     */
+    case SS_OP_OBJ_ADD_PRIVATE:
+    {
+        int32_t values[5];
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !srv->active_player )
+        {
+            SSVM_Abort(state, "obj_add_private: no active player");
+            return 1;
+        }
+        mock230_world_obj_add_private(srv, values[1], values[2], coord_x(values[0]),
+                                      coord_z(values[0]), coord_level(values[0]),
+                                      values[3] > 0 ? values[3] : -1, values[4]);
         return 1;
     }
 

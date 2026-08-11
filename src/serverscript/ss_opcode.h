@@ -456,10 +456,13 @@
 #define SS_OP_PLAYER_LOCK 11027
 #define SS_OP_PLAYER_UNLOCK 11028
 #define SS_OP_WALKSTEP_COORD 11029
+#define SS_OP_NPC_FINDCOMBAT 11030
+#define SS_OP_NPC_FINDOWNED2 11031
+#define SS_OP_OBJ_ADD_PRIVATE 11032
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11030
+#define SS_OPCODE_MAX 11033
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 434
+#define SS_OPCODE_COUNT 437
 
 #endif

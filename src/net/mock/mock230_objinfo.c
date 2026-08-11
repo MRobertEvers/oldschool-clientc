@@ -404,21 +404,66 @@ mock230_objinfo_param_overlay(
     int param_id,
     int value)
 {
-    const struct Mock230ObjParam* existing;
+    int low = 0;
+    int high = g_obj_param_count - 1;
+    struct ObjParam* row;
 
     if( obj_id < 0 || param_id < 0 )
         return;
-    existing = mock230_obj_param(obj_id, param_id);
-    if( existing )
+
+    /*
+     * Keep the cache-loaded table sorted as overlays arrive. The old path
+     * appended each missing row and qsort'd all ~54k cache params again. A
+     * content tree with many authored obj params consequently spent most of
+     * embedded-server startup sorting the same rows thousands of times.
+     *
+     * This is the same lower-bound search as mock230_obj_param. If the row is
+     * present, replace it. Otherwise `low` is its sorted insertion point, so a
+     * single memmove preserves the lookup invariant immediately (including for
+     * another overlay of the same key later in this load).
+     */
+    while( low <= high )
     {
-        /* Replace in place — ObjParam layout matches Mock230ObjParam. */
-        ((struct ObjParam*)existing)->ival = value;
-        free(((struct ObjParam*)existing)->sval);
-        ((struct ObjParam*)existing)->sval = NULL;
-        return;
+        int mid = (low + high) / 2;
+
+        row = &g_obj_params[mid];
+        if( row->obj_id < obj_id || (row->obj_id == obj_id && row->key < param_id) )
+        {
+            low = mid + 1;
+        }
+        else if( row->obj_id > obj_id || (row->obj_id == obj_id && row->key > param_id) )
+        {
+            high = mid - 1;
+        }
+        else
+        {
+            row->ival = value;
+            free(row->sval);
+            row->sval = NULL;
+            return;
+        }
     }
-    add_param(obj_id, param_id, value, NULL);
-    qsort(g_obj_params, (size_t)g_obj_param_count, sizeof(*g_obj_params), compare_obj_param);
+
+    if( g_obj_param_count == g_obj_param_capacity )
+    {
+        int capacity = g_obj_param_capacity ? g_obj_param_capacity * 2 : 4096;
+        struct ObjParam* grown =
+            (struct ObjParam*)realloc(g_obj_params, (size_t)capacity * sizeof(*grown));
+
+        if( !grown )
+            return;
+        g_obj_params = grown;
+        g_obj_param_capacity = capacity;
+    }
+    memmove(&g_obj_params[low + 1],
+            &g_obj_params[low],
+            (size_t)(g_obj_param_count - low) * sizeof(*g_obj_params));
+    row = &g_obj_params[low];
+    row->obj_id = obj_id;
+    row->key = param_id;
+    row->ival = value;
+    row->sval = NULL;
+    g_obj_param_count++;
 }
 
 static void

@@ -323,14 +323,12 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
 }
 
 static void
-collect_runtime_hooks_kind(
-    struct Task_InterfaceOpen* self,
-    int use_resize)
+collect_sub_change_hooks(struct Task_InterfaceOpen* self)
 {
     struct UITreeNodeSet const* set;
     int si;
     self->runtime_hook_count = 0;
-    set = use_resize ? &self->tree->resize_hooks : &self->tree->sub_change_hooks;
+    set = &self->tree->sub_change_hooks;
     for( si = 0; si < set->count; si++ )
     {
         int32_t i = set->slots[si];
@@ -343,16 +341,10 @@ collect_runtime_hooks_kind(
         if( c->freed )
             continue;
         hooks = UITree_Hooks(c);
-        slot = use_resize ? &hooks->on_resize : &hooks->on_sub_change;
+        slot = &hooks->on_sub_change;
         if( slot->script_id <= 0 )
             continue;
-        if( use_resize )
-        {
-            int group = (c->component_id >> 16) & 0xffff;
-            if( group != self->interface_id && self->target_uid >= 0 )
-                continue;
-        }
-        if( !use_resize && getenv("TORIRS_ONSUBCHANGE_DEBUG") )
+        if( getenv("TORIRS_ONSUBCHANGE_DEBUG") )
             fprintf(
                 stderr,
                 "onsubchange-collect: sub-iface=%d component 0x%08x (%d|%d) script=%d\n",
@@ -611,30 +603,20 @@ Task_InterfaceOpen_Run(
     /* 7. Re-layout after onLoad. */
     layout_tree(self);
 
-    /* 8. Sub-only: onResize → layout → onSubChange. */
+    /* 8. Sub-only: notify the toplevel about the changed mount.
+     *
+     * Rev239's open-sub path lays out the mounted pack with resize-event
+     * dispatch disabled, then queues onSubChange listeners. onResize is not an
+     * interface-open lifecycle hook: layout queues it only when its resize
+     * trigger flag is enabled and the component's resolved width or height
+     * changed, while a script can request an initial callback itself through
+     * IF_CALLONRESIZE.
+     * Dispatching every listener registered by the newly opened group here
+     * reruns those explicit initializers with host-relative coordinates and can
+     * write the mounted host origin back as a child-local offset. */
     if( self->target_uid >= 0 )
     {
-        collect_runtime_hooks_kind(self, 1);
-        for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
-        {
-            struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
-            char const* strp[UITREE_HOOK_STR_ARG_MAX];
-            for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
-                strp[si] = hook->strv[si];
-            TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
-                self->host,
-                hook->script_id,
-                hook->component_id,
-                hook->component_id,
-                hook->argc > 0 ? hook->argv : NULL,
-                hook->argc,
-                hook->str_mask,
-                strp,
-                hook->str_argc));
-        }
-        layout_tree(self);
-
-        collect_runtime_hooks_kind(self, 0);
+        collect_sub_change_hooks(self);
         for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
         {
             struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
@@ -655,7 +637,7 @@ Task_InterfaceOpen_Run(
         layout_tree(self);
     }
 
-    /* 9. Inv + var transmit hooks registered during on_load/resize. */
+    /* 9. Inv + var transmit hooks registered during onLoad/onSubChange. */
     TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
     TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
 

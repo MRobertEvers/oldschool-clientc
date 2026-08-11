@@ -1,0 +1,841 @@
+torirs: dat2 cache=cache.osrs239.summoning iface=161
+audio: callback mode, 1024-sample buffer @ 22050Hz
+mock230: features era=osrs approach=rect op_nearest=10 ground_nearest=box10_rect
+mock230: obj metadata loaded (33830 records from /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.summoning, 59271 params in 1389 KB)
+mock230: npc metadata loaded (16371 records from /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.summoning, 27891 params in 653 KB)
+mock230: sequence debug names loaded (0 named — falling back to pack/seq.pack, 25466 priorities)
+mock230: loc configs loaded (62195 records from /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.summoning; 1709 param rows in 41016 bytes, 30034 names in 565697 bytes, 17310 footprints in 138480 bytes, 10267 categories in 82136 bytes)
+mock230: struct params loaded (3988 records from /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.summoning, 20751 rows in 877 KB)
+mock230: 2872 varp(s) carry varbits
+mock230: varbit table loaded (19009 records from /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.summoning)
+mock230: 1117 param types from configs/all.param
+mock230: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/configs/quest_murder.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
+mock230: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/configs/quest_upass.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/configs/quest_legends.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
+mock230: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
+mock230: 10 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
+mock230: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
+mock230: 12 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
+mock230: 44 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/weapon_poison.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume.param
+mock230: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
+mock230: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
+mock230: 5862 enums from configs/all.enum
+mock230: content loaded (230053 symbols, 5115 constants, 6671 npc defs, 2329 loc defs, 1144 varp defs, 1103 equip reqs (246 from the cache), 23140 npc spawns, 2256 obj spawns)
+mock230: 13 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
+mock230: server band: npc [zombie_armed] 49: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [zombie_armed2] 50: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [hos_town_guard_01] 397: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [hos_town_guard_02] 398: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [hos_town_guard_03] 399: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [hos_town_guard_04] 400: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fd_damis_tougher] 683: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [contact_insectoid_mage] 794: `attackrate` is 15 in the band but 4 from the text overlays
+mock230: server band: npc [contact_insectoid_mage_b] 799: `attackrate` is 15 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_rescue_veliaf_hurtz] 989: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_blooddiamond_vampirewarrior_hard] 1128: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_fd_damis_tougher_hard] 1135: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_transport_tyras_guard] 1327: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [garden_cutscene_aggressor] 1398: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [jail_black_knight] 1545: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ramble_hard_ranger] 1573: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ramble_hard_fighter] 1574: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ramble_med_mage] 1575: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ramble_med_ranger] 1576: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ramble_easy_fighter] 1577: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ramble_easy_mage] 1578: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [barrows_ahrim] 1672: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [barrows_dharok] 1673: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [barrows_guthan] 1674: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [barrows_torag] 1676: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [barrows_verac] 1677: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_yellow_plumes] 1799: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_green_plumes] 1800: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [brew_swarm] 1818: `attackrate` is 8 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_blue_plumes] 1829: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [wom_marketguard] 2120: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [godwars_ancient_saradomin_wizard] 2209: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [godwars_spiritual_saradomin_warrior] 2210: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [godwars_saradomin_knight_1] 2213: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [godwars_saradomin_knight_2] 2214: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [godwars_goblin2] 2246: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [godwars_goblin4] 2248: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [favour_guard_male_no_beard] 2536: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [favour_guard_male_bearded] 2537: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [favour_guard_long_beard] 2538: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailround_swamp] 2634: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [twocats_robert_cutscene] 2639: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailround_red+black] 2645: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailround_yellow] 2646: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailround_blue] 2647: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailround_orange] 2648: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailpoint_swamp] 2649: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailpoint_red+black] 2650: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailpoint_yellow] 2651: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [mmsnailpoint_blue] 2652: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [barbarian] 3256: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [barbarianwoman_varrock] 3262: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard2] 3270: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard3] 3271: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard4] 3272: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard5] 3273: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard6] 3274: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [falador_doric_area_guard] 3283: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [paladin2] 3294: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [blooddiamond_vampirewarrior] 3459: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [blooddiamond_vampirewarrior_unkillable] 3460: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [lunar_pirate_generic_pirate_7] 3871: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [jailguard_two_patrol] 4277: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [jailguard_three_patrol] 4278: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [jailguard_four_patrol] 4279: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [swan_wom_ambush] 4306: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_cutscene_man] 4327: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_aggressive_black_knight] 4331: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_lucan] 4342: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_palomedes] 4343: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_bedivere] 4345: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_tristram] 4346: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_pelleas] 4347: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_gawain] 4348: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_cam_kay] 4349: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight7] 4355: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight6] 4356: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight5] 4357: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight4] 4358: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight3] 4359: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight2] 4360: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [kr_knight1] 4361: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_villager_0] 4446: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_1] 4447: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_2] 4448: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_3] 4449: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_4] 4450: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_5] 4451: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_6] 4452: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_7] 4453: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_vilager_8] 4454: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_villager_0_blood_tithe] 4478: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl40] 4491: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl40_b] 4492: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl40_c] 4493: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl50] 4494: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl50_b] 4495: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl50_c] 4496: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl60] 4497: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl60_b] 4498: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_undead_viking_lvl60_c] 4499: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [olaf2_ulfric_rise] 4505: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_1] 4516: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_2] 4517: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_3] 4518: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_4] 4519: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_5] 4520: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_extra] 4521: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_1_postquest] 4522: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_2_postquest] 4523: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_3_postquest] 4524: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_4_postquest] 4525: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dttd_ham_guard_5_postquest] 4526: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [rd_combat_npc_room_3] 4682: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [fortressguard_01] 4773: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fortressguard_02] 4774: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fortressguard_03] 4775: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fortressguard_04] 4776: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [hundred_minion3] 4882: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [wanted_black_knight_for_cutscene] 4934: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wanted_summoned_black_knight] 4959: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wanted_black_knight_attackable_base_config] 4960: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wanted_solus_attackable] 4962: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [slice_ham_guard] 5141: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [slice_ham_archer] 5157: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [slice_ham_mage] 5158: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [falador_guard_diary] 5511: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [lesser_fanatic_diary] 5514: `attackrate` is 2 in the band but 4 from the text overlays
+mock230: server band: npc [farming_market_guard] 5732: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [battlefield_khazard_troop] 5964: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [battlefield_khazard_troop_spearmen] 5965: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_hundred_minion3_hard] 6310: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_blooddiamond_vampirewarrior_normal] 6344: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_fd_damis_tougher_normal] 6347: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_hundred_minion3_normal] 6371: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [tbwcu_broodoo_poison] 6409: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [tbwcu_broodoo_disease] 6411: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [tbwcu_broodoo_combat] 6413: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [crazy_archaeologist] 6618: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [chaos_fanatic] 6619: `attackrate` is 2 in the band but 4 from the text overlays
+mock230: server band: npc [superior_nechryael_melee_spawn] 6716: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [superior_nechryael_ranged_spawn] 6723: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_1] 6868: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_2] 6869: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_3] 6870: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_4] 6871: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_criminal_3] 6898: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_criminal_boss_1_chatting] 6900: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_criminal_boss_1_fighting] 6901: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_criminal_boss_2_chatting] 6902: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_criminal_boss_2_fighting] 6903: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_armour_1_noncombat] 6904: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_armour_1_combat] 6905: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_armour_3_noncombat] 6908: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_armour_3_combat] 6909: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_armour_4_noncombat] 6910: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_armour_4_combat] 6911: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [piscarilius_grub_hunter] 6965: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [piscarilius_dockworker_repair] 6967: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [zeah_pirate2] 6994: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [trail_cabbage_mage] 7310: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_outside_1] 7521: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_outside_2] 7522: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_outside_3] 7523: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [shayzien_lizardfighter_outside_4] 7524: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [raids_vespula_portal] 7533: `attackrate` is 2 in the band but 4 from the text overlays
+mock230: server band: npc [superior_nechryael_magic_spawn] 7649: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [inferno_zuk_healer] 7708: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [fossil_crazy_archaeologist] 7806: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [gargboss_dawn_death] 7885: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [gargboss_dusk_death] 7889: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [wild_cave_knight] 7939: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_corsaircurse_navigator_hard] 7948: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_corsaircurse_navigator_normal] 7949: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [corscurs_navigator_combat] 7964: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_white_knight] 8149: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_paladin] 8150: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_battle_wom] 8154: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_battle_oneiromancer] 8158: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_battle_wom_final] 8162: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_battle_oneiromancer_final] 8166: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [molch_shay_bowmen_1] 8566: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [molch_shay_spearmen_1] 8567: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [molch_shay_swordsmen_1] 8568: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [molch_shay_spearmen_2] 8569: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [molch_shay_swordsmen_2] 8570: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [trail_mimic_spawn_melee] 8635: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ardougne_prison_guard] 8799: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ardougne_prison_guard_head] 8800: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ardougne_prison_guard_normal] 8801: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sote_paladin2] 8850: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [paladin_west_vis] 8853: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [knight_of_ardougne_west_vis] 8854: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [knight_of_ardougne_west_noop_vis] 8855: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sote_arianwyn_combat] 8865: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sote_tyras_guard] 8945: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [upass_paladin1_vis] 8987: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [upass_paladin2_vis] 8988: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [upass_paladin3_vis] 8989: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [crystal_hunllef_death] 9024: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [crystal_hunllef_death_hm] 9038: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [prif_gladiator1] 9143: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [prif_gladiator2] 9144: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_sote_arianwyn_hard] 9246: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nzone_sote_arianwyn_normal] 9248: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vikingexile_warrior] 9276: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vikingexile_warrior_alt] 9277: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vikingexile_thorvald_battle] 9280: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vikingexile_koschei_battle] 9281: `attackrate` is 2 in the band but 4 from the text overlays
+mock230: server band: npc [myq5_veliaf_flail_battle] 9528: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq5_damien_combat] 9564: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq5_vanstrom_mist] 9572: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [burgh_rescue_veliaf_hurtz_talk] 9633: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [akd_barbarian_warlord] 10989: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [nex_smokemage] 11283: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nex_shadowmage] 11284: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nex_bloodmage] 11285: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nex_icemage] 11286: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nex_prison_warrior] 11290: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nex_prison_ranger] 11291: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [nex_prison_mage] 11292: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [gotr_great_guardian] 11403: `attackrate` is 10 in the band but 4 from the text overlays
+mock230: server band: npc [bcs_scarab_mage] 11508: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_magic1] 11675: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_magic2] 11676: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_magic3] 11677: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_ranged1] 11678: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_ranged2] 11679: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_ranged3] 11680: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_melee1] 11681: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_melee2] 11682: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [pvpa_npc_melee3] 11683: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [toa_zebak_watercroc] 11741: `attackrate` is 2 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_white_knight_f] 11892: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_paladin_variant02] 11893: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ds2_paladin_f] 11894: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [paladin_west_f_vis] 11901: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [knight_of_ardougne_f_west_vis] 11902: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [paladin_variant01] 11930: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [paladin_variant02] 11931: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [paladin_f] 11932: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [paladin_f_variant01] 11933: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [hero_variant01] 11934: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [hero_f] 11935: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [knight_of_ardougne_f] 11936: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ardougne_guard_variant01] 11937: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ardougne_guard_f] 11938: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [ardougne_guard_f_variant01] 11939: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard2_f] 11945: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard3_f] 11946: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [fai_falador_guard4_f] 11947: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_f] 11948: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_yellow_plumes_f] 11949: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_green_plumes_f] 11950: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [white_knight_blue_plumes_f] 11951: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [black_knight_f] 11952: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [aggressive_black_knight_f] 11953: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_kasonde_survival] 12257: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_kasonde_temple_fight] 12259: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_kasonde_combat] 12262: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_kasonde_combat_opbreak] 12263: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_ahrim_cutscene] 12316: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_dharok_cutscene] 12317: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_guthan_cutscene] 12318: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_torag_cutscene] 12320: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_verac_cutscene] 12321: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_ahrim_combat] 12322: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_dharok_combat] 12323: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_guthan_combat] 12324: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_torag_combat] 12326: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_verac_combat] 12327: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_kasonde_wight_combat] 12331: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [dt2_kasonde_wight_combat_opbreak] 12332: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [deadman_breach_barrows_dharok] 12447: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [dov_arrav_combat] 12613: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [colosseum_jaguar_warrior] 12810: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [colosseum_standard_mager] 12811: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [colosseum_warbander_ranged_female] 12814: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [colosseum_warbander_mage_male] 12815: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [colosseum_warbander_melee_male] 12816: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq2_knight_6_combat] 12916: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq2_knight_6_combat_done] 12917: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_m_1] 13114: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_m_2] 13115: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_m_3] 13116: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_f_1] 13117: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_f_2] 13118: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_f_3] 13119: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_heroes_tureal] 13433: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_heroes_tureal_weapon_broken] 13434: `attackrate` is 7 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_heroes_ghommal] 13437: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_heroes_sloane] 13447: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [elite_black_knight_1] 13463: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [elite_black_knight_2] 13464: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [elite_dark_warrior_1] 13465: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [elite_dark_warrior_2] 13466: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [elite_dark_ranger_1] 13467: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [elite_dark_ranger_2] 13468: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [elite_dark_mage_1] 13469: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [elite_dark_mage_2] 13470: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [elite_black_knight_1_cutscene] 13480: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [elite_black_knight_2_cutscene] 13481: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [dark_squall_combat] 13482: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_thaerisk_cemphier_fight] 13512: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_taverley_assassin_1] 13514: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_taverley_assassin_2] 13515: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_lucien_henchman_axe] 13535: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_lucien_henchman_axe_2] 13536: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_lucien_henchman_mage] 13537: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_idria_mcgrubors_fight] 13541: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_idria_mcgrubors_fight_post] 13542: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_armadyl_guardian_temple_ranged_1] 13579: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_armadyl_guardian_temple_ranged_2] 13580: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_idria_temple] 13581: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wgs_idria_temple_done] 13582: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [deadman_breach_jaguar_warrior] 13660: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [deadman_breach_magic_mark] 13663: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq3_tower_twilight_melee_variant_2a] 13775: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq3_tower_twilight_melee_variant_2b] 13776: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq3_tower_twilight_magic_variant_1] 13777: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq3_tower_twilight_magic_variant_2] 13778: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [huey_tail] 14014: `attackrate` is 0 in the band but 4 from the text overlays
+mock230: server band: npc [huey_body_part] 14017: `attackrate` is 0 in the band but 4 from the text overlays
+mock230: server band: npc [coa_arrav_combat] 14132: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [coa_arrav_post_combat] 14133: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [weaponsmaster_vis] 14137: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [yama] 14176: `attackrate` is 8 in the band but 4 from the text overlays
+mock230: server band: npc [aluinus_combat] 14225: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_metzli_boss] 14313: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_metzli_boss_done] 14314: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_ennius_boss] 14331: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_ennius_boss_noops] 14332: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_assault_defender_ranged_m_cs] 14391: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_assault_defender_ranged_f_cs] 14392: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_assault_defender_ranged_m] 14397: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_assault_defender_ranged_f] 14398: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_melee_variant_2a] 14403: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_melee_variant_2b] 14404: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_magic_variant_1] 14405: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_magic_variant_2] 14406: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_ranged_variant_1] 14407: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_ranged_variant_2] 14408: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_defender_ranged_m_vis] 14415: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_defender_ranged_f_vis] 14416: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_defender_ranged_m_fake_combat_vis] 14435: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_defender_ranged_f_fake_combat_vis] 14436: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_melee_variant_2a_fake_combat_vis] 14449: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_melee_variant_2b_fake_combat_vis] 14450: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_magic_variant_1_fake_combat_vis] 14451: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_magic_variant_2_fake_combat_vis] 14452: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_ranged_variant_1_fake_combat_vis] 14453: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_ranged_variant_2_fake_combat_vis] 14454: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_melee_variant_2a_fake_combat_cs] 14465: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_crypt_attacker_melee_variant_2b_fake_combat_cs] 14466: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [vmq4_furia_fake_combat] 14467: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [auburnvale_guard_m_3] 14665: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [auburnvale_guard_m_4] 14666: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [auburnvale_guard_f_3] 14669: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [auburnvale_guard_f_4] 14670: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [tlati_guard_m_3] 14718: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [tlati_guard_m_4] 14719: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [tlati_guard_f_3] 14722: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [tlati_guard_f_4] 14723: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_f_2_noop] 14783: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_knight_m_3_noop] 14784: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [wild_cave_knight_deadman] 15184: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [captain_cotus] 15451: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_pirate_ranged] 15453: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [varlamore_pirate_mage] 15454: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [deadman_breach_dscim_npc] 15553: `attackrate` is 3 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_trr_1] 15677: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_trr_2] 15678: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_trr_3] 15679: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_trr_4] 15680: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_trr_5] 15681: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_trr_6] 15682: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_captain_1] 15683: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_captain_2] 15684: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_test_range] 15685: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_test_mage] 15686: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sailing_npc_boat_combat_crew_test_captain] 15687: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_vis] 15855: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_deposit] 15856: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_defence] 15861: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_defence_done] 15862: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_combat] 15863: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_combat_done] 15864: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_veliaf_vis] 15878: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_veliaf_manor_combat] 15884: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_veliaf_manor_combat_done] 15885: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_veliaf_combat] 15886: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_veliaf_combat_done] 15887: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_wyrd_cutscene] 15997: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_wyrd_stage_2_cutscene] 15999: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_wyrd_stage_2_cutscene_injured] 16000: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_wyrd_stage_2_portal_cutscene] 16002: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_wyrd_stage_3_cutscene_transition] 16003: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_wyrd_stage_3_cutscene] 16004: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_veliaf_combat_drakan] 16177: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [sugadinti_combat] 16181: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_ivan_combat_drakan] 16182: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [drakan_final_portal] 16206: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [safalaan_wyrd] 16212: `attackrate` is 5 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_bridge_defence_portal] 16251: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc [myq6_bridge_defence_portal_cutscene] 16252: `attackrate` is 6 in the band but 4 from the text overlays
+mock230: server band: npc.hitpoints stays text-loaded on 4 record(s) — the band has no wire for it
+mock230: server band: npc.attack_anim stays text-loaded on 9 record(s) — the band has no wire for it
+mock230: server band: npc.defend_anim stays text-loaded on 8 record(s) — the band has no wire for it
+mock230: server band: npc.death_anim stays text-loaded on 9 record(s) — the band has no wire for it
+mock230: server band: npc.moverestrict stays text-loaded on 19 record(s) — the band has no wire for it
+mock230: server band: npc.nomove stays text-loaded on 17 record(s) — the band has no wire for it
+mock230: server band: npc.huntmode stays text-loaded on 66 record(s) — the band has no wire for it
+mock230: server band is STALE (0 unreadable, 405 mismatched archive(s)) — text overlays kept; re-run `make -C src mock230-servpack`
+mock230: db tables loaded (294 tables, 16449 rows from /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239.summoning; 243 schema(s) installed, 15425 row(s) filled; 246 archive table(s), 16718 archive row(s))
+mock230: bank tables loaded (19009 varbits, bank=1410 slots)
+mock230: embedded wire osrs239
+PackAssetsLoad: iface=161 components=99 sprites=28 fonts=0 models=0 npcs=0 needs_player=0
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+PackAssetsLoad: iface=163 components=6 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=149 components=1 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=728 components=47 sprites=23 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=896 components=2 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+mock230: login user='guest' session=ok
+mock230: 12945 scripts loaded from /Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build_summoning
+mock230: stated gap HINT_NPC             (first wanted by [queue,spawn_jungle_demon])
+mock230: 3 engine fallback(s) still answer triggers content does not bind
+mock230: content binds a trigger over a verb the engine answers itself:
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+mock230: 1 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+mock230: scene built at zone 402,402 (base 3168,3168 — 8455 locs)
+mock230: npc roster 23140 spawn(s), 993 standing, slot_max=993
+osrs239 login: OK, local player index 1
+textures: sprite-backed system (no materials table)
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=32 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=44 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=10 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=11 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=64 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=15 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=20 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=7 dest=128
+tex_bake: layer=0 blend=0 w=64 h=64 palette_len=5 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=64 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=16 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=11 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=24 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=65 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=33 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=11 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=11 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=32 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=8 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=10 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=65 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=8 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=7 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=2 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=5 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=32 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=60 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=32 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=18 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=65 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=64 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=7 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=62 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=16 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=64 dest=128
+Failed to load dat2 texture 65535
+world_load: 9 chunks, 18 underlays, 33 overlays, 36 textures, 1472 locs, 1052 models, 33 seqs
+tex_wants drained 28: 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 20 22 23 25 26 28 30 44 46 48 60
+mock230: osrs239 has no UPDATE_PID -- dropping it (reported once)
+mock230: cheat 'summoning_unlock' -> debugproc ran
+mock230: cheat 'setlevel summoning 52' -> debugproc not found
+mock230: cheat 'summoning_spirit_terrorbird_pouch' -> debugproc ran
+mock230: osrs239 has no OBJ_ADD -- dropping it (reported once)
+Failed to load dat2 idk 307
+PlayerAppearanceLoad: scanned=307 found=7 kits=[0,10,18,26,33,36,42]
+EnsurePlayerModel: resolved=7 kits=[0,10,18,26,33,36,42]
+seq_bind: element=19359 seq=808 frames=12 skeletal=0 start=1 now=1 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_player: element=19359 tile=52,52 level=0
+PackAssetsLoad: iface=162 components=568 sprites=5 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=651 components=7 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=708 components=7 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+player_model: rebuilt cycle=27 scene=1073741827 seq=808 frame=0 bound=0
+PackAssetsLoad: iface=163 components=6 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=303 components=21 sprites=3 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=90 components=55 sprites=7 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=160 components=65 sprites=24 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=728 components=47 sprites=23 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=896 components=2 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=593 components=54 sprites=2 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=320 components=35 sprites=3 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=629 components=44 sprites=11 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=712 components=4 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=149 components=1 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=387 components=31 sprites=6 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=541 components=43 sprites=1 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=218 components=211 sprites=2 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=707 components=9 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=109 components=94 sprites=16 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=429 components=19 sprites=2 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=182 components=24 sprites=6 fonts=2 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=116 components=140 sprites=20 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=216 components=6 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=239 components=23 sprites=0 fonts=2 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=162 components=568 sprites=5 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=651 components=7 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=708 components=7 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=163 components=6 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=303 components=21 sprites=3 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=90 components=55 sprites=7 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=160 components=65 sprites=24 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=728 components=47 sprites=23 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=896 components=2 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=593 components=54 sprites=2 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=320 components=35 sprites=3 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=629 components=44 sprites=11 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=712 components=4 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=149 components=1 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=387 components=31 sprites=6 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=541 components=43 sprites=1 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=218 components=211 sprites=2 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=707 components=9 sprites=0 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=109 components=94 sprites=16 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=429 components=19 sprites=2 fonts=3 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=182 components=24 sprites=6 fonts=2 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=116 components=140 sprites=20 fonts=1 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=216 components=6 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=239 components=23 sprites=0 fonts=2 models=0 npcs=0 needs_player=0
+cs2-stub: opcode 7009 has an inherited signature (1,0,0,0) but no implementation — stack balanced, results faked (script 4873 pc 2)
+cs2-stub: opcode 7019 has an inherited signature (1,0,0,0) but no implementation — stack balanced, results faked (script 4873 pc 4)
+client_layout: mode=1
+message_game: Summoning has been unlocked for this account.
+message_game: Set stat 24 to 52.
+message_game: A Spirit terrorbird pouch has been added to your inventory.
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+PackAssetsLoad: iface=729 components=17 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: Harmony
+seq_bind: element=19360 seq=2704 frames=64 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
+spawn_npc: npc=2854 element=19360 tile=54,50 level=0 size=1 recolors=1 retextures=0
+seq_bind: element=19361 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=3106 element=19361 tile=54,50 level=0 size=1 recolors=4 retextures=0
+spawn_npc: npc 6709 unavailable
+seq_bind: element=19362 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=4626 element=19362 tile=54,50 level=0 size=1 recolors=6 retextures=0
+seq_bind: element=19363 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=3105 element=19363 tile=54,50 level=0 size=1 recolors=6 retextures=0
+seq_bind: element=19364 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=95 fbones=32 falpha=1
+spawn_npc: npc=3111 element=19364 tile=54,50 level=0 size=1 recolors=3 retextures=0
+seq_bind: element=19365 seq=2704 frames=64 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
+spawn_npc: npc=2854 element=19365 tile=54,50 level=0 size=1 recolors=1 retextures=0
+seq_bind: element=19366 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=3106 element=19366 tile=54,50 level=0 size=1 recolors=4 retextures=0
+seq_bind: element=19367 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=3108 element=19367 tile=54,50 level=0 size=1 recolors=2 retextures=0
+spawn_npc: npc 6709 unavailable
+spawn_npc: npc 7458 unavailable
+seq_bind: element=19368 seq=171 frames=8 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=90 fbones=38 falpha=1
+spawn_npc: npc=5007 element=19368 tile=54,50 level=0 size=1 recolors=0 retextures=0
+seq_bind: element=19369 seq=813 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=51 fbones=30 falpha=1
+spawn_npc: npc=6816 element=19369 tile=54,50 level=0 size=1 recolors=3 retextures=0
+seq_bind: element=19370 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=3106 element=19370 tile=54,50 level=0 size=1 recolors=4 retextures=0
+spawn_npc: npc 317 unavailable
+spawn_npc: npc 7457 unavailable
+seq_bind: element=19371 seq=2704 frames=64 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
+spawn_npc: npc=2854 element=19371 tile=54,50 level=0 size=1 recolors=1 retextures=0
+seq_bind: element=19372 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=87 fbones=28 falpha=1
+spawn_npc: npc=311 element=19372 tile=54,50 level=0 size=1 recolors=6 retextures=0
+seq_bind: element=19373 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=10619 element=19373 tile=54,50 level=0 size=1 recolors=5 retextures=0
+seq_bind: element=19374 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=95 fbones=32 falpha=1
+spawn_npc: npc=3111 element=19374 tile=54,50 level=0 size=1 recolors=3 retextures=0
+seq_bind: element=19375 seq=808 frames=12 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=95 fbones=28 falpha=1
+spawn_npc: npc=3112 element=19375 tile=54,50 level=0 size=1 recolors=5 retextures=0
+seq_bind: element=19376 seq=808 frames=12 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=51 fbones=30 falpha=1
+spawn_npc: npc=5523 element=19376 tile=54,50 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc 119 unavailable
+seq_bind: element=19377 seq=808 frames=12 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+spawn_npc: npc=3107 element=19377 tile=54,50 level=0 size=1 recolors=3 retextures=0
+spawn_npc: npc 6709 unavailable
+seq_bind: element=19378 seq=2704 frames=64 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
+spawn_npc: npc=2854 element=19378 tile=54,50 level=0 size=1 recolors=1 retextures=0
+seq_bind: element=19379 seq=2704 frames=64 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
+spawn_npc: npc=2854 element=19379 tile=54,50 level=0 size=1 recolors=1 retextures=0
+spawn_npc: npc 6709 unavailable
+seq_bind: element=19380 seq=813 frames=12 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=95 fbones=30 falpha=1
+spawn_npc: npc=921 element=19380 tile=54,50 level=0 size=1 recolors=3 retextures=0
+sim_click_at: frame=90 move 540,230 right=1
+sim_click_at: released 540,230
+sim_click_at: frame=150 move 540,260 right=0
+sim_click_at: released 540,260
+message_game: You summon a Spirit terrorbird.
+tex_wants drained 2: 5 27
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=8 dest=128
+message_game: You equip the Bronze kiteshield.
+seq_bind: element=19397 seq=2904 frames=4 skeletal=0 start=200 now=200 frame=0 cycle=0 kind=1 vbones=79 fbones=32 falpha=1
+spawn_npc: npc=0 element=19397 tile=54,50 level=0 size=1 recolors=0 retextures=0
+seq_bind: element=19397 seq=23032 frames=16 skeletal=0 start=200 now=200 frame=0 cycle=0 kind=1 vbones=256 fbones=256 falpha=1
+tex_wants drained 2: 5 27
+player_model: rebuilt cycle=225 scene=1073741827 seq=808 frame=9 bound=0
+raster_tex_mode: face=714 coord=25 type=2 affine=1
+raster_tex_mode: face=625 coord=9 type=2 affine=1
+raster_tex_mode: face=434 coord=12 type=2 affine=1
+raster_tex_mode: face=436 coord=14 type=2 affine=1
+raster_tex_mode: face=435 coord=12 type=2 affine=1
+raster_tex_mode: face=534 coord=12 type=2 affine=1
+raster_tex_mode: face=437 coord=14 type=2 affine=1
+raster_tex_mode: face=433 coord=13 type=2 affine=1
+raster_tex_mode: face=438 coord=14 type=2 affine=1
+raster_tex_mode: face=440 coord=14 type=2 affine=1
+raster_tex_mode: face=535 coord=13 type=2 affine=1
+raster_tex_mode: face=439 coord=14 type=2 affine=1
+raster_tex_mode: face=558 coord=14 type=2 affine=1
+raster_tex_mode: face=710 coord=25 type=2 affine=1
+raster_tex_mode: face=415 coord=11 type=2 affine=1
+raster_tex_mode: face=416 coord=11 type=2 affine=1
+raster_tex_mode: face=413 coord=11 type=2 affine=1
+raster_tex_mode: face=554 coord=14 type=2 affine=1
+raster_tex_mode: face=627 coord=9 type=2 affine=1
+raster_tex_mode: face=633 coord=10 type=2 affine=1
+raster_tex_mode: face=417 coord=11 type=2 affine=1
+raster_tex_mode: face=539 coord=16 type=2 affine=1
+raster_tex_mode: face=540 coord=16 type=2 affine=1
+raster_tex_mode: face=414 coord=11 type=2 affine=1
+raster_tex_mode: face=430 coord=16 type=2 affine=1
+raster_tex_mode: face=445 coord=11 type=2 affine=1
+raster_tex_mode: face=446 coord=11 type=2 affine=1
+raster_tex_mode: face=536 coord=11 type=2 affine=1
+raster_tex_mode: face=696 coord=26 type=2 affine=1
+raster_tex_mode: face=412 coord=11 type=2 affine=1
+raster_tex_mode: face=447 coord=11 type=2 affine=1
+raster_tex_mode: face=537 coord=16 type=2 affine=1
+sim_click_at: frame=230 move 634,185 right=0
+PackAssetsLoad: iface=66 components=6 sprites=1 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=65 components=6 sprites=1 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=284 components=10 sprites=2 fonts=0 models=0 npcs=0 needs_player=0
+PackAssetsLoad: iface=378 components=85 sprites=7 fonts=3 models=19 npcs=0 needs_player=0
+sim_click_at: released 634,185
+uitree_anim: com=0x17a0009 seq=2715 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a000a seq=2715 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a000b seq=2715 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a000c seq=2715 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a000d seq=2716 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a0019 seq=2921 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a0026 seq=2921 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a002c seq=2922 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a002d seq=2922 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a002e seq=2924 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a002f seq=2923 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a0030 seq=2922 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a0031 seq=2924 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a0036 seq=2920 not posable (anim=0x0 base=0x0 frames=-1)
+uitree_anim: com=0x17a0036 seq=2920 not posable (anim=0x0 base=0x0 frames=-1)
+anim_tick t=300 com=0x17a0009 seq=2715 frame=1 gen=22018
+anim_tick t=300 com=0x17a000a seq=2715 frame=1 gen=22018
+anim_tick t=300 com=0x17a000b seq=2715 frame=1 gen=22018
+anim_tick t=300 com=0x17a000c seq=2715 frame=1 gen=22018
+anim_tick t=300 com=0x17a000d seq=2716 frame=1 gen=22018
+anim_tick t=300 com=0x17a0019 seq=2921 frame=2 gen=22018
+anim_tick t=300 com=0x17a0026 seq=2921 frame=2 gen=22018
+anim_tick t=300 com=0x17a002c seq=2922 frame=1 gen=22018
+anim_tick t=300 com=0x17a002d seq=2922 frame=1 gen=22018
+anim_tick t=300 com=0x17a002e seq=2924 frame=1 gen=22018
+anim_tick t=300 com=0x17a002f seq=2923 frame=1 gen=22018
+anim_tick t=300 com=0x17a0030 seq=2922 frame=1 gen=22018
+anim_tick t=300 com=0x17a0031 seq=2924 frame=1 gen=22018
+anim_tick t=300 com=0x17a0036 seq=2920 frame=4 gen=22018
+seq_bind: element=19398 seq=813 frames=12 skeletal=0 start=290 now=290 frame=0 cycle=0 kind=1 vbones=70 fbones=30 falpha=1
+spawn_npc: npc=306 element=19398 tile=54,50 level=0 size=1 recolors=5 retextures=0
+anim_tick t=325 com=0x17a0009 seq=2715 frame=4 gen=22043
+anim_tick t=325 com=0x17a000a seq=2715 frame=4 gen=22043
+anim_tick t=325 com=0x17a000b seq=2715 frame=4 gen=22043
+anim_tick t=325 com=0x17a000c seq=2715 frame=4 gen=22043
+anim_tick t=325 com=0x17a000d seq=2716 frame=4 gen=22043
+anim_tick t=325 com=0x17a0019 seq=2921 frame=6 gen=22043
+anim_tick t=325 com=0x17a0026 seq=2921 frame=6 gen=22043
+anim_tick t=325 com=0x17a002c seq=2922 frame=4 gen=22043
+anim_tick t=325 com=0x17a002d seq=2922 frame=4 gen=22043
+anim_tick t=325 com=0x17a002e seq=2924 frame=5 gen=22043
+anim_tick t=325 com=0x17a002f seq=2923 frame=4 gen=22043
+anim_tick t=325 com=0x17a0030 seq=2922 frame=4 gen=22043
+anim_tick t=325 com=0x17a0031 seq=2924 frame=5 gen=22043
+anim_tick t=325 com=0x17a0036 seq=2920 frame=11 gen=22043
+anim_tick t=350 com=0x17a0009 seq=2715 frame=6 gen=22068
+anim_tick t=350 com=0x17a000a seq=2715 frame=6 gen=22068
+anim_tick t=350 com=0x17a000b seq=2715 frame=6 gen=22068
+anim_tick t=350 com=0x17a000c seq=2715 frame=6 gen=22068
+anim_tick t=350 com=0x17a000d seq=2716 frame=7 gen=22068
+anim_tick t=350 com=0x17a0019 seq=2921 frame=10 gen=22068
+anim_tick t=350 com=0x17a0026 seq=2921 frame=10 gen=22068
+anim_tick t=350 com=0x17a002c seq=2922 frame=0 gen=22068
+anim_tick t=350 com=0x17a002d seq=2922 frame=0 gen=22068
+anim_tick t=350 com=0x17a002e seq=2924 frame=9 gen=22068
+anim_tick t=350 com=0x17a002f seq=2923 frame=7 gen=22068
+anim_tick t=350 com=0x17a0030 seq=2922 frame=0 gen=22068
+anim_tick t=350 com=0x17a0031 seq=2924 frame=9 gen=22068
+anim_tick t=350 com=0x17a0036 seq=2920 frame=20 gen=22068
+sim_click_at: frame=300 move 677,224 right=0
+sim_click_at: released 677,224
+PackAssetsLoad: iface=969 components=10 sprites=1 fonts=2 models=0 npcs=0 needs_player=0
+upload_model_nodes: com=0x17a0005 cache_id=46948 client_code=0
+upload_model_nodes: com=0x17a0009 cache_id=9628 client_code=0
+upload_model_nodes: com=0x17a000a cache_id=9628 client_code=0
+upload_model_nodes: com=0x17a000b cache_id=9628 client_code=0
+upload_model_nodes: com=0x17a000c cache_id=9628 client_code=0
+upload_model_nodes: com=0x17a000d cache_id=9629 client_code=0
+upload_model_nodes: com=0x17a000f cache_id=11210 client_code=0
+upload_model_nodes: com=0x17a0010 cache_id=10233 client_code=0
+upload_model_nodes: com=0x17a0011 cache_id=11211 client_code=0
+upload_model_nodes: com=0x17a0012 cache_id=11212 client_code=0
+upload_model_nodes: com=0x17a0013 cache_id=11211 client_code=0
+upload_model_nodes: com=0x17a0014 cache_id=10233 client_code=0
+upload_model_nodes: com=0x17a0016 cache_id=10224 client_code=0
+upload_model_nodes: com=0x17a0017 cache_id=10224 client_code=0
+upload_model_nodes: com=0x17a0019 cache_id=10232 client_code=0
+upload_model_nodes: com=0x17a001a cache_id=10229 client_code=0
+upload_model_nodes: com=0x17a001b cache_id=10229 client_code=0
+upload_model_nodes: com=0x17a001c cache_id=10229 client_code=0
+upload_model_nodes: com=0x17a001d cache_id=10229 client_code=0
+upload_model_nodes: com=0x17a001e cache_id=10229 client_code=0
+upload_model_nodes: com=0x17a001f cache_id=10234 client_code=0
+upload_model_nodes: com=0x17a0020 cache_id=10230 client_code=0
+upload_model_nodes: com=0x17a0021 cache_id=10230 client_code=0
+upload_model_nodes: com=0x17a0022 cache_id=10230 client_code=0
+upload_model_nodes: com=0x17a0023 cache_id=10230 client_code=0
+upload_model_nodes: com=0x17a0024 cache_id=10230 client_code=0
+upload_model_nodes: com=0x17a0026 cache_id=10232 client_code=0
+upload_model_nodes: com=0x17a0027 cache_id=10233 client_code=0
+upload_model_nodes: com=0x17a0028 cache_id=10234 client_code=0
+upload_model_nodes: com=0x17a0029 cache_id=10233 client_code=0
+upload_model_nodes: com=0x17a002a cache_id=10233 client_code=0
+upload_model_nodes: com=0x17a002c cache_id=10225 client_code=0
+upload_model_nodes: com=0x17a002d cache_id=10226 client_code=0
+upload_model_nodes: com=0x17a002e cache_id=10227 client_code=0
+upload_model_nodes: com=0x17a002f cache_id=10225 client_code=0
+upload_model_nodes: com=0x17a0030 cache_id=10226 client_code=0
+upload_model_nodes: com=0x17a0031 cache_id=10228 client_code=0
+upload_model_nodes: com=0x17a0033 cache_id=10221 client_code=0
+upload_model_nodes: com=0x17a0034 cache_id=10222 client_code=0
+upload_model_nodes: com=0x17a0035 cache_id=10222 client_code=0
+upload_model_nodes: com=0x17a0036 cache_id=10223 client_code=0
+upload_model_nodes: com=0x17a0037 cache_id=-1 client_code=0
+upload_model_nodes: com=0x17a0038 cache_id=-1 client_code=0
+upload_model_nodes: com=0x3c90002 cache_id=-1 client_code=0
+anim_tick t=375 com=0x17a0009 seq=2715 frame=9 gen=22145
+anim_tick t=375 com=0x17a000a seq=2715 frame=9 gen=22145
+anim_tick t=375 com=0x17a000b seq=2715 frame=9 gen=22145
+anim_tick t=375 com=0x17a000c seq=2715 frame=9 gen=22145
+anim_tick t=375 com=0x17a000d seq=2716 frame=10 gen=22145
+anim_tick t=375 com=0x17a0019 seq=2921 frame=15 gen=22145
+anim_tick t=375 com=0x17a0026 seq=2921 frame=15 gen=22145
+anim_tick t=375 com=0x17a002c seq=2922 frame=3 gen=22145
+anim_tick t=375 com=0x17a002d seq=2922 frame=3 gen=22145
+anim_tick t=375 com=0x17a002e seq=2924 frame=11 gen=22145
+anim_tick t=375 com=0x17a002f seq=2923 frame=2 gen=22145
+anim_tick t=375 com=0x17a0030 seq=2922 frame=3 gen=22145
+anim_tick t=375 com=0x17a0031 seq=2924 frame=11 gen=22145
+anim_tick t=375 com=0x17a0036 seq=2920 frame=2 gen=22145
+anim_tick t=375 com=0x3c90002 seq=23032 frame=2 gen=22145
+anim_tick t=400 com=0x17a0009 seq=2715 frame=11 gen=22170
+anim_tick t=400 com=0x17a000a seq=2715 frame=11 gen=22170
+anim_tick t=400 com=0x17a000b seq=2715 frame=11 gen=22170
+anim_tick t=400 com=0x17a000c seq=2715 frame=11 gen=22170
+anim_tick t=400 com=0x17a000d seq=2716 frame=12 gen=22170
+anim_tick t=400 com=0x17a0019 seq=2921 frame=3 gen=22170
+anim_tick t=400 com=0x17a0026 seq=2921 frame=3 gen=22170
+anim_tick t=400 com=0x17a002c seq=2922 frame=5 gen=22170
+anim_tick t=400 com=0x17a002d seq=2922 frame=5 gen=22170
+anim_tick t=400 com=0x17a002e seq=2924 frame=1 gen=22170
+anim_tick t=400 com=0x17a002f seq=2923 frame=4 gen=22170
+anim_tick t=400 com=0x17a0030 seq=2922 frame=5 gen=22170
+anim_tick t=400 com=0x17a0031 seq=2924 frame=1 gen=22170
+anim_tick t=400 com=0x17a0036 seq=2920 frame=9 gen=22170
+anim_tick t=400 com=0x3c90002 seq=23032 frame=7 gen=22170
+anim_tick t=425 com=0x17a0009 seq=2715 frame=14 gen=22195
+anim_tick t=425 com=0x17a000a seq=2715 frame=14 gen=22195
+anim_tick t=425 com=0x17a000b seq=2715 frame=14 gen=22195
+anim_tick t=425 com=0x17a000c seq=2715 frame=14 gen=22195
+anim_tick t=425 com=0x17a000d seq=2716 frame=15 gen=22195
+anim_tick t=425 com=0x17a0019 seq=2921 frame=7 gen=22195
+anim_tick t=425 com=0x17a0026 seq=2921 frame=7 gen=22195
+anim_tick t=425 com=0x17a002c seq=2922 frame=1 gen=22195
+anim_tick t=425 com=0x17a002d seq=2922 frame=1 gen=22195
+anim_tick t=425 com=0x17a002e seq=2924 frame=5 gen=22195
+anim_tick t=425 com=0x17a002f seq=2923 frame=7 gen=22195
+anim_tick t=425 com=0x17a0030 seq=2922 frame=1 gen=22195
+anim_tick t=425 com=0x17a0031 seq=2924 frame=5 gen=22195
+anim_tick t=425 com=0x17a0036 seq=2920 frame=17 gen=22195
+anim_tick t=425 com=0x3c90002 seq=23032 frame=12 gen=22195
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+varp load: 5705 types (5705 records, ids 0..5704)
+varbit load: 20412 types (19009 records, ids 0..20411)
+hitsplat load: 83 types (83 records)
+soundscape load: 9 ids (8 records)
+RevConfigBuild done: iface=161 ui=- inline=manifest_osrs239.ini tree_components=1070 sprites=0 fonts=0 onloads=6 inv_hooks=0 var_hooks=6 mounts=0
+wrote /Users/matthewevers/Documents/git_repos/3draster/docs/summoning/screenshots/terrorbird_familiar_tab.bmp

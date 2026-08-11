@@ -314,6 +314,12 @@ torirs_model_move_from_rscache(
         src->textured_n_coordinate = NULL;
     }
 
+    if( tfc > 0 && src->texture_render_types )
+    {
+        dst->texture_render_types = src->texture_render_types;
+        src->texture_render_types = NULL;
+    }
+
     if( fc > 0 && src->face_texture_coords )
     {
         dst->face_texture_coords = malloc((size_t)fc * sizeof(gc_faceint_t));

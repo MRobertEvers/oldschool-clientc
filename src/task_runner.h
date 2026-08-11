@@ -22,6 +22,9 @@ struct TaskRunner
     struct ToriRS_TaskQueue* queue;
     struct ToriRS_IO* io;
     struct PlatformX_IO* px;
+    /* A CS2 task has joined this queue and the tree/display list must not be
+     * published until its whole host follow-up fixed point has settled. */
+    int frame_settle_pending;
 };
 
 enum TaskRunnerStat
@@ -56,6 +59,29 @@ TaskRunner_Drain(struct TaskRunner* runner)
     while( TaskRunner_Step(runner) == TASK_RUNNER_PENDING )
     {
     }
+}
+
+/** Settle every task that can make progress before a frame is published.
+ *
+ * A cooperative task is allowed to yield arbitrarily often; a yield is not a
+ * frame boundary.  Keep stepping until the queue is empty.  The sole reason
+ * to return PENDING is a real platform request which has not completed yet.
+ * That distinction matters on both hosts: browser reads are asynchronous, and
+ * a native JS5-backed cache miss can be asynchronous too.  Callers must retain
+ * the last settled frame while this returns PENDING and resume on the next
+ * host turn. */
+static inline enum TaskRunnerStat
+TaskRunner_SettleFrame(struct TaskRunner* runner)
+{
+    enum TaskRunnerStat stat;
+
+    do
+    {
+        stat = TaskRunner_Step(runner);
+    } while( stat == TASK_RUNNER_PENDING &&
+             !PlatformX_IO_Pending(runner->px, runner->io) );
+
+    return stat;
 }
 
 #endif

@@ -546,6 +546,32 @@ interactive_render_present(
     }
 }
 
+/* App_RunOnce returned no frame commit.  The software surface can safely
+ * re-upload its retained pixels (useful after a window expose), but swapping an
+ * undrawn GL backbuffer can alternate to older contents and a D3D9 DISCARD
+ * swapchain explicitly does not preserve its backbuffer.  Leave GPU front
+ * buffers alone; the window/compositor retains the last committed frame. */
+static void
+interactive_present_retained(
+    struct PlatformSDL2* sdl,
+    struct ToriRS_GL3* gl3,
+    struct ToriRS_D3D9* d3d9)
+{
+#if defined(TORIRS_HAVE_D3D9)
+    if( d3d9 )
+        return;
+#else
+    (void)d3d9;
+#endif
+#if defined(TORIRS_HAVE_GL3)
+    if( gl3 )
+        return;
+#else
+    (void)gl3;
+#endif
+    PlatformSDL2_Present(sdl);
+}
+
 
 /* --- the interactive frame loop -----------------------------------------
  *
@@ -570,14 +596,6 @@ static struct AppConfig cfg = {
     /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
     .spawn_x = -1,
     .spawn_z = -1,
-    /* -1 = built-in spawn-hotkey defaults; TORIRS_SPAWN_* still overrides. */
-    .spawn_npc_id = -1,
-    .spawn_obj_id = -1,
-    .spawn_spotanim_id = -1,
-    .spawn_spotanim_height = -1,
-    .spawn_spotanim_delay = -1,
-    .spawn_proj_model_id = -1,
-    .spawn_proj_seq_id = -1,
 };
 
 static struct PlatformSDL2* sdl;
@@ -618,6 +636,9 @@ static char const* sim_setvarp;
 static char const* sim_settab;
 static int sim_settab_done;
 static int uncapped;
+/* Retain gesture/key one-shots while App_RunOnce is holding the last committed
+ * visual frame. They are cleared only after a stable tree reaches interaction. */
+static int input_frame_pending;
 
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
@@ -702,13 +723,16 @@ frame_loop_step(void)
                     &series_step,
                     &series_count);
         }
-        if( series_start >= 0 && series_written < series_count && frame_count >= series_start &&
+        if( App_FrameSettled(&app) && series_start >= 0 && series_written < series_count &&
+            frame_count >= series_start &&
             (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
         {
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
             if( pixels )
             {
                 char path[600];
+                if( getenv("TORIRS_ANIM_DEBUG") )
+                    fprintf(stderr, "bmp_series: frame_count=%ld\n", frame_count);
                 App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
                 snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
                 bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -1060,6 +1084,56 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_OPLOC="frame,op,x,z,loc": send one normal object-menu
+         * operation once the mock session is live. Unlike a server diagnostic,
+         * this traverses the client's net_out_oploc encoder and the server's
+         * regular OPLOC route. All values stay in the invoking test, not C. */
+        {
+            static int sim_oploc_init = 0;
+            static long sim_oploc_frame = -1;
+            static long sim_oploc_op;
+            static long sim_oploc_x;
+            static long sim_oploc_z;
+            static long sim_oploc_id;
+            if( !sim_oploc_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_OPLOC");
+                char* end = NULL;
+                sim_oploc_init = 1;
+                if( spec && *spec )
+                {
+                    sim_oploc_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_op = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_x = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_z = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_id = strtol(end + 1, &end, 0);
+                    else
+                        sim_oploc_frame = -1;
+                }
+            }
+            if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
+            {
+                fprintf(
+                    stderr,
+                    "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
+                    sim_oploc_op,
+                    sim_oploc_x,
+                    sim_oploc_z,
+                    sim_oploc_id);
+                App_SimulateLocOp(
+                    &app,
+                    (int)sim_oploc_op,
+                    (int)sim_oploc_x,
+                    (int)sim_oploc_z,
+                    (int)sim_oploc_id);
+                sim_oploc_frame = -1;
+            }
+        }
+
         /* TORIRS_SIM_RUNSCRIPT="frame,script[,arg0[,arg1...]][;frame,...]":
          * run a clientscript by id at that main-loop frame, with up to four
          * int args.
@@ -1281,6 +1355,52 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
+         * the given main-loop frame.
+         *
+         * A content lane's debug procs are the only entry to an encounter that
+         * no click can reach — the QBD arena is behind `[debugproc,rs2012qbd]`
+         * — and a headless run has no chatbox to type into. The frame number
+         * matters: the command is a server script call, so it has to land after
+         * login, which SIM_CLICK_AT's own comment explains at length. */
+        {
+            static char const* cmd_cursor = NULL;
+            static int cmd_init = 0;
+            if( !cmd_init )
+            {
+                cmd_init = 1;
+                cmd_cursor = getenv("TORIRS_SIM_CMD");
+            }
+            while( cmd_cursor && *cmd_cursor )
+            {
+                char* end = NULL;
+                long const at = strtol(cmd_cursor, &end, 0);
+                char const* body;
+                size_t len;
+
+                if( !end || *end != ',' )
+                {
+                    cmd_cursor = NULL;
+                    break;
+                }
+                if( frame_count < at )
+                    break; /* not yet; re-checked next frame */
+
+                body = end + 1;
+                len = strcspn(body, ";");
+                {
+                    char text[128];
+                    if( len >= sizeof(text) )
+                        len = sizeof(text) - 1;
+                    memcpy(text, body, len);
+                    text[len] = '\0';
+                    App_SendCommand(&app, text);
+                    fprintf(stderr, "sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                }
+                cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
+            }
+        }
+
         /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
          * inject a mouse click at the given main-loop frame — the
          * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs
@@ -1446,7 +1566,10 @@ frame_loop_step(void)
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
     {
-        LibToriRS_Input_Begin(input, now);
+        if( input_frame_pending )
+            LibToriRS_Input_Continue(input, now);
+        else
+            LibToriRS_Input_Begin(input, now);
         App_DrainCommands(&app, &bus, input);
         LibToriRS_Input_End(input);
     }
@@ -1476,6 +1599,8 @@ frame_loop_step(void)
     {
         app_redraw = App_RunOnce(&app, now, input);
     }
+    input_frame_pending =
+        app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
@@ -1483,29 +1608,11 @@ frame_loop_step(void)
             interactive_render_present(&app, sdl, gl3, d3d9);
         }
     }
-#if defined(TORIRS_HAVE_D3D9)
-    else if( d3d9 )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            ToriRS_D3D9_Present(d3d9);
-        }
-    }
-#endif
-#if defined(TORIRS_HAVE_GL3)
-    else if( gl3 )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            PlatformSDL2_PresentGL(sdl);
-        }
-    }
-#endif
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            PlatformSDL2_Present(sdl);
+            interactive_present_retained(sdl, gl3, d3d9);
         }
     }
 
@@ -3589,6 +3696,9 @@ main(
              * the pristine cache. */
             if( transport_kind == NET_TRANSPORT_EMBED && !getenv("MOCK230_CACHE") )
                 setenv("MOCK230_CACHE", cfg.cache_dir, 0);
+            if( transport_kind == NET_TRANSPORT_EMBED && cfg.net_server_scripts &&
+                cfg.net_server_scripts[0] && !getenv("MOCK230_SCRIPTS") )
+                setenv("MOCK230_SCRIPTS", cfg.net_server_scripts, 0);
 
             sock = app.net ? NetTransport_New(transport_kind,
                                               cfg.connect_port > 0 ? cfg.connect_port : 43594,

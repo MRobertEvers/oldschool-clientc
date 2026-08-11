@@ -21,7 +21,13 @@ UIMinimenu_LayoutFromLineBox(int line_box)
     layout.chrome_h = box + 5;
     layout.hover_above = box - 3;
     layout.hover_below = 3;
-    layout.width_pad = 8;
+    /* The renderer adds a one-pixel shadow and the popup keeps a three-pixel
+     * text inset on each side.  The reference's eight-pixel allowance leaves
+     * only one spare pixel after those are accounted for, which is too tight
+     * once the bitmap font is scaled.  Keep a full five-pixel breathing room
+     * on both sides so long rows remain visibly inside the popup and their
+     * whole label stays in the clickable rectangle. */
+    layout.width_pad = 16;
     layout.click_y_bias = box - 5;
     layout.border_inset = box + 3;
     return layout;

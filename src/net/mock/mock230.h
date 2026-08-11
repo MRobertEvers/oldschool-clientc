@@ -1401,6 +1401,10 @@ struct Mock230GroundObj
      * the slot meanwhile. See mock230_ops_obj.c.
      */
     int generation;
+    /** Player id allowed to see/take this drop during its private window, or -1. */
+    int receiver_pid;
+    /** Tick the private window ends and the drop becomes public, or -1. */
+    int public_tick;
     /* `sent` was here, for the same reason `Mock230Npc.tracked` was: whether a
      * client has been told is a fact about the client. The per-client answer is
      * `Mock230Player.loaded_zones` now — see mock230_zone.h on why "does this
@@ -1568,6 +1572,9 @@ struct Mock230Interaction
      *  started against, so a slot that changed underneath is detected rather
      *  than acted on. */
     int target_id;
+    /** Life/login/object generation captured with the slot-backed target.
+     * Zero is reserved for target kinds without a reusable runtime slot. */
+    uint32_t target_generation;
 
     /** South-west tile of the target, and its footprint. A 3x3 npc is reachable
      *  from further out than a 1x1 one, so the range test is against the
@@ -1672,6 +1679,8 @@ enum
 struct Mock230Npc
 {
     int active;
+    /** Bumped whenever this pool slot becomes a different NPC. */
+    uint16_t generation;
     int type;
     int x, z, level;
     int spawn_x, spawn_z, spawn_level;
@@ -3710,6 +3719,26 @@ mock230_world_obj_add(
     int level,
     int duration);
 
+/** Drop an obj visible only to the active player for `private_ticks`, then to
+ * everyone. A non-positive private window is the same as obj_add. */
+int
+mock230_world_obj_add_private(
+    struct Mock230Server* srv,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration,
+    int private_ticks);
+
+/** Whether this player may currently see and take the ground-object slot. */
+int
+mock230_world_ground_visible_to(
+    const struct Mock230Server* srv,
+    int slot,
+    int pid);
+
 /** The first active ground obj of `obj_id` on that tile, or -1. */
 int
 mock230_world_ground_find(
@@ -4196,7 +4225,8 @@ mock230_scripts_run_spell_trigger(
     struct Mock230Server* srv,
     int trigger,
     int spell_component,
-    int npc_slot);
+    int npc_slot,
+    int player_slot);
 
 /**
  * May this call site run its engine fallback for `result`?

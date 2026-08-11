@@ -1639,13 +1639,10 @@ UITree_ReclaimInterfaceGroup(
  * `container_uid` (0 modal, 1 overlay, 3 tab/sidemodal — IF_OPENSUB's own
  * argument), or -1 when it is an ordinary child.
  *
- * The distinction is load-bearing beyond draw order: type 0 is the reference's
- * input-capture mount (xrsps `findBlockingWidgetInHits` treats an
- * InterfaceParent of type 0 exactly like a `noClickThrough` layer), which is
- * what stops the world being hovered, clicked and wheel-zoomed through an open
- * bank. Type 1 deliberately does not — the world map floater and the XP
- * tracker both mount as overlays and are click-through unless they raise
- * `noClickThrough` themselves.
+ * The distinction remains load-bearing for draw/layout behavior and world
+ * input: a modal blocks the scene across its clipped mount-host rectangle,
+ * while overlay/tab mounts remain transparent unless they declare
+ * noClickThrough themselves.
  */
 int
 UITree_ChildMountType(

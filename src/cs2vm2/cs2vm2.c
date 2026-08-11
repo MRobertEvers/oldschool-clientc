@@ -11582,6 +11582,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
      * must therefore reset only between scripts, never mid-run. */
     CS2VM2_StrPool_Reset(&vm->str_pool);
     CS2VM2_ClearYieldHalt(vm);
+    vm->has_awaited = false;
     vm->children_collect_handle = NULL;
 }
 
@@ -11635,6 +11636,11 @@ cs2vm2_thread_init(
     thread->yield_halt_script_id = 0;
     thread->yield_halt_pc = 0;
     thread->yield_halt_count = 0;
+
+    thread->has_awaited = false;
+    thread->awaited_kind = 0;
+    thread->awaited_id = 0;
+    thread->awaited_id2 = 0;
 
     thread->undo_log_len = 0;
 

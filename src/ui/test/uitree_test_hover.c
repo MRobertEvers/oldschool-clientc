@@ -447,6 +447,39 @@ test_hover_input(void)
         UITree_Free(ct);
     }
 
+    /* IF_OPENSUB type is load-bearing for world input: a modal owns its panel
+     * even when actionless, while an overlay remains transparent unless its
+     * own cache record raises noClickThrough. */
+    {
+        struct UITree* mt = UITree_New(8);
+        int const container_uid = (500 << 16) | 0;
+        int const overlay_uid = (600 << 16) | 0;
+        int32_t container =
+            UITree_TestPushXy(mt, -1, UIELEM_RS_LAYER, container_uid, 0, 0, 300, 200);
+        (void)UITree_TestPushXy(mt, container, UIELEM_RS_LAYER, overlay_uid, 20, 30, 100, 80);
+        (void)UITree_InterfaceParentSet(mt, container_uid, 600, 0);
+        UITree_TestResolve(mt);
+
+        TEST_ASSERT(
+            UITree_HitTestInteractive(mt, &host, 40, 50) < 0,
+            "actionless modal has no interactive click target");
+        TEST_ASSERT(
+            UITree_PointBlocksWorld(mt, &host, 40, 50),
+            "actionless modal blocks clicks to the world");
+        TEST_ASSERT(
+            UITree_PointBlocksWorld(mt, &host, 150, 50),
+            "blank mount-host space outside modal root still blocks world input");
+
+        (void)UITree_InterfaceParentSet(mt, container_uid, 600, 1);
+        TEST_ASSERT(
+            !UITree_PointBlocksWorld(mt, &host, 40, 50),
+            "actionless overlay remains transparent to world clicks");
+        TEST_ASSERT(
+            !UITree_PointBlocksWorld(mt, &host, 150, 50),
+            "blank host space for an overlay remains transparent");
+        UITree_Free(mt);
+    }
+
     (void)graphic;
     UITree_Free(tree);
 }

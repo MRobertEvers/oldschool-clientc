@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include "uitree_interact.h"
 
 /*
  * Real-client configuration regression tests: component ids are packed
@@ -96,4 +97,86 @@ test_scroll_hit(void)
     }
 
     UITree_Free(tree);
+}
+
+void
+test_wheel_stops_at_interface(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteraction interact;
+    struct UIInteractOut out;
+    int32_t pane;
+    struct UITreeRuntimeHooks* hooks;
+
+    printf("TEST: interface wheel stops propagation to world gestures\n");
+    UITree_TestHostInit(&host, &hs);
+
+    pane = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, TUID(20), 10, 10, 100, 100);
+    hooks = UITree_HooksMut(&tree->components[pane]);
+    hooks->on_scroll_wheel.script_id = 1234;
+    UITree_SyncHookMembership(tree, pane);
+    UITree_TestResolve(tree);
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+    UIInteraction_Init(&interact);
+    LibToriRS_Input_PushMouseMove(input, 20, 20);
+    LibToriRS_Input_PushMouseWheel(input, -1);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+
+    TEST_ASSERT(out.intent_count == 1, "onScroll hook receives wheel");
+    TEST_ASSERT(
+        out.intents[0].component_id == TUID(20),
+        "wheel dispatch targets interface under pointer");
+    TEST_ASSERT(out.wheel_consumed, "handled interface wheel cannot reach world gesture");
+
+    UITree_Free(tree);
+
+    /* Mounted native pane under an outer scroller: its screen Y includes the
+     * outer scroll, but excludes the mount host's own scroll. A flat abs-box
+     * wheel scan instead picks the outer layer at this point. */
+    {
+        int const outer_uid = (560 << 16) | 0;
+        int const host_uid = (560 << 16) | 1;
+        int const mounted_root_uid = (561 << 16) | 0;
+        int const pane_uid = (561 << 16) | 1;
+        struct UITree* mounted = UITree_New(8);
+        int32_t outer =
+            UITree_TestPushXy(mounted, -1, UIELEM_RS_LAYER, outer_uid, 0, 0, 300, 160);
+        mounted->components[outer].u.rs_layer.scroll_height = 300;
+        int32_t mount_host =
+            UITree_TestPushXy(mounted, outer, UIELEM_RS_LAYER, host_uid, 20, 110, 140, 100);
+        mounted->components[mount_host].u.rs_layer.scroll_height = 180;
+        int32_t mounted_root = UITree_TestPushXy(
+            mounted, -1, UIELEM_RS_LAYER, mounted_root_uid, 0, 0, 100, 80);
+        int32_t native_pane =
+            UITree_TestPushXy(mounted, mounted_root, UIELEM_RS_LAYER, pane_uid, 10, 10, 60, 50);
+        mounted->components[native_pane].u.rs_layer.scroll_height = 140;
+        (void)UITree_InterfaceParentSet(mounted, host_uid, 561, 0);
+        UITree_Reparent(mounted, mounted_root, mount_host);
+        UITree_TestResolve(mounted);
+        mounted->components[outer].scroll_y = 40;
+        mounted->components[mount_host].scroll_y = 29;
+
+        input = LibToriRS_Input_Init(&input_storage, 0);
+        UIInteraction_Init(&interact);
+        /* pane abs=(30,120), drawn=(30,80): outer -40 applies, host -29 does not. */
+        LibToriRS_Input_PushMouseMove(input, 40, 90);
+        LibToriRS_Input_PushMouseWheel(input, -1);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, mounted, &host, input, 0, &out);
+
+        TEST_ASSERT(
+            mounted->components[native_pane].scroll_y == UITREE_SCROLLBAR_WHEEL_STEP,
+            "native wheel targets mounted pane at drawn outer-scrolled position");
+        TEST_ASSERT(
+            mounted->components[outer].scroll_y == 40,
+            "mounted pane wins over outer scroller at the same wheel point");
+        TEST_ASSERT(out.wheel_consumed, "mounted native pane consumes world wheel gesture");
+        UITree_Free(mounted);
+    }
 }

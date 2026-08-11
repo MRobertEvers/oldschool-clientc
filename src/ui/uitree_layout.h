@@ -64,6 +64,43 @@ UITree_LayoutResolve(
     int root_w,
     int root_h);
 
+/** Resolved size of one component that had an onResize listener before a
+ *  relayout. `node_index` plus `component_id` guards against a reclaimed slot
+ *  being mistaken for the component that was snapshotted. */
+struct UITreeResizeHookSnapshot
+{
+    int32_t node_index;
+    int component_id;
+    int width;
+    int height;
+};
+
+/** Snapshot the currently eligible onResize listeners and their cached
+ *  computed dimensions before changing the root box. This deliberately does
+ *  not resolve pending invalidation: the reference compares the old computed
+ *  fields with the ensuing layout pass. Returns the number written, clamped to
+ *  `max_entries`. */
+int
+UITree_SnapshotResizeHooks(
+    struct UITree const* tree,
+    struct UITreeResizeHookSnapshot* out_entries,
+    int max_entries);
+
+/** After relayout, collect only snapshotted listeners whose resolved width or
+ *  height changed when `trigger_resize` is nonzero. A false trigger produces
+ *  no events even if dimensions changed; position-only movement is always
+ *  ignored. Since selection walks the snapshot rather than the live hook set,
+ *  a listener registered later cannot join the same resize dispatch. Returns
+ *  the number of component ids written, clamped to `max_ids`. */
+int
+UITree_CollectResizedHookIds(
+    struct UITree const* tree,
+    struct UITreeResizeHookSnapshot const* entries,
+    int entry_count,
+    int trigger_resize,
+    int* out_component_ids,
+    int max_ids);
+
 void
 UITree_LayoutGetBounds(
     struct UITreeElemPosition const* position,

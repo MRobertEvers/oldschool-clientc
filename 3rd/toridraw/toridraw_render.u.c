@@ -1485,7 +1485,16 @@ ToriDraw_ComputeProjectedFaceOrder(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
-        face_priorities = toridraw_ignore_priorities() ? NULL : m->face_priorities;
+        /* A model that resolves itself per pixel has no use for face render
+         * priorities, and honouring them actively defeats the depth test: a
+         * priority pins a face into a draw band regardless of depth, which is
+         * the painter's-algorithm crutch the z-buffer exists to replace. The
+         * two together give the priority's answer, not the depth test's -- so
+         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER. */
+        face_priorities =
+            (toridraw_ignore_priorities() || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER))
+                ? NULL
+                : m->face_priorities;
         face_count = m->face_count;
         break;
     }
@@ -1911,7 +1920,16 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
-        face_priorities = toridraw_ignore_priorities() ? NULL : m->face_priorities;
+        /* A model that resolves itself per pixel has no use for face render
+         * priorities, and honouring them actively defeats the depth test: a
+         * priority pins a face into a draw band regardless of depth, which is
+         * the painter's-algorithm crutch the z-buffer exists to replace. The
+         * two together give the priority's answer, not the depth test's -- so
+         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER. */
+        face_priorities =
+            (toridraw_ignore_priorities() || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER))
+                ? NULL
+                : m->face_priorities;
         face_count = m->face_count;
         break;
     }
@@ -2910,6 +2928,10 @@ ToriDraw_ProjectedModelContainsAabb(
  * Shared face walk behind both per-face tests. Which faces are eligible is the
  * same question for either one — only the triangle predicate differs, so
  * `rough` picks between them at the bottom.
+ *
+ * `include_hidden` lifts the hidden-face filter for ground tiles, which the
+ * reference picks down a different path entirely — see
+ * ToriDraw_ProjectedTileMouseHitTest.
  */
 static bool
 toridraw_projected_model_hit_face(
@@ -2918,7 +2940,8 @@ toridraw_projected_model_hit_face(
     struct ToriDraw_ViewPort* view_port,
     int screen_x,
     int screen_y,
-    bool rough)
+    bool rough,
+    bool include_hidden)
 {
     if( !ToriDraw_ProjectedModelContainsAabb(scene, screen_x, screen_y) )
         return false;
@@ -2964,7 +2987,7 @@ toridraw_projected_model_hit_face(
          * :1618), so a backfacing face still picks, and so does a face the
          * depth sort later drops.
          */
-        if( colors_c && colors_c[i] == TORIDRAWHSL16_HIDDEN )
+        if( !include_hidden && colors_c && colors_c[i] == TORIDRAWHSL16_HIDDEN )
             continue;
 
         int face_a = fia[i];
@@ -3018,7 +3041,8 @@ ToriDraw_ProjectedModelContainsPoint(
     int screen_y)
 {
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, /* rough */ false);
+        scene, hnd, view_port, screen_x, screen_y, /* rough */ false,
+        /* include_hidden */ false);
 }
 
 bool
@@ -3030,5 +3054,19 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_y)
 {
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, /* rough */ true);
+        scene, hnd, view_port, screen_x, screen_y, /* rough */ true,
+        /* include_hidden */ false);
+}
+
+bool
+ToriDraw_ProjectedTileMouseHitTest(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y)
+{
+    return toridraw_projected_model_hit_face(
+        scene, hnd, view_port, screen_x, screen_y, /* rough */ true,
+        /* include_hidden */ true);
 }

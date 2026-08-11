@@ -25,6 +25,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* #region agent log — texture publish trace, defined in app.c. */
+int
+app_tex_trace_enabled(void);
+/* #endregion */
+
 #define BRIDGE_SPRITE_MAP_CAP 4096
 #define BRIDGE_MODEL_MAP_CAP 4096
 #define BRIDGE_OBJ_ICON_MAP_CAP 4096
@@ -450,6 +455,11 @@ UITreeSceneBridge_EnsureModel(
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
+    /* Interface archive models use the same asynchronously-published texture
+     * map as world models.  Register their surviving SD material ids before
+     * lighting so App's normal texture pump loads them; otherwise every
+     * textured face is skipped and only untextured extremities remain. */
+    ToriDraw_ModelNoteTextureWants(model);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
@@ -1245,7 +1255,6 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     texture->width = rs->width;
     texture->height = rs->height;
     texture->opaque = rs->opaque;
-    texture->alpha_blended = rs->alpha_blended;
     texture->animation_direction = rs->animation_direction;
     texture->animation_speed = rs->animation_speed;
     return texture;
@@ -1270,12 +1279,18 @@ UITreeSceneBridge_PublishTextures(
         struct ToriDraw_Texture* texture;
 
         if( texture_id < 0 || texture_id >= 2048 )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: publish id=%d -> rejected (out of range)\n", texture_id);
             continue;
+        }
 
         rs = CacheProvider_TextureGet(bridge->provider, texture_id);
         if( !rs )
         {
             bridge->texture_failed[texture_id] = 1;
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: publish id=%d -> FAILED (no provider entry)\n", texture_id);
             continue;
         }
 
@@ -1283,10 +1298,28 @@ UITreeSceneBridge_PublishTextures(
         if( !texture )
         {
             bridge->texture_failed[texture_id] = 1;
+            if( app_tex_trace_enabled() )
+                fprintf(
+                    stderr,
+                    "tex_trace: publish id=%d -> FAILED (convert: texels=%p %dx%d)\n",
+                    texture_id,
+                    (void*)rs->texels,
+                    rs->width,
+                    rs->height);
             continue;
         }
 
         ToriDraw_SceneSetTexture(bridge->scene, texture_id, texture);
+        if( app_tex_trace_enabled() )
+            fprintf(
+                stderr,
+                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
+                texture_id,
+                UITreeSceneBridge_TextureResident(bridge, texture_id) ? "resident"
+                                                                      : "SET BUT NOT RESIDENT",
+                texture->width,
+                texture->height,
+                texture->opaque);
         published++;
     }
     return published;

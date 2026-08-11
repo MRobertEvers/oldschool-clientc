@@ -7,6 +7,7 @@ main(void)
 {
     test_dirty_marking();
     test_walk_topology();
+    test_mounted_world_resize();
     test_hover_input();
     test_click_event_coords();
     test_layout_build();
@@ -19,6 +20,7 @@ main(void)
     test_drag_cc_dragpickup_seeds();
     test_press_repeat_and_release();
     test_scroll_hit();
+    test_wheel_stops_at_interface();
     test_drag_scrolled();
     test_emit_icons();
     test_emit_golden();

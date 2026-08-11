@@ -95,6 +95,7 @@ MANUAL_META: dict[str, tuple[int, int, int, int]] = {
     # --- commands the reference implements but never declared ---------------
     # Read straight off their handlers; engine.rs2 has no entry for any of them.
     "STAT_TOTAL": (0, 0, 1, 0),   # PlayerOps.ts: sums baseLevels -> int
+    "MAP_LOC": (1, 0, 1, 0),      # ServerOps.ts: any active loc covers coord
     "NC_VISLEVEL": (1, 0, 1, 0),  # NpcConfigOps.ts: npc -> vislevel
     "TEXT_SWITCH": (1, 2, 0, 1),  # StringOps.ts: (int, str, str) -> str
     #
@@ -477,6 +478,26 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # The engine supplies geometry; the hook remains content-owned policy and
     # can veto by doing the reference-standard `p_walk(coord)`.
     "WALKSTEP_COORD": (11029, 0, 0, 1, 0),
+
+    # npc_findcombat()(boolean)
+    # Resolve the active player's live NPC combat target and make it the active
+    # NPC. Summoning specials use this instead of opening a cursor when their
+    # source behavior says "current combat target".
+    "NPC_FINDCOMBAT": (11030, 0, 0, 1, 0),
+
+    # npc_findowned2()(boolean)
+    # Resolve the active player's familiar into the secondary NPC context. A
+    # targeted trigger can retain its primary target while `.npc_*` addresses
+    # the familiar actor.
+    "NPC_FINDOWNED2": (11031, 0, 0, 1, 0),
+
+    # obj_add_private(coord, obj, count, duration, private_ticks)
+    #
+    # The familiar foragers create owner-only floor loot before it becomes
+    # public.  OBJ_ADD cannot express that receiver window; assigning it to the
+    # engine rather than publishing drops and trying to hide them in content
+    # keeps the ownership check on every packet and take path.
+    "OBJ_ADD_PRIVATE": (11032, 5, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -612,6 +633,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # The mock host command addresses the session's active player directly,
     # like IF_CLOSESUB above; it does not dereference an SSVM entity pointer.
     "WALKSTEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
+    "NPC_FINDOWNED2": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

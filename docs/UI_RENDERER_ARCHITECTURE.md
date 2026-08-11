@@ -890,7 +890,7 @@ These are not "bugs in a function" — they are sequencing rules that were wrong
 
 | Rule | Why |
 |---|---|
-| Layout runs **five** times during open (after bake, after onLoad, after onResize, after onSubChange, at the end) | each script batch reads and writes geometry |
+| Sub-interface open lays out after mount/bake, onLoad, onSubChange, and at the end (a root skips onSubChange); it does **not** synthesize onResize | rev239 opens/mounts with the resize trigger disabled; explicit `IF_CALLONRESIZE` still queues an initializer |
 | Transmit dispatch runs **after** onLoad, not during | hooks are registered *by* onLoad |
 | `reassert_player_idle_anim` runs after transmits | any of them can set a model anim |
 | `hide_unmounted_spillover` runs last | it must see the final mount table |

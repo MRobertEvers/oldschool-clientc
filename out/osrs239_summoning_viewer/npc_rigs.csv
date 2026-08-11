@@ -1,255 +1,76 @@
 npc_id,npc_name,gameval,framemap_id,seed_seqs,strict_covers
-20000,Spirit wolf,,8000,20000 20001,true
-20001,Dreadfowl,,8004,20141 20142,true
-20002,Spirit spider,,8005,20143 20144,true
-20003,Thorny snail,,8006,20145 20015,true
-20004,Granite crab,,8007,20146 20147,true
-20005,Spirit mosquito,,8008,20148 20149,false
-20006,Desert wyrm,,8009,20150 20151,true
-20007,Spirit scorpion,,8010,20152 20153,false
-20008,Spirit Tz-Kih,,8011,20154 20155,true
-20009,Albino rat,,8055,20156 20157,false
-20010,Spirit kalphite,,8012,20158 20159,false
-20011,Compost mound,,8013,20160 20161,false
-20012,Giant chinchompa,,8014,20162 20163,false
-20013,Vampire bat,,8015,20164 20165,false
-20014,Honey badger,,8016,20166 20167,false
-20015,Beaver,,8056,20168 20169,true
-20016,Void ravager,,8017,20170 20171,false
-20017,Void spinner,,8018,20172 20173,true
-20018,Void torcher,,8019,20174 20175,false
-20019,Void shifter,,8020,20176 20177,false
-20020,Bronze minotaur,,8021,20178 20179,false
-20021,Iron minotaur,,8021,20178 20179,false
-20022,Steel minotaur,,8021,20178 20179,false
-20023,Mithril minotaur,,8021,20178 20179,false
-20024,Adamant minotaur,,8021,20178 20179,false
-20025,Rune minotaur,,8021,20178 20179,false
-20026,Bull ant,,8008,20180 20181,true
-20027,Macaw,,8022,20182 20183,false
-20028,Evil turnip,,8023,20184 20185,false
-20029,Spirit cockatrice,,8024,20186 20187,false
-20030,Spirit guthatrice,,8024,20186 20187,false
-20031,Spirit saratrice,,8024,20186 20187,false
-20032,Spirit zamatrice,,8024,20186 20187,false
-20033,Spirit pengatrice,,8024,20186 20187,false
-20034,Spirit coraxatrice,,8024,20186 20187,false
-20035,Spirit vulatrice,,8024,20186 20187,false
-20036,Pyrelord,,8025,20188 20189,true
-20037,Magpie,,8022,20182 20183,false
-20038,Bloated leech,,8026,20190 20191,true
-20039,Spirit terrorbird,,8027,20192 20193,false
-20040,Abyssal parasite,,8028,20194 20195,true
-20041,Spirit jelly,,8029,20196 20197,true
-20042,Ibis,,8033,20198 20199,false
-20043,Spirit kyatt,,8030,20200 20201,false
-20044,Spirit larupia,,8030,20200 20201,false
-20045,Spirit graahk,,8030,20200 20201,false
-20046,Karamthulhu overlord,,8031,20202 20203,false
-20047,Smoke devil,,8032,20204 20205,true
-20048,Abyssal lurker,,8033,20206 20207,false
-20049,Spirit cobra,,8009,20208 20209,false
-20050,Stranger plant,,8034,20210 20211,false
-20051,Barker toad,,8035,20212 20213,false
-20052,War tortoise,,8036,20214 20215,false
-20053,Bunyip,,8037,20216 20217,false
-20054,Fruit bat,,8015,20164 20165,false
-20055,Ravenous locust,,8057,20218 20219,true
-20056,Arctic bear,,8039,20220 20221,false
-20057,Phoenix,,8058,20222 20223,false
-20058,Obsidian golem,,8040,20224 20225,false
-20059,Granite lobster,,8041,20226 20227,true
-20060,Praying mantis,,8042,20228 20229,true
-20061,Forge regent,,8011,20230 20231,true
-20062,Talon beast,,8043,20232 20233,false
-20063,Giant ent,,8044,20234 20235,false
-20064,Hydra,,8045,20236 20237,false
-20065,Spirit dagannoth,,8046,20238 20239,false
-20066,Unicorn stallion,,8047,20240 20241,false
-20067,Wolpertinger,,8048,20242 20243,true
-20068,Pack yak,,8049,20244 20245,true
-20069,Fire titan,,8050,20246 20247,true
-20070,Moss titan,,8051,20248 20249,false
-20071,Ice titan,,8051,20250 20251,true
-20072,Lava titan,,8052,20252 20253,false
-20073,Swamp titan,,8053,20254 20255,false
-20074,Geyser titan,,8054,20256 20257,true
-20075,Abyssal titan,,8051,20258 20259,false
-20076,Iron titan,,8051,20260 20261,false
-20077,Steel titan,,8051,20250 20262,true
-20078,Kitten,,8059,20263 20264,true
-20079,Cat,,8059,20263 20265,true
-20080,Overgrown cat,,8059,20263 20265,true
-20081,Kitten,,8059,20263 20264,true
-20082,Cat,,8059,20263 20265,true
-20083,Overgrown cat,,8059,20263 20265,true
-20084,Kitten,,8059,20263 20264,true
-20085,Cat,,8059,20263 20265,true
-20086,Overgrown cat,,8059,20263 20265,true
-20087,Kitten,,8059,20263 20264,true
-20088,Cat,,8059,20263 20265,true
-20089,Overgrown cat,,8059,20263 20265,true
-20090,Kitten,,8059,20263 20264,true
-20091,Cat,,8059,20263 20265,true
-20092,Overgrown cat,,8059,20263 20265,true
-20093,Kitten,,8059,20263 20264,true
-20094,Cat,,8059,20263 20265,true
-20095,Overgrown cat,,8059,20263 20265,true
-20096,Hell-kitten,,8059,20263 20265,true
-20097,Hellcat,,8059,20263 20265,true
-20098,Overgrown hellcat,,8059,20263 20265,true
-20099,Kitten,,8059,20263 20264,true
-20100,Cat,,8059,20263 20265,true
-20101,Overgrown cat,,8059,20263 20265,true
-20102,Clockwork cat,,8059,20263 20265,true
-20103,Bulldog puppy,,8000,20266 20267,false
-20104,Bulldog,,8000,20266 20268,false
-20105,Bulldog puppy,,8000,20269 20267,false
-20106,Bulldog,,8000,20269 20268,false
-20107,Bulldog puppy,,8000,20270 20267,false
-20108,Bulldog,,8000,20270 20268,false
-20109,Dalmatian puppy,,8000,20266 20271,true
-20110,Dalmatian,,8000,20266 20272,true
-20111,Dalmatian puppy,,8000,20269 20271,true
-20112,Dalmatian,,8000,20269 20272,true
-20113,Dalmatian puppy,,8000,20270 20271,true
-20114,Dalmatian,,8000,20270 20272,true
-20115,Greyhound puppy,,8000,20266 20273,false
-20116,Greyhound,,8000,20266 20274,true
-20117,Greyhound puppy,,8000,20269 20273,false
-20118,Greyhound,,8000,20269 20274,true
-20119,Greyhound puppy,,8000,20270 20273,false
-20120,Greyhound,,8000,20270 20274,true
-20121,Labrador puppy,,8000,20266 20275,true
-20122,Labrador,,8000,20266 20276,true
-20123,Labrador puppy,,8000,20269 20275,true
-20124,Labrador,,8000,20269 20276,true
-20125,Labrador puppy,,8000,20270 20275,true
-20126,Labrador,,8000,20270 20276,true
-20127,Sheepdog puppy,,8000,20266 20275,false
-20128,Sheepdog,,8000,20266 20276,false
-20129,Sheepdog puppy,,8000,20269 20275,false
-20130,Sheepdog,,8000,20269 20276,false
-20131,Sheepdog puppy,,8000,20270 20275,false
-20132,Sheepdog,,8000,20270 20276,false
-20133,Terrier puppy,,8000,20266 20277,false
-20134,Terrier,,8000,20266 20278,true
-20135,Terrier puppy,,8000,20269 20277,false
-20136,Terrier,,8000,20269 20278,true
-20137,Terrier puppy,,8000,20270 20277,false
-20138,Terrier,,8000,20270 20278,true
-20139,Baby gecko,,8060,20279 20280,true
-20140,Gecko,,8060,20279 20281,true
-20141,Baby gecko,,8060,20279 20280,true
-20142,Gecko,,8060,20279 20281,true
-20143,Baby gecko,,8060,20279 20280,true
-20144,Gecko,,8060,20279 20281,true
-20145,Baby gecko,,8060,20279 20280,true
-20146,Gecko,,8060,20279 20281,true
-20147,Baby gecko,,8060,20279 20280,true
-20148,Gecko,,8060,20279 20281,true
-20149,Baby platypus,,8061,20282 20283,true
-20150,Platypus,,8061,20282 20284,true
-20151,Baby platypus,,8061,20282 20283,true
-20152,Platypus,,8061,20282 20284,true
-20153,Baby platypus,,8061,20282 20283,true
-20154,Platypus,,8061,20282 20284,true
-20155,Broav,,8062,20285 20286,true
-20156,Baby penguin,,8063,20287 20288,true
-20157,Penguin,,8063,20289 20290,true
-20158,Baby penguin,,8063,20287 20288,true
-20159,Penguin,,8063,20289 20290,true
-20160,Baby penguin,,8063,20287 20288,true
-20161,Penguin,,8063,20289 20290,true
-20162,Baby giant crab,,8007,20146 20291,true
-20163,Giant crab,,8007,20146 20291,true
-20164,Baby giant crab,,8007,20146 20291,true
-20165,Giant crab,,8007,20146 20291,true
-20166,Baby giant crab,,8007,20146 20291,true
-20167,Giant crab,,8007,20146 20291,true
-20168,Baby giant crab,,8007,20146 20291,true
-20169,Giant crab,,8007,20146 20291,true
-20170,Baby giant crab,,8007,20146 20291,true
-20171,Giant crab,,8007,20146 20291,true
-20172,Raven chick,,8022,20292 20293,false
-20173,Raven,,8022,20182 20183,false
-20174,Raven chick,,8022,20292 20293,false
-20175,Raven,,8022,20182 20183,false
-20176,Raven chick,,8022,20292 20293,false
-20177,Raven,,8022,20182 20183,false
-20178,Raven chick,,8022,20292 20293,false
-20179,Raven,,8022,20182 20183,false
-20180,Raven chick,,8022,20292 20293,false
-20181,Raven,,8022,20182 20183,false
-20182,Raven chick,,8022,20292 20293,false
-20183,Raven,,8022,20182 20183,false
-20184,Baby squirrel,,8064,20294 20295,true
-20185,Squirrel,,8064,20294 20295,true
-20186,Baby squirrel,,8064,20294 20295,true
-20187,Squirrel,,8064,20294 20295,true
-20188,Baby squirrel,,8064,20294 20295,true
-20189,Squirrel,,8064,20294 20295,true
-20190,Baby squirrel,,8064,20294 20295,true
-20191,Squirrel,,8064,20294 20295,true
-20192,Baby squirrel,,8064,20294 20295,true
-20193,Squirrel,,8064,20294 20295,true
-20194,Saradomin chick,,8022,20292 20293,false
-20195,Saradomin bird,,8022,20182 20183,false
-20196,Saradomin owl,,8022,20182 20183,false
-20197,Zamorak chick,,8022,20292 20293,false
-20198,Zamorak bird,,8022,20182 20183,false
-20199,Zamorak hawk,,8022,20182 20183,false
-20200,Guthix chick,,8022,20292 20293,false
-20201,Guthix bird,,8022,20182 20183,false
-20202,Guthix raptor,,8022,20182 20183,false
-20203,Ex-ex-parrot,,8022,20182 20183,false
-20204,Phoenix eggling,,8065,20296 20297,true
-20205,Phoenix eggling,,8065,20298 20299,true
-20206,Baby raccoon,,8056,20168 20169,true
-20207,Raccoon,,8056,20168 20169,true
-20208,Baby raccoon,,8056,20168 20169,true
-20209,Raccoon,,8056,20168 20169,true
-20210,Baby raccoon,,8056,20168 20169,true
-20211,Raccoon,,8056,20168 20169,true
-20212,Vulture chick,,8022,20292 20293,false
-20213,Vulture,,8033,20300 20301,false
-20214,Vulture chick,,8022,20292 20293,false
-20215,Vulture,,8033,20300 20301,false
-20216,Vulture chick,,8022,20292 20293,false
-20217,Vulture,,8033,20300 20301,false
-20218,Vulture chick,,8022,20292 20293,false
-20219,Vulture,,8033,20300 20301,false
-20220,Vulture chick,,8022,20292 20293,false
-20221,Vulture,,8033,20300 20301,false
-20222,Vulture chick,,8022,20292 20293,false
-20223,Vulture,,8033,20300 20301,false
-20224,Baby chameleon,,8066,20302 20303,false
-20225,Chameleon,,8066,20302 20303,false
-20226,Baby monkey,,8067,20304 20305,false
-20227,Monkey,,8067,20306 20307,false
-20228,Baby monkey,,8067,20304 20305,false
-20229,Monkey,,8067,20306 20307,false
-20230,Baby monkey,,8067,20304 20305,true
-20231,Monkey,,8067,20306 20307,false
-20232,Baby monkey,,8067,20304 20305,false
-20233,Monkey,,8067,20306 20307,false
-20234,Baby monkey,,8067,20304 20305,false
-20235,Monkey,,8067,20306 20307,false
-20236,Baby monkey,,8067,20304 20305,false
-20237,Monkey,,8067,20306 20307,false
-20238,Baby monkey,,8067,20304 20305,false
-20239,Monkey,,8067,20306 20307,false
-20240,Baby monkey,,8067,20304 20305,false
-20241,Monkey,,8067,20306 20307,false
-20242,Baby monkey,,8067,20304 20305,false
-20243,Monkey,,8067,20306 20307,false
-20244,Baby monkey,,8067,20304 20305,false
-20245,Monkey,,8067,20306 20307,false
-20246,Hatchling dragon,,8068,20308 20309,true
-20247,Baby dragon,,8068,20308 20309,true
-20248,Hatchling dragon,,8068,20308 20309,true
-20249,Baby dragon,,8068,20308 20309,true
-20250,Hatchling dragon,,8068,20308 20309,true
-20251,Baby dragon,,8068,20308 20309,true
-20252,Hatchling dragon,,8068,20308 20309,true
-20253,Baby dragon,,8068,20308 20309,true
+26000,Dreadfowl,,10000,23000 23001,true
+26016,Spirit terrorbird,,10032,23032 23033,false
+26032,Spirit spider,,10064,23064 23065,true
+26048,Thorny snail,,10096,23096 23097,true
+26064,Granite crab,,10128,23128 23129,true
+26080,Spirit mosquito,,10160,23160 23161,false
+26096,Desert wyrm,,10192,23192 23193,true
+26112,Spirit scorpion,,10224,23224 23225,false
+26128,Spirit Tz-Kih,,10256,23256 23257,true
+26144,Albino rat,,10288,23288 23289,false
+26160,Spirit kalphite,,10320,23320 23321,false
+26176,Compost mound,,10352,23352 23353,false
+26192,Giant chinchompa,,10384,23384 23385,false
+26208,Vampire bat,,10416,23416 23417,false
+26224,Honey badger,,10448,23448 23449,false
+26240,Beaver,,10480,23480 23481,true
+26256,Void ravager,,10512,23512 23513,false
+26272,Void spinner,,10544,23544 23545,true
+26288,Void torcher,,10576,23576 23577,false
+26304,Bronze minotaur,,10608,23608 23609,false
+26320,Iron minotaur,,10608,23640 23641,false
+26336,Steel minotaur,,10608,23672 23673,false
+26352,Mithril minotaur,,10608,23704 23705,false
+26368,Adamant minotaur,,10608,23736 23737,false
+26384,Rune minotaur,,10608,23768 23769,false
+26400,Bull ant,,10160,23800 23801,true
+26416,Macaw,,10832,23832 23833,false
+26432,Evil turnip,,10864,23864 23865,false
+26448,Spirit cockatrice,,10896,23896 23897,false
+26464,Spirit guthatrice,,10896,23928 23929,false
+26480,Spirit saratrice,,10896,23960 23961,false
+26496,Spirit zamatrice,,10896,23992 23993,false
+26512,Spirit pengatrice,,10896,24024 24025,false
+26528,Spirit coraxatrice,,10896,24056 24057,false
+26544,Spirit vulatrice,,10896,24088 24089,false
+26560,Pyrelord,,11120,24120 24121,true
+26576,Magpie,,10832,24152 24153,false
+26592,Bloated leech,,11184,24184 24185,true
+26608,Abyssal parasite,,11216,24216 24217,true
+26624,Spirit jelly,,11248,24248 24249,true
+26640,Ibis,,11280,24280 24281,false
+26656,Spirit kyatt,,11312,24312 24313,false
+26672,Spirit larupia,,11312,24344 24345,false
+26688,Spirit graahk,,11312,24376 24377,false
+26704,Karamthulhu overlord,,11408,24408 24409,false
+26720,Smoke devil,,11440,24440 24441,true
+26736,Abyssal lurker,,11280,24472 24473,false
+26752,Spirit cobra,,10192,24504 24505,false
+26768,Stranger plant,,11536,24536 24537,false
+26784,Barker toad,,11568,24568 24569,false
+26800,War tortoise,,11600,24600 24601,false
+26816,Bunyip,,11632,24632 24633,false
+26832,Fruit bat,,10416,24664 24665,false
+26848,Ravenous locust,,11696,24696 24697,true
+26864,Arctic bear,,11728,24728 24729,false
+26896,Obsidian golem,,11792,24792 24793,false
+26912,Granite lobster,,11824,24824 24825,true
+26928,Praying mantis,,11856,24856 24857,true
+26944,Forge regent,,10256,24888 24889,true
+26960,Talon beast,,11920,24920 24921,false
+26976,Giant ent,,11952,24952 24953,false
+26992,Hydra,,11984,24984 24985,false
+27008,Spirit dagannoth,,12016,25016 25017,false
+27024,Unicorn stallion,,12048,25048 25049,false
+27040,Wolpertinger,,12080,25080 25081,true
+27056,Pack yak,,12112,25112 25113,true
+27072,Fire titan,,12144,25144 25145,true
+27088,Moss titan,,12176,25176 25177,false
+27104,Ice titan,,12176,25208 25209,true
+27120,Lava titan,,12240,25240 25241,false
+27136,Swamp titan,,12272,25272 25273,false
+27152,Geyser titan,,12304,25304 25305,true
+27168,Abyssal titan,,12176,25336 25337,false
+27184,Iron titan,,12176,25368 25369,false
+27200,Steel titan,,12176,25400 25401,true

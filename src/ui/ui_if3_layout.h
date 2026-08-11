@@ -37,19 +37,16 @@ UITree_If3AxisFromPositionMode(
     case 0:
         return parent_origin + base;
     case 1:
-        /* Arithmetic right-shift: when self_dim > parent_dim the offset is
-         * negative and the child overhangs both sides. Chatbox dialogues rely
-         * on that (506x129 root centred in a 479x96 mount slot); do not
-         * origin-align here. Canvas-left overhang (viewport_tracker at
-         * abs_x=-21) is clamped in uitree_layout.c after abs is formed, so
-         * relative overhang for in-slot parents (chatmodal at x≥20) is kept. */
-        return parent_origin + ((parent_dim - self_dim) >> 1) + base;
+        /* Java integer division truncates toward zero. That differs from an
+         * arithmetic right shift for odd negative overhangs (for example,
+         * -27 / 2 is -13, not -14). */
+        return parent_origin + (parent_dim - self_dim) / 2 + base;
     case 2:
         return parent_origin + parent_dim - base - self_dim;
     case 3:
         return parent_origin + UITree_MulShift14(parent_dim, base);
     case 4:
-        return parent_origin + ((parent_dim - self_dim) >> 1) +
+        return parent_origin + (parent_dim - self_dim) / 2 +
                UITree_MulShift14(parent_dim, base);
     case 5:
         return parent_origin + parent_dim - UITree_MulShift14(parent_dim, base) - self_dim;

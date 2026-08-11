@@ -22,6 +22,25 @@
 #define TORIDRAW_SCENE_DEPTH_16K     (1u << 2)
 
 /**
+ * Carry a z-buffer scratch, so models tagged TORIDRAW_MODEL_FLAG_ZBUFFER
+ * resolve their faces per pixel instead of by face order alone.
+ *
+ * One buffer for the scene, screen sized, reused by every model that opts in —
+ * each resets it before drawing, which is what keeps one model's depths from
+ * reaching the next. It cannot be allocated here because the viewport is not
+ * known until a model is drawn, so this flag is permission plus intent: the
+ * first raster of a model that opts in sizes the buffer to that viewport (and
+ * regrows it if a later viewport is larger). Callers that would rather pay the
+ * allocation up front, or want to know it succeeded before a frame is on the
+ * line, call ToriDraw_SceneZBufferResize instead; the flag is not required for
+ * that, and a scene that has a buffer honours the model flag either way.
+ *
+ * Cost is `stride * rows * sizeof(torizdepth_t)` — 2 bytes per pixel where the
+ * toolchain has a real 16-bit float, 4 otherwise (graphics/zdepth.h).
+ */
+#define TORIDRAW_SCENE_MODEL_ZBUFFER (1u << 3)
+
+/**
  * Capacity tier for a scene's reusable model-render scratch buffers.
  *
  * The tier is deliberately separate from TORIDRAW_SCENE_SMALL: that flag
@@ -64,6 +83,35 @@ ToriDraw_ScenePrintSize(
 
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene);
+
+/* The scene's z-buffer scratch (TORIDRAW_SCENE_MODEL_ZBUFFER). */
+
+/**
+ * Ensure the z-buffer covers `stride` x `rows`, allocating or growing it.
+ * Idempotent, and never shrinks — a scene that has drawn into a large viewport
+ * keeps the capacity for the next one. Returns false only on allocation
+ * failure, which leaves any existing buffer intact and usable.
+ *
+ * `stride` must be the viewport's pixel stride, not its width: the z-buffer is
+ * indexed with the same offsets as the frame buffer.
+ */
+bool
+ToriDraw_SceneZBufferResize(
+    struct ToriDraw_Scene* scene,
+    int stride,
+    int rows);
+
+/** Release the z-buffer. Models that opt in then draw as if they had not, so
+ *  this is a way to turn the feature off without touching the models. */
+void
+ToriDraw_SceneZBufferFree(struct ToriDraw_Scene* scene);
+
+/** Whether a z-buffer large enough for `stride` x `rows` is resident. */
+bool
+ToriDraw_SceneHasZBuffer(
+    const struct ToriDraw_Scene* scene,
+    int stride,
+    int rows);
 
 /* Asset registry: models */
 

@@ -40,6 +40,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* ------------------------------------------------------------------ */
@@ -192,6 +193,14 @@ mock230_anim_play_npc(
      * means cancel has an id to send instead. */
     if( seq_id < 0 )
         return 0;
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "srv: npc_anim npc=%p seq=%d delay=%d (was playing %d)\n",
+            (void*)npc,
+            seq_id,
+            delay,
+            npc->anim_id);
     if( !anim_wins(npc->anim_id, seq_id) )
         return 0;
     npc->anim_id = seq_id;
@@ -1402,6 +1411,9 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
             srv->tick < npc->respawn_tick )
             continue;
 
+        npc->generation = (uint16_t)(npc->generation + 1u);
+        if( npc->generation == 0 )
+            npc->generation = 1;
         npc->active = 1;
         npc->respawn_tick = -1;
         npc->death_tick = -1;

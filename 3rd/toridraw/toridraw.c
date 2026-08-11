@@ -212,6 +212,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     free(scene->tmp_face_order);
     free(scene->tex_state);
     free(scene->anim_list);
+    free(scene->zbuffer);
 
     memset(scene, 0, sizeof(*scene));
 }
@@ -289,6 +290,61 @@ ToriDraw_SceneAllocBuffers(
     }
 
     return true;
+}
+
+bool
+ToriDraw_SceneZBufferResize(
+    struct ToriDraw_Scene* scene,
+    int stride,
+    int rows)
+{
+    torizdepth_t* grown;
+    size_t want;
+
+    if( !scene || stride <= 0 || rows <= 0 )
+        return false;
+
+    /* Never shrink: the buffer is scratch, and a scene alternating between two
+     * viewport sizes would otherwise realloc on every switch. */
+    if( stride < scene->zbuffer_stride )
+        stride = scene->zbuffer_stride;
+    if( rows < scene->zbuffer_rows )
+        rows = scene->zbuffer_rows;
+    if( scene->zbuffer && stride == scene->zbuffer_stride && rows == scene->zbuffer_rows )
+        return true;
+
+    want = (size_t)stride * (size_t)rows;
+    grown = (torizdepth_t*)realloc(scene->zbuffer, want * sizeof(torizdepth_t));
+    if( !grown )
+        return false;
+
+    scene->zbuffer = grown;
+    scene->zbuffer_stride = stride;
+    scene->zbuffer_rows = rows;
+    /* Contents are undefined until a model resets the region it draws into, so
+     * there is nothing to preserve or initialise here. */
+    return true;
+}
+
+void
+ToriDraw_SceneZBufferFree(struct ToriDraw_Scene* scene)
+{
+    if( !scene )
+        return;
+    free(scene->zbuffer);
+    scene->zbuffer = NULL;
+    scene->zbuffer_stride = 0;
+    scene->zbuffer_rows = 0;
+}
+
+bool
+ToriDraw_SceneHasZBuffer(
+    const struct ToriDraw_Scene* scene,
+    int stride,
+    int rows)
+{
+    return scene && scene->zbuffer && scene->zbuffer_stride >= stride &&
+           scene->zbuffer_rows >= rows;
 }
 
 struct ToriDraw_TextureState*
@@ -416,8 +472,11 @@ int g_toridraw_raster_scanline = 0;
 #ifndef TORIDRAW_PIXEL16
 #include "triangles/toridraw_triangle_texture_opaque.u.c"
 #include "triangles/toridraw_triangle_texture_transparent.u.c"
-#include "triangles/toridraw_triangle_texture_alpha.u.c"
 #include "triangles/toridraw_triangle_texture_affine.u.c"
+/* The depth-tested family draws through the 32-bit texture and blend paths, so
+ * it shares the PIXEL16 exclusion with them. Under a 16-bit target
+ * TORIDRAW_MODEL_FLAG_ZBUFFER is inert and models draw by face order alone. */
+#include "triangles/toridraw_triangle_zbuf.u.c"
 #endif
 #include "toridraw_render.u.c"
 #include "toridraw_raster.u.c"

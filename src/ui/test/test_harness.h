@@ -155,6 +155,7 @@ UITree_TestResolve(struct UITree* tree)
 /* Unit tests */
 void test_dirty_marking(void);
 void test_walk_topology(void);
+void test_mounted_world_resize(void);
 void test_hover_input(void);
 void test_click_event_coords(void);
 void test_layout_build(void);
@@ -167,6 +168,7 @@ void test_drag_scrollbar_137_geometry(void);
 void test_drag_cc_dragpickup_seeds(void);
 void test_press_repeat_and_release(void);
 void test_scroll_hit(void);
+void test_wheel_stops_at_interface(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);
 void test_emit_golden(void);

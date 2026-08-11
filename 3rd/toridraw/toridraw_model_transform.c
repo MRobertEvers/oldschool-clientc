@@ -168,6 +168,7 @@ ToriDraw_ModelMoveArrays(
     MODEL_MOVE(textured_p_coordinate);
     MODEL_MOVE(textured_m_coordinate);
     MODEL_MOVE(textured_n_coordinate);
+    MODEL_MOVE(texture_render_types);
     MODEL_MOVE(original_vertices_x);
     MODEL_MOVE(original_vertices_y);
     MODEL_MOVE(original_vertices_z);
@@ -256,6 +257,11 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
         src->textured_n_coordinate,
         src->textured_face_count,
         faceint_t);
+    COPY_ARRAY(
+        dst->texture_render_types,
+        src->texture_render_types,
+        src->textured_face_count,
+        uint8_t);
 
     if( src->face_infos && src->face_count > 0 )
     {
@@ -347,6 +353,7 @@ ToriDraw_ModelNewMerge(
     bool has_face_priorities = false;
     bool has_tex_coords = false;
     bool has_textured_coords = false;
+    bool has_texture_render_types = false;
     bool has_animaya = false;
 
     for( int i = 0; i < model_count; i++ )
@@ -374,6 +381,8 @@ ToriDraw_ModelNewMerge(
             has_tex_coords = true;
         if( m->textured_p_coordinate )
             has_textured_coords = true;
+        if( m->texture_render_types )
+            has_texture_render_types = true;
         if( m->animaya_group_counts && m->animaya_groups && m->animaya_scales )
             has_animaya = true;
     }
@@ -385,6 +394,13 @@ ToriDraw_ModelNewMerge(
     out->vertex_count = total_vertices;
     out->face_count = total_faces;
     out->textured_face_count = total_textured_faces;
+    /* Render flags are per model, and the merged model IS the parts. A part that
+     * asked for the depth test (TORIDRAW_MODEL_FLAG_ZBUFFER) still needs it once
+     * merged — more so, since merging is what puts it in the same face order as
+     * whatever it interpenetrates. */
+    for( int i = 0; i < model_count; i++ )
+        if( models[i] )
+            out->flags |= models[i]->flags;
 
     if( total_vertices > 0 )
     {
@@ -457,6 +473,9 @@ ToriDraw_ModelNewMerge(
         out->textured_n_coordinate =
             (faceint_t*)malloc((size_t)total_textured_faces * sizeof(faceint_t));
     }
+    if( total_textured_faces > 0 && has_texture_render_types )
+        out->texture_render_types =
+            (uint8_t*)calloc((size_t)total_textured_faces, sizeof(uint8_t));
 
     int vtx_off = 0;
     int face_off = 0;
@@ -566,6 +585,8 @@ ToriDraw_ModelNewMerge(
             if( out->textured_n_coordinate )
                 out->textured_n_coordinate[dst] =
                     (faceint_t)(m->textured_n_coordinate[t] + vtx_off);
+            if( out->texture_render_types && m->texture_render_types )
+                out->texture_render_types[dst] = m->texture_render_types[t];
         }
 
         vtx_off += m->vertex_count;

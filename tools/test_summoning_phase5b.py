@@ -49,6 +49,7 @@ EXPECTED_IMPORT = {
     "lane": "ported/scape2009_summoning",
     "ledger": "port/summoning_dreadfowl_530.map",
     "prefix": COHORT,
+    "material_mode": "face_colour",
     "npc_base": "26000",
     "obj_base": "46000",
     "model_base": "120000",
@@ -56,6 +57,14 @@ EXPECTED_IMPORT = {
     "animset_base": "23000",
     "framemap_base": "10000",
     "npc_sounds": "no",
+}
+
+# The reviewed Dreadfowl closure may use only these source procedural
+# materials.  Values are destination osrs239 material ids, approved in the
+# cohort's texture review record.
+EXPECTED_TEXTURE_MAP = {
+    "0": "0", "57": "12", "111": "59", "116": "209", "182": "59",
+    "347": "209", "364": "209", "439": "209", "466": "209", "471": "209",
 }
 
 EXPECTED_LEDGER = {
@@ -270,18 +279,26 @@ def review_footprint(tree: Path, asset_roots: tuple[str, ...]) -> tuple[dict[str
     pack_root = tree / LANE_REL / "pack"
     packs = sorted(path for path in pack_root.iterdir() if path.is_file())
     hashes = {path.relative_to(tree).as_posix(): digest(path) for path in packs}
-    references = sum(path.read_text(encoding="latin-1").count(REVIEW) for path in packs)
+    admitted_pack_lines = frozenset(
+        json.loads(DEFAULT_BOUNDARY.read_text(encoding="utf-8")).get("admitted_review_pack_lines", [])
+    )
+    references = sum(
+        sum(REVIEW in line and line not in admitted_pack_lines
+            for line in path.read_text(encoding="latin-1").splitlines())
+        for path in packs
+    )
     return candidates, hashes, references
 
 
-def marker_hits(root: Path, marker: str, text_suffixes: set[str]) -> list[str]:
+def marker_hits(root: Path, stage_module: ModuleType, admission: object) -> list[str]:
     hits: list[str] = []
-    marker_bytes = marker.encode("utf-8")
     for path in root.rglob("*"):
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
-        if marker in relative or (path.suffix in text_suffixes and file_contains(path, marker_bytes)):
+        if (stage_module.review_only_tokens(relative, admission) or
+                (path.suffix in stage_module.ADMISSION_TEXT_SUFFIXES and
+                 stage_module.review_only_tokens(path.read_text(encoding="latin-1"), admission))):
             hits.append(relative)
     return hits
 
@@ -358,17 +375,20 @@ def main() -> int:
     try:
         manifest = parse_ini(args.manifest)
         import_values = section_map(manifest.get("import:scape2009", []), "import")
+        texture_map = section_map(manifest.get("texture_map", []), "texture map")
         npc_exports = section_map(manifest.get("export:npc", []), "NPC export")
         obj_exports = section_map(manifest.get("export:obj", []), "object export")
     except ValueError as exc:
         errors.append(f"Dreadfowl import manifest is malformed: {exc}")
     else:
         expect(
-            set(manifest) == {"import:scape2009", "export:npc", "export:obj"},
+            set(manifest) == {"import:scape2009", "texture_map", "export:npc", "export:obj"},
             f"Dreadfowl manifest has unexpected sections: {sorted(manifest)}",
         )
         expect(import_values == EXPECTED_IMPORT,
                f"Dreadfowl import contract changed: {import_values}")
+        expect(texture_map == EXPECTED_TEXTURE_MAP,
+               f"Dreadfowl reviewed texture map changed: {texture_map}")
         expect(npc_exports == {"6825": "dreadfowl"},
                f"Dreadfowl manifest NPC roots changed: {npc_exports}")
         expect(obj_exports == {"12043": "dreadfowl_pouch"},
@@ -379,11 +399,13 @@ def main() -> int:
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"cannot read Phase-5b boundary: {exc}")
     else:
-        expect(boundary.get("schema") == 1 and boundary.get("phase") in {"5b", "5c"},
-               "boundary is not the schema-1 Phase-5b/5c contract")
-        expect(COHORT in boundary.get("admitted_cohorts", []),
-               f"boundary lost Dreadfowl admission: {boundary.get('admitted_cohorts')!r}")
-        expect(EXPECTED_BOUNDARY_COHORT in boundary.get("cohort_ledgers", []),
+        expect(boundary.get("schema") == 1 and boundary.get("phase") == "5b",
+               "boundary is not the schema-1 Phase-5b contract")
+        admitted_cohorts = boundary.get("admitted_cohorts")
+        expect(isinstance(admitted_cohorts, list) and COHORT in admitted_cohorts,
+               f"boundary does not retain admitted Dreadfowl: {admitted_cohorts!r}")
+        cohort_ledgers = boundary.get("cohort_ledgers")
+        expect(isinstance(cohort_ledgers, list) and EXPECTED_BOUNDARY_COHORT in cohort_ledgers,
                "boundary Dreadfowl cohort ledger contract changed")
         roots = boundary.get("admitted_root_sources")
         expect(
@@ -421,14 +443,16 @@ def main() -> int:
                 duplicate_keys = True
             source_keys.add(source_key)
             normalized.add(row)
-            disposition_ok &= disposition == "minted" and signoff == "unreviewed"
+            expected_signoff = "ok" if kind == "model" else "unreviewed"
+            disposition_ok &= disposition == "minted" and signoff == expected_signoff
             names_ok &= dst_name.startswith(f"{COHORT}_")
         expect(len(cohort_rows) == len(EXPECTED_LEDGER),
                f"Dreadfowl ledger has {len(cohort_rows)} rows instead of {len(EXPECTED_LEDGER)}")
         expect(normalized == EXPECTED_LEDGER,
                f"Dreadfowl ledger closure changed: {sorted(normalized)}")
         expect(not duplicate_keys, "Dreadfowl ledger duplicates a kind/source pair")
-        expect(disposition_ok, "Dreadfowl ledger is not wholly minted/unreviewed")
+        expect(disposition_ok,
+               "Dreadfowl ledger must have minted rows, approved model textures, and unreviewed non-model rows")
         expect(names_ok, "Dreadfowl ledger escaped its separate cohort prefix")
         expect(not any(kind in {"synth", "sound", "song", "sample", "patch", "sprite"}
                        for kind, *_ in cohort_rows),
@@ -471,6 +495,10 @@ def main() -> int:
                 "summoning_cohort_dreadfowl.npc",
                 "summoning_cohort_dreadfowl.obj",
                 "summoning_cohort_dreadfowl.seq",
+                # The modern skill guide is shared UI metadata. It may point
+                # at an admitted pouch without becoming part of that pouch's
+                # model/sequence closure.
+                "summoning_guide.dbrow",
             },
             f"Dreadfowl records escaped their exact config closure: {sorted(source_config_tokens)}",
         )
@@ -548,7 +576,7 @@ def main() -> int:
     else:
         expect(len(review_files_before) == 630,
                f"preserved review-only source file count changed: {len(review_files_before)}")
-        expect(review_refs_before == 2175,
+        expect(review_refs_before == 2174,
                f"preserved review-only pack-reference count changed: {review_refs_before}")
         with tempfile.TemporaryDirectory(prefix="summoning_phase5b_stage_") as temporary:
             staged = Path(temporary) / "stage"
@@ -582,17 +610,18 @@ def main() -> int:
                         "summoning_cohort_dreadfowl.npc",
                         "summoning_cohort_dreadfowl.obj",
                         "summoning_cohort_dreadfowl.seq",
+                        "summoning_guide.dbrow",
                     },
                     "feature-on stage admitted a Dreadfowl config record outside the exact closure",
                 )
                 staged_pack_lines = cohort_pack_lines(staged / "pack")
                 expect(staged_pack_lines == EXPECTED_PACK_LINES,
                        f"feature-on stage changed Dreadfowl pack membership: {staged_pack_lines}")
-                review_hits = marker_hits(staged, REVIEW, stage_module.ADMISSION_TEXT_SUFFIXES)
-                dreadfowl_hits = marker_hits(staged, COHORT, stage_module.ADMISSION_TEXT_SUFFIXES)
+                review_hits = marker_hits(staged, stage_module, admission)
+                dreadfowl_hits = marker_hits(staged, stage_module, admission)
                 expect(not review_hits,
                        "feature-on stage leaked review-only roster data: " + ", ".join(review_hits[:10]))
-                expect(bool(dreadfowl_hits), "feature-on stage lost every Dreadfowl marker")
+                expect(not dreadfowl_hits, "feature-on stage retained a review-only marker")
 
         review_files_after, review_packs_after, review_refs_after = review_footprint(
             args.tree, stage_module.ASSET_ROOTS

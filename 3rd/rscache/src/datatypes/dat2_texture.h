@@ -25,20 +25,6 @@ struct RSCache_Dat2Texture
     int average_hsl;
     bool opaque;
 
-    /*
-     * Per-texel alpha blending (extension; see RSCACHE_TEXTURE_V2_ALPHA_BYTE).
-     *
-     * Stock OSRS textures are colour-keyed: a texel is drawn or skipped, and
-     * `opaque` says which of the two paths the raster takes. That cannot carry
-     * a material whose alpha varies continuously, so imported HD content has to
-     * either be thresholded into holes or dropped. When this is set the raster
-     * blends each texel by its own alpha instead.
-     *
-     * Never set by a stock cache: the simplified record is exactly seven bytes
-     * there, and this is an optional eighth.
-     */
-    bool alpha_blended;
-
     int* sprite_ids;
     int sprite_ids_count;
 
@@ -63,18 +49,7 @@ struct RSCache_Dat2Texture
 #define RSCACHE_CODEC_TEXTURE_V1 1
 #define RSCACHE_CODEC_TEXTURE_V2 2
 
-/*
- * Length of the stock simplified record, and the offset of the optional alpha
- * byte that extends it.
- *
- * The v2 record is fixed-width with no opcode stream, so there is no in-band
- * way to announce a new field. A stock cache always writes exactly
- * RSCACHE_TEXTURE_V2_LENGTH bytes, so a record longer than that is
- * unambiguously ours: readers that predate the extension stop at seven and are
- * unaffected, and a stock record decodes with alpha_blended = false.
- */
 #define RSCACHE_TEXTURE_V2_LENGTH 7
-#define RSCACHE_TEXTURE_V2_ALPHA_BYTE 7
 
 /** Archive revision above which the textures group uses the simplified record.
  *  Modern archive revisions are unix timestamps, far past any classic value, so

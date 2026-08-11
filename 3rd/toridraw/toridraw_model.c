@@ -346,6 +346,7 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     free(m->textured_p_coordinate);
     free(m->textured_m_coordinate);
     free(m->textured_n_coordinate);
+    free(m->texture_render_types);
     free(m->face_texture_coords);
     ToriDraw_NormalsFree(m->normals);
     ToriDraw_NormalsFree(m->merged_normals);

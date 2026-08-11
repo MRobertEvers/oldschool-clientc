@@ -347,6 +347,7 @@ test_minimenu_release_swallow(void)
     LibToriRS_Input_End(input);
     UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
     TEST_ASSERT(out.minimenu_select == 1, "row selected on press");
+    TEST_ASSERT(out.minimenu_consumed_pointer, "row press is consumed by minimenu");
     TEST_ASSERT(interact.swallow_left_click, "release latched");
     UIMinimenu_Hide(&interact.minimenu);
 
@@ -358,6 +359,7 @@ test_minimenu_release_swallow(void)
     TEST_ASSERT(!out.left_click_miss, "release does not reach the world");
     TEST_ASSERT(out.clicked_com_id < 0, "release does not click a component");
     TEST_ASSERT(out.minimenu_select < 0, "release selects nothing");
+    TEST_ASSERT(!out.minimenu_consumed_pointer, "release latch is not a new pointer event");
     TEST_ASSERT(!interact.swallow_left_click, "latch retired after one release");
 
     /* The next click is a fresh gesture and passes through normally. */

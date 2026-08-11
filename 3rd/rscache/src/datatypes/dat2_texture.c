@@ -22,10 +22,6 @@ texture_decode_simplified(
     def->animation_direction = g1(&buffer);
     def->animation_speed = g1(&buffer);
 
-    /* Optional extension byte; absent in every stock cache. */
-    def->alpha_blended =
-        length > RSCACHE_TEXTURE_V2_ALPHA_BYTE && g1(&buffer) == 1;
-
     def->sprite_ids_count = 1;
     def->sprite_ids = malloc(sizeof(int));
     assert(def->sprite_ids);
@@ -57,10 +53,6 @@ RSCache_Dat2TextureEncodeProfile(
         p1(&buffer, texture->opaque ? 1 : 0);
         p1(&buffer, texture->animation_direction);
         p1(&buffer, texture->animation_speed);
-        /* Extension byte only when set, so a record that does not use per-texel
-         * alpha stays byte-identical to what a stock cache would write. */
-        if( texture->alpha_blended )
-            p1(&buffer, 1);
         return buffer.position;
     }
 

@@ -9,17 +9,19 @@ parity, entity facing and hitsplats) — every "torirs" claim below was
 verified against a live LostCity server (`./run-live.sh`, cache
 `cache254.lostcity`) or by a `make -C src test-world` case.
 
-Headless world-harness hotkeys (all act on the tile under the mouse, driven by
-`TORIRS_SIM_WORLD_KEY="x,y,<key>[;...]"`): **9** player, **8** npc
-(`[spawn:hotkeys] npc=` / `TORIRS_SPAWN_NPC`), **7** ground item
-(`[spawn:hotkeys] obj=` / `TORIRS_SPAWN_OBJ`), **6** test
+Headless world-harness shortcuts (all act on the tile under the mouse, driven by
+`TORIRS_SIM_WORLD_KEY="x,y,<key>[;...]"`) historically used **9** player, **8** npc
+(`t=spawn_npc a=id=<npc>` / `TORIRS_SPAWN_NPC`), **7** ground item
+(`t=spawn_obj a=id=<obj>` / `TORIRS_SPAWN_OBJ`), **6** test
 overheads on every entity (hitsplat + health bar + overhead chat + a headicon
-mask), **5** spotanim (`[spawn:hotkeys] spotanim=` / `_height` / `_delay` or
+mask), **5** spotanim (`t=spawn_spotanim a=id=<id>,height=<n>,delay=<n>` or
 `TORIRS_SPAWN_SPOTANIM` / `_HEIGHT` / `_DELAY`), **4**
 entity attached-graphic / `SPOTANIM` mask on every entity (same overrides as 5),
-**0** projectile (two-press latch; `[spawn:hotkeys] proj_model=` / `proj_seq=`
-or `TORIRS_SPAWN_PROJ_MODEL` / `_SEQ`). Precedence is env > manifest >
-built-in default.
+**0** projectile (two-press latch; `t=spawn_projectile a=model=<id>,seq=<id>`
+or `TORIRS_SPAWN_PROJ_MODEL` / `_SEQ`). Interactive debug shortcuts are now off
+by default. A manifest declares named `[action:<name>]` entries and binds keys
+to those names in `[debug:hotkeys]`; the historical digits are used only when
+explicitly assigned. Spawn-id precedence remains env > manifest > built-in id.
 
 Reference server for wire questions: `/Users/matthewevers/Documents/git_repos/LostCity_Server`
 (its `content/scripts/**/*.if` + `content/pack/3_interfaces.pack` are the ground

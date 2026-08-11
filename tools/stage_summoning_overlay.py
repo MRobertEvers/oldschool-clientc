@@ -52,6 +52,11 @@ CONFIG_SUFFIXES = {
 }
 INTERFACE_OVERLAYS = "interface_overlays"
 CONFIG_OVERLAYS = "config_overlays"
+# Existing cache scripts that need a Summoning-only replacement. Keep their
+# source in the ordinary script tree so it remains name-resolved and
+# round-trippable, but copy it into the disposable feature-on stage explicitly;
+# otherwise cachepack silently retains the base-cache bytecode.
+CLIENTSCRIPT_OVERLAYS = ("script_1904.cs2",)
 ADMISSION_TEXT_SUFFIXES = {
     ".alloc",
     ".client",
@@ -86,6 +91,8 @@ class RosterAdmission:
     admitted_cohorts: tuple[str, ...]
     review_only_cohorts: tuple[str, ...]
     safe_synths: frozenset[int]
+    admitted_pet_prefixes: tuple[str, ...]
+    admitted_review_references: frozenset[str]
 
 
 def fail(message: str) -> ValueError:
@@ -136,7 +143,21 @@ def load_roster_boundary(path: Path) -> RosterAdmission:
         raise fail("roster boundary review_only_cohorts contains duplicate prefixes")
     if set(cohorts) & set(review_prefixes):
         raise fail("roster boundary cannot admit and review-hold the same cohort")
-    return RosterAdmission(tuple(cohorts), tuple(review_prefixes), safe_synths)
+    pet_prefixes = data.get("admitted_pet_prefixes", [])
+    if (not isinstance(pet_prefixes, list) or not all(
+        isinstance(prefix, str) and prefix.startswith("summoning_pet_") for prefix in pet_prefixes
+    ) or len(set(pet_prefixes)) != len(pet_prefixes)):
+        raise fail("roster boundary admitted_pet_prefixes must be distinct summoning_pet_ prefixes")
+    references = data.get("admitted_review_references", [])
+    if (not isinstance(references, list) or not all(
+        isinstance(reference, str) and reference.startswith("summoning_roster_530_")
+        for reference in references
+    ) or len(set(references)) != len(references)):
+        raise fail("roster boundary admitted_review_references must be distinct review-only record names")
+    return RosterAdmission(
+        tuple(cohorts), tuple(review_prefixes), safe_synths,
+        tuple(pet_prefixes), frozenset(references)
+    )
 
 
 def cohort_matches(token: str, prefix: str) -> bool:
@@ -154,8 +175,12 @@ def cohort_is_review_only(token: str, admission: RosterAdmission) -> bool:
 def review_only_tokens(value: str, admission: RosterAdmission) -> set[str]:
     return {
         token for token in GENERATED_COHORT_TOKEN.findall(value)
-        if cohort_is_review_only(token, admission)
+        if cohort_is_review_only(token, admission) and token not in admission.admitted_review_references
     }
+
+
+def pet_is_admitted(token: str, admission: RosterAdmission) -> bool:
+    return any(cohort_matches(token, prefix) for prefix in admission.admitted_pet_prefixes)
 
 
 def audit_roster_admission(tree: Path, lane: Path, boundary_path: Path) -> int:
@@ -192,12 +217,12 @@ def audit_roster_admission(tree: Path, lane: Path, boundary_path: Path) -> int:
             # constitutes out-of-scope pet content here.
             for token in sorted(set(DIRECT_PET_RECORD_TOKEN.findall(relative))):
                 checked += 1
-                if not review_only_tokens(relative, admission):
+                if not pet_is_admitted(token, admission) and not review_only_tokens(relative, admission):
                     errors.append(f"pet record {token!r} is deferred to Phase 7 ({relative})")
             for line in text.splitlines():
                 for token in sorted(set(DIRECT_PET_RECORD_TOKEN.findall(line))):
                     checked += 1
-                    if not review_only_tokens(line, admission):
+                    if not pet_is_admitted(token, admission) and not review_only_tokens(line, admission):
                         errors.append(f"pet record {token!r} is deferred to Phase 7 ({relative})")
 
             if NPC_SOUNDS_YES.search(text):
@@ -493,6 +518,13 @@ def stage(tree: Path, out: Path, boundary_path: Path) -> int:
                 copied += 1
         else:
             raise fail(f"unclassified lane entry: {child}")
+
+    for name in CLIENTSCRIPT_OVERLAYS:
+        source = tree / "scripts" / name
+        if not source.is_file() or source.is_symlink():
+            raise fail(f"missing plain clientscript overlay source: {source}")
+        copy_file(source, out / "scripts" / name)
+        copied += 1
 
     copied += apply_interface_overlays(tree, lane, out)
     copied += apply_config_overlays(tree, lane, out)

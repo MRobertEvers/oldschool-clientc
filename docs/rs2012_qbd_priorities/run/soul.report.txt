@@ -1,0 +1,55 @@
+geometry: 1233 vertices, 1931 faces across 1 input model(s)
+features: 38 connected
+baseline: 6761/837776 wrong pixels under the pure depth sort (0.81%)
+          259 within one feature (no band can reach these), 6502 between features
+final:    6751/837776 wrong (0.81%), 259 within, 6492 between
+pairs:    11 a band could pay for
+solve:    settled after 1 round(s), model predicts +0 pixels
+  band   features      faces
+     0         37       1915
+     1          1         16
+
+largest features:
+    id   faces   band
+    15    1189      0
+     0     118      0
+    16      57      0
+    35      54      0
+    18      50      0
+    36      50      0
+    17      36      0
+    34      36      0
+    23      30      0
+    29      27      0
+     1      24      0
+    37      24      0
+    19      20      0
+    20      20      0
+     2      16      0
+     8      16      0
+    31      16      1
+    25      10      0
+     3       8      0
+     4       8      0
+
+worst feature pairs (last round):
+  over  under  fixable   breaks      net  bndA  bndB
+    18     17     1007     5066    -4059     0     0
+    34     15      874     2082    -1208     0     0
+    18     15      635     8351    -7716     0     0
+    16     15      519     7355    -6836     0     0
+    17     15      269     4340    -4071     0     0
+    29     16      208      175       33     0     0
+    17     18      173     6659    -6486     0     0
+    23     15      137     1360    -1223     0     0
+    15     35      134     5043    -4909     0     0
+     4     17      104        8       96     0     0
+    16     34      102      550     -448     0     0
+    15     16       94    17905   -17811     0     0
+    25     15       88       18       70     0     0
+    22     15       75      399     -324     0     0
+    15     17       74    12050   -11976     0     0
+
+separations the bands actually buy:
+  over  under     net px
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70761.ob3 -> docs/rs2012_qbd_priorities/run/rs2012_model_70761.ob3 (26149 bytes)

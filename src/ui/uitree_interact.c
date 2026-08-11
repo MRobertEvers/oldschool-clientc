@@ -97,16 +97,24 @@ find_wheel_scroll_layer(
         int32_t i = tree->scroll_layers.slots[si];
         struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
         assert(i >= 0 && (uint32_t)i < tree->component_count);
         c = &tree->components[i];
-        if( c->type != UIELEM_RS_LAYER || c->behavior.hide || c->if3 || c->freed )
+        if( c->type != UIELEM_RS_LAYER || c->if3 || c->freed || c->component_id < 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         if( bw <= 0 || bh <= 0 )
             continue;
-        if( mx < bx || my < by || mx >= bx + bw || my >= by + bh )
+        /* Native wheel handling uses the layer's drawn rectangle. This is not
+         * always abs_x/y: ordinary descendants inherit ancestor scroll, while
+         * an InterfaceParent root deliberately ignores its mount host's local
+         * scroll. The shared accumulator encodes exactly that boundary. */
+        UITree_AccumScrollOffset(tree, i, &offx, &offy);
+        if( !UITree_PointInScrolledBounds(mx, my, bx, by, bw, bh, offx, offy) )
             continue;
         {
             int area = bw * bh;
@@ -481,10 +489,11 @@ interact_wheel(
          * (browser deltaY > 0). */
         intent.event_mouse_y = input->curr.mouse_wheel_y > 0 ? -1 : 1;
         intent_push(out, &intent);
-        /* Deliberately NOT wheel_consumed: an onScroll hook is a broadcast to
-         * the top-most handler, not a claim on the notch. rev230's gameframe
-         * root (161:1) carries one over the whole screen, so treating it as a
-         * consumer would silently disable every app-level wheel gesture. */
+        /* A targeted onScroll handler owns the wheel just like a native IF1
+         * scroll layer. Letting the same notch continue to app-level gestures
+         * makes an interface over the viewport scroll and zoom the world at
+         * once. */
+        out->wheel_consumed = 1;
         out->need_redraw = 1;
     }
 }
@@ -955,6 +964,11 @@ interact_minimenu(
         }
         return 0;
     }
+
+    /* Keep ownership observable after a selected option synchronously hides
+     * the menu in the app. App-level gestures also poll the raw input state,
+     * so visibility alone cannot stop this press propagating to them. */
+    out->minimenu_consumed_pointer = 1;
 
     if( UIMinimenu_UpdateHover(menu, input->curr.mouse_x, input->curr.mouse_y) )
         out->need_redraw = 1;

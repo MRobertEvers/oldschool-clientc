@@ -161,6 +161,8 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
         dst, textured_m_coordinate, src->textured_m_coordinate, src->textured_face_count);
     TORIDRAW_MODEL_COPY(
         dst, textured_n_coordinate, src->textured_n_coordinate, src->textured_face_count);
+    TORIDRAW_MODEL_COPY(
+        dst, texture_render_types, src->texture_render_types, src->textured_face_count);
     TORIDRAW_MODEL_COPY(dst, face_texture_coords, src->face_texture_coords, src->face_count);
 
     if( src->face_priorities && src->face_count > 0 )

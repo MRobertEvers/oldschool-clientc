@@ -1,0 +1,54 @@
+geometry: 859 vertices, 1142 faces across 1 input model(s)
+features: 21 connected
+baseline: 185/768023 wrong pixels under the pure depth sort (0.02%)
+          43 within one feature (no band can reach these), 142 between features
+final:    185/768023 wrong (0.02%), 43 within, 142 between
+pairs:    0 a band could pay for
+solve:    settled after 1 round(s), model predicts +0 pixels
+  band   features      faces
+     0         21       1142
+
+largest features:
+    id   faces   band
+     0    1086      0
+     1       4      0
+     3       4      0
+     6       4      0
+     7       4      0
+     9       4      0
+    12       4      0
+    13       4      0
+    14       4      0
+    15       4      0
+    16       4      0
+     2       2      0
+     4       2      0
+     5       2      0
+     8       2      0
+    10       2      0
+    11       2      0
+    17       1      0
+    18       1      0
+    19       1      0
+
+worst feature pairs (last round):
+  over  under  fixable   breaks      net  bndA  bndB
+    11      0       23      162     -139     0     0
+     7      0       19      133     -114     0     0
+     1      0       17       93      -76     0     0
+     3      0       12      158     -146     0     0
+     2      0        9       47      -38     0     0
+     5      0        9      224     -215     0     0
+    10      0        9       59      -50     0     0
+     8      0        8       58      -50     0     0
+     0     16        6      261     -255     0     0
+     0     13        5      242     -237     0     0
+    13      0        4      496     -492     0     0
+     4      0        3        7       -4     0     0
+     6      0        3      141     -138     0     0
+    16      0        3      337     -334     0     0
+    19      0        3     1172    -1169     0     0
+
+separations the bands actually buy:
+  over  under     net px
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69765.ob3 -> docs/rs2012_qbd_priorities/run/rs2012_model_69765.ob3 (15575 bytes)

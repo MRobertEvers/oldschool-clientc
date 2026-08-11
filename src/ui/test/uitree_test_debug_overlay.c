@@ -41,7 +41,7 @@ test_debug_overlay_menu_geometry(void)
         TEST_ASSERT(l.chrome_h == box + 5, "minimenu chrome_h formula");
         TEST_ASSERT(l.hover_above == box - 3, "minimenu hover_above formula");
         TEST_ASSERT(l.hover_below == 3, "minimenu hover_below formula");
-        TEST_ASSERT(l.width_pad == 8, "minimenu width_pad formula");
+        TEST_ASSERT(l.width_pad == 16, "minimenu width_pad includes scaled-font breathing room");
         TEST_ASSERT(l.border_inset == box + 3, "minimenu border_inset formula");
     }
 

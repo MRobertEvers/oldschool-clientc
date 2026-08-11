@@ -96,6 +96,46 @@ enum AppUiLogic
     APP_UI_LOGIC_CS2 = 2,
 };
 
+/* Hardcoded targets named by manifest `[action:<name>]` declarations. The
+ * manifest's `[debug:hotkeys]` section binds keys to those named actions;
+ * nothing is bound in a zero-initialized config. Arrow-key orbit controls are
+ * game input rather than developer shortcuts and are intentionally absent. */
+enum AppDebugHotkey
+{
+    APP_DEBUG_HOTKEY_CAMERA_FORWARD,
+    APP_DEBUG_HOTKEY_CAMERA_BACK,
+    APP_DEBUG_HOTKEY_CAMERA_LEFT,
+    APP_DEBUG_HOTKEY_CAMERA_RIGHT,
+    APP_DEBUG_HOTKEY_CAMERA_UP,
+    APP_DEBUG_HOTKEY_CAMERA_DOWN,
+    APP_DEBUG_HOTKEY_CAMERA_UNLOCK,
+    APP_DEBUG_HOTKEY_WORLD_RELOAD,
+    APP_DEBUG_HOTKEY_PAINT_TOGGLE,
+    APP_DEBUG_HOTKEY_PAINT_MORE,
+    APP_DEBUG_HOTKEY_PAINT_LESS,
+    APP_DEBUG_HOTKEY_PAINT_MORE_100,
+    APP_DEBUG_HOTKEY_PAINT_LESS_100,
+    APP_DEBUG_HOTKEY_SPAWN_PLAYER,
+    APP_DEBUG_HOTKEY_SPAWN_NPC,
+    APP_DEBUG_HOTKEY_SPAWN_OBJ,
+    APP_DEBUG_HOTKEY_SPAWN_PROJECTILE,
+    APP_DEBUG_HOTKEY_SPAWN_SPOTANIM,
+    APP_DEBUG_HOTKEY_ENTITY_SPOTANIM,
+    APP_DEBUG_HOTKEY_DAMAGE_TEST,
+    APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
+    APP_DEBUG_HOTKEY_COUNT
+};
+
+#define APP_DEBUG_HOTKEY_MAX 64
+#define APP_DEBUG_HOTKEY_ARGS_CAP 512
+
+struct AppDebugHotkeyBinding
+{
+    enum LibToriRS_KeyCode key;
+    enum AppDebugHotkey target;
+    char args[APP_DEBUG_HOTKEY_ARGS_CAP];
+};
+
 struct AppConfig
 {
     char const* cache_dir;
@@ -119,15 +159,10 @@ struct AppConfig
      *  cache yields terrain (which is not encrypted) with **zero locs**. */
     int spawn_x;
     int spawn_z;
-    /** Debug spawn-hotkey ids from `[spawn:hotkeys]`. -1 = built-in default;
-     *  TORIRS_SPAWN_* env vars still override (env > manifest > built-in). */
-    int spawn_npc_id;
-    int spawn_obj_id;
-    int spawn_spotanim_id;
-    int spawn_spotanim_height;
-    int spawn_spotanim_delay;
-    int spawn_proj_model_id;
-    int spawn_proj_seq_id;
+    /** Resolved `[debug:hotkeys]` key -> `[action:<name>]` bindings. Empty by
+     *  default. `args` retains the action's optional `a=` payload. */
+    struct AppDebugHotkeyBinding debug_hotkeys[APP_DEBUG_HOTKEY_MAX];
+    int debug_hotkey_count;
     /** RevConfig layout INI — the tree's shape. Every root tree comes from the
      * RevConfig builder; a cache gameframe is one *element* of that layout
      * (`type=rs_iface`), not a competing root. NULL/"" = none, in which case the
@@ -163,6 +198,9 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** `[net:boot] scripts` — compiled script pack for the embedded mock
+     * server. MOCK230_SCRIPTS still overrides it. NULL/"" = server default. */
+    char const* net_server_scripts;
     /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
      * send once right after login, e.g. "zuk" to enter the Inferno instance.
      * The manifest spelling of the TORIRS_NET_CHEAT harness hook; the env var
@@ -609,9 +647,9 @@ struct App
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;
     /** Chat input focus. When set, typed keys feed the chat input line and the
-     *  debug camera/world hotkeys (WASD/M/spawn digits) are suppressed so they
-     *  cannot fire while composing a message. Clicking the chat region focuses;
-     *  clicking elsewhere or pressing Escape unfocuses. */
+     *  manifest-configured debug shortcuts are suppressed so they cannot fire
+     *  while composing a message. Clicking the chat region focuses; clicking
+     *  elsewhere or pressing Escape unfocuses. */
     int chat_input_active;
     /** Minimenu chat-line seam (points at app_chat_line_at). */
     struct RS_MinimenuChatSource chat_source;
@@ -699,6 +737,9 @@ struct App
     /** Tree-affecting async work (CS2 hooks, transmits) is in flight; when the
      * runner queue next goes idle the tree gets a refresh pass. */
     int runner_had_work;
+    /** The serial packet/interface transaction yielded on real external IO.
+     * Its partially-applied tree is not eligible for frame publication. */
+    int exec_runner_had_work;
     int world_load_inflight;
     /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
@@ -845,9 +886,17 @@ struct App
      * fallback is for revisions that send none (lc254).
      */
     int server_tick_fence_seen;
+    /** A fenced server tick has started applying but SERVER_TICK_END has not
+     * yet executed.  The live tree may contain only part of that tick, so the
+     * renderer retains the preceding committed frame while this is set. */
+    int server_tick_open;
+    int server_tick_open_cycle;
     /** Logic cycle the oldest held script has been waiting since, so a fence
      *  that never arrives (a tick cut short by a disconnect) cannot strand it. */
     int pending_clientscript_cycle;
+    /** Set by App_RunOnce once the stable-tree gate has been crossed and the
+     *  current host input frame has reached interaction. */
+    int input_frame_consumed;
     /**
      * Zone sub-packets that arrived while the world was still async-loading.
      *
@@ -948,9 +997,11 @@ struct App
  * viewport_geteffectivesize, and quietly laid a 765x503 viewport island out in
  * the middle of the frame. Nothing errored. Write the canvas through here.
  *
- * Clamps to APP_CANVAS_MIN_*. Relayouts, dispatches every registered onResize
- * listener (which is what makes the gameframe reflow rather than stretch), then
- * relayouts again. Returns 1 if the size changed, 0 if it was already current.
+ * Clamps to APP_CANVAS_MIN_*. Relayouts, then dispatches registered onResize
+ * listeners only for components whose resolved width or height changed (the
+ * reference trigger=true rule), and relayouts after those scripts. A component
+ * that merely moves with a recentered mount does not receive onResize. Returns
+ * 1 if the canvas changed, 0 if it was already current.
  */
 int
 App_SetCanvasSize(
@@ -1609,6 +1660,24 @@ App_NoteFrameTime(
     uint64_t frame_us);
 
 /**
+ * Send a `::` command as if it had been typed into the chatbox.
+ *
+ * The debug procs a content lane defines — `[debugproc,rs2012qbd]` and friends
+ * — are the only way into an encounter that no walk or click can reach, and a
+ * headless harness has no chatbox. `text` is the command WITHOUT the leading
+ * `::`, matching the wire format.
+ *
+ * Returns false until the connection reaches TORIRS_NET_GAME: the command is a
+ * server-side script call, so before login there is nothing to send it to. The
+ * world renders well before that point, so a caller that fires once on a frame
+ * number it guessed will send nothing at all — retry on false.
+ */
+bool
+App_SendCommand(
+    struct App* app,
+    char const* text);
+
+/**
  * One loop-body iteration: pump tasks, run pending 20ms logic ticks
  * (client clock, widget timers, animations), then the per-frame interaction
  * pass and emit rebuild. Returns non-zero when the frame needs re-rendering.
@@ -1618,6 +1687,18 @@ App_RunOnce(
     struct App* app,
     uint64_t now_ms,
     struct LibToriRS_Input* input);
+
+/** True only when the live UI tree is eligible to produce a new frame.  While
+ * false, hosts must present/copy the last committed framebuffer rather than
+ * calling App_Render against a partially-applied CS2/server transaction. */
+int
+App_FrameSettled(struct App const* app);
+
+/** Whether the most recent App_RunOnce reached interaction. A shell retains
+ * one-shot input while false so an async CS2/tick wait cannot eat a mouse-up or
+ * key edge. */
+int
+App_InputFrameConsumed(struct App const* app);
 
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree
@@ -1686,5 +1767,18 @@ App_LootNotifyKill(
     char const* source_name,
     int obj_id,
     int qty);
+
+/**
+ * Send one ordinary world-object operation through the live game's outbound
+ * protocol path. This is a headless acceptance hook: callers supply the
+ * cache-defined object id and absolute tile, so no content ids live in C.
+ */
+void
+App_SimulateLocOp(
+    struct App* app,
+    int op_num,
+    int abs_x,
+    int abs_z,
+    int loc_id);
 
 #endif
