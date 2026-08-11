@@ -1549,6 +1549,24 @@ ToriDraw_SceneElementApplyAnimation(
         }
 
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
+
+        /* TORIRS_ANIM_DEBUG: one line per (element, frame) with the resulting
+         * bounds cylinder, to catch a keyframe whose decoded transforms blow
+         * the model's geometry out to a radius the camera/culling can't
+         * handle. See docs/rs2012_qbd_wakeup. */
+        if( getenv("TORIRS_ANIM_DEBUG") && model->bounds_cylinder )
+            fprintf(
+                stderr,
+                "anim: element=%d primary=%d seq=%d frame=%d verts=%d radius=%d min_y=%d "
+                "max_y=%d\n",
+                element_id,
+                (int)primary,
+                element->anim_seq_id,
+                frame,
+                model->vertex_count,
+                model->bounds_cylinder->radius,
+                model->bounds_cylinder->min_y,
+                model->bounds_cylinder->max_y);
     }
 }
 

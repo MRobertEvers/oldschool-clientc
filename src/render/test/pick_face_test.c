@@ -120,6 +120,15 @@ pick(int mouse_x, int mouse_y)
         &g_fx.scene, g_fx.hnd, &g_fx.view_port, CENTER_X + mouse_x, CENTER_Y + mouse_y);
 }
 
+/* The same click against a ground-tile mesh, which the reference resolves down
+ * World3D.drawTileUnderlay / drawTileOverlay rather than Model.draw. */
+static bool
+pick_tile(int mouse_x, int mouse_y)
+{
+    return ToriDraw_ProjectedTileMouseHitTest(
+        &g_fx.scene, g_fx.hnd, &g_fx.view_port, CENTER_X + mouse_x, CENTER_Y + mouse_y);
+}
+
 /*
  * A right triangle with legs on the axes: (0,0), (40,0), (0,40). The point
  * (30,30) is well outside the hypotenuse but inside the bounding box — the
@@ -367,6 +376,67 @@ test_missing_colour_channel_picks_every_face(void)
     CHECK(pick(10, 10), "a model with no lit colours must still pick");
 }
 
+/*
+ * Ground tiles are the one mesh the reference does NOT pick through Model.draw,
+ * and the difference is exactly the hidden marker.
+ *
+ * World3D.drawTileUnderlay and drawTileOverlay run
+ *
+ *     if (takingInput && pointInsideTriangle(...)) { clickTileX = x; clickTileZ = z; }
+ *     if (colour !== 12345678) { fillGouraudTriangle(...); }
+ *
+ * in that order — the click test comes first and the colour sentinel gates only
+ * the fill. So a tile decoded with no underlay and a 0xFF00FF overlay (the
+ * "draw nothing" flotype) is invisible and still clickable, which is what makes
+ * the Inferno's lava moat answer a walk-to-nearest instead of nothing at all.
+ * The identical face on a loc model neither draws nor picks.
+ */
+static void
+test_hidden_tile_faces_still_pick(void)
+{
+    fixture_reset();
+    int a = add_vertex(0, 0);
+    int b = add_vertex(40, 0);
+    int c = add_vertex(0, 40);
+    int f = add_face(a, b, c);
+    g_fx.colors_c[f] = TORIDRAWHSL16_HIDDEN;
+
+    CHECK(!pick(10, 10), "as a model face, hidden must not pick");
+    CHECK(pick_tile(10, 10), "as a tile face, hidden must still pick");
+}
+
+/* Everything else the tile pick inherits unchanged — an invisible tile must not
+ * become a click sponge for geometry that was never under the cursor. */
+static void
+test_tile_pick_keeps_the_other_gates(void)
+{
+    fixture_reset();
+    int a = add_vertex(0, 0);
+    int b = add_vertex(20, 0);
+    int c = add_vertex(0, 20);
+    int f = add_face(a, b, c);
+    g_fx.colors_c[f] = TORIDRAWHSL16_HIDDEN;
+
+    CHECK(!pick_tile(26, 10), "6px past the bbox edge must miss on a tile too");
+
+    g_fx.sx[b] = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
+    g_fx.sy[b] = 3000000;
+    g_fx.scene.near_clipped = true;
+    CHECK(!pick_tile(5, 5), "a near-clipped tile face must not pick");
+
+    fixture_reset();
+    a = add_vertex(0, 0);
+    b = add_vertex(40, 0);
+    c = add_vertex(0, 40);
+    f = add_face(a, b, c);
+    g_fx.colors_c[f] = TORIDRAWHSL16_HIDDEN;
+    g_fx.scene.aabb.min_screen_x = CENTER_X + 100;
+    g_fx.scene.aabb.max_screen_x = CENTER_X + 200;
+    g_fx.scene.aabb.min_screen_y = CENTER_Y + 100;
+    g_fx.scene.aabb.max_screen_y = CENTER_Y + 200;
+    CHECK(!pick_tile(10, 10), "the aabb gate still fronts the tile face walk");
+}
+
 int
 main(void)
 {
@@ -381,6 +451,8 @@ main(void)
     test_aabb_gate();
     test_all_hidden_model();
     test_missing_colour_channel_picks_every_face();
+    test_hidden_tile_faces_still_pick();
+    test_tile_pick_keeps_the_other_gates();
 
     if( g_failures )
     {

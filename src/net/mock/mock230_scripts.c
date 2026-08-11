@@ -1022,12 +1022,26 @@ drain_queue(
         if( entry->delay > 0 )
             continue;
         if( !player_can_access(srv) )
+        {
+            if( getenv("TORIRS_ANIM_DEBUG") )
+                fprintf(
+                    stderr,
+                    "queue: script=%d BLOCKED tick=%d delayed_until=%d mainmodal=%d "
+                    "chatmodal=%d\n",
+                    entry->script_id,
+                    srv->tick,
+                    srv->active_player->delayed_until,
+                    srv->active_player->mainmodal_group,
+                    srv->active_player->chatmodal_group);
             continue;
+        }
 
         script_id = entry->script_id;
         memcpy(args, entry->args, sizeof(args));
         argc = entry->argc;
         entry->active = 0;
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(stderr, "queue: script=%d FIRE tick=%d\n", script_id, srv->tick);
         run_script_id(srv, script_id, args, argc, -1, 1, "queue");
     }
 }

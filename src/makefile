@@ -21,7 +21,13 @@
 # -O0 client can still hit 50 fps. Needs its own OBJ_DIR suffix — mixing
 # toridraw_unity.o built at -O0 with one at -O2 is silently wrong.
 
-OPT ?= 0
+# Optimised by default. The debug flavor is a deliberate ask (OPT=0, or the
+# per-lane `*-debug` targets), not the thing you get by forgetting a flag: an
+# -O0 client is slow enough to change what you are looking at, and every
+# iteration loop here — boot, load an arena, capture a frame — pays for it.
+# The two flavors still keep separate OBJ_DIRs, so switching costs a rebuild
+# rather than a silently mixed one.
+OPT ?= 1
 # MEMTRACE=1 links platform/torirs_memtrace.c, which interposes the C heap and
 # writes every alloc/free with a call stack to memtrace.bin. It is a third build
 # flavor with its own OBJ_DIR (the interpose needs -fno-builtin-* on every unit,
@@ -33,6 +39,21 @@ MEMTRACE ?= 0
 # ENABLE_ASAN=1 is a distinct object/link flavor. On macOS it also selects a
 # static SDL link and the dyld interpose dylib required by LLVM #182943.
 ENABLE_ASAN ?= 0
+# ENABLE_UBSAN=1 instruments ToriDraw only, and only for the two checks that
+# matter to the rasterizer: signed overflow and out-of-range shifts. Scoped to
+# ToriDraw because a whole-client -fsanitize=undefined buries the signal, and
+# scoped to those two checks because they are the ones that silently produce a
+# wrong pixel rather than a crash. Errors abort rather than recover, so the
+# first one names its file and line.
+#
+# Pair it with TORIDRAW_NO_SIMD=1: UBSan does not instrument vector types or
+# NEON/SSE intrinsics at all, so an overflowing lane in a *_simd.*.u.c kernel is
+# invisible to it. The scalar fallback is plain C and is checked normally.
+ENABLE_UBSAN ?= 0
+# TORIDRAW_NO_SIMD=1 forces the portable scalar projection kernels on every
+# host. A rendering difference between this and the default build localises a
+# defect to the SIMD kernels.
+TORIDRAW_NO_SIMD ?= 0
 # TORIDRAW_OPT=1: Soft3D/ToriDraw at -O2 regardless of OPT. Default 0.
 #   make -C src TORIDRAW_OPT=1 EMBED_SERVER=1 torirs
 TORIDRAW_OPT ?= 0
@@ -77,6 +98,16 @@ ASAN_SUFFIX = _asan
 else
 ASAN_SUFFIX =
 endif
+ifeq ($(ENABLE_UBSAN),1)
+UBSAN_SUFFIX = _ubsan
+else
+UBSAN_SUFFIX =
+endif
+ifeq ($(TORIDRAW_NO_SIMD),1)
+NOSIMD_SUFFIX = _nosimd
+else
+NOSIMD_SUFFIX =
+endif
 ifeq ($(TORIDRAW_OPT),1)
 TORIDRAW_OPT_SUFFIX = _tdo
 else
@@ -88,10 +119,10 @@ else
 EMBED_SERVER_SUFFIX =
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O0
 endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
@@ -237,6 +268,26 @@ ifeq ($(PLATFORM),macos)
 ASAN_DYLD_SHIM := $(OBJ_DIR)/asan_dyld_shim.dylib
 ASAN_COMPAT_SRC := platform/asan_compat.c
 endif
+endif
+
+ifeq ($(TORIDRAW_NO_SIMD),1)
+# The selection ladder in graphics/projection16_simd.u.c (and its zdiv twin)
+# picks a kernel from the host's ISA macros unless the matching *_DISABLED is
+# defined. Define all of them and every host lands on the scalar file.
+TORIDRAW_CFLAGS += -DNEON_DISABLED=1 -DAVX2_DISABLED=1 -DSSE41_DISABLED=1 \
+	-DSSE2_DISABLED=1 -DSSE_DISABLED=1
+endif
+
+ifeq ($(ENABLE_UBSAN),1)
+# Deliberately not `shift`: ToriDraw's fixed-point code left-shifts negative
+# values in several places (toridraw_lighting.c:170 among them), which is UB by
+# the letter of the standard but wraps as intended on every target here. Those
+# reports fire first and hide the arithmetic ones. UBSAN_CHECKS is overridable
+# on the command line when that class is what is being investigated.
+UBSAN_CHECKS ?= signed-integer-overflow
+TORIDRAW_CFLAGS += -fsanitize=$(UBSAN_CHECKS) -fno-sanitize-recover=$(UBSAN_CHECKS)
+# Only ToriDraw is instrumented, but the runtime still has to be linked in.
+LDFLAGS += -fsanitize=undefined
 endif
 
 ASAN_DYLD_SHIM ?=
@@ -521,7 +572,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase7d test-summoning-phase7f summoning-texture-review
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials
 
 all: $(OBJ_DIR) $(TARGET)
@@ -817,6 +868,67 @@ rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscac
 		$(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bmp.o \
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(LDFLAGS)
+
+.PHONY: rs2012-strip-priorities
+
+# RS2012 models were authored against a z-buffered client, so their face render
+# priorities never ordered anything; honouring them overrides ToriDraw's depth
+# sort. Rewrites the lane's OB3 assets, so re-run mock230-cache-rs2012 after.
+rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_strip_priorities \
+		engine/proctex/test/rs2012_strip_priorities.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-view rs2012-face-priorities
+
+# OB3 viewer: renders a model through the real project/sort/raster path and
+# writes a multi-angle contact sheet. The iteration loop for face-priority
+# authoring -- no cache, no window, no game.
+RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
+	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+	$(OBJ_DIR)/bmp.o
+rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
+		engine/proctex/test/rs2012_model_view.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
+
+.PHONY: rs2012-wake-dump
+
+# Prints decoded per-bone transform values for every frame of a QBD sequence,
+# straight out of the shipped cache — no rendering. For finding which specific
+# keyframes of a sequence decode to garbage (see docs/rs2012_qbd_wakeup).
+rs2012-wake-dump: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_wake_dump \
+		engine/proctex/test/rs2012_wake_dump.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+# Face-priority authoring for the imported lane: splits a model into connected
+# features, reports them, and writes a priority band per feature.
+# Links the model and animation adaptors: sampling a sequence's frames means
+# driving the same ToriDraw_ModelAnimateFrame the client drives, not a second
+# implementation of the rig that could disagree with it.
+# -fopenmp: the slow search (simulated annealing over bands + vertex fuzz)
+# evaluates its candidate renders across views in parallel.
+rs2012-face-priorities: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
+	$(CC) $(CFLAGS) -fopenmp -o $(OBJ_DIR)/rs2012_face_priorities \
+		engine/proctex/test/rs2012_face_priorities.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
+
+.PHONY: rs2012-model-diff
+# Field-by-field decode diff of two OB3s: did a decode-modify-encode trip
+# corrupt anything it was not supposed to touch? The write tools verify counts
+# and priorities; this verifies colors, textures, uv, bones, alpha, vertices.
+rs2012-model-diff: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_diff 		engine/proctex/test/rs2012_model_diff.c 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
 # Sound end-to-end test: cache -> synth render -> game queue -> platform.
 # Links the SILENT audio backend instead of the SDL2 one (they define the same
@@ -1228,10 +1340,10 @@ test-world: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 		$(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/world_test
 
-test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
+test-pick: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/pick_face_test \
 		render/test/pick_face_test.c \
-		$(OBJ_DIR)/toridraw_unity.o
+		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/pick_face_test
 
 test-trig-tables-share: $(OBJ_DIR)
@@ -1664,8 +1776,27 @@ SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 check-crystal-set-contract:
 	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test
 
+# scape2009_summoning/configs holds ~1600 text records (npc/loc/obj/seq/spotanim
+# for every cohort creature) that are known-stale against the lane's own pack/
+# (see the mock230-cache-summoning comment above) — pointing sscompile at the
+# whole directory reintroduces that drift into every OTHER lane's symbol table
+# (observed: it shifted QBD's own render state). content_restrict_summoning_
+# serverside is the one declared-but-unpacked symbol scripts actually need, and
+# it already lives in the aggregate all.varbit.compack (not the standalone
+# summoning.varbit, which sscompile's --pack does not read on its own) — so
+# stage only that one file rather than the whole directory.
+#
+# v3 solved the same missing-symbol problem the other way, with
+# `--pack $(SUMMONING_CLIENT_LANE)/configs`. That is the broad form this comment
+# rules out, so the merge kept the stage and dropped it. If a cohort script now
+# wants a symbol the stage does not carry, ss_unresolved.py (test-port) names it
+# — add that symbol, rather than the whole directory.
+SUMMONING_VARBIT_STAGE = $(REPO_ROOT)/build/summoning-varbit-stage
+
 mock230-scripts: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
+	@mkdir -p $(SUMMONING_VARBIT_STAGE)
+	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -1675,7 +1806,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_CLIENT_LANE)/configs \
+		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
@@ -1687,6 +1818,8 @@ mock230-scripts: sscompile check-crystal-set-contract
 # a second copy of the gameplay scripts.
 mock230-scripts-summoning: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
+	@mkdir -p $(SUMMONING_VARBIT_STAGE)
+	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -1696,7 +1829,7 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
-		--pack $(SUMMONING_CLIENT_LANE)/configs \
+		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
@@ -1885,6 +2018,24 @@ test-summoning-phase5b:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b.py \
 		--tree $(MOCK230_CONTENT_DIR)
 
+# Superseded by the 77 per-familiar cohorts merged from v3, which cover all 45
+# of this cohort's sources and claim its destination ranges. Kept, but out of
+# the gates: it cannot pass until the corpus cohort is re-based onto free ranges
+# (npc/obj 27248+/47248+) or retired.
+test-summoning-phase5c-corpus:
+	@cd $(REPO_ROOT) && python3 tools/generate_summoning_corpus.py --check
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5c_corpus.py
+
+# Phase 6a adds only a cache-native, player-owned BoB inventory foundation.
+# UI, actual familiar transfer rules, and shared shop scope remain separate.
+test-summoning-phase6:
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6.py \
+		--tree $(MOCK230_CONTENT_DIR)
+
+test-summoning-phase6-cache:
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6_cache.py \
+		--cache $(SUMMONING_CACHE_DIR)
+
 # Every active familiar has a source scroll mapping. Shared scrolls collapse
 # those 78 mappings to 67 rev-530 objects; the guide's later Fetch Casket row
 # adds one rev-727 object, for 68 packed icons and 63 inventory models total.
@@ -1940,7 +2091,7 @@ test-summoning-byte-identity:
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
 		--compare-cache "$(SUMMONING_CACHE_BEFORE)" "$(SUMMONING_CACHE_AFTER)"
 
-mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2
+mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
 		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
@@ -1952,6 +2103,7 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
+	@$(MAKE) --no-print-directory test-summoning-phase6-cache
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
 		--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 1904 8950 12000 12001 12002 12003 12004 >"$$log" 2>&1; \
@@ -2281,7 +2433,7 @@ test-membership:
 # reason stated above it: a bar in a command nobody types is not covered. The
 # name diff needs the LostCity checkout and says so and passes when it is absent
 # — a bar that cannot run has not failed.
-test-port: test-summoning-phase5a test-summoning-phase5b test-summoning-scroll-assets test-summoning-pet-guide-assets
+test-port: test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets
 	@echo "--- port: the name-resolution gate ---"
 	@cd $(REPO_ROOT) && python3 tools/ss_unresolved.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -2401,10 +2553,31 @@ test-animation-object-step: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/to
 
 # Public scene scratch-capacity profile contract and independent SMALL/lazy
 # texture behavior.
-test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_profile_test \
-		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
+
+# Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
+# resolves its own faces per pixel, the result does not depend on face order,
+# and the buffer is reset per model so nothing leaks between them.
+test-zbuffer: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/zbuffer_test \
+		$(TORIDRAW_DIR)/toridraw_zbuffer_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/zbuffer_test
+
+# Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
+# winding, then the clipped polygon receives the real front-face test.
+# bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links
+# it needs bmp_write_file. Without it these two fail to LINK, which reads as a
+# failing test rather than a missing object.
+test-near-clip: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/near_clip_test \
+		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/near_clip_test
 
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the
 # real fixed-function D3D9 command dispatcher and drives its retained resource

@@ -133,6 +133,35 @@ WALK/RUN move (`Statics.method2600`). So under an `osrs` era the model that
 matters is the one the **server** holds; the client's copy only runs under the
 legacy client-BFS era.
 
+None of that runs unless the client first resolves a **clicked tile**, and the
+rule for that is not "the tile you can see". The reference sets `clickTileX` /
+`clickTileZ` inside `World3D.drawTileUnderlay` / `drawTileOverlay`, in this
+order:
+
+```ts
+if (takingInput && pointInsideTriangle(...)) { clickTileX = x; clickTileZ = z; }
+if (colour !== 12345678) { fillGouraudTriangle(...); }
+```
+
+The click test comes **first**; the `12345678` sentinel — a flotype whose colour
+is `0xFF00FF` — gates only the fill. An invisible tile is therefore still a
+walk target. That is the whole of the Inferno lava moat: those tiles carry no
+underlay and a `0xFF00FF` overlay, so they render as a hole and read as blocked
+(`settings & 1`), and clicking them is supposed to walk you to the arena edge.
+
+This tree honours it with `ToriDraw_ProjectedTileMouseHitTest`, the tile-only
+twin of the model pick that skips the hidden-face filter (`faceColourC == -2`)
+and keeps every other gate. Before it existed the tile decoded to an all-hidden
+mesh, the generic model pick refused it, no `WORLD_PICK_TERRAIN` reached the
+minimenu, and the ground click died in the client without ever becoming a
+`MOVE_GAMECLICK` — no packet, no `moveNear`, no movement. Pinned by
+`make -C src test-pick`.
+
+Tiles that state **no** underlay and **no** overlay are a different case and
+stay unclickable in both clients: the reference never builds a `SceneTilePaint`
+for them, so there is no triangle to test. The Inferno's far lava, drawn
+entirely by rock locs over floorless tiles, is that case.
+
 The era table carries it as `ground_click_nearest_model`, defaulting to `ring3`
 for `lostcity` and `box10_rect` for `osrs` / `server_routed`. Override it per
 boot:

@@ -2819,10 +2819,34 @@ app_request_cs1_eval(struct App* app)
  * built. Queue the loads and remember the ids; app_sync_textures_poll
  * publishes them into the scene as the loads land. Ids that fail stay marked
  * in the bridge and are never re-requested. */
+/* #region agent log — TORIRS_TEX_TRACE=1 narrates the whole want -> request ->
+ * provider -> publish handoff, one line per id per decision. The gap between a
+ * texture the loader created and a texture the raster can see has no other
+ * observer: every stage on the way silently `continue`s. */
+int
+app_tex_trace_enabled(void)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_TEX_TRACE") ? 1 : 0;
+    return enabled;
+}
+
+static int g_tex_trace_frame = 0;
+
+int
+app_tex_trace_frame(void)
+{
+    return g_tex_trace_frame;
+}
+/* #endregion */
+
 static void
 app_sync_textures(struct App* app)
 {
     int ids[256];
+    int ready[256];
+    int ready_count = 0;
     int id_count;
 
     id_count = ToriDraw_ModelTextureWantsTake(ids, 256);
@@ -2839,28 +2863,81 @@ app_sync_textures(struct App* app)
     for( int i = 0; i < id_count; i++ )
     {
         int const id = ids[i];
+        int already_pending = 0;
+
         if( id >= 0 && id < 2048 && app->bridge.texture_failed[id] )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: want id=%d -> skip (already failed)\n", id);
             continue;
+        }
         if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: want id=%d -> skip (already resident)\n", id);
             continue;
-        if( !CacheProvider_TextureHas(app->provider, id) )
+        }
+
+        /* A model may be rebuilt while its first texture request is still in
+         * flight. Do the pending-set test before creating the task; the old
+         * order queued another decoder for every rebuild and only deduplicated
+         * the publish list afterwards. */
+        for( int p = 0; p < app->tex_pending_count; p++ )
+            if( app->tex_pending[p] == id )
+            {
+                already_pending = 1;
+                break;
+            }
+        if( already_pending )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: want id=%d -> skip (already pending)\n", id);
+            continue;
+        }
+
+        /* Already decoded — publish it now, in the same tick the geometry that
+         * wants it was built. Deferring to app_sync_textures_poll costs a frame,
+         * and the frame it costs is the one that first draws the new models: the
+         * raster skips every textured face whose texture is not in the scene map
+         * yet. The QBD arena load spent that frame skipping ~1000 faces with both
+         * of its textures sitting decoded in the provider. Loads that really are
+         * in flight still go through the pending list below. */
+        if( CacheProvider_TextureHas(app->provider, id) && app->bridge.scene )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: want id=%d -> already in provider\n", id);
+            ready[ready_count++] = id;
+            continue;
+        }
+
         {
             struct ToriRS_Task* task = CreateTask_TextureLoad(app->provider, id);
             if( task )
                 ToriRS_TaskQueue_Add(app->runner.queue, task);
+            if( app_tex_trace_enabled() )
+                fprintf(
+                    stderr,
+                    "tex_trace: want id=%d -> load task %s\n",
+                    id,
+                    task ? "queued" : "REFUSED (provider returned no task)");
         }
-        /* Track for the publish poll (dedupe; the set is tiny). */
-        {
-            int seen = 0;
-            for( int p = 0; p < app->tex_pending_count; p++ )
-                if( app->tex_pending[p] == id )
-                {
-                    seen = 1;
-                    break;
-                }
-            if( !seen && app->tex_pending_count < 512 )
-                app->tex_pending[app->tex_pending_count++] = id;
-        }
+        if( app->tex_pending_count < 512 )
+            app->tex_pending[app->tex_pending_count++] = id;
+        else if( app_tex_trace_enabled() )
+            fprintf(stderr, "tex_trace: want id=%d -> DROPPED (pending list full)\n", id);
+    }
+
+    if( ready_count > 0 )
+    {
+        int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
+        if( app_tex_trace_enabled() )
+            fprintf(
+                stderr,
+                "tex_trace: immediate publish %d ready -> %d published\n",
+                ready_count,
+                published);
+        if( published )
+            app->need_redraw = 1;
     }
 }
 
@@ -2870,22 +2947,70 @@ app_sync_textures(struct App* app)
 static void
 app_sync_textures_poll(struct App* app)
 {
+    int ready[512];
+    int ready_count = 0;
     int kept = 0;
+    int const queue_idle = !app->runner.queue || !app->runner.queue->head;
 
     if( app->tex_pending_count == 0 )
         return;
 
-    if( UITreeSceneBridge_PublishTextures(&app->bridge, app->tex_pending, app->tex_pending_count) )
-        app->need_redraw = 1;
-
     for( int i = 0; i < app->tex_pending_count; i++ )
     {
         int id = app->tex_pending[i];
-        int failed = (id >= 0 && id < 2048) ? app->bridge.texture_failed[id] : 1;
-        if( !CacheProvider_TextureHas(app->provider, id) && !failed )
+
+        if( id < 0 || id >= 2048 || app->bridge.texture_failed[id] )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: poll id=%d -> dropped (failed/out of range)\n", id);
+            continue;
+        }
+        if( UITreeSceneBridge_TextureResident(&app->bridge, id) )
+        {
+            if( app_tex_trace_enabled() )
+                fprintf(stderr, "tex_trace: poll id=%d -> dropped (resident)\n", id);
+            continue;
+        }
+        if( CacheProvider_TextureHas(app->provider, id) )
+        {
+            ready[ready_count++] = id;
+            continue;
+        }
+
+        /* A missing provider entry does not mean a failed texture while its
+         * async load is still queued. Publishing it here used to mark it
+         * failed on the very next frame, before a busy task runner reached the
+         * request; every affected model face was then skipped forever. Once
+         * the queue drains, absence is a real terminal load failure. */
+        if( queue_idle )
+        {
+            app->bridge.texture_failed[id] = 1;
+            if( app_tex_trace_enabled() )
+                fprintf(
+                    stderr,
+                    "tex_trace: poll id=%d -> MARKED FAILED (queue idle, not in provider)\n",
+                    id);
+        }
+        else
+        {
             app->tex_pending[kept++] = id;
+        }
     }
     app->tex_pending_count = kept;
+
+    if( ready_count > 0 )
+    {
+        int published = UITreeSceneBridge_PublishTextures(&app->bridge, ready, ready_count);
+        if( app_tex_trace_enabled() )
+            fprintf(
+                stderr,
+                "tex_trace: publish %d ready -> %d published (%d still pending)\n",
+                ready_count,
+                published,
+                app->tex_pending_count);
+        if( published )
+            app->need_redraw = 1;
+    }
 }
 
 /*
@@ -3155,6 +3280,27 @@ App_NoteFrameTime(
         app->dbg_frame_count++;
 }
 
+bool
+App_SendCommand(
+    struct App* app,
+    char const* text)
+{
+    assert(app);
+    if( !text || !*text )
+        return false;
+    /* Reports whether it went out. The caller cannot know when login finishes
+     * — the world renders before the connection reaches GAME — so a harness
+     * that fires once at a chosen frame silently sends nothing. Returning the
+     * verdict lets it retry until the send lands. */
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+        return false;
+    APP_NET_SEND(
+        app,
+        net_out_client_cheat(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), text));
+    return true;
+}
+
 /** Mean of the samples held so far, in microseconds. 0 when there are none. */
 static uint32_t
 app_debug_frame_mean_us(struct App const* app)
@@ -3347,8 +3493,17 @@ App_Init(
         assert(0 && "model_inst_cache init");
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
+    /* The scene carries a depth buffer for the models that ask for one
+     * (TORIDRAW_MODEL_FLAG_ZBUFFER — see app_npc_wants_zbuffer). It is
+     * allocated lazily on the first such model, so a session that never draws
+     * one never pays for it. The painter's sort remains what everything else
+     * uses: it is what OSRS content was authored against and is right for it.
+     * Imported content — models built for a z-buffered client, whose parts
+     * genuinely interpenetrate — has no correct face order to find, and this is
+     * how those get the answer their geometry assumes. */
     app->scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
 
@@ -5474,6 +5629,8 @@ app_async_polls(struct App* app)
     /* World-load completion is no longer polled here: Task_WorldLoad runs
      * App_WorldLoadFinish itself at its synchronous tail (via on_done, or the
      * REBUILD_NORMAL path's inline call after it awaits the load). */
+    if( app_tex_trace_enabled() )
+        fprintf(stderr, "tex_trace: --- frame %d ---\n", ++g_tex_trace_frame);
     app_world_map_poll(app);
     app_sync_textures_poll(app);
     app_world_bind_pending_seqs(app);
@@ -7208,6 +7365,18 @@ app_world_paint(struct App* app)
             cam_sx,
             cam_sz,
             cam_slevel);
+    /* TORIRS_PAINTER_W3D=1 runs the reference cascade (painter_paint_world3d)
+     * in the live client instead of the distance-bucket drain. A draw-order
+     * bug is either in the traversal or in the geometry it orders, and this is
+     * what separates the two: same scene, same frame, the other painter. Pair
+     * it with TORIRS_PIXOWNER to name what changed hands. */
+    else if( getenv("TORIRS_PAINTER_W3D") )
+        painter_paint_world3d(
+            app->world->painter,
+            app->painter_buffer,
+            cam_sx,
+            cam_sz,
+            cam_slevel);
     else
         painter_paint_bucket(
             app->world->painter,
@@ -8649,6 +8818,51 @@ enum
     APP_LIGHT_ACTOR = 1,
 };
 
+
+/**
+ * Which npcs render through the depth-tested kernels.
+ *
+ * The content says so, per npc, with the `zbuffer_model` param -- see
+ * OSRS-Content/.../minigame_rs2012_qbd/configs/rs2012_qbd.param. The client
+ * reads it off the npc type it already has (ToriRS_Npctype::zbuffer_model), so
+ * nothing here has to know which npcs those are: adding one is a content edit
+ * and a repack, not a client change.
+ *
+ * TORIRS_ZBUFFER_NPCS overrides the content entirely -- a comma list of npc ids
+ * to depth-test instead, or the empty string for nobody. That is the A/B knob:
+ * it takes the decision away from the config without editing it.
+ *
+ * Per npc rather than globally because that is the unit of the question. The
+ * goblin standing next to the dragon was authored for a painter's sort and
+ * paying a depth test for it buys nothing.
+ *
+ * A model carrying TORIDRAW_MODEL_FLAG_ZBUFFER also has its face priorities
+ * dropped by the sort -- see the flag's own comment. The two cannot both decide
+ * a pixel, and a priority would win.
+ */
+static bool
+app_npc_wants_zbuffer(int npc_id, struct ToriRS_Npctype const* npctype)
+{
+    char const* list = getenv("TORIRS_ZBUFFER_NPCS");
+    if( !list )
+        return npctype && npctype->zbuffer_model != 0;
+    if( !*list )
+        return false;
+    while( *list )
+    {
+        char* end = NULL;
+        long const id = strtol(list, &end, 10);
+        if( end == list )
+            break;
+        if( id == npc_id )
+            return true;
+        list = (*end == ',') ? end + 1 : end;
+        if( !*list )
+            break;
+    }
+    return false;
+}
+
 static struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
@@ -8931,6 +9145,13 @@ app_world_spawn_npc_now(
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
         return -1;
     }
+    /* Set explicitly both ways: the ToriRS adaptor already sets bit 0 on every
+     * model it converts, and bit 0 is the z-buffer opt-in, so leaving it alone
+     * would opt every npc in the moment the scene carries a buffer. */
+    if( app_npc_wants_zbuffer(npc_id, npctype) )
+        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    else
+        model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
 
     size = npctype->size > 0 ? npctype->size : 1;
     world_x = tile_x * 128 + size * 64;
@@ -11242,6 +11463,56 @@ app_world_camera_follow(struct App* app)
         return;
     if( app->cam_script.scripted || !app->net )
         return;
+
+    /*
+     * TORIRS_ORBIT_CAM=yaw[,pitch[,zoom_pct]] — pin the follow camera's angles
+     * so a headless capture frames a chosen subject instead of wherever the
+     * login left the camera.
+     *
+     * Distinct from TORIRS_WEDGE_CAM, which pins the eye in world coordinates:
+     * that needs the subject's position, this only needs its direction from the
+     * player, and it keeps the real follow path (anchor easing, pitch clamp,
+     * zoom) so what is captured is the camera the game actually uses. Applied
+     * before the step, every frame, with the easing velocities zeroed so the
+     * angles cannot drift back.
+     *
+     * yaw is 0..2047, pitch 128..383 (the same range the middle-button drag
+     * allows), zoom is the follow distance as a percentage.
+     */
+    {
+        static int resolved = 0;
+        static int have = 0;
+        static int cam_yaw = 0, cam_pitch = 0, cam_zoom = 0, cam_spin = 0;
+        if( !resolved )
+        {
+            char const* spec = getenv("TORIRS_ORBIT_CAM");
+            resolved = 1;
+            if( spec )
+            {
+                cam_pitch = -1;
+                cam_zoom = -1;
+                have = sscanf(spec, "%d,%d,%d,%d", &cam_yaw, &cam_pitch, &cam_zoom,
+                              &cam_spin) >= 1;
+            }
+        }
+        /* A fourth field spins the camera by that many yaw units per frame.
+         * Finding the angle a subject sits at otherwise costs one boot per
+         * guess; with a spin and TORIRS_BMP_SERIES a single boot returns a
+         * filmstrip all the way round. */
+        cam_yaw += cam_spin;
+        if( have )
+        {
+            app->orbit_yaw = cam_yaw & 0x7ff;
+            app->orbit_yaw_vel = 0;
+            if( cam_pitch >= 0 )
+            {
+                app->orbit_pitch = cam_pitch < 128 ? 128 : (cam_pitch > 383 ? 383 : cam_pitch);
+                app->orbit_pitch_vel = 0;
+            }
+            if( cam_zoom > 0 )
+                app->world_zoom_pct = cam_zoom;
+        }
+    }
     if( !RS_EntitySync_FindPlayer(
             &app->esync,
             app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,

@@ -213,9 +213,15 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
     bv += (step_bv_dx)*adjust;
     cw += (step_cw_dx)*adjust;
 
-    step_au_dx <<= 3;
-    step_bv_dx <<= 3;
-    step_cw_dx <<= 3;
+    /* Kept because the per-pixel fallback needs the unscaled gradient; the
+     * block loop below overwrites the parameters with the per-block step. */
+    int step_au_px = step_au_dx;
+    int step_bv_px = step_bv_dx;
+    int step_cw_px = step_cw_dx;
+
+    step_au_dx *= 8;
+    step_bv_dx *= 8;
+    step_cw_dx *= 8;
 
     shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
 
@@ -235,50 +241,96 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
     int lerp8_last_steps = steps & 0x7;
     int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
     int shade;
+
+    /* Block k's end-of-block uv is block k+1's start-of-block uv, so carry it
+     * forward rather than dividing for it twice (see the NEON twin).
+     * have_cur == 0 means the carried pair is stale.
+     *
+     * This also repairs the block loop: the old `continue` on w == 0 skipped
+     * the au/bv/cw advance and the `offset += 8` at the bottom, so one
+     * degenerate block left every block after it writing 8 pixels to the left
+     * of where it belonged - and if the first check tripped, cw never changed
+     * and the whole span was dropped. The guard now covers only the draw. */
+    int have_cur = 0;
+    curr_u = 0;
+    curr_v = 0;
+
     while( lerp8_steps-- > 0 )
     {
         int w = (cw) >> texture_shift;
-        if( w == 0 )
-            continue;
+        if( w != 0 )
+        {
+            if( !have_cur )
+            {
+                curr_u = clamp((au) / w, 0, texture_width - 1);
+                curr_v = (bv) / w;
+            }
 
-        curr_u = (au) / w;
-        curr_u = clamp(curr_u, 0, texture_width - 1);
-        curr_v = (bv) / w;
+            int w_n = (cw + step_cw_dx) >> texture_shift;
+            if( w_n != 0 )
+            {
+                next_u = clamp((au + step_au_dx) / w_n, 0, texture_width - 1);
+                next_v = (bv + step_bv_dx) / w_n;
+            }
+            else
+            {
+                next_u = curr_u;
+                next_v = curr_v;
+            }
+
+            shade = shade8bit_ish8 >> 8;
+
+            /* See tex.span_uv.h: past a tile per block the straight line is not
+             * an approximation of the hyperbola, and w_n == 0 means there is no
+             * far endpoint to fit to at all. */
+            if( w_n != 0 && tex_span_lerp8_v_fits(curr_v, next_v, texture_width) )
+            {
+                int step_u = (next_u - curr_u) << (texture_shift - 3);
+                int step_v = (next_v - curr_v) << (texture_shift - 3);
+
+                raster_linear_opaque_blend_lerp8(
+                    (uint32_t*)pixel_buffer,
+                    offset,
+                    (uint32_t*)texels,
+                    curr_u << texture_shift,
+                    tex_span_v_scan_start(curr_v, texture_width, texture_shift),
+                    step_u,
+                    step_v,
+                    texture_shift,
+                    shade);
+            }
+            else
+            {
+                tex_span_exact_block(
+                    pixel_buffer,
+                    offset,
+                    texels,
+                    8,
+                    au,
+                    bv,
+                    cw,
+                    step_au_px,
+                    step_bv_px,
+                    step_cw_px,
+                    shade,
+                    texture_width,
+                    texture_shift,
+                    0);
+            }
+
+            curr_u = next_u;
+            curr_v = next_v;
+            have_cur = (w_n != 0);
+        }
+        else
+        {
+            have_cur = 0;
+        }
 
         au += step_au_dx;
         bv += step_bv_dx;
         cw += step_cw_dx;
-
-        w = (cw) >> texture_shift;
-        if( w == 0 )
-            continue;
-
-        next_u = (au) / w;
-        next_u = clamp(next_u, 0x0, texture_width - 1);
-        next_v = (bv) / w;
-
-        int step_u = (next_u - curr_u) << (texture_shift - 3);
-        int step_v = (next_v - curr_v) << (texture_shift - 3);
-
-        int u_scan = curr_u << texture_shift;
-        int v_scan = curr_v << texture_shift;
-
-        shade = shade8bit_ish8 >> 8;
-
-        raster_linear_opaque_blend_lerp8(
-            (uint32_t*)pixel_buffer,
-            offset,
-            (uint32_t*)texels,
-            u_scan,
-            v_scan,
-            step_u,
-            step_v,
-            texture_shift,
-            shade);
-        u_scan += step_u;
-        v_scan += step_v;
         offset += 8;
-
         shade8bit_ish8 += lerp8_shade_step;
     }
 
@@ -289,29 +341,49 @@ draw_texture_scanline_opaque_blend_branching_lerp8_ordered(
     if( w == 0 )
         return;
 
-    curr_u = (au) / w;
-    curr_u = clamp(curr_u, 0, texture_width - 1);
-    curr_v = (bv) / w;
+    if( !have_cur )
+    {
+        curr_u = clamp((au) / w, 0, texture_width - 1);
+        curr_v = (bv) / w;
+    }
 
-    au += step_au_dx;
-    bv += step_bv_dx;
-    cw += step_cw_dx;
+    int w_n = (cw + step_cw_dx) >> texture_shift;
+    next_u = curr_u;
+    next_v = curr_v;
+    if( w_n != 0 )
+    {
+        next_u = clamp((au + step_au_dx) / w_n, 0, texture_width - 1);
+        next_v = (bv + step_bv_dx) / w_n;
+    }
 
-    w = (cw) >> texture_shift;
-    if( w == 0 )
+    shade = shade8bit_ish8 >> 8;
+
+    if( w_n == 0 || !tex_span_lerp8_v_fits(curr_v, next_v, texture_width) )
+    {
+        tex_span_exact_block(
+            pixel_buffer,
+            offset,
+            texels,
+            lerp8_last_steps,
+            au,
+            bv,
+            cw,
+            step_au_px,
+            step_bv_px,
+            step_cw_px,
+            shade,
+            texture_width,
+            texture_shift,
+            0);
         return;
-
-    next_u = (au) / w;
-    next_u = clamp(next_u, 0x0, texture_width - 1);
-    next_v = (bv) / w;
+    }
 
     int step_u = (next_u - curr_u) << (texture_shift - 3);
     int step_v = (next_v - curr_v) << (texture_shift - 3);
 
     int u_scan = curr_u << texture_shift;
-    int v_scan = curr_v << texture_shift;
+    int v_scan = tex_span_v_scan_start(curr_v, texture_width, texture_shift);
 
-    shade = shade8bit_ish8 >> 8;
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
         int u = u_scan >> texture_shift;
@@ -374,9 +446,15 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
     bv += (step_bv_dx)*adjust;
     cw += (step_cw_dx)*adjust;
 
-    step_au_dx <<= 3;
-    step_bv_dx <<= 3;
-    step_cw_dx <<= 3;
+    /* Kept because the per-pixel fallback needs the unscaled gradient; the
+     * block loop below overwrites the parameters with the per-block step. */
+    int step_au_px = step_au_dx;
+    int step_bv_px = step_bv_dx;
+    int step_cw_px = step_cw_dx;
+
+    step_au_dx *= 8;
+    step_bv_dx *= 8;
+    step_cw_dx *= 8;
 
     shade8bit_ish8 += step_shade8bit_dx_ish8 * screen_x0;
 
@@ -396,50 +474,89 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
     int lerp8_last_steps = steps & 0x7;
     int lerp8_shade_step = step_shade8bit_dx_ish8 << 3;
     int shade;
+
+    /* Carry the block-end uv forward, and guard only the draw rather than the
+     * whole loop body - see the opaque twin above for both. */
+    int have_cur = 0;
+    curr_u = 0;
+    curr_v = 0;
+
     while( lerp8_steps-- > 0 )
     {
         int w = (cw) >> texture_shift;
-        if( w == 0 )
-            continue;
+        if( w != 0 )
+        {
+            if( !have_cur )
+            {
+                curr_u = clamp((au) / w, 0, texture_width - 1);
+                curr_v = (bv) / w;
+            }
 
-        curr_u = (au) / w;
-        curr_u = clamp(curr_u, 0, texture_width - 1);
-        curr_v = (bv) / w;
+            int w_n = (cw + step_cw_dx) >> texture_shift;
+            if( w_n != 0 )
+            {
+                next_u = clamp((au + step_au_dx) / w_n, 0, texture_width - 1);
+                next_v = (bv + step_bv_dx) / w_n;
+            }
+            else
+            {
+                next_u = curr_u;
+                next_v = curr_v;
+            }
+
+            shade = shade8bit_ish8 >> 8;
+
+            /* See tex.span_uv.h: past a tile per block the straight line is not
+             * an approximation of the hyperbola, and w_n == 0 means there is no
+             * far endpoint to fit to at all. */
+            if( w_n != 0 && tex_span_lerp8_v_fits(curr_v, next_v, texture_width) )
+            {
+                int step_u = (next_u - curr_u) << (texture_shift - 3);
+                int step_v = (next_v - curr_v) << (texture_shift - 3);
+
+                raster_linear_transparent_blend_lerp8(
+                    (uint32_t*)pixel_buffer,
+                    offset,
+                    (uint32_t*)texels,
+                    curr_u << texture_shift,
+                    tex_span_v_scan_start(curr_v, texture_width, texture_shift),
+                    step_u,
+                    step_v,
+                    texture_shift,
+                    shade);
+            }
+            else
+            {
+                tex_span_exact_block(
+                    pixel_buffer,
+                    offset,
+                    texels,
+                    8,
+                    au,
+                    bv,
+                    cw,
+                    step_au_px,
+                    step_bv_px,
+                    step_cw_px,
+                    shade,
+                    texture_width,
+                    texture_shift,
+                    1);
+            }
+
+            curr_u = next_u;
+            curr_v = next_v;
+            have_cur = (w_n != 0);
+        }
+        else
+        {
+            have_cur = 0;
+        }
 
         au += step_au_dx;
         bv += step_bv_dx;
         cw += step_cw_dx;
-
-        w = (cw) >> texture_shift;
-        if( w == 0 )
-            continue;
-
-        next_u = (au) / w;
-        next_u = clamp(next_u, 0x0, texture_width - 1);
-        next_v = (bv) / w;
-
-        int step_u = (next_u - curr_u) << (texture_shift - 3);
-        int step_v = (next_v - curr_v) << (texture_shift - 3);
-
-        int u_scan = curr_u << texture_shift;
-        int v_scan = curr_v << texture_shift;
-
-        shade = shade8bit_ish8 >> 8;
-
-        raster_linear_transparent_blend_lerp8(
-            (uint32_t*)pixel_buffer,
-            offset,
-            (uint32_t*)texels,
-            u_scan,
-            v_scan,
-            step_u,
-            step_v,
-            texture_shift,
-            shade);
-        u_scan += step_u;
-        v_scan += step_v;
         offset += 8;
-
         shade8bit_ish8 += lerp8_shade_step;
     }
 
@@ -450,29 +567,49 @@ draw_texture_scanline_transparent_blend_branching_lerp8_ordered(
     if( w == 0 )
         return;
 
-    curr_u = (au) / w;
-    curr_u = clamp(curr_u, 0, texture_width - 1);
-    curr_v = (bv) / w;
+    if( !have_cur )
+    {
+        curr_u = clamp((au) / w, 0, texture_width - 1);
+        curr_v = (bv) / w;
+    }
 
-    au += step_au_dx;
-    bv += step_bv_dx;
-    cw += step_cw_dx;
+    int w_n = (cw + step_cw_dx) >> texture_shift;
+    next_u = curr_u;
+    next_v = curr_v;
+    if( w_n != 0 )
+    {
+        next_u = clamp((au + step_au_dx) / w_n, 0, texture_width - 1);
+        next_v = (bv + step_bv_dx) / w_n;
+    }
 
-    w = (cw) >> texture_shift;
-    if( w == 0 )
+    shade = shade8bit_ish8 >> 8;
+
+    if( w_n == 0 || !tex_span_lerp8_v_fits(curr_v, next_v, texture_width) )
+    {
+        tex_span_exact_block(
+            pixel_buffer,
+            offset,
+            texels,
+            lerp8_last_steps,
+            au,
+            bv,
+            cw,
+            step_au_px,
+            step_bv_px,
+            step_cw_px,
+            shade,
+            texture_width,
+            texture_shift,
+            1);
         return;
-
-    next_u = (au) / w;
-    next_u = clamp(next_u, 0x0, texture_width - 1);
-    next_v = (bv) / w;
+    }
 
     int step_u = (next_u - curr_u) << (texture_shift - 3);
     int step_v = (next_v - curr_v) << (texture_shift - 3);
 
     int u_scan = curr_u << texture_shift;
-    int v_scan = curr_v << texture_shift;
+    int v_scan = tex_span_v_scan_start(curr_v, texture_width, texture_shift);
 
-    shade = shade8bit_ish8 >> 8;
     for( int i = 0; i < lerp8_last_steps; i++ )
     {
         int u = u_scan >> texture_shift;
@@ -644,10 +781,10 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
     int step_bv8 = step_bv_dx << 3;
     int step_cw8 = step_cw_dx << 3;
 
-    /* Block k's end-of-block uv is block k+1's start-of-block uv: same au/bv
-     * and the same w. Carry it forward instead of dividing for it twice.
-     * have_cur == 0 means the carried pair is stale (first block, or the
-     * previous block was skipped / ended on a degenerate w). */
+    /* Block k's end uv is block k+1's start uv - carry it forward instead of
+     * dividing for it twice. This variant clamps u (unlike the NEON opaque
+     * twin, which relies on u_mask), so the carried value is the CLAMPED one,
+     * matching the endpoint this block actually used. */
     int cur_u = 0;
     int cur_v = 0;
     int have_cur = 0;
@@ -660,8 +797,8 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
             if( !have_cur )
             {
                 float inv_w = 1.0f / (float)w;
-                cur_u = (int)(au * inv_w);
-                cur_v = (int)(bv * inv_w);
+                cur_u = tex_span_u_quotient(au, inv_w, texture_width);
+                cur_v = tex_span_v_quotient(bv, w, inv_w);
             }
 
             int w_n = (cw + step_cw8) >> texture_shift;
@@ -670,31 +807,53 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
             if( w_n != 0 )
             {
                 float inv_w_n = 1.0f / (float)w_n;
-                nxt_u = (int)((au + step_au8) * inv_w_n);
-                nxt_v = (int)((bv + step_bv8) * inv_w_n);
+                nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
+                nxt_v = tex_span_v_quotient(bv + step_bv8, w_n, inv_w_n);
             }
             else
             {
-                /* Degenerate next block: hold the gradient flat rather than
-                 * extrapolating through a zero denominator. */
                 nxt_u = cur_u;
                 nxt_v = cur_v;
             }
 
-            int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-            int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+            /* w_n == 0 leaves nxt_* fabricated from cur_*, so the fit test sees
+             * a flat gradient and believes it. The block has no far endpoint;
+             * draw it per pixel rather than smearing one row across eight. */
+            if( w_n != 0 && tex_span_lerp8_v_fits(cur_v, nxt_v, texture_width) )
+            {
+                int s_u = (nxt_u - cur_u) << (texture_shift - 3);
+                int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
-            raster_linear_opaque_blend_lerp8_v3(
-                (uint32_t*)&pixel_buffer[offset],
-                (uint32_t*)texels,
-                cur_u << texture_shift,
-                cur_v << texture_shift,
-                s_u,
-                s_v,
-                texture_shift,
-                u_mask,
-                v_mask,
-                shade8bit_ish8 >> 8);
+                raster_linear_opaque_blend_lerp8_v3(
+                    (uint32_t*)&pixel_buffer[offset],
+                    (uint32_t*)texels,
+                    cur_u << texture_shift,
+                    tex_span_v_scan_start(cur_v, texture_width, texture_shift),
+                    s_u,
+                    s_v,
+                    texture_shift,
+                    u_mask,
+                    v_mask,
+                    shade8bit_ish8 >> 8);
+            }
+            else
+            {
+                tex_span_exact_block(
+                    pixel_buffer,
+                    offset,
+                    texels,
+                    8,
+                    au,
+                    bv,
+                    cw,
+                    step_au_dx,
+                    step_bv_dx,
+                    step_cw_dx,
+                    shade8bit_ish8 >> 8,
+                    texture_width,
+                    texture_shift,
+                    0);
+            }
 
             cur_u = nxt_u;
             cur_v = nxt_v;
@@ -711,15 +870,14 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
         shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
     }
 
-    // --- FIX: Proper Tail Cleanup ---
     if( remaining > 0 && (cw >> texture_shift) != 0 )
     {
         int w = cw >> texture_shift;
         if( !have_cur )
         {
             float inv_w = 1.0f / (float)w;
-            cur_u = (int)(au * inv_w);
-            cur_v = (int)(bv * inv_w);
+            cur_u = tex_span_u_quotient(au, inv_w, texture_width);
+            cur_v = tex_span_v_quotient(bv, w, inv_w);
         }
 
         int w_n = (cw + step_cw8) >> texture_shift;
@@ -728,22 +886,44 @@ draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
         if( w_n != 0 )
         {
             float inv_w_n = 1.0f / (float)w_n;
-            nxt_u = (int)((au + step_au8) * inv_w_n);
-            nxt_v = (int)((bv + step_bv8) * inv_w_n);
+            nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
+            nxt_v = tex_span_v_quotient(bv + step_bv8, w_n, inv_w_n);
+        }
+
+        int shade = shade8bit_ish8 >> 8;
+
+        if( w_n == 0 || !tex_span_lerp8_v_fits(cur_v, nxt_v, texture_width) )
+        {
+            tex_span_exact_block(
+                pixel_buffer,
+                offset,
+                texels,
+                remaining,
+                au,
+                bv,
+                cw,
+                step_au_dx,
+                step_bv_dx,
+                step_cw_dx,
+                shade,
+                texture_width,
+                texture_shift,
+                0);
+            return;
         }
 
         int s_u = (nxt_u - cur_u) << (texture_shift - 3);
         int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
         int u_scan = cur_u << texture_shift;
-        int v_scan = cur_v << texture_shift;
-        int shade = shade8bit_ish8 >> 8;
+        int v_scan = tex_span_v_scan_start(cur_v, texture_width, texture_shift);
 
         for( int i = 0; i < remaining; i++ )
         {
             int u = (u_scan >> texture_shift) & u_mask;
             int v = v_scan & v_mask;
-            pixel_buffer[offset++] = shade_blend(texels[u + v], shade);
+            pixel_buffer[offset] = shade_blend(texels[u + v], shade);
+            offset++;
             u_scan += s_u;
             v_scan += s_v;
         }
@@ -812,8 +992,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
             if( !have_cur )
             {
                 float inv_w = 1.0f / (float)w;
-                cur_u = clamp((int)(au * inv_w), 0, texture_width - 1);
-                cur_v = (int)(bv * inv_w);
+                cur_u = tex_span_u_quotient(au, inv_w, texture_width);
+                cur_v = tex_span_v_quotient(bv, w, inv_w);
             }
 
             int w_n = (cw + step_cw8) >> texture_shift;
@@ -822,8 +1002,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
             if( w_n != 0 )
             {
                 float inv_w_n = 1.0f / (float)w_n;
-                nxt_u = clamp((int)((au + step_au8) * inv_w_n), 0, texture_width - 1);
-                nxt_v = (int)((bv + step_bv8) * inv_w_n);
+                nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
+                nxt_v = tex_span_v_quotient(bv + step_bv8, w_n, inv_w_n);
             }
             else
             {
@@ -831,20 +1011,44 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
                 nxt_v = cur_v;
             }
 
-            int s_u = (nxt_u - cur_u) << (texture_shift - 3);
-            int s_v = (nxt_v - cur_v) << (texture_shift - 3);
+            /* w_n == 0 leaves nxt_* fabricated from cur_*, so the fit test sees
+             * a flat gradient and believes it. The block has no far endpoint;
+             * draw it per pixel rather than smearing one row across eight. */
+            if( w_n != 0 && tex_span_lerp8_v_fits(cur_v, nxt_v, texture_width) )
+            {
+                int s_u = (nxt_u - cur_u) << (texture_shift - 3);
+                int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
-            raster_linear_transparent_blend_lerp8_v3(
-                (uint32_t*)&pixel_buffer[offset],
-                (uint32_t*)texels,
-                cur_u << texture_shift,
-                cur_v << texture_shift,
-                s_u,
-                s_v,
-                texture_shift,
-                u_mask,
-                v_mask,
-                shade8bit_ish8 >> 8);
+                raster_linear_transparent_blend_lerp8_v3(
+                    (uint32_t*)&pixel_buffer[offset],
+                    (uint32_t*)texels,
+                    cur_u << texture_shift,
+                    tex_span_v_scan_start(cur_v, texture_width, texture_shift),
+                    s_u,
+                    s_v,
+                    texture_shift,
+                    u_mask,
+                    v_mask,
+                    shade8bit_ish8 >> 8);
+            }
+            else
+            {
+                tex_span_exact_block(
+                    pixel_buffer,
+                    offset,
+                    texels,
+                    8,
+                    au,
+                    bv,
+                    cw,
+                    step_au_dx,
+                    step_bv_dx,
+                    step_cw_dx,
+                    shade8bit_ish8 >> 8,
+                    texture_width,
+                    texture_shift,
+                    1);
+            }
 
             cur_u = nxt_u;
             cur_v = nxt_v;
@@ -867,8 +1071,8 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
         if( !have_cur )
         {
             float inv_w = 1.0f / (float)w;
-            cur_u = clamp((int)(au * inv_w), 0, texture_width - 1);
-            cur_v = (int)(bv * inv_w);
+            cur_u = tex_span_u_quotient(au, inv_w, texture_width);
+            cur_v = tex_span_v_quotient(bv, w, inv_w);
         }
 
         int w_n = (cw + step_cw8) >> texture_shift;
@@ -877,16 +1081,37 @@ draw_texture_scanline_transparent_blend_branching_lerp8_v3_ordered(
         if( w_n != 0 )
         {
             float inv_w_n = 1.0f / (float)w_n;
-            nxt_u = clamp((int)((au + step_au8) * inv_w_n), 0, texture_width - 1);
-            nxt_v = (int)((bv + step_bv8) * inv_w_n);
+            nxt_u = tex_span_u_quotient(au + step_au8, inv_w_n, texture_width);
+            nxt_v = tex_span_v_quotient(bv + step_bv8, w_n, inv_w_n);
+        }
+
+        int shade = shade8bit_ish8 >> 8;
+
+        if( w_n == 0 || !tex_span_lerp8_v_fits(cur_v, nxt_v, texture_width) )
+        {
+            tex_span_exact_block(
+                pixel_buffer,
+                offset,
+                texels,
+                remaining,
+                au,
+                bv,
+                cw,
+                step_au_dx,
+                step_bv_dx,
+                step_cw_dx,
+                shade,
+                texture_width,
+                texture_shift,
+                1);
+            return;
         }
 
         int s_u = (nxt_u - cur_u) << (texture_shift - 3);
         int s_v = (nxt_v - cur_v) << (texture_shift - 3);
 
         int u_scan = cur_u << texture_shift;
-        int v_scan = cur_v << texture_shift;
-        int shade = shade8bit_ish8 >> 8;
+        int v_scan = tex_span_v_scan_start(cur_v, texture_width, texture_shift);
 
         for( int i = 0; i < remaining; i++ )
         {
@@ -1242,9 +1467,9 @@ draw_texture_scanline_opaque_blend_affine_branching_lerp8_ish16_ordered(
     }
     u_coord = clamp(u_coord, 0, texture_width - 1);
 
-    int au_end = au + step_au_dx * width;
-    int bv_end = bv + step_bv_dx * width;
-    int cw_end = cw + step_cw_dx * width;
+    int au_end = toridraw_add_mul32(au, step_au_dx, width);
+    int bv_end = toridraw_add_mul32(bv, step_bv_dx, width);
+    int cw_end = toridraw_add_mul32(cw, step_cw_dx, width);
     int w_div_end = cw_end >> texture_shift;
     int u_coord_end = 0;
     int v_coord_end = 0;
@@ -1353,9 +1578,9 @@ draw_texture_scanline_transparent_blend_affine_branching_lerp8_ish16_ordered(
     }
     u_coord = clamp(u_coord, 0, texture_width - 1);
 
-    int au_end = au + step_au_dx * width;
-    int bv_end = bv + step_bv_dx * width;
-    int cw_end = cw + step_cw_dx * width;
+    int au_end = toridraw_add_mul32(au, step_au_dx, width);
+    int bv_end = toridraw_add_mul32(bv, step_bv_dx, width);
+    int cw_end = toridraw_add_mul32(cw, step_cw_dx, width);
     int w_div_end = cw_end >> texture_shift;
     int u_coord_end = 0;
     int v_coord_end = 0;

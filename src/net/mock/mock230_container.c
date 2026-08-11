@@ -82,16 +82,14 @@ mock230_container_scope(int32_t inv_id)
 {
     (void)inv_id;
     /*
-     * Every inv is per-player, and this is a missing *input* rather than a
-     * decision. LostCity reads `scope` out of its server-side inv.dat (opcode
-     * 1); the client cache's inv record carries only size and params, so there
-     * is nothing here to read. The field needs `fields/inv.ini` plus a
-     * `[namespace:inv]` in `content.ini`, neither of which exists yet.
+     * Every inv is per-player through Phase 6a. Its `fields/inv.ini` only
+     * documents the native cache size used by private containers; LostCity's
+     * scope lives in a server-only inv.dat opcode that this cache cannot carry.
      *
-     * The consequence, stated so nobody has to rediscover it: `shop`'s 107
-     * reference invs are `scope=shared` and cannot be modelled until this
-     * function can answer. The branch below it is real and tested; the
-     * classifier is the hole.
+     * The deliberate remaining hole is shop scope: its shared rows need a
+     * server-side inv definition plus player-qualified listener fan-out, not a
+     * word added to a client-only config. The world-table branch below is real
+     * and tested; the classifier belongs to that later shop slice.
      */
     return MOCK230_CONTAINER_PLAYER;
 }
@@ -446,9 +444,8 @@ mock230_container_set(
  * `[proc,newplayer_bank]` says `inv_add(bank, logs, 100)` and a bank stacks
  * everything. The missing input is `InvType.stackType` — `ALWAYS_STACK` for a
  * bank, `NEVER_STACK` for the shops' sale invs — which LostCity reads from its
- * server-side `inv.dat` and which has nowhere to live here: there is no
- * `fields/inv.ini` and no `[namespace:inv]` in `content.ini`. That is the same
- * one gap `mock230_container_scope` is blocked on, and doing the spread
+ * server-side `inv.dat`. Phase 6a deliberately declares only native size;
+ * stack policy and scope still have no server definition here. Doing the spread
  * unconditionally would trade a known-wrong stack for a known-wrong bank.
  *
  * So the *merge* lands (it needs no per-inv field: a stackable obj stacks in

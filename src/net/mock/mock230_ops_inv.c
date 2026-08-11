@@ -218,8 +218,8 @@ mock230_ops_inv(
      *
      * Two halves of the reference are deliberately absent and both are data
      * this tree does not have: the `wealth_event` log (no such log), and the
-     * `invType.protect` / `scope` access check (no `fields/inv.ini`, the same
-     * single gap `mock230_container_scope` is blocked on — its header says so).
+     * `invType.protect` / `scope` access check (Phase 6a's inv field declares
+     * only cache-native size; server policy remains deferred).
      * Neither changes what the drop does; both are stated so that a tree which
      * grows `inv.ini` knows this is one of the places that has to learn.
      *
@@ -299,7 +299,7 @@ mock230_ops_inv(
      *
      * Three differences from the reference, all the pre-existing gaps its
      * neighbours above already name: no `wealth_event`, no `invType.protect` /
-     * scope check (no `fields/inv.ini`), and no receiver on the resulting pile
+     * scope check (only cache-native inv size is declared), and no receiver on the resulting pile
      * (`mock230_world_obj_add` has no receiver, so the drop is public — the same
      * gap `obj_find` states).
      *
@@ -507,8 +507,8 @@ mock230_ops_inv(
      * container, matching the reference's `throw new Error('inv is null')`.
      *
      * The two gaps its neighbours above already name apply here too and are not
-     * re-stated per case: no `invType.protect` / scope check (there is no
-     * `fields/inv.ini`), and `$find` / `$replace` are not validated against
+     * re-stated per case: no `invType.protect` / scope check (the Phase-6a inv
+     * field intentionally has no server policy), and `$find` / `$replace` are not validated against
      * `ObjTypeValid` because `mock230_objinfo` answers for every id.
      */
     case SS_OP_INV_CHANGESLOT:

@@ -43,6 +43,7 @@ CONFIG_SUFFIXES = {
     ".npc",
     ".obj",
     ".loc",
+    ".inv",
     ".seq",
     ".spotanim",
     ".varbit",
@@ -64,6 +65,7 @@ ADMISSION_TEXT_SUFFIXES = {
     ".cs2",
     ".enum",
     ".if",
+    ".inv",
     ".loc",
     ".npc",
     ".obj",
@@ -109,8 +111,8 @@ def load_roster_boundary(path: Path) -> RosterAdmission:
     except (OSError, json.JSONDecodeError) as exc:
         raise fail(f"cannot read roster boundary {path}: {exc}") from exc
     if (not isinstance(data, dict) or data.get("schema") != 1 or
-            data.get("phase") not in {"5a", "5b"}):
-        raise fail(f"roster boundary {path} must be schema 1 for Phase 5a or 5b")
+            data.get("phase") not in {"5a", "5b", "5c"}):
+        raise fail(f"roster boundary {path} must be schema 1 for Phase 5a, 5b, or 5c")
     cohorts = data.get("admitted_cohorts")
     review_only = data.get("review_only_cohorts")
     synths = data.get("safe_synth_sources")

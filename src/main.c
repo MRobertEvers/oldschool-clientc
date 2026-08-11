@@ -701,6 +701,8 @@ frame_loop_step(void)
             if( pixels )
             {
                 char path[600];
+                if( getenv("TORIRS_ANIM_DEBUG") )
+                    fprintf(stderr, "bmp_series: frame_count=%ld\n", frame_count);
                 App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
                 snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
                 bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -1320,6 +1322,52 @@ frame_loop_step(void)
                     hk_key = -1;
                     hk_plain = TORIRSK_UNKNOWN;
                 }
+            }
+        }
+
+        /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
+         * the given main-loop frame.
+         *
+         * A content lane's debug procs are the only entry to an encounter that
+         * no click can reach — the QBD arena is behind `[debugproc,rs2012qbd]`
+         * — and a headless run has no chatbox to type into. The frame number
+         * matters: the command is a server script call, so it has to land after
+         * login, which SIM_CLICK_AT's own comment explains at length. */
+        {
+            static char const* cmd_cursor = NULL;
+            static int cmd_init = 0;
+            if( !cmd_init )
+            {
+                cmd_init = 1;
+                cmd_cursor = getenv("TORIRS_SIM_CMD");
+            }
+            while( cmd_cursor && *cmd_cursor )
+            {
+                char* end = NULL;
+                long const at = strtol(cmd_cursor, &end, 0);
+                char const* body;
+                size_t len;
+
+                if( !end || *end != ',' )
+                {
+                    cmd_cursor = NULL;
+                    break;
+                }
+                if( frame_count < at )
+                    break; /* not yet; re-checked next frame */
+
+                body = end + 1;
+                len = strcspn(body, ";");
+                {
+                    char text[128];
+                    if( len >= sizeof(text) )
+                        len = sizeof(text) - 1;
+                    memcpy(text, body, len);
+                    text[len] = '\0';
+                    App_SendCommand(&app, text);
+                    fprintf(stderr, "sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                }
+                cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
             }
         }
 

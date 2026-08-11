@@ -1,5 +1,6 @@
 #include "rscache.h"
 
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1973,6 +1974,7 @@ RSCache_ModelNewDecodeProvenance(
     }
 
     struct RSCache_Model* model = NULL;
+
     // Check the last two bytes to determine model type
     if( data_size >= 2 )
     {
@@ -3487,7 +3489,7 @@ RSCache_ModelFree(struct RSCache_Model* model)
         free(model->face_colors);
     if( model->face_priorities )
         free(model->face_priorities);
-    if( model->face_alphas )
+        if( model->face_alphas )
         free(model->face_alphas);
     if( model->face_infos )
         free(model->face_infos);

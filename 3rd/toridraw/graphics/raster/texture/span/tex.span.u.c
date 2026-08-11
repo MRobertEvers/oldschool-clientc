@@ -9,6 +9,7 @@
 
 // clang-format off
 #include "graphics/shade.h"
+#include "tex.span_uv.h"
 // clang-format on
 
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)

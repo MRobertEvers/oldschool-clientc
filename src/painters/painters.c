@@ -931,10 +931,13 @@ painter_add_normal_scenery_ex(
         size_x = 1;
     if( size_z < 1 )
         size_z = 1;
-    if( size_x > 15 )
-        size_x = 15;
-    if( size_z > 15 )
-        size_z = 15;
+    /* Clamping here truncates the footprint the span gate is built from, which
+     * lets the loc draw before the ground it covers. Only the field width
+     * bounds it now; see struct NormalScenery. */
+    if( size_x > PAINTER_SCENERY_MAX_SIZE )
+        size_x = PAINTER_SCENERY_MAX_SIZE;
+    if( size_z > PAINTER_SCENERY_MAX_SIZE )
+        size_z = PAINTER_SCENERY_MAX_SIZE;
     if( model_height < 0 )
         model_height = 0;
     if( model_height > UINT16_MAX )

@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -42,6 +43,33 @@ gather_adjacent_tiles(
     bool huh = false;
 
     int count = 0;
+
+    /* State the capacity requirement up front rather than only catching the
+     * write that runs off the end: this names the element footprint that is
+     * too large, which is the thing that has to change. */
+    assert(
+        (element_size_x + 2) * (element_size_z + 2) + element_size_x + element_size_z + 2 <=
+            out_size &&
+        "map element footprint exceeds the share-light adjacency buffer");
+
+    /* #region agent log */
+    {
+        static int reported = 0;
+        if( !reported && (element_size_x > 6 || element_size_z > 6) )
+        {
+            reported = 1;
+            fprintf(
+                stderr,
+                "sharelight: map element footprint %dx%d needs %d adjacency slots "
+                "(buffer %d)\n",
+                element_size_x,
+                element_size_z,
+                (element_size_x + 2) * (element_size_z + 2) + element_size_x +
+                    element_size_z + 2,
+                out_size);
+        }
+    }
+    /* #endregion */
 
     for( int level = tile_level; level <= tile_level + 1; level++ )
     {
@@ -190,7 +218,23 @@ merge_normals(
     }
 }
 
-#define ADJACENT_TILES_COUNT 96
+/*
+ * Largest map-element footprint, in tiles, that share-lighting supports.
+ *
+ * gather_adjacent_tiles emits the element's own far edge on its own level, then
+ * its whole footprint plus a one-tile skirt on the level above, so it can write
+ *
+ *     (size + 2) * (size + 2) + 2 * size + 2
+ *
+ * entries. The old fixed 96 was only good up to a 6x6 element — a 7x7 already
+ * needs 97 — and the buffer it fills is a stack array in merge_column, so
+ * overrunning it corrupts that frame rather than anything a sanitizer watches.
+ * The 2012 QBD arena has larger platform locs, and the assert below caught one.
+ */
+#define SHARELIGHT_MAX_ELEMENT_TILES 32
+#define ADJACENT_TILES_COUNT                                                  \
+    ((SHARELIGHT_MAX_ELEMENT_TILES + 2) * (SHARELIGHT_MAX_ELEMENT_TILES + 2) + \
+     2 * SHARELIGHT_MAX_ELEMENT_TILES + 2)
 
 static void
 defaultlight_build(struct WorldBuilder* builder)
