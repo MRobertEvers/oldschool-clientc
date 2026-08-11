@@ -224,7 +224,7 @@ filed under `helpers/miniquests/` are at the end.
 | 62 | horrorfromthedeep | `horrorfromthedeep` | 380 | done (LC) | re-audit 2026-08-10: `quest_horror` (`horror_girlfriend.rs2`, `horror_diary.rs2`; dbrow `quest_horrorfromthedeep` journal wired) |
 | 63 | dwarfcannon | `dwarfcannon` | 386 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row — see IN-LC table (`quest_mcannon`) |
 | 64 | familycrest | `familycrest` | 386 | done (LC) | re-audit 2026-08-10: `quest_crest` (`crest_dimintheis.rs2`, `crest_caleb.rs2`; dbrow `quest_familycrest` journal wired) |
-| 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done (LC) | re-audit 2026-08-10: `quest_routequest` (dbrow `quest_insearchofthemyreque` journal wired) |
+| 65 | insearchofthemyreque | `insearchofthemyreque` | 393 | done (LC) | re-audit 2026-08-10: `quest_routequest` (dbrow `quest_insearchofthemyreque` journal wired) -- caveat added 2026-08-11 while porting #132 In Aid of the Myreque: `quest_routequest/` only has `configs/quest_routequest.{constant,varp}` + `scripts/routequest_journal.rs2`; grepping the whole `server/scripts` tree for `%routequest` finds only the journal reading it, nothing ever writes it, and Veliaf/Ivan/Polmafi's own hideout npcs have no scripted dialogue anywhere -- this quest is not actually playable end to end despite the `done (LC)` mark. Not re-scored here (out of scope for #132); #132 soft-skips it as a prerequisite instead, same convention as Cabin Fever's Priest in Peril / King's Ransom's One Small Favour. |
 | 66 | shadowsofcustodia | `shadowsofcustodia` | 406 | done |  |
 | 67 | currentaffairs | `currentaffairs` | 407 | done |  |
 | 68 | zogreflesheaters | `zogreflesheaters` | 410 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
@@ -289,10 +289,10 @@ filed under `helpers/miniquests/` are at the end.
 | 127 | enakhraslament | `enakhraslament` | 688 | done | Jan 2006 -- Lazim, Enakhra's ruined desert temple, Akthanakos; native dbrow `quest_enakhraslament` (id 103, endstate 70) + native varbit schema on three basevars (`enakh_quest_expositbits`/`enakh_multivarbits`/`enakh_varbits`) reused as-is; see Log |
 | 128 | perilousmoon | `perilousmoon` | 688 | done |  |
 | 129 | theslugmenace | `theslugmenace` | 694 | done | Sept 2006 -- Sir Tiffy Cashien's Temple Knights send the player to Witchaven to investigate a Zamorakian conspiracy (Col. O'Niall/Brother Maledict/Mayor Hobb), a ruined temple, torn documents, five elemental runes, and the Slug Prince; see Log |
-| 130 | cabinfever | `cabinfever` | 704 | pending | npcs=feverteach,feverteach,feverquest |
+| 130 | cabinfever | `cabinfever` | 704 | done | Feb 2006 -- Bill Teach recruits the player to raid a rival pirate crew at sea; native dbrow `quest_cabinfever` (id 104, endstate 140, questpoints 2, requirement_stats smithing50+crafting45+ranged40+agility42, stat_xp_awarded crafting/smithing/agility 7000xp each, matches wiki exactly) + native varbit schema on basevars `fever_quest`/`fever_cannon_var`/`fever_extra_var`/`fever_storage_var` (`fever_hole_1/2/3`, `fever_holes_patched/proofed`, `fever_crate/chest/barrel`, `fever_plunder_points`, `fever_cannon`, `fever_cannon_powder/tamp/ammo/fuse/clean`, `fever_holes_in_the_hull`, `fever_gunpowder_barrel`) reused as-is, matching quest-helper's own VarbitID names exactly; queue's own hint `feverteach,feverteach,feverquest` resolves to real cache names `fever_teach`/`fever_quest_ship_teach` (cache wins, close but not identical spelling). dbrow `requirement_quests` decodes to Contact! (124) and A Soul's Bane (108) -- neither a real prerequisite, same known cache-decode-corruption failure mode this queue warns about repeatedly. Real prereqs per quest-helper's own getGeneralRequirements() are Pirate's Treasure FINISHED, Rum Deal FINISHED and Priest in Peril FINISHED; Pirate's Treasure (`%hunt >= ^hunt_complete`) and Rum Deal (`%deal_var >= ^deal_complete`) are both genuinely completable in this tree and hard-gated. Priest in Peril is soft-skipped and NOT gated on: `quest_priestperil.constant`'s own header documents its essence-bringing finale (`%priestperil` 10..60) as "deferred (blocked)", and grepping its scripts confirms `%priestperil` never advances past `^priestperil_meet_in_mausoleum` (8) anywhere in this tree -- hard-gating on it would make Cabin Fever itself permanently unstartable, so it isn't checked (documented, not silently dropped, matching the established convention for a corrupted/unportable prerequisite). Native multiloc records independently confirm every real breakpoint used (cache wins, not guessed): `fever_multi_hole_1/2/3` leak->planked->waterproofed at values 1/2; `fever_multi_chest/_crate/_barrel` closed->looted at value 1; `fever_multi_cannon` intact->destroyed->no_barrel->loaded at values 1/2/3 (quest-helper reuses this same var for "broken" (1) and, later, "fuse loaded and ready" (3) -- both kept); `fever_multi_hole_enemy_1/2/3` share one real counter, `fever_holes_in_the_hull` (0..3), sequentially revealing hull breaches -- this is the wiki's own "three holes in the enemy's ship" objective, mechanically confirmed (not narrated), driven directly by the final cannonball-firing phase instead of inventing a separate counter; `fever_multi_gunpowder_barrel` intact(0)->fused(2)->exploded(1), the cache's own non-monotonic order, matches quest-helper's `addedFuse`(2)/`explodedBarrel`(1) exactly; `fever_port_ship_teach` (dock-side "Bill Teach on his boat" wrapper) is a real `multivarp=fever_quest` record, invisible until value 10 -- independently confirms the master var really does jump 0->10 on first acceptance, used directly. This server only ever spawns the wrapper npc/loc types; `fever_teach`/`fever_port_ship_teach`/`fever_quest_ship_teach` all declare no op of their own in the cache -- additive overlay in `cabinfever.npc`, same convention as `royaltrouble.npc`/`theslugmenace.npc` (every multiloc wrapper used already carries its own real op -- Repair/Loot/Plunder/Load/Take-powder/Cross -- no loc overlay needed). All navigation between decks (ladders/nets/climb-down) is already handled by the generic climb system (`ladders_stairs/scripts/ladders.rs2`, cache-declared climb verbs) -- zero custom transport scripting needed for any of it; the ship-to-ship rope swing (`fever_sail1_hoistedl_climb`, reused by quest-helper's own `swingToBoat`/`swingToEnemyBoat`/`useRopeOnSailForSabo` alike) is one zone-aware (`distance(coord,...)`) teleport trigger. Every pirate crew/enemy npc (`fever_pirate_island_01..10`, `fever_pirate_millitia_01..10`, `fever_pirate_enemy_01..10`, `fever_smithing_smith`, `fever_harpoon_joe`, `fever_pirate_two_feet_charley`, `fever_mama_la_fiette`, `fever_dodgy_mike`) is already world-spawned (confirmed via grep of `areas/world/configs/*.spawn`) and pure flavour -- none gate any quest-helper step, none scripted. Simplifications (documented, no established precedent anywhere in this tree for the alternative): quest-helper's own 704 lines are mostly `ConditionalStep`/`Zone` bookkeeping to draw a helper arrow across geography that's already baked cache terrain here -- not reproduced. Locker searches (`fever_repair_locker`/`fever_weapons_locker`) grant a full requirement in one Search rather than quest-helper's own incremental per-item fetch loop, same convention as The Great Brain Robbery's crate-building simplification. Plunder containers grant a fixed split (crate 4 + chest 3 + barrel 3 = 10, matching `loot10`) rather than a random per-loot amount -- no drop-table precedent recoverable. The canister-firing phase ("fire with canisters until 3 pirates die") has no cannon-deals-damage-directly precedent anywhere in this tree (Royal Trouble's Giant Sea Snake / The Great Brain Robbery's Barrelchest both leave combat entirely to the generic system) -- a successful load/fire cycle is itself the real, required, repeatable action standing in for the kill, tracked via `%fever_quest` sub-values (111/112/113) rather than combat; the ball-firing phase instead drives the real `fever_holes_in_the_hull` counter directly. Misfire/wrong-ammo error handling (`canisterInWrong`/`resetCannon`) isn't modelled -- wrong ammo for the current phase is just refused with a hint message, no jammed-cannon state. `fever_rum`/`fever_gold`/`fever_smithed_anchor` and the enemy crew's own named weapons are native but never referenced by any quest-helper step -- deferred flavour. Wiki https://oldschool.runescape.wiki/w/Cabin_Fever/Quick_guide + quest-helper source fetched via GitHub raw (dialogue paraphrased, not verbatim, per copyright, same caveat as every prior slice). `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (14,342 scripts, up from 14,316); files: `quests/quest_cabinfever/{configs/cabinfever.{constant,varp,npc}, scripts/cabinfever_{shared,bill,transport,lockers,repair,sabotage,loot,cannon,journal}.rs2}` + wiring into `interface_questjournal/scripts/quest_journal.rs2`. This was previously a soft-skipped prerequisite for The Great Brain Robbery (#121) -- a real port here means a future tick could tighten that gate. Next pending row (smallest-first): #132 In Aid of the Myreque, 710 lines. |
 | 131 | icthlarinslittlehelper | `icthlarinslittlehelper` | 707 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_icthlarin`); this Queue row was stale, table-sync fix only. `quest_icthlarin` (5 files, 684 lines, dbrow `quest_icthlarinslittlehelper` journal wired `interface_questjournal/scripts/quest_journal.rs2:703`) |
-| 132 | inaidofthemyreque | `inaidofthemyreque` | 710 | pending | npcs=routeveliaf,burghvilage,burghvilage |
-| 133 | betweenarock | `betweenarock` | 716 | pending | npcs=dwarfrocka,dwarfrocka,dwarfrocka |
+| 132 | inaidofthemyreque | `inaidofthemyreque` | 710 | done | Jan 2006 -- Burgh de Rott repairs, Gadderanks's blood tithe raid, Ivan's Temple Trek escort, Rod of Ivandis; native dbrow `quest_inaidofthemyreque` (id 107, endstate 430, requirement_stats Crafting25/Mining15/Magic7) + native varbit schema on basevars `myreque_2_main_var`/`myreque2_multivar`/`myreque2_extravar` reused as-is, matching quest-helper's own VarbitID names exactly; dbrow `requirement_quests` decodes to Desert Treasure I (corrupt, known failure mode) -- real prereq (In Search of the Myreque FINISHED) soft-skipped since `%routequest` is never written anywhere in this tree (that quest has no scripted content beyond its own journal/dbrow, confirmed via grep -- row #65's "done (LC)" is optimistic); Crafting/Mining/Magic gate still hard-checked. Shares `myq5_veliaf_child` with Sins of the Father's own hub trigger (merged branch in `sinsofthefather.rs2`, not duplicated) and adds one case to the shared furnace hub (`skill_smithing/scripts/smelting/smelting.rs2`) for the Rod of Ivandis mould. See Log. |
+| 133 | betweenarock | `betweenarock` | 716 | done | Mar 2005 -- Dondakan the Dwarf's cannon-through-the-rock scheme uncovers a sealed Arzinian realm; dwarven lore book + 3 torn pages, a golden cannonball, four schematic fragments, a golden helmet, and an Avatar guardian boss; see Log |
 | 134 | ratcatchers | `ratcatchers` | 737 | pending | npcs=gertrudepos,vcphingspet,pitratsarim |
 | 135 | dreammentor | `dreammentor` | 745 | pending | npcs=dreaminadeq,dreameverla,dreamuntouc |
 | 136 | watchtower | `watchtower` | 758 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_itwatchtower`); this Queue row was stale, table-sync fix only. `quest_itwatchtower` (13 files, 2010 lines, dbrow `quest_watchtower` journal wired `interface_questjournal/scripts/quest_journal.rs2:599`) |
@@ -3667,3 +3667,313 @@ filed under `helpers/miniquests/` are at the end.
   `skill_runecraft/scripts/runecraft.rs2`,
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #130 Cabin Fever, 704 lines.
+- slice done (2026-08-11): Cabin Fever (#130) -- Bill Teach's raid on a rival
+  pirate ship; native dbrow `quest_cabinfever` (id 104, endstate 140) +
+  native varbit schema on `fever_quest`/`fever_cannon_var`/`fever_extra_var`/
+  `fever_storage_var` reused as-is, matching quest-helper's own VarbitID
+  names exactly. Real prereqs are Pirate's Treasure + Rum Deal (both hard-
+  gated, both genuinely completable) + Priest in Peril, which is soft-
+  skipped -- `quest_priestperil.constant` documents its own finale as
+  "deferred (blocked)" and `%priestperil` never reaches completion anywhere
+  in this tree, so hard-gating on it would make Cabin Fever unstartable.
+  Native multiloc records confirm every real breakpoint used (hole repair,
+  loot containers, cannon repair/load, the enemy hull-breach counter
+  `fever_holes_in_the_hull`, the sabotage barrel's non-monotonic fused(2)->
+  exploded(1) order). All inter-deck navigation is already the generic climb
+  system (`ladders_stairs/scripts/ladders.rs2`) -- zero custom transport
+  scripting needed; the ship-to-ship rope swing is one `distance(coord,...)`
+  teleport trigger reused by every crossing. `fever_teach`/`fever_port_ship_
+  teach`/`fever_quest_ship_teach` needed an op overlay (`cabinfever.npc`);
+  every multiloc wrapper used already carried its own real op, no loc
+  overlay needed. Simplified (documented, no precedent anywhere in this tree
+  for the alternative): locker searches grant a full requirement in one
+  Search; plunder containers grant a fixed 4+3+3=10 split; the canister-kill
+  phase has no cannon-deals-damage-directly precedent (same as Royal
+  Trouble's Giant Sea Snake / GBR's Barrelchest leaving combat to the
+  generic system) so a load/fire cycle itself stands in for a kill, tracked
+  via `%fever_quest` sub-values rather than combat; misfire/wrong-ammo
+  handling isn't modelled. Wiki https://oldschool.runescape.wiki/w/
+  Cabin_Fever/Quick_guide + quest-helper source fetched via GitHub raw
+  (dialogue paraphrased, per copyright). `mingw32-make -C src sscompile`
+  clean, `mingw32-make -C src mock230-scripts` exit 0 (14,342 scripts, up
+  from 14,316); no duplicate-trigger or duplicate-constant collisions
+  (checked by hand against the whole tree). Files: `quests/quest_cabinfever/
+  {configs/cabinfever.{constant,varp,npc}, scripts/cabinfever_{shared,bill,
+  transport,lockers,repair,sabotage,loot,cannon,journal}.rs2}` + wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. This was previously a
+  soft-skipped prerequisite for The Great Brain Robbery (#121) -- that gate
+  can now be tightened by a future tick. Next pending row (smallest-first):
+  #132 In Aid of the Myreque, 710 lines (#131 Icthlarin's Little Helper was
+  already `done (LC)`, table-sync only).
+- slice done (2026-08-11): In Aid of the Myreque (#132) -- Veliaf sends the
+  player to help the Myreque's cousin cell repair Burgh de Rott, fight off
+  Gadderanks's vampyre blood-tithe raid, escort Ivan Strom to Paterdomus via
+  Temple Trekking, and craft + bless the Rod of Ivandis. Native dbrow
+  `quest_inaidofthemyreque` (id 107, endstate 430, questpoints 2,
+  requirement_stats (12,25)=Crafting25/(14,15)=Mining15/(6,7)=Magic7,
+  stat_xp_awarded Attack/Strength/Crafting/Defence 2000xp each -- both match
+  quest-helper's own getGeneralRequirements()/getExperienceRewards() exactly)
+  + a fully native varbit schema on basevars `myreque_2_main_var` (per-site
+  repair progress), `myreque2_multivar` (`myreque_2_quest` master progress
+  0-511 at bits 0-8, matching quest-helper's own steps.put range; crate
+  sub-fields; blood-tithe chat flags; `juvinate_deaths`; `juvinate_ambush_
+  deaths`/`_routetaken`) and `myreque2_extravar` -- reused as-is, matching
+  quest-helper's own `VarbitID.*` names lowercased exactly, claimed bare in
+  `myreque2.varp` same as `quest_cabinfever`'s own `fever_quest` precedent.
+  `tools/questhelper_extract.py inaidofthemyreque --check` (staged locally
+  from a `curl`-fetched copy of the QH source, no local checkout on this
+  machine) resolved every gameval clean, zero unresolved names. dbrow
+  `requirement_quests` decodes to dbrow id 79 = Desert Treasure I -- not a
+  real prerequisite, same known cache-decode-corruption failure mode this
+  queue warns about repeatedly. The real prerequisite (In Search of the
+  Myreque FINISHED, `%routequest >= ^routequest_complete`) is soft-skipped:
+  auditing `quest_routequest/` (row #65, marked `done (LC)`) found it only
+  has `configs/quest_routequest.{constant,varp}` +
+  `scripts/routequest_journal.rs2` -- grepping the whole tree for
+  `%routequest` finds only the journal reading it, nothing ever writes it,
+  and Veliaf/Ivan/Polmafi's hideout npcs have no scripted dialogue anywhere
+  -- that quest is not actually completable in this tree, so hard-gating on
+  it would make In Aid of the Myreque itself permanently unstartable (same
+  reasoning as Cabin Fever's Priest in Peril / King's Ransom's One Small
+  Favour); row #65 was annotated with this finding, not re-scored (out of
+  scope for this slice). The Crafting 25 / Mining 15 / Magic 7 stat gate is
+  still hard-checked (`myreque2_meets_requirements`), matching the dbrow.
+  Native multiloc/multinpc records independently confirm every real
+  breakpoint used: `burgh_furnace_multiloc` broken(0)->repaired(1)->
+  coal_loaded(2)->fired(3) on `burgh_furnace_fix`; `burgh_general_store_
+  roof_multiloc`/`_wall_multiloc` and `burgh_bank_wall_multiloc`/
+  `burgh_bank_booth_multiloc` each 0/1 on their own varbit;
+  `burgh_gadderanks_multinpc` invisible(0)->visible(nonzero) on
+  `blood_tithe_visible`, matching `veliafReturnedToBase =
+  VarbitRequirement(BLOOD_TITHE_VISIBLE, 3, GREATER_EQUAL)` exactly;
+  `burgh_temple_trapdoor_multiloc`/`burgh_ivandis_tombdoor_board_multiloc`
+  0/nonzero on `burgh_temple_trapdoor`/`ivandis_tomb_boards`, matching
+  `libraryOpen`/`boardsRemoved`. Click-based repair triggers bind to the
+  currently-resolved multiloc *leaf* (native `op1=Inspect` on every leaf,
+  additive `op2=Repair`/`Add-coal`/`Light` overlay in `myreque2.loc`) rather
+  than the wrapper, matching the cache's own `burgh_inn_trapdoor_closed`/
+  `_open` pair (consumed by name in `ladders_stairs/scripts/climb_shared.
+  rs2` and `doors/scripts/doors.rs2`) -- the opposite of Cabin Fever's own
+  wrapper-level dispatch for its script-spawned ship instance, reasoned out
+  from `~climb` turning out to be a pure "move one plane, same tile" op with
+  no per-object destination lookup (`ladders_stairs/scripts/ladders.rs2`).
+  `burgh_boared_up_wall_clickzone` is the same leaf resolved by both the
+  shop-wall and bank-wall placements; one trigger branches on `coord`
+  against `myreque2_shop_wall_coord`/`myreque2_bank_wall_coord` to update
+  the right native varbit -- no wrapper ambiguity since the two multiloc
+  *wrapper* records are themselves distinct, checked directly by grep before
+  writing. `priestperiltrappedmonk_vis` (Drezel here) is confirmed a
+  different gameval from Priest in Peril's own `priestperiltrappedmonk`
+  (`trapped_drezel.rs2`) -- no collision. `myq5_veliaf_child` (the finish
+  hand-in) is already claimed by Sins of the Father's own hub dispatcher
+  (`sinsofthefather.rs2`'s `[opnpc1,myq5_veliaf_child]`, stacked with three
+  sibling names) -- merged as an early branch in `sf_veliaf_talk` gated on
+  `%myreque_2_quest`'s own delivery window, not a duplicate trigger.
+  Combat kill-credit (Gadderanks + 2 Juvinates, then Ivan's escort ambush)
+  uses hand-spawned attackable npcs (no `.spawn` entry for any of the five
+  attackable/ambush variants, confirmed via grep) with `[opnpcN,name]
+  ~npc_retaliate(0);` + `[ai_queue3,name] ...; ~npc_default_death;`, same
+  idiom as Contact!'s Giant Scarab -- `juvinate_deaths` (native, 0-3) drives
+  `defeatedGadderanks` exactly, and the escort's `juvinate_ambush_deaths`
+  (native, 0-3) is driven to 2 (short-route simplification, see below).
+  Simplifications (documented, no established precedent anywhere in this
+  tree for the alternative): the basement rubble minigame (mine, bag with a
+  bucket, empty outside, up to 5 trips) collapses to one pickaxe+spade
+  click driving the real `burgh_inn_rubble_pile` counter to its cap, same
+  "grant a full requirement in one action" convention as Cabin Fever's
+  locker searches. The portable general-store crate item + its per-item
+  fill loop (quest-helper's own `FillBurghCrate`) collapses to one hand-in
+  to Aurel with everything in inventory at once, still driving the real
+  native `burgh_axes_crate`/`burgh_food_crate`/`burgh_tinderbox_crate` to
+  their caps (`burgh_crate_overseer` reaches 938 either way, matching
+  `filledCrate` exactly). Ivan's Temple Trek escort simplifies to the short
+  route only (2 level-75 Juvinates, matching the native 2-bit ambush
+  counter) -- the long-route alternative (4 level-50) is deferred flavour,
+  geography already baked. Vampyre silver-weapon immunity is hinted via
+  dialogue only, combat left to the generic system -- no restriction
+  precedent anywhere in `skill_combat` (grep-verified), same reasoning as
+  Cabin Fever. The Lvl-1 Enchant cast on the Silvthrill rod does not route
+  through the shared `magic_spell_table` dbrow (`skill_magic/configs/
+  magic_spells.dbrow`'s `[magic_spell_enchant_level1]` `convertobj` list) --
+  no established precedent anywhere in this tree for additively appending a
+  `data=convertobj,...` row to an existing dbrow block from a second file
+  (unlike the proven additive-field-merge convention for `.npc`/`.loc`
+  overlays), so it was avoided; using cosmic + water runes directly on the
+  rod (own dedicated trigger, Magic 7 checked directly) reproduces the same
+  item transformation without touching shared spellbook content. `burgh_
+  rod_clay` -> Silvthrill rod smelting is one new `case` added to the
+  existing shared `[label,use_furnace]` switch in `skill_smithing/scripts/
+  smelting/smelting.rs2` (quest-helper's own text is literally "at any
+  furnace") -- merged as a branch, not duplicated. `pipeastsidetrapdoor`/
+  `pipeastsidetrapdoor_open` (the way down to Drezel) are deliberately left
+  untouched: a real generic climb binding already exists
+  (`climb_shared.rs2`) and a second, seemingly-dead stub trigger for the
+  same two names already exists in `quest_sinsofthefather/scripts/
+  sinsofthefather.rs2` (itself soft-skipped) -- a pre-existing duplicate-
+  trigger situation from before this slice, documented and not touched.
+  Rewards: 2 QP, 2000 Attack/Strength/Crafting/Defence XP each (matches
+  dbrow exactly), Temple Trekking unlock, Rod of Ivandis crafting ability.
+  Wiki https://oldschool.runescape.wiki/w/In_Aid_of_the_Myreque/Quick_guide
+  + quest-helper source fetched via GitHub raw (dialogue paraphrased, not
+  verbatim, per copyright, same caveat as every prior slice). `mingw32-make
+  -C src sscompile` clean (only pre-existing snprintf-truncation warnings in
+  the compiler itself); `mingw32-make -C src mock230-scripts` exit 0, 14400
+  scripts compiled (up from 14342); grep of the full build log for
+  "myreque"/"inaidofthemyreque" returned zero hits, and a full self-sweep of
+  all 58 trigger headers this slice authored against the rest of the tree
+  found zero collisions. Files: `quests/quest_inaidofthemyreque/{configs/
+  myreque2.{constant,varp,loc}, scripts/myreque2_{shared,hideout,burgh,shop,
+  bank,furnace,fight,trek,rod,journal}.rs2}` + merges into `quest_
+  sinsofthefather/scripts/sinsofthefather.rs2` and `skill_smithing/scripts/
+  smelting/smelting.rs2`, plus wiring into `interface_questjournal/scripts/
+  quest_journal.rs2`. Next pending row (smallest-first): #133 Between a
+  Rock..., 716 lines.
+- slice done (2026-08-11): Between a Rock... (#133) -- Dondakan the Dwarf
+  is cannon-firing a wall in the Keldagrim south-west mine, convinced a
+  lost realm lies behind it; the player fetches dwarven lore (3 torn
+  pages -- scorpion kill, mine-cart search, low-grade rock mining) from
+  Rolad, arms Dondakan with a golden cannonball to crack the rock,
+  gathers four schematic fragments (Dondakan, the book's last page, the
+  Dwarven Engineer, Khorvak) to solve the sealing mechanism, smiths a
+  golden helmet, and is fired through into the hidden Arzinian realm to
+  mine gold ore and defeat an Avatar guardian. Native dbrow `quest_
+  betweenarock` (id 76, endstate 110, questpoints 2, requirement_stats
+  (13,50)=Smithing50/(14,40)=Mining40/(1,30)=Defence30, all
+  `requirements_boostable`=1, stat_xp_awarded Defence/Mining/Smithing
+  5000xp each -- matches quest-helper's own getGeneralRequirements()/
+  getExperienceRewards() exactly) + a fully native varbit schema on
+  basevar `dwarfrock_main` (`dwarfrock_quest` master 0-255,
+  `dwarfrock_gold_cannonball`, `dwarfrock_fired_gold_cannonball`,
+  `dwarfrock_schematics_solved`, plus dialogue-tracking flags
+  `dwarfrock_ferryman1_beenbefore`/`_ferryman2_beenbefore`/
+  `_gold_boatman_met`/`_met_engineer`/`_rolad_schematics_heardof`/
+  `_rolad_schematics_lookingfor`/`_dondakan_inside_heardof`/
+  `_brothers_introduced`/`_brothers_toldvictory`/`_inside_visited`/
+  `_inside_timeleft`) reused as-is, matching quest-helper's own
+  `VarbitID.DWARFROCK_*` names exactly, claimed bare in
+  `betweenarock.varp` same as `quest_cabinfever`'s own `fever_quest`
+  precedent. `%dwarfrock_quest`'s exact ten-step breakpoints (0/10/.../
+  100) matching quest-helper's own `steps.put` keys are independently
+  confirmed (cache wins, not guessed) by the cache's own native
+  `dwarfrock_multi_dondakan` multivarbit npc record: Dondakan
+  (`dwarfrock_dondakan`) only renders at exact multiples of ten and
+  swaps to `dwarfrock_dondakan_noaxe` from value 110 on (matching the
+  dbrow's own `endstate`); `dwarfrock_multi_gold_boatman` likewise only
+  resolves to `dwarfrock_gold_boatman` from 110 on -- both used directly,
+  a stage-110 "quest complete" state added past the last `steps.put` key
+  to match. `tools/questhelper_extract.py`-equivalent manual gameval
+  resolution (staged locally from a `curl`-fetched copy of the QH source
+  via `raw.githubusercontent.com/Zoinkwiz/quest-helper`, no local
+  checkout on this machine) found every `NpcID`/`ObjectID`/`ItemID`/
+  `VarbitID` name used by `BetweenARock.java`/`PuzzleStep.java` resolves
+  clean in the osrs239 pack, zero unresolved names.
+  Dbrow `requirement_quests` decodes to dbrow ids 35 (`quest_
+  sheepherder`) and 52 (`miniquest_magearena1`) -- neither a real
+  prerequisite, same known cache-decode-corruption failure mode this
+  queue warns about repeatedly. The real prerequisites per quest-
+  helper's own `getGeneralRequirements()` are Dwarf Cannon FINISHED and
+  Fishing Contest FINISHED. Fishing Contest (`quest_fishingcompo`) is
+  genuinely completable -- grep confirms it writes `%fishingcompo =
+  ^fishingcompo_complete` and calls `~quest_complete(quest_
+  fishingcontest)` from its own `quest_fishingcompo.rs2` -- and is hard-
+  gated. **Dwarf Cannon is NOT genuinely completable in this tree despite
+  being listed "IN-LC" with six separate "done" `CONTENT_PORT_QUEUE.md`
+  log lines (26f/26v/26y/27c/31c/32h/33f)** -- auditing `quest_mcannon/`
+  for this slice (per this queue's standing instruction to spot-check
+  prerequisites rather than trust a `done` label) found every one of
+  those slices real (railings, doors, ladder, cave guard, crate child,
+  journal, cannonball smelting all genuinely scripted), but grepping
+  every `%mcannon =` assignment site in the whole tree shows the master
+  varp never advances 0->1 (`^mcannon_tasked_with_fixing_railings`), 8->9
+  (`^mcannon_tasked_with_speaking_to_nulodion`), or 10->11
+  (`^mcannon_complete`) anywhere -- the "Dwarf Commander" who assigns/
+  advances/finishes the quest, and Nulodion's own talk dialogue (only his
+  *item* mesbox exists, `nulodions_notes.rs2`), have no dialogue script
+  anywhere in this tree. `%mcannon` is permanently stuck at 0 in this
+  tree, so Dwarf Cannon cannot actually be started or completed --
+  hard-gating on it would make Between a Rock... itself permanently
+  unstartable. Soft-skipped instead, same convention as Cabin Fever's own
+  Priest in Peril / In Aid of the Myreque's own In Search of the Myreque
+  (reasoned out in `betweenarock_shared.rs2`); flagged with a matching
+  note on `CONTENT_PORT_QUEUE.md` next to the mcannon log lines rather
+  than re-scoring those six rows (out of scope for this slice -- they are
+  each individually real, the gap is the missing quest-giver dialogue,
+  not those slices). The Smithing 50 gate (golden helmet) and Defence 30
+  gate (before Dondakan fires the player through) are hard-checked at
+  their own action points, matching `requirement_check_skills_on_start`
+  =0 -- not a single quest-start blanket check.
+  Simplifications (documented, no established precedent anywhere in this
+  tree for the alternative): quest-helper's own `PuzzleStep` drives a
+  real native drag/rotate widget puzzle (`interfaces/dwarf_rock_
+  schematics.if` + `_control.if`, genuine rev-230 interfaces) with exact
+  pixel-position and rotation-id matching for three pieces -- no generic
+  engine mechanic anywhere in this tree scripts exact widget position/
+  rotation manipulation (grep-verified), so assembling the four
+  schematic fragments collapses to one Use action once all four are
+  held, same "grant a full requirement in one action" convention as
+  Cabin Fever's locker searches / The Great Brain Robbery's crate build.
+  The three torn book pages likewise auto-combine into `dwarf_rock_
+  pagex3` the instant all three are held, skipping the intermediate
+  `dwarf_rock_pagex2` bundle and any manual item-on-item combine step.
+  The "keep gold ore in your inventory to stop the Avatar regenerating"
+  consumable anti-regen mechanic isn't modelled -- 6 gold ore is checked
+  once at the start of the confrontation, same as every other hand-
+  spawned boss in this tree leaving the fight itself to the generic
+  combat system; the 15-ore "weaker Avatar" route is recognised in
+  dialogue only, since no level-75-vs-125 pair exists among the nine
+  native colour/style Avatar variants. The realm's real 8-minute time
+  limit (`dwarfrock_inside_timeleft`, a genuine native 10-bit field) is
+  enforced with a coarser 30-second-per-decrement `softtimer` (16
+  decrements) rather than chasing an unverifiable exact tick rate, same
+  "approximate, not narrated, but real and enforced" reasoning as other
+  slices' hand-picked travel coordinates -- same `softtimer`/
+  `clearsofttimer` idiom as `minigame_barrows/scripts/barrows_
+  tunnel.rs2`'s own prayer-drain timer. Avatar hand-spawned on trigger
+  (no `.spawn` entry for any of the nine colour/style variants anywhere
+  in the tree, confirmed via grep), same idiom as Royal Trouble's Giant
+  Sea Snake / The Great Brain Robbery's Barrelchest / In Aid of the
+  Myreque's Gadderanks. Avatar combat style (mage/archer/warrior) is
+  selected by the player's own highest combat stat per the wiki's own
+  "counters your strongest style" description; the green/yellow recolour
+  is cosmetic RNG only, no established per-kill difficulty-scaling
+  precedent anywhere in `skill_combat`. Golden cannonball smelting merges
+  into the shared furnace switch (`skill_smithing/scripts/smelting/
+  smelting.rs2`'s own `case gold_bar, perfect_gold_bar :`, previously
+  `@craft_gold_menu` unconditionally) behind a new `@dwarfrock_gold_bar_
+  or_menu` label that falls through to the unmodified jewellery menu for
+  every other case, same additive idiom as In Aid of the Myreque's own
+  `burgh_rod_clay` case; page 3 similarly hooks both successful-mine
+  branches in `skill_mining/scripts/mining.rs2` (a no-op outside this
+  quest's own Dwarven Mine page-collecting step). The two Troll
+  Stronghold <-> Keldagrim tunnels (`trollromance_stronghold_exit_
+  tunnel`, `dwarf_cavewall_tunnel`) and both Dwarven Ferryman crossings
+  have zero pre-existing script references anywhere in the tree (grep-
+  confirmed) -- this quest's own unique route, not shared with any other
+  content; `fai_dwarf_trapdoor_down`/`ladder_from_cellar_directional`/
+  `tunnelstairstop` (Dwarven Mine, Rolad's ladder, Khorvak's stairs) are
+  already generic `category=climb_down`/`climb_up` records
+  (`ladders_stairs/configs/ladders.loc`), needing zero custom transport
+  scripting, same "no per-object destination lookup" reasoning as
+  `~climb` itself. `goldrock1`/`goldrock2` inside the realm are the same
+  generic gold rock the rest of the game already mines (`skill_mining/
+  configs/rocks.loc`) -- no dedicated realm-only ore loc exists.
+  Rewards: 2 QP, 5000 Defence/Mining/Smithing XP each (matches dbrow
+  exactly), a Rune pickaxe, and functional access to the Arzinian realm
+  (Ring of Wealth teleport menu entry deferred -- no established
+  precedent anywhere in this tree for adding a teleport destination to a
+  jewellery item's menu). Wiki https://oldschool.runescape.wiki/w/
+  Between_a_Rock.../Quick_guide + quest-helper source fetched via GitHub
+  raw (dialogue paraphrased, not verbatim, per copyright, same caveat as
+  every prior slice). `mingw32-make -C src sscompile` clean (only pre-
+  existing snprintf-truncation warnings in the compiler itself);
+  `mingw32-make -C src mock230-scripts` exit 0, 14453 scripts compiled
+  (up from 14400); grep of the full build log for "betweenarock"/
+  "dwarfrock" returned zero hits, and a full self-sweep of all 53
+  trigger headers this slice authored against the rest of the tree found
+  zero collisions. Files: `quests/quest_betweenarock/{configs/
+  betweenarock.{constant,varp}, scripts/betweenarock_{shared,travel,
+  dondakan,pages,schematics,realm,journal}.rs2}` + merges into
+  `skill_smithing/scripts/smelting/smelting.rs2`,
+  `skill_mining/scripts/mining.rs2`, and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #134 Ratcatchers, 737 lines.
