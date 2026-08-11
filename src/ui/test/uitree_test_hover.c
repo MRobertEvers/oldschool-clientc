@@ -467,13 +467,16 @@ test_hover_input(void)
             UITree_PointBlocksWorld(mt, &host, 40, 50),
             "actionless modal blocks clicks to the world");
         TEST_ASSERT(
-            !UITree_PointBlocksWorld(mt, &host, 150, 50),
-            "ordinary container space outside mounted modal stays pass-through");
+            UITree_PointBlocksWorld(mt, &host, 150, 50),
+            "blank mount-host space outside modal root still blocks world input");
 
         (void)UITree_InterfaceParentSet(mt, container_uid, 600, 1);
         TEST_ASSERT(
             !UITree_PointBlocksWorld(mt, &host, 40, 50),
             "actionless overlay remains transparent to world clicks");
+        TEST_ASSERT(
+            !UITree_PointBlocksWorld(mt, &host, 150, 50),
+            "blank host space for an overlay remains transparent");
         UITree_Free(mt);
     }
 

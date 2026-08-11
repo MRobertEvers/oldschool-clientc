@@ -5752,6 +5752,10 @@ app_settle_cs2_frame(struct App* app)
 
         if( stat != TASK_RUNNER_IDLE )
             return stat;
+        /* Resize listeners and transmit painters must observe the geometry
+         * produced by the script which queued them, not the last committed
+         * frame's bounds. */
+        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         if( !app_cs2_enqueue_followups(app) )
         {
             app->runner.frame_settle_pending = 0;
@@ -5775,6 +5779,7 @@ app_logic_tick(struct App* app)
      * transaction, and that pause is covered by exec_runner_had_work below. */
     {
         int drained = 0;
+        int fence_queued = 0;
 
         for( ;; )
         {
@@ -5786,6 +5791,11 @@ app_logic_tick(struct App* app)
                 break;
             }
             app->exec_runner_had_work = 0;
+
+            /* Do not cross a server-tick fence before that tick's newly
+             * dispatched client scripts have settled against its final state. */
+            if( fence_queued )
+                break;
 
             {
                 struct RevPacket packet;
@@ -5801,6 +5811,8 @@ app_logic_tick(struct App* app)
                 if( app->server_tick_fence_seen &&
                     packet.packet_type != PKT_NAME_SERVER_TICK_END )
                     app->server_tick_open = 1;
+                if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
+                    fence_queued = 1;
                 ToriRS_TaskQueue_Add(
                     app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
                 redraw = 1;
@@ -5829,6 +5841,13 @@ app_logic_tick(struct App* app)
             redraw = 1;
         }
     }
+
+    /* No widget hook may observe a half-applied packet/interface transaction.
+     * The next logic tick resumes the serial runner; the shell keeps presenting
+     * the preceding committed framebuffer in the meantime. */
+    if( app->exec_runner_had_work || app->server_tick_open ||
+        app->pending_clientscript_count > 0 )
+        return redraw;
 
     /* Rasterize inventory item icons that the server's inv packets left
      * unresolved (queued on the same serial pipeline, so it runs after the
@@ -13842,6 +13861,31 @@ App_RunOnce(
                         ran_cs2 = 1;
                     }
                 }
+
+                /* A catch-up pass can process several server ticks in one
+                 * App_RunOnce.  Settle tick N's client scripts before tick
+                 * N+1 is allowed to apply, or the fence would be semantically
+                 * crossed even though the packet runner stopped at it. */
+                if( app->runner.frame_settle_pending )
+                {
+                    enum TaskRunnerStat stat;
+
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+                    {
+                        stat = app_settle_cs2_frame(app);
+                    }
+                    if( stat != TASK_RUNNER_IDLE )
+                    {
+                        app->runner_had_work = 1;
+                        ticks = t + 1;
+                        break;
+                    }
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+                    {
+                        UITree_LayoutResolve(
+                            app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+                    }
+                }
             }
         }
         else
@@ -13856,7 +13900,7 @@ App_RunOnce(
     /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue
      * CS2 before interaction.  Settle them now so hit testing sees one coherent
      * tree rather than the intermediate state of a yielding script. */
-    if( ran_cs2 )
+    if( ran_cs2 || app->runner.frame_settle_pending )
     {
         enum TaskRunnerStat stat;
 
@@ -14648,6 +14692,9 @@ App_RunOnce(
                     app->tree->components[idx].behavior.hide = 0;
             }
         }
+        /* Publication invariant: an emit list is a frame commit, not a view of
+         * whatever intermediate state the cooperative schedulers reached. */
+        assert(App_FrameSettled(app));
         app->emit.count = 0;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
         {

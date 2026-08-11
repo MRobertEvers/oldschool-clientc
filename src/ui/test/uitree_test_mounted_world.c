@@ -13,6 +13,20 @@ find_emit_desc(
     return NULL;
 }
 
+static int
+node_list_contains(
+    int32_t const* nodes,
+    int count,
+    int32_t wanted)
+{
+    for( int i = 0; i < count; i++ )
+    {
+        if( nodes[i] == wanted )
+            return 1;
+    }
+    return 0;
+}
+
 void
 test_mounted_world_resize(void)
 {
@@ -34,6 +48,7 @@ test_mounted_world_resize(void)
     int const root_uid = (500 << 16) | 0;
     int const world_uid = (500 << 16) | 1;
     int const mount_host_uid = (500 << 16) | 2;
+    int const underlay_uid = (500 << 16) | 3;
     int const modal_root_uid = (600 << 16) | 0;
     int const modal_rect_uid = (600 << 16) | 1;
     int const saved_root_w = UITREE_LAYOUT_ROOT_W;
@@ -79,8 +94,30 @@ test_mounted_world_resize(void)
     int32_t modal_rect =
         UITree_TestPushXy(tree, modal_root, UIELEM_RS_RECT, modal_rect_uid, 12, 14, 72, 38);
     tree->components[modal_rect].behavior.button_type = 1;
+    tree->components[modal_rect].behavior.over_color = 0xFFFFFF;
+    strncpy(
+        tree->components[modal_rect].menu_options.ops[0],
+        "Mounted action",
+        sizeof(tree->components[modal_rect].menu_options.ops[0]) - 1);
     (void)UITree_InterfaceParentSet(tree, mount_host_uid, 600, 0);
     UITree_Reparent(tree, modal_root, mount_host);
+
+    /* Append ordinary host content after the mounted subtree. It scrolls to
+     * the later blank-host probe and is menu-relevant but non-interactive. The
+     * type-0 mount must still be traversed last and discard this underlay
+     * target across the whole host clip, independent of sibling order. */
+    int32_t underlay = UITree_TestPushXy(
+        tree,
+        mount_host,
+        UIELEM_RS_RECT,
+        underlay_uid,
+        PANEL_W - 20 + HOST_SCROLL_X,
+        PANEL_H - 18 + HOST_SCROLL_Y,
+        24,
+        20);
+    tree->components[underlay].item_id = 995;
+    tree->components[underlay].item_count = 1;
+
     UITree_TestHostInit(&host, &hs);
 
     UITree_EmitBufferInit(&fixed_emit);
@@ -137,6 +174,18 @@ test_mounted_world_resize(void)
         TEST_ASSERT(
             UITree_HitTestInteractive(tree, &host, rect_hit_x, rect_hit_y) == modal_rect,
             "mounted modal input ignores host-local scroll like rendering");
+
+        int32_t menu_nodes[8];
+        int const menu_count =
+            UITree_CollectNodesAt(tree, &host, rect_hit_x, rect_hit_y, menu_nodes, 8);
+        TEST_ASSERT(
+            menu_count > 0 && menu_nodes[0] == modal_rect,
+            "mounted modal menu collection uses emitted unscrolled coordinates");
+        TEST_ASSERT(
+            UITree_FindHoveredComponentIdForRegion(
+                tree, &host, -1, rect_hit_x, rect_hit_y, 0, 0, RESIZABLE_W, RESIZABLE_H) ==
+                modal_rect_uid,
+            "mounted modal hover uses emitted unscrolled coordinates");
     }
 
     /* Pick blank space inside the host but outside the smaller mounted root.
@@ -154,6 +203,25 @@ test_mounted_world_resize(void)
         resized_blank_x >= resized_panel_x + MODAL_W &&
             resized_blank_y >= resized_panel_y + MODAL_H,
         "world-block probe lies outside smaller mounted root");
+
+    /* Prove the ordinary target is present at this drawn point, then that
+     * changing only the InterfaceParent type to modal removes it. */
+    {
+        int32_t menu_nodes[8];
+        (void)UITree_InterfaceParentSet(tree, mount_host_uid, 600, 1);
+        int menu_count =
+            UITree_CollectNodesAt(tree, &host, resized_blank_x, resized_blank_y, menu_nodes, 8);
+        TEST_ASSERT(
+            node_list_contains(menu_nodes, menu_count, underlay),
+            "ordinary scrolled underlay menu target reaches blank host point");
+
+        (void)UITree_InterfaceParentSet(tree, mount_host_uid, 600, 0);
+        menu_count =
+            UITree_CollectNodesAt(tree, &host, resized_blank_x, resized_blank_y, menu_nodes, 8);
+        TEST_ASSERT(
+            !node_list_contains(menu_nodes, menu_count, underlay),
+            "type-0 modal host barrier hides ordinary underlay menu target");
+    }
     TEST_ASSERT(
         UITree_PointBlocksWorld(tree, &host, resized_blank_x, resized_blank_y),
         "type-0 mount consumes world input across blank host rectangle");

@@ -119,6 +119,13 @@ find_hovered_recursive(
     bool const mouse_in_bounds = UITree_PointInScrolledBounds(
         mouse_x, mouse_y, bx, by, bw, bh, scroll_off_x, scroll_off_y);
 
+    /* field4189/noClickThrough clears mouse events queued by widgets rendered
+     * underneath before this widget contributes its own events. Preserve that
+     * ordering here: discard the previous hover, then let this node/children
+     * become hovered below. */
+    if( mouse_in_bounds && component->no_click_through )
+        *out_hovered_component_id = -1;
+
     if( mouse_in_bounds && component->component_id >= 0 )
     {
         /* IF1 over-layer / colourOver redirect (TS addComponentOptions). */
