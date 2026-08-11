@@ -12,6 +12,7 @@
 #include "datatypes/dat2_config_spotanim.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
+#include "datatypes/dat2_proctexture.h"
 #include "datatypes/model.h"
 #include "datatypes/music_patch.h"
 #include "datatypes/music_song.h"
@@ -51,6 +52,7 @@ struct Import_Manifest
     int npc_sounds;
     int legacy_scape2009;
     int textures_only;
+    int material_mode_average_hsl;
     /* Explicit source procedural-material -> destination texture ids.  A
      * legacy Summoning import remains deliberately untextured until this is
      * supplied; an incomplete table is an error rather than a silent
@@ -264,6 +266,20 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "sample_base") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "sample_identity_min") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_identity_min) ) { fclose(f); return 0; } }
             else if( strcmp(key, "sample_setup_dest") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_setup_dest) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "material_mode") == 0 )
+            {
+                if( strcmp(value, "mapped_texture") == 0 )
+                    m->material_mode_average_hsl = 0;
+                else if( strcmp(value, "average_hsl") == 0 )
+                    m->material_mode_average_hsl = 1;
+                else
+                {
+                    fprintf(stderr,
+                            "cachepack import: material_mode must be mapped_texture or average_hsl\n");
+                    fclose(f);
+                    return 0;
+                }
+            }
             else if( strcmp(key, "preserve_audio_ids") == 0 )
             {
                 if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
@@ -293,7 +309,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "from_rev") != 0 && strcmp(key, "from_cache") != 0 &&
                      strcmp(key, "to_rev") != 0 && strcmp(key, "to_tree") != 0 &&
                      strcmp(key, "lane") != 0 && strcmp(key, "ledger") != 0 &&
-                     strcmp(key, "prefix") != 0 )
+                     strcmp(key, "prefix") != 0 && strcmp(key, "material_mode") != 0 )
             {
                 fprintf(stderr, "cachepack import: unknown import key %s\n", key);
                 fclose(f);
@@ -1013,8 +1029,80 @@ static int collect_sequence(struct Tool_Dat2Cache* src, int id,
     return ok;
 }
 
+static int flatten_model_materials(
+    struct RSCache_Model* model,
+    const struct RSCache_Dat2MaterialTable* materials,
+    int source_id)
+{
+    if( !model->face_textures )
+        return 1;
+    if( !materials )
+    {
+        fprintf(stderr,
+                "cachepack import: model %d needs the source material table for colour flattening\n",
+                source_id);
+        return 0;
+    }
+
+    for( int face = 0; face < model->face_count; face++ )
+    {
+        int material_id = model->face_textures[face];
+        if( material_id < 0 )
+            continue;
+        if( material_id >= materials->count || !materials->materials[material_id].exists )
+        {
+            fprintf(stderr,
+                    "cachepack import: model %d uses absent source material %d\n",
+                    source_id, material_id);
+            return 0;
+        }
+
+        /* Rev-530 materials are procedural graphs and cannot be represented by
+         * an OSRS sprite-material id.  Preserve their authored average HSL on
+         * the face instead of aliasing many unrelated materials to the same
+         * brown destination bitmap. */
+        if( model->face_colors )
+            model->face_colors[face] =
+                (uint16_t)materials->materials[material_id].average_hsl;
+        if( getenv("CACHEPACK_MATERIAL_DEBUG") )
+        {
+            static unsigned char seen[65536];
+            if( !seen[material_id] )
+            {
+                seen[material_id] = 1;
+                fprintf(stderr, "cachepack material %d average=0x%04x\n",
+                        material_id,
+                        (unsigned)materials->materials[material_id].average_hsl & 0xffffu);
+            }
+        }
+        if( model->face_infos )
+            model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+        if( model->face_texture_coords )
+            model->face_texture_coords[face] = -1;
+        model->face_textures[face] = -1;
+    }
+
+    /* Once the texture array is removed, no face may retain the legacy
+     * textured-info bit, including malformed source faces whose texture id
+     * was already -1. */
+    if( model->face_infos )
+        for( int face = 0; face < model->face_count; face++ )
+            model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+
+    free(model->face_textures); model->face_textures = NULL;
+    free(model->face_texture_coords); model->face_texture_coords = NULL;
+    free(model->texture_render_types); model->texture_render_types = NULL;
+    free(model->textured_p_coordinate); model->textured_p_coordinate = NULL;
+    free(model->textured_m_coordinate); model->textured_m_coordinate = NULL;
+    free(model->textured_n_coordinate); model->textured_n_coordinate = NULL;
+    model->textured_face_count = 0;
+    return 1;
+}
+
 static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
-                             const struct Tool_IdMap* model_map, int source_id, int apply)
+                             const struct Tool_IdMap* model_map,
+                             const struct RSCache_Dat2MaterialTable* materials,
+                             int source_id, int apply)
 {
     struct Tool_Bytes raw = {0};
     int table = RSCache_Dat2DiskTableId(src->disk, RSCACHE_DAT2_TABLE_MODELS);
@@ -1033,7 +1121,17 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     }
 
     int format = prov->format;
-    if( m->texture_map.count && model->face_textures )
+    if( m->material_mode_average_hsl && model->face_textures )
+    {
+        if( !flatten_model_materials(model, materials, source_id) )
+        {
+            RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
+            return 0;
+        }
+        format = prov->format == RSCACHE_MODEL_FORMAT_OB3 ? RSCACHE_MODEL_FORMAT_V3
+                                                          : RSCACHE_MODEL_FORMAT_V2;
+    }
+    else if( m->texture_map.count && model->face_textures )
     {
         for( int face = 0; face < model->face_count; face++ )
         {
@@ -1373,6 +1471,26 @@ static int import_run(struct Import_Manifest* m, int apply)
     struct Tool_Dat2Cache src;
     if( !tool_dat2_open(m->from_cache, &from, &src) ) return 0;
 
+    struct RSCache_Dat2MaterialTable* materials = NULL;
+    if( m->material_mode_average_hsl )
+    {
+        int table_id = RSCache_Dat2DiskTableId(src.disk, RSCACHE_DAT2_TABLE_MATERIALS);
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(src.disk, table_id, 0);
+        if( archive )
+        {
+            materials = RSCache_Dat2MaterialTableNewDecode(
+                archive->data, archive->data_size, RSCache_Dat2ProcTextureFlags(&from));
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+        if( !materials )
+        {
+            fprintf(stderr, "cachepack import: source material table is absent or invalid\n");
+            tool_dat2_close(&src);
+            return 0;
+        }
+    }
+
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
     struct Import_Ints synths = {0}, samples = {0}, songs = {0}, patches = {0};
     struct Import_Ints pinned_synths = {0}, pinned_samples = {0};
@@ -1678,7 +1796,7 @@ static int import_run(struct Import_Manifest* m, int apply)
 
     if( ok )
         for( int i = 0; ok && i < models.n; i++ )
-            ok = write_model_asset(m, &src, &model_map, models.v[i], apply);
+            ok = write_model_asset(m, &src, &model_map, materials, models.v[i], apply);
 
     /* Re-apply an approved material table without regenerating gameplay
      * configs or pulling deferred closure assets into an admitted cohort. */
@@ -1974,7 +2092,9 @@ static int import_run(struct Import_Manifest* m, int apply)
     tool_id_map_free(&fm_map); tool_id_map_free(&synth_map); tool_id_map_free(&sample_map);
     lc_pack_free(&model_pack); lc_pack_free(&frame_pack); lc_pack_free(&fm_pack);
     lc_pack_free(&synth_pack); lc_pack_free(&song_pack); lc_pack_free(&sample_pack);
-    lc_pack_free(&patch_pack); cp_names_free(&emit.names); tool_dat2_close(&src);
+    lc_pack_free(&patch_pack); cp_names_free(&emit.names);
+    RSCache_Dat2MaterialTableFree(materials);
+    tool_dat2_close(&src);
     return ok;
 }
 
