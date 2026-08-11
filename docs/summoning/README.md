@@ -208,7 +208,9 @@ Fresh client captures and their runtime logs are in
   both rendering paths;
 - `dreadfowl_world_and_familiar_tab.png` — full Dreadfowl in both paths; and
 - `equipment_tab_restored.png` — normal Equipment contents after Back, with the
-  familiar entry button retained in the top-right.
+  familiar entry button retained in the top-right; and
+- `familiar_spawn_animation.png` — full Spirit wolf with the translucent
+  familiar-attached arrival animation visible around its feet.
 
 The associated logs prove that the server summoned the expected familiar,
 complex texture faces were routed with their preserved type, animation frames

@@ -13,6 +13,9 @@ These captures were generated from `cache.osrs239.summoning` with the compiled
 - `equipment_tab_restored.png` shows that Back closes the familiar interface,
   restores the normal Equipment contents, and leaves the familiar entry button
   in the top-right corner.
+- `familiar_spawn_animation.png` captures the imported large familiar-arrival
+  graphic mid-sequence around a fully rendered Spirit wolf. Its translucent
+  shard ring is attached to the familiar, while the player remains idle.
 
 The matching `.log` files contain the runtime evidence. In particular,
 `raster_tex_mode` records the preserved complex texture mapping types routed to
