@@ -376,6 +376,12 @@ bm_set_kv(
             snprintf(bm->pass, sizeof(bm->pass), "%s", value);
             return;
         }
+        if( strcmp(key, "scripts") == 0 )
+        {
+            bm_join_path(
+                bm->server_scripts, sizeof(bm->server_scripts), manifest_dir, value);
+            return;
+        }
         if( strcmp(key, "cheat") == 0 )
         {
             snprintf(bm->cheat, sizeof(bm->cheat), "%s", value);
@@ -972,6 +978,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->connect_user = bm->user;
     if( bm->pass[0] )
         cfg->connect_pass = bm->pass;
+    if( bm->server_scripts[0] )
+        cfg->net_server_scripts = bm->server_scripts;
     if( bm->cheat[0] )
         cfg->net_cheat = bm->cheat;
 

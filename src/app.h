@@ -163,6 +163,9 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** `[net:boot] scripts` — compiled script pack for the embedded mock
+     * server. MOCK230_SCRIPTS still overrides it. NULL/"" = server default. */
+    char const* net_server_scripts;
     /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
      * send once right after login, e.g. "zuk" to enter the Inferno instance.
      * The manifest spelling of the TORIRS_NET_CHEAT harness hook; the env var

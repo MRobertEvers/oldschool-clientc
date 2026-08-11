@@ -3639,6 +3639,9 @@ main(
              * the pristine cache. */
             if( transport_kind == NET_TRANSPORT_EMBED && !getenv("MOCK230_CACHE") )
                 setenv("MOCK230_CACHE", cfg.cache_dir, 0);
+            if( transport_kind == NET_TRANSPORT_EMBED && cfg.net_server_scripts &&
+                cfg.net_server_scripts[0] && !getenv("MOCK230_SCRIPTS") )
+                setenv("MOCK230_SCRIPTS", cfg.net_server_scripts, 0);
 
             sock = app.net ? NetTransport_New(transport_kind,
                                               cfg.connect_port > 0 ? cfg.connect_port : 43594,

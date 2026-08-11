@@ -139,6 +139,43 @@ redstone graphic.
 This mount-timing fix must not be replaced with a root overlay. The familiar
 interface belongs inside `wornitems:universe`.
 
+## Build and run
+
+From the repository root, build and launch the entire Summoning lane with one
+command:
+
+```sh
+./run-live.sh manifest_osrs239_summoning.ini
+```
+
+The launcher reads the cache, compiled-script directory, credentials, renderer,
+and embedded transport from that manifest. It rebuilds the Summoning cache and
+Summoning-only script pack before compiling and starting the embedded client.
+
+If those artifacts are already built, the equivalent direct client invocation
+is:
+
+```sh
+./src/torirs --manifest manifest_osrs239_summoning.ini
+```
+
+`manifest_osrs239_summoning.ini` selects `cache.osrs239.summoning`, the
+`build_summoning` server scripts, embedded transport, development credentials,
+Soft3D, and the persisted Summoning unlock command. `MOCK230_CACHE` and
+`MOCK230_SCRIPTS` are no longer required. They remain higher-priority overrides
+for diagnostics. The original `manifest_osrs239.ini`, cache, and content trees
+are not modified by this selection.
+
+To receive pouches while testing, enter one of these in chat:
+
+```text
+::summoning_pouch
+::summoning_dreadfowl_pouch
+::summoning_spirit_terrorbird_pouch
+```
+
+Then use the pouch's Summon option and open Equipment → Summoning.
+
 ## Cache repacking
 
 The Summoning cache must be repacked when overlay interfaces, CS2, models, or

@@ -13,7 +13,8 @@
  *
  *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
  *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
- *   [net:boot]    rev=<name>  transport=tcp|ws  host=<h>  port=<n>
+ *   [net:boot]    rev=<name>  transport=tcp|ws|embed  host=<h>  port=<n>
+ *                 scripts=<embedded-server compiled script directory>
  *                 ws_host=<h>  ws_port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
@@ -195,6 +196,9 @@ struct BootManifest
      * server answers "invalid username or password". --user/--pass still win. */
     char user[64];
     char pass[64];
+    /* Compiled script pack for the embedded mock server. Relative paths are
+     * resolved against the manifest directory; "" keeps the server default. */
+    char server_scripts[512];
     /* "::" commands (';'-separated) to send once right after login; "" = none.
      * TORIRS_NET_CHEAT still overrides. */
     char cheat[256];

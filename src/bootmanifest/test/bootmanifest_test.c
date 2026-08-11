@@ -64,6 +64,7 @@ test_load_fields(void)
     CHECK(strcmp(bm.ws_host, "ws.example.com") == 0);
     CHECK(bm.ws_port == 8080);
     CHECK(bm.client_version == 233);
+    CHECK(strcmp(bm.server_scripts, "bootmanifest/test/compiled/scripts") == 0);
     CHECK(strcmp(bm.rsa_exp, "deadbeef") == 0);
     CHECK(strcmp(bm.rsa_mod, "cafef00d") == 0);
     CHECK(bm.jag_crc_set == 1);
@@ -162,6 +163,8 @@ test_apply_to_config(void)
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
     CHECK(cfg.connect_port == 1234);
     CHECK(cfg.client_version == 233);
+    CHECK(cfg.net_server_scripts &&
+          strcmp(cfg.net_server_scripts, "bootmanifest/test/compiled/scripts") == 0);
     CHECK(cfg.rsa_exp && strcmp(cfg.rsa_exp, "deadbeef") == 0);
     CHECK(cfg.jag_crc_set == 1);
     CHECK(cfg.ui_logic == APP_UI_LOGIC_CS2);

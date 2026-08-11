@@ -46,9 +46,14 @@ fi
 
 MANIFEST="${1:?$USAGE}"
 shift
-USER_NAME="${1:-asdf}"
+
+# A self-contained manifest may carry development credentials. Preserve the
+# historical asdf/a fallback, while letting explicit launcher arguments win.
+MANIFEST_USER=$(sed -n 's/^[[:space:]]*user[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+MANIFEST_PASS=$(sed -n 's/^[[:space:]]*pass[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+USER_NAME="${1:-${MANIFEST_USER:-asdf}}"
 [ $# -gt 0 ] && shift || true
-PASS="${1:-a}"
+PASS="${1:-${MANIFEST_PASS:-a}}"
 [ $# -gt 0 ] && shift || true
 # "$@" is now whatever should be handed to the client verbatim.
 
@@ -61,6 +66,8 @@ fi
 REV=$(sed -n 's/^[[:space:]]*rev[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 HOST=$(sed -n 's/^[[:space:]]*host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 GAME_PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+SERVER_SCRIPTS=$(sed -n 's/^[[:space:]]*scripts[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+CACHE_DIR=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 
 # ws_host/ws_port: where a browser reaches the same server (the web build's
 # sockets are WebSockets). For LostCity that is also where /crc lives, which is
@@ -117,12 +124,29 @@ fi
 # embedded run.
 build_scripts() {
     echo "run-live.sh: building the server script pack..." >&2
-    make -C src mock230-scripts || exit 1
+    case "$SERVER_SCRIPTS" in
+        *build_summoning)
+            make -C src mock230-scripts-summoning || exit 1
+            ;;
+        *)
+            make -C src mock230-scripts || exit 1
+            ;;
+    esac
+}
+
+build_cache_overlay() {
+    case "$CACHE_DIR" in
+        *cache.osrs239.summoning)
+            echo "run-live.sh: building the Summoning cache overlay..." >&2
+            make -C src mock230-cache-summoning || exit 1
+            ;;
+    esac
 }
 
 if [ "$MODE" = native ]; then
     if [ "$USE_EMBED" = 1 ]; then
         echo "run-live.sh: $REV — building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
+        build_cache_overlay
         build_scripts
         make -C src EMBED_SERVER=1 torirs
     elif [ ! -x src/torirs ]; then
