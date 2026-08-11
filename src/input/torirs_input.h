@@ -198,6 +198,13 @@ LibToriRS_Input_Begin(
     struct LibToriRS_Input* input,
     uint64_t time);
 
+/** Continue an input frame which App_RunOnce could not consume. Updates the
+ * clock while retaining mouse/key one-shots and queued key events. */
+void
+LibToriRS_Input_Continue(
+    struct LibToriRS_Input* input,
+    uint64_t time);
+
 void
 LibToriRS_Input_End(struct LibToriRS_Input* input);
 

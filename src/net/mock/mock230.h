@@ -4225,7 +4225,8 @@ mock230_scripts_run_spell_trigger(
     struct Mock230Server* srv,
     int trigger,
     int spell_component,
-    int npc_slot);
+    int npc_slot,
+    int player_slot);
 
 /**
  * May this call site run its engine fallback for `result`?

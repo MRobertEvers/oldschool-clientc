@@ -65,6 +65,10 @@ test_mounted_world_resize(void)
     int fixed_panel_y;
     int resized_panel_x;
     int resized_panel_y;
+    struct UITreeResizeHookSnapshot resize_before[4];
+    int resized_hook_ids[4];
+    int resize_before_count;
+    int resized_hook_count;
 
     printf("TEST: mounted world modal follows resizable host\n");
     TEST_ASSERT(tree != NULL, "mounted-world tree allocation");
@@ -123,6 +127,14 @@ test_mounted_world_resize(void)
     tree->components[underlay].item_id = 995;
     tree->components[underlay].item_count = 1;
 
+    /* Both roots listen for resize. The canvas-sized top root changes extent;
+     * the mounted interface root only follows its right/bottom-aligned host.
+     * Rev239 queues the former, not the latter. */
+    UITree_HooksMut(&tree->components[root])->on_resize.script_id = 901;
+    UITree_SyncHookMembership(tree, root);
+    UITree_HooksMut(&tree->components[modal_root])->on_resize.script_id = 1903;
+    UITree_SyncHookMembership(tree, modal_root);
+
     UITree_TestHostInit(&host, &hs);
 
     UITree_EmitBufferInit(&fixed_emit);
@@ -146,10 +158,45 @@ test_mounted_world_resize(void)
     int const fixed_rect_x = fixed_rect ? fixed_rect->x : -1;
     int const fixed_rect_y = fixed_rect ? fixed_rect->y : -1;
 
+    resize_before_count = UITree_SnapshotResizeHooks(
+        tree, resize_before, (int)(sizeof(resize_before) / sizeof(*resize_before)));
+    TEST_ASSERT(resize_before_count == 2, "snapshot captures pre-resize hook eligibility");
+
+    /* Register a third listener after the snapshot. Its world-sized box will
+     * change below, but it must wait for a later resize rather than joining the
+     * already-snapshotted dispatch. */
+    UITree_HooksMut(&tree->components[world])->on_resize.script_id = 902;
+    UITree_SyncHookMembership(tree, world);
+
     /* Resize without rebuilding or remounting. Layout, emitted pixels and input
      * must all use the same new screen-space origin. */
     UITree_LayoutSetRootSize(RESIZABLE_W, RESIZABLE_H);
     UITree_TestResolve(tree);
+    TEST_ASSERT(
+        UITree_CollectResizedHookIds(
+            tree,
+            resize_before,
+            resize_before_count,
+            0,
+            resized_hook_ids,
+            (int)(sizeof(resized_hook_ids) / sizeof(*resized_hook_ids))) == 0,
+        "false resize trigger suppresses dimension-change hooks");
+    resized_hook_count = UITree_CollectResizedHookIds(
+        tree,
+        resize_before,
+        resize_before_count,
+        1,
+        resized_hook_ids,
+        (int)(sizeof(resized_hook_ids) / sizeof(*resized_hook_ids)));
+    TEST_ASSERT(
+        resized_hook_count == 1 && resized_hook_ids[0] == root_uid,
+        "resize queues only snapshotted hooks whose dimensions changed");
+    TEST_ASSERT(
+        !node_list_contains(resized_hook_ids, resized_hook_count, modal_root_uid),
+        "position-only mounted root move does not queue onResize");
+    TEST_ASSERT(
+        !node_list_contains(resized_hook_ids, resized_hook_count, world_uid),
+        "listener registered after resize snapshot is deferred");
     resized_panel_x = tree->components[modal_root].position.abs_x;
     resized_panel_y = tree->components[modal_root].position.abs_y;
     TEST_ASSERT(

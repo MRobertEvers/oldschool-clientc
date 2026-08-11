@@ -20,10 +20,12 @@ plays.
   played after each currently implemented special accepts.
 - [x] Existing pouch, summon, renew, dismiss, timer, and initial BoB work remains
   available as a foundation.
-- [ ] Per-familiar effects are partially dispatched: nineteen source-backed effects
+- [ ] Per-familiar effects are partially dispatched: thirty-five source-backed effects
   (Dreadfowl Strike, Tireless Run, Slime Spray, Stony Shell, Electric Lash,
   Cheese Feast, Vampyre Touch, Unburden, Abyssal Stealth, Testudo, Volcanic
-  Strength, Titan's Constitution ×3, Magic Focus, and Call to Arms ×4)
+  Strength, Titan's Constitution ×3, Magic Focus, Call to Arms ×4, Egg Spawn,
+  Herbcall, Blood Drain, Fish Rain, Ophidian Incubation, Howl, and Immense
+  Heat, Fruitfall, Arctic Blast, Healing Aura, Regrowth, and Generate Compost)
   validate/execute before the common transaction; all other rows fail closed
   until their real operation exists.
 - [ ] Per-familiar animations, spotanims, projectiles, sounds, and timing are not
@@ -251,7 +253,8 @@ cohort does not pass merely because one representative works.
 ### Cohort D — item, bank, BoB, and crafting interactions
 
 - [ ] Bunyip fish conversion/healing and pyrelord jewellery-crafting entry.
-- [ ] Spirit cobra egg transformations.
+- [x] Spirit cobra egg transformations (all seven source egg/product pairs,
+  replacement in the selected inventory slot).
 - [ ] Pack yak atomic bank transfer, including note and bankability rules.
 - [ ] Abyssal titan essence shipment across inventory and BoB contents.
 - [ ] Ravenous locust consumable removal with player-target safety.
@@ -259,8 +262,10 @@ cohort does not pass merely because one representative works.
 ### Cohort E — scenery, movement, AoE, and delayed world effects
 
 - [ ] Beaver Multichop pulses and Woodcutting rewards.
-- [ ] Compost mound bin state/contents and hydra tree-stump regrowth.
-- [ ] Spirit wolf howl movement/knockback and spirit kyatt call-to-owner.
+- [x] Compost mound bin state/contents and hydra tree-stump regrowth.
+- [x] Spirit wolf Howl: selected-NPC projectile, sound, delayed revalidation,
+  facing, and retreat waypoint.
+- [ ] Spirit kyatt call-to-owner.
 - [ ] Fruitfall, Fish Rain, Herbcall, Egg Spawn, and Giant Chinchompa explosion.
 
 ### Cohort F — source gaps and corrections
@@ -283,7 +288,7 @@ scroll.
    `tools/test_summoning_special_registry.py`: it derives the 78 rows from the
    pouch/scroll source mapping and live runtime tables, including cost, XP,
    target kind, handler state, provenance, and asset bundle.  It proves one
-   pouch per live familiar and explicitly marks the nineteen enabled rows;
+   pouch per live familiar and explicitly marks the thirty-five enabled rows;
    unimplemented rows are `unavailable`, never generic successful casts.
    Continue to use this generator as the input when replacing the remaining
    ServerScript switch tables.
@@ -347,7 +352,7 @@ include logic, content assets, transaction behavior, and tests.
 
 | Done | # | Familiar — scroll | Target | Required effect | Source state |
 |---|---:|---|---|---|---|
-| [ ] | 1 | Spirit wolf — Howl | selected NPC | Projectile, howl, and repel/knockback with restrictions | specified |
+| [x] | 1 | Spirit wolf — Howl | selected NPC | Projectile, howl, and repel/knockback with restrictions | source-backed |
 | [ ] | 2 | Dreadfowl — Dreadfowl Strike | combat target | Magic hit up to 3; usable only while owner is in combat | specified |
 | [ ] | 3 | Spirit spider — Egg Spawn | area | Create 0–8 red spider eggs around familiar | specified |
 | [ ] | 4 | Thorny snail — Slime Spray | combat target | Accurate magic hit up to 8 | specified |
@@ -358,7 +363,7 @@ include logic, content assets, transaction behavior, and tests.
 | [ ] | 9 | Spirit Tz-Kih — Fireball Assault | nearby targets | Hit up to two valid entities within 8 tiles, max 7 each | specified |
 | [ ] | 10 | Albino rat — Cheese Feast | self | Add cheese to inventory after locked animation | specified |
 | [ ] | 11 | Spirit kalphite — Sandstorm | TBD | Reconstruct behavior from an authoritative source | source gap |
-| [ ] | 12 | Compost mound — Generate Compost | scenery | Fill an empty compost bin with potatoes or rare supercompost ingredients | specified |
+| [x] | 12 | Compost mound — Generate Compost | scenery | Fill a compost bin's remaining capacity with potatoes or rare supercompost ingredients | source-backed |
 | [ ] | 13 | Giant chinchompa — Explode | area | Damage valid entities within 6 tiles up to 13, then dismiss familiar | specified |
 | [ ] | 14 | Vampire bat — Vampyre Touch | combat target | Hit up to 12; 40% chance to heal owner by 2 | specified |
 | [ ] | 15 | Honey badger — Insane Ferocity | charged state | Enrage familiar for its charged attack behavior | specified |
@@ -383,30 +388,30 @@ include logic, content assets, transaction behavior, and tests.
 | [ ] | 34 | Spirit pengatrice — Petrifying Gaze | combat target | Hit/visual and drain Summoning by 3 | specified/shared |
 | [ ] | 35 | Spirit coraxatrice — Petrifying Gaze | combat target | Hit/visual and drain Ranged by 3 | specified/shared |
 | [ ] | 36 | Spirit vulatrice — Petrifying Gaze | combat target | Hit/visual and drain Prayer by 3 | specified/shared |
-| [ ] | 37 | Pyrelord — Immense Heat | inventory item | Accept only gold bars and open the jewellery-crafting flow | specified |
-| [ ] | 38 | Magpie — Thieving Fingers | self | Determine and implement substantive effect; retain known visual | incomplete |
+| [x] | 37 | Pyrelord — Immense Heat | inventory item | Accept only gold bars and open the jewellery-crafting flow | source-backed |
+| [x] | 38 | Magpie — Thieving Fingers | self | +2 Thieving with source familiar visual | source-backed |
 | [ ] | 39 | Bloated leech — Blood Drain | self | Cure poison/disease, restore depleted stats by 20% of base, take 1–5 damage | specified |
 | [ ] | 40 | Spirit terrorbird — Tireless Run | self | Boost Agility by 2 and restore run energy by half base Agility | specified |
 | [ ] | 41 | Abyssal parasite — Abyssal Drain | combat target | Hit up to 7 and drain Prayer by 1–3 | specified |
 | [ ] | 42 | Spirit jelly — Dissolve | combat target | Hit up to 13 and drain Attack by 3 | specified |
 | [ ] | 43 | Ibis — Fish Rain | area | Spawn two random fish near owner after 3 ticks | specified |
-| [ ] | 44 | Spirit kyatt — Ambush | self/movement | Call familiar to owner when owner is attackable | specified |
+| [x] | 44 | Spirit kyatt — Ambush | self/movement | Call familiar to owner while owner is in combat | source-backed |
 | [ ] | 45 | Spirit larupia — Rending | combat target | Hit up to 10 and drain Strength by 1 | specified |
 | [ ] | 46 | Spirit graahk — Goad | combat target | Command familiar's normal attack against valid target | specified |
 | [ ] | 47 | Karamthulhu overlord — Doomsphere | TBD | Reconstruct behavior from an authoritative source | source gap |
 | [ ] | 48 | Smoke devil — Dust Cloud | nearby targets | Hit valid entities within 1 tile up to 6, excluding owner/familiar | specified |
 | [ ] | 49 | Abyssal lurker — Abyssal Stealth | self | Boost Agility and Thieving by 4 | specified |
-| [ ] | 50 | Spirit cobra — Ophidian Incubation | inventory item | Transform a supported egg into its configured product | specified |
+| [x] | 50 | Spirit cobra — Ophidian Incubation | inventory item | Transform a supported egg into its configured product | source-backed |
 | [ ] | 51 | Stranger plant — Poisonous Blast | combat target | Hit up to 2 and 50% chance of poison strength 20 | source defect |
-| [ ] | 52 | Barker toad — Toad Bark | combat target | Hit up to 8 with attack and impact visuals | specified |
+| [x] | 52 | Barker toad — Toad Bark | combat target | Hit up to 8 with source attack and impact visuals | source-backed |
 | [ ] | 53 | War tortoise — Testudo | self | Boost Defence by 9, capped at base plus 9 | specified |
 | [ ] | 54 | Bunyip — Swallow Whole | inventory item | Consume supported raw fish and heal its cooked-food value; enforce Cooking level | specified |
-| [ ] | 55 | Fruit bat — Fruitfall | area | Cooldown, two-stage animation, then random fruit around familiar | specified |
+| [x] | 55 | Fruit bat — Fruitfall | area | Cooldown, two-stage animation, then private random fruit around owner | source-backed |
 | [ ] | 56 | Ravenous locust — Famine | combat/player target | Attack; for a player target remove the first eligible consumable | specified/PvP |
-| [ ] | 57 | Arctic bear — Arctic Blast | combat target | Hit up to 15 | specified |
+| [x] | 57 | Arctic bear — Arctic Blast | combat target | Hit up to 15 with source projectile and impact | source-backed |
 | [ ] | 58 | Phoenix — Rise from the Ashes | TBD | Reconstruct behavior and assets from an authoritative source | source gap |
-| [ ] | 59 | Obsidian golem — Volcanic Strength | self | Boost Strength by 9 | specified |
-| [ ] | 60 | Granite lobster — Crushing Claw | combat target | Hit up to 14 | specified |
+| [x] | 59 | Obsidian golem — Volcanic Strength | self | Boost Strength by 9 | source-backed |
+| [x] | 60 | Granite lobster — Crushing Claw | combat target | Hit up to 14 with source ranged projectile | source-backed |
 | [ ] | 61 | Praying mantis — Mantis Strike | TBD | Reconstruct behavior from an authoritative source | source gap |
 | [ ] | 62 | Forge regent — Inferno | selected player | Randomly unequip weapon or shield into target inventory, if space permits | specified/PvP |
 | [ ] | 63 | Talon beast — Deadly Claw | TBD | Reconstruct behavior from an authoritative source | source gap |
@@ -418,7 +423,7 @@ include logic, content assets, transaction behavior, and tests.
 | [ ] | 69 | Spirit dagannoth — Spike Shot | TBD | Reconstruct behavior from an authoritative source | source gap |
 | [ ] | 70 | Lava titan — Ebon Thunder | TBD | Reconstruct behavior from an authoritative source | source gap |
 | [ ] | 71 | Swamp titan — Swamp Plague | TBD | Reconstruct behavior from an authoritative source | source gap |
-| [ ] | 72 | Unicorn stallion — Healing Aura | selected player/self | Heal target by 15% of maximum life points | specified/PvP |
+| [x] | 72 | Unicorn stallion — Healing Aura | selected player | Heal target by 15% of maximum life points | source-backed |
 | [ ] | 73 | Geyser titan — Boil | combat target | Defence-sensitive randomized maximum hit with projectile/impact | specified |
 | [ ] | 74 | Wolpertinger — Magic Focus | self | Boost Magic by 7, capped at base plus 7 | specified |
 | [ ] | 75 | Abyssal titan — Essence Shipment | inventory + BoB | Atomically bank carried and stored rune/pure essence | specified |

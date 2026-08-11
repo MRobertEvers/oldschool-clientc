@@ -409,6 +409,63 @@ static int ints_contains(const struct Import_Ints* ids, int id)
 }
 
 /*
+ * A manifest ledger only records prior imports made through this manifest. A
+ * port lane can already own ids allocated by its roster or another manifest,
+ * however, and those ids are just as unavailable. Reserve the whole lane's
+ * allocation file before assigning the next import id. This keeps a new
+ * special-move object from overwriting an existing familiar pouch at the
+ * default object base, while retaining ledger mappings as the authority for
+ * source-id stability.
+ */
+static int reserve_lane_allocations(
+    struct Import_Ints* reserved,
+    const struct Import_Manifest* m,
+    const char* kind)
+{
+    char path[1400];
+    char line[4096];
+    FILE* alloc;
+    int ok = 1;
+
+    if( !m->lane[0] ) return 1;
+    snprintf(path, sizeof(path), "%s/%s/pack/%s.alloc", m->to_tree, m->lane, kind);
+    alloc = fopen(path, "rb");
+    if( !alloc )
+    {
+        if( errno == ENOENT ) return 1;
+        fprintf(stderr, "cachepack import: cannot read allocation file %s: %s\n",
+                path, strerror(errno));
+        return 0;
+    }
+    while( ok && fgets(line, sizeof(line), alloc) )
+    {
+        char* text = trim(line);
+        char* equals;
+        int id;
+
+        if( !*text ) continue;
+        equals = strchr(text, '=');
+        if( !equals || equals == text || !equals[1] )
+        {
+            fprintf(stderr, "cachepack import: malformed allocation in %s: %s\n", path, text);
+            ok = 0;
+            break;
+        }
+        *equals = '\0';
+        if( !parse_nonnegative("allocation id", text, &id) )
+        {
+            fprintf(stderr, "cachepack import: malformed allocation in %s\n", path);
+            ok = 0;
+            break;
+        }
+        ok = ints_add(reserved, id);
+    }
+    if( ferror(alloc) ) ok = 0;
+    fclose(alloc);
+    return ok;
+}
+
+/*
  * Existing ledger allocations are public IDs: dependency discovery order may
  * change when a manifest grows, but an already-published source ID must never
  * move. Reserve every destination recorded for this kind (including records
@@ -508,6 +565,11 @@ static int map_allocate(
             ok = 0;
         }
     }
+
+    /* The destination lane may pre-date this manifest or share its base with
+     * another asset cohort. Those allocations are not present in the ledger,
+     * but are still occupied runtime ids. */
+    if( ok ) ok = reserve_lane_allocations(&reserved, m, kind);
 
     for( int i = 0; ok && i < ids->n; i++ )
     {

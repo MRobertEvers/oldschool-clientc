@@ -126,6 +126,19 @@ LibToriRS_Input_Begin(
 }
 
 void
+LibToriRS_Input_Continue(
+    struct LibToriRS_Input* input,
+    uint64_t time)
+{
+    assert(input);
+    /* App_RunOnce has not reached interaction yet. Preserve curr, gesture
+     * one-shots, and queued keys; clearing them would turn a settlement wait
+     * into a lost click/key. New platform events may still be appended before
+     * End() on this host turn. */
+    input->curr.time = time;
+}
+
+void
 LibToriRS_Input_End(struct LibToriRS_Input* input)
 {
     assert(input);

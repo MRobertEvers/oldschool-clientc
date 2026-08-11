@@ -27,10 +27,10 @@ SERVER = REPO / (
     "scripts/summoning_spirit_wolf.rs2"
 )
 
-IMPLEMENTED = frozenset((2, 3, 5, 6, 8, 11, 15, 18, 19, 20, 21, 22, 43, 47, 53, 59, 60, 61, 74))
+IMPLEMENTED = frozenset((1, 2, 3, 4, 5, 6, 8, 11, 13, 15, 18, 19, 20, 21, 22, 23, 32, 33, 34, 37, 38, 43, 44, 46, 47, 49, 51, 53, 54, 59, 60, 61, 62, 72, 74))
 SOURCE_GAPS = frozenset((12, 41, 52, 55, 57, 58, 63, 64, 65))
 SOURCE_DEFECTS = frozenset((9, 45))
-SOURCE_INCOMPLETE = frozenset((33,))
+SOURCE_INCOMPLETE = frozenset()
 TARGET_KINDS = {
     1: "npc", 13: "scenery", 17: "scenery", 32: "inventory_item",
     44: "inventory_item", 48: "inventory_item", 50: "npc_or_player",

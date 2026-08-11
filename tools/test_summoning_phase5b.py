@@ -576,7 +576,7 @@ def main() -> int:
     else:
         expect(len(review_files_before) == 630,
                f"preserved review-only source file count changed: {len(review_files_before)}")
-        expect(review_refs_before == 2175,
+        expect(review_refs_before == 2174,
                f"preserved review-only pack-reference count changed: {review_refs_before}")
         with tempfile.TemporaryDirectory(prefix="summoning_phase5b_stage_") as temporary:
             staged = Path(temporary) / "stage"

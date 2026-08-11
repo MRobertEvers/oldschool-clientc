@@ -95,6 +95,7 @@ MANUAL_META: dict[str, tuple[int, int, int, int]] = {
     # --- commands the reference implements but never declared ---------------
     # Read straight off their handlers; engine.rs2 has no entry for any of them.
     "STAT_TOTAL": (0, 0, 1, 0),   # PlayerOps.ts: sums baseLevels -> int
+    "MAP_LOC": (1, 0, 1, 0),      # ServerOps.ts: any active loc covers coord
     "NC_VISLEVEL": (1, 0, 1, 0),  # NpcConfigOps.ts: npc -> vislevel
     "TEXT_SWITCH": (1, 2, 0, 1),  # StringOps.ts: (int, str, str) -> str
     #

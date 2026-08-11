@@ -6,6 +6,9 @@ CS2VM2 is a yield-capable Jagex CS2 bytecode interpreter aligned with
 
 **Lineage:** `tools/interfacex` → `v1/vm/cs2vmx` → `src/cs2vm2`
 
+The production C client's scheduler and atomic frame-publication contract are
+documented in [CS2 execution and frame settlement](../../docs/CS2_EXECUTION.md).
+
 The interpreter executes VM opcodes (arithmetic, control flow, stack ops) directly.
 Anything that touches game state — inventory, vars, UI widgets, models, async loads —
 is delegated to a single host callback (`CS2VM2_HostExec_Fn`).

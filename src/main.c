@@ -636,6 +636,9 @@ static char const* sim_setvarp;
 static char const* sim_settab;
 static int sim_settab_done;
 static int uncapped;
+/* Retain gesture/key one-shots while App_RunOnce is holding the last committed
+ * visual frame. They are cleared only after a stable tree reaches interaction. */
+static int input_frame_pending;
 
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
@@ -1563,7 +1566,10 @@ frame_loop_step(void)
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
     {
-        LibToriRS_Input_Begin(input, now);
+        if( input_frame_pending )
+            LibToriRS_Input_Continue(input, now);
+        else
+            LibToriRS_Input_Begin(input, now);
         App_DrainCommands(&app, &bus, input);
         LibToriRS_Input_End(input);
     }
@@ -1593,6 +1599,8 @@ frame_loop_step(void)
     {
         app_redraw = App_RunOnce(&app, now, input);
     }
+    input_frame_pending =
+        app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)

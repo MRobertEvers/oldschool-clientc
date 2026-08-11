@@ -5764,6 +5764,47 @@ app_settle_cs2_frame(struct App* app)
     }
 }
 
+/* Only packets which can change interface/CS2-visible state open a visual
+ * server-tick transaction. SERVER_TICK_END is not a universal reply fence:
+ * immediate world feedback is also sent between scheduled ticks (the map flag
+ * after MOVE_GAMECLICK is the common case). Treating every inbound packet as a
+ * tick opener retained the framebuffer until the next 600ms server cycle.
+ *
+ * This deliberately includes transmit sources as well as direct IF_* writes:
+ * a later clientscript in the same tick must observe varp/inventory/stat and
+ * social changes as part of the same UI transaction. */
+static int
+app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
+{
+    if( packet_type >= PKT_NAME_IF_OPENCHAT &&
+        packet_type <= PKT_NAME_IF_SETPLAYERMODEL_SELF )
+        return 1;
+
+    switch( packet_type )
+    {
+    case PKT_NAME_TUT_OPEN:
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+    case PKT_NAME_UPDATE_INV_FULL:
+    case PKT_NAME_UPDATE_INV_PARTIAL:
+    case PKT_NAME_UPDATE_IGNORELIST:
+    case PKT_NAME_CHAT_FILTER_SETTINGS:
+    case PKT_NAME_UPDATE_FRIENDLIST:
+    case PKT_NAME_FRIENDLIST_LOADED:
+    case PKT_NAME_UPDATE_RUNWEIGHT:
+    case PKT_NAME_UPDATE_STAT:
+    case PKT_NAME_UPDATE_RUNENERGY:
+    case PKT_NAME_TRIGGER_ONDIALOGABORT:
+    case PKT_NAME_RUNCLIENTSCRIPT:
+    case PKT_NAME_VARP_SMALL:
+    case PKT_NAME_VARP_LARGE:
+    case PKT_NAME_VARP_SYNC:
+    case PKT_NAME_VARP_RESET:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -5805,10 +5846,12 @@ app_logic_tick(struct App* app)
                     drained = 1;
                     break;
                 }
-                /* Once a revision has demonstrated an explicit tick fence,
-                 * every following packet belongs to an atomic server tick.
+                /* Once a revision has demonstrated explicit tick fences,
+                 * retain only packets that participate in an atomic UI/CS2
+                 * transaction. World feedback is valid between those ticks.
                  * SERVER_TICK_END clears this after its exec task has run. */
                 if( app->server_tick_fence_seen &&
+                    app_packet_may_mutate_ui(packet.packet_type) &&
                     packet.packet_type != PKT_NAME_SERVER_TICK_END )
                 {
                     if( !app->server_tick_open )
@@ -12868,7 +12911,7 @@ app_minimenu_run_option(
             snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
         RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
         app->need_redraw = 1;
-        return 1;
+        return 0; /* handled locally; no CS2 task was dispatched */
     }
 
     /* Arm target mode from a spell/prayer button (reference TGT_BUTTON): the
@@ -13467,58 +13510,30 @@ App_DrainAudio(
     return ToriRS_AudioQueue_Drain(&app->audio_out, out, max);
 }
 
-/* Most a single canvas change dispatches. The gameframe registers one onResize
- * per open interface root (script 901 does it for the toplevel; panels that lay
- * themselves out register their own), so the real count is single digits — this
- * is a "something is looping" bound, not a budget. */
+/* Most hooks a single canvas change dispatches. The gameframe registers one
+ * onResize per open interface root (script 901 does it for the toplevel; panels
+ * that lay themselves out register their own), so the real count is single
+ * digits — this is a "something is looping" bound, not a budget. */
 #define APP_RESIZE_HOOK_MAX 256
 
-/*
- * Run every registered onResize listener in the tree.
- *
- * IF_SETONRESIZE is registered at open time and, until this existed, was only
- * ever dispatched from two places: the script-driven if_callonresize queue, and
- * IF_OPENSUB's step 8 — which is gated on `target_uid >= 0`, i.e. subs only, so
- * an IF_OPENTOP root's listener was registered and never fired by anything but
- * the boot path. A canvas change is the event those listeners are actually for.
- *
- * Ids are snapshotted before dispatch: a listener may cc_create or cc_delete
- * (toplevel_resize's callees do both), which reallocates tree->components and
- * invalidates any index held across the loop.
- */
+/* Dispatch a queue selected by the completed trigger=true layout pass. Ids,
+ * rather than component-array indices, survive cc_create/cc_delete reallocating
+ * the tree while a listener runs. */
 static void
-app_dispatch_resize_hooks(struct App* app)
+app_dispatch_resize_hook_ids(
+    struct App* app,
+    int const* ids,
+    int count)
 {
-    int ids[APP_RESIZE_HOOK_MAX];
-    int n = 0;
-
     assert(app);
-    if( !app->tree )
-        return;
+    assert(ids);
+    assert(count >= 0);
 
-    for( int i = 0; i < app->tree->resize_hooks.count; i++ )
-    {
-        int32_t idx = app->tree->resize_hooks.slots[i];
-        struct UITreeComponent const* c;
-        assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
-        c = &app->tree->components[idx];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( UITree_Hooks(c)->on_resize.script_id <= 0 )
-            continue;
-        if( n >= APP_RESIZE_HOOK_MAX )
-        {
-            fprintf(stderr, "resize: more than %d onResize hooks; truncating\n", n);
-            break;
-        }
-        ids[n++] = c->component_id;
-    }
-
-    for( int i = 0; i < n; i++ )
+    for( int i = 0; i < count; i++ )
     {
         int32_t idx = UITree_FindByComponentId(app->tree, ids[i]);
         if( idx < 0 )
-            continue; /* a previous listener deleted it */
+            continue;
         RS_CS2_DispatchHook(
             &app->host,
             &app->runner,
@@ -13533,6 +13548,11 @@ App_SetCanvasSize(
     int width,
     int height)
 {
+    struct UITreeResizeHookSnapshot resize_before[APP_RESIZE_HOOK_MAX];
+    int changed_ids[APP_RESIZE_HOOK_MAX];
+    int resize_before_count = 0;
+    int changed_count = 0;
+
     assert(app);
 
     if( width < APP_CANVAS_MIN_W )
@@ -13547,6 +13567,21 @@ App_SetCanvasSize(
         app->host.viewport_w == width && app->host.viewport_h == height )
         return 0;
 
+    if( app->tree && app->tree->component_count > 0 )
+    {
+        /* Keep the cached pre-pass dimensions even when another mutation has
+         * already invalidated layout. method3791 snapshots its old computed
+         * fields immediately before recomputing; normalising pending changes
+         * against the old canvas here would incorrectly erase a real resize. */
+        resize_before_count = UITree_SnapshotResizeHooks(
+            app->tree, resize_before, APP_RESIZE_HOOK_MAX);
+        if( app->tree->resize_hooks.count > APP_RESIZE_HOOK_MAX )
+            fprintf(
+                stderr,
+                "resize: more than %d onResize hooks; truncating\n",
+                APP_RESIZE_HOOK_MAX);
+    }
+
     UITree_LayoutSetRootSize(width, height);
     app->host.viewport_w = width;
     app->host.viewport_h = height;
@@ -13558,7 +13593,18 @@ App_SetCanvasSize(
          * statements), so they have to see the new size, not the old one. */
         UITree_LayoutInvalidate(app->tree);
         UITree_LayoutResolve(app->tree, 0, 0, width, height);
-        app_dispatch_resize_hooks(app);
+        /* Physical canvas resize is method6192's trigger=true path. Build the
+         * whole changed-size queue before its first listener runs: callbacks
+         * can mutate the tree, but cannot retroactively change events already
+         * queued by the completed layout pass. */
+        changed_count = UITree_CollectResizedHookIds(
+            app->tree,
+            resize_before,
+            resize_before_count,
+            1,
+            changed_ids,
+            APP_RESIZE_HOOK_MAX);
+        app_dispatch_resize_hook_ids(app, changed_ids, changed_count);
         /* And again after: the listeners are all if_setsize/if_setposition. */
         UITree_LayoutInvalidate(app->tree);
         UITree_LayoutResolve(app->tree, 0, 0, width, height);
@@ -13781,6 +13827,11 @@ App_RunOnce(
     assert(app);
     assert(input);
 
+    /* The shell keeps this input frame intact when settlement returns before
+     * interaction. Mark it consumed only after the stable-tree gate below; a
+     * post-interaction async yield must not replay the same click. */
+    app->input_frame_consumed = 0;
+
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
@@ -13870,10 +13921,7 @@ App_RunOnce(
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
                 {
                     if( app_logic_tick(app) )
-                    {
                         app->need_redraw = 1;
-                        ran_cs2 = 1;
-                    }
                 }
 
                 /* A catch-up pass can process several server ticks in one
@@ -13940,6 +13988,8 @@ App_RunOnce(
      * until the script has actually been dispatched and settled. */
     if( !App_FrameSettled(app) )
         return 0;
+
+    app->input_frame_consumed = 1;
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
@@ -14732,6 +14782,13 @@ App_FrameSettled(struct App const* app)
     return !app->runner_had_work && !app->runner.frame_settle_pending &&
            !app->exec_runner_had_work && !app->server_tick_open &&
            app->pending_clientscript_count == 0;
+}
+
+int
+App_InputFrameConsumed(struct App const* app)
+{
+    assert(app);
+    return app->input_frame_consumed;
 }
 
 void

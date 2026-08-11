@@ -894,6 +894,9 @@ struct App
     /** Logic cycle the oldest held script has been waiting since, so a fence
      *  that never arrives (a tick cut short by a disconnect) cannot strand it. */
     int pending_clientscript_cycle;
+    /** Set by App_RunOnce once the stable-tree gate has been crossed and the
+     *  current host input frame has reached interaction. */
+    int input_frame_consumed;
     /**
      * Zone sub-packets that arrived while the world was still async-loading.
      *
@@ -994,9 +997,11 @@ struct App
  * viewport_geteffectivesize, and quietly laid a 765x503 viewport island out in
  * the middle of the frame. Nothing errored. Write the canvas through here.
  *
- * Clamps to APP_CANVAS_MIN_*. Relayouts, dispatches every registered onResize
- * listener (which is what makes the gameframe reflow rather than stretch), then
- * relayouts again. Returns 1 if the size changed, 0 if it was already current.
+ * Clamps to APP_CANVAS_MIN_*. Relayouts, then dispatches registered onResize
+ * listeners only for components whose resolved width or height changed (the
+ * reference trigger=true rule), and relayouts after those scripts. A component
+ * that merely moves with a recentered mount does not receive onResize. Returns
+ * 1 if the canvas changed, 0 if it was already current.
  */
 int
 App_SetCanvasSize(
@@ -1688,6 +1693,12 @@ App_RunOnce(
  * calling App_Render against a partially-applied CS2/server transaction. */
 int
 App_FrameSettled(struct App const* app);
+
+/** Whether the most recent App_RunOnce reached interaction. A shell retains
+ * one-shot input while false so an async CS2/tick wait cannot eat a mouse-up or
+ * key edge. */
+int
+App_InputFrameConsumed(struct App const* app);
 
 /**
  * Relayout + CS1 re-evaluate + mark for redraw after an out-of-band tree

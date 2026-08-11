@@ -382,6 +382,8 @@ mock230_send(
     }
     if( mock230_session_send(player->session, frame, (int)rsab_len(&buf)) < 0 )
         mock230_session_kill(player->session);
+    else
+        player->session->last_output_packet_name = pkt_name;
 
     if( srv && srv->verbose )
         fprintf(

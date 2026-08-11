@@ -548,3 +548,77 @@ UITree_LayoutGetBounds(
     if( out_h )
         *out_h = h;
 }
+
+int
+UITree_SnapshotResizeHooks(
+    struct UITree const* tree,
+    struct UITreeResizeHookSnapshot* out_entries,
+    int max_entries)
+{
+    int count = 0;
+
+    assert(tree);
+    if( !out_entries || max_entries <= 0 )
+        return 0;
+
+    for( int i = 0; i < tree->resize_hooks.count && count < max_entries; i++ )
+    {
+        int32_t const idx = tree->resize_hooks.slots[i];
+        struct UITreeComponent const* c;
+
+        assert(idx >= 0 && (uint32_t)idx < tree->component_count);
+        c = &tree->components[idx];
+        if( c->freed || c->component_id < 0 )
+            continue;
+        if( UITree_Hooks(c)->on_resize.script_id <= 0 )
+            continue;
+
+        out_entries[count].node_index = idx;
+        out_entries[count].component_id = c->component_id;
+        out_entries[count].width = c->position.abs_w;
+        out_entries[count].height = c->position.abs_h;
+        count++;
+    }
+    return count;
+}
+
+int
+UITree_CollectResizedHookIds(
+    struct UITree const* tree,
+    struct UITreeResizeHookSnapshot const* entries,
+    int entry_count,
+    int trigger_resize,
+    int* out_component_ids,
+    int max_ids)
+{
+    int count = 0;
+
+    assert(tree);
+    if( !trigger_resize || !entries || entry_count <= 0 || !out_component_ids ||
+        max_ids <= 0 )
+        return 0;
+
+    for( int i = 0; i < entry_count && count < max_ids; i++ )
+    {
+        struct UITreeResizeHookSnapshot const* before = &entries[i];
+        int32_t idx = before->node_index;
+        struct UITreeComponent const* c;
+
+        /* Component ids are the durable identity. The slot is only a fast
+         * hint: topology work can move/reuse storage between the two phases. */
+        if( idx < 0 || (uint32_t)idx >= tree->component_count ||
+            tree->components[idx].freed ||
+            tree->components[idx].component_id != before->component_id )
+            idx = UITree_FindByComponentId(tree, before->component_id);
+        if( idx < 0 )
+            continue;
+        c = &tree->components[idx];
+        if( UITree_Hooks(c)->on_resize.script_id <= 0 )
+            continue;
+        if( c->position.abs_w == before->width && c->position.abs_h == before->height )
+            continue;
+
+        out_component_ids[count++] = before->component_id;
+    }
+    return count;
+}

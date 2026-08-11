@@ -839,8 +839,8 @@
       },
       "expected_pet_npc_rows": 176,
       "expected_source_files": 630,
-      "expected_pack_references": 2175,
-      "source_fingerprint_sha256": "2774863acae92958c352660f598bc0dbcd0379dc7b4fcc708c682fa81634df43",
+      "expected_pack_references": 2174,
+      "source_fingerprint_sha256": "e988c47623ce3153e29523d1a92df74be3cbbd73d27ab9a69bb4620a63a10035",
       "legacy_synth_sources": [
         188,
         4161,

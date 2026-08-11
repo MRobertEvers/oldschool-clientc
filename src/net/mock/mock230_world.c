@@ -1120,8 +1120,10 @@ run_interaction_trigger(
      * See mock230_scripts_run_spell_trigger.
      */
     if( interaction->spell )
-        return mock230_scripts_run_spell_trigger(srv, trigger, interaction->spell,
-                                                 interaction->npc_slot);
+        return mock230_scripts_run_spell_trigger(
+            srv, trigger, interaction->spell,
+            interaction->kind == MOCK230_INTERACT_NPC ? interaction->npc_slot : -1,
+            interaction->kind == MOCK230_INTERACT_PLAYER ? interaction->npc_slot : -1);
 
     if( interaction->kind == MOCK230_INTERACT_LOC )
     {
@@ -4852,7 +4854,7 @@ handle_opheldt(
     player->last_slot = slot;
     player->last_com = component;
 
-    if( mock230_scripts_run_spell_trigger(srv, SS_TRIGGER_OPHELDT, spell, -1) ==
+    if( mock230_scripts_run_spell_trigger(srv, SS_TRIGGER_OPHELDT, spell, -1, -1) ==
         MOCK230_TRIGGER_NONE )
         mock230_say(srv, "nothing_interesting_message", NULL);
 }
