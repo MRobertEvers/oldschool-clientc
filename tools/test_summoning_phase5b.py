@@ -49,7 +49,7 @@ EXPECTED_IMPORT = {
     "lane": "ported/scape2009_summoning",
     "ledger": "port/summoning_dreadfowl_530.map",
     "prefix": COHORT,
-    "material_mode": "average_hsl",
+    "material_mode": "face_colour",
     "npc_base": "26000",
     "obj_base": "46000",
     "model_base": "120000",

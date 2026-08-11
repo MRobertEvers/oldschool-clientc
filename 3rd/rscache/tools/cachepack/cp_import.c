@@ -52,6 +52,7 @@ struct Import_Manifest
     int npc_sounds;
     int legacy_scape2009;
     int textures_only;
+    int material_mode_face_colour;
     int material_mode_average_hsl;
     /* Explicit source procedural-material -> destination texture ids.  A
      * legacy Summoning import remains deliberately untextured until this is
@@ -269,13 +270,18 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "material_mode") == 0 )
             {
                 if( strcmp(value, "mapped_texture") == 0 )
+                {
+                    m->material_mode_face_colour = 0;
                     m->material_mode_average_hsl = 0;
+                }
+                else if( strcmp(value, "face_colour") == 0 )
+                    m->material_mode_face_colour = 1;
                 else if( strcmp(value, "average_hsl") == 0 )
                     m->material_mode_average_hsl = 1;
                 else
                 {
                     fprintf(stderr,
-                            "cachepack import: material_mode must be mapped_texture or average_hsl\n");
+                            "cachepack import: material_mode must be mapped_texture, face_colour, or average_hsl\n");
                     fclose(f);
                     return 0;
                 }
@@ -1032,49 +1038,37 @@ static int collect_sequence(struct Tool_Dat2Cache* src, int id,
 static int flatten_model_materials(
     struct RSCache_Model* model,
     const struct RSCache_Dat2MaterialTable* materials,
-    int source_id)
+    int source_id,
+    int average_hsl)
 {
     if( !model->face_textures )
         return 1;
-    if( !materials )
-    {
-        fprintf(stderr,
-                "cachepack import: model %d needs the source material table for colour flattening\n",
-                source_id);
-        return 0;
-    }
 
     for( int face = 0; face < model->face_count; face++ )
     {
         int material_id = model->face_textures[face];
         if( material_id < 0 )
             continue;
-        if( material_id >= materials->count || !materials->materials[material_id].exists )
+
+        if( average_hsl )
         {
-            fprintf(stderr,
-                    "cachepack import: model %d uses absent source material %d\n",
-                    source_id, material_id);
-            return 0;
+            if( !materials || material_id >= materials->count ||
+                !materials->materials[material_id].exists )
+            {
+                fprintf(stderr,
+                        "cachepack import: model %d uses absent source material %d\n",
+                        source_id, material_id);
+                return 0;
+            }
+            if( model->face_colors )
+                model->face_colors[face] =
+                    (uint16_t)materials->materials[material_id].average_hsl;
         }
 
         /* Rev-530 materials are procedural graphs and cannot be represented by
-         * an OSRS sprite-material id.  Preserve their authored average HSL on
-         * the face instead of aliasing many unrelated materials to the same
-         * brown destination bitmap. */
-        if( model->face_colors )
-            model->face_colors[face] =
-                (uint16_t)materials->materials[material_id].average_hsl;
-        if( getenv("CACHEPACK_MATERIAL_DEBUG") )
-        {
-            static unsigned char seen[65536];
-            if( !seen[material_id] )
-            {
-                seen[material_id] = 1;
-                fprintf(stderr, "cachepack material %d average=0x%04x\n",
-                        material_id,
-                        (unsigned)materials->materials[material_id].average_hsl & 0xffffu);
-            }
-        }
+         * an OSRS sprite-material id. Average-HSL mode uses the material
+         * table's authored representative colour; face-colour mode keeps the
+         * model's own value for legacy callers which deliberately want it. */
         if( model->face_infos )
             model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
         if( model->face_texture_coords )
@@ -1121,9 +1115,10 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     }
 
     int format = prov->format;
-    if( m->material_mode_average_hsl && model->face_textures )
+    if( (m->material_mode_face_colour || m->material_mode_average_hsl) && model->face_textures )
     {
-        if( !flatten_model_materials(model, materials, source_id) )
+        if( !flatten_model_materials(
+                model, materials, source_id, m->material_mode_average_hsl) )
         {
             RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
             return 0;
@@ -1828,7 +1823,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         mkdir_p(configdir);
 
         snprintf(path, sizeof(path), "%s/%s.seq", configdir, m->prefix);
-        FILE* seqout = fopen(path, "wb");
+        FILE* seqout = seqs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && seqout && i < seqs.n; i++ )
         {
             struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(&src, seqs.v[i]);
@@ -1887,10 +1882,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                          name, bytes, (int)n, seqout);
             free(bytes); RSCache_Dat2ConfigSequenceFree(seq);
         }
-        if( seqout ) fclose(seqout); else ok = 0;
+        if( seqout ) fclose(seqout); else if( seqs.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.npc", configdir, m->prefix);
-        FILE* npcout = fopen(path, "wb");
+        FILE* npcout = m->npcs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && npcout && i < m->npcs.n; i++ )
         {
             if( m->legacy_scape2009 )
@@ -1942,10 +1937,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                          name, bytes, (int)n, npcout);
             free(bytes); RSCache_Dat2ConfigNpcFree(npc);
         }
-        if( npcout ) fclose(npcout); else ok = 0;
+        if( npcout ) fclose(npcout); else if( m->npcs.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.obj", configdir, m->prefix);
-        FILE* objout = fopen(path, "wb");
+        FILE* objout = m->objs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && objout && i < m->objs.n; i++ )
         {
             int dest_id = map_id(&obj_map, m->objs.v[i].source_id);
@@ -1982,10 +1977,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                   name, bytes, (int)n, objout);
             free(bytes);
         }
-        if( objout ) fclose(objout); else ok = 0;
+        if( objout ) fclose(objout); else if( m->objs.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.spotanim", configdir, m->prefix);
-        FILE* spotout = fopen(path, "wb");
+        FILE* spotout = m->spotanims.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && spotout && i < m->spotanims.n; i++ )
         {
             int dest_id = map_id(&spot_map, m->spotanims.v[i].source_id);
@@ -2003,10 +1998,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                   name, bytes, (int)n, spotout);
             free(bytes);
         }
-        if( spotout ) fclose(spotout); else ok = 0;
+        if( spotout ) fclose(spotout); else if( m->spotanims.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.loc", configdir, m->prefix);
-        FILE* locout = fopen(path, "wb");
+        FILE* locout = m->locs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && locout && i < m->locs.n; i++ )
         {
             int dest_id = map_id(&loc_map, m->locs.v[i].source_id);
@@ -2047,7 +2042,7 @@ static int import_run(struct Import_Manifest* m, int apply)
                                          name, bytes, (int)n, locout);
             free(bytes);
         }
-        if( locout ) fclose(locout); else ok = 0;
+        if( locout ) fclose(locout); else if( m->locs.n ) ok = 0;
 
 #define SAVE_ALLOC_IF(field, kind) if( ok && m->field.n ) ok = save_alloc(&emit, kind, m->to_tree, m->lane)
         SAVE_ALLOC_IF(npcs, CP_TYPE_NPC); SAVE_ALLOC_IF(objs, CP_TYPE_OBJ);
