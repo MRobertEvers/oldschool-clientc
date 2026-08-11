@@ -128,11 +128,10 @@ struct UIInteractOut
     int minimap_click;
     int minimap_click_x;
     int minimap_click_y;
-    /** An IF1 scroll layer under the cursor stepped its content on this
-     * frame's wheel. App-level wheel gestures gated on a screen rect rather
-     * than on the tree — the world viewport's camera zoom — check this so one
-     * notch never both scrolls a pane and moves the camera. A dispatched CS2
-     * onScroll hook does NOT set it; see interact_wheel. */
+    /** An interface under the cursor handled this frame's wheel, either by
+     * natively stepping an IF1 scroll layer or dispatching a CS2 onScroll hook.
+     * App-level wheel gestures (notably world camera zoom) check this so the
+     * same notch cannot propagate through the interface to the world. */
     int wheel_consumed;
 
     /* Keyboard broadcast: dispatch is the cross product of key_events and

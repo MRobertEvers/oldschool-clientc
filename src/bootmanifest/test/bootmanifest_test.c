@@ -104,6 +104,15 @@ test_load_fields(void)
     CHECK(bm.spawn_spotanim_delay == 0);
     CHECK(bm.spawn_proj_model_id == 3081);
     CHECK(bm.spawn_proj_seq_id == 659);
+    CHECK(bm.debug_hotkeys_set[APP_DEBUG_HOTKEY_CAMERA_UNLOCK] == 1);
+    CHECK(bm.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_UNLOCK] == TORIRSK_U);
+    CHECK(bm.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_TOGGLE] == TORIRSK_I);
+    CHECK(bm.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_MORE] == TORIRSK_COMMA);
+    CHECK(bm.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_NPC] == TORIRSK_8);
+    CHECK(bm.debug_hotkeys[APP_DEBUG_HOTKEY_DEBUG_OVERLAY] == TORIRSK_P);
+    CHECK(bm.debug_hotkeys_set[APP_DEBUG_HOTKEY_WORLD_RELOAD] == 1);
+    CHECK(bm.debug_hotkeys[APP_DEBUG_HOTKEY_WORLD_RELOAD] == TORIRSK_UNKNOWN);
+    CHECK(bm.debug_hotkeys_set[APP_DEBUG_HOTKEY_CAMERA_FORWARD] == 0);
 
     CHECK(bm.actor_ambient_set == 1);
     CHECK(bm.actor_ambient == 64);
@@ -178,6 +187,13 @@ test_apply_to_config(void)
     CHECK(cfg.spawn_spotanim_delay == 0);
     CHECK(cfg.spawn_proj_model_id == 3081);
     CHECK(cfg.spawn_proj_seq_id == 659);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_UNLOCK] == TORIRSK_U);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_TOGGLE] == TORIRSK_I);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_MORE] == TORIRSK_COMMA);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_NPC] == TORIRSK_8);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_DEBUG_OVERLAY] == TORIRSK_P);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_WORLD_RELOAD] == TORIRSK_UNKNOWN);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_FORWARD] == TORIRSK_UNKNOWN);
 
     CHECK(cfg.light_actor_ambient_set == 1);
     CHECK(cfg.light_actor_ambient == 64);
@@ -228,6 +244,7 @@ test_partial_apply_preserves_unset(void)
     cfg.cache_dir = "cli_cache_dir";
     cfg.connect_user = "cli_user";
     cfg.spawn_npc_id = -1;
+    cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_FORWARD] = TORIRSK_Q;
     BootManifest_ApplyToConfig(&bm, &cfg);
 
     /* Untouched: manifest set neither. */
@@ -237,6 +254,7 @@ test_partial_apply_preserves_unset(void)
     CHECK(cfg.spawn_npc_id == -1);
     CHECK(cfg.features_ground_click_nearest_set == 0);
     CHECK(cfg.features_painter_draw_distance_set == 0);
+    CHECK(cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_FORWARD] == TORIRSK_Q);
     /* Set: host became the connect target. */
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "manifesthost") == 0);
 
@@ -398,6 +416,11 @@ test_exact_manifest_tokens_preserved(void)
     CHECK(strcmp(bm.client_args[0], "--manifest") == 0);
     CHECK(strcmp(bm.client_args[1], "another.ini") == 0);
     CHECK(strcmp(bm.client_args[2], "") == 0);
+    for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
+    {
+        CHECK(bm.debug_hotkeys_set[i] == 0);
+        CHECK(bm.debug_hotkeys[i] == TORIRSK_UNKNOWN);
+    }
 }
 
 int

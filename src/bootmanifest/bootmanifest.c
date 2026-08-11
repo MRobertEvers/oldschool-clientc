@@ -12,6 +12,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+_Static_assert(
+    BOOTMANIFEST_DEBUG_HOTKEY_COUNT == APP_DEBUG_HOTKEY_COUNT,
+    "BootManifest and AppConfig debug-hotkey tables must stay in sync");
+
 /* Join a manifest-relative value onto the manifest's directory. Absolute
  * values (leading '/') and empty base copy through unchanged. */
 static void
@@ -183,6 +187,7 @@ enum bm_section
     BM_SECTION_UI_GAMEFRAME,
     BM_SECTION_UI_VARC,
     BM_SECTION_SPAWN,
+    BM_SECTION_DEBUG_HOTKEYS,
     BM_SECTION_FEATURES,
     BM_SECTION_RENDER,
     /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
@@ -211,6 +216,8 @@ bm_section_of(char const* header)
         return BM_SECTION_UI;
     if( strncmp(header, "spawn:", 6) == 0 )
         return BM_SECTION_SPAWN;
+    if( strcmp(header, "debug:hotkeys") == 0 )
+        return BM_SECTION_DEBUG_HOTKEYS;
     if( strncmp(header, "features:", 9) == 0 )
         return BM_SECTION_FEATURES;
     if( strncmp(header, "render:", 7) == 0 )
@@ -662,6 +669,77 @@ bm_set_kv(
         }
         break;
 
+    case BM_SECTION_DEBUG_HOTKEYS:
+    {
+        static char const* const action_names[APP_DEBUG_HOTKEY_COUNT] = {
+            "camera_forward",   "camera_back",    "camera_left",     "camera_right",
+            "camera_up",        "camera_down",    "camera_unlock",   "world_reload",
+            "paint_toggle",     "paint_more",     "paint_less",      "paint_more_100",
+            "paint_less_100",   "spawn_player",   "spawn_npc",       "spawn_obj",
+            "spawn_projectile", "spawn_spotanim", "entity_spotanim", "damage_test",
+            "debug_overlay"
+        };
+        enum LibToriRS_KeyCode parsed = TORIRSK_UNKNOWN;
+        int action = -1;
+
+        for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
+            if( strcmp(key, action_names[i]) == 0 )
+            {
+                action = i;
+                break;
+            }
+        if( action < 0 )
+            break;
+
+        if( strcmp(value, "off") == 0 || strcmp(value, "none") == 0 )
+            parsed = TORIRSK_UNKNOWN;
+        else if( value[0] && !value[1] && value[0] >= 'a' && value[0] <= 'z' )
+            parsed = (enum LibToriRS_KeyCode)(TORIRSK_A + value[0] - 'a');
+        else if( value[0] && !value[1] && value[0] >= '0' && value[0] <= '9' )
+            parsed = (enum LibToriRS_KeyCode)(TORIRSK_0 + value[0] - '0');
+        else
+        {
+            static struct
+            {
+                char const* name;
+                enum LibToriRS_KeyCode key;
+            } const named[] = {
+                { "escape",    TORIRSK_ESCAPE    },
+                { "enter",     TORIRSK_RETURN    },
+                { "return",    TORIRSK_RETURN    },
+                { "backspace", TORIRSK_BACKSPACE },
+                { "insert",    TORIRSK_INSERT    },
+                { "delete",    TORIRSK_DELETE    },
+                { "shift",     TORIRSK_SHIFT     },
+                { "ctrl",      TORIRSK_CTRL      },
+                { "tab",       TORIRSK_TAB       },
+                { "space",     TORIRSK_SPACE     },
+                { "left",      TORIRSK_LEFT      },
+                { "right",     TORIRSK_RIGHT     },
+                { "up",        TORIRSK_UP        },
+                { "down",      TORIRSK_DOWN      },
+                { "page_up",   TORIRSK_PAGE_UP   },
+                { "page_down", TORIRSK_PAGE_DOWN },
+                { "comma",     TORIRSK_COMMA     },
+            };
+            for( size_t i = 0; i < sizeof(named) / sizeof(named[0]); i++ )
+                if( strcmp(value, named[i].name) == 0 )
+                {
+                    parsed = named[i].key;
+                    break;
+                }
+            if( parsed == TORIRSK_UNKNOWN )
+            {
+                fprintf(
+                    stderr, "bootmanifest: [debug:hotkeys] %s has unknown key '%s'\n", key, value);
+                return;
+            }
+        }
+        bm->debug_hotkeys[action] = parsed;
+        bm->debug_hotkeys_set[action] = 1;
+        return;
+    }
+
     case BM_SECTION_FEATURES:
         if( strcmp(key, "era") == 0 )
         {
@@ -1096,6 +1174,9 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->spawn_proj_model_id = bm->spawn_proj_model_id;
     if( bm->spawn_proj_seq_id >= 0 )
         cfg->spawn_proj_seq_id = bm->spawn_proj_seq_id;
+    for( int i = 0; i < APP_DEBUG_HOTKEY_COUNT; i++ )
+        if( bm->debug_hotkeys_set[i] )
+            cfg->debug_hotkeys[i] = bm->debug_hotkeys[i];
 }
 
 void

@@ -96,6 +96,36 @@ enum AppUiLogic
     APP_UI_LOGIC_CS2 = 2,
 };
 
+/* Optional developer controls configured by `[debug:hotkeys]`. The zero value
+ * in AppConfig is TORIRSK_UNKNOWN, so a zero-initialized config has every
+ * debug binding disabled. Arrow-key orbit controls are game input rather than
+ * developer shortcuts and are intentionally not part of this table. */
+enum AppDebugHotkey
+{
+    APP_DEBUG_HOTKEY_CAMERA_FORWARD,
+    APP_DEBUG_HOTKEY_CAMERA_BACK,
+    APP_DEBUG_HOTKEY_CAMERA_LEFT,
+    APP_DEBUG_HOTKEY_CAMERA_RIGHT,
+    APP_DEBUG_HOTKEY_CAMERA_UP,
+    APP_DEBUG_HOTKEY_CAMERA_DOWN,
+    APP_DEBUG_HOTKEY_CAMERA_UNLOCK,
+    APP_DEBUG_HOTKEY_WORLD_RELOAD,
+    APP_DEBUG_HOTKEY_PAINT_TOGGLE,
+    APP_DEBUG_HOTKEY_PAINT_MORE,
+    APP_DEBUG_HOTKEY_PAINT_LESS,
+    APP_DEBUG_HOTKEY_PAINT_MORE_100,
+    APP_DEBUG_HOTKEY_PAINT_LESS_100,
+    APP_DEBUG_HOTKEY_SPAWN_PLAYER,
+    APP_DEBUG_HOTKEY_SPAWN_NPC,
+    APP_DEBUG_HOTKEY_SPAWN_OBJ,
+    APP_DEBUG_HOTKEY_SPAWN_PROJECTILE,
+    APP_DEBUG_HOTKEY_SPAWN_SPOTANIM,
+    APP_DEBUG_HOTKEY_ENTITY_SPOTANIM,
+    APP_DEBUG_HOTKEY_DAMAGE_TEST,
+    APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
+    APP_DEBUG_HOTKEY_COUNT
+};
+
 struct AppConfig
 {
     char const* cache_dir;
@@ -128,6 +158,9 @@ struct AppConfig
     int spawn_spotanim_delay;
     int spawn_proj_model_id;
     int spawn_proj_seq_id;
+    /** Developer-only keyboard shortcuts from `[debug:hotkeys]`. Each entry is
+     *  enum LibToriRS_KeyCode; TORIRSK_UNKNOWN means disabled (the default). */
+    enum LibToriRS_KeyCode debug_hotkeys[APP_DEBUG_HOTKEY_COUNT];
     /** RevConfig layout INI — the tree's shape. Every root tree comes from the
      * RevConfig builder; a cache gameframe is one *element* of that layout
      * (`type=rs_iface`), not a competing root. NULL/"" = none, in which case the

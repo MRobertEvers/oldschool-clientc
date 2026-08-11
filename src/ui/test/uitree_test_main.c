@@ -19,6 +19,7 @@ main(void)
     test_drag_cc_dragpickup_seeds();
     test_press_repeat_and_release();
     test_scroll_hit();
+    test_wheel_stops_at_interface();
     test_drag_scrolled();
     test_emit_icons();
     test_emit_golden();

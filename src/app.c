@@ -3086,11 +3086,6 @@ app_provider_set_cache_profile(
  * every toggle would be useless for exactly the stutter it is there to catch.
  */
 
-/** Toggle key. Deliberately not one of the letters the camera and paint-limit
- *  debug keys already own (W/A/S/D/R/F, U, M, I/J/K/L/comma), and not a digit —
- *  those are the revconfig hotkey row (app_debug_digit_key). */
-#define APP_DEBUG_OVERLAY_KEY TORIRSK_P
-
 /* Sizes the panel. The title is the widest string the panel will ever hold, so
  * content sizing (fixed_w 0) settles on one width and the panel never resizes
  * as the digits change under it. */
@@ -3155,9 +3150,8 @@ app_debug_overlay_tick(
 
     /* Suppressed while a text line has focus, like the camera keys: typing a
      * message must not flip debug chrome. */
-    if( !app->chat_input_active && !app->chat.social_input_open &&
-        !app->chat.dialog_input_open &&
-        LibToriRS_Input_IsKeyDown(input, APP_DEBUG_OVERLAY_KEY) )
+    if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
+        LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_DEBUG_OVERLAY]) )
     {
         app->dbg_visible = !app->dbg_visible;
         ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, app->dbg_visible);
@@ -7347,10 +7341,9 @@ app_world_mouse_gate(
      * revconfig-baked tree; a rev-230 tree is the cache's own IF3 gameframe and
      * has neither, so the check above is dead there and every interface the
      * server mounted was transparent to the world. `UITree_PointBlocksWorld`
-     * asks the tree instead of the slot table: a modal (IF_OPENSUB type 0)
-     * mount or a `noClickThrough` layer over this point stops the world, which
-     * is the reference's own test and covers the bank, the world map and the
-     * chatbox chrome without naming any of them.
+     * asks the tree instead of the slot table: any mounted sub-interface or a
+     * `noClickThrough` layer over this point stops the world. Mounts own their
+     * whole panel, including actionless space between controls.
      */
     if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
         return 0;
@@ -7927,9 +7920,8 @@ app_camera_move_left(
     app->world_camera_pos.z += (direction_z * amount) >> 16;
 }
 
-/* World camera keys (v1 mapping): W/S forward/back, A/D strafe, R/F up/down,
- * arrows yaw/pitch. Suppressed while any visible onKey target wanted the
- * keyboard this frame, so typing in the UI never flies the camera. */
+/* Optional developer camera keys. All bindings come from `[debug:hotkeys]` and
+ * are off when omitted. Arrow yaw/pitch remains ordinary game camera input. */
 static void
 app_world_camera_keys(
     struct App* app,
@@ -7946,15 +7938,21 @@ app_world_camera_keys(
      * component carries an onKey hook, so it is 0 for exactly the debug keys
      * this is meant to explain. */
     if( getenv("TORIRS_KEY_DEBUG") &&
-        (LibToriRS_Input_IsKeyDown(input, TORIRSK_I) ||
-         LibToriRS_Input_IsKeyDown(input, TORIRSK_J) ||
-         LibToriRS_Input_IsKeyDown(input, TORIRSK_K) ||
-         LibToriRS_Input_IsKeyDown(input, TORIRSK_L) ||
-         LibToriRS_Input_IsKeyDown(input, TORIRSK_COMMA)) )
-        fprintf(stderr,
-                "camera_keys: paint-cap key seen; world_active=%d view_valid=%d chat=%d/%d/%d\n",
-                app->world_active, app->world_view_valid, app->chat_input_active,
-                app->chat.social_input_open, app->chat.dialog_input_open);
+        (LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_TOGGLE]) ||
+         LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_MORE]) ||
+         LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_LESS]) ||
+         LibToriRS_Input_IsKeyDown(
+             input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_MORE_100]) ||
+         LibToriRS_Input_IsKeyDown(
+             input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_LESS_100])) )
+        fprintf(
+            stderr,
+            "camera_keys: paint-cap key seen; world_active=%d view_valid=%d chat=%d/%d/%d\n",
+            app->world_active,
+            app->world_view_valid,
+            app->chat_input_active,
+            app->chat.social_input_open,
+            app->chat.dialog_input_open);
 
     /* No key_target gating: the reference broadcasts every key to onKey
      * scripts AND moves the camera in the same frame; there is no focused
@@ -7968,17 +7966,17 @@ app_world_camera_keys(
         return;
     (void)out;
 
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) )
+    if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_FORWARD]) )
         app_camera_move_forward(app, move);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) )
+    if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_BACK]) )
         app_camera_move_forward(app, -move);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) )
+    if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_LEFT]) )
         app_camera_move_left(app, -move);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) )
+    if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_RIGHT]) )
         app_camera_move_left(app, move);
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_R) )
+    if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_UP]) )
         app->world_camera_pos.y -= move;
-    if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
+    if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_DOWN]) )
         app->world_camera_pos.y += move;
     /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
      * step consumes these next frame. When the follow cam is off (offline or
@@ -7999,20 +7997,21 @@ app_world_camera_keys(
             app->world_camera.pitch = ToriDraw_AddAngle(app->world_camera.pitch, -rotate);
     }
 
-    /* U: unlock / relock the camera. Unlocked, the follow update stands down
+    /* Unlock / relock the camera. Unlocked, the follow update stands down
      * (app_world_camera_follow) and W/A/S/D + R/F fly the eye, arrows rotate
      * it — the debug flight that only worked offline, available online.
      * Relocking snaps back through the follow's own teleport path. */
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_U) )
+    if( LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_CAMERA_UNLOCK]) )
     {
         app->camera_unlocked = !app->camera_unlocked;
         fprintf(stderr, "camera: %s\n", app->camera_unlocked ? "UNLOCKED" : "locked");
         app->need_redraw = 1;
     }
 
-    /* M: reload the world through the task system (assets cached -> fast;
+    /* Reload the world through the task system (assets cached -> fast;
      * rebuild clears world scene elements incl. spawned entities). */
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_M) && App_WorldNodeIndex(app) >= 0 )
+    if( LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_WORLD_RELOAD]) &&
+        App_WorldNodeIndex(app) >= 0 )
         app_world_load_begin(app, NULL, 0);
 
     /* Painter-command stepping, the v0 client's debug (docs/ORANGE_WEDGE.md):
@@ -8037,27 +8036,30 @@ app_world_camera_keys(
         if( logged == INT_MIN )
             logged = limit;
 
-        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_I) )
+        if( LibToriRS_Input_IsKeyDown(
+                input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_TOGGLE]) )
         {
             next = limit < 0 ? 0 : -1;
             toggled = 1;
         }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_J) )
+        if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_MORE]) )
         {
             next = (next < 0 ? 0 : next) + 1;
             stepping = 1;
         }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_K) )
+        if( LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_LESS]) )
         {
             next = (next < 0 ? 0 : next) - 1;
             stepping = 1;
         }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_L) )
+        if( LibToriRS_Input_IsKeyHeld(
+                input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_MORE_100]) )
         {
             next = (next < 0 ? 0 : next) + 100;
             stepping = 1;
         }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_COMMA) )
+        if( LibToriRS_Input_IsKeyHeld(
+                input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_PAINT_LESS_100]) )
         {
             next = (next < 0 ? 0 : next) - 100;
             stepping = 1;
@@ -10829,29 +10831,78 @@ app_world_entity_spotanim_test(struct App* app)
         World_NpcSetSpotanim(app->world, i, spotanim_id, height, delay);
 }
 
-/* A debug digit key is available only if no revconfig hotkey binding already
- * acted on it this frame. The two collide by construction: rev 254 binds the
- * digit row to the sidebar tabs, which covers most of the spawn keys. Deleting
- * those [hotkey:<digit>] sections from the INI hands the digits back. */
+/* A configured debug key is available only if no revconfig hotkey binding
+ * already acted on the corresponding OSRS key this frame. */
 static int
-app_debug_digit_key(
+app_debug_world_key(
     struct App const* app,
     struct LibToriRS_Input* input,
-    enum LibToriRS_KeyCode key,
-    int digit)
+    enum LibToriRS_KeyCode key)
 {
+    int vk = -1;
     int osrs_key;
     if( !LibToriRS_Input_IsKeyDown(input, key) )
         return 0;
-    osrs_key = LibToriRS_OsrsKeyFromVk(48 + digit); /* VK_0 .. VK_9 */
+    if( key >= TORIRSK_A && key <= TORIRSK_Z )
+        vk = 65 + (key - TORIRSK_A);
+    else if( key >= TORIRSK_0 && key <= TORIRSK_9 )
+        vk = 48 + (key - TORIRSK_0);
+    else
+        switch( key )
+        {
+        case TORIRSK_ESCAPE:
+            vk = TORIRS_VK_ESCAPE;
+            break;
+        case TORIRSK_RETURN:
+            vk = TORIRS_VK_ENTER;
+            break;
+        case TORIRSK_BACKSPACE:
+            vk = TORIRS_VK_BACKSPACE;
+            break;
+        case TORIRSK_DELETE:
+            vk = TORIRS_VK_DELETE;
+            break;
+        case TORIRSK_SHIFT:
+            vk = TORIRS_VK_SHIFT;
+            break;
+        case TORIRSK_CTRL:
+            vk = TORIRS_VK_CTRL;
+            break;
+        case TORIRSK_TAB:
+            vk = TORIRS_VK_TAB;
+            break;
+        case TORIRSK_SPACE:
+            vk = TORIRS_VK_SPACE;
+            break;
+        case TORIRSK_LEFT:
+            vk = 37;
+            break;
+        case TORIRSK_UP:
+            vk = 38;
+            break;
+        case TORIRSK_RIGHT:
+            vk = 39;
+            break;
+        case TORIRSK_DOWN:
+            vk = 40;
+            break;
+        case TORIRSK_PAGE_UP:
+            vk = 33;
+            break;
+        case TORIRSK_PAGE_DOWN:
+            vk = 34;
+            break;
+        default:
+            break;
+        }
+    osrs_key = LibToriRS_OsrsKeyFromVk(vk);
     if( osrs_key >= 0 && osrs_key < TORIRS_OSRSKEY_COUNT && app->hotkey_consumed[osrs_key] )
         return 0;
     return 1;
 }
 
-/* Spawn test hotkeys (readme): 9 player, 8 npc, 7 ground item, 0 projectile,
- * 6 test hitsplat — all act on the tile under the mouse, so they no-op when
- * nothing is hovered. */
+/* Manifest-configured spawn/test shortcuts act on the tile under the mouse, so
+ * they no-op when nothing is hovered. */
 static void
 app_world_hotkeys(
     struct App* app,
@@ -10870,23 +10921,23 @@ app_world_hotkeys(
     if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
         return;
 
-    if( app_debug_digit_key(app, input, TORIRSK_9, 9) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_PLAYER]) )
         app_world_spawn_player(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( app_debug_digit_key(app, input, TORIRSK_8, 8) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_NPC]) )
         app_world_spawn_npc(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( app_debug_digit_key(app, input, TORIRSK_6, 6) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_DAMAGE_TEST]) )
         app_world_damage_test(app);
-    if( app_debug_digit_key(app, input, TORIRSK_4, 4) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_ENTITY_SPOTANIM]) )
         app_world_entity_spotanim_test(app);
-    if( app_debug_digit_key(app, input, TORIRSK_5, 5) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_SPOTANIM]) )
         app_world_spawn_spotanim(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( app_debug_digit_key(app, input, TORIRSK_7, 7) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_OBJ]) )
         app_world_spawn_obj(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
-    if( app_debug_digit_key(app, input, TORIRSK_0, 0) )
+    if( app_debug_world_key(app, input, app->cfg.debug_hotkeys[APP_DEBUG_HOTKEY_SPAWN_PROJECTILE]) )
         app_world_spawn_projectile(
             app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
 }

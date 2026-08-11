@@ -112,6 +112,15 @@
  *                 Optional; -1/absent = use the built-in default. Env
  *                 TORIRS_SPAWN_* still overrides (same precedence as
  *                 TORIRS_WORLD_MAP vs [cache:boot] spawn).
+ *   [debug:hotkeys]  Optional developer shortcuts. Omitted actions are off.
+ *                 Values are letters, digits, or named keys such as comma;
+ *                 `off`/`none` explicitly disable a lower-priority binding.
+ *                 Actions: camera_forward, camera_back, camera_left,
+ *                 camera_right, camera_up, camera_down, camera_unlock,
+ *                 world_reload, paint_toggle, paint_more, paint_less,
+ *                 paint_more_100, paint_less_100, spawn_player, spawn_npc,
+ *                 spawn_obj, spawn_projectile, spawn_spotanim,
+ *                 entity_spotanim, damage_test, debug_overlay.
  *
  * [cache:boot] epoch/game/revision/quirks are all required. A missing key fails
  * the load with a stated reason (user input, not an internal invariant).
@@ -137,6 +146,7 @@ struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
  * and browser builds. */
 #define BOOTMANIFEST_CLIENT_ARG_MAX 64
 #define BOOTMANIFEST_CLIENT_ARG_CAP 512
+#define BOOTMANIFEST_DEBUG_HOTKEY_COUNT 21
 
 /** One `[ui:gameframe]` entry: mount `interface_id` into component slot
  *  `component` of `parent_interface_id` (0 = the root interface). */
@@ -298,6 +308,11 @@ struct BootManifest
     int spawn_spotanim_delay;
     int spawn_proj_model_id;
     int spawn_proj_seq_id;
+
+    /* [debug:hotkeys]. `set` preserves manifest/CLI layering; the key value may
+     * itself be TORIRSK_UNKNOWN when the manifest explicitly says off. */
+    int debug_hotkeys[BOOTMANIFEST_DEBUG_HOTKEY_COUNT];
+    unsigned char debug_hotkeys_set[BOOTMANIFEST_DEBUG_HOTKEY_COUNT];
 };
 
 /* Zero the manifest and load `path`. Relative paths resolve against

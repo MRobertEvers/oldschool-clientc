@@ -109,13 +109,10 @@ UITree_HitTestInteractive(
  * why "Walk here" appeared over an open bank and why scrolling the bank's item
  * pane also zoomed the camera behind it.
  *
- * Two things block, matching the reference exactly (rt4
- * `Cs1ScriptRunner:542` / `InterfaceList:666`, xrsps
- * `findBlockingWidgetInHits`): a `noClickThrough` layer covering the point, and
- * the root of a modal (IF_OPENSUB type 0) sub-interface mount. Overlay mounts
- * (type 1 — the world map floater, the XP tracker) do not block unless they
- * raise `noClickThrough` themselves, which is how the reference keeps them
- * click-through.
+ * Two things block: a `noClickThrough` layer covering the point, and the root
+ * of any mounted sub-interface. The latter is deliberately independent of the
+ * mount type and of click hooks/menu ops: visible, actionless panel space still
+ * belongs to the interface and must not leak a click to the world underneath.
  */
 int
 UITree_PointBlocksWorld(
