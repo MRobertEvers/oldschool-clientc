@@ -494,6 +494,17 @@ the other direction from its current use; cachepack deliberately transcodes
 nothing. Keep hand-authored additions in manifest `[extra:<name>]` sections
 so re-export is idempotent (see `3rd/rscache/tools/port_lostcity/lc_manifest.h`).
 
+**Model material-flattening trap:** OB2/V2 pack the texture assignment into the
+per-face info byte, so removing a texture must clear that packed bit. OB3/V3 do
+not: texture assignment and render type are separate columns, and render types
+2/3 mean the authored face is hidden. Clearing those bits while flattening a
+procedural material makes helper geometry render as black triangles (the
+Summoning familiar failure). Preserve type 2; normalize a formerly textured
+type 3 to type 2 before removing its texture, because untextured type 3 means
+flat black rather than hidden. Branch on the decoded model's provenance format,
+not the cache revision—a cache can contain more than one model format. Verify a
+flattened output by decoding it again and comparing its hidden-face count.
+
 ### 3.6 Phase 0 — the gaps that make this confusing today
 
 These four are why "what goes in which pack" currently *feels* unresolved

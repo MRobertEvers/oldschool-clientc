@@ -62,15 +62,23 @@ def main() -> int:
 
     expect(CLIENT.is_file() and CACHE.is_dir() and SCRIPTS.is_dir(), "missing built client/cache/scripts")
     script = (CONTENT / "server/scripts/ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2").read_text()
+    bob_interface = (CONTENT / "ported/scape2009_summoning/interfaces/summoning_bob.if").read_text()
     expect("^summoning_bob_slots = 12" in (CONTENT / "server/scripts/ported_scape2009_summoning/configs/summoning.constant").read_text(), "terrorbird 12-slot limit absent")
     expect("[opnpc3,summoning_cohort_spirit_terrorbird_spirit_terrorbird]" in script, "real Store menu binding absent")
+    expect(
+        "onload=i:227,i:-2147483645,s:Spirit terrorbird inventory" in bob_interface
+        and "graphic=173" in bob_interface
+        and "summoning_bob:items, summoning_bob, 6, 2" in script
+        and "summoning_bob:backpack, inv, 7, 4" in script,
+        "BOB inventory is not using the bank frame and compact bank-style grids",
+    )
     if errors:
         return finish(checks, errors)
     OUT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="summoning_phase6b_") as root:
         saves = Path(root) / "saves"; saves.mkdir()
         # Actual pouch summon, NPC Store menu, then Store a real backpack item.
-        first = run(saves, "220,540,230,1;270,540,260;420,450,250,1;435,450,283;475,200,205", 505,
+        first = run(saves, "220,540,230,1;270,540,260;420,450,250,1;435,450,283;475,218,233", 505,
                     "summoning_unlock;setlevel summoning 52;summoning_spirit_terrorbird_pouch")
         (OUT / "store.log").write_text(first)
         expect("You summon a Spirit terrorbird." in first, "real pouch did not summon terrorbird")
@@ -85,7 +93,7 @@ def main() -> int:
         spill = run(spill_saves, "350,707,484;430,602,439", 470)
         (OUT / "dismiss-spill.log").write_text(spill)
         expect("You dismiss your familiar." in spill, "real sidebar Dismiss did not execute")
-        dismiss_at = spill.rfind("clickdbg: send op1 target=0x3c90007")
+        dismiss_at = spill.rfind("clickdbg: send op1 target=0x3c9001d")
         expect(
             dismiss_at >= 0
             and "NPC_COORD requires" not in spill[dismiss_at:]
@@ -95,7 +103,7 @@ def main() -> int:
         )
         expect(not held(spill_saves / "guest.ini"), "Dismiss did not clear the BOB container")
         # No cheat: relog restores the familiar/container; open the same menu and withdraw.
-        second = run(saves, "180,450,250,1;195,450,283;235,100,80", 280)
+        second = run(saves, "180,450,250,1;195,450,283;235,150,78", 280)
         (OUT / "relog-withdraw.log").write_text(second)
         expect("entity_sync: npc type replacement=26016" in second, "relog did not restore terrorbird")
         expect("Withdraw<col=ff9040> @lre@ Leather gloves" in second, "relog BOB panel did not render stored item")

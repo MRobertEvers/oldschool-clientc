@@ -66,7 +66,7 @@ def main() -> int:
             "label": "equipment",
             # Open Worn Equipment, then its CS2-positioned top-right familiar button.
             "click": "220,634,185;280,677,224",
-            "target": "0x1830007",
+            "target": "0x183001f",
             "bounds": "969",
         },
     )
@@ -85,7 +85,7 @@ def main() -> int:
                     "TORIRS_DUMP_BOUNDS": str(case["bounds"]),
                     "TORIRS_DUMP_EMIT_EXIT": "969",
                     "TORIRS_NPC_HEAD_DEBUG": "1",
-                    "TORIRS_DUMP_COM": str((969 << 16) | 3),
+                    "TORIRS_DUMP_COM": str((969 << 16) | 13),
                     "TORIRS_NET_DEBUG": "1",
                     "TORIRS_EXIT_BMP": str((args.out / f"{label}.bmp").resolve()),
                 }
@@ -114,8 +114,8 @@ def main() -> int:
         )
         expect(
             "BOUNDS com=0x03c90000 (969|0)" in result.stdout
-            and "190x205" in bounds_line(result.stdout, "(969|0)"),
-            f"{label}: familiar panel is not the compact 190x205 CS2 layout",
+            and "190x261" in bounds_line(result.stdout, "(969|0)"),
+            f"{label}: familiar panel is not the source-style 190x261 layout",
         )
         expect(
             "target=0x00a10063" not in result.stdout
@@ -124,38 +124,27 @@ def main() -> int:
             f"{label}: legacy top-level Summoning overlay was mounted",
         )
         expect(
-            "EMIT_EXIT" in result.stdout and "(969|2)" in result.stdout,
+            "EMIT_EXIT" in result.stdout and "(969|13)" in result.stdout,
             f"{label}: familiar model did not reach the final draw list",
         )
         model_emit = next(
             (line for line in result.stdout.splitlines()
-             if "EMIT_EXIT" in line and "(969|2)" in line),
+             if "EMIT_EXIT" in line and "(969|13)" in line),
             "",
         )
         expect(
-            "kind=5" in model_emit and "model=1342197280" in model_emit,
-            f"{label}: familiar widget did not emit the composed NPC 20000 head "
+            "kind=5" in model_emit and "model=100000" in model_emit,
+            f"{label}: familiar widget did not emit the Spirit wolf body "
             f"(got {model_emit or 'no model command'})",
-        )
-        expect(
-            "npc_head: npc=20000 component=0x03c90002 scene=1342197280 applied=1"
-            in result.stdout,
-            f"{label}: NPC head compositor did not bind the packed Spirit wolf head",
         )
         expect(
             "Summoning points: 0/1" in result.stdout,
             f"{label}: live Summoning point count did not render",
         )
-        for component, caption in ((5, "Call"), (7, "Dismiss")):
-            rect = emitted_rect(result.stdout, component)
-            expect(rect is not None, f"{label}: {caption} label did not reach the draw list")
-            if rect is not None:
-                orange = bmp_orange_count(bmp, rect)
-                expect(
-                    orange >= 8,
-                    f"{label}: {caption} label command was covered or invisible "
-                    f"({orange} orange pixels)",
-                )
+        expect("graphic=20016" in bounds_line(result.stdout, "(969|28)"),
+               f"{label}: Call icon did not reach the draw list")
+        expect("graphic=20017" in bounds_line(result.stdout, "(969|30)"),
+               f"{label}: Dismiss icon did not reach the draw list")
         expect(
             "message_game: You summon a Spirit wolf." in result.stdout,
             f"{label}: setup did not summon the familiar",
@@ -165,7 +154,7 @@ def main() -> int:
         env.update(
             {
                 "TORIRS_MAX_FRAMES": "460",
-                "TORIRS_SIM_CLICK_AT": "190,634,185;250,677,224;320,602,364;390,602,396",
+                "TORIRS_SIM_CLICK_AT": "190,634,185;250,677,224;320,549,440;390,602,440",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_DUMP_BOUNDS": "969",
                 "TORIRS_EXIT_BMP": str((args.out / "buttons.bmp").resolve()),
@@ -174,15 +163,15 @@ def main() -> int:
         result = run_client(args, env)
     (args.out / "buttons.log").write_text(result.stdout, encoding="utf-8")
     expect(result.returncode == 0, f"buttons: client exited {result.returncode}")
-    expect("clickdbg: send op1 target=0x3c90005 sub=-1 state=2" in result.stdout,
+    expect("clickdbg: send op1 target=0x3c9001b sub=-1 state=2" in result.stdout,
            "Call button did not send IF_BUTTON1")
     expect("message_game: You call your familiar." in result.stdout,
            "Call button did not execute familiar logic")
-    expect("clickdbg: send op1 target=0x3c90007 sub=-1 state=2" in result.stdout,
+    expect("clickdbg: send op1 target=0x3c9001d sub=-1 state=2" in result.stdout,
            "Dismiss button did not send IF_BUTTON1")
     expect("message_game: You dismiss your familiar." in result.stdout,
            "Dismiss button did not execute familiar logic")
-    expect("hidden=1" in bounds_line(result.stdout, "(969|2)"),
+    expect("hidden=1" in bounds_line(result.stdout, "(969|13)"),
            "Dismiss did not hide the familiar model")
 
     return finish(errors, checked, args.out)

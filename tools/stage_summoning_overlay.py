@@ -51,6 +51,11 @@ CONFIG_SUFFIXES = {
 }
 INTERFACE_OVERLAYS = "interface_overlays"
 CONFIG_OVERLAYS = "config_overlays"
+# Existing cache scripts that need a Summoning-only replacement. Keep their
+# source in the ordinary script tree so it remains name-resolved and
+# round-trippable, but copy it into the disposable feature-on stage explicitly;
+# otherwise cachepack silently retains the base-cache bytecode.
+CLIENTSCRIPT_OVERLAYS = ("script_1904.cs2",)
 ADMISSION_TEXT_SUFFIXES = {
     ".alloc",
     ".client",
@@ -511,6 +516,13 @@ def stage(tree: Path, out: Path, boundary_path: Path) -> int:
                 copied += 1
         else:
             raise fail(f"unclassified lane entry: {child}")
+
+    for name in CLIENTSCRIPT_OVERLAYS:
+        source = tree / "scripts" / name
+        if not source.is_file() or source.is_symlink():
+            raise fail(f"missing plain clientscript overlay source: {source}")
+        copy_file(source, out / "scripts" / name)
+        copied += 1
 
     copied += apply_interface_overlays(tree, lane, out)
     copied += apply_config_overlays(tree, lane, out)

@@ -66,7 +66,7 @@ def main() -> int:
                 # Select Stats, open child 34's real context menu, then select
                 # its View Summoning guide row. This exercises the same menu and
                 # packet path a player uses rather than dispatching a hook.
-                "TORIRS_SIM_CLICK_AT": "150,536,186;230,650,400,1;260,650,415",
+                "TORIRS_SIM_CLICK_AT": "150,536,186;230,525,460,1;260,525,475;360,80,52",
                 "TORIRS_OBJICON_DEBUG": "1",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
@@ -101,22 +101,27 @@ def main() -> int:
         "client was built without the embedded mock server",
     )
     expect("released 536,186" in result.stdout, "Stats tab click did not execute")
-    expect("move 650,400 right=1" in result.stdout, "Summoning menu did not open")
-    expect("released 650,415" in result.stdout, "Summoning guide menu row was not selected")
+    expect("move 525,460 right=1" in result.stdout, "Summoning menu did not open")
+    expect("released 525,475" in result.stdout, "Summoning guide menu row was not selected")
     expect(
         "clickdbg: send op2 target=0x1400022 sub=-1 state=2" in result.stdout,
         "Summoning cell did not send IF_BUTTON2",
     )
     expect("860<<16|0" in result.stdout, "server did not mount the guide")
-    expect(
-        'text="Summoning - Familiars (Members Only) "' in result.stdout,
-        "server did not start the Summoning guide CS2",
-    )
+    # The final tree is dumped after the Overview-tab click, so its title has
+    # replaced the initially requested Familiars title. Object-icon activity
+    # proves the first data-driven body ran before that local tab switch.
+    expect("OBJICON: enter com=0x035c" in result.stdout, "Summoning guide CS2 built no rows")
     expect("860<<16" in result.stdout, "skill_guide_v2 is absent from the final UI tree")
     expect('text="Familiars"' in result.stdout, "Familiars subsection did not render")
     expect(
-        'text="Spirit wolf - Attack XP<br>Gold charm, wolf bones, 7 shards"' in result.stdout,
-        "live db_find did not render the Spirit wolf row",
+        'text="Summoning - Overview (Members Only) "' in result.stdout,
+        "Summoning Overview did not become the active guide subsection",
+    )
+    expect(
+        'text="Summoning lets you infuse pouches at an obelisk and use them to call familiars."'
+        in result.stdout,
+        "live db_find did not render the Summoning Overview rows",
     )
     expect(
         "OBJICON: enter" in result.stdout and "obj=40000" in result.stdout,

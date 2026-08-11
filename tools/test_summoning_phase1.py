@@ -62,17 +62,32 @@ def main() -> int:
     )
     icon_meta = icon_path.with_name("pack.meta").read_text(encoding="utf-8")
     expect(
-        "[sailing]\nif3=yes\ntype=0\nx=1\ny=209" in stats_source,
-        "source: Sailing is not the left cell of the final row",
+        "[sailing]\nif3=yes\ntype=0\nx=127\ny=211" in stats_source,
+        "source: Sailing moved out of its native grid cell",
     )
     expect(
-        "[total]\nif3=yes\ntype=0\nx=64\ny=209\nwidth=126\nheight=26"
+        "[total]\nif3=yes\ntype=0\nx=64\ny=241\nwidth=126\nheight=30"
         in stats_source,
-        "source: Total level does not share the final row with Sailing",
+        "source: Total level is not a two-cell box on the scrollable ninth row",
     )
     expect(
-        "[summoning_stats_cell]\nif3=yes\ntype=0\nx=127\ny=183" in stats_source,
-        "source: Summoning is not contiguous with Construction and Hunter",
+        "[summoning_stats_cell]\nif3=yes\ntype=0\nx=1\ny=241\nwidth=62\nheight=30"
+        in stats_source,
+        "source: Summoning is not the first cell on the scrollable ninth row",
+    )
+    stats_script = (content_lane / "scripts/summoning_stats_init.cs2").read_text(
+        encoding="utf-8"
+    )
+    expect(
+        "if_setscrollsize(190, 271, $viewport7);" in stats_script
+        and "if_setscrollpos(0, 0, $viewport7);" in stats_script,
+        "source: Summoning stats clientscript does not create a scrollable viewport",
+    )
+    expect(
+        'if_setonscrollwheel("summoning_stats_scroll($viewport7, event_mousey)", $viewport7);'
+        in stats_script
+        and (content_lane / "scripts/summoning_stats_scroll.cs2").is_file(),
+        "source: Summoning stats viewport has no IF3 wheel handler",
     )
     expect(
         "onload=i:1198,i:-2147483645,i:20971553,i:25,i:2" in stats_source,
@@ -94,6 +109,7 @@ def main() -> int:
         saves: Path,
         cheat: str | None = None,
         sim_oploc: str | None = None,
+        sim_wheel: str | None = None,
     ) -> str:
         bmp = args.out / f"{name}.bmp"
         log_path = args.out / f"{name}.log"
@@ -117,6 +133,12 @@ def main() -> int:
             env["TORIRS_SIM_OPLOC"] = sim_oploc
         else:
             env.pop("TORIRS_SIM_OPLOC", None)
+        if sim_wheel is not None:
+            env["TORIRS_SIM_WHEEL"] = sim_wheel
+            env["TORIRS_TRACE_DRAG"] = "1"
+        else:
+            env.pop("TORIRS_SIM_WHEEL", None)
+            env.pop("TORIRS_TRACE_DRAG", None)
         command = [
             str(args.client),
             str(cache),
@@ -154,7 +176,13 @@ def main() -> int:
             "180,3,3224,3220,62201",
         )
         wolf_relog = run("wolf_whistle_relog", args.flag_on, wolf_saves)
-        level1 = run("flag_on_level1", args.flag_on, Path(tempfile.mkdtemp(dir=root)), "summoning_unlock")
+        level1 = run(
+            "flag_on_level1",
+            args.flag_on,
+            Path(tempfile.mkdtemp(dir=root)),
+            "summoning_unlock",
+            sim_wheel="300,600,300,-1,1",
+        )
         persistent_saves = Path(tempfile.mkdtemp(dir=root))
         level20 = run(
             "flag_on_level20",
@@ -194,13 +222,18 @@ def main() -> int:
             "flag_on_level1: familiar sidebar did not mount into the live gameframe",
         )
         expect(
-            "dynamic graphic=229 abs=639,388 25x25 hidden=0" in level1,
-            "flag_on_level1: wolf-head sprite is not rendered in the right-hand row-8 cell",
+            "dynamic graphic=229 abs=513,446 25x25 hidden=0" in level1,
+            "flag_on_level1: wolf-head sprite is not rendered in row nine",
         )
         expect(
-            "static font=494 color=0xffff00 text=\"Total level: 34\" abs=573,416 126x25"
+            "static font=494 color=0xffff00 text=\"Total level: 34\" abs=573,448 126x29"
             in level1,
-            "flag_on_level1: Total level does not render beside Sailing",
+            "flag_on_level1: two-cell Total level box does not render beside Summoning",
+        )
+        expect(
+            "setscrollpos id=20971520 req_sy=10 max_y=10 applied_sy=10 "
+            "scroll_h=271 abs_h=261" in level1,
+            "flag_on_level1: mouse wheel did not scroll the Summoning stats viewport",
         )
         expect('text="Total level: 34"' in level1, "flag_on_level1: total is not 34")
         expect(

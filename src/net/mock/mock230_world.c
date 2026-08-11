@@ -15711,14 +15711,21 @@ mock230_world_selftest(void)
         {
             int option_nodef =
                 mock230_content_symbol(MOCK230_PACK_VARP, "option_nodef");
+            int action_delay =
+                mock230_content_symbol(MOCK230_PACK_VARP, "action_delay");
+            int damagestyle =
+                mock230_content_symbol(MOCK230_PACK_VARP, "damagestyle");
             int retaliate = mock230_content_symbol(
                 MOCK230_PACK_COMPONENT, "combat_interface:retaliate");
             int armed = 0;
-            uint8_t button[6];
+            uint8_t button[9];
 
             SELFTEST_CHECK(option_nodef == 172,
                            "option_nodef must remain CS2 varp 172, got %d",
                            option_nodef);
+            SELFTEST_CHECK(action_delay >= 0 && damagestyle >= 0,
+                           "retaliation timing varps must resolve (delay=%d style=%d)",
+                           action_delay, damagestyle);
             SELFTEST_CHECK(retaliate == MOCK230_COM(593, 32),
                            "combat_interface:retaliate must remain 593:32, got %d:%d",
                            retaliate >> 16, retaliate & 0xffff);
@@ -15747,6 +15754,9 @@ mock230_world_selftest(void)
             button[3] = (uint8_t)retaliate;
             button[4] = 0xff;
             button[5] = 0xff;
+            button[6] = 0xff; /* no inventory object */
+            button[7] = 0xff;
+            button[8] = 1;    /* component op 1 */
 
             /* This section follows UI fixtures which may leave a modal or a
              * p_delay behind.  A normal player queue deliberately waits for
@@ -15758,7 +15768,7 @@ mock230_world_selftest(void)
             player->varps[option_nodef] = 0; /* CS2: Auto Retaliate (On). */
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(
-                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
             mock230_capture_end(&srv);
             SELFTEST_CHECK(player->varps[option_nodef] == 1,
                            "the combat-tab click should turn auto-retaliate off");
@@ -15780,7 +15790,7 @@ mock230_world_selftest(void)
 
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(
-                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
             mock230_capture_end(&srv);
             SELFTEST_CHECK(player->varps[option_nodef] == 0,
                            "a second combat-tab click should turn auto-retaliate on");
@@ -15795,9 +15805,15 @@ mock230_world_selftest(void)
                 mock230_scripts_queue_named(
                     &srv, "[queue,playerhit_n_retaliate]", 0, goblin),
                 "the retaliation fixture should queue while the option is on");
+            player->varps[action_delay] = srv.tick - 1;
+            player->varps[damagestyle] = 0; /* melee, never ranged rapid */
             mock230_scripts_process_queues(&srv);
             SELFTEST_CHECK(player->combat_target == goblin,
                            "auto-retaliate On must engage the attacking npc");
+            SELFTEST_CHECK(
+                player->varps[action_delay] == srv.tick + 2,
+                "unarmed auto-retaliate must wait half its 4-tick attack rate (got %d at tick %d)",
+                player->varps[action_delay], srv.tick);
             mock230_combat_stop_player(&srv);
         }
 

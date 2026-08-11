@@ -42,10 +42,10 @@ DREAD_WALK_SEQ = 23001
 DREAD_SUMMON_SPOTANIM = 20001
 
 SIDEBAR_GROUP = 969
-SIDEBAR_TITLE = (SIDEBAR_GROUP << 16) | 2
-SIDEBAR_HEAD = (SIDEBAR_GROUP << 16) | 4
-SIDEBAR_CALL = (SIDEBAR_GROUP << 16) | 7
-SIDEBAR_DISMISS = (SIDEBAR_GROUP << 16) | 9
+SIDEBAR_TITLE = (SIDEBAR_GROUP << 16) | 22
+SIDEBAR_HEAD = (SIDEBAR_GROUP << 16) | 13
+SIDEBAR_CALL = (SIDEBAR_GROUP << 16) | 27
+SIDEBAR_DISMISS = (SIDEBAR_GROUP << 16) | 29
 
 VARP_ACTIVE = 6226
 VARP_ACCUMULATOR = 6227
@@ -210,7 +210,7 @@ def main() -> int:
                 **runtime_env(args.out / "buttons.bmp", 620),
                 # Open Equipment, use its top-right familiar entry button,
                 # then exercise Call and Dismiss in the mounted familiar view.
-                "TORIRS_SIM_CLICK_AT": "350,635,185;430,677,226;500,600,366;560,600,398",
+                "TORIRS_SIM_CLICK_AT": "350,635,185;430,677,226;500,550,440;560,600,440",
                 "TORIRS_CLICK_DEBUG": "1",
             },
         )
@@ -426,7 +426,7 @@ def assert_live_dreadfowl(
         )
     if sidebar_at_exit:
         check(
-            re.search(r"EMIT_EXIT.*kind=5.*\(969\|4\).*model=\d+", log) is not None,
+            re.search(r"EMIT_EXIT.*kind=5.*\(969\|13\).*model=\d+", log) is not None,
             f"{label}: composed Dreadfowl sidebar head did not reach the final draw list",
         )
 
@@ -473,7 +473,7 @@ def assert_sidebar_buttons(log: str, expect: object) -> None:
         "sidebar buttons: did not open the Equipment tab",
     )
     check(
-        "clickdbg: send op1 target=0x1830007 sub=-1 state=2" in log,
+        "clickdbg: send op1 target=0x183001f sub=-1 state=2" in log,
         "sidebar buttons: did not use the Equipment-mounted familiar entry button",
     )
     check(

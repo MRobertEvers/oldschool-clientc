@@ -345,11 +345,21 @@ load_ported_component_symbols(const char* dir)
         return 0;
     while( (entry = readdir(handle)) != NULL )
     {
+        char overlays[1152];
+
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(lane, sizeof(lane), "%s/%s", ported, entry->d_name);
         if( mock230_path_is_dir(lane) )
+        {
             loaded += load_component_symbols_from_root(lane, 1);
+            /* Existing-interface additions live here so the feature-off lane
+             * never replaces the base archive. The script compiler receives
+             * this as an explicit component root; give runtime packet dispatch
+             * the same name-to-uid view. */
+            snprintf(overlays, sizeof(overlays), "%s/interface_overlays", lane);
+            loaded += load_component_symbols_from_root(overlays, 1);
+        }
     }
     closedir(handle);
     return loaded;

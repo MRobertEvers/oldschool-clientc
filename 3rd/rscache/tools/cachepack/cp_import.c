@@ -1039,10 +1039,19 @@ static int flatten_model_materials(
     struct RSCache_Model* model,
     const struct RSCache_Dat2MaterialTable* materials,
     int source_id,
-    int average_hsl)
+    int average_hsl,
+    int source_format)
 {
     if( !model->face_textures )
         return 1;
+
+    /* OB3/V3 store render type separately from the texture assignment.  In
+     * those formats type 2/3 is an authored hidden face, not the legacy
+     * OB2/V2 "this face is textured" bit.  Material flattening removes the
+     * texture assignment, but it must not make that hidden geometry visible.
+     * Packed OB2/V2 info bytes still need their texture bit cleared. */
+    int separate_render_types =
+        source_format == RSCACHE_MODEL_FORMAT_OB3 || source_format == RSCACHE_MODEL_FORMAT_V3;
 
     for( int face = 0; face < model->face_count; face++ )
     {
@@ -1070,16 +1079,24 @@ static int flatten_model_materials(
          * table's authored representative colour; face-colour mode keeps the
          * model's own value for legacy callers which deliberately want it. */
         if( model->face_infos )
-            model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+        {
+            if( !separate_render_types )
+                model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+            else if( model->face_infos[face] == 3 )
+                /* Textured type 3 is hidden, but untextured type 3 has a
+                 * different legacy meaning (flat black). Normalize it to the
+                 * format-independent hidden type before removing the texture. */
+                model->face_infos[face] = 2;
+        }
         if( model->face_texture_coords )
             model->face_texture_coords[face] = -1;
         model->face_textures[face] = -1;
     }
 
-    /* Once the texture array is removed, no face may retain the legacy
-     * textured-info bit, including malformed source faces whose texture id
-     * was already -1. */
-    if( model->face_infos )
+    /* Once the texture array is removed, packed OB2/V2 faces may not retain
+     * the legacy textured-info bit, including malformed source faces whose
+     * texture id was already -1. OB3/V3 render types remain authoritative. */
+    if( model->face_infos && !separate_render_types )
         for( int face = 0; face < model->face_count; face++ )
             model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
 
@@ -1118,7 +1135,7 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     if( (m->material_mode_face_colour || m->material_mode_average_hsl) && model->face_textures )
     {
         if( !flatten_model_materials(
-                model, materials, source_id, m->material_mode_average_hsl) )
+                model, materials, source_id, m->material_mode_average_hsl, prov->format) )
         {
             RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
             return 0;

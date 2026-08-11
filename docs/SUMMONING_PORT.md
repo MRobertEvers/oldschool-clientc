@@ -138,7 +138,7 @@ handoff and `PORTING_GUIDE.md`; F3 is not the only record of it.
 format set**. Models cannot be copied; they must be decoded and re-encoded, and **there is no
 existence proof anywhere in this tree that the client renders either source format.**
 
-Four confirmed pre-existing bugs sit in the path:
+Five confirmed pre-existing bugs sit in the path:
 
 1. **Framemap V3→V1 downgrade is a silent no-op.** `tools/common/cache_write.c:564-578` re-encodes
    without clearing `has_transform_actor`/`has_masks`/`tail`, and `RSCache_Dat2FramemapEncode`
@@ -149,6 +149,12 @@ Four confirmed pre-existing bugs sit in the path:
    at `void634`, 3,139 at `rs727_preeoc`, 0 at osrs239.
 3. **`cachepack` cannot read RS2 sharded config layouts** (`cp_common.c:58` refuses outright).
 4. **No `rs530` profile exists.**
+5. **Material flattening must preserve OB3 render types.** OB2/V2 use the face-info texture bit,
+   but OB3/V3 store texture assignment separately and use render types 2/3 for hidden helper
+   geometry. Clearing the render type while dropping a rev-530 procedural material exposes black
+   triangles; a textured type 3 must become untextured type 2 because untextured type 3 means flat
+   black. The importer branches on model provenance and post-import verification compares the
+   hidden-face count. This affected Spirit terrorbird model 31096 and model 31211.
 
 And the one that decides the schedule: **texture ids are cache-local and un-transcodable.** 530 has
 ~680 procedural materials; osrs239 has ~210 sprite-backed ones. No converter exists
@@ -419,7 +425,9 @@ sends op2, opens `skill_guide_v2`, renders the live Spirit wolf row through `db_
 pouch through the object/model renderer. Note `script_9176.cs2b` is **bytecode-only**, so the
 guide's Overview tab remains unmodified. The Summoning-points orb is now live in interface 160:
 it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to target ids
-20000..20003, and authored clientscript 12000 redraws from dynamic/base stat 24. The originally
+20000..20003. Authored clientscript 12004 is the default and reshapes those pieces into the modern
+57x34 orb layout, including the shared 26px fill and device-aware hover frame, while redrawing from
+dynamic/base stat 24. The source-era clientscript 12000 remains packed as the legacy alternative. The originally
 proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
 it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls
 the active familiar. Summoning access now stays inside Worn Equipment (group 387): clientscript
@@ -481,6 +489,16 @@ with 3,785 review-only references held and 2,805 withheld, yielding 417 staged a
 tables, CS2 6/0, ServerScript 12,963 scripts, and `mock230_pack --check-only` 8,340/0; the staged
 flag-off comparison remains 25/0. Phase 5a did not accept the broad roster; the separately owned
 Phase-5b closure below does not change its review-only status.
+
+**Phase 5 scroll-object closure (done).** All 78 active familiar mappings now resolve to their
+67 distinct rev-530 scroll objects. Call to Arms, Petrifying Gaze, and Titan's Constitution retain
+their source sharing, and the commented Phoenix object 14622 is explicitly included so Phoenix is
+not the lone familiar without a packed scroll. `scroll_assets_530.ini` imports the 67 object
+records and their 62 distinct inventory models into target ids 47400..47466 and 124000..124061;
+`summoning_scrolls_530.map` records every translation. Both `obj.alloc` and `obj.client` admit all
+67 records and `7_models.pack` admits every model. `test-summoning-scroll-assets` checks the 78→67
+mapping, the three documented source pouch-key corrections, configs, ledger, files, and pack
+membership before every feature-cache bake.
 
 **Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The first admitted breadth closure
 is source NPC 6825 / pouch 12043 to target NPC 26000 / pouch 46000. Its exact closure is body,

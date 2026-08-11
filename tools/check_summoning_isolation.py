@@ -129,16 +129,26 @@ def check(tree: Path) -> int:
         expected_scripts = {
             393: "script_393",
             1198: "summoning_stats_init",
+            # Existing script, deliberately recompiled only by the feature-on
+            # stage so Summoning Overview takes the data-driven guide path.
+            1904: "script_1904",
             8950: "script_8950",
             12000: "summoning_orb_init",
             12001: "summoning_sidebar_layout",
             12002: "summoning_familiar_init",
+            12003: "summoning_familiar_status",
+            12004: "summoning_orb_modern_init",
         }
         if lane_script_rows != expected_scripts:
             errors.append(f"{lane_scripts}: expected {expected_scripts}, got {lane_script_rows}")
         for name in lane_script_rows.values():
             checked += 1
-            if not (lane / "scripts" / f"{name}.cs2").is_file():
+            source = (
+                tree / "scripts" / f"{name}.cs2"
+                if name == "script_1904"
+                else lane / "scripts" / f"{name}.cs2"
+            )
+            if not source.is_file():
                 errors.append(f"{lane_scripts}: no scripts/{name}.cs2")
     else:
         errors.append(f"missing Summoning clientscript pack: {lane_scripts}")

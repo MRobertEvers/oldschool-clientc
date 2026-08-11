@@ -521,7 +521,7 @@ $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
 .PHONY: test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5b-runtime test-summoning-phase7d test-summoning-phase7f summoning-texture-review
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-scroll-assets test-summoning-phase5b-runtime test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -1884,6 +1884,12 @@ test-summoning-phase5b:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b.py \
 		--tree $(MOCK230_CONTENT_DIR)
 
+# Every active familiar has a source scroll mapping. Shared scrolls collapse
+# those 78 mappings to 67 packed object records and 62 inventory models.
+test-summoning-scroll-assets:
+	@cd $(REPO_ROOT) && python3 tools/test_summoning_scroll_assets.py \
+		--tree $(MOCK230_CONTENT_DIR)
+
 # Runtime proof is intentionally separate from the cache and port gates. It
 # retains the Phase-5b structural/staging fingerprint as a prerequisite, builds
 # a normal non-ASAN embedded client, and drives a fresh real pouch UI.
@@ -1923,7 +1929,7 @@ test-summoning-byte-identity:
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
 		--compare-cache "$(SUMMONING_CACHE_BEFORE)" "$(SUMMONING_CACHE_AFTER)"
 
-mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-cs2
+mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-scroll-assets test-summoning-cs2
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
 		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
@@ -1937,11 +1943,11 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(SUMMONING_CACHE_DIR)
 	@tmp=$$(mktemp -d); log=$$(mktemp); trap 'rm -rf "$$tmp" "$$log"' EXIT; \
 		$(CS2_BIN) decompile --cache "$(SUMMONING_CACHE_DIR)" --rev osrs239 \
-			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 8950 12000 12001 12002 >"$$log" 2>&1; \
-		cat "$$log"; grep -qx 'decompiled 6, failed 0, total 6' "$$log"; \
+		--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" 393 1198 1904 8950 12000 12001 12002 12003 12004 >"$$log" 2>&1; \
+		cat "$$log"; grep -qx 'decompiled 9, failed 0, total 9' "$$log"; \
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
-		echo "mock230-cache-summoning: verified 6 clientscript archives"
+		echo "mock230-cache-summoning: verified 9 clientscript archives"
 
 test-summoning-phase1: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -2264,7 +2270,7 @@ test-membership:
 # reason stated above it: a bar in a command nobody types is not covered. The
 # name diff needs the LostCity checkout and says so and passes when it is absent
 # — a bar that cannot run has not failed.
-test-port: test-summoning-phase5a test-summoning-phase5b
+test-port: test-summoning-phase5a test-summoning-phase5b test-summoning-scroll-assets
 	@echo "--- port: the name-resolution gate ---"
 	@cd $(REPO_ROOT) && python3 tools/ss_unresolved.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \

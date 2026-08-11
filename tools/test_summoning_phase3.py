@@ -67,7 +67,7 @@ def main() -> int:
         expect(re.match(gate, body) is not None, f"entry point lacks a top feature gate: [{name}]")
 
     for token in (
-        "[opheld1,summoning_spirit_wolf_pouch]",
+        "[opheld4,summoning_spirit_wolf_pouch]",
         "[opheld4,summoning_cohort_dreadfowl_dreadfowl_pouch]",
         "~summoning_familiar_summon(^summoning_familiar_spirit_wolf, $consume);",
         "~summoning_familiar_summon(^summoning_familiar_dreadfowl, $consume);",
@@ -86,6 +86,20 @@ def main() -> int:
         if token == "~summoning_on_death;":
             haystack = (args.tree / "server/scripts/player/death.rs2").read_text(encoding="utf-8")
         expect(token in haystack, f"missing gameplay contract: {token}")
+
+    # Every staged pouch exposes Summon through interface operation four; a
+    # mismatched or absent server trigger falls through to the default message.
+    pouch_configs = [
+        args.tree / "ported/scape2009_summoning/configs/summoning.obj",
+        *sorted((args.tree / "ported/scape2009_summoning/configs").glob("summoning_cohort_*.obj")),
+    ]
+    summon_pouches = [
+        header
+        for path in pouch_configs
+        for header in re.findall(r"^\[([^]]+)\](?:(?!^\[).)*^ifop4=Summon$", path.read_text(encoding="utf-8"), re.MULTILINE | re.DOTALL)
+    ]
+    unbound = [pouch for pouch in summon_pouches if f"[opheld4,{pouch}]" not in source]
+    expect(not unbound, f"Summon has no opheld4 handler for: {', '.join(unbound)}")
 
     for rel, token in (
         ("server/scripts/player/login.rs2", "~summoning_login;"),
@@ -157,6 +171,19 @@ def main() -> int:
     familiar_cs2 = (
         args.tree / "ported/scape2009_summoning/scripts/summoning_familiar_init.cs2"
     ).read_text(encoding="utf-8")
+    sidebar_cs2 = (
+        args.tree / "ported/scape2009_summoning/scripts/summoning_sidebar_layout.cs2"
+    ).read_text(encoding="utf-8")
+    wornitems_overlay = (
+        args.tree
+        / "ported/scape2009_summoning/interface_overlays/interfaces/wornitems.if"
+    ).read_text(encoding="utf-8")
+    interface_pack = (
+        args.tree / "ported/scape2009_summoning/pack/3_interfaces.pack"
+    ).read_text(encoding="utf-8")
+    familiar_if = (
+        args.tree / "ported/scape2009_summoning/interfaces/summoning_familiar.if"
+    ).read_text(encoding="utf-8")
     constants = (lane / "configs/summoning.constant").read_text(encoding="utf-8")
     expect("ifop4=Summon" in client_obj, "Spirit wolf pouch does not expose its bound operation")
     obelisk = (args.tree / "ported/scape2009_summoning/configs/summoning.loc").read_text(
@@ -188,6 +215,40 @@ def main() -> int:
         and "if_settext(summoning_familiar:title, $name);" in source
         and "npc_20000" not in familiar_cs2,
         "sidebar body model, animation, or name is not selected by persisted familiar type",
+    )
+    expect(
+        source.count("if_opensub(wornitems:universe, summoning_familiar, 1);") == 1
+        and "if_closesub(wornitems:universe);" not in source
+        and source.count("if_sethide(summoning_familiar:universe,") == 4,
+        "sidebar switching must reuse one mounted familiar interface",
+    )
+    expect(
+        "interface_969:" not in sidebar_cs2
+        and sidebar_cs2.count("if_sethide(true, interface_387:") == 10
+        and sidebar_cs2.count("if_sethide(false, interface_387:") == 10,
+        "sidebar switch does not hide exactly the five Equipment-page controls",
+    )
+    expect(
+        sidebar_cs2.count("if_setsize(25, 25") == 3
+        and sidebar_cs2.count("if_setsize(33, 36") == 3,
+        "redstone Summoning icon does not restore its compact size or Equipment geometry",
+    )
+    expect(
+        "[summoning_entry]" in wornitems_overlay
+        and "[summoning_entry_icon]" in wornitems_overlay
+        and "op1=Call follower" not in wornitems_overlay
+        and "[if_button1,wornitems:call_follower]" in source
+        and "~summoning_call_familiar;" in source
+        and "[if_button1,wornitems:summoning_entry]" in source,
+        "Summoning entry replaced the native Call follower control",
+    )
+    expect(
+        "387=wornitems" in interface_pack,
+        "wornitems overlay is not admitted to the feature cache's interface pack",
+    )
+    expect(
+        "noclickthrough=yes" in familiar_if,
+        "familiar root does not block input from reaching the equipment page beneath it",
     )
     for token in (
         "^summoning_dreadfowl_level = 4",
