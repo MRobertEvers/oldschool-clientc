@@ -50,6 +50,7 @@ struct Import_Manifest
     int preserve_audio_ids;
     int npc_sounds;
     int legacy_scape2009;
+    int textures_only;
     /* Explicit source procedural-material -> destination texture ids.  A
      * legacy Summoning import remains deliberately untextured until this is
      * supplied; an incomplete table is an error rather than a silent
@@ -164,6 +165,46 @@ static int parse_nonnegative(const char* key, const char* value, int* out)
         return 0;
     }
     *out = (int)parsed;
+    return 1;
+}
+
+/* A reviewed lane-wide map keeps every bounded cohort on the same material
+ * policy without copying 680 hand-approved rows into each manifest. */
+static int load_texture_map_file(const char* manifest_path, struct Import_Manifest* m)
+{
+    char path[1200];
+    join_manifest_path(path, sizeof(path), manifest_path, "texture_map_530_to_239.ini");
+    FILE* f = fopen(path, "rb");
+    if( !f )
+    {
+        fprintf(stderr, "cachepack import: missing approved texture map %s\n", path);
+        return 0;
+    }
+    char line[256]; int count = 0;
+    while( fgets(line, sizeof(line), f) )
+    {
+        char* s = trim(line);
+        if( !*s ) continue;
+        char* eq = strchr(s, '=');
+        if( !eq ) { fclose(f); return 0; }
+        *eq = '\0';
+        int source_id = -1, dest_id = -1, existing = -1;
+        if( !parse_nonnegative("texture source id", trim(s), &source_id) ||
+            !parse_nonnegative("texture destination id", trim(eq + 1), &dest_id) ||
+            tool_id_map_lookup(&m->texture_map, source_id, &existing) ||
+            !tool_id_map_put(&m->texture_map, source_id, dest_id) )
+        {
+            fclose(f);
+            return 0;
+        }
+        count++;
+    }
+    fclose(f);
+    if( count != 680 )
+    {
+        fprintf(stderr, "cachepack import: approved texture map has %d rows, expected 680\n", count);
+        return 0;
+    }
     return 1;
 }
 
@@ -306,6 +347,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
         }
     }
     fclose(f);
+    if( m->legacy_scape2009 && m->texture_map.count == 0 && !load_texture_map_file(path, m) )
+        return 0;
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
         !m->prefix[0] || strchr(m->prefix, '/') ||
         (m->npcs.n == 0 && m->objs.n == 0 && m->models.n == 0 && m->seqs.n == 0 &&
@@ -1637,6 +1680,11 @@ static int import_run(struct Import_Manifest* m, int apply)
         for( int i = 0; ok && i < models.n; i++ )
             ok = write_model_asset(m, &src, &model_map, models.v[i], apply);
 
+    /* Re-apply an approved material table without regenerating gameplay
+     * configs or pulling deferred closure assets into an admitted cohort. */
+    if( m->textures_only )
+        apply = 0;
+
     if( apply && ok )
     {
         for( int i = 0; ok && i < framemaps.n; i++ )
@@ -1932,16 +1980,19 @@ static int import_run(struct Import_Manifest* m, int apply)
 
 int cp_import_command(int argc, char** argv)
 {
-    const char* manifest = NULL; const char* to_tree = NULL; int apply = 0;
+    const char* manifest = NULL; const char* to_tree = NULL; int apply = 0, textures_only = 0;
     for( int i=0;i<argc;i++ )
     {
         if(strcmp(argv[i],"--manifest")==0 && i+1<argc)manifest=argv[++i];
         else if(strcmp(argv[i],"--to-tree")==0 && i+1<argc)to_tree=argv[++i];
         else if(strcmp(argv[i],"--apply")==0)apply=1;
-        else { fprintf(stderr,"Usage: cachepack import --manifest FILE [--to-tree DIR] [--apply]\n"); return 1; }
+        else if(strcmp(argv[i],"--textures-only")==0)textures_only=1;
+        else { fprintf(stderr,"Usage: cachepack import --manifest FILE [--to-tree DIR] [--apply] [--textures-only]\n"); return 1; }
     }
     if(!manifest){fprintf(stderr,"cachepack import: --manifest is required\n");return 1;}
     struct Import_Manifest m; if(!manifest_load(manifest,&m))return 1;
+    if(textures_only && !apply){fprintf(stderr,"cachepack import: --textures-only requires --apply\n");manifest_free(&m);return 1;}
+    m.textures_only=textures_only;
     if(to_tree)snprintf(m.to_tree,sizeof(m.to_tree),"%s",to_tree);
     int ok=import_run(&m,apply); manifest_free(&m);
     return ok?0:1;

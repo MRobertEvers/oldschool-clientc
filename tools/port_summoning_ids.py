@@ -669,9 +669,10 @@ def check_cohort_ledger(
         else:
             by_source[source_key] = row
 
-        if (row.disposition, row.signoff) != ("minted", "unreviewed"):
+        expected_signoffs = {"unreviewed", "ok"} if row.kind == "model" else {"unreviewed"}
+        if row.disposition != "minted" or row.signoff not in expected_signoffs:
             errors.append(
-                f"{where}: admitted cohort rows must remain minted/unreviewed"
+                f"{where}: admitted cohort rows must remain minted; only model rows may be signed off"
             )
         if (row.dst_id == "-") != (row.dst_name == "-"):
             errors.append(f"{where}: destination id and name must both be '-' or both be stated")

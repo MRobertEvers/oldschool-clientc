@@ -58,6 +58,14 @@ EXPECTED_IMPORT = {
     "npc_sounds": "no",
 }
 
+# The reviewed Dreadfowl closure may use only these source procedural
+# materials.  Values are destination osrs239 material ids, approved in the
+# cohort's texture review record.
+EXPECTED_TEXTURE_MAP = {
+    "0": "0", "57": "12", "111": "59", "116": "209", "182": "59",
+    "347": "209", "364": "209", "439": "209", "466": "209", "471": "209",
+}
+
 EXPECTED_LEDGER = {
     ("npc", 6825, "dreadfowl", 26000, f"{COHORT}_dreadfowl"),
     ("obj", 12043, "dreadfowl_pouch", 46000, f"{COHORT}_dreadfowl_pouch"),
@@ -366,17 +374,20 @@ def main() -> int:
     try:
         manifest = parse_ini(args.manifest)
         import_values = section_map(manifest.get("import:scape2009", []), "import")
+        texture_map = section_map(manifest.get("texture_map", []), "texture map")
         npc_exports = section_map(manifest.get("export:npc", []), "NPC export")
         obj_exports = section_map(manifest.get("export:obj", []), "object export")
     except ValueError as exc:
         errors.append(f"Dreadfowl import manifest is malformed: {exc}")
     else:
         expect(
-            set(manifest) == {"import:scape2009", "export:npc", "export:obj"},
+            set(manifest) == {"import:scape2009", "texture_map", "export:npc", "export:obj"},
             f"Dreadfowl manifest has unexpected sections: {sorted(manifest)}",
         )
         expect(import_values == EXPECTED_IMPORT,
                f"Dreadfowl import contract changed: {import_values}")
+        expect(texture_map == EXPECTED_TEXTURE_MAP,
+               f"Dreadfowl reviewed texture map changed: {texture_map}")
         expect(npc_exports == {"6825": "dreadfowl"},
                f"Dreadfowl manifest NPC roots changed: {npc_exports}")
         expect(obj_exports == {"12043": "dreadfowl_pouch"},
@@ -431,14 +442,16 @@ def main() -> int:
                 duplicate_keys = True
             source_keys.add(source_key)
             normalized.add(row)
-            disposition_ok &= disposition == "minted" and signoff == "unreviewed"
+            expected_signoff = "ok" if kind == "model" else "unreviewed"
+            disposition_ok &= disposition == "minted" and signoff == expected_signoff
             names_ok &= dst_name.startswith(f"{COHORT}_")
         expect(len(cohort_rows) == len(EXPECTED_LEDGER),
                f"Dreadfowl ledger has {len(cohort_rows)} rows instead of {len(EXPECTED_LEDGER)}")
         expect(normalized == EXPECTED_LEDGER,
                f"Dreadfowl ledger closure changed: {sorted(normalized)}")
         expect(not duplicate_keys, "Dreadfowl ledger duplicates a kind/source pair")
-        expect(disposition_ok, "Dreadfowl ledger is not wholly minted/unreviewed")
+        expect(disposition_ok,
+               "Dreadfowl ledger must have minted rows, approved model textures, and unreviewed non-model rows")
         expect(names_ok, "Dreadfowl ledger escaped its separate cohort prefix")
         expect(not any(kind in {"synth", "sound", "song", "sample", "patch", "sprite"}
                        for kind, *_ in cohort_rows),

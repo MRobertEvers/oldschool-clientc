@@ -435,13 +435,13 @@ def main() -> int:
             "dreadfowl_pouch", "46000", "summoning_cohort_dreadfowl_dreadfowl_pouch", "minted", "unreviewed"
         ),
         ("model", 30429): (
-            "model_30429", "120000", "summoning_cohort_dreadfowl_model_30429", "minted", "unreviewed"
+            "model_30429", "120000", "summoning_cohort_dreadfowl_model_30429", "minted", "ok"
         ),
         ("model", 31147): (
-            "model_31147", "120001", "summoning_cohort_dreadfowl_model_31147", "minted", "unreviewed"
+            "model_31147", "120001", "summoning_cohort_dreadfowl_model_31147", "minted", "ok"
         ),
         ("model", 30664): (
-            "model_30664", "120002", "summoning_cohort_dreadfowl_model_30664", "minted", "unreviewed"
+            "model_30664", "120002", "summoning_cohort_dreadfowl_model_30664", "minted", "ok"
         ),
         ("seq", 5386): (
             "seq_5386", "23000", "summoning_cohort_dreadfowl_seq_5386", "minted", "unreviewed"
@@ -595,7 +595,7 @@ def main() -> int:
             (
                 "cohort_unminted",
                 dreadfowl_text.replace("\tminted\tunreviewed", "\tmapped\tunreviewed", 1),
-                "must remain minted/unreviewed",
+                "must remain minted; only model rows may be signed off",
             ),
             (
                 "cohort_source_name",
