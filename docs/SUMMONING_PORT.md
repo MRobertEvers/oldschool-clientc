@@ -422,13 +422,14 @@ it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to 
 20000..20003, and authored clientscript 12000 redraws from dynamic/base stat 24. The originally
 proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
 it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls
-the active familiar. The sidebar tab is now implemented in all three toplevels 161/548/164 with
-row 14 in `enum_1137/1138/1139`. Classic and Fixed reflow into eight 30px cells; Modern shifts its
-movable seven-tab strip left one cell and places the new stone/icon at the freed right edge. It
-uses the exact rev-530 sprite-222 wolf head (target graphic 229), opens group 969, and composes
-NPC 20000's packed chathead rather than a raw body or fallback model. Real-client acceptance
-asserts the final model draw id (`0x50004e20`), live points text, Call and Dismiss in every
-gameframe. The obelisk is now installed by feature-gated, idempotent runtime `loc_add`, which
+the active familiar. Summoning access now stays inside Worn Equipment (group 387): clientscript
+12001 configures the cache-native top-right Call-follower button with the exact rev-530 sprite-222
+wolf head (target graphic 229), and its real op1 mounts compact group 969 into
+`wornitems:universe`. Group 969 is 190x205, reuses its native 140x28 Call/Dismiss chrome, has a
+top-right Back-to-equipment button, and composes the active familiar's packed chathead rather than
+a raw body or fallback model. No component is added to top-level groups 161/548/164. Real-client
+acceptance asserts the final model draw id (`0x50004e20`), live points text, compact bounds, and
+real Call/Dismiss packets. The obelisk is now installed by feature-gated, idempotent runtime `loc_add`, which
 sidesteps `maps/` entirely. The rev239 `LOC_ADD_CHANGE_V2` measurement is settled: its loc config
 id is `p2Alt3`, exactly 16 bits, so the generic loc `server_base = 70000` cannot be used on this
 wire (70000 would truncate to 4464). The imported source loc 28716 is therefore mapped to the
@@ -521,8 +522,8 @@ fresh-save framebuffer and logs.
 
 1. **7a — per-account unlock (done).** `summoning_unlocked` persists and synchronizes the
    existing `content_restrict_summoning_serverside` varbit on login; every runtime Summoning
-   entry point requires that state. The sidebar now mounts through the canonical gameframe role,
-   so the encoder targets the root actually live for fixed and both resizable layouts. Fresh
+   entry point requires that state. The familiar view now mounts only inside
+   `wornitems:universe`; it does not add or resize a gameframe tab in any layout. Fresh
    locked/unlocked/relog acceptance is 42/0, and the real Spirit-terrorbird Store → relog →
    Withdraw → Dismiss-spill regression passes.
 2. **7b — Wolf Whistle unlock writer (done).** The upstream completion contract is a

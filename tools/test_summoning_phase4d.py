@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real-client acceptance for Summoning sidebar access in every gameframe."""
+"""Real-client acceptance for Summoning access inside Worn Equipment."""
 
 from __future__ import annotations
 
@@ -63,27 +63,11 @@ def main() -> int:
 
     cases = (
         {
-            "label": "classic",
-            "click": "220,707,484",
-            "target": "0xa10063",
-            "bounds": "161",
-        },
-        {
-            "label": "fixed",
-            "click": "240,744,484",
-            "target": "0x2240060",
-            "bounds": "548",
-            "runscript": "100,3998,0",
-            "root_switch": "if-opentop: switching root 161 -> 548",
-        },
-        {
-            "label": "modern",
-            "click": "380,766,750",
-            "target": "0xa40062",
-            "bounds": "164",
-            "root_size": "1024x768",
-            "save_mode": 2,
-            "root_switch": "if-opentop: switching root 161 -> 164",
+            "label": "equipment",
+            # Open Worn Equipment, then its CS2-positioned top-right familiar button.
+            "click": "220,634,185;280,677,224",
+            "target": "0x1830007",
+            "bounds": "969",
         },
     )
 
@@ -95,7 +79,7 @@ def main() -> int:
             env = base_env(args, saves)
             env.update(
                 {
-                    "TORIRS_MAX_FRAMES": "700" if label == "modern" else "430",
+                    "TORIRS_MAX_FRAMES": "430",
                     "TORIRS_SIM_CLICK_AT": str(case["click"]),
                     "TORIRS_CLICK_DEBUG": "1",
                     "TORIRS_DUMP_BOUNDS": str(case["bounds"]),
@@ -106,10 +90,6 @@ def main() -> int:
                     "TORIRS_EXIT_BMP": str((args.out / f"{label}.bmp").resolve()),
                 }
             )
-            if "runscript" in case:
-                env["TORIRS_SIM_RUNSCRIPT"] = str(case["runscript"])
-            if "root_size" in case:
-                env["TORIRS_ROOT_SIZE"] = str(case["root_size"])
             result = run_client(args, env)
         log_path = args.out / f"{label}.log"
         log_path.write_text(result.stdout, encoding="utf-8")
@@ -121,10 +101,28 @@ def main() -> int:
         expect("CS2VM2: abort" not in result.stdout, f"{label}: clientscript aborted")
         expect(
             f"clickdbg: send op1 target={case['target']} sub=-1 state=2" in result.stdout,
-            f"{label}: wolf tab did not send its real IF_BUTTON1 packet",
+            f"{label}: familiar button did not send its real IF_BUTTON1 packet",
         )
-        if "root_switch" in case:
-            expect(str(case["root_switch"]) in result.stdout, f"{label}: wrong toplevel")
+        expect(
+            "clickdbg: send op1 target=0xa1003f sub=-1 state=2" in result.stdout,
+            f"{label}: Worn Equipment tab did not open",
+        )
+        expect(
+            "if-opensub: iface=969 target=0x01830000 (387<<16|0) type=1"
+            in result.stdout,
+            f"{label}: familiar view was not mounted inside wornitems:universe",
+        )
+        expect(
+            "BOUNDS com=0x03c90000 (969|0)" in result.stdout
+            and "190x205" in bounds_line(result.stdout, "(969|0)"),
+            f"{label}: familiar panel is not the compact 190x205 CS2 layout",
+        )
+        expect(
+            "target=0x00a10063" not in result.stdout
+            and "target=0x02240060" not in result.stdout
+            and "target=0x00a40062" not in result.stdout,
+            f"{label}: legacy top-level Summoning overlay was mounted",
+        )
         expect(
             "EMIT_EXIT" in result.stdout and "(969|2)" in result.stdout,
             f"{label}: familiar model did not reach the final draw list",
@@ -162,18 +160,12 @@ def main() -> int:
             "message_game: You summon a Spirit wolf." in result.stdout,
             f"{label}: setup did not summon the familiar",
         )
-        if label == "modern":
-            expect(
-                "(164|99) type=15 graphic=229 hidden=0 abs=755,742 25x25" in result.stdout,
-                "modern: exact wolf icon is absent from its unclipped fifteenth cell",
-            )
-
     with tempfile.TemporaryDirectory(prefix="summoning_phase4d_buttons_saves_") as saves:
         env = base_env(args, saves)
         env.update(
             {
                 "TORIRS_MAX_FRAMES": "460",
-                "TORIRS_SIM_CLICK_AT": "190,707,484;260,602,403;330,602,439",
+                "TORIRS_SIM_CLICK_AT": "190,634,185;250,677,224;320,602,364;390,602,396",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_DUMP_BOUNDS": "969",
                 "TORIRS_EXIT_BMP": str((args.out / "buttons.bmp").resolve()),
