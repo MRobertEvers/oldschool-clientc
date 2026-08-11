@@ -1885,7 +1885,8 @@ test-summoning-phase5b:
 		--tree $(MOCK230_CONTENT_DIR)
 
 # Every active familiar has a source scroll mapping. Shared scrolls collapse
-# those 78 mappings to 67 packed object records and 62 inventory models.
+# those 78 mappings to 67 rev-530 objects; the guide's later Fetch Casket row
+# adds one rev-727 object, for 68 packed icons and 63 inventory models total.
 test-summoning-scroll-assets:
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_scroll_assets.py \
 		--tree $(MOCK230_CONTENT_DIR)

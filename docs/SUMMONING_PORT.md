@@ -426,8 +426,9 @@ pouch through the object/model renderer. Note `script_9176.cs2b` is **bytecode-o
 guide's Overview tab remains unmodified. The Summoning-points orb is now live in interface 160:
 it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to target ids
 20000..20003. Authored clientscript 12004 is the default and reshapes those pieces into the modern
-57x34 orb layout, including the shared 26px fill and device-aware hover frame, while redrawing from
-dynamic/base stat 24. The source-era clientscript 12000 remains packed as the legacy alternative. The originally
+57x34 orb layout, including the shared 26px fill and device-aware hover frame. It is visible only
+while a familiar is active and displays the server-owned 0..60 special-move points. The source-era
+clientscript 12000 remains packed as the legacy stat-points alternative. The originally
 proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
 it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls
 the active familiar. Summoning access now stays inside Worn Equipment (group 387): clientscript
@@ -499,6 +500,10 @@ records and their 62 distinct inventory models into target ids 47400..47466 and 
 67 records and `7_models.pack` admits every model. `test-summoning-scroll-assets` checks the 78→67
 mapping, the three documented source pouch-key corrections, configs, ledger, files, and pack
 membership before every feature-cache bake.
+The guide's additional post-rev-530 Fetch Casket row is sourced separately from rev 727 by
+`scroll_fetch_casket_727.ini` (object 19621/model 58228 → target 47467/124062), bringing the
+visible Summoning Scrolls subsection to 68/68 packed icons without misattributing that object to
+the familiar roster.
 
 **Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The first admitted breadth closure
 is source NPC 6825 / pouch 12043 to target NPC 26000 / pouch 46000. Its exact closure is body,

@@ -1144,8 +1144,9 @@ Eight new components occupy ids 57..64:
 
 `onload` calls authored clientscript 12004, which registers a stat-24 transmit hook, applies the
 modern 57x34/right-hand-26px component geometry and device-aware hover frame, then lets the target's
-generic `orbs_update` helper compute the fill, text and colour. Clientscript 12000 remains packed as
-the legacy source-31px implementation.
+generic `orbs_update` helper draw the server-owned 0..60 familiar special points. The server hides
+the orb when no familiar is active. Clientscript 12000 remains packed as the legacy source-31px
+stat-points implementation.
 
 The clientscript is short, because `~orbs_update` already exists. From `script_82.cs2`:
 

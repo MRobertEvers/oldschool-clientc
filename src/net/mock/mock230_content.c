@@ -3556,10 +3556,11 @@ band_compare(
     const void* text,
     const void* seed,
     int id,
-    const char* symbol,
+    enum Mock230PackKind pack_kind,
     int* text_only)
 {
     int mismatched = 0;
+    const char* symbol = NULL;
 
     for( int i = 0; i < type->count; i++ )
     {
@@ -3574,6 +3575,11 @@ band_compare(
             text_only[i]++;
             continue;
         }
+        /* Name lookup is a linear scan of a large pack namespace. Most band
+         * records match, so pay for the diagnostic spelling only when this
+         * record will actually print a diagnostic. */
+        if( !symbol )
+            symbol = mock230_content_symbol_name(pack_kind, id);
         fprintf(stderr,
                 "mock230: server band: %s [%s] %d: `%s` is %d in the band but %d from the text "
                 "overlays\n",
@@ -3602,7 +3608,6 @@ band_verify_type(
     for( int id = 0; id < entries; id++ )
     {
         int size = Mock230_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
-        const char* symbol = mock230_content_symbol_name(glue->pack_kind, id);
         const void* text;
         int consumed;
 
@@ -3611,10 +3616,14 @@ band_verify_type(
         if( size == MOCK230_SERVPACK_INVALID )
         {
             if( report->invalid++ < 8 )
+            {
+                const char* symbol = mock230_content_symbol_name(glue->pack_kind, id);
+
                 fprintf(stderr,
                         "mock230: server band: %s [%s] %d refuses to open — bad magic, "
                         "version, kind or CRC\n",
                         type->name, symbol ? symbol : "?", id);
+            }
             continue;
         }
 
@@ -3627,10 +3636,14 @@ band_verify_type(
              * know. A register that ran ahead of the C table, or a pack from a
              * newer build — either way not this build's to decode. */
             if( report->invalid++ < 8 )
+            {
+                const char* symbol = mock230_content_symbol_name(glue->pack_kind, id);
+
                 fprintf(stderr,
                         "mock230: server band: %s [%s] %d stops at byte %d of %d — an opcode "
                         "this build does not know\n",
                         type->name, symbol ? symbol : "?", id, consumed, size);
+            }
             continue;
         }
 
@@ -3660,7 +3673,7 @@ band_verify_type(
             continue;
         }
         report->mismatched += band_compare(type, &merged, text ? text : (const void*)&seed,
-                                           &seed, id, symbol, text_only);
+                                           &seed, id, glue->pack_kind, text_only);
     }
 
     /* And the other direction: text defs the pack holds no archive for. Their
@@ -3676,9 +3689,8 @@ band_verify_type(
         if( size != MOCK230_SERVPACK_ABSENT )
             continue;
         glue->seed(&seed, id);
-        report->mismatched += band_compare(type, &seed, def, &seed, id,
-                                           mock230_content_symbol_name(glue->pack_kind, id),
-                                           text_only);
+        report->mismatched +=
+            band_compare(type, &seed, def, &seed, id, glue->pack_kind, text_only);
     }
 }
 

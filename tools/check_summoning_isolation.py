@@ -138,6 +138,7 @@ def check(tree: Path) -> int:
             12002: "summoning_familiar_init",
             12003: "summoning_familiar_status",
             12004: "summoning_orb_modern_init",
+            12005: "summoning_stats_scroll",
         }
         if lane_script_rows != expected_scripts:
             errors.append(f"{lane_scripts}: expected {expected_scripts}, got {lane_script_rows}")

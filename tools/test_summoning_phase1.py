@@ -93,6 +93,35 @@ def main() -> int:
         "onload=i:1198,i:-2147483645,i:20971553,i:25,i:2" in stats_source,
         "source: Summoning does not use the rev-530 wolf-head x nudge",
     )
+    summoning_cell = stats_source.split("[summoning_stats_cell]", 1)[1]
+    expect(
+        "clickmask=" not in summoning_cell
+        and "op1=" not in summoning_cell
+        and "op2=" not in summoning_cell,
+        "source: Summoning stats cell is still clickable",
+    )
+    expect(
+        "cc_setposition(calc(3 + $int3), 4, ^setpos_abs_left, ^setpos_abs_top);"
+        in stats_script,
+        "source: Summoning icon is not vertically aligned with native skill icons",
+    )
+    expect(
+        "if_setsize(126, 30, ^setsize_abs, ^setsize_abs, stats:25);"
+        in stats_script,
+        "source: Total XP box is not a full-height ninth-row panel",
+    )
+    expect(
+        'if_setop(2, "View <col=ff981f><$string0></col> guide", $component0);'
+        not in stats_script
+        and 'if_setop(1, "Toggle <col=ff981f><$string0></col> XP", $component0);'
+        not in stats_script,
+        "source: Summoning clientscript still installs click operations",
+    )
+    expect(
+        'if_setonvartransmit("summoning_stats_init($component0, $int1, $int2, $int3)'
+        in stats_script,
+        "source: Summoning can regain native click operations after a var transmit",
+    )
     expect(
         "sprite0=25,25,22,23,0,2" in icon_meta,
         "source: Summoning icon canvas metadata is not the rev-530 sprite",
