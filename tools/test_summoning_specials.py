@@ -45,7 +45,7 @@ def main() -> int:
         validate = text[text.index("[proc,summoning_familiar_special_validate]") : text.index("[proc,summoning_familiar_special_commit]")]
 
         expected_xp = {
-            3: 8, 6: 2, 11: 23,
+            2: 1, 3: 8, 5: 2, 6: 2, 8: 2, 11: 23, 15: 11,
             18: 7, 19: 7, 20: 7, 21: 7,
             22: 6, 43: 19, 47: 7, 53: 73,
             59: 79, 60: 79, 61: 79, 74: 45,
@@ -65,6 +65,27 @@ def main() -> int:
                "special resources can be committed before its operation accepts")
         expect("~summoning_familiar_special_commit(%summoning_familiar_type);" in handler,
                "the immediate path does not use the common special commit")
+        expect("DreadfowlNPC.java: Dreadfowl Strike" in execute and
+               "npc_findcombat = false" in execute and
+               "summoning_special_move_dreadfowl_strike_projectile" in execute and
+               "npc_finduid($familiar) = false | npc_finduid($target) = false" in execute,
+               "Dreadfowl Strike lacks combat-target validation, its admitted projectile, or generation revalidation")
+        expect("npc_combat_stat(npc_stat(magic), npc_param(magicattack))" in execute and
+               "npc_defence_roll(^magic_style)" in execute and "randominc(3)" in execute,
+               "Dreadfowl Strike does not use the familiar's magic roll and source max hit")
+        expect("ThornySnailNPC.java: Slime Spray" in execute and
+               "summoning_special_move_thorny_snail_slime_spray_projectile" in execute and
+               "summoning_special_move_thorny_snail_slime_spray_impact_gfx" in execute and
+               "randominc(8)" in execute,
+               "Slime Spray lacks its source projectile, impact graphic, or max hit")
+        expect("DesertWyrmNPC.java: Electric Lash" in execute and
+               "summoning_special_move_desert_wyrm_electric_lash_projectile" in execute and
+               "randominc(5)" in execute,
+               "Electric Lash lacks its source projectile or max hit")
+        expect("VampireBatNPC.java: Vampyre Touch" in execute and
+               "randominc(11)" in execute and "randominc(9) < 4" in execute and
+               "stat_heal(hitpoints, 2, 0);" in execute,
+               "Vampyre Touch lacks its manual hit or 40% owner-heal branch")
         expect(commit.index("inv_del(inv, $scroll, 1);") < commit.index("stat_advance(summoning,"),
                "Summoning XP is not part of the successful resource commit")
         expect("~summoning_familiar_special_validate($type)" in text and
@@ -123,7 +144,7 @@ def main() -> int:
         print(f"test_summoning_specials: error: {exc}", file=sys.stderr)
         return 1
 
-    print("test_summoning_specials: target surface, generation handles, transaction and 15 source-backed rows, 0 errors")
+    print("test_summoning_specials: target surface, generation handles, transaction and 19 source-backed rows, 0 errors")
     return 0
 
 

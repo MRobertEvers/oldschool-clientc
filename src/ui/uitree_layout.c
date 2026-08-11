@@ -214,28 +214,16 @@ layout_compute_node(
 
     int rx = pos->x;
     int ry = pos->y;
-    int8_t xm = -1;
     if( pos->x_mode >= 0 || pos->y_mode >= 0 )
     {
         int8_t ym = pos->y_mode >= 0 ? pos->y_mode : 0;
-        xm = pos->x_mode >= 0 ? pos->x_mode : 0;
+        int8_t xm = pos->x_mode >= 0 ? pos->x_mode : 0;
         rx = axis_from_position_mode(xm, pos->x, 0, pw, w);
         ry = axis_from_position_mode(ym, pos->y, 0, ph, h);
     }
 
     pos->abs_x = px + rx;
     pos->abs_y = py + ry;
-    /* IF3 centre (xmode=1) of a child wider than its parent overhangs both
-     * sides: ((parent_dim - self_dim) >> 1). Script 909 sizes viewport_tracker
-     * to the canvas while script 5355 shrinks gameframe to canvas−42, so the
-     * tracker resolves at abs_x=-21 and clips left-edge overlays (stat_boosts
-     * HUD 708, buff_bar). Clamp only a canvas-left overhang so the right side
-     * still covers the popout strip. Chat dialogues also centre-overhang, but
-     * their slot sits at abs_x≥20 so the child stays at abs_x≥0 — untouched.
-     * Do not clamp abs_y: chat_left's universe uses abs_y=-6. Do not change
-     * UITree_If3AxisFromPositionMode — relative overhang must stay. */
-    if( xm == 1 && pos->abs_x < 0 )
-        pos->abs_x = 0;
     pos->abs_w = w;
     pos->abs_h = h;
     pos->layout_resolved = 1;

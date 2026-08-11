@@ -20,9 +20,10 @@ plays.
   played after each currently implemented special accepts.
 - [x] Existing pouch, summon, renew, dismiss, timer, and initial BoB work remains
   available as a foundation.
-- [ ] Per-familiar effects are partially dispatched: fifteen source-backed effects
-  (Tireless Run, Stony Shell, Cheese Feast, Unburden, Abyssal Stealth, Testudo,
-  Volcanic Strength, Titan's Constitution ×3, Magic Focus, and Call to Arms ×4)
+- [ ] Per-familiar effects are partially dispatched: nineteen source-backed effects
+  (Dreadfowl Strike, Tireless Run, Slime Spray, Stony Shell, Electric Lash,
+  Cheese Feast, Vampyre Touch, Unburden, Abyssal Stealth, Testudo, Volcanic
+  Strength, Titan's Constitution ×3, Magic Focus, and Call to Arms ×4)
   validate/execute before the common transaction; all other rows fail closed
   until their real operation exists.
 - [ ] Per-familiar animations, spotanims, projectiles, sounds, and timing are not
@@ -282,7 +283,7 @@ scroll.
    `tools/test_summoning_special_registry.py`: it derives the 78 rows from the
    pouch/scroll source mapping and live runtime tables, including cost, XP,
    target kind, handler state, provenance, and asset bundle.  It proves one
-   pouch per live familiar and explicitly marks the fifteen enabled rows;
+   pouch per live familiar and explicitly marks the nineteen enabled rows;
    unimplemented rows are `unavailable`, never generic successful casts.
    Continue to use this generator as the input when replacing the remaining
    ServerScript switch tables.

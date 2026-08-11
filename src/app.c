@@ -5521,6 +5521,85 @@ App_BootWait(struct App* app)
 static void
 app_player_model_poll(struct App* app);
 
+/* Queue the CS2 work a just-completed script deferred back to the host.
+ *
+ * These requests cannot be dispatched from inside the VM which raised them:
+ * doing so would recursively run a second script on the first script's stack.
+ * They are therefore host queues, but that does not make them a later visual
+ * transaction.  A frame is not settled until these listeners, and any widget
+ * transmit listeners made dirty by the first script, have run too. */
+static int
+app_cs2_enqueue_followups(struct App* app)
+{
+    int queued = 0;
+
+    {
+        int com_id;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_CALL_ON_RESIZE_MAX * 4 &&
+               RS_CS2Host_TakeCallOnResize(&app->host, &com_id) )
+        {
+            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
+            if( idx < 0 )
+                continue;
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                com_id,
+                &UITree_Hooks(&app->tree->components[idx])->on_resize);
+            queued = 1;
+        }
+    }
+
+    {
+        struct RS_CS2TriggerOp trig;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_TRIGGER_OP_MAX * 4 &&
+               RS_CS2Host_TakeTriggerOp(&app->host, &trig) )
+        {
+            int32_t idx = UITree_FindByComponentId(app->tree, trig.component_id);
+            if( idx < 0 )
+                continue;
+            RS_CS2_SetEventOp(&app->host, trig.op_index, 0);
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                trig.component_id,
+                &UITree_Hooks(&app->tree->components[idx])->on_op);
+            queued = 1;
+        }
+    }
+
+    if( RS_CS2_TransmitsPending(&app->host) )
+    {
+        RS_CS2_PumpTransmits(&app->host, &app->runner);
+        queued = 1;
+    }
+
+    return queued;
+}
+
+/* Run one CS2 visual transaction to a fixed point.  Cooperative yields are
+ * never frame boundaries: TaskRunner_SettleFrame crosses as many as needed.
+ * A real outstanding platform read is the only reason this can return
+ * PENDING, in which case App_RunOnce retains the previous emit list/frame and
+ * resumes settlement on a later host turn. */
+static enum TaskRunnerStat
+app_settle_cs2_frame(struct App* app)
+{
+    for( ;; )
+    {
+        enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->runner);
+
+        if( stat != TASK_RUNNER_IDLE )
+            return stat;
+        if( !app_cs2_enqueue_followups(app) )
+            return TASK_RUNNER_IDLE;
+    }
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -5529,30 +5608,41 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
-    /* Pump the serial game-action pipeline: run whatever packet task /
-     * slot mount / spawn is at the head, and only pop a NEW packet off the
-     * network FIFO when the queue is idle — this is what preserves wire
-     * order even when a packet's exec enqueues follow-on tasks (a mount
-     * enqueued by IF_OPENSIDE runs before the next packet is popped). Step
-     * budget bounds a frame's work; a long chain (world rebuild) simply
-     * spans frames while gating everything behind it. */
+    /* Settle the serial game-action pipeline, then pop the next packet.  Wire
+     * order is preserved because a packet and all of the mount/CS2 work it
+     * awaits finish before its successor starts.  Ready cooperative yields
+     * are not spread over visual frames; only real external IO can pause the
+     * transaction, and that pause is covered by exec_runner_had_work below. */
     {
-        int pops = 0;
         int drained = 0;
-        for( int steps = 0; steps < 64; steps++ )
+
+        for( ;; )
         {
-            if( TaskRunner_Step(&app->exec_runner) == TASK_RUNNER_IDLE )
+            enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->exec_runner);
+
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                app->exec_runner_had_work = 1;
+                break;
+            }
+            app->exec_runner_had_work = 0;
+
             {
                 struct RevPacket packet;
-                if( !app->net || pops >= 10 ||
-                    !ToriRS_Network_PopPacket(app->net, &packet) )
+
+                if( !app->net || !ToriRS_Network_PopPacket(app->net, &packet) )
                 {
                     drained = 1;
                     break;
                 }
+                /* Once a revision has demonstrated an explicit tick fence,
+                 * every following packet belongs to an atomic server tick.
+                 * SERVER_TICK_END clears this after its exec task has run. */
+                if( app->server_tick_fence_seen &&
+                    packet.packet_type != PKT_NAME_SERVER_TICK_END )
+                    app->server_tick_open = 1;
                 ToriRS_TaskQueue_Add(
                     app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
-                pops++;
                 redraw = 1;
             }
         }
@@ -6045,69 +6135,11 @@ app_logic_tick(struct App* app)
         }
     }
 
-    /*
-     * if_callonresize — run the on-resize listeners scripts asked for.
-     *
-     * The layout does not call these; a script does, and it is how a rev-230
-     * panel that draws none of itself runs its own builder. The skill guide is
-     * the clearest case: `if_setonresize` registers the layout script and
-     * `if_callonresize` on the next line is the whole of "now draw yourself".
-     * The op cannot run its listener in place — it is handled inside a running
-     * CS2 script, from a host with no task runner — so it queues, and this is
-     * the drain.
-     *
-     * A listener may queue another (a tab click does), so the loop re-reads the
-     * queue rather than snapshotting it. The queue's own cap bounds it; the
-     * extra counter is there so a listener that re-queued *itself* stops after
-     * a tick's worth instead of hanging the frame.
-     */
-    {
-        int com_id;
-        int guard = 0;
-
-        while( guard++ < RS_CS2_HOST_CALL_ON_RESIZE_MAX * 4 &&
-               RS_CS2Host_TakeCallOnResize(&app->host, &com_id) )
-        {
-            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
-            if( idx < 0 )
-                continue;
-            RS_CS2_DispatchHook(
-                &app->host,
-                &app->runner,
-                com_id,
-                &UITree_Hooks(&app->tree->components[idx])->on_resize);
-            redraw = 1;
-        }
-    }
-
-    /*
-     * cc_triggerop — run the on_op listeners scripts asked for directly,
-     * without a real click. script6014 (shift-click inventory options) is
-     * the case that surfaced this: cc_find locates a component and
-     * cc_triggerop fires its op handler with an explicit op index. Same
-     * queue/drain shape as if_callonresize just above, and for the same
-     * reason: the op is reached from inside a running CS2 script, which has
-     * no runner to nest a second dispatch on.
-     */
-    {
-        struct RS_CS2TriggerOp trig;
-        int guard = 0;
-
-        while( guard++ < RS_CS2_HOST_TRIGGER_OP_MAX * 4 &&
-               RS_CS2Host_TakeTriggerOp(&app->host, &trig) )
-        {
-            int32_t idx = UITree_FindByComponentId(app->tree, trig.component_id);
-            if( idx < 0 )
-                continue;
-            RS_CS2_SetEventOp(&app->host, trig.op_index, 0);
-            RS_CS2_DispatchHook(
-                &app->host,
-                &app->runner,
-                trig.component_id,
-                &UITree_Hooks(&app->tree->components[idx])->on_op);
-            redraw = 1;
-        }
-    }
+    /* if_callonresize / cc_triggerop requests are part of the CS2 visual
+     * transaction that raised them.  Queue them here on ordinary ticks; the
+     * pre-emit settle loop below repeats this pump to a fixed point. */
+    if( app_cs2_enqueue_followups(app) )
+        redraw = 1;
 
     /*
      * if_triggeroplocal — CS2 asked the client to notify the server of a
@@ -6136,11 +6168,6 @@ app_logic_tick(struct App* app)
                     trig.sub));
         }
     }
-
-    /* Widgets-loaded transmit traversal, once per tick (TS processWidgetTransmits).
-     * Early-outs unless a widget was unhidden this tick; per-hook serial gating
-     * means already-fired hooks run nothing. */
-    RS_CS2_PumpTransmits(&app->host, &app->runner);
 
     /* CS1 (IF1) value scripts drive active state and %N text. The reference
      * re-evaluates them at draw time; here a task does it once per tick so the
@@ -7376,9 +7403,9 @@ app_world_mouse_gate(
      * revconfig-baked tree; a rev-230 tree is the cache's own IF3 gameframe and
      * has neither, so the check above is dead there and every interface the
      * server mounted was transparent to the world. `UITree_PointBlocksWorld`
-     * asks the tree instead of the slot table: any mounted sub-interface or a
-     * `noClickThrough` layer over this point stops the world. Mounts own their
-     * whole panel, including actionless space between controls.
+     * asks the tree instead of the slot table: a modal mount or a
+     * `noClickThrough` layer over this point stops the world. Overlay/tab
+     * mounts stay transparent unless their own records raise that flag.
      */
     if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
         return 0;
@@ -13446,23 +13473,32 @@ App_RunOnce(
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
 
-    /* Pump the async pipeline (bounded — never a blocking drain). While
-     * BOOTING the budget is generous so a native boot converges in a few
-     * frames; once READY a small budget keeps frame pacing. */
+    /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
+     * exception: cooperative yields are drained to completion, and a genuine
+     * external wait retains the last settled frame until it can resume. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
         int booting = app->app_state == APP_STATE_BOOTING;
         int budget = booting ? 512 : 32;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
         int steps = 0;
-        for( int i = 0; i < budget; i++ )
+        int settling_cs2 = !booting && app->runner_had_work;
+
+        if( settling_cs2 )
         {
-            steps++;
-            if( booting )
-                app->boot_steps++;
-            stat = TaskRunner_Step(&app->runner);
-            if( stat == TASK_RUNNER_IDLE )
-                break;
+            stat = app_settle_cs2_frame(app);
+        }
+        else
+        {
+            for( int i = 0; i < budget; i++ )
+            {
+                steps++;
+                if( booting )
+                    app->boot_steps++;
+                stat = TaskRunner_Step(&app->runner);
+                if( stat == TASK_RUNNER_IDLE )
+                    break;
+            }
         }
         if( booting )
         {
@@ -13470,7 +13506,7 @@ App_RunOnce(
             if( steps >= budget )
                 app->boot_frames_budget_capped++;
         }
-        else if( steps >= budget )
+        else if( !settling_cs2 && steps >= budget )
         {
             /* Post-boot frame that used its whole budget with work still
              * queued: the async pipeline is being drip-fed rather than run. */
@@ -13492,6 +13528,12 @@ App_RunOnce(
         app->need_redraw = 0;
         return 1;
     }
+
+    /* A browser/cache request can be the one legitimate pause in a CS2 visual
+     * transaction.  Do not run input against the partially-mutated tree, and
+     * do not rebuild the emit list from it. */
+    if( app->runner_had_work )
+        return 0;
 
     /* Async completions: world load finish, texture publish, deferred seq
      * binds, and any queued tree refresh (relayout + CS1 + redraw). */
@@ -13528,6 +13570,37 @@ App_RunOnce(
         /* World sim cycles == client 20ms ticks (v1 world_cycle cadence). */
         app_world_frame(app, ticks);
     }
+
+    /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue
+     * CS2 before interaction.  Settle them now so hit testing sees one coherent
+     * tree rather than the intermediate state of a yielding script. */
+    if( ran_cs2 )
+    {
+        enum TaskRunnerStat stat;
+
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+        {
+            stat = app_settle_cs2_frame(app);
+        }
+        if( stat != TASK_RUNNER_IDLE )
+        {
+            app->runner_had_work = 1;
+            return 0;
+        }
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+        {
+            UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        }
+        ran_cs2 = 0;
+    }
+
+    /* A server-pushed script is held until its tick fence so it observes all
+     * state packets from that tick.  Its accompanying IF_SETHIDE/IF_SETTEXT
+     * packets may already have mutated the live tree; retain the prior frame
+     * until the script has actually been dispatched and settled. */
+    if( app->pending_clientscript_count > 0 || app->exec_runner_had_work ||
+        app->server_tick_open )
+        return 0;
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
@@ -14157,20 +14230,23 @@ App_RunOnce(
 
     if( ran_cs2 )
     {
-        /* DispatchHook only enqueues. Drain so UI scripts (esp. on_drag →
+        /* DispatchHook only enqueues. Settle so UI scripts (esp. on_drag →
          * scrollbar_vertical_drag's if_setscrollpos / cap cc_setposition) apply
          * before this frame's layout+emit. Reference runs ScriptEvents
          * synchronously while dragging; without this the middle thumb moves via
          * drag_visual while caps and the scroll layer stay a frame (or forever
          * under a busy queue) behind. */
         {
-            enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
-            int const budget = 64;
-            for( int i = 0; i < budget; i++ )
+            enum TaskRunnerStat stat;
+
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
             {
-                stat = TaskRunner_Step(&app->runner);
-                if( stat == TASK_RUNNER_IDLE )
-                    break;
+                stat = app_settle_cs2_frame(app);
+            }
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                app->runner_had_work = 1;
+                return 0;
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
              * the drain above. Consume it in the same frame so the thumb jumps
@@ -14221,11 +14297,14 @@ App_RunOnce(
             {
                 UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
-            /* Yielding scripts still need a later refresh when the queue drains. */
-            if( stat != TASK_RUNNER_IDLE )
-                app->runner_had_work = 1;
         }
     }
+
+    /* Never publish a tree while a fenced server clientscript has not run.
+     * This second gate covers a script request raised during interaction. */
+    if( app->pending_clientscript_count > 0 || app->runner_had_work ||
+        app->exec_runner_had_work || app->server_tick_open )
+        return 0;
 
     if( app->need_redraw )
     {

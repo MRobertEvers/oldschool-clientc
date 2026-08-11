@@ -1477,6 +1477,7 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             ctx->app->server_tick_fence_seen = 1;
+            ctx->app->server_tick_open = 0;
             App_FlushPendingClientScripts(ctx->app);
         }
         break;

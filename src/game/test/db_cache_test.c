@@ -76,6 +76,57 @@ call_db(
     return RS_CS2Host_Exec(t, &req);
 }
 
+/* Two clientscript tasks may yield against one shared host while their IO is
+ * in flight. A wait record on RS_CS2Host lets the second task overwrite the
+ * first, so both retry as if they had never loaded and violate the VM's
+ * one-opcode/one-yield contract. Keep the two missing enum ids distinct so the
+ * test specifically catches that cross-thread overwrite. */
+static void
+test_await_isolation(
+    struct RS_CS2Host* host)
+{
+    struct CS2VM2 vm_a;
+    struct CS2VM2 vm_b;
+    struct CS2VM_HostRequest req_a = { 0 };
+    struct CS2VM_HostRequest req_b = { 0 };
+    struct CS2VM2_Thread* a;
+    struct CS2VM2_Thread* b;
+    int value;
+
+    CS2VM2_Init(&vm_a);
+    CS2VM2_Init(&vm_b);
+    CS2VM2_BindHost(&vm_a, host, RS_CS2Host_Exec);
+    CS2VM2_BindHost(&vm_b, host, RS_CS2Host_Exec);
+    a = CS2VM2_ThreadMain(&vm_a);
+    b = CS2VM2_ThreadMain(&vm_b);
+
+    req_a.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+    req_a.u.enum_lookup.enum_id = 1000000001;
+    req_a.u.enum_lookup.input_type = 'i';
+    req_a.u.enum_lookup.output_type = 'i';
+    req_b = req_a;
+    req_b.u.enum_lookup.enum_id = 1000000002;
+
+    CHECK(RS_CS2Host_Exec(a, &req_a) == CS2VM_EXECNO_YIELD, "thread A parks its enum load");
+    CHECK(RS_CS2Host_Exec(b, &req_b) == CS2VM_EXECNO_YIELD, "thread B parks a distinct enum load");
+
+    CHECK(RS_CS2Host_Exec(a, &req_a) == CS2VM_EXECNO_OK,
+          "thread A retry survives thread B's interleaved wait");
+    value = 0;
+    CHECK(CS2VM2_PopInt(a, &value) == CS2VM_EXECNO_OK && value == -1,
+          "thread A completes a failed load with the enum default");
+
+    CHECK(RS_CS2Host_Exec(b, &req_b) == CS2VM_EXECNO_OK,
+          "thread B retains its own wait after thread A completes");
+    value = 0;
+    CHECK(CS2VM2_PopInt(b, &value) == CS2VM_EXECNO_OK && value == -1,
+          "thread B completes a failed load with the enum default");
+
+    host->has_pending = false;
+    CS2VM2_Free(&vm_b);
+    CS2VM2_Free(&vm_a);
+}
+
 int
 main(void)
 {
@@ -142,6 +193,8 @@ main(void)
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, RS_CS2Host_Exec);
     struct CS2VM2_Thread* t = CS2VM2_ThreadMain(&vm);
+
+    test_await_isolation(&host);
 
     int iv = 0;
     char* sv = NULL;

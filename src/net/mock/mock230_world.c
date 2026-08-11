@@ -17673,6 +17673,79 @@ mock230_world_selftest(void)
                            "and it arrives, at %d,%d", at_x, at_z);
         }
 
+        /* Ground-click move-near must survive the server wrapper, not merely
+         * the collision helper.  Block a cache-independent open courtyard
+         * tile, click it, and require the destination exposed to movement and
+         * SET_MAP_FLAG to be a routed neighbour.  The old
+         * wrapper queued this path but then retained the blocked raw click as
+         * player->dest, which is the Inferno-lava failure mode. */
+        {
+            struct CollisionMap* cm;
+            int target_x = -1;
+            int target_z = -1;
+
+            selftest_park_player(&srv, 3222, 3218);
+            cm = mock230_scene_collision(0);
+            for( int x = 3208; x <= 3238 && target_x < 0; x++ )
+            {
+                for( int z = 3204; z <= 3234; z++ )
+                {
+                    int dx = x - player->x;
+                    int dz = z - player->z;
+
+                    if( dx * dx + dz * dz < 64 )
+                        continue;
+                    if( !mock230_scene_contains(x, z) ||
+                        collision_map_tile(
+                            cm, x - mock230_scene_base_x(),
+                            z - mock230_scene_base_z()) != COLL_FLAG_OPEN )
+                        continue;
+                    if( mock230_scene_route(0, player->x, player->z, x, z, path_x, path_z,
+                                            MOCK230_STEP_MAX) < 1 )
+                        continue;
+                    target_x = x;
+                    target_z = z;
+                    break;
+                }
+            }
+
+            SELFTEST_CHECK(target_x >= 0,
+                           "Lumbridge should expose an open move-near fixture tile");
+            if( target_x >= 0 )
+            {
+                int routed_x;
+                int routed_z;
+                int edge_dx;
+                int edge_dz;
+
+                collision_map_add_floor(
+                    cm, target_x - mock230_scene_base_x(),
+                    target_z - mock230_scene_base_z());
+
+                mock230_world_walk_to(&srv, target_x, target_z);
+                routed_x = player->dest_x;
+                routed_z = player->dest_z;
+                edge_dx = routed_x - target_x;
+                edge_dz = routed_z - target_z;
+                if( edge_dx < 0 )
+                    edge_dx = -edge_dx;
+                if( edge_dz < 0 )
+                    edge_dz = -edge_dz;
+                SELFTEST_CHECK(player->waypoint_index >= 0,
+                               "a blocked ground click should queue its nearest route");
+                SELFTEST_CHECK((edge_dx || edge_dz) && edge_dx <= 1 && edge_dz <= 1,
+                               "ground wrapper retains routed neighbour %d,%d, not blocked click %d,%d",
+                               routed_x, routed_z, target_x, target_z);
+
+                collision_map_del_floor(
+                    cm, target_x - mock230_scene_base_x(),
+                    target_z - mock230_scene_base_z());
+                steps_clear(player);
+                player->dest_x = -1;
+                player->dest_z = -1;
+            }
+        }
+
         /*
          * Terrain and locs actually blocked something.
          *

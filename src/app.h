@@ -737,6 +737,9 @@ struct App
     /** Tree-affecting async work (CS2 hooks, transmits) is in flight; when the
      * runner queue next goes idle the tree gets a refresh pass. */
     int runner_had_work;
+    /** The serial packet/interface transaction yielded on real external IO.
+     * Its partially-applied tree is not eligible for frame publication. */
+    int exec_runner_had_work;
     int world_load_inflight;
     /** Send MAP_BUILD_COMPLETE when the in-flight world load finishes (set by
      * the REBUILD_NORMAL packet task, not by hotkey/lazy loads). */
@@ -883,6 +886,10 @@ struct App
      * fallback is for revisions that send none (lc254).
      */
     int server_tick_fence_seen;
+    /** A fenced server tick has started applying but SERVER_TICK_END has not
+     * yet executed.  The live tree may contain only part of that tick, so the
+     * renderer retains the preceding committed frame while this is set. */
+    int server_tick_open;
     /** Logic cycle the oldest held script has been waiting since, so a fence
      *  that never arrives (a tick cut short by a disconnect) cannot strand it. */
     int pending_clientscript_cycle;

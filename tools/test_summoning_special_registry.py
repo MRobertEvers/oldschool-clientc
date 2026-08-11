@@ -28,7 +28,7 @@ def main() -> int:
     except (AssertionError, KeyError, OSError, ValueError, IndexError) as exc:
         print(f"test_summoning_special_registry: error: {exc}", file=sys.stderr)
         return 1
-    print("test_summoning_special_registry: 78 unique familiar rows, 15 enabled, 0 errors")
+    print(f"test_summoning_special_registry: 78 unique familiar rows, {len(IMPLEMENTED)} enabled, 0 errors")
     return 0
 
 

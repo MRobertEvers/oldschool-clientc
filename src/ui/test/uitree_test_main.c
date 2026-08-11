@@ -7,6 +7,7 @@ main(void)
 {
     test_dirty_marking();
     test_walk_topology();
+    test_mounted_world_resize();
     test_hover_input();
     test_click_event_coords();
     test_layout_build();

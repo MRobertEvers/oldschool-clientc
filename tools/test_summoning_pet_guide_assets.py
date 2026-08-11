@@ -67,6 +67,9 @@ def main() -> int:
         exports = manifest_exports(args.manifest)
         expect(len(exports) == 33, f"expected 33 pet guide objects, got {len(exports)}")
         expect(len(set(exports.values())) == 33, "pet guide object names are not unique")
+        manifest_text = args.manifest.read_text(encoding="utf-8")
+        expect("material_mode=average_hsl\n" in manifest_text,
+               "cross-revision pet materials are not flattened to source average HSL")
 
         lane = args.tree / LANE
         object_records = records(lane / "configs/summoning_guide_pet.obj")

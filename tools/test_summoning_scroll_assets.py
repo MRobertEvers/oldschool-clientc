@@ -204,6 +204,29 @@ def main() -> int:
         for source, name in ((1503, "call_to_arms_start_gfx"), (1502, "call_to_arms_end_gfx")):
             expect(f"{source}={name}" in special_text,
                    f"Call to Arms source graphic {source} is not imported")
+        expect("5387=dreadfowl_strike" in special_text,
+               "Dreadfowl Strike's source animation is not imported")
+        for source, name in ((1523, "dreadfowl_strike_gfx"),
+                             (1318, "dreadfowl_strike_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Dreadfowl Strike source graphic {source} is not imported")
+        expect("8148=thorny_snail_slime_spray" in special_text,
+               "Slime Spray's source animation is not imported")
+        for source, name in ((1385, "thorny_snail_slime_spray_gfx"),
+                             (1386, "thorny_snail_slime_spray_projectile"),
+                             (1387, "thorny_snail_slime_spray_impact_gfx")):
+            expect(f"{source}={name}" in special_text,
+                   f"Slime Spray source graphic {source} is not imported")
+        expect("7795=desert_wyrm_electric_lash" in special_text,
+               "Electric Lash's source animation is not imported")
+        for source, name in ((1410, "desert_wyrm_electric_lash_gfx"),
+                             (1411, "desert_wyrm_electric_lash_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Electric Lash source graphic {source} is not imported")
+        expect("8275=vampire_bat_vampyre_touch" in special_text,
+               "Vampyre Touch's source animation is not imported")
+        expect("1323=vampire_bat_vampyre_touch_gfx" in special_text,
+               "Vampyre Touch's source graphic is not imported")
         special_ledger = (args.tree / "port/summoning_special_moves_530.map").read_text(
             encoding="utf-8"
         )
@@ -221,6 +244,37 @@ def main() -> int:
             expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
                              special_ledger, re.MULTILINE) is not None,
                    f"Call to Arms source graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t5387\t.*\tsummoning_special_move_dreadfowl_strike\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Dreadfowl Strike animation is absent from its ledger")
+        for source, name in ((1523, "dreadfowl_strike_gfx"),
+                             (1318, "dreadfowl_strike_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Dreadfowl Strike graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t8148\t.*\tsummoning_special_move_thorny_snail_slime_spray\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Slime Spray animation is absent from its ledger")
+        for source, name in ((1385, "thorny_snail_slime_spray_gfx"),
+                             (1386, "thorny_snail_slime_spray_projectile"),
+                             (1387, "thorny_snail_slime_spray_impact_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Slime Spray graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t7795\t.*\tsummoning_special_move_desert_wyrm_electric_lash\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Electric Lash animation is absent from its ledger")
+        for source, name in ((1410, "desert_wyrm_electric_lash_gfx"),
+                             (1411, "desert_wyrm_electric_lash_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Electric Lash graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t8275\t.*\tsummoning_special_move_vampire_bat_vampyre_touch\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Vampyre Touch animation is absent from its ledger")
+        expect(re.search(r"^spotanim\t1323\t.*\tsummoning_special_move_vampire_bat_vampyre_touch_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Vampyre Touch graphic is absent from its ledger")
 
         server = (args.tree / "server/scripts/ported_scape2009_summoning/scripts/"
                   "summoning_spirit_wolf.rs2").read_text(encoding="utf-8")

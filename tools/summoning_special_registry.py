@@ -27,7 +27,7 @@ SERVER = REPO / (
     "scripts/summoning_spirit_wolf.rs2"
 )
 
-IMPLEMENTED = frozenset((3, 6, 11, 18, 19, 20, 21, 22, 43, 47, 53, 59, 60, 61, 74))
+IMPLEMENTED = frozenset((2, 3, 5, 6, 8, 11, 15, 18, 19, 20, 21, 22, 43, 47, 53, 59, 60, 61, 74))
 SOURCE_GAPS = frozenset((12, 41, 52, 55, 57, 58, 63, 64, 65))
 SOURCE_DEFECTS = frozenset((9, 45))
 SOURCE_INCOMPLETE = frozenset((33,))

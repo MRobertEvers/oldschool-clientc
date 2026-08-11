@@ -257,12 +257,10 @@ test_layout_build(void)
         UITree_Free(tree);
     }
 
-    /* IF3 centre (xmode=1): undersized child centres; oversized child would
-     * overhang both sides via ((parent-self)>>1). When that lands abs_x<0
-     * (viewport_tracker in a canvas−42 gameframe), layout clamps to 0 so
-     * left-edge HUDs stay on-canvas — right overhang under the popout kept.
-     * Relative overhang math in UITree_If3AxisFromPositionMode is unchanged;
-     * chat dialogues (slot abs_x≥20) still resolve with abs_x≥0. */
+    /* IF3 centre (xmode=1): undersized children centre and oversized children
+     * overhang both sides. The reference preserves a negative canvas-space
+     * origin (viewport_tracker is 765 wide in a canvas−42 gameframe, so x=-21)
+     * rather than clamping it back onto the canvas. */
     {
         struct UITree* tree = UITree_New(4);
         struct UITreeNodeSpec parent_spec;
@@ -309,10 +307,10 @@ test_layout_build(void)
         UITree_LayoutInvalidateBoxes(tree);
         UITree_TestResolve(tree);
         TEST_ASSERT(
-            tree->components[child].position.abs_x == 0,
-            "oversized centre child clamps canvas-left overhang to abs_x=0");
+            tree->components[child].position.abs_x == (723 - 765) / 2,
+            "oversized centre child preserves canvas-left overhang");
         TEST_ASSERT(
-            tree->components[child].position.abs_y == ((503 - 503) >> 1),
+            tree->components[child].position.abs_y == (503 - 503) / 2,
             "oversized centre child y when equal height is 0");
         TEST_ASSERT(tree->components[child].position.abs_w == 765, "oversized centre keeps width");
 
@@ -404,19 +402,19 @@ test_layout_build(void)
 
         UITree_TestResolve(tree);
 
-        TEST_ASSERT(tree->components[universe].position.abs_x == 7, "chat_left universe abs_x");
-        TEST_ASSERT(tree->components[universe].position.abs_y == -6, "chat_left universe abs_y");
-        TEST_ASSERT(tree->components[safezone].position.abs_x == 18, "chat_left safezone abs_x");
-        TEST_ASSERT(tree->components[safezone].position.abs_y == 4, "chat_left safezone abs_y");
-        TEST_ASSERT(tree->components[content].position.abs_x == 19, "chat_left content abs_x");
-        TEST_ASSERT(tree->components[content].position.abs_y == 11, "chat_left content abs_y");
-        TEST_ASSERT(tree->components[cont].position.abs_x == 115, "chat_left continue abs_x");
-        TEST_ASSERT(tree->components[cont].position.abs_y == 91, "chat_left continue abs_y");
+        TEST_ASSERT(tree->components[universe].position.abs_x == 8, "chat_left universe abs_x");
+        TEST_ASSERT(tree->components[universe].position.abs_y == -5, "chat_left universe abs_y");
+        TEST_ASSERT(tree->components[safezone].position.abs_x == 19, "chat_left safezone abs_x");
+        TEST_ASSERT(tree->components[safezone].position.abs_y == 5, "chat_left safezone abs_y");
+        TEST_ASSERT(tree->components[content].position.abs_x == 20, "chat_left content abs_x");
+        TEST_ASSERT(tree->components[content].position.abs_y == 12, "chat_left content abs_y");
+        TEST_ASSERT(tree->components[cont].position.abs_x == 116, "chat_left continue abs_x");
+        TEST_ASSERT(tree->components[cont].position.abs_y == 92, "chat_left continue abs_y");
         TEST_ASSERT(
             tree->components[cont].position.abs_y + tree->components[cont].position.abs_h <= 119,
             "continue clears chatbox:controls at y=119");
-        TEST_ASSERT(tree->components[head].position.abs_x == 53, "chat_left head abs_x");
-        TEST_ASSERT(tree->components[head].position.abs_y == 47, "chat_left head abs_y");
+        TEST_ASSERT(tree->components[head].position.abs_x == 54, "chat_left head abs_x");
+        TEST_ASSERT(tree->components[head].position.abs_y == 48, "chat_left head abs_y");
 
         UITree_Free(tree);
     }

@@ -302,15 +302,6 @@ struct RS_CS2Host
     bool has_pending;
     struct CS2VM_HostRequest pending;
 
-    /* What the last yield parked for a cache load. A handler whose resource is
-     * still missing after this exact wait must complete with a default instead
-     * of yielding again: one opcode, one yield. Cleared in RS_CS2Host_Exec on
-     * any non-yield return. */
-    bool has_awaited;
-    enum CS2VM_HostRequestKind awaited_kind;
-    int awaited_id;
-    int awaited_id2; /* second resource of a two-resource request, else -1 */
-
     struct VarCManager* varcs; /* client-variable store; may be NULL */
     struct LootStore* loot;   /* client-native loot tracker; may be NULL */
 
