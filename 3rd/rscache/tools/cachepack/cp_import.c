@@ -44,7 +44,7 @@ struct Import_Ints { int* v; int n, cap; };
 struct Import_Manifest
 {
     char from_rev[64], from_cache[1024], to_rev[64], to_tree[1024];
-    char lane[256], ledger[512], prefix[96];
+    char lane[256], ledger[512], prefix[96], config_stem[96];
     int npc_base, obj_base, loc_base, spotanim_base;
     int model_base, seq_base, animset_base, framemap_base, synth_base;
     int sample_base, sample_identity_min, sample_setup_dest;
@@ -255,6 +255,7 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "lane") == 0 ) snprintf(m->lane, sizeof(m->lane), "%s", value);
             else if( strcmp(key, "ledger") == 0 ) snprintf(m->ledger, sizeof(m->ledger), "%s", value);
             else if( strcmp(key, "prefix") == 0 ) snprintf(m->prefix, sizeof(m->prefix), "%s", value);
+            else if( strcmp(key, "config_stem") == 0 ) snprintf(m->config_stem, sizeof(m->config_stem), "%s", value);
             else if( strcmp(key, "npc_base") == 0 ) { if( !parse_nonnegative(key, value, &m->npc_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "obj_base") == 0 ) { if( !parse_nonnegative(key, value, &m->obj_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "loc_base") == 0 ) { if( !parse_nonnegative(key, value, &m->loc_base) ) { fclose(f); return 0; } }
@@ -315,7 +316,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "from_rev") != 0 && strcmp(key, "from_cache") != 0 &&
                      strcmp(key, "to_rev") != 0 && strcmp(key, "to_tree") != 0 &&
                      strcmp(key, "lane") != 0 && strcmp(key, "ledger") != 0 &&
-                     strcmp(key, "prefix") != 0 && strcmp(key, "material_mode") != 0 )
+                     strcmp(key, "prefix") != 0 && strcmp(key, "config_stem") != 0 &&
+                     strcmp(key, "material_mode") != 0 )
             {
                 fprintf(stderr, "cachepack import: unknown import key %s\n", key);
                 fclose(f);
@@ -371,8 +373,14 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
     fclose(f);
     if( m->legacy_scape2009 && m->texture_map.count == 0 && !load_texture_map_file(path, m) )
         return 0;
+    /* The output stem is deliberately separate from prefix: prefix owns all
+     * canonical record and asset names, while this only names the config files.
+     * Resolve the default after parsing so an overridden prefix remains the
+     * backward-compatible filename for manifests without config_stem. */
+    if( !m->config_stem[0] )
+        snprintf(m->config_stem, sizeof(m->config_stem), "%s", m->prefix);
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
-        !m->prefix[0] || strchr(m->prefix, '/') ||
+        !m->prefix[0] || strchr(m->prefix, '/') || strchr(m->config_stem, '/') ||
         (m->npcs.n == 0 && m->objs.n == 0 && m->models.n == 0 && m->seqs.n == 0 &&
          m->spotanims.n == 0 && m->locs.n == 0 && m->synths.n == 0 &&
          m->songs.n == 0 && m->patches.n == 0 && m->samples.n == 0) )
@@ -1901,7 +1909,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         snprintf(configdir, sizeof(configdir), "%s/%s/configs", m->to_tree, m->lane);
         mkdir_p(configdir);
 
-        snprintf(path, sizeof(path), "%s/%s.seq", configdir, m->prefix);
+        snprintf(path, sizeof(path), "%s/%s.seq", configdir, m->config_stem);
         FILE* seqout = seqs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && seqout && i < seqs.n; i++ )
         {
@@ -1963,7 +1971,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         }
         if( seqout ) fclose(seqout); else if( seqs.n ) ok = 0;
 
-        snprintf(path, sizeof(path), "%s/%s.npc", configdir, m->prefix);
+        snprintf(path, sizeof(path), "%s/%s.npc", configdir, m->config_stem);
         FILE* npcout = m->npcs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && npcout && i < m->npcs.n; i++ )
         {
@@ -2018,7 +2026,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         }
         if( npcout ) fclose(npcout); else if( m->npcs.n ) ok = 0;
 
-        snprintf(path, sizeof(path), "%s/%s.obj", configdir, m->prefix);
+        snprintf(path, sizeof(path), "%s/%s.obj", configdir, m->config_stem);
         FILE* objout = m->objs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && objout && i < m->objs.n; i++ )
         {
@@ -2058,7 +2066,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         }
         if( objout ) fclose(objout); else if( m->objs.n ) ok = 0;
 
-        snprintf(path, sizeof(path), "%s/%s.spotanim", configdir, m->prefix);
+        snprintf(path, sizeof(path), "%s/%s.spotanim", configdir, m->config_stem);
         FILE* spotout = m->spotanims.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && spotout && i < m->spotanims.n; i++ )
         {
@@ -2079,7 +2087,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         }
         if( spotout ) fclose(spotout); else if( m->spotanims.n ) ok = 0;
 
-        snprintf(path, sizeof(path), "%s/%s.loc", configdir, m->prefix);
+        snprintf(path, sizeof(path), "%s/%s.loc", configdir, m->config_stem);
         FILE* locout = m->locs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && locout && i < m->locs.n; i++ )
         {

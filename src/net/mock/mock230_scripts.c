@@ -3296,6 +3296,24 @@ active_npc(struct SSVM_State* state)
 }
 
 /*
+ * Resolve the script-visible player uid.  Revision-230 player uids are the
+ * stable pool pid plus one (zero is the null sentinel); unlike npc uids there
+ * is no generation word in the script value.  The active bit is therefore the
+ * lifetime check every consumer must repeat after a suspended script resumes.
+ */
+static struct Mock230Player*
+player_by_uid(struct Mock230Server* srv, int32_t uid)
+{
+    int pid = (int)uid - 1;
+
+    if( pid < 0 || pid >= MOCK230_PLAYER_MAX )
+        return NULL;
+    if( !srv->players[pid].active || srv->players[pid].pid != pid )
+        return NULL;
+    return &srv->players[pid];
+}
+
+/*
  * The level the content block authored for this npc's stat — its *base*, before
  * anything a script has drained.
  *
@@ -4463,12 +4481,12 @@ mock230_script_command(
     case SS_OP_P_FINDUID:
     {
         int32_t uid;
+        struct Mock230Player* found;
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
         /*
-         * `uid` is 1 for the one player, matching `SS_OP_UID` above. Content
-         * uses this to re-acquire a player it stashed in a varp — the shape is
+         * Content uses this to re-acquire a player it stashed in a varp — the shape is
          * `if (p_finduid(%npc_aggressive_player) = true) { ... }` — so a uid
          * that no longer names anybody has to return false rather than abort.
          * That is the whole point of the call: it is content asking whether the
@@ -4479,12 +4497,13 @@ mock230_script_command(
          * same distinction and the VM already enforces it through the meta
          * table's require bits.
          */
-        if( uid != 1 || !srv->active_player )
+        found = player_by_uid(srv, uid);
+        if( !found )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         if( opcode == SS_OP_P_FINDUID )
             SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
@@ -6551,11 +6570,10 @@ mock230_script_command(
      * `-pid - 1` for a player. Two spaces in one signed field, which is why an
      * npc can never be slot -1 and a pid is never negative.
      *
-     * The player uid is resolved the way this server defines uids: there is one
-     * player, `uid` pushes 1 for it, and `damage` already ignores the argument
-     * for the same reason. So any uid names the active player. That is a
-     * single-player limitation and not a decision — a tree with a real uid space
-     * resolves it here.
+     * The player uid is resolved against the live player pool.  This matters
+     * for destructive targeted specials: the selected recipient, projectile
+     * homing entity and damage recipient must remain the same player after a
+     * delay, not whichever player's phase happens to be active when it resumes.
      */
     case SS_OP_PROJANIM_MAP:
     case SS_OP_PROJANIM_PL:
@@ -6599,9 +6617,17 @@ mock230_script_command(
         }
         else
         {
-            dst_x = player->x;
-            dst_z = player->z;
-            target = -player->pid - 1;
+            struct Mock230Player* target_player = player_by_uid(srv, values[1]);
+
+            if( !target_player )
+            {
+                SSVM_Abort(state, "projanim_pl: player uid %d is not a live player",
+                           (int)values[1]);
+                return 1;
+            }
+            dst_x = target_player->x;
+            dst_z = target_player->z;
+            target = -target_player->pid - 1;
         }
 
         /* MOCK230_PROJ_DEBUG=1: one line per send. A projectile that never
@@ -6658,14 +6684,25 @@ mock230_script_command(
     case SS_OP_DAMAGE:
     {
         int32_t values[3];
+        struct Mock230Player* target_player;
+        struct Mock230Player* saved_player;
 
         for( int i = 2; i >= 0; i-- )
         {
             if( !SSVM_PopInt(state, &values[i]) )
                 return 1;
         }
-        /* values[0] is the player uid, which the single-player mock ignores. */
+        target_player = player_by_uid(srv, values[0]);
+        if( !target_player )
+        {
+            SSVM_Abort(state, "damage: player uid %d is not a live player",
+                       (int)values[0]);
+            return 1;
+        }
+        saved_player = srv->active_player;
+        mock230_world_set_active(srv, target_player);
         mock230_combat_hit_player(srv, values[1], values[2]);
+        mock230_world_set_active(srv, saved_player);
         return 1;
     }
 
@@ -6755,14 +6792,12 @@ mock230_script_command(
     }
 
     case SS_OP_UID:
-        /* One player, so the uid is a constant. Content only ever passes it
-         * straight back into `damage`. */
-        SSVM_PushInt(state, 1);
+        SSVM_PushInt(state, player ? player->pid + 1 : 0);
         return 1;
 
     case SS_OP_NPC_FINDHERO:
-        /* Whoever has been hitting this npc — always the one player here. */
-        SSVM_PushInt(state, 1);
+        /* Combat currently retains the hitter as the active world player. */
+        SSVM_PushInt(state, srv->active_player ? srv->active_player->pid + 1 : 0);
         return 1;
 
     case SS_OP_NPC_ATTACKRANGE:

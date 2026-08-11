@@ -1,136 +1,438 @@
 {
-  "schema": 1,
-  "purpose": "Cited expected-behaviour contracts for Summoning specials whose local 2009scape implementation is missing, a no-op, or incomplete. These records permit prerequisite work and tests, but do not enable a handler until its asset closure and every listed prerequisite are present.",
+  "schema": 3,
+  "audit_date": "2026-08-11",
+  "evidence_window": "Release through 2011-12-31, widened from the original 2009-only audit at the user's direction.",
+  "purpose": "Provenance and executable reconstruction contracts for the final seven Summoning special moves. Direct period evidence, later source-code corroboration, and inference are deliberately separate. The implementation uses the recorded reconstruction decisions where period sources do not publish a number.",
+  "official_baseline": {
+    "snapshot_at": "2009-08-21T10:54:39Z",
+    "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+    "evidence_strength": "direct_period_official",
+    "scope": "Target class, high-level effect, scroll cost, and XP. Numeric details are used only where the table states them."
+  },
+  "shared_reconstruction_policy": {
+    "npc_targets": "Selected and area NPCs must expose attack option 2, be alive when resolved, and remain within eight tiles of the generation-checked familiar.",
+    "player_targets": "Destructive player effects require owner, familiar, and victim to be in multiway Wilderness, the victim to be within eight tiles of the familiar, and the combat-level difference to fit both tiles' Wilderness levels. This excludes Duel Arena, Castle Wars, ordinary safe areas, the owner, and friendly collateral.",
+    "timing": "A later server-source sequence is adopted only when it preserves the period-described effect and no conflicting period timing exists.",
+    "asset_policy": "Local 2009scape IDs are direct source evidence. Later source IDs are imported when the underlying rev-530 cache contains the referenced asset. Phoenix alone uses a named cache-native fallback because no special class or unique special asset survives."
+  },
   "fixtures": [
-    {
-      "type": 33,
-      "familiar": "MAGPIE_POUCH",
-      "special": "Thieving Fingers",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/MagpieNPC.java",
-      "local_state": "local source supplies only a familiar visual",
-      "historical_source": "https://runescape.salmoneus.net/skills/summoning.html",
-      "expected": "Raise the owner's Thieving level by two; no target or combat effect.",
-      "target_kind": "self",
-      "requirements": ["capped_skill_boost", "familiar_asset_closure"],
-      "implementation_state": "correction_fixture",
-      "open_details": ["source-530 animation and graphic IDs"]
-    },
     {
       "type": 16,
       "familiar": "HONEY_BADGER_POUCH",
       "special": "Insane Ferocity",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/HoneyBadgerNPC.java",
-      "local_state": "sets charged=true and plays a visual, but no local source reads or clears the charged bit",
-      "historical_source": "https://wiki.darkan.org/Honey_badger",
-      "expected": "Historical references describe an owner stat tradeoff (raise Attack and Strength while reducing Defence, Magic, and Ranged); other period references instead describe a rapid double familiar attack.",
-      "target_kind": "self_or_familiar_combat",
-      "requirements": ["authoritative_2009_behavior_resolution", "familiar_attack_lifecycle_or_bounded_stat_tradeoff", "source_530_asset_closure"],
-      "implementation_state": "evidence_partial",
-      "open_details": ["which historical behavior is authoritative for the 2009 source era", "exact stat deltas/caps/duration if the tradeoff applies", "charged-bit consumer and extra-hit timing if the attack behavior applies"]
+      "cost": 12,
+      "xp_tenths": 16,
+      "target_kind": "familiar_self",
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "Immediate owner/familiar self effect; no selected victim. Reject while the familiar generation already holds an unused charge.",
+        "effects_formula": "First cap any above-base current Attack, Strength, Defence, Magic, and Ranged to base. Then Attack and Strength gain floor(15% of base), Defence loses floor(15% of base), Magic loses 5, and Ranged loses floor(10% of base). Arm the familiar's next legal NPC combat swing; that swing always makes its normal hit and has a 50% chance to make one independently accurate second hit.",
+        "duration_timing": "The five stat changes use ordinary stat restoration. The generation-local attack charge has no wall-clock expiry; it waits for and is consumed by the next otherwise-legal adjacent multiway familiar swing, including a miss.",
+        "caps": "Stat operations use the host stat floors/caps. Charged combat adds at most one hit and cannot be stacked.",
+        "pvp_restrictions": "The reconstructed charge consumer is NPC-only because the current familiar combat loop has no ordinary familiar-vs-player swing. Its owner, familiar, and NPC target must all be on multiway tiles.",
+        "assets": {
+          "confirmed_from_local_source": ["sequence 7928", "familiar spotanim 1397", "owner sequence 7660", "owner spotanim 1399"],
+          "confirmed_from_later_source": ["spotanims 1397 and 1399"],
+          "reconstructed_fallback": []
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 12, XP 1.6, and a Defence-to-Attack/Strength trade"
+        },
+        {
+          "date": "2009-11-12",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Honey_badger?oldid=1903749",
+          "supports": "the affected actor is the player: Magic, Ranged, and Defence decrease while Attack and Strength increase"
+        },
+        {
+          "date": "2011-12-16T14:17:42Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Honey_badger?oldid=5058424",
+          "supports": "owner stat trade and a chance for the familiar to make two attacks in quick succession"
+        },
+        {
+          "date": "local checkout accessed 2026-08-11",
+          "kind": "source_repository",
+          "path": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/HoneyBadgerNPC.java",
+          "supports": "generation-local charged bit, sequence 7928, familiar graphic 1397, owner sequence 7660, and owner graphic 1399"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "revision-633 source; accessed 2026-08-11",
+          "url": "https://github.com/CSS-Lletya/633-official/blob/main/combat/com/rs/game/npc/familiar/Honeybadger.java",
+          "supports": "exact +15%/+15%/-15%/-5/-10% base-stat formula, cap-current-to-base behavior, and graphics 1397/1399"
+        }
+      ],
+      "reconstruction_decisions": [
+        "Adopt the later exact stat formula because it resolves the actor and deltas without conflicting with either period description.",
+        "Use the local sequence 7928 rather than later sequence 7930 because the target cache and checked-in class are rev-530.",
+        "Use a 50% second-hit chance. The existence of a chance is period evidence; the probability is inference and is regression-locked."
+      ],
+      "remaining_uncertainty": ["The original 2009 second-hit probability and any charged-state expiry were not published."]
     },
     {
-      "type": 41,
-      "familiar": "KARAMTHULHU_POUCH",
-      "special": "Doomsphere Device",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/KaramthulhuOverlordNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://runescape.fandom.com/wiki/Karam._overlord",
-      "expected": "Familiar-origin magical water attack against the selected combat target; deals up to 763 damage and drains Magic.",
-      "target_kind": "combat_target",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "target_skill_drain", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["2009-scale maximum hit", "Magic-drain amount/floor", "source-530 timing and assets"]
+      "type": 50,
+      "familiar": "RAVENOUS_LOCUST_POUCH",
+      "special": "Famine",
+      "cost": 12,
+      "xp_tenths": 15,
+      "target_kind": "player",
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "One other player satisfying the shared destructive-PvP policy. The target must still carry an item present in the live food table at impact.",
+        "effects_formula": "Remove one unit from the first inventory slot whose object has a food-table row. Bandages and non-food healing items are therefore excluded.",
+        "duration_timing": "Sequence/graphic at cast, wait two ticks, launch graphic 1347, wait one tick, show impact 1348, re-scan, then remove exactly one food unit.",
+        "caps": "Exactly one food unit; no effect and no resource commit when no food remains.",
+        "pvp_restrictions": "Shared multiway-Wilderness/range/combat-bracket policy; owner, Castle Wars, Duel Arena, and safe-area targets are rejected.",
+        "assets": {
+          "confirmed_from_local_source": ["source spotanim 1346", "target graphic 1347"],
+          "confirmed_from_later_source": ["sequence 7998", "projectile/target graphic 1347", "impact spotanim 1348"],
+          "reconstructed_fallback": []
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 12, XP 1.5, player target, and food destruction"
+        },
+        {
+          "date": "2009-12-06",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Ravenous_locust?oldid=1990108",
+          "supports": "one piece of an opponent's food and Castle Wars bandages excluded"
+        },
+        {
+          "date": "2011-12-19T03:51:53Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Ravenous_locust?oldid=5065661",
+          "supports": "one opponent food item; bandages are not food"
+        },
+        {
+          "date": "local checkout accessed 2026-08-11",
+          "kind": "source_repository",
+          "path": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/RavenousLocustNPC.java",
+          "supports": "first-food slot order, one-unit removal, familiar combat-special gate, and graphics 1346/1347"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "revision-633 source; accessed 2026-08-11",
+          "url": "https://github.com/CSS-Lletya/633-official/blob/main/combat/com/rs/game/npc/familiar/Ravenouslocust.java",
+          "supports": "sequence 7998; two-tick wait, graphic 1347, one-tick wait, impact 1348; first Food item"
+        }
+      ],
+      "reconstruction_decisions": ["Use the host's category-backed food table as the exact runtime membership source.", "Map familiar combat authorization to the shared destructive-PvP policy."],
+      "remaining_uncertainty": ["The period server's complete food registry is unavailable; membership follows the target runtime's edible-food table."]
     },
     {
       "type": 52,
       "familiar": "PHOENIX_POUCH",
-      "special": "Rise from the Ashes",
-      "local_source": "no Phoenix familiar class exists in ../2009scape/Server/src/main/content/global/skill/summoning/familiar/",
-      "local_state": "missing",
-      "historical_source": "https://runescape.wiki/w/Phoenix_(familiar)",
-      "expected": "Two paths: a direct magic attack that temporarily drains combat levels, and an ashes-target path that heals the Phoenix and damages nearby targets. Modern-only Necromancy details are deliberately excluded.",
-      "target_kind": "combat_target_or_ground_ashes",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "target_skill_drain", "generation_safe_ground_target", "bounded_aoe", "familiar_heal", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["2009 target-drain values/duration", "direct-hit and ash-rebirth formula", "ash identity and ownership rules", "source-530 timing and assets"]
+      "special": "Rise From the Ashes",
+      "cost": 12,
+      "xp_tenths": 50,
+      "target_kind": "ground_ashes",
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "A live selected ground object of type ashes within eight tiles of the Phoenix. Consume it atomically at rebirth after the two-tick cast revalidation.",
+        "effects_formula": "Let M be Phoenix base HP and H its HP before cast. Damage cap = floor(50*(M-H)/M); independently roll uniform 0..cap for each eligible victim. Teleport the Phoenix onto the ashes and heal it to full.",
+        "duration_timing": "Play the cache-native Phoenix fall/ready sequence, wait two ticks, revalidate and consume ashes, teleport/full-heal/replay sequence, then resolve the 3x3 burst.",
+        "caps": "Maximum 50 damage; radius one (3x3); maximum five total NPC/player victims.",
+        "pvp_restrictions": "NPCs use the shared attackability rule. Players are damaged only under the shared multiway-Wilderness policy; Duel Arena and the historical non-PvP multiway bug are excluded.",
+        "assets": {
+          "confirmed_from_local_source": [],
+          "confirmed_from_later_source": [],
+          "reconstructed_fallback": ["cache-native Phoenix sequence 11092 for fall/glow/rebirth; no invented projectile or impact asset"]
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 12, XP 5.0, ashes target, full heal, adjacent damage, and inverse-health damage relationship"
+        },
+        {
+          "date": "2009-11-27",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Phoenix_(familiar)?oldid=1954006",
+          "supports": "owner-dropped ashes, fall/glow/rebirth/full-heal, 3x3 area, reported max 50, approximately one-to-five victims, overflow bug, Duel Arena exclusion, and fixed launch PvP bug"
+        },
+        {
+          "date": "2011-12-10T01:47:56Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Phoenix_(familiar)?oldid=5037635",
+          "supports": "max 500 on the ten-times display (50 period HP), 3x3 area, lower-health relationship, full heal, approximately one-to-five victims, and Duel Arena ground-drop restriction"
+        },
+        {
+          "date": "2009-09-17",
+          "kind": "official_patch_note_transcript",
+          "url": "https://runescape.wiki/w/Update:Patch_Notes_(17_September_2009)",
+          "supports": "Jagex fixed a combat issue with the Phoenix special"
+        },
+        {
+          "date": "2009-01-06",
+          "kind": "contemporaneous_player_report",
+          "url": "https://gamefaqs.gamespot.com/boards/301670-runescape/47510456",
+          "supports": "ash consumption/teleport, full heal, nearby explosion, and a release report of max 40 that was superseded by two stable period revisions reporting 50"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "2012-01-22 page update",
+          "url": "https://www.tip.it/runescape/items/view/8419-phoenix-pouch",
+          "supports": "full heal and damage to multiple nearby enemies in multicombat"
+        }
+      ],
+      "reconstruction_decisions": ["Use max 50 because both stable 2009 and 2011 revisions agree; treat the release-day 40 as superseded.", "Use a linear missing-health cap with uniform damage because no exact distribution survives.", "Resolve the approximate one-to-five wording as a hard cap of five.", "Use sequence 11092 as an explicit visual fallback because no Phoenix special class/asset closure survives."],
+      "remaining_uncertainty": ["Exact inverse-health probability curve, ordering within the five-victim selection, and original tick choreography were not published."]
     },
     {
-      "type": 55,
-      "familiar": "PRAYING_MANTIS_POUCH",
-      "special": "Mantis Strike",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/PrayingMantisNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://runescape.fandom.com/wiki/Praying_mantis",
-      "expected": "Familiar-origin magic hit against an opponent, draining Prayer and binding only when the hit lands.",
-      "target_kind": "combat_target",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "prayer_drain", "conditional_bind", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["2009-scale max hit", "Prayer drain amount", "bind duration", "source-530 timing and assets"]
-    },
-    {
-      "type": 57,
-      "familiar": "TALON_BEAST_POUCH",
-      "special": "Deadly Claw",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/TalonBeastNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://runescape.fandom.com/wiki/Deadly_claw_scroll",
-      "expected": "Three familiar-origin magic attacks against one valid combat target.",
-      "target_kind": "combat_target",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "generation_safe_delayed_hits", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["per-hit maximum/accuracy", "inter-hit delay", "source-530 timing and assets"]
+      "type": 56,
+      "familiar": "FORGE_REGENT_BEAST",
+      "special": "Inferno",
+      "cost": 6,
+      "xp_tenths": 15,
+      "target_kind": "player",
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "One other player satisfying the shared destructive-PvP policy, with one free inventory slot and an equipped right-hand weapon or left-hand shield.",
+        "effects_formula": "Choose uniformly between the present weapon/shield slots (or the sole present slot), move exactly one equipped item to inventory atomically, and deal uniform magic damage 0..20.",
+        "duration_timing": "Sequence/graphic at cast, wait two ticks, revalidate target equipment/inventory, then target graphic, damage, and disarm.",
+        "caps": "One disarmed item and 20 damage.",
+        "pvp_restrictions": "Shared multiway-Wilderness/range/combat-bracket policy excludes Castle Wars flag holders by excluding Castle Wars entirely.",
+        "assets": {
+          "confirmed_from_local_source": ["familiar spotanim 1394", "target spotanim 1393"],
+          "confirmed_from_later_source": ["sequence 7871", "spotanims 1394/1393"],
+          "reconstructed_fallback": []
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 6, XP 1.5, magic attack, and possible weapon-or-shield disarm"
+        },
+        {
+          "date": "2009-08-22",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Forge_regent?oldid=1652524",
+          "supports": "normal weapons/shields are eligible and Castle Wars flag holders are reported immune"
+        },
+        {
+          "date": "2011-12-10T01:40:08Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Forge_regent?oldid=5037487",
+          "supports": "weapon/shield disarm, max 200 on ten-times display (20 period HP), normal equipment, and Castle Wars flag-holder exception"
+        },
+        {
+          "date": "local checkout accessed 2026-08-11",
+          "kind": "source_repository",
+          "path": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/ForgeRegentNPC.java",
+          "supports": "player-only, free-slot rule, uniform present-slot choice, atomic one-item transfer, and graphics 1394/1393"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "revision-633 source; accessed 2026-08-11",
+          "url": "https://github.com/CSS-Lletya/633-official/blob/main/combat/com/rs/game/npc/familiar/Forgeregent.java",
+          "supports": "sequence 7871, two-tick delay, graphics 1394/1393, and max 20 after display-scale conversion"
+        }
+      ],
+      "reconstruction_decisions": ["Combine the local source's safer one-item atomic random transfer with the 2011/revision-633 max-20 magic hit.", "Use the shared PvP policy instead of adding minigame-specific exceptions."],
+      "remaining_uncertainty": ["The period hit-accuracy roll was not published; player hits use the bounded direct roll used by the target runtime's reconstructed familiar PvP effects."]
     },
     {
       "type": 58,
       "familiar": "GIANT_ENT_POUCH",
       "special": "Acorn Missile",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/GiantEntNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://runescape.salmoneus.net/skills/summoning.html",
-      "expected": "Familiar-origin magic attack against up to three valid opponents; maximum 170 damage and it may spawn an acorn.",
-      "target_kind": "combat_target_with_secondary_area",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "bounded_aoe", "owner_filtered_ground_spawn", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["secondary-target range/order", "acorn chance/location/ownership", "source-530 timing and assets"]
-    },
-    {
-      "type": 63,
-      "familiar": "SPIRIT_DAGANNOTH_POUCH",
-      "special": "Spike Shot",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/SpiritDagannothNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://www.tip.it/runescape/tables/summoning",
-      "expected": "Familiar-origin ranged hit against one combat target, up to 180 damage, with a stun effect.",
-      "target_kind": "combat_target",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "conditional_stun", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["stun chance/duration", "accuracy formula", "source-530 timing and assets"]
+      "cost": 6,
+      "xp_tenths": 16,
+      "target_kind": "combat_area",
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "Selected NPC or legal PvP player; select at most three eligible opponents in the target-centred radius-one 3x3 area, NPCs first then players.",
+        "effects_formula": "One independently accurate magic hit per selected NPC and one direct bounded hit per legal player, uniform 0..17. Each affected target independently has a 25% chance to produce one private acorn at its tile.",
+        "duration_timing": "Sequence 7858, projectile 1362, two-tick flight, impact 1363, then damage/acorn roll. Targets are generation/live re-evaluated at impact.",
+        "caps": "17 damage, three total opponents, one hit and at most one acorn per opponent.",
+        "pvp_restrictions": "NPCs use shared attackability/range. Players use the shared destructive-PvP policy.",
+        "assets": {
+          "confirmed_from_local_source": [],
+          "confirmed_from_later_source": ["sequence 7858", "projectile 1362", "impact spotanim 1363"],
+          "reconstructed_fallback": []
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 6, XP 1.6, official max 11, up to three opponents, and possible acorn drops"
+        },
+        {
+          "date": "2009-08-21",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Giant_ent?oldid=1645837",
+          "supports": "community-reported max 17 and nearby-opponent behavior, conflicting with official max 11"
+        },
+        {
+          "date": "2009-12-27",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Giant_ent?oldid=2080328",
+          "supports": "max 17, up to three opponents, and acorn drops remained the community-observed behavior"
+        },
+        {
+          "date": "2011-12-13T14:50:44Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Giant_ent?oldid=5048958",
+          "supports": "up to 187 on ten-times display, three opponents, and acorn drops; the odd 18.7 value is treated as noisy community data"
+        },
+        {
+          "date": "page accessed 2026-08-11; publication date unavailable",
+          "kind": "fansite_item_page",
+          "url": "https://www.runehq.com/item/giant-ent-scroll-acorn-missile",
+          "supports": "max 17, up to three opponents, and chance to drop acorns"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "revision-633 source; accessed 2026-08-11",
+          "url": "https://github.com/CSS-Lletya/633-official/blob/main/combat/com/rs/game/npc/familiar/Giantent.java",
+          "supports": "sequence 7858, projectile 1362, impact 1363, and one-tick launch plus two-tick impact choreography"
+        }
+      ],
+      "reconstruction_decisions": ["Use max 17 because two stable 2009 observations and RuneHQ converge; retain the official three-target cap.", "Resolve conflicting double-hit wording as one hit per opponent because the special's published cap is per affected opponent and later code has one hit.", "Use a target-centred 3x3 area and 25% per-target acorn chance; both are inference and regression-locked."],
+      "remaining_uncertainty": ["Original target ordering/radius, exact accuracy formula, and acorn probability were not published."]
     },
     {
       "type": 64,
       "familiar": "LAVA_TITAN_POUCH",
       "special": "Ebon Thunder",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/LavaTitanNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://runescape.salmoneus.net/skills/summoning.html",
-      "expected": "Familiar-origin magic attack against one combat target that drains the target's weapon special-attack energy.",
+      "cost": 4,
+      "xp_tenths": 83,
       "target_kind": "combat_target",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "weapon_special_energy_model", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["2009-scale max hit", "special-energy drain amount and target eligibility", "source-530 timing and assets"]
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "Selected attackable NPC or legal PvP player within eight familiar tiles.",
+        "effects_formula": "Magic hit uniform 0..14; NPC hit uses familiar magic accuracy. A player target additionally loses exactly 100 of the host's 0..1000 special-energy units (ten percentage points), floored at zero.",
+        "duration_timing": "Sequence 7883 plus spotanim 1491, wait one tick, revalidate target, then hit and player energy drain.",
+        "caps": "14 damage and a flat ten-percentage-point special-energy drain per accepted player cast.",
+        "pvp_restrictions": "NPCs use shared attackability/range. Player damage/drain uses the shared destructive-PvP policy.",
+        "assets": {
+          "confirmed_from_local_source": [],
+          "confirmed_from_later_source": ["sequence 7883", "spotanim 1491"],
+          "reconstructed_fallback": ["reuse already-admitted sequence 7883 from the same asset closure"]
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 4, XP 8.3, magic attack, and target special-energy drain"
+        },
+        {
+          "date": "2009-12-21",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Lava_titan?oldid=2058590",
+          "supports": "Ebon Thunder drains enemy special-attack energy; ordinary familiar max 19 is not the scroll cap"
+        },
+        {
+          "date": "2011-12-31T14:41:43Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Lava_titan?oldid=5101862",
+          "supports": "the special drains enemy special-attack energy by exactly 10%"
+        },
+        {
+          "date": "local checkout accessed 2026-08-11",
+          "kind": "source_repository_negative",
+          "path": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/LavaTitanNPC.java",
+          "supports": "the local special is a stub, so it supplies no formula or assets"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "later server source; accessed 2026-08-11",
+          "url": "https://github.com/dginovker/darkan-world-server/blob/master/src/main/java/com/rs/game/npc/combat/impl/LavaTitanCombat.java",
+          "supports": "sequence 7883, spotanim 1491, one-tick delay, and later max 14; its current-energy/10 code is not used because period wording says a 10% drain"
+        }
+      ],
+      "reconstruction_decisions": ["Interpret the period 10% as ten percentage points, not ten percent of the victim's remaining bar.", "Adopt later max 14 and sequence/graphic because period sources provide no conflicting damage number or choreography.", "Keep the official magic attack style even though some later combat code labels the swing melee."],
+      "remaining_uncertainty": ["The original accuracy roll and damage cap were not published; max 14 comes from later source corroboration."]
     },
     {
       "type": 65,
       "familiar": "SWAMP_TITAN_POUCH",
       "special": "Swamp Plague",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/SwampTitanNPC.java",
-      "local_state": "specialMove returns false",
-      "historical_source": "https://runescape.fandom.com/wiki/Swamp_plague_scroll",
-      "expected": "Magic hit against the selected target, then poison nearby monsters. Historical description gives an initial poison hit of 58 that decreases over time.",
-      "target_kind": "combat_target_with_area",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "bounded_aoe", "poison", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["2009-scale direct-hit maximum", "area range/cap", "NPC-only/PvP policy", "source-530 timing and assets"]
+      "cost": 6,
+      "xp_tenths": 43,
+      "target_kind": "combat_area",
+      "implementation_state": "implemented_reconstructed",
+      "mechanics": {
+        "target_rules": "Selected attackable NPC or legal PvP player; affect up to six eligible enemies in the target-centred radius-one 3x3 area, NPCs first then players.",
+        "effects_formula": "One independently accurate magic hit 0..20 per NPC and one direct bounded 0..20 hit per legal player. Each affected enemy independently has a 25% poison chance. Poison severity 29 in host units starts at six period hitpoints, equivalent to the reported 58 on the 2011 ten-times display after integer conversion.",
+        "duration_timing": "Sequence 8223 and source graphic 1460, projectile 1462, one-tick delay, then damage and poison roll.",
+        "caps": "20 damage, radius one, six total enemies, and poison severity 29.",
+        "pvp_restrictions": "NPCs use shared attackability/range. Players use the shared destructive-PvP policy.",
+        "assets": {
+          "confirmed_from_local_source": [],
+          "confirmed_from_later_source": ["sequence 8223", "source spotanim 1460", "projectile 1462"],
+          "reconstructed_fallback": []
+        }
+      },
+      "direct_evidence": [
+        {
+          "date": "2009-08-21",
+          "kind": "official_period_snapshot",
+          "url": "https://web.archive.org/web/20090821105439id_/http://www.runescape.com/kbase/guid/summoning_scrolls",
+          "supports": "cost 6, XP 4.3, area-effect magic attack, and possible poison"
+        },
+        {
+          "date": "2009-12-22",
+          "kind": "contemporaneous_wiki_revision",
+          "url": "https://runescape.wiki/w/Swamp_titan?oldid=2062840",
+          "supports": "magical area attack that poisons enemies"
+        },
+        {
+          "date": "2011-12-18T11:33:01Z",
+          "kind": "period_wiki_revision",
+          "url": "https://runescape.wiki/w/Swamp_titan?oldid=5064427",
+          "supports": "magic max 200 on ten-times display (20 period HP), nearby poison, and poison starting at displayed 58"
+        },
+        {
+          "date": "page accessed 2026-08-11; publication date unavailable",
+          "kind": "fansite_item_page",
+          "url": "https://www.runehq.com/item/swamp-titan-scroll-swamp-plague",
+          "supports": "magic max 200 on ten-times display and poison to nearby enemies"
+        }
+      ],
+      "later_corroboration": [
+        {
+          "date": "commit 0ccc36d04bbce768ffed4e3e84b34feba82405cf; accessed 2026-08-11",
+          "url": "https://github.com/rsJuuuuu/Divergent667/blob/0ccc36d04bbce768ffed4e3e84b34feba82405cf/Server/src/com/rs/game/npc/combat/impl/summoning/SwampTitanCombat.java",
+          "supports": "sequence 8223, source graphic 1460, projectile 1462, one-tick delay, poison severity 58 on later display, and a random(3)==0 branch implemented as one outcome among four"
+        }
+      ],
+      "reconstruction_decisions": ["Use period/RuneHQ max 20 over the later source's different damage cap.", "Use a 25% poison chance because the cited source's inclusive random call has four outcomes despite its one-in-three comment.", "Convert display severity 58 to host severity 29, yielding an initial six-damage poison tick.", "Use target-centred radius one and a hard cap of six; these are inference matching the runtime's bounded familiar AoE convention."],
+      "remaining_uncertainty": ["The period target cap, exact poison probability, and original accuracy formula were not published."]
+    }
+  ],
+  "completed_corrections": [
+    {
+      "type": 33,
+      "familiar": "MAGPIE_POUCH",
+      "special": "Thieving Fingers",
+      "implementation_state": "correction_fixture",
+      "source": "https://runescape.salmoneus.net/skills/summoning.html",
+      "expected": "Raise the owner's Thieving level by two; no target or combat effect."
     }
   ]
 }

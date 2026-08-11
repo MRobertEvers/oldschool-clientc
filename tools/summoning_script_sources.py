@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""Helpers for inspecting the modular Summoning server-script lane."""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+
+REPO = Path(__file__).resolve().parents[1]
+CONTENT = REPO / "OSRS-Content/osrs239-content"
+SCRIPT_DIR_REL = Path("server/scripts/ported_scape2009_summoning/scripts")
+EXPECTED_MODULES = frozenset(
+    {
+        "summoning_bindings.rs2",
+        "summoning_bob.rs2",
+        "summoning_combat.rs2",
+        "summoning_core.rs2",
+        "summoning_debug.rs2",
+        "summoning_infuse.rs2",
+        "summoning_pet_clockwork_cat.rs2",
+        "summoning_points.rs2",
+        "summoning_registry.rs2",
+        "summoning_special_core.rs2",
+        "summoning_special_immediate.rs2",
+        "summoning_special_targeted.rs2",
+        "summoning_tab.rs2",
+    }
+)
+
+_HEADER = re.compile(r"^\[([^\]]+)\][^\n]*\n", re.MULTILINE)
+
+
+def script_dir(content: Path = CONTENT) -> Path:
+    """Return the Summoning lane's server-script directory for a content tree."""
+    return content / SCRIPT_DIR_REL
+
+
+def script_paths(directory: Path) -> list[Path]:
+    """Return every RuneScript source in deterministic compiler-style order."""
+    return sorted(directory.rglob("*.rs2"))
+
+
+def read_all(directory: Path) -> str:
+    """Read all modules for global token/ownership checks."""
+    return "\n".join(path.read_text(encoding="utf-8") for path in script_paths(directory))
+
+
+def read_module(directory: Path, filename: str) -> str:
+    """Read one concern-specific module."""
+    return (directory / filename).read_text(encoding="utf-8")
+
+
+def definition(directory: Path, name: str) -> str:
+    """Return one uniquely owned top-level declaration, including its header."""
+    found: list[tuple[Path, str]] = []
+    for path in script_paths(directory):
+        source = path.read_text(encoding="utf-8")
+        headers = list(_HEADER.finditer(source))
+        for index, header in enumerate(headers):
+            if header.group(1) != name:
+                continue
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(source)
+            found.append((path, source[header.start():end]))
+    if len(found) != 1:
+        owners = ", ".join(str(path) for path, _body in found) or "none"
+        raise ValueError(f"expected one [{name}] declaration, found {len(found)} in {owners}")
+    return found[0][1]
+
+
+def declaration_owners(directory: Path) -> dict[str, list[Path]]:
+    """Map every top-level header to its owning modules."""
+    owners: dict[str, list[Path]] = {}
+    for path in script_paths(directory):
+        source = path.read_text(encoding="utf-8")
+        for header in _HEADER.finditer(source):
+            owners.setdefault(header.group(1), []).append(path)
+    return owners

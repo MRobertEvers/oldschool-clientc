@@ -9,6 +9,14 @@ import re
 import sys
 from pathlib import Path
 
+from summoning_script_sources import (
+    EXPECTED_MODULES,
+    declaration_owners,
+    read_all,
+    script_dir,
+    script_paths,
+)
+
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -38,33 +46,48 @@ def main() -> int:
             errors.append(message)
 
     lane = args.tree / "server/scripts/ported_scape2009_summoning"
-    script_path = lane / "scripts/summoning_spirit_wolf.rs2"
-    source = script_path.read_text(encoding="utf-8")
-    headers = list(re.finditer(r"^\[([^\]]+)\](?:\([^\n]*)?\n", source, re.MULTILINE))
-    expect(len(headers) >= 10, "too few callable entry points were inspected")
+    scripts = script_dir(args.tree)
+    paths = script_paths(scripts)
+    source = read_all(scripts)
+    expect(
+        {path.name for path in paths} == EXPECTED_MODULES,
+        "Summoning server-script module layout drifted",
+    )
+    owners = declaration_owners(scripts)
+    duplicate_headers = sorted(name for name, paths in owners.items() if len(paths) != 1)
+    expect(not duplicate_headers, f"Summoning declarations have multiple owners: {duplicate_headers}")
+    expect(len(owners) >= 100, "too few callable entry points were inspected")
     # Helpers are only reachable through gated runtime entries, so test actual
     # trigger headers rather than requiring an artificial gate on pure typed
     # selector procedures.
-    gated_prefixes = ("opheld", "opnpc", "oploc", "if_", "timer", "debugproc")
-    for index, header in enumerate(headers):
-        name = header.group(1)
-        if not name.startswith(gated_prefixes):
-            continue
-        body_start = header.end()
-        body_end = headers[index + 1].start() if index + 1 < len(headers) else len(source)
-        body = source[body_start:body_end]
-        # Phase 7 extends the build-wide gate with a permanent account unlock.
-        # The two transition-only debug hooks must retain the build gate so a
-        # feature-off server cannot mint an unlocked save.
-        gate = r"\s*if \(~summoning_account_enabled = false\)"
-        if name in (
-            "debugproc,summoning_unlock",
-            "debugproc,summoning_lock",
-            "debugproc,summoning_wolf_whistle_complete",
-            "oploc3,summoning_obelisk",
-        ):
-            gate = r"\s*if \(\^summoning_enabled = 0\)"
-        expect(re.match(gate, body) is not None, f"entry point lacks a top feature gate: [{name}]")
+    gated_prefixes = (
+        "opheld", "opnpc", "oploc", "opplayer", "opobj", "if_", "timer", "debugproc"
+    )
+    for path in paths:
+        module_source = path.read_text(encoding="utf-8")
+        headers = list(re.finditer(r"^\[([^\]]+)\](?:\([^\n]*)?\n", module_source, re.MULTILINE))
+        for index, header in enumerate(headers):
+            name = header.group(1)
+            if not name.startswith(gated_prefixes):
+                continue
+            body_start = header.end()
+            body_end = headers[index + 1].start() if index + 1 < len(headers) else len(module_source)
+            body = module_source[body_start:body_end]
+            # Phase 7 extends the build-wide gate with a permanent account unlock.
+            # The transition-only hooks retain the build gate so a feature-off
+            # server cannot mint an unlocked save.
+            gate = r"\s*if \(~summoning_account_enabled = false\)"
+            if name in (
+                "debugproc,summoning_unlock",
+                "debugproc,summoning_lock",
+                "debugproc,summoning_wolf_whistle_complete",
+                "oploc3,summoning_obelisk",
+            ):
+                gate = r"\s*if \(\^summoning_enabled = 0\)"
+            expect(
+                re.match(gate, body) is not None,
+                f"entry point lacks a top feature gate: [{name}] in {path.name}",
+            )
 
     for token in (
         "[opheld4,summoning_spirit_wolf_pouch]",
@@ -89,10 +112,9 @@ def main() -> int:
 
     # Every staged pouch exposes Summon through interface operation four; a
     # mismatched or absent server trigger falls through to the default message.
-    pouch_configs = [
-        args.tree / "ported/scape2009_summoning/configs/summoning.obj",
-        *sorted((args.tree / "ported/scape2009_summoning/configs").glob("summoning_cohort_*.obj")),
-    ]
+    pouch_configs = sorted(
+        (args.tree / "ported/scape2009_summoning/configs").glob("summoning_cohort_*.obj")
+    )
     summon_pouches = [
         header
         for path in pouch_configs
@@ -150,7 +172,7 @@ def main() -> int:
         "persisted familiar state leaks server-only varps",
     )
 
-    client_obj = (args.tree / "ported/scape2009_summoning/configs/summoning.obj").read_text(
+    client_obj = (args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.obj").read_text(
         encoding="utf-8"
     )
     wolf_ledger = (args.tree / "port/summoning_wolf_whistle_530.map").read_text(
@@ -159,7 +181,7 @@ def main() -> int:
     wolf_obj_alloc = (args.tree / "ported/scape2009_summoning/pack/obj.alloc").read_text(
         encoding="utf-8"
     )
-    client_npc = (args.tree / "ported/scape2009_summoning/configs/summoning.npc").read_text(
+    client_npc = (args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.npc").read_text(
         encoding="utf-8"
     )
     dread_obj = (
@@ -186,7 +208,7 @@ def main() -> int:
     ).read_text(encoding="utf-8")
     constants = (lane / "configs/summoning.constant").read_text(encoding="utf-8")
     expect("ifop4=Summon" in client_obj, "Spirit wolf pouch does not expose its bound operation")
-    obelisk = (args.tree / "ported/scape2009_summoning/configs/summoning.loc").read_text(
+    obelisk = (args.tree / "ported/scape2009_summoning/configs/summoning_cohort_spirit_wolf.loc").read_text(
         encoding="utf-8"
     )
     expect(

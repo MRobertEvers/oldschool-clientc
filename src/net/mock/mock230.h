@@ -395,7 +395,10 @@ enum
     /** Pending `[ai_queue<n>]` entries per npc. */
     MOCK230_NPC_QUEUE_MAX = 4,
     /** Script-owned integer state slots carried by each live npc instance. */
-    MOCK230_NPC_VAR_MAX = 16,
+    /* Slots 0..15 are established runtime state; slot 16 is the
+     * GiantChinchompa post-special dismissal latch and slot 17 retains the
+     * Spirit Graahk's generation-safe normal-combat target. */
+    MOCK230_NPC_VAR_MAX = 18,
 
     /**
      * Where an npc is in the death sequence — `Mock230Npc.death_stage`.

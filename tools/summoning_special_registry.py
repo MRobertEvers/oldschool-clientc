@@ -15,6 +15,8 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from summoning_script_sources import definition, script_dir
+
 
 REPO = Path(__file__).resolve().parents[1]
 POUCHES = REPO / "docs/summoning_port/pouches_530.json"
@@ -22,25 +24,27 @@ SCROLL_SOURCE = REPO.parent / (
     "2009scape/Server/src/main/content/global/skill/summoning/SummoningScroll.java"
 )
 SCROLL_MANIFEST = REPO / "docs/summoning_port/scroll_assets_530.ini"
-SERVER = REPO / (
-    "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/"
-    "scripts/summoning_spirit_wolf.rs2"
-)
+SERVER_SCRIPTS = script_dir()
 
-IMPLEMENTED = frozenset((1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 42, 43, 44, 46, 47, 48, 49, 51, 53, 54, 59, 60, 61, 62, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78))
-SOURCE_GAPS = frozenset((41, 52, 55, 57, 58, 63, 64, 65))
+SOURCE_GAPS = frozenset()
+RECONSTRUCTED_TYPES = frozenset((16, 50, 52, 56, 58, 64, 65))
+IMPLEMENTED = frozenset(range(1, 79))
 # Bunyip's Fish enum includes four non-cookable entries, then dereferences a
 # null CookableItems row; the live handler corrects that known source defect.
-SOURCE_DEFECTS = frozenset((9, 45, 48))
-# Honey badger's local class can set its charged bit but never consumes it in
-# an attack hook.  Treat that missing semantic as incomplete source, rather
-# than inventing a multiplier or duration from the visual alone.
-SOURCE_INCOMPLETE = frozenset((16,))
+SOURCE_DEFECTS = frozenset((45, 48))
+# The final seven rows use the explicit, dated reconstruction contracts in the
+# fixture. They are enabled only because each inference is now named and
+# regression-locked rather than hidden behind an apparently authoritative
+# number.
+SOURCE_INCOMPLETE = frozenset()
 SOURCE_GAP_FIXTURE = "docs/summoning_port/SPECIAL_SOURCE_GAP_FIXTURES.json"
 TARGET_KINDS = {
-    1: "npc", 13: "scenery", 17: "scenery", 32: "inventory_item",
-    44: "inventory_item", 48: "inventory_item", 50: "npc_or_player",
-    56: "player", 62: "scenery", 72: "player", 77: "inventory_item",
+    1: "npc", 13: "scenery", 16: "familiar_self", 17: "scenery",
+    32: "inventory_item", 40: "npc", 44: "inventory_item",
+    48: "inventory_item", 50: "player", 52: "ground_ashes",
+    56: "player", 58: "combat_area", 62: "scenery",
+    64: "combat_target", 65: "combat_area", 72: "player",
+    77: "inventory_item",
 }
 CALL_TO_ARMS = frozenset((18, 19, 20, 21))
 
@@ -61,10 +65,8 @@ class SpecialRecord:
     asset_bundle: str
 
 
-def _proc_body(text: str, name: str) -> str:
-    start = text.index(f"[proc,{name}]")
-    end = text.find("\n[", start + 1)
-    return text[start:] if end == -1 else text[start:end]
+def _proc_body(name: str) -> str:
+    return definition(SERVER_SCRIPTS, f"proc,{name}")
 
 
 def _scroll_source() -> dict[int, tuple[int, int]]:
@@ -85,7 +87,7 @@ def _scroll_source() -> dict[int, tuple[int, int]]:
 
 
 def _scroll_xp() -> dict[int, int]:
-    return {
+    result = {
         int(scroll): round(float(xp) * 10)
         for scroll, xp in re.findall(
             r"^\s*(?://\s*)?[A-Z][A-Z0-9_]+_SCROLL\d*"
@@ -93,6 +95,11 @@ def _scroll_xp() -> dict[int, int]:
             SCROLL_SOURCE.read_text(encoding="utf-8"), re.MULTILINE
         )
     }
+    # The archived 21 August 2009 Jagex scroll table is authoritative over two
+    # defects in the local source enum: Phoenix Rise is 5.0 XP (not 8.0), and
+    # Swamp Plague is 4.3 XP (not 4.1).
+    result.update({14622: 50, 12832: 43})
+    return result
 
 
 def _manifest_exports() -> dict[int, str]:
@@ -109,19 +116,18 @@ def _manifest_exports() -> dict[int, str]:
 
 
 def _runtime_scrolls_and_costs() -> tuple[dict[int, str], dict[int, int]]:
-    text = SERVER.read_text(encoding="utf-8")
     scrolls = {
         int(kind): name
         for kind, name in re.findall(
             r"if \(\$type = (\d+)\) return\((summoning_scroll_[a-z0-9_]+)\);",
-            _proc_body(text, "summoning_familiar_scroll"),
+            _proc_body("summoning_familiar_scroll"),
         )
     }
     costs = {
         int(kind): int(cost)
         for kind, cost in re.findall(
             r"if \(\$type = (\d+)\) return\((\d+)\);",
-            _proc_body(text, "summoning_familiar_special_cost"),
+            _proc_body("summoning_familiar_special_cost"),
         )
     }
     return scrolls, costs
@@ -129,12 +135,11 @@ def _runtime_scrolls_and_costs() -> tuple[dict[int, str], dict[int, int]]:
 
 def _runtime_names() -> dict[int, str]:
     """Read the persisted type-to-name roster rather than guessing its order."""
-    text = SERVER.read_text(encoding="utf-8")
     return {
         int(kind): name.upper().replace(" ", "_")
         for kind, name in re.findall(
             r'if \(\$type = (\d+)\) return\("([^"]+)"\);',
-            _proc_body(text, "summoning_familiar_name"),
+            _proc_body("summoning_familiar_name"),
         )
     }
 
@@ -189,7 +194,8 @@ def records() -> list[SpecialRecord]:
                 raise ValueError(f"cannot resolve shared scroll type {kind}: {runtime}")
             pouch, row = matching[0]
         xp = scroll_xp[source_scroll]
-        state = "implemented" if kind in IMPLEMENTED else (
+        state = "implemented_reconstructed" if kind in RECONSTRUCTED_TYPES else (
+            "implemented" if kind in IMPLEMENTED else
             "source_gap" if kind in SOURCE_GAPS else
             "source_incomplete" if kind in SOURCE_INCOMPLETE else
             "source_defect" if kind in SOURCE_DEFECTS else "specified"
@@ -198,13 +204,22 @@ def records() -> list[SpecialRecord]:
             type=kind, pouch=pouch, familiar=row["name"], scroll_source=source_scroll,
             scroll_runtime=runtime, cost=costs[kind], xp_tenths=xp,
             target_kind=TARGET_KINDS.get(kind, "self_or_combat"),
-            handler="summoning_familiar_special_execute" if kind in IMPLEMENTED else "unavailable",
+            handler=(
+                "summoning_familiar_special_target_execute"
+                if kind in RECONSTRUCTED_TYPES - {16}
+                else "summoning_familiar_special_execute"
+                if kind in IMPLEMENTED else "unavailable"
+            ),
             state=state,
             provenance=(
-                SOURCE_GAP_FIXTURE if state == "source_gap" else
+                SOURCE_GAP_FIXTURE if state in {"source_gap", "implemented_reconstructed"} else
                 "2009scape" if state != "source_incomplete" else "needs_citation"
             ),
-            asset_bundle="call_to_arms" if kind in CALL_TO_ARMS else "shared_cast",
+            asset_bundle=(
+                "reconstructed_special_assets" if kind in RECONSTRUCTED_TYPES else
+                "unavailable" if kind in SOURCE_GAPS else
+                "call_to_arms" if kind in CALL_TO_ARMS else "shared_cast"
+            ),
         ))
     return result
 

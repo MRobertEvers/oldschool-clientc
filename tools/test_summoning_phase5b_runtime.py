@@ -24,6 +24,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from summoning_script_sources import read_all, script_dir
+
 
 REPO = Path(__file__).resolve().parents[1]
 CONTENT = REPO / "OSRS-Content/osrs239-content"
@@ -245,7 +247,7 @@ def static_contract(expect: object) -> None:
     check = expect
     npc_path = LANE / "configs/summoning_cohort_dreadfowl.npc"
     obj_path = LANE / "configs/summoning_cohort_dreadfowl.obj"
-    script_path = SCRIPT_LANE / "scripts/summoning_spirit_wolf.rs2"
+    scripts = script_dir(CONTENT)
     constants_path = SCRIPT_LANE / "configs/summoning.constant"
     varp_cfg_path = SCRIPT_LANE / "configs/summoning.varp"
     alloc_path = CONTENT / "pack/varp.alloc"
@@ -254,7 +256,6 @@ def static_contract(expect: object) -> None:
     files = (
         ("Dreadfowl NPC config", npc_path),
         ("Dreadfowl pouch config", obj_path),
-        ("Summoning runtime script", script_path),
         ("Summoning constants", constants_path),
         ("Summoning varp config", varp_cfg_path),
         ("varp allocation", alloc_path),
@@ -262,7 +263,8 @@ def static_contract(expect: object) -> None:
     )
     for label, path in files:
         check(path.is_file(), f"missing {label}: {path}")
-    if not all(path.is_file() for _, path in files):
+    check(scripts.is_dir(), f"missing Summoning runtime modules: {scripts}")
+    if not all(path.is_file() for _, path in files) or not scripts.is_dir():
         return
 
     npc = config_props(npc_path, DREAD_NPC)
@@ -289,7 +291,7 @@ def static_contract(expect: object) -> None:
         "Dreadfowl walk animation is not allocated at target sequence 23001",
     )
 
-    script = read(script_path)
+    script = read_all(scripts)
     check(
         f"[opheld4,{DREAD_POUCH}]" in script and "~summoning_dreadfowl_summon(true);" in script,
         "Dreadfowl pouch lacks its canonical opheld4 handler",

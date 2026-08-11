@@ -61,7 +61,7 @@ def main() -> int:
         if not ok: errors.append(message)
 
     expect(CLIENT.is_file() and CACHE.is_dir() and SCRIPTS.is_dir(), "missing built client/cache/scripts")
-    script = (CONTENT / "server/scripts/ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2").read_text()
+    script = (CONTENT / "server/scripts/ported_scape2009_summoning/scripts/summoning_bob.rs2").read_text()
     bob_interface = (CONTENT / "ported/scape2009_summoning/interfaces/summoning_bob.if").read_text()
     expect("^summoning_bob_slots = 12" in (CONTENT / "server/scripts/ported_scape2009_summoning/configs/summoning.constant").read_text(), "terrorbird 12-slot limit absent")
     expect("[opnpc3,summoning_cohort_spirit_terrorbird_spirit_terrorbird]" in script, "real Store menu binding absent")
