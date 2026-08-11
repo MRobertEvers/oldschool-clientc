@@ -280,10 +280,10 @@ filed under `helpers/miniquests/` are at the end.
 | 118 | makingfriendswithmyarm | `makingfriendswithmyarm` | 640 | done |  |
 | 119 | swansong | `swansong` | 644 | done | May 2006 -- Herman Caranos's besieged Piscatoris Fishing Colony, the Wise Old Man's own "swan song", Franklin's wall repairs, Arnold's monkfish, Malignius Mortifer's failed skeletal army, the Sea Troll Queen; see Log |
 | 120 | royaltrouble | `royaltrouble` | 657 | done | May 2006 -- King Vargas's restlessness, a staged Miscellania/Etceteria feud, five Fremennik teens (Signy/Hild/Armod/Beigarth/Reinn) who failed their Trials, a Giant Sea Snake (level 149); thematically/mechanically linked to Throne of Miscellania (#99) -- same native npcs (misc_advisor_ghrim/misc_king_vargas/misc_queen_sigrid), branch merged into quest_misc's own existing opnpc1 triggers rather than duplicated; native dbrow `quest_royaltrouble` (id 112, endstate 30, questpoints 1, requirement_stats agility 40 + slayer 40, stat_xp_awarded agility/slayer/hitpoints 5000 each -- raw dbrow values /10, matches wiki exactly) + native varbit schema on basevars `royal_questvarbits` (`royal_quest`/`royal_misc`/`royal_etc`) and `royal_varbits` reused as-is, matching quest-helper's own VarbitID names exactly (fetched via GitHub raw + summarized, not verbatim -- exact intermediate breakpoint semantics reconstructed from the recovered ROYAL_MISC {10,20,30,40,50,60,80,110,120}/ROYAL_ETC {10,20,40} value sets + wiki step order, not independently confirmed); `%royal_liftstage`/`%royal_coalinengine` breakpoints ARE independently confirmed off this cache's own multivarbit .loc records (`royal_side_scaffold_multiloc`, `royal_top_scaffold_multiloc`, `royal_engine_platform_multiloc`, `royal_lift_platform_multiloc`) -- lift repair implemented as a real multi-step item-on-object puzzle (crates/beams/pulley beams/rope/coal engine) using those exact breakpoints, not narrated; dbrow `requirement_quests` resolves to The Corsair Curse (id 147) -- not a real prerequisite (same cache decode corruption flagged repeatedly on this queue) -- gated on Throne of Miscellania completion instead (`%misc_quest = ^misc_king_signed_treaty`); npcs=royal_misc_guard/royal_etc_guard (cache's own soldiers-being-blamed stand in for the wiki's unresolved Gunnhild/Leif/Frodi/Magnus/Helga/Haming/Matilda interviewees, cache wins), misc_sailor, royal_dwarf_drunk (Donal), royal_fremennik_teen3 (Armod, spokesperson), royal_sea_snake_mother_smaller (Giant Sea Snake boss, hand-spawned on trigger + `~npc_default_death`, same idiom as Contact's Giant Scarab), royal_cutscene_prince_brand/royal_cutscene_princess_astrid (dedicated intro-cutscene npcs, distinct from quest_misc's own Brand/Astrid, op1 added via additive .npc overlay); zero hand-spawning for every other npc (all world-spawned already); cave hazards (steam vents/falling rocks/slippery-rock plank) deferred as pass-through terrain, no damage/fail-chance system precedent in this tree; wiki https://oldschool.runescape.wiki/w/Royal_Trouble/Quick_guide + walkthrough (Transcript: page not fetched verbatim, paraphrased dialogue per copyright, same as King's Ransom); `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (13,940 scripts, up from 13,887); `::royaltrouble` / `::royaltroublerun`; next = The Great Brain Robbery (#121) |
-| 121 | thegreatbrainrobbery | `thegreatbrainrobbery` | 659 | pending | npcs=feverharmle,brainbrothe,brainbrothe |
-| 122 | rumdeal | `rumdeal` | 662 | pending | npcs=dealevilsp,dealpete,dealcaptian |
+| 121 | thegreatbrainrobbery | `thegreatbrainrobbery` | 659 | done | Mar 2007 -- Brother Tranquility's Harmony Island monastery has had its monks' brains stolen by Mi-Gor's zombie pirates for his machine, Barrelchest; Dr Fenkenstrain (Creature of Fenkenstrain, already implemented, hard-gated on `%creatureoffenkenstrain >= ^fenk_complete`) is smuggled to the island inside a crate of wooden cats to perform the transplants; native dbrow `quest_greatbrainrobbery` (id 130, endstate 130, questpoints 2, requirement_stats prayer 50 + construction 30 -- dbrow only encodes 2 stat rows, wiki's crafting 16 checked separately, stat_xp_awarded prayer 60000=6000xp + crafting 30000=3000xp + construction 20000=2000xp, raw dbrow /10 matches wiki exactly) + native varbit schema on basevars `brain_extra_var`/`brain_extra_var_2` (`brain_broken_steps`, `brain_read_prayers`, `brain_words`, `brain_fenk_puzzle`, `brain_crate`, `brain_barrel_setup`, `brain_clamp_given`/`brain_tongs_given`/`brain_hammer_given`/`brain_jars_given`/`brain_staples_given`, `brain_statue_pushed`, `brain_seen_wallbreaker`, `brain_multi_monk`) reused as-is, matching quest-helper's own VarbitID names exactly (fetched via GitHub raw); master progress is a plain varp `brain_quest_var` (0/10/20.../130, matching quest-helper's own steps.put keys 1:1) -- confirmed authoritative (not guessed) via this cache's own multi-npc records: `brain_tranquility`/`brain_island_tranquility` both declare `multivarp=brain_quest_var` swapping Brother Tranquility zombie->human exactly at value 100, and `brain_island_fenkenstrain` only renders `fenk_fenkenstrain_model` from value 70 on, both landing exactly on quest-helper's own step keys; crate-build puzzle (`%brain_crate` 1..5: Build/Add-bottom/Fill/cats-added/Fenk-inside) and door-breach puzzle (`%brain_barrel_setup` 2..5: keg/fuse/lit/gone) both independently confirmed via this cache's own `brain_fenk_crate` and `brain_mon_entrance_door_multi` native multiloc records, matching quest-helper's own VarbitRequirement thresholds exactly; statue passage and underwater stairs repair (`brain_statue_saradomin`, `brain_underwater_stairs_broken`, op1=Repair, no item needed) likewise cache-baked map locs with no `.spawn` entry anywhere in this tree (confirmed via grep) -- script triggers only, no hand-spawning needed for any of the puzzle geometry; dbrow `requirement_quests` decodes to Black Knights' Fortress/Lost City -- not real prerequisites (same cache decode corruption flagged repeatedly on this queue) -- real prereqs per wiki are Creature of Fenkenstrain (hard-gated, already implemented), Cabin Fever and Recipe for Disaster/Freeing Pirate Pete (both have native dbrow rows but zero scripts anywhere in server/scripts -- soft-skipped, matching this queue's established convention for unported sibling prereqs); npcs=brain_tranquility/brain_island_tranquility (Brother Tranquility, split by location, matches the queue's own `brainbrothe` abbreviation), werewolfshopkeeper1 (Rufus, already has a Talk-to stub in `areas/area_canifis/scripts/rufus.rs2` -- merged a crate-scheme branch into its existing `[opnpc1,werewolfshopkeeper1]` trigger rather than duplicating, matches queue's own `feverharmle` sample which resolves to `fever_harmless_teach`-family Mos Le'Harmless npcs, not directly used here since Tranquility himself starts on Mos Le'Harmless), fenk_fenkenstrain_model (Dr Fenkenstrain, already has a full Talk-to tree in `quests/quest_fenkenstrain/scripts/fenkenstrain.rs2` for Creature of Fenkenstrain -- merged a branch into its existing `@fenk_talk` label rather than duplicating the trigger); brain_mi_gor/brain_barrel_chest hand-spawned on trigger for the final church confrontation, same idiom as Royal Trouble's Giant Sea Snake / Contact's Giant Scarab (neither has a `.spawn` entry); wooden-cat crafting implemented as a simplified oak-plank + knife make-action (no player-owned-house workshop flatpack minigame precedent anywhere in this tree -- deferred); surgical instruments (cranial clamp/brain tongs/3 bell jars/30 skull staples) drop from Sorebones kills via a simple scripted `obj_add` on `ai_queue3` death (no verified native drop table recoverable for these specific items); Barrelchest's own prayer-disabling special attack has no established mechanic precedent, left to the generic combat system, same reasoning as Royal Trouble's own boss; wiki https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery/Quick_guide + https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery (dialogue paraphrased per copyright, same convention as Royal Trouble/King's Ransom); `mingw32-make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (14,078 scripts, up from 14,041; zero brain_-related errors/warnings); files: `quests/quest_thegreatbrainrobbery/{configs/thegreatbrainrobbery.constant,configs/thegreatbrainrobbery.varp,scripts/brain_{shared,tranquility,underwater,prayerbook,castle,door,finale,journal}.rs2}` + merges into `areas/area_canifis/scripts/rufus.rs2`, `quests/quest_fenkenstrain/scripts/fenkenstrain.rs2`, `interface_questjournal/scripts/quest_journal.rs2`; next = Rum Deal (#122) |
+| 122 | rumdeal | `rumdeal` | 662 | done | Oct 2005 -- Pirate Pete's plan to get Captain Braindeath's zombie crew blind drunk so he can raid the island; native dbrow `quest_rumdeal` (id 95, endstate 19, questpoints 2, requirement_stats fishing50+prayer47+crafting42+slayer42+farming40, stat_xp_awarded fishing/prayer/farming 7000xp each) + native varbit schema on basevar `deal_var` (`deal_farming` blindweed patch 0-5, `deal_barrel` pressure-barrel sluglings 0-5, `deal_multi_hopper` brew control 0-2, all confirmed via native multiloc records) reused as-is; npcs=deal_pete,deal_captian_braindeath,deal_davey,deal_captian_donnie,deal_evil_spirit,deal_fever_spiders1 (queue's own abbreviated hint `dealevilsp`/`dealpete`/`dealcaptian` don't match real cache names -- cache wins); see Log |
 | 123 | templeoftheeye | `templeoftheeye` | 662 | done |  |
-| 124 | thefremennikisles | `thefremennikisles` | 670 | pending | npcs=fristrollm,fristrollm,fristrollf |
+| 124 | thefremennikisles | `thefremennikisles` | 670 | done | Feb 2007 -- King Gjuki's jester-spy plot against Mawnis Burowgar, two rounds of Jatizso tax collection, two bridge repairs, and the Ice Troll King; native dbrow `quest_fremennikisles` (id 127, endstate 340, questpoints 1, requirement_stats agility40+construction20) + native varbit schema on basevars `fris_r1` (`fris_quest`, `fris_task` troll counter, `fris_m_b3`/`fris_m_b4`/`fris_m_b5` bridges, `fris_king` Mawnis crown swap) and `fris_r2` (six `frisd_*_taxcollected` bits, shared/reset across both tax rounds) reused as-is; npcs=fris_r_king,fris_r_burgher_crown,fris_spymaster,frisd_oremerchant,frisd_weaponmerchant,frisd_izso_landlady,frisd_cook,frisd_armourmerchant,frisd_fishmerchant,fris_troll_king_true (cache spelling matches quest-helper's own NpcID names exactly, no drama this time); see Log |
 | 125 | gardenoftranquility | `gardenoftranquility` | 684 | pending | npcs=gardentroll,queenellama,queenellama |
 | 126 | murdermystery | `murdermystery` | 686 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (Dec 2003), belongs on IN-LC list not this queue — LC's own `quest_murder` (20 files, 1580 lines, dbrow `quest_murdermystery` journal wired `interface_questjournal/scripts/quest_journal.rs2:491`) already fully implements it; found + directly reused by this tick's King's Ransom slice (#115), see Log |
 | 127 | enakhraslament | `enakhraslament` | 688 | pending | npcs=enakhlazim,enakhlazim,enakhlazim |
@@ -3035,3 +3035,286 @@ filed under `helpers/miniquests/` are at the end.
   caveat as every prior slice). Next pending row (smallest-first): #121
   The Great Brain Robbery.
   Royal Trouble, 657 lines.
+
+- slice #121 done: The Great Brain Robbery -- grep-first audit found no
+  LC/2009scape ownership (`lc_quests.txt` clean, no `brainrobbery`/
+  `feverharmle`/`brainbrothe` hits anywhere in `server/scripts`); native
+  dbrow `quest_greatbrainrobbery` (id 130, endstate 130, questpoints 2)
+  already declared in the cache, unused until this slice. Master progress
+  var `%brain_quest_var` (0/10/.../130) is a plain varp, not a sub-varbit --
+  confirmed authoritative (not inferred) by this cache's own multi-npc
+  records: `brain_tranquility`/`brain_island_tranquility` both declare
+  `multivarp=brain_quest_var`, swapping Brother Tranquility from zombie to
+  human exactly at value 100, and `brain_island_fenkenstrain` only renders
+  Fenkenstrain from value 70 on -- both landing exactly on quest-helper's
+  own `steps.put` keys (fetched via GitHub raw), independent confirmation
+  of the full 0/10/.../130 breakpoint set, stronger than most prior slices
+  where only endpoints were independently checkable. Crate-build
+  (`%brain_crate` 1..5) and door-breach (`%brain_barrel_setup` 2..5)
+  puzzles both independently confirmed via this cache's own
+  `brain_fenk_crate`/`brain_mon_entrance_door_multi` native multiloc
+  records, matching quest-helper's own VarbitRequirement thresholds
+  exactly -- implemented as real click/item-on-loc puzzles (Build ->
+  Add-bottom -> Fill 10 wooden cats -> Blow wolf whistle -> attach shipping
+  order; keg -> fuse -> tinderbox) using the concrete cache loc state names
+  directly, same idiom as Royal Trouble's lift repair. Statue passage and
+  underwater stairs repair are likewise cache-baked map locs with no
+  `.spawn` entry anywhere in this tree -- script triggers only, zero
+  hand-spawning needed for any puzzle geometry. dbrow `requirement_quests`
+  decodes to Black Knights' Fortress/Lost City -- not real prerequisites
+  (same recurring cache decode corruption); real prereqs per wiki are
+  Creature of Fenkenstrain (hard-gated on `%creatureoffenkenstrain >=
+  ^fenk_complete`, already implemented), Cabin Fever and Recipe for
+  Disaster/Freeing Pirate Pete (both have native dbrow rows but zero
+  scripts anywhere in `server/scripts` -- soft-skipped, matching this
+  queue's established convention for unported sibling prereqs, e.g. King's
+  Ransom's One Small Favour). Two shared-file merges to avoid duplicate
+  triggers (critical correctness rule): `areas/area_canifis/scripts/
+  rufus.rs2`'s existing `[opnpc1,werewolfshopkeeper1]` trigger (Rufus's
+  crate-scheme branch) and `quests/quest_fenkenstrain/scripts/
+  fenkenstrain.rs2`'s existing `@fenk_talk` label (Fenkenstrain's own
+  branch) -- both gated on `%brain_quest_var` relevance, falling through to
+  existing dialogue unchanged otherwise. Mi-Gor/Barrelchest (level 190)
+  hand-spawned lazily on trigger for the church confrontation, same idiom
+  as Royal Trouble's Giant Sea Snake / Contact's Giant Scarab; no
+  prayer-disabling boss mechanic precedent in this tree, left to the
+  generic combat system. Deferred: wooden-cat crafting is a simplified
+  oak-plank + knife make-action, not the real player-owned-house workshop
+  flatpack minigame (no POH workshop precedent anywhere in this tree);
+  surgical instruments (clamp/tongs/3 bell jars/30 skull staples) drop from
+  Sorebones kills via a simple scripted `obj_add` on `ai_queue3` death, not
+  a verified native drop table (not recoverable from available sources);
+  Barrelchest's broken anchor reward stays broken (post-quest pirate-smith
+  repair flavour not implemented, same tier as other reward items needing
+  later unlocks elsewhere in this tree). `mingw32-make -C src sscompile`
+  clean; `mingw32-make -C src mock230-scripts` exit 0, 14078 scripts
+  compiled (14041 -> 14078); grep of the full build log for "brain"
+  returned exactly one hit during development (an unknown-constant
+  `^chat_evil` typo, fixed to `^chat_angry`, a real cache-confirmed mood
+  constant) and zero hits on the clean rebuild. Wiki
+  https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery/Quick_guide +
+  https://oldschool.runescape.wiki/w/The_Great_Brain_Robbery (dialogue
+  paraphrased, not verbatim, per copyright, same caveat as every prior
+  slice). `mock230_pack --check-only` not runnable in this worktree (no
+  `cache.osrs239` present, same pre-existing environment gap every prior
+  slice has noted). Next pending row (smallest-first): #122 Rum Deal, 662
+  lines.
+
+- slice #122 done: Rum Deal -- grep-first audit found no LC/2009scape
+  ownership (`lc_quests.txt` clean, no `rumdeal`/`rum_deal` hits anywhere in
+  `server/scripts`; the only tree hits were the native
+  `interfaces/rum_deal_title.if` / `rum_deal_censor.if` cutscene-adjacent
+  interfaces and `configs/all.dbrow`'s own undeclared `[quest_rumdeal]`
+  block). Fetched quest-helper's own `RumDeal.java` (497 lines,
+  steps.put 0-18) and its `SlugSteps.java` sub-helper (165 lines, the
+  slugling-fishing/pressure-barrel arc) verbatim via GitHub raw -- both
+  complete, not summarized. Native dbrow `quest_rumdeal` (id 95, endstate 19,
+  questpoints 2, startnpc 601 = `deal_pete`, requirement_stats fishing 50 +
+  prayer 47 + crafting 42 + slayer 42 + farming 40 -- all 5 rows present and
+  matching quest-helper's own `getGeneralRequirements()` exactly,
+  stat_xp_awarded fishing/prayer/farming 7000xp each -- raw dbrow values *10
+  internal xp units, matches quest-helper's own `ExperienceReward` list
+  exactly) already declared in the cache, unused until this slice. dbrow
+  `requirement_quests` decodes to ids 163/111 (A Night at the Theatre / Swan
+  Song depending on which `values=0:0:` block a naive id scan lands on) --
+  not real prerequisites (same recurring cache decode corruption flagged
+  repeatedly on this queue); the real prerequisites are quest-helper's own
+  `getGeneralRequirements()`: Zogre Flesh Eaters (`quest_zogreflesheaters`,
+  `%zogre >= ^zfe_complete`, IN-LC, already implemented) and Priest in Peril
+  (`quest_priestperil`, `%priestperil >= ^priestperil_complete`, IN-LC,
+  already implemented) -- both hard-gated. Three real native sub-varbits on
+  basevar `deal_var` back the actual puzzles, all independently confirmed via
+  this cache's own multiloc records rather than guessed: `%deal_farming`
+  (blindweed patch, quest-helper's own thresholds rakedPatch=3/plantedPatch=4/
+  grownPatch=5) matches `deal_blindweed`'s own native multiloc *0-indexed*
+  against the variable value (multiloc1 shown at value 0) -- value3 =
+  `deal_blindweed_empty` (freshly raked), value4 = `deal_blindweed_seed`
+  (just planted), value5 = `deal_blindweed_fullygrown` (op1=Pick declared
+  directly on that variant), landing exactly on quest-helper's own
+  thresholds; `%deal_barrel` (pressure barrel sluglings, 0-5) matches
+  `SlugSteps.java`'s own `getVarbitValue(DEAL_BARREL)` read and is
+  independently confirmed via `deal_multi_lever`'s own native multiloc
+  (values 0-4 show `deal_lever_down`, value5 shows `deal_lever_up` -- the
+  lever visibly pops up at exactly 5 sluglings, matching quest-helper's own
+  `numHandedIn >= 5 -> pullPressureLever` branch); `%deal_multi_hopper`
+  (brewing control, 0-2, drives `deal_multicontrol`'s own native multiloc
+  idle/spinning/running) has no quest-helper VarbitID of its own -- the
+  original source gates the wrench/spirit arc purely on item possession
+  (`holyWrench`/`evilSpiritNearby`), reused here only for cosmetic feedback.
+  The master progress var, `%deal_quest` (native basevar, bare reservation),
+  has no native multi-npc/multi-loc record fixing a concrete breakpoint set
+  (unlike Great Brain Robbery's `brain_quest_var`), so this port's own
+  16-value reconstruction (0-15, one per real distinguishable game state,
+  collapsing quest-helper's own duplicate-instruction step keys like
+  steps.put(0)/steps.put(1) which both point at the identical `talkToPete`
+  object) is documented as such in `configs/rumdeal.constant`;
+  `^deal_complete = 19` is not invented -- read directly off the dbrow's own
+  `endstate` column, matching Contact!/Great Brain Robbery/Priest in Peril's
+  own "_complete constant = dbrow endstate" idiom. npcs=deal_pete,
+  deal_captian_braindeath (cache's own spelling, not "captain"), deal_davey,
+  deal_captian_donnie, deal_evil_spirit, deal_fever_spiders1 -- this queue's
+  own row hint abbreviations (`dealevilsp`/`dealpete`/`dealcaptian`) don't
+  match any real cache name; cache wins, same precedent as The Giant Dwarf /
+  My Arm's Big Adventure. Every npc except the Evil Spirit is already
+  world-spawned (`server/scripts/areas/world/configs/m33_79.spawn` for the
+  island roster incl. 11x `deal_fever_spiders1` in the basement and 3x
+  `deal_squid` fishing spots around the coast, `m57_55.spawn` for Pete at the
+  Ectofuntus dock) -- only the level-150 Evil Spirit is hand-spawned lazily
+  on trigger next to the brewing control, same idiom as every prior
+  on-demand quest boss on this queue (Royal Trouble's Giant Sea Snake, Great
+  Brain Robbery's Barrelchest, Contact!'s Giant Scarab). The blindweed
+  patch's 5-minute growth wait uses a genuine one-shot `[timer,
+  deal_blindweed_grow]` player-timer (500 ticks @ 0.6s/tick) set on planting,
+  same `settimer`/`[timer,...]` idiom already established by Draynor Manor's
+  `manor_vines.rs2`. The stagnant-water gate (`deal_gate_closed` ->
+  `deal_gate_open`) is a plain one-time `loc_del`/`loc_add` swap, not tied
+  into `general_use/scripts/gates.rs2`'s own category-bound `_gate_main_*`
+  system (this gate has no `category=` field, so it never matches that
+  system's wildcard binds) -- a small bespoke swap instead, snapshotting
+  `loc_coord`/`loc_angle`/`loc_shape` before delete, matching that same
+  file's own snapshot-before-delete caution. Fishing sluglings is a simple
+  guaranteed-catch loop (no skill-check precedent needed since Fishing 50 is
+  already a hard quest-start requirement); the rare "Karamthulhu" joke catch
+  (`deal_karamthulhu`/`inactivepet_squid`) is deferred, no rare-roll
+  precedent anywhere in this tree. Fever spider's disease-on-hit-without-
+  slayer-gloves penalty deferred (no disease/status-effect precedent for
+  combat in this tree, same "left to the generic combat system" reasoning as
+  Great Brain Robbery's Barrelchest prayer-disable). The Holy Wrench used
+  mid-quest to fix the brewing control is quest-helper's own listed
+  `ItemReward` too -- not re-granted at completion, the player simply keeps
+  the one earned earlier (confirmed correct: it is never marked `isConsumed`
+  by any interaction in this port). Files:
+  `quests/quest_rumdeal/{configs/rumdeal.constant,configs/rumdeal.varp,
+  scripts/deal_{shared,pete,braindeath,farming,water_hopper,sluglings,combat,
+  donnie,journal,debug}.rs2}` + one line added to
+  `interface_questjournal/scripts/quest_journal.rs2`. Checked the whole
+  `server/scripts` tree for every new trigger/proc/debugproc name before
+  writing (`deal_pete`, `deal_captian_braindeath`, `deal_davey`,
+  `deal_captian_donnie`, `deal_evil_spirit`, `deal_fever_spiders1`, every
+  `deal_blindweed_*` variant, `deal_gate_closed`, `deal_stagnant`,
+  `deal_hopper`, `deal_brewvat_tap`, `deal_squid`, `deal_pressure`,
+  `deal_multi_lever`, `deal_multicontrol`, `deal_spider_body`,
+  `[timer,deal_blindweed_grow]`, `[debugproc,rumdeal]`/`[debugproc,
+  rumdealrun]`, every `[proc,deal_*]`) -- zero collisions, no merges needed.
+  `mingw32-make -C src sscompile` clean (only pre-existing snprintf-
+  truncation warnings in the compiler itself); `mingw32-make -C src
+  mock230-scripts` exit 0, 14111 scripts compiled (14078 -> 14111); grep of
+  the full build log for "rumdeal"/"deal_" (case-insensitive) returned zero
+  hits -- no warnings or errors attributable to this slice. `::rumdeal` /
+  `::rumdealrun` debug commands added, matching every prior slice's idiom.
+  Wiki https://oldschool.runescape.wiki/w/Rum_Deal/Quick_guide (dialogue
+  paraphrased, not verbatim, per copyright, same caveat as every prior
+  slice). `mock230_pack --check-only` not runnable in this worktree (no
+  `cache.osrs239` present, same pre-existing environment gap every prior
+  slice has noted). Next pending row (smallest-first): #124 The Fremennik
+  Isles, 670 lines.
+
+- slice #124 done: The Fremennik Isles -- grep-first audit found no LC/
+  2009scape ownership (`lc_quests.txt` clean; no `fremennikisles`/
+  `fristroll`/`frisd_`/`fris_` hits anywhere in `server/scripts` besides the
+  unrelated `quest_fremennikexiles`/`quest_viking`/`quest_mountaindaughter`
+  trees -- the three other Fremennik-named quests, correctly distinct per
+  this slice's own briefing). Fetched quest-helper's own
+  `TheFremennikIsles.java` (639 lines, steps.put 0-332) and its
+  `KillTrolls.java` sub-helper (the troll-cave kill-counter NpcStep) verbatim
+  via GitHub raw, not summarized (the WebFetch tool's own summarization pass
+  was lossy on the first attempt -- switched to a direct `curl` download for
+  verbatim source, worth noting for future slices). Native dbrow
+  `quest_fremennikisles` (id 127, endstate 340, questpoints 1, startnpc 1900,
+  requirement_stats agility 40 + construction 20 -- both rows match
+  quest-helper's own `getGeneralRequirements()` exactly; the Woodcutting 56 /
+  Crafting 46 entries quest-helper also lists are NOT real quest-start gates,
+  each is OR'd against `not ironman` in the source so only ever bites on
+  ironman item-sourcing routes -- the dbrow's own 2-row requirement_stats
+  table confirms they aren't real requirements, skipped) already declared in
+  the cache, unused until this slice. dbrow `requirement_quests` decodes to
+  id 57 (`quest_naturespirit`) -- not a real prerequisite, same recurring
+  cache decode corruption flagged repeatedly on this queue; the real
+  prerequisite is quest-helper's own The Fremennik Trials finished
+  (`%viking >= ^viking_complete`, LC's `quest_viking`, already implemented,
+  hard-gated). Master progress is the native varbit `fris_quest` (10 bits on
+  basevar `fris_r1`) -- no native multi-record ties a concrete breakpoint set
+  to it, so this port's own 0-26 + 340 reconstruction collapses
+  quest-helper's own duplicate-instruction step keys (steps.put(5)/(10),
+  (60)/(70)/(80), (100)/(110)/(120), (160)/(170)/(180)/(190), (240)/(250),
+  (300)/(310), (325)/(330)/(331)/(332) each point at one identical
+  ConditionalStep object), same reconstruction idiom as Rum Deal's
+  `deal_quest`; `^fris_complete = 340` read directly off the dbrow's own
+  `endstate` column, not invented. Three more native sub-varbits on the same
+  basevar back real puzzles, independently confirmed via this cache's own
+  records rather than guessed: `%fris_m_b3`/`%fris_m_b4` (the two rope-bridge
+  repairs quest-helper itself tracks) confirmed via `frisr_rb3`/`frisr_rb4`'s
+  own native multiloc (multivarbit=fris_m_b3/fris_m_b4,
+  multiloc1=frisb_rope_bridge_broken, multiloc2=frisb_rope_bridge) -- a THIRD
+  native pair, `frisr_rb5` on `%fris_m_b5`, has no quest-helper counterpart
+  and no wiki mention of a third bridge, flipped alongside `%fris_m_b4` here
+  as a documented judgment call so no dangling broken-bridge geometry is left
+  behind; `%fris_king` (Mawnis's own crown/no-crown cosmetic swap) confirmed
+  via `[fris_r_burgher]`'s own native multinpc record, flipped to 1 only at
+  true completion; `%fris_task` (troll-cave kill counter) confirmed by
+  `KillTrolls.java`'s own `client.getVarbitValue(VarbitID.FRIS_TASK)` read,
+  not inferred -- quest-helper's own text says "kill 10 trolls" while the
+  native world spawn (`m37_160.spawn`) only places 9 pre-set `_pc` trolls
+  (troll_bodyguard variants explicitly excluded from `KillTrolls.java`'s own
+  `addAlternateNpcs` list, left to the generic combat system); all bridges
+  and the trapdoor/chest/king-chamber geometry are cache-baked map locs with
+  no `.spawn` entry anywhere in this tree, zero hand-spawning needed for
+  puzzle geometry, same idiom as Great Brain Robbery's statue passage.
+  Six more native varbits on basevar `fris_r2`
+  (`frisd_weaponmerchant_taxcollected` Skuli, `frisd_oremerchant_taxcollected`
+  Hring Hring, `frisd_fishmonger_taxcollected` Flosi,
+  `frisd_armourmerchant_taxcollected` Raum, `frisd_pub_taxcollected`
+  Vanligga, `frisd_cook_taxcollected` Keepa) back the tax-collection puzzle;
+  quest-helper reuses the SAME Requirement instances across both the
+  window-tax round and the later beard-tax round, so this port explicitly
+  clears all six back to 0 when the second round starts
+  (`~fris_reset_tax`), the only behaviour consistent with the varbits being
+  genuinely shared. Every npc resolves natively with the cache's own
+  `fris`/`frisd` prefix, matching quest-helper's own NpcID names exactly --
+  no "cache wins" spelling drama this time (unlike Rum Deal's
+  `deal_captian_braindeath`). All npcs are already world-spawned except the
+  Ice Troll King, hand-spawned lazily on trigger in his chamber, same idiom
+  as every prior on-demand quest boss on this queue (Royal Trouble's Giant
+  Sea Snake, Great Brain Robbery's Barrelchest, Rum Deal's Evil Spirit).
+  Three shared-file merges to avoid duplicate triggers (critical correctness
+  rule -- `[opheldu,knife]`/`[opheldu,hammer]`/`[opheldu,needle]` already
+  exist elsewhere in this tree): a case for `arctic_pine_log` merged into
+  `skill_fletching/scripts/cut_logs.rs2`'s existing `[opheldu,knife]` (log
+  splitting for the bridge repairs), a case for `arctic_pine_log` merged into
+  `general_use/scripts/hammer.rs2`'s existing `[opheldu,hammer]` switch (the
+  Neitiznot shield craft), and a case for `yak_hide_cured` merged into
+  `skill_crafting/scripts/leather/leather.rs2`'s existing `[opheldu,needle]`
+  switch (the yak-hide armour craft) -- all three deferred/simplified as
+  plain item-on-item actions rather than tied to a specific
+  woodcutting-stump loc, since no Fremennik-specific stump gameval name
+  could be confirmed in `all.loc` (unlike the generic named tree stumps used
+  for actual woodcutting). The jester "follow Mawnis's request" performance
+  (a `DetailedQuestStep` whose own description is deliberately vague -- in
+  the real client this is a random emote the player must copy) is
+  implemented as a single scripted dialogue exchange rather than a real
+  emote-matching minigame, no follow-the-leader precedent anywhere in this
+  tree. Per-npc tax amounts aren't recoverable from quest-helper (it only
+  tracks varbits, not currency) -- approximated at 2500gp x4 (window) +
+  2000gp x5 (beard) = 20,000gp total, deliberately matching quest-helper's
+  own reward-list text ("Around 20,000 coins in assorted rewards during
+  quest") rather than an arbitrary guess. `mingw32-make -C src sscompile`
+  clean (only pre-existing snprintf-truncation warnings in the compiler
+  itself); `mingw32-make -C src mock230-scripts` exit 0, 14161 scripts
+  compiled (14111 -> 14161); grep of the full build log for "fris"
+  (case-insensitive) returned zero hits -- no warnings or errors
+  attributable to this slice or any of the three merged shared-trigger
+  edits. `::fremennikisles` / `::fremennikislesrun` debug commands added,
+  matching every prior slice's idiom. Wiki
+  https://oldschool.runescape.wiki/w/The_Fremennik_Isles/Quick_guide
+  (dialogue paraphrased, not verbatim, per copyright, same caveat as every
+  prior slice). Files:
+  `quests/quest_thefremennikisles/{configs/thefremennikisles.constant,
+  configs/thefremennikisles.varp,
+  scripts/fris_{shared,journal,debug,gjuki,mawnis,bridges,cave}.rs2}` +
+  merges into `skill_fletching/scripts/cut_logs.rs2`,
+  `general_use/scripts/hammer.rs2`,
+  `skill_crafting/scripts/leather/leather.rs2`,
+  `interface_questjournal/scripts/quest_journal.rs2`. `mock230_pack
+  --check-only` not runnable in this worktree (no `cache.osrs239` present,
+  same pre-existing environment gap every prior slice has noted). Next
+  pending row (smallest-first): #125 Garden of Tranquility, 684 lines.
