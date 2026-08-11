@@ -3,19 +3,6 @@
   "purpose": "Cited expected-behaviour contracts for Summoning specials whose local 2009scape implementation is missing, a no-op, or incomplete. These records permit prerequisite work and tests, but do not enable a handler until its asset closure and every listed prerequisite are present.",
   "fixtures": [
     {
-      "type": 12,
-      "familiar": "SPIRIT_KALPHITE_POUCH",
-      "special": "Sandstorm",
-      "local_source": "../2009scape/Server/src/main/content/global/skill/summoning/familiar/SpiritKalphiteNPC.java",
-      "local_state": "specialMove returns false; its commented implementation is not treated as authority",
-      "historical_source": "https://runescape.salmoneus.net/skills/summoning.html",
-      "expected": "Familiar-origin area magic attack: affect at most five nearby valid opponents for up to 20 damage each.",
-      "target_kind": "area",
-      "requirements": ["owned_familiar_actor", "owner_attributed_combat", "bounded_aoe", "projectile_and_asset_closure"],
-      "implementation_state": "research_ready",
-      "open_details": ["exact source-530 range", "target ordering", "sequence/spotanim/projectile IDs and delays"]
-    },
-    {
       "type": 33,
       "familiar": "MAGPIE_POUCH",
       "special": "Thieving Fingers",

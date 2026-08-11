@@ -251,6 +251,10 @@ def main() -> int:
         expect("8183=iron_titan_swing" in special_text and
                "1450=iron_titan_iron_within_gfx" in special_text,
                "Iron Within's source normal-swing sequence or charge graphic is not imported")
+        expect("8190=steel_titan_swing" in special_text and
+               "1445=steel_titan_projectile" in special_text and
+               "1449=steel_titan_steel_of_legends_gfx" in special_text,
+               "Steel of Legends' source visual closure is not imported")
         for source, name in ((8257, "spirit_tz_kih_fireball_assault"),
                              (7758, "giant_chinchompa_explode"),
                              (7820, "smoke_devil_dust_cloud")):
@@ -258,6 +262,12 @@ def main() -> int:
                    f"bounded-area familiar source sequence {source} is not imported")
         expect("1364=giant_chinchompa_explode_gfx" in special_text,
                "Giant Chinchompa's source graphic is not imported")
+        expect("8517=spirit_kalphite_sandstorm" in special_text,
+               "Sandstorm's source familiar sequence is not imported")
+        for source, name in ((1350, "spirit_kalphite_sandstorm_gfx"),
+                             (1349, "spirit_kalphite_sandstorm_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Sandstorm source graphic {source} is not imported")
         for source, name in ((1511, "beaver_logs"), (2862, "beaver_achey_tree_logs"),
                              (1521, "beaver_oak_logs"), (1519, "beaver_willow_logs"),
                              (6333, "beaver_teak_logs"), (10810, "beaver_arctic_pine_logs"),
@@ -275,6 +285,14 @@ def main() -> int:
         expect(re.search(r"^spotanim\t1316\t.*\t20003\tsummoning_special_move_gfx\t",
                          special_ledger, re.MULTILINE) is not None,
                "shared special-move graphic is absent from its translation ledger")
+        for kind, source, runtime in (
+            ("spotanim", 1350, "summoning_special_move_spirit_kalphite_sandstorm_gfx"),
+            ("spotanim", 1349, "summoning_special_move_spirit_kalphite_sandstorm_projectile"),
+            ("seq", 8517, "summoning_special_move_spirit_kalphite_sandstorm"),
+        ):
+            expect(re.search(rf"^{kind}\t{source}\t.*\t{runtime}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Sandstorm {kind} source {source} is absent from its translation ledger")
         for source, name in ((8136, "call_to_arms_start"), (8137, "call_to_arms_end")):
             expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
                              special_ledger, re.MULTILINE) is not None,
@@ -347,6 +365,13 @@ def main() -> int:
                re.search(r"^spotanim\t1450\t.*\tsummoning_special_move_iron_titan_iron_within_gfx\t",
                          special_ledger, re.MULTILINE) is not None,
                "Iron Within's source animation closure is absent from its ledger")
+        expect(re.search(r"^seq\t8190\t.*\tsummoning_special_move_steel_titan_swing\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1445\t.*\tsummoning_special_move_steel_titan_projectile\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1449\t.*\tsummoning_special_move_steel_titan_steel_of_legends_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Steel of Legends' source visual closure is absent from its ledger")
         for source, name in ((8257, "spirit_tz_kih_fireball_assault"),
                              (7758, "giant_chinchompa_explode"),
                              (7820, "smoke_devil_dust_cloud")):

@@ -20,7 +20,7 @@ plays.
   played after each currently implemented special accepts.
 - [x] Existing pouch, summon, renew, dismiss, timer, and initial BoB work remains
   available as a foundation.
-- [x] Fifty-nine source-backed effects validate/execute before the common
+- [x] Sixty-two source-backed effects validate/execute before the common
   transaction; the generated registry is the exact enabled roster and all
   other rows fail closed until their real operation exists.
 - [x] Every enabled mechanic has an admitted special-only asset closure and a
@@ -256,8 +256,9 @@ until the normal-swing, poison, and cleanup semantics are proven.
 
 - [ ] Honey badger rage and spirit scorpion charge.
 - [x] Iron titan two-extra-hit charge behavior, including source multiway
-  gating, approach, four-tick cadence, and generation-safe delayed hits.
-- [ ] Steel titan three-extra-hit charge behavior.
+  gating, approach, five-tick cadence, and generation-safe delayed hits.
+- [x] Steel titan three-extra-hit charge behavior, including its source
+  ranged/magic/melee rotation, range fallback, and three extra impacts.
 - [ ] Persist charge only for the live familiar instance; clear it on use,
   dismiss, death, replacement, logout, or invalidation as source behavior requires.
 
@@ -266,22 +267,29 @@ until the normal-swing, poison, and cleanup semantics are proven.
 These are concrete prerequisites, not reasons to fall back to a generic cast:
 
 - **Normal familiar combat lifecycle (partially unblocked):** the host still
-  drives its ordinary NPC loop only toward players, but Iron Titan now has a
-  generation-safe owner-target swing dispatch with its cited source profile.
-  Steel Titan remains blocked on source-faithful random melee/ranged/magic
-  selection and the host's missing generic NPC ranged/magic max-hit profiles;
-  Honey badger and Spirit scorpion still need their distinct consumption hooks.
+  drives its ordinary NPC loop only toward players, but Iron and Steel Titan
+  now have generation-safe owner-target swing dispatches with cited source
+  profiles. Steel preserves its source random ranged/magic/melee selection,
+  adjacency range fallback, and source ranged-strength/magic-damage formulas.
+  Spirit Graahk's Goad cannot yet reuse that narrow seam: its source accepts a
+  separately selected target through `Familiar.canCombatSpecial`, while the
+  only script-visible owner-combat query, `npc_findcombat`, exposes just the
+  owner's current NPC. Honey badger and Spirit scorpion still need their
+  distinct consumption hooks.
 - **Player pre-hit and NPC poison state:** Spirit scorpion must inspect the
   owner's next qualifying ranged hit, clear its live-familiar charge exactly
-  once, and poison that victim. The current poison scripts implement only
-  NPC-to-player poison; player-to-NPC poison needs a target-owned poison state
-  plus a pre-hit callback that preserves normal damage ordering.
-- **Area target authorization:** Tz-Kih, Giant chinchompa, Smoke devil, Giant
-  ent, Phoenix, and Swamp titan can now enumerate bounded nearby NPCs and
-  players through `npc_huntall`/`huntall`; the Tz-Kih, Chinchompa, and Smoke
-  Devil source visual closures are also admitted. The remaining prerequisite is
-  a shared familiar predicate that applies source attackability, Slayer,
-  wilderness/PvP, and multicombat rules before the iterator can select an
+  once, and poison that victim. `SpiritScorpionNPC.adjustPlayerBattle` applies
+  only to the source's `weapon.id + 6` poison-family pairing (the 530 cache
+  resolves this to thrown darts, javelins, and bronze knife), not ordinary
+  bows or arrows. The current poison scripts implement only NPC-to-player
+  poison; player-to-NPC poison needs a target-owned poison state plus a pre-hit
+  callback that preserves normal damage ordering.
+- **Area target authorization (partially unblocked):** Spirit Kalphite
+  Sandstorm and Smoke Devil Dust Cloud now execute their exact bounded
+  attackable-NPC subsets, with source timing/visuals and no fabricated PvP
+  targets. Tz-Kih, Giant chinchompa, Giant ent, Phoenix, and Swamp titan still
+  need a shared familiar predicate that applies source attackability, Slayer,
+  wilderness/PvP, and multicombat rules before their iterator can select an
   effect target. Raw iterator results are not a valid substitute.
 - **Player-target policy:** Ravenous locust still needs a single world/PvP
   authorization decision and an exact script-visible equivalent of the source
@@ -293,7 +301,7 @@ These are concrete prerequisites, not reasons to fall back to a generic cast:
   until the host exposes the source familiar-vs-player legality check: owner
   combat state, familiar range, attackability, and a real multicombat-zone
   policy. Approach/line-of-sight alone is insufficient authorization.
-- **Missing behavior evidence:** the nine `source_gap` records have
+- **Missing behavior evidence:** the eight `source_gap` records have
   research-ready fixtures, but retain explicit unknown timing/assets/formulas;
   Honey badger also needs an authoritative consumer for its charged bit.
 
@@ -321,7 +329,12 @@ These are concrete prerequisites, not reasons to fall back to a generic cast:
 
 ### Cohort F — source gaps and corrections
 
-- [ ] Research and cite the ten absent, no-op, or incomplete special effects.
+- [x] Recover Spirit Kalphite Sandstorm from the immediate pre-disable
+  2009scape revision (`393752d77^:.../SpiritKalphiteNPC.java`): source range
+  six, seq 8517/gfx 1350, projectile 1349, one-tick pulse, and its actual
+  six-target (`count > 5`) bound. Its buggy source return value is reconciled
+  so a successful effect commits its scroll and special points exactly once.
+- [ ] Research and cite the nine remaining absent, no-op, or incomplete special effects.
 - [ ] Write expected-behavior fixtures before implementing reconstructed logic.
 - [ ] Correct spirit scorpion and stranger plant success reporting.
 - [ ] Resolve whether player-target effects are enabled in all worlds or gated by
@@ -339,7 +352,7 @@ scroll.
    `tools/test_summoning_special_registry.py`: it derives the 78 rows from the
    pouch/scroll source mapping and live runtime tables, including cost, XP,
    target kind, handler state, provenance, and asset bundle.  It proves one
-   pouch per live familiar and explicitly marks the fifty-nine enabled rows;
+   pouch per live familiar and explicitly marks the sixty-two enabled rows;
    unimplemented rows are `unavailable`, never generic successful casts.
    Continue to use this generator as the input when replacing the remaining
    ServerScript switch tables.
@@ -368,8 +381,8 @@ scroll.
    dry-run/apply/idempotence, and retain a representative real-client trace.
    The shared cast and Call to Arms assets already provide the model for this;
    no raw 530 asset ID may appear in runtime content.
-7. **Resolve source gaps last, explicitly.** Before enabling Magpie, Spirit
-   kalphite, Karamthulhu overlord, Phoenix, Praying mantis, Talon beast, Giant
+7. **Resolve source gaps last, explicitly.** Before enabling Magpie,
+   Karamthulhu overlord, Phoenix, Praying mantis, Talon beast, Giant
    ent, Spirit dagannoth, Lava titan, or Swamp titan, add a cited expected-
    behaviour fixture.  The Spirit scorpion and Stranger plant fixes likewise
    require a fixture demonstrating that success is committed exactly once.
@@ -413,7 +426,7 @@ include logic, content assets, transaction behavior, and tests.
 | [ ] | 9 | Spirit scorpion — Venom Shot | charged state | Charge familiar/owner interaction for its next effect | source defect |
 | [ ] | 10 | Spirit Tz-Kih — Fireball Assault | nearby targets | Hit up to two valid entities within 8 tiles, max 7 each | specified |
 | [x] | 11 | Albino rat — Cheese Feast | self | Add cheese to inventory after locked animation | source-backed |
-| [ ] | 12 | Spirit kalphite — Sandstorm | TBD | Reconstruct behavior from an authoritative source | source gap |
+| [x] | 12 | Spirit kalphite — Sandstorm | nearby NPCs | One-tick delayed familiar magic volley against up to six nearby attackable NPCs, up to 20 each | source-backed/reconciled |
 | [x] | 13 | Compost mound — Generate Compost | scenery | Fill a compost bin's remaining capacity with potatoes or rare supercompost ingredients | source-backed |
 | [ ] | 14 | Giant chinchompa — Explode | area | Damage valid entities within 6 tiles up to 13, then dismiss familiar | specified |
 | [x] | 15 | Vampire bat — Vampyre Touch | combat target | Hit up to 12; 40% chance to heal owner by 2 | source-backed |
@@ -450,7 +463,7 @@ include logic, content assets, transaction behavior, and tests.
 | [x] | 39 | Spirit larupia — Rending | combat target | Hit up to 10 and drain Strength by 1 | source-backed |
 | [ ] | 40 | Spirit graahk — Goad | combat target | Command familiar's normal attack against valid target | specified |
 | [ ] | 41 | Karamthulhu overlord — Doomsphere | TBD | Reconstruct behavior from an authoritative source | source gap |
-| [ ] | 42 | Smoke devil — Dust Cloud | nearby targets | Hit valid entities within 1 tile up to 6, excluding owner/familiar | specified |
+| [x] | 42 | Smoke devil — Dust Cloud | nearby NPCs | Immediate familiar burst within 1 tile, excluding the familiar, for 0–5 each | source-backed/reconciled |
 | [x] | 43 | Abyssal lurker — Abyssal Stealth | self | Boost Agility and Thieving by 4 | source-backed |
 | [x] | 44 | Spirit cobra — Ophidian Incubation | inventory item | Transform a supported egg into its configured product | source-backed |
 | [ ] | 45 | Stranger plant — Poisonous Blast | combat target | Hit up to 2 and 50% chance of poison strength 20 | source defect |
@@ -480,7 +493,7 @@ include logic, content assets, transaction behavior, and tests.
 | [x] | 75 | Abyssal titan — Essence Shipment | inventory + BoB | Atomically bank carried and stored rune/pure essence | source-backed |
 | [x] | 76 | Iron titan — Iron Within | charged state | Charge next source-gated normal attack to add two owner-attributed extra hits | source-backed |
 | [x] | 77 | Pack yak — Winter Storage | inventory item | Atomically bank one bankable item with note conversion rules | source-backed |
-| [ ] | 78 | Steel titan — Steel of Legends | charged state | Charge next attack to add three owner-attributed extra hits | specified |
+| [x] | 78 | Steel titan — Steel of Legends | charged state | Charge next attack to add three owner-attributed extra hits | source-backed |
 
 ## Test and evidence plan
 
@@ -488,8 +501,8 @@ include logic, content assets, transaction behavior, and tests.
 
 - [x] `tools/test_summoning_special_registry.py` asserts exact 78-row coverage
   with no duplicate/missing familiar, pouch, handler, cost, or XP mapping.
-- [ ] Assert that every non-reconstructed behavior points to a local source class
-  and every reconstructed behavior contains a provenance record.
+- [x] Assert that every enabled non-reconstructed behavior points to a local
+  source class and every reconstructed behavior contains a provenance record.
 - [ ] Assert every referenced runtime asset is in the generated ledger and its
   recursive dependency closure; reject untracked raw 530 IDs.
 - [ ] Add script compilation and control-flow tests proving that every registry
@@ -531,7 +544,7 @@ include logic, content assets, transaction behavior, and tests.
 - [ ] All engine prerequisites are merged and independently tested.
 - [ ] The generated asset manifest and ledgers are reviewed and reproducible.
 - [ ] All shared-family parameter tables match the source.
-- [ ] All ten source-gap/incomplete rows have cited expected behavior and tests.
+- [ ] All nine remaining source-gap/incomplete rows have cited expected behavior and tests.
 - [ ] All 78 coverage rows are checked.
 - [ ] Static, build, cache, deterministic, isolation, and runtime suites pass.
 - [ ] No successful special omits its effect, assets, cost, or XP.

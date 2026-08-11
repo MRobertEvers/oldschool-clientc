@@ -6639,6 +6639,22 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_NPC_POISON:
+    {
+        int32_t severity;
+        int slot = (int)state->host_tag - 1;
+
+        if( !SSVM_PopInt(state, &severity) )
+            return 1;
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "npc_poison with no active npc");
+            return 1;
+        }
+        mock230_combat_poison_npc(srv, slot, srv->active_player, (int)severity);
+        return 1;
+    }
+
     case SS_OP_DAMAGE:
     {
         int32_t values[3];

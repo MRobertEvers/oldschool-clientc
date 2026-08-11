@@ -3145,6 +3145,13 @@ advance_npcs(struct Mock230Server* srv)
             continue;
         }
 
+        /* Entity poison is a global 30-tick timer, not an AI queue. Run it
+         * before npc_delay's turn gate: a delayed/frozen NPC still receives
+         * poison in the reference, while death clears it in the helper. */
+        mock230_combat_npc_poison_tick(srv, slot);
+        if( !npc->active || npc->death_tick >= 0 )
+            continue;
+
         /* `npc_delay` makes the reference NPC invalid for the remainder of
          * its turn (`Npc.isValid()` returns false while delayed). Its parked
          * script was offered a resume by phase_npcs immediately before this

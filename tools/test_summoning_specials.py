@@ -14,6 +14,7 @@ SERVER = REPO / (
     "scripts/summoning_spirit_wolf.rs2"
 )
 MOCK_HOST = REPO / "src/net/mock/mock230_scripts.c"
+MOCK_CONTENT = REPO / "src/net/mock/mock230_content.c"
 MOCK_INV = REPO / "src/net/mock/mock230_ops_inv.c"
 MOCK_WORLD = REPO / "src/net/mock/mock230_world.c"
 MOCK_HEADER = REPO / "src/net/mock/mock230.h"
@@ -37,6 +38,7 @@ def main() -> int:
     try:
         text = SERVER.read_text(encoding="utf-8")
         mock_host = MOCK_HOST.read_text(encoding="utf-8")
+        mock_content = MOCK_CONTENT.read_text(encoding="utf-8")
         mock_inv = MOCK_INV.read_text(encoding="utf-8")
         mock_world = MOCK_WORLD.read_text(encoding="utf-8")
         mock_header = MOCK_HEADER.read_text(encoding="utf-8")
@@ -57,12 +59,12 @@ def main() -> int:
         validate = text[text.index("[proc,summoning_familiar_special_validate]") : text.index("[proc,summoning_familiar_special_commit]")]
 
         expected_xp = {
-            1: 1, 2: 1, 3: 8, 4: 2, 5: 2, 6: 2, 7: 5, 8: 2, 11: 23, 13: 6, 15: 11,
+            1: 1, 2: 1, 3: 8, 4: 2, 5: 2, 6: 2, 7: 5, 8: 2, 11: 23, 12: 25, 13: 6, 15: 11,
             17: 7, 18: 7, 19: 7, 20: 7, 21: 7,
             22: 6, 23: 8, 24: 21, 25: 9, 26: 9, 27: 9, 28: 9, 29: 9, 30: 9, 31: 9,
-            32: 23, 33: 47, 34: 24, 35: 11, 36: 55, 37: 11, 38: 57, 39: 57, 43: 19, 44: 31, 46: 10, 47: 7, 49: 14, 51: 11, 53: 73,
+            32: 23, 33: 47, 34: 24, 35: 11, 36: 55, 37: 11, 38: 57, 39: 57, 42: 30, 43: 19, 44: 31, 46: 10, 47: 7, 49: 14, 51: 11, 53: 73,
             48: 14, 54: 37, 59: 79, 60: 79, 61: 79, 62: 16, 66: 36, 67: 46,
-            68: 56, 69: 66, 70: 76, 71: 86, 72: 18, 73: 89, 74: 45, 75: 19, 76: 47, 77: 48,
+            68: 56, 69: 66, 70: 76, 71: 86, 72: 18, 73: 89, 74: 45, 75: 19, 76: 47, 77: 48, 78: 49,
         }
         execute_types = {
             int(value)
@@ -108,6 +110,19 @@ def main() -> int:
                "summoning_special_move_desert_wyrm_electric_lash_projectile" in execute and
                "randominc(5)" in execute,
                "Electric Lash lacks its source projectile or max hit")
+        expect("SpiritKalphiteNPC.java (pre-disable): Sandstorm" in execute and
+               "npc_huntall($source, 6, 0);" in execute and
+               "summoning_special_move_spirit_kalphite_sandstorm" in execute and
+               "summoning_special_move_spirit_kalphite_sandstorm_projectile" in execute and
+               "if ($count >= 6)" in execute and "randominc(20)" in execute and
+               "npc_queue(2, $damage, add(2, divide($distance, 2)));" in execute,
+               "Sandstorm lacks its source pulse, bounded NPC target set, visual closure, or delayed magic hit")
+        expect("SmokeDevilNPC.java: Dust Cloud" in execute and
+               "npc_huntall($source, 1, 0);" in execute and
+               "summoning_special_move_smoke_devil_dust_cloud" in execute and
+               "spotanim_npc(summoning_special_move_geyser_titan_boil_gfx, 0, 0);" in execute and
+               "npc_damage(hitsplat_damage, random(6));" in execute,
+               "Dust Cloud lacks its source one-tile NPC burst, visual, or manual hit range")
         expect("VampireBatNPC.java: Vampyre Touch" in execute and
                "randominc(11)" in execute and "randominc(9) < 4" in execute and
                "if (npc_range(npc_coord) > 8)" in execute and
@@ -289,6 +304,12 @@ def main() -> int:
                "defence=25" in mosquito_profile and "param=stabattack,45" in mosquito_profile and
                "param=strengthbonus,53" in mosquito_profile,
                "Spirit Mosquito's source combat profile is incomplete")
+        kalphite_profile = combat_profiles[
+            combat_profiles.index("[summoning_cohort_spirit_kalphite_spirit_kalphite]"):]
+        expect("hitpoints=350" in kalphite_profile and "attack=25" in kalphite_profile and
+               "strength=25" in kalphite_profile and "defence=25" in kalphite_profile and
+               "magic=25" in kalphite_profile and "ranged=25" in kalphite_profile,
+               "Spirit Kalphite's source combat profile is incomplete")
         expect("SSVM_Active(state, SSVM_ENT_PLAYER)" in mock_inv and
                "SSVM_SECONDARY, &srv->players[player_slot]" in mock_host,
                "targeted-player dotted container operations no longer use the selected player")
@@ -329,10 +350,28 @@ def main() -> int:
                "summoning_special_move_iron_titan_swing" in execute and
                "summoning_special_move_iron_titan_iron_within_gfx" in execute,
                "Iron Within lacks its source charge state or admitted visuals")
+        steel_tick = text[
+            text.index("[proc,summoning_steel_titan_normal_combat_tick]"):
+            text.index("[proc,summoning_steel_titan_magic_maxhit]")
+        ]
+        expect("SteelTitanNPC.java: Steel of Legends" in execute and
+               "summoning_special_move_steel_titan_steel_of_legends_gfx" in execute and
+               "summoning_steel_titan_normal_combat_tick" in normal_tick and
+               "npc_var_set(^summoning_npcvar_steel_next_style, random(3));" in steel_tick and
+               "npc_queue(2, $extra_three, $impact_delay);" in steel_tick and
+               "summoning_special_move_steel_titan_projectile" in steel_tick,
+               "Steel of Legends lacks its one-shot state, style cycle, three extras, or projectile")
+        steel_profile = combat_profiles[
+            combat_profiles.index("[summoning_cohort_steel_titan_steel_titan]"):]
+        expect("hitpoints=750" in steel_profile and "attack=70" in steel_profile and
+               "param=magicdamage,120" in steel_profile and "param=rangebonus,120" in steel_profile,
+               "Steel Titan's source combat profile is incomplete")
+        expect('strcmp(text, "rangebonus") == 0 || strcmp(text, "magicdamage") == 0' in mock_content,
+               "Steel Titan's source ranged-strength and magic-damage params are not parsed by the host")
         iron_profile = combat_profiles[
             combat_profiles.index("[summoning_cohort_iron_titan_iron_titan]"):]
         expect("hitpoints=694" in iron_profile and "attack=65" in iron_profile and
-               "param=crushattack,100" in iron_profile and "param=strengthbonus,100" in iron_profile,
+               "param=crushattack,100" in iron_profile and "param=strengthbonus,108" in iron_profile,
                "Iron Titan's source combat profile is incomplete")
         expect("add(stat_base(hitpoints), 8)" in execute and
                "You are already at maximum hitpoints!" in execute,
@@ -376,7 +415,7 @@ def main() -> int:
         print(f"test_summoning_specials: error: {exc}", file=sys.stderr)
         return 1
 
-    print("test_summoning_specials: target surface, generation handles, 59 enabled rows plus gated Forge scaffold, 0 errors")
+    print("test_summoning_specials: target surface, generation handles, 62 enabled rows plus gated Forge scaffold, 0 errors")
     return 0
 
 

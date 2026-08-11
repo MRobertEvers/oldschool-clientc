@@ -1202,6 +1202,13 @@ apply_param(
         resolved = def->attackrate = atoi(value);
     else if( strcmp(text, "attackrange") == 0 )
         resolved = def->attackrange = atoi(value);
+    /* NPC source profiles also carry the two offensive scalars that are not
+     * among the legacy twelve bonus slots.  They are script-visible params,
+     * not engine fields: ranged and magic swing code reads them through
+     * npc_param, and keeping them here preserves the normal overlay precedence
+     * over cache defaults. */
+    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "magicdamage") == 0 )
+        resolved = atoi(value);
     else if( strcmp(text, "damagetype") == 0 )
         resolved = def->damagetype = atoi(value);
     else if( strcmp(text, "huntrange") == 0 )

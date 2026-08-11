@@ -292,6 +292,16 @@ hitsplat_block(void)
     return id >= 0 ? id : 26;
 }
 
+static int
+hitsplat_poison(void)
+{
+    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_poison");
+
+    /* rev-230's poison hitsplat id. The fallback keeps a reduced content pack
+     * observable rather than converting poison into an ordinary damage splat. */
+    return id >= 0 ? id : 7;
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Disengaging                                                         */
@@ -691,6 +701,74 @@ mock230_combat_hit_npc(
          * returned — which is after `npc_del`. So the loot lands on the tick the
          * corpse disappears, and `mock230_combat_npc_tick` is where that is. */
     }
+}
+
+void
+mock230_combat_poison_npc(
+    struct Mock230Server* srv,
+    int slot,
+    const struct Mock230Player* source,
+    int severity)
+{
+    struct Mock230Npc* npc;
+
+    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX || severity <= 0 )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+
+    /* ContentAPI.applyPoison retains a strictly stronger timer and replaces
+     * an equal/weaker one, including the source credited for the hit. */
+    if( npc->poison_severity > severity )
+        return;
+    npc->poison_severity = severity;
+    npc->poison_clock = srv->tick + 30;
+    npc->poison_source_pid = source && source->active ? source->pid : -1;
+    npc->poison_source_gen = source && source->active ? source->login_generation : 0;
+}
+
+void
+mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
+{
+    struct Mock230Npc* npc;
+    struct Mock230Player* source = NULL;
+    struct Mock230Player* saved_active;
+    int damage;
+
+    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->poison_severity <= 0 )
+        return;
+    if( npc->death_tick >= 0 )
+    {
+        npc->poison_severity = 0;
+        return;
+    }
+    if( srv->tick < npc->poison_clock )
+        return;
+
+    damage = (npc->poison_severity + 4) / 5;
+    npc->poison_severity--;
+    if( npc->poison_severity > 0 )
+        npc->poison_clock = srv->tick + 30;
+
+    if( npc->poison_source_pid >= 0 && npc->poison_source_pid < MOCK230_PLAYER_MAX )
+    {
+        struct Mock230Player* candidate = &srv->players[npc->poison_source_pid];
+
+        if( candidate->active && candidate->login_generation == npc->poison_source_gen )
+            source = candidate;
+    }
+
+    /* The normal damage path attributes retaliation through active_player.
+     * A delayed poison hit must restore its captured source, and a stale one
+     * must not fall through to whichever player the NPC phase ran after. */
+    saved_active = srv->active_player;
+    mock230_world_set_active(srv, source);
+    mock230_combat_hit_npc(srv, slot, hitsplat_poison(), damage);
+    mock230_world_set_active(srv, saved_active);
 }
 
 void
@@ -1442,6 +1520,10 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));
+        npc->poison_severity = 0;
+        npc->poison_clock = 0;
+        npc->poison_source_pid = -1;
+        npc->poison_source_gen = 0;
         npc->patrol_index = 0;
         npc->patrol_pause = 0;
         npc->attack_clock = 0;

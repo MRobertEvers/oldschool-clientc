@@ -27,8 +27,8 @@ SERVER = REPO / (
     "scripts/summoning_spirit_wolf.rs2"
 )
 
-IMPLEMENTED = frozenset((1, 2, 3, 4, 5, 6, 7, 8, 11, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 43, 44, 46, 47, 48, 49, 51, 53, 54, 59, 60, 61, 62, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77))
-SOURCE_GAPS = frozenset((12, 41, 52, 55, 57, 58, 63, 64, 65))
+IMPLEMENTED = frozenset((1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 42, 43, 44, 46, 47, 48, 49, 51, 53, 54, 59, 60, 61, 62, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78))
+SOURCE_GAPS = frozenset((41, 52, 55, 57, 58, 63, 64, 65))
 # Bunyip's Fish enum includes four non-cookable entries, then dereferences a
 # null CookableItems row; the live handler corrects that known source defect.
 SOURCE_DEFECTS = frozenset((9, 45, 48))

@@ -1690,6 +1690,12 @@ struct Mock230Npc
      *  a familiar to whoever logged into the vacated slot. */
     int owner_pid;
     uint32_t owner_gen;
+    /** Entity poison state. Source identity is generation-guarded so a
+     * recycled player slot cannot receive credit for an old poison timer. */
+    int poison_severity;
+    int poison_clock;
+    int poison_source_pid;
+    uint32_t poison_source_gen;
     /** Index into the content roster (`mock230_content_npc_spawns`) when this
      *  npc is the world standing one of its spawns up, and -1 when content
      *  npc_added it. Only the first kind is retired when the window moves; an
@@ -3581,11 +3587,21 @@ mock230_combat_hit_npc(
     int slot,
     int type,
     int amount);
+/** Arm the active NPC's 30-tick poison timer. A stronger existing timer wins;
+ * equal severity refreshes its source, matching ContentAPI.applyPoison. */
+void
+mock230_combat_poison_npc(
+    struct Mock230Server* srv,
+    int slot,
+    const struct Mock230Player* source,
+    int severity);
 void
 mock230_combat_hit_player(
     struct Mock230Server* srv,
     int type,
     int amount);
+void
+mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot);
 
 /**
  * Re-path the player to its combat target, before phase 5 moves it.
