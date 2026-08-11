@@ -3462,18 +3462,16 @@ App_Init(
         assert(0 && "model_inst_cache init");
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
-    /* TORIRS_MODEL_ZBUFFER=1 hands the scene a depth buffer, which turns on the
-     * per-pixel path for every model that carries TORIDRAW_MODEL_FLAG_ZBUFFER.
-     * Off by default: the painter's sort is what OSRS content was authored
-     * against and is right for it. It is imported content — models built for a
-     * z-buffered client, whose parts genuinely interpenetrate — that has no
-     * correct face order to find, and this is how those get the answer their
-     * geometry assumes. */
+    /* The scene carries a depth buffer for the models that ask for one
+     * (TORIDRAW_MODEL_FLAG_ZBUFFER — see app_npc_wants_zbuffer). It is
+     * allocated lazily on the first such model, so a session that never draws
+     * one never pays for it. The painter's sort remains what everything else
+     * uses: it is what OSRS content was authored against and is right for it.
+     * Imported content — models built for a z-buffered client, whose parts
+     * genuinely interpenetrate — has no correct face order to find, and this is
+     * how those get the answer their geometry assumes. */
     app->scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_DEPTH_16K |
-            ((getenv("TORIRS_MODEL_ZBUFFER") || getenv("TORIRS_ZBUFFER_NPCS"))
-                 ? TORIDRAW_SCENE_MODEL_ZBUFFER
-                 : 0u),
+        TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
         TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
@@ -8765,25 +8763,33 @@ enum
 
 
 /**
- * Which npc types render through the depth-tested kernels.
+ * Which npcs render through the depth-tested kernels.
  *
- * TORIRS_ZBUFFER_NPCS="25000,25010" — a comma list of npc ids. Empty or unset
- * means nobody, which is the default and the shipping behaviour: the painter's
- * sort is what OSRS content was authored against.
+ * The content says so, per npc, with the `zbuffer_model` param -- see
+ * OSRS-Content/.../minigame_rs2012_qbd/configs/rs2012_qbd.param. The client
+ * reads it off the npc type it already has (ToriRS_Npctype::zbuffer_model), so
+ * nothing here has to know which npcs those are: adding one is a content edit
+ * and a repack, not a client change.
  *
- * Per npc type rather than globally because that is the unit of the question.
- * The QBD is a model imported from a z-buffered client, whose parts genuinely
- * interpenetrate and therefore have no correct face order at all; the goblin
- * standing next to it does not, and paying a depth test for it buys nothing.
- * Selecting by id lets one encounter be compared three ways in one session —
- * the lane model, the priority-authored model, and either of them depth-tested
- * — without rebuilding.
+ * TORIRS_ZBUFFER_NPCS overrides the content entirely -- a comma list of npc ids
+ * to depth-test instead, or the empty string for nobody. That is the A/B knob:
+ * it takes the decision away from the config without editing it.
+ *
+ * Per npc rather than globally because that is the unit of the question. The
+ * goblin standing next to the dragon was authored for a painter's sort and
+ * paying a depth test for it buys nothing.
+ *
+ * A model carrying TORIDRAW_MODEL_FLAG_ZBUFFER also has its face priorities
+ * dropped by the sort -- see the flag's own comment. The two cannot both decide
+ * a pixel, and a priority would win.
  */
 static bool
-app_npc_wants_zbuffer(int npc_id)
+app_npc_wants_zbuffer(int npc_id, struct ToriRS_Npctype const* npctype)
 {
     char const* list = getenv("TORIRS_ZBUFFER_NPCS");
-    if( !list || !*list )
+    if( !list )
+        return npctype && npctype->zbuffer_model != 0;
+    if( !*list )
         return false;
     while( *list )
     {
@@ -9085,7 +9091,7 @@ app_world_spawn_npc_now(
     /* Set explicitly both ways: the ToriRS adaptor already sets bit 0 on every
      * model it converts, and bit 0 is the z-buffer opt-in, so leaving it alone
      * would opt every npc in the moment the scene carries a buffer. */
-    if( app_npc_wants_zbuffer(npc_id) )
+    if( app_npc_wants_zbuffer(npc_id, npctype) )
         model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
     else
         model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;

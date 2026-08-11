@@ -1485,7 +1485,16 @@ ToriDraw_ComputeProjectedFaceOrder(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
-        face_priorities = toridraw_ignore_priorities() ? NULL : m->face_priorities;
+        /* A model that resolves itself per pixel has no use for face render
+         * priorities, and honouring them actively defeats the depth test: a
+         * priority pins a face into a draw band regardless of depth, which is
+         * the painter's-algorithm crutch the z-buffer exists to replace. The
+         * two together give the priority's answer, not the depth test's -- so
+         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER. */
+        face_priorities =
+            (toridraw_ignore_priorities() || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER))
+                ? NULL
+                : m->face_priorities;
         face_count = m->face_count;
         break;
     }
@@ -1911,7 +1920,16 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
         fia = m->face_indices_a;
         fib = m->face_indices_b;
         fic = m->face_indices_c;
-        face_priorities = toridraw_ignore_priorities() ? NULL : m->face_priorities;
+        /* A model that resolves itself per pixel has no use for face render
+         * priorities, and honouring them actively defeats the depth test: a
+         * priority pins a face into a draw band regardless of depth, which is
+         * the painter's-algorithm crutch the z-buffer exists to replace. The
+         * two together give the priority's answer, not the depth test's -- so
+         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER. */
+        face_priorities =
+            (toridraw_ignore_priorities() || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER))
+                ? NULL
+                : m->face_priorities;
         face_count = m->face_count;
         break;
     }

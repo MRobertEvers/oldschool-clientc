@@ -99,6 +99,13 @@ struct ToriDraw_Bones
  * depth test only ever resolves this model against itself and nothing changes
  * about how it layers against the rest of the scene. See graphics/zdepth.h.
  *
+ * It ALSO drops the model's face render priorities at sort time
+ * (toridraw_render.u.c). The two cannot both decide a pixel and the priority
+ * would win: a priority pins a face into a draw band regardless of depth, which
+ * is exactly the painter's-algorithm crutch this flag replaces. A model that
+ * kept both would be depth-tested only within a band, i.e. would give the
+ * priority's answer while paying for the depth test.
+ *
  * Requires the scene to carry the buffer: TORIDRAW_SCENE_MODEL_ZBUFFER at
  * ToriDraw_SceneNew, or an explicit ToriDraw_SceneZBufferResize. With no buffer
  * the flag is inert and the model draws exactly as it did before.

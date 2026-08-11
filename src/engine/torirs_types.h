@@ -264,6 +264,22 @@ struct ToriRS_Location
     int raiseobject;
 };
 
+/**
+ * Param keys the CLIENT reads off a config.
+ *
+ * Params are ordinarily the server's: content names them and the number is an
+ * allocation, not a constant. The client has no name index, so a key it reads
+ * has to be pinned here — which makes this the one place the two halves can
+ * disagree, and the reason the list is short.
+ *
+ * The value is allocated once by tools/ss_allocate.py and recorded in
+ * OSRS-Content/osrs239-content/pack/param.alloc. Ids there are stable: the
+ * allocator only appends, and keeps an id even after its declaration goes away.
+ * If this constant and that ledger ever disagree, the ledger is right and the
+ * client is reading someone else's param.
+ */
+#define TORIRS_PARAM_ZBUFFER_MODEL 2730 /* param.alloc: 2730=zbuffer_model */
+
 struct ToriRS_Npctype
 {
     int id;
@@ -326,6 +342,11 @@ struct ToriRS_Npctype
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */
     int ambient;
     int contrast;
+    /** Client render hint from the npc's params: draw this npc's model through
+     *  the depth-tested kernels rather than the painter's sort. Param
+     *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does
+     *  not name it, which is the shipping behaviour. */
+    int zbuffer_model;
 };
 
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).

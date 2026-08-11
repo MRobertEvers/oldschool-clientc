@@ -249,5 +249,23 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
 
+    /*
+     * Client render hints ride the npc's params.
+     *
+     * Only the keys the client actually reads are resolved here, into plain
+     * fields -- the whole table is not copied, because the client is not a
+     * script host and a param it does not know the meaning of is not data it
+     * can act on. A key the content never sets simply leaves its field at 0.
+     */
+    for( int i = 0; i < src->params.count; i++ )
+    {
+        if( src->params.keys[i] != TORIRS_PARAM_ZBUFFER_MODEL )
+            continue;
+        if( src->params.kinds && src->params.kinds[i] == RSCACHE_PARAM_STRING )
+            continue;
+        if( src->params.values[i] )
+            npctype->zbuffer_model = *(int*)src->params.values[i];
+    }
+
     return npctype;
 }
