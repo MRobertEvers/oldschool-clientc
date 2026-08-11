@@ -162,45 +162,53 @@ labels the relevant consecutive graphic IDs:
 The local revision-530 reconnaissance independently resolved spotanim `1314`
 to model `31388` and sequence `7663`; see
 [`docs/summoning_port/AGENT_RECON.md`](../summoning_port/AGENT_RECON.md).
-The complete dependency closure for both `1314` and `1315` still needs to be
-transcoded and verified before either can be packed into the target cache.
+The complete dependency closure for both `1314` and `1315` has now been
+transcoded and verified in the marked Summoning overlay.
 
-## What is missing from the current port
+## Implemented port
 
-The current summon procedure in
-[`summoning_spirit_wolf.rs2`](../../OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2)
-adds the NPC, assigns its owner, puts it into player-follow mode, consumes the
-pouch, updates state, and sends the message. It never calls `spotanim_npc`,
-plays a sound, or animates the player. Therefore the observed instantaneous
-appearance is the script's present behavior; it is no longer explained by the
-earlier model-rendering failure.
+The ordinary familiar arrival effect is implemented for both initial pouch
+summoning and **Call familiar** in
+[`summoning_spirit_wolf.rs2`](../../OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2).
+Immediately after the familiar is added or relocated, the active NPC receives
+the size-appropriate spot graphic and sound `188` is played. Dreadfowl uses
+the small graphic; Spirit wolf and Spirit terrorbird use the large graphic.
+The player deliberately receives no animation.
 
-The marked Summoning overlay currently contains only the already verified
-renew-points effect, source graphic `1308` mapped to target spotanim `20000`.
-Its [`spotanim.client`](../../OSRS-Content/osrs239-content/ported/scape2009_summoning/pack/spotanim.client)
-membership file remains empty, and there is no imported target mapping for
-source graphics `1314` or `1315`.
+The overlay-owned target mappings are:
 
-The mock server already implements `spotanim_npc`: it applies the spotanim to
-the active NPC and marks the NPC spotanim update mask. No renderer or network
-feature needs to be invented for this effect. The missing work is content and
-asset wiring:
+| Source | Target | Meaning |
+| --- | --- | --- |
+| spotanim `1314` | `20001` | size-1 familiar arrival |
+| spotanim `1315` | `20002` | large familiar arrival, with source 200% scaling |
+| model `31388` | `100424` | translucent shard/ring model shared by both graphics |
+| sequence `7663` | `20312` | 42-frame arrival animation |
+| frame archive `1998` | `20071` | animation frames |
+| framemap `1836` | `8069` | animation transform map |
 
-1. Extract and transcode source spotanims `1314` and `1315`, including their
-   models, sequences, frame archives, framemaps, and any material dependencies.
-2. Give them collision-free target IDs and add only those overlay-owned assets
-   to the Summoning manifest/cache lane.
-3. After `npc_add`, while the new familiar is still the active NPC, call
-   `spotanim_npc` with the mapped small or large graphic based on NPC size.
-4. Use the same effect when Call familiar is implemented as an actual NPC
-   relocation.
-5. Add sound `188` if the target's area/audio path supports the source sound.
-6. Do **not** add a player animation to ordinary pouch summoning.
-7. Keep pet release distinct; if source-faithful pet presentation is in scope,
-   map player animation `827` and do not also apply `1314/1315` to the pet.
+The export closure is declared in
+[`spirit_wolf_import.ini`](../summoning_port/spirit_wolf_import.ini). Source
+model `31388` uses revision-530 procedural material `89`. The rev239 model
+format cannot retain that procedural-material reference directly, so the
+first legacy conversion discarded the texture ID but accidentally kept its
+encoded lighting payload as a face colour. That rendered the animation as
+opaque brown spikes. The corrective, overlay-only pass in
+[`familiar_arrival_material_import.ini`](../summoning_port/familiar_arrival_material_import.ini)
+projects the source material table's average HSL onto each face while
+preserving all 144 per-face alpha values. The result is the intended
+translucent white/blue materialisation effect.
 
-This work can remain entirely inside the marked Summoning overlay. It does not
-require editing original target cache content.
+The importer also avoids opening empty config outputs during a model-only
+material pass. This matters because regeneration of model `31388` must not
+truncate the already-authored Summoning NPC, object, location, sequence, or
+spotanim configs.
+
+Runtime verification observes target sequence `20312` advancing on spotanim
+`20001` for Dreadfowl and `20002` for Spirit wolf. Captured frames show the
+complete familiar remaining visible while the translucent shard ring changes
+shape around its feet. All new configs, models, animation data, scripts, and
+pack membership remain inside `ported/scape2009_summoning`; no original target
+cache content is edited.
 
 ## Confidence and limitations
 

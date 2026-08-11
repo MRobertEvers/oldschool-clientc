@@ -176,6 +176,13 @@ Equipment → Summoning. Use the Clockwork cat's real item action to test the pe
 path, or take the supplied charm, blank pouch, wolf bones, and shards to the
 Summoning obelisk to test infusion.
 
+Ordinary pouch summoning and **Call familiar** now play the revision-530
+familiar-attached arrival animation and sound. Dreadfowl uses the small effect;
+Spirit wolf and Spirit terrorbird use the 200%-scaled large effect. The player
+correctly remains idle. The source evidence, target-ID mapping, procedural
+material conversion, and verification details are in
+[`SPAWN_ANIMATION_RESEARCH.md`](SPAWN_ANIMATION_RESEARCH.md).
+
 ## Cache repacking
 
 The Summoning cache must be repacked when overlay interfaces, CS2, models, or
