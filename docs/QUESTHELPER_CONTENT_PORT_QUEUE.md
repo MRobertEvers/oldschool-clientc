@@ -284,11 +284,11 @@ filed under `helpers/miniquests/` are at the end.
 | 122 | rumdeal | `rumdeal` | 662 | done | Oct 2005 -- Pirate Pete's plan to get Captain Braindeath's zombie crew blind drunk so he can raid the island; native dbrow `quest_rumdeal` (id 95, endstate 19, questpoints 2, requirement_stats fishing50+prayer47+crafting42+slayer42+farming40, stat_xp_awarded fishing/prayer/farming 7000xp each) + native varbit schema on basevar `deal_var` (`deal_farming` blindweed patch 0-5, `deal_barrel` pressure-barrel sluglings 0-5, `deal_multi_hopper` brew control 0-2, all confirmed via native multiloc records) reused as-is; npcs=deal_pete,deal_captian_braindeath,deal_davey,deal_captian_donnie,deal_evil_spirit,deal_fever_spiders1 (queue's own abbreviated hint `dealevilsp`/`dealpete`/`dealcaptian` don't match real cache names -- cache wins); see Log |
 | 123 | templeoftheeye | `templeoftheeye` | 662 | done |  |
 | 124 | thefremennikisles | `thefremennikisles` | 670 | done | Feb 2007 -- King Gjuki's jester-spy plot against Mawnis Burowgar, two rounds of Jatizso tax collection, two bridge repairs, and the Ice Troll King; native dbrow `quest_fremennikisles` (id 127, endstate 340, questpoints 1, requirement_stats agility40+construction20) + native varbit schema on basevars `fris_r1` (`fris_quest`, `fris_task` troll counter, `fris_m_b3`/`fris_m_b4`/`fris_m_b5` bridges, `fris_king` Mawnis crown swap) and `fris_r2` (six `frisd_*_taxcollected` bits, shared/reset across both tax rounds) reused as-is; npcs=fris_r_king,fris_r_burgher_crown,fris_spymaster,frisd_oremerchant,frisd_weaponmerchant,frisd_izso_landlady,frisd_cook,frisd_armourmerchant,frisd_fishmerchant,fris_troll_king_true (cache spelling matches quest-helper's own NpcID names exactly, no drama this time); see Log |
-| 125 | gardenoftranquility | `gardenoftranquility` | 684 | pending | npcs=gardentroll,queenellama,queenellama |
+| 125 | gardenoftranquility | `gardenoftranquility` | 684 | done | Aug 2005 -- Queen Ellamaria's hidden garden for King Roald; native dbrow `quest_gardenoftranquillity` (double-L cache spelling, id 90, endstate 60, questpoints 2, requirement_stats farming25) + native varbit schema on basevars `garden_varp_1`/`garden_varp_2` reused as-is; npcs=queen_ellamaria,elstan,lyra,kragen,dantaera,brother_althric,bernald (cache's own real names, not the queue row's stale `gardentroll`/`queenellama` hints -- see Log); see Log |
 | 126 | murdermystery | `murdermystery` | 686 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (Dec 2003), belongs on IN-LC list not this queue — LC's own `quest_murder` (20 files, 1580 lines, dbrow `quest_murdermystery` journal wired `interface_questjournal/scripts/quest_journal.rs2:491`) already fully implements it; found + directly reused by this tick's King's Ransom slice (#115), see Log |
-| 127 | enakhraslament | `enakhraslament` | 688 | pending | npcs=enakhlazim,enakhlazim,enakhlazim |
+| 127 | enakhraslament | `enakhraslament` | 688 | done | Jan 2006 -- Lazim, Enakhra's ruined desert temple, Akthanakos; native dbrow `quest_enakhraslament` (id 103, endstate 70) + native varbit schema on three basevars (`enakh_quest_expositbits`/`enakh_multivarbits`/`enakh_varbits`) reused as-is; see Log |
 | 128 | perilousmoon | `perilousmoon` | 688 | done |  |
-| 129 | theslugmenace | `theslugmenace` | 694 | pending | npcs=rdteleporte,slug2oniall,slug2maledi |
+| 129 | theslugmenace | `theslugmenace` | 694 | done | Sept 2006 -- Sir Tiffy Cashien's Temple Knights send the player to Witchaven to investigate a Zamorakian conspiracy (Col. O'Niall/Brother Maledict/Mayor Hobb), a ruined temple, torn documents, five elemental runes, and the Slug Prince; see Log |
 | 130 | cabinfever | `cabinfever` | 704 | pending | npcs=feverteach,feverteach,feverquest |
 | 131 | icthlarinslittlehelper | `icthlarinslittlehelper` | 707 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_icthlarin`); this Queue row was stale, table-sync fix only. `quest_icthlarin` (5 files, 684 lines, dbrow `quest_icthlarinslittlehelper` journal wired `interface_questjournal/scripts/quest_journal.rs2:703`) |
 | 132 | inaidofthemyreque | `inaidofthemyreque` | 710 | pending | npcs=routeveliaf,burghvilage,burghvilage |
@@ -3318,3 +3318,352 @@ filed under `helpers/miniquests/` are at the end.
   --check-only` not runnable in this worktree (no `cache.osrs239` present,
   same pre-existing environment gap every prior slice has noted). Next
   pending row (smallest-first): #125 Garden of Tranquility, 684 lines.
+
+- slice #125 done: Garden of Tranquility -- grep-first audit found no LC/
+  2009scape ownership (`lc_quests.txt` clean; `garden`/`tranquility` hits
+  elsewhere in the tree were false positives -- The Great Brain Robbery's
+  Brother Tranquility NPC and the unrelated `quest_gardenofdeath` (Garden of
+  Death, a different quest)). Fetched quest-helper's own
+  `GardenOfTranquillity.java` verbatim via GitHub raw (684 lines, steps.put
+  0/10/20/30/40/50; note the double-L British spelling of the class/file
+  name itself, `github.com/.../helpers/quests/gardenoftranquility/
+  GardenOfTranquillity.java`). Native dbrow is ALSO spelled
+  `quest_gardenoftranquillity` (double L) even though this queue's own row
+  and every file/dir in this port use the single-L `gardenoftranquility` --
+  a real, confirmed spelling split (not a typo either direction), documented
+  in the constant file header; every `db_getfield`/`quest_complete` call
+  uses the double-L dbrow symbol. dbrow id 90, endstate 60, questpoints 2,
+  startnpc 1390 (queen_ellamaria), requirement_stats farming 25 (stat id 19
+  confirmed against the standard skill-id table, matches quest-helper's own
+  `SkillRequirement(Skill.FARMING, 25)` exactly) already declared in the
+  cache, unused until this slice. dbrow `requirement_quests` decodes to id
+  19, which resolves to `quest_lostcity` -- not a real prerequisite (same
+  recurring cache decode corruption flagged on nearly every prior slice);
+  the real prerequisite is quest-helper's own `getGeneralRequirements()`:
+  Creature of Fenkenstrain finished (`%creatureoffenkenstrain >=
+  ^fenk_complete`, LC's `quest_creatureoffenkenstrain`, already implemented,
+  hard-gated). Master progress is the native varbit `garden_quest` (6 bits
+  on basevar `garden_varp_1`) -- no native multi-npc/multi-loc record ties a
+  concrete breakpoint set to it, so this port's own 0/1/10/20/40/50/60
+  reconstruction collapses quest-helper's own single giant `steps.put(40)`
+  ConditionalStep (which internally covers all six villager fetch-quests,
+  the inner-garden planting, and the statue transport) into real
+  distinguishable milestones; `^garden_complete = 60` is read directly off
+  the dbrow's own `endstate` column, not invented. Every per-npc native
+  varbit below IS independently confirmed via this cache's own multiloc/
+  multinpc records tying concrete values to real map cosmetics, not
+  guessed: `garden_elstan_varbit`/`garden_lyra_varbit`/`garden_kragen_varbit`/
+  `garden_dantaera_varbit`/`garden_althric_varbit`/`garden_bernald_varbit`
+  (per-npc deal trackers, thresholds matching quest-helper's own
+  VarbitRequirement values exactly -- `garden_bernald_varbit` confirmed via
+  `garden_burthorpe_vines`'s own native multiloc, which renders diseased for
+  values 0-3 and cured only at 4+, matching quest-helper's own
+  `usedCureOnVines`(2)/`curedVine`(4) split precisely, i.e. the first,
+  weaker Plant cure genuinely does nothing cosmetically); the nine
+  inner-garden patches (`garden_delphinium_patch`, `garden_snowdrop_patch`,
+  `garden_vine_patch`, `garden_rosebush_patch_red/pink/white`,
+  `garden_orchid_pink_patch`/`_yellow_patch`, `garden_white_tree_patch`) all
+  confirmed via their own native multiloc growth-stage records, index N =
+  varbit value N-1, matching quest-helper's own `notPlantedX<=3`/`<=1`/
+  seed-threshold checks exactly; the two statue pairs
+  (`garden_king_statue_varbit`/`garden_saradomin_statue_varbit`) each
+  confirmed via TWO native multiloc records apiece (the real-world statue
+  and the garden's own destination plinth, both reacting to the same shared
+  varbit) plus `garden_trolley_varbit` confirmed via the `garden_trolley`
+  multinpc skin-swap. `garden_kragen_patch_5_varbit`/
+  `garden_kragen_patch_6_varbit`, `garden_cutscene_billybob` and
+  `garden_first_time_login` have no quest-helper VarbitID reference
+  anywhere in the source -- reserved/unclaimed, left untouched, same
+  reasoning as prior slices' unclaimed-bit notes. Every npc resolves
+  natively with its own real cache name (`queen_ellamaria`, `elstan`,
+  `lyra`, `kragen`, `dantaera`, `brother_althric`, `bernald`,
+  `farming_gardener_tree_1` for Alain, `king_roald`, `wise_old_man`) --
+  none of these match the queue row's own stale hint abbreviations
+  (`gardentroll`/`queenellama`), which don't correspond to any real cache
+  npc; cache wins, same recurring pattern as Rum Deal/The Fremennik Isles.
+  Marigolds are grown on the REAL, pre-existing, fully-functional Falador
+  flower patch (`farming_flower_patch_1`, `skill_farming`'s own generic
+  system, `farming_flower_marigold` dbrow) -- quest-helper's own
+  `ObjectID.FARMING_FLOWER_PATCH_1` is that exact patch, not a new
+  quest-only one, so this slice merges two small hooks into that system's
+  existing `farming_plant.rs2`/`farming_harvest.rs2` label blocks rather
+  than building a new grower. Onions (`farming_veg_patch_7`/`_8`, Morytania)
+  and cabbages (`farming_veg_patch_5`/`_6`, Ardougne) are real cache-declared
+  allotment locs quest-helper's own `plantedOnions`/`plantedCabbages`
+  Conditions OR together, but only the Falador allotment pair has real
+  trigger code anywhere in this tree -- extending the generic multi-region
+  allotment system to four more patches is out of scope for one quest
+  slice, so this port adds bespoke quest-scoped plant/grow/harvest logic on
+  these four previously-unclaimed locs instead, using the same
+  `farming_allotments` dbrow data (level/seed-count/xp) the generic system
+  itself would use; the real crop-stage cosmetic broadcast
+  (`farming_transmit_a`/`_b`, shared scratch varbits reused per-region by
+  the generic system) isn't driven by this bespoke logic, a documented
+  simplification (patch won't visually change for onlookers). Three shared-
+  file merges to avoid duplicate triggers (critical correctness rule): a
+  case for `blankrune`/`blankrune_high` merged into `general_use/scripts/
+  hammer.rs2`'s existing `[opheldu,hammer]` switch (Alain's strong plant
+  cure recipe), a case for `rune_shards` merged into `skill_herblore/
+  scripts/grind_ingredient.rs2`'s existing `[opheldu,pestle_and_mortar]`
+  trigger (same recipe), and an additive branch merged into the existing
+  `[opnpc1,wise_old_man]` trigger in `quest_makingfriendswithmyarm/scripts/
+  makingfriendswithmyarm.rs2` (the diplomacy test) alongside that file's own
+  pre-existing Swan Song branch -- same "external proc, called from shared
+  trigger" idiom used by both. A fourth merge, an additive branch in
+  `areas/varrock/scripts/king_roald.rs2`'s own `[opnpc1,king_roald]`
+  trigger (the finale hand-off), follows that file's own existing `%dov`
+  branch idiom. The Wise Old Man's diplomacy test is a real seven-question
+  chat quiz (`~p_choice3`) -- the seven correct answers are quest-helper's
+  own literal `addWidgetChoice` strings (not invented), scenario framing
+  paraphrased from the wiki's own quick-guide summary (not verbatim quest
+  text, per copyright). Deferred/simplified (no established mechanic
+  precedent anywhere in this tree): the trolley statue-push route
+  (quest-helper's own `setLinePoints` waypoint list) is a single soft-skip
+  action once the trolley item is used on the correct real-world statue,
+  same "soft-skip: <tedious traversal>" idiom already established in this
+  tree (`king_roald.rs2`'s own Shield of Arrav dining-room soft-skip,
+  `quest_makingfriendswithmyarm`'s cave-pathing soft-skip); fishing the ring
+  back out of the well is a flat 1-in-3 per-click chance, same "simple
+  probabilistic-catch loop" idiom as Rum Deal's slugling fishing; crop
+  death isn't modelled for any of the eleven planted patches (guaranteed
+  growth once planted); growth waits are real one-shot `settimer`/
+  `[timer,...]` player-timers (eleven distinct timer names, one per patch/
+  crop), deliberately compressed from real OSRS times for playability, a
+  documented judgment call; King Roald "following" Ellamaria into the
+  garden for the finale is a scripted dialogue exchange, not a real
+  npc-follow simulation. `mingw32-make -C src sscompile` clean (only
+  pre-existing snprintf-truncation warnings in the compiler itself);
+  `mingw32-make -C src mock230-scripts` exit 0, 14236 scripts compiled
+  (14161 -> 14236); grep of the full build log for "garden" (case-
+  insensitive) returned zero hits -- no warnings or errors attributable to
+  this slice or any of the four merged shared-trigger edits. `::
+  gardenoftranquility` / `::gardenoftranquilityrun` debug commands added,
+  matching every prior slice's idiom. Wiki
+  https://oldschool.runescape.wiki/w/Garden_of_Tranquillity/Quick_guide
+  (dialogue paraphrased, not verbatim, per copyright, same caveat as every
+  prior slice). Files:
+  `quests/quest_gardenoftranquility/{configs/gardenoftranquility.constant,
+  configs/gardenoftranquility.varp,
+  scripts/garden_{shared,wom,elstan,lyra,kragen,dantaera,althric,bernald,
+  finalgarden,statues,journal,debug}.rs2}` + merges into
+  `skill_farming/scripts/farming_plant.rs2`,
+  `skill_farming/scripts/farming_harvest.rs2`,
+  `general_use/scripts/hammer.rs2`,
+  `skill_herblore/scripts/grind_ingredient.rs2`,
+  `quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2`,
+  `areas/varrock/scripts/king_roald.rs2`,
+  `interface_questjournal/scripts/quest_journal.rs2`. `mock230_pack
+  --check-only` not runnable in this worktree (no `cache.osrs239` present,
+  same pre-existing environment gap every prior slice has noted). Next
+  pending row (smallest-first): #127 Enakhra's Lament, 688 lines.
+- slice #127 done: Enakhra's Lament -- Jan 2006, Kharidian Desert; Lazim the
+  mage rebuilds a statue of Enakhra at the quarry south of Bandit Camp to
+  re-enter her collapsed temple, then guides the player through a fallen-
+  statue/sigil-door ground floor, a Pentyn/fountain/furnace/six-brazier
+  puzzle floor, a Boneguard corridor, and a wall repair that frees Akthanakos.
+  Grep-first (methodology steps 1-2): no LC proc (`lc_quests.txt` and a
+  `enakhra|kharidian|desert.*mine.*collapse|Uzer` sweep of `server/scripts`
+  hit nothing but coincidental substring matches -- DT2's own unrelated
+  `dt2_enakhra_combat`/`dt2_enakhra_cutscene` cutscene npcs, and `kharidian`/
+  `Uzer` hits in unrelated desert-area files), no 2009scape impl (both queue
+  docs silent) -- genuinely pending. Native dbrow `quest_enakhraslament` (id
+  103, endstate 70, questpoints 2, `requirement_stats` (12,50)=Crafting 50,
+  (11,45)=Firemaking 45, (5,43)=Prayer 43, (6,39)=Magic 39 matching
+  quest-helper's own `getGeneralRequirements()` exactly, no
+  `requirement_quests` column at all -- no prerequisites, matches the wiki)
+  plus an unusually rich, **fully native** varbit schema declared across
+  three basevars (`enakh_quest_expositbits` -- master `enakh_quest` 7 bits +
+  one-shot blurb flags; `enakh_multivarbits` -- room/statue/brazier/wall
+  state; `enakh_varbits` -- door locks, sigil doors, `enakh_where_is_lazim`),
+  every field name matching quest-helper's own `VarbitID.ENAKH_*` lowercased
+  exactly (`configs/all.varbit` lines 7803-8107), reused as-is rather than a
+  locally invented catch-all var. Real native multi-npc records confirm
+  Lazim visually follows the player between four rooms
+  (`enakh_lazim_statue_east_multinpc`/`_fallen_statue_east_multinpc`/
+  `_pedestal_multinpc`/`_altar_multinpc`, all `multivarbit=
+  enakh_where_is_lazim`) -- writing that real varbit drives it for free. This
+  server only ever spawns the wrapper npc/loc types
+  (`areas/world/configs/m48_145.spawn`/`m49_45.spawn`) -- multinpc/multiloc
+  leaf resolution is client-only rendering, confirmed the same way The
+  Feud's slice did -- and several wrappers (`enakh_lazim_*_multinpc` x4,
+  `enakh_boneguard_multinpc`, `enakh_akthanakos_multinpc`,
+  `enakh_dummy_fountain_multinpc`, `enakh_dummy_furnace_multinpc`) declare no
+  op of their own in the cache, only their resolved leaf npcs do -- additive
+  op overlay `enakhraslament.npc` (same convention as quest_royaltrouble's
+  own `royaltrouble.npc`), plus `enakhraslament.loc` for the temple's
+  secret-entrance boulder wrapper. Scripts:
+  `enakhraslament_quarry.rs2` (Lazim's quarry-statue dialogue FSM driving the
+  real `enakh_statue_multivar` 0-7 directly -- base/body/chiseled/four head
+  choices -- bespoke instant-mine triggers on the real, previously-unwired
+  `enakh_sandstone_rocks`/`enakh_granite_rocks` locs, reusing
+  `~pickaxe_checker`/`~mining_pickaxe_anim` from `skill_mining/scripts/
+  mining.rs2`; the boulder entrance), `enakhraslament_temple.rs2` (fallen-
+  statue limb chisel, the four real limb doors and four real sigil doors
+  each keyed on their own native lock varbit, the shared ladder-up object
+  reused at two real breakpoints exactly as quest-helper's own
+  `goUpToPuzzles`/`goUpFromPuzzleRoom` do, the camel-mould pedestal, Pentyn/
+  fountain/furnace/six-brazier puzzle floor, Crumble Undead on the Boneguard,
+  the wall repair, and quest completion), `enakhraslament_journal.rs2`,
+  `enakhraslament_debug.rs2`; wired into `interface_questjournal/scripts/
+  quest_journal.rs2`. Two shared-file merges to avoid duplicate triggers
+  (critical correctness rule): a case for `enakh_granite_medium` merged into
+  `skill_crafting/scripts/gem/uncut_gem.rs2`'s existing `[opheldu,chisel]`
+  switch (external proc `~enakhraslament_craft_head`, branching on quarry vs.
+  puzzle-floor context, same "external proc called from a shared trigger"
+  idiom as Garden of Tranquility's Alain/Wise Old Man merges) -- no merge
+  needed for Crumble Undead / the fire and air puzzle spells since
+  `enakh_boneguard` has no Attack op in the cache at all (only `op2=Talk-to`,
+  confirming this was never meant to be a real fight), so those three casts
+  are quest-scoped `opnpc1` ritual actions reusing the shared
+  `~get_spell_data`/`~check_spell_requirements` procs from `skill_magic/
+  scripts/magic.rs2` (level/membership/rune-or-staff possession) rather than
+  touching the combat spellcasting system's own `[opnpct,magic_spellbook:*]`
+  triggers. Deferred/simplified (documented, no established precedent
+  anywhere in this tree for the alternative): the real kg-by-kg sandstone
+  assembly collapses to plain quantities of `enakh_sandstone_medium` (5kg)
+  handed to Lazim directly -- two of the raw/crafted "base" item names carry
+  a literal `+` (`enakh_sandstone_huge_base+legs`/`enakh_sandstone_crafted_
+  base+legs`, confirmed a legal script token via `uncut_gem.rs2`'s own
+  `shellround_red+black` case, but still unnecessary intermediate items once
+  kg bookkeeping is dropped); the four fallen-statue limb pickups collapse to
+  one chisel action; sigil pickup is gated on all four limb doors (not a
+  specific one per sigil) since quest-helper's own `enterKDoor`/`enterRDoor`/
+  `enterMDoor`/`enterZDoor` steps are declared in source but never actually
+  assigned to a `steps.put` breakpoint -- gating all four sigils behind all
+  four limb doors is stricter/more complete than the guide, not looser; loc
+  visuals (door open/closed swap, statue-collapse crack/hole states, Lazim's
+  carrying-stone animation) don't update since this server only reads the
+  wrapper type, not the real per-state loc name, same limitation as the
+  npc side; the wrong-head-on-pedestal edge case and one-shot dialogue-blurb
+  flavor fields, and the purely cosmetic Enakhra/Akthanakos form swaps and
+  post-quest camulet charge mechanic, are untouched. Rewards: 2 QP, 7000
+  Crafting/Firemaking/Magic/Mining XP each (dbrow `stat_xp_awarded` matches
+  quest-helper's own `getExperienceRewards()` exactly plus a Mining line the
+  guide omits, both awarded), Akthanakos's Camulet. `mingw32-make -C src
+  sscompile` clean (only pre-existing snprintf-truncation warnings in the
+  compiler itself); `mingw32-make -C src mock230-scripts` exit 0, 14281
+  scripts compiled (14236 -> 14281); grep of the full build log for "enakh"
+  (case-insensitive) returned zero hits -- no warnings or errors
+  attributable to this slice or the one shared-trigger merge. `mock230_pack
+  --check-only` not runnable in this worktree (no `cache.osrs239` present,
+  same pre-existing environment gap every prior slice has noted). Wiki
+  https://oldschool.runescape.wiki/w/Enakhra's_Lament/Quick_guide (dialogue
+  paraphrased, not verbatim, per copyright, same caveat as every prior
+  slice). Files:
+  `quests/quest_enakhraslament/{configs/enakhraslament.{constant,varp,npc,
+  loc}, scripts/enakhraslament_{quarry,temple,journal,debug}.rs2}` + merges
+  into `skill_crafting/scripts/gem/uncut_gem.rs2`,
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #129 The Slug Menace, 694 lines (row #128 is absent from
+  the pending table, presumably already resolved on an earlier sweep).
+- slice #129 done: The Slug Menace -- Sept 2006, Witchaven; Sir Tiffy
+  Cashien's Temple Knights send the player back to Witchaven (Wanted!/Sea
+  Slug's own village) to investigate Col. O'Niall, Brother Maledict and
+  Mayor Hobb, uncover a hobgoblin-dungeon false wall and a sealed imposing
+  door in the sea slug dungeon, translate a transcript via Jorral, recover
+  and repair three torn pages, craft and apply five elemental runes at the
+  real runecrafting altars, and defeat the Slug Prince. Grep-first
+  (methodology steps 1-2): `lc_quests.txt` and a `slug` sweep of
+  `server/scripts` hit nothing but coincidental matches (Sea Slug's own
+  `quest_seaslug`, Rum Deal's `deal_sluglings`, slayer rock slugs) -- no LC
+  proc, no 2009scape impl -- genuinely pending. Native dbrow
+  `quest_slugmenace` (id 118, endstate 14, questpoints 1, requirement_stats
+  (12,30)=Crafting 30, (20,30)=Runecraft 30, (18,30)=Slayer 30, (17,30)=
+  Thieving 30, matching quest-helper's own getGeneralRequirements() exactly;
+  stat_xp_awarded (12,35000)/(20,35000)/(17,35000)=Crafting/Runecraft/
+  Thieving 3500 each, matching getExperienceRewards() exactly, no Slayer xp
+  despite the Slayer requirement, matching the wiki) + fully native varbit
+  schema on one basevar (`quest_slug2`: master `slug2_main` 0-14,
+  `slug2_npc_track1/2/3`+`slug2_npc_alltrack`, `slug2_doorbit`,
+  `slug2_tornpages`, `slug2_fixed_page`, `slug2_haveslug`, `slug2_used_air/
+  earth/water/fire/mind_rune`+`slug2_used_runes`), every field matching
+  quest-helper's own `VarbitID.SLUG2_*` names lowercased exactly, reused
+  as-is (`configs/all.varbit` lines 13053-13161). dbrow `requirement_quests`
+  decodes to Fremennik Isles (127) and Song of the Elves (156) -- the second
+  is 2018-era content that cannot predate a Sept 2006 quest, same known
+  cache-decode-corruption failure mode this queue's methodology warns about
+  (confirmed junk) -- real prerequisites per quest-helper's own
+  getGeneralRequirements() are Wanted! FINISHED and Sea Slug FINISHED, both
+  already implemented in this tree, gated on those instead
+  (`%wanted_main >= ^wanted_complete` / `%seaslugquest >= ^seaslug_complete`).
+  Native multi-npc records independently confirm three of `%slug2_main`'s
+  breakpoints, used directly (not guessed): `slug2_maledict` STAGE1->STAGE2
+  exactly at value 8, `slug2_oniall` STAGE1->STAGE2 at value 9 and
+  STAGE2->gone at value 13, `slug2_hobb` STAGE2->STAGE3 at value 12 and
+  STAGE3->gone at value 14 (= dbrow endstate) -- the master-var value table
+  was hand-derived to land the corresponding narrative beats (Maledict's
+  second conversation, O'Niall becoming reachable for page 3, all five runes
+  applied, Slug Prince killed) on exactly those four numbers, then verified
+  against all three records, not the reverse. This server only ever spawns
+  the wrapper npc/loc types; three wrappers (`slug2_oniall`, `slug2_jeb`,
+  `slug2_holgart_jeb`) declare no op of their own in the cache -- additive
+  op overlay in `theslugmenace.npc` (`slug2_hobb`/`slug2_maledict`/the
+  villager wrappers already carry `op1=Talk-to` natively, no overlay
+  needed); `slug2_hidden_entrance` (the false-wall multiloc wrapper)
+  likewise needed one, in `theslugmenace.loc`. Three genuine shared-trigger
+  merges to avoid duplicate triggers (critical correctness rule): Sir Tiffy
+  Cashien (`rd_teleporter_guy`) already has a live trigger for Wanted! --
+  `~slugmenace_tiffy_talk` is called from `wanted_tiffy_amik.rs2`'s own
+  `wanted_main >= wanted_complete` branch; Jorral (`makinghistory_jorral`)
+  already has a live trigger for Making History -- `~slugmenace_jorral_
+  translate` is called first with an early return; Bailey (`bailey`, Fishing
+  Platform) already has a live trigger for Sea Slug -- `~slugmenace_bailey_
+  talk` likewise. A fourth merge was caught only after an initial build
+  (sscompile gives no duplicate-trigger diagnostic, confirmed the hard way):
+  `holgartlandtravel` -- the wiki/quest-helper's own "Holgart, north of
+  Witchaven" -- turned out to be the *same* Holgart already world-spawned
+  and fully scripted for Sea Slug (`areas/area_fishing_platform/scripts/
+  holgart.rs2`), not a separate unspawned npc; the first draft's own
+  `[opnpc1,holgartlandtravel]` block was deleted and replaced with a branch
+  merged into that file's existing `[label,holgartland_talk]`. Two more
+  external-proc merges (not duplicate triggers, since the item names are
+  quest-exclusive): a case for the five `slug2_rune_*_blank` items merged
+  into `skill_crafting/scripts/gem/uncut_gem.rs2`'s existing `[opheldu,
+  chisel]` switch (chisel+essence engraving, 5-way choice), and a case for
+  the same five blanks merged into `skill_runecraft/scripts/runecraft.rs2`'s
+  existing `[oplocu,_rc_altar]` switch (charging at the real air/water/
+  earth/fire/mind altars, matched against that file's own
+  `~runecraft_type_for_loc`). The Slug Prince (level 62, melee-only per
+  quest-helper's own getCombatRequirements(), no special-defence-mechanic
+  precedent anywhere in this tree) has no `.spawn` entry anywhere (confirmed
+  via grep) -- hand-spawned lazily on trigger once all five runes are used,
+  same idiom as Royal Trouble's Giant Sea Snake / Contact's Giant Scarab.
+  Deferred/simplified (documented, no established precedent anywhere in this
+  tree for the alternative): the real widget puzzle for combining the three
+  page fragments (interface group 460, native `slug2_frag1/2/3_xpos/ypos/
+  zpos/rot` drag-position varps) collapses to using sea slug glue directly
+  on a repaired fragment, same "no puzzle-piece-dragging interface
+  precedent" reasoning as every prior slice's own widget soft-skips; the
+  three background Witchaven villagers (their own native stage1/stage2
+  multi-npc wrappers) are pure flavour never referenced by any
+  quest-helper `steps.put` or requirement, deferred with no gameplay
+  consequence, same reasoning as the native but code-unreferenced
+  `slug2_scan_mayor`/`slug2_savant_gotinfo`/`slug2_savant_scan`/
+  `slug2_doorscan`/`slug2_queen_door`/`slug2_door_sound_control`/
+  `slug2_oniall_control` bits (left unset); loc visuals for the imposing
+  door's open/closed state don't swap (wrapper-only limitation, same as
+  every prior slice's npc/loc side). Rewards: 1 QP, 3500 Crafting/
+  Runecraft/Thieving XP each (dbrow `stat_xp_awarded` matches quest-helper's
+  own `getExperienceRewards()` exactly, both awarded), unlocks purchasing
+  Proselyte armour. `mingw32-make -C src sscompile` clean (only pre-existing
+  snprintf-truncation warnings in the compiler itself); `mingw32-make -C src
+  mock230-scripts` exit 0, 14316 scripts compiled (14281 -> 14316, net +35
+  after the duplicate-trigger fix removed one competing top-level
+  `[opnpc1,holgartlandtravel]`); grep of the full build log for "slug" /
+  "holgart" (case-insensitive) returned zero hits both before and after the
+  fix -- no warnings or errors attributable to this slice or any of the five
+  shared-trigger merges. `mock230_pack --check-only` not runnable in this
+  worktree (no `cache.osrs239` present, same pre-existing environment gap
+  every prior slice has noted). `::theslugmenace` / `::theslugmenacerun`
+  debug commands added, matching every prior slice's idiom. Wiki
+  https://oldschool.runescape.wiki/w/The_Slug_Menace/Quick_guide (dialogue
+  paraphrased, not verbatim, per copyright, same caveat as every prior
+  slice). Files: `quests/quest_theslugmenace/{configs/theslugmenace.
+  {constant,varp,npc,loc}, scripts/slugmenace_{tiffy,witchaven,pages,
+  journal,debug}.rs2}` + merges into `quest_wanted/scripts/wanted_tiffy_
+  amik.rs2`, `quest_makinghistory/scripts/makinghistory_jorral.rs2`,
+  `areas/area_fishing_platform/scripts/bailey.rs2`, `areas/area_fishing_
+  platform/scripts/holgart.rs2`, `skill_crafting/scripts/gem/uncut_gem.rs2`,
+  `skill_runecraft/scripts/runecraft.rs2`,
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #130 Cabin Fever, 704 lines.
