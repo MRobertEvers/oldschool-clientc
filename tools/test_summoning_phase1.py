@@ -78,6 +78,9 @@ def main() -> int:
     stats_script = (content_lane / "scripts/summoning_stats_init.cs2").read_text(
         encoding="utf-8"
     )
+    native_stats_script = (content_lane / "scripts/script_393.cs2").read_text(
+        encoding="utf-8"
+    )
     expect(
         "if_setscrollsize(190, 271, $viewport7);" in stats_script
         and "if_setscrollpos(0, 0, $viewport7);" in stats_script,
@@ -95,15 +98,23 @@ def main() -> int:
     )
     summoning_cell = stats_source.split("[summoning_stats_cell]", 1)[1]
     expect(
-        "clickmask=" not in summoning_cell
-        and "op1=" not in summoning_cell
-        and "op2=" not in summoning_cell,
-        "source: Summoning stats cell is still clickable",
+        "clickmask=6" in summoning_cell
+        and "op1=*" in summoning_cell
+        and "op2=*" in summoning_cell,
+        "source: Summoning stats cell is not clickable",
     )
     expect(
-        "cc_setposition(calc(3 + $int3), 4, ^setpos_abs_left, ^setpos_abs_top);"
-        in stats_script,
-        "source: Summoning icon is not vertically aligned with native skill icons",
+        "cc_setposition(calc(3 + $int3), 0, ^setpos_abs_left, ^setpos_abs_top);"
+        in stats_script
+        and "cc_setposition(calc(3 + $int3), 4, ^setpos_abs_left, ^setpos_abs_top);"
+        in native_stats_script,
+        "source: Summoning/native skill icon offsets are not independently aligned",
+    )
+    expect(
+        "cc_setposition(32, 4, ^setpos_abs_left, ^setpos_abs_top);" in stats_script
+        and "cc_setposition(32, 4, ^setpos_abs_left, ^setpos_abs_top);"
+        in native_stats_script,
+        "source: skill levels are shifted above their native vertical position",
     )
     expect(
         "if_setsize(126, 30, ^setsize_abs, ^setsize_abs, stats:25);"
@@ -111,11 +122,27 @@ def main() -> int:
         "source: Total XP box is not a full-height ninth-row panel",
     )
     expect(
+        "[com_26]\nif3=yes\ntype=5\nx=36\nwidth=36\nheight=36"
+        in stats_source
+        and "[com_27]\nif3=yes\ntype=5\nx=72\nwidth=36\nheight=36"
+        in stats_source
+        and "graphic=20025" in stats_source
+        and "graphic=20023" in stats_source
+        and "graphic=20024" in stats_source,
+        "source: Total XP panel does not use the original extended border sprites",
+    )
+    expect(
+        stats_source.count("graphic=20025\nhidden=yes") == 2,
+        "source: unused Total XP middle strips can protrude behind the border caps",
+    )
+    expect(
         'if_setop(2, "View <col=ff981f><$string0></col> guide", $component0);'
-        not in stats_script
+        in stats_script
         and 'if_setop(1, "Toggle <col=ff981f><$string0></col> XP", $component0);'
-        not in stats_script,
-        "source: Summoning clientscript still installs click operations",
+        in stats_script
+        and 'if_setop(1, "View <col=ff981f><$string0></col> guide", $component0);'
+        in stats_script,
+        "source: Summoning clientscript does not install click operations",
     )
     expect(
         'if_setonvartransmit("summoning_stats_init($component0, $int1, $int2, $int3)'
@@ -251,7 +278,7 @@ def main() -> int:
             "flag_on_level1: familiar sidebar did not mount into the live gameframe",
         )
         expect(
-            "dynamic graphic=229 abs=513,446 25x25 hidden=0" in level1,
+            "dynamic graphic=229 abs=513,450 25x25 hidden=0" in level1,
             "flag_on_level1: wolf-head sprite is not rendered in row nine",
         )
         expect(

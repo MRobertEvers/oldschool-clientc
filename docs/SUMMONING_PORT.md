@@ -427,7 +427,8 @@ guide's Overview tab remains unmodified. The Summoning-points orb is now live in
 it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to target ids
 20000..20003. Authored clientscript 12004 is the default and reshapes those pieces into the modern
 57x34 orb layout, including the shared 26px fill and device-aware hover frame. It is visible only
-while a familiar is active and displays the server-owned 0..60 special-move points. The source-era
+while a familiar is active and displays the server-owned 0..60 special-move points. The active and
+special varps transmit directly and drive the orb's `onvartransmit` hook. The source-era
 clientscript 12000 remains packed as the legacy stat-points alternative. The originally
 proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
 it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls

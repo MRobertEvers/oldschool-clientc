@@ -4327,6 +4327,50 @@ mock230_script_command(
         return 1;
     }
 
+    case SS_OP_NPC_FINDOWNED2:
+    {
+        if( !player )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+
+            if( !npc->active || mock230_world_npc_owner(srv, npc) != player )
+                continue;
+            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, npc);
+            SSVM_PushInt(state, 1);
+            return 1;
+        }
+        SSVM_PushInt(state, 0);
+        return 1;
+    }
+
+    case SS_OP_NPC_FINDCOMBAT:
+    {
+        int slot = player ? player->combat_target : -1;
+        struct Mock230Npc* npc;
+
+        if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        npc = &srv->npcs[slot];
+        if( !npc->active || npc->death_tick >= 0 || npc->level != player->level )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, npc);
+        state->host_tag = slot + 1;
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        SSVM_PushInt(state, 1);
+        return 1;
+    }
+
     /*
      * Per-instance NPC integers. The slot is engine-bounded and content names
      * it with a constant; values otherwise use the ServerScript int unchanged.
@@ -4764,14 +4808,9 @@ mock230_script_command(
         return 1;
     }
 
-    /*
-     * The active npc's uid, which is its slot.
-     *
-     * The mirror of NPC_FINDUID below, and it carries the same caveat: the
-     * reference packs a generation counter beside the index so a uid that
-     * outlives its npc fails to resolve, and this server does not. Content
-     * holding one across a despawn gets whatever took the slot.
-     */
+    /* A content-visible uid is generation:slot.  Keeping the slot in the low
+     * 16 bits preserves the projectile wire convention while making handles
+     * safe across a despawn and pool-slot reuse. */
     case SS_OP_NPC_UID:
     {
         int slot = (int)state->host_tag - 1;
@@ -4781,7 +4820,8 @@ mock230_script_command(
             SSVM_Abort(state, "npc_uid with no active npc");
             return 1;
         }
-        SSVM_PushInt(state, slot);
+        SSVM_PushInt(state, (int32_t)(((uint32_t)srv->npcs[slot].generation << 16) |
+                                     (uint32_t)(slot & 0xffff)));
         return 1;
     }
 
@@ -4791,21 +4831,17 @@ mock230_script_command(
 
         if( !SSVM_PopInt(state, &uid) )
             return 1;
-        /*
-         * An npc uid is its slot here. The reference packs a generation counter
-         * beside the index so a reused slot fails the lookup; this server has
-         * no such counter, so a uid that outlives its npc resolves to whatever
-         * took the slot. Content holding a uid across a despawn is rare and the
-         * honest fix is the counter, not a guess — this is the one place the
-         * difference is visible, so it is stated here.
-         */
-        if( uid < 0 || uid >= MOCK230_NPC_MAX || !srv->npcs[uid].active )
+        int slot = (int)((uint32_t)uid & 0xffffu);
+        uint16_t generation = (uint16_t)((uint32_t)uid >> 16);
+
+        if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
+            generation == 0 || srv->npcs[slot].generation != generation )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[uid]);
-        state->host_tag = uid + 1;
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+        state->host_tag = slot + 1;
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
         SSVM_PushInt(state, 1);
         return 1;
@@ -6512,11 +6548,11 @@ mock230_script_command(
         }
         else if( opcode == SS_OP_PROJANIM_NPC )
         {
-            /* `npcUid & 0xffff` is the slot; the type in the high half is what
-             * the reference checks and then comments out. */
-            int slot = (int)values[1] & 0xffff;
+            int slot = (int)((uint32_t)values[1] & 0xffffu);
+            uint16_t generation = (uint16_t)((uint32_t)values[1] >> 16);
 
-            if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+            if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active ||
+                generation == 0 || srv->npcs[slot].generation != generation )
             {
                 SSVM_Abort(state, "projanim_npc: npc uid %d is not a live npc",
                            (int)values[1]);
@@ -6609,6 +6645,15 @@ mock230_script_command(
         player->run_energy_sent = -1;
         return 1;
     }
+
+    /*
+     * runenergy() is the script-visible percentage (0..100), not the mock's
+     * hundredths-of-a-percent storage.  It is needed by effects such as Bull
+     * Ant's Unburden to reject a full bar before committing their scroll.
+     */
+    case SS_OP_RUNENERGY:
+        SSVM_PushInt(state, player->run_energy / 100);
+        return 1;
 
     /*
      * Camera family — LostCity PlayerOps CAM_* (coord → scene-local via the

@@ -836,6 +836,26 @@ mock230_world_interaction_set(
     interaction->op = op;
     interaction->npc_slot = npc_slot;
     interaction->target_id = target_id;
+    interaction->target_generation = 0;
+    if( kind == MOCK230_INTERACT_NPC && npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX )
+        interaction->target_generation = srv->npcs[npc_slot].generation;
+    else if( kind == MOCK230_INTERACT_PLAYER && npc_slot >= 0 &&
+             npc_slot < srv->player_count )
+        interaction->target_generation = srv->players[npc_slot].login_generation;
+    else if( kind == MOCK230_INTERACT_OBJ )
+    {
+        for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        {
+            const struct Mock230GroundObj* obj = &srv->ground[i];
+
+            if( obj->active && obj->obj_id == target_id && obj->x == tile_x &&
+                obj->z == tile_z && obj->level == level )
+            {
+                interaction->target_generation = (uint32_t)obj->generation;
+                break;
+            }
+        }
+    }
     interaction->x = tile_x;
     interaction->z = tile_z;
     interaction->level = level;
@@ -919,7 +939,8 @@ interaction_target(
         npc = &srv->npcs[interaction->npc_slot];
         /* Slot reuse: same index, different npc. Acting on it would attack
          * whatever respawned there. */
-        if( !npc->active || npc->type != interaction->target_id )
+        if( !npc->active || npc->type != interaction->target_id ||
+            npc->generation != interaction->target_generation )
             return 0;
         if( npc->level != srv->active_player->level )
             return 0;
@@ -940,7 +961,8 @@ interaction_target(
             return 0;
         target = &srv->players[interaction->npc_slot];
         /* Logged out, or the slot now holds somebody else. */
-        if( !target->active || target->pid != interaction->target_id )
+        if( !target->active || target->pid != interaction->target_id ||
+            target->login_generation != interaction->target_generation )
             return 0;
         if( target == srv->active_player )
             return 0;
@@ -979,6 +1001,8 @@ interaction_target(
             if( obj->x != interaction->x || obj->z != interaction->z )
                 continue;
             if( obj->level != interaction->level )
+                continue;
+            if( (uint32_t)obj->generation != interaction->target_generation )
                 continue;
             *out_x = obj->x;
             *out_z = obj->z;
@@ -2416,7 +2440,12 @@ npc_spawn(
          * asking each of them to remember.
          */
         mock230_zone_npc_refile(srv, slot);
+        uint16_t generation = (uint16_t)(npc->generation + 1u);
+
+        if( generation == 0 )
+            generation = 1;
         memset(npc, 0, sizeof(*npc));
+        npc->generation = generation;
         npc->active = 1;
         npc->type = type;
         npc->x = x;
@@ -4654,6 +4683,46 @@ handle_opobjt(
                    srv->active_player->level, 1, 1, spell);
 }
 
+/* OPPLAYERT: p2 player pid, p4 spellComponent.  Revision 239's inbound
+ * adapter has decoded this shape since the targeted-cast family landed, but
+ * the world route used to omit it entirely. */
+static void
+handle_opplayert(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int pid;
+    int spell;
+    int slot = -1;
+    struct Mock230Player* target;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    pid = rsab_g2(&buf);
+    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+        return;
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        if( srv->players[i].active && srv->players[i].pid == pid )
+        {
+            slot = i;
+            break;
+        }
+    }
+    if( slot < 0 || &srv->players[slot] == srv->active_player )
+        return;
+    target = &srv->players[slot];
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPPLAYERT pid=%d spell=%d|%d\n", pid,
+                (spell >> 16) & 0xffff, spell & 0xffff);
+
+    spell_interact(srv, MOCK230_INTERACT_PLAYER, slot, target->pid, target->x,
+                   target->z, target->level, 1, 1, spell);
+}
+
 /*
  * OPHELDT: p2 obj, p2 slot, p4 itemComponent, p4 spellComponent — "cast this
  * spell on that inventory item" (High Alchemy, Superheat, the enchants).
@@ -5362,6 +5431,17 @@ handle_opobjt_packet(
 {
     (void)name;
     handle_opobjt(srv, payload, len);
+}
+
+static void
+handle_opplayert_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opplayert(srv, payload, len);
 }
 
 static void
@@ -6694,6 +6774,7 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_OPLOCT, handle_oploct_packet },
     { PKTOUT_NAME_OPNPCT, handle_opnpct_packet },
     { PKTOUT_NAME_OPOBJT, handle_opobjt_packet },
+    { PKTOUT_NAME_OPPLAYERT, handle_opplayert_packet },
 
     { PKTOUT_NAME_IF_BUTTON, handle_if_button },
     { PKTOUT_NAME_IF_BUTTON1, handle_if_button_op },
@@ -23230,9 +23311,14 @@ mock230_world_selftest(void)
                                 SELFTEST_CHECK(entry->argc == 2,
                                                "Fire Strike must queue npc uid and damage, got %d argument(s)",
                                                entry->argc);
-                                SELFTEST_CHECK(entry->args[0] == wizard_slot,
-                                               "Fire Strike queue must retain its caster uid, got %d",
-                                               entry->args[0]);
+                                SELFTEST_CHECK(
+                                    ((uint32_t)entry->args[0] & 0xffffu) ==
+                                            (uint32_t)wizard_slot &&
+                                        ((uint32_t)entry->args[0] >> 16) ==
+                                            npc->generation,
+                                    "Fire Strike queue must retain its generation-safe caster "
+                                    "uid, got %d",
+                                    entry->args[0]);
                                 SELFTEST_CHECK(entry->args[1] > 0,
                                                "the seeded Fire Strike should carry positive damage, got %d",
                                                entry->args[1]);

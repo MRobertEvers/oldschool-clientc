@@ -194,11 +194,69 @@ struct PackEntry
 struct Pack
 {
     struct PackEntry* entries;
+    struct PackEntry** by_name;
+    struct PackEntry** by_id;
     int count;
     int capacity;
 };
 
 static struct Pack g_packs[MOCK230_PACK_COUNT];
+
+static int
+pack_entry_name_compare(
+    const void* lhs,
+    const void* rhs)
+{
+    const struct PackEntry* left = *(const struct PackEntry* const*)lhs;
+    const struct PackEntry* right = *(const struct PackEntry* const*)rhs;
+    int order = strcmp(left->name, right->name);
+
+    if( order != 0 )
+        return order;
+    if( left->id != right->id )
+        return left->id < right->id ? -1 : 1;
+    return left < right ? -1 : left > right;
+}
+
+static int
+pack_entry_id_compare(
+    const void* lhs,
+    const void* rhs)
+{
+    const struct PackEntry* left = *(const struct PackEntry* const*)lhs;
+    const struct PackEntry* right = *(const struct PackEntry* const*)rhs;
+
+    if( left->id != right->id )
+        return left->id < right->id ? -1 : 1;
+    return left < right ? -1 : left > right;
+}
+
+static void
+pack_build_indexes(struct Pack* pack)
+{
+    if( pack->count <= 0 )
+        return;
+    pack->by_name = malloc((size_t)pack->count * sizeof(*pack->by_name));
+    pack->by_id = malloc((size_t)pack->count * sizeof(*pack->by_id));
+    if( !pack->by_name || !pack->by_id )
+    {
+        free(pack->by_name);
+        free(pack->by_id);
+        pack->by_name = NULL;
+        pack->by_id = NULL;
+        return;
+    }
+    for( int i = 0; i < pack->count; i++ )
+    {
+        pack->by_name[i] = &pack->entries[i];
+        pack->by_id[i] = &pack->entries[i];
+    }
+    qsort(pack->by_name,
+          (size_t)pack->count,
+          sizeof(*pack->by_name),
+          pack_entry_name_compare);
+    qsort(pack->by_id, (size_t)pack->count, sizeof(*pack->by_id), pack_entry_id_compare);
+}
 
 static void
 pack_add(
@@ -385,6 +443,24 @@ mock230_content_symbol(
     /* One file, one pass. There is no precedence question left: a name means one
      * id or the loader refused to start (see validate_symbols). */
     pack = &g_packs[kind];
+    if( pack->by_name )
+    {
+        int low = 0;
+        int high = pack->count;
+
+        while( low < high )
+        {
+            int mid = low + (high - low) / 2;
+
+            if( strcmp(pack->by_name[mid]->name, name) < 0 )
+                low = mid + 1;
+            else
+                high = mid;
+        }
+        if( low < pack->count && strcmp(pack->by_name[low]->name, name) == 0 )
+            return pack->by_name[low]->id;
+        return -1;
+    }
     for( int i = 0; i < pack->count; i++ )
     {
         if( strcmp(pack->entries[i].name, name) == 0 )
@@ -420,6 +496,24 @@ mock230_content_symbol_name(
     if( kind < 0 || kind >= MOCK230_PACK_COUNT )
         return NULL;
     pack = &g_packs[kind];
+    if( pack->by_id )
+    {
+        int low = 0;
+        int high = pack->count;
+
+        while( low < high )
+        {
+            int mid = low + (high - low) / 2;
+
+            if( pack->by_id[mid]->id < symbol_id )
+                low = mid + 1;
+            else
+                high = mid;
+        }
+        if( low < pack->count && pack->by_id[low]->id == symbol_id )
+            return pack->by_id[low]->name;
+        return NULL;
+    }
     for( int i = 0; i < pack->count; i++ )
     {
         if( pack->entries[i].id == symbol_id )
@@ -2508,6 +2602,39 @@ enum Jm2Section
     JM2_OBJ,
 };
 
+/**
+ * Almost every .jm2 contains only MAP and LOC data, which this server does not
+ * consume. Check cheaply for the two tokens that can make a file relevant
+ * before paying for millions of fgets/trim/section operations. Keeping two
+ * bytes of overlap makes a token split across fread blocks visible.
+ */
+static int
+jm2_may_have_spawns(FILE* file)
+{
+    unsigned char bytes[65536 + 2];
+    size_t carry = 0;
+    size_t got;
+
+    while( (got = fread(bytes + carry, 1, sizeof(bytes) - carry, file)) > 0 )
+    {
+        size_t total = carry + got;
+
+        for( size_t i = 0; i + 2 < total; i++ )
+        {
+            if( (bytes[i] == 'N' && bytes[i + 1] == 'P' && bytes[i + 2] == 'C') ||
+                (bytes[i] == 'O' && bytes[i + 1] == 'B' && bytes[i + 2] == 'J') )
+            {
+                rewind(file);
+                return 1;
+            }
+        }
+        carry = total < 2 ? total : 2;
+        if( carry )
+            memmove(bytes, bytes + total - carry, carry);
+    }
+    return 0;
+}
+
 static void
 load_jm2(
     const char* path,
@@ -2521,6 +2648,11 @@ load_jm2(
 
     if( !file )
         return;
+    if( !jm2_may_have_spawns(file) )
+    {
+        fclose(file);
+        return;
+    }
     while( fgets(raw, sizeof(raw), file) )
     {
         char* line = mock230_content_clean_line(raw);
@@ -3295,6 +3427,12 @@ mock230_content_load(const char* dir)
     symbols += load_component_symbols_from_root(dir, 0);
     symbols += load_ported_component_symbols(dir);
 
+    /* Packs are immutable from here through boot and runtime. Keep their
+     * insertion-order arrays for walking and diagnostics, and build sorted
+     * pointer views for the far more frequent name/id lookups. */
+    for( int kind = 0; kind < MOCK230_PACK_COUNT; kind++ )
+        pack_build_indexes(&g_packs[kind]);
+
     /* A symbol table that answers a name two ways is refused here rather than
      * resolved silently later. */
     validate_symbols(&reg);
@@ -3800,7 +3938,11 @@ mock230_content_free(void)
         for( int i = 0; i < g_packs[kind].count; i++ )
             free(g_packs[kind].entries[i].name);
         free(g_packs[kind].entries);
+        free(g_packs[kind].by_name);
+        free(g_packs[kind].by_id);
         g_packs[kind].entries = NULL;
+        g_packs[kind].by_name = NULL;
+        g_packs[kind].by_id = NULL;
         g_packs[kind].count = 0;
         g_packs[kind].capacity = 0;
     }

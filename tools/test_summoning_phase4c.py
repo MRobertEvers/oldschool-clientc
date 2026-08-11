@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real-client acceptance for the feature-gated Summoning points orb."""
+"""Real-client acceptance for the active familiar special-points orb."""
 
 from __future__ import annotations
 
@@ -117,16 +117,16 @@ def main() -> int:
         "client was built without the embedded mock server",
     )
     expect(
-        "static graphic=20001 abs=601,138 57x34 hidden=0" in result.stdout,
-        "source-authentic orb backing did not render in the visible minimap arc",
+        "static graphic=1072 abs=601,138 57x34 hidden=0" in result.stdout,
+        "modern hovered orb backing did not render in the visible minimap arc",
     )
     expect(
-        "static graphic=20000 abs=607,145 20x20 hidden=0" in result.stdout,
+        "static graphic=20000 abs=631,145 20x20 hidden=0" in result.stdout,
         "source-authentic wolf orb icon did not render",
     )
     expect(
-        '(160<<16|62) static font=494 color=0xff0000 text="0"' in result.stdout,
-        "stat-24 transmit did not redraw the orb from 1 point to 0",
+        '(160<<16|62) static font=494 color=0xff00 text="60"' in result.stdout,
+        "active familiar orb did not show its 60 special-move points",
     )
     expect("message_game: You summon a Spirit wolf." in result.stdout, "setup did not summon")
     expect(
