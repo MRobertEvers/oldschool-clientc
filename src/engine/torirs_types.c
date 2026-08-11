@@ -457,6 +457,8 @@ ToriRS_ModelSizeOf(const struct ToriRS_Model* model)
         bytes += (size_t)model->textured_face_count * sizeof(*model->textured_m_coordinate);
     if( model->textured_n_coordinate )
         bytes += (size_t)model->textured_face_count * sizeof(*model->textured_n_coordinate);
+    if( model->texture_render_types )
+        bytes += (size_t)model->textured_face_count * sizeof(*model->texture_render_types);
     if( model->face_texture_coords )
         bytes += (size_t)model->textured_face_count * sizeof(*model->face_texture_coords);
     bytes += torirs_bones_sizeof(model->vertex_bones);
@@ -507,6 +509,8 @@ ToriRS_ModelReleaseArrays(struct ToriRS_Model* model)
     model->textured_m_coordinate = NULL;
     free(model->textured_n_coordinate);
     model->textured_n_coordinate = NULL;
+    free(model->texture_render_types);
+    model->texture_render_types = NULL;
     free(model->face_texture_coords);
     model->face_texture_coords = NULL;
     torirs_bones_free(model->vertex_bones);

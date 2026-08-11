@@ -117,6 +117,7 @@ struct ToriDraw_Model
     faceint_t* textured_p_coordinate;
     faceint_t* textured_m_coordinate;
     faceint_t* textured_n_coordinate;
+    uint8_t* texture_render_types;
     faceint_t* face_texture_coords;
 
     struct ToriDraw_Normals* normals;

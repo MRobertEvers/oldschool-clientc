@@ -509,7 +509,7 @@ tex_wants drained 28: 1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 20 22 23 25 26 2
 mock230: osrs239 has no UPDATE_PID -- dropping it (reported once)
 mock230: cheat 'summoning_unlock' -> debugproc ran
 mock230: cheat 'setlevel summoning 52' -> debugproc not found
-mock230: cheat 'summoning_spirit_terrorbird_pouch' -> debugproc ran
+mock230: cheat 'summoning_dreadfowl_pouch' -> debugproc ran
 mock230: osrs239 has no OBJ_ADD -- dropping it (reported once)
 Failed to load dat2 idk 307
 PlayerAppearanceLoad: scanned=307 found=7 kits=[0,10,18,26,33,36,42]
@@ -567,16 +567,16 @@ PackAssetsLoad: iface=216 components=6 sprites=0 fonts=0 models=0 npcs=0 needs_p
 PackAssetsLoad: iface=239 components=23 sprites=0 fonts=2 models=0 npcs=0 needs_player=0
 cs2-stub: opcode 7009 has an inherited signature (1,0,0,0) but no implementation — stack balanced, results faked (script 4873 pc 2)
 cs2-stub: opcode 7019 has an inherited signature (1,0,0,0) but no implementation — stack balanced, results faked (script 4873 pc 4)
+PackAssetsLoad: iface=729 components=17 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
 client_layout: mode=1
 message_game: Summoning has been unlocked for this account.
 message_game: Set stat 24 to 52.
-message_game: A Spirit terrorbird pouch has been added to your inventory.
+message_game: A Dreadfowl pouch has been added to your inventory.
 message_game: Welcome to the mock 230 world.
 message_game: Click to walk. Right-click an npc to talk.
 message_game: Welcome to Lumbridge.
 message_game: Goblins east of the river. Guards on the Al Kharid road.
 message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
-PackAssetsLoad: iface=729 components=17 sprites=0 fonts=0 models=0 npcs=0 needs_player=0
 message_game: A crop circle is active near Doric's Hut.
 message_game: <col=ff0000>You have unlocked a new music track: Harmony
 seq_bind: element=19360 seq=2704 frames=64 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
@@ -598,21 +598,21 @@ seq_bind: element=19367 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cyc
 spawn_npc: npc=3108 element=19367 tile=54,50 level=0 size=1 recolors=2 retextures=0
 spawn_npc: npc 6709 unavailable
 spawn_npc: npc 7458 unavailable
-seq_bind: element=19368 seq=171 frames=8 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=90 fbones=38 falpha=1
+seq_bind: element=19368 seq=171 frames=8 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=90 fbones=38 falpha=1
 spawn_npc: npc=5007 element=19368 tile=54,50 level=0 size=1 recolors=0 retextures=0
-seq_bind: element=19369 seq=813 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=51 fbones=30 falpha=1
+seq_bind: element=19369 seq=813 frames=12 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=51 fbones=30 falpha=1
 spawn_npc: npc=6816 element=19369 tile=54,50 level=0 size=1 recolors=3 retextures=0
-seq_bind: element=19370 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+seq_bind: element=19370 seq=808 frames=12 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
 spawn_npc: npc=3106 element=19370 tile=54,50 level=0 size=1 recolors=4 retextures=0
 spawn_npc: npc 317 unavailable
 spawn_npc: npc 7457 unavailable
-seq_bind: element=19371 seq=2704 frames=64 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
+seq_bind: element=19371 seq=2704 frames=64 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=18 fbones=10 falpha=1
 spawn_npc: npc=2854 element=19371 tile=54,50 level=0 size=1 recolors=1 retextures=0
-seq_bind: element=19372 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=87 fbones=28 falpha=1
+seq_bind: element=19372 seq=808 frames=12 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=87 fbones=28 falpha=1
 spawn_npc: npc=311 element=19372 tile=54,50 level=0 size=1 recolors=6 retextures=0
-seq_bind: element=19373 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
+seq_bind: element=19373 seq=808 frames=12 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=49 fbones=28 falpha=1
 spawn_npc: npc=10619 element=19373 tile=54,50 level=0 size=1 recolors=5 retextures=0
-seq_bind: element=19374 seq=808 frames=12 skeletal=0 start=35 now=35 frame=0 cycle=0 kind=1 vbones=95 fbones=32 falpha=1
+seq_bind: element=19374 seq=808 frames=12 skeletal=0 start=36 now=36 frame=0 cycle=0 kind=1 vbones=95 fbones=32 falpha=1
 spawn_npc: npc=3111 element=19374 tile=54,50 level=0 size=1 recolors=3 retextures=0
 seq_bind: element=19375 seq=808 frames=12 skeletal=0 start=37 now=37 frame=0 cycle=0 kind=1 vbones=95 fbones=28 falpha=1
 spawn_npc: npc=3112 element=19375 tile=54,50 level=0 size=1 recolors=5 retextures=0
@@ -633,47 +633,48 @@ sim_click_at: frame=90 move 540,230 right=1
 sim_click_at: released 540,230
 sim_click_at: frame=150 move 540,260 right=0
 sim_click_at: released 540,260
-message_game: You summon a Spirit terrorbird.
-tex_wants drained 2: 5 27
-tex_bake: layer=0 blend=0 w=128 h=128 palette_len=8 dest=128
+message_game: You summon a Dreadfowl.
+tex_wants drained 3: 12 59 209
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=205 dest=128
+tex_bake: layer=0 blend=0 w=128 h=128 palette_len=72 dest=128
 message_game: You equip the Bronze kiteshield.
 seq_bind: element=19397 seq=2904 frames=4 skeletal=0 start=200 now=200 frame=0 cycle=0 kind=1 vbones=79 fbones=32 falpha=1
 spawn_npc: npc=0 element=19397 tile=54,50 level=0 size=1 recolors=0 retextures=0
-seq_bind: element=19397 seq=23032 frames=16 skeletal=0 start=200 now=200 frame=0 cycle=0 kind=1 vbones=256 fbones=256 falpha=1
-tex_wants drained 2: 5 27
 player_model: rebuilt cycle=225 scene=1073741827 seq=808 frame=9 bound=0
-raster_tex_mode: face=714 coord=25 type=2 affine=1
-raster_tex_mode: face=625 coord=9 type=2 affine=1
-raster_tex_mode: face=434 coord=12 type=2 affine=1
-raster_tex_mode: face=436 coord=14 type=2 affine=1
-raster_tex_mode: face=435 coord=12 type=2 affine=1
-raster_tex_mode: face=534 coord=12 type=2 affine=1
-raster_tex_mode: face=437 coord=14 type=2 affine=1
-raster_tex_mode: face=433 coord=13 type=2 affine=1
-raster_tex_mode: face=438 coord=14 type=2 affine=1
-raster_tex_mode: face=440 coord=14 type=2 affine=1
-raster_tex_mode: face=535 coord=13 type=2 affine=1
-raster_tex_mode: face=439 coord=14 type=2 affine=1
-raster_tex_mode: face=558 coord=14 type=2 affine=1
-raster_tex_mode: face=710 coord=25 type=2 affine=1
-raster_tex_mode: face=415 coord=11 type=2 affine=1
-raster_tex_mode: face=416 coord=11 type=2 affine=1
-raster_tex_mode: face=413 coord=11 type=2 affine=1
-raster_tex_mode: face=554 coord=14 type=2 affine=1
-raster_tex_mode: face=627 coord=9 type=2 affine=1
-raster_tex_mode: face=633 coord=10 type=2 affine=1
-raster_tex_mode: face=417 coord=11 type=2 affine=1
-raster_tex_mode: face=539 coord=16 type=2 affine=1
-raster_tex_mode: face=540 coord=16 type=2 affine=1
-raster_tex_mode: face=414 coord=11 type=2 affine=1
-raster_tex_mode: face=430 coord=16 type=2 affine=1
-raster_tex_mode: face=445 coord=11 type=2 affine=1
-raster_tex_mode: face=446 coord=11 type=2 affine=1
-raster_tex_mode: face=536 coord=11 type=2 affine=1
-raster_tex_mode: face=696 coord=26 type=2 affine=1
-raster_tex_mode: face=412 coord=11 type=2 affine=1
-raster_tex_mode: face=447 coord=11 type=2 affine=1
-raster_tex_mode: face=537 coord=16 type=2 affine=1
+seq_bind: element=19397 seq=23000 frames=99 skeletal=0 start=202 now=202 frame=0 cycle=0 kind=1 vbones=41 fbones=18 falpha=1
+tex_wants drained 3: 12 59 209
+raster_tex_mode: face=446 coord=7 type=1 affine=1
+raster_tex_mode: face=447 coord=7 type=1 affine=1
+raster_tex_mode: face=393 coord=5 type=2 affine=1
+raster_tex_mode: face=445 coord=7 type=1 affine=1
+raster_tex_mode: face=402 coord=5 type=2 affine=1
+raster_tex_mode: face=448 coord=7 type=1 affine=1
+raster_tex_mode: face=367 coord=5 type=2 affine=1
+raster_tex_mode: face=407 coord=5 type=2 affine=1
+raster_tex_mode: face=450 coord=7 type=1 affine=1
+raster_tex_mode: face=390 coord=5 type=2 affine=1
+raster_tex_mode: face=391 coord=5 type=2 affine=1
+raster_tex_mode: face=400 coord=5 type=2 affine=1
+raster_tex_mode: face=401 coord=5 type=2 affine=1
+raster_tex_mode: face=444 coord=7 type=1 affine=1
+raster_tex_mode: face=374 coord=5 type=2 affine=1
+raster_tex_mode: face=375 coord=5 type=2 affine=1
+raster_tex_mode: face=386 coord=5 type=2 affine=1
+raster_tex_mode: face=387 coord=5 type=2 affine=1
+raster_tex_mode: face=388 coord=5 type=2 affine=1
+raster_tex_mode: face=392 coord=5 type=2 affine=1
+raster_tex_mode: face=403 coord=5 type=2 affine=1
+raster_tex_mode: face=404 coord=5 type=2 affine=1
+raster_tex_mode: face=384 coord=5 type=2 affine=1
+raster_tex_mode: face=385 coord=5 type=2 affine=1
+raster_tex_mode: face=161 coord=7 type=1 affine=1
+raster_tex_mode: face=349 coord=5 type=2 affine=1
+raster_tex_mode: face=382 coord=5 type=2 affine=1
+raster_tex_mode: face=162 coord=7 type=1 affine=1
+raster_tex_mode: face=348 coord=5 type=2 affine=1
+raster_tex_mode: face=350 coord=5 type=2 affine=1
+raster_tex_mode: face=347 coord=5 type=2 affine=1
+raster_tex_mode: face=381 coord=5 type=2 affine=1
 sim_click_at: frame=230 move 634,185 right=0
 PackAssetsLoad: iface=66 components=6 sprites=1 fonts=0 models=0 npcs=0 needs_player=0
 PackAssetsLoad: iface=65 components=6 sprites=1 fonts=0 models=0 npcs=0 needs_player=0
@@ -695,50 +696,50 @@ uitree_anim: com=0x17a0030 seq=2922 not posable (anim=0x0 base=0x0 frames=-1)
 uitree_anim: com=0x17a0031 seq=2924 not posable (anim=0x0 base=0x0 frames=-1)
 uitree_anim: com=0x17a0036 seq=2920 not posable (anim=0x0 base=0x0 frames=-1)
 uitree_anim: com=0x17a0036 seq=2920 not posable (anim=0x0 base=0x0 frames=-1)
-anim_tick t=300 com=0x17a0009 seq=2715 frame=1 gen=22018
-anim_tick t=300 com=0x17a000a seq=2715 frame=1 gen=22018
-anim_tick t=300 com=0x17a000b seq=2715 frame=1 gen=22018
-anim_tick t=300 com=0x17a000c seq=2715 frame=1 gen=22018
-anim_tick t=300 com=0x17a000d seq=2716 frame=1 gen=22018
-anim_tick t=300 com=0x17a0019 seq=2921 frame=2 gen=22018
-anim_tick t=300 com=0x17a0026 seq=2921 frame=2 gen=22018
-anim_tick t=300 com=0x17a002c seq=2922 frame=1 gen=22018
-anim_tick t=300 com=0x17a002d seq=2922 frame=1 gen=22018
-anim_tick t=300 com=0x17a002e seq=2924 frame=1 gen=22018
-anim_tick t=300 com=0x17a002f seq=2923 frame=1 gen=22018
-anim_tick t=300 com=0x17a0030 seq=2922 frame=1 gen=22018
-anim_tick t=300 com=0x17a0031 seq=2924 frame=1 gen=22018
-anim_tick t=300 com=0x17a0036 seq=2920 frame=4 gen=22018
+anim_tick t=300 com=0x17a0009 seq=2715 frame=1 gen=22021
+anim_tick t=300 com=0x17a000a seq=2715 frame=1 gen=22021
+anim_tick t=300 com=0x17a000b seq=2715 frame=1 gen=22021
+anim_tick t=300 com=0x17a000c seq=2715 frame=1 gen=22021
+anim_tick t=300 com=0x17a000d seq=2716 frame=1 gen=22021
+anim_tick t=300 com=0x17a0019 seq=2921 frame=2 gen=22021
+anim_tick t=300 com=0x17a0026 seq=2921 frame=2 gen=22021
+anim_tick t=300 com=0x17a002c seq=2922 frame=1 gen=22021
+anim_tick t=300 com=0x17a002d seq=2922 frame=1 gen=22021
+anim_tick t=300 com=0x17a002e seq=2924 frame=1 gen=22021
+anim_tick t=300 com=0x17a002f seq=2923 frame=1 gen=22021
+anim_tick t=300 com=0x17a0030 seq=2922 frame=1 gen=22021
+anim_tick t=300 com=0x17a0031 seq=2924 frame=1 gen=22021
+anim_tick t=300 com=0x17a0036 seq=2920 frame=4 gen=22021
 seq_bind: element=19398 seq=813 frames=12 skeletal=0 start=290 now=290 frame=0 cycle=0 kind=1 vbones=70 fbones=30 falpha=1
 spawn_npc: npc=306 element=19398 tile=54,50 level=0 size=1 recolors=5 retextures=0
-anim_tick t=325 com=0x17a0009 seq=2715 frame=4 gen=22043
-anim_tick t=325 com=0x17a000a seq=2715 frame=4 gen=22043
-anim_tick t=325 com=0x17a000b seq=2715 frame=4 gen=22043
-anim_tick t=325 com=0x17a000c seq=2715 frame=4 gen=22043
-anim_tick t=325 com=0x17a000d seq=2716 frame=4 gen=22043
-anim_tick t=325 com=0x17a0019 seq=2921 frame=6 gen=22043
-anim_tick t=325 com=0x17a0026 seq=2921 frame=6 gen=22043
-anim_tick t=325 com=0x17a002c seq=2922 frame=4 gen=22043
-anim_tick t=325 com=0x17a002d seq=2922 frame=4 gen=22043
-anim_tick t=325 com=0x17a002e seq=2924 frame=5 gen=22043
-anim_tick t=325 com=0x17a002f seq=2923 frame=4 gen=22043
-anim_tick t=325 com=0x17a0030 seq=2922 frame=4 gen=22043
-anim_tick t=325 com=0x17a0031 seq=2924 frame=5 gen=22043
-anim_tick t=325 com=0x17a0036 seq=2920 frame=11 gen=22043
-anim_tick t=350 com=0x17a0009 seq=2715 frame=6 gen=22068
-anim_tick t=350 com=0x17a000a seq=2715 frame=6 gen=22068
-anim_tick t=350 com=0x17a000b seq=2715 frame=6 gen=22068
-anim_tick t=350 com=0x17a000c seq=2715 frame=6 gen=22068
-anim_tick t=350 com=0x17a000d seq=2716 frame=7 gen=22068
-anim_tick t=350 com=0x17a0019 seq=2921 frame=10 gen=22068
-anim_tick t=350 com=0x17a0026 seq=2921 frame=10 gen=22068
-anim_tick t=350 com=0x17a002c seq=2922 frame=0 gen=22068
-anim_tick t=350 com=0x17a002d seq=2922 frame=0 gen=22068
-anim_tick t=350 com=0x17a002e seq=2924 frame=9 gen=22068
-anim_tick t=350 com=0x17a002f seq=2923 frame=7 gen=22068
-anim_tick t=350 com=0x17a0030 seq=2922 frame=0 gen=22068
-anim_tick t=350 com=0x17a0031 seq=2924 frame=9 gen=22068
-anim_tick t=350 com=0x17a0036 seq=2920 frame=20 gen=22068
+anim_tick t=325 com=0x17a0009 seq=2715 frame=3 gen=22046
+anim_tick t=325 com=0x17a000a seq=2715 frame=3 gen=22046
+anim_tick t=325 com=0x17a000b seq=2715 frame=3 gen=22046
+anim_tick t=325 com=0x17a000c seq=2715 frame=3 gen=22046
+anim_tick t=325 com=0x17a000d seq=2716 frame=4 gen=22046
+anim_tick t=325 com=0x17a0019 seq=2921 frame=6 gen=22046
+anim_tick t=325 com=0x17a0026 seq=2921 frame=6 gen=22046
+anim_tick t=325 com=0x17a002c seq=2922 frame=4 gen=22046
+anim_tick t=325 com=0x17a002d seq=2922 frame=4 gen=22046
+anim_tick t=325 com=0x17a002e seq=2924 frame=5 gen=22046
+anim_tick t=325 com=0x17a002f seq=2923 frame=4 gen=22046
+anim_tick t=325 com=0x17a0030 seq=2922 frame=4 gen=22046
+anim_tick t=325 com=0x17a0031 seq=2924 frame=5 gen=22046
+anim_tick t=325 com=0x17a0036 seq=2920 frame=10 gen=22046
+anim_tick t=350 com=0x17a0009 seq=2715 frame=6 gen=22071
+anim_tick t=350 com=0x17a000a seq=2715 frame=6 gen=22071
+anim_tick t=350 com=0x17a000b seq=2715 frame=6 gen=22071
+anim_tick t=350 com=0x17a000c seq=2715 frame=6 gen=22071
+anim_tick t=350 com=0x17a000d seq=2716 frame=6 gen=22071
+anim_tick t=350 com=0x17a0019 seq=2921 frame=10 gen=22071
+anim_tick t=350 com=0x17a0026 seq=2921 frame=10 gen=22071
+anim_tick t=350 com=0x17a002c seq=2922 frame=6 gen=22071
+anim_tick t=350 com=0x17a002d seq=2922 frame=6 gen=22071
+anim_tick t=350 com=0x17a002e seq=2924 frame=9 gen=22071
+anim_tick t=350 com=0x17a002f seq=2923 frame=6 gen=22071
+anim_tick t=350 com=0x17a0030 seq=2922 frame=6 gen=22071
+anim_tick t=350 com=0x17a0031 seq=2924 frame=9 gen=22071
+anim_tick t=350 com=0x17a0036 seq=2920 frame=19 gen=22071
 sim_click_at: frame=300 move 677,224 right=0
 sim_click_at: released 677,224
 PackAssetsLoad: iface=969 components=10 sprites=1 fonts=2 models=0 npcs=0 needs_player=0
@@ -786,51 +787,51 @@ upload_model_nodes: com=0x17a0036 cache_id=10223 client_code=0
 upload_model_nodes: com=0x17a0037 cache_id=-1 client_code=0
 upload_model_nodes: com=0x17a0038 cache_id=-1 client_code=0
 upload_model_nodes: com=0x3c90002 cache_id=-1 client_code=0
-anim_tick t=375 com=0x17a0009 seq=2715 frame=9 gen=22145
-anim_tick t=375 com=0x17a000a seq=2715 frame=9 gen=22145
-anim_tick t=375 com=0x17a000b seq=2715 frame=9 gen=22145
-anim_tick t=375 com=0x17a000c seq=2715 frame=9 gen=22145
-anim_tick t=375 com=0x17a000d seq=2716 frame=10 gen=22145
-anim_tick t=375 com=0x17a0019 seq=2921 frame=15 gen=22145
-anim_tick t=375 com=0x17a0026 seq=2921 frame=15 gen=22145
-anim_tick t=375 com=0x17a002c seq=2922 frame=3 gen=22145
-anim_tick t=375 com=0x17a002d seq=2922 frame=3 gen=22145
-anim_tick t=375 com=0x17a002e seq=2924 frame=11 gen=22145
-anim_tick t=375 com=0x17a002f seq=2923 frame=2 gen=22145
-anim_tick t=375 com=0x17a0030 seq=2922 frame=3 gen=22145
-anim_tick t=375 com=0x17a0031 seq=2924 frame=11 gen=22145
-anim_tick t=375 com=0x17a0036 seq=2920 frame=2 gen=22145
-anim_tick t=375 com=0x3c90002 seq=23032 frame=2 gen=22145
-anim_tick t=400 com=0x17a0009 seq=2715 frame=11 gen=22170
-anim_tick t=400 com=0x17a000a seq=2715 frame=11 gen=22170
-anim_tick t=400 com=0x17a000b seq=2715 frame=11 gen=22170
-anim_tick t=400 com=0x17a000c seq=2715 frame=11 gen=22170
-anim_tick t=400 com=0x17a000d seq=2716 frame=12 gen=22170
-anim_tick t=400 com=0x17a0019 seq=2921 frame=3 gen=22170
-anim_tick t=400 com=0x17a0026 seq=2921 frame=3 gen=22170
-anim_tick t=400 com=0x17a002c seq=2922 frame=5 gen=22170
-anim_tick t=400 com=0x17a002d seq=2922 frame=5 gen=22170
-anim_tick t=400 com=0x17a002e seq=2924 frame=1 gen=22170
-anim_tick t=400 com=0x17a002f seq=2923 frame=4 gen=22170
-anim_tick t=400 com=0x17a0030 seq=2922 frame=5 gen=22170
-anim_tick t=400 com=0x17a0031 seq=2924 frame=1 gen=22170
-anim_tick t=400 com=0x17a0036 seq=2920 frame=9 gen=22170
-anim_tick t=400 com=0x3c90002 seq=23032 frame=7 gen=22170
-anim_tick t=425 com=0x17a0009 seq=2715 frame=14 gen=22195
-anim_tick t=425 com=0x17a000a seq=2715 frame=14 gen=22195
-anim_tick t=425 com=0x17a000b seq=2715 frame=14 gen=22195
-anim_tick t=425 com=0x17a000c seq=2715 frame=14 gen=22195
-anim_tick t=425 com=0x17a000d seq=2716 frame=15 gen=22195
-anim_tick t=425 com=0x17a0019 seq=2921 frame=7 gen=22195
-anim_tick t=425 com=0x17a0026 seq=2921 frame=7 gen=22195
-anim_tick t=425 com=0x17a002c seq=2922 frame=1 gen=22195
-anim_tick t=425 com=0x17a002d seq=2922 frame=1 gen=22195
-anim_tick t=425 com=0x17a002e seq=2924 frame=5 gen=22195
-anim_tick t=425 com=0x17a002f seq=2923 frame=7 gen=22195
-anim_tick t=425 com=0x17a0030 seq=2922 frame=1 gen=22195
-anim_tick t=425 com=0x17a0031 seq=2924 frame=5 gen=22195
-anim_tick t=425 com=0x17a0036 seq=2920 frame=17 gen=22195
-anim_tick t=425 com=0x3c90002 seq=23032 frame=12 gen=22195
+anim_tick t=375 com=0x17a0009 seq=2715 frame=8 gen=22148
+anim_tick t=375 com=0x17a000a seq=2715 frame=8 gen=22148
+anim_tick t=375 com=0x17a000b seq=2715 frame=8 gen=22148
+anim_tick t=375 com=0x17a000c seq=2715 frame=8 gen=22148
+anim_tick t=375 com=0x17a000d seq=2716 frame=9 gen=22148
+anim_tick t=375 com=0x17a0019 seq=2921 frame=14 gen=22148
+anim_tick t=375 com=0x17a0026 seq=2921 frame=14 gen=22148
+anim_tick t=375 com=0x17a002c seq=2922 frame=2 gen=22148
+anim_tick t=375 com=0x17a002d seq=2922 frame=2 gen=22148
+anim_tick t=375 com=0x17a002e seq=2924 frame=11 gen=22148
+anim_tick t=375 com=0x17a002f seq=2923 frame=1 gen=22148
+anim_tick t=375 com=0x17a0030 seq=2922 frame=2 gen=22148
+anim_tick t=375 com=0x17a0031 seq=2924 frame=11 gen=22148
+anim_tick t=375 com=0x17a0036 seq=2920 frame=1 gen=22148
+anim_tick t=375 com=0x3c90002 seq=23000 frame=2 gen=22148
+anim_tick t=400 com=0x17a0009 seq=2715 frame=11 gen=22173
+anim_tick t=400 com=0x17a000a seq=2715 frame=11 gen=22173
+anim_tick t=400 com=0x17a000b seq=2715 frame=11 gen=22173
+anim_tick t=400 com=0x17a000c seq=2715 frame=11 gen=22173
+anim_tick t=400 com=0x17a000d seq=2716 frame=12 gen=22173
+anim_tick t=400 com=0x17a0019 seq=2921 frame=2 gen=22173
+anim_tick t=400 com=0x17a0026 seq=2921 frame=2 gen=22173
+anim_tick t=400 com=0x17a002c seq=2922 frame=5 gen=22173
+anim_tick t=400 com=0x17a002d seq=2922 frame=5 gen=22173
+anim_tick t=400 com=0x17a002e seq=2924 frame=0 gen=22173
+anim_tick t=400 com=0x17a002f seq=2923 frame=4 gen=22173
+anim_tick t=400 com=0x17a0030 seq=2922 frame=5 gen=22173
+anim_tick t=400 com=0x17a0031 seq=2924 frame=0 gen=22173
+anim_tick t=400 com=0x17a0036 seq=2920 frame=8 gen=22173
+anim_tick t=400 com=0x3c90002 seq=23000 frame=8 gen=22173
+anim_tick t=425 com=0x17a0009 seq=2715 frame=13 gen=22198
+anim_tick t=425 com=0x17a000a seq=2715 frame=13 gen=22198
+anim_tick t=425 com=0x17a000b seq=2715 frame=13 gen=22198
+anim_tick t=425 com=0x17a000c seq=2715 frame=13 gen=22198
+anim_tick t=425 com=0x17a000d seq=2716 frame=15 gen=22198
+anim_tick t=425 com=0x17a0019 seq=2921 frame=7 gen=22198
+anim_tick t=425 com=0x17a0026 seq=2921 frame=7 gen=22198
+anim_tick t=425 com=0x17a002c seq=2922 frame=1 gen=22198
+anim_tick t=425 com=0x17a002d seq=2922 frame=1 gen=22198
+anim_tick t=425 com=0x17a002e seq=2924 frame=4 gen=22198
+anim_tick t=425 com=0x17a002f seq=2923 frame=7 gen=22198
+anim_tick t=425 com=0x17a0030 seq=2922 frame=1 gen=22198
+anim_tick t=425 com=0x17a0031 seq=2924 frame=4 gen=22198
+anim_tick t=425 com=0x17a0036 seq=2920 frame=16 gen=22198
+anim_tick t=425 com=0x3c90002 seq=23000 frame=14 gen=22198
 app: map archives are unencrypted at this revision
 app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
 varp load: 5705 types (5705 records, ids 0..5704)
@@ -838,4 +839,4 @@ varbit load: 20412 types (19009 records, ids 0..20411)
 hitsplat load: 83 types (83 records)
 soundscape load: 9 ids (8 records)
 RevConfigBuild done: iface=161 ui=- inline=manifest_osrs239.ini tree_components=1070 sprites=0 fonts=0 onloads=6 inv_hooks=0 var_hooks=6 mounts=0
-wrote /Users/matthewevers/Documents/git_repos/3draster/docs/summoning/screenshots/terrorbird_familiar_tab.bmp
+wrote /Users/matthewevers/Documents/git_repos/3draster/docs/summoning/screenshots/dreadfowl_world_and_familiar_tab.bmp
