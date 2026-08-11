@@ -89,9 +89,10 @@ def main() -> int:
                 raise RuntimeError(f"{out}: anim_compare produced no sheet")
         evidence.append(job)
 
+    review_state = "approved" if all(job["signoff"] == "ok" for job in evidence) else "unreviewed"
     index = args.out / "index.json"
-    index.write_text(json.dumps({"schema": 1, "review_state": "unreviewed", "pairs": evidence}, indent=2) + "\n")
-    print(f"summoning_texture_review: rendered {len(evidence)} model pairs; all remain unreviewed")
+    index.write_text(json.dumps({"schema": 1, "review_state": review_state, "pairs": evidence}, indent=2) + "\n")
+    print(f"summoning_texture_review: rendered {len(evidence)} model pairs; {review_state}")
     return 0
 
 

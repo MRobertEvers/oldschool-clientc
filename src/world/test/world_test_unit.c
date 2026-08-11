@@ -371,9 +371,34 @@ test_projectile_target(void)
     TEST_ASSERT(proj->dst_z == (int)npc->draw_position.z, "dst_z re-aimed at the npc");
     TEST_ASSERT(proj->vx > 0.0, "velocity points east after the re-aim");
 
-    /* Flying it out lands on the npc, not on the cast-time tile. */
-    for( int t = 0; t < 40 && World_EntityPoolIsActive(&world->entities.projectile, idx); t++ )
+    /* Keep walking after the cast. Re-aiming must happen every cycle, not
+     * merely once when the projectile first becomes active. */
+    {
+        int const previous_dst_x = proj->dst_x;
+        bool tracked_moving_npc = false;
+
+        World_NpcPathPushStep(world, ni, WORLD_PATHSTEP_WALK, 4); /* east */
+        for( int t = 0; t < 20 && World_EntityPoolIsActive(&world->entities.projectile, idx); t++ )
+        {
+            World_Cycle(world, 1);
+            if( proj->dst_x != previous_dst_x )
+            {
+                tracked_moving_npc = true;
+                TEST_ASSERT(proj->dst_x == (int)npc->draw_position.x,
+                            "dst follows the walking npc");
+                TEST_ASSERT(proj->dst_z == (int)npc->draw_position.z,
+                            "dst_z follows the walking npc");
+                break;
+            }
+        }
+        TEST_ASSERT(tracked_moving_npc, "walking npc re-aimed the projectile");
+    }
+
+    /* Flying it out lands on the npc, not on the cast-time tile. Check at t2:
+     * the following cycle despawns the projectile and invalidates `proj`. */
+    while( World_EntityPoolIsActive(&world->entities.projectile, idx) && proj->cycle < proj->t2 )
         World_Cycle(world, 1);
+    TEST_ASSERT(proj->cycle == proj->t2, "projectile reached its landing cycle");
     TEST_ASSERT(fabs(proj->x - (double)npc->draw_position.x) < 1.0, "landed on the moved npc");
 
     /* Player targets use the negative encoding, resolved by server pid — which
