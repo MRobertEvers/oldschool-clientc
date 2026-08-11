@@ -1,0 +1,32 @@
+judge:    stock kernels, 48 views @ 288 px, 8 thread(s), 378211 reference px
+
+candidates, ranked by pixels left behind the z-buffer:
+strategy                            wrong  of drawn  bands
+depth sort (no bands)               82238   21.744%      1   <- chosen
+climb, floor 400                    82238   21.744%      1
+climb, floor 150                    85076   22.494%      3
+climb, floor 10                    101666   26.881%      5
+climb, floor 40                    102061   26.985%      3
+as shipped (inherited)             108875   28.787%      8
+
+no band assignment beat the plain depth sort; writing it unbanded.
+That is the result, not a failure: this model's remaining error is not
+reachable by priorities.
+
+slow search: 2500 iters, 48 views @ 288 px, 8 thread(s), seed 0x51f0d5, stock-kernel judge
+slow start:  82238 wrong px (the fast winner under this objective)
+slow   200/2500: current 85448, best 82238 (+0.0%), accepted 122
+slow   400/2500: current 87331, best 82238 (+0.0%), accepted 240
+slow   600/2500: current 82858, best 82238 (+0.0%), accepted 345
+slow   800/2500: current 83466, best 82238 (+0.0%), accepted 434
+slow  1000/2500: current 82238, best 82238 (+0.0%), accepted 518
+slow  1200/2500: current 82252, best 82046 (-0.2%), accepted 583
+slow  1400/2500: current 82348, best 82046 (-0.2%), accepted 632
+slow  1600/2500: current 82122, best 82046 (-0.2%), accepted 686
+slow  1800/2500: current 81936, best 81931 (-0.4%), accepted 733
+slow  2000/2500: current 81878, best 81878 (-0.4%), accepted 775
+slow  2200/2500: current 81873, best 81870 (-0.4%), accepted 808
+slow  2400/2500: current 81867, best 81857 (-0.5%), accepted 833
+slow result: 82238 -> 81855 wrong px (-0.5%), 16 improvements, 36 feature(s) moved
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3 -> docs/rs2012_qbd_priorities/slow/rs2012_model_70260.ob3 (100834 bytes)
+rs2012_face_priorities: OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3 -> docs/rs2012_qbd_priorities/slow/rs2012_model_69766.ob3 (32195 bytes)

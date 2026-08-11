@@ -430,8 +430,8 @@ def load_boundary(path: Path, roots: dict[tuple[str, int], Root]) -> Boundary:
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f"cannot read boundary {path}: {exc}") from exc
     if (not isinstance(data, dict) or data.get("schema") != 1 or
-            data.get("phase") not in {"5a", "5b"}):
-        raise ValueError(f"boundary {path} must be schema 1 for Phase 5a or 5b")
+            data.get("phase") not in {"5a", "5b", "5c"}):
+        raise ValueError(f"boundary {path} must be schema 1 for Phase 5a, 5b, or 5c")
     phase = str(data["phase"])
 
     inventory = data.get("source_inventory")

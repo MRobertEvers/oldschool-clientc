@@ -24,6 +24,7 @@ struct RSCache_Dat2Texture
 
     int average_hsl;
     bool opaque;
+
     int* sprite_ids;
     int sprite_ids_count;
 
@@ -47,6 +48,8 @@ struct RSCache_Dat2Texture
  */
 #define RSCACHE_CODEC_TEXTURE_V1 1
 #define RSCACHE_CODEC_TEXTURE_V2 2
+
+#define RSCACHE_TEXTURE_V2_LENGTH 7
 
 /** Archive revision above which the textures group uses the simplified record.
  *  Modern archive revisions are unix timestamps, far past any classic value, so

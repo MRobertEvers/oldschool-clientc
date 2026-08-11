@@ -5652,14 +5652,21 @@ d3d9_draw_model(
 
     if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
         (command->pick_aabb
-                ? ToriDraw_ProjectedModelContainsAabb(
-                      renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
-                : ToriDraw_ProjectedModelMouseHitTest(
-                      renderer->scene,
-                      command->model,
-                      &renderer->cur_3d.view_port,
-                      renderer->pick_mouse_x,
-                      renderer->pick_mouse_y)) )
+             ? ToriDraw_ProjectedModelContainsAabb(
+                   renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
+         : command->pick_terrain
+             ? ToriDraw_ProjectedTileMouseHitTest(
+                   renderer->scene,
+                   command->model,
+                   &renderer->cur_3d.view_port,
+                   renderer->pick_mouse_x,
+                   renderer->pick_mouse_y)
+             : ToriDraw_ProjectedModelMouseHitTest(
+                   renderer->scene,
+                   command->model,
+                   &renderer->cur_3d.view_port,
+                   renderer->pick_mouse_x,
+                   renderer->pick_mouse_y)) )
         ToriRS_PickHitsAdd(
             &renderer->pick_hits,
             command->element_id,

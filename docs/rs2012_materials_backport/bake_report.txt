@@ -1,0 +1,357 @@
+  skipped 2 authored lane model(s) with no RS727 source
+  material 57    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 59    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 67    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 68    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 69    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 70    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 72    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 75    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 77    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 83    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 84    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 86    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 89    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 90    alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 91    alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 99    alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 102   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 104   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 105   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 107   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 110   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 111   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 116   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 118   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 125   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 126   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 127   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 135   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 139   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 140   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 164   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 168   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 177   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 179   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 180   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 186   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 204   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 206   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 213   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 214   alpha: 0= 10.2%  1-127= 89.8%  128-254=  0.0%  255=  0.0%
+  material 228   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 234   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 235   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 236   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 238   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 241   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 249   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 254   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 258   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 271   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 272   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 274   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 281   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 285   alpha: 0=  0.3%  1-127=  0.0%  128-254=  0.0%  255= 99.7%
+  material 291   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 297   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 302   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 303   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 309   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 311   alpha: 0=  0.1%  1-127=  0.0%  128-254=  0.0%  255= 99.9%
+  material 326   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 335   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 345   alpha: 0= 66.8%  1-127= 33.2%  128-254=  0.0%  255=  0.0%
+  material 348   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 376   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 380   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 384   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 394   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 400   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 408   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 418   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 427   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 429   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 441   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 443   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 488   alpha: 0=  0.1%  1-127=  0.0%  128-254=  0.0%  255= 99.9%
+  material 490   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 491   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 495   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 504   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 519   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 521   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 531   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 532   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 539   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 549   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 551   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 600   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 616   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 647   alpha: 0= 20.4%  1-127= 41.6%  128-254= 38.0%  255=  0.0%
+  material 651   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 662   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 693   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 694   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 695   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 710   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 711   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 715   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 724   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 726   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 741   alpha: 0= 32.9%  1-127= 67.1%  128-254=  0.0%  255=  0.0%
+  material 742   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 745   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 747   alpha: 0= 32.9%  1-127= 67.1%  128-254=  0.0%  255=  0.0%
+  material 749   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 752   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 901   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 918   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 924   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 927   alpha: 0= 18.4%  1-127= 81.6%  128-254=  0.0%  255=  0.0%
+  material 929   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 973   alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 974   alpha: 0=  0.0%  1-127= 71.6%  128-254= 28.4%  255=  0.0%
+  material 980   alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1098  alpha: 0=  0.0%  1-127= 98.2%  128-254=  1.8%  255=  0.0%
+  material 1149  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1153  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1154  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1155  alpha: 0= 20.0%  1-127= 15.6%  128-254=  9.1%  255= 55.3%
+  material 1156  alpha: 0= 51.7%  1-127= 47.1%  128-254=  1.2%  255=  0.0%
+  material 1158  alpha: 0= 27.2%  1-127= 69.5%  128-254=  3.3%  255=  0.0%
+  material 1186  alpha: 0= 43.2%  1-127=  9.3%  128-254= 10.5%  255= 37.0%
+  material 1189  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1201  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1218  alpha: 0= 59.3%  1-127= 26.7%  128-254= 14.0%  255=  0.0%
+  material 1219  alpha: 0= 10.8%  1-127= 74.7%  128-254= 14.5%  255=  0.0%
+  material 1229  alpha: 0=  0.0%  1-127= 92.6%  128-254=  7.4%  255=  0.0%
+  material 1245  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1248  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1249  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1273  alpha: 0= 63.6%  1-127= 12.1%  128-254= 24.2%  255=  0.0%
+  material 1283  alpha: 0= 10.8%  1-127= 74.7%  128-254= 14.5%  255=  0.0%
+  material 1295  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1317  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1380  alpha: 0=  0.0%  1-127= 92.6%  128-254=  7.4%  255=  0.0%
+  material 1382  alpha: 0= 16.3%  1-127= 83.7%  128-254=  0.0%  255=  0.0%
+  material 1391  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1392  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1394  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1399  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1400  alpha: 0=  7.7%  1-127= 92.3%  128-254=  0.0%  255=  0.0%
+  material 1401  alpha: 0= 41.9%  1-127=  0.0%  128-254=  0.0%  255= 58.1%
+  material 1403  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1404  alpha: 0=  0.0%  1-127= 99.9%  128-254=  0.1%  255=  0.0%
+  material 1417  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1420  alpha: 0=  0.0%  1-127= 78.0%  128-254= 22.0%  255=  0.0%
+  material 1447  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1448  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1451  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1454  alpha: 0=  0.0%  1-127= 89.7%  128-254= 10.3%  255=  0.0%
+  material 1463  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1464  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1474  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1476  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1481  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1483  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1511  alpha: 0= 23.8%  1-127= 76.2%  128-254=  0.0%  255=  0.0%
+  material 1513  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1514  alpha: 0=  0.0%  1-127= 87.6%  128-254= 12.4%  255=  0.0%
+  material 1516  alpha: 0=  0.0%  1-127= 87.7%  128-254= 12.3%  255=  0.0%
+  material 1517  alpha: 0=  0.0%  1-127= 88.8%  128-254= 11.2%  255=  0.0%
+  material 1520  alpha: 0=  1.4%  1-127= 11.9%  128-254=  0.0%  255= 86.7%
+  material 1522  alpha: 0= 17.2%  1-127= 82.8%  128-254=  0.0%  255=  0.0%
+  material 1523  alpha: 0=  0.0%  1-127= 36.4%  128-254= 40.2%  255= 23.4%
+  material 1524  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1530  alpha: 0= 27.6%  1-127=  6.9%  128-254= 65.4%  255=  0.0%
+  material 1534  alpha: 0= 58.6%  1-127= 10.9%  128-254= 30.5%  255=  0.0%
+  material 1540  alpha: 0= 31.0%  1-127= 69.0%  128-254=  0.0%  255=  0.0%
+  material 1549  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1551  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1554  alpha: 0= 17.2%  1-127= 70.9%  128-254= 11.9%  255=  0.0%
+  material 1591  alpha: 0=  0.0%  1-127= 89.6%  128-254= 10.4%  255=  0.0%
+  material 1592  alpha: 0= 70.3%  1-127= 29.7%  128-254=  0.0%  255=  0.0%
+  material 1593  alpha: 0=  0.0%  1-127= 97.8%  128-254=  2.2%  255=  0.0%
+  material 1594  alpha: 0=  0.0%  1-127= 74.7%  128-254= 25.3%  255=  0.0%
+  material 1597  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1601  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1602  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1603  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1607  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1650  alpha: 0=  1.8%  1-127= 98.2%  128-254=  0.0%  255=  0.0%
+  material 1652  alpha: 0= 59.6%  1-127=  0.0%  128-254=  0.0%  255= 40.4%
+  material 1653  alpha: 0=  0.0%  1-127= 57.6%  128-254= 42.4%  255=  0.0%
+  material 1657  alpha: 0=  1.8%  1-127= 98.2%  128-254=  0.0%  255=  0.0%
+  material 1685  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1687  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1688  alpha: 0= 17.2%  1-127=  6.2%  128-254=  3.3%  255= 73.3%
+  material 1780  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1783  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1784  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1785  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1786  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1790  alpha: 0= 30.5%  1-127=  0.0%  128-254=  0.0%  255= 69.5%
+  material 1797  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1798  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 1800  alpha: 0=  0.0%  1-127= 69.1%  128-254= 30.8%  255=  0.0%
+  material 1809  alpha: 0= 57.0%  1-127=  0.0%  128-254= 43.0%  255=  0.0%
+  material 1814  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1819  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 1820  alpha: 0= 42.1%  1-127= 57.9%  128-254=  0.0%  255=  0.0%
+  material 1835  alpha: 0= 30.2%  1-127= 69.5%  128-254=  0.3%  255=  0.0%
+  material 1836  alpha: 0= 10.8%  1-127= 74.6%  128-254= 14.6%  255=  0.0%
+  material 1838  alpha: 0= 30.0%  1-127= 69.4%  128-254=  0.6%  255=  0.0%
+  material 1891  alpha: 0= 86.9%  1-127=  3.4%  128-254=  3.4%  255=  6.3%
+  material 1893  alpha: 0= 83.8%  1-127=  4.0%  128-254=  3.8%  255=  8.5%
+  material 1897  alpha: 0= 54.0%  1-127= 11.7%  128-254= 13.6%  255= 20.6%
+  material 2022  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2023  alpha: 0=  8.2%  1-127= 90.7%  128-254=  1.1%  255=  0.0%
+  material 2024  alpha: 0= 12.6%  1-127= 86.4%  128-254=  1.0%  255=  0.0%
+  material 2025  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2039  alpha: 0=  0.0%  1-127= 63.8%  128-254= 36.2%  255=  0.0%
+  material 2097  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2104  alpha: 0= 14.5%  1-127= 83.0%  128-254=  2.5%  255=  0.0%
+  material 2105  alpha: 0= 49.9%  1-127= 50.1%  128-254=  0.0%  255=  0.0%
+  material 2107  alpha: 0= 16.2%  1-127= 42.5%  128-254= 40.5%  255=  0.8%
+  material 2109  alpha: 0= 42.8%  1-127= 55.9%  128-254=  1.3%  255=  0.0%
+  material 2110  alpha: 0=  3.4%  1-127= 77.9%  128-254= 18.7%  255=  0.0%
+  material 2111  alpha: 0=  0.0%  1-127= 81.9%  128-254= 17.8%  255=  0.3%
+  material 2113  alpha: 0= 66.9%  1-127= 16.7%  128-254= 16.3%  255=  0.0%
+  material 2114  alpha: 0= 71.8%  1-127= 28.2%  128-254=  0.0%  255=  0.0%
+  material 2115  alpha: 0=  0.0%  1-127= 33.0%  128-254= 67.0%  255=  0.0%
+  material 2116  alpha: 0=  9.4%  1-127= 35.2%  128-254= 35.9%  255= 19.5%
+  material 2117  alpha: 0=  0.0%  1-127= 33.0%  128-254= 67.0%  255=  0.0%
+  material 2119  alpha: 0= 28.9%  1-127= 50.0%  128-254= 21.1%  255=  0.0%
+  material 2121  alpha: 0=  0.8%  1-127= 15.2%  128-254=  6.6%  255= 77.4%
+  material 2124  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2125  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2127  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2128  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2129  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2132  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2133  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2134  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2135  alpha: 0= 14.2%  1-127= 85.8%  128-254=  0.0%  255=  0.0%
+  material 2137  alpha: 0= 12.6%  1-127= 87.4%  128-254=  0.0%  255=  0.0%
+  material 2138  alpha: 0= 13.9%  1-127= 86.1%  128-254=  0.0%  255=  0.0%
+  material 2139  alpha: 0= 20.3%  1-127= 39.8%  128-254= 39.8%  255=  0.0%
+  material 2141  alpha: 0=  0.2%  1-127= 99.8%  128-254=  0.0%  255=  0.0%
+  material 2142  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 2143  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 2144  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 2145  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+  material 2150  alpha: 0= 19.8%  1-127= 26.7%  128-254= 53.5%  255=  0.0%
+  material 2151  alpha: 0= 19.4%  1-127= 23.6%  128-254= 57.0%  255=  0.0%
+  material 2152  alpha: 0= 45.7%  1-127= 40.1%  128-254= 14.2%  255=  0.0%
+  material 2154  alpha: 0= 32.4%  1-127= 65.8%  128-254=  1.8%  255=  0.0%
+  material 2159  alpha: 0= 32.9%  1-127= 67.1%  128-254=  0.0%  255=  0.0%
+  material 2161  alpha: 0=  2.1%  1-127= 90.3%  128-254=  7.6%  255=  0.0%
+  material 2162  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2163  alpha: 0=  0.0%  1-127= 77.5%  128-254=  2.1%  255= 20.4%
+  material 2164  alpha: 0= 52.5%  1-127=  3.8%  128-254= 43.7%  255=  0.0%
+  material 2168  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2170  alpha: 0=  0.0%  1-127= 77.5%  128-254=  2.1%  255= 20.4%
+  material 2171  alpha: 0=  0.0%  1-127=  0.0%  128-254=  0.0%  255=100.0%
+  material 2172  alpha: 0=  0.0%  1-127= 32.6%  128-254= 67.4%  255=  0.0%
+  material 2192  alpha: 0=  0.0%  1-127=100.0%  128-254=  0.0%  255=  0.0%
+rs2012_material_bake (dry-run): models=660 materials=256 model_materials=235 retexture_materials=22 transitive_programs=36 source_sprites=6
+  baked=256 ground_mesh=204 animated=25 dual_axis=5 source_transparent=126 threshold_transparent=69 ground_mesh_fallback_faces=274715
+  reserved overlays: 348->211 408->212 600->213 616->214 651->215
+  masks: 42 modulated textures, 96 face colours, 17230 faces
+    material 1229 chroma hsl16 29440  -> texture 336 (144 faces)
+    material 715 chroma hsl16 0      -> texture 307 (247 faces)
+    material 1382 chroma hsl16 8448   -> texture 345 (56 faces)
+    material 715 chroma hsl16 18688  -> texture 307 (256 faces)
+    material 2113 chroma hsl16 15104  -> texture 427 (2443 faces)
+    material 1098 chroma hsl16 15104  -> texture 324 (82 faces)
+    material 2113 chroma hsl16 2944   -> texture 427 (3018 faces)
+    material 1098 chroma hsl16 2944   -> texture 324 (54 faces)
+    material 1098 chroma hsl16 43904  -> texture 324 (7 faces)
+    material 1098 chroma hsl16 41856  -> texture 324 (6 faces)
+    material 1098 chroma hsl16 45952  -> texture 324 (8 faces)
+    material 1098 chroma hsl16 49024  -> texture 324 (6 faces)
+    material 2113 chroma hsl16 27264  -> texture 427 (2293 faces)
+    material 1098 chroma hsl16 27264  -> texture 324 (82 faces)
+    material 1836 chroma hsl16 26752  -> texture 410 (265 faces)
+    material 1158 chroma hsl16 26880  -> texture 330 (174 faces)
+    material 1153 chroma hsl16 26880  -> texture 326 (61 faces)
+    material 1155 chroma hsl16 26880  -> texture 328 (18 faces)
+    material 1156 chroma hsl16 26880  -> texture 329 (50 faces)
+    material 1283 chroma hsl16 26752  -> texture 341 (373 faces)
+    material 1380 chroma hsl16 37760  -> texture 344 (2 faces)
+    material 1380 chroma hsl16 18176  -> texture 344 (2 faces)
+    material 1380 chroma hsl16 34688  -> texture 344 (2 faces)
+    material 1380 chroma hsl16 26496  -> texture 344 (2 faces)
+    material 2109 chroma hsl16 0      -> texture 424 (12 faces)
+    material 2117 chroma hsl16 0      -> texture 431 (812 faces)
+    material 2104 chroma hsl16 10752  -> texture 421 (12 faces)
+    material 1219 chroma hsl16 10752  -> texture 335 (16 faces)
+    material 1809 chroma hsl16 38016  -> texture 405 (10 faces)
+    material 715 chroma hsl16 9216   -> texture 307 (24 faces)
+    material 1891 chroma hsl16 5376   -> texture 412 (304 faces)
+    material 715 chroma hsl16 5376   -> texture 307 (74 faces)
+    material 1283 chroma hsl16 32896  -> texture 341 (166 faces)
+    material 1283 chroma hsl16 33024  -> texture 341 (76 faces)
+    material 1283 chroma hsl16 38016  -> texture 341 (102 faces)
+    material 1283 chroma hsl16 38144  -> texture 341 (22 faces)
+    material 715 chroma hsl16 5120   -> texture 307 (10 faces)
+    material 715 chroma hsl16 6144   -> texture 307 (46 faces)
+    material 715 chroma hsl16 11520  -> texture 307 (59 faces)
+    material 715 chroma hsl16 3328   -> texture 307 (3 faces)
+    material 1836 chroma hsl16 26880  -> texture 410 (112 faces)
+    material 1283 chroma hsl16 26880  -> texture 341 (149 faces)
+    material 1534 chroma hsl16 8448   -> texture 376 (4 faces)
+    material 1534 chroma hsl16 14592  -> texture 376 (4 faces)
+    material 715 chroma hsl16 14592  -> texture 307 (10 faces)
+    material 715 chroma hsl16 19712  -> texture 307 (36 faces)
+    material 715 chroma hsl16 15616  -> texture 307 (1 faces)
+    material 1534 chroma hsl16 18688  -> texture 376 (4 faces)
+    material 715 chroma hsl16 7552   -> texture 307 (1 faces)
+    material 1534 chroma hsl16 8064   -> texture 376 (9 faces)
+    material 1219 chroma hsl16 8064   -> texture 335 (46 faces)
+    material 1218 chroma hsl16 8064   -> texture 334 (5 faces)
+    material 1530 chroma hsl16 11648  -> texture 375 (37 faces)
+    material 1534 chroma hsl16 11648  -> texture 376 (71 faces)
+    material 1530 chroma hsl16 10752  -> texture 375 (30 faces)
+    material 1186 chroma hsl16 896    -> texture 331 (32 faces)
+    material 2129 chroma hsl16 27264  -> texture 438 (320 faces)
+    material 2139 chroma hsl16 0      -> texture 445 (12 faces)
+    material 715 chroma hsl16 5248   -> texture 307 (19 faces)
+    material 715 chroma hsl16 11392  -> texture 307 (19 faces)
+    material 715 chroma hsl16 11264  -> texture 307 (6 faces)
+    material 1838 chroma hsl16 26880  -> texture 411 (172 faces)
+    material 1835 chroma hsl16 26880  -> texture 409 (172 faces)
+    material 2151 chroma hsl16 26752  -> texture 452 (160 faces)
+    material 2150 chroma hsl16 26752  -> texture 451 (160 faces)
+    material 2152 chroma hsl16 26624  -> texture 453 (816 faces)
+    material 1156 chroma hsl16 26624  -> texture 329 (93 faces)
+    material 1835 chroma hsl16 26624  -> texture 409 (51 faces)
+    material 1838 chroma hsl16 26624  -> texture 411 (51 faces)
+    material 1249 chroma hsl16 26752  -> texture 339 (54 faces)
+    material 715 chroma hsl16 12544  -> texture 307 (1 faces)
+    material 1154 chroma hsl16 26752  -> texture 327 (24 faces)
+    material 715 chroma hsl16 9472   -> texture 307 (1 faces)
+    material 1158 chroma hsl16 26752  -> texture 330 (12 faces)
+    material 1248 chroma hsl16 26752  -> texture 338 (44 faces)
+    material 1218 chroma hsl16 54272  -> texture 334 (212 faces)
+    material 1554 chroma hsl16 512    -> texture 380 (210 faces)
+    material 2164 chroma hsl16 54272  -> texture 459 (144 faces)
+    material 2162 chroma hsl16 27264  -> texture 457 (784 faces)
+    material 2163 chroma hsl16 26752  -> texture 458 (80 faces)
+    material 2119 chroma hsl16 29184  -> texture 432 (20 faces)
+    material 1218 chroma hsl16 56320  -> texture 334 (212 faces)
+    material 1554 chroma hsl16 2560   -> texture 380 (36 faces)
+    material 2164 chroma hsl16 56320  -> texture 459 (144 faces)
+    material 1218 chroma hsl16 40960  -> texture 334 (212 faces)
+    material 2164 chroma hsl16 40960  -> texture 459 (144 faces)
+    material 2129 chroma hsl16 640    -> texture 438 (119 faces)
+    material 2162 chroma hsl16 640    -> texture 457 (334 faces)
+    material 2154 chroma hsl16 640    -> texture 454 (32 faces)
+    material 2170 chroma hsl16 640    -> texture 461 (80 faces)
+    material 2154 chroma hsl16 24192  -> texture 454 (64 faces)
+    material 2170 chroma hsl16 27264  -> texture 461 (160 faces)
+    material 1790 chroma hsl16 38912  -> texture 401 (40 faces)
+    material 1401 chroma hsl16 7040   -> texture 351 (52 faces)
+    material 1652 chroma hsl16 38912  -> texture 391 (8 faces)
+    material 1401 chroma hsl16 49408  -> texture 351 (6 faces)

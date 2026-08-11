@@ -84,7 +84,228 @@ struct ToriDrawModelRasterContext
     const int* cache_texels;
     int cache_texture_size;
     int cache_texture_opaque;
+
+
+    /* Depth-tested raster for this model. NULL unless the model carries
+     * TORIDRAW_MODEL_FLAG_ZBUFFER and the scene has a z-buffer; when set, every
+     * face of the model routes to the zbuf family instead of the stock kernels.
+     * The buffer has already been reset for this model, which is what keeps the
+     * test confined to it (triangles/toridraw_triangle_zbuf.u.c). */
+#ifndef TORIDRAW_PIXEL16
+    struct ToriDraw_ZbufTarget zbuf_target;
+    struct ToriDraw_ZbufFaceSource zbuf_source;
+#endif
+    bool zbuffered;
+
+    /* Non-NULL only when TORIDRAW_RASTER_DEBUG >= 1. */
+    struct ToriDraw_RasterDebugStats* raster_debug;
+    /* #region agent log */
+    int ordered_faces;
+    /* #endregion */
 };
+
+/** Per-model raster counters: one bucket per skip reason plus drawn faces.
+ *  Mirrors the sort-side ToriDraw_FaceSortDebugStats, same env-var pattern. */
+struct ToriDraw_RasterDebugStats
+{
+    int drawn;
+    int skipped_type;       /* face_infos raw_type == 2 (hidden) or outside 0..3 */
+    int skipped_hidden;     /* color_c == TORIDRAWHSL16_HIDDEN sentinel */
+    int skipped_alpha;      /* non-textured face with alpha <= 1 (fully transparent) */
+    int skipped_near_clip;  /* near-clipped vertex but !allow_near_clip or no ortho buf */
+    int skipped_tex_miss;   /* face_textures != -1 but texture not yet loaded */
+    int index_oob;          /* face vertex index >= num_vertices (logic error) */
+    int type_hist[16];      /* histogram of raw face_infos values 0..15 */
+
+    /* #region agent log */
+    /* Which kernel each drawn face actually reached, so a wrong-pixels report
+     * can be attributed to shading or to texturing without guessing. */
+    int drawn_gouraud;
+    int drawn_flat;
+    int drawn_textured;
+    /* Largest per-face hsl16 vertex delta among drawn gouraud faces. The
+     * colour gradient multiplies this by dy, so it decides whether the
+     * barycentric step can overflow. */
+    int max_color_delta;
+    /* Distinct texture ids the drawn faces referenced (first few only). */
+    int tex_ids[8];
+    int tex_id_count;
+    /* #endregion */
+};
+
+/* #region agent log */
+static inline void
+toridraw_raster_debug_note_texture(struct ToriDraw_RasterDebugStats* s, int texture_id)
+{
+    for( int i = 0; i < s->tex_id_count; i++ )
+        if( s->tex_ids[i] == texture_id )
+            return;
+    if( s->tex_id_count < (int)(sizeof(s->tex_ids) / sizeof(s->tex_ids[0])) )
+        s->tex_ids[s->tex_id_count++] = texture_id;
+}
+/* #endregion */
+
+static inline int
+toridraw_raster_debug_level(void)
+{
+    static int level = -1;
+    if( level < 0 )
+    {
+        const char* value = getenv("TORIDRAW_RASTER_DEBUG");
+        if( !value || value[0] == '\0' || value[0] == '0' )
+            level = 0;
+        else if( value[0] == '2' || strcmp(value, "verbose") == 0 || strcmp(value, "all") == 0 )
+            level = 2;
+        else
+            level = 1;
+    }
+    return level;
+}
+
+static inline bool
+toridraw_raster_debug_enabled(void)
+{
+    /* #region agent log */
+    if( toridraw_dbg_enabled() )
+        return true;
+    /* #endregion */
+    return toridraw_raster_debug_level() != 0;
+}
+
+static inline void
+toridraw_raster_debug_print(
+    const struct ToriDraw_RasterDebugStats* s,
+    const struct ToriDrawModelRasterContext* ctx,
+    const void* model_ptr)
+{
+    /* Level 1: only report models with anomalies.
+     * Level 2 (verbose): report every model. */
+    bool anomaly = s->skipped_type > 0 || s->skipped_hidden > 0 || s->skipped_alpha > 0 ||
+                   s->skipped_near_clip > 0 || s->skipped_tex_miss > 0 || s->index_oob > 0;
+
+    /* #region agent log */
+    if( toridraw_dbg_enabled() )
+    {
+        static int gate_nearclip = 0;
+        static int gate_texmiss = 0;
+        static int gate_recip = 0;
+        static int gate_other = 0;
+        static int last_recip_oob = 0;
+        bool const recip_oob = g_toridraw_clip_recip_oob != last_recip_oob;
+        bool const near_clip_loss = s->skipped_near_clip > 0;
+        bool const tex_loss = s->skipped_tex_miss > 0;
+        bool const big = ctx->num_faces >= 2000;
+        const char* hyp = recip_oob ? "F" : (near_clip_loss ? "B" : (tex_loss ? "E" : "BE"));
+        bool emit = false;
+
+        last_recip_oob = g_toridraw_clip_recip_oob;
+        if( recip_oob )
+            emit = toridraw_dbg_gate(&gate_recip, 200);
+        else if( near_clip_loss )
+            emit = toridraw_dbg_gate(&gate_nearclip, 200);
+        else if( tex_loss )
+            emit = toridraw_dbg_gate(&gate_texmiss, 200);
+        else if( big || anomaly )
+            emit = toridraw_dbg_gate(&gate_other, 120);
+
+        if( emit )
+        {
+            char data[900];
+            char tex_buf[96];
+            int tex_pos = 0;
+
+            tex_buf[0] = '\0';
+            for( int i = 0; i < s->tex_id_count && tex_pos < (int)sizeof(tex_buf) - 10; i++ )
+                tex_pos += snprintf(
+                    tex_buf + tex_pos,
+                    sizeof(tex_buf) - (size_t)tex_pos,
+                    "%s%d",
+                    i ? "," : "",
+                    s->tex_ids[i]);
+
+            snprintf(
+                data,
+                sizeof(data),
+                "{\"model\":\"%p\",\"faces\":%d,\"vertices\":%d,\"ordered\":%d,"
+                "\"drawn\":%d,\"skip_type\":%d,\"skip_hidden\":%d,\"skip_alpha\":%d,"
+                "\"skip_near_clip\":%d,\"skip_tex_miss\":%d,\"index_oob\":%d,"
+                "\"allow_near_clip\":%d,\"near_clipped\":%d,"
+                "\"near_plane_z\":%d,\"clip_recip_oob\":%d,"
+                "\"drawn_gouraud\":%d,\"drawn_flat\":%d,\"drawn_textured\":%d,"
+                "\"max_color_delta\":%d,\"tex_ids\":[%s],"
+                "\"tex_plane_max_shift\":%d,\"tex_plane_rejected\":%d}",
+                model_ptr,
+                ctx->num_faces,
+                ctx->num_vertices,
+                ctx->ordered_faces,
+                s->drawn,
+                s->skipped_type,
+                s->skipped_hidden,
+                s->skipped_alpha,
+                s->skipped_near_clip,
+                s->skipped_tex_miss,
+                s->index_oob,
+                (int)ctx->allow_near_clip,
+                (int)ctx->near_clipped,
+                ctx->near_plane_z,
+                g_toridraw_clip_recip_oob,
+                s->drawn_gouraud,
+                s->drawn_flat,
+                s->drawn_textured,
+                s->max_color_delta,
+                tex_buf,
+                g_toridraw_tex_plane_max_shift,
+                g_toridraw_tex_plane_rejected);
+            toridraw_dbg_log(
+                hyp,
+                "toridraw_raster.u.c:raster_faces",
+                recip_oob
+                    ? "near-clip depth span exceeded the reciprocal table"
+                    : (near_clip_loss
+                           ? "faces dropped: near-clip not allowed for this model"
+                           : (tex_loss ? "faces dropped: texture not resident"
+                                       : "raster face accounting")),
+                data);
+        }
+    }
+    /* #endregion */
+
+    if( toridraw_raster_debug_level() < 2 && !anomaly )
+        return;
+
+    /* Compact type histogram: only print buckets that are non-zero. */
+    char hist_buf[128];
+    int hist_pos = 0;
+    hist_buf[0] = '\0';
+    for( int t = 0; t < 16 && hist_pos < (int)sizeof(hist_buf) - 12; t++ )
+    {
+        if( s->type_hist[t] )
+            hist_pos +=
+                snprintf(hist_buf + hist_pos, sizeof(hist_buf) - (size_t)hist_pos,
+                         " t%d=%d", t, s->type_hist[t]);
+    }
+
+    fprintf(
+        stderr,
+        "raster_face: model=%p faces=%d vertices=%d "
+        "drawn=%d skip_type=%d skip_hidden=%d skip_alpha=%d "
+        "skip_near_clip=%d skip_tex_miss=%d index_oob=%d "
+        "allow_near_clip=%d near_clipped=%d face_infos=%s type_hist[%s]\n",
+        model_ptr,
+        ctx->num_faces,
+        ctx->num_vertices,
+        s->drawn,
+        s->skipped_type,
+        s->skipped_hidden,
+        s->skipped_alpha,
+        s->skipped_near_clip,
+        s->skipped_tex_miss,
+        s->index_oob,
+        (int)ctx->allow_near_clip,
+        (int)ctx->near_clipped,
+        ctx->face_infos ? "yes" : "no",
+        hist_buf);
+}
 
 static inline void
 ToriDraw_RasterModelFace(
@@ -94,13 +315,37 @@ ToriDraw_RasterModelFace(
     assert(face >= 0 && face < ctx->num_faces);
 
     struct ToriDraw_Texture* texture = NULL;
+    struct ToriDraw_RasterDebugStats* dbg = ctx->raster_debug;
 
     /* Render type is the raw byte (reference ModelData.light). 0=gouraud,
      * 1=flat, 2=hidden, 3=black/hidden; any other value is also hidden. */
     int raw_type = ctx->face_infos ? ctx->face_infos[face] : 0;
+    if( dbg && raw_type >= 0 && raw_type < 16 )
+        dbg->type_hist[raw_type]++;
     if( raw_type == 2 || raw_type < 0 || raw_type > 3 )
+    {
+        if( dbg )
+            dbg->skipped_type++;
         return;
+    }
     enum FaceType type = (enum FaceType)raw_type;
+
+    /* Bounds-check vertex indices when debug is active (level 2). ASAN catches
+     * heap overflows, but a wrong-yet-in-bounds index produces silent garbage. */
+    if( dbg && toridraw_raster_debug_level() >= 2 )
+    {
+        int const va = (int)(uint16_t)ctx->face_indices_a[face];
+        int const vb = (int)(uint16_t)ctx->face_indices_b[face];
+        int const vc = (int)(uint16_t)ctx->face_indices_c[face];
+        if( va >= ctx->num_vertices || vb >= ctx->num_vertices || vc >= ctx->num_vertices )
+        {
+            dbg->index_oob++;
+            fprintf(stderr,
+                "raster_index_oob: model=%p face=%d indices=(%d,%d,%d) num_vertices=%d\n",
+                (void*)ctx->face_indices_a,
+                face, va, vb, vc, ctx->num_vertices);
+        }
+    }
 
     int color_a = ctx->colors_a[face];
     int color_b = ctx->colors_b[face];
@@ -120,6 +365,8 @@ ToriDraw_RasterModelFace(
         // and
         // /Users/matthewevers/Documents/git_repos/rs-map-viewer/src/mapviewer/webgl/buffer/SceneBuffer.ts
         // getModelFaces
+        if( dbg )
+            dbg->skipped_hidden++;
         return;
         // color_c = 0;
     }
@@ -157,6 +404,20 @@ ToriDraw_RasterModelFace(
     else
         texture_id = -1;
 
+    /* #region agent log */
+    /* TORIDRAW_SKIP_TEXTURED=1: drop every textured face instead of drawing it.
+     * A bisect knob for docs/qbd_toridraw_streaks_debug.md - it answers whether
+     * a given artifact comes from the textured span path or from
+     * gouraud/flat, without having to reason about which faces are which. */
+    {
+        static int skip_textured = -1;
+        if( skip_textured < 0 )
+            skip_textured = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
+        if( skip_textured && texture_id != -1 )
+            return;
+    }
+    /* #endregion */
+
     if( texture_id != -1 )
     {
         if( texture_id == ctx->cache_texture_id )
@@ -164,7 +425,6 @@ ToriDraw_RasterModelFace(
             texels = ctx->cache_texels;
             texture_size = ctx->cache_texture_size;
             texture_opaque = ctx->cache_texture_opaque;
-
             if( color_c == TORIDRAWHSL16_FLAT )
                 goto textured_flat;
             else
@@ -180,6 +440,8 @@ ToriDraw_RasterModelFace(
         // draw garbage; the reference skips the face too.
         if( texture == NULL )
         {
+            if( dbg )
+                dbg->skipped_tex_miss++;
             /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces.
              * Resolve the env var once - getenv() walks environ with a strncmp
              * per entry, and this branch is the steady state for every face of
@@ -192,7 +454,12 @@ ToriDraw_RasterModelFace(
 
             if( debug_enabled && texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY )
             {
-                skip_tally[texture_id]++;
+                /* First miss on an id, printed where it happens: the every-500
+                 * tally cannot say when an id started missing, only that it
+                 * has. Interleaved with the host's tex_trace frame lines this
+                 * is what dates the miss against the publish. */
+                if( ++skip_tally[texture_id] == 1 )
+                    fprintf(stderr, "raster_tex_skip: first miss id=%d\n", texture_id);
                 if( ++skip_total % 500 == 1 )
                     fprintf(
                         stderr,
@@ -207,7 +474,6 @@ ToriDraw_RasterModelFace(
         texels = texture->texels;
         texture_size = texture->width;
         texture_opaque = texture->opaque;
-
         ctx->cache_texture_id = texture_id;
         ctx->cache_texels = texels;
         ctx->cache_texture_size = texture_size;
@@ -228,7 +494,11 @@ ToriDraw_RasterModelFace(
             alpha = 0xFF - alpha;
         /* Reference getModelFaces: skip fully/near-fully transparent faces. */
         if( alpha <= 1 )
+        {
+            if( dbg )
+                dbg->skipped_alpha++;
             return;
+        }
 
         if( color_c == TORIDRAWHSL16_FLAT )
         {
@@ -238,6 +508,77 @@ ToriDraw_RasterModelFace(
         {
             type = FACE_TYPE_GOURAUD;
         }
+        /* Near-clip gate for non-textured faces: if any vertex landed behind the
+         * near plane and the context has no ortho buffer (allow_near_clip=false),
+         * the triangle functions silently return.  Count those separately so the
+         * debug line exposes them rather than attributing them to "drawn". */
+        if( dbg && ctx->near_clipped && !ctx->allow_near_clip )
+        {
+            int const xa = ctx->vertex_x[ctx->face_indices_a[face]];
+            int const xb = ctx->vertex_x[ctx->face_indices_b[face]];
+            int const xc = ctx->vertex_x[ctx->face_indices_c[face]];
+            if( xa == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                xb == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+                xc == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+            {
+                dbg->skipped_near_clip++;
+                return;
+            }
+        }
+        if( dbg )
+        {
+            dbg->drawn++;
+            /* #region agent log */
+            if( type == FACE_TYPE_FLAT )
+                dbg->drawn_flat++;
+            else
+                dbg->drawn_gouraud++;
+            /* Gouraud faces only. A flat face carries TORIDRAWHSL16_FLAT
+             * (0xFF7F) in color_c as a selector, not a colour, so including
+             * them pinned this at 65407 for every model and hid the real
+             * spread. */
+            if( type != FACE_TYPE_FLAT && color_c != TORIDRAWHSL16_FLAT )
+            {
+                int const dab = abs(color_a - color_b);
+                int const dbc = abs(color_b - color_c);
+                int const dca = abs(color_c - color_a);
+                int const worst = dab > dbc ? (dab > dca ? dab : dca)
+                                            : (dbc > dca ? dbc : dca);
+                if( worst > dbg->max_color_delta )
+                    dbg->max_color_delta = worst;
+            }
+            /* #endregion */
+        }
+
+#ifndef TORIDRAW_PIXEL16
+        /* A z-buffered model routes every face here instead. The shades a flat
+         * face carries in colors_b/c are the TORIDRAWHSL16_FLAT selector, not
+         * colours, so it passes colors_a three times. */
+        if( ctx->zbuffered )
+        {
+            bool const flat = type == FACE_TYPE_FLAT;
+
+            ToriDraw_TriangleFaceZBuffered(
+                &ctx->zbuf_target,
+                &ctx->zbuf_source,
+                face,
+                flat ? TORIDRAW_ZBUF_MODE_FLAT : TORIDRAW_ZBUF_MODE_GOURAUD,
+                color_a,
+                flat ? color_a : color_b,
+                flat ? color_a : color_c,
+                alpha,
+                TORIDRAW_ZBUF_TEX_OPAQUE,
+                0,
+                0,
+                0,
+                NULL,
+                0,
+                ctx->allow_near_clip,
+                ctx->near_clipped);
+            return;
+        }
+#endif
+
         switch( type )
         {
         case FACE_TYPE_GOURAUD:
@@ -260,6 +601,7 @@ ToriDraw_RasterModelFace(
                     ctx->colors_c,
                     ctx->face_alphas_nullable,
                     ctx->near_plane_z,
+                    ctx->camera_cot16,
                     ctx->offset_x,
                     ctx->offset_y,
                     ctx->stride,
@@ -287,6 +629,7 @@ ToriDraw_RasterModelFace(
                     ctx->colors_c,
                     ctx->face_alphas_nullable,
                     ctx->near_plane_z,
+                    ctx->camera_cot16,
                     ctx->offset_x,
                     ctx->offset_y,
                     ctx->stride,
@@ -315,6 +658,7 @@ ToriDraw_RasterModelFace(
                 ctx->colors_a,
                 ctx->face_alphas_nullable,
                 ctx->near_plane_z,
+                ctx->camera_cot16,
                 ctx->offset_x,
                 ctx->offset_y,
                 ctx->stride,
@@ -327,6 +671,14 @@ ToriDraw_RasterModelFace(
 #ifndef TORIDRAW_PIXEL16
         case FACE_TYPE_TEXTURED:
         textured:;
+            if( dbg )
+            {
+                dbg->drawn++;
+                /* #region agent log */
+                dbg->drawn_textured++;
+                toridraw_raster_debug_note_texture(dbg, texture_id);
+                /* #endregion */
+            }
             assert(ctx->orthographic_vertex_x_nullable != NULL);
             assert(ctx->orthographic_vertex_y_nullable != NULL);
             assert(ctx->orthographic_vertex_z_nullable != NULL);
@@ -361,6 +713,29 @@ ToriDraw_RasterModelFace(
             assert(tp_vertex < ctx->num_vertices);
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
+
+            if( ctx->zbuffered )
+            {
+                ToriDraw_TriangleFaceZBuffered(
+                    &ctx->zbuf_target,
+                    &ctx->zbuf_source,
+                    face,
+                    TORIDRAW_ZBUF_MODE_TEXTURE,
+                    color_a,
+                    color_b,
+                    color_c,
+                    0xFF,
+                    texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
+                                   : TORIDRAW_ZBUF_TEX_TRANSPARENT,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    (int*)texels,
+                    texture_size,
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
+                break;
+            }
 
             bool const complex_texture =
                 ctx->texture_render_types_nullable && texture_face >= 0 &&
@@ -477,6 +852,14 @@ ToriDraw_RasterModelFace(
             break;
         case FACE_TYPE_TEXTURED_FLAT_SHADE:
         textured_flat:;
+            if( dbg )
+            {
+                dbg->drawn++;
+                /* #region agent log */
+                dbg->drawn_textured++;
+                toridraw_raster_debug_note_texture(dbg, texture_id);
+                /* #endregion */
+            }
             assert(ctx->orthographic_vertex_x_nullable != NULL);
             assert(ctx->orthographic_vertex_y_nullable != NULL);
             assert(ctx->orthographic_vertex_z_nullable != NULL);
@@ -507,6 +890,30 @@ ToriDraw_RasterModelFace(
             assert(tp_vertex < ctx->num_vertices);
             assert(tm_vertex < ctx->num_vertices);
             assert(tn_vertex < ctx->num_vertices);
+
+            if( ctx->zbuffered )
+            {
+                /* Flat-shaded: one lightness for the whole face. */
+                ToriDraw_TriangleFaceZBuffered(
+                    &ctx->zbuf_target,
+                    &ctx->zbuf_source,
+                    face,
+                    TORIDRAW_ZBUF_MODE_TEXTURE,
+                    color_a,
+                    color_a,
+                    color_a,
+                    0xFF,
+                    texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
+                                   : TORIDRAW_ZBUF_TEX_TRANSPARENT,
+                    tp_vertex,
+                    tm_vertex,
+                    tn_vertex,
+                    (int*)texels,
+                    texture_size,
+                    ctx->allow_near_clip,
+                    ctx->near_clipped);
+                break;
+            }
 
             bool const complex_texture_flat =
                 ctx->texture_render_types_nullable && texture_face >= 0 &&
@@ -621,6 +1028,11 @@ context_from_handle(
     bool smooth,
     struct ToriDrawModelRasterContext* ctx)
 {
+    /* Set before the switch so a handle kind this function does not fill still
+     * leaves the caller with a defined answer: the depth-tested path is opt-in,
+     * and "unset" must read as "off" rather than as whatever the stack held. */
+    ctx->zbuffered = false;
+
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
@@ -680,7 +1092,10 @@ context_from_handle(
             ctx->offset_x = ctx->screen_width >> 1;
             ctx->offset_y = ctx->screen_height >> 1;
         }
-        ctx->near_plane_z = camera->near_plane_z;
+        /* Must match the plane ToriDraw_Project actually clipped against: the
+         * near-clip builders lerp their new vertices onto it, and a plane the
+         * projection never used would place them where nothing was cut. */
+        ctx->near_plane_z = scene->projection_near_plane_z;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_cot16 = toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
         ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
@@ -695,6 +1110,52 @@ context_from_handle(
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
         ctx->near_clipped = scene->near_clipped;
+        ctx->raster_debug = NULL;
+        ctx->zbuffered = false;
+#ifndef TORIDRAW_PIXEL16
+        /* Opt-in per model; the scene's buffer is sized here on first use, so a
+         * caller that never draws a z-buffered model never pays for one. A
+         * failed allocation is not an error — the model simply draws by face
+         * order, exactly as it did before the flag existed. */
+        if( (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) != 0 )
+        {
+            int const clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
+            int const rows = clip_top + ctx->screen_height;
+            int const stride = ctx->stride;
+
+            if( !ToriDraw_SceneHasZBuffer(scene, stride, rows) &&
+                (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0 )
+                ToriDraw_SceneZBufferResize(scene, stride, rows);
+
+            if( ToriDraw_SceneHasZBuffer(scene, stride, rows) )
+            {
+                ctx->zbuffered = true;
+                ctx->zbuf_target.zbuffer = scene->zbuffer;
+                ctx->zbuf_target.stride = stride;
+                ctx->zbuf_target.screen_width = ctx->screen_width;
+                ctx->zbuf_target.screen_height = ctx->screen_height;
+                ctx->zbuf_target.camera_cot16 = ctx->camera_cot16;
+                ctx->zbuf_target.offset_x = ctx->offset_x;
+                ctx->zbuf_target.offset_y = ctx->offset_y;
+                ctx->zbuf_target.near_plane_z = ctx->near_plane_z;
+                ctx->zbuf_target.model_mid_z = scene->projected_vertex.z;
+                ctx->zbuf_target.parallel = toridraw_proj_is_parallel(camera->proj_mode);
+
+                ctx->zbuf_source.face_indices_a = ctx->face_indices_a;
+                ctx->zbuf_source.face_indices_b = ctx->face_indices_b;
+                ctx->zbuf_source.face_indices_c = ctx->face_indices_c;
+                ctx->zbuf_source.screen_vertices_x = ctx->vertex_x;
+                ctx->zbuf_source.screen_vertices_y = ctx->vertex_y;
+                ctx->zbuf_source.screen_vertices_z = ctx->vertex_z;
+                ctx->zbuf_source.orthographic_vertices_x =
+                    ctx->orthographic_vertex_x_nullable;
+                ctx->zbuf_source.orthographic_vertices_y =
+                    ctx->orthographic_vertex_y_nullable;
+                ctx->zbuf_source.orthographic_vertices_z =
+                    ctx->orthographic_vertex_z_nullable;
+            }
+        }
+#endif
         break;
     }
     default:
@@ -718,13 +1179,58 @@ ToriDraw_RasterWithFaceIndices(
         int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
         int stride = ctx.stride;
         ctx.pixel_buffer = pixel_buffer + clip_left + clip_top * stride;
+#ifndef TORIDRAW_PIXEL16
+        /* Rebased by the same amount as the frame buffer, so one offset walks
+         * both — see the layout note on ToriDraw_Scene.zbuffer. */
+        if( ctx.zbuffered )
+        {
+            ctx.zbuf_target.pixel_buffer = ctx.pixel_buffer;
+            ctx.zbuf_target.zbuffer += clip_left + clip_top * stride;
+        }
+#endif
     }
+
+#ifndef TORIDRAW_PIXEL16
+    /* Reset before the first face, not after the last: this is what confines
+     * the depth test to this model, so it has to happen even if the model turns
+     * out to draw nothing. */
+    if( ctx.zbuffered )
+        toridraw_zbuf_reset(
+            ctx.zbuf_target.zbuffer,
+            ctx.zbuf_target.stride,
+            ctx.screen_width,
+            ctx.screen_height,
+            ctx.vertex_x,
+            ctx.vertex_y,
+            ctx.num_vertices,
+            ctx.offset_x,
+            ctx.offset_y,
+            ctx.near_clipped,
+            ctx.zbuf_target.parallel);
+#endif
+
+    struct ToriDraw_RasterDebugStats raster_debug_storage;
+    if( toridraw_raster_debug_enabled() )
+    {
+        memset(&raster_debug_storage, 0, sizeof(raster_debug_storage));
+        ctx.raster_debug = &raster_debug_storage;
+    }
+    else
+    {
+        ctx.raster_debug = NULL;
+    }
+    /* #region agent log */
+    ctx.ordered_faces = scene->tmp_face_order_count;
+    /* #endregion */
 
     for( int i = 0; i < scene->tmp_face_order_count; i++ )
     {
         int face = scene->tmp_face_order[i];
         ToriDraw_RasterModelFace(face, &ctx);
     }
+
+    if( ctx.raster_debug )
+        toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
 }
 
 static inline void

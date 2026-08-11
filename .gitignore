@@ -79,3 +79,7 @@ __pycache__/
 # Build artifacts - Windows executables
 src/*.exe
 3rd/rscache/tools/cachepack/*.exe
+
+# Claude Code local overrides
+.claude/settings.local.json
+.claude/worktrees/

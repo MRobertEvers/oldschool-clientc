@@ -612,6 +612,165 @@ test_flagged_tile_survives_a_level_mask(void)
     painter_free(p);
 }
 
+/*
+ * The bucket drain is one globally distance-ordered sweep: terrain comes out
+ * farthest-first for the WHOLE box, so all four quadrants advance toward the
+ * eye together.
+ *
+ * The failure this pins is not subtle once measured but invisible in a
+ * screenshot: if the setup pass stops bulk-pushing ready tiles and lets the
+ * perimeter seed generator drive instead, the first seed's wave floods its
+ * entire quadrant (every ground dependency points outward, into the same
+ * quadrant) before the queue drains and the next seed is taken. The box then
+ * paints one corner at a time and the distance sequence restarts at ~2R three
+ * times — a near tile of the first quadrant emitted ahead of a far tile of the
+ * next. See docs/painter_bucket_vs_world3d.md, "Why the bulk push".
+ */
+static void
+test_bucket_emits_one_globally_distance_ordered_sweep(void)
+{
+#define ORDER_SCENE 24
+#define ORDER_CAM 12
+    struct Painter* p = painter_new(ORDER_SCENE, ORDER_SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersBuffer* buf = painter_buffer_new();
+    int prev = -1;
+    int runs = 1;
+    int emitted = 0;
+    int x, z;
+
+    printf("the bucket drain is one distance-ordered sweep, not one corner at a time\n");
+    painter_set_draw_distance(p, ORDER_SCENE);
+    for( x = 0; x < ORDER_SCENE; x++ )
+        for( z = 0; z < ORDER_SCENE; z++ )
+        {
+            painter_tile_set_terrain_levels(p, x, z, 0, 1u << 0);
+            painter_tile_set_terrain_levels(p, x, z, 1, 0);
+            painter_tile_set_terrain_levels(p, x, z, 2, 0);
+            painter_tile_set_terrain_levels(p, x, z, 3, 0);
+        }
+
+    painter_paint_bucket(p, buf, ORDER_CAM, ORDER_CAM, 0);
+
+    for( int i = 0; i < buf->command_count; i++ )
+    {
+        int tx, tz, d;
+        if( buf->commands[i]._bf_kind != PNTR_CMD_TERRAIN )
+            continue;
+        tx = (int)buf->commands[i]._terrain._bf_terrain_x;
+        tz = (int)buf->commands[i]._terrain._bf_terrain_z;
+        d = abs(tx - ORDER_CAM) + abs(tz - ORDER_CAM);
+        if( prev >= 0 && d > prev )
+            runs++;
+        prev = d;
+        emitted++;
+    }
+
+    expect(emitted > 0, "the box emitted terrain at all");
+    expect(runs == 1, "terrain distance never increases — a single farthest-first sweep");
+    if( runs != 1 )
+        printf("       (%d monotone runs over %d tiles: the box painted %d corners in turn)\n",
+               runs, emitted, runs);
+
+    free(buf->commands);
+    free(buf);
+    painter_free(p);
+#undef ORDER_SCENE
+#undef ORDER_CAM
+}
+
+/*
+ * The QBD arena seam, docs/qbd_toridraw_streaks_debug.md "platform strip".
+ *
+ * The arena floor is two 12x18 plane-0 locs that meet on one column, and the
+ * camera can come to rest on that column. A tile with `sx == camera_sx` is
+ * gated on BOTH horizontal neighbours (the reference's `x <= cameraX` and
+ * `x >= cameraX` are both true there), and the neighbour across the seam
+ * belongs to the OTHER loc — so this tile carries no span flag in that
+ * direction and the reference span exception cannot fire. It therefore waits
+ * for that neighbour to reach PAINT_STEP_DONE, which cannot happen until the
+ * neighbour's 216-tile loc is released, which happens at the loc's NEAREST
+ * footprint tile, a handful of tiles from the eye.
+ *
+ * The whole seam column is consequently held until the drain is almost at the
+ * eye, and its floor — twenty tiles away — is then emitted on top of a loc
+ * that was drawn at distance 5. On screen that is a one-tile-wide strip of
+ * ground running up over the platform.
+ *
+ * What makes the wait unnecessary: the blocking loc reaches CLOSER to the eye
+ * than the tile being held, so it is drawn nearer than that tile regardless.
+ */
+static void
+test_seam_between_two_large_locs_keeps_the_sweep(void)
+{
+#define SEAM_SCENE 32
+#define SEAM_CAM_X 16
+#define SEAM_CAM_Z 4
+    struct Painter* p = painter_new(SEAM_SCENE, SEAM_SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersBuffer* buf = painter_buffer_new();
+    const int west_loc = 1300;
+    const int east_loc = 1301;
+    int east_i = -1;
+    int prev = -1;
+    int runs = 1;
+    int emitted = 0;
+    int worst_after_east = -1;
+    int x, z;
+
+    printf("a floor column on the seam of two large locs still sweeps farthest-first\n");
+    painter_set_draw_distance(p, SEAM_SCENE);
+    for( x = 0; x < SEAM_SCENE; x++ )
+        for( z = 0; z < SEAM_SCENE; z++ )
+        {
+            painter_tile_set_terrain_levels(p, x, z, 0, 1u << 0);
+            painter_tile_set_terrain_levels(p, x, z, 1, 0);
+            painter_tile_set_terrain_levels(p, x, z, 2, 0);
+            painter_tile_set_terrain_levels(p, x, z, 3, 0);
+        }
+
+    /* x[8,16] and x[17,25], both z[8,23]: the seam falls on the camera column
+     * and neither loc covers a tile of the other. */
+    painter_add_normal_scenery_ex(p, 8, 8, 0, west_loc, 9, 16, 0, PNTR_SCENERY_STACK_BASE);
+    painter_add_normal_scenery_ex(p, 17, 8, 0, east_loc, 9, 16, 0, PNTR_SCENERY_STACK_BASE);
+
+    painter_paint_bucket(p, buf, SEAM_CAM_X, SEAM_CAM_Z, 0);
+
+    entity_emits(buf, east_loc, &east_i);
+    for( int i = 0; i < buf->command_count; i++ )
+    {
+        int tx, tz, d;
+        if( buf->commands[i]._bf_kind != PNTR_CMD_TERRAIN )
+            continue;
+        tx = (int)buf->commands[i]._terrain._bf_terrain_x;
+        tz = (int)buf->commands[i]._terrain._bf_terrain_z;
+        d = abs(tx - SEAM_CAM_X) + abs(tz - SEAM_CAM_Z);
+        if( prev >= 0 && d > prev )
+            runs++;
+        prev = d;
+        emitted++;
+        if( east_i >= 0 && i > east_i && d > worst_after_east )
+            worst_after_east = d;
+    }
+
+    expect(emitted > 0, "the box emitted terrain at all");
+    expect(runs == 1, "terrain distance never increases across the seam");
+    if( runs != 1 )
+        printf("       (%d monotone runs over %d tiles: the seam column ran late)\n",
+               runs, emitted);
+    /* The east loc's nearest footprint tile is (17,8), five rings out. Nothing
+     * farther than that may still be waiting when it is drawn. */
+    expect(worst_after_east <= 5,
+           "no floor farther than the east loc's own ring is emitted after it");
+    if( worst_after_east > 5 )
+        printf("       (floor at distance %d emitted after the east loc)\n", worst_after_east);
+
+    free(buf->commands);
+    free(buf);
+    painter_free(p);
+#undef SEAM_SCENE
+#undef SEAM_CAM_X
+#undef SEAM_CAM_Z
+}
+
 int
 main(void)
 {
@@ -626,6 +785,8 @@ main(void)
     test_vis_below_reveals_the_tiles_ground_decor();
     test_stack_base_does_not_defer_static_locs();
     test_ready_batch_sorts_by_far_corner();
+    test_bucket_emits_one_globally_distance_ordered_sweep();
+    test_seam_between_two_large_locs_keeps_the_sweep();
 
     if( g_failures )
     {

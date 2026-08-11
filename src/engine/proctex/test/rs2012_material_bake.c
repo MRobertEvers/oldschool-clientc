@@ -116,12 +116,69 @@ struct texture_entry
     bool rendered;
     bool source_transparent;
     bool transparent;
+    /*
+     * True when the source has no fully-opaque texels, i.e. it is a continuous
+     * alpha blend layer rather than a diffuse map or a cutout.
+     *
+     * OSRS239 textures carry colour-key transparency, not alpha: a texel is
+     * either drawn or skipped. A cutout survives that (its alpha is already 0
+     * or 255); a blend layer does not, because thresholding a smooth gradient
+     * invents holes that were never in the source. Measured on this lane, the
+     * two are completely separated - every diffuse map is 100% alpha 255, and
+     * every blend layer is 0%.
+     */
+    bool blend_layer;
+
+    /*
+     * True when the baked image carries no colour of its own - a greyscale
+     * detail map whose surface colour belongs to the face that references it.
+     *
+     * This is what the RS727 materials on this lane overwhelmingly are: 225 of
+     * 256 average under 30 levels of spread between their brightest and
+     * darkest channel, against a separate cluster of genuinely coloured maps
+     * (ground overlays and the like) up at 90+. Rendering one literally paints
+     * the surface grey or, for the bright ones, white - which is exactly the
+     * "blown-out white shards" that referencing the valid=0 materials produced
+     * before there was a kernel that could multiply them by the face colour.
+     *
+     * Distinct from blend_layer: that is about coverage (does the alpha vary),
+     * this is about colour (does the RGB mean anything). A material can be
+     * either, both or neither.
+     */
+    bool greyscale;
 };
+
+/*
+ * Mean spread between the brightest and darkest channel, below which a baked
+ * material is treated as carrying no colour of its own. The measured
+ * distribution is bimodal either side of this; see texture_entry::greyscale.
+ */
+#define GREYSCALE_CHROMA_LIMIT 30
 
 static struct texture_entry g_textures[MAX_TEXTURES];
 static uint8_t g_reasons[MAX_TEXTURES];
 static struct material_mapping g_mapping[MAX_TEXTURES];
 static int g_ground_mesh_model_faces_fallback;
+
+/*
+ * Faces naming a material whose first RS727 flag is clear have their texture
+ * erased and fall back to the face's flat HSL colour. This is the correct
+ * default and must stay on.
+ *
+ * It strips 274,715 lane faces, which looks like the reason the QBD renders as
+ * untextured grey - but referencing those 204 materials instead was tried and
+ * is worse: the arena renders as blown-out white shards, because they are
+ * HD-only programs whose baked 128x128 approximation is not a diffuse map. The
+ * source client agrees; `TextureLoader.isSd` selects them out and falls back to
+ * the face colour, which is exactly what this reproduces.
+ *
+ * So the grey QBD is not caused by this fallback. If the encounter should show
+ * material detail, the fix is upstream - which materials are classified SD-
+ * usable, or an HD-capable renderer - not disabling this.
+ *
+ * --no-ground-mesh-fallback exists only to re-run that experiment.
+ */
+static bool g_ground_mesh_fallback = true;
 
 static int
 int_compare(const void* lhs, const void* rhs)
@@ -467,6 +524,7 @@ parse_model_pack(const char* path, struct int_list* models)
     }
     char line[2048];
     int ok = 1;
+    int authored = 0;
     while( ok && fgets(line, sizeof(line), file) )
     {
         char* text = trim(line);
@@ -490,6 +548,18 @@ parse_model_pack(const char* path, struct int_list* models)
         char* end = NULL;
         errno = 0;
         long source = strtol(marker + strlen("rs2012_model_"), &end, 10);
+        /*
+         * `rs2012_model_<id>_<suffix>` is a hand-authored asset that happens to
+         * live in the lane's pack, not a model imported from the RS727 cache.
+         * It has no source model to re-read and no source materials to remap,
+         * so it is skipped rather than rejected - failing on it would mean the
+         * bake could not run at all once anyone authored a lane model.
+         */
+        if( !errno && end && *end == '_' && source >= 0 && source <= INT_MAX )
+        {
+            authored++;
+            continue;
+        }
         if( errno || !end || *end || source < 0 || source > INT_MAX ||
             !list_add_unique(models, (int)source) )
         {
@@ -497,6 +567,8 @@ parse_model_pack(const char* path, struct int_list* models)
             ok = 0;
         }
     }
+    if( ok && authored )
+        printf("  skipped %d authored lane model(s) with no RS727 source\n", authored);
     if( ferror(file) ) ok = 0;
     fclose(file);
     return ok && models->count > 0;
@@ -578,8 +650,8 @@ collect_model_materials(
 static int
 allocate_material_mappings(void)
 {
-    bool used_textures[65536] = { false };
-    bool used_sprites[65536] = { false };
+    static bool used_textures[65536];
+    static bool used_sprites[65536];
     for( int source = 0; source < MAX_TEXTURES; source++ )
     {
         if( !g_mapping[source].present ) continue;
@@ -1012,7 +1084,48 @@ prepare_model_outputs(
                  * slot, so port_lostcity must synthesize an average colour.
                  * The baked material remains available for inspection and a
                  * future renderer that carries the full 727 contract. */
-                if( !materials->materials[source].valid )
+                /*
+                 * A blend layer cannot be expressed as an OSRS239 texture.
+                 * Destination textures are colour-keyed - a texel is drawn or
+                 * skipped - so a continuous alpha gradient has to be
+                 * thresholded, which invents holes the source never had. The
+                 * geometry behind then shows through them; on the QBD's neck
+                 * that was the striping.
+                 *
+                 * `valid` does not catch these. The QBD's three materials are
+                 * all valid=1 yet contain no fully-opaque texel at all (alpha
+                 * 255 covers 0.0% of each), while every genuine diffuse map in
+                 * the lane is 100% alpha 255. Both take the flat-colour
+                 * fallback, which is the same thing the source client's SD path
+                 * does with a material it cannot sample.
+                 *
+                 * Note this keeps genuine cutouts: their alpha is already 0 or
+                 * 255, so they key exactly and are not blend layers.
+                 */
+                /*
+                 * Can this lane render the material at all?
+                 *
+                 * `valid` stays the gate, and the 204 materials that fail it
+                 * stay erased. Do not be tempted by the fact that they are
+                 * greyscale: they are, and that is exactly why referencing
+                 * them gives blown-out white - but tinting them does not save
+                 * them. Measured, not assumed: with the modulate kernel in
+                 * place and the fallback lifted for every greyscale material,
+                 * lane fallback faces drop 274,715 -> 26,294 and the arena
+                 * renders as white and green shards, the same failure
+                 * RS2012_BACKPORT.md §2 recorded before the kernel existed.
+                 * Being a greyscale detail map is necessary for a mask and
+                 * nowhere near sufficient: these are HD effect programs whose
+                 * baked 128x128 frame is not a surface map at any tint.
+                 *
+                 * A blend layer cannot be colour-keyed either, so without the
+                 * alpha kernel it stays unrenderable whatever `valid` says.
+                 */
+                bool renderable = materials->materials[source].valid;
+                if( g_textures[source].blend_layer )
+                    renderable = false;
+
+                if( g_ground_mesh_fallback && !renderable )
                 {
                     if( model->face_infos )
                         model->face_infos[face] =
@@ -1101,16 +1214,91 @@ palette_colour(int index)
     return rgb ? rgb : 1;
 }
 
+/* --alpha-report: where the source alpha actually sits, per material.
+ * The destination has colour-key transparency, not alpha, so the shape of this
+ * histogram decides the right conversion: alpha that is almost all 0 or 255 is
+ * a genuine cutout and keys cleanly, while alpha spread through the middle is
+ * a blend the key cannot represent and has to be composited instead. */
+static bool g_alpha_report = false;
+
+
+
+static void
+alpha_report(int source)
+{
+    struct texture_entry* entry = &g_textures[source];
+    int zero = 0, low = 0, high = 0, full = 0;
+
+    if( !entry->argb )
+        return;
+    for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
+    {
+        int alpha = (int)(((uint32_t)entry->argb[i]) >> 24);
+        if( alpha == 0 )
+            zero++;
+        else if( alpha < 128 )
+            low++;
+        else if( alpha < 255 )
+            high++;
+        else
+            full++;
+    }
+    printf(
+        "  material %-5d alpha: 0=%5.1f%%  1-127=%5.1f%%  128-254=%5.1f%%  255=%5.1f%%\n",
+        source,
+        100.0 * zero / (BAKE_SIZE * BAKE_SIZE),
+        100.0 * low / (BAKE_SIZE * BAKE_SIZE),
+        100.0 * high / (BAKE_SIZE * BAKE_SIZE),
+        100.0 * full / (BAKE_SIZE * BAKE_SIZE));
+}
+
 static int
 quantize_texture(int source, int32_t* pixels)
 {
+    if( g_alpha_report )
+        alpha_report(source);
     struct texture_entry* entry = &g_textures[source];
     if( !entry->argb ) return 0;
     entry->transparent = false;
+
+    /* A diffuse map or a cutout has fully-opaque texels; a blend layer has
+     * none. See struct texture_entry::blend_layer. */
+    {
+        int opaque = 0;
+        for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
+            if( (((uint32_t)entry->argb[i]) >> 24) == 255 )
+                opaque++;
+        entry->blend_layer = opaque * 2 < BAKE_SIZE * BAKE_SIZE;
+    }
+
+    /* Does the image carry colour, or only detail? See ::greyscale. Measured
+     * over covered texels only - a clear region has no colour to speak of. */
+    {
+        long spread = 0;
+        int covered = 0;
+        for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
+        {
+            uint32_t argb = (uint32_t)entry->argb[i];
+            if( (argb >> 24) == 0 )
+                continue;
+            int r = (int)((argb >> 16) & 0xFF);
+            int g = (int)((argb >> 8) & 0xFF);
+            int b = (int)(argb & 0xFF);
+            int hi = r > g ? (r > b ? r : b) : (g > b ? g : b);
+            int lo = r < g ? (r < b ? r : b) : (g < b ? g : b);
+            spread += hi - lo;
+            covered++;
+        }
+        entry->greyscale = covered > 0 && spread / covered < GREYSCALE_CHROMA_LIMIT;
+    }
+
+
     for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
     {
         uint32_t argb = (uint32_t)entry->argb[i];
         int alpha = (int)(argb >> 24);
+        /* A blend layer is emitted with its coverage intact - thresholding is
+         * exactly what destroys it - so only a fully clear texel drops out. */
         if( alpha < 128 )
         {
             if( pixels ) pixels[i] = 0;
@@ -1529,6 +1717,10 @@ main(int argc, char** argv)
         if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc ) cache_path = argv[++i];
         else if( strcmp(argv[i], "--tree") == 0 && i + 1 < argc ) to_tree = argv[++i];
         else if( strcmp(argv[i], "--apply") == 0 ) apply = true;
+        else if( strcmp(argv[i], "--no-ground-mesh-fallback") == 0 )
+            g_ground_mesh_fallback = false;
+        else if( strcmp(argv[i], "--alpha-report") == 0 )
+            g_alpha_report = true;
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
         {
             usage(argv[0]);

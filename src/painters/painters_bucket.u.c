@@ -133,6 +133,89 @@ bucket_ctx_free(struct Painter* painter)
     painter->bucket_ctx = NULL;
 }
 
+/*
+ * The seam exception to the reference adjacency gate.
+ *
+ * The reference rule is "a tile may not draw its ground until the neighbour
+ * between it and the far edge has fully retired", with one escape: if the two
+ * tiles share a loc (this tile carries a span flag pointing at the neighbour),
+ * the neighbour's GROUND is enough — otherwise the loc, which waits on this
+ * tile's ground, would deadlock against it.
+ *
+ * That escape is keyed on THIS tile's spans, so it cannot fire when the
+ * neighbour is held by a loc that does not cover this tile. Two large locs
+ * meeting on the camera column is exactly that case (the QBD arena floor is a
+ * pair of 12x18 plane-0 locs, and `sx == camera_sx` gates on both horizontal
+ * neighbours), and the wait it produces is not merely long, it is wrong: a
+ * multi-tile loc is released at its NEAREST footprint tile, so a loc that
+ * reaches closer to the eye than the tile being held is drawn closer than that
+ * tile whatever happens. Holding the farther tile behind it inverts the sweep
+ * and paints its floor over the loc.
+ *
+ * So: once the neighbour's own ground is down, and everything still keeping it
+ * from DONE is scenery that reaches nearer the eye than the tile being gated,
+ * the gate has nothing left to protect. Walls disqualify the neighbour — a far
+ * tile's near wall must still precede a nearer tile's ground — and so does any
+ * pending element whose footprint does not reach past this ring, which keeps
+ * the ordinary "wait for the tile behind me" case exactly as the reference has
+ * it.
+ */
+static int
+bucket_neighbour_holds_only_nearer_scenery(
+    struct Painter* painter,
+    const struct PaintersTile* other_tile,
+    const struct TilePaint* other_paint,
+    int camera_sx,
+    int camera_sz,
+    int dist)
+{
+    int pending = 0;
+
+    if( other_paint->step == PAINT_STEP_READY )
+        return 0; /* ground not down yet — nothing to relax */
+    if( other_tile->scenery_head == -1 )
+        return 0;
+    if( other_tile->wall_a != -1 || other_tile->wall_b != -1 ||
+        other_tile->wall_decor_a != -1 )
+        return 0;
+
+    for( int32_t sn = other_tile->scenery_head; sn != -1;
+         sn = painter->scenery_pool[sn].next )
+    {
+        int si = painter->scenery_pool[sn].element_idx;
+        if( painter->element_paints[si].drawn )
+            continue;
+        if( scenery_near_corner_dist(&painter->elements[si], camera_sx, camera_sz) >= dist )
+            return 0;
+        pending = 1;
+    }
+    return pending;
+}
+
+/* One direction of the adjacency gate. Non-zero = this tile must wait. */
+static inline int
+bucket_gate_blocks(
+    struct Painter* painter,
+    const struct PaintersTile* tile,
+    int neighbour_idx,
+    unsigned span_flag,
+    int camera_sx,
+    int camera_sz,
+    int dist)
+{
+    const struct PaintersTile* other_tile = &painter->tiles[neighbour_idx];
+    const struct TilePaint* other = &painter->tile_paints[neighbour_idx];
+
+    if( other->step == PAINT_STEP_DONE )
+        return 0;
+    if( other->step != PAINT_STEP_READY && (tile->spans & span_flag) != 0 )
+        return 0; /* reference span exception: the two share a loc */
+    if( bucket_neighbour_holds_only_nearer_scenery(
+            painter, other_tile, other, camera_sx, camera_sz, dist) )
+        return 0;
+    return 1;
+}
+
 static inline void
 bucket_emit_entity(
     struct PaintersElementCommand** cur,
@@ -284,16 +367,26 @@ painter_paint_bucket(
         radius,
         draw_mask);
 
-    /* Contiguous row setup: reset + classify + count. Distance is derived at push. */
+    /* Contiguous row setup: reset + classify + count + bulk push.
+     *
+     * Every READY tile enters its distance bucket here, so the drain is a single
+     * globally distance-ordered sweep: all four quadrants advance toward the eye
+     * together, ring by ring. Seeding one perimeter tile per drain instead (the
+     * world3d cascade model, which this loop used to copy) lets the first seed's
+     * wave flood its entire quadrant before the next seed is taken — the box then
+     * paints one corner at a time, and a near tile of the first quadrant lands
+     * ahead of a far tile of the next. The perimeter seed generator below stays
+     * as the liveness fallback for tiles a span cycle strands; it is no longer
+     * what drives the traversal. */
     int tiles_remaining = 0;
     int tiles_in_box = 0;
+    bucket_reset(w);
     for( int s = min_level; s < max_level; s++ )
     {
         for( int z = min_draw_z; z < max_draw_z; z++ )
         {
             int row = min_draw_x + z * width + s * level_stride;
             int adz = abs(z - camera_sz);
-            (void)adz;
             int span_lo = min_draw_x;
             int span_hi = max_draw_x; /* exclusive end of visible band */
             int row_culled = 0;
@@ -371,6 +464,8 @@ painter_paint_bucket(
                 tiles_remaining++;
                 if( painter_wedgelog_armed() )
                     painter_wedgelog_event(ti, "MARK", NULL);
+                bucket_push(w, paints, ti, abs(x - camera_sx) + adz);
+                BUCKET_PERF_INCREMENT(perf_pushes);
             }
         }
     }
@@ -393,8 +488,6 @@ painter_paint_bucket(
     struct PaintersElementCommand* cmd_base = buffer->commands;
     struct PaintersElementCommand* cmd_cur = cmd_base;
     struct PaintersElementCommand* cmd_end = cmd_base + buffer->command_capacity;
-
-    bucket_reset(w);
 
     /* Incremental seed generator — initialized lazily on the first queue drain so frames
      * where the cascade covers all tiles pay zero seed-iteration cost. */
@@ -520,48 +613,39 @@ painter_paint_bucket(
                     }
                 }
 
-                /* Match painter_paint_world3d draw_front adjacent deps. */
-                if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) )
+                /* Match painter_paint_world3d draw_front adjacent deps, plus
+                 * the seam exception (bucket_gate_blocks). */
+                if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) &&
+                    bucket_gate_blocks(
+                        painter, tile, e_tile - 1, SPAN_FLAG_WEST, camera_sx, camera_sz,
+                        tile_dist) )
                 {
-                    struct TilePaint* other = &paints[e_tile - 1];
-                    if( other->step != PAINT_STEP_DONE &&
-                        (other->step == PAINT_STEP_READY || (tile->spans & SPAN_FLAG_WEST) == 0) )
-                    {
-                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
-                        continue;
-                    }
+                    BUCKET_PERF_INCREMENT(perf_gate_rejects);
+                    continue;
                 }
-                if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) )
+                if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) &&
+                    bucket_gate_blocks(
+                        painter, tile, e_tile + 1, SPAN_FLAG_EAST, camera_sx, camera_sz,
+                        tile_dist) )
                 {
-                    struct TilePaint* other = &paints[e_tile + 1];
-                    if( other->step != PAINT_STEP_DONE &&
-                        (other->step == PAINT_STEP_READY || (tile->spans & SPAN_FLAG_EAST) == 0) )
-                    {
-                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
-                        continue;
-                    }
+                    BUCKET_PERF_INCREMENT(perf_gate_rejects);
+                    continue;
                 }
-                if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) )
+                if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) &&
+                    bucket_gate_blocks(
+                        painter, tile, e_tile - width, SPAN_FLAG_SOUTH, camera_sx, camera_sz,
+                        tile_dist) )
                 {
-                    struct TilePaint* other = &paints[e_tile - width];
-                    if( other->step != PAINT_STEP_DONE &&
-                        (other->step == PAINT_STEP_READY ||
-                         (tile->spans & SPAN_FLAG_SOUTH) == 0) )
-                    {
-                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
-                        continue;
-                    }
+                    BUCKET_PERF_INCREMENT(perf_gate_rejects);
+                    continue;
                 }
-                if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) )
+                if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) &&
+                    bucket_gate_blocks(
+                        painter, tile, e_tile + width, SPAN_FLAG_NORTH, camera_sx, camera_sz,
+                        tile_dist) )
                 {
-                    struct TilePaint* other = &paints[e_tile + width];
-                    if( other->step != PAINT_STEP_DONE &&
-                        (other->step == PAINT_STEP_READY ||
-                         (tile->spans & SPAN_FLAG_NORTH) == 0) )
-                    {
-                        BUCKET_PERF_INCREMENT(perf_gate_rejects);
-                        continue;
-                    }
+                    BUCKET_PERF_INCREMENT(perf_gate_rejects);
+                    continue;
                 }
             }
             else

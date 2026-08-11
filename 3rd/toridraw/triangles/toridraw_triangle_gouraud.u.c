@@ -208,6 +208,7 @@ ToriDraw_TriangleFaceGouraudNearClip(
     hsl16_t* RESTRICT colors_c,
     alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
+    int camera_cot16,
     int offset_x,
     int offset_y,
     int stride,
@@ -255,9 +256,9 @@ ToriDraw_TriangleFaceGouraudNearClip(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zc, za);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_c[face], color_a);
                 clipped_count++;
@@ -271,9 +272,9 @@ ToriDraw_TriangleFaceGouraudNearClip(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zb, za);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_b[face], color_a);
                 clipped_count++;
@@ -301,9 +302,9 @@ ToriDraw_TriangleFaceGouraudNearClip(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, za, zb);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_a[face], color_b);
                 clipped_count++;
@@ -317,9 +318,9 @@ ToriDraw_TriangleFaceGouraudNearClip(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zc, zb);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_c[face], color_b);
                 clipped_count++;
@@ -347,9 +348,9 @@ ToriDraw_TriangleFaceGouraudNearClip(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zb, zc);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_b[face], color_c);
                 clipped_count++;
@@ -363,16 +364,16 @@ ToriDraw_TriangleFaceGouraudNearClip(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, za, zc);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_a[face], color_c);
                 clipped_count++;
             }
         }
     }
-    if( clipped_count < 3 )
+    if( !ToriDraw_TriangleClipFrontFacing(clipped_count) )
         return;
 
     int alpha = ToriDraw_TriangleFaceAlpha(face_alphas_nullable, face);
@@ -457,6 +458,7 @@ raster_face_gouraud_near_clipf(
     hsl16_t* RESTRICT colors_c,
     alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
+    int camera_cot16,
     int offset_x,
     int offset_y,
     int stride,
@@ -505,10 +507,10 @@ raster_face_gouraud_near_clipf(
                 lerp_slope = ToriDraw_TriangleSlopef(near_plane_z, zc, za);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, colors_c[face], color_a);
@@ -524,10 +526,10 @@ raster_face_gouraud_near_clipf(
                 lerp_slope = ToriDraw_TriangleSlopef(near_plane_z, zb, za);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, colors_b[face], color_a);
@@ -558,10 +560,10 @@ raster_face_gouraud_near_clipf(
                 lerp_slope = ToriDraw_TriangleSlopef(near_plane_z, za, zb);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
 
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, colors_a[face], color_b);
@@ -577,10 +579,10 @@ raster_face_gouraud_near_clipf(
                 lerp_slope = ToriDraw_TriangleSlopef(near_plane_z, zc, zb);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
 
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, colors_c[face], color_b);
@@ -611,9 +613,9 @@ raster_face_gouraud_near_clipf(
                 lerp_slope = ToriDraw_TriangleSlopef(near_plane_z, zb, zc);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, colors_b[face], color_c);
@@ -629,9 +631,9 @@ raster_face_gouraud_near_clipf(
                 lerp_slope = ToriDraw_TriangleSlopef(near_plane_z, za, zc);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjectf(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                    ToriDraw_TriangleLerpPlaneProjectf(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanef(near_plane_z, lerp_slope, colors_a[face], color_c);
 
@@ -639,7 +641,7 @@ raster_face_gouraud_near_clipf(
             }
         }
     }
-    if( clipped_count < 3 )
+    if( !ToriDraw_TriangleClipFrontFacing(clipped_count) )
         return;
 
     int alpha = ToriDraw_TriangleFaceAlpha(face_alphas_nullable, face);
@@ -742,6 +744,7 @@ ToriDraw_TriangleFaceGouraud(
     hsl16_t* RESTRICT colors_c,
     alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
+    int camera_cot16,
     int offset_x,
     int offset_y,
     int stride,
@@ -785,6 +788,7 @@ ToriDraw_TriangleFaceGouraud(
             colors_c,
             face_alphas_nullable,
             near_plane_z,
+            camera_cot16,
             offset_x,
             offset_y,
             stride,
@@ -852,6 +856,7 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
     hsl16_t* RESTRICT colors_c,
     alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
+    int camera_cot16,
     int offset_x,
     int offset_y,
     int stride,
@@ -900,10 +905,10 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zc, za);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[c], xa);
 
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[c], ya);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_c[face], color_a);
@@ -919,10 +924,10 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zb, za);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[b], xa);
 
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[b], ya);
 
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_b[face], color_a);
@@ -952,9 +957,9 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, za, zb);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[a], xb);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[a], yb);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_a[face], color_b);
                 clipped_count++;
@@ -968,9 +973,9 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zc, zb);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[c], xb);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[c], yb);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_c[face], color_b);
                 clipped_count++;
@@ -998,9 +1003,9 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, zb, zc);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[b], xc);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[b], yc);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_b[face], color_c);
                 clipped_count++;
@@ -1014,16 +1019,16 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
                 lerp_slope = ToriDraw_TriangleSlopei(near_plane_z, za, zc);
 
                 g_toridraw_triangle_clip_x[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_x[a], xc);
                 g_toridraw_triangle_clip_y[clipped_count] =
-                    ToriDraw_TriangleLerpPlaneProjecti(near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
+                    ToriDraw_TriangleLerpPlaneProjecti(camera_cot16, near_plane_z, lerp_slope, orthographic_vertices_y[a], yc);
                 g_toridraw_triangle_clip_color[clipped_count] =
                     ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, colors_a[face], color_c);
                 clipped_count++;
             }
         }
     }
-    if( clipped_count < 3 )
+    if( !ToriDraw_TriangleClipFrontFacing(clipped_count) )
         return;
 
     int alpha = ToriDraw_TriangleFaceAlpha(face_alphas_nullable, face);
@@ -1110,6 +1115,7 @@ ToriDraw_TriangleFaceGouraudS1(
     hsl16_t* RESTRICT colors_c,
     alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
+    int camera_cot16,
     int offset_x,
     int offset_y,
     int stride,
@@ -1153,6 +1159,7 @@ ToriDraw_TriangleFaceGouraudS1(
             colors_c,
             face_alphas_nullable,
             near_plane_z,
+            camera_cot16,
             offset_x,
             offset_y,
             stride,
@@ -1219,6 +1226,7 @@ ToriDraw_TriangleFaceGouraudSmooth(
     hsl16_t* RESTRICT colors_c,
     alphaint_t* RESTRICT face_alphas_nullable,
     int near_plane_z,
+    int camera_cot16,
     int offset_x,
     int offset_y,
     int stride,
@@ -1244,6 +1252,7 @@ ToriDraw_TriangleFaceGouraudSmooth(
         colors_c,
         face_alphas_nullable,
         near_plane_z,
+        camera_cot16,
         offset_x,
         offset_y,
         stride,

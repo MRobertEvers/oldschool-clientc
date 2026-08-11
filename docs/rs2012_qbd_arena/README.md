@@ -150,6 +150,59 @@ all six demons, but a level-1 QA account died before the final frame was
 captured. That is recorded as a manifest usability issue rather than hidden by
 changing the demons' production damage or granting quest/combat progress.
 
+## 2026-08-10 — QBD HUD sprites lost their transparency to the 232+ alpha rule
+
+The Queen Black Dragon HUD (`rs2012_qbd_hud`) drew every one of its sprites
+inside a solid black rectangle: the healthbar's wing frame, its end pieces and
+the four artefact icons were each boxed in by their own bounding rect.
+
+A dat2 sprite states transparency two ways — palette **index 0**, and a
+per-pixel alpha plane behind `FLAG_ALPHA`. The ported RS2012 assets use the
+plane, and put their clear pixels at palette index 1 (`0x000001`, the "black but
+not transparent" slot) with alpha 0. That is correct for their own era.
+
+OldSchool 232+ does not read it that way. `RSCACHE_SPRITELOAD_FLAG_OPAQUE_INDEX`
+(`3rd/rscache/src/datatypes/dat2_sprites.c`) forces every pixel whose palette
+index is non-zero to alpha `0xFF` *after* the plane is decoded, and
+`manifest_osrs239_rs2012.ini` is `game=oldschool, revision=239`, so the flag is
+on. Every clear pixel came back opaque `0x000001`.
+
+**The era rule is right and stays.** Native osrs239 content is built for it: 33
+packs depend on it (23,379 clear-but-indexed pixels — `wild_ditch_sign_button_2`,
+`side_stone_highlights_*`, `myq5_tomb_buttons_*` would develop holes without it),
+and native UI content carries essentially no partial alpha at all — only four
+packs, one of which is the `hd_water_normal` normal map and the rest 3–8 stray
+pixels. It is the ported assets that cannot express themselves under it.
+
+A 239 cache has no way to say "honour my alpha plane", so the port is re-baked
+down to what the era can state, by
+[`scripts/normalize_ported_sprite_alpha.py`](../../scripts/normalize_ported_sprite_alpha.py):
+
+    alpha <  128  ->  BGRA all-zero  => palette index 0, transparent
+    alpha >= 128  ->  rgb, alpha 255 => opaque
+
+Writing an exactly-zero BGRA is the part that matters: `sprite_read` in
+`cp_decode.c` only skips its nearest-palette match when alpha *and* rgb are both
+zero, so a clear pixel that kept a colour is matched straight back to a non-zero
+index. Once every pixel is either (index 0, alpha 0) or (index != 0, alpha 255)
+the encoder finds the alphas derivable, drops `FLAG_ALPHA` altogether, and the
+sprites render the same under either era — confirmed by reading them back out of
+the built cache with the client's own decode path, where all ten HUD sprites now
+report `FLAG_ALPHA=0` and sprite 13030 recovers 2,014 transparent pixels.
+
+This rewrote 26 packs (13,626 pixels to clear, 3,788 to opaque); only the BMP
+pixel bytes change, `pack.meta` and every header are untouched. The
+`rs2012_material_*` packs in the same directory are 3D texture sources for the
+procedural bake, not the 2D blitter, and are deliberately out of scope.
+
+It is lossy by construction — the soft edges become 1-bit, which is all the era
+can hold — and **it must be re-run after any re-port of the RS2012 assets**:
+
+```sh
+python3 scripts/normalize_ported_sprite_alpha.py          # rewrite
+python3 scripts/normalize_ported_sprite_alpha.py --check   # CI gate, non-zero if stale
+```
+
 ### Reproduction
 
 ```sh
@@ -163,6 +216,38 @@ from the production portal and `::rs2012qbd` gates and bypasses only the 60
 Summoning requirement. The TD manifest invokes `::rs2012tdbypass`; production
 `::rs2012td` remains gated by While Guthix Sleeps. Neither QA command changes
 skills or quest state.
+
+## 2026-08-11 — a from-scratch `mock230-cache-rs2012` rebuild corrupts QBD's awake render
+
+Unrelated to the material/HUD work above: getting the `rs2012_qbd_session.rs2`
+wake-timing constant (see `docs/rs2012_qbd_wakeup/`) to actually take effect
+required rebuilding `mock230-scripts`, which in turn required a from-scratch
+`mock230-cache-rs2012` (delete + full repack of `cache.osrs239.rs2012`) to
+resolve an unrelated compile blocker. That repack's own `cachepack verify`
+step failed real fidelity checks on the first attempt — before any change in
+this session — flagging sprite payloads that changed length and `script 0`
+failing to decode with `trailer=modern`.
+
+Separately and more visibly: after the repack, QBD's post-`npc_changetype`
+idle pose (`rs2012_seq_16715` on `rs2012_qbd_default`) renders as a white,
+jagged mess from the same camera angle that previously showed a clean
+red-eyed dragon head — reproducible across multiple fresh runs, and present
+even with a narrowly-scoped fix to the compile blocker (so it is not that
+fix's own doing). A capture taken earlier in the investigation, against the
+cache as it stood before this session touched it, shows the correct pose at
+the same point in the encounter — the regression tracks with *rebuilding the
+cache*, not with any source edit made this session, and most likely shares a
+root cause with the two `cachepack verify` failures above.
+
+**Not investigated further.** `cache.osrs239.rs2012` is gitignored, so
+nothing in git is broken by this — it only affects a fresh local rebuild. Next
+step for whoever picks this up: reproduce the `cachepack verify` failures in
+isolation (`--assets=sprites,scripts`) against a clean checkout, and check
+whether the RS2012 model/sprite re-port needs the same kind of one-time
+re-bake `scripts/normalize_ported_sprite_alpha.py` did for the HUD (§ above,
+"sprite alpha lost transparency") — a lossy, must-rerun-after-report step is
+exactly the shape of bug that a stale-but-working cache would mask and a
+from-scratch rebuild would expose.
 
 ### Repair checklist
 
@@ -183,6 +268,8 @@ skills or quest state.
 - [x] Validate the complete QBD head and both claw location models in one live
   destination-client frame.
 - [x] Capture corrected QBD arena and QBD/TD model images.
+- [x] Re-bake the ported RS2012 sprite alpha into index-0 transparency so the
+  HUD stops painting a black box behind every sprite.
 - [ ] Reproduce 727 procedural shading pixel-for-pixel; the current HSL
   fallback intentionally prioritises complete visible geometry.
 - [ ] Make the TD visual manifest survive long enough to inspect all six demons
