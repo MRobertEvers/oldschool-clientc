@@ -70,6 +70,7 @@ def main() -> int:
                 "TORIRS_OBJICON_DEBUG": "1",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
+                "TORIRS_NET_CHEAT": "summoning_unlock",
             }
         )
         result = subprocess.run(
@@ -114,7 +115,7 @@ def main() -> int:
     expect("860<<16" in result.stdout, "skill_guide_v2 is absent from the final UI tree")
     expect('text="Familiars"' in result.stdout, "Familiars subsection did not render")
     expect(
-        'text="Spirit wolf - Gold charm, wolf bones, 7 spirit shards"' in result.stdout,
+        'text="Spirit wolf - Attack XP<br>Gold charm, wolf bones, 7 shards"' in result.stdout,
         "live db_find did not render the Spirit wolf row",
     )
     expect(

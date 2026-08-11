@@ -956,6 +956,11 @@ interact_minimenu(
         return 0;
     }
 
+    /* Keep ownership observable after a selected option synchronously hides
+     * the menu in the app. App-level gestures also poll the raw input state,
+     * so visibility alone cannot stop this press propagating to them. */
+    out->minimenu_consumed_pointer = 1;
+
     if( UIMinimenu_UpdateHover(menu, input->curr.mouse_x, input->curr.mouse_y) )
         out->need_redraw = 1;
 

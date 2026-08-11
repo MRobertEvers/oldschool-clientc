@@ -161,20 +161,16 @@ is:
 
 `manifest_osrs239_summoning.ini` selects `cache.osrs239.summoning`, the
 `build_summoning` server scripts, embedded transport, development credentials,
-Soft3D, and the persisted Summoning unlock command. `MOCK230_CACHE` and
-`MOCK230_SCRIPTS` are no longer required. They remain higher-priority overrides
-for diagnostics. The original `manifest_osrs239.ini`, cache, and content trees
-are not modified by this selection.
+Soft3D, level 99 Summoning, the persisted Summoning unlock, all three playable
+familiar pouches, the Clockwork cat, and Spirit wolf infusion supplies.
+`MOCK230_CACHE` and `MOCK230_SCRIPTS` are no longer required. They remain
+higher-priority overrides for diagnostics. The original `manifest_osrs239.ini`,
+cache, and content trees are not modified by this selection.
 
-To receive pouches while testing, enter one of these in chat:
-
-```text
-::summoning_pouch
-::summoning_dreadfowl_pouch
-::summoning_spirit_terrorbird_pouch
-```
-
-Then use the pouch's Summon option and open Equipment → Summoning.
+Nothing is summoned automatically. Use a pouch's real Summon option, then open
+Equipment → Summoning. Use the Clockwork cat's real item action to test the pet
+path, or take the supplied charm, blank pouch, wolf bones, and shards to the
+Summoning obelisk to test infusion.
 
 ## Cache repacking
 

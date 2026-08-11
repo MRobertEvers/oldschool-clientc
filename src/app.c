@@ -1397,7 +1397,8 @@ app_worldmap_surface_live(struct App* app)
 static void
 app_worldmap_drag_tick(
     struct App* app,
-    struct LibToriRS_Input* input)
+    struct LibToriRS_Input* input,
+    int pointer_consumed)
 {
     int mouse_x = input->curr.mouse_x;
     int mouse_y = input->curr.mouse_y;
@@ -1428,7 +1429,8 @@ app_worldmap_drag_tick(
      * closing the map also teleported the player to whatever tile the X was
      * drawn over.
      */
-    if( !app->worldmap_drag_active && !app->interact.minimenu.visible &&
+    if( !app->worldmap_drag_active && !pointer_consumed &&
+        !app->interact.minimenu.visible &&
         app->hover_com_id < 0 && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
         mouse_x >= app->worldmap_box_x && mouse_x < app->worldmap_box_x + app->worldmap_box_w &&
         mouse_y >= app->worldmap_box_y && mouse_y < app->worldmap_box_y + app->worldmap_box_h )
@@ -12245,14 +12247,16 @@ app_inv_drag_ghosting(struct App const* app)
 static void
 app_inv_drag_tick(
     struct App* app,
-    struct LibToriRS_Input* input)
+    struct LibToriRS_Input* input,
+    int pointer_consumed)
 {
     int mx = input->curr.mouse_x;
     int my = input->curr.mouse_y;
 
     /* Never arm while the right-click popup is open: its option rows overlap
      * the grid and the reference routes those clicks through the menu first. */
-    if( app->inv_drag_com_id < 0 && !app->interact.minimenu.visible &&
+    if( app->inv_drag_com_id < 0 && !pointer_consumed &&
+        !app->interact.minimenu.visible &&
         LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         struct UITreeObjCell cell;
@@ -13844,7 +13848,8 @@ App_RunOnce(
          * the chat line -- otherwise they are left for the debug camera/world
          * hotkeys. Modal prompts (add-friend name, amount dialog) always
          * capture regardless of focus. */
-        if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+        if( !out.minimenu_consumed_pointer &&
+            LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
             app->chat_input_active =
                 app_point_in_chat(app, input->curr.mouse_x, input->curr.mouse_y);
 
@@ -13990,7 +13995,8 @@ App_RunOnce(
             int rx = 0;
             int ry = 0;
             int left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
-            if( left_held && app->slots.chat_com_id == -1 &&
+            if( left_held && !out.minimenu_consumed_pointer &&
+                app->slots.chat_com_id == -1 &&
                 app_chat_region(app, &rx, &ry, NULL) )
             {
                 struct RS_ChatFilters filters = app_chat_filters(app);
@@ -14044,8 +14050,8 @@ App_RunOnce(
      * the same press cannot also spawn something. */
     app_ui_hotkeys(app, input);
     app_world_hotkeys(app, input, &out);
-    app_inv_drag_tick(app, input);
-    app_worldmap_drag_tick(app, input);
+    app_inv_drag_tick(app, input, out.minimenu_consumed_pointer);
+    app_worldmap_drag_tick(app, input, out.minimenu_consumed_pointer);
 
     /* Idle timer (reference IDLE_TIMER after ~90s of no input). */
     if( input->key_event_count > 0 || input->curr.mouse_button_down[TORIRSM_LEFT] ||

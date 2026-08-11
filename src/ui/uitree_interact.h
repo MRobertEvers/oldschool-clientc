@@ -119,6 +119,10 @@ struct UIInteractOut
     int minimenu_select;
     /** Menu was closed by clicking away this frame. */
     int minimenu_closed;
+    /** The minimenu owned pointer input for this frame. This remains set when
+     * selecting an option hides the menu before app-level pointer handlers
+     * run, preventing that same press from reaching content underneath. */
+    int minimenu_consumed_pointer;
     /** Left click landed on the minimap widget (chrome gesture like the tab
      * icons — the node has no component id): app maps it to a walk. */
     int minimap_click;

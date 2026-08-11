@@ -494,6 +494,10 @@ def main() -> int:
                 "summoning_cohort_dreadfowl.npc",
                 "summoning_cohort_dreadfowl.obj",
                 "summoning_cohort_dreadfowl.seq",
+                # The modern skill guide is shared UI metadata. It may point
+                # at an admitted pouch without becoming part of that pouch's
+                # model/sequence closure.
+                "summoning_guide.dbrow",
             },
             f"Dreadfowl records escaped their exact config closure: {sorted(source_config_tokens)}",
         )
@@ -605,6 +609,7 @@ def main() -> int:
                         "summoning_cohort_dreadfowl.npc",
                         "summoning_cohort_dreadfowl.obj",
                         "summoning_cohort_dreadfowl.seq",
+                        "summoning_guide.dbrow",
                     },
                     "feature-on stage admitted a Dreadfowl config record outside the exact closure",
                 )
