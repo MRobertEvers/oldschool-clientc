@@ -299,6 +299,12 @@ torirs_model_move_from_rscache(
         src->face_priorities = NULL;
     }
 
+    /* OB_TORI per-face kernel routing, moved rather than copied: the rscache
+     * model is freed straight after this and the arrays above are handed over
+     * the same way. NULL for every stock model. */
+    dst->face_kernels = src->face_kernels;
+    src->face_kernels = NULL;
+
     dst->model_priority = src->model_priority;
 
     int tfc = src->textured_face_count;

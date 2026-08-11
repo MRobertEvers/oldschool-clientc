@@ -226,7 +226,9 @@ tex_span_detail_base(const struct TexSpanTint* RESTRICT tint, int shade)
         lightness = 0;
     if( lightness > 0x7F )
         lightness = 0x7F;
-    return (uint32_t)ToriDraw_Hsl16ToRgb((uint16_t)(tint->chroma | lightness));
+    /* The table directly: the index is a real hsl16, so the clamping
+     * interpolation helper beside it would only add a branch. */
+    return (uint32_t)g_hsl16_to_rgb_table[(tint->chroma | lightness) & 0xFFFF];
 }
 
 /**

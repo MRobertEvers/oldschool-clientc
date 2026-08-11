@@ -198,14 +198,75 @@ its fuzz into valid `.ob3`s — but its measured advantage does not yet survive
 contact with the real sorter, and a tool that ships on its own say-so against
 that evidence would be repeating the mistake this file exists to prevent.
 
+### 2026-08-10 — the stock-kernel judge (design revision)
+
+The runs above were judged by an internal painter model, and its known drift
+from the engine was the record's biggest caveat. Revised as instructed: **the
+judge now uses only stock kernels.** Default; `--internal-judge` keeps the old
+evaluator for A/B-ing the judges themselves.
+
+Design:
+
+- **Reference** = the model rendered through the stock depth-tested kernels
+  (`TORIDRAW_MODEL_FLAG_ZBUFFER`), once per view, cached. The target picture.
+- **Candidate** = the same projection through the stock painter path —
+  `RenderModel1Project / 2SortFaces / 3Raster` with the candidate bands packed
+  into `face_priorities` — the exact client pipeline, flexible-priority splice
+  and all.
+- **Objective** = differing pixels between the two colour buffers. Literally
+  what a player can see. Coplanar same-colour disagreements cost nothing here,
+  exactly as they cost nothing on screen.
+- **Efficiency**: one `ToriDraw_Scene` per OpenMP worker (~15 MB each, capped
+  at 8), model shared read-only during a pass, priorities packed serially
+  between passes. The stock kernels are the production SIMD rasterizer; a full
+  fast-rank + 2,500-iteration anneal at 48 views × 288 px finished in ~20
+  minutes.
+- Framing is the proven viewer's (default projection scale, its distance
+  formula) with a far-plane clamp at 7,000 — two cleverer framings fell to
+  engine culls the viewer never hits. The judge's job is to be the engine, so
+  it frames like the harness known to agree with the engine.
+
+Three faults found on the way, each of which silently produced an empty world
+(all views culled, every candidate scoring 0):
+missing `ToriDraw_Init()` (rotations multiply by unbuilt trig tables — the
+projected centre lands exactly on the origin), a missing bounds cylinder on
+the merged model (`CULL_ERROR`), and tile-derived camera distances sailing
+past the 7,500-unit far cull. A judge that can silently score everything
+perfect is the most dangerous component in the tool; the `ref_covered` line it
+now prints exists so an empty reference can never pass unnoticed again.
+
+**Run: QBD default form, stock judge, 48 views @ 288 px:**
+
+```
+strategy                            wrong  of drawn  bands
+depth sort (no bands)               82238   21.744%      1   <- chosen
+climb, floor 400                    82238   21.744%      1
+climb, floor 150                    85076   22.494%      3
+climb, floor 10                    101666   26.881%      5
+climb, floor 40                    102061   26.985%      3
+as shipped (inherited)             108875   28.787%      8
+```
+
+Slow search (2,500 iters, same views): 82,238 → **81,855** (−0.5%), 36
+features moved, adopted — a genuine, engine-verified improvement, and an
+honest measure of how little geometry fuzz buys on this model when the judge
+cannot be flattered.
+
+Read against the earlier internal-judge runs, the picture is now consistent
+end to end: the engine confirms the strip is the win (inherited priorities
+cost 7 points of visible difference), confirms priorities beyond that are
+nearly exhausted on this model, and prices the fuzz at half a percent rather
+than the 12.8% the internal judge claimed. The percentages are higher than the
+old metric's because this one counts *every* differing pixel — including
+harmless equal-depth winner swaps and gouraud shading shifts — not only
+pixels provably behind the true surface. Stricter metric, same verdict.
+
 ### Known open issues
 
-- **Evaluator vs engine magnitude disagreement.** This tool's internal painter
-  and the real `sort_face_draw_order` agree on *ordering* of candidates but
-  not on magnitudes (the viewer scored the floor-40 climb ≈4.2% where this
-  evaluator scores it ≈14%). Until reconciled — diff the two draw orders face
-  by face on one view — treat the ranking as trustworthy and the absolute
-  percentages as internal units.
+- **Evaluator vs engine magnitude disagreement — CLOSED** by the stock-kernel
+  judge above: the engine now scores every candidate itself. The internal
+  painter remains available (`--internal-judge`) purely as a fast proposer
+  diagnostic.
 - **Animation axis dark on this lane** (framemap codec, above).
 - **The smoke test showed the fast table can differ run to run** with sampling
   density; the seeds and densities in this record are what the numbers mean.

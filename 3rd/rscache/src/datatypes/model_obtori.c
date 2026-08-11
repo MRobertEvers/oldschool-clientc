@@ -1,4 +1,4 @@
-#include "obtori.h"
+#include "model_obtori.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -105,6 +105,14 @@ ObTori_NewDecode(const void* data, int size, int face_count)
         {
             ObTori_Free(model);
             return NULL;
+        }
+
+        /* face_count < 0 is the payload-only probe a caller uses to reach the
+         * OB3 and learn the real face count before asking for the sections. */
+        if( face_count < 0 )
+        {
+            offset += 8 + payload;
+            continue;
         }
 
         switch( kind )

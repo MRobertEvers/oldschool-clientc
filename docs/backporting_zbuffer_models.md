@@ -16,6 +16,194 @@ after pictures.
 
 ---
 
+## 0. Quickstart: the automatic port
+
+Everything below this section is the manual procedure and the reasoning behind
+it. Since it was written, the tool has grown an automatic mode that does the
+whole loop itself — propose priority assignments, score every one **through
+the engine's own kernels**, anneal geometry on top, and write the winner. If
+you just want to port a model, start here; read the rest when a result
+surprises you.
+
+### What you need
+
+The `.ob3` files of one npc **form** — every model the config names
+(`model1`, `model2`, ...), because the client merges them before drawing and
+priorities must be chosen across the merge. Nothing else: no cache, no client.
+
+### Run it
+
+```sh
+make -C src rs2012-face-priorities      # builds with OpenMP
+
+src/build_win64_opt/rs2012_face_priorities \
+    --in  lane/head.ob3  --in  lane/body.ob3 \
+    --out out/head.ob3   --out out/body.ob3 \
+    --judge-tile 288 \
+    --slow 2500 --slow-seed 0x51F0D5
+```
+
+Inputs are never written; each `--out` receives the slice of the result for
+the `--in` at the same position. Drop `--slow ...` for the fast rank only
+(seconds); with it the annealer refines bands and vertex fuzz on top
+(minutes — QBD-sized model, 48 views @ 288 px, 8 threads: ~20 min).
+
+Flags that matter:
+
+| flag | meaning |
+|---|---|
+| `--views N --pitches P` | camera sampling; pitches stay inside the client's own pitch clamp |
+| `--judge-tile N` | render size for the stock-kernel judge (288 is a good default) |
+| `--slow N` | annealing iterations; omit to skip the slow search |
+| `--slow-max-offset U` | vertex fuzz limit in world units (default 6) |
+| `--slow-seed S` | makes the run replayable; always printed |
+| `--internal-judge` | old approximate evaluator, only for A/B-ing judges |
+
+### Read the output
+
+```
+judge:    stock kernels, 48 views @ 288 px, 8 thread(s), 378211 reference px
+```
+
+**Check `reference px` first.** Zero means the judge saw an empty world and
+every candidate will score perfect; the run is void. (Three separate bugs
+produced exactly that during development — it is the failure mode of this
+kind of tool.)
+
+```
+candidates, ranked by pixels left behind the z-buffer:
+strategy                            wrong  of drawn  bands
+depth sort (no bands)               82238   21.744%      1   <- chosen
+...
+as shipped (inherited)             108875   28.787%      8
+```
+
+The ranking is the argument. "Depth sort (no bands)" is the stripped model —
+if nothing beats it, that IS the result and the tool says so. "As shipped" is
+what the input carries today; on imported z-buffer models expect it to rank
+last. The slow lines then show what annealing bought; it adopts only strict
+improvement, so a `+0.0%` result means the fast winner shipped untouched.
+
+The percentages are *all* differing pixels between the painter render and the
+z-buffered render — including harmless shading shifts — so they run higher
+than a "provably behind" metric would. Compare candidates against each other,
+not against numbers from other tools.
+
+### Verify and ship
+
+```sh
+# see it: before/after sheets + sort-error mask through the same stock path
+src/build_win64_opt/rs2012_model_view --model out/head.ob3 --model out/body.ob3 \
+    --out after.bmp --score --bg 202430
+
+# wire into the cache as a SEPARATE npc (template; edit ids and names):
+#   tools/rs2012_qbd_register_authored.py
+# then re-pack:  make -C src mock230-cache-rs2012
+```
+
+The register script pattern keeps the original npc untouched and adds the
+ported one beside it, so the two can be A/B'd in the client.
+
+### Known limits
+
+- **Animations**: `--cache` + `--frames` samples poses too, but only if the
+  lane's animation assets decode under the destination cache (§Rule 2a — on
+  the rs2012 lane they currently do not; the tool detects the collapse and
+  refuses rather than ranking garbage).
+- The judge strips textures (it carries no texture map); a heavily textured
+  model is judged on geometry and flat colour.
+- Run record and design rationale: [`SLOW_SEARCH_BACKPORT_MODELS.md`](../SLOW_SEARCH_BACKPORT_MODELS.md).
+
+### 0.1 Worked log: the QBD, end to end (2026-08-10)
+
+Every command of one real port, run in order, with what each one proved. The
+goal: run the automatic tool on the QBD and make its output the model the
+encounter actually uses.
+
+**1. The port itself** — fast rank + 2,500-iteration anneal, stock-kernel
+judge, ~20 min:
+
+```sh
+make -C src rs2012-face-priorities
+src/build_win64_opt/rs2012_face_priorities \
+    --in  OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3 \
+    --in  OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3 \
+    --out docs/rs2012_qbd_priorities/slow/rs2012_model_70260.ob3 \
+    --out docs/rs2012_qbd_priorities/slow/rs2012_model_69766.ob3 \
+    --views 12 --pitches 4 --judge-tile 288 --slow 2500 --slow-seed 0x51F0D5
+# log: docs/rs2012_qbd_priorities/slow/qbd_default_stock.log
+# result: depth-sort base 82,238 wrong px -> annealed 81,855; ~365 faces banded
+```
+
+**2. Into the encounter's model ids.** The encounter script
+(`rs2012_qbd_session.rs2`) spawns npcs 25000/25003, which name models
+110000/110001. Copy the outputs into the lane under new names and repoint
+those two ids — the original `.ob3` files are never touched, and one line per
+id reverts it:
+
+```sh
+cp docs/rs2012_qbd_priorities/slow/rs2012_model_70260.ob3 \
+   OSRS-Content/.../rs2012_qbd_td/rs2012_model_70260_authored.ob3   # likewise 69766
+# in ported/rs2012_qbd_td/pack/7_models.pack:
+#   110000=ported/rs2012_qbd_td/rs2012_model_70260_authored
+#   110001=ported/rs2012_qbd_td/rs2012_model_69766_authored
+make -C src mock230-cache-rs2012
+# exits non-zero at its final verify step (pre-existing sprites/scripts
+# length-check failure, present before this work); the cache itself is
+# written and passes mock230-cache-check.
+```
+
+**3. Proof the encounter uses the ported model.** Three links, each checked
+against the packed cache the encounter manifest boots
+(`manifest_osrs239_rs2012.ini` → `cache.osrs239.rs2012`):
+
+```sh
+# npc -> model id (from the packed cache, not the source tree)
+cachepack unpack --cache cache.osrs239.rs2012 --rev osrs239 --types npc ...
+#   [npc_25000] model1=110000 model2=110001   (same for 25003)
+
+# model id -> bytes: walk idx7's sector chain and byte-compare groups
+#   110000 == 110660 (authored): True (30,277 bytes)
+#   110001 == 110661 (authored): True (7,018 bytes)
+```
+
+The A/B npc (`QBD_Prioritized_Authored`, 25010 → 110660/110661) carries the
+identical bytes, so original-vs-ported comparison in the client remains
+possible by spawning 25010 — the *original* bytes still exist on disk at
+their old paths, only the id mapping moved.
+
+**4. Rendering the encounter live — diagnosed, currently blocked.** The
+attempt and what it found, because the next person will hit the same wall:
+
+```sh
+MOCK230_STAFF_LEVEL=2 MOCK230_VERBOSE=1 TORIRS_MAX_FRAMES=600 \
+TORIRS_SIM_CMD="150,rs2012qbdmanifest" \
+TORIRS_BMP_SERIES="build/qbd_encounter,150,10,45" \
+  ./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --offline
+```
+
+- `MOCK230_STAFF_LEVEL=2` is required — without it the login never advertises
+  staff and `::` commands cannot reach `handle_cheat()` at all
+  (`mock230_session.c:626`).
+- The command sends (`sim_cmd: frame 150 sent`), the server handler exists
+  (`mock230_world.c:handle_cheat`), the debugproc is in the committed
+  `script.dat` — and it still does not dispatch, because **`script.dat` is
+  stale**: `summoning_spirit_wolf.rs2` is newer than the pack, and the server
+  refuses stale packs by design (`mock230_scripts.c:188` documents a full
+  session lost to exactly this).
+- Rebuilding the pack (`make -C src mock230-scripts`) fails in the same
+  summoning file — `unknown variable '%content_restrict_summoning_serverside'`,
+  a varbit declared in the summoning lane's `configs/` which the compiler is
+  not handed. That lane is mid-change (its own recent commits); fixing its
+  symbol flow is its owner's call, not this port's.
+
+So: the cache-level chain is proven byte-exact; the on-screen encounter shot
+waits on the summoning lane compiling again (or its `script.dat` being
+refreshed by its owner). Nothing in this port blocks on it, and nothing in
+this port caused it.
+
+---
+
 ## 1. What actually breaks, and why
 
 A depth-buffered renderer needs no draw order. Its content is therefore allowed
@@ -324,15 +512,19 @@ two inputs at different versions land at different scales.
 They often are not, and pretending otherwise is how a day disappears. Three
 escapes, in increasing order of cost:
 
-**`--bulk-flex`.** Put the unpromoted bulk at priority 10 instead of band 0. A
-feature left in a hard band is then no longer pinned in front of everything:
-the sorter splices the flexible run around it at the averaged depth of the
-occupied hard bands, so the feature sorts *as a unit* at its own depth — over
-the far half of the surface it sits on and under the near half. That is what a
-claw ring round a neck actually wants, and no arrangement of hard bands can
-express it. On the QBD it measured slightly worse than hard bands (4.87% vs
-4.16%) so it did not ship, but for a model whose problem is one part clasped
-around another it is the right shape of answer. Measure it; it is one flag.
+**The flexible band (priorities 10/11).** Put the unpromoted bulk at priority
+10 instead of band 0 and a feature left in a hard band is no longer pinned in
+front of everything: the sorter splices the flexible run around it at the
+averaged depth of the occupied hard bands, so the feature sorts *as a unit* at
+its own depth — over the far half of the surface it sits on and under the near
+half. That is what a claw ring round a neck actually wants, and no arrangement
+of hard bands can express it. The old `--bulk-flex` flag that hand-authored
+this is gone — its candidates were being scored by the internal evaluator,
+which does not model the splice, and a candidate ranked under the wrong rule
+is worse than no candidate. Now that the judge runs the stock kernels the
+splice is scored correctly, so the right way to revisit this is to widen the
+slow search's band range to 0–10 and let the annealer discover where flexible
+pays. Small change, measurable answer; it has not been done yet.
 
 **`TORIDRAW_MODEL_FLAG_ZBUFFER`.** The renderer can depth-test a model
 per pixel. It is opt-in per *model*, not per scene, and resetting the buffer

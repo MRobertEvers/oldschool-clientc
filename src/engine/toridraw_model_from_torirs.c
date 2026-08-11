@@ -163,6 +163,14 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
         dst, textured_n_coordinate, src->textured_n_coordinate, src->textured_face_count);
     TORIDRAW_MODEL_COPY(dst, face_texture_coords, src->face_texture_coords, src->face_count);
 
+    if( src->face_kernels && src->face_count > 0 )
+    {
+        /* OB_TORI routing. Copied, like everything else here - the ToriRS model
+         * outlives this call. */
+        dst->face_kernels = ToriDraw_BufCopy(src->face_kernels, (size_t)src->face_count, 1);
+        if( !dst->face_kernels )
+            goto fail;
+    }
     if( src->face_priorities && src->face_count > 0 )
     {
         size_t nbytes = (size_t)((src->face_count + 1) / 2);

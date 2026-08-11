@@ -76,6 +76,9 @@ struct ToriRS_Model
     gc_alphaint_t* face_alphas;
     int* face_infos;
     uint8_t* face_priorities;
+    /* OB_TORI per-face span-kernel routing, or NULL for every stock model.
+     * See 3rd/rscache/src/datatypes/model_obtori.h. */
+    uint8_t* face_kernels;
     /* Uniform priority for models that carry no per-face array (header priority != 255). Only
      * meaningful when merging: the merged model's faces inherit it, which is what keeps a loc's
      * parts layered (e.g. a statue drawn over the plinth it stands on). */

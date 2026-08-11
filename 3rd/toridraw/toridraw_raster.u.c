@@ -92,6 +92,11 @@ struct ToriDrawModelRasterContext
      * modulated texture can get the surface colour from. */
     hsl16_t* face_colors;
 
+    /* OB_TORI per-face kernel routing; NULL for every stock and OB3 model.
+     * See src/engine/proctex/obtori.h. */
+    uint8_t* face_kernels;
+    uint8_t* face_detail_strength;
+
     /* Depth-tested raster for this model. NULL unless the model carries
      * TORIDRAW_MODEL_FLAG_ZBUFFER and the scene has a z-buffer; when set, every
      * face of the model routes to the zbuf family instead of the stock kernels.
@@ -536,6 +541,48 @@ ToriDraw_RasterModelFace(
             }
         }
 
+        /*
+         * OB_TORI: a face may name its own kernel, and it wins over the
+         * texture's flags.
+         *
+         * The face is deliberately the winner. A texture cannot know whether
+         * this particular triangle is a cutout card, whose empty region must
+         * show the scene behind it, or a decal lying on a surface, which must
+         * stay opaque - that is a property of the geometry the triangle belongs
+         * to. Non-stock models only: the array is NULL for everything else, so
+         * this is a NULL test per face on the stock path. Values are
+         * enum ObToriFaceKernel (src/engine/proctex/obtori.h).
+         */
+        if( ctx->face_kernels && ctx->face_kernels[face] )
+        {
+            switch( ctx->face_kernels[face] )
+            {
+            case 1: /* TRANSPARENT: stock colour key */
+                texture_alpha_blended = 0;
+                texture_modulate = 0;
+                texture_detail = 0;
+                texture_opaque = 0;
+                break;
+            case 2: /* ALPHA: coverage, untinted */
+                texture_alpha_blended = 1;
+                texture_modulate = 0;
+                texture_detail = 0;
+                break;
+            case 3: /* MODULATE: coverage, tinted by the face */
+                texture_alpha_blended = 1;
+                texture_modulate = 1;
+                texture_detail = 0;
+                break;
+            case 4: /* DETAIL: opaque, darkens the face's own colour */
+                texture_alpha_blended = 0;
+                texture_modulate = 0;
+                texture_detail = 1;
+                break;
+            default:
+                break;
+            }
+        }
+
         ctx->cache_texture_id = texture_id;
         ctx->cache_texels = texels;
         ctx->cache_texture_size = texture_size;
@@ -878,7 +925,7 @@ ToriDraw_RasterModelFace(
                 {
                     int chroma = (int)ctx->face_colors[face] & 0xFF80;
                     tex_span_tint_pack(
-                        ToriDraw_Hsl16ToRgb((uint16_t)(chroma | TORIDRAW_MODULATE_LIGHTNESS)),
+                        g_hsl16_to_rgb_table[(chroma | TORIDRAW_MODULATE_LIGHTNESS) & 0xFFFF],
                         &face_tint);
                     face_tint.detail = texture_detail ? 1 : 0;
                     face_tint.chroma = chroma;
@@ -1187,6 +1234,8 @@ context_from_handle(
         ctx->face_n_coordinate_nullable = m->textured_n_coordinate;
         ctx->num_textured_faces = m->textured_face_count;
         ctx->face_colors = m->face_colors;
+        ctx->face_kernels = m->face_kernels;
+        ctx->face_detail_strength = m->face_detail_strength;
         ctx->colors_a = m->face_colors_a;
         ctx->colors_b = m->face_colors_b;
         ctx->colors_c = m->face_colors_c;

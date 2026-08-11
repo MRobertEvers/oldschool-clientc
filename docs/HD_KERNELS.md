@@ -161,7 +161,76 @@ of its materials classify as masks or detail maps, so no face on it reaches a
 new kernel. A subject that does not change is worth keeping in the sheet — it
 says the kernels are gated and not a global filter.
 
-## 4. Reproducing
+## 4. OB_TORI — choosing the kernel per face
+
+Everything above routes a face by its TEXTURE's flags, and that is the last
+thing still wrong. The same mask is used on this lane both as a cutout card,
+whose empty region must show the scene behind it, and as a decal lying on solid
+skin, where it must not. 13 of the 39 masks are used both ways, so no
+per-material flag can be right for all of their faces.
+
+That is a question about geometry, and OB3 has nowhere to record the answer: one
+`face_textures[f]`, one `face_texture_coords[f]`, and no per-face kernel field.
+So the port writes a **non-stock container**,
+[`src/engine/proctex/obtori.h`](../src/engine/proctex/obtori.h):
+
+```
+offset  size  field
+     0     8  magic "OB_TORI\0"
+     8     2  version
+    10     2  section count
+    12     4  size of the embedded OB3 payload
+    16     n  the OB3 bytes, verbatim
+  16+n        sections: u16 kind, u16 flags, u32 size, payload
+```
+
+The magic goes **first**, and the OB3 rides inside as a payload. An OB3 file ends
+in a trailer read backwards from EOF, so appending to one silently breaks every
+existing reader; this way a stock decoder handed an OB_TORI fails on the magic
+instead of misreading it. Unknown section kinds are skipped by size, so an old
+reader degrades to plain OB3 rather than failing. Sections defined today: per-face
+kernel id, per-face detail strength, and a per-face second texture layer — the
+last defined so the layered case has an encoding, and written only where the
+source actually has two layers, which is nowhere yet.
+
+### How the port decides
+
+`rs2012_qbd_obtori` builds an edge hash over the whole mesh and asks one
+question per face:
+
+- **every edge shared** with another face → the face is part of a closed skin,
+  so its texture is a decal on that skin → `DETAIL` (opaque, no holes, no
+  dependence on draw order)
+- **any free edge** → the face is the rim of a card — a frill, a fringe, a tuft
+  modelled as a couple of triangles — so its alpha is a silhouette and has to
+  cut → `ALPHA` or `MODULATE`
+
+On the QBD's main model, 6,863 faces: **6,387 detail, 146 modulate, 330
+default**. So the overwhelming majority of mask faces are skin, and were
+previously being drawn see-through against whatever the painter happened to lay
+down first. That is the striping.
+
+[qbd_head_obtori_sheet.png](hd_kernels/images/qbd_head_obtori_sheet.png) — the
+same geometry and the same textures, routed per texture and then per face,
+changing **4.1% of pixels**, and the diff mask shows the change landing exactly
+on the frill and crest cards rather than scattered over the model.
+
+### Where it is wired
+
+`ObTori_*` decode → `ToriDraw_Model::face_kernels` → a per-face switch in
+[`toridraw_raster.u.c`](../3rd/toridraw/toridraw_raster.u.c) that overrides the
+texture's flags. The array is NULL for every stock and OB3 model, so the stock
+path costs one NULL test per face. `ToriDraw_ModelNewMerge` carries it, which is
+not optional: an npc's model1 and model2 are merged before they are drawn, and
+the first version of this dropped the routing there and rendered identically to
+OB3 — 0.0% changed, which is how the omission was caught.
+
+**Not yet in the client.** The viewer reads OB_TORI; the packed-cache path does
+not, because a new container has to travel through cachepack and the model
+loader to get there. The renderer and the format are done and demonstrated; the
+cache round-trip is the remaining step.
+
+## 5. Reproducing
 
 ```sh
 # assets: classify and flag the materials (writes the content tree)
@@ -187,7 +256,7 @@ $env:TORIDRAW_TEX_LEGACY="1"   # same command again for the before
 which is how you confirm faces are reaching a new kernel at all, and
 `raster_tex_skip` if a texture never arrived.
 
-## 5. Limits
+## 6. Limits
 
 - **The detail kernel is a rescue, not a port.** It makes an HD program
   contribute plausible detail instead of garbage; it does not make it the

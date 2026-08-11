@@ -11364,7 +11364,7 @@ app_world_camera_follow(struct App* app)
     {
         static int resolved = 0;
         static int have = 0;
-        static int cam_yaw = 0, cam_pitch = 0, cam_zoom = 0;
+        static int cam_yaw = 0, cam_pitch = 0, cam_zoom = 0, cam_spin = 0;
         if( !resolved )
         {
             char const* spec = getenv("TORIRS_ORBIT_CAM");
@@ -11373,9 +11373,15 @@ app_world_camera_follow(struct App* app)
             {
                 cam_pitch = -1;
                 cam_zoom = -1;
-                have = sscanf(spec, "%d,%d,%d", &cam_yaw, &cam_pitch, &cam_zoom) >= 1;
+                have = sscanf(spec, "%d,%d,%d,%d", &cam_yaw, &cam_pitch, &cam_zoom,
+                              &cam_spin) >= 1;
             }
         }
+        /* A fourth field spins the camera by that many yaw units per frame.
+         * Finding the angle a subject sits at otherwise costs one boot per
+         * guess; with a spin and TORIRS_BMP_SERIES a single boot returns a
+         * filmstrip all the way round. */
+        cam_yaw += cam_spin;
         if( have )
         {
             app->orbit_yaw = cam_yaw & 0x7ff;

@@ -135,6 +135,21 @@ struct ToriDraw_Model
     uint8_t model_priority;
     hsl16_t* face_colors;
 
+    /*
+     * OB_TORI per-face kernel routing. NULL for every stock model, and for
+     * every OB3 one: only the non-stock OB_TORI container carries it (see
+     * src/engine/proctex/obtori.h).
+     *
+     * Kernel choice is otherwise a property of the texture, which cannot
+     * express a material used as a cutout card on one face and as a decal on
+     * another - a distinction that belongs to the geometry. Where this array is
+     * present and non-zero for a face, it overrides the texture's flags.
+     * Values are enum ObToriFaceKernel.
+     */
+    uint8_t* face_kernels;
+    /** OB_TORI: per-face scaling of the detail kernel, 255 = full. */
+    uint8_t* face_detail_strength;
+
     int textured_face_count;
     faceint_t* textured_p_coordinate;
     faceint_t* textured_m_coordinate;

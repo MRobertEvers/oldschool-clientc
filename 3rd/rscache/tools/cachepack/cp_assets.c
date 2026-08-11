@@ -1514,8 +1514,13 @@ import_one(
              * than hidden. (I added the codec extensions here and had to take them
              * back out — the exclusion is the design, not an oversight.)
              */
+            /* "obtori" is a NON-STOCK container (3rd/rscache/src/datatypes/
+             * model_obtori.h). It is sniffed so an asset NAMED for the variant
+             * resolves, and it is listed AFTER the stock model extensions so it
+             * can never silently take a stock model's slot: the two ship side
+             * by side under separate ids and the client chooses at runtime. */
             static const char* const SNIFFED[] = { "png", "jpg", "gif", "mid",
-                                                   "ogg", "ob2", "ob3", "model" };
+                                                   "ogg", "ob2", "ob3", "model", "obtori" };
             char path[1700];
 
             snprintf(path, sizeof(path), "%s.%s", base, asset->ext);

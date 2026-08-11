@@ -1318,6 +1318,378 @@ slow_eval(struct geometry* g2, const int* band, struct slowctx* ctx)
     return total;
 }
 
+
+/* ---------------------------------------------------- the stock judge ----- */
+
+/*
+ * Score candidates with the ENGINE, not with a model of the engine.
+ *
+ * Everything above this line approximates the sorter: a painter that orders
+ * strictly by (band, depth). The real sorter does more -- it splices flexible
+ * priorities into the fixed run at three depth averages, walks depth buckets,
+ * biases by the model's depth extent -- and the approximation was measured
+ * drifting from it (a candidate the internal judge scored 12.8%% better tied
+ * under the engine). This judge closes that gap by construction:
+ *
+ *   reference  = the model rendered through the STOCK depth-tested kernels
+ *                (TORIDRAW_MODEL_FLAG_ZBUFFER), once per view, cached;
+ *   candidate  = the same projection rendered through the STOCK painter path
+ *                (RenderModel1Project / 2SortFaces / 3Raster) with the
+ *                candidate bands packed into face_priorities;
+ *   objective  = differing pixels between the two colour buffers.
+ *
+ * Pixel colour difference is deliberately the metric: it is literally the
+ * thing a player can see. Two coplanar faces of the same colour disagreeing
+ * about a pixel costs nothing here, exactly as it costs nothing on screen.
+ *
+ * Cost: a full stock render per view per candidate. That is the price of
+ * judging with the production kernels, and it is paid with threads -- one
+ * scene per OpenMP worker, the model shared read-only during a pass.
+ */
+struct stockview
+{
+    int yaw;
+    int pitch;
+    toripixel_t* ref; /* the z-buffered render: the target picture */
+};
+
+struct stockjudge
+{
+    struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd;
+    uint8_t* packed;             /* candidate priorities, nibble-packed */
+    vertexint_t* orig_x;         /* post-recentre bind pose, for the fuzz */
+    vertexint_t* orig_y;
+    vertexint_t* orig_z;
+    struct ToriDraw_Scene** scenes; /* one per thread */
+    toripixel_t** pixels;           /* one tile buffer per thread */
+    struct stockview* views;
+    int view_count;
+    int thread_count;
+    int tile;
+    int distance;
+    int proj_scale;
+    long ref_covered;
+};
+
+static void
+stock_render(
+    struct stockjudge* j,
+    struct ToriDraw_Scene* scene,
+    toripixel_t* pixels,
+    int yaw,
+    int pitch)
+{
+    struct ToriDraw_ViewPort vp = {
+        .width = j->tile,
+        .height = j->tile,
+        .stride = j->tile,
+        .x_center = j->tile / 2,
+        .y_center = j->tile / 2,
+        .clip_left = 0,
+        .clip_top = 0,
+        .clip_right = j->tile,
+        .clip_bottom = j->tile,
+    };
+    /* Framed exactly as the proven viewer frames: default projection scale and
+     * the distance formula the contact sheets were rendered with. Clever
+     * framings tried here (distance from tile; fixed distance + scaled
+     * projection) both fell to a cull the viewer never hits -- past the
+     * 7,500-unit far plane in one case, an AABB miss in the other. The judge's
+     * job is to be the engine, so it frames like the one harness known to
+     * agree with the engine. */
+    struct ToriDraw_Camera camera = {
+        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
+        .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+        .near_plane_z = 50,
+    };
+    struct ToriDraw_Position pos = {
+        .x = 0, .y = 0, .z = j->distance, .pitch = pitch & 2047, .yaw = yaw & 2047,
+    };
+
+    memset(pixels, 0, (size_t)j->tile * (size_t)j->tile * sizeof(toripixel_t));
+    {
+        int const cull = ToriDraw_RenderModel1Project(j->hnd, scene, &pos, &vp, &camera);
+        int sorted = 0;
+        if( cull != TORIDRAW_CULL_VISIBLE ||
+            (sorted = ToriDraw_RenderModel2SortFaces(j->hnd, scene)) <= 0 )
+        {
+            if( getenv("STOCK_DEBUG") )
+                fprintf(stderr,
+                        "stock_render: yaw %d pitch %d cull=%d sorted=%d dist=%d "
+                        "scale=%d cyl=%d..%d,%d..%d radius=%d bottom=%d top=%d\n",
+                        pos.yaw, pos.pitch, cull, sorted, j->distance, j->proj_scale,
+                        scene->cylinder_fast_aabb.min_screen_x,
+                        scene->cylinder_fast_aabb.max_screen_x,
+                        scene->cylinder_fast_aabb.min_screen_y,
+                        scene->cylinder_fast_aabb.max_screen_y,
+                        j->model->bounds_cylinder ? j->model->bounds_cylinder->radius : -1,
+                        j->model->bounds_cylinder
+                            ? j->model->bounds_cylinder->center_to_bottom_edge : -1,
+                        j->model->bounds_cylinder
+                            ? j->model->bounds_cylinder->center_to_top_edge : -1);
+            if( getenv("STOCK_DEBUG") )
+                fprintf(stderr, "stock_render: projected centre %d,%d,%d\n",
+                        scene->projected_vertex.x, scene->projected_vertex.y,
+                        scene->projected_vertex.z);
+            return; /* culled view stays background; the diff will charge it */
+        }
+    }
+    ToriDraw_RenderModel3Raster(scene, &vp, &camera, pixels, false);
+}
+
+/** Pack a per-feature band array into the engine's nibble layout. */
+static void
+stock_pack(struct stockjudge* j, struct geometry* g, const int* band)
+{
+    memset(j->packed, 0, (size_t)(g->face_count + 1) / 2);
+    for( int f = 0; f < g->face_count; f++ )
+    {
+        int const b = band[g->face_feature[f]] & 0x0F;
+        if( f & 1 )
+            j->packed[f >> 1] |= (uint8_t)(b << 4);
+        else
+            j->packed[f >> 1] |= (uint8_t)b;
+    }
+}
+
+/** Differing pixels between the stock painter render and the stock z render. */
+static long
+stock_eval(struct stockjudge* j, struct geometry* g, const int* band)
+{
+    long total = 0;
+
+    stock_pack(j, g, band);
+    j->model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic) reduction(+ : total) \
+    num_threads(j->thread_count)
+#endif
+    for( int vi = 0; vi < j->view_count; vi++ )
+    {
+#ifdef _OPENMP
+        int const t = omp_get_thread_num();
+#else
+        int const t = 0;
+#endif
+        long diff = 0;
+
+        stock_render(j, j->scenes[t], j->pixels[t], j->views[vi].yaw, j->views[vi].pitch);
+        for( int i = 0; i < j->tile * j->tile; i++ )
+            if( j->pixels[t][i] != j->views[vi].ref[i] )
+                diff++;
+        total += diff;
+    }
+    return total;
+}
+
+static void
+stock_free(struct stockjudge* j)
+{
+    if( j->scenes )
+        for( int t = 0; t < j->thread_count; t++ )
+            ToriDraw_SceneFree(j->scenes[t]);
+    free(j->scenes);
+    if( j->pixels )
+        for( int t = 0; t < j->thread_count; t++ )
+            free(j->pixels[t]);
+    free(j->pixels);
+    if( j->views )
+        for( int vi = 0; vi < j->view_count; vi++ )
+            free(j->views[vi].ref);
+    free(j->views);
+    free(j->packed);
+    free(j->orig_x);
+    free(j->orig_y);
+    free(j->orig_z);
+    ToriDraw_ModelFree(j->model);
+    memset(j, 0, sizeof(*j));
+}
+
+/**
+ * Build the judged model exactly the way the client builds an npc: decode,
+ * adapt, merge in input order, light in the actor regime. Textures are
+ * stripped because this tool carries no texture map and the raster skips a
+ * face whose texture is not resident -- a skipped face would read as a
+ * difference on every view for reasons that have nothing to do with the sort.
+ */
+static bool
+stock_setup(
+    struct stockjudge* j,
+    struct input* inputs,
+    int input_count,
+    struct geometry* g,
+    int tile,
+    int yaws,
+    int pitches,
+    double elev_min_deg,
+    double elev_max_deg)
+{
+    struct ToriDraw_Model* parts[MAX_INPUTS] = { NULL };
+    struct ToriDraw_Model* m;
+    int center[3];
+    int extent = 1;
+
+    memset(j, 0, sizeof(*j));
+    /* The stock kernels rotate through ToriDraw's trig tables, and nothing
+     * else in this tool needs them, so nothing else built them. Without this
+     * every rotation multiplies by zero, the projected centre lands on the
+     * origin, and every view is AABB-culled -- silently, as an empty world. */
+    ToriDraw_Init();
+    for( int i = 0; i < input_count; i++ )
+    {
+        long size = 0;
+        uint8_t* bytes = read_file(inputs[i].in_path, &size);
+        struct RSCache_Model* copy = bytes ? RSCache_ModelNewDecode(bytes, (int)size) : NULL;
+        struct ToriRS_Model* mid = copy ? ToriRS_ModelFromRSCache(copy) : NULL;
+
+        free(bytes);
+        RSCache_ModelFree(copy);
+        parts[i] = mid ? ToriDraw_ModelFromToriRS(mid) : NULL;
+        ToriRS_ModelFree(mid);
+        if( !parts[i] )
+        {
+            for( int k = 0; k < input_count; k++ )
+                ToriDraw_ModelFree(parts[k]);
+            return false;
+        }
+    }
+    m = input_count == 1 ? parts[0] : ToriDraw_ModelNewMerge(parts, input_count);
+    if( input_count > 1 )
+        for( int i = 0; i < input_count; i++ )
+            ToriDraw_ModelFree(parts[i]);
+    if( !m || m->vertex_count != g->vertex_count )
+    {
+        ToriDraw_ModelFree(m);
+        return false;
+    }
+    j->model = m;
+
+    if( m->face_textures )
+        for( int f = 0; f < m->face_count; f++ )
+            m->face_textures[f] = (faceint_t)-1;
+    if( m->face_texture_coords )
+        for( int f = 0; f < m->face_count; f++ )
+            m->face_texture_coords[f] = (faceint_t)-1;
+
+    /* Recentre and frame, the viewer's orbit: rotate the model, camera at
+     * identity, so every yaw stays in shot. */
+    {
+        int lo[3] = { 1 << 30, 1 << 30, 1 << 30 };
+        int hi[3] = { -(1 << 30), -(1 << 30), -(1 << 30) };
+        long r2 = 0;
+        for( int v = 0; v < m->vertex_count; v++ )
+        {
+            int c[3] = { m->vertices_x[v], m->vertices_y[v], m->vertices_z[v] };
+            for( int k = 0; k < 3; k++ )
+            {
+                if( c[k] < lo[k] ) lo[k] = c[k];
+                if( c[k] > hi[k] ) hi[k] = c[k];
+            }
+        }
+        for( int k = 0; k < 3; k++ )
+            center[k] = (lo[k] + hi[k]) / 2;
+        for( int v = 0; v < m->vertex_count; v++ )
+        {
+            long dx = (m->vertices_x[v] = (vertexint_t)(m->vertices_x[v] - center[0]));
+            long dy = (m->vertices_y[v] = (vertexint_t)(m->vertices_y[v] - center[1]));
+            long dz = (m->vertices_z[v] = (vertexint_t)(m->vertices_z[v] - center[2]));
+            long d2 = dx * dx + dy * dy + dz * dz;
+            if( d2 > r2 )
+                r2 = d2;
+        }
+        extent = (int)sqrt((double)r2) + 1;
+    }
+
+    j->hnd.kind = TORIDRAWMK_MODEL;
+    j->hnd.u.model.model = m;
+    /* The merge does not carry a bounds cylinder and the recentre would have
+     * invalidated one anyway; without it Project returns CULL_ERROR on every
+     * view and the judge sees an empty world. Stock call, same as animate. */
+    ToriDraw_ModelSetBoundsCylinder(m);
+    ToriDraw_ModelCalculateVertexNormals(m);
+    ToriDraw_LightModelActor(j->hnd, 0, 0);
+
+    j->orig_x = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
+    j->orig_y = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
+    j->orig_z = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
+    j->packed = (uint8_t*)calloc((size_t)(g->face_count + 1) / 2, 1);
+    if( !j->orig_x || !j->orig_y || !j->orig_z || !j->packed )
+        return false;
+    memcpy(j->orig_x, m->vertices_x, (size_t)m->vertex_count * sizeof(vertexint_t));
+    memcpy(j->orig_y, m->vertices_y, (size_t)m->vertex_count * sizeof(vertexint_t));
+    memcpy(j->orig_z, m->vertices_z, (size_t)m->vertex_count * sizeof(vertexint_t));
+    free(m->face_priorities);
+    m->face_priorities = j->packed; /* owned here; detached before ModelFree */
+    m->model_priority = 0;
+
+    j->tile = tile;
+    /* The viewer's framing, with a far-plane clamp: past 7,000 the engine's
+     * 7,500-unit cylinder cull starts eating views, and a clamped model that
+     * renders slightly small is comparable on both sides of the diff while a
+     * culled one is a blank lie. */
+    j->distance = (int)((double)extent * TORIDRAW_PROJ_SCALE_DEFAULT / (0.45 * tile));
+    if( j->distance < 100 )
+        j->distance = 100;
+    if( j->distance > 7000 )
+        j->distance = 7000;
+    j->proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    j->view_count = yaws * pitches;
+#ifdef _OPENMP
+    j->thread_count = omp_get_max_threads();
+    if( j->thread_count > 8 )
+        j->thread_count = 8;
+#else
+    j->thread_count = 1;
+#endif
+
+    j->scenes = (struct ToriDraw_Scene**)calloc((size_t)j->thread_count, sizeof(*j->scenes));
+    j->pixels = (toripixel_t**)calloc((size_t)j->thread_count, sizeof(*j->pixels));
+    j->views = (struct stockview*)calloc((size_t)j->view_count, sizeof(*j->views));
+    if( !j->scenes || !j->pixels || !j->views )
+        return false;
+    for( int t = 0; t < j->thread_count; t++ )
+    {
+        j->scenes[t] = ToriDraw_SceneNew(
+            TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+            TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        j->pixels[t] = (toripixel_t*)calloc((size_t)tile * (size_t)tile, sizeof(toripixel_t));
+        if( !j->scenes[t] || !j->pixels[t] ||
+            !ToriDraw_SceneZBufferResize(j->scenes[t], tile, tile) )
+            return false;
+    }
+
+    /* The reference pictures: the stock depth-tested kernels, no priorities.
+     * These are the target; nothing below ever redraws them. */
+    m->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    for( int p = 0; p < pitches; p++ )
+    {
+        /* Client camera pitch clamp, mapped the way the viewer maps it. */
+        double const e =
+            elev_min_deg +
+            (elev_max_deg - elev_min_deg) *
+                (pitches == 1 ? 0.5 : (double)p / (pitches - 1));
+        int const pitch = (int)(e / 360.0 * 2048.0) & 2047;
+        for( int y = 0; y < yaws; y++ )
+        {
+            struct stockview* sv = &j->views[p * yaws + y];
+            sv->yaw = (int)((long)y * 2048 / yaws);
+            sv->pitch = pitch;
+            sv->ref =
+                (toripixel_t*)calloc((size_t)tile * (size_t)tile, sizeof(toripixel_t));
+            if( !sv->ref )
+                return false;
+            stock_render(j, j->scenes[0], sv->ref, sv->yaw, sv->pitch);
+            for( int i = 0; i < tile * tile; i++ )
+                if( sv->ref[i] != 0 )
+                    j->ref_covered++;
+        }
+    }
+    m->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
+    return true;
+}
+
 /* ------------------------------------------------------------------ main -- */
 
 static void
@@ -1399,6 +1771,11 @@ main(int argc, char** argv)
     int* slow_delta_y = NULL;
     int* slow_delta_z = NULL;
     struct slowctx sctx = { 0 };
+    struct stockjudge judge = { 0 };
+    bool stock = true; /* the engine judges by default; the internal painter
+                        * is a fallback for A/B-ing the judges themselves */
+    int judge_tile = 128;
+    bool judge_ready = false;
     int candidate_count = 0;
     long gain = 0;
     int feature_count = 0;
@@ -1445,6 +1822,10 @@ main(int argc, char** argv)
             slow_max_offset = atoi(argv[++i]);
         else if( strcmp(argv[i], "--slow-seed") == 0 && i + 1 < argc )
             slow_seed = (uint32_t)strtoul(argv[++i], NULL, 0);
+        else if( strcmp(argv[i], "--internal-judge") == 0 )
+            stock = false;
+        else if( strcmp(argv[i], "--judge-tile") == 0 && i + 1 < argc )
+            judge_tile = atoi(argv[++i]);
         else if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc )
             cache_dir = argv[++i];
         else if( strcmp(argv[i], "--anim") == 0 && i + 1 < argc )
@@ -1747,6 +2128,22 @@ main(int argc, char** argv)
     for( int i = 0; i < feature_count; i++ )
         band[i] = HARD_BANDS / 2;
 
+    if( stock )
+    {
+        judge_ready = stock_setup(
+            &judge, inputs, input_count, &g, judge_tile, yaw_steps,
+            pitch_steps > 5 ? 5 : pitch_steps, elev_min_deg, elev_max_deg);
+        if( !judge_ready )
+        {
+            fprintf(stderr, "rs2012_face_priorities: stock judge setup failed\n");
+            goto done;
+        }
+        printf(
+            "judge:    stock kernels, %d views @ %d px, %d thread(s), "
+            "%ld reference px\n",
+            judge.view_count, judge.tile, judge.thread_count, judge.ref_covered);
+    }
+
     /* ---- propose, score, rank, keep the best ----
      *
      * There is no enumerating this space: twelve bands over N features is
@@ -1852,10 +2249,20 @@ main(int argc, char** argv)
             struct tally t;
             unsigned char seen[HARD_BANDS + 2];
 
-            t = evaluate_assignment(
-                &g, &r, &poses, proposals[c].band, feature_count, feature_face_offset,
-                feature_faces, NULL, NULL, pose_count, yaw_steps, pitch_steps,
-                elev_min_deg, elev_max_deg, res, scale, distance);
+            if( stock )
+            {
+                /* The engine is the judge: wrong = pixels that differ from the
+                 * stock z-buffered render, through the real sorter, splice and
+                 * all. The internal sweep above only proposed. */
+                t.wrong_within = 0;
+                t.wrong_between = stock_eval(&judge, &g, proposals[c].band);
+                t.covered = judge.ref_covered;
+            }
+            else
+                t = evaluate_assignment(
+                    &g, &r, &poses, proposals[c].band, feature_count, feature_face_offset,
+                    feature_faces, NULL, NULL, pose_count, yaw_steps, pitch_steps,
+                    elev_min_deg, elev_max_deg, res, scale, distance);
 
             memset(seen, 0, sizeof(seen));
             proposals[c].bands_used = 0;
@@ -2065,11 +2472,19 @@ main(int argc, char** argv)
         /* Anneal, from the fast winner. */
         memcpy(work_band, band, (size_t)fc2 * sizeof(int));
         memcpy(best_band, band, (size_t)fc2 * sizeof(int));
-        cur_cost = best_cost = base_cost = slow_eval(&g2, work_band, &sctx);
+        cur_cost = best_cost = base_cost =
+            stock ? stock_eval(&judge, &g, work_band) : slow_eval(&g2, work_band, &sctx);
         printf(
-            "\nslow search: %d iters, %d views @ %d px, %d thread(s), seed 0x%x\n"
+            "\nslow search: %d iters, %d views @ %d px, %d thread(s), seed 0x%x, "
+            "%s judge\n"
             "slow start:  %ld wrong px (the fast winner under this objective)\n",
-            slow_iters, sctx.view_count, slow_res, sctx.thread_count, slow_seed, base_cost);
+            slow_iters,
+            stock ? judge.view_count : sctx.view_count,
+            stock ? judge.tile : slow_res,
+            stock ? judge.thread_count : sctx.thread_count,
+            slow_seed,
+            stock ? "stock-kernel" : "internal",
+            base_cost);
         fflush(stdout);
 
         for( int it = 0; it < slow_iters; it++ )
@@ -2115,10 +2530,20 @@ main(int argc, char** argv)
                         g2.vx[v] = g.vx[v] + (int)lround(dir_x[v] * off[F]);
                         g2.vy[v] = g.vy[v] + (int)lround(dir_y[v] * off[F]);
                         g2.vz[v] = g.vz[v] + (int)lround(dir_z[v] * off[F]);
+                        if( judge_ready )
+                        {
+                            judge.model->vertices_x[v] = (vertexint_t)(judge.orig_x[v] +
+                                (int)lround(dir_x[v] * off[F]));
+                            judge.model->vertices_y[v] = (vertexint_t)(judge.orig_y[v] +
+                                (int)lround(dir_y[v] * off[F]));
+                            judge.model->vertices_z[v] = (vertexint_t)(judge.orig_z[v] +
+                                (int)lround(dir_z[v] * off[F]));
+                        }
                     }
             }
 
-            trial = slow_eval(&g2, work_band, &sctx);
+            trial = stock ? stock_eval(&judge, &g, work_band)
+                          : slow_eval(&g2, work_band, &sctx);
             if( trial <= cur_cost ||
                 (temp > 0 &&
                  (double)(xorshift32(&rng) % 1000000) / 1000000.0 <
@@ -2146,6 +2571,15 @@ main(int argc, char** argv)
                             g2.vx[v] = g.vx[v] + (int)lround(dir_x[v] * off[F]);
                             g2.vy[v] = g.vy[v] + (int)lround(dir_y[v] * off[F]);
                             g2.vz[v] = g.vz[v] + (int)lround(dir_z[v] * off[F]);
+                            if( judge_ready )
+                            {
+                                judge.model->vertices_x[v] = (vertexint_t)(judge.orig_x[v] +
+                                    (int)lround(dir_x[v] * off[F]));
+                                judge.model->vertices_y[v] = (vertexint_t)(judge.orig_y[v] +
+                                    (int)lround(dir_y[v] * off[F]));
+                                judge.model->vertices_z[v] = (vertexint_t)(judge.orig_z[v] +
+                                    (int)lround(dir_z[v] * off[F]));
+                            }
                         }
                 }
             }
@@ -2163,6 +2597,15 @@ main(int argc, char** argv)
                         g2.vx[v] = g.vx[v] + (int)lround(dir_x[v] * off[F]);
                         g2.vy[v] = g.vy[v] + (int)lround(dir_y[v] * off[F]);
                         g2.vz[v] = g.vz[v] + (int)lround(dir_z[v] * off[F]);
+                        if( judge_ready )
+                        {
+                            judge.model->vertices_x[v] = (vertexint_t)(judge.orig_x[v] +
+                                (int)lround(dir_x[v] * off[F]));
+                            judge.model->vertices_y[v] = (vertexint_t)(judge.orig_y[v] +
+                                (int)lround(dir_y[v] * off[F]));
+                            judge.model->vertices_z[v] = (vertexint_t)(judge.orig_z[v] +
+                                (int)lround(dir_z[v] * off[F]));
+                        }
                     }
                 }
                 cur_cost = best_cost;
@@ -2496,6 +2939,11 @@ done:
         for( int c = 0; c < candidate_count; c++ )
             free(proposals[c].band);
     free(proposals);
+    if( judge_ready )
+    {
+        judge.model->face_priorities = NULL; /* freed as judge.packed */
+        stock_free(&judge);
+    }
     free(net);
     free(slow_delta_x);
     free(slow_delta_y);

@@ -889,12 +889,30 @@ RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o 
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/bmp.o
+# OB_TORI porter: chooses a span kernel per face from the mesh and writes the
+# non-stock container the raster reads it from. See src/engine/proctex/obtori.h.
+.PHONY: rs2012-qbd-obtori
+rs2012-qbd-obtori: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_qbd_obtori 		engine/proctex/test/rs2012_qbd_obtori.c 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
 rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
 		engine/proctex/test/rs2012_model_view.c \
 		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
 		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
 		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
+
+.PHONY: rs2012-wake-dump
+
+# Prints decoded per-bone transform values for every frame of a QBD sequence,
+# straight out of the shipped cache — no rendering. For finding which specific
+# keyframes of a sequence decode to garbage (see docs/rs2012_qbd_wakeup).
+rs2012-wake-dump: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_wake_dump \
+		engine/proctex/test/rs2012_wake_dump.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
 # Face-priority authoring for the imported lane: splits a model into connected
 # features, reports them, and writes a priority band per feature.

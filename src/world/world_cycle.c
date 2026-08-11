@@ -496,8 +496,25 @@ World_StepEntityAnimation(
 
                     if( anim->primary.frame >= count )
                     {
-                        int stepped = (int)anim->primary.frame - cycle_seq_frame_step(world, seq);
+                        int fstep = cycle_seq_frame_step(world, seq);
+                        int mloops = cycle_seq_max_loops(world, seq);
+                        int stepped = (int)anim->primary.frame - fstep;
                         anim->primary.loop++;
+                        if( getenv("TORIRS_ANIM_DEBUG") )
+                            fprintf(
+                                stderr,
+                                "loopback: seq=%d frame=%d count=%d frame_step=%d "
+                                "max_loops=%d loop=%d stepped=%d -> %s\n",
+                                seq,
+                                (int)anim->primary.frame,
+                                count,
+                                fstep,
+                                mloops,
+                                anim->primary.loop,
+                                stepped,
+                                (anim->primary.loop >= mloops || stepped < 0 || stepped >= count)
+                                    ? "STOP"
+                                    : "LOOP");
                         if( anim->primary.loop >= cycle_seq_max_loops(world, seq) ||
                             stepped < 0 || stepped >= count )
                         {

@@ -52,6 +52,20 @@
 #define OBTORI_VERSION 1
 #define OBTORI_HEADER_SIZE 16
 
+/*
+ * Model-id offset for the OB_TORI variant of a stock model.
+ *
+ * The two ship SIDE BY SIDE rather than one replacing the other: the stock
+ * model keeps its own id, and the container is packed at `id + this`. Nothing
+ * is overwritten, an unmodified client sees exactly the cache it saw before,
+ * and the choice is the renderer's to make per run instead of the packer's to
+ * make once.
+ *
+ * 1,000,000 is clear of every id this era uses (the largest lane model is in
+ * the 70,000s) while staying inside the 32-bit group ids the dat2 tables use.
+ */
+#define OBTORI_MODEL_ID_OFFSET 1000000
+
 /** Which span kernel a face is routed to. See docs/HD_KERNELS.md Â§1. */
 enum ObToriFaceKernel
 {
@@ -100,7 +114,10 @@ ObTori_IsObTori(const void* data, int size);
 
 /** Decode, or NULL if the magic, version or a section size does not hold up.
  *  `face_count` is what the caller expects from the OB3 payload; a section
- *  whose length disagrees with it is a corrupt file, not a shorter model. */
+ *  whose length disagrees with it is a corrupt file, not a shorter model.
+ *  Pass a negative face_count to decode the OB3 payload only and skip the
+ *  per-face sections — the probe a caller needs, since the face count is not
+ *  knowable until the payload has been decoded. */
 struct ObToriModel*
 ObTori_NewDecode(const void* data, int size, int face_count);
 
