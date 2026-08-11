@@ -237,6 +237,11 @@ struct ToriDraw_Camera
      */
     int near_plane_z;
 
+    /** Interface-model projections supply their own already-projected screen
+     * triangle and need the affine texture kernel rather than the world-camera
+     * perspective texture basis. */
+    int texture_affine;
+
     int pitch;
     int yaw;
     int roll;
