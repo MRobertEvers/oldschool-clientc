@@ -167,19 +167,39 @@ ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
 #
 # No rscache and no filesystem here. `-sMODULARIZE` gives the page an EVModule()
 # factory to await, which is what keeps ev.js free of load-order guesswork.
+#
+# The whole software raster runs inside this module, so it gets the maximum
+# optimization set, not the catalog's -O2:
+#   -O3 + -flto        cross-TU inlining of the span kernels into the render loop
+#   -msimd128          WASM SIMD; lets LLVM vectorize the pixel loops. Every
+#                      browser since 2021 (Chrome 91, Firefox 89, Safari 16.4)
+#                      has it — build with SIMD=0 if an older engine matters.
+#   -mnontrapping-fptoint  float->int converts (projection) become one
+#                      saturating instruction instead of a guarded sequence
+#   -sINITIAL_MEMORY   big enough up front that model/anim loads never hit the
+#                      growth path mid-session (growth stays on as a backstop)
+# NOT -ffast-math: the raster is compared pixel-for-pixel against the native
+# client in tests, and reassociated float math breaks that parity.
 
 EMCC ?= emcc
+SIMD ?= 1
 EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_malloc,_free
+
+EM_OPT := -O3 -flto -mnontrapping-fptoint
+ifeq ($(SIMD),1)
+EM_OPT += -msimd128
+endif
 
 wasm: web/ev_wasm.js
 
 web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c
-	$(EMCC) -O2 -std=c11 -w $(INCLUDES) \
+	$(EMCC) $(EM_OPT) -std=c11 -w $(INCLUDES) \
 		-I$(REPO)/v0 \
 		-o $@ ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c \
 		$(TORIDRAW)/toridraw_font.c \
 		-sMODULARIZE=1 -sEXPORT_NAME=EVModule \
-		-sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=0 \
+		-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sFILESYSTEM=0 \
+		-sASSERTIONS=0 -sENVIRONMENT=web \
 		-sEXPORTED_FUNCTIONS='[$(EM_EXPORTS)]' \
 		-sEXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8"]'
 

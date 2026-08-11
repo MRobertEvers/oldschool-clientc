@@ -46,6 +46,31 @@
  *                   without needing a reference picture to compare against.
  *                   Translucent faces are order-dependent by definition and are
  *                   the expected residual.
+ *   --near N        camera near plane (default 50). The engine's fast cull
+ *                   drops any world-camera subject whose centre sits past
+ *                   3500 units, and a posed giant needs far more distance than
+ *                   that to stay in frame; near planes below 50 take the
+ *                   icon-camera lane, which the engine exempts from that cull.
+ *   --pose-stats    print machine-readable bind/posed bounding boxes (in the
+ *                   model's own pre-recentre coordinates, the space --focus
+ *                   speaks), the moved-vertex count, and the framing radius
+ *                   with the depth-table levels it demands. This is how a
+ *                   driver derives ONE focus/radius for a whole sequence so
+ *                   every frame shares a camera.
+ *   --pose-stats-only  stop after printing them; no lighting, no render.
+ *   --id-dump PREFIX  write the scorer's per-pixel face-id/depth maps, one
+ *                   binary file per view (PREFIX.vNN.idz), so a driver can
+ *                   attribute each sort violation to the bone groups involved.
+ *                   Implies --score.
+ *   --labels-out F  write one line per face: its vertex-majority bone group,
+ *                   priority band, alpha and texture id. Joins with --id-dump.
+ *   --repl          serve renders interactively instead of writing a sheet:
+ *                   the model set loads once, then each stdin line
+ *                     render pose=I yaw=N pitch=N zoom=F mode=painter|zbuf out=PATH
+ *                   re-poses (pose indexes --frames; -1 is bind), re-frames
+ *                   against the fixed --focus/--radius and writes one tile BMP,
+ *                   answering `ok PATH cull=N`. `quit` exits. This is the live
+ *                   viewer the audit driver's web UI orbits.
  */
 
 #include "datatypes/dat2_frame.h"
@@ -167,10 +192,10 @@ load_animation_from_cache(
                 int const id = RSCache_Dat2FramemapIdFromFrameArchive(
                     files->files[pos], files->file_sizes[pos]);
                 /* Through the cache and its profile, which is exactly what the
-                 * client does. Neither this nor an explicit V3 read produces a
-                 * usable pose on this lane — see docs/rs2012_qbd_wake/README.md
-                 * — but this is the path whose output is the client's, so it is
-                 * the one worth rendering. */
+                 * client does. Earlier notes called this lane's poses unusable;
+                 * that verdict was the far-plane cull eating the (much larger)
+                 * posed model, not the decode — with --near below 50 and a
+                 * seq-wide --focus/--radius the poses render correctly. */
                 if( id >= 0 )
                     framemap = RSCache_Dat2FramemapNewFromCache(disk, id);
             }
@@ -637,6 +662,226 @@ drop_priorities(struct ToriDraw_Model* m)
     m->model_priority = 0;
 }
 
+static void
+scan_bbox(const struct ToriDraw_Model* m, int out_min[3], int out_max[3])
+{
+    out_min[0] = out_min[1] = out_min[2] = 1 << 30;
+    out_max[0] = out_max[1] = out_max[2] = -(1 << 30);
+    for( int v = 0; v < m->vertex_count; v++ )
+    {
+        int const x = m->vertices_x[v], y = m->vertices_y[v], z = m->vertices_z[v];
+        if( x < out_min[0] ) out_min[0] = x;
+        if( x > out_max[0] ) out_max[0] = x;
+        if( y < out_min[1] ) out_min[1] = y;
+        if( y > out_max[1] ) out_max[1] = y;
+        if( z < out_min[2] ) out_min[2] = z;
+        if( z > out_max[2] ) out_max[2] = z;
+    }
+}
+
+/**
+ * One line per face: which bone group it belongs to, and the per-face fields a
+ * scorer needs to slice violations by. The group is the vertex-majority of the
+ * face's three corners, because the animation's translate/rotate/scale ops act
+ * on VERTEX groups — a face "belongs" to whatever the animation moves it with.
+ *
+ * Ids here are the merged model's group indices, the same space the id-dump's
+ * face ids resolve through, so a driver can join the two without guessing.
+ */
+static void
+write_face_labels(const struct ToriDraw_Model* m, const char* path)
+{
+    FILE* f = fopen(path, "wb");
+    int* vertex_group = NULL;
+    int groups = m->vertex_bones ? m->vertex_bones->bones_count : 0;
+
+    if( !f )
+    {
+        fprintf(stderr, "rs2012_model_view: cannot write %s\n", path);
+        return;
+    }
+
+    vertex_group = (int*)malloc((size_t)m->vertex_count * sizeof(int));
+    if( !vertex_group )
+    {
+        fclose(f);
+        return;
+    }
+    for( int v = 0; v < m->vertex_count; v++ )
+        vertex_group[v] = -1;
+    /* A vertex carries at most one label in this era's data; first-wins keeps
+     * the map deterministic if that ever stops being true. */
+    for( int g = 0; g < groups; g++ )
+    {
+        boneint_t const* bone = m->vertex_bones->bones[g];
+        int const len = m->vertex_bones->bones_sizes[g];
+        for( int j = 0; bone && j < len; j++ )
+        {
+            int const v = bone[j];
+            if( v >= 0 && v < m->vertex_count && vertex_group[v] < 0 )
+                vertex_group[v] = g;
+        }
+    }
+
+    fprintf(f, "# faces=%d vertex_groups=%d\n", m->face_count, groups);
+    /* a,b,c are the face's vertex indices: the topology a driver needs to
+     * split a rig group into its connected patches (an outer plate vs the
+     * body under it), which is the granularity z-fighting repair works at. */
+    fprintf(f, "# face,group,priority,alpha,texture,a,b,c\n");
+    for( int face = 0; face < m->face_count; face++ )
+    {
+        int const ga = vertex_group[m->face_indices_a[face]];
+        int const gb = vertex_group[m->face_indices_b[face]];
+        int const gc = vertex_group[m->face_indices_c[face]];
+        int group = ga;
+        if( ga == gb || ga == gc )
+            group = ga;
+        else if( gb == gc )
+            group = gb;
+        fprintf(
+            f,
+            "%d,%d,%d,%d,%d,%d,%d,%d\n",
+            face,
+            group,
+            face_priority_of(m, face),
+            m->face_alphas ? (int)m->face_alphas[face] : 0,
+            m->face_textures ? (int)m->face_textures[face] : -1,
+            (int)m->face_indices_a[face],
+            (int)m->face_indices_b[face],
+            (int)m->face_indices_c[face]);
+    }
+
+    /* The structure table: one line per rig group with its extent and how the
+     * inherited priorities band it. This is what lets a driver reason about
+     * the model's STRUCTURES before rendering anything — two groups whose
+     * boxes overlap while their bands tie (or fight) are artifact suspects on
+     * rigging + priorities evidence alone. Coordinates are the current
+     * (recentred bind) pose, the same space the face table's ids live in. */
+    fprintf(f, "# G,group,verts,faces,alpha_faces,band_lo,band_hi,band_major,"
+               "cx,cy,cz,minx,miny,minz,maxx,maxy,maxz\n");
+    for( int g = 0; g < groups; g++ )
+    {
+        boneint_t const* bone = m->vertex_bones->bones[g];
+        int const len = m->vertex_bones->bones_sizes[g];
+        long sx = 0, sy = 0, sz = 0;
+        int mn[3] = { 1 << 30, 1 << 30, 1 << 30 };
+        int mx[3] = { -(1 << 30), -(1 << 30), -(1 << 30) };
+        int used = 0;
+        int band_hist[16] = { 0 };
+        int face_total = 0, alpha_faces = 0;
+        int band_lo = 15, band_hi = 0, band_major = 0;
+
+        for( int j = 0; bone && j < len; j++ )
+        {
+            int const v = bone[j];
+            if( v < 0 || v >= m->vertex_count )
+                continue;
+            sx += m->vertices_x[v];
+            sy += m->vertices_y[v];
+            sz += m->vertices_z[v];
+            if( m->vertices_x[v] < mn[0] ) mn[0] = m->vertices_x[v];
+            if( m->vertices_y[v] < mn[1] ) mn[1] = m->vertices_y[v];
+            if( m->vertices_z[v] < mn[2] ) mn[2] = m->vertices_z[v];
+            if( m->vertices_x[v] > mx[0] ) mx[0] = m->vertices_x[v];
+            if( m->vertices_y[v] > mx[1] ) mx[1] = m->vertices_y[v];
+            if( m->vertices_z[v] > mx[2] ) mx[2] = m->vertices_z[v];
+            used++;
+        }
+        if( !used )
+            continue;
+        for( int face = 0; face < m->face_count; face++ )
+        {
+            int const ga = vertex_group[m->face_indices_a[face]];
+            int const gb = vertex_group[m->face_indices_b[face]];
+            int const gc = vertex_group[m->face_indices_c[face]];
+            int fg = ga;
+            if( ga == gb || ga == gc )
+                fg = ga;
+            else if( gb == gc )
+                fg = gb;
+            if( fg != g )
+                continue;
+            face_total++;
+            band_hist[face_priority_of(m, face) & 15]++;
+            if( m->face_alphas && m->face_alphas[face] )
+                alpha_faces++;
+        }
+        for( int b = 0; b < 16; b++ )
+            if( band_hist[b] )
+            {
+                if( b < band_lo ) band_lo = b;
+                if( b > band_hi ) band_hi = b;
+                if( band_hist[b] > band_hist[band_major] )
+                    band_major = b;
+            }
+        if( !face_total )
+        {
+            band_lo = 0;
+            band_hi = 0;
+        }
+        fprintf(
+            f,
+            "G,%d,%d,%d,%d,%d,%d,%d,%ld,%ld,%ld,%d,%d,%d,%d,%d,%d\n",
+            g, used, face_total, alpha_faces, band_lo, band_hi, band_major,
+            sx / used, sy / used, sz / used,
+            mn[0], mn[1], mn[2], mx[0], mx[1], mx[2]);
+    }
+    free(vertex_group);
+    fclose(f);
+    printf("rs2012_model_view: wrote %s (face labels)\n", path);
+}
+
+/**
+ * The scorer's id/z maps for one view, raw, so a driver can do per-pixel joins
+ * the tool has no business hardcoding (violation attribution, per-group
+ * matrices, cross-frame flicker). Little-endian int32: a 4-word header
+ * {magic 'IDZ2', tile, yaw, pitch} then id_painter, z_painter, id_zbuf,
+ * z_zbuf, id_painter_reversed, each tile*tile words, row-major.
+ *
+ * The fifth plane is the same painter raster with the face order REVERSED: a
+ * pixel whose winner survives the reversal has a stable owner even where two
+ * faces tie in depth; one that flips is genuinely z-fighting. Stability is
+ * the thing a priority pin repairs, so the driver has to be able to see it.
+ */
+static void
+write_id_dump(
+    const char* prefix,
+    int view,
+    int tile,
+    int yaw,
+    int pitch,
+    const int* id_painter,
+    const int* z_painter,
+    const int* id_zbuf,
+    const int* z_zbuf,
+    const int* id_painter_reversed)
+{
+    char path[2048];
+    FILE* f;
+    int32_t header[4];
+    size_t const n = (size_t)tile * (size_t)tile;
+
+    snprintf(path, sizeof(path), "%s.v%02d.idz", prefix, view);
+    f = fopen(path, "wb");
+    if( !f )
+    {
+        fprintf(stderr, "rs2012_model_view: cannot write %s\n", path);
+        return;
+    }
+    header[0] = 0x325A4449; /* 'IDZ2' little-endian */
+    header[1] = tile;
+    header[2] = yaw;
+    header[3] = pitch;
+    if( fwrite(header, sizeof(header), 1, f) != 1 ||
+        fwrite(id_painter, sizeof(int32_t), n, f) != n ||
+        fwrite(z_painter, sizeof(int32_t), n, f) != n ||
+        fwrite(id_zbuf, sizeof(int32_t), n, f) != n ||
+        fwrite(z_zbuf, sizeof(int32_t), n, f) != n ||
+        fwrite(id_painter_reversed, sizeof(int32_t), n, f) != n )
+        fprintf(stderr, "rs2012_model_view: short write on %s\n", path);
+    fclose(f);
+}
+
 /* ---------------------------------------------------------- sort score -- */
 
 /**
@@ -891,9 +1136,13 @@ usage(const char* argv0)
         stderr,
         "Usage: %s --model FILE.ob3 [--model FILE.ob3 ...] --out OUT.bmp\n"
         "       [--angles N] [--yaw0 N] [--pitch N] [--zoom F] [--tile N]\n"
-        "       [--focus X,Y,Z] [--radius R]\n"
-        "       [--textures] [--ignore-priorities] [--stats] [--score]\n"
-        "       [--zbuffer] [--compare] [--out-zbuffer F] [--diff-out F]\n",
+        "       [--focus X,Y,Z] [--radius R] [--near N] [--bg HEX]\n"
+        "       [--textures] [--lane-textures DIR] [--ignore-priorities]\n"
+        "       [--stats] [--score] [--score-out F] [--reference-out F]\n"
+        "       [--zbuffer] [--compare] [--out-zbuffer F] [--diff-out F]\n"
+        "       [--order-check] [--cache DIR] [--frames N[,N...]]\n"
+        "       [--pose-stats] [--pose-stats-only] [--id-dump PREFIX]\n"
+        "       [--labels-out FILE] [--repl]\n",
         argv0);
 }
 
@@ -934,6 +1183,15 @@ main(int argc, char** argv)
     bool have_focus = false;
     int focus[3] = { 0, 0, 0 };
     int focus_radius = 0;
+    int near_plane = 50;
+    bool pose_stats = false;
+    bool pose_stats_only = false;
+    bool repl = false;
+    const char* id_dump_prefix = NULL;
+    const char* labels_path = NULL;
+    int bind_min[3] = { 0, 0, 0 }, bind_max[3] = { 0, 0, 0 };
+    int posed_min[3] = { 0, 0, 0 }, posed_max[3] = { 0, 0, 0 };
+    int moved_vertices = 0;
     struct score total = { 0, 0, 0 };
     struct diff_score diff = { 0, 0, 0 };
 
@@ -1057,6 +1315,24 @@ main(int argc, char** argv)
             background = (int)strtol(argv[++i], NULL, 16);
         else if( strcmp(argv[i], "--radius") == 0 && i + 1 < argc )
             focus_radius = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--near") == 0 && i + 1 < argc )
+            near_plane = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--pose-stats") == 0 )
+            pose_stats = true;
+        else if( strcmp(argv[i], "--pose-stats-only") == 0 )
+        {
+            pose_stats = true;
+            pose_stats_only = true;
+        }
+        else if( strcmp(argv[i], "--id-dump") == 0 && i + 1 < argc )
+        {
+            id_dump_prefix = argv[++i];
+            do_score = true;
+        }
+        else if( strcmp(argv[i], "--labels-out") == 0 && i + 1 < argc )
+            labels_path = argv[++i];
+        else if( strcmp(argv[i], "--repl") == 0 )
+            repl = true;
         else
         {
             usage(argv[0]);
@@ -1105,6 +1381,8 @@ main(int argc, char** argv)
     if( !keep_textures )
         strip_textures(model);
 
+    scan_bbox(model, bind_min, bind_max);
+
     /* Pose before framing: the animation moves the subject, so the centre and
      * the radius have to be measured on the pose that will actually be drawn.
      * Lighting is already baked into the face colours above and does not move
@@ -1134,9 +1412,62 @@ main(int argc, char** argv)
         ToriDraw_ModelAnimateReset(model);
         if( anim->frames[0].length > 0 )
             ToriDraw_ModelAnimateFrame(model, anim->base, &anim->frames[0]);
+        if( model->original_vertices_x )
+            for( int v = 0; v < model->vertex_count; v++ )
+                if( model->vertices_x[v] != model->original_vertices_x[v] ||
+                    model->vertices_y[v] != model->original_vertices_y[v] ||
+                    model->vertices_z[v] != model->original_vertices_z[v] )
+                    moved_vertices++;
+    }
+
+    /* The REPL re-poses per request off the captured bind, so the capture has
+     * to exist even when no --frames preloaded a pose. Before the recentre:
+     * the reset must restore the same space every request starts from. */
+    if( repl && !model->original_vertices_x )
+        ToriDraw_ModelCaptureOriginalVertices(model);
+
+    scan_bbox(model, posed_min, posed_max);
+
+    /* Both boxes are printed in the model's own coordinates, BEFORE the
+     * recentre below shifts them — that is the space --focus takes, so a driver
+     * can prescan every frame of a sequence with --pose-stats-only, union the
+     * boxes, and hand every render the same --focus/--radius. A shared camera
+     * is what makes cross-frame pixel diffs mean anything. */
+    if( pose_stats )
+    {
+        printf(
+            "pose stats: bind x %d..%d y %d..%d z %d..%d\n",
+            bind_min[0], bind_max[0], bind_min[1], bind_max[1], bind_min[2], bind_max[2]);
+        printf(
+            "pose stats: posed x %d..%d y %d..%d z %d..%d moved %d/%d\n",
+            posed_min[0], posed_max[0], posed_min[1], posed_max[1], posed_min[2], posed_max[2],
+            moved_vertices, model->vertex_count);
     }
 
     recenter_model(model, have_focus ? focus : NULL);
+
+    if( pose_stats && model->bounds_cylinder )
+    {
+        /* The framing radius after the recentre, and the depth-table room this
+         * subject needs: the sort indexes faces by projected depth, so a model
+         * needs its whole diameter in levels no matter where the camera sits. */
+        int const reach = model->bounds_cylinder->min_z_depth_any_rotation;
+        printf(
+            "pose stats: radius %d depth_levels_needed %d\n",
+            reach,
+            2 * reach + 1);
+    }
+    if( pose_stats_only )
+    {
+        /* --stats and --labels-out normally run after lighting, which this
+         * path skips; neither needs lighting, so honour them here. */
+        if( stats )
+            print_stats(model);
+        if( labels_path )
+            write_face_labels(model, labels_path);
+        rc = 0;
+        goto done;
+    }
 
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;
@@ -1148,6 +1479,8 @@ main(int argc, char** argv)
 
     if( stats )
         print_stats(model);
+    if( labels_path )
+        write_face_labels(model, labels_path);
 
     /* Recentred, so the framing radius is just the cylinder's widest reach in
      * any rotation — the same number the cull uses. */
@@ -1225,9 +1558,12 @@ main(int argc, char** argv)
     if( distance < 100 )
         distance = 100;
 
+    /* The REPL switches painter/zbuf per request, so its scene must always
+     * carry the buffer: without the scene flag the raster's failed-allocation
+     * fallback silently paints by face order and mode=zbuf lies. */
     scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K |
-            ((zbuffered || compare) ? TORIDRAW_SCENE_MODEL_ZBUFFER : 0u),
+            ((zbuffered || compare || repl) ? TORIDRAW_SCENE_MODEL_ZBUFFER : 0u),
         TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     if( !scene )
         goto done;
@@ -1239,6 +1575,135 @@ main(int argc, char** argv)
      * on the renderer. Kept as a base + a bit so --compare can flip it between
      * two rasters of one projection. */
     model_flags_base = (uint8_t)(model->flags & ~TORIDRAW_MODEL_FLAG_ZBUFFER);
+
+    if( repl )
+    {
+        char line[2048];
+        int* repl_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
+
+        if( !repl_tile )
+            goto done;
+        printf("repl ready frames=%d radius=%d\n", anim ? anim->frame_count : 0, extent);
+        fflush(stdout);
+        while( fgets(line, sizeof(line), stdin) )
+        {
+            int req_pose = -1, req_yaw = 0, req_pitch = 0;
+            double req_zoom = 1.0;
+            char req_mode[16] = "painter";
+            char req_out[1024] = { 0 };
+            int reach, dist;
+            int cull_code = TORIDRAW_CULL_VISIBLE;
+
+            if( strncmp(line, "quit", 4) == 0 )
+                break;
+            if( strncmp(line, "render", 6) != 0 )
+            {
+                printf("err unknown command\n");
+                fflush(stdout);
+                continue;
+            }
+            for( char* tok = strtok(line + 6, " \t\r\n"); tok;
+                 tok = strtok(NULL, " \t\r\n") )
+            {
+                if( sscanf(tok, "pose=%d", &req_pose) == 1 )
+                    continue;
+                if( sscanf(tok, "yaw=%d", &req_yaw) == 1 )
+                    continue;
+                if( sscanf(tok, "pitch=%d", &req_pitch) == 1 )
+                    continue;
+                if( sscanf(tok, "zoom=%lf", &req_zoom) == 1 )
+                    continue;
+                if( sscanf(tok, "mode=%15s", req_mode) == 1 )
+                    continue;
+                if( sscanf(tok, "out=%1023s", req_out) == 1 )
+                    continue;
+            }
+            if( !req_out[0] || req_zoom <= 0.05 || req_zoom > 16.0 )
+            {
+                printf("err bad request\n");
+                fflush(stdout);
+                continue;
+            }
+
+            /* Absolute repose off the captured bind: a frame's op list is a
+             * full replay, so the base must be the bind pose every time. */
+            if( model->original_vertices_x )
+                ToriDraw_ModelAnimateReset(model);
+            if( req_pose >= 0 && anim && req_pose < anim->frame_count &&
+                anim->frames[req_pose].length > 0 )
+                ToriDraw_ModelAnimateFrame(model, anim->base, &anim->frames[req_pose]);
+            recenter_model(model, have_focus ? focus : NULL);
+
+            reach = focus_radius > 0
+                        ? focus_radius
+                        : (model->bounds_cylinder
+                               ? model->bounds_cylinder->min_z_depth_any_rotation
+                               : 512);
+            dist = (int)((double)reach * (double)TORIDRAW_PROJ_SCALE_DEFAULT /
+                         (0.45 * (double)tile * req_zoom));
+            if( dist < 100 )
+                dist = 100;
+
+            {
+                struct ToriDraw_ViewPort vp = {
+                    .width = tile,
+                    .height = tile,
+                    .stride = tile,
+                    .x_center = tile / 2,
+                    .y_center = tile / 2,
+                    .clip_left = 0,
+                    .clip_top = 0,
+                    .clip_right = tile,
+                    .clip_bottom = tile,
+                };
+                struct ToriDraw_Camera camera = {
+                    .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
+                    .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
+                    .near_plane_z = near_plane,
+                    .pitch = 0,
+                    .yaw = 0,
+                    .roll = 0,
+                };
+                struct ToriDraw_Position pos = {
+                    .x = 0,
+                    .y = 0,
+                    .z = dist,
+                    .pitch = req_pitch & 2047,
+                    .yaw = req_yaw & 2047,
+                    .roll = 0,
+                };
+
+                for( int i2 = 0; i2 < tile * tile; i2++ )
+                    repl_tile[i2] = background;
+                model->flags = (uint8_t)(model_flags_base |
+                                         (strcmp(req_mode, "zbuf") == 0
+                                              ? TORIDRAW_MODEL_FLAG_ZBUFFER
+                                              : 0u));
+                cull_code = ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera);
+                if( cull_code == TORIDRAW_CULL_VISIBLE &&
+                    ToriDraw_RenderModel2SortFaces(hnd, scene) > 0 )
+                    ToriDraw_RenderModel3Raster(scene, &vp, &camera, repl_tile, false);
+            }
+
+            bmp_write_file(req_out, repl_tile, tile, tile);
+            /* bmp_write_file returns void; probe the result so a bad path
+             * answers err instead of a phantom ok. */
+            {
+                FILE* probe = fopen(req_out, "rb");
+                if( probe )
+                {
+                    fclose(probe);
+                    printf("ok %s cull=%d\n", req_out, cull_code);
+                }
+                else
+                    printf("err cannot write %s\n", req_out);
+            }
+            fflush(stdout);
+        }
+        free(repl_tile);
+        rc = 0;
+        goto done;
+    }
 
     /* Each tile renders into its own origin-anchored buffer and is then
      * blitted. The AABB cull compares the projected box against 0..width, so a
@@ -1279,7 +1744,7 @@ main(int argc, char** argv)
         struct ToriDraw_Camera camera = {
             .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
             .proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT,
-            .near_plane_z = 50,
+            .near_plane_z = near_plane,
             .pitch = 0,
             .yaw = 0,
             .roll = 0,
@@ -1296,6 +1761,15 @@ main(int argc, char** argv)
 
         for( int i2 = 0; i2 < tile * tile; i2++ )
             tile_pixels[i2] = background;
+        /* The flags must be right BEFORE the sort, not just before the raster:
+         * the sorter drops face priorities for a z-buffer-flagged model, and
+         * the compare/order-check passes below leave that flag set — without
+         * this reset every view after the first would sort (and score) as if
+         * the model carried no priorities at all. */
+        model->flags = (uint8_t)(model_flags_base |
+                                 ((zbuffered && !compare)
+                                      ? TORIDRAW_MODEL_FLAG_ZBUFFER
+                                      : 0u));
         cull = ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera);
         if( cull != TORIDRAW_CULL_VISIBLE )
             fprintf(stderr, "rs2012_model_view: yaw %d culled (code %d)\n", yaw, cull);
@@ -1308,6 +1782,8 @@ main(int argc, char** argv)
              * and a score taken afterwards is a score of whatever it left. */
             if( do_score )
             {
+                struct score before = total;
+
                 raster_id_z(
                     model,
                     scene,
@@ -1322,6 +1798,108 @@ main(int argc, char** argv)
                     id_zbuf,
                     z_zbuf);
                 score_accumulate(&total, tile, tile, id_painter, z_painter, id_zbuf, z_zbuf);
+
+                /* Per view as well as in total: one bad yaw hiding inside an
+                 * averaged number is exactly what a sweep exists to surface. */
+                printf(
+                    "view score: view=%d yaw=%d pitch=%d wrong=%ld covered=%ld\n",
+                    view,
+                    yaw,
+                    pitch,
+                    total.wrong - before.wrong,
+                    total.covered - before.covered);
+
+                if( id_dump_prefix )
+                {
+                    /* The reversed pass runs on a COPY of the order: the real
+                     * raster below still consumes the scene's own array.
+                     *
+                     * Reversal is limited to RUNS the sorter is actually
+                     * ambiguous about: consecutive faces sharing a priority
+                     * band whose average camera depths sit within the tie
+                     * slack. Reversing the whole array manufactures orders
+                     * the painter can never produce — across bands, across
+                     * depth buckets — and every pixel it flips then reads as
+                     * "unstable" when the engine would in fact draw it the
+                     * same way every frame. */
+                    int const order_count = ToriDraw_FaceOrderCount(scene);
+                    const int* order = ToriDraw_FaceOrder(scene);
+                    int* reversed = (int*)malloc((size_t)order_count * sizeof(int));
+                    size_t const tile_n = (size_t)tile * (size_t)tile;
+                    int* id_rev = (int*)malloc(tile_n * sizeof(int));
+                    int* z_rev = (int*)malloc(tile_n * sizeof(int));
+                    int* id_zb2 = (int*)malloc(tile_n * sizeof(int));
+                    int* z_zb2 = (int*)malloc(tile_n * sizeof(int));
+
+                    if( reversed && id_rev && z_rev && id_zb2 && z_zb2 )
+                    {
+                        const int* svz = scene->screen_vertices_z;
+                        int run_start = 0;
+
+                        for( int i2 = 0; i2 < order_count; i2++ )
+                            reversed[i2] = order[i2];
+                        for( int i2 = 1; i2 <= order_count; i2++ )
+                        {
+                            bool boundary = i2 == order_count;
+
+                            if( !boundary )
+                            {
+                                int const fa = order[i2 - 1];
+                                int const fb = order[i2];
+                                int const za = (svz[model->face_indices_a[fa]] +
+                                                svz[model->face_indices_b[fa]] +
+                                                svz[model->face_indices_c[fa]]) / 3;
+                                int const zb = (svz[model->face_indices_a[fb]] +
+                                                svz[model->face_indices_b[fb]] +
+                                                svz[model->face_indices_c[fb]]) / 3;
+                                boundary =
+                                    face_priority_of(model, fa) !=
+                                        face_priority_of(model, fb) ||
+                                    zb - za > 2 || za - zb > 2;
+                            }
+                            if( boundary )
+                            {
+                                for( int lo = run_start, hi = i2 - 1; lo < hi;
+                                     lo++, hi-- )
+                                {
+                                    int const tmp = reversed[lo];
+                                    reversed[lo] = reversed[hi];
+                                    reversed[hi] = tmp;
+                                }
+                                run_start = i2;
+                            }
+                        }
+                        raster_id_z(
+                            model,
+                            scene,
+                            reversed,
+                            order_count,
+                            tile,
+                            tile,
+                            vp.x_center,
+                            vp.y_center,
+                            id_rev,
+                            z_rev,
+                            id_zb2,
+                            z_zb2);
+                        write_id_dump(
+                            id_dump_prefix,
+                            view,
+                            tile,
+                            yaw,
+                            pitch,
+                            id_painter,
+                            z_painter,
+                            id_zbuf,
+                            z_zbuf,
+                            id_rev);
+                    }
+                    free(reversed);
+                    free(id_rev);
+                    free(z_rev);
+                    free(id_zb2);
+                    free(z_zb2);
+                }
 
                 if( reference_pixels )
                 {
@@ -1353,11 +1931,8 @@ main(int argc, char** argv)
 
             /* Without --compare the primary sheet is whichever family was
              * asked for; with it the primary is always the painter's, so the
-             * two sheets sit side by side and the diff below means something. */
-            model->flags = (uint8_t)(model_flags_base |
-                                     ((zbuffered && !compare)
-                                          ? TORIDRAW_MODEL_FLAG_ZBUFFER
-                                          : 0u));
+             * two sheets sit side by side and the diff below means something.
+             * (The flags were already set before the projection above.) */
             ToriDraw_RenderModel3Raster(scene, &vp, &camera, tile_pixels, false);
 
             if( compare )
@@ -1427,7 +2002,11 @@ main(int argc, char** argv)
             int* order;
             int order_count;
 
-            memset(order_tile, 0, (size_t)tile * (size_t)tile * sizeof(int));
+            /* Cleared to the SAME background as the forward tile: on any
+             * non-black background a zero clear makes every untouched pixel
+             * read as a difference and the check reports ~100%. */
+            for( int i2 = 0; i2 < tile * tile; i2++ )
+                order_tile[i2] = background;
             model->flags = (uint8_t)(model_flags_base | TORIDRAW_MODEL_FLAG_ZBUFFER);
             if( ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera) ==
                     TORIDRAW_CULL_VISIBLE &&
@@ -1449,7 +2028,10 @@ main(int argc, char** argv)
                         int const forward_pixel =
                             compare ? zbuffer_tile[i] : tile_pixels[i];
 
-                        if( forward_pixel || order_tile[i] )
+                        /* Covered means TOUCHED: compared against the clear
+                         * colour, not against zero, or a near-black model on a
+                         * non-black background miscounts both ways. */
+                        if( forward_pixel != background || order_tile[i] != background )
                             order_check_covered++;
                         if( forward_pixel != order_tile[i] )
                             order_check_diff++;

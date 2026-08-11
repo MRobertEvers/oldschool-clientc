@@ -1,0 +1,7 @@
+# Generated datasets, checkpoints, and optimization runs — never committed.
+data/
+runs/
+models/
+highpoly_src/
+*.pt
+*.pth

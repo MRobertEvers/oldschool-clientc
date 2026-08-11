@@ -881,6 +881,19 @@ rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
+.PHONY: rs2012-model-nudge
+
+# Applies bounded per-vertex-group geometry moves (inflate/translate) to an
+# OB3 and re-encodes it. The APPLY half of the audit driver's z-fighting
+# repair: tools/rs2012_backport_audit proposes moves off measured tie pixels
+# and judges them through the real renderer; this only executes them.
+rs2012-model-nudge: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_nudge \
+		engine/proctex/test/rs2012_model_nudge.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
 .PHONY: rs2012-model-view rs2012-face-priorities
 
 # OB3 viewer: renders a model through the real project/sort/raster path and
