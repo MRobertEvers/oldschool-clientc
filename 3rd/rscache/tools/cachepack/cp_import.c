@@ -12,6 +12,7 @@
 #include "datatypes/dat2_config_spotanim.h"
 #include "datatypes/dat2_frame.h"
 #include "datatypes/dat2_framemap.h"
+#include "datatypes/dat2_proctexture.h"
 #include "datatypes/model.h"
 #include "datatypes/music_patch.h"
 #include "datatypes/music_song.h"
@@ -50,6 +51,14 @@ struct Import_Manifest
     int preserve_audio_ids;
     int npc_sounds;
     int legacy_scape2009;
+    int textures_only;
+    int material_mode_face_colour;
+    int material_mode_average_hsl;
+    /* Explicit source procedural-material -> destination texture ids.  A
+     * legacy Summoning import remains deliberately untextured until this is
+     * supplied; an incomplete table is an error rather than a silent
+     * cross-cache texture-id leak. */
+    struct Tool_IdMap texture_map;
     struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
     struct Import_List songs, patches, samples;
 };
@@ -162,9 +171,50 @@ static int parse_nonnegative(const char* key, const char* value, int* out)
     return 1;
 }
 
+/* A reviewed lane-wide map keeps every bounded cohort on the same material
+ * policy without copying 680 hand-approved rows into each manifest. */
+static int load_texture_map_file(const char* manifest_path, struct Import_Manifest* m)
+{
+    char path[1200];
+    join_manifest_path(path, sizeof(path), manifest_path, "texture_map_530_to_239.ini");
+    FILE* f = fopen(path, "rb");
+    if( !f )
+    {
+        fprintf(stderr, "cachepack import: missing approved texture map %s\n", path);
+        return 0;
+    }
+    char line[256]; int count = 0;
+    while( fgets(line, sizeof(line), f) )
+    {
+        char* s = trim(line);
+        if( !*s ) continue;
+        char* eq = strchr(s, '=');
+        if( !eq ) { fclose(f); return 0; }
+        *eq = '\0';
+        int source_id = -1, dest_id = -1, existing = -1;
+        if( !parse_nonnegative("texture source id", trim(s), &source_id) ||
+            !parse_nonnegative("texture destination id", trim(eq + 1), &dest_id) ||
+            tool_id_map_lookup(&m->texture_map, source_id, &existing) ||
+            !tool_id_map_put(&m->texture_map, source_id, dest_id) )
+        {
+            fclose(f);
+            return 0;
+        }
+        count++;
+    }
+    fclose(f);
+    if( count != 680 )
+    {
+        fprintf(stderr, "cachepack import: approved texture map has %d rows, expected 680\n", count);
+        return 0;
+    }
+    return 1;
+}
+
 static int manifest_load(const char* path, struct Import_Manifest* m)
 {
     memset(m, 0, sizeof(*m));
+    tool_id_map_init(&m->texture_map);
     snprintf(m->lane, sizeof(m->lane), "ported/scape2009_summoning");
     snprintf(m->prefix, sizeof(m->prefix), "summoning");
     m->npc_base = 20000;
@@ -217,6 +267,25 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "sample_base") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_base) ) { fclose(f); return 0; } }
             else if( strcmp(key, "sample_identity_min") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_identity_min) ) { fclose(f); return 0; } }
             else if( strcmp(key, "sample_setup_dest") == 0 ) { if( !parse_nonnegative(key, value, &m->sample_setup_dest) ) { fclose(f); return 0; } }
+            else if( strcmp(key, "material_mode") == 0 )
+            {
+                if( strcmp(value, "mapped_texture") == 0 )
+                {
+                    m->material_mode_face_colour = 0;
+                    m->material_mode_average_hsl = 0;
+                }
+                else if( strcmp(value, "face_colour") == 0 )
+                    m->material_mode_face_colour = 1;
+                else if( strcmp(value, "average_hsl") == 0 )
+                    m->material_mode_average_hsl = 1;
+                else
+                {
+                    fprintf(stderr,
+                            "cachepack import: material_mode must be mapped_texture, face_colour, or average_hsl\n");
+                    fclose(f);
+                    return 0;
+                }
+            }
             else if( strcmp(key, "preserve_audio_ids") == 0 )
             {
                 if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 || strcmp(value, "1") == 0 )
@@ -246,9 +315,31 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             else if( strcmp(key, "from_rev") != 0 && strcmp(key, "from_cache") != 0 &&
                      strcmp(key, "to_rev") != 0 && strcmp(key, "to_tree") != 0 &&
                      strcmp(key, "lane") != 0 && strcmp(key, "ledger") != 0 &&
-                     strcmp(key, "prefix") != 0 )
+                     strcmp(key, "prefix") != 0 && strcmp(key, "material_mode") != 0 )
             {
                 fprintf(stderr, "cachepack import: unknown import key %s\n", key);
+                fclose(f);
+                return 0;
+            }
+        }
+        else if( strcmp(section, "texture_map") == 0 )
+        {
+            int source_id = -1, dest_id = -1;
+            if( !parse_nonnegative("texture source id", key, &source_id) ||
+                !parse_nonnegative("texture destination id", value, &dest_id) )
+            {
+                fclose(f);
+                return 0;
+            }
+            int existing = -1;
+            if( tool_id_map_lookup(&m->texture_map, source_id, &existing) )
+            {
+                fprintf(stderr, "cachepack import: duplicate texture map source %d\n", source_id);
+                fclose(f);
+                return 0;
+            }
+            if( !tool_id_map_put(&m->texture_map, source_id, dest_id) )
+            {
                 fclose(f);
                 return 0;
             }
@@ -278,6 +369,8 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
         }
     }
     fclose(f);
+    if( m->legacy_scape2009 && m->texture_map.count == 0 && !load_texture_map_file(path, m) )
+        return 0;
     if( !m->from_rev[0] || !m->from_cache[0] || !m->to_rev[0] || !m->to_tree[0] ||
         !m->prefix[0] || strchr(m->prefix, '/') ||
         (m->npcs.n == 0 && m->objs.n == 0 && m->models.n == 0 && m->seqs.n == 0 &&
@@ -295,6 +388,7 @@ static void manifest_free(struct Import_Manifest* m)
     free(m->npcs.v); free(m->objs.v); free(m->models.v); free(m->seqs.v);
     free(m->spotanims.v); free(m->locs.v); free(m->synths.v);
     free(m->songs.v); free(m->patches.v); free(m->samples.v);
+    tool_id_map_free(&m->texture_map);
 }
 
 static void manifest_ledger_path(
@@ -941,8 +1035,85 @@ static int collect_sequence(struct Tool_Dat2Cache* src, int id,
     return ok;
 }
 
+static int flatten_model_materials(
+    struct RSCache_Model* model,
+    const struct RSCache_Dat2MaterialTable* materials,
+    int source_id,
+    int average_hsl,
+    int source_format)
+{
+    if( !model->face_textures )
+        return 1;
+
+    /* OB3/V3 store render type separately from the texture assignment.  In
+     * those formats type 2/3 is an authored hidden face, not the legacy
+     * OB2/V2 "this face is textured" bit.  Material flattening removes the
+     * texture assignment, but it must not make that hidden geometry visible.
+     * Packed OB2/V2 info bytes still need their texture bit cleared. */
+    int separate_render_types =
+        source_format == RSCACHE_MODEL_FORMAT_OB3 || source_format == RSCACHE_MODEL_FORMAT_V3;
+
+    for( int face = 0; face < model->face_count; face++ )
+    {
+        int material_id = model->face_textures[face];
+        if( material_id < 0 )
+            continue;
+
+        if( average_hsl )
+        {
+            if( !materials || material_id >= materials->count ||
+                !materials->materials[material_id].exists )
+            {
+                fprintf(stderr,
+                        "cachepack import: model %d uses absent source material %d\n",
+                        source_id, material_id);
+                return 0;
+            }
+            if( model->face_colors )
+                model->face_colors[face] =
+                    (uint16_t)materials->materials[material_id].average_hsl;
+        }
+
+        /* Rev-530 materials are procedural graphs and cannot be represented by
+         * an OSRS sprite-material id. Average-HSL mode uses the material
+         * table's authored representative colour; face-colour mode keeps the
+         * model's own value for legacy callers which deliberately want it. */
+        if( model->face_infos )
+        {
+            if( !separate_render_types )
+                model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+            else if( model->face_infos[face] == 3 )
+                /* Textured type 3 is hidden, but untextured type 3 has a
+                 * different legacy meaning (flat black). Normalize it to the
+                 * format-independent hidden type before removing the texture. */
+                model->face_infos[face] = 2;
+        }
+        if( model->face_texture_coords )
+            model->face_texture_coords[face] = -1;
+        model->face_textures[face] = -1;
+    }
+
+    /* Once the texture array is removed, packed OB2/V2 faces may not retain
+     * the legacy textured-info bit, including malformed source faces whose
+     * texture id was already -1. OB3/V3 render types remain authoritative. */
+    if( model->face_infos && !separate_render_types )
+        for( int face = 0; face < model->face_count; face++ )
+            model->face_infos[face] = (uint8_t)(model->face_infos[face] & 1);
+
+    free(model->face_textures); model->face_textures = NULL;
+    free(model->face_texture_coords); model->face_texture_coords = NULL;
+    free(model->texture_render_types); model->texture_render_types = NULL;
+    free(model->textured_p_coordinate); model->textured_p_coordinate = NULL;
+    free(model->textured_m_coordinate); model->textured_m_coordinate = NULL;
+    free(model->textured_n_coordinate); model->textured_n_coordinate = NULL;
+    model->textured_face_count = 0;
+    return 1;
+}
+
 static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
-                             const struct Tool_IdMap* model_map, int source_id)
+                             const struct Tool_IdMap* model_map,
+                             const struct RSCache_Dat2MaterialTable* materials,
+                             int source_id, int apply)
 {
     struct Tool_Bytes raw = {0};
     int table = RSCache_Dat2DiskTableId(src->disk, RSCACHE_DAT2_TABLE_MODELS);
@@ -961,7 +1132,37 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     }
 
     int format = prov->format;
-    if( m->legacy_scape2009 )
+    if( (m->material_mode_face_colour || m->material_mode_average_hsl) && model->face_textures )
+    {
+        if( !flatten_model_materials(
+                model, materials, source_id, m->material_mode_average_hsl, prov->format) )
+        {
+            RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
+            return 0;
+        }
+        format = prov->format == RSCACHE_MODEL_FORMAT_OB3 ? RSCACHE_MODEL_FORMAT_V3
+                                                          : RSCACHE_MODEL_FORMAT_V2;
+    }
+    else if( m->texture_map.count && model->face_textures )
+    {
+        for( int face = 0; face < model->face_count; face++ )
+        {
+            int source_texture = model->face_textures[face];
+            if( source_texture < 0 )
+                continue;
+            int dest_texture = -1;
+            if( !tool_id_map_lookup(&m->texture_map, source_texture, &dest_texture) )
+            {
+                fprintf(stderr,
+                        "cachepack import: model %d uses source texture %d without a texture_map row\n",
+                        source_id, source_texture);
+                RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
+                return 0;
+            }
+            model->face_textures[face] = (int16_t)dest_texture;
+        }
+    }
+    else if( m->legacy_scape2009 )
     {
         /* Historical compatibility: the checked-in Summoning lane was authored
          * before texture dependency import existed and its tests require the
@@ -989,7 +1190,9 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     char path[1500];
     snprintf(path, sizeof(path), "%s/models/%s/%s_model_%d.%s", m->to_tree, m->lane,
              m->prefix, source_id, ext);
-    int ok = n && write_bytes(path, out, n);
+    /* Dry-runs must traverse the exact model/transcode path so an incomplete
+     * texture_map is caught before an import mutates the content tree. */
+    int ok = n && (!apply || write_bytes(path, out, n));
     free(out); RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
     (void)model_map;
     return ok;
@@ -1279,6 +1482,26 @@ static int import_run(struct Import_Manifest* m, int apply)
         !tool_resolve_profile(m->to_rev, NULL, NULL, NULL, NULL, &to) ) return 0;
     struct Tool_Dat2Cache src;
     if( !tool_dat2_open(m->from_cache, &from, &src) ) return 0;
+
+    struct RSCache_Dat2MaterialTable* materials = NULL;
+    if( m->material_mode_average_hsl )
+    {
+        int table_id = RSCache_Dat2DiskTableId(src.disk, RSCACHE_DAT2_TABLE_MATERIALS);
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(src.disk, table_id, 0);
+        if( archive )
+        {
+            materials = RSCache_Dat2MaterialTableNewDecode(
+                archive->data, archive->data_size, RSCache_Dat2ProcTextureFlags(&from));
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+        if( !materials )
+        {
+            fprintf(stderr, "cachepack import: source material table is absent or invalid\n");
+            tool_dat2_close(&src);
+            return 0;
+        }
+    }
 
     struct Import_Ints models = {0}, seqs = {0}, frames = {0}, framemaps = {0};
     struct Import_Ints synths = {0}, samples = {0}, songs = {0}, patches = {0};
@@ -1583,10 +1806,17 @@ static int import_run(struct Import_Manifest* m, int apply)
            m->npcs.n, m->objs.n, m->locs.n, m->spotanims.n, models.n, seqs.n,
            frames.n, framemaps.n, synths.n, songs.n, samples.n, patches.n);
 
+    if( ok )
+        for( int i = 0; ok && i < models.n; i++ )
+            ok = write_model_asset(m, &src, &model_map, materials, models.v[i], apply);
+
+    /* Re-apply an approved material table without regenerating gameplay
+     * configs or pulling deferred closure assets into an admitted cohort. */
+    if( m->textures_only )
+        apply = 0;
+
     if( apply && ok )
     {
-        for( int i = 0; ok && i < models.n; i++ )
-            ok = write_model_asset(m, &src, &model_map, models.v[i]);
         for( int i = 0; ok && i < framemaps.n; i++ )
             ok = write_framemap_asset(m, &src, &to, framemaps.v[i]);
         for( int i = 0; ok && i < frames.n; i++ )
@@ -1610,7 +1840,7 @@ static int import_run(struct Import_Manifest* m, int apply)
         mkdir_p(configdir);
 
         snprintf(path, sizeof(path), "%s/%s.seq", configdir, m->prefix);
-        FILE* seqout = fopen(path, "wb");
+        FILE* seqout = seqs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && seqout && i < seqs.n; i++ )
         {
             struct RSCache_Dat2ConfigSequence* seq = tool_dat2_seq_load(&src, seqs.v[i]);
@@ -1669,10 +1899,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                          name, bytes, (int)n, seqout);
             free(bytes); RSCache_Dat2ConfigSequenceFree(seq);
         }
-        if( seqout ) fclose(seqout); else ok = 0;
+        if( seqout ) fclose(seqout); else if( seqs.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.npc", configdir, m->prefix);
-        FILE* npcout = fopen(path, "wb");
+        FILE* npcout = m->npcs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && npcout && i < m->npcs.n; i++ )
         {
             if( m->legacy_scape2009 )
@@ -1724,10 +1954,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                          name, bytes, (int)n, npcout);
             free(bytes); RSCache_Dat2ConfigNpcFree(npc);
         }
-        if( npcout ) fclose(npcout); else ok = 0;
+        if( npcout ) fclose(npcout); else if( m->npcs.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.obj", configdir, m->prefix);
-        FILE* objout = fopen(path, "wb");
+        FILE* objout = m->objs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && objout && i < m->objs.n; i++ )
         {
             int dest_id = map_id(&obj_map, m->objs.v[i].source_id);
@@ -1764,10 +1994,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                   name, bytes, (int)n, objout);
             free(bytes);
         }
-        if( objout ) fclose(objout); else ok = 0;
+        if( objout ) fclose(objout); else if( m->objs.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.spotanim", configdir, m->prefix);
-        FILE* spotout = fopen(path, "wb");
+        FILE* spotout = m->spotanims.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && spotout && i < m->spotanims.n; i++ )
         {
             int dest_id = map_id(&spot_map, m->spotanims.v[i].source_id);
@@ -1785,10 +2015,10 @@ static int import_run(struct Import_Manifest* m, int apply)
                                   name, bytes, (int)n, spotout);
             free(bytes);
         }
-        if( spotout ) fclose(spotout); else ok = 0;
+        if( spotout ) fclose(spotout); else if( m->spotanims.n ) ok = 0;
 
         snprintf(path, sizeof(path), "%s/%s.loc", configdir, m->prefix);
-        FILE* locout = fopen(path, "wb");
+        FILE* locout = m->locs.n ? fopen(path, "wb") : NULL;
         for( int i = 0; ok && locout && i < m->locs.n; i++ )
         {
             int dest_id = map_id(&loc_map, m->locs.v[i].source_id);
@@ -1829,7 +2059,7 @@ static int import_run(struct Import_Manifest* m, int apply)
                                          name, bytes, (int)n, locout);
             free(bytes);
         }
-        if( locout ) fclose(locout); else ok = 0;
+        if( locout ) fclose(locout); else if( m->locs.n ) ok = 0;
 
 #define SAVE_ALLOC_IF(field, kind) if( ok && m->field.n ) ok = save_alloc(&emit, kind, m->to_tree, m->lane)
         SAVE_ALLOC_IF(npcs, CP_TYPE_NPC); SAVE_ALLOC_IF(objs, CP_TYPE_OBJ);
@@ -1874,22 +2104,27 @@ static int import_run(struct Import_Manifest* m, int apply)
     tool_id_map_free(&fm_map); tool_id_map_free(&synth_map); tool_id_map_free(&sample_map);
     lc_pack_free(&model_pack); lc_pack_free(&frame_pack); lc_pack_free(&fm_pack);
     lc_pack_free(&synth_pack); lc_pack_free(&song_pack); lc_pack_free(&sample_pack);
-    lc_pack_free(&patch_pack); cp_names_free(&emit.names); tool_dat2_close(&src);
+    lc_pack_free(&patch_pack); cp_names_free(&emit.names);
+    RSCache_Dat2MaterialTableFree(materials);
+    tool_dat2_close(&src);
     return ok;
 }
 
 int cp_import_command(int argc, char** argv)
 {
-    const char* manifest = NULL; const char* to_tree = NULL; int apply = 0;
+    const char* manifest = NULL; const char* to_tree = NULL; int apply = 0, textures_only = 0;
     for( int i=0;i<argc;i++ )
     {
         if(strcmp(argv[i],"--manifest")==0 && i+1<argc)manifest=argv[++i];
         else if(strcmp(argv[i],"--to-tree")==0 && i+1<argc)to_tree=argv[++i];
         else if(strcmp(argv[i],"--apply")==0)apply=1;
-        else { fprintf(stderr,"Usage: cachepack import --manifest FILE [--to-tree DIR] [--apply]\n"); return 1; }
+        else if(strcmp(argv[i],"--textures-only")==0)textures_only=1;
+        else { fprintf(stderr,"Usage: cachepack import --manifest FILE [--to-tree DIR] [--apply] [--textures-only]\n"); return 1; }
     }
     if(!manifest){fprintf(stderr,"cachepack import: --manifest is required\n");return 1;}
     struct Import_Manifest m; if(!manifest_load(manifest,&m))return 1;
+    if(textures_only && !apply){fprintf(stderr,"cachepack import: --textures-only requires --apply\n");manifest_free(&m);return 1;}
+    m.textures_only=textures_only;
     if(to_tree)snprintf(m.to_tree,sizeof(m.to_tree),"%s",to_tree);
     int ok=import_run(&m,apply); manifest_free(&m);
     return ok?0:1;

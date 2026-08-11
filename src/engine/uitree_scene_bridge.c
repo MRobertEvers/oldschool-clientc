@@ -455,6 +455,11 @@ UITreeSceneBridge_EnsureModel(
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(bridge->provider, model);
+    /* Interface archive models use the same asynchronously-published texture
+     * map as world models.  Register their surviving SD material ids before
+     * lighting so App's normal texture pump loads them; otherwise every
+     * textured face is skipped and only untextured extremities remain. */
+    ToriDraw_ModelNoteTextureWants(model);
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
     hnd.u.model.model = model;

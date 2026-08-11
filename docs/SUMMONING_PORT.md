@@ -2,8 +2,19 @@
 
 **Source:** `2009scape` (RS2 rev 530, Jan 2009) · **Target:** this repo + `OSRS-Content/osrs239-content` (OldSchool rev 239)
 
-**Status:** Phases 0–4 and the bounded Phase-5b Dreadfowl cohort are implemented; the remaining
-Phase-5 breadth is next.
+**Status:** Phases 0–4 and all 77 bounded Phase-5 familiar/pouch cohorts are implemented. The
+completion lanes below supersede the former Phase-7 holdbacks for Wolf Whistle, safe audio, and
+the separately-lifecycled pets.
+
+### Completion authority — 2026-08-10
+
+The user explicitly authorized completing this port, including whatever bounded content is needed
+to remove the outstanding failure states. That authorizes new target-native quest interactions,
+the source-backed audio closure, and pet records/lifecycle work. It **does not** authorize a
+blanket promotion of the preserved `summoning_roster_530` experiment: every admitted record still
+needs its own ledger, source closure, feature-on stage inclusion, and fresh-save real-client proof.
+Unsafe synths remain withheld unless their source payload is transcoded and verified against the
+target codec.
 
 Summoning is **not an OldSchool skill**. This is a deliberate, feature-flagged port of RS2 content
 into an OSRS-shaped tree, kept in a marked lane (`ported/scape2009_summoning/`) so it is never
@@ -110,8 +121,9 @@ governs it. Do not scope, tier, or budget this port around the initial-field wid
 Consequences for this lane:
 
 - Port all 82 familiars. No tiering for id reasons.
-- Wilderness combat twins (`id+1`) and pets stay descoped for *behavioural* reasons (a separate
-  lifecycle, no wilderness in this tree), not id reasons.
+- Wilderness combat twins (`id+1`) remain descoped for behavioural reasons (no wilderness in this
+  tree). Pets are now an explicit completion lane with a separate lifecycle; they must never reuse
+  familiar ownership/timers.
 - `content_register.c` npc `server_base = 20000` is valid. Allocation and collision checks remain
   normal content-lane concerns; they are not wire-width budgeting.
 
@@ -126,7 +138,7 @@ handoff and `PORTING_GUIDE.md`; F3 is not the only record of it.
 format set**. Models cannot be copied; they must be decoded and re-encoded, and **there is no
 existence proof anywhere in this tree that the client renders either source format.**
 
-Four confirmed pre-existing bugs sit in the path:
+Five confirmed pre-existing bugs sit in the path:
 
 1. **Framemap V3→V1 downgrade is a silent no-op.** `tools/common/cache_write.c:564-578` re-encodes
    without clearing `has_transform_actor`/`has_masks`/`tail`, and `RSCache_Dat2FramemapEncode`
@@ -137,6 +149,12 @@ Four confirmed pre-existing bugs sit in the path:
    at `void634`, 3,139 at `rs727_preeoc`, 0 at osrs239.
 3. **`cachepack` cannot read RS2 sharded config layouts** (`cp_common.c:58` refuses outright).
 4. **No `rs530` profile exists.**
+5. **Material flattening must preserve OB3 render types.** OB2/V2 use the face-info texture bit,
+   but OB3/V3 store texture assignment separately and use render types 2/3 for hidden helper
+   geometry. Clearing the render type while dropping a rev-530 procedural material exposes black
+   triangles; a textured type 3 must become untextured type 2 because untextured type 3 means flat
+   black. The importer branches on model provenance and post-import verification compares the
+   hidden-face count. This affected Spirit terrorbird model 31096 and model 31211.
 
 And the one that decides the schedule: **texture ids are cache-local and un-transcodable.** 530 has
 ~680 procedural materials; osrs239 has ~210 sprite-backed ones. No converter exists
@@ -407,16 +425,21 @@ sends op2, opens `skill_guide_v2`, renders the live Spirit wolf row through `db_
 pouch through the object/model renderer. Note `script_9176.cs2b` is **bytecode-only**, so the
 guide's Overview tab remains unmodified. The Summoning-points orb is now live in interface 160:
 it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to target ids
-20000..20003, and authored clientscript 12000 redraws from dynamic/base stat 24. The originally
+20000..20003. Authored clientscript 12004 is the default and reshapes those pieces into the modern
+57x34 orb layout, including the shared 26px fill and device-aware hover frame. It is visible only
+while a familiar is active and displays the server-owned 0..60 special-move points. The active and
+special varps transmit directly and drive the orb's `onvartransmit` hook. The source-era
+clientscript 12000 remains packed as the legacy stat-points alternative. The originally
 proposed `(54,158)` position is behind the fixed client's tab strip; real-client measurement moved
 it to visible `(89,128)`, immediately right of the special-attack orb. Its real op1 packet calls
-the active familiar. The sidebar tab is now implemented in all three toplevels 161/548/164 with
-row 14 in `enum_1137/1138/1139`. Classic and Fixed reflow into eight 30px cells; Modern shifts its
-movable seven-tab strip left one cell and places the new stone/icon at the freed right edge. It
-uses the exact rev-530 sprite-222 wolf head (target graphic 229), opens group 969, and composes
-NPC 20000's packed chathead rather than a raw body or fallback model. Real-client acceptance
-asserts the final model draw id (`0x50004e20`), live points text, Call and Dismiss in every
-gameframe. The obelisk is now installed by feature-gated, idempotent runtime `loc_add`, which
+the active familiar. Summoning access now stays inside Worn Equipment (group 387): clientscript
+12001 configures the cache-native top-right Call-follower button with the exact rev-530 sprite-222
+wolf head (target graphic 229), and its real op1 mounts compact group 969 into
+`wornitems:universe`. Group 969 is 190x205, reuses its native 140x28 Call/Dismiss chrome, has a
+top-right Back-to-equipment button, and composes the active familiar's packed chathead rather than
+a raw body or fallback model. No component is added to top-level groups 161/548/164. Real-client
+acceptance asserts the final model draw id (`0x50004e20`), live points text, compact bounds, and
+real Call/Dismiss packets. The obelisk is now installed by feature-gated, idempotent runtime `loc_add`, which
 sidesteps `maps/` entirely. The rev239 `LOC_ADD_CHANGE_V2` measurement is settled: its loc config
 id is `p2Alt3`, exactly 16 bits, so the generic loc `server_base = 70000` cannot be used on this
 wire (70000 would truncate to 4464). The imported source loc 28716 is therefore mapped to the
@@ -449,8 +472,9 @@ summon-sound table** (`Familiar.java:713` is a TODO) — one shared summon sound
 familiar/pouch pairs and four Sacred Clay pairs that remain explicitly deferred. The separate
 [`roster_boundary_530.json`](summoning_port/roster_boundary_530.json) originally allowed only the
 existing Spirit-wolf proof roots; its one later, separately owned Phase-5b admission is Dreadfowl.
-That does not admit any entry from the broad generated roster. The boundary permits the documented
-safe source synth 188 only as policy; it does not turn an unreviewed import into accepted content.
+The boundary now admits the separately-owned clean familiar/pouch cohorts listed in the queue. It
+still permits only the documented safe source synth 188 as policy; it does not turn an unreviewed
+import into accepted content.
 
 The earlier generated `summoning_roster_530` import is preserved intact as review-only evidence:
 630 source files, 2,175 pack references, and 1,365 ledger rows. Its last broad CSV and INI manifests
@@ -460,7 +484,7 @@ Feature-on staging withholds its cohort-named assets and its line-oriented mixed
 asserts that no review-only marker reaches the staged tree. The same audit fails closed for any
 other generated cohort, pet record, unsafe synth, or `npc_sounds=yes` closure. The permanent
 `test-summoning-phase5a` target performs 94 checks over that boundary, the ledger, archive hashes,
-preservation counts, and staging exclusion. Closure evidence: `port_summoning_ids.py --check`
+preservation counts, and staging exclusion. Current evidence: `port_summoning_ids.py --check`
 reports 1,541 required rows and 1,418 total ledger rows, 0 errors; staging admission is 4,545/0,
 with 3,785 review-only references held and 2,805 withheld, yielding 417 staged actual files and a
 417/0 review-exclusion check; the feature cache is 16,998 records/0 errors, 187 asset archives/23
@@ -468,7 +492,21 @@ tables, CS2 6/0, ServerScript 12,963 scripts, and `mock230_pack --check-only` 8,
 flag-off comparison remains 25/0. Phase 5a did not accept the broad roster; the separately owned
 Phase-5b closure below does not change its review-only status.
 
-**Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The sole admitted breadth closure
+**Phase 5 scroll-object closure (done).** All 78 active familiar mappings now resolve to their
+67 distinct rev-530 scroll objects. Call to Arms, Petrifying Gaze, and Titan's Constitution retain
+their source sharing, and the commented Phoenix object 14622 is explicitly included so Phoenix is
+not the lone familiar without a packed scroll. `scroll_assets_530.ini` imports the 67 object
+records and their 62 distinct inventory models into target ids 47400..47466 and 124000..124061;
+`summoning_scrolls_530.map` records every translation. Both `obj.alloc` and `obj.client` admit all
+67 records and `7_models.pack` admits every model. `test-summoning-scroll-assets` checks the 78→67
+mapping, the three documented source pouch-key corrections, configs, ledger, files, and pack
+membership before every feature-cache bake.
+The guide's additional post-rev-530 Fetch Casket row is sourced separately from rev 727 by
+`scroll_fetch_casket_727.ini` (object 19621/model 58228 → target 47467/124062), bringing the
+visible Summoning Scrolls subsection to 68/68 packed icons without misattributing that object to
+the familiar roster.
+
+**Phase 5b — bounded Dreadfowl familiar/pouch cohort (done).** The first admitted breadth closure
 is source NPC 6825 / pouch 12043 to target NPC 26000 / pouch 46000. Its exact closure is body,
 head, and pouch models 120000/120001/120002 from source 30429/31147/30664; ready/walk sequences
 23000/23001 from source 5386/7808; animation archive 1399 at target 23000; and framemap 1255 at
@@ -476,7 +514,7 @@ target 10000. The separate nine-row Dreadfowl ledger is deliberately `minted`/`u
 not a human material or signoff approval. No combat, pet, scroll/special-move, or audio closure is
 accepted with this cohort.
 
-`test-summoning-phase5b` passes 202/0 while preserving the broad review-only footprint. The
+`test-summoning-phase5b` passes 202/0 while preserving the broad review-only footprint and the
 normal embedded-client acceptance, `test-summoning-phase5b-runtime`, passes 110/0 using the actual
 right-click Dreadfowl-pouch menu: authored `ifop4=Summon` appears as native action 2231/op 5,
 serializes as dynamic `IF_BUTTONX op=6`, dispatches canonically to `OPHELD4`, consumes the pouch,
@@ -487,40 +525,53 @@ one-point summon and 100-tick drain boundary, and exercise
 real sidebar Call and Dismiss. The retained logs and framebuffers are under
 `build/summoning-phase5b-runtime/`.
 
-**Phase 5c — corpus familiar/pouch cohort (planned).** The next bounded slice is the 45-pair
-baseline familiar corpus: the 76 remaining active pouch pairs less Phoenix and the 30
-Beast-of-Burden/forager pairs that remain Phase-6 container work. It will accept only the common
-summon/render/lifecycle surface; specials, combat, scrolls, storage, foraging, boosts, healing,
-teleports, source audio, and other differentiated behavior remain explicit later work. The exact
-membership, admission/import process, generated runtime registry, full real-client matrix, and
-completion gates are in
-[`summoning_port/PHASE_5C_CORPUS_COHORT_PLAN.md`](summoning_port/PHASE_5C_CORPUS_COHORT_PLAN.md).
+**Phase-5 breadth status:** 77 familiar/pouch cohorts are admitted with dedicated ledgers and
+disjoint target ranges. Phoenix is a nine-row non-audio closure; source synths 5776 and 5753 are
+withheld because they are outside the safe audio policy, and its missing `Familiar` class keeps
+gameplay out of scope.
 
 **Client acceptance for breadth:** every familiar must be summoned in the real client with its
 model and animations rendered, and every scroll must be activated through its actual client
 interaction with visible/logged special-move effects. Definition presence or a successful bake
 alone is not acceptance.
 
-**Phase 6a — private Beast-of-Burden container foundation (done).** The old “missing inv namespace”
-premise was stale: `inv` already has a cache name table, a server allocation floor, dynamic
-player-owned container resolution, generic transmit, and generic save/load. This slice formalizes its
-one native field (`fields/inv.ini: inv.size`), declares authored inventory membership, and adds the
-feature-on-only `summoning_bob` record at ID 2001 with 30 slots. Its allocation and client membership
-live in the marked Summoning lane; the ordinary cache sees neither the config nor a client membership.
-`test-summoning-phase6` passes 26/0, including allocation freshness, mutation controls, disposable
-staging, review-only exclusion, and source immutability. A disposable cache bake writes 16,999 records
-with 0 failed/unknown/unresolved and read-back `inv_2001 size=30`; the cache gate is 7/0. Staging remains
-4,548/0 with 3,785 review-only references held. An ordinary inv-only bake remains 1,026 records with
-no ID 2001, and the flag-off comparison remains 25/0.
+**Phase 6 — Beast of Burden (~8–12 d), prerequisite complete.** The shared inventory foundation
+now declares `fields/inv.ini` and `[namespace:inv]`; the feature-on `summoning_bob` record bakes
+as a 30-slot cache inventory and resolves through the ordinary container path. This also clears the
+documented shop prerequisite. The next slice binds a single admitted familiar to that inventory,
+then proves store/withdraw, dismiss spill, and logout/relog persistence in the real client.
 
-**Phase 6b — a real BoB/forager cohort (pending).** This still needs an admitted familiar and pouch,
-actual storage UI plus `inv_transmit`, transfer/overflow rules, summon/dismiss/relog lifecycle, and a
-fresh-save real-client proof. Phase 6a deliberately does **not** define shared `scope`, stock, restock,
-or stack policy; it is not shop work and it does not claim any of the 30 deferred familiar roots work yet.
+**Phase 7 — polish.** Execute these slices in order; each client-visible slice retains its
+fresh-save framebuffer and logs.
 
-**Phase 7 — polish.** Sidebar tab if deferred · per-account unlock · Wolf Whistle · remaining
-sounds · pets (a separate lifecycle — stub the save shape now so it can be added later without a
-migration).
+1. **7a — per-account unlock (done).** `summoning_unlocked` persists and synchronizes the
+   existing `content_restrict_summoning_serverside` varbit on login; every runtime Summoning
+   entry point requires that state. The familiar view now mounts only inside
+   `wornitems:universe`; it does not add or resize a gameframe tab in any layout. Fresh
+   locked/unlocked/relog acceptance is 42/0, and the real Spirit-terrorbird Store → relog →
+   Withdraw → Dismiss-spill regression passes.
+2. **7b — Wolf Whistle unlock writer (done).** The upstream completion contract is a
+   persisted unlock, 276 Summoning XP, and 275 gold charms. The generic gold charm was already
+   present (`12158 → 40002`); the missing closure was the quest-only reward copy
+   (`12527 → 40256`), whose verified charm model is deliberately a separate target item so it
+   cannot be infused. The idempotent completion writer now grants the persistent gate, 2760
+   ServerScript XP units, and 275 quest-copy charms; it is idempotent and covered through relog
+   in the real-client harness.
+3. **7c — safe audio closure (done).** Source synth 188 maps to the already cache-native
+   `summon_npc` record after a byte-identical payload check, so no new sound archive was admitted.
+   The real sidebar Call action now emits SYNTH_SOUND 188 (one loop, zero delay), retained in the
+   permanent client log. 4161/4164/4214/4265/4372 remain withheld until their 530 payloads are
+   transcoded and decoded by the target codec.
+4. **7d — first pet lifecycle.** Admit the smallest complete pet closure in a dedicated ledger.
+   Persist only pet-specific type/state, spawn it independently of familiar state, and prove
+   release, pickup/dismiss/death, and logout/relog in the real client.
+5. **7e — Wolf Whistle interaction (done).** A target-native `Begin Wolf Whistle` third
+   operation on the feature-on obelisk calls the existing idempotent writer and remains available
+   while the account is locked. The permanent harness sends the real client's `OPLOC3` packet,
+   retains the completion frame/log, and proves the persistent unlock through relog.
+6. **7f — completion audit.** For every remaining withheld audio or pet candidate, record either
+   an admitted closure with interaction proof or an explicit codec/asset reason it cannot ship.
+   The port is complete only when no queue row is left pending or in progress.
 
 ---
 

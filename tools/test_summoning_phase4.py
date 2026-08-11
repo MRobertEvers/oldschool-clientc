@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -66,10 +67,14 @@ def main() -> int:
                 # Select Stats, open child 34's real context menu, then select
                 # its View Summoning guide row. This exercises the same menu and
                 # packet path a player uses rather than dispatching a hook.
-                "TORIRS_SIM_CLICK_AT": "150,536,186;230,650,400,1;260,650,415",
+                # Finish by selecting the Summoning Scrolls subsection. This
+                # makes the final tree and object-icon trace prove the packed
+                # scroll records, rather than only the Overview fallback icon.
+                "TORIRS_SIM_CLICK_AT": "150,536,186;230,525,460,1;260,525,475;360,80,92",
                 "TORIRS_OBJICON_DEBUG": "1",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
+                "TORIRS_NET_CHEAT": "summoning_unlock",
             }
         )
         result = subprocess.run(
@@ -100,26 +105,32 @@ def main() -> int:
         "client was built without the embedded mock server",
     )
     expect("released 536,186" in result.stdout, "Stats tab click did not execute")
-    expect("move 650,400 right=1" in result.stdout, "Summoning menu did not open")
-    expect("released 650,415" in result.stdout, "Summoning guide menu row was not selected")
+    expect("move 525,460 right=1" in result.stdout, "Summoning menu did not open")
+    expect("released 525,475" in result.stdout, "Summoning guide menu row was not selected")
     expect(
         "clickdbg: send op2 target=0x1400022 sub=-1 state=2" in result.stdout,
         "Summoning cell did not send IF_BUTTON2",
     )
     expect("860<<16|0" in result.stdout, "server did not mount the guide")
-    expect(
-        'text="Summoning - Familiars (Members Only) "' in result.stdout,
-        "server did not start the Summoning guide CS2",
-    )
+    # The final tree is dumped after the Summoning Scrolls subsection click.
+    expect("OBJICON: enter com=0x035c" in result.stdout, "Summoning guide CS2 built no rows")
     expect("860<<16" in result.stdout, "skill_guide_v2 is absent from the final UI tree")
     expect('text="Familiars"' in result.stdout, "Familiars subsection did not render")
     expect(
-        'text="Spirit wolf - Gold charm, wolf bones, 7 spirit shards"' in result.stdout,
-        "live db_find did not render the Spirit wolf row",
+        'text="Summoning - Summoning Scrolls (Members Only) "' in result.stdout,
+        "Summoning Scrolls did not become the active guide subsection",
     )
     expect(
-        "OBJICON: enter" in result.stdout and "obj=40000" in result.stdout,
-        "Spirit wolf pouch icon did not enter the object renderer",
+        'text="Howl"' in result.stdout and 'text="Steel of Legends"' in result.stdout,
+        "live db_find did not render the first and last Summoning scroll rows",
+    )
+    rendered_scrolls = {
+        int(obj_id)
+        for obj_id in re.findall(r"OBJICON: enter[^\n]* obj=(474\d+) ", result.stdout)
+    }
+    expect(
+        rendered_scrolls == set(range(47400, 47468)),
+        f"Summoning scroll renderer saw {len(rendered_scrolls)}/68 packed object icons",
     )
     expect("CS2VM2: abort" not in result.stdout, "guide clientscript aborted")
 

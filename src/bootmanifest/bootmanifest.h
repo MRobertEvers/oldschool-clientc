@@ -13,7 +13,8 @@
  *
  *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
  *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
- *   [net:boot]    rev=<name>  transport=tcp|ws  host=<h>  port=<n>
+ *   [net:boot]    rev=<name>  transport=tcp|ws|embed  host=<h>  port=<n>
+ *                 scripts=<embedded-server compiled script directory>
  *                 ws_host=<h>  ws_port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
  *                 jag_crc=<9 comma-separated int32>
@@ -105,12 +106,20 @@
  *                 stand-in, for the var writes that accompany that burst (which
  *                 tab is selected, which chat filters are on). Also skipped when
  *                 networked.
- *   [spawn:hotkeys]  npc=<id>  obj=<id>  spotanim=<id>
- *                    spotanim_height=<n>  spotanim_delay=<n>
- *                    proj_model=<id>  proj_seq=<id>
- *                 Optional; -1/absent = use the built-in default. Env
- *                 TORIRS_SPAWN_* still overrides (same precedence as
- *                 TORIRS_WORLD_MAP vs [cache:boot] spawn).
+ *   [action:<name>] t=<hardcoded target>  a=<optional argument payload>
+ *                 Declares a named developer action. Supported targets are
+ *                 camera_forward/back/left/right/up/down, camera_unlock,
+ *                 world_reload, paint_toggle/more/less/more_100/less_100,
+ *                 spawn_player/npc/obj/projectile/spotanim, entity_spotanim,
+ *                 damage_test, and debug_overlay. `a=` is retained verbatim
+ *                 and uses target-specific comma-separated named arguments.
+ *                 Spawn targets accept `id=<n>` (npc/obj),
+ *                 `id=<n>,height=<n>,delay=<n>` (spotanim/entity_spotanim),
+ *                 or `model=<n>,seq=<n>` (projectile). TORIRS_SPAWN_* env
+ *                 variables still override matching action arguments.
+ *   [debug:hotkeys] <key>=<action name>
+ *                 Binds letters, digits, or named keys such as comma to a
+ *                 declared action. With no bindings, developer hotkeys are off.
  *
  * [cache:boot] epoch/game/revision/quirks are all required. A missing key fails
  * the load with a stated reason (user input, not an internal invariant).
@@ -136,6 +145,10 @@ struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
  * and browser builds. */
 #define BOOTMANIFEST_CLIENT_ARG_MAX 64
 #define BOOTMANIFEST_CLIENT_ARG_CAP 512
+#define BOOTMANIFEST_DEBUG_ACTION_MAX 64
+#define BOOTMANIFEST_DEBUG_HOTKEY_MAX 64
+#define BOOTMANIFEST_DEBUG_NAME_CAP 64
+#define BOOTMANIFEST_DEBUG_ARGS_CAP 512
 
 /** One `[ui:gameframe]` entry: mount `interface_id` into component slot
  *  `component` of `parent_interface_id` (0 = the root interface). */
@@ -151,6 +164,19 @@ struct BootManifestVarcSeed
 {
     int id;
     int value;
+};
+
+struct BootManifestDebugAction
+{
+    char name[BOOTMANIFEST_DEBUG_NAME_CAP];
+    int target; /* enum AppDebugHotkey, -1 until t= is parsed */
+    char args[BOOTMANIFEST_DEBUG_ARGS_CAP];
+};
+
+struct BootManifestDebugHotkey
+{
+    int key; /* enum LibToriRS_KeyCode */
+    char action[BOOTMANIFEST_DEBUG_NAME_CAP];
 };
 
 struct BootManifest
@@ -195,6 +221,9 @@ struct BootManifest
      * server answers "invalid username or password". --user/--pass still win. */
     char user[64];
     char pass[64];
+    /* Compiled script pack for the embedded mock server. Relative paths are
+     * resolved against the manifest directory; "" keeps the server default. */
+    char server_scripts[512];
     /* "::" commands (';'-separated) to send once right after login; "" = none.
      * TORIRS_NET_CHEAT still overrides. */
     char cheat[256];
@@ -285,15 +314,12 @@ struct BootManifest
     struct BootManifestVarcSeed varc[BOOTMANIFEST_GAMEFRAME_MAX];
     int varc_count;
 
-    /* [spawn:hotkeys] — debug spawn-hotkey ids. -1 = unset (built-in default).
-     * TORIRS_SPAWN_* env vars still override. */
-    int spawn_npc_id;
-    int spawn_obj_id;
-    int spawn_spotanim_id;
-    int spawn_spotanim_height;
-    int spawn_spotanim_delay;
-    int spawn_proj_model_id;
-    int spawn_proj_seq_id;
+    /* `[action:<name>]` declarations and `[debug:hotkeys]` bindings. */
+    struct BootManifestDebugAction debug_actions[BOOTMANIFEST_DEBUG_ACTION_MAX];
+    int debug_action_count;
+    struct BootManifestDebugHotkey debug_hotkeys[BOOTMANIFEST_DEBUG_HOTKEY_MAX];
+    int debug_hotkey_count;
+    int debug_hotkey_error;
 };
 
 /* Zero the manifest and load `path`. Relative paths resolve against

@@ -10,6 +10,18 @@ rather than this tool's — see the header of `cachepack.h`.
     cachepack pack   --src <tree> --out cache.mine --base cache.osrs239 --assets
     cachepack verify --cache cache.osrs239 --rev osrs239 --src <tree> --assets
 
+### Summoning texture-only reapplication
+
+The rev-530 Summoning manifests share a reviewed 680-row material table named
+`texture_map_530_to_239.ini` beside their manifests. To apply a changed table without
+regenerating NPC/object configs or importing deferred gameplay closure assets, use:
+
+    cachepack import --manifest <summoning-manifest> --apply --textures-only
+
+`--textures-only` requires `--apply`; it rewrites the imported model payloads only. The shared
+table is mandatory for `import:scape2009` manifests that do not provide their own inline map,
+and an incomplete table or unmapped model face is an error.
+
 ---
 
 ## Three levels of index, and only three

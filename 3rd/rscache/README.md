@@ -697,6 +697,12 @@ Three things about the encoding are worth knowing before touching it:
   introducing a further per-face block, then a flag byte introducing 10 more; OB3/V3
   also keep their complex and cube texture mapping payloads there. See B11 in
   `EXCEPTIONS.md`.
+- **Do not clear OB3/V3 render types when flattening materials.** OB2/V2 pack a
+  texture flag into the face-info byte, but OB3/V3 have a separate face-texture
+  column and their face-info values 2/3 denote hidden geometry. After removing
+  an OB3/V3 texture, preserve type 2 and normalize textured type 3 to type 2;
+  untextured type 3 instead renders flat black. Use the decoded provenance
+  format for this decision rather than the cache revision.
 
 ## CS2 — the clientscript language
 

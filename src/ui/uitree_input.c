@@ -213,10 +213,10 @@ UITree_ComponentIsPassThrough(
  *     the cache field on type-0 records, decoded beside scrollWidth/Height, and
  *     `Cs1ScriptRunner:542` resets the whole minimenu to Cancel when one is
  *     under the pointer — i.e. it discards the world rows the scene pass added.
- *   - the root of a **modal** sub-interface mount (IF_OPENSUB type 0). This is
- *     what makes an open bank opaque: `bankmain` declares `noclickthrough` only
- *     on small inner layers (capacity, tag popups, dropdown), never on its own
- *     root, so the flag alone does not cover the panel. The mount type does.
+ *   - the root of a mounted sub-interface. A mounted interface owns its panel
+ *     even when the component under the pointer has no click hook or menu op;
+ *     otherwise that actionless part of the panel leaks the click to the
+ *     world. This includes overlay/tab mounts as well as modal mounts.
  *
  * It deliberately does NOT include "some widget here is interactive" — the
  * caller already tests that separately, and folding the two would make a
@@ -300,7 +300,7 @@ hit_test_interactive_recursive(
     if( point_in_self && !blocks_world && component->parent >= 0 &&
         (uint32_t)component->parent < tree->component_count )
         blocks_world = UITree_ChildMountType(
-                           tree, tree->components[component->parent].component_id, component) == 0;
+                           tree, tree->components[component->parent].component_id, component) >= 0;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;

@@ -147,6 +147,7 @@ struct ToriDraw_Model
     faceint_t* textured_p_coordinate;
     faceint_t* textured_m_coordinate;
     faceint_t* textured_n_coordinate;
+    uint8_t* texture_render_types;
     faceint_t* face_texture_coords;
 
     struct ToriDraw_Normals* normals;
@@ -266,6 +267,11 @@ struct ToriDraw_Camera
      * keep every model on the cheaper no-clip kernels.
      */
     int near_plane_z;
+
+    /** Interface-model projections supply their own already-projected screen
+     * triangle and need the affine texture kernel rather than the world-camera
+     * perspective texture basis. */
+    int texture_affine;
 
     int pitch;
     int yaw;

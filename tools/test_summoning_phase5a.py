@@ -148,6 +148,8 @@ def review_only_source_fingerprint(tree: Path, prefix: str, stage_module: Module
             path.read_bytes(),
         )
 
+    boundary_json = json.loads(BOUNDARY.read_text(encoding="utf-8"))
+    admitted_pack_lines = frozenset(boundary_json.get("admitted_review_pack_lines", []))
     pack_root = tree / "ported/scape2009_summoning/pack"
     pack_records: list[tuple[str, bytes]] = []
     if pack_root.exists():
@@ -157,7 +159,7 @@ def review_only_source_fingerprint(tree: Path, prefix: str, stage_module: Module
             pack_records.extend(
                 (relative, line)
                 for line in path.read_bytes().splitlines(keepends=True)
-                if prefix.encode("utf-8") in line
+                if prefix.encode("utf-8") in line and line.decode("latin-1").strip() not in admitted_pack_lines
             )
     for relative, line in pack_records:
         add_record(b"review-pack-line", relative, line)
@@ -309,6 +311,10 @@ def main() -> int:
     roster_module = load_module("summoning_phase5a_roster", ROSTER_TOOL)
     ledger_module = load_module("summoning_phase5a_ledger", LEDGER_TOOL)
     stage_module = load_module("summoning_phase5a_stager", STAGER)
+    stage_admission = stage_module.load_roster_boundary(args.boundary)
+    admitted_pack_lines = frozenset(
+        json.loads(args.boundary.read_text(encoding="utf-8")).get("admitted_review_pack_lines", [])
+    )
     try:
         roster_module.validate_candidate_manifest(candidate_text)
     except ValueError as exc:
@@ -391,8 +397,9 @@ def main() -> int:
         "current ledger contains an unadmitted generated roster destination",
     )
 
-    # Keep the original Dreadfowl proof concrete while allowing later cohorts
-    # to own their own exact ledger.
+    # Phase 5b starts the intentionally tiny first cohort.  Keep this
+    # assertion concrete rather than letting a boundary-file edit silently
+    # turn the Dreadfowl proof into a broader cohort import.
     expected_dreadfowl_counts = {
         "npc": 1,
         "obj": 1,
@@ -428,13 +435,13 @@ def main() -> int:
             "dreadfowl_pouch", "46000", "summoning_cohort_dreadfowl_dreadfowl_pouch", "minted", "unreviewed"
         ),
         ("model", 30429): (
-            "model_30429", "120000", "summoning_cohort_dreadfowl_model_30429", "minted", "unreviewed"
+            "model_30429", "120000", "summoning_cohort_dreadfowl_model_30429", "minted", "ok"
         ),
         ("model", 31147): (
-            "model_31147", "120001", "summoning_cohort_dreadfowl_model_31147", "minted", "unreviewed"
+            "model_31147", "120001", "summoning_cohort_dreadfowl_model_31147", "minted", "ok"
         ),
         ("model", 30664): (
-            "model_30664", "120002", "summoning_cohort_dreadfowl_model_30664", "minted", "unreviewed"
+            "model_30664", "120002", "summoning_cohort_dreadfowl_model_30664", "minted", "ok"
         ),
         ("seq", 5386): (
             "seq_5386", "23000", "summoning_cohort_dreadfowl_seq_5386", "minted", "unreviewed"
@@ -452,10 +459,12 @@ def main() -> int:
     cohort_ledgers = boundary.cohort_ledgers
     expect(
         any(cohort.prefix == "summoning_cohort_dreadfowl" for cohort in cohort_ledgers),
-        "admitted cohorts must retain the Dreadfowl ledger",
+        "Phase 5b must admit the Dreadfowl cohort ledger",
     )
-    dreadfowl_cohort = next((cohort for cohort in cohort_ledgers
-                             if cohort.prefix == "summoning_cohort_dreadfowl"), None)
+    dreadfowl_cohort = next(
+        (cohort for cohort in cohort_ledgers if cohort.prefix == "summoning_cohort_dreadfowl"),
+        None,
+    )
     expect(
         dreadfowl_cohort is not None and dict(dreadfowl_cohort.expected_ledger_rows) == expected_dreadfowl_counts,
         "Dreadfowl cohort row boundary widened or changed",
@@ -492,7 +501,8 @@ def main() -> int:
     ]
     pack_root = args.tree / "ported/scape2009_summoning/pack"
     source_pack_references = sum(
-        path.read_text(encoding="latin-1").count(review_prefix)
+        sum(review_prefix in line and line not in admitted_pack_lines
+            for line in path.read_text(encoding="latin-1").splitlines())
         for path in pack_root.iterdir() if path.is_file()
     )
     expect(
@@ -585,7 +595,7 @@ def main() -> int:
             (
                 "cohort_unminted",
                 dreadfowl_text.replace("\tminted\tunreviewed", "\tmapped\tunreviewed", 1),
-                "must remain minted/unreviewed",
+                "must remain minted; only model rows may be signed off",
             ),
             (
                 "cohort_source_name",
@@ -668,12 +678,17 @@ def main() -> int:
             expect(False, f"real-tree feature-on staging failed: {exc}")
         else:
             staged_files = [path for path in staged.rglob("*") if path.is_file()]
-            marker = b"summoning_roster_530"
             marker_hits = [
                 path.relative_to(staged).as_posix()
                 for path in staged_files
-                if marker in path.relative_to(staged).as_posix().encode("utf-8")
-                or file_contains(path, marker)
+                if stage_module.review_only_tokens(
+                    path.relative_to(staged).as_posix(), stage_admission
+                ) or (
+                    path.suffix in stage_module.ADMISSION_TEXT_SUFFIXES and
+                    stage_module.review_only_tokens(
+                        path.read_text(encoding="latin-1"), stage_admission
+                    )
+                )
             ]
             expect(stage_result == 0 and bool(staged_files), "real-tree stage produced zero files")
             expect(
@@ -691,7 +706,8 @@ def main() -> int:
                 if path.is_file() and review_prefix in path.name
             ]
             post_pack_references = sum(
-                path.read_text(encoding="latin-1").count(review_prefix)
+                sum(review_prefix in line and line not in admitted_pack_lines
+                    for line in path.read_text(encoding="latin-1").splitlines())
                 for path in pack_root.iterdir() if path.is_file()
             )
             expect(

@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include "uitree_interact.h"
 
 /*
  * Real-client configuration regression tests: component ids are packed
@@ -94,6 +95,44 @@ test_scroll_hit(void)
                 sb.kind == UITREE_SCROLLBAR_V_DOWN,
             "down arrow");
     }
+
+    UITree_Free(tree);
+}
+
+void
+test_wheel_stops_at_interface(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteraction interact;
+    struct UIInteractOut out;
+    int32_t pane;
+    struct UITreeRuntimeHooks* hooks;
+
+    printf("TEST: interface wheel stops propagation to world gestures\n");
+    UITree_TestHostInit(&host, &hs);
+
+    pane = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, TUID(20), 10, 10, 100, 100);
+    hooks = UITree_HooksMut(&tree->components[pane]);
+    hooks->on_scroll_wheel.script_id = 1234;
+    UITree_SyncHookMembership(tree, pane);
+    UITree_TestResolve(tree);
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+    UIInteraction_Init(&interact);
+    LibToriRS_Input_PushMouseMove(input, 20, 20);
+    LibToriRS_Input_PushMouseWheel(input, -1);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+
+    TEST_ASSERT(out.intent_count == 1, "onScroll hook receives wheel");
+    TEST_ASSERT(
+        out.intents[0].component_id == TUID(20),
+        "wheel dispatch targets interface under pointer");
+    TEST_ASSERT(out.wheel_consumed, "handled interface wheel cannot reach world gesture");
 
     UITree_Free(tree);
 }

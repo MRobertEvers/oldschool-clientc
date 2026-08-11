@@ -660,7 +660,7 @@ queue_path_as_waypoints(
  * Fill waypoints from a BFS to (x, z). Used for ground clicks and as the body
  * of walk_to_approach when the approach is EXACT.
  */
-static void
+static int
 waypoints_walk_to(
     struct Mock230Player* player,
     int x,
@@ -681,9 +681,29 @@ waypoints_walk_to(
          * correct answer.
          */
         player->waypoint_index = -1;
-        return;
+        player->dest_x = -1;
+        player->dest_z = -1;
+        return 0;
     }
     queue_path_as_waypoints(player, path_x, path_z, steps);
+
+    /* collision_map_route_tiles returns walk order, so its final tile is the
+     * actual arrival.  That differs from (x,z) when the official move-near
+     * fallback answers an unreachable ground click, such as Inferno lava.
+     * Keeping the raw click here discarded the result of Statics.method5592:
+     * movement used the nearest path, but destination state and SET_MAP_FLAG
+     * still named the blocked tile. */
+    if( steps > 0 )
+    {
+        player->dest_x = path_x[steps - 1];
+        player->dest_z = path_z[steps - 1];
+    }
+    else
+    {
+        player->dest_x = player->x;
+        player->dest_z = player->z;
+    }
+    return 1;
 }
 
 static void
@@ -726,13 +746,16 @@ mock230_world_walk_to(
     player->dest_x = x;
     player->dest_z = z;
     player->steps_taken = 0;
-    waypoints_walk_to(player, x, z);
+    if( !waypoints_walk_to(player, x, z) )
+        return;
 
-    /* Server owns the yellow cross: scene-local destination. */
+    /* Server owns the yellow cross: scene-local routed destination.  For an
+     * unreachable click this is the move-near arrival, not the raw click. */
     base_x = mock230_scene_base_x();
     base_z = mock230_scene_base_z();
     if( base_x >= 0 && player->waypoint_index >= 0 )
-        mock230_send_set_map_flag(player, x - base_x, z - base_z);
+        mock230_send_set_map_flag(
+            player, player->dest_x - base_x, player->dest_z - base_z);
 }
 
 void
@@ -836,6 +859,26 @@ mock230_world_interaction_set(
     interaction->op = op;
     interaction->npc_slot = npc_slot;
     interaction->target_id = target_id;
+    interaction->target_generation = 0;
+    if( kind == MOCK230_INTERACT_NPC && npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX )
+        interaction->target_generation = srv->npcs[npc_slot].generation;
+    else if( kind == MOCK230_INTERACT_PLAYER && npc_slot >= 0 &&
+             npc_slot < srv->player_count )
+        interaction->target_generation = srv->players[npc_slot].login_generation;
+    else if( kind == MOCK230_INTERACT_OBJ )
+    {
+        for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
+        {
+            const struct Mock230GroundObj* obj = &srv->ground[i];
+
+            if( obj->active && obj->obj_id == target_id && obj->x == tile_x &&
+                obj->z == tile_z && obj->level == level )
+            {
+                interaction->target_generation = (uint32_t)obj->generation;
+                break;
+            }
+        }
+    }
     interaction->x = tile_x;
     interaction->z = tile_z;
     interaction->level = level;
@@ -919,7 +962,8 @@ interaction_target(
         npc = &srv->npcs[interaction->npc_slot];
         /* Slot reuse: same index, different npc. Acting on it would attack
          * whatever respawned there. */
-        if( !npc->active || npc->type != interaction->target_id )
+        if( !npc->active || npc->type != interaction->target_id ||
+            npc->generation != interaction->target_generation )
             return 0;
         if( npc->level != srv->active_player->level )
             return 0;
@@ -940,7 +984,8 @@ interaction_target(
             return 0;
         target = &srv->players[interaction->npc_slot];
         /* Logged out, or the slot now holds somebody else. */
-        if( !target->active || target->pid != interaction->target_id )
+        if( !target->active || target->pid != interaction->target_id ||
+            target->login_generation != interaction->target_generation )
             return 0;
         if( target == srv->active_player )
             return 0;
@@ -979,6 +1024,8 @@ interaction_target(
             if( obj->x != interaction->x || obj->z != interaction->z )
                 continue;
             if( obj->level != interaction->level )
+                continue;
+            if( (uint32_t)obj->generation != interaction->target_generation )
                 continue;
             *out_x = obj->x;
             *out_z = obj->z;
@@ -2416,7 +2463,12 @@ npc_spawn(
          * asking each of them to remember.
          */
         mock230_zone_npc_refile(srv, slot);
+        uint16_t generation = (uint16_t)(npc->generation + 1u);
+
+        if( generation == 0 )
+            generation = 1;
         memset(npc, 0, sizeof(*npc));
+        npc->generation = generation;
         npc->active = 1;
         npc->type = type;
         npc->x = x;
@@ -4654,6 +4706,46 @@ handle_opobjt(
                    srv->active_player->level, 1, 1, spell);
 }
 
+/* OPPLAYERT: p2 player pid, p4 spellComponent.  Revision 239's inbound
+ * adapter has decoded this shape since the targeted-cast family landed, but
+ * the world route used to omit it entirely. */
+static void
+handle_opplayert(
+    struct Mock230Server* srv,
+    const uint8_t* payload,
+    int len)
+{
+    struct RSAreaBuf buf;
+    int pid;
+    int spell;
+    int slot = -1;
+    struct Mock230Player* target;
+
+    rsab_wrap(&buf, (void*)payload, (size_t)len);
+    pid = rsab_g2(&buf);
+    if( !rsab_ok(&buf) || !spell_tail(&buf, &spell) )
+        return;
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        if( srv->players[i].active && srv->players[i].pid == pid )
+        {
+            slot = i;
+            break;
+        }
+    }
+    if( slot < 0 || &srv->players[slot] == srv->active_player )
+        return;
+    target = &srv->players[slot];
+
+    if( srv->verbose )
+        fprintf(stderr, "mock230: <- OPPLAYERT pid=%d spell=%d|%d\n", pid,
+                (spell >> 16) & 0xffff, spell & 0xffff);
+
+    spell_interact(srv, MOCK230_INTERACT_PLAYER, slot, target->pid, target->x,
+                   target->z, target->level, 1, 1, spell);
+}
+
 /*
  * OPHELDT: p2 obj, p2 slot, p4 itemComponent, p4 spellComponent — "cast this
  * spell on that inventory item" (High Alchemy, Superheat, the enchants).
@@ -5362,6 +5454,17 @@ handle_opobjt_packet(
 {
     (void)name;
     handle_opobjt(srv, payload, len);
+}
+
+static void
+handle_opplayert_packet(
+    struct Mock230Server* srv,
+    int name,
+    const uint8_t* payload,
+    int len)
+{
+    (void)name;
+    handle_opplayert(srv, payload, len);
 }
 
 static void
@@ -6694,6 +6797,7 @@ static const struct Mock230PacketRoute k_packet_routes[] = {
     { PKTOUT_NAME_OPLOCT, handle_oploct_packet },
     { PKTOUT_NAME_OPNPCT, handle_opnpct_packet },
     { PKTOUT_NAME_OPOBJT, handle_opobjt_packet },
+    { PKTOUT_NAME_OPPLAYERT, handle_opplayert_packet },
 
     { PKTOUT_NAME_IF_BUTTON, handle_if_button },
     { PKTOUT_NAME_IF_BUTTON1, handle_if_button_op },
@@ -15711,14 +15815,21 @@ mock230_world_selftest(void)
         {
             int option_nodef =
                 mock230_content_symbol(MOCK230_PACK_VARP, "option_nodef");
+            int action_delay =
+                mock230_content_symbol(MOCK230_PACK_VARP, "action_delay");
+            int damagestyle =
+                mock230_content_symbol(MOCK230_PACK_VARP, "damagestyle");
             int retaliate = mock230_content_symbol(
                 MOCK230_PACK_COMPONENT, "combat_interface:retaliate");
             int armed = 0;
-            uint8_t button[6];
+            uint8_t button[9];
 
             SELFTEST_CHECK(option_nodef == 172,
                            "option_nodef must remain CS2 varp 172, got %d",
                            option_nodef);
+            SELFTEST_CHECK(action_delay >= 0 && damagestyle >= 0,
+                           "retaliation timing varps must resolve (delay=%d style=%d)",
+                           action_delay, damagestyle);
             SELFTEST_CHECK(retaliate == MOCK230_COM(593, 32),
                            "combat_interface:retaliate must remain 593:32, got %d:%d",
                            retaliate >> 16, retaliate & 0xffff);
@@ -15747,6 +15858,9 @@ mock230_world_selftest(void)
             button[3] = (uint8_t)retaliate;
             button[4] = 0xff;
             button[5] = 0xff;
+            button[6] = 0xff; /* no inventory object */
+            button[7] = 0xff;
+            button[8] = 1;    /* component op 1 */
 
             /* This section follows UI fixtures which may leave a modal or a
              * p_delay behind.  A normal player queue deliberately waits for
@@ -15758,7 +15872,7 @@ mock230_world_selftest(void)
             player->varps[option_nodef] = 0; /* CS2: Auto Retaliate (On). */
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(
-                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
             mock230_capture_end(&srv);
             SELFTEST_CHECK(player->varps[option_nodef] == 1,
                            "the combat-tab click should turn auto-retaliate off");
@@ -15780,7 +15894,7 @@ mock230_world_selftest(void)
 
             mock230_capture_begin(&srv, &capture);
             mock230_world_handle(
-                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
             mock230_capture_end(&srv);
             SELFTEST_CHECK(player->varps[option_nodef] == 0,
                            "a second combat-tab click should turn auto-retaliate on");
@@ -15795,9 +15909,15 @@ mock230_world_selftest(void)
                 mock230_scripts_queue_named(
                     &srv, "[queue,playerhit_n_retaliate]", 0, goblin),
                 "the retaliation fixture should queue while the option is on");
+            player->varps[action_delay] = srv.tick - 1;
+            player->varps[damagestyle] = 0; /* melee, never ranged rapid */
             mock230_scripts_process_queues(&srv);
             SELFTEST_CHECK(player->combat_target == goblin,
                            "auto-retaliate On must engage the attacking npc");
+            SELFTEST_CHECK(
+                player->varps[action_delay] == srv.tick + 2,
+                "unarmed auto-retaliate must wait half its 4-tick attack rate (got %d at tick %d)",
+                player->varps[action_delay], srv.tick);
             mock230_combat_stop_player(&srv);
         }
 
@@ -23214,9 +23334,14 @@ mock230_world_selftest(void)
                                 SELFTEST_CHECK(entry->argc == 2,
                                                "Fire Strike must queue npc uid and damage, got %d argument(s)",
                                                entry->argc);
-                                SELFTEST_CHECK(entry->args[0] == wizard_slot,
-                                               "Fire Strike queue must retain its caster uid, got %d",
-                                               entry->args[0]);
+                                SELFTEST_CHECK(
+                                    ((uint32_t)entry->args[0] & 0xffffu) ==
+                                            (uint32_t)wizard_slot &&
+                                        ((uint32_t)entry->args[0] >> 16) ==
+                                            npc->generation,
+                                    "Fire Strike queue must retain its generation-safe caster "
+                                    "uid, got %d",
+                                    entry->args[0]);
                                 SELFTEST_CHECK(entry->args[1] > 0,
                                                "the seeded Fire Strike should carry positive damage, got %d",
                                                entry->args[1]);

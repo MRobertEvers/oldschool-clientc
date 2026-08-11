@@ -1365,6 +1365,10 @@ mock230_send_if_sethide(
 {
     struct RSAreaBuf buf;
 
+    /* A content-side gameframe role is just as relative for setters as it is
+     * for IF_OPENSUB: Display may have switched the live root since the
+     * script was compiled. Keep the component's visibility on that root. */
+    uid = mock230_remap_gameframe_slot_uid(player, uid);
     open_packet(&buf, 8);
     {
         const struct Mock230WirePayload* pl = wire_payload(player);

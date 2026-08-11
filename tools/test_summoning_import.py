@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Permanent, non-vacuous checks for the Spirit wolf foreign-cache import."""
+"""Permanent checks for the Spirit-wolf and familiar-arrival cache import."""
 
 from __future__ import annotations
 
@@ -53,6 +53,7 @@ def main() -> int:
         args.tree / "models/ported/scape2009_summoning/summoning_model_31553.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31686.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_31427.model",
+        args.tree / "models/ported/scape2009_summoning/summoning_model_31388.model",
         args.tree / "models/ported/scape2009_summoning/summoning_model_30826.model",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1662.memberpack",
@@ -64,10 +65,13 @@ def main() -> int:
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2053.memberpack",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2226.anim",
         args.tree / "animsets/ported/scape2009_summoning/summoning_animset_2226.memberpack",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1998.anim",
+        args.tree / "animsets/ported/scape2009_summoning/summoning_animset_1998.memberpack",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1491.base",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1901.base",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_0.base",
         args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1775.base",
+        args.tree / "framemaps/ported/scape2009_summoning/summoning_framemap_1836.base",
         args.tree / "port/summoning_530.map",
     ]
     errors: list[str] = []
@@ -98,8 +102,8 @@ def main() -> int:
     )
     expect(result.returncode == 0, f"dry-run exited {result.returncode}: {result.stdout}")
     expect(
-        "cachepack import (dry-run): npc=1 obj=4 loc=1 spotanim=1" in result.stdout
-        and "model=8 seq=7 animset=5 framemap=4" in result.stdout,
+        "cachepack import (dry-run): npc=1 obj=4 loc=1 spotanim=3" in result.stdout
+        and "model=9 seq=8 animset=6 framemap=5" in result.stdout,
         "dry-run closure changed or did not execute",
     )
     for path in files:
@@ -134,6 +138,16 @@ def main() -> int:
     expect("[summoning_renew_points_gfx]" in spotanim, "Renew-points gfx is not prefixed")
     expect("model=100006" in spotanim, "Renew-points gfx does not use model 31427 mapping")
     expect("anim=summoning_seq_7662" in spotanim, "Renew-points gfx sequence is absent")
+    expect("[summoning_familiar_summon_small_gfx]" in spotanim,
+           "small familiar-arrival graphic is absent")
+    expect("[summoning_familiar_summon_large_gfx]" in spotanim,
+           "large familiar-arrival graphic is absent")
+    expect(spotanim.count("model=100424") == 2,
+           "arrival graphics do not share source model 31388")
+    expect(spotanim.count("anim=summoning_seq_7663") == 2,
+           "arrival graphics do not share source sequence 7663")
+    expect("resizeh=200" in spotanim and "resizev=200" in spotanim,
+           "large familiar-arrival graphic lost its source scaling")
 
     for invalid_model in (0, 591, 25189, 27753, 29547):
         expect(
@@ -164,7 +178,10 @@ def main() -> int:
         "frame_archive\t2109\tanimset_2109\t20001\tsummoning_animset_2109\tminted\tunreviewed",
         "framemap\t1901\tframemap_1901\t8001\tsummoning_framemap_1901\tminted\tunreviewed",
         "spotanim\t1308\trenew_points_gfx\t20000\tsummoning_renew_points_gfx\tminted\tunreviewed",
+        "spotanim\t1314\tfamiliar_summon_small_gfx\t20001\tsummoning_familiar_summon_small_gfx\tminted\tunreviewed",
+        "spotanim\t1315\tfamiliar_summon_large_gfx\t20002\tsummoning_familiar_summon_large_gfx\tminted\tunreviewed",
         "model\t31427\tmodel_31427\t100006\tsummoning_model_31427\tminted\tunreviewed",
+        "model\t31388\tmodel_31388\t100424\tsummoning_model_31388\tminted\tunreviewed",
         "seq\t8502\tseq_8502\t20003\tsummoning_renew_points_anim\tminted\tunreviewed",
         "seq\t7662\tseq_7662\t20004\tsummoning_seq_7662\tminted\tunreviewed",
         "frame_archive\t1990\tanimset_1990\t20002\tsummoning_animset_1990\tminted\tunreviewed",
@@ -175,6 +192,9 @@ def main() -> int:
         "seq\t8509\tseq_8509\t20310\tsummoning_obelisk_charge\tminted\tunreviewed",
         "seq\t9068\tseq_9068\t20311\tsummoning_infuse_anim\tminted\tunreviewed",
         "frame_archive\t2226\tanimset_2226\t20070\tsummoning_animset_2226\tminted\tunreviewed",
+        "seq\t7663\tseq_7663\t20312\tsummoning_seq_7663\tminted\tunreviewed",
+        "frame_archive\t1998\tanimset_1998\t20071\tsummoning_animset_1998\tminted\tunreviewed",
+        "framemap\t1836\tframemap_1836\t8069\tsummoning_framemap_1836\tminted\tunreviewed",
     ):
         expect(row in ledger, f"ledger row absent: {row}")
 

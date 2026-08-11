@@ -3190,6 +3190,13 @@ exec_widget_set_int(
             rs_cs2_tree(host), request.component_id, request.value);
         break;
     case CS2VM_WIDGET_INT_MODEL_ORTHOG:
+        /* IF/CC_SETMODELORTHOG selects the reference client's orthographic
+         * widget-model path.  Treating this as a no-op leaves tall actor
+         * models crossing the perspective near-plane, so only disconnected
+         * faces render even though the model and animation are complete. */
+        if( node->type == UIELEM_RS_MODEL )
+            node->u.rs_model.orthog = request.value != 0;
+        break;
     case CS2VM_WIDGET_INT_FILL_MODE:
     case CS2VM_WIDGET_INT_TRANS_BOT:
     case CS2VM_WIDGET_INT_NO_SCROLL_THROUGH:
@@ -3211,9 +3218,22 @@ exec_widget_set_model_angle(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostRequest_WidgetSetModelAngle request)
 {
+    struct UITree* tree = rs_cs2_tree(host);
+    int32_t idx;
     (void)vm;
-    (void)UITree_ApplyModelAngle(
-        rs_cs2_tree(host), request.component_id, request.angle_x, request.angle_y, request.zoom);
+    if( !tree )
+        return CS2VM_EXECNO_OK;
+    idx = UITree_FindByComponentId(tree, request.component_id);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+        return CS2VM_EXECNO_OK;
+    tree->components[idx].u.rs_model.x_offset = request.offset_x;
+    tree->components[idx].u.rs_model.y_offset = request.offset_y;
+    tree->components[idx].u.rs_model.xan = request.angle_x;
+    tree->components[idx].u.rs_model.yan = request.angle_y;
+    tree->components[idx].u.rs_model.zan = request.angle_z;
+    if( request.zoom > 0 )
+        tree->components[idx].u.rs_model.zoom = request.zoom;
+    UITree_MarkNodeDirty(tree, idx);
     return CS2VM_EXECNO_OK;
 }
 

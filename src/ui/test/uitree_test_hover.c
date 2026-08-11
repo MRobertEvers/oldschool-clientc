@@ -447,6 +447,31 @@ test_hover_input(void)
         UITree_Free(ct);
     }
 
+    /* A mounted overlay owns its panel even when neither its root nor anything
+     * below it has a click action. Such a UI miss must not become a world
+     * click through the panel. Ordinary structural layers remain pass-through. */
+    {
+        struct UITree* mt = UITree_New(8);
+        int const container_uid = (500 << 16) | 0;
+        int const overlay_uid = (600 << 16) | 0;
+        int32_t container =
+            UITree_TestPushXy(mt, -1, UIELEM_RS_LAYER, container_uid, 0, 0, 300, 200);
+        (void)UITree_TestPushXy(mt, container, UIELEM_RS_LAYER, overlay_uid, 20, 30, 100, 80);
+        (void)UITree_InterfaceParentSet(mt, container_uid, 600, 1);
+        UITree_TestResolve(mt);
+
+        TEST_ASSERT(
+            UITree_HitTestInteractive(mt, &host, 40, 50) < 0,
+            "actionless overlay has no interactive click target");
+        TEST_ASSERT(
+            UITree_PointBlocksWorld(mt, &host, 40, 50),
+            "actionless mounted overlay blocks clicks to the world");
+        TEST_ASSERT(
+            !UITree_PointBlocksWorld(mt, &host, 150, 50),
+            "ordinary container space outside mounted overlay stays pass-through");
+        UITree_Free(mt);
+    }
+
     (void)graphic;
     UITree_Free(tree);
 }

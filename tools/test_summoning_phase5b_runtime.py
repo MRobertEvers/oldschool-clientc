@@ -39,12 +39,13 @@ DREAD_HEAD_MODEL = 120001
 DREAD_POUCH_MODEL = 120002
 DREAD_READY_SEQ = 23000
 DREAD_WALK_SEQ = 23001
+DREAD_SUMMON_SPOTANIM = 20001
 
 SIDEBAR_GROUP = 969
-SIDEBAR_TITLE = (SIDEBAR_GROUP << 16) | 1
-SIDEBAR_HEAD = (SIDEBAR_GROUP << 16) | 2
-SIDEBAR_CALL = (SIDEBAR_GROUP << 16) | 5
-SIDEBAR_DISMISS = (SIDEBAR_GROUP << 16) | 7
+SIDEBAR_TITLE = (SIDEBAR_GROUP << 16) | 22
+SIDEBAR_HEAD = (SIDEBAR_GROUP << 16) | 13
+SIDEBAR_CALL = (SIDEBAR_GROUP << 16) | 27
+SIDEBAR_DISMISS = (SIDEBAR_GROUP << 16) | 29
 
 VARP_ACTIVE = 6226
 VARP_ACCUMULATOR = 6227
@@ -98,12 +99,12 @@ def main() -> int:
             {
                 # This is provisioning only. The following UI click must consume
                 # the item through the real opheld4 server trigger.
-                "TORIRS_NET_CHEAT": "setlevel summoning 4;summoning_dreadfowl_pouch",
-                "TORIRS_MAX_FRAMES": "430",
+                "TORIRS_NET_CHEAT": "summoning_unlock;setlevel summoning 4;summoning_dreadfowl_pouch",
+                "TORIRS_MAX_FRAMES": "480",
                 # Open the actual sidebar after the real item action so the
                 # exit frame proves the active portrait before the separate
                 # Call/Dismiss clone intentionally hides it.
-                "TORIRS_SIM_CLICK_AT": "220,540,230,1;270,540,260;350,707,484",
+                "TORIRS_SIM_CLICK_AT": "220,540,230,1;270,540,260;350,635,185;410,677,226",
                 "MOCK230_VERBOSE": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
                 "TORIRS_CLICK_DEBUG": "1",
@@ -126,7 +127,9 @@ def main() -> int:
             "actual pouch: no framebuffer was emitted",
         )
         assert_actual_pouch_path(actual.stdout, expect)
-        assert_live_dreadfowl(actual.stdout, "actual pouch", expect, sidebar_at_exit=True)
+        assert_live_dreadfowl(
+            actual.stdout, "actual pouch", expect, sidebar_expected=True, sidebar_at_exit=True
+        )
 
         actual_state = parse_save(actual_saves / "guest.ini")
         expect(
@@ -205,14 +208,16 @@ def main() -> int:
             buttons_saves,
             {
                 **runtime_env(args.out / "buttons.bmp", 620),
-                "TORIRS_SIM_CLICK_AT": "350,707,484;430,602,403;500,602,439",
+                # Open Equipment, use its top-right familiar entry button,
+                # then exercise Call and Dismiss in the mounted familiar view.
+                "TORIRS_SIM_CLICK_AT": "350,635,185;430,677,226;500,550,440;560,600,440",
                 "TORIRS_CLICK_DEBUG": "1",
             },
         )
         write_log(args.out / "buttons.log", buttons.stdout)
         expect(buttons.returncode == 0, f"sidebar buttons: client exited {buttons.returncode}")
         expect("CS2VM2: abort" not in buttons.stdout, "sidebar buttons: clientscript aborted")
-        assert_live_dreadfowl(buttons.stdout, "sidebar relog", expect)
+        assert_live_dreadfowl(buttons.stdout, "sidebar relog", expect, sidebar_expected=True)
         assert_sidebar_buttons(buttons.stdout, expect)
         buttons_state = parse_save(buttons_saves / "guest.ini")
         for label, varp in (
@@ -299,9 +304,11 @@ def static_contract(expect: object) -> None:
         "Dreadfowl debug hook bypasses the real pouch interaction",
     )
     check(
-        "if_setnpchead(summoning_familiar:model, $npc);" in script
+        "~summoning_familiar_body_model(%summoning_familiar_type)" in script
+        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in script
+        and "if_setanim(summoning_familiar:model, $ready_seq);" in script
         and 'if_settext(summoning_familiar:title, $name);' in script,
-        "sidebar does not bind the selected familiar NPC head and title",
+        "sidebar does not bind the selected familiar body, ready sequence, and title",
     )
     check(
         "npc_add(movecoord(coord, 1, 0, 0), $npc, 0);" in script
@@ -365,6 +372,10 @@ def assert_actual_pouch_path(log: str, expect: object) -> None:
         "message_game: You summon a Dreadfowl." in log,
         "actual pouch: canonical OPHELD4 did not complete Dreadfowl summon",
     )
+    check(
+        f"entity_spotanim: combine id={DREAD_SUMMON_SPOTANIM}" in log,
+        "actual pouch: Dreadfowl did not render the small familiar-arrival graphic",
+    )
     check("OPHELD5 obj=46000" not in log, "actual pouch: dynamic Summon was misrouted to OPHELD5")
     check(
         "message_game: You drop the Dreadfowl pouch." not in log,
@@ -373,7 +384,12 @@ def assert_actual_pouch_path(log: str, expect: object) -> None:
 
 
 def assert_live_dreadfowl(
-    log: str, label: str, expect: object, *, sidebar_at_exit: bool = False
+    log: str,
+    label: str,
+    expect: object,
+    *,
+    sidebar_expected: bool = False,
+    sidebar_at_exit: bool = False,
 ) -> None:
     check = expect
     # NPC_INFO first creates the wire slot with type 0, then its extended
@@ -396,26 +412,21 @@ def assert_live_dreadfowl(
         f"model_fmt: id={DREAD_BODY_MODEL} " in log,
         f"{label}: Dreadfowl body model {DREAD_BODY_MODEL} was not loaded by the client",
     )
-    check(
-        f"model_fmt: id={DREAD_HEAD_MODEL} " in log,
-        f"{label}: Dreadfowl sidebar head model {DREAD_HEAD_MODEL} was not loaded",
-    )
-    check(
-        re.search(r"npc_head: npc=26000 component=0x03c90002 scene=\d+ applied=1", log)
-        is not None,
-        f"{label}: sidebar did not compose and apply Dreadfowl NPC head 26000",
-    )
-    check(
-        f"if_settext: com={SIDEBAR_TITLE} text='Dreadfowl' applied=1" in log,
-        f"{label}: sidebar title was not synchronized to Dreadfowl",
-    )
-    check(
-        f"if_sethide: com={SIDEBAR_HEAD} hide=0 applied=1" in log,
-        f"{label}: sidebar Dreadfowl head was not made visible",
-    )
+    # The familiar tab intentionally uses the complete animated body model,
+    # not the NPC chathead. The body-model load above covers both world and UI;
+    # the final draw-list assertion below proves the UI scene received it.
+    if sidebar_expected:
+        check(
+            f"if_settext: com={SIDEBAR_TITLE} text='Dreadfowl' applied=1" in log,
+            f"{label}: sidebar title was not synchronized to Dreadfowl",
+        )
+        check(
+            f"if_sethide: com={SIDEBAR_HEAD} hide=0 applied=1" in log,
+            f"{label}: sidebar Dreadfowl head was not made visible",
+        )
     if sidebar_at_exit:
         check(
-            re.search(r"EMIT_EXIT.*kind=5.*\(969\|2\).*model=\d+", log) is not None,
+            re.search(r"EMIT_EXIT.*kind=5.*\(969\|13\).*model=\d+", log) is not None,
             f"{label}: composed Dreadfowl sidebar head did not reach the final draw list",
         )
 
@@ -454,8 +465,16 @@ def assert_cadence(
 def assert_sidebar_buttons(log: str, expect: object) -> None:
     check = expect
     check(
-        "clickdbg: send op1 target=0xa10063 sub=-1 state=2" in log,
-        "sidebar buttons: did not open the real Summoning sidebar tab",
+        f"entity_spotanim: combine id={DREAD_SUMMON_SPOTANIM}" in log,
+        "sidebar buttons: Call did not replay the small familiar-arrival graphic",
+    )
+    check(
+        "clickdbg: send op1 target=0xa1003f sub=-1 state=2" in log,
+        "sidebar buttons: did not open the Equipment tab",
+    )
+    check(
+        "clickdbg: send op1 target=0x183001f sub=-1 state=2" in log,
+        "sidebar buttons: did not use the Equipment-mounted familiar entry button",
     )
     check(
         f"clickdbg: send op1 target=0x{SIDEBAR_CALL:x} sub=-1 state=2" in log,

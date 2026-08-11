@@ -52,6 +52,7 @@ struct ToriDrawModelRasterContext
     faceint_t* face_p_coordinate_nullable;
     faceint_t* face_m_coordinate_nullable;
     faceint_t* face_n_coordinate_nullable;
+    uint8_t* texture_render_types_nullable;
     int num_textured_faces;
     hsl16_t* colors_a;
     hsl16_t* colors_b;
@@ -736,7 +737,21 @@ ToriDraw_RasterModelFace(
                 break;
             }
 
-            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
+            bool const complex_texture =
+                ctx->texture_render_types_nullable && texture_face >= 0 &&
+                texture_face < ctx->num_textured_faces &&
+                ctx->texture_render_types_nullable[texture_face] != 0;
+            if( getenv("TORIRS_RASTER_TEX_MODE_DEBUG") && complex_texture )
+            {
+                static int complex_debug_count;
+                if( complex_debug_count++ < 32 )
+                    fprintf(stderr,
+                        "raster_tex_mode: face=%d coord=%d type=%u affine=1\n",
+                        face, texture_face,
+                        (unsigned)ctx->texture_render_types_nullable[texture_face]);
+            }
+
+            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 || complex_texture )
             {
                 ToriDraw_TriangleFaceTextureBlendAffineV3(
                     ctx->pixel_buffer,
@@ -900,7 +915,11 @@ ToriDraw_RasterModelFace(
                 break;
             }
 
-            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 )
+            bool const complex_texture_flat =
+                ctx->texture_render_types_nullable && texture_face >= 0 &&
+                texture_face < ctx->num_textured_faces &&
+                ctx->texture_render_types_nullable[texture_face] != 0;
+            if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 || complex_texture_flat )
             {
                 ToriDraw_TriangleFaceTextureFlatAffineV3(
                     ctx->pixel_buffer,
@@ -1038,6 +1057,7 @@ context_from_handle(
         ctx->face_p_coordinate_nullable = m->textured_p_coordinate;
         ctx->face_m_coordinate_nullable = m->textured_m_coordinate;
         ctx->face_n_coordinate_nullable = m->textured_n_coordinate;
+        ctx->texture_render_types_nullable = m->texture_render_types;
         ctx->num_textured_faces = m->textured_face_count;
         ctx->colors_a = m->face_colors_a;
         ctx->colors_b = m->face_colors_b;
@@ -1086,7 +1106,7 @@ context_from_handle(
         ctx->flags = 0;
         if( smooth )
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;
-        if( false )
+        if( camera->texture_affine )
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
         ctx->near_clipped = scene->near_clipped;

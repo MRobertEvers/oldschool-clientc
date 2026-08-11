@@ -119,16 +119,19 @@ struct UIInteractOut
     int minimenu_select;
     /** Menu was closed by clicking away this frame. */
     int minimenu_closed;
+    /** The minimenu owned pointer input for this frame. This remains set when
+     * selecting an option hides the menu before app-level pointer handlers
+     * run, preventing that same press from reaching content underneath. */
+    int minimenu_consumed_pointer;
     /** Left click landed on the minimap widget (chrome gesture like the tab
      * icons — the node has no component id): app maps it to a walk. */
     int minimap_click;
     int minimap_click_x;
     int minimap_click_y;
-    /** An IF1 scroll layer under the cursor stepped its content on this
-     * frame's wheel. App-level wheel gestures gated on a screen rect rather
-     * than on the tree — the world viewport's camera zoom — check this so one
-     * notch never both scrolls a pane and moves the camera. A dispatched CS2
-     * onScroll hook does NOT set it; see interact_wheel. */
+    /** An interface under the cursor handled this frame's wheel, either by
+     * natively stepping an IF1 scroll layer or dispatching a CS2 onScroll hook.
+     * App-level wheel gestures (notably world camera zoom) check this so the
+     * same notch cannot propagate through the interface to the world. */
     int wheel_consumed;
 
     /* Keyboard broadcast: dispatch is the cross product of key_events and

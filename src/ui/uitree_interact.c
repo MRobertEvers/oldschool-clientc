@@ -481,10 +481,11 @@ interact_wheel(
          * (browser deltaY > 0). */
         intent.event_mouse_y = input->curr.mouse_wheel_y > 0 ? -1 : 1;
         intent_push(out, &intent);
-        /* Deliberately NOT wheel_consumed: an onScroll hook is a broadcast to
-         * the top-most handler, not a claim on the notch. rev230's gameframe
-         * root (161:1) carries one over the whole screen, so treating it as a
-         * consumer would silently disable every app-level wheel gesture. */
+        /* A targeted onScroll handler owns the wheel just like a native IF1
+         * scroll layer. Letting the same notch continue to app-level gestures
+         * makes an interface over the viewport scroll and zoom the world at
+         * once. */
+        out->wheel_consumed = 1;
         out->need_redraw = 1;
     }
 }
@@ -955,6 +956,11 @@ interact_minimenu(
         }
         return 0;
     }
+
+    /* Keep ownership observable after a selected option synchronously hides
+     * the menu in the app. App-level gestures also poll the raw input state,
+     * so visibility alone cannot stop this press propagating to them. */
+    out->minimenu_consumed_pointer = 1;
 
     if( UIMinimenu_UpdateHover(menu, input->curr.mouse_x, input->curr.mouse_y) )
         out->need_redraw = 1;

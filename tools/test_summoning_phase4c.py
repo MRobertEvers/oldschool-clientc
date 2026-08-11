@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real-client acceptance for the feature-gated Summoning points orb."""
+"""Real-client acceptance for the active familiar special-points orb."""
 
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def main() -> int:
                 "MOCK230_SAVES": saves,
                 "MOCK230_SCRIPTS": str(args.scripts.resolve()),
                 "MOCK230_CACHE": str(args.cache.resolve()),
-                "TORIRS_NET_CHEAT": "summoning_demo",
+                "TORIRS_NET_CHEAT": "summoning_unlock;summoning_demo",
                 "SDL_VIDEODRIVER": "dummy",
                 "TORIRS_MAX_FRAMES": "380",
                 "TORIRS_EXIT_BMP": str(bmp.resolve()),
@@ -85,6 +85,8 @@ def main() -> int:
                 "TORIRS_SIM_CLICK_AT": "210,617,154",
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
+                "TORIRS_SOUND_DEBUG": "1",
+                "TORIRS_ANIM_DEBUG": "1",
             }
         )
         result = subprocess.run(
@@ -115,23 +117,31 @@ def main() -> int:
         "client was built without the embedded mock server",
     )
     expect(
-        "static graphic=20001 abs=601,138 57x34 hidden=0" in result.stdout,
-        "source-authentic orb backing did not render in the visible minimap arc",
+        "static graphic=1072 abs=601,138 57x34 hidden=0" in result.stdout,
+        "modern hovered orb backing did not render in the visible minimap arc",
     )
     expect(
-        "static graphic=20000 abs=607,145 20x20 hidden=0" in result.stdout,
+        "static graphic=20000 abs=631,145 20x20 hidden=0" in result.stdout,
         "source-authentic wolf orb icon did not render",
     )
     expect(
-        '(160<<16|62) static font=494 color=0xff0000 text="0"' in result.stdout,
-        "stat-24 transmit did not redraw the orb from 1 point to 0",
+        '(160<<16|62) static font=494 color=0xff00 text="60"' in result.stdout,
+        "active familiar orb did not show its 60 special-move points",
     )
     expect("message_game: You summon a Spirit wolf." in result.stdout, "setup did not summon")
+    expect(
+        "entity_spotanim: combine id=20002" in result.stdout,
+        "Spirit wolf summon/call did not render the large familiar-arrival graphic",
+    )
     expect(
         "clickdbg: send op1 target=0xa00040 sub=-1 state=2" in result.stdout,
         "orb did not send its real IF_BUTTON1 packet",
     )
     expect("message_game: You call your familiar." in result.stdout, "orb click did not call")
+    expect(
+        "sound: synth=188 loops=1 delay=0" in result.stdout,
+        "familiar call did not emit the verified shared SYNTH_SOUND packet",
+    )
     expect("CS2VM2: abort" not in result.stdout, "orb clientscript aborted")
 
     for error in errors:

@@ -96,6 +96,46 @@ enum AppUiLogic
     APP_UI_LOGIC_CS2 = 2,
 };
 
+/* Hardcoded targets named by manifest `[action:<name>]` declarations. The
+ * manifest's `[debug:hotkeys]` section binds keys to those named actions;
+ * nothing is bound in a zero-initialized config. Arrow-key orbit controls are
+ * game input rather than developer shortcuts and are intentionally absent. */
+enum AppDebugHotkey
+{
+    APP_DEBUG_HOTKEY_CAMERA_FORWARD,
+    APP_DEBUG_HOTKEY_CAMERA_BACK,
+    APP_DEBUG_HOTKEY_CAMERA_LEFT,
+    APP_DEBUG_HOTKEY_CAMERA_RIGHT,
+    APP_DEBUG_HOTKEY_CAMERA_UP,
+    APP_DEBUG_HOTKEY_CAMERA_DOWN,
+    APP_DEBUG_HOTKEY_CAMERA_UNLOCK,
+    APP_DEBUG_HOTKEY_WORLD_RELOAD,
+    APP_DEBUG_HOTKEY_PAINT_TOGGLE,
+    APP_DEBUG_HOTKEY_PAINT_MORE,
+    APP_DEBUG_HOTKEY_PAINT_LESS,
+    APP_DEBUG_HOTKEY_PAINT_MORE_100,
+    APP_DEBUG_HOTKEY_PAINT_LESS_100,
+    APP_DEBUG_HOTKEY_SPAWN_PLAYER,
+    APP_DEBUG_HOTKEY_SPAWN_NPC,
+    APP_DEBUG_HOTKEY_SPAWN_OBJ,
+    APP_DEBUG_HOTKEY_SPAWN_PROJECTILE,
+    APP_DEBUG_HOTKEY_SPAWN_SPOTANIM,
+    APP_DEBUG_HOTKEY_ENTITY_SPOTANIM,
+    APP_DEBUG_HOTKEY_DAMAGE_TEST,
+    APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
+    APP_DEBUG_HOTKEY_COUNT
+};
+
+#define APP_DEBUG_HOTKEY_MAX 64
+#define APP_DEBUG_HOTKEY_ARGS_CAP 512
+
+struct AppDebugHotkeyBinding
+{
+    enum LibToriRS_KeyCode key;
+    enum AppDebugHotkey target;
+    char args[APP_DEBUG_HOTKEY_ARGS_CAP];
+};
+
 struct AppConfig
 {
     char const* cache_dir;
@@ -119,15 +159,10 @@ struct AppConfig
      *  cache yields terrain (which is not encrypted) with **zero locs**. */
     int spawn_x;
     int spawn_z;
-    /** Debug spawn-hotkey ids from `[spawn:hotkeys]`. -1 = built-in default;
-     *  TORIRS_SPAWN_* env vars still override (env > manifest > built-in). */
-    int spawn_npc_id;
-    int spawn_obj_id;
-    int spawn_spotanim_id;
-    int spawn_spotanim_height;
-    int spawn_spotanim_delay;
-    int spawn_proj_model_id;
-    int spawn_proj_seq_id;
+    /** Resolved `[debug:hotkeys]` key -> `[action:<name>]` bindings. Empty by
+     *  default. `args` retains the action's optional `a=` payload. */
+    struct AppDebugHotkeyBinding debug_hotkeys[APP_DEBUG_HOTKEY_MAX];
+    int debug_hotkey_count;
     /** RevConfig layout INI — the tree's shape. Every root tree comes from the
      * RevConfig builder; a cache gameframe is one *element* of that layout
      * (`type=rs_iface`), not a competing root. NULL/"" = none, in which case the
@@ -163,6 +198,9 @@ struct AppConfig
     char const* connect_target;
     char const* connect_user;
     char const* connect_pass;
+    /** `[net:boot] scripts` — compiled script pack for the embedded mock
+     * server. MOCK230_SCRIPTS still overrides it. NULL/"" = server default. */
+    char const* net_server_scripts;
     /** `[net:boot] cheat` — "::" commands (';'-separated, no leading "::") to
      * send once right after login, e.g. "zuk" to enter the Inferno instance.
      * The manifest spelling of the TORIRS_NET_CHEAT harness hook; the env var
@@ -609,9 +647,9 @@ struct App
      *  scrollCycle); drives arrow-scroll acceleration and gates grip drag. */
     int chat_scroll_cycle;
     /** Chat input focus. When set, typed keys feed the chat input line and the
-     *  debug camera/world hotkeys (WASD/M/spawn digits) are suppressed so they
-     *  cannot fire while composing a message. Clicking the chat region focuses;
-     *  clicking elsewhere or pressing Escape unfocuses. */
+     *  manifest-configured debug shortcuts are suppressed so they cannot fire
+     *  while composing a message. Clicking the chat region focuses; clicking
+     *  elsewhere or pressing Escape unfocuses. */
     int chat_input_active;
     /** Minimenu chat-line seam (points at app_chat_line_at). */
     struct RS_MinimenuChatSource chat_source;
@@ -1704,5 +1742,18 @@ App_LootNotifyKill(
     char const* source_name,
     int obj_id,
     int qty);
+
+/**
+ * Send one ordinary world-object operation through the live game's outbound
+ * protocol path. This is a headless acceptance hook: callers supply the
+ * cache-defined object id and absolute tile, so no content ids live in C.
+ */
+void
+App_SimulateLocOp(
+    struct App* app,
+    int op_num,
+    int abs_x,
+    int abs_z,
+    int loc_id);
 
 #endif

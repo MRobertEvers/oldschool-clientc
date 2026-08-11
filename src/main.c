@@ -570,14 +570,6 @@ static struct AppConfig cfg = {
     /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
     .spawn_x = -1,
     .spawn_z = -1,
-    /* -1 = built-in spawn-hotkey defaults; TORIRS_SPAWN_* still overrides. */
-    .spawn_npc_id = -1,
-    .spawn_obj_id = -1,
-    .spawn_spotanim_id = -1,
-    .spawn_spotanim_height = -1,
-    .spawn_spotanim_delay = -1,
-    .spawn_proj_model_id = -1,
-    .spawn_proj_seq_id = -1,
 };
 
 static struct PlatformSDL2* sdl;
@@ -1059,6 +1051,56 @@ frame_loop_step(void)
                 else
                     fprintf(stderr, "sim_hook: component 0x%lx not found\n", hook_com);
                 hook_frame = -1;
+            }
+        }
+
+        /* TORIRS_SIM_OPLOC="frame,op,x,z,loc": send one normal object-menu
+         * operation once the mock session is live. Unlike a server diagnostic,
+         * this traverses the client's net_out_oploc encoder and the server's
+         * regular OPLOC route. All values stay in the invoking test, not C. */
+        {
+            static int sim_oploc_init = 0;
+            static long sim_oploc_frame = -1;
+            static long sim_oploc_op;
+            static long sim_oploc_x;
+            static long sim_oploc_z;
+            static long sim_oploc_id;
+            if( !sim_oploc_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_OPLOC");
+                char* end = NULL;
+                sim_oploc_init = 1;
+                if( spec && *spec )
+                {
+                    sim_oploc_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_op = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_x = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_z = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_oploc_id = strtol(end + 1, &end, 0);
+                    else
+                        sim_oploc_frame = -1;
+                }
+            }
+            if( sim_oploc_frame >= 0 && frame_count >= sim_oploc_frame )
+            {
+                fprintf(
+                    stderr,
+                    "sim_oploc: op=%ld tile=%ld,%ld loc=%ld\n",
+                    sim_oploc_op,
+                    sim_oploc_x,
+                    sim_oploc_z,
+                    sim_oploc_id);
+                App_SimulateLocOp(
+                    &app,
+                    (int)sim_oploc_op,
+                    (int)sim_oploc_x,
+                    (int)sim_oploc_z,
+                    (int)sim_oploc_id);
+                sim_oploc_frame = -1;
             }
         }
 
@@ -3637,6 +3679,9 @@ main(
              * the pristine cache. */
             if( transport_kind == NET_TRANSPORT_EMBED && !getenv("MOCK230_CACHE") )
                 setenv("MOCK230_CACHE", cfg.cache_dir, 0);
+            if( transport_kind == NET_TRANSPORT_EMBED && cfg.net_server_scripts &&
+                cfg.net_server_scripts[0] && !getenv("MOCK230_SCRIPTS") )
+                setenv("MOCK230_SCRIPTS", cfg.net_server_scripts, 0);
 
             sock = app.net ? NetTransport_New(transport_kind,
                                               cfg.connect_port > 0 ? cfg.connect_port : 43594,

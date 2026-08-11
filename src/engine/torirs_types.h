@@ -85,6 +85,7 @@ struct ToriRS_Model
     gc_faceint_t* textured_p_coordinate;
     gc_faceint_t* textured_m_coordinate;
     gc_faceint_t* textured_n_coordinate;
+    uint8_t* texture_render_types;
     gc_faceint_t* face_texture_coords;
     struct ToriRS_Bones* vertex_bones;
     struct ToriRS_Bones* face_bones;
