@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "scope": "summoning_phase7_completion",
+  "review_only_pet_rows": {
+    "npc": 176,
+    "obj": 175,
+    "disposition": "withheld_pending_dedicated_lifecycle_and_client_proof",
+    "exception": "Clockwork cat is separately admitted by port/summoning_clockwork_cat_530.map; its original review-only rows remain preserved evidence."
+  },
+  "synth_sources": {
+    "188": "admitted_cache_native_payload_verified",
+    "4161": "withheld_requires_530_to_239_payload_transcode_and_client_proof",
+    "4164": "withheld_requires_530_to_239_payload_transcode_and_client_proof",
+    "4214": "withheld_requires_530_to_239_payload_transcode_and_client_proof",
+    "4265": "withheld_requires_530_to_239_payload_transcode_and_client_proof",
+    "4372": "withheld_requires_530_to_239_payload_transcode_and_client_proof",
+    "5753": "withheld_phoenix_source_has_no_familiar_behavior_closure",
+    "5776": "withheld_phoenix_source_has_no_familiar_behavior_closure",
+    "5777": "withheld_unattributed_review_only_export",
+    "5792": "withheld_unattributed_review_only_export"
+  }
+}

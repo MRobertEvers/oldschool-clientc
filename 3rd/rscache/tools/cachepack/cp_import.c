@@ -50,6 +50,11 @@ struct Import_Manifest
     int preserve_audio_ids;
     int npc_sounds;
     int legacy_scape2009;
+    /* Explicit source procedural-material -> destination texture ids.  A
+     * legacy Summoning import remains deliberately untextured until this is
+     * supplied; an incomplete table is an error rather than a silent
+     * cross-cache texture-id leak. */
+    struct Tool_IdMap texture_map;
     struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
     struct Import_List songs, patches, samples;
 };
@@ -165,6 +170,7 @@ static int parse_nonnegative(const char* key, const char* value, int* out)
 static int manifest_load(const char* path, struct Import_Manifest* m)
 {
     memset(m, 0, sizeof(*m));
+    tool_id_map_init(&m->texture_map);
     snprintf(m->lane, sizeof(m->lane), "ported/scape2009_summoning");
     snprintf(m->prefix, sizeof(m->prefix), "summoning");
     m->npc_base = 20000;
@@ -253,6 +259,28 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
                 return 0;
             }
         }
+        else if( strcmp(section, "texture_map") == 0 )
+        {
+            int source_id = -1, dest_id = -1;
+            if( !parse_nonnegative("texture source id", key, &source_id) ||
+                !parse_nonnegative("texture destination id", value, &dest_id) )
+            {
+                fclose(f);
+                return 0;
+            }
+            int existing = -1;
+            if( tool_id_map_lookup(&m->texture_map, source_id, &existing) )
+            {
+                fprintf(stderr, "cachepack import: duplicate texture map source %d\n", source_id);
+                fclose(f);
+                return 0;
+            }
+            if( !tool_id_map_put(&m->texture_map, source_id, dest_id) )
+            {
+                fclose(f);
+                return 0;
+            }
+        }
         else if( strcmp(section, "export:npc") == 0 || strcmp(section, "export:obj") == 0 ||
                  strcmp(section, "export:model") == 0 ||
                  strcmp(section, "export:seq") == 0 || strcmp(section, "export:spotanim") == 0 ||
@@ -295,6 +323,7 @@ static void manifest_free(struct Import_Manifest* m)
     free(m->npcs.v); free(m->objs.v); free(m->models.v); free(m->seqs.v);
     free(m->spotanims.v); free(m->locs.v); free(m->synths.v);
     free(m->songs.v); free(m->patches.v); free(m->samples.v);
+    tool_id_map_free(&m->texture_map);
 }
 
 static void manifest_ledger_path(
@@ -942,7 +971,7 @@ static int collect_sequence(struct Tool_Dat2Cache* src, int id,
 }
 
 static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
-                             const struct Tool_IdMap* model_map, int source_id)
+                             const struct Tool_IdMap* model_map, int source_id, int apply)
 {
     struct Tool_Bytes raw = {0};
     int table = RSCache_Dat2DiskTableId(src->disk, RSCACHE_DAT2_TABLE_MODELS);
@@ -961,7 +990,26 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     }
 
     int format = prov->format;
-    if( m->legacy_scape2009 )
+    if( m->texture_map.count && model->face_textures )
+    {
+        for( int face = 0; face < model->face_count; face++ )
+        {
+            int source_texture = model->face_textures[face];
+            if( source_texture < 0 )
+                continue;
+            int dest_texture = -1;
+            if( !tool_id_map_lookup(&m->texture_map, source_texture, &dest_texture) )
+            {
+                fprintf(stderr,
+                        "cachepack import: model %d uses source texture %d without a texture_map row\n",
+                        source_id, source_texture);
+                RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
+                return 0;
+            }
+            model->face_textures[face] = (int16_t)dest_texture;
+        }
+    }
+    else if( m->legacy_scape2009 )
     {
         /* Historical compatibility: the checked-in Summoning lane was authored
          * before texture dependency import existed and its tests require the
@@ -989,7 +1037,9 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
     char path[1500];
     snprintf(path, sizeof(path), "%s/models/%s/%s_model_%d.%s", m->to_tree, m->lane,
              m->prefix, source_id, ext);
-    int ok = n && write_bytes(path, out, n);
+    /* Dry-runs must traverse the exact model/transcode path so an incomplete
+     * texture_map is caught before an import mutates the content tree. */
+    int ok = n && (!apply || write_bytes(path, out, n));
     free(out); RSCache_ModelFree(model); RSCache_ModelProvenanceFree(prov); tool_bytes_free(&raw);
     (void)model_map;
     return ok;
@@ -1583,10 +1633,12 @@ static int import_run(struct Import_Manifest* m, int apply)
            m->npcs.n, m->objs.n, m->locs.n, m->spotanims.n, models.n, seqs.n,
            frames.n, framemaps.n, synths.n, songs.n, samples.n, patches.n);
 
+    if( ok )
+        for( int i = 0; ok && i < models.n; i++ )
+            ok = write_model_asset(m, &src, &model_map, models.v[i], apply);
+
     if( apply && ok )
     {
-        for( int i = 0; ok && i < models.n; i++ )
-            ok = write_model_asset(m, &src, &model_map, models.v[i]);
         for( int i = 0; ok && i < framemaps.n; i++ )
             ok = write_framemap_asset(m, &src, &to, framemaps.v[i]);
         for( int i = 0; ok && i < frames.n; i++ )

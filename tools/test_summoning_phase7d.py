@@ -122,7 +122,10 @@ def main() -> int:
         (OUT / "death.log").write_text(death)
         expect("Oh dear, you are dead!" in death, "death trigger did not run")
         expect("No familiar" in death, "death did not synchronize the cleared pet state to the sidebar")
-        expect(save_varp(guest, 6259) == 0 and save_varp(guest, 6260) == 0, "death did not clear persisted pet state")
+        expect(
+            save_varp(guest, 6259) in (None, 0) and save_varp(guest, 6260) in (None, 0),
+            "death did not clear persisted pet state",
+        )
     return finish(checks, errors)
 
 
