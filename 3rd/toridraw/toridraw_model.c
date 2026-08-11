@@ -343,8 +343,6 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
     free(m->face_infos);
     free(m->face_priorities);
     free(m->face_colors);
-    free(m->face_kernels);
-    free(m->face_detail_strength);
     free(m->textured_p_coordinate);
     free(m->textured_m_coordinate);
     free(m->textured_n_coordinate);

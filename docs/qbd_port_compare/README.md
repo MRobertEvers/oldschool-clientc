@@ -1,65 +1,90 @@
-# Two ports of the same dragon
+# Two ways to draw the same dragon
 
-The lane has been through two independent pieces of porting work. They fix
-different things and neither folder shows the other's result, which makes it
-easy to assume one subsumes the other. This harness renders the same geometry,
-from the same textures, at the same camera, through each.
+![the two renders](images/default_sheet.png)
 
-| port | what it changes | written up in |
-|---|---|---|
-| **priorities** | the ORDER faces are painted in (re-authored face render priorities) | [`../rs2012_qbd_priorities/`](../rs2012_qbd_priorities/) |
-| **materials** | WHAT each face is filled with (per-texel alpha, modulate by face colour, detail maps, OB_TORI per-face kernel routing) | [`../HD_KERNELS.md`](../HD_KERNELS.md) |
-
-They are orthogonal: one is the sort, one is the fill.
+| | what it is | changed vs baseline |
+|---|---|---:|
+| **1. priorities** | BASELINE. Face render priorities re-authored for a painter's-algorithm renderer ([`../rs2012_qbd_priorities/`](../rs2012_qbd_priorities/)). Ordinary depth sort. | — |
+| **2. z-buffer** | The SAME model with its priorities **thrown away**, opting into `TORIDRAW_MODEL_FLAG_ZBUFFER` so it resolves itself per pixel. | 6.0% |
 
 ```sh
-tools/qbd_port_compare.sh                 # every form both ports have
+tools/qbd_port_compare.sh                 # every form
 FORMS=default tools/qbd_port_compare.sh
 ```
 
-Its own harness on purpose — it reads the priorities `run/` directory and the
-lane side by side, writes only under this folder, and never writes the lane,
-packs a cache or touches the client.
+All three forms:
 
-## The pictures
-
-- [images/default_sheet.png](images/default_sheet.png) — lane, priorities port, materials port
-- [images/default_diff.png](images/default_diff.png) — what each changed against the lane, and how far apart the two are
-
-Measured on the QBD head, three yaws:
-
-| | changed vs the lane |
+| form | z-buffer vs baseline |
 |---|---:|
-| priorities port | 36.0% |
-| materials port | 30.6% |
-| **the two ports against each other** | **36.2%** |
+| default (head) | 6.0% |
+| worm | 1.3% |
+| soul | 0.0% |
 
-## What the sheet shows, including the awkward part
+## What the z-buffer panel says
 
-The lane as shipped is a white and grey metal mess — that is the untinted
-greyscale masks being drawn as if they were surfaces.
+This is the number worth having. Panel 2 takes the model whose priorities were
+laboriously re-authored, **discards that authoring**, and lets the depth test
+resolve the model against itself. It lands within **6.0%** of the authored
+result, and [the diff mask](images/default_diff.png) shows the residual sitting
+on seams and interpenetrating detail — spines through the crest, teeth through
+the jaw — rather than spread over the model.
 
-Both ports fix that, and **the priorities port currently reads closer to the
-reference art than the materials port does**: its head is a deeper red-brown,
-its horns a cleaner tan, and the materials port is lighter and noisier beside
-it.
+Ignoring the priorities is deliberate: honouring them would leave the depth path
+with nothing to do, because priorities override the depth sort.
 
-That is not the sort doing colour work. The likely explanation is that the
-priorities models were authored from a *different bake state*, in which more
-materials were still being flattened to their face colour — so more of that
-model is flat colour, and flat colour is exactly what the reference's broad
-areas look like. The materials port keeps those faces textured and modulates
-them, which adds the HD program's noise back on top.
+`soul` is the negative control — its faces never occlude each other, so the
+depth test correctly changes nothing rather than changing something.
 
-If that is right, the interesting question is not which port wins but **how much
-texture detail actually belongs on those faces** — the materials route can be
-dialled toward flat by tightening which materials classify as masks, and the
-right amount is a judgement about the art, not something either harness can
-settle. The 36.2% between-ports figure is the size of that disagreement.
+## Why the client's dragon is white and black
 
-## Rebuilding the inputs
+The lane model is **not** untextured — 6,533 of its 6,863 faces carry a texture,
+and 225 of the lane's 256 imported materials are **greyscale**: their RGB is a
+detail pattern, not a colour. Drawn through the stock opaque kernel, which
+treats the texture as the surface, a greyscale mask *is* a white and black
+surface.
 
-The priorities models come from `tools/rs2012_qbd_prio.sh` (writes `run/`). The
-materials models are built by this harness itself, into `build/qbd_obtori/`,
-from whatever the lane's current texture records say — so a re-bake changes them
-and the sheet should be regenerated after one.
+![face colours vs lane textures](images/why_white.png)
+
+Top: the lane model with its textures stripped, so only its face colours draw —
+the dragon is correct. Bottom: the same model with the lane's textures, which is
+what the client packs. Same geometry, same face colours, same camera.
+
+To render `rs2012_model_70260.ob3` untextured yourself:
+
+```sh
+src/build_win64_opt/rs2012_model_view.exe --model <path>.ob3 --out shot.bmp
+src/build_win64_opt/rs2012_model_view.exe --model <path>.ob3 --textures --stats
+```
+
+Note the second command: `--stats` reports the model *after* the viewer's
+default texture strip, so without `--textures` it prints `textured 0` for a
+model that is almost entirely textured. That misreading cost a full round of
+wrong conclusions here — do not repeat it.
+
+## The materials route was removed
+
+A third panel used to sit in this sheet: the same geometry ported to a non-stock
+OB_TORI container so each face could name one of three imported-material span
+kernels (per-texel alpha, modulate by face colour, opaque detail map). That
+whole route — the kernels, the container, the porter, the dat2 texture extension
+byte, the bake flags that emitted it, and the client's runtime selection — has
+been deleted.
+
+The kernels passed their own unit test. What was never finished was the wiring
+around them:
+
+- **Fixed before removal:** the per-face kernel was applied only inside the
+  texture-cache *miss* branch, so a face hitting the cache inherited whatever
+  kernel the previous face using that texture had resolved to.
+- **Never fixed:** faces with `color_c == TORIDRAWHSL16_FLAT` jump to the
+  `textured_flat` path, which had no dispatch to the material kernels at all —
+  over 1,000 faces per frame on this model, every one requesting the detail
+  kernel and silently getting the stock one. The three kernels interpolate the
+  shade across a span and have no flat twin, so giving them one was real work,
+  not a wiring fix.
+
+The greyscale-mask problem that route existed to solve is still open. It is a
+question about the imported materials themselves — see
+[`../rs2012_materials_backport/`](../rs2012_materials_backport/) and
+`RS2012_BACKPORT.md` §2 — not about the raster. `git log` has the removed code
+if it is ever wanted back.

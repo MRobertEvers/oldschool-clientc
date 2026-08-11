@@ -76,9 +76,6 @@ struct ToriRS_Model
     gc_alphaint_t* face_alphas;
     int* face_infos;
     uint8_t* face_priorities;
-    /* OB_TORI per-face span-kernel routing, or NULL for every stock model.
-     * See 3rd/rscache/src/datatypes/model_obtori.h. */
-    uint8_t* face_kernels;
     /* Uniform priority for models that carry no per-face array (header priority != 255). Only
      * meaningful when merging: the merged model's faces inherit it, which is what keeps a loc's
      * parts layered (e.g. a statue drawn over the plinth it stands on). */
@@ -127,15 +124,6 @@ struct ToriRS_Texture
     int width;
     int height;
     bool opaque;
-    /* Per-texel alpha in the top byte of each texel, rather than the stock
-     * colour key. Set only by the extended texture record; see
-     * RSCACHE_TEXTURE_V2_ALPHA_BYTE. */
-    bool alpha_blended;
-    /* Multiply the texel by the face's own colour. Set only by the extended
-     * texture record; see RSCACHE_TEXTURE_EXT_MODULATE. */
-    bool modulate;
-    /* Detail map over the face colour; see RSCACHE_TEXTURE_EXT_DETAIL. */
-    bool detail;
     int animation_direction;
     int animation_speed;
     int average_hsl;

@@ -217,6 +217,38 @@ Summoning requirement. The TD manifest invokes `::rs2012tdbypass`; production
 `::rs2012td` remains gated by While Guthix Sleeps. Neither QA command changes
 skills or quest state.
 
+## 2026-08-11 — a from-scratch `mock230-cache-rs2012` rebuild corrupts QBD's awake render
+
+Unrelated to the material/HUD work above: getting the `rs2012_qbd_session.rs2`
+wake-timing constant (see `docs/rs2012_qbd_wakeup/`) to actually take effect
+required rebuilding `mock230-scripts`, which in turn required a from-scratch
+`mock230-cache-rs2012` (delete + full repack of `cache.osrs239.rs2012`) to
+resolve an unrelated compile blocker. That repack's own `cachepack verify`
+step failed real fidelity checks on the first attempt — before any change in
+this session — flagging sprite payloads that changed length and `script 0`
+failing to decode with `trailer=modern`.
+
+Separately and more visibly: after the repack, QBD's post-`npc_changetype`
+idle pose (`rs2012_seq_16715` on `rs2012_qbd_default`) renders as a white,
+jagged mess from the same camera angle that previously showed a clean
+red-eyed dragon head — reproducible across multiple fresh runs, and present
+even with a narrowly-scoped fix to the compile blocker (so it is not that
+fix's own doing). A capture taken earlier in the investigation, against the
+cache as it stood before this session touched it, shows the correct pose at
+the same point in the encounter — the regression tracks with *rebuilding the
+cache*, not with any source edit made this session, and most likely shares a
+root cause with the two `cachepack verify` failures above.
+
+**Not investigated further.** `cache.osrs239.rs2012` is gitignored, so
+nothing in git is broken by this — it only affects a fresh local rebuild. Next
+step for whoever picks this up: reproduce the `cachepack verify` failures in
+isolation (`--assets=sprites,scripts`) against a clean checkout, and check
+whether the RS2012 model/sprite re-port needs the same kind of one-time
+re-bake `scripts/normalize_ported_sprite_alpha.py` did for the HUD (§ above,
+"sprite alpha lost transparency") — a lossy, must-rerun-after-report step is
+exactly the shape of bug that a stale-but-working cache would mask and a
+from-scratch rebuild would expose.
+
 ### Repair checklist
 
 - [x] Capture the broken arena baseline.

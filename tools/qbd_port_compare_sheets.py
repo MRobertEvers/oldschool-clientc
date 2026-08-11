@@ -2,12 +2,12 @@
 """Label and diff the renders tools/qbd_port_compare.sh produces.
 
 Per form:
-  <form>_sheet.png   lane | priorities port | materials port, side by side
-  <form>_diff.png    what each port changed against the lane, as a mask
+  <form>_sheet.png   the three renders side by side, baseline first
+  <form>_diff.png    what each of the other two changed against the baseline
 
-The masks are the point. The two ports change different things — one the paint
-ORDER, one the paint — and side-by-side renders of a dark spiky model make that
-hard to see. A mask does not care how busy the picture is.
+The baseline is the priorities-authored port. The mask is the point: the depth
+test changes only which face WINS a pixel, and on a dark spiky model that is
+almost invisible side by side. A mask does not care how busy the picture is.
 """
 
 import argparse
@@ -17,10 +17,10 @@ import sys
 
 from PIL import Image, ImageDraw
 
+BASELINE = "priorities"
 VARIANTS = [
-    ("lane", "lane as shipped"),
-    ("priorities", "priorities port (face order)"),
-    ("materials", "materials port (HD/SD kernels)"),
+    ("priorities", "1. priorities port (baseline: authored face order)"),
+    ("zbuffer", "2. z-buffer (same model, priorities ignored)"),
 ]
 LABEL_H = 18
 PAD = 6
@@ -81,12 +81,12 @@ def main():
             path = os.path.join(args.dir, "%s_%s.bmp" % (form, key))
             if os.path.exists(path):
                 have[key] = load_bmp(path)
-        if "lane" not in have or len(have) < 2:
+        if BASELINE not in have or len(have) < 2:
             print("  %s: not enough renders, skipped" % form)
             continue
 
         keys = [k for k, _ in VARIANTS if k in have]
-        w, h = have["lane"].size
+        w, h = have[BASELINE].size
         row([have[k] for k in keys],
             [dict(VARIANTS)[k] for k in keys], w, h).save(
             os.path.join(args.dir, "%s_sheet.png" % form))
@@ -95,17 +95,13 @@ def main():
         total = w * h
         summary = []
         for key in keys:
-            if key == "lane":
+            if key == BASELINE:
                 continue
-            mask, changed = diff_mask(have["lane"], have[key])
+            mask, changed = diff_mask(have[BASELINE], have[key])
             masks.append(mask)
-            captions.append("%s: %.1f%% of pixels" % (key, 100.0 * changed / total))
+            captions.append(
+                "%s vs baseline: %.1f%% of pixels" % (key, 100.0 * changed / total))
             summary.append("%s %.1f%%" % (key, 100.0 * changed / total))
-        if "priorities" in have and "materials" in have:
-            mask, changed = diff_mask(have["priorities"], have["materials"])
-            masks.append(mask)
-            captions.append("the two ports differ: %.1f%%" % (100.0 * changed / total))
-            summary.append("between %.1f%%" % (100.0 * changed / total))
         if masks:
             row(masks, captions, w, h).save(os.path.join(args.dir, "%s_diff.png" % form))
         print("  %s: %s" % (form, "  ".join(summary)))

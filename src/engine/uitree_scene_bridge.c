@@ -1250,9 +1250,6 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     texture->width = rs->width;
     texture->height = rs->height;
     texture->opaque = rs->opaque;
-    texture->alpha_blended = rs->alpha_blended;
-    texture->modulate = rs->modulate;
-    texture->detail = rs->detail;
     texture->animation_direction = rs->animation_direction;
     texture->animation_speed = rs->animation_speed;
     return texture;
@@ -1311,14 +1308,13 @@ UITreeSceneBridge_PublishTextures(
         if( app_tex_trace_enabled() )
             fprintf(
                 stderr,
-                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d alpha_blended=%d)\n",
+                "tex_trace: publish id=%d -> %s (%dx%d opaque=%d)\n",
                 texture_id,
                 UITreeSceneBridge_TextureResident(bridge, texture_id) ? "resident"
                                                                       : "SET BUT NOT RESIDENT",
                 texture->width,
                 texture->height,
-                texture->opaque,
-                texture->alpha_blended);
+                texture->opaque);
         published++;
     }
     return published;

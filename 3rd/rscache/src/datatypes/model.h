@@ -95,15 +95,6 @@ struct RSCache_Model
     // The top bits are the face texture id.
     uint8_t* face_infos;
     uint8_t* face_priorities;
-    /*
-     * OB_TORI per-face span-kernel routing, or NULL.
-     *
-     * NOT part of any RuneScape model format. It arrives only when the payload
-     * is an OB_TORI container (datatypes/model_obtori.h), which the decoders
-     * below unwrap transparently so a caller does not have to know which it
-     * has. Every stock model leaves this NULL.
-     */
-    uint8_t* face_kernels;
     uint16_t* face_colors;
     // If model priority is set, this is important for merged_models,
     // such as characters. For example, "arms" will have a model priority of 10,

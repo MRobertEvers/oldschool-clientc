@@ -403,10 +403,7 @@ texture_bake(
     int dest_size,
     int animation_direction,
     int animation_speed,
-    int average_hsl,
-    bool alpha_blended,
-    bool modulate,
-    bool detail)
+    int average_hsl)
 {
     struct ToriRS_Texture* texture;
     int* pixels;
@@ -458,12 +455,6 @@ texture_bake(
                 opaque = false;
         }
 
-        /* An alpha-blended texture takes its coverage from the sprite's alpha
-         * plane, per pixel. The palette cannot carry it: indices are shared, so
-         * two pixels of the same colour would be forced to the same coverage. */
-        if( alpha_blended && !layer->pixel_alphas )
-            alpha_blended = false;
-
         if( getenv("TORIRS_TEX_DEBUG") )
             fprintf(
                 stderr,
@@ -483,11 +474,7 @@ texture_bake(
                 for( pixel_index = 0; pixel_index < layer->width * layer->height; pixel_index++ )
                 {
                     int palette_index = layer->palette_pixels[pixel_index];
-                    pixels[pixel_index] = alpha_blended
-                                              ? texture_apply_pixel_alpha(
-                                                    adjusted_palette[palette_index],
-                                                    layer->pixel_alphas, pixel_index)
-                                              : adjusted_palette[palette_index];
+                    pixels[pixel_index] = adjusted_palette[palette_index];
                 }
             }
             else if( layer->width == 64 && dest_size == 128 )
@@ -501,11 +488,7 @@ texture_bake(
                     {
                         int src_index = ((x >> 1) << 6) + (y >> 1);
                         int palette_index = layer->palette_pixels[src_index];
-                        pixels[pixel_index++] =
-                            alpha_blended ? texture_apply_pixel_alpha(
-                                                adjusted_palette[palette_index],
-                                                layer->pixel_alphas, src_index)
-                                          : adjusted_palette[palette_index];
+                        pixels[pixel_index++] = adjusted_palette[palette_index];
                     }
                 }
             }
@@ -520,11 +503,7 @@ texture_bake(
                     {
                         int src_index = (y << 1) + ((x << 1) << 7);
                         int palette_index = layer->palette_pixels[src_index];
-                        pixels[pixel_index++] =
-                            alpha_blended ? texture_apply_pixel_alpha(
-                                                adjusted_palette[palette_index],
-                                                layer->pixel_alphas, src_index)
-                                          : adjusted_palette[palette_index];
+                        pixels[pixel_index++] = adjusted_palette[palette_index];
                     }
                 }
             }
@@ -543,12 +522,7 @@ texture_bake(
     texture->texels = pixels;
     texture->width = dest_size;
     texture->height = dest_size;
-    texture->opaque = opaque && !alpha_blended;
-    texture->alpha_blended = alpha_blended;
-    /* Modulation is independent of coverage: it says where the colour comes
-     * from, not which texels are drawn. */
-    texture->modulate = modulate;
-    texture->detail = detail;
+    texture->opaque = opaque;
     texture->animation_direction = animation_direction;
     texture->animation_speed = animation_speed;
     texture->average_hsl = average_hsl;
@@ -603,10 +577,7 @@ texture_from_sprite_packs(
         dest_size,
         def->animation_direction,
         def->animation_speed,
-        def->average_hsl,
-        def->alpha_blended,
-        def->modulate,
-        def->detail);
+        def->average_hsl);
     free(layers);
     return texture;
 }

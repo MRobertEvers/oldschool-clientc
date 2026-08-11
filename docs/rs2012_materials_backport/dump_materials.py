@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Render the lane's mask materials, and what the raster makes of them, to PNG.
 
+HISTORICAL: the --alpha-textures flag this needs was removed with the
+imported-material kernels, so the first command below no longer runs and the
+checked-in bake_report.txt is the last output it produced. The images and
+masks.tsv beside it are still the material census they always were. See the
+README in this folder.
+
 Regenerates everything under docs/rs2012_materials_backport/images/ plus
 masks.tsv. Run from the repository root, after the bake has been applied:
 

@@ -1,6 +1,4 @@
 #include "engine/dat2/dat2_tasks.h"
-#include "datatypes/model_obtori.h"
-
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/torirs_model_from_rscache.h"
@@ -19,8 +17,6 @@ struct Task_Dat2ModelLoad
     struct pt pt;
     struct Dat2BuildCache* bc;
     int model_id;
-    /** OB_TORI variant id to try first, or -1. See the load body. */
-    int variant_id;
 };
 
 static int
@@ -35,41 +31,10 @@ Task_Dat2ModelLoad_Run(
 
     PT_BEGIN(&task->pt);
 
-    /*
-     * TORIRS_OBTORI_MODELS=1: prefer the OB_TORI variant of this model.
-     *
-     * The two ship side by side - the stock model under its own id, the
-     * container at id + OBTORI_MODEL_ID_OFFSET - so neither overwrites the
-     * other and the choice is made per run rather than baked into the cache.
-     * A cache with no variant, or a run with the switch off, loads exactly the
-     * model it always did: the variant group simply does not decode and the
-     * stock id is fetched instead.
-     *
-     * See 3rd/rscache/src/datatypes/model_obtori.h.
-     */
-    task->variant_id = -1;
-    {
-        char const* prefer = getenv("TORIRS_OBTORI_MODELS");
-        if( prefer && prefer[0] && prefer[0] != '0' )
-            task->variant_id = task->model_id + OBTORI_MODEL_ID_OFFSET;
-    }
+    RSCache_IO_Dat2ModelLoad(io, 0, task->model_id);
+    PT_YIELD(&task->pt);
 
-    if( task->variant_id >= 0 )
-    {
-        RSCache_IO_Dat2ModelLoad(io, 0, task->variant_id);
-        PT_YIELD(&task->pt);
-        rscache_model = RSCache_IO_Dat2ModelDecode(io, 0);
-        if( rscache_model && getenv("TORIRS_MODEL_FMT_DEBUG") )
-            fprintf(stderr, "model_obtori: id=%d -> variant %d\n",
-                    task->model_id, task->variant_id);
-    }
-
-    if( !rscache_model )
-    {
-        RSCache_IO_Dat2ModelLoad(io, 0, task->model_id);
-        PT_YIELD(&task->pt);
-        rscache_model = RSCache_IO_Dat2ModelDecode(io, 0);
-    }
+    rscache_model = RSCache_IO_Dat2ModelDecode(io, 0);
     if( !rscache_model )
     {
         fprintf(stderr, "Failed to decode dat2 model %d\n", task->model_id);

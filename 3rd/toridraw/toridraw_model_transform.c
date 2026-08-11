@@ -345,10 +345,6 @@ ToriDraw_ModelNewMerge(
     bool has_face_alphas = false;
     bool has_face_infos = false;
     bool has_face_priorities = false;
-    /* OB_TORI per-face kernel routing. An npc's model1/model2 are merged before
-     * they are drawn, so a routing that did not survive the merge would never
-     * reach the raster - which is exactly what happened the first time. */
-    bool has_face_kernels = false;
     bool has_tex_coords = false;
     bool has_textured_coords = false;
     bool has_animaya = false;
@@ -367,8 +363,6 @@ ToriDraw_ModelNewMerge(
             has_face_textures = true;
         if( m->face_alphas )
             has_face_alphas = true;
-        if( m->face_kernels )
-            has_face_kernels = true;
         if( m->face_infos )
             has_face_infos = true;
         /* A source with a uniform model_priority needs the merged array too: without it its faces
@@ -424,8 +418,6 @@ ToriDraw_ModelNewMerge(
         out->face_indices_a = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
         out->face_indices_b = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
         out->face_indices_c = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
-        if( has_face_kernels )
-            out->face_kernels = (uint8_t*)calloc((size_t)total_faces, sizeof(uint8_t));
         if( has_face_colors )
         {
             out->face_colors_a = (hsl16_t*)calloc((size_t)total_faces, sizeof(hsl16_t));
@@ -551,10 +543,6 @@ ToriDraw_ModelNewMerge(
                 out->face_textures[dst] = m->face_textures[f];
             if( out->face_alphas && m->face_alphas )
                 out->face_alphas[dst] = m->face_alphas[f];
-            /* A source without routing keeps 0 = defer to the texture, which is
-             * what calloc already left there. */
-            if( out->face_kernels && m->face_kernels )
-                out->face_kernels[dst] = m->face_kernels[f];
             if( out->face_infos && m->face_infos )
                 out->face_infos[dst] = m->face_infos[f];
             if( out->face_priorities )

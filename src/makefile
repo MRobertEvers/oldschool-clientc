@@ -889,12 +889,6 @@ RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o 
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/bmp.o
-# OB_TORI porter: chooses a span kernel per face from the mesh and writes the
-# non-stock container the raster reads it from. See src/engine/proctex/obtori.h.
-.PHONY: rs2012-qbd-obtori
-rs2012-qbd-obtori: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_qbd_obtori 		engine/proctex/test/rs2012_qbd_obtori.c 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
-
 rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
 		engine/proctex/test/rs2012_model_view.c \
@@ -1509,15 +1503,6 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
-# The per-texel-alpha span kernel against a per-channel reference blend: what
-# the opaque and transparent kernels' tests cannot cover, because those two
-# treat a texel as all-or-nothing. Standalone TU, no cache or disk.
-test-texture-alpha-blend: $(OBJ_DIR)
-	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-function \
-		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texture_alpha_blend_test \
-		$(TORIDRAW_DIR)/toridraw_texture_alpha_blend_test.c -lm
-	./$(OBJ_DIR)/texture_alpha_blend_test
-
 # Side-by-side viewer: a textured, alpha-blended model out of a dat1 cache
 # rendered with both raster families plus an amplified difference pane.
 # Run: ./build/scanline_compare ../cache254 [model_id]
@@ -1790,8 +1775,21 @@ SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 check-crystal-set-contract:
 	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test
 
+# scape2009_summoning/configs holds ~1600 text records (npc/loc/obj/seq/spotanim
+# for every cohort creature) that are known-stale against the lane's own pack/
+# (see the mock230-cache-summoning comment above) — pointing sscompile at the
+# whole directory reintroduces that drift into every OTHER lane's symbol table
+# (observed: it shifted QBD's own render state). content_restrict_summoning_
+# serverside is the one declared-but-unpacked symbol scripts actually need, and
+# it already lives in the aggregate all.varbit.compack (not the standalone
+# summoning.varbit, which sscompile's --pack does not read on its own) — so
+# stage only that one file rather than the whole directory.
+SUMMONING_VARBIT_STAGE = $(REPO_ROOT)/build/summoning-varbit-stage
+
 mock230-scripts: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
+	@mkdir -p $(SUMMONING_VARBIT_STAGE)
+	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -1801,6 +1799,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
@@ -1812,6 +1811,8 @@ mock230-scripts: sscompile check-crystal-set-contract
 # a second copy of the gameplay scripts.
 mock230-scripts-summoning: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
+	@mkdir -p $(SUMMONING_VARBIT_STAGE)
+	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -1821,6 +1822,7 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(MOCK230_CONTENT_DIR)/pack \
 		--pack $(MOCK230_CONTENT_DIR)/configs \
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \

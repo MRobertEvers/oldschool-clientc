@@ -161,52 +161,6 @@ static struct material_mapping g_mapping[MAX_TEXTURES];
 static int g_ground_mesh_model_faces_fallback;
 
 /*
- * Which face colours each mask is used with.
- *
- * Reporting only - the raster does the combine per face, so nothing here
- * changes what is baked. It answers the question the images in
- * docs/rs2012_materials_backport/ are for: is this mask one surface reused, or
- * the same detail over a dozen different colours?
- *
- * Chroma, not the whole colour: the tint is taken at a fixed lightness (see
- * TORIDRAW_MODULATE_LIGHTNESS), so two faces differing only in authored
- * lightness are the same surface as far as the mask is concerned.
- */
-#define MASK_CHROMA_MASK 0xFF80
-#define MAX_MASK_USAGE 8192
-
-struct mask_usage
-{
-    int source;
-    int chroma;
-    int faces;
-};
-
-static struct mask_usage g_mask_usage[MAX_MASK_USAGE];
-static int g_mask_usage_count;
-static int g_mask_usage_dropped;
-
-static void
-mask_usage_note(int source, int chroma)
-{
-    for( int i = 0; i < g_mask_usage_count; i++ )
-        if( g_mask_usage[i].source == source && g_mask_usage[i].chroma == chroma )
-        {
-            g_mask_usage[i].faces++;
-            return;
-        }
-    if( g_mask_usage_count >= MAX_MASK_USAGE )
-    {
-        g_mask_usage_dropped++;
-        return;
-    }
-    g_mask_usage[g_mask_usage_count].source = source;
-    g_mask_usage[g_mask_usage_count].chroma = chroma;
-    g_mask_usage[g_mask_usage_count].faces = 1;
-    g_mask_usage_count++;
-}
-
-/*
  * Faces naming a material whose first RS727 flag is clear have their texture
  * erased and fall back to the face's flat HSL colour. This is the correct
  * default and must stay on.
@@ -225,33 +179,6 @@ mask_usage_note(int source, int chroma)
  * --no-ground-mesh-fallback exists only to re-run that experiment.
  */
 static bool g_ground_mesh_fallback = true;
-
-/*
- * --alpha-textures: emit blend layers as masks the raster composites, rather
- * than letting them keep the colour-key path.
- *
- * A blend layer has no fully-opaque texel: its shape is in the alpha and its
- * RGB is a greyscale detail pattern, so colour-keying it invents holes and
- * drawing its RGB literally paints the surface grey. With this on the record
- * carries `alpha` (blend by coverage) and `modulate` (multiply by the face's
- * own chroma), and the mask is normalised to its own peak so it scales that
- * colour rather than dimming it. See docs/rs2012_materials_backport/.
- */
-static bool g_alpha_textures = false;
-
-/*
- * --detail-textures: reference the materials the `valid` flag rejects, as
- * DETAIL MAPS over the face colour rather than as surfaces.
- *
- * 204 of 256 materials fail `valid` and have their faces erased, which is 95%
- * of the QBD. They are HD programs, not diffuse maps, and drawing them as
- * surfaces gives the blown-out white shards RS2012_BACKPORT.md �2 recorded -
- * measured again with the modulate kernel in place, and tinting does not save
- * them. What does is not treating them as the surface at all: the detail kernel
- * reconstructs the colour the face would have had and lets the program scale
- * it, so a useless program degrades to the flat fallback instead of to garbage.
- */
-static bool g_detail_textures = false;
 
 static int
 int_compare(const void* lhs, const void* rhs)
@@ -1195,13 +1122,8 @@ prepare_model_outputs(
                  * alpha kernel it stays unrenderable whatever `valid` says.
                  */
                 bool renderable = materials->materials[source].valid;
-                if( !g_alpha_textures && g_textures[source].blend_layer )
+                if( g_textures[source].blend_layer )
                     renderable = false;
-                /* A detail map is renderable by construction: the worst a bad
-                 * program can do through that kernel is scale the face's own
-                 * colour, which is the fallback this would otherwise take. */
-                if( g_detail_textures && g_textures[source].greyscale )
-                    renderable = true;
 
                 if( g_ground_mesh_fallback && !renderable )
                 {
@@ -1212,23 +1134,6 @@ prepare_model_outputs(
                         model->face_texture_coords[face] = -1;
                     model->face_textures[face] = (int16_t)-1;
                     g_ground_mesh_model_faces_fallback++;
-                }
-                /*
-                 * A blend layer needs no per-colour variant: the record's
-                 * modulate flag makes the raster multiply the mask by the
-                 * face's own chroma, so one destination texture serves every
-                 * face that names the material, whatever colour it is.
-                 *
-                 * Which colours those are is still worth reporting - it is what
-                 * says whether a mask is used as one surface or many.
-                 */
-                else if( g_alpha_textures && g_textures[source].greyscale &&
-                         model->face_colors )
-                {
-                    mask_usage_note(
-                        source, (int)model->face_colors[face] & MASK_CHROMA_MASK);
-                    model->face_textures[face] =
-                        (int16_t)g_mapping[source].dest_texture;
                 }
                 else
                     model->face_textures[face] =
@@ -1347,37 +1252,6 @@ alpha_report(int source)
         100.0 * full / (BAKE_SIZE * BAKE_SIZE));
 }
 
-/*
- * Brightest channel among the covered texels, i.e. what this mask's "full
- * surface" reads as.
- *
- * A blend layer is a greyscale detail pattern whose overall level is whatever
- * the HD program happened to produce - measured on this lane the three QBD
- * masks peak at 255, 209 and 163. The raster multiplies the mask by the face's
- * colour, so an un-normalised mask would dim that colour by an amount which
- * means nothing: material 2164 would render every face it touches at 64%.
- * Scaling by the peak anchors the mask's brightest texel to the full face
- * colour and keeps the pattern's contrast below it.
- */
-static int
-blend_layer_peak(const struct texture_entry* entry)
-{
-    int peak = 0;
-    for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
-    {
-        uint32_t argb = (uint32_t)entry->argb[i];
-        if( (argb >> 24) == 0 )
-            continue;
-        for( int shift = 0; shift <= 16; shift += 8 )
-        {
-            int c = (int)((argb >> shift) & 0xFF);
-            if( c > peak )
-                peak = c;
-        }
-    }
-    return peak > 0 ? peak : 255;
-}
-
 static int
 quantize_texture(int source, int32_t* pixels)
 {
@@ -1418,9 +1292,6 @@ quantize_texture(int source, int32_t* pixels)
         entry->greyscale = covered > 0 && spread / covered < GREYSCALE_CHROMA_LIMIT;
     }
 
-    /* Only a mask is normalised; a diffuse map already carries its own level. */
-    int const normalize = g_alpha_textures && entry->blend_layer;
-    int const peak = normalize ? blend_layer_peak(entry) : 255;
 
     for( int i = 0; i < BAKE_SIZE * BAKE_SIZE; i++ )
     {
@@ -1428,7 +1299,7 @@ quantize_texture(int source, int32_t* pixels)
         int alpha = (int)(argb >> 24);
         /* A blend layer is emitted with its coverage intact - thresholding is
          * exactly what destroys it - so only a fully clear texel drops out. */
-        if( (g_alpha_textures && entry->blend_layer) ? (alpha == 0) : (alpha < 128) )
+        if( alpha < 128 )
         {
             if( pixels ) pixels[i] = 0;
             entry->transparent = true;
@@ -1437,23 +1308,12 @@ quantize_texture(int source, int32_t* pixels)
         int red = (int)((argb >> 16) & 0xFF);
         int green = (int)((argb >> 8) & 0xFF);
         int blue = (int)(argb & 0xFF);
-        if( normalize )
-        {
-            red = red * 255 / peak;
-            green = green * 255 / peak;
-            blue = blue * 255 / peak;
-            if( red > 255 ) red = 255;
-            if( green > 255 ) green = 255;
-            if( blue > 255 ) blue = 255;
-        }
         int r = (red * (PALETTE_RED_LEVELS - 1) + 127) / 255;
         int g = (green * (PALETTE_GREEN_LEVELS - 1) + 127) / 255;
         int b = (blue * (PALETTE_BLUE_LEVELS - 1) + 127) / 255;
         int index = 1 + (r * PALETTE_GREEN_LEVELS + g) * PALETTE_BLUE_LEVELS + b;
         int rgb = palette_colour(index);
-        uint32_t out_alpha =
-            (g_alpha_textures && entry->blend_layer) ? (uint32_t)alpha : 0xFFu;
-        if( pixels ) pixels[i] = (int32_t)((out_alpha << 24) | (uint32_t)rgb);
+        if( pixels ) pixels[i] = (int32_t)(0xFF000000u | (uint32_t)rgb);
     }
     return 1;
 }
@@ -1776,21 +1636,6 @@ write_texture_sources(
             fprintf(text_file, "[rs2012_material_%d]\n", source);
             fprintf(text_file, "averagehsl=%d\n", material->average_hsl);
             if( !g_textures[source].transparent ) fprintf(text_file, "opaque=yes\n");
-            /* Two independent properties, one extension byte. Coverage: a
-             * blend layer keeps its alpha instead of being colour-keyed.
-             * Colour: a greyscale material has none of its own, so the raster
-             * multiplies it by the face's chroma. See
-             * ToriDraw_Texture::alpha_blended and ::modulate. */
-            if( g_alpha_textures && g_textures[source].blend_layer )
-                fprintf(text_file, "alpha=yes\n");
-            if( g_alpha_textures && g_textures[source].greyscale )
-                fprintf(text_file, "modulate=yes\n");
-            /* A greyscale material the `valid` flag rejects is an HD program,
-             * not a surface: it goes to the detail kernel, which cannot make it
-             * worse than the flat fallback. See ::detail. */
-            if( g_detail_textures && g_textures[source].greyscale &&
-                !materials->materials[source].valid )
-                fprintf(text_file, "detail=yes\n");
             fprintf(text_file, "sprite1=%d,0,0\n", g_mapping[source].dest_sprite);
             if( direction ) fprintf(text_file, "direction=%d\n", direction);
             if( speed ) fprintf(text_file, "speed=%d\n", speed);
@@ -1876,15 +1721,6 @@ main(int argc, char** argv)
             g_ground_mesh_fallback = false;
         else if( strcmp(argv[i], "--alpha-report") == 0 )
             g_alpha_report = true;
-        else if( strcmp(argv[i], "--alpha-textures") == 0 )
-            g_alpha_textures = true;
-        else if( strcmp(argv[i], "--detail-textures") == 0 )
-        {
-            /* Implies --alpha-textures: both ride the same extension byte and
-             * the same "this lane uses the imported-material kernels" switch. */
-            g_detail_textures = true;
-            g_alpha_textures = true;
-        }
         else if( strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0 )
         {
             usage(argv[0]);
@@ -1979,29 +1815,6 @@ main(int argc, char** argv)
                baked_count, ground_mesh, animated, dual_axis, source_transparent,
                baked_transparent, g_ground_mesh_model_faces_fallback);
         printf("  reserved overlays: 348->211 408->212 600->213 616->214 651->215\n");
-        if( g_alpha_textures )
-        {
-            int masks = 0;
-            int faces = 0;
-            for( int i = 0; i < g_mask_usage_count; i++ )
-            {
-                bool seen = false;
-                faces += g_mask_usage[i].faces;
-                for( int j = 0; j < i && !seen; j++ )
-                    seen = g_mask_usage[j].source == g_mask_usage[i].source;
-                if( !seen )
-                    masks++;
-            }
-            printf("  masks: %d modulated textures, %d face colours, %d faces%s\n",
-                   masks, g_mask_usage_count, faces,
-                   g_mask_usage_dropped ? " (usage table full)" : "");
-            if( g_alpha_report )
-                for( int i = 0; i < g_mask_usage_count; i++ )
-                    printf("    material %d chroma hsl16 %-6d -> texture %d (%d faces)\n",
-                           g_mask_usage[i].source, g_mask_usage[i].chroma,
-                           g_mapping[g_mask_usage[i].source].dest_texture,
-                           g_mask_usage[i].faces);
-        }
     }
 
     if( ok && apply )

@@ -1,5 +1,20 @@
 # RS2012 blend-layer materials on an SD rasterizer
 
+> **HISTORICAL — the renderer half of this is gone.** The three span kernels
+> this document describes (per-texel alpha, modulate by face colour, opaque
+> detail map), the OB_TORI container that routed them per face, the dat2 texture
+> extension byte, and the `rs2012_material_bake --alpha-textures /
+> --detail-textures` flags that emitted it have all been removed. Any command
+> below naming those flags, or `make -C src test-texture-alpha-blend`, no longer
+> exists. `git log` has the code.
+>
+> What stays true is the **analysis**: which imported materials are masks rather
+> than diffuse maps, which are greyscale, and what each is used with. That is
+> the part worth keeping, and it is why this folder was not deleted with the
+> kernels. The problem it describes — a lane whose materials cannot be drawn as
+> surfaces — is still open. See
+> [`../qbd_port_compare/README.md`](../qbd_port_compare/README.md).
+
 How the imported RS727 materials that are **masks rather than diffuse maps** are
 made to render on ToriDraw, which is standard-detail only.
 

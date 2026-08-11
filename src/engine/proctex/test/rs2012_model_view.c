@@ -57,7 +57,6 @@
 
 #include "engine/torirs_model_from_rscache.h"
 #include "engine/toridraw_model_from_torirs.h"
-#include "datatypes/model_obtori.h"
 #include "engine/torirs_types.h"
 
 #include <bmp.h>
@@ -247,15 +246,6 @@ read_file(const char* path, long* out_size)
     return bytes;
 }
 
-/**
- * Load an .ob3, or an OB_TORI container wrapping one.
- *
- * OB_TORI is detected by its magic rather than by the file name, so a caller
- * does not have to know which it has. The OB3 payload decodes through exactly
- * the same path either way; the container only adds the per-face kernel array,
- * which is attached to the drawable model afterwards. See
- * src/engine/proctex/obtori.h.
- */
 static struct ToriDraw_Model*
 load_ob3(const char* path)
 {
@@ -264,9 +254,6 @@ load_ob3(const char* path)
     struct RSCache_Model* rs;
     struct ToriRS_Model* mid;
     struct ToriDraw_Model* out;
-    struct ObToriModel* container = NULL;
-    const uint8_t* model_bytes;
-    int model_size;
 
     if( !bytes )
     {
@@ -274,37 +261,11 @@ load_ob3(const char* path)
         return NULL;
     }
 
-    model_bytes = bytes;
-    model_size = (int)size;
-    if( ObTori_IsObTori(bytes, (int)size) )
-    {
-        /* Face count is only knowable after the OB3 decodes, so the container
-         * is decoded twice: once to reach the payload, once with the real count
-         * so the per-face sections can be length-checked. */
-        struct ObToriModel* probe = ObTori_NewDecode(bytes, (int)size, -1);
-        struct RSCache_Model* peek =
-            probe ? RSCache_ModelNewDecode(probe->ob3, probe->ob3_size) : NULL;
-        int face_count = peek ? peek->face_count : 0;
-
-        RSCache_ModelFree(peek);
-        ObTori_Free(probe);
-        container = ObTori_NewDecode(bytes, (int)size, face_count);
-        if( !container )
-        {
-            fprintf(stderr, "rs2012_model_view: bad OB_TORI container %s\n", path);
-            free(bytes);
-            return NULL;
-        }
-        model_bytes = container->ob3;
-        model_size = container->ob3_size;
-    }
-
-    rs = RSCache_ModelNewDecode((uint8_t*)model_bytes, model_size);
+    rs = RSCache_ModelNewDecode(bytes, (int)size);
     free(bytes);
     if( !rs )
     {
         fprintf(stderr, "rs2012_model_view: cannot decode %s\n", path);
-        ObTori_Free(container);
         return NULL;
     }
     /* Moves the arrays out of rs, leaving it hollow but still freeable. */
@@ -314,26 +275,6 @@ load_ob3(const char* path)
         return NULL;
     out = ToriDraw_ModelFromToriRS(mid);
     ToriRS_ModelFree(mid);
-
-    if( out && container && container->face_kernel &&
-        container->face_count == out->face_count )
-    {
-        int counts[OBTORI_KERNEL_COUNT] = { 0 };
-        out->face_kernels = (uint8_t*)malloc((size_t)out->face_count);
-        if( out->face_kernels )
-        {
-            memcpy(out->face_kernels, container->face_kernel, (size_t)out->face_count);
-            for( int f = 0; f < out->face_count; f++ )
-                if( container->face_kernel[f] < OBTORI_KERNEL_COUNT )
-                    counts[container->face_kernel[f]]++;
-            fprintf(stderr, "rs2012_model_view: OB_TORI %s —", path);
-            for( int k = 0; k < OBTORI_KERNEL_COUNT; k++ )
-                if( counts[k] )
-                    fprintf(stderr, " %s=%d", ObTori_KernelName(k), counts[k]);
-            fprintf(stderr, "\n");
-        }
-    }
-    ObTori_Free(container);
     return out;
 }
 
@@ -543,8 +484,6 @@ view_read_file(const char* path)
 
 /**
  * Publish every lane texture into the scene map, from `<tree>`.
- * Returns how many landed, and reports the flags so a run says on the record
- * which kernel each texture will take.
  */
 static int
 view_load_lane_textures(struct ToriDraw_Scene* scene, const char* tree, bool verbose)
@@ -552,7 +491,7 @@ view_load_lane_textures(struct ToriDraw_Scene* scene, const char* tree, bool ver
     char path[2048];
     char* records;
     char* index;
-    int loaded = 0, alpha_count = 0, modulate_count = 0, detail_count = 0;
+    int loaded = 0;
 
     snprintf(path, sizeof(path), "%s/ported/rs2012_qbd_td/textures/texture_0.texture", tree);
     records = view_read_file(path);
@@ -603,29 +542,16 @@ view_load_lane_textures(struct ToriDraw_Scene* scene, const char* tree, bool ver
         texture->texels = texels;
         texture->width = width;
         texture->height = height;
-        texture->alpha_blended = view_record_field(block, "alpha") != NULL;
-        texture->modulate = view_record_field(block, "modulate") != NULL;
-        texture->detail = view_record_field(block, "detail") != NULL;
-        /* An alpha texture is never opaque; otherwise trust the record. */
-        texture->opaque = !texture->alpha_blended &&
-                          view_record_field(block, "opaque") != NULL;
+        texture->opaque = view_record_field(block, "opaque") != NULL;
         ToriDraw_SceneSetTexture(scene, id, texture);
         loaded++;
-        if( texture->alpha_blended )
-            alpha_count++;
-        if( texture->modulate )
-            modulate_count++;
-        if( texture->detail )
-            detail_count++;
     }
 
     if( verbose )
         fprintf(
             stderr,
-            "rs2012_model_view: %d lane textures (%d alpha, %d modulate)\n",
-            loaded,
-            alpha_count,
-            modulate_count);
+            "rs2012_model_view: %d lane textures\n",
+            loaded);
     free(records);
     free(index);
     return loaded;

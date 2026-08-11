@@ -83,19 +83,7 @@ struct ToriDrawModelRasterContext
     const int* cache_texels;
     int cache_texture_size;
     int cache_texture_opaque;
-    int cache_texture_alpha_blended;
-    int cache_texture_modulate;
-    int cache_texture_detail;
 
-    /* The model's authored per-face colour. The lighting keeps hue and
-     * saturation only for untextured faces, so this is the only place a
-     * modulated texture can get the surface colour from. */
-    hsl16_t* face_colors;
-
-    /* OB_TORI per-face kernel routing; NULL for every stock and OB3 model.
-     * See src/engine/proctex/obtori.h. */
-    uint8_t* face_kernels;
-    uint8_t* face_detail_strength;
 
     /* Depth-tested raster for this model. NULL unless the model carries
      * TORIDRAW_MODEL_FLAG_ZBUFFER and the scene has a z-buffer; when set, every
@@ -410,9 +398,6 @@ ToriDraw_RasterModelFace(
     const int* texels = g_empty_texture_texels;
     int texture_size = 0;
     int texture_opaque = true;
-    int texture_alpha_blended = false;
-    int texture_modulate = false;
-    int texture_detail = false;
     if( ctx->face_textures != NULL )
         texture_id = ctx->face_textures[face];
     else
@@ -439,10 +424,6 @@ ToriDraw_RasterModelFace(
             texels = ctx->cache_texels;
             texture_size = ctx->cache_texture_size;
             texture_opaque = ctx->cache_texture_opaque;
-            texture_alpha_blended = ctx->cache_texture_alpha_blended;
-            texture_modulate = ctx->cache_texture_modulate;
-            texture_detail = ctx->cache_texture_detail;
-
             if( color_c == TORIDRAWHSL16_FLAT )
                 goto textured_flat;
             else
@@ -492,104 +473,10 @@ ToriDraw_RasterModelFace(
         texels = texture->texels;
         texture_size = texture->width;
         texture_opaque = texture->opaque;
-        texture_alpha_blended = texture->alpha_blended;
-        texture_modulate = texture->modulate;
-        texture_detail = texture->detail;
-
-        /*
-         * A/B switch for the two imported-material kernels, so the same cache
-         * can be rendered both ways without a re-bake:
-         *
-         *   TORIDRAW_TEX_LEGACY=1    ignore both flags. Every texture takes the
-         *                            stock opaque / colour-key path, i.e. what
-         *                            this renderer did before the kernels
-         *                            existed. This is the "before" picture.
-         *   TORIDRAW_NO_MODULATE=1   keep the coverage, drop the tint. Isolates
-         *                            which of the two kernels a difference
-         *                            comes from.
-         *
-         * Read once. Off by default and absent from any shipping path; a
-         * screenshot pair is worthless if the two halves needed different
-         * assets, which is the whole reason this is a runtime switch and not a
-         * bake flag. See docs/HD_KERNELS.md.
-         */
-        {
-            static int legacy = -1;
-            static int no_modulate = -1;
-            if( legacy < 0 )
-            {
-                /* Value, not presence: a harness that clears a switch by
-                 * exporting it empty would otherwise turn it on, and the
-                 * before/after pair would silently be two befores. */
-                const char* l = getenv("TORIDRAW_TEX_LEGACY");
-                const char* m = getenv("TORIDRAW_NO_MODULATE");
-                legacy = (l && l[0] && l[0] != '0') ? 1 : 0;
-                no_modulate = (m && m[0] && m[0] != '0') ? 1 : 0;
-            }
-            if( legacy )
-            {
-                texture_alpha_blended = 0;
-                texture_modulate = 0;
-                texture_detail = 0;
-                /* The stock reading of a mask: opaque unless it colour-keys. */
-                texture_opaque = texture->opaque;
-            }
-            else if( no_modulate )
-            {
-                texture_modulate = 0;
-                texture_detail = 0;
-            }
-        }
-
-        /*
-         * OB_TORI: a face may name its own kernel, and it wins over the
-         * texture's flags.
-         *
-         * The face is deliberately the winner. A texture cannot know whether
-         * this particular triangle is a cutout card, whose empty region must
-         * show the scene behind it, or a decal lying on a surface, which must
-         * stay opaque - that is a property of the geometry the triangle belongs
-         * to. Non-stock models only: the array is NULL for everything else, so
-         * this is a NULL test per face on the stock path. Values are
-         * enum ObToriFaceKernel (src/engine/proctex/obtori.h).
-         */
-        if( ctx->face_kernels && ctx->face_kernels[face] )
-        {
-            switch( ctx->face_kernels[face] )
-            {
-            case 1: /* TRANSPARENT: stock colour key */
-                texture_alpha_blended = 0;
-                texture_modulate = 0;
-                texture_detail = 0;
-                texture_opaque = 0;
-                break;
-            case 2: /* ALPHA: coverage, untinted */
-                texture_alpha_blended = 1;
-                texture_modulate = 0;
-                texture_detail = 0;
-                break;
-            case 3: /* MODULATE: coverage, tinted by the face */
-                texture_alpha_blended = 1;
-                texture_modulate = 1;
-                texture_detail = 0;
-                break;
-            case 4: /* DETAIL: opaque, darkens the face's own colour */
-                texture_alpha_blended = 0;
-                texture_modulate = 0;
-                texture_detail = 1;
-                break;
-            default:
-                break;
-            }
-        }
-
         ctx->cache_texture_id = texture_id;
         ctx->cache_texels = texels;
         ctx->cache_texture_size = texture_size;
         ctx->cache_texture_opaque = texture_opaque;
-        ctx->cache_texture_alpha_blended = texture_alpha_blended;
-        ctx->cache_texture_modulate = texture_modulate;
-        ctx->cache_texture_detail = texture_detail;
 
         if( color_c == TORIDRAWHSL16_FLAT )
             goto textured_flat;
@@ -837,9 +724,8 @@ ToriDraw_RasterModelFace(
                     color_b,
                     color_c,
                     0xFF,
-                    texture_alpha_blended ? TORIDRAW_ZBUF_TEX_ALPHA
-                                          : (texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
-                                                            : TORIDRAW_ZBUF_TEX_TRANSPARENT),
+                    texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
+                                   : TORIDRAW_ZBUF_TEX_TRANSPARENT,
                     tp_vertex,
                     tm_vertex,
                     tn_vertex,
@@ -882,85 +768,6 @@ ToriDraw_RasterModelFace(
                     ctx->offset_y,
                     ctx->allow_near_clip,
                     ctx->near_clipped);
-            }
-            /* Per-texel alpha: blend rather than colour-key. Checked before
-             * opaque because such a texture is never marked opaque, and before
-             * transparent because that path would threshold it into holes. */
-            else if( texture_alpha_blended || texture_detail )
-            {
-                /* #region agent log — TORIRS_RASTER_TEX_DEBUG=1 counts faces
-                 * that actually reach the per-texel-alpha kernel. Until the
-                 * bake started emitting the record's alpha byte this branch
-                 * had never executed, and nothing else distinguishes "the
-                 * texture is flagged" from "the flag reached the raster". */
-                {
-                    static int alpha_faces = 0;
-                    static int alpha_debug = -1;
-                    if( alpha_debug < 0 )
-                        alpha_debug = getenv("TORIRS_RASTER_TEX_DEBUG") ? 1 : 0;
-                    if( alpha_debug && ++alpha_faces % 500 == 1 )
-                        fprintf(
-                            stderr,
-                            "raster_tex_alpha: faces=%d id=%d\n",
-                            alpha_faces,
-                            texture_id);
-                }
-                /* #endregion */
-                /*
-                 * A modulated texture is a mask: its RGB is a greyscale detail
-                 * pattern and the surface colour belongs to the face. Take that
-                 * colour from the face's authored hsl16 — the lighting has
-                 * already replaced colors_a/b/c with plain lightness for a
-                 * textured face, which is exactly the information the mask
-                 * needs and exactly what it must not be tinted by.
-                 *
-                 * The chroma, never the authored lightness: lightness reaches
-                 * the kernel as the shade, so folding it in here as well would
-                 * count it twice and turn a lightness-0 face black. Once per
-                 * face, not per pixel.
-                 */
-                struct TexSpanTint face_tint;
-                const struct TexSpanTint* face_tint_ptr = NULL;
-                if( (texture_modulate || texture_detail) && ctx->face_colors )
-                {
-                    int chroma = (int)ctx->face_colors[face] & 0xFF80;
-                    tex_span_tint_pack(
-                        g_hsl16_to_rgb_table[(chroma | TORIDRAW_MODULATE_LIGHTNESS) & 0xFFFF],
-                        &face_tint);
-                    face_tint.detail = texture_detail ? 1 : 0;
-                    face_tint.chroma = chroma;
-                    face_tint_ptr = &face_tint;
-                }
-                ToriDraw_TriangleFaceTextureBlendAlpha(
-                    ctx->pixel_buffer,
-                    ctx->stride,
-                    ctx->screen_width,
-                    ctx->screen_height,
-                    ctx->camera_cot16,
-                    face,
-                    tp_vertex,
-                    tm_vertex,
-                    tn_vertex,
-                    ctx->face_indices_a,
-                    ctx->face_indices_b,
-                    ctx->face_indices_c,
-                    ctx->vertex_x,
-                    ctx->vertex_y,
-                    ctx->vertex_z,
-                    ctx->orthographic_vertex_x_nullable,
-                    ctx->orthographic_vertex_y_nullable,
-                    ctx->orthographic_vertex_z_nullable,
-                    ctx->colors_a,
-                    ctx->colors_b,
-                    ctx->colors_c,
-                    (int*)texels,
-                    texture_size,
-                    ctx->near_plane_z,
-                    ctx->offset_x,
-                    ctx->offset_y,
-                    ctx->allow_near_clip,
-                    ctx->near_clipped,
-                    face_tint_ptr);
             }
             else if( texture_opaque )
             {
@@ -1081,9 +888,8 @@ ToriDraw_RasterModelFace(
                     color_a,
                     color_a,
                     0xFF,
-                    texture_alpha_blended ? TORIDRAW_ZBUF_TEX_ALPHA
-                                          : (texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
-                                                            : TORIDRAW_ZBUF_TEX_TRANSPARENT),
+                    texture_opaque ? TORIDRAW_ZBUF_TEX_OPAQUE
+                                   : TORIDRAW_ZBUF_TEX_TRANSPARENT,
                     tp_vertex,
                     tm_vertex,
                     tn_vertex,
@@ -1233,9 +1039,6 @@ context_from_handle(
         ctx->face_m_coordinate_nullable = m->textured_m_coordinate;
         ctx->face_n_coordinate_nullable = m->textured_n_coordinate;
         ctx->num_textured_faces = m->textured_face_count;
-        ctx->face_colors = m->face_colors;
-        ctx->face_kernels = m->face_kernels;
-        ctx->face_detail_strength = m->face_detail_strength;
         ctx->colors_a = m->face_colors_a;
         ctx->colors_b = m->face_colors_b;
         ctx->colors_c = m->face_colors_c;
@@ -1280,9 +1083,6 @@ context_from_handle(
         ctx->cache_texels = NULL;
         ctx->cache_texture_size = 0;
         ctx->cache_texture_opaque = 0;
-        ctx->cache_texture_alpha_blended = 0;
-        ctx->cache_texture_modulate = 0;
-        ctx->cache_texture_detail = 0;
         ctx->flags = 0;
         if( smooth )
             ctx->flags |= RASTER_FLAG_GOURAUD_SMOOTH;

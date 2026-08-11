@@ -472,7 +472,6 @@ int g_toridraw_raster_scanline = 0;
 #ifndef TORIDRAW_PIXEL16
 #include "triangles/toridraw_triangle_texture_opaque.u.c"
 #include "triangles/toridraw_triangle_texture_transparent.u.c"
-#include "triangles/toridraw_triangle_texture_alpha.u.c"
 #include "triangles/toridraw_triangle_texture_affine.u.c"
 /* The depth-tested family draws through the 32-bit texture and blend paths, so
  * it shares the PIXEL16 exclusion with them. Under a 16-bit target

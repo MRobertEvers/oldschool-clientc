@@ -135,20 +135,6 @@ struct ToriDraw_Model
     uint8_t model_priority;
     hsl16_t* face_colors;
 
-    /*
-     * OB_TORI per-face kernel routing. NULL for every stock model, and for
-     * every OB3 one: only the non-stock OB_TORI container carries it (see
-     * src/engine/proctex/obtori.h).
-     *
-     * Kernel choice is otherwise a property of the texture, which cannot
-     * express a material used as a cutout card on one face and as a decal on
-     * another - a distinction that belongs to the geometry. Where this array is
-     * present and non-zero for a face, it overrides the texture's flags.
-     * Values are enum ObToriFaceKernel.
-     */
-    uint8_t* face_kernels;
-    /** OB_TORI: per-face scaling of the detail kernel, 255 = full. */
-    uint8_t* face_detail_strength;
 
     int textured_face_count;
     faceint_t* textured_p_coordinate;
@@ -294,33 +280,6 @@ struct ToriDraw_Texture
     int width;
     int height;
     bool opaque;
-    /*
-     * Each texel carries its own alpha in bits 24-31 and is blended over the
-     * framebuffer, instead of the stock colour key where a texel is drawn or
-     * skipped whole.
-     *
-     * Stock content never sets this. It exists for imported material that
-     * varies continuously in alpha, which a colour key can only represent by
-     * thresholding into holes the source never had.
-     */
-    bool alpha_blended;
-    /*
-     * Multiply each texel by the face's own colour before shading.
-     *
-     * A stock texture is a diffuse map and must never be modulated - it already
-     * carries the surface's colour. This is for an imported mask, whose RGB is
-     * a greyscale detail pattern and whose colour belongs to the face. The
-     * raster derives the tint from the face colour once per face; see
-     * toridraw_raster.u.c.
-     */
-    bool modulate;
-    /*
-     * Use the texture as a DETAIL MAP over the face's own shaded colour rather
-     * than as the surface itself: opaque, neutral-preserving, and independent
-     * of what was drawn underneath. For imported HD programs that are not
-     * diffuse maps at all. See raster_linear_detail_lerp8_v3.
-     */
-    bool detail;
     int animation_direction;
     int animation_speed;
 };
@@ -333,17 +292,6 @@ struct ToriDraw_Texture
  */
 #define TORIDRAW_TEXTURE_ID_CAPACITY 2048
 
-/*
- * The lightness a modulated texture's tint is taken at.
- *
- * A face colour's lightness is not the surface's brightness — the lighting pass
- * replaces it per vertex, and for a textured face it arrives at the raster as
- * the shade. Tinting with the authored lightness as well would count it twice
- * and turn a lightness-0 face black, so the tint is the face's chroma at this
- * fixed reference: the midpoint of the 0..127 range, where the palette gives
- * the pure hue rather than washing to white or black.
- */
-#define TORIDRAW_MODULATE_LIGHTNESS 64
 
 struct ToriDraw_TextureMap
 {

@@ -1,6 +1,5 @@
 #include "rscache.h"
 
-#include "model_obtori.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -1976,30 +1975,6 @@ RSCache_ModelNewDecodeProvenance(
 
     struct RSCache_Model* model = NULL;
 
-    /*
-     * OB_TORI: a NON-STOCK container carrying an ordinary model payload plus
-     * per-face data the RuneScape formats have nowhere to put. It is unwrapped
-     * here, ahead of the trailer sniff, so every caller of this decoder - the
-     * cache model loader included - gets the payload decoded exactly as it
-     * always was, with the extra arrays attached afterwards. The magic is at
-     * the FRONT of the file, so this test cannot collide with the trailer bytes
-     * the stock formats are identified by. See datatypes/model_obtori.h.
-     */
-    uint8_t* container_data = data;
-    int container_size = data_size;
-    struct ObToriModel* payload = NULL;
-    if( ObTori_IsObTori(data, data_size) )
-    {
-        /* Probe: the per-face sections cannot be length-checked until the
-         * payload has been decoded and the face count is known. */
-        payload = ObTori_NewDecode(data, data_size, -1);
-        if( payload )
-        {
-            data = payload->ob3;
-            data_size = payload->ob3_size;
-        }
-    }
-
     // Check the last two bytes to determine model type
     if( data_size >= 2 )
     {
@@ -2027,29 +2002,10 @@ RSCache_ModelNewDecodeProvenance(
         model = decode_ob2(data, data_size, prov);
     }
 
-    ObTori_Free(payload);
-    payload = NULL;
-
     if( !model )
     {
         RSCache_ModelProvenanceFree(prov);
         return NULL;
-    }
-
-    /* With the face count known the sections can be validated and attached. A
-     * container whose sections disagree with the geometry is dropped rather
-     * than half-applied: the model still renders, on its textures' own
-     * routing. */
-    if( container_data != data )
-    {
-        struct ObToriModel* sections =
-            ObTori_NewDecode(container_data, container_size, model->face_count);
-        if( sections )
-        {
-            model->face_kernels = sections->face_kernel;
-            sections->face_kernel = NULL;
-            ObTori_Free(sections);
-        }
     }
 
     // This is a hack. I'm not sure where this is done in the deob,
@@ -3533,8 +3489,7 @@ RSCache_ModelFree(struct RSCache_Model* model)
         free(model->face_colors);
     if( model->face_priorities )
         free(model->face_priorities);
-        free(model->face_kernels);
-    if( model->face_alphas )
+        if( model->face_alphas )
         free(model->face_alphas);
     if( model->face_infos )
         free(model->face_infos);

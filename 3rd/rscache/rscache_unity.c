@@ -20,7 +20,6 @@
 #include "src/datatypes/noise.c"
 #include "src/datatypes/maps.c"
 #include "src/datatypes/model.c"
-#include "src/datatypes/model_obtori.c"
 #include "src/datatypes/dat2_component.c"
 #include "src/datatypes/cs2_opcode_decode.c"
 #include "src/datatypes/cs2_script.c"

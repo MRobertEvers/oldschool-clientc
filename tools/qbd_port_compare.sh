@@ -1,28 +1,26 @@
 #!/usr/bin/env bash
 #
-# Two ports of the same dragon, side by side.
+# Two ways to draw the same dragon, in one image.
 #
-# The lane has been through two independent pieces of porting work, and they fix
-# different things:
+#   1. priorities   BASELINE. The model whose face render priorities were
+#                   re-authored for a painter's-algorithm renderer
+#                   (docs/rs2012_qbd_priorities). Ordinary depth sort, the
+#                   authored priorities honoured.
 #
-#   priorities  docs/rs2012_qbd_priorities — re-authored FACE RENDER PRIORITIES.
-#               Changes the ORDER faces are painted in. Nothing about colour.
+#   2. zbuffer      The SAME model with its priorities thrown away and the model
+#                   opting into TORIDRAW_MODEL_FLAG_ZBUFFER instead, so it
+#                   resolves itself per pixel. Ignoring the priorities is the
+#                   point: honouring them would leave the depth test nothing to
+#                   do and the picture would prove nothing. If the z-buffer
+#                   works, this lands close to panel 1 without any of the
+#                   authoring that produced it.
 #
-#   materials   docs/HD_KERNELS.md — the HD/SD material route: per-texel alpha,
-#               modulate by the face colour, detail maps, and OB_TORI per-face
-#               kernel routing. Changes WHAT each face is filled with. Nothing
-#               about order.
+# The third panel this harness used to draw - a port through per-face HD/SD
+# material kernels - is gone with the kernels themselves. See the README.
 #
-# They are orthogonal, they were built separately, and neither README shows the
-# other's result — so it is easy to assume one of them subsumes the other. This
-# renders the same geometry, from the same textures, at the same camera, through
-# each port and both together.
+# Nothing here writes the lane, packs a cache or touches the client.
 #
-# Deliberately its own harness: it reads the priorities run/ directory and the
-# lane side by side and writes only under docs/qbd_port_compare/. It never
-# writes the lane, never packs a cache and never touches the client.
-#
-#   tools/qbd_port_compare.sh                  # every form both ports have
+#   tools/qbd_port_compare.sh                  # every form
 #   FORMS=default tools/qbd_port_compare.sh
 set -euo pipefail
 
@@ -32,14 +30,14 @@ cd "$repo"
 TREE="${TREE:-OSRS-Content/osrs239-content}"
 LANE="${LANE:-$TREE/models/ported/rs2012_qbd_td}"
 PRIO="${PRIO:-docs/rs2012_qbd_priorities/run}"
-OBTORI="${OBTORI:-build/qbd_obtori}"
 OUT="${OUT:-docs/qbd_port_compare}"
-VIEW="${VIEW:-src/build_win64_opt/rs2012_model_view.exe}"
+BIN="${BIN:-src/build_win64_opt}"
+VIEW="${VIEW:-$BIN/rs2012_model_view.exe}"
 FORMS="${FORMS:-default worm soul}"
 
-[ -x "$VIEW" ] || VIEW="src/build_win64_opt/rs2012_model_view"
+[ -x "$VIEW" ] || VIEW="$BIN/rs2012_model_view"
 [ -x "$VIEW" ] || { echo "no rs2012_model_view; make -C src rs2012-model-view" >&2; exit 1; }
-mkdir -p "$OUT/images" "$OBTORI"
+mkdir -p "$OUT/images"
 
 # model1 (+model2) per form, as the client merges them.
 models_for() {
@@ -51,7 +49,7 @@ models_for() {
     esac
 }
 
-# Framed on the head for `default` (where both ports do their work) and on the
+# Framed on the head for `default` (where the sort does its work) and on the
 # whole model otherwise. Same numbers the priorities sheets use, so the two sets
 # of evidence line up.
 view_args_for() {
@@ -61,17 +59,17 @@ view_args_for() {
     esac
 }
 
-# render <form> <label> <dir-holding-the-models> <extension>
+# render <form> <label> <dir> [extra viewer args...]
 render() {
-    local form="$1" label="$2" dir="$3" ext="$4"
+    local form="$1" label="$2" dir="$3"; shift 3
     local args=() m
     for m in $(models_for "$form"); do
-        local path="$dir/rs2012_model_$m.$ext"
+        local path="$dir/rs2012_model_$m.ob3"
         [ -f "$path" ] || { echo "  - $label: no $path, skipped"; return 1; }
         args+=(--model "$path")
     done
     # shellcheck disable=SC2046
-    "$VIEW" "${args[@]}" --lane-textures "$TREE" $(view_args_for "$form") \
+    "$VIEW" "${args[@]}" --lane-textures "$TREE" $(view_args_for "$form") "$@" \
         --bg 202430 --out "$OUT/images/${form}_${label}.bmp" >/dev/null 2>&1 ||
         { echo "  ! $label failed"; return 1; }
     echo "  $label"
@@ -79,16 +77,13 @@ render() {
 
 for form in $FORMS; do
     echo "== $form"
+    render "$form" priorities "$PRIO"                                   || true
+    render "$form" zbuffer    "$PRIO" --ignore-priorities --zbuffer     || true
 
-    # The materials port needs its OB_TORI containers; build them here rather
-    # than depending on a previous run having left them somewhere.
-    for m in $(models_for "$form"); do
-        src/build_win64_opt/rs2012_qbd_obtori.exe --model "$m" --out "$OBTORI" >/dev/null 2>&1 || true
-    done
-
-    render "$form" lane        "$LANE"   ob3    || true
-    render "$form" priorities  "$PRIO"   ob3    || true
-    render "$form" materials   "$OBTORI" obtori || true
+    # Kept out of the sheet but rendered anyway: the lane as the client draws
+    # it, which is the white-and-black dragon the README explains. Evidence,
+    # not a third port.
+    render "$form" lane "$LANE" >/dev/null 2>&1 || true
 done
 
 python3 tools/qbd_port_compare_sheets.py --dir "$OUT/images" --forms "$FORMS"
