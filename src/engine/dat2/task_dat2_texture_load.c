@@ -404,7 +404,9 @@ texture_bake(
     int animation_direction,
     int animation_speed,
     int average_hsl,
-    bool alpha_blended)
+    bool alpha_blended,
+    bool modulate,
+    bool detail)
 {
     struct ToriRS_Texture* texture;
     int* pixels;
@@ -543,6 +545,10 @@ texture_bake(
     texture->height = dest_size;
     texture->opaque = opaque && !alpha_blended;
     texture->alpha_blended = alpha_blended;
+    /* Modulation is independent of coverage: it says where the colour comes
+     * from, not which texels are drawn. */
+    texture->modulate = modulate;
+    texture->detail = detail;
     texture->animation_direction = animation_direction;
     texture->animation_speed = animation_speed;
     texture->average_hsl = average_hsl;
@@ -598,7 +604,9 @@ texture_from_sprite_packs(
         def->animation_direction,
         def->animation_speed,
         def->average_hsl,
-        def->alpha_blended);
+        def->alpha_blended,
+        def->modulate,
+        def->detail);
     free(layers);
     return texture;
 }

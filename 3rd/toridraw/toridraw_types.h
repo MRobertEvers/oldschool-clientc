@@ -289,6 +289,23 @@ struct ToriDraw_Texture
      * thresholding into holes the source never had.
      */
     bool alpha_blended;
+    /*
+     * Multiply each texel by the face's own colour before shading.
+     *
+     * A stock texture is a diffuse map and must never be modulated - it already
+     * carries the surface's colour. This is for an imported mask, whose RGB is
+     * a greyscale detail pattern and whose colour belongs to the face. The
+     * raster derives the tint from the face colour once per face; see
+     * toridraw_raster.u.c.
+     */
+    bool modulate;
+    /*
+     * Use the texture as a DETAIL MAP over the face's own shaded colour rather
+     * than as the surface itself: opaque, neutral-preserving, and independent
+     * of what was drawn underneath. For imported HD programs that are not
+     * diffuse maps at all. See raster_linear_detail_lerp8_v3.
+     */
+    bool detail;
     int animation_direction;
     int animation_speed;
 };
@@ -300,6 +317,18 @@ struct ToriDraw_Texture
  * is absent). 2048 covers the era with headroom; the map is pointers, so the cost is 16KB.
  */
 #define TORIDRAW_TEXTURE_ID_CAPACITY 2048
+
+/*
+ * The lightness a modulated texture's tint is taken at.
+ *
+ * A face colour's lightness is not the surface's brightness — the lighting pass
+ * replaces it per vertex, and for a textured face it arrives at the raster as
+ * the shade. Tinting with the authored lightness as well would count it twice
+ * and turn a lightness-0 face black, so the tint is the face's chroma at this
+ * fixed reference: the midpoint of the 0..127 range, where the palette gives
+ * the pure hue rather than washing to white or black.
+ */
+#define TORIDRAW_MODULATE_LIGHTNESS 64
 
 struct ToriDraw_TextureMap
 {

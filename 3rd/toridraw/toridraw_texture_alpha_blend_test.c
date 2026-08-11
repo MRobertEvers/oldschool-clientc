@@ -155,18 +155,45 @@ ref_shade(uint32_t rgb, int shade)
     return out;
 }
 
-/* What one pixel must become. `dst` is what was already in the framebuffer. */
+/* Per-channel tint, unpacked longhand like the blend above. `tint` is three
+ * 0..256 channels, so 256 is the identity. */
 static uint32_t
-ref_pixel(uint32_t dst, uint32_t texel, int shade)
+ref_tint(uint32_t rgb, const struct TexSpanTint* tint)
+{
+    uint32_t out = 0;
+
+    for( int i = 0; i < 3; i++ )
+    {
+        int const shift = 16 - 8 * i;
+        uint32_t c = (((rgb >> shift) & 0xFFu) * (uint32_t)tint->channel[i]) >> 8;
+        if( c > 0xFFu )
+            c = 0xFFu;
+        out |= c << shift;
+    }
+    return out;
+}
+
+/* What one pixel must become. `dst` is what was already in the framebuffer;
+ * `tint` is NULL for the plain alpha kernel. */
+static uint32_t
+ref_pixel_tinted(uint32_t dst, uint32_t texel, int shade, const struct TexSpanTint* tint)
 {
     int const alpha = (int)(texel >> 24);
-    uint32_t const lit = ref_shade(texel & 0x00FFFFFFu, shade);
+    uint32_t lit = ref_shade(texel & 0x00FFFFFFu, shade);
 
+    if( tint )
+        lit = ref_tint(lit, tint);
     if( alpha == 0 )
         return dst;
     if( alpha == 0xFF )
         return lit;
     return ref_blend_channels(alpha, dst, lit);
+}
+
+static uint32_t
+ref_pixel(uint32_t dst, uint32_t texel, int shade)
+{
+    return ref_pixel_tinted(dst, texel, shade, NULL);
 }
 
 /* --- harness -------------------------------------------------------------- */
@@ -363,6 +390,105 @@ case_uv_walk_and_wrap(void)
     run_block("diagonal wrap", 0x00304050u, 126, 126, 1, 1, SHADE_IDENTITY);
 }
 
+/* --- the modulate kernel -------------------------------------------------- */
+
+/*
+ * Same walk as run_block, through the modulated kernel. The mask this stands in
+ * for is greyscale, so the tint is the only thing that can put colour on the
+ * surface - a kernel that dropped it would still pass every case above.
+ */
+static void
+run_block_modulated(
+    const char* case_name,
+    uint32_t fill,
+    int u0,
+    int v0,
+    int du,
+    int dv,
+    int shade,
+    int tint_rgb)
+{
+    uint32_t frame[8];
+    uint32_t before[8];
+    struct TexSpanTint tint;
+    int u_scan = u0 << TEX_SHIFT;
+    int v_scan = (v0 & (TEX_W - 1)) << TEX_SHIFT;
+    int const step_u = du << TEX_SHIFT;
+    int const step_v = dv << TEX_SHIFT;
+
+    tex_span_tint_pack(tint_rgb, &tint);
+
+    for( int i = 0; i < 8; i++ )
+        frame[i] = before[i] = fill + (uint32_t)i * 0x000101u;
+
+    raster_linear_alpha_modulate_lerp8_v3(
+        frame, g_texels, u_scan, v_scan, step_u, step_v, TEX_SHIFT, U_MASK, V_MASK,
+        shade, &tint);
+
+    for( int i = 0; i < 8; i++ )
+    {
+        int const u = (u_scan >> TEX_SHIFT) & U_MASK;
+        int const v = (v_scan & V_MASK) >> TEX_SHIFT;
+        uint32_t const texel = g_texels[u + v * TEX_W];
+
+        check_pixel(
+            case_name, i, frame[i], ref_pixel_tinted(before[i], texel, shade, &tint),
+            before[i], texel, shade);
+
+        u_scan += step_u;
+        v_scan += step_v;
+    }
+}
+
+static void
+case_modulate(void)
+{
+    /* A white tint must be the exact identity. tex_span_tint_pack maps 255 to
+     * 256, not 255, precisely so this holds: a >>8 of a 255 scale would darken
+     * every channel by one part in 256 and the modulated path would not be
+     * substitutable for the plain one. */
+    {
+        uint32_t plain[8];
+        uint32_t modulated[8];
+        struct TexSpanTint tint;
+        int const u0 = 40, v0 = 11;
+
+        tex_span_tint_pack(0x00FFFFFF, &tint);
+        for( int i = 0; i < 8; i++ )
+            plain[i] = modulated[i] = 0x00304050u + (uint32_t)i;
+
+        raster_linear_alpha_blend_lerp8_v3(
+            plain, g_texels, u0 << TEX_SHIFT, v0 << TEX_SHIFT, 1 << TEX_SHIFT, 0,
+            TEX_SHIFT, U_MASK, V_MASK, SHADE_IDENTITY);
+        raster_linear_alpha_modulate_lerp8_v3(
+            modulated, g_texels, u0 << TEX_SHIFT, v0 << TEX_SHIFT, 1 << TEX_SHIFT, 0,
+            TEX_SHIFT, U_MASK, V_MASK, SHADE_IDENTITY, &tint);
+
+        for( int i = 0; i < 8; i++ )
+            check_pixel(
+                "white tint == identity", i, modulated[i], plain[i], 0, g_texels[u0 + i],
+                SHADE_IDENTITY);
+    }
+
+    /* A tint with a dead channel must remove that channel entirely: the texture
+     * is grey-ish, so this is what proves the surface colour comes from the
+     * face and not from the mask. */
+    run_block_modulated("tint pure red", 0x00202020u, 40, 12, 1, 0, SHADE_IDENTITY, 0x00FF0000);
+    run_block_modulated("tint pure green", 0x00202020u, 40, 13, 1, 0, SHADE_IDENTITY, 0x0000FF00);
+    run_block_modulated("tint pure blue", 0x00202020u, 40, 14, 1, 0, SHADE_IDENTITY, 0x000000FF);
+    run_block_modulated("tint black", 0x00806040u, 40, 15, 1, 0, SHADE_IDENTITY, 0x00000000);
+
+    /* Realistic cases: a dark purple fringe and a red patch over a lit surface,
+     * at partial shade, walking the alpha ramp and wrapping v. */
+    run_block_modulated("tint purple, shade 128", 0x00303840u, 0, 16, 1, 0, 128, 0x00604878);
+    run_block_modulated("tint red, v wraps", 0x00181818u, 30, 126, 0, 1, 200, 0x00A03028);
+    run_block_modulated("tint olive, diagonal", 0x00404040u, 100, 100, 1, 1, 96, 0x00808040);
+
+    /* Tint and shade must compose in the documented order - shade first, then
+     * tint - and both must reach every pixel. */
+    run_block_modulated("tint+shade over bright", 0x00FFFFFFu, 2, 17, 0, 0, 64, 0x0040C080);
+}
+
 /* --- the per-pixel twin and the whole scanline ---------------------------- */
 
 /*
@@ -388,7 +514,7 @@ case_exact_block_matches_reference(void)
 
     tex_span_alpha_exact_block(
         frame, 0, (const int*)g_texels, 8, au, bv, cw, step_au, step_bv, 0,
-        SHADE_IDENTITY, TEX_W, TEX_SHIFT);
+        SHADE_IDENTITY, TEX_W, TEX_SHIFT, NULL);
 
     for( int i = 0; i < 8; i++ )
     {
@@ -546,7 +672,8 @@ case_full_scanline_benign(void)
         SHADE_IDENTITY << 8,
         0,
         (int*)g_texels,
-        TEX_W);
+        TEX_W,
+        NULL);
 
     for( int i = 0; i < SCREEN_W; i++ )
     {
@@ -612,6 +739,7 @@ main(void)
     case_per_pixel_alpha();
     case_shade_applied_before_blend();
     case_uv_walk_and_wrap();
+    case_modulate();
     case_exact_block_matches_reference();
     case_full_scanline_benign();
 

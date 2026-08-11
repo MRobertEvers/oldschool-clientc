@@ -128,6 +128,11 @@ struct ToriRS_Texture
      * colour key. Set only by the extended texture record; see
      * RSCACHE_TEXTURE_V2_ALPHA_BYTE. */
     bool alpha_blended;
+    /* Multiply the texel by the face's own colour. Set only by the extended
+     * texture record; see RSCACHE_TEXTURE_EXT_MODULATE. */
+    bool modulate;
+    /* Detail map over the face colour; see RSCACHE_TEXTURE_EXT_DETAIL. */
+    bool detail;
     int animation_direction;
     int animation_speed;
     int average_hsl;

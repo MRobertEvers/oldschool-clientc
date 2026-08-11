@@ -72,9 +72,16 @@ The case that forced it is the QBD arena floor: two 12×18 plane-0 locs (`x[38,4
 `sx == camera_sx` makes both the west and the east gate apply, the neighbour across the
 seam belongs to the *other* loc, and the whole column was held until that loc was released
 five tiles from the eye — then emitted its floor, twenty tiles away, on top of it. On
-screen: a one-tile-wide strip of ground running up over the platform. `painter_paint_world3d`
-keeps the plain reference gate; the divergence is deliberate and is the bucket drain's, in
-the same way the bulk push below is.
+screen: a one-tile-wide strip of ground running up over the platform.
+
+`painter_paint_world3d` was left on the plain reference gate, but **it has the same defect**:
+dumped at the identical camera with `TORIRS_DRAW_ORDER`, 23 of the seam column's 32 tiles
+emit after the east 12×18 loc, the farthest twenty-two rings out — the pre-fix bucket's
+number exactly. It also still shows the corner-by-corner flooding the bulk push below
+removed from the bucket drain (20 monotone runs, 532 tiles out of order, worst at the far
+corner). It is the reference cascade and the fuzz harness's comparison target, not the
+production painter; promoting it means porting both fixes. Full measurements in
+[LARGE_LOCS_PAINTER.md](../LARGE_LOCS_PAINTER.md).
 
 ### Loc stacking and draw order
 

@@ -21,7 +21,13 @@
 # -O0 client can still hit 50 fps. Needs its own OBJ_DIR suffix — mixing
 # toridraw_unity.o built at -O0 with one at -O2 is silently wrong.
 
-OPT ?= 0
+# Optimised by default. The debug flavor is a deliberate ask (OPT=0, or the
+# per-lane `*-debug` targets), not the thing you get by forgetting a flag: an
+# -O0 client is slow enough to change what you are looking at, and every
+# iteration loop here — boot, load an arena, capture a frame — pays for it.
+# The two flavors still keep separate OBJ_DIRs, so switching costs a rebuild
+# rather than a silently mixed one.
+OPT ?= 1
 # MEMTRACE=1 links platform/torirs_memtrace.c, which interposes the C heap and
 # writes every alloc/free with a call stack to memtrace.bin. It is a third build
 # flavor with its own OBJ_DIR (the interpose needs -fno-builtin-* on every unit,
@@ -887,14 +893,21 @@ rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
 		engine/proctex/test/rs2012_model_view.c \
 		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
-		engine/torirs_types.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
 		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
 
 # Face-priority authoring for the imported lane: splits a model into connected
 # features, reports them, and writes a priority band per feature.
+# Links the model and animation adaptors: sampling a sequence's frames means
+# driving the same ToriDraw_ModelAnimateFrame the client drives, not a second
+# implementation of the rig that could disagree with it.
+# -fopenmp: the slow search (simulated annealing over bands + vertex fuzz)
+# evaluates its candidate renders across views in parallel.
 rs2012-face-priorities: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_face_priorities \
+	$(CC) $(CFLAGS) -fopenmp -o $(OBJ_DIR)/rs2012_face_priorities \
 		engine/proctex/test/rs2012_face_priorities.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
 		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
 
 # Sound end-to-end test: cache -> synth render -> game queue -> platform.
@@ -2471,16 +2484,30 @@ test-animation-object-step: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/to
 
 # Public scene scratch-capacity profile contract and independent SMALL/lazy
 # texture behavior.
-test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+test-scene-profiles: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/scene_profile_test \
-		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+		$(TORIDRAW_DIR)/toridraw_scene_profile_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/scene_profile_test
+
+# Depth-tested raster family: a model tagged TORIDRAW_MODEL_FLAG_ZBUFFER
+# resolves its own faces per pixel, the result does not depend on face order,
+# and the buffer is reset per model so nothing leaks between them.
+test-zbuffer: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/zbuffer_test \
+		$(TORIDRAW_DIR)/toridraw_zbuffer_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/zbuffer_test
 
 # Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
 # winding, then the clipped polygon receives the real front-face test.
-test-near-clip: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+# bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links
+# it needs bmp_write_file. Without it these two fail to LINK, which reads as a
+# failing test rather than a missing object.
+test-near-clip: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/near_clip_test \
-		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+		$(TORIDRAW_DIR)/toridraw_near_clip_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/near_clip_test
 
 # CPU-only, but deliberately compiled with the Win32 compiler: it links the

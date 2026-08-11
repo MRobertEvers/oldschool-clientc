@@ -58,7 +58,8 @@ ToriDraw_TriangleTextureBlendAlpha(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    const struct TexSpanTint* RESTRICT tint)
 {
     (void)near_plane_z;
     (void)offset_x;
@@ -123,7 +124,8 @@ ToriDraw_TriangleTextureBlendAlpha(
         shade_b,
         shade_c,
         texels,
-        texture_size);
+        texture_size,
+        tint);
 }
 
 static inline void
@@ -153,7 +155,8 @@ ToriDraw_TriangleTextureFlatAlpha(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    const struct TexSpanTint* RESTRICT tint)
 {
     (void)near_plane_z;
     (void)offset_x;
@@ -244,7 +247,8 @@ ToriDraw_TriangleFaceTextureBlendAlphaNearClip(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    const struct TexSpanTint* RESTRICT tint)
 {
     int clipped_count = 0;
 
@@ -486,7 +490,8 @@ ToriDraw_TriangleFaceTextureBlendAlphaNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        tint);
 
     static int colors[4] = { 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00 };
 
@@ -545,7 +550,8 @@ ToriDraw_TriangleFaceTextureBlendAlphaNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        tint);
 }
 
 static inline void
@@ -577,7 +583,8 @@ ToriDraw_TriangleFaceTextureBlendAlpha(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    const struct TexSpanTint* RESTRICT tint)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -623,7 +630,8 @@ ToriDraw_TriangleFaceTextureBlendAlpha(
             texture_size,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            tint);
         return;
     }
 
@@ -771,7 +779,8 @@ ToriDraw_TriangleFaceTextureBlendAlpha(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        tint);
 
     return;
 }
@@ -801,7 +810,8 @@ ToriDraw_TriangleFaceTextureFlatAlphaNearClip(
     int texture_size,
     int near_plane_z,
     int offset_x,
-    int offset_y)
+    int offset_y,
+    const struct TexSpanTint* RESTRICT tint)
 {
     int clipped_count = 0;
 
@@ -1009,7 +1019,8 @@ ToriDraw_TriangleFaceTextureFlatAlphaNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        tint);
 
     assert(clipped_count <= 4);
     if( clipped_count != 4 )
@@ -1063,7 +1074,8 @@ ToriDraw_TriangleFaceTextureFlatAlphaNearClip(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        tint);
 }
 
 static inline void
@@ -1093,7 +1105,8 @@ ToriDraw_TriangleFaceTextureFlatAlpha(
     int offset_x,
     int offset_y,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    const struct TexSpanTint* RESTRICT tint)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1137,7 +1150,8 @@ ToriDraw_TriangleFaceTextureFlatAlpha(
             texture_size,
             near_plane_z,
             offset_x,
-            offset_y);
+            offset_y,
+            tint);
         return;
     }
 
@@ -1196,7 +1210,8 @@ ToriDraw_TriangleFaceTextureFlatAlpha(
         texture_size,
         near_plane_z,
         offset_x,
-        offset_y);
+        offset_y,
+        tint);
 
     return;
 }

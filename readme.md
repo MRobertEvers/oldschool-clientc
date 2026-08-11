@@ -33,8 +33,10 @@ cover the [web build](docs/web_build.md), the
 [Windows toolchains](tools/toolchain/README.md).
 
 Subsystem guides cover the [incremental JS5 client cache](docs/JS5_INCREMENTAL_CACHE.md),
-the [dedicated JS5 server](docs/JS5_SERVER.md), and the
-[developer overlay and root UI layout](docs/debug_overlay.md).
+the [dedicated JS5 server](docs/JS5_SERVER.md), the
+[developer overlay and root UI layout](docs/debug_overlay.md), and
+[per-model depth testing](docs/toridraw_model_zbuffer.md) for models whose parts
+interpenetrate and cannot be resolved by face order alone.
 
 ### Content pipeline
 
@@ -607,6 +609,250 @@ https://www.osrsbox.com/osrs-cache/
 The OSRS client (based on the de-ob) does hit testing for GL and Software Models the same way. There are two methods of hit-testing they use. AABB hit box testing and Model Testing. Model testing checks each triangle.
 
 For GL Models, it is done out of line with rendering, and each model gets the screen coords of its triangles.
+
+### Walk-here clicking — from pixel to packet
+
+"Walk here" is the shortest interaction in the game and it crosses nearly every
+subsystem: raster, painter, pick, minimenu, wire, server routefinder. It is
+worth writing out in full, because when it breaks the symptom is always the
+same — *nothing happens* — and the cause can be at any of eight stages.
+
+#### The chain
+
+| # | Stage | Owner |
+|---|---|---|
+| 1 | Painter emits a terrain command per (tile, mesh level) | [painters_bucket.u.c](src/painters/painters_bucket.u.c) `bucket_emit_terrain` |
+| 2 | Frame resolves the command to a scene element and stamps `pick_terrain` + the tile coords | [torirs_frame.c](src/render/torirs_frame.c) `try_emit_world_draw_model` |
+| 3 | Renderer projects the mesh and hit-tests the cursor against it | [soft3d](src/platform/platform_sdl2_renderer_soft3d.c) / [gl3](src/platform/platform_sdl2_renderer_gl3.c) / [d3d9](src/platform/platform_win32_renderer_d3d9.c) → [toridraw_render.u.c](3rd/toridraw/toridraw_render.u.c) |
+| 4 | Raw hits are classified into the pickset + hover tile | [torirs_pick.c](src/render/torirs_pick.c) `ToriRS_PickHitsClassify` |
+| 5 | Minimenu turns the pickset into rows; the terrain row becomes `Walk here` | [rs_minimenu_world.c](src/game/rs_minimenu_world.c) `RS_Minimenu_AddWorldRows` |
+| 6 | The default row runs → `MOVE_GAMECLICK` | [app.c](src/app.c) `app_try_move` |
+| 7 | Server routes, queues waypoints, sends `SET_MAP_FLAG` | [mock230_world.c](src/net/mock/mock230_world.c) `handle_move` → `mock230_world_walk_to` |
+| 8 | BFS + the unreachable fallback | [collision_map.c](src/engine/world_builder/collision_map.c) `collision_map_route_tiles` |
+
+Stages 1–6 are the client deciding **which tile you clicked**. Stages 7–8 are
+the server deciding **where you end up**. Under a modern OSRS era the client
+does no routing at all: it sends five bytes and the server answers.
+
+#### Stage 1–3: what makes a tile clickable
+
+A tile is clickable only if it has a **mesh**. `world_build_scene_terrain`
+([world_terrain.u.c](src/engine/world_builder/world_terrain.u.c)) builds one
+only when the map record states an underlay **or** an overlay:
+
+```c
+if( underlay_id != -1 || overlay_id != -1 )
+    terrain_shape_map_set_tile(...);   /* -> shape_tile->active */
+```
+
+A tile stating neither has no `SceneTilePaint` in the reference either, so it
+draws nothing and cannot be walked to. That is a real map authoring state, not
+a bug — the void beyond a map square's edge, and the floorless ground under the
+Inferno's outer rock scenery, are both this.
+
+`world_builder.c` then prunes `PaintersTile::terrain_levels` down to the levels
+that actually produced an element, so the painter never emits a command for a
+tile with no geometry.
+
+Once emitted, the renderer projects the mesh and asks whether the cursor is
+over one of its triangles. **This is the step with the subtle rule**, and it is
+the one that broke:
+
+> The reference does **not** pick ground tiles through `Model.draw`. Tiles are
+> picked inside `World3D.drawTileUnderlay` / `drawTileOverlay`, and the order
+> there is load-bearing:
+>
+> ```ts
+> if (takingInput && pointInsideTriangle(...)) { clickTileX = x; clickTileZ = z; }
+> if (colour !== 12345678) { fillGouraudTriangle(...); }
+> ```
+>
+> The click test runs **first**. `12345678` is the "draw nothing" sentinel — a
+> flotype whose colour is `0xFF00FF` — and it gates only the *fill*. An
+> invisible tile is still a walk target.
+
+A loc model obeys the opposite rule: `faceColourC == -2` (`TORIDRAWHSL16_HIDDEN`
+here) means the face neither draws nor picks, which is what lets a fully
+merged-away loc fall through to whatever is behind it.
+
+So there are two hit tests, deliberately asymmetric:
+
+| Mesh | Entry point | Hidden faces |
+|---|---|---|
+| loc / npc / player / obj | `ToriDraw_ProjectedModelMouseHitTest` | skipped |
+| ground tile (`pick_terrain`) | `ToriDraw_ProjectedTileMouseHitTest` | **tested** |
+
+Both share one face walk and differ in a single flag; everything else — the
+screen-aabb reject, the near-clipped-vertex skip, the 5px cursor slop, picking
+backfaces — is identical. Pinned by `make -C src test-pick`
+([pick_face_test.c](src/render/test/pick_face_test.c)).
+
+There is a third path, `pick_aabb` — the reference's `useAABBMouseCheck`, a
+screen-box test it sets on npcs, players and ground objs. **This tree
+deliberately leaves it off** ([app.c](src/app.c) `el->pick_aabb = false`): a
+screen box around a large model is enormously bigger than the model, and
+TzKal-Zuk's swallows most of the arena, so clicking the floor near him hit
+*him*. Entities pick per-face like locs instead; the aabb survives only as the
+cheap reject in front of the face walk, so the triangle scan runs only on
+models the cursor is actually over.
+
+#### Stage 4–5: hits become a walk target
+
+`ToriRS_PickHitsClassify` splits the raw hits:
+
+- **Terrain hits** set the hover tile and enter the pickset as `WORLD_PICK_TERRAIN`.
+  Ground *above* the player is refused (`hit->tile_level > player_level`) — that
+  is the roof-level floor of a building you are standing outside. The test is
+  `<=`, not `==`, on purpose: a bridge deck and every VIS_BELOW tile draw at a
+  *lower* level than the player standing on them, so equality would make the
+  ground under your own feet unclickable.
+- **Entity hits** are resolved to npc / player / scenery / obj stack. A
+  non-`interactive` loc is dropped here, which is why walls, gravel and floor
+  decor never produce a menu row (`TORIRS_LOC_DEBUG` lifts that gate).
+
+Hits arrive in painter order, back to front, so the **last** terrain hit is the
+nearest one — that is the tile `RS_Minimenu_AddWorldRows` attaches to the
+`Walk here` row, and the one the yellow cross and the hover readout use.
+`World_PickSetAdd` dedupes by element id, and terrain element ids are per
+(tile, level) via `World_TerrainElementAt`, so stacked tiles stay distinct.
+
+If no terrain was hit, the row is still added but with
+`UI_MINIMENU_PICK_NONE` — the menu shows "Walk here" and clicking it does
+nothing. `TORIRS_NET_DEBUG=1` prints `minimenu: unhandled pick kind 0` for
+exactly this case. **A visible "Walk here" is not evidence that the click has a
+tile.**
+
+`Walk here` is also suppressed entirely while a use/spell selection is armed,
+matching the reference's `useMode == 0 && targetMode == 0` gate.
+
+#### Stage 6: the packet
+
+`app_try_move` (reference `Client.tryMove`) is shared by the ground click
+(type 0) and the minimap click (type 1) and branches on the era:
+
+- **`SERVER_AUTHORITATIVE` (osrs / server_routed)** — no client routing. The
+  body is the destination alone: `MOVE_GAMECLICK` is 5 bytes (absolute x,
+  absolute z, key-combination byte), opcode 86 at rev 230 and 114 at rev 239.
+  The client does **not** paint a map flag; `SET_MAP_FLAG` comes back from the
+  server, and painting a local guess only fights the clear packet.
+- **`CLIENT_BFS` (lostcity)** — the client runs the BFS itself with the era's
+  unreachable fallback and sends waypoints, then latches the flag from the
+  routed destination.
+
+The minimap variant carries the classic start + signed `(dx,dz)` pairs plus a
+14-byte anti-cheat trailer, which the server subtracts before counting
+waypoints.
+
+The local player is deliberately **not** moved here. Movement comes from the
+`PLAYER_INFO` echo, exactly like the reference; the old local-prediction jump
+fought the echo and made the player stutter.
+
+#### Stage 7–8: the server, and "walk to nearest"
+
+`handle_move` rejects a click more than a scene away, ends any pending
+interaction (walking off *is* a new interaction — it stops you swinging at
+what you were fighting, retires a queued op, and closes an open dialogue), then
+calls `mock230_world_walk_to`, which BFS-routes and subsamples the path into at
+most 25 dest-first **corner** waypoints. `SET_MAP_FLAG` is sent only if a route
+was found.
+
+The BFS ([`collision_map_route_tiles`](src/engine/world_builder/collision_map.c))
+floods a 128-tile window centred on the mover, expanding W E S N SW SE NW NE.
+If it never reaches the destination the flood is complete rather than wasted,
+and `collision_nearest_fallback` runs over it — **this is "walk to nearest"**:
+
+| Model | Box | Ranking | Reference |
+|---|---|---|---|
+| `box10_rect` | 21×21 (±10) | least squared distance to the target rect, ties → shorter flood | official rev-239 `Statics.method5592`; rsmod / LostCity `findClosestApproachPoint` |
+| `ring3` | 3×3 (±1) | first tile with the lowest step count | Client-TS `tryMove`, the `tryNearest` block |
+| `none` | — | — | Client-TS passes `tryNearest = false` for every interaction click |
+
+Both models cap candidates at flood distance `< 100`, and both mean *no
+movement at all* when the box is empty. The era table picks one as
+`ground_click_nearest_model` — `box10_rect` for `osrs` / `server_routed`,
+`ring3` for `lostcity`. Under `osrs` the **server's** copy is the one that
+decides, because the client never routes; set both ends anyway so they cannot
+disagree when the era changes. Overrides:
+`[features:boot] ground_click_nearest=` and `TORIRS_GROUND_CLICK_NEAREST` on
+the client, `MOCK230_GROUND_CLICK_NEAREST` on the server (which prints the
+resolved value in its boot line).
+
+This is the whole of "click across a river and walk up to the bank instead of
+doing nothing". Full pathing detail, including the op/interaction click's
+separate settings: [docs/OSRS_PATHING_LOS.md](docs/OSRS_PATHING_LOS.md).
+
+#### Worked example: the Inferno lava
+
+The bug that produced this section. Clicking the Inferno's lava did nothing —
+no cross, no step — and the obvious suspect (the server's `moveNear`) was
+innocent; the click never became a packet.
+
+The arena's lava moat is a band of tiles that state **no underlay and an
+overlay whose flotype colour is `0xFF00FF`**:
+
+```
+tile=43,58 L0  underlay=0 overlay=152 settings=0x01
+  overlay 151: texture=-1 rgb=ff00ff
+```
+
+So: blocked (`settings & 1`), and drawn as a hole. The mesh is built, emitted
+and projected — but every face carries the hidden marker, the generic model
+pick skipped them all, and the chain died at stage 3:
+
+```
+world_pick: mouse=120,140 count=0 hover_tile=-1,-1,-1
+minimenu: unhandled pick kind 0
+```
+
+Routing the terrain commands through `ToriDraw_ProjectedTileMouseHitTest`
+restores the reference's ordering, and the same click now walks you to the
+arena edge:
+
+```
+world_pick: mouse=120,140 count=3 hover_tile=50,55,0
+minimenu: walk-click scene=50,55 abs=6426,111
+mock230: route from=6431,104 to=6426,111 steps=6 nearest=1 arrive=6426,110
+```
+
+`nearest=1` is the `box10_rect` fallback firing.
+
+Note what did **not** change: the lava further out has no floor record at all
+(`underlay=0 overlay=0`), and what you see there is rock and lava *locs* over
+floorless tiles. Those stay unclickable, in this client and in the reference,
+because there is no triangle to test. "Looks like ground" and "is ground" are
+different questions, and only the second one walks.
+
+#### Debugging it
+
+Work down the chain — each variable answers exactly one stage.
+
+| Variable | Answers |
+|---|---|
+| `TORIRS_TILEDATA=x,z` | does this tile state any floor of its own? (raw underlay/overlay/settings, every level) |
+| `TORIRS_TILETABLE=x0,x1,z0,z1` (+ `TORIRS_TILETABLE_AT=<paint>`) | flags / element id / `terrain_levels` / emit order, joined per tile — mis-flagged vs mis-ordered vs no mesh |
+| `TORIRS_WORLD_PICK_DEBUG=1` | what the pickset and hover tile came out as |
+| `TORIRS_PICK_DEBUG=1\|all` | what the raster says is under the pointer |
+| `TORIRS_LOC_DEBUG=1` | lifts the non-interactive gate, so inactive locs show in the pickset |
+| `TORIRS_NET_DEBUG=1` | `minimenu: walk-click`, `trymove:`, and the packet |
+| `MOCK230_VERBOSE=1` | `mock230: route ... nearest=N arrive=x,z` |
+
+The whole thing reproduces headlessly, no human at the mouse:
+
+```sh
+TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=out.bmp TORIRS_NET_CHEAT=zuk \
+TORIRS_SIM_CLICK_AT="560,120,140" TORIRS_WORLD_PICK_DEBUG=1 \
+TORIRS_NET_DEBUG=1 MOCK230_VERBOSE=1 \
+    src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+```
+
+(`dist\win64\torirs.exe` on Windows; add `--soft3d` to exercise the software
+renderer's pick path instead of D3D9 — they are separate call sites, so verify
+both.)
+
+Take the screenshot first to find the pixel, then click it.
+`TORIRS_SIM_CLICK_AT` is `"frame,x,y[,right][;frame,x,y...]"` — but consecutive
+clicks move the player and shift the camera, so use one click per run whenever
+the coordinate matters.
 
 ### Interface Layer Clipping — per-surface, not compounded
 
@@ -2575,3 +2821,10 @@ Becomes 1-x-5
 ### Server Vars
 
 var2855 := Client Layout/ fixed, etc
+
+
+### QBD
+
+Hands on level 1
+Near clipping busted
+Wrong painter algorithm

@@ -3248,6 +3248,27 @@ App_NoteFrameTime(
         app->dbg_frame_count++;
 }
 
+bool
+App_SendCommand(
+    struct App* app,
+    char const* text)
+{
+    assert(app);
+    if( !text || !*text )
+        return false;
+    /* Reports whether it went out. The caller cannot know when login finishes
+     * — the world renders before the connection reaches GAME — so a harness
+     * that fires once at a chosen frame silently sends nothing. Returning the
+     * verdict lets it retry until the send lands. */
+    if( !app->net || app->net->state != TORIRS_NET_GAME )
+        return false;
+    APP_NET_SEND(
+        app,
+        net_out_client_cheat(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), text));
+    return true;
+}
+
 /** Mean of the samples held so far, in microseconds. 0 when there are none. */
 static uint32_t
 app_debug_frame_mean_us(struct App const* app)
@@ -3441,8 +3462,19 @@ App_Init(
         assert(0 && "model_inst_cache init");
 
     /* Phase 3: renderer scene + id bridge (bridge needs scene + provider). */
+    /* TORIRS_MODEL_ZBUFFER=1 hands the scene a depth buffer, which turns on the
+     * per-pixel path for every model that carries TORIDRAW_MODEL_FLAG_ZBUFFER.
+     * Off by default: the painter's sort is what OSRS content was authored
+     * against and is right for it. It is imported content — models built for a
+     * z-buffered client, whose parts genuinely interpenetrate — that has no
+     * correct face order to find, and this is how those get the answer their
+     * geometry assumes. */
     app->scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCENE_DEPTH_16K |
+            ((getenv("TORIRS_MODEL_ZBUFFER") || getenv("TORIRS_ZBUFFER_NPCS"))
+                 ? TORIDRAW_SCENE_MODEL_ZBUFFER
+                 : 0u),
+        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
 
@@ -8731,6 +8763,43 @@ enum
     APP_LIGHT_ACTOR = 1,
 };
 
+
+/**
+ * Which npc types render through the depth-tested kernels.
+ *
+ * TORIRS_ZBUFFER_NPCS="25000,25010" — a comma list of npc ids. Empty or unset
+ * means nobody, which is the default and the shipping behaviour: the painter's
+ * sort is what OSRS content was authored against.
+ *
+ * Per npc type rather than globally because that is the unit of the question.
+ * The QBD is a model imported from a z-buffered client, whose parts genuinely
+ * interpenetrate and therefore have no correct face order at all; the goblin
+ * standing next to it does not, and paying a depth test for it buys nothing.
+ * Selecting by id lets one encounter be compared three ways in one session —
+ * the lane model, the priority-authored model, and either of them depth-tested
+ * — without rebuilding.
+ */
+static bool
+app_npc_wants_zbuffer(int npc_id)
+{
+    char const* list = getenv("TORIRS_ZBUFFER_NPCS");
+    if( !list || !*list )
+        return false;
+    while( *list )
+    {
+        char* end = NULL;
+        long const id = strtol(list, &end, 10);
+        if( end == list )
+            break;
+        if( id == npc_id )
+            return true;
+        list = (*end == ',') ? end + 1 : end;
+        if( !*list )
+            break;
+    }
+    return false;
+}
+
 static struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
@@ -9013,6 +9082,13 @@ app_world_spawn_npc_now(
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
         return -1;
     }
+    /* Set explicitly both ways: the ToriRS adaptor already sets bit 0 on every
+     * model it converts, and bit 0 is the z-buffer opt-in, so leaving it alone
+     * would opt every npc in the moment the scene carries a buffer. */
+    if( app_npc_wants_zbuffer(npc_id) )
+        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    else
+        model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
 
     size = npctype->size > 0 ? npctype->size : 1;
     world_x = tile_x * 128 + size * 64;
@@ -11269,6 +11345,50 @@ app_world_camera_follow(struct App* app)
         return;
     if( app->cam_script.scripted || !app->net )
         return;
+
+    /*
+     * TORIRS_ORBIT_CAM=yaw[,pitch[,zoom_pct]] — pin the follow camera's angles
+     * so a headless capture frames a chosen subject instead of wherever the
+     * login left the camera.
+     *
+     * Distinct from TORIRS_WEDGE_CAM, which pins the eye in world coordinates:
+     * that needs the subject's position, this only needs its direction from the
+     * player, and it keeps the real follow path (anchor easing, pitch clamp,
+     * zoom) so what is captured is the camera the game actually uses. Applied
+     * before the step, every frame, with the easing velocities zeroed so the
+     * angles cannot drift back.
+     *
+     * yaw is 0..2047, pitch 128..383 (the same range the middle-button drag
+     * allows), zoom is the follow distance as a percentage.
+     */
+    {
+        static int resolved = 0;
+        static int have = 0;
+        static int cam_yaw = 0, cam_pitch = 0, cam_zoom = 0;
+        if( !resolved )
+        {
+            char const* spec = getenv("TORIRS_ORBIT_CAM");
+            resolved = 1;
+            if( spec )
+            {
+                cam_pitch = -1;
+                cam_zoom = -1;
+                have = sscanf(spec, "%d,%d,%d", &cam_yaw, &cam_pitch, &cam_zoom) >= 1;
+            }
+        }
+        if( have )
+        {
+            app->orbit_yaw = cam_yaw & 0x7ff;
+            app->orbit_yaw_vel = 0;
+            if( cam_pitch >= 0 )
+            {
+                app->orbit_pitch = cam_pitch < 128 ? 128 : (cam_pitch > 383 ? 383 : cam_pitch);
+                app->orbit_pitch_vel = 0;
+            }
+            if( cam_zoom > 0 )
+                app->world_zoom_pct = cam_zoom;
+        }
+    }
     if( !RS_EntitySync_FindPlayer(
             &app->esync,
             app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,

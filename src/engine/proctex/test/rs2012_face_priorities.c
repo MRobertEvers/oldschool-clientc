@@ -84,9 +84,22 @@
  *       --out head.prio.ob3 --out body.prio.ob3
  */
 
+#include "datatypes/dat2_frame.h"
+#include "datatypes/dat2_framemap.h"
 #include "datatypes/model.h"
+#include "filelist.h"
+
+#include "engine/toridraw_animation_from_rscache.h"
+#include "engine/toridraw_model_from_torirs.h"
+#include "engine/torirs_model_from_rscache.h"
+#include "engine/torirs_types.h"
+
+#include <toridraw.h>
 
 #include <math.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -96,9 +109,24 @@
 #define MAX_INPUTS 16
 #define MAX_FEATURES 2048
 #define HARD_BANDS 10
+/* Priorities 10 and 11 are the sorter's flexible band: depth sorted and
+ * spliced into the fixed run, not pinned in front of it. */
+#define FLEX_BAND 10
 
 /* -std=c11 hides M_PI; the view sweep is the only thing that wants it. */
 #define PRIO_PI 3.14159265358979323846
+
+/* ToriDraw_ModelDropNonSdTextures is the only thing in the model adaptor that
+ * reaches a CacheProvider, and this tool never calls it. */
+bool
+CacheProvider_TextureIsSd(struct CacheProvider* provider, int texture_id);
+bool
+CacheProvider_TextureIsSd(struct CacheProvider* provider, int texture_id)
+{
+    (void)provider;
+    (void)texture_id;
+    return true;
+}
 
 /* --------------------------------------------------------------- inputs -- */
 
@@ -293,6 +321,371 @@ segment(struct geometry* g, bool weld)
     return count;
 }
 
+/* --------------------------------------------------------------- poses -- */
+
+/**
+ * The model in one pose: the bind pose, or one frame of an animation.
+ *
+ * Bands are a property of the MODEL, not of a pose, but every measurement that
+ * chooses them is taken in some pose — and a boss spends almost none of its
+ * screen time in the bind pose. The Queen Black Dragon's wake sequence lifts a
+ * head that starts folded against the neck: features that never overlap in the
+ * bind pose spend the whole animation on top of each other, and a band solved
+ * from the bind pose alone has no opinion about them.
+ *
+ * So a pose is just another axis to sample, orthogonal to camera angle, and
+ * the fix/break counters accumulate across all of them. A band has to earn its
+ * pixels over the whole sequence.
+ */
+struct poses
+{
+    struct ToriDraw_Model* model;     /* merged, animatable, owns the vertices */
+    struct ToriDraw_Animation* anim;  /* NULL for bind pose only */
+    int* frames;                      /* animation frame indices to sample */
+    int frame_count;
+    int bind_extent;                  /* the yardstick apply_pose sanity-checks against */
+    int rejected;                     /* poses dropped as decode wreckage */
+};
+
+/**
+ * Load the sequence's frames the way the client loads them: out of a packed
+ * cache, through the profile.
+ *
+ * Reading the lane's staged `.anim` and `.base` files directly does not work,
+ * and the reason is worth recording. Those are pass-through assets — the
+ * importer copies the bytes — so what is on disk is encoded in whatever
+ * revision the SOURCE used, while the codec that decodes them is a property of
+ * the DESTINATION cache. For this lane the two disagree: the frames decode as
+ * osrs239's frame V1 (V2 fails outright, so they were re-encoded), but the
+ * framemap does not decode as osrs239's framemap V1 — decoded that way its
+ * transform types come out wrong, every op reads as a scale, and the first
+ * frame collapses all 6,223 vertices onto a single point.
+ *
+ * Going through the cache removes the guess entirely: `RSCache` carries the
+ * revision, the profile picks the codec per type, and the poses measured here
+ * are by construction the poses the client draws. It also means the tool
+ * measures what shipped rather than what is staged.
+ *
+ * `frame_ids` are the sequence config's own packed values: group << 16 | file.
+ */
+static struct ToriDraw_Animation*
+load_animation_from_cache(
+    const char* cache_dir,
+    const int* frame_ids,
+    int frame_count)
+{
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+    struct RSCache_Dat2Framemap* framemap = NULL;
+    struct RSCache_Dat2Frame** frames = NULL;
+    int* delays = NULL;
+    struct ToriDraw_Animation* out = NULL;
+
+    if( !disk )
+    {
+        fprintf(stderr, "rs2012_face_priorities: cannot open cache %s\n", cache_dir);
+        return NULL;
+    }
+    /* The profile is the whole point of going through the cache: it is what
+     * resolves a type to a codec, and without it the loaders fall back to
+     * defaults that do not match this cache. */
+    {
+        struct RSCache profile =
+            RSCache_ProfileForIdentity(RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 239, 0u);
+        RSCache_Dat2DiskSetProfile(disk, &profile);
+    }
+    frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
+    delays = (int*)malloc((size_t)frame_count * sizeof(int));
+    if( !frames || !delays )
+        goto done;
+
+    for( int i = 0; i < frame_count; i++ )
+    {
+        int const group = frame_ids[i] >> 16;
+        int const file = frame_ids[i] & 0xFFFF;
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_TABLE_ANIMATIONS, group);
+        struct RSCache_FileList* files = NULL;
+        int pos = -1;
+
+        if( !archive )
+        {
+            fprintf(stderr, "rs2012_face_priorities: no animation group %d\n", group);
+            goto done;
+        }
+        RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
+        files =
+            RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+        for( int k = 0; files && k < archive->file_count; k++ )
+            if( archive->file_ids[k] == file )
+                pos = k;
+
+        if( files && pos >= 0 && pos < files->file_count )
+        {
+            /* All frames of a sequence share one framemap; load it off the
+             * first and reuse, exactly as task_dat2_sequence_load does. */
+            if( !framemap )
+            {
+                int const id = RSCache_Dat2FramemapIdFromFrameArchive(
+                    files->files[pos], files->file_sizes[pos]);
+                if( id >= 0 )
+                    framemap = RSCache_Dat2FramemapNewFromCache(disk, id);
+            }
+            /* Decoded from the archive MEMBER, not via
+             * RSCache_Dat2FrameNewFromCache: that helper treats the packed id
+             * as a group of its own, which is the OSRS layout. This lane packs
+             * a sequence's frames as members of one group, so the member is
+             * what has to be handed to the decoder. task_dat2_sequence_load
+             * does the same. */
+            if( framemap )
+                frames[i] = RSCache_Dat2FrameNewDecodeProfile(
+                    RSCache_Dat2DiskProfile(disk),
+                    frame_ids[i],
+                    framemap,
+                    files->files[pos],
+                    files->file_sizes[pos]);
+        }
+        RSCache_FileListFree(files);
+        RSCache_Dat2DiskArchiveFree(archive);
+
+        if( !frames[i] )
+        {
+            fprintf(
+                stderr, "rs2012_face_priorities: cannot load frame %d\n", frame_ids[i]);
+            goto done;
+        }
+        delays[i] = 1;
+    }
+
+    out = ToriDraw_AnimationFromRSCache(
+        framemap, (struct RSCache_Dat2Frame const* const*)frames, delays, frame_count, 0);
+
+done:
+    if( frames )
+        for( int i = 0; i < frame_count; i++ )
+            RSCache_Dat2FrameFree(frames[i]);
+    free(frames);
+    free(delays);
+    RSCache_Dat2FramemapFree(framemap);
+    RSCache_Dat2DiskFree(disk);
+    return out;
+}
+
+/** Read a lane `<name>.memberpack` to learn how many members its archive has. */
+static int
+memberpack_count(const char* archive_path)
+{
+    char path[1024];
+    const char* dot = strrchr(archive_path, '.');
+    size_t stem = dot ? (size_t)(dot - archive_path) : strlen(archive_path);
+    FILE* f;
+    int count = 0;
+    int c;
+
+    if( stem + 12 >= sizeof(path) )
+        return 0;
+    memcpy(path, archive_path, stem);
+    memcpy(path + stem, ".memberpack", 12);
+
+    f = fopen(path, "rb");
+    if( !f )
+        return 0;
+    while( (c = fgetc(f)) != EOF )
+        if( c == '\n' )
+            count++;
+    fclose(f);
+    return count;
+}
+
+/**
+ * Build the animation the poses come from.
+ *
+ * The frames live in one multi-member archive (the lane's `.anim`), the rigging
+ * in a separate framemap file — the dat2 split. Both arrive as staged files
+ * rather than through a cache, so this decodes them directly.
+ */
+static struct ToriDraw_Animation*
+load_animation(
+    const char* anim_path,
+    const char* framemap_path,
+    const int* frame_indices,
+    int frame_count,
+    int frame_codec,
+    int framemap_codec)
+{
+    long anim_size = 0, map_size = 0;
+    uint8_t* anim_bytes = read_file(anim_path, &anim_size);
+    uint8_t* map_bytes = read_file(framemap_path, &map_size);
+    struct RSCache_Dat2Framemap* framemap = NULL;
+    struct RSCache_FileList* files = NULL;
+    struct RSCache_Dat2Frame** frames = NULL;
+    int* delays = NULL;
+    struct ToriDraw_Animation* out = NULL;
+    int members;
+
+    if( !anim_bytes || !map_bytes )
+    {
+        fprintf(stderr, "rs2012_face_priorities: cannot read the animation files\n");
+        goto done;
+    }
+    members = memberpack_count(anim_path);
+    if( members <= 0 )
+    {
+        fprintf(
+            stderr,
+            "rs2012_face_priorities: no %s.memberpack, cannot size the archive\n",
+            anim_path);
+        goto done;
+    }
+
+    files = RSCache_FileListNewFromDecode((char*)anim_bytes, (int)anim_size, members);
+    if( !files )
+    {
+        fprintf(stderr, "rs2012_face_priorities: cannot split the animation archive\n");
+        goto done;
+    }
+
+    /* The framemap's id is not a free choice: every frame names the framemap it
+     * was built against, and the frame decoder asserts the two agree. Read it
+     * off the first frame the sequence uses rather than being told it, so the
+     * caller passes a path and nothing else can be out of step. */
+    if( frame_count <= 0 || frame_indices[0] < 0 || frame_indices[0] >= files->file_count )
+    {
+        fprintf(stderr, "rs2012_face_priorities: no usable frame to read the rig from\n");
+        goto done;
+    }
+    {
+        int const first = frame_indices[0];
+        int const framemap_id = RSCache_Dat2FrameFramemapIdFromFileCodec(
+            files->files[first], files->file_sizes[first], frame_codec);
+        framemap = RSCache_Dat2FramemapNewDecodeCodec(
+            framemap_id, (char*)map_bytes, (int)map_size, framemap_codec);
+    }
+    if( !framemap )
+    {
+        fprintf(stderr, "rs2012_face_priorities: cannot decode %s\n", framemap_path);
+        goto done;
+    }
+
+    frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
+    delays = (int*)malloc((size_t)frame_count * sizeof(int));
+    if( !frames || !delays )
+        goto done;
+
+    for( int i = 0; i < frame_count; i++ )
+    {
+        int const idx = frame_indices[i];
+        if( idx < 0 || idx >= files->file_count )
+        {
+            fprintf(
+                stderr,
+                "rs2012_face_priorities: frame %d outside the archive's %d members\n",
+                idx,
+                files->file_count);
+            goto done;
+        }
+        frames[i] = RSCache_Dat2FrameNewDecodeCodec(
+            idx, framemap, files->files[idx], files->file_sizes[idx], frame_codec);
+        if( !frames[i] )
+        {
+            fprintf(stderr, "rs2012_face_priorities: cannot decode frame %d\n", idx);
+            goto done;
+        }
+        delays[i] = 1;
+    }
+
+    out = ToriDraw_AnimationFromRSCache(
+        framemap, (struct RSCache_Dat2Frame const* const*)frames, delays, frame_count, 0);
+    if( !out )
+        fprintf(stderr, "rs2012_face_priorities: cannot assemble the animation\n");
+
+done:
+    if( frames )
+        for( int i = 0; i < frame_count; i++ )
+            RSCache_Dat2FrameFree(frames[i]);
+    free(frames);
+    free(delays);
+    RSCache_FileListFree(files);
+    RSCache_Dat2FramemapFree(framemap);
+    free(anim_bytes);
+    free(map_bytes);
+    return out;
+}
+
+/**
+ * Put the geometry into pose `p` and re-frame it.
+ *
+ * Recentring per pose rather than once is what keeps a moving subject in shot:
+ * the wake sequence swings the head through most of the model's own height, and
+ * a centre fixed on the bind pose walks it out of the raster half way through.
+ * Each pose is measured in its own frame, which is right — the pose is the
+ * subject, and the camera is sampled separately.
+ */
+static bool
+apply_pose(
+    struct poses* poses,
+    struct geometry* g,
+    int pose_index,
+    int res,
+    int scale,
+    int* out_distance)
+{
+    const struct ToriDraw_Model* m = poses->model;
+    int min_v[3] = { 1 << 30, 1 << 30, 1 << 30 };
+    int max_v[3] = { -(1 << 30), -(1 << 30), -(1 << 30) };
+    int center[3];
+    long radius2 = 0;
+    int extent;
+
+    ToriDraw_ModelAnimateReset(poses->model);
+    if( pose_index > 0 && poses->anim )
+        ToriDraw_ModelAnimateFrame(
+            poses->model, poses->anim->base, &poses->anim->frames[pose_index - 1]);
+
+    for( int v = 0; v < g->vertex_count; v++ )
+    {
+        g->vx[v] = m->vertices_x[v];
+        g->vy[v] = m->vertices_y[v];
+        g->vz[v] = m->vertices_z[v];
+    }
+    for( int v = 0; v < g->vertex_count; v++ )
+    {
+        int c[3] = { g->vx[v], g->vy[v], g->vz[v] };
+        for( int k = 0; k < 3; k++ )
+        {
+            if( c[k] < min_v[k] ) min_v[k] = c[k];
+            if( c[k] > max_v[k] ) max_v[k] = c[k];
+        }
+    }
+    for( int k = 0; k < 3; k++ )
+        center[k] = (min_v[k] + max_v[k]) / 2;
+    for( int v = 0; v < g->vertex_count; v++ )
+    {
+        long dx = g->vx[v] -= center[0];
+        long dy = g->vy[v] -= center[1];
+        long dz = g->vz[v] -= center[2];
+        long d2 = dx * dx + dy * dy + dz * dz;
+        if( d2 > radius2 )
+            radius2 = d2;
+    }
+    extent = (int)sqrt((double)radius2) + 1;
+    *out_distance = (int)((double)extent * scale / (0.45 * res)) + extent;
+
+    /* Refuse a pose that is not a pose.
+     *
+     * A frame whose rig does not match the model it is applied to does not
+     * fail loudly — it produces geometry, just not the right geometry, and the
+     * usual shape of the wreckage is every vertex on the pivot. Measured, that
+     * pose contributes a solid blob of feature-vs-feature "errors" that are
+     * pure decode artefact, and they would move real bands. A tenth of the
+     * bind pose's reach is far below anything an animation does and far above
+     * a collapse. */
+    if( poses->bind_extent > 0 && extent * 10 < poses->bind_extent )
+        return false;
+    if( pose_index == 0 )
+        poses->bind_extent = extent;
+    return true;
+}
+
 /* ---------------------------------------------------------- measurement -- */
 
 /**
@@ -415,8 +808,8 @@ project_view(
 /* The draw order ToriDraw produces for a model whose priorities are all in the
  * hard range: band ascending, and inside a band the depth buckets walked from
  * the far end. Ties keep face order, as the buckets do. */
-static const int* g_sort_depth;
-static const int* g_sort_band;
+static __thread const int* g_sort_depth;
+static __thread const int* g_sort_band;
 
 static int
 cmp_face_order(const void* a, const void* b)
@@ -556,6 +949,116 @@ measure_view(
     }
 }
 
+/**
+ * Score one band assignment against the z-buffer, over every pose and angle.
+ *
+ * This is the objective that matters and the one to rank by: the count of
+ * pixels where the painter's sort leaves a surface behind the one a depth
+ * buffer would have shown. It is measured end to end -- real draw order, real
+ * raster coverage -- rather than predicted, so it cannot be fooled by the
+ * pairwise model being a first-order approximation.
+ *
+ * Also fills fixable/breakable when asked, because the solver needs those and
+ * they fall out of the same traversal; pass NULL to score only.
+ */
+static struct tally
+evaluate_assignment(
+    struct geometry* g,
+    struct raster* r,
+    struct poses* poses,
+    const int* band,
+    int feature_count,
+    const int* feature_face_offset,
+    const int* feature_faces,
+    long* fixable,
+    long* breakable,
+    int pose_count,
+    int yaw_steps,
+    int pitch_steps,
+    double elev_min_deg,
+    double elev_max_deg,
+    int res,
+    int scale,
+    int distance)
+{
+    struct tally tally = { 0, 0, 0 };
+    long* fx = fixable;
+    long* bk = breakable;
+    static long* scratch_fx = NULL;
+    static long* scratch_bk = NULL;
+    static int scratch_n = 0;
+
+    /* The traversal always writes somewhere; a score-only call gets scratch
+     * rather than a branch in the inner loop. */
+    if( !fx || !bk )
+    {
+        if( scratch_n < feature_count )
+        {
+            free(scratch_fx);
+            free(scratch_bk);
+            scratch_fx = (long*)calloc((size_t)feature_count * (size_t)feature_count, sizeof(long));
+            scratch_bk = (long*)calloc((size_t)feature_count * (size_t)feature_count, sizeof(long));
+            scratch_n = (scratch_fx && scratch_bk) ? feature_count : 0;
+        }
+        fx = scratch_fx;
+        bk = scratch_bk;
+        if( !fx || !bk )
+            return tally;
+    }
+    memset(fx, 0, (size_t)feature_count * (size_t)feature_count * sizeof(long));
+    memset(bk, 0, (size_t)feature_count * (size_t)feature_count * sizeof(long));
+
+    for( int pose = 0; pose < pose_count; pose++ )
+    {
+        int pose_distance = distance;
+        if( poses->anim && !apply_pose(poses, g, pose, res, scale, &pose_distance) )
+        {
+            poses->rejected++;
+            continue;
+        }
+        for( int p = 0; p < pitch_steps; p++ )
+        {
+            /* Only the elevations the client can actually produce. app.c clamps
+             * world camera pitch to 128..383 of 2048; scoring from underneath
+             * would rank assignments on breakage no player can see. */
+            double pitch =
+                elev_min_deg * PRIO_PI / 180.0 +
+                (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                    (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
+            for( int y = 0; y < yaw_steps; y++ )
+            {
+                struct view v;
+                view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
+                project_view(g, &v, r, pose_distance, scale);
+                measure_view(
+                    g, r, feature_count, feature_face_offset, feature_faces, band, fx, bk,
+                    &tally, 2);
+            }
+        }
+    }
+    return tally;
+}
+
+/**
+ * One complete band assignment, and what it actually scored.
+ *
+ * A candidate is a proposal, not a decision. Proposals come from the pairwise
+ * model at various evidence floors; the decision comes from
+ * evaluate_assignment, which renders and counts. Keeping the two apart is the
+ * whole design: the pairwise net is a first-order approximation that is wrong
+ * about three-way interactions, and letting it both propose and judge is how a
+ * mapping that looks good on paper ships.
+ */
+struct assignment
+{
+    int* band;
+    char name[48];
+    long wrong;      /* pixels behind the z-buffer, the ranking key */
+    long covered;
+    int bands_used;
+    bool bulk_flex;
+};
+
 /* --------------------------------------------------------- band solving -- */
 
 /** Pixels won, minus pixels lost, by the current band assignment. */
@@ -659,6 +1162,162 @@ compact_bands(int feature_count, int* band)
         band[i] = map[band[i]];
 }
 
+
+/* ------------------------------------------------------- the slow search -- */
+
+/* Deterministic PRNG, so a run can be replayed from its recorded seed. */
+static uint32_t
+xorshift32(uint32_t* state)
+{
+    uint32_t x = *state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    return *state = x;
+}
+
+/** Allocate the projection/paint scratch one annealing thread owns. */
+static bool
+raster_scratch_alloc(struct raster* r, int res, int vertex_count, int face_count)
+{
+    memset(r, 0, sizeof(*r));
+    r->w = r->h = res;
+    r->paint_feature = (int*)malloc((size_t)res * res * sizeof(int));
+    r->paint_z = (int*)malloc((size_t)res * res * sizeof(int));
+    r->sx = (int*)malloc((size_t)vertex_count * sizeof(int));
+    r->sy = (int*)malloc((size_t)vertex_count * sizeof(int));
+    r->sz = (int*)malloc((size_t)vertex_count * sizeof(int));
+    r->face_depth = (int*)malloc((size_t)face_count * sizeof(int));
+    r->face_band = (int*)malloc((size_t)face_count * sizeof(int));
+    r->face_order = (int*)malloc((size_t)face_count * sizeof(int));
+    return r->paint_feature && r->paint_z && r->sx && r->sy && r->sz && r->face_depth &&
+           r->face_band && r->face_order;
+}
+
+static void
+raster_scratch_free(struct raster* r)
+{
+    free(r->paint_feature);
+    free(r->paint_z);
+    free(r->sx);
+    free(r->sy);
+    free(r->sz);
+    free(r->face_depth);
+    free(r->face_band);
+    free(r->face_order);
+    memset(r, 0, sizeof(*r));
+}
+
+/** The z-buffer's answer for one view: which feature owns each pixel, how deep. */
+static void
+raster_zbuffer_ref(struct geometry* g, struct raster* r, int* ref_id, int* ref_z)
+{
+    for( int i = 0; i < r->w * r->h; i++ )
+    {
+        ref_id[i] = -1;
+        ref_z[i] = 1 << 30;
+    }
+    for( int f = 0; f < g->face_count; f++ )
+    {
+        int const feat = g->face_feature[f];
+        TRI_FOR_EACH_PIXEL(r, f, {
+            if( z < ref_z[at] )
+            {
+                ref_z[at] = z;
+                ref_id[at] = feat;
+            }
+        });
+    }
+}
+
+/** The painter's answer for one view under a band assignment. */
+static void
+raster_painter(struct geometry* g, struct raster* r, const int* band)
+{
+    for( int i = 0; i < r->w * r->h; i++ )
+    {
+        r->paint_feature[i] = -1;
+        r->paint_z[i] = 1 << 30;
+    }
+    for( int f = 0; f < g->face_count; f++ )
+    {
+        r->face_depth[f] = (r->sz[g->fa[f]] + r->sz[g->fb[f]] + r->sz[g->fc[f]]) / 3;
+        r->face_band[f] = band[g->face_feature[f]];
+        r->face_order[f] = f;
+    }
+    g_sort_depth = r->face_depth;
+    g_sort_band = r->face_band;
+    qsort(r->face_order, (size_t)g->face_count, sizeof(int), cmp_face_order);
+    for( int i = 0; i < g->face_count; i++ )
+    {
+        int const f = r->face_order[i];
+        int const feat = g->face_feature[f];
+        TRI_FOR_EACH_PIXEL(r, f, {
+            r->paint_feature[at] = feat;
+            r->paint_z[at] = z;
+        });
+    }
+}
+
+struct slowview
+{
+    struct view v;
+    int distance;
+    int* ref_id; /* z-buffer of the PRISTINE geometry: the target */
+    int* ref_z;
+};
+
+struct slowctx
+{
+    struct slowview* views;
+    int view_count;
+    struct raster* rasters; /* one per thread */
+    int thread_count;
+    int res;
+    int scale;
+};
+
+/**
+ * Pixels where the candidate's painter render leaves a surface visibly behind
+ * the surface the ORIGINAL model's z-buffer shows. This is the whole objective:
+ * the perturbed geometry is judged against the pristine reference, so vertex
+ * fuzz cannot cheat by moving the goalposts along with the model.
+ */
+static long
+slow_eval(struct geometry* g2, const int* band, struct slowctx* ctx)
+{
+    long total = 0;
+    int const slack = 6; /* offsets reach 6 units; a shift below that is invisible */
+
+#ifdef _OPENMP
+#pragma omp parallel for schedule(dynamic) reduction(+ : total) \
+    num_threads(ctx->thread_count)
+#endif
+    for( int vi = 0; vi < ctx->view_count; vi++ )
+    {
+#ifdef _OPENMP
+        struct raster* r = &ctx->rasters[omp_get_thread_num()];
+#else
+        struct raster* r = &ctx->rasters[0];
+#endif
+        struct slowview* sv = &ctx->views[vi];
+        long wrong = 0;
+
+        project_view(g2, &sv->v, r, sv->distance, ctx->scale);
+        raster_painter(g2, r, band);
+        for( int i = 0; i < r->w * r->h; i++ )
+        {
+            if( r->paint_feature[i] < 0 || sv->ref_id[i] < 0 )
+                continue;
+            if( r->paint_feature[i] != sv->ref_id[i] &&
+                r->paint_z[i] > sv->ref_z[i] + slack )
+                wrong++;
+        }
+        total += wrong;
+    }
+    return total;
+}
+
 /* ------------------------------------------------------------------ main -- */
 
 static void
@@ -668,7 +1327,23 @@ usage(const char* argv0)
         stderr,
         "Usage: %s --in FILE.ob3 [--in FILE.ob3 ...] [--out FILE.ob3 ...]\n"
         "       [--report] [--views N] [--pitches N] [--res N] [--rounds N]\n"
-        "       [--min-pixels N] [--no-weld]\n"
+        "       [--min-pixels N] [--no-weld] [--elev MIN,MAX] [--bulk-flex]\n"
+        "\n"
+        "  --views N       yaw samples around the model (default 12)\n"
+        "  --pitches N     elevation samples across --elev (default 5)\n"
+        "  --elev MIN,MAX  elevation range in degrees, default -20,67. The max\n"
+        "                  is the client's own camera pitch clamp (app.c,\n"
+        "                  128..383 of 2048); the min is how far perspective\n"
+        "                  lifts a model taller than the camera. Widening it\n"
+        "                  past what the client can produce scores real\n"
+        "                  orderings away as conflicts.\n"
+        "  --res N         analysis raster size (default 224)\n"
+        "  --min-pixels N  ignore a pair thinner than this across all views\n"
+        "  --no-weld       segment on shared vertex indices only, without\n"
+        "                  welding coincident positions first\n"
+        "  --bulk-flex     put the unpromoted bulk at priority 10 (flexible)\n"
+        "                  rather than band 0, so a promoted feature splices in\n"
+        "                  at its own depth instead of pinning in front\n"
         "\n"
         "Analysis runs over every --in together; each --out receives the slice\n"
         "belonging to the --in at the same position. Inputs are never written.\n",
@@ -686,11 +1361,22 @@ main(int argc, char** argv)
     int yaw_steps = 12;
     int pitch_steps = 5;
     int res = 224;
-    int rounds = 4;
     double elev_min_deg = -20.0;
     double elev_max_deg = 67.0;
-    long min_pixels = 40;
-    bool bulk_flex = false;
+    const char* anim_path = NULL;
+    const char* framemap_path = NULL;
+    const char* cache_dir = NULL;
+    const char* frames_arg = NULL;
+    int frame_stride = 1;
+    /* The lane's animation assets are pass-through: the importer copied the
+     * bytes rather than re-encoding them, so the codec on disk is the SOURCE
+     * revision's, not the destination's. Defaults are what the RS727 source
+     * used; the client's own osrs239 default (frame V1) is reachable with
+     * --frame-codec 1 for comparison. */
+    int frame_codec = RSCACHE_CODEC_FRAME_V2;
+    int framemap_codec = RSCACHE_CODEC_FRAMEMAP_V3;
+    struct poses poses = { NULL, NULL, NULL, 0, 0, 0 };
+    int pose_count = 1;
 
     struct geometry g = { 0 };
     struct feature* features = NULL;
@@ -702,8 +1388,18 @@ main(int argc, char** argv)
     int* previous = NULL;
     struct tally tally = { 0, 0, 0 };
     struct tally baseline = { 0, 0, 0 };
+    struct assignment* proposals = NULL;
+    int slow_iters = 0;
+    int slow_res = 128;
+    int slow_yaws = 6;
+    int slow_pitches = 3;
+    int slow_max_offset = 6;
+    uint32_t slow_seed = 0x51F0D5u;
+    int* slow_delta_x = NULL; /* per-vertex, g-space; written into the ob3 */
+    int* slow_delta_y = NULL;
+    int* slow_delta_z = NULL;
+    struct slowctx sctx = { 0 };
     int candidate_count = 0;
-    int settled_rounds = 0;
     long gain = 0;
     int feature_count = 0;
     int* feature_face_offset = NULL;
@@ -737,16 +1433,38 @@ main(int argc, char** argv)
             do_report = true;
         else if( strcmp(argv[i], "--no-weld") == 0 )
             weld = false;
-        else if( strcmp(argv[i], "--bulk-flex") == 0 )
-            bulk_flex = true;
+        else if( strcmp(argv[i], "--slow") == 0 && i + 1 < argc )
+            slow_iters = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--slow-res") == 0 && i + 1 < argc )
+            slow_res = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--slow-views") == 0 && i + 1 < argc )
+            slow_yaws = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--slow-pitches") == 0 && i + 1 < argc )
+            slow_pitches = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--slow-max-offset") == 0 && i + 1 < argc )
+            slow_max_offset = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--slow-seed") == 0 && i + 1 < argc )
+            slow_seed = (uint32_t)strtoul(argv[++i], NULL, 0);
+        else if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc )
+            cache_dir = argv[++i];
+        else if( strcmp(argv[i], "--anim") == 0 && i + 1 < argc )
+            anim_path = argv[++i];
+        else if( strcmp(argv[i], "--framemap") == 0 && i + 1 < argc )
+            framemap_path = argv[++i];
+        else if( strcmp(argv[i], "--frames") == 0 && i + 1 < argc )
+            frames_arg = argv[++i];
+        else if( strcmp(argv[i], "--frame-stride") == 0 && i + 1 < argc )
+            frame_stride = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--frame-codec") == 0 && i + 1 < argc )
+            frame_codec = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--framemap-codec") == 0 && i + 1 < argc )
+            framemap_codec = atoi(argv[++i]);
         else if( strcmp(argv[i], "--views") == 0 && i + 1 < argc )
             yaw_steps = atoi(argv[++i]);
         else if( strcmp(argv[i], "--pitches") == 0 && i + 1 < argc )
             pitch_steps = atoi(argv[++i]);
         else if( strcmp(argv[i], "--res") == 0 && i + 1 < argc )
             res = atoi(argv[++i]);
-        else if( strcmp(argv[i], "--rounds") == 0 && i + 1 < argc )
-            rounds = atoi(argv[++i]);
         else if( strcmp(argv[i], "--elev") == 0 && i + 1 < argc )
         {
             if( sscanf(argv[++i], "%lf,%lf", &elev_min_deg, &elev_max_deg) != 2 )
@@ -755,8 +1473,6 @@ main(int argc, char** argv)
                 return 2;
             }
         }
-        else if( strcmp(argv[i], "--min-pixels") == 0 && i + 1 < argc )
-            min_pixels = atol(argv[++i]);
         else
         {
             usage(argv[0]);
@@ -824,6 +1540,106 @@ main(int argc, char** argv)
             g.fb[inputs[i].face_base + f] = m->face_indices_b[f] + inputs[i].vertex_base;
             g.fc[inputs[i].face_base + f] = m->face_indices_c[f] + inputs[i].vertex_base;
         }
+    }
+
+    /* ---- poses ----
+     *
+     * Built before segmentation so the bind pose is what features are cut
+     * from: connectivity is a property of the mesh, not of a pose, and cutting
+     * it per frame would give a different feature set every frame. */
+    if( cache_dir || anim_path || framemap_path || frames_arg )
+    {
+        struct ToriDraw_Model* parts[MAX_INPUTS] = { NULL };
+        int selected = 0;
+
+        if( !frames_arg || (!cache_dir && (!anim_path || !framemap_path)) )
+        {
+            fprintf(
+                stderr,
+                "rs2012_face_priorities: --frames needs either --cache, or "
+                "--anim with --framemap\n");
+            goto done;
+        }
+        if( frame_stride < 1 )
+            frame_stride = 1;
+
+        /* The frame list is the sequence's, in sequence order, so a stride
+         * samples the whole arc evenly rather than one end of it. */
+        {
+            const char* s = frames_arg;
+            int capacity = 1;
+            for( const char* c = frames_arg; *c; c++ )
+                if( *c == ',' )
+                    capacity++;
+            poses.frames = (int*)malloc((size_t)capacity * sizeof(int));
+            if( !poses.frames )
+                goto done;
+            for( int n = 0; *s; n++ )
+            {
+                int const value = (int)strtol(s, (char**)&s, 10);
+                if( n % frame_stride == 0 )
+                    poses.frames[selected++] = value;
+                if( *s == ',' )
+                    s++;
+            }
+        }
+        poses.frame_count = selected;
+
+        /* The client merges an npc's models and animates the merge, so the
+         * bones and the vertex order have to come from the same merge. The
+         * concatenation above walks the inputs in the same order, which is what
+         * lets one vertex index address both. */
+        for( int i = 0; i < input_count; i++ )
+        {
+            /* Decoded a second time on purpose: ToriRS_ModelFromRSCache MOVES
+             * the arrays out of its source, and inputs[i].model still has to be
+             * encodable at the end. A throwaway decode is cheaper than a deep
+             * copy of a struct this wide, and cannot drift from it. */
+            long size = 0;
+            uint8_t* bytes = read_file(inputs[i].in_path, &size);
+            struct RSCache_Model* copy =
+                bytes ? RSCache_ModelNewDecode(bytes, (int)size) : NULL;
+            struct ToriRS_Model* mid = copy ? ToriRS_ModelFromRSCache(copy) : NULL;
+
+            free(bytes);
+            RSCache_ModelFree(copy);
+            parts[i] = mid ? ToriDraw_ModelFromToriRS(mid) : NULL;
+            ToriRS_ModelFree(mid);
+            if( !parts[i] )
+            {
+                fprintf(stderr, "rs2012_face_priorities: cannot build an animatable model\n");
+                for( int k = 0; k < input_count; k++ )
+                    ToriDraw_ModelFree(parts[k]);
+                goto done;
+            }
+        }
+        poses.model = ToriDraw_ModelNewMerge(parts, input_count);
+        for( int i = 0; i < input_count; i++ )
+            ToriDraw_ModelFree(parts[i]);
+        if( !poses.model || poses.model->vertex_count != g.vertex_count )
+        {
+            fprintf(
+                stderr,
+                "rs2012_face_priorities: merged model is %d vertices, geometry is %d\n",
+                poses.model ? poses.model->vertex_count : -1,
+                g.vertex_count);
+            goto done;
+        }
+        ToriDraw_ModelCaptureOriginalVertices(poses.model);
+
+        poses.anim = cache_dir
+                         ? load_animation_from_cache(cache_dir, poses.frames, poses.frame_count)
+                         : load_animation(
+                               anim_path, framemap_path, poses.frames, poses.frame_count,
+                               frame_codec, framemap_codec);
+        if( !poses.anim )
+            goto done;
+        pose_count = 1 + poses.anim->frame_count;
+        printf(
+            "poses:    bind pose + %d of %s (stride %d)\n",
+            poses.anim->frame_count,
+            cache_dir ? cache_dir : anim_path,
+            frame_stride);
     }
 
     feature_count = segment(&g, weld);
@@ -931,80 +1747,495 @@ main(int argc, char** argv)
     for( int i = 0; i < feature_count; i++ )
         band[i] = HARD_BANDS / 2;
 
-    /* Measure, solve, and measure again against what was solved: the first
-     * round's "what does the sort paint here" answer stops being true the
-     * moment a band moves. Two or three rounds is where it settles. */
-    for( int round = 0; round < rounds; round++ )
+    /* ---- propose, score, rank, keep the best ----
+     *
+     * There is no enumerating this space: twelve bands over N features is
+     * 12^N, and N is 216 on the QBD. So candidates come from a handful of
+     * strategies and the ranking is done by the honest objective.
+     *
+     * "Depth sort, no bands" is always a candidate, and it is exactly the
+     * stripped model. If nothing beats it, that is the finding and the tool
+     * reports it, rather than shipping a worse model with a confident table. */
     {
-        memset(fixable, 0, (size_t)feature_count * (size_t)feature_count * sizeof(long));
-        memset(breakable, 0, (size_t)feature_count * (size_t)feature_count * sizeof(long));
-        memset(&tally, 0, sizeof(tally));
+        long const floors[] = { 10, 40, 150, 400 };
+        int const floor_count = (int)(sizeof(floors) / sizeof(floors[0]));
+        /* No bulk-flex candidates: this evaluator's painter sorts strictly
+         * by (band, depth), while the real sorter SPLICES priorities 10/11
+         * into the fixed run at three depth averages. Ranking a flex
+         * spelling with the wrong rule scored it at 40%% wrong for reasons
+         * that were the model's, not the content's. */
+        int const slots = floor_count + 2;
+        int best = 0;
 
-        for( int p = 0; p < pitch_steps; p++ )
+        proposals = (struct assignment*)calloc((size_t)slots, sizeof(struct assignment));
+        if( !proposals )
+            goto done;
+        for( int c = 0; c < slots; c++ )
         {
-            /* Only the elevations the client can actually produce.
-             *
-             * This is not a detail. Sweeping the whole sphere asks every pair
-             * to agree from underneath the model as well, and almost no pair
-             * on a closed creature does -- which is how a legitimate ordering
-             * gets scored away as a conflict. app.c clamps world camera pitch
-             * to 128..383 of 2048, i.e. 22.5 to 67.3 degrees looking DOWN, and
-             * nothing in the client unclamps it. The range is extended above
-             * the horizon only by as much as perspective gives on a model
-             * taller than the camera -- the Queen's head is twenty units up,
-             * and players do see its underside. */
-            double pitch =
-                elev_min_deg * PRIO_PI / 180.0 +
-                (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
-                    (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
-            for( int y = 0; y < yaw_steps; y++ )
+            proposals[c].band = (int*)malloc((size_t)feature_count * sizeof(int));
+            if( !proposals[c].band )
+                goto done;
+        }
+
+        for( int i = 0; i < feature_count; i++ )
+            proposals[0].band[i] = 0;
+        snprintf(proposals[0].name, sizeof(proposals[0].name), "depth sort (no bands)");
+        candidate_count = 1;
+
+        /* What the input already carries, so a lane re-packed with inherited
+         * priorities is ranked against its own shipping state instead of
+         * against an assumption about it. */
+        {
+            bool any = false;
+            for( int i = 0; i < feature_count; i++ )
+                proposals[1].band[i] = 0;
+            for( int i = 0; i < input_count; i++ )
             {
-                struct view v;
-                view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
-                project_view(&g, &v, &r, distance, scale);
-                measure_view(
-                    &g,
-                    &r,
-                    feature_count,
-                    feature_face_offset,
-                    feature_faces,
-                    band,
-                    fixable,
-                    breakable,
-                    &tally,
-                    2);
+                const struct RSCache_Model* m = inputs[i].model;
+                if( !m->face_priorities )
+                    continue;
+                any = true;
+                for( int f = 0; f < m->face_count; f++ )
+                {
+                    int const feat = g.face_feature[inputs[i].face_base + f];
+                    int const prio = m->face_priorities[f];
+                    proposals[1].band[feat] = prio < HARD_BANDS ? prio : HARD_BANDS - 1;
+                }
+            }
+            if( any )
+            {
+                snprintf(
+                    proposals[1].name, sizeof(proposals[1].name), "as shipped (inherited)");
+                candidate_count = 2;
             }
         }
 
-        /* A pair too small to have been sampled properly is noise, not a
-         * finding; below the floor it is not allowed to move a band. */
-        candidate_count = 0;
-        for( int a = 0; a < feature_count; a++ )
-            for( int b = 0; b < feature_count; b++ )
-            {
-                long const fix = fixable[(long)a * feature_count + b];
-                long const brk = breakable[(long)a * feature_count + b];
-                long value = 0;
+        /* The hill climb at several evidence floors, each also in a
+         * bulk-flexible spelling. Too low a floor chases noise and too high
+         * sees nothing; which is which is a property of the model, so try a
+         * spread and let the ranking decide instead of hardcoding one. */
+        for( int fi = 0; fi < floor_count; fi++ )
+        {
+            int* work = proposals[candidate_count].band;
 
-                if( a != b && (fix >= min_pixels || brk >= min_pixels) )
+            for( int i = 0; i < feature_count; i++ )
+                work[i] = HARD_BANDS / 2;
+            evaluate_assignment(
+                &g, &r, &poses, work, feature_count, feature_face_offset, feature_faces,
+                fixable, breakable, pose_count, yaw_steps, pitch_steps, elev_min_deg,
+                elev_max_deg, res, scale, distance);
+
+            for( int a = 0; a < feature_count; a++ )
+                for( int b = 0; b < feature_count; b++ )
                 {
-                    value = fix - brk;
-                    if( value > 0 )
-                        candidate_count++;
+                    long const fix = fixable[(long)a * feature_count + b];
+                    long const brk = breakable[(long)a * feature_count + b];
+                    long value = 0;
+                    if( a != b && (fix >= floors[fi] || brk >= floors[fi]) && fix - brk > 0 )
+                        value = fix - brk;
+                    net[(long)a * feature_count + b] = value;
                 }
-                net[(long)a * feature_count + b] = value;
+            solve_bands(feature_count, net, work, 32);
+            compact_bands(feature_count, work);
+            snprintf(
+                proposals[candidate_count].name,
+                sizeof(proposals[candidate_count].name),
+                "climb, floor %ld",
+                floors[fi]);
+            candidate_count++;
+
+        }
+
+        /* ---- score every proposal the same way ---- */
+        for( int c = 0; c < candidate_count; c++ )
+        {
+            struct tally t;
+            unsigned char seen[HARD_BANDS + 2];
+
+            t = evaluate_assignment(
+                &g, &r, &poses, proposals[c].band, feature_count, feature_face_offset,
+                feature_faces, NULL, NULL, pose_count, yaw_steps, pitch_steps,
+                elev_min_deg, elev_max_deg, res, scale, distance);
+
+            memset(seen, 0, sizeof(seen));
+            proposals[c].bands_used = 0;
+            for( int i = 0; i < feature_count; i++ )
+            {
+                int const b = proposals[c].band[i];
+                if( b >= 0 && b <= HARD_BANDS + 1 && !seen[b] )
+                {
+                    seen[b] = 1;
+                    proposals[c].bands_used++;
+                }
+            }
+            proposals[c].wrong = t.wrong_within + t.wrong_between;
+            proposals[c].covered = t.covered;
+            if( proposals[c].wrong < proposals[best].wrong )
+                best = c;
+        }
+
+        /* ---- the table, in rank order: it is the argument ---- */
+        printf("\ncandidates, ranked by pixels left behind the z-buffer:\n");
+        printf("%-30s %10s %9s %6s\n", "strategy", "wrong", "of drawn", "bands");
+        {
+            unsigned char shown[32] = { 0 };
+            for( int n = 0; n < candidate_count && n < 32; n++ )
+            {
+                int pick = -1;
+                for( int c = 0; c < candidate_count; c++ )
+                    if( !shown[c] && (pick < 0 || proposals[c].wrong < proposals[pick].wrong) )
+                        pick = c;
+                if( pick < 0 )
+                    break;
+                shown[pick] = 1;
+                printf(
+                    "%-30s %10ld %8.3f%% %6d%s\n",
+                    proposals[pick].name,
+                    proposals[pick].wrong,
+                    proposals[pick].covered
+                        ? 100.0 * (double)proposals[pick].wrong /
+                              (double)proposals[pick].covered
+                        : 0.0,
+                    proposals[pick].bands_used,
+                    pick == best ? "   <- chosen" : "");
+            }
+        }
+
+        memcpy(band, proposals[best].band, (size_t)feature_count * sizeof(int));
+        baseline.wrong_between = proposals[0].wrong;
+        baseline.covered = proposals[0].covered;
+        tally.wrong_between = proposals[best].wrong;
+        tally.covered = proposals[best].covered;
+        gain = proposals[0].wrong - proposals[best].wrong;
+
+        if( best == 0 )
+            printf(
+                "\nno band assignment beat the plain depth sort; writing it unbanded.\n"
+                "That is the result, not a failure: this model's remaining error is not\n"
+                "reachable by priorities.\n");
+    }
+
+
+    /* ---- the slow search: anneal bands AND geometry against the z-buffer ----
+     *
+     * The fast rank can only choose an order for the geometry it was given.
+     * Some error is not reachable that way at all: two surfaces interleaving at
+     * near-equal depth have no right order, only a right geometry. So the slow
+     * search widens the state to (band per feature, radial offset per feature)
+     * -- each feature may move up to a few units toward or away from its own
+     * centroid, a real, encodable edit far below visual threshold on a model
+     * ~1,700 units deep -- and anneals both together.
+     *
+     * The judge does not move: candidates are scored against the z-buffer of
+     * the PRISTINE geometry, so the fuzz cannot improve its score by dragging
+     * the reference along with the mistake. CPU-parallel over views (OpenMP).
+     */
+    if( slow_iters > 0 )
+    {
+        int const fc2 = feature_count;
+        struct geometry g2 = g; /* shares faces; gets its own vertex arrays */
+        int* vertex_feature = NULL;
+        float* dir_x = NULL;
+        float* dir_y = NULL;
+        float* dir_z = NULL;
+        int* off = NULL;
+        int* best_off = NULL;
+        int* work_band = NULL;
+        int* best_band = NULL;
+        long cur_cost, best_cost, base_cost;
+        uint32_t rng = slow_seed;
+        int accepted = 0, improved = 0;
+
+        sctx.res = slow_res;
+        sctx.scale = 512;
+        sctx.view_count = slow_yaws * slow_pitches;
+#ifdef _OPENMP
+        sctx.thread_count = omp_get_max_threads();
+        if( sctx.thread_count > 8 )
+            sctx.thread_count = 8;
+#else
+        sctx.thread_count = 1;
+#endif
+
+        g2.vx = (int*)malloc((size_t)g.vertex_count * sizeof(int));
+        g2.vy = (int*)malloc((size_t)g.vertex_count * sizeof(int));
+        g2.vz = (int*)malloc((size_t)g.vertex_count * sizeof(int));
+        vertex_feature = (int*)malloc((size_t)g.vertex_count * sizeof(int));
+        dir_x = (float*)calloc((size_t)g.vertex_count, sizeof(float));
+        dir_y = (float*)calloc((size_t)g.vertex_count, sizeof(float));
+        dir_z = (float*)calloc((size_t)g.vertex_count, sizeof(float));
+        off = (int*)calloc((size_t)fc2, sizeof(int));
+        best_off = (int*)calloc((size_t)fc2, sizeof(int));
+        work_band = (int*)malloc((size_t)fc2 * sizeof(int));
+        best_band = (int*)malloc((size_t)fc2 * sizeof(int));
+        sctx.views = (struct slowview*)calloc((size_t)sctx.view_count, sizeof(struct slowview));
+        sctx.rasters = (struct raster*)calloc((size_t)sctx.thread_count, sizeof(struct raster));
+        if( !g2.vx || !g2.vy || !g2.vz || !vertex_feature || !dir_x || !dir_y || !dir_z ||
+            !off || !best_off || !work_band || !best_band || !sctx.views || !sctx.rasters )
+            goto slow_done;
+
+        memcpy(g2.vx, g.vx, (size_t)g.vertex_count * sizeof(int));
+        memcpy(g2.vy, g.vy, (size_t)g.vertex_count * sizeof(int));
+        memcpy(g2.vz, g.vz, (size_t)g.vertex_count * sizeof(int));
+
+        /* Every vertex belongs to exactly one feature -- a shared vertex would
+         * have merged the two components -- so the map is well defined. */
+        for( int v = 0; v < g.vertex_count; v++ )
+            vertex_feature[v] = -1;
+        for( int f = 0; f < g.face_count; f++ )
+        {
+            vertex_feature[g.fa[f]] = g.face_feature[f];
+            vertex_feature[g.fb[f]] = g.face_feature[f];
+            vertex_feature[g.fc[f]] = g.face_feature[f];
+        }
+        {
+            /* Radial directions from each feature's centroid: the offset
+             * inflates or deflates a feature slightly, which is the edit that
+             * separates two surfaces fighting at equal depth. */
+            long* cx = (long*)calloc((size_t)fc2, sizeof(long));
+            long* cy = (long*)calloc((size_t)fc2, sizeof(long));
+            long* cz = (long*)calloc((size_t)fc2, sizeof(long));
+            long* cn = (long*)calloc((size_t)fc2, sizeof(long));
+            if( !cx || !cy || !cz || !cn )
+            {
+                free(cx); free(cy); free(cz); free(cn);
+                goto slow_done;
+            }
+            for( int v = 0; v < g.vertex_count; v++ )
+                if( vertex_feature[v] >= 0 )
+                {
+                    cx[vertex_feature[v]] += g.vx[v];
+                    cy[vertex_feature[v]] += g.vy[v];
+                    cz[vertex_feature[v]] += g.vz[v];
+                    cn[vertex_feature[v]]++;
+                }
+            for( int v = 0; v < g.vertex_count; v++ )
+            {
+                int const F = vertex_feature[v];
+                double dx, dy, dz, len;
+                if( F < 0 || cn[F] == 0 )
+                    continue;
+                dx = g.vx[v] - (double)cx[F] / cn[F];
+                dy = g.vy[v] - (double)cy[F] / cn[F];
+                dz = g.vz[v] - (double)cz[F] / cn[F];
+                len = sqrt(dx * dx + dy * dy + dz * dz);
+                if( len > 1e-6 )
+                {
+                    dir_x[v] = (float)(dx / len);
+                    dir_y[v] = (float)(dy / len);
+                    dir_z[v] = (float)(dz / len);
+                }
+            }
+            free(cx); free(cy); free(cz); free(cn);
+        }
+
+        /* Views and their pristine z-buffer references, computed once. */
+        {
+            struct raster ref_raster;
+            if( !raster_scratch_alloc(&ref_raster, slow_res, g.vertex_count, g.face_count) )
+                goto slow_done;
+            for( int p = 0; p < slow_pitches; p++ )
+            {
+                double pitch =
+                    elev_min_deg * PRIO_PI / 180.0 +
+                    (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                        (slow_pitches == 1 ? 0.5 : (double)p / (slow_pitches - 1));
+                for( int y = 0; y < slow_yaws; y++ )
+                {
+                    struct slowview* sv = &sctx.views[p * slow_yaws + y];
+                    view_make(&sv->v, 2.0 * PRIO_PI * y / slow_yaws, pitch);
+                    sv->distance = distance;
+                    sv->ref_id = (int*)malloc((size_t)slow_res * slow_res * sizeof(int));
+                    sv->ref_z = (int*)malloc((size_t)slow_res * slow_res * sizeof(int));
+                    if( !sv->ref_id || !sv->ref_z )
+                    {
+                        raster_scratch_free(&ref_raster);
+                        goto slow_done;
+                    }
+                    project_view(&g, &sv->v, &ref_raster, sv->distance, sctx.scale);
+                    raster_zbuffer_ref(&g, &ref_raster, sv->ref_id, sv->ref_z);
+                }
+            }
+            raster_scratch_free(&ref_raster);
+        }
+        for( int t = 0; t < sctx.thread_count; t++ )
+            if( !raster_scratch_alloc(&sctx.rasters[t], slow_res, g.vertex_count, g.face_count) )
+                goto slow_done;
+
+        /* Anneal, from the fast winner. */
+        memcpy(work_band, band, (size_t)fc2 * sizeof(int));
+        memcpy(best_band, band, (size_t)fc2 * sizeof(int));
+        cur_cost = best_cost = base_cost = slow_eval(&g2, work_band, &sctx);
+        printf(
+            "\nslow search: %d iters, %d views @ %d px, %d thread(s), seed 0x%x\n"
+            "slow start:  %ld wrong px (the fast winner under this objective)\n",
+            slow_iters, sctx.view_count, slow_res, sctx.thread_count, slow_seed, base_cost);
+        fflush(stdout);
+
+        for( int it = 0; it < slow_iters; it++ )
+        {
+            double const t01 = (double)it / (slow_iters > 1 ? slow_iters - 1 : 1);
+            /* Cold schedule on purpose: the search STARTS from the fast
+             * winner, already a local optimum, so a hot walk only spends the
+             * budget wandering above the incumbent -- measured on the QBD:
+             * 4,000 iterations at 2%% never got back under its own start. */
+            double const temp = 0.002 * (double)(base_cost > 0 ? base_cost : 1) *
+                                pow(0.01, t01);
+            int const F = (int)(xorshift32(&rng) % (uint32_t)fc2);
+            int saved_band = work_band[F];
+            int saved_off = off[F];
+            long trial;
+            bool geometry_moved = false;
+
+            if( xorshift32(&rng) % 100 < 55 )
+            {
+                work_band[F] = (int)(xorshift32(&rng) % HARD_BANDS);
+                if( work_band[F] == saved_band )
+                    work_band[F] = (saved_band + 1) % HARD_BANDS;
+            }
+            else
+            {
+                int step = (xorshift32(&rng) & 2) ? 1 : -1;
+                if( xorshift32(&rng) & 4 )
+                    step *= 2;
+                off[F] = off[F] + step;
+                if( off[F] > slow_max_offset )
+                    off[F] = slow_max_offset;
+                if( off[F] < -slow_max_offset )
+                    off[F] = -slow_max_offset;
+                if( off[F] == saved_off )
+                {
+                    work_band[F] = saved_band;
+                    continue;
+                }
+                geometry_moved = true;
+                for( int v = 0; v < g.vertex_count; v++ )
+                    if( vertex_feature[v] == F )
+                    {
+                        g2.vx[v] = g.vx[v] + (int)lround(dir_x[v] * off[F]);
+                        g2.vy[v] = g.vy[v] + (int)lround(dir_y[v] * off[F]);
+                        g2.vz[v] = g.vz[v] + (int)lround(dir_z[v] * off[F]);
+                    }
             }
 
-        if( round == 0 )
-            baseline = tally;
+            trial = slow_eval(&g2, work_band, &sctx);
+            if( trial <= cur_cost ||
+                (temp > 0 &&
+                 (double)(xorshift32(&rng) % 1000000) / 1000000.0 <
+                     exp(-(double)(trial - cur_cost) / temp)) )
+            {
+                cur_cost = trial;
+                accepted++;
+                if( trial < best_cost )
+                {
+                    best_cost = trial;
+                    improved++;
+                    memcpy(best_band, work_band, (size_t)fc2 * sizeof(int));
+                    memcpy(best_off, off, (size_t)fc2 * sizeof(int));
+                }
+            }
+            else
+            {
+                work_band[F] = saved_band;
+                if( geometry_moved )
+                {
+                    off[F] = saved_off;
+                    for( int v = 0; v < g.vertex_count; v++ )
+                        if( vertex_feature[v] == F )
+                        {
+                            g2.vx[v] = g.vx[v] + (int)lround(dir_x[v] * off[F]);
+                            g2.vy[v] = g.vy[v] + (int)lround(dir_y[v] * off[F]);
+                            g2.vz[v] = g.vz[v] + (int)lround(dir_z[v] * off[F]);
+                        }
+                }
+            }
+            /* Pull the walker home periodically; an anneal that ends far from
+             * its best has been sightseeing, not searching. */
+            if( (it + 1) % 500 == 0 && cur_cost > best_cost )
+            {
+                memcpy(work_band, best_band, (size_t)fc2 * sizeof(int));
+                memcpy(off, best_off, (size_t)fc2 * sizeof(int));
+                for( int v = 0; v < g.vertex_count; v++ )
+                {
+                    int const F = vertex_feature[v];
+                    if( F >= 0 )
+                    {
+                        g2.vx[v] = g.vx[v] + (int)lround(dir_x[v] * off[F]);
+                        g2.vy[v] = g.vy[v] + (int)lround(dir_y[v] * off[F]);
+                        g2.vz[v] = g.vz[v] + (int)lround(dir_z[v] * off[F]);
+                    }
+                }
+                cur_cost = best_cost;
+            }
+            if( (it + 1) % 200 == 0 )
+            {
+                printf(
+                    "slow %5d/%d: current %ld, best %ld (%+.1f%%), accepted %d\n",
+                    it + 1, slow_iters, cur_cost, best_cost,
+                    base_cost ? 100.0 * (double)(best_cost - base_cost) / (double)base_cost
+                              : 0.0,
+                    accepted);
+                fflush(stdout);
+            }
+        }
 
-        memcpy(previous, band, (size_t)feature_count * sizeof(int));
-        gain = solve_bands(feature_count, net, band, 32);
-        compact_bands(feature_count, band);
+        printf(
+            "slow result: %ld -> %ld wrong px (%+.1f%%), %d improvements, "
+            "%d feature(s) moved\n",
+            base_cost, best_cost,
+            base_cost ? 100.0 * (double)(best_cost - base_cost) / (double)base_cost : 0.0,
+            improved,
+            ({
+                int moved = 0;
+                for( int F = 0; F < fc2; F++ )
+                    if( best_off[F] )
+                        moved++;
+                moved;
+            }));
 
-        if( memcmp(previous, band, (size_t)feature_count * sizeof(int)) == 0 )
-            break;
-        settled_rounds = round + 1;
+        /* Adopt only a genuine improvement; the fuzz must never ship on a tie. */
+        if( best_cost < base_cost )
+        {
+            memcpy(band, best_band, (size_t)fc2 * sizeof(int));
+            slow_delta_x = (int*)calloc((size_t)g.vertex_count, sizeof(int));
+            slow_delta_y = (int*)calloc((size_t)g.vertex_count, sizeof(int));
+            slow_delta_z = (int*)calloc((size_t)g.vertex_count, sizeof(int));
+            if( slow_delta_x && slow_delta_y && slow_delta_z )
+                for( int v = 0; v < g.vertex_count; v++ )
+                {
+                    int const F = vertex_feature[v];
+                    if( F >= 0 && best_off[F] )
+                    {
+                        slow_delta_x[v] = (int)lround(dir_x[v] * best_off[F]);
+                        slow_delta_y[v] = (int)lround(dir_y[v] * best_off[F]);
+                        slow_delta_z[v] = (int)lround(dir_z[v] * best_off[F]);
+                    }
+                }
+        }
+        else
+            printf("slow search found nothing better; keeping the fast winner unchanged.\n");
+
+    slow_done:
+        for( int vi = 0; sctx.views && vi < sctx.view_count; vi++ )
+        {
+            free(sctx.views[vi].ref_id);
+            free(sctx.views[vi].ref_z);
+        }
+        free(sctx.views);
+        for( int t = 0; sctx.rasters && t < sctx.thread_count; t++ )
+            raster_scratch_free(&sctx.rasters[t]);
+        free(sctx.rasters);
+        free(g2.vx);
+        free(g2.vy);
+        free(g2.vz);
+        free(vertex_feature);
+        free(dir_x);
+        free(dir_y);
+        free(dir_z);
+        free(off);
+        free(best_off);
+        free(work_band);
+        free(best_band);
     }
 
     for( int i = 0; i < feature_count; i++ )
@@ -1027,8 +2258,8 @@ main(int argc, char** argv)
             "          %ld within one feature (no band can reach these), "
             "%ld between features\n"
             "final:    %ld/%ld wrong (%.2f%%), %ld within, %ld between\n"
-            "pairs:    %d a band could pay for\n"
-            "solve:    settled after %d round(s), model predicts %+ld pixels\n",
+            "ranked:   %d candidate assignment(s)\n"
+            "chosen:   %+ld pixels against the plain depth sort (negative is better)\n",
             feature_count,
             baseline.wrong_within + baseline.wrong_between,
             baseline.covered,
@@ -1047,8 +2278,7 @@ main(int argc, char** argv)
             tally.wrong_within,
             tally.wrong_between,
             candidate_count,
-            settled_rounds ? settled_rounds : 1,
-            gain);
+            -gain);
 
         for( int i = 0; i < feature_count; i++ )
         {
@@ -1160,13 +2390,28 @@ main(int argc, char** argv)
         uint8_t* encoded = NULL;
         uint32_t bound, written;
 
+        /* The slow search's vertex fuzz, in raw coordinates. The analysis
+         * geometry was shifted down for version-13+ inputs, so the delta
+         * shifts back up on the way out. */
+        if( slow_delta_x )
+        {
+            int const shift = m->format_version >= 13 ? 2 : 0;
+            for( int v = 0; v < m->vertex_count; v++ )
+            {
+                int const gv = inputs[i].vertex_base + v;
+                m->vertices_x[v] += slow_delta_x[gv] << shift;
+                m->vertices_y[v] += slow_delta_y[gv] << shift;
+                m->vertices_z[v] += slow_delta_z[gv] << shift;
+            }
+        }
+
         free(m->face_priorities);
         m->face_priorities = (uint8_t*)malloc((size_t)m->face_count);
         if( !m->face_priorities )
             goto done;
         for( int f = 0; f < m->face_count; f++ )
         {
-            int b = features[g.face_feature[inputs[i].face_base + f]].band;
+            int const b = features[g.face_feature[inputs[i].face_base + f]].band;
             /* --bulk-flex: the untouched bulk goes to priority 10 rather than
              * band 0. That is not cosmetic. With the bulk flexible, a feature
              * left in a hard band is no longer pinned in front of everything:
@@ -1176,8 +2421,6 @@ main(int argc, char** argv)
              * and under the near half. That is the behaviour a claw ring round
              * a neck actually wants, and no arrangement of hard bands can
              * express it. */
-            if( bulk_flex && b == 0 )
-                b = 10;
             m->face_priorities[f] = (uint8_t)b;
         }
         m->model_priority = 255;
@@ -1249,9 +2492,19 @@ done:
     free(feature_faces);
     free(fixable);
     free(breakable);
+    if( proposals )
+        for( int c = 0; c < candidate_count; c++ )
+            free(proposals[c].band);
+    free(proposals);
     free(net);
+    free(slow_delta_x);
+    free(slow_delta_y);
+    free(slow_delta_z);
     free(band);
     free(previous);
+    free(poses.frames);
+    ToriDraw_AnimationFree(poses.anim);
+    ToriDraw_ModelFree(poses.model);
     free(r.near_feature);
     free(r.near_z);
     free(r.paint_feature);

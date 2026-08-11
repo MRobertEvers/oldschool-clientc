@@ -96,7 +96,12 @@ tools/rs2012_qbd_prio.sh                 # every QBD form, before/after scores
 ```
 
 It never writes its input — `--in` and `--out` are separate paths, and the
-whole loop lands in `build/qbd_prio/`.
+whole loop lands in `docs/rs2012_qbd_priorities/run/`.
+
+Before and after, with the sort-error masks and the z-buffer target beside
+them: [`docs/rs2012_qbd_priorities/`](docs/rs2012_qbd_priorities/README.md).
+
+[![QBD head before and after](docs/rs2012_qbd_priorities/images/00_head_before_after.png)](docs/rs2012_qbd_priorities/README.md)
 
 Measured over 24 camera angles inside the client's own pitch clamp, counting
 pixels where the painter's sort leaves a surface behind the one a z-buffer
@@ -104,11 +109,11 @@ would have shown:
 
 | QBD form | shipped (RS727 priorities) | priorities stripped | authored bands |
 |---|---:|---:|---:|
-| default | 11.80% | 4.28% | 4.18% |
-| crystal | 10.88% | — | 4.32% |
-| hardened | 11.81% | — | 4.48% |
-| tortured soul | 5.43% | — | 1.33% |
-| giant worm | 0.90% | — | 0.07% |
+| default | 11.84% | 4.28% | **4.21%** |
+| crystal | 10.92% | — | 4.35% |
+| hardened | 11.84% | — | 4.51% |
+| tortured soul | 5.51% | — | 1.40% |
+| giant worm | 0.90% | — | 0.06% |
 
 The mean depth of an error falls with it, 119 units to 12 on the default form:
 what goes away is not edge filigree but whole far-side plates painting through

@@ -48,7 +48,12 @@
  *                   the expected residual.
  */
 
+#include "datatypes/dat2_frame.h"
+#include "datatypes/dat2_framemap.h"
 #include "datatypes/model.h"
+#include "filelist.h"
+
+#include "engine/toridraw_animation_from_rscache.h"
 
 #include "engine/torirs_model_from_rscache.h"
 #include "engine/toridraw_model_from_torirs.h"
@@ -79,6 +84,134 @@ CacheProvider_TextureIsSd(struct CacheProvider* provider, int texture_id)
     (void)provider;
     (void)texture_id;
     return true;
+}
+
+/**
+ * Load the sequence's frames the way the client loads them: out of a packed
+ * cache, through the profile.
+ *
+ * Reading the lane's staged `.anim` and `.base` files directly does not work,
+ * and the reason is worth recording. Those are pass-through assets — the
+ * importer copies the bytes — so what is on disk is encoded in whatever
+ * revision the SOURCE used, while the codec that decodes them is a property of
+ * the DESTINATION cache. For this lane the two disagree: the frames decode as
+ * osrs239's frame V1 (V2 fails outright, so they were re-encoded), but the
+ * framemap does not decode as osrs239's framemap V1 — decoded that way its
+ * transform types come out wrong, every op reads as a scale, and the first
+ * frame collapses all 6,223 vertices onto a single point.
+ *
+ * Going through the cache removes the guess entirely: `RSCache` carries the
+ * revision, the profile picks the codec per type, and the poses measured here
+ * are by construction the poses the client draws. It also means the tool
+ * measures what shipped rather than what is staged.
+ *
+ * `frame_ids` are the sequence config's own packed values: group << 16 | file.
+ */
+static struct ToriDraw_Animation*
+load_animation_from_cache(
+    const char* cache_dir,
+    const int* frame_ids,
+    int frame_count)
+{
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+    struct RSCache_Dat2Framemap* framemap = NULL;
+    struct RSCache_Dat2Frame** frames = NULL;
+    int* delays = NULL;
+    struct ToriDraw_Animation* out = NULL;
+
+    if( !disk )
+    {
+        fprintf(stderr, "rs2012_face_priorities: cannot open cache %s\n", cache_dir);
+        return NULL;
+    }
+    /* The profile is the whole point of going through the cache: it is what
+     * resolves a type to a codec, and without it the loaders fall back to
+     * defaults that do not match this cache. */
+    {
+        struct RSCache profile =
+            RSCache_ProfileForIdentity(RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 239, 0u);
+        RSCache_Dat2DiskSetProfile(disk, &profile);
+    }
+    frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
+    delays = (int*)malloc((size_t)frame_count * sizeof(int));
+    if( !frames || !delays )
+        goto done;
+
+    for( int i = 0; i < frame_count; i++ )
+    {
+        int const group = frame_ids[i] >> 16;
+        int const file = frame_ids[i] & 0xFFFF;
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(disk, RSCACHE_DAT2_TABLE_ANIMATIONS, group);
+        struct RSCache_FileList* files = NULL;
+        int pos = -1;
+
+        if( !archive )
+        {
+            fprintf(stderr, "rs2012_face_priorities: no animation group %d\n", group);
+            goto done;
+        }
+        RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
+        files =
+            RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
+        for( int k = 0; files && k < archive->file_count; k++ )
+            if( archive->file_ids[k] == file )
+                pos = k;
+
+        if( files && pos >= 0 && pos < files->file_count )
+        {
+            /* All frames of a sequence share one framemap; load it off the
+             * first and reuse, exactly as task_dat2_sequence_load does. */
+            if( !framemap )
+            {
+                int const id = RSCache_Dat2FramemapIdFromFrameArchive(
+                    files->files[pos], files->file_sizes[pos]);
+                /* Through the cache and its profile, which is exactly what the
+                 * client does. Neither this nor an explicit V3 read produces a
+                 * usable pose on this lane — see docs/rs2012_qbd_wake/README.md
+                 * — but this is the path whose output is the client's, so it is
+                 * the one worth rendering. */
+                if( id >= 0 )
+                    framemap = RSCache_Dat2FramemapNewFromCache(disk, id);
+            }
+            /* Decoded from the archive MEMBER, not via
+             * RSCache_Dat2FrameNewFromCache: that helper treats the packed id
+             * as a group of its own, which is the OSRS layout. This lane packs
+             * a sequence's frames as members of one group, so the member is
+             * what has to be handed to the decoder. task_dat2_sequence_load
+             * does the same. */
+            if( framemap )
+                frames[i] = RSCache_Dat2FrameNewDecodeProfile(
+                    RSCache_Dat2DiskProfile(disk),
+                    frame_ids[i],
+                    framemap,
+                    files->files[pos],
+                    files->file_sizes[pos]);
+        }
+        RSCache_FileListFree(files);
+        RSCache_Dat2DiskArchiveFree(archive);
+
+        if( !frames[i] )
+        {
+            fprintf(
+                stderr, "rs2012_face_priorities: cannot load frame %d\n", frame_ids[i]);
+            goto done;
+        }
+        delays[i] = 1;
+    }
+
+    out = ToriDraw_AnimationFromRSCache(
+        framemap, (struct RSCache_Dat2Frame const* const*)frames, delays, frame_count, 0);
+
+done:
+    if( frames )
+        for( int i = 0; i < frame_count; i++ )
+            RSCache_Dat2FrameFree(frames[i]);
+    free(frames);
+    free(delays);
+    RSCache_Dat2FramemapFree(framemap);
+    RSCache_Dat2DiskFree(disk);
+    return out;
 }
 
 static uint8_t*
@@ -205,6 +338,237 @@ strip_textures(struct ToriDraw_Model* m)
     if( m->face_texture_coords )
         for( int f = 0; f < m->face_count; f++ )
             m->face_texture_coords[f] = (faceint_t)-1;
+}
+
+/* --- lane textures -------------------------------------------------------
+ *
+ * The viewer draws through the real raster, and the raster reads the scene's
+ * texture map — so without one every textured face is skipped and a textured
+ * model renders as holes. The client fills that map from the packed cache
+ * through the provider and the task queue, which is far too much machinery to
+ * drag in here.
+ *
+ * These read the bake's own output instead: the sprite BMPs and the texture
+ * records in the content tree, which is exactly what the cache packer consumes.
+ * One caveat worth knowing when comparing a viewer frame against the client:
+ * the client re-quantises through the pack palette and applies gamma 0.8, so
+ * its texels are slightly darker. Both sides of an A/B here see the same
+ * texels, so a difference between them is the kernel and not the loader.
+ */
+
+/** 32bpp bottom-up BMP, the only shape rs2012_material_bake writes. */
+static int*
+view_bmp_read(const char* path, int* out_w, int* out_h)
+{
+    FILE* file = fopen(path, "rb");
+    unsigned char header[54];
+    int* pixels = NULL;
+    long offset, w, h;
+
+    if( !file )
+        return NULL;
+    if( fread(header, 1, sizeof(header), file) != sizeof(header) || header[0] != 'B' ||
+        header[1] != 'M' || header[28] != 32 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    offset = (long)header[10] | ((long)header[11] << 8) | ((long)header[12] << 16) |
+             ((long)header[13] << 24);
+    w = (long)header[18] | ((long)header[19] << 8) | ((long)header[20] << 16) |
+        ((long)header[21] << 24);
+    h = (long)header[22] | ((long)header[23] << 8) | ((long)header[24] << 16) |
+        ((long)header[25] << 24);
+    if( w <= 0 || h <= 0 || w > 4096 || h > 4096 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    pixels = (int*)malloc((size_t)w * (size_t)h * sizeof(int));
+    if( !pixels || fseek(file, offset, SEEK_SET) != 0 )
+    {
+        free(pixels);
+        fclose(file);
+        return NULL;
+    }
+    for( long y = h - 1; y >= 0; y-- )
+    {
+        for( long x = 0; x < w; x++ )
+        {
+            unsigned char bgra[4];
+            if( fread(bgra, 1, 4, file) != 4 )
+            {
+                free(pixels);
+                fclose(file);
+                return NULL;
+            }
+            pixels[y * w + x] = (int)(((uint32_t)bgra[3] << 24) | ((uint32_t)bgra[2] << 16) |
+                                      ((uint32_t)bgra[1] << 8) | (uint32_t)bgra[0]);
+        }
+    }
+    fclose(file);
+    *out_w = (int)w;
+    *out_h = (int)h;
+    return pixels;
+}
+
+/**
+ * Value of `key=` in one texture record, or NULL.
+ *
+ * `block` points just past the `[name]` header; the search stops at the next
+ * one. Without that bound every lookup succeeds by finding the key in a later
+ * record, and every texture reads as carrying every flag.
+ */
+static const char*
+view_record_field(const char* block, const char* key)
+{
+    static char value[128];
+    const char* p = block;
+    const char* end = strstr(block, "\n[");
+    size_t klen = strlen(key);
+
+    while( p && *p && (!end || p < end) )
+    {
+        const char* eol = strchr(p, '\n');
+        size_t len = eol ? (size_t)(eol - p) : strlen(p);
+        if( len > klen && strncmp(p, key, klen) == 0 && p[klen] == '=' )
+        {
+            size_t vlen = len - klen - 1;
+            if( vlen >= sizeof(value) )
+                vlen = sizeof(value) - 1;
+            memcpy(value, p + klen + 1, vlen);
+            value[vlen] = '\0';
+            while( vlen > 0 && (value[vlen - 1] == '\r' || value[vlen - 1] == ' ') )
+                value[--vlen] = '\0';
+            return value;
+        }
+        p = eol ? eol + 1 : NULL;
+    }
+    return NULL;
+}
+
+static char*
+view_read_file(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    long size;
+    char* text;
+
+    if( !file )
+        return NULL;
+    fseek(file, 0, SEEK_END);
+    size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    if( size < 0 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    text = (char*)malloc((size_t)size + 1);
+    if( !text )
+    {
+        fclose(file);
+        return NULL;
+    }
+    if( fread(text, 1, (size_t)size, file) != (size_t)size )
+    {
+        free(text);
+        fclose(file);
+        return NULL;
+    }
+    text[size] = '\0';
+    fclose(file);
+    return text;
+}
+
+/**
+ * Publish every lane texture into the scene map, from `<tree>`.
+ * Returns how many landed, and reports the flags so a run says on the record
+ * which kernel each texture will take.
+ */
+static int
+view_load_lane_textures(struct ToriDraw_Scene* scene, const char* tree, bool verbose)
+{
+    char path[2048];
+    char* records;
+    char* index;
+    int loaded = 0, alpha_count = 0, modulate_count = 0, detail_count = 0;
+
+    snprintf(path, sizeof(path), "%s/ported/rs2012_qbd_td/textures/texture_0.texture", tree);
+    records = view_read_file(path);
+    snprintf(path, sizeof(path), "%s/ported/rs2012_qbd_td/textures/texture_0.compack", tree);
+    index = view_read_file(path);
+    if( !records || !index )
+    {
+        fprintf(stderr, "rs2012_model_view: no lane textures under %s\n", tree);
+        free(records);
+        free(index);
+        return 0;
+    }
+
+    for( char* line = strtok(index, "\r\n"); line; line = strtok(NULL, "\r\n") )
+    {
+        char name[128], block_head[160];
+        int id;
+        char* block;
+        const char* sprite_field;
+        int width = 0, height = 0;
+        int* texels;
+        struct ToriDraw_Texture* texture;
+
+        if( sscanf(line, "%d=%127s", &id, name) != 2 )
+            continue;
+
+        snprintf(block_head, sizeof(block_head), "[%s]\n", name);
+        block = strstr(records, block_head);
+        if( !block )
+            continue;
+        block += strlen(block_head);
+
+        sprite_field = view_record_field(block, "sprite1");
+        if( !sprite_field )
+            continue;
+
+        snprintf(path, sizeof(path), "%s/sprites/ported/rs2012_qbd_td/%s/0.bmp", tree, name);
+        texels = view_bmp_read(path, &width, &height);
+        if( !texels )
+            continue;
+
+        texture = (struct ToriDraw_Texture*)calloc(1, sizeof(*texture));
+        if( !texture )
+        {
+            free(texels);
+            continue;
+        }
+        texture->texels = texels;
+        texture->width = width;
+        texture->height = height;
+        texture->alpha_blended = view_record_field(block, "alpha") != NULL;
+        texture->modulate = view_record_field(block, "modulate") != NULL;
+        texture->detail = view_record_field(block, "detail") != NULL;
+        /* An alpha texture is never opaque; otherwise trust the record. */
+        texture->opaque = !texture->alpha_blended &&
+                          view_record_field(block, "opaque") != NULL;
+        ToriDraw_SceneSetTexture(scene, id, texture);
+        loaded++;
+        if( texture->alpha_blended )
+            alpha_count++;
+        if( texture->modulate )
+            modulate_count++;
+        if( texture->detail )
+            detail_count++;
+    }
+
+    if( verbose )
+        fprintf(
+            stderr,
+            "rs2012_model_view: %d lane textures (%d alpha, %d modulate)\n",
+            loaded,
+            alpha_count,
+            modulate_count);
+    free(records);
+    free(index);
+    return loaded;
 }
 
 /**
@@ -560,6 +924,7 @@ main(int argc, char** argv)
     double zoom = 1.0;
     int tile = 320;
     bool keep_textures = false;
+    const char* lane_textures = NULL;
     bool ignore_priorities = false;
     bool stats = false;
     bool do_score = false;
@@ -572,6 +937,14 @@ main(int argc, char** argv)
     long order_check_covered = 0;
     const char* zbuffer_path = "model_view_zbuffer.bmp";
     const char* diff_path = NULL;
+    const char* cache_dir = NULL;
+    const char* frames_arg = NULL;
+    struct ToriDraw_Animation* anim = NULL;
+    int* frame_ids = NULL;
+    int frame_id_count = 0;
+    /* The QBD is near-black geometry. On a black clear it reads as an empty
+     * sheet, which is the same as producing nothing. */
+    int background = 0x202430;
     bool have_focus = false;
     int focus[3] = { 0, 0, 0 };
     int focus_radius = 0;
@@ -635,6 +1008,13 @@ main(int argc, char** argv)
             tile = atoi(argv[++i]);
         else if( strcmp(argv[i], "--textures") == 0 )
             keep_textures = true;
+        else if( strcmp(argv[i], "--lane-textures") == 0 && i + 1 < argc )
+        {
+            /* Implies --textures: keeping the references is pointless without
+             * a texture map, and loading a map is pointless without them. */
+            lane_textures = argv[++i];
+            keep_textures = true;
+        }
         else if( strcmp(argv[i], "--ignore-priorities") == 0 )
             ignore_priorities = true;
         else if( strcmp(argv[i], "--stats") == 0 )
@@ -683,6 +1063,12 @@ main(int argc, char** argv)
             }
             have_focus = true;
         }
+        else if( strcmp(argv[i], "--cache") == 0 && i + 1 < argc )
+            cache_dir = argv[++i];
+        else if( strcmp(argv[i], "--frames") == 0 && i + 1 < argc )
+            frames_arg = argv[++i];
+        else if( strcmp(argv[i], "--bg") == 0 && i + 1 < argc )
+            background = (int)strtol(argv[++i], NULL, 16);
         else if( strcmp(argv[i], "--radius") == 0 && i + 1 < argc )
             focus_radius = atoi(argv[++i]);
         else
@@ -732,6 +1118,37 @@ main(int argc, char** argv)
         drop_priorities(model);
     if( !keep_textures )
         strip_textures(model);
+
+    /* Pose before framing: the animation moves the subject, so the centre and
+     * the radius have to be measured on the pose that will actually be drawn.
+     * Lighting is already baked into the face colours above and does not move
+     * with the vertices, which is what lets the pose come after it. */
+    if( cache_dir && frames_arg )
+    {
+        int capacity = 1;
+        for( const char* c = frames_arg; *c; c++ )
+            if( *c == ',' )
+                capacity++;
+        frame_ids = (int*)malloc((size_t)capacity * sizeof(int));
+        if( !frame_ids )
+            goto done;
+        {
+            const char* s2 = frames_arg;
+            while( *s2 )
+            {
+                frame_ids[frame_id_count++] = (int)strtol(s2, (char**)&s2, 10);
+                if( *s2 == ',' )
+                    s2++;
+            }
+        }
+        anim = load_animation_from_cache(cache_dir, frame_ids, frame_id_count);
+        if( !anim )
+            goto done;
+        ToriDraw_ModelCaptureOriginalVertices(model);
+        ToriDraw_ModelAnimateReset(model);
+        if( anim->frames[0].length > 0 )
+            ToriDraw_ModelAnimateFrame(model, anim->base, &anim->frames[0]);
+    }
 
     recenter_model(model, have_focus ? focus : NULL);
 
@@ -829,6 +1246,9 @@ main(int argc, char** argv)
     if( !scene )
         goto done;
 
+    if( lane_textures && view_load_lane_textures(scene, lane_textures, true) == 0 )
+        fprintf(stderr, "rs2012_model_view: textured faces will be skipped\n");
+
     /* The depth test is a per-model opt-in, so the switch is on the model, not
      * on the renderer. Kept as a base + a bit so --compare can flip it between
      * two rasters of one projection. */
@@ -888,7 +1308,8 @@ main(int argc, char** argv)
         };
         int cull;
 
-        memset(tile_pixels, 0, (size_t)tile * (size_t)tile * sizeof(int));
+        for( int i2 = 0; i2 < tile * tile; i2++ )
+            tile_pixels[i2] = background;
         cull = ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera);
         if( cull != TORIDRAW_CULL_VISIBLE )
             fprintf(stderr, "rs2012_model_view: yaw %d culled (code %d)\n", yaw, cull);
@@ -959,7 +1380,8 @@ main(int argc, char** argv)
                  * scratch: the raster families are allowed to write over the
                  * screen-vertex arrays they consume, so a second pass off the
                  * first pass's leftovers would not be the same picture. */
-                memset(zbuffer_tile, 0, (size_t)tile * (size_t)tile * sizeof(int));
+                for( int i2 = 0; i2 < tile * tile; i2++ )
+                    zbuffer_tile[i2] = background;
                 model->flags = (uint8_t)(model_flags_base | TORIDRAW_MODEL_FLAG_ZBUFFER);
                 if( ToriDraw_RenderModel1Project(hnd, scene, &pos, &vp, &camera) ==
                         TORIDRAW_CULL_VISIBLE &&
@@ -1121,6 +1543,8 @@ done:
     free(id_zbuf);
     free(z_zbuf);
     free(score_pixels);
+    free(frame_ids);
+    ToriDraw_AnimationFree(anim);
     free(reference_pixels);
     free(reference_tile);
     free(zbuffer_pixels);

@@ -214,6 +214,12 @@ emit_texture_lines(
      * cache round-trips unchanged. */
     if( texture->alpha_blended )
         cp_lines_addf(lines, "alpha=yes");
+    /* Extension: modulate the texel by the face colour. Same byte as alpha. */
+    if( texture->modulate )
+        cp_lines_addf(lines, "modulate=yes");
+    /* Extension: use as a detail map over the face colour. Same byte. */
+    if( texture->detail )
+        cp_lines_addf(lines, "detail=yes");
     /* One line per sprite: its id, its type and its transform travel together
      * because the three arrays are parallel and a hand-edit that desynchronised
      * them would be silently wrong. */
@@ -352,6 +358,10 @@ read_texture_block(
             ok = cp_parse_bool(value, &texture.opaque);
         else if( strcmp(key, "alpha") == 0 )
             ok = cp_parse_bool(value, &texture.alpha_blended);
+        else if( strcmp(key, "modulate") == 0 )
+            ok = cp_parse_bool(value, &texture.modulate);
+        else if( strcmp(key, "detail") == 0 )
+            ok = cp_parse_bool(value, &texture.detail);
         else if( strcmp(key, "direction") == 0 )
             ok = cp_parse_int(value, &texture.animation_direction);
         else if( strcmp(key, "speed") == 0 )

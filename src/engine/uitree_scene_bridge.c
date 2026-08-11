@@ -1251,6 +1251,8 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     texture->height = rs->height;
     texture->opaque = rs->opaque;
     texture->alpha_blended = rs->alpha_blended;
+    texture->modulate = rs->modulate;
+    texture->detail = rs->detail;
     texture->animation_direction = rs->animation_direction;
     texture->animation_speed = rs->animation_speed;
     return texture;

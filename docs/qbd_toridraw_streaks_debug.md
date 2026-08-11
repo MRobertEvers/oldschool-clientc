@@ -351,14 +351,57 @@ cc -std=c11 -O1 -g -I3rd/toridraw \
 `3rd/toridraw/toridraw_scanline_parity_test.c` still passes on scalar / sse2 /
 sse41 / avx2.
 
+## The platform strip: paint order, not the rasteriser
+
+**Fixed** (`src/painters/painters_bucket.u.c`). The one-tile-wide strip of teal
+arena floor running up over the level-1 platform is `painter_paint_bucket`
+emitting plane-0 terrain out of distance order, not a raster or texture fault.
+
+The chain, measured rather than guessed:
+
+- `TORIRS_PIXOWNER=355,375,150,250` named the owner of the teal pixels:
+  `TERRAIN tile=49,58 L0` and `tile=49,60 L0` — plane-0 floor on the camera
+  column (`camTile=49,43`), drawn over the platform, which is a plane-0 **loc**,
+  not level-1 terrain.
+- `TORIRS_WEDGELOG` showed why. Column `x=49` emitted normally from distance 31
+  down to 23 (paints 265–458), then **stopped for 282 paints** and resumed only
+  at paint 740 — immediately after the east platform loc (`x[50,61] z[48,65]`,
+  emitted at paint 729, five tiles from the eye). Its floor at distance 15–22
+  then landed on top of that loc.
+- The floor is two 12×18 plane-0 locs meeting on column 49/50. A tile with
+  `sx == camera_sx` satisfies both `x <= cameraX` and `x >= cameraX`, so it is
+  gated on both horizontal neighbours; `(50,z)` belongs to the *other* loc, so
+  `(49,z)` carries no `SPAN_FLAG_EAST` and the reference span exception cannot
+  fire; and `(50,z)` cannot reach `PAINT_STEP_DONE` until its 216-tile loc is
+  released, which happens at that loc's nearest footprint tile.
+
+The fix is the seam exception documented in
+[painter_bucket_vs_world3d.md](painter_bucket_vs_world3d.md#the-seam-exception-bucket-only):
+a neighbour whose only remaining work is scenery that reaches *closer to the eye*
+than the tile being gated has nothing left to protect, because such a loc is
+drawn nearer than that tile regardless.
+
+Pinned by `test_seam_between_two_large_locs_keeps_the_sweep` in
+`src/painters/test/painters_test_terrain_levels.c` (`make -C src
+test-painters-terrain-levels`), which reproduces the topology in 32×32 tiles:
+before the fix the plane-0 sweep breaks into 3 monotone runs and emits floor at
+distance 19 after the loc; after it, one run and nothing farther than the loc's
+own ring. In the arena the same measurement goes from 5 runs to **1** over 768
+plane-0 floor emissions, and the strip rect has no terrain owner at all.
+
+The full walkthrough, with figures, is [LARGE_LOCS_PAINTER.md](../LARGE_LOCS_PAINTER.md).
+
+`TORIRS_PAINTER_W3D=1` (added while chasing this) runs `painter_paint_world3d`
+in the live client, which is how a traversal fault is told from a geometry one.
+
 ## Next steps (suggested)
 
 1. **Visual confirmation in the arena is still outstanding** — everything above
    is measured against the reference mapping in a harness, not seen on screen.
    Enter the QBD arena at the angle that showed streaks and check.
-2. Re-check the **platform strip** separately if it remains (large flat models
-   ~8509 faces draw with `drawn_textured: 0` in logs — likely a different
-   subsystem than QBD streaks).
+2. ~~Re-check the **platform strip** separately if it remains~~ — done, and it
+   was a different subsystem: the painter's traversal, not the raster. See
+   "The platform strip" above.
 3. Re-check **floor tiles vanishing**: the `w_n == 0` block that used to be
    drawn as a fabricated flat gradient is now drawn per pixel, which is the
    horizon band. If floors changed, this is why.

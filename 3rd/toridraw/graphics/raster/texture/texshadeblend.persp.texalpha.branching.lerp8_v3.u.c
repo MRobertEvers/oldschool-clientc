@@ -38,7 +38,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3_ordered(
     int shade7bit_b,
     int shade7bit_c,
     int* RESTRICT texels,
-    int texture_width)
+    int texture_width,
+    const struct TexSpanTint* RESTRICT tint)
 {
     if( y0 > screen_height )
         return;
@@ -194,7 +195,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3_ordered(
                 shade8bit_edge_ish8,
                 shade8bit_xhat_ish8,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -225,7 +227,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3_ordered(
                 shade8bit_edge_ish8,
                 shade8bit_xhat_ish8,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -261,7 +264,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3_ordered(
                 shade8bit_edge_ish8,
                 shade8bit_xhat_ish8,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_AB_ish16 += step_edge_x_AB_ish16;
@@ -292,7 +296,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3_ordered(
                 shade8bit_edge_ish8,
                 shade8bit_xhat_ish8,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
 
             edge_x_AC_ish16 += step_edge_x_AC_ish16;
             edge_x_BC_ish16 += step_edge_x_BC_ish16;
@@ -333,7 +338,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
     int shade7bit_b,
     int shade7bit_c,
     int* RESTRICT texels,
-    int texture_width)
+    int texture_width,
+    const struct TexSpanTint* RESTRICT tint)
 {
     // either.
     // y0, y1, y2,
@@ -375,7 +381,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
                 shade7bit_b,
                 shade7bit_c,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
         }
         // y0, y2, y1,
         else
@@ -408,7 +415,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
                 shade7bit_c,
                 shade7bit_b,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
         }
     }
     else if( y1 <= y2 )
@@ -444,7 +452,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
                 shade7bit_c,
                 shade7bit_a,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
         }
         // y1, y0, y2,
         else
@@ -477,7 +486,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
                 shade7bit_a,
                 shade7bit_c,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
         }
     }
     else
@@ -513,7 +523,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
                 shade7bit_a,
                 shade7bit_b,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
         }
         // y2, y1, y0,
         else
@@ -546,7 +557,8 @@ raster_texshadeblend_persp_texalpha_branching_lerp8_v3(
                 shade7bit_b,
                 shade7bit_a,
                 texels,
-                texture_width);
+                texture_width,
+                tint);
         }
     }
 }

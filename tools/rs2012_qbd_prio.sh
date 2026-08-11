@@ -14,18 +14,21 @@
 # Extra arguments are passed to rs2012_face_priorities, so the sampling
 # density, the elevation range and --bulk-flex are all reachable from here.
 #
-# Outputs land in $OUT (default build/qbd_prio):
-#   rs2012_model_*.ob3        the re-authored models, alongside not over
-#   <form>_before.bmp/.png    the lane model as it ships today
-#   <form>_after.bmp/.png     the same geometry with authored bands
-#   <form>_after_err.bmp/.png sort-error mask: red = a surface behind the truth
+# Outputs land in $OUT (default docs/rs2012_qbd_priorities/run), under docs
+# rather than build/ because they are the record of what was authored and build/
+# is not tracked -- a result nobody else can see is not a result:
+#   rs2012_model_*.ob3      the re-authored models, alongside not over
+#   <form>.report.txt       what the solve did, per form
+#   <form>_before.png       the lane model as it ships today
+#   <form>_after.png        the same geometry with authored bands
+#   <form>_after_err.png    sort-error mask: red = a surface behind the truth
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo"
 
 LANE="${LANE:-OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td}"
-OUT="${OUT:-build/qbd_prio}"
+OUT="${OUT:-docs/rs2012_qbd_priorities/run}"
 FORMS="${FORMS:-default crystal hardened soul worm}"
 
 # Each form is the npc's model1 (+ model2 where it has one), because the client
@@ -44,7 +47,11 @@ models_for() {
 # The client's own camera pitch clamp (app.c: 128..383 of 2048) is what makes
 # the sheet representative; scoring from underneath would report breakage no
 # player can see.
-VIEW_ARGS="${VIEW_ARGS:---angles 8 --pitch 190,300,383 --tile 300}"
+# Framed on the head at 420px a tile, on a lit background. The whole model at
+# 300px is a dark sliver on black — technically a render, unreadable as
+# evidence, and the differences the bands make are all in the head anyway.
+VIEW_ARGS="${VIEW_ARGS:---angles 3 --pitch 300 --tile 420 --yaw0 1300 --bg 202430}"
+HEAD_FOCUS="${HEAD_FOCUS:---focus -31,-243,261 --radius 270}"
 
 toolchain="$repo/toolchain/mingw64/bin"
 if [ -d "$toolchain" ]; then
@@ -79,11 +86,19 @@ for form in $FORMS; do
         after+=(--model "$OUT/rs2012_model_$m.ob3")
     done
 
-    "$prio" "${in_args[@]}" "${out_args[@]}" "$@" >"$OUT/$form.report.txt"
+    # --report always: the per-form file is the only record of what the solve
+    # actually did, and a run whose reports are empty cannot be reviewed later.
+    "$prio" "${in_args[@]}" "${out_args[@]}" --report "$@" >"$OUT/$form.report.txt"
 
-    b=$(score "$view" "${before[@]}" --out "$OUT/${form}_before.bmp" $VIEW_ARGS --score)
+    # Head framing for the three big forms only: the soul and the worm are small
+    # models with no neck, and the head focus would frame empty space.
+    focus=""
+    case "$form" in default|crystal|hardened) focus="$HEAD_FOCUS" ;; esac
+
+    b=$(score "$view" "${before[@]}" --out "$OUT/${form}_before.bmp" \
+        --score-out "$OUT/${form}_before_err.bmp" $VIEW_ARGS $focus --score)
     a=$(score "$view" "${after[@]}" --out "$OUT/${form}_after.bmp" \
-        --score-out "$OUT/${form}_after_err.bmp" $VIEW_ARGS)
+        --score-out "$OUT/${form}_after_err.bmp" $VIEW_ARGS $focus)
     printf '%-10s %-34s %s\n' "$form" "${b%%,*}" "${a%%,*}"
 done
 
@@ -97,6 +112,7 @@ except ImportError:
 out = pathlib.Path(sys.argv[1])
 for bmp in out.glob("*.bmp"):
     Image.open(bmp).save(bmp.with_suffix(".png"))
+    bmp.unlink()   # the BMP is the renderer's native output; PNG is what ships
 PY
 
 echo "models and sheets in $OUT; per-form reports in $OUT/<form>.report.txt"

@@ -1281,6 +1281,52 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
+         * the given main-loop frame.
+         *
+         * A content lane's debug procs are the only entry to an encounter that
+         * no click can reach — the QBD arena is behind `[debugproc,rs2012qbd]`
+         * — and a headless run has no chatbox to type into. The frame number
+         * matters: the command is a server script call, so it has to land after
+         * login, which SIM_CLICK_AT's own comment explains at length. */
+        {
+            static char const* cmd_cursor = NULL;
+            static int cmd_init = 0;
+            if( !cmd_init )
+            {
+                cmd_init = 1;
+                cmd_cursor = getenv("TORIRS_SIM_CMD");
+            }
+            while( cmd_cursor && *cmd_cursor )
+            {
+                char* end = NULL;
+                long const at = strtol(cmd_cursor, &end, 0);
+                char const* body;
+                size_t len;
+
+                if( !end || *end != ',' )
+                {
+                    cmd_cursor = NULL;
+                    break;
+                }
+                if( frame_count < at )
+                    break; /* not yet; re-checked next frame */
+
+                body = end + 1;
+                len = strcspn(body, ";");
+                {
+                    char text[128];
+                    if( len >= sizeof(text) )
+                        len = sizeof(text) - 1;
+                    memcpy(text, body, len);
+                    text[len] = '\0';
+                    App_SendCommand(&app, text);
+                    fprintf(stderr, "sim_cmd: frame %ld sent ::%s\n", (long)frame_count, text);
+                }
+                cmd_cursor = body[len] == ';' ? body + len + 1 : NULL;
+            }
+        }
+
         /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
          * inject a mouse click at the given main-loop frame — the
          * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs

@@ -1609,6 +1609,24 @@ App_NoteFrameTime(
     uint64_t frame_us);
 
 /**
+ * Send a `::` command as if it had been typed into the chatbox.
+ *
+ * The debug procs a content lane defines — `[debugproc,rs2012qbd]` and friends
+ * — are the only way into an encounter that no walk or click can reach, and a
+ * headless harness has no chatbox. `text` is the command WITHOUT the leading
+ * `::`, matching the wire format.
+ *
+ * Returns false until the connection reaches TORIRS_NET_GAME: the command is a
+ * server-side script call, so before login there is nothing to send it to. The
+ * world renders well before that point, so a caller that fires once on a frame
+ * number it guessed will send nothing at all — retry on false.
+ */
+bool
+App_SendCommand(
+    struct App* app,
+    char const* text);
+
+/**
  * One loop-body iteration: pump tasks, run pending 20ms logic ticks
  * (client clock, widget timers, animations), then the per-frame interaction
  * pass and emit rebuild. Returns non-zero when the frame needs re-rendering.
