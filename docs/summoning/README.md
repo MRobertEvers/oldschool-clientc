@@ -5,6 +5,10 @@ only a beak, claw, or other small untextured fragment, why an early interface
 fix did not repair the familiar in the 3D world, and what must remain intact for
 the models to render correctly.
 
+For the separate investigation of the missing pouch/call visual, including
+period wiki captures and the exact revision-530 graphic IDs, see
+[`SPAWN_ANIMATION_RESEARCH.md`](SPAWN_ANIMATION_RESEARCH.md).
+
 ## Symptoms
 
 The imported familiar models were valid. Independent model review renders

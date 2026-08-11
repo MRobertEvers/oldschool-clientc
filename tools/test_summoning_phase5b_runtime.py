@@ -39,6 +39,7 @@ DREAD_HEAD_MODEL = 120001
 DREAD_POUCH_MODEL = 120002
 DREAD_READY_SEQ = 23000
 DREAD_WALK_SEQ = 23001
+DREAD_SUMMON_SPOTANIM = 20001
 
 SIDEBAR_GROUP = 969
 SIDEBAR_TITLE = (SIDEBAR_GROUP << 16) | 1
@@ -299,9 +300,11 @@ def static_contract(expect: object) -> None:
         "Dreadfowl debug hook bypasses the real pouch interaction",
     )
     check(
-        "if_setnpchead(summoning_familiar:model, $npc);" in script
+        "~summoning_familiar_body_model(%summoning_familiar_type)" in script
+        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in script
+        and "if_setanim(summoning_familiar:model, $ready_seq);" in script
         and 'if_settext(summoning_familiar:title, $name);' in script,
-        "sidebar does not bind the selected familiar NPC head and title",
+        "sidebar does not bind the selected familiar body, ready sequence, and title",
     )
     check(
         "npc_add(movecoord(coord, 1, 0, 0), $npc, 0);" in script
@@ -365,6 +368,10 @@ def assert_actual_pouch_path(log: str, expect: object) -> None:
         "message_game: You summon a Dreadfowl." in log,
         "actual pouch: canonical OPHELD4 did not complete Dreadfowl summon",
     )
+    check(
+        f"entity_spotanim: combine id={DREAD_SUMMON_SPOTANIM}" in log,
+        "actual pouch: Dreadfowl did not render the small familiar-arrival graphic",
+    )
     check("OPHELD5 obj=46000" not in log, "actual pouch: dynamic Summon was misrouted to OPHELD5")
     check(
         "message_game: You drop the Dreadfowl pouch." not in log,
@@ -396,15 +403,9 @@ def assert_live_dreadfowl(
         f"model_fmt: id={DREAD_BODY_MODEL} " in log,
         f"{label}: Dreadfowl body model {DREAD_BODY_MODEL} was not loaded by the client",
     )
-    check(
-        f"model_fmt: id={DREAD_HEAD_MODEL} " in log,
-        f"{label}: Dreadfowl sidebar head model {DREAD_HEAD_MODEL} was not loaded",
-    )
-    check(
-        re.search(r"npc_head: npc=26000 component=0x03c90002 scene=\d+ applied=1", log)
-        is not None,
-        f"{label}: sidebar did not compose and apply Dreadfowl NPC head 26000",
-    )
+    # The familiar tab intentionally uses the complete animated body model,
+    # not the NPC chathead. The body-model load above covers both world and UI;
+    # the final draw-list assertion below proves the UI scene received it.
     check(
         f"if_settext: com={SIDEBAR_TITLE} text='Dreadfowl' applied=1" in log,
         f"{label}: sidebar title was not synchronized to Dreadfowl",
@@ -453,6 +454,10 @@ def assert_cadence(
 
 def assert_sidebar_buttons(log: str, expect: object) -> None:
     check = expect
+    check(
+        f"entity_spotanim: combine id={DREAD_SUMMON_SPOTANIM}" in log,
+        "sidebar buttons: Call did not replay the small familiar-arrival graphic",
+    )
     check(
         "clickdbg: send op1 target=0xa10063 sub=-1 state=2" in log,
         "sidebar buttons: did not open the real Summoning sidebar tab",

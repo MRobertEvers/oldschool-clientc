@@ -86,6 +86,7 @@ def main() -> int:
                 "TORIRS_CLICK_DEBUG": "1",
                 "TORIRS_MINIMENU_DEBUG": "1",
                 "TORIRS_SOUND_DEBUG": "1",
+                "TORIRS_ANIM_DEBUG": "1",
             }
         )
         result = subprocess.run(
@@ -128,6 +129,10 @@ def main() -> int:
         "stat-24 transmit did not redraw the orb from 1 point to 0",
     )
     expect("message_game: You summon a Spirit wolf." in result.stdout, "setup did not summon")
+    expect(
+        "entity_spotanim: combine id=20002" in result.stdout,
+        "Spirit wolf summon/call did not render the large familiar-arrival graphic",
+    )
     expect(
         "clickdbg: send op1 target=0xa00040 sub=-1 state=2" in result.stdout,
         "orb did not send its real IF_BUTTON1 packet",

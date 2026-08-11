@@ -182,10 +182,12 @@ def main() -> int:
         "Dreadfowl call/dismiss handlers are absent",
     )
     expect(
-        "if_setnpchead(summoning_familiar:model, $npc);" in source
+        "~summoning_familiar_body_model(%summoning_familiar_type)" in source
+        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in source
+        and "if_setanim(summoning_familiar:model, $ready_seq);" in source
         and "if_settext(summoning_familiar:title, $name);" in source
         and "npc_20000" not in familiar_cs2,
-        "sidebar portrait/name is not selected by persisted familiar type",
+        "sidebar body model, animation, or name is not selected by persisted familiar type",
     )
     for token in (
         "^summoning_dreadfowl_level = 4",
