@@ -127,6 +127,8 @@ status_text(int status)
         return "OK";
     case 204:
         return "No Content";
+    case 304:
+        return "Not Modified";
     case 400:
         return "Bad Request";
     case 404:
@@ -145,7 +147,10 @@ send_response(
     int fd,
     struct HttpResponse const* res)
 {
-    char header[512];
+    char header[768];
+    /* A 304 carries no body by definition (RFC 7232 4.1), and the length is
+     * spelled 0 rather than omitted so keep-alive framing stays unambiguous. */
+    int body_len = res->status == 304 ? 0 : res->body_len;
     int header_len = snprintf(
         header,
         sizeof(header),
@@ -154,22 +159,108 @@ send_response(
         "Content-Length: %d\r\n"
         /* The page may be opened from a file:// URL or another dev server
          * while this one only answers IO; without these the browser drops the
-         * response before the harness ever sees it. */
+         * response before the harness ever sees it. Expose-Headers is what
+         * lets the harness read ETag back off a cross-origin response — it is
+         * hidden from script otherwise, and a validator nobody can read is the
+         * same as no validator. */
         "Access-Control-Allow-Origin: *\r\n"
         "Access-Control-Allow-Headers: *\r\n"
         "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
-        "Cache-Control: no-store\r\n"
+        "Access-Control-Expose-Headers: ETag, Content-Length\r\n"
+        "%s%s%s"
+        "Cache-Control: %s\r\n"
         "Connection: keep-alive\r\n"
         "\r\n",
         res->status,
         status_text(res->status),
         res->content_type[0] ? res->content_type : "application/octet-stream",
-        res->body_len);
+        body_len,
+        res->etag[0] ? "ETag: " : "",
+        res->etag[0] ? res->etag : "",
+        res->etag[0] ? "\r\n" : "",
+        /* no-store on anything without a validator: an IO batch is a POST
+         * result and a stats page is a snapshot, neither of which may be
+         * reused. A validated representation is the opposite case — it must be
+         * stored to be revalidated. */
+        res->etag[0] ? "no-cache" : "no-store");
 
+    if( header_len < 0 || header_len >= (int)sizeof(header) )
+        return -1;
     if( write_all(fd, header, header_len) != 0 )
         return -1;
-    if( res->body_len > 0 && write_all(fd, res->body, res->body_len) != 0 )
+    if( body_len > 0 && write_all(fd, res->body, body_len) != 0 )
         return -1;
+    return 0;
+}
+
+char const*
+HttpRequest_Header(
+    struct HttpRequest const* req,
+    char const* name,
+    int* len)
+{
+    size_t name_len;
+    int i;
+
+    if( len )
+        *len = 0;
+    if( !req || !req->headers || !name )
+        return NULL;
+    name_len = strlen(name);
+
+    for( i = 0; i + (int)name_len + 1 < req->headers_len; i++ )
+    {
+        int line_start = i == 0 || (i >= 2 && req->headers[i - 1] == '\n');
+        int value;
+        int end;
+
+        if( !line_start )
+            continue;
+        if( strncasecmp(req->headers + i, name, name_len) != 0 )
+            continue;
+        if( req->headers[i + name_len] != ':' )
+            continue;
+
+        value = i + (int)name_len + 1;
+        while( value < req->headers_len &&
+               (req->headers[value] == ' ' || req->headers[value] == '\t') )
+            value++;
+        end = value;
+        while( end < req->headers_len && req->headers[end] != '\r' &&
+               req->headers[end] != '\n' )
+            end++;
+        while( end > value && (req->headers[end - 1] == ' ' || req->headers[end - 1] == '\t') )
+            end--;
+        if( len )
+            *len = end - value;
+        return req->headers + value;
+    }
+    return NULL;
+}
+
+int
+HttpRequest_MatchesETag(
+    struct HttpRequest const* req,
+    char const* etag)
+{
+    int len = 0;
+    char const* value = HttpRequest_Header(req, "If-None-Match", &len);
+    size_t etag_len;
+
+    if( !value || !etag || !etag[0] )
+        return 0;
+    etag_len = strlen(etag);
+    /* "*" matches any current representation. */
+    if( len == 1 && value[0] == '*' )
+        return 1;
+    /* A comma-separated list; a exact match on any member is enough. Weak
+     * comparison is the right one for a plain GET, but nothing here emits a
+     * W/ prefix, so an exact compare is equivalent and simpler to be sure of. */
+    for( int i = 0; i < len; i++ )
+    {
+        if( i + (int)etag_len <= len && strncmp(value + i, etag, etag_len) == 0 )
+            return 1;
+    }
     return 0;
 }
 
@@ -254,6 +345,16 @@ client_try_request(
     }
     req.body = client->buf + head_len + 4;
     req.body_len = (int)content_length;
+    /* The header block, past the request line: what a conditional request's
+     * If-None-Match arrives in. */
+    {
+        char const* line_end = memmem(buf, (size_t)head_len, "\r\n", 2);
+        if( line_end )
+        {
+            req.headers = line_end + 2;
+            req.headers_len = head_len - (int)(line_end + 2 - buf);
+        }
+    }
 
     memset(&res, 0, sizeof(res));
     res.status = 404;

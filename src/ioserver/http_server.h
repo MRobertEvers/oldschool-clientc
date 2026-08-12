@@ -24,17 +24,47 @@ struct HttpRequest
     char path[HTTP_MAX_PATH];
     uint8_t const* body;
     int body_len;
+    /** The raw header block, without the request line and without the blank
+     *  line that ends it. Read it through HttpRequest_Header rather than
+     *  scanning it: header names are case-insensitive and browsers vary. */
+    char const* headers;
+    int headers_len;
 };
 
 struct HttpResponse
 {
-    int status;              /* 200, 400, 404, ... */
+    int status;              /* 200, 304, 400, 404, ... */
     char content_type[64];   /* defaults to application/octet-stream */
     void* body;              /* may be NULL */
     int body_len;
     /** When set, the server free()s body after writing it. */
     int owns_body;
+    /**
+     * Validator for this representation, sent as ETag. When set, the response
+     * is also marked `Cache-Control: no-cache` instead of `no-store` — store
+     * it, but ask every time — which is what makes a conditional request
+     * possible at all. `no-store` forbids the browser from keeping the copy it
+     * would revalidate.
+     */
+    char etag[64];
 };
+
+/**
+ * One request header's value, or NULL when absent. The returned pointer is into
+ * the request buffer and is valid for the handler call only; `len` is its
+ * length, since it is not NUL-terminated.
+ */
+char const*
+HttpRequest_Header(
+    struct HttpRequest const* req,
+    char const* name,
+    int* len);
+
+/** Does the request's If-None-Match cover `etag`? A 304 is correct when so. */
+int
+HttpRequest_MatchesETag(
+    struct HttpRequest const* req,
+    char const* etag);
 
 /**
  * Handle one request. Fill `res`; leaving it untouched sends 404.

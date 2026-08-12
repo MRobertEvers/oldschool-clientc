@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #define IO_SERVER_DEFAULT_PORT 8088
 #define IO_SERVER_DEFAULT_ROOT "build-web"
@@ -432,17 +433,50 @@ static void
 serve_file(
     struct IoServer* server,
     char const* full,
+    struct HttpRequest const* req,
     struct HttpResponse* res)
 {
     FILE* file;
     long size;
     void* data;
+    struct stat info;
+
+    /*
+     * A validator first, so a client that already has this file can be told so
+     * instead of being sent it again.
+     *
+     * mtime and size together, which is what every static server uses and is
+     * exactly as strong as the question being asked: "is the copy I fetched
+     * still the file that is there?". It is not a content hash and does not
+     * claim to be — a file rewritten within the same second at the same length
+     * would be missed, which for a manifest someone is editing by hand is a
+     * rounding error against re-reading it on every boot.
+     */
+    if( stat(full, &info) == 0 )
+    {
+        snprintf(
+            res->etag,
+            sizeof(res->etag),
+            "\"%lld-%lld\"",
+            (long long)info.st_mtime,
+            (long long)info.st_size);
+        if( HttpRequest_MatchesETag(req, res->etag) )
+        {
+            res->status = 304;
+            res->body = NULL;
+            res->body_len = 0;
+            if( server->verbose )
+                fprintf(stderr, "http: 304 %s (unchanged)\n", full);
+            return;
+        }
+    }
 
     file = fopen(full, "rb");
     if( !file )
     {
         fprintf(stderr, "http: 404 %s\n", full);
         res->status = 404;
+        res->etag[0] = '\0';
         return;
     }
     fseek(file, 0, SEEK_END);
@@ -489,7 +523,7 @@ handle_static(
         return;
     }
     snprintf(full, sizeof(full), "%s%s", server->root, rel);
-    serve_file(server, full, res);
+    serve_file(server, full, req, res);
 }
 
 /*
@@ -519,7 +553,7 @@ handle_boot_file(
         return;
     }
     snprintf(full, sizeof(full), "%s%s", server->boot_root, rel);
-    serve_file(server, full, res);
+    serve_file(server, full, req, res);
 }
 
 static void

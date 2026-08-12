@@ -1,7 +1,9 @@
 # The browser's cache: IndexedDB behind a dat2 facade
 
-> Build it with `make -C src web-idb`. The plain `make -C src web` lane is
-> unchanged and still talks to `io_server`; see [web_build.md](web_build.md).
+> Build it with `make -C src web-idb`, which also builds both servers. The
+> plain `make -C src web` lane is unchanged and still talks to `io_server`; see
+> [web_build.md](web_build.md). What each server does, and how they are run
+> together, is [WEB_SERVERS.md](WEB_SERVERS.md).
 
 The web client has always had a cache-shaped hole in it. `PlatformX_IO_LoadItem`
 is the one place the desktop build touches a file, and a browser has no file, so
@@ -29,13 +31,17 @@ storage layer is then the code the desktop build runs, including
   │   js5.c ─────────────┼─────────────┼──── emscripten socket
   │                      │             │
   │ torirs_host.js       │             │       ┌────────────────────┐
-  │   Module.torirsStore ┘             │       │ any static server  │
-  │   IndexedDB: groups, files         │◄──────┤ page + manifests   │
+  │   Module.torirsStore ┘             │       │ io_server          │
+  │   IndexedDB:                       │◄──────┤ page, module,      │
+  │     groups · files · boot          │       │ GET /boot/<path>   │
   └────────────────────────────────────┘       └────────────────────┘
 ```
 
-No `io_server`. The page needs a static file server for the module and the
-manifests, and a `js5_server` for cache contents.
+`io_server`'s `/io` route is never called on this lane — the client does not
+link the wire backend at all. It is still what should serve the page, because
+it is the only server in the tree that answers the conditional requests the
+boot files are revalidated with (see Staleness). Both processes are built by
+`make -C src web-idb`; see [WEB_SERVERS.md](WEB_SERVERS.md).
 
 ## Why not a dat2 file in MEMFS
 
@@ -112,8 +118,12 @@ Database `torirs-cache`, version 1.
 
 | store | key | value |
 | --- | --- | --- |
-| `groups` | `"<cache>|<table>|<archive>"` | `{k, c: cache, t: table, a: archive, d: ArrayBuffer}`, index `by_cache` on `c` |
-| `files` | the client's path | `{k, d: ArrayBuffer}` |
+| `groups` | `"<cache>\|<table>\|<archive>"` | `{k, c: cache, t: table, a: archive, d: ArrayBuffer}`, index `by_cache` on `c` |
+| `files` | the client's path | `{k, d: ArrayBuffer}` — the player's saved options |
+| `boot` | the config path | `{k, d: ArrayBuffer, e: ETag}` — manifest and RevConfig INIs, with the validator to revalidate them |
+
+`groups` is scoped by cache; `files` and `boot` are not, which is why the
+hydrate happens in two steps (see The boot barrier).
 
 `by_cache` is what lets the hydrate walk one generation instead of every cache
 the browser has ever held. Records are scoped by cache key (the manifest's
@@ -135,12 +145,20 @@ spinning on it — so the loop is inverted and the page drives it.
 
 ```
 runtime initialized
-  └─ torirs_web_cache_key(manifest)      C reads the manifest, names the cache
-  └─ open IndexedDB, hydrate that cache  (async, on the page)
+  └─ open IndexedDB
+  └─ hydrate `files` + `boot`            not scoped to a cache
+  └─ boot.load()                         fetch/revalidate the manifest + INIs
+  └─ torirs_web_cache_key(manifest)      C reads it, names the cache
+  └─ hydrate `groups` for that cache
   └─ torirs_web_cache_prime_begin(host, port)
   └─ setTimeout loop: torirs_web_cache_prime_step()   0 = keep going
   └─ Module.callMain(argv)               main() starts, cache underneath it
 ```
+
+The order looks circular and is not: the cache records are keyed by cache name,
+the name is in the manifest, and the manifest is a boot file that must be
+revalidated first. Hence two hydrate steps rather than one. The wire lane runs
+the same sequence and stops after `boot.load()`.
 
 **This cannot be a `preRun` run-dependency**, which is the obvious shape and the
 one that was tried first. `preRun` runs *before* `initRuntime`, so a dependency
@@ -185,6 +203,58 @@ The warm figure is the point of the whole design: 208 bytes of network traffic
 to validate 23 reference tables against the master, and not one archive
 re-fetched.
 
+## Staleness
+
+Three kinds of thing are cached in the browser, and each is kept current a
+different way, because each has a different notion of "current".
+
+### Cache archives — the protocol already does it
+
+Nothing was added here; JS5's design is the staleness check.
+
+- `255/255`, the master index, is **always** fetched from the server. Never
+  read locally, on any boot.
+- Every stored reference table is checked against the master's CRC and version
+  for that archive. A mismatch re-downloads it.
+- Every stored group is checked against its reference table entry's CRC before
+  it is used. A mismatch re-downloads it.
+
+So a cache repacked on the server is picked up on the next page load, at the
+granularity of what actually changed. The 208-byte warm boot above *is* the
+staleness check — 23 reference tables validated against a freshly fetched
+master, and nothing else transferred.
+
+The server side of the same question — what happens when the cache changes
+while `js5_server` is running — is in [WEB_SERVERS.md](WEB_SERVERS.md).
+
+### Boot configuration — conditional requests
+
+The manifest and the RevConfig INIs it names are edited by hand between runs,
+so a stored copy can never simply be trusted. They are kept in the `boot` store
+with the `ETag` the server gave them, and each is revalidated on every load:
+
+| server says | host does | log |
+| --- | --- | --- |
+| `304 Not Modified` | uses the stored copy, no body transferred | `manifest.ini (unchanged)` |
+| `200` with a new ETag | takes it, stores it | `manifest.ini (changed)` |
+| nothing, or `404` | uses the stored copy anyway | `manifest.ini (offline copy)` |
+
+The third row is the reason this is a store and not just a conditional fetch: a
+page whose config server has gone away still boots from what it fetched last
+time, rather than failing on a file it has. It is also what makes the ordering
+in the boot sequence circular-looking — the cache records are keyed by cache
+name, the name is in the manifest, and the manifest is itself a boot file that
+must be revalidated first. Hence two hydrate steps rather than one.
+
+This applies to **both** web lanes: the wire build gets it too, since the boot
+sequence is now shared.
+
+### Client files — no server truth to be stale against
+
+The player's saved options are device-local by definition. Nothing on the
+server has an opinion about them, so there is nothing to revalidate; they are
+read at boot and written when they change.
+
 ## Client files
 
 `TORIRS_IOK_FILE_READ` / `FILE_WRITE` are the player's saved options. On this
@@ -215,13 +285,16 @@ not listening.
 ## Running it
 
 ```sh
-make -C src web-idb                    # or web-idb-debug for -O0 + assertions
-make -C src js5-server
+make -C src web-idb                    # module + both servers
 
-./src/build_opt/js5_server --cache cache.osrs239 --revision 239 --port 43594
-# any static server that serves build-web/ and the repo root:
-python3 -m http.server 8099
+./src/build_opt/js5_server --cache cache.osrs239 --revision 239 --port 43594 &
+./src/build/io_server --root build-web --boot-root . --port 8099
 ```
+
+Any static server can serve the page, but `io_server` is the one to use: it is
+the only one in the tree that answers the conditional requests the boot files
+are revalidated with (see Staleness above), so anything else re-downloads the
+manifest on every load.
 
 Then open the page with the manifest on the query string:
 

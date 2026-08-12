@@ -128,16 +128,38 @@
   // which keeps bytes 0x80-0xFF from being mangled into replacement chars.
 
   function xhrSyncBytes(method, url, body) {
+    var result = xhrSync(method, url, body, null);
+    return result.status === 200 ? result.bytes : null;
+  }
+
+  // The same transfer, but reporting enough to do a conditional request:
+  // {status, bytes, etag}. status 0 means the request never reached anyone,
+  // which is a different thing from a 404 and has a different answer.
+  function xhrSync(method, url, body, etag) {
     var xhr = new XMLHttpRequest();
-    xhr.open(method, url, false);
-    xhr.overrideMimeType('text/plain; charset=x-user-defined');
-    if (body) { xhr.setRequestHeader('Content-Type', 'application/octet-stream'); }
-    xhr.send(body || null);
-    if (xhr.status !== 200) { return null; }
+    try {
+      xhr.open(method, url, false);
+      xhr.overrideMimeType('text/plain; charset=x-user-defined');
+      if (body) { xhr.setRequestHeader('Content-Type', 'application/octet-stream'); }
+      // Asks the server "still this one?". A 304 comes back with no body, so
+      // the copy already held is the answer.
+      if (etag) { xhr.setRequestHeader('If-None-Match', etag); }
+      xhr.send(body || null);
+    } catch (err) {
+      return { status: 0, bytes: null, etag: null, error: err.message };
+    }
+    if (xhr.status === 304) {
+      return { status: 304, bytes: null, etag: etag };
+    }
+    if (xhr.status !== 200) {
+      return { status: xhr.status, bytes: null, etag: null };
+    }
     var text = xhr.responseText;
     var out = new Uint8Array(text.length);
     for (var i = 0; i < text.length; i++) { out[i] = text.charCodeAt(i) & 0xFF; }
-    return out;
+    var tag = null;
+    try { tag = xhr.getResponseHeader('ETag'); } catch (err) { /* not exposed */ }
+    return { status: 200, bytes: out, etag: tag };
   }
 
   // ------------------------------------------------------------ boot files
@@ -150,6 +172,10 @@
   var boot = {
     loaded: [],
     missing: [],
+    /** Files the server confirmed unchanged (304), and files served from the
+     *  stored copy because nothing answered. */
+    revalidated: 0,
+    offline: 0,
 
     write: function (path, bytes) {
       var parts = path.split('/').filter(function (s) { return s.length > 0; });
@@ -161,17 +187,66 @@
       Module.FS.writeFile('/' + parts.join('/'), bytes);
     },
 
-    // The IO server's /boot/ route first, then the path as a plain static
-    // asset. The IndexedDB build has no IO server at all — its page can be
-    // served by anything that hands out files — so a boot file has to be
-    // reachable without one.
+    /*
+     * Fetch one boot file, revalidating rather than re-downloading.
+     *
+     * These are the client's configuration — the manifest and the RevConfig
+     * INIs it names — and they are edited by hand between runs, so a copy held
+     * from last time can never simply be trusted. Nor should it be thrown away:
+     * a conditional request asks the server "still this one?" and a 304 answers
+     * it in a header instead of a body.
+     *
+     * Three outcomes, and the third is the reason any of this exists:
+     *
+     *   200  the file changed (or is new) — take it and remember the validator
+     *   304  unchanged — use the stored copy, no body transferred
+     *   0    nothing answered — the server is gone, so use the stored copy and
+     *        say so. A page whose config server is down still boots from what
+     *        it fetched last time, instead of failing on a file it has.
+     *
+     * The IO server's /boot/ route is tried first and the bare path second: the
+     * IndexedDB build has no IO server, and its page may be served by anything
+     * that hands out files.
+     */
     fetch: function (path) {
-      var bytes = xhrSyncBytes('GET', bootUrl + '/' + path);
-      if (!bytes) { bytes = xhrSyncBytes('GET', '/' + path); }
-      if (!bytes) { this.missing.push(path); return null; }
-      this.write(path, bytes);
-      this.loaded.push(path);
-      return bytes;
+      var cached = store.bootGet(path);
+      var result = xhrSync('GET', bootUrl + '/' + path, null, cached && cached.etag);
+      var via = '/boot/';
+
+      if (result.status === 404 || result.status === 0) {
+        var direct = xhrSync('GET', '/' + path, null, cached && cached.etag);
+        // Prefer whichever route actually said something about the file.
+        if (direct.status === 200 || direct.status === 304) {
+          result = direct;
+          via = '/';
+        } else if (result.status === 0 && direct.status !== 0) {
+          result = direct;
+          via = '/';
+        }
+      }
+
+      if (result.status === 200) {
+        store.bootPut(path, result.bytes, result.etag);
+        this.write(path, result.bytes);
+        this.loaded.push(path + (cached ? ' (changed)' : ''));
+        return result.bytes;
+      }
+      if (result.status === 304 && cached) {
+        this.write(path, cached.bytes);
+        this.loaded.push(path + ' (unchanged)');
+        this.revalidated++;
+        return cached.bytes;
+      }
+      if (cached) {
+        // Unreachable, or the server no longer has it. Either way this page has
+        // a copy and refusing to boot would help nobody.
+        this.write(path, cached.bytes);
+        this.loaded.push(path + ' (offline copy)');
+        this.offline++;
+        return cached.bytes;
+      }
+      this.missing.push(path);
+      return null;
     },
 
     // `revconfig_ui` / `revconfig_cache` out of an INI, comments stripped.
@@ -311,8 +386,10 @@
     tables: new Map(),    // table -> record count
     bytes: 0,
     files: new Map(),     // client-owned file path -> Uint8Array
+    bootFiles: new Map(), // boot config path -> {bytes, etag}
     pendingGroups: [],
     pendingFiles: [],
+    pendingBoot: [],
     flushTimer: null,
     writeErrors: 0,
     hydrated: 0,
@@ -331,6 +408,13 @@
           }
           if (!db.objectStoreNames.contains('files')) {
             db.createObjectStore('files', { keyPath: 'k' });
+          }
+          // Configuration the client opens by name — the manifest, the
+          // RevConfig INIs — kept with the validator the server gave it, so the
+          // next boot can ask "still this one?" instead of re-downloading, and
+          // can fall back to this copy when nothing answers.
+          if (!db.objectStoreNames.contains('boot')) {
+            db.createObjectStore('boot', { keyPath: 'k' });
           }
         };
         request.onsuccess = function () { self.db = request.result; resolve(); };
@@ -359,9 +443,41 @@
       });
     },
 
-    // Read one cache's records, and every client file, into memory. This is the
-    // whole reason main() can start with a synchronous cache underneath it.
-    hydrate: function (cacheKey) {
+    /*
+     * Everything that is not scoped to a cache: the client's saved options and
+     * the boot configuration, with the validators the server gave it.
+     *
+     * Split from the cache hydrate below because of an ordering knot. The cache
+     * records are keyed by cache name; the cache name is in the manifest; and
+     * the manifest is a boot file that must itself be revalidated first. So the
+     * un-scoped half loads, then the manifest is read, then the cache it names.
+     */
+    hydrateShared: function () {
+      var self = this;
+      return new Promise(function (resolve) {
+        if (!self.db) { resolve(); return; }
+        var tx = self.db.transaction(['files', 'boot'], 'readonly');
+        tx.objectStore('files').openCursor().onsuccess = function (ev) {
+          var cursor = ev.target.result;
+          if (!cursor) { return; }
+          self.files.set(cursor.value.k, new Uint8Array(cursor.value.d));
+          cursor.continue();
+        };
+        tx.objectStore('boot').openCursor().onsuccess = function (ev) {
+          var cursor = ev.target.result;
+          if (!cursor) { return; }
+          self.bootFiles.set(cursor.value.k,
+                             { bytes: new Uint8Array(cursor.value.d), etag: cursor.value.e });
+          cursor.continue();
+        };
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { resolve(); };
+      });
+    },
+
+    // One cache's archive records. This is the whole reason main() can start
+    // with a synchronous cache underneath it.
+    hydrateCache: function (cacheKey) {
       var self = this;
       self.cacheKey = cacheKey;
       self.records.clear();
@@ -369,7 +485,7 @@
       self.bytes = 0;
       return new Promise(function (resolve) {
         if (!self.db) { resolve(); return; }
-        var tx = self.db.transaction(['groups', 'files'], 'readonly');
+        var tx = self.db.transaction(['groups'], 'readonly');
         var index = tx.objectStore('groups').index('by_cache');
         index.openCursor(IDBKeyRange.only(cacheKey)).onsuccess = function (ev) {
           var cursor = ev.target.result;
@@ -379,12 +495,6 @@
           self.records.set(row.t + '/' + row.a, bytes);
           self.tables.set(row.t, (self.tables.get(row.t) || 0) + 1);
           self.bytes += bytes.length;
-          cursor.continue();
-        };
-        tx.objectStore('files').openCursor().onsuccess = function (ev) {
-          var cursor = ev.target.result;
-          if (!cursor) { return; }
-          self.files.set(cursor.value.k, new Uint8Array(cursor.value.d));
           cursor.continue();
         };
         tx.oncomplete = function () {
@@ -430,6 +540,21 @@
     recordCount: function () { return this.records.size; },
     byteCount: function () { return this.bytes; },
 
+    // --- boot configuration ----------------------------------------------
+    //
+    // Hydrated with everything else before main(), so boot.fetch — which runs
+    // synchronously — can consult it without reaching the database.
+
+    bootGet: function (path) {
+      return this.bootFiles.get(path) || null;
+    },
+
+    bootPut: function (path, bytes, etag) {
+      this.bootFiles.set(path, { bytes: bytes, etag: etag || null });
+      this.pendingBoot.push({ k: path, d: bytes, e: etag || null });
+      this.scheduleFlush();
+    },
+
     // --- client-owned files ----------------------------------------------
     //
     // The player's saved options. MEMFS would forget them when the tab closes,
@@ -451,7 +576,8 @@
 
     scheduleFlush: function () {
       var self = this;
-      if (this.pendingGroups.length + this.pendingFiles.length >= STORE_FLUSH_RECORDS) {
+      if (this.pendingGroups.length + this.pendingFiles.length +
+          this.pendingBoot.length >= STORE_FLUSH_RECORDS) {
         this.flush();
         return;
       }
@@ -466,19 +592,23 @@
       var self = this;
       var groups = this.pendingGroups;
       var files = this.pendingFiles;
+      var bootRows = this.pendingBoot;
 
       if (this.flushTimer !== null) {
         window.clearTimeout(this.flushTimer);
         this.flushTimer = null;
       }
-      if (!this.db || (groups.length === 0 && files.length === 0)) { return; }
+      if (!this.db ||
+          (groups.length === 0 && files.length === 0 && bootRows.length === 0)) { return; }
       this.pendingGroups = [];
       this.pendingFiles = [];
+      this.pendingBoot = [];
 
       try {
-        var tx = this.db.transaction(['groups', 'files'], 'readwrite');
+        var tx = this.db.transaction(['groups', 'files', 'boot'], 'readwrite');
         var groupStore = tx.objectStore('groups');
         var fileStore = tx.objectStore('files');
+        var bootStore = tx.objectStore('boot');
         groups.forEach(function (row) {
           // A copy, and a plain ArrayBuffer: the Uint8Array came out of the
           // wasm heap's buffer, which structured clone would either reject or
@@ -487,6 +617,9 @@
         });
         files.forEach(function (row) {
           fileStore.put({ k: row.k, d: row.d.slice().buffer });
+        });
+        bootRows.forEach(function (row) {
+          bootStore.put({ k: row.k, d: row.d.slice().buffer, e: row.e });
         });
         tx.onerror = function () {
           // Quota, most likely. The records stay resident, so this session is
@@ -773,33 +906,78 @@
       return typeof Module._torirs_web_cache_prime_begin === 'function';
     },
 
+    /*
+     * The whole pre-main() sequence, for both lanes.
+     *
+     * The ordering is forced and worth stating, because it is not obvious and
+     * it is circular-looking:
+     *
+     *   1. open IndexedDB
+     *   2. hydrate the un-scoped stores (client files, boot config + validators)
+     *   3. load the boot files — revalidating each against the server, which
+     *      needs step 2 to have a validator to send
+     *   4. ask C which cache the manifest names — needs step 3 to have put the
+     *      manifest where fopen can see it
+     *   5. hydrate that cache's records — needs step 4 for the key
+     *   6. prime the JS5 metadata, then start main()
+     *
+     * Steps 4-6 are the IndexedDB lane only; the wire lane stops after 3 and
+     * starts main(), which is why boot-file revalidation is shared by both.
+     */
     begin: function () {
-      if (!this.wanted()) { return; }
-
-      var manifest = this.manifestPath();
-      if (!manifest) {
-        log('cache: no --manifest in the query string, so no cache to open', true);
-        this.finish();
-        return;
-      }
-
       var self = this;
       this.active = true;
       this.started = performance.now();
 
+      store.open()
+        .catch(function (err) {
+          // A page in private browsing may have no IndexedDB at all. Boot
+          // files then have no stored copy and are simply fetched, which is
+          // what the harness did before any of this existed.
+          log('cache: IndexedDB is unavailable (' +
+              (err && err.message ? err.message : err) + ') — nothing will persist', true);
+        })
+        .then(function () { return store.hydrateShared(); })
+        .then(function () {
+          boot.load();
+          if (boot.loaded.length) { log('torirs: boot files ' + boot.loaded.join(' ')); }
+          if (boot.revalidated || boot.offline) {
+            log('torirs: boot config — ' + boot.revalidated + ' unchanged' +
+                (boot.offline ? ', ' + boot.offline + ' from the offline copy' : ''));
+          }
+          if (boot.missing.length) {
+            log('torirs: boot files NOT available: ' + boot.missing.join(' '), true);
+          }
+          if (!self.wanted()) { self.finish(); return null; }
+          return self.beginCache();
+        })
+        .catch(function (err) {
+          log('torirs: boot failed — ' + (err && err.message ? err.message : err), true);
+          self.finish();
+        });
+    },
+
+    beginCache: function () {
+      var self = this;
+      var manifest = this.manifestPath();
+
+      if (!manifest) {
+        log('cache: no --manifest in the query string, so no cache to open', true);
+        this.finish();
+        return null;
+      }
       // C reads the manifest and names the cache; this side must never parse
       // `[cache:boot] dir=` itself, or the two readers drift.
       this.key = Module.ccall('torirs_web_cache_key', 'string', ['string'], [manifest]);
       if (!this.key) {
         this.fail('the manifest names no cache');
-        return;
+        return null;
       }
 
-      store.open()
-        .then(function () { return cacheReset ? store.clear(self.key) : 0; })
+      return Promise.resolve(cacheReset ? store.clear(self.key) : 0)
         .then(function (cleared) {
           if (cleared) { log('cache: cleared ' + cleared + ' record(s) for ' + self.key); }
-          return store.hydrate(self.key);
+          return store.hydrateCache(self.key);
         })
         .then(function () {
           log('cache: ' + self.key + ' — ' + store.recordCount() + ' record(s), ' +
@@ -811,9 +989,6 @@
             return;
           }
           self.step();
-        })
-        .catch(function (err) {
-          self.fail('IndexedDB is unavailable — ' + (err && err.message ? err.message : err));
         });
     },
 
@@ -995,14 +1170,16 @@
 
   Module.preRun = [function () {
     readEnv().forEach(function (pair) { ENV[pair[0]] = pair[1]; });
-    // Before main(), because main() opens the manifest on its first pass.
-    // Nothing here may call into wasm: preRun runs before initRuntime.
-    boot.load();
-    // Take main() off the runtime's hands when there is a cache to prime
-    // first. Read in doRun(), which is after onRuntimeInitialized, so setting
-    // it here or there would both work — here keeps the decision beside the
-    // rest of the boot sequencing.
-    if (js5.wanted()) { Module.noInitialRun = true; }
+    /*
+     * Take main() off the runtime's hands, on both lanes.
+     *
+     * Everything main() needs to find — the manifest, the RevConfig INIs — now
+     * comes from a store that has to be opened asynchronously first, and
+     * nothing here may call into wasm anyway: preRun runs before initRuntime.
+     * So the whole boot sequence moves after runtime init and ends by calling
+     * main() itself. See js5.begin.
+     */
+    Module.noInitialRun = true;
   }];
 
   // The last few records a session wrote are still in the batch when the tab
@@ -1020,10 +1197,6 @@
           ' (' + (useSync ? 'synchronous' : 'frame-gated') + ')');
     }
     log('torirs: argv ' + JSON.stringify(args));
-    if (boot.loaded.length) { log('torirs: boot files ' + boot.loaded.join(' ')); }
-    if (boot.missing.length) {
-      log('torirs: boot files NOT on the server: ' + boot.missing.join(' '), true);
-    }
     // Which cache the server has open. Changing the manifest in the URL
     // changes the client but not the server, and a client booting one
     // generation against another's cache just fails to decode anything —

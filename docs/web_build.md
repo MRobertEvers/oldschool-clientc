@@ -51,6 +51,11 @@ make -C src PLATFORM=web <target>   # any target, web flavor
 browser, and every `ToriRS_IOItem` crosses a socket to `io_server`, which holds
 one and runs the real `PlatformX_IO_LoadItem` against it.
 
+`make -C src servers` builds both server processes; every web target depends on
+it, so a build that produces the module also produces what feeds it. Their
+routes, ports and staleness behaviour are in
+[The servers a browser run needs](WEB_SERVERS.md).
+
 `make -C src web-idb` is the other answer. The browser gets a cache of its own —
 archive records in IndexedDB behind a dat2 facade, filled incrementally over
 JS5 — so the page needs a `js5_server` and a static file server, and no

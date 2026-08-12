@@ -5,9 +5,8 @@
 #include "js5_server.h"
 
 #include "js5_server_cache.h"
+#include "js5_server_conn.h"
 #include "js5_server_session.h"
-#include "platform/net_transport_ws_frame.h"
-#include "platform/net_transport_ws_handshake.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -37,6 +36,9 @@ typedef int js5_server_socket_t;
 #define JS5_SERVER_IO_BYTES (16u * 1024u)
 #define JS5_SERVER_WRITE_BUDGET (64u * 1024u)
 #define JS5_SERVER_REJECT_SLOTS 1u
+/* How often the served cache is checked for having changed on disk. Far below
+ * any repack's duration, far above the cost of the two stat() calls it is. */
+#define JS5_SERVER_REFRESH_INTERVAL_MS 1000u
 
 #ifdef _WIN32
 static volatile LONG g_js5_server_stop;
@@ -44,47 +46,14 @@ static volatile LONG g_js5_server_stop;
 static volatile sig_atomic_t g_js5_server_stop;
 #endif
 
-/*
- * How this connection's bytes are wrapped.
- *
- * Decided by looking at the first byte and never by configuration, so one port
- * serves both a desktop client and a browser one. A browser has no choice in
- * the matter: emscripten implements BSD sockets as WebSockets, so a page's
- * connect() to this port arrives as an HTTP upgrade and every byte after it is
- * inside a frame. A JS5 stream opens with opcode 15, an upgrade with 'G'.
- */
-enum Js5ServerFraming
-{
-    JS5_FRAMING_UNKNOWN = 0,
-    JS5_FRAMING_RAW,
-    JS5_FRAMING_WS_HANDSHAKE,
-    JS5_FRAMING_WS,
-};
-
-/* Inbound: the largest thing a client sends is the 21-byte handshake or a
- * 4-byte packet, so this only has to hold an upgrade request and a little
- * slack. Outbound: one framed chunk of session output, which PeekOutput caps
- * at its 16KB scratch, plus a frame header. */
-#define JS5_SERVER_WS_IN_BYTES 8192
-#define JS5_SERVER_WS_OUT_BYTES (JS5_SERVER_IO_BYTES + 32u)
-
 struct Js5ServerClient
 {
     js5_server_socket_t socket;
-    struct Js5ServerSession* session;
+    /* Session + framing. Socket-free by design, which is what lets io_server
+     * host the same connection type inside its HTTP loop -- see
+     * js5_server_conn.h and docs/WEB_SERVERS.md. */
+    struct Js5ServerConn conn;
     char peer[INET_ADDRSTRLEN];
-
-    enum Js5ServerFraming framing;
-    /* Bytes off the socket that are not yet a whole request or frame. Raw
-     * connections never use it: there is nothing to reassemble. */
-    uint8_t in[JS5_SERVER_WS_IN_BYTES];
-    int in_len;
-    /* Framed bytes waiting for the socket. Only used under WS, where a
-     * half-written frame cannot simply be resumed from the session's view —
-     * the header describes a length that must arrive whole. */
-    uint8_t out[JS5_SERVER_WS_OUT_BYTES];
-    int out_len;
-    int out_pos;
 };
 
 static uint64_t
@@ -240,10 +209,10 @@ js5_server_client_reset(
 {
     if( !client )
         return;
-    if( verbose && client->session )
+    if( verbose && client->conn.session )
     {
         struct Js5ServerSessionStats stats;
-        Js5ServerSessionGetStats(client->session, &stats);
+        Js5ServerSessionGetStats(client->conn.session, &stats);
         fprintf(
             stderr,
             "js5_server: %s closed: requests=%llu responses=%llu bytes=%llu error=%d\n",
@@ -253,7 +222,7 @@ js5_server_client_reset(
             (unsigned long long)stats.bytes_sent,
             (int)stats.error);
     }
-    Js5ServerSessionFree(client->session);
+    Js5ServerConn_Close(&client->conn);
     js5_server_socket_close(client->socket);
     memset(client, 0, sizeof(*client));
     client->socket = JS5_SERVER_INVALID_SOCKET;
@@ -349,8 +318,7 @@ js5_server_accept_clients(
         session_config.idle_timeout_ms = config->idle_timeout_ms;
         session_config.output_timeout_ms = config->output_timeout_ms;
         session_config.server_full = reject;
-        clients[slot].session = Js5ServerSessionNew(cache, &session_config, now_ms);
-        if( !clients[slot].session )
+        if( !Js5ServerConn_Open(&clients[slot].conn, cache, &session_config, now_ms) )
         {
             js5_server_socket_close(socket);
             continue;
@@ -369,169 +337,27 @@ js5_server_accept_clients(
     }
 }
 
-/* Drop `count` consumed bytes off the front of the inbound buffer. */
-static void
-js5_server_in_drop(
-    struct Js5ServerClient* client,
-    int count)
-{
-    if( count <= 0 )
-        return;
-    if( count >= client->in_len )
-    {
-        client->in_len = 0;
-        return;
-    }
-    memmove(client->in, client->in + count, (size_t)(client->in_len - count));
-    client->in_len -= count;
-}
-
-/* Queue an outbound control frame, if there is room. A pong is advisory —
- * browsers do not require one to keep the connection — so a full output buffer
- * drops it rather than stalling the data the client is actually waiting for. */
-static void
-js5_server_ws_queue_control(
-    struct Js5ServerClient* client,
-    int opcode,
-    const uint8_t* payload,
-    int payload_len)
-{
-    int written = ws_frame_encode(
-        opcode,
-        payload,
-        payload_len,
-        NULL, /* a server must not mask (RFC 6455 5.1) */
-        client->out + client->out_len,
-        (int)sizeof(client->out) - client->out_len);
-    if( written > 0 )
-        client->out_len += written;
-}
-
 /*
- * Turn whatever whole frames are buffered into session input.
- *
- * Returns 0 to keep the connection, -1 to drop it. A CLOSE is a drop: JS5 has
- * no orderly shutdown of its own, and the session has nothing to finish.
+ * Socket in, socket out. Everything between -- the framing decision, the
+ * WebSocket handshake, deframing, and the session itself -- is
+ * Js5ServerConn's, so this reactor is only responsible for the parts that
+ * genuinely need a file descriptor.
  */
-static int
-js5_server_ws_deframe(
-    struct Js5ServerClient* client,
-    uint64_t now_ms)
-{
-    int pos = 0;
-
-    for( ;; )
-    {
-        struct WsFrame frame;
-        int consumed = 0;
-        enum WsDecodeStatus status =
-            ws_frame_decode(client->in + pos, client->in_len - pos, &frame, &consumed);
-
-        if( status == WS_DECODE_INCOMPLETE )
-            break;
-        if( status == WS_DECODE_ERROR )
-            return -1;
-
-        switch( frame.opcode )
-        {
-        case WS_OP_BINARY:
-        case WS_OP_TEXT:
-        case WS_OP_CONT:
-            if( frame.payload_len > 0 &&
-                Js5ServerSessionFeed(
-                    client->session, frame.payload, (size_t)frame.payload_len, now_ms) != 0 )
-                return -1;
-            break;
-        case WS_OP_PING:
-            js5_server_ws_queue_control(
-                client, WS_OP_PONG, frame.payload, frame.payload_len);
-            break;
-        case WS_OP_PONG:
-            break;
-        case WS_OP_CLOSE:
-        default:
-            return -1;
-        }
-        pos += consumed;
-    }
-
-    js5_server_in_drop(client, pos);
-    return 0;
-}
-
-/* Feed newly arrived bytes according to this connection's framing, deciding
- * that framing on the first byte if it is not known yet. */
-static int
-js5_server_consume_input(
-    struct Js5ServerClient* client,
-    uint64_t now_ms)
-{
-    if( client->framing == JS5_FRAMING_UNKNOWN )
-    {
-        if( client->in_len == 0 )
-            return 0;
-        client->framing = WsHandshake_LooksLikeHttp(client->in[0]) ? JS5_FRAMING_WS_HANDSHAKE
-                                                                   : JS5_FRAMING_RAW;
-    }
-
-    if( client->framing == JS5_FRAMING_RAW )
-    {
-        int fed = client->in_len;
-        if( fed > 0 &&
-            Js5ServerSessionFeed(client->session, client->in, (size_t)fed, now_ms) != 0 )
-            return -1;
-        client->in_len = 0;
-        return 0;
-    }
-
-    if( client->framing == JS5_FRAMING_WS_HANDSHAKE )
-    {
-        struct WsHandshake handshake;
-        enum WsHandshakeStatus status =
-            WsHandshake_Consume(client->in, client->in_len, &handshake);
-
-        if( status == WS_HANDSHAKE_INCOMPLETE )
-            return 0;
-        if( status != WS_HANDSHAKE_OK )
-            return -1;
-        if( handshake.response_len > (int)sizeof(client->out) - client->out_len )
-            return -1;
-        memcpy(
-            client->out + client->out_len,
-            handshake.response,
-            (size_t)handshake.response_len);
-        client->out_len += handshake.response_len;
-        js5_server_in_drop(client, handshake.consumed);
-        client->framing = JS5_FRAMING_WS;
-        /* Anything pipelined after the headers is already frame data. */
-    }
-
-    return js5_server_ws_deframe(client, now_ms);
-}
-
 static int
 js5_server_read_client(
     struct Js5ServerClient* client,
     uint64_t now_ms)
 {
+    uint8_t input[JS5_SERVER_IO_BYTES];
+
     for( unsigned iteration = 0u; iteration < 4u; iteration++ )
     {
-        int room = (int)sizeof(client->in) - client->in_len;
-        int received;
-
-        if( room <= 0 )
-        {
-            /* Nothing a client legitimately sends is this large. Refusing is
-             * the honest answer; growing the buffer would only postpone it. */
-            return -1;
-        }
-        received = recv(client->socket, (char*)client->in + client->in_len, room, 0);
+        int received = recv(client->socket, (char*)input, (int)sizeof(input), 0);
         if( received > 0 )
         {
-            client->in_len += received;
-            if( js5_server_consume_input(client, now_ms) != 0 )
+            if( Js5ServerConn_Feed(&client->conn, input, received, now_ms) != 0 )
                 return -1;
-            if( received < room )
+            if( received < (int)sizeof(input) )
                 return 0;
             continue;
         }
@@ -547,39 +373,6 @@ js5_server_read_client(
     return 0;
 }
 
-/*
- * Push whatever is already framed. Returns bytes written, 0 when the socket
- * would block or the buffer is empty, -1 on a dead connection.
- */
-static int
-js5_server_flush_out(struct Js5ServerClient* client)
-{
-    while( client->out_pos < client->out_len )
-    {
-        int sent = send(
-            client->socket,
-            (const char*)client->out + client->out_pos,
-            client->out_len - client->out_pos,
-            0);
-        if( sent > 0 )
-        {
-            client->out_pos += sent;
-            continue;
-        }
-        if( sent == 0 )
-            return -1;
-        int error = js5_server_socket_error();
-        if( js5_server_would_block(error) )
-            return 0;
-        if( js5_server_interrupted(error) )
-            continue;
-        return -1;
-    }
-    client->out_pos = 0;
-    client->out_len = 0;
-    return 1;
-}
-
 static int
 js5_server_write_client(
     struct Js5ServerClient* client,
@@ -590,57 +383,20 @@ js5_server_write_client(
     while( budget > 0u )
     {
         const uint8_t* data;
-        size_t size;
-        int available;
-        int flushed = js5_server_flush_out(client);
+        int size;
+        int available = Js5ServerConn_TakeOutput(&client->conn, budget, &data, &size, now_ms);
+        int sent;
 
-        if( flushed < 0 )
-            return -1;
-        if( client->out_pos < client->out_len )
-            return 0; /* still draining a frame; the session waits its turn */
-
-        available = Js5ServerSessionPeekOutput(client->session, &data, &size);
         if( available < 0 )
             return -1;
         if( available == 0 )
             return 0;
-        if( size > budget )
-            size = budget;
 
-        if( client->framing == JS5_FRAMING_WS )
-        {
-            /*
-             * Frame it into the output buffer and tell the session it is gone.
-             *
-             * The copy is what makes a partial write safe here. A frame header
-             * announces a length, so the payload has to arrive whole; leaving
-             * it in the session's view and re-peeking after a short send would
-             * emit a second header mid-message.
-             */
-            int header_len;
-            int room = (int)sizeof(client->out);
-
-            if( size > (size_t)(room - 16) )
-                size = (size_t)(room - 16);
-            header_len = ws_frame_encode_header(
-                WS_OP_BINARY, (int)size, NULL, client->out, room);
-            if( header_len < 0 )
-                return -1;
-            memcpy(client->out + header_len, data, size);
-            client->out_len = header_len + (int)size;
-            client->out_pos = 0;
-            if( Js5ServerSessionConsumeOutput(client->session, size, now_ms) != 0 )
-                return -1;
-            budget -= size;
-            continue;
-        }
-
-        int sent = send(client->socket, (const char*)data, (int)size, 0);
+        sent = send(client->socket, (const char*)data, size, 0);
         if( sent > 0 )
         {
-            if( Js5ServerSessionConsumeOutput(client->session, (size_t)sent, now_ms) != 0 )
-                return -1;
-            budget -= (size_t)sent;
+            Js5ServerConn_Consumed(&client->conn, sent, now_ms);
+            budget -= (size_t)sent < budget ? (size_t)sent : budget;
             continue;
         }
         if( sent == 0 )
@@ -662,6 +418,7 @@ Js5ServerRun(const struct Js5ServerConfig* config)
     struct Js5ServerClient* clients = NULL;
     js5_server_socket_t listener = JS5_SERVER_INVALID_SOCKET;
     uint32_t slot_count;
+    uint64_t last_refresh_ms = 0u;
     int result = -1;
 #ifdef _WIN32
     WSADATA winsock;
@@ -730,6 +487,7 @@ Js5ServerRun(const struct Js5ServerConfig* config)
     fflush(stdout);
 
     result = 0;
+    last_refresh_ms = js5_server_now_ms();
     while( !js5_server_stopping() )
     {
         fd_set readable;
@@ -740,6 +498,21 @@ Js5ServerRun(const struct Js5ServerConfig* config)
 #endif
         uint64_t now_ms = js5_server_now_ms();
 
+        /*
+         * Notice the served cache changing underneath us.
+         *
+         * Throttled because it is a syscall on a loop that also runs on a
+         * 100ms select timeout; a second is far below any repack's duration and
+         * far above the cost of two stat() calls. The reload happens here,
+         * between selects, rather than inside a request — a session's blobs are
+         * owned copies, so nothing in flight is torn by it.
+         */
+        if( now_ms - last_refresh_ms >= JS5_SERVER_REFRESH_INTERVAL_MS )
+        {
+            last_refresh_ms = now_ms;
+            Js5ServerCacheRefreshIfStale(cache);
+        }
+
         FD_ZERO(&readable);
         FD_ZERO(&writable);
         FD_SET(listener, &readable);
@@ -749,8 +522,8 @@ Js5ServerRun(const struct Js5ServerConfig* config)
             size_t output_size;
             if( clients[i].socket == JS5_SERVER_INVALID_SOCKET )
                 continue;
-            Js5ServerSessionTick(clients[i].session, now_ms);
-            if( Js5ServerSessionWantsClose(clients[i].session) )
+            Js5ServerSessionTick(clients[i].conn.session, now_ms);
+            if( Js5ServerSessionWantsClose(clients[i].conn.session) )
             {
                 js5_server_client_reset(&clients[i], config->verbose);
                 continue;
@@ -761,9 +534,9 @@ Js5ServerRun(const struct Js5ServerConfig* config)
              * otherwise sit in the buffer until the client happened to send
              * something — which for the 101 response is a browser waiting
              * forever for a handshake the server has already computed. */
-            if( clients[i].out_pos < clients[i].out_len ||
+            if( Js5ServerConn_HasPendingOutput(&clients[i].conn) ||
                 Js5ServerSessionPeekOutput(
-                    clients[i].session, &output, &output_size) > 0 )
+                    clients[i].conn.session, &output, &output_size) > 0 )
                 FD_SET(clients[i].socket, &writable);
 #ifndef _WIN32
             if( clients[i].socket > max_socket )
