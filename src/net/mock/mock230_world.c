@@ -9619,6 +9619,50 @@ mock230_music_for_region(int region)
     return NULL;
 }
 
+/*
+ * The map square whose music this player should be hearing.
+ *
+ * Ordinarily the one they are standing on. Inside a map instance it is the one
+ * the instance was *copied from*, and that difference is the whole reason this
+ * function exists: `mapinstance_scan_pool` hands out squares from x >= 100, a
+ * band chosen precisely because the real map does not reach it, so an
+ * instanced player's own square is an address no music table has ever
+ * described. Every instanced encounter in the game was therefore silent — not
+ * "wrong track", no track — and the silence was indistinguishable from one of
+ * the ~65,000 unmapped squares that are silent on purpose.
+ *
+ * The template square is the address that means something: docs/audio/
+ * music_regions.tsv maps 9043 to Inferno because 9043 is where the Inferno's
+ * map data lives, which is what `map_instance_setchunk` points at.
+ *
+ * This resolves per crossing rather than being cached on the player, and it
+ * needs no invalidation: the latch in `mock230_world_update_map` fires on the
+ * destination square, so entering, leaving and being rebuilt into a different
+ * instance all re-ask. Walking between two destination squares of one instance
+ * re-asks too and gets the same source, which the `music_track` compare below
+ * already turns into a no-op.
+ */
+static void
+mock230_music_square_for(
+    struct Mock230Player* player,
+    int* out_map_x,
+    int* out_map_z)
+{
+    int handle = mock230_mapinstance_find(player->x, player->z);
+    int src_x;
+    int src_z;
+
+    *out_map_x = player->x >> 6;
+    *out_map_z = player->z >> 6;
+    if( handle == 0 )
+        return;
+    if( !mock230_mapinstance_source_tile(handle, player->level, player->x, player->z, &src_x,
+                                         &src_z) )
+        return; /* inside the reservation but on a zone nothing was copied to */
+    *out_map_x = src_x >> 6;
+    *out_map_z = src_z >> 6;
+}
+
 static void
 mock230_music_enter_region(
     struct Mock230Player* player,
@@ -9720,8 +9764,20 @@ mock230_world_update_map(struct Mock230Player* player)
         player->last_map_x = mx;
         player->last_map_z = mz;
         /* The map square is exactly the granularity music is keyed at, which is
-         * why this hangs off the mapzone latch rather than the zone one. */
-        mock230_music_enter_region(player, mx, mz);
+         * why this hangs off the mapzone latch rather than the zone one.
+         *
+         * The latch is the *destination* square (mx, mz) and the lookup is not:
+         * inside an instance the player's own square is out past the edge of
+         * the real map and describes nothing, so the track is resolved through
+         * the square the instance was copied from. See
+         * `mock230_music_square_for`. */
+        {
+            int music_x;
+            int music_z;
+
+            mock230_music_square_for(player, &music_x, &music_z);
+            mock230_music_enter_region(player, music_x, music_z);
+        }
     }
 
     if( player->last_zone_level != player->level || player->last_zone_x != zx ||
@@ -11348,6 +11404,71 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
                                &capture, srv.wire, track->song, 0, 30, 0, 30),
                            "the region track should carry the 30-cycle in/out fade profile");
+    }
+
+    fprintf(stderr, "mock230 selftest: instanced music resolves the source square\n");
+    {
+        /*
+         * The Inferno's own numbers, because the whole point is that they are
+         * two different squares. `^inferno_template = 0_35_83_0_0` puts the
+         * arena's map data at square (35, 83) = region 9043, and the instance
+         * pool hands out squares from x >= 100 — so a player standing in the
+         * Inferno is on a square that appears in no music table, while the
+         * square their scene was copied from is the one the table describes.
+         *
+         * Asserting the resolver rather than the packet: what broke was the
+         * ADDRESS, and a track-id assertion would pass just as happily on a
+         * table row that happened to sit at the instance's square.
+         */
+        int handle = mock230_mapinstance_alloc(mock230_world_cache_dir(), 8, 8);
+
+        SELFTEST_CHECK(handle != 0, "the instance pool should answer for a music test");
+        if( handle != 0 )
+        {
+            int base_x = 0;
+            int base_z = 0;
+            int old_x = player->x;
+            int old_z = player->z;
+            int music_x = -1;
+            int music_z = -1;
+
+            mock230_mapinstance_base(handle, &base_x, &base_z);
+            for( int zx = 0; zx < 8; zx++ )
+                for( int zz = 0; zz < 8; zz++ )
+                    mock230_mapinstance_setchunk(handle, 0, zx, zz, 2240 + zx * 8, 5312 + zz * 8,
+                                                 0, 0);
+            mock230_mapinstance_build(handle);
+
+            /* Outside first: the resolver must be a no-op in the ordinary
+             * world, or every unmapped square in the game becomes whatever the
+             * last instance was pointed at. */
+            player->x = 3222;
+            player->z = 3222;
+            mock230_music_square_for(player, &music_x, &music_z);
+            SELFTEST_CHECK(music_x == 3222 >> 6 && music_z == 3222 >> 6,
+                           "outside an instance the music square is the player's own, got %d,%d",
+                           music_x, music_z);
+
+            player->x = base_x + 32;
+            player->z = base_z + 32;
+            SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == handle,
+                           "the test tile should be inside the instance just built");
+            SELFTEST_CHECK((player->x >> 6) != 35,
+                           "the pool should have handed out a square that is NOT the template's, "
+                           "or this test proves nothing (got %d)",
+                           player->x >> 6);
+            mock230_music_square_for(player, &music_x, &music_z);
+            SELFTEST_CHECK(music_x == 35 && music_z == 83,
+                           "an instanced player's music square should be the source's (35,83), "
+                           "got %d,%d",
+                           music_x, music_z);
+            SELFTEST_CHECK(mock230_music_for_region((music_x << 8) | music_z) != NULL,
+                           "region 9043 should carry a music track");
+
+            player->x = old_x;
+            player->z = old_z;
+            mock230_mapinstance_free(handle);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: rev239 interface writer bytes\n");
