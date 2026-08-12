@@ -69,6 +69,47 @@ GAME_PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST"
 SERVER_SCRIPTS=$(sed -n 's/^[[:space:]]*scripts[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 CACHE_DIR=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 
+# Every embedded run compiles the server scripts, and mock230-scripts feeds both
+# ported/ lanes to sscompile unconditionally (SUMMONING_CLIENT_LANE and
+# RS2012_QBD_TD_CLIENT_LANE in src/makefile). A checkout without them dies on a
+# missing all.varbit.compack several targets deep, which reads as a broken
+# working copy rather than the wrong content root — so find the tree instead of
+# demanding the caller name it. MOCK230_CONTENT_DIR already set wins, and is
+# obeyed as given: mid-port, the caller knows better than this check.
+#
+# run-live.ps1 does the same, in the same order, and the two must stay in step.
+content_tree_has_lanes() {
+    [ -d "$1/ported/scape2009_summoning" ] && [ -d "$1/ported/rs2012_qbd_td" ]
+}
+
+if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
+    content_tree_has_lanes "$MOCK230_CONTENT_DIR" || echo \
+        "run-live.sh: MOCK230_CONTENT_DIR=$MOCK230_CONTENT_DIR has no ported/ lanes -- the bakes will likely fail" >&2
+else
+    # Checkouts under build/ first, the submodule last. Carrying the lane
+    # DIRECTORIES is not the same as carrying the lane's current bake: build/
+    # holds worktrees parked on a facebake branch, while the submodule tracks
+    # main, which gained ported/rs2012_qbd_td without the 596 rebaked models.
+    # Submodule-first silently picked pre-facebake models. See run-live.ps1.
+    for candidate in build/*/osrs239-content OSRS-Content/osrs239-content; do
+        if content_tree_has_lanes "$candidate"; then
+            MOCK230_CONTENT_DIR=$(cd "$candidate" && pwd)
+            export MOCK230_CONTENT_DIR
+            break
+        fi
+    done
+fi
+
+# MOCK230_CONTENT_DIR is the BUILD side (src/makefile); MOCK230_CONTENT is the
+# RUNTIME side (mock230_boot.c resolve_content_dir), which otherwise falls back
+# to a hardcoded OSRS-Content/osrs239-content. Setting only the first compiles
+# script.dat into one tree and boots another's -- the "Unknown command:
+# rs2012qbdmanifest" failure. See run-live.ps1's Set-ContentTree.
+if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
+    MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
+    export MOCK230_CONTENT
+fi
+
 # ws_host/ws_port: where a browser reaches the same server (the web build's
 # sockets are WebSockets). For LostCity that is also where /crc lives, which is
 # why the CRC fetch below uses it rather than assuming port 80. TORIRS_WS_* wins
@@ -134,11 +175,29 @@ build_scripts() {
     esac
 }
 
+# A composed cache is deleted and repacked from scratch, which takes minutes and
+# tears the cache out from under anything else reading it (a second client, an
+# osrsify search wave). TORIRS_NO_CACHE_BAKE=1 runs against the cache as it
+# already stands -- the right choice while iterating on C or on scripts, and the
+# wrong one the moment the content tree changed.
 build_cache_overlay() {
+    if [ "${TORIRS_NO_CACHE_BAKE:-0}" = "1" ]; then
+        echo "run-live.sh: TORIRS_NO_CACHE_BAKE=1 -- using $CACHE_DIR as it stands" >&2
+        return 0
+    fi
     case "$CACHE_DIR" in
         *cache.osrs239.summoning)
             echo "run-live.sh: building the Summoning cache overlay..." >&2
             make -C src mock230-cache-summoning || exit 1
+            ;;
+        *cache.osrs239.rs2012)
+            # The QBD/TD lane's cache is composed, not shipped, so a manifest
+            # naming it is a manifest asking for this bake. mock230-servpack is
+            # the server half of the same tree (the npc/loc server fields the
+            # boot reads out of <content>/server/pack); without it the world
+            # falls back to a text parse of content the bake has already moved.
+            echo "run-live.sh: building the RS2012 cache overlay + server pack..." >&2
+            make -C src mock230-cache-rs2012 mock230-servpack || exit 1
             ;;
     esac
 }

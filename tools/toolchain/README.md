@@ -39,7 +39,29 @@ Do not run the two wrappers concurrently. Their platform object directories
 and final executables are distinct, but a few generated host-tool outputs and
 `src/.last_flavor` are still shared.
 
-When refreshing either archive:
+## Stylizer model archive
+
+The same `lib/` + Git LFS pattern also carries the pre-trained ML checkpoints
+for the OSRS stylizer pipeline:
+
+| Archive | Contents | Repository SHA-256 |
+|---|---|---|
+| `lib/osrs-stylizer-models.zip` | `models/osrs_classifier.pt`, `models/osrs_engine_judge.pt`, `models/content_preserver.pt`, `requirements.txt`, `MODELS.md` | `f29e2eb29fc03918f5c7cadcb7b9fca1f9d049182a47111fc0ebd08768cbcd24` |
+
+To use the trained judges without retraining:
+
+```powershell
+git lfs pull --include="lib/osrs-stylizer-models.zip"
+Expand-Archive lib\osrs-stylizer-models.zip -DestinationPath tools\osrs_stylizer\ -Force
+pip install -r tools\osrs_stylizer\requirements.txt
+```
+
+That lands the checkpoints at `tools/osrs_stylizer/models/*.pt` — the default
+paths the scorers expect. `MODELS.md` inside the archive documents each
+checkpoint's accuracy and calibration; the full pipeline documentation is
+[`tools/osrs_stylizer/README.md`](../osrs_stylizer/README.md).
+
+When refreshing either compiler archive:
 
 1. preserve the top-level `mingw32/` or `mingw64/` directory expected by
    `scripts/windows_toolchain.ps1`;

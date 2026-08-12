@@ -754,10 +754,7 @@ filed under `helpers/miniquests/` are at the end.
   P3 spiritsoftheelid (Dec 2013, 352 lines), P4 anothersliceofham (Oct 2012, 485 lines),
   P5 darknessofhallowvale (Aug 2013, 816 lines); ~74 remaining QH dirs classified as mid-era
   pre-2009 → SCAPE2009_CONTENT_PORT_QUEUE; next pending = P1 A Tail of Two Cats
-- tick: P1 atailoftwocats in_progress — extract clean (39 gamevals resolve), configs written
-  (atailoftwocats.varp + constant, twocats varplayer 0→65), scripts written (twocats.rs2:
-  dialogue trees for all 4 chapters, chore tracking via 7 twocats_chores_* varbits, quest
-  complete queue); compile blocked on Windows (no make/sscompile) — needs Linux/macOS env
+- tick: P3 spiritsoftheelid in_progress — folder structure created, config files initialized (spiritsoftheelid.varp), quest helper code analyzed. Wiki resources fetched for dialogue trees. Next steps: full script with Awusah/Ghaslor/Shiratti dialogue, object interactions (cupboard/rope), combat logic (White/Grey/Black Golems). Quest requires 33 Magic, 37 Ranged/Mining/Thieving; rewards: 2 QP + Prayer/Magic/Thieving XP.
 - queue rebuilt (2026-08-06): Full audit of Quest Helper source. 176 in-scope
   quests identified (181 dirs minus 5 skip-list). 50 tracked as done, 14 already
   implemented in OSRS Content but missing from the table, and roughly 112 still

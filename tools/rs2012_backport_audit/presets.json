@@ -1,0 +1,25 @@
+{
+  "qbd": {
+    "models": [
+      "OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_70260.ob3",
+      "OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69766.ob3"
+    ],
+    "seqs": [
+      "rs2012_seq_16715",
+      "rs2012_seq_16714",
+      "rs2012_seq_16717",
+      "rs2012_seq_16721",
+      "rs2012_seq_16716"
+    ],
+    "seqcfg": "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq",
+    "cache": "cache.osrs239.rs2012"
+  },
+  "qbd-worm": {
+    "models": [
+      "OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td/rs2012_model_69765.ob3"
+    ],
+    "seqs": ["rs2012_seq_16786"],
+    "seqcfg": "OSRS-Content/osrs239-content/ported/rs2012_qbd_td/configs/rs2012.seq",
+    "cache": "cache.osrs239.rs2012"
+  }
+}
