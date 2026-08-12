@@ -917,6 +917,76 @@ rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscac
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(LDFLAGS)
 
+.PHONY: rs2012-lane-bake rs2012-lane-bake-check
+
+# The RS727 source cache the bake reads. It is ~461MB and matched by
+# .gitignore's `cache.*/`, so it is NOT carried by a clone and every machine
+# must obtain it out of band; the recipe fails with that instruction rather
+# than baking something wrong. Override with RS2012_SRC_CACHE=<dir>.
+RS2012_SRC_CACHE ?= $(REPO_ROOT)/cache.rs727_preeoc
+# The lane ships matte 60. This is the tool's `--matte` flag, not its default
+# (which is 0), which is why it must live somewhere a build can read rather
+# than in a branch name.
+RS2012_LANE_MATTE ?= 60
+
+define RS2012_REQUIRE_SRC_CACHE
+	@test -f "$(RS2012_SRC_CACHE)/main_file_cache.dat2" || { \
+		echo "rs2012-lane-bake: no RS727 source cache at $(RS2012_SRC_CACHE)" >&2; \
+		echo "  It is ~461MB and deliberately not in the repo (.gitignore: cache.*/)." >&2; \
+		echo "  Copy it there, or pass RS2012_SRC_CACHE=<dir>." >&2; exit 1; }
+endef
+
+# Both the source cache and the tree are usually supplied from outside, and on
+# Windows the usual mistake is a backslash path, which make's shell eats
+# silently -- the bake then reports a missing pack under a mangled name. Check
+# the lane up front and say which variable is wrong.
+define RS2012_REQUIRE_LANE
+	@test -d "$(RS2012_QBD_TD_CLIENT_LANE)" || { \
+		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_CLIENT_LANE)" >&2; \
+		echo "  MOCK230_CONTENT_DIR=$(MOCK230_CONTENT_DIR)" >&2; \
+		echo "  is not a content tree carrying ported/rs2012_qbd_td." >&2; \
+		case '$(MOCK230_CONTENT_DIR)' in *\\*) \
+			echo "  (that path contains backslashes -- use forward slashes)" >&2;; esac; \
+		exit 1; }
+endef
+
+# Re-backport the QBD/TD lane from the RS727 cache into the content tree, then
+# tell you to re-pack. Writes $(MOCK230_CONTENT_DIR) in place -- point that at
+# the tree you mean (see the note at MOCK230_CONTENT_DIR).
+#
+# This exists because the bake was previously a hand-typed command whose one
+# load-bearing flag (--matte) lived only in a branch name, so no two machines
+# ran it the same way. It is byte-reproducible as of the p[256] fix in
+# proctex_ops.u.c; `rs2012-lane-bake-check` is the gate that keeps it that way.
+rs2012-lane-bake: rs2012-material-bake
+	$(RS2012_REQUIRE_SRC_CACHE)
+	$(RS2012_REQUIRE_LANE)
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/rs2012_material_bake \
+		--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+		--matte $(RS2012_LANE_MATTE) --apply
+	@echo "rs2012-lane-bake: wrote $(MOCK230_CONTENT_DIR); now run mock230-cache-rs2012"
+
+# Determinism gate. Two bakes into disposable directories must be byte-identical;
+# if they are not, the bake has picked up uninitialised or address-dependent
+# state again and no two machines will agree on the lane. Writes nothing to the
+# content tree.
+rs2012-lane-bake-check: rs2012-material-bake
+	$(RS2012_REQUIRE_SRC_CACHE)
+	$(RS2012_REQUIRE_LANE)
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+		cd $(REPO_ROOT) && for run in a b; do \
+			mkdir -p "$$tmp/$$run"; \
+			./src/$(OBJ_DIR)/rs2012_material_bake \
+				--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+				--matte $(RS2012_LANE_MATTE) --models-out "$$tmp/$$run" >/dev/null || exit 1; \
+		done; \
+		if diff -r "$$tmp/a" "$$tmp/b" >/dev/null; then \
+			echo "rs2012-lane-bake-check: deterministic ($$(ls "$$tmp/a" | wc -l) models identical across two runs)"; \
+		else \
+			echo "rs2012-lane-bake-check: NOT deterministic -- two runs differ:" >&2; \
+			diff -rq "$$tmp/a" "$$tmp/b" | head -20 >&2; exit 1; \
+		fi
+
 .PHONY: rs2012-strip-priorities
 
 # RS2012 models were authored against a z-buffered client, so their face render

@@ -1521,6 +1521,70 @@ face_bake_apply_alpha(
     g_face_bake_alpha_faces++;
 }
 
+/* --wisp-alpha: how far a wisp's frame coverage is allowed to carry into
+ * screen translucency.
+ *
+ * Being a wisp is an INFERENCE, and it contradicts the one piece of authored
+ * evidence available: every material the rule selects on this lane carries
+ * alpha_mode 0, HD's own statement that it draws opaque. That inference is
+ * right for a standalone filament and wrong for a sparse greyscale detail
+ * layer sitting on a solid surface, and no field in the material row separates
+ * the two — material 1685 (the QBD crest fringe) and material 214 (the arena
+ * rocks) are the same shader, the same greyscale, the same coverage band.
+ *
+ *   screen  the inference wins outright: sqrt(coverage) becomes face alpha
+ *           linearly and uncapped, bypassing both the gamma and the cap. This
+ *           was the default through v10-m60 and it is what ghosted the rocks,
+ *           the braziers and the dragonbone armour.
+ *   capped  same inference, but bounded — it may soften a surface, never erase
+ *           it. Coverage takes the ordinary gamma and lands under
+ *           --face-alpha-cap, so a guess can no longer overrule the table by
+ *           more than the cap allows.
+ *   off     DEFAULT. The inference loses: the face is what its row says it is,
+ *           an opaque mode-0 blend layer, and only a footprint landing entirely
+ *           in a hole produces alpha.
+ *
+ * `off` is the default because a side-by-side of all 660 lane models showed it
+ * restoring every solid object the rule had ghosted (rocks, braziers, the
+ * dragonbone set, four locs that rendered as literally nothing) while leaving
+ * the QBD itself within 1% of baseline — the crest the rule was written for
+ * does not measurably regress — and leaving every genuinely translucent thing
+ * pixel-identical, because smoke, spotanims and membranes reach their alpha
+ * through the authored alpha_mode 2 and cutout paths, not through this one.
+ *
+ * The wisp COLOUR treatment (face_bake_tint_hsl, below) is not affected by
+ * this at any setting: the placeholder-colour half of the original bug is
+ * fixed by the tint, independently of opacity. */
+enum wisp_alpha_mode
+{
+    WISP_ALPHA_SCREEN,
+    WISP_ALPHA_CAPPED,
+    WISP_ALPHA_OFF,
+};
+static enum wisp_alpha_mode g_wisp_alpha = WISP_ALPHA_OFF;
+static int g_face_bake_wisp_faces = 0;
+
+static void
+face_bake_wisp_alpha(struct RSCache_Model* model, int face, double coverage)
+{
+    g_face_bake_wisp_faces++;
+    switch( g_wisp_alpha )
+    {
+    case WISP_ALPHA_SCREEN:
+        /* A wisp's whisper coverages should ghost, not vanish, so the linear
+         * map gets a sqrt lift first (fin 0.08 -> 0.28 rather than 0.08). */
+        face_bake_apply_alpha(model, face, sqrt(coverage), true);
+        break;
+    case WISP_ALPHA_CAPPED:
+        face_bake_apply_alpha(model, face, coverage, false);
+        break;
+    case WISP_ALPHA_OFF:
+        if( coverage < 0.02 )
+            face_bake_apply_alpha(model, face, 0.0, false);
+        break;
+    }
+}
+
 /* Remove marked faces in place, compacting every per-face array. Vertices,
  * bone maps and texture triangles are left alone: unused entries are harmless,
  * vertex skinning is untouched (so animations survive), and keeping
@@ -2069,9 +2133,10 @@ face_bake_apply(struct RSCache_Model* model, int face, int source)
          * placeholder colours). A wisp's linear coverage lands near-invisible
          * (fin 0.08 -> alpha 234); sqrt lifts it to a visible ghost while
          * still vanishing with the frame. */
-        if( wisp || cutout )
-            face_bake_apply_alpha(
-                model, face, wisp ? sqrt(coverage) : coverage, true);
+        if( cutout )
+            face_bake_apply_alpha(model, face, coverage, true);
+        else if( wisp )
+            face_bake_wisp_alpha(model, face, coverage);
     }
     else if( cutout )
     {
@@ -2081,15 +2146,22 @@ face_bake_apply(struct RSCache_Model* model, int face, int source)
          * solid, footprints over holes fade. */
         face_bake_apply_alpha(model, face, coverage, true);
     }
-    else if( g_textures[source].blend_layer && (alpha_mode == 2 || wisp) )
+    else if( wisp )
     {
-        /* The HD engine alpha-blends this material on screen (alpha_mode 2,
-         * or inferred for invalid-row wisps), so its texel alpha is literal
-         * opacity — the QBD's neck membranes. The footprint's mean coverage
-         * becomes face alpha linearly, uncapped; see face_bake_apply_alpha.
-         * Wisps take the sqrt curve for the same reason as the degenerate
-         * branch: their whisper coverages should ghost, not vanish. */
-        face_bake_apply_alpha(model, face, wisp ? sqrt(coverage) : coverage, true);
+        /* A wisp is a blend layer whose translucency is INFERRED against the
+         * material row's own alpha_mode 0; how far that inference is allowed
+         * to go is --wisp-alpha. Ordered before the alpha_mode 2 branch so a
+         * material that is both still answers to the wisp setting. */
+        face_bake_wisp_alpha(model, face, coverage);
+    }
+    else if( g_textures[source].blend_layer && alpha_mode == 2 )
+    {
+        /* The HD engine alpha-blends this material on screen, so its texel
+         * alpha is literal opacity — the QBD's neck membranes. The footprint's
+         * mean coverage becomes face alpha linearly and uncapped; see
+         * face_bake_apply_alpha. This is authored evidence, not an inference,
+         * which is why it is not bounded the way a wisp now is. */
+        face_bake_apply_alpha(model, face, coverage, true);
     }
     else
     {
@@ -2923,7 +2995,7 @@ usage(const char* argv0)
             "Usage: %s [--cache DIR] [--tree DIR] [--apply]\n"
             "         [--face-color-bake off|tint|modulate] [--face-color-strength 0-100]\n"
             "         [--no-face-alpha-bake] [--face-bake-debug MODEL] [--models-out DIR]\n"
-            "         [--matte 0-100]\n"
+            "         [--matte 0-100] [--wisp-alpha screen|capped|off]\n"
             "Defaults: cache.rs727_preeoc and OSRS-Content/osrs239-content.\n"
             "The default backport composites each erased material's baked frame into\n"
             "the face colours it falls back to (modulate) and turns the frame's alpha\n"
@@ -2934,7 +3006,13 @@ usage(const char* argv0)
             "OB3s flat into DIR without touching the lane (works without --apply).\n"
             "--matte N compresses each baked face's lightness toward its material's\n"
             "mean by N%% and rolls highlights off at the gloss knee — mutes the HD\n"
-            "frames' baked-in specular gradients toward the OSRS matte look.\n",
+            "frames' baked-in specular gradients toward the OSRS matte look.\n"
+            "--wisp-alpha bounds the wisp inference, which overrides a material\n"
+            "row's own alpha_mode 0: off (default) trusts the row and keeps the\n"
+            "surface opaque, capped lets the guess soften a surface but not erase\n"
+            "it, screen restores the uncapped v10-m60 behaviour that ghosted the\n"
+            "arena rocks. Authored translucency (alpha_mode 2, cutout) is reached\n"
+            "on other paths and is unaffected at every setting.\n",
             argv0);
 }
 
@@ -2978,6 +3056,21 @@ main(int argc, char** argv)
             g_face_alpha_gamma = atof(argv[++i]);
         else if( strcmp(argv[i], "--face-alpha-cap") == 0 && i + 1 < argc )
             g_face_alpha_cap = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--wisp-alpha") == 0 && i + 1 < argc )
+        {
+            const char* mode = argv[++i];
+            if( strcmp(mode, "screen") == 0 )
+                g_wisp_alpha = WISP_ALPHA_SCREEN;
+            else if( strcmp(mode, "capped") == 0 )
+                g_wisp_alpha = WISP_ALPHA_CAPPED;
+            else if( strcmp(mode, "off") == 0 )
+                g_wisp_alpha = WISP_ALPHA_OFF;
+            else
+            {
+                fprintf(stderr, "--wisp-alpha: expected screen|capped|off\n");
+                return 2;
+            }
+        }
         else if( strcmp(argv[i], "--face-synth") == 0 && i + 1 < argc )
             g_face_synth = strcmp(argv[++i], "off") != 0;
         else if( strcmp(argv[i], "--face-synth-k") == 0 && i + 1 < argc )
@@ -3171,6 +3264,12 @@ main(int argc, char** argv)
                    g_face_bake_strength, g_face_bake_faces, g_face_bake_degenerate,
                    g_face_bake_uncovered, g_face_bake_alpha_faces,
                    g_face_bake_dropped_faces);
+        if( g_face_bake_mode != FACE_BAKE_OFF )
+            printf("  wisp_alpha=%s wisp_faces=%d\n",
+                   g_wisp_alpha == WISP_ALPHA_SCREEN   ? "screen"
+                   : g_wisp_alpha == WISP_ALPHA_CAPPED ? "capped"
+                                                       : "off",
+                   g_face_bake_wisp_faces);
         if( g_face_synth_parents > 0 )
             printf("  face_synth: parents=%ld sub_faces=%ld holes=%ld (K=%d hole=%.2f)\n",
                    g_face_synth_parents, g_face_synth_faces, g_face_synth_holes,
