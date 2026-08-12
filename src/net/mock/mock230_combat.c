@@ -81,6 +81,50 @@ npc_def(const struct Mock230Npc* npc)
 }
 
 /*
+ * The gap between the npc's FOOTPRINT and the player's tile, per axis.
+ *
+ * Zero on an axis the two overlap on, otherwise the number of tiles between
+ * the near edges. `npc->x/npc->z` is the south-west anchor of a `size x size`
+ * square, not the whole npc, and everything in combat that measured the anchor
+ * was measuring a 1x1 npc that happens to be most of the roster.
+ *
+ * It is not most of the roster. A cow and a unicorn are 2x2: pressed against
+ * the player's tile on their east face they are one tile away and their anchor
+ * is two, so a reach test on the anchor said "not in range" while the two were
+ * touching. The npc then pursued a player it was already standing against,
+ * the pathfinder (which *is* footprint-aware) answered with a step around the
+ * perimeter, and the fight never started — the only way to satisfy the anchor
+ * test was to walk ON TOP of the player, which `npc_travel_extra`'s PLAYER_OCC
+ * bit correctly forbids. Every size>1 npc in the game retaliated, faced the
+ * player, followed them around and never landed a blow.
+ *
+ * The reference's `CoordGrid.distanceTo` is this, and `npc_player_distance` in
+ * mock230_world.c is the same arithmetic for the mode machine's range tests.
+ */
+static void
+npc_player_gap(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc,
+    int* out_dx,
+    int* out_dz)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+    *out_dx = dx;
+    *out_dz = dz;
+}
+
+/*
  * Melee squares up: a diagonal is NOT in range.
  *
  * OldSchool melee requires orthogonal adjacency. Two entities standing corner
@@ -89,6 +133,11 @@ npc_def(const struct Mock230Npc* npc)
  * distance (a diagonal costs the same as a straight step) is the right metric
  * for *walking* and the wrong one for *reach*, and using it here let fights
  * happen corner to corner and never square up.
+ *
+ * Stated on the footprint gap, both axes zero means the two overlap, so
+ * `(dx + dz) == 1` is "sharing an edge" for rectangles exactly as it was
+ * "orthogonally adjacent" for two tiles — a corner touch is 1,1 and still
+ * fails, and an overlap is 0,0 and fails too.
  *
  * Only melee is orthogonal. A ranged or magic attacker with `attackrange > 1`
  * uses the diagonal-permitting distance, which is why the two cases split here
@@ -111,13 +160,12 @@ in_attack_range_with(
     if( player->level != npc->level )
         return 0;
 
-    dx = abs_of(player->x - npc->x);
-    dz = abs_of(player->z - npc->z);
+    npc_player_gap(player, npc, &dx, &dz);
 
     if( range <= 1 )
         return (dx + dz) == 1;
 
-    return tile_distance(player->x, player->z, npc->x, npc->z) <= range;
+    return (dx > dz ? dx : dz) <= range;
 }
 
 /** Player weapon reach from the cache's `weapon_attackrange` param, capped at
@@ -290,6 +338,16 @@ hitsplat_block(void)
     int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_block");
 
     return id >= 0 ? id : 26;
+}
+
+static int
+hitsplat_poison(void)
+{
+    int id = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_poison");
+
+    /* rev-230's poison hitsplat id. The fallback keeps a reduced content pack
+     * observable rather than converting poison into an ordinary damage splat. */
+    return id >= 0 ? id : 7;
 }
 
 
@@ -593,8 +651,16 @@ mock230_combat_hit_npc(
      * Charging a full attackrate here left attacker and defender permanently
      * co-phased: PLAYER_INFO and NPC_INFO carried their damage masks on the
      * same tick, every attackrate ticks, for the whole fight. Halving it once
-     * on the opening hit is what staggers the two cadences apart. */
-    if( npc->combat_target < 0 )
+     * on the opening hit is what staggers the two cadences apart.
+     *
+     * `retaliate=no` opts out, and the opt-out belongs here rather than in a
+     * mode or a hunt setting: `combat_target` is what the npc phase reads to
+     * decide that combat owns this npc's movement, so a latch taken here is
+     * already the npc leaving whatever it was doing. Scenery with hitpoints —
+     * the Inferno's Ancestral Glyph, which walks a fixed row while the adds
+     * chew on it for the whole Zuk phase — needs the hit, the splat and the
+     * flinch below, and none of this. */
+    if( npc->combat_target < 0 && npc_def(npc)->retaliate )
     {
         npc->combat_target = srv->active_player ? srv->active_player->pid : 0;
         npc->attack_clock = npc_def(npc)->attackrate / 2;
@@ -608,6 +674,10 @@ mock230_combat_hit_npc(
      * turn to face *them*. The masks never needed to be per-observer — the id
      * already is absolute (32768 + pool slot, as in `setFaceEntity`), and
      * `combat_target` is that pid, set four lines up.
+     *
+     * Guarded on there being one: a `retaliate=no` npc has no target to face,
+     * and turning it toward pid -1 would be the same visible wrong as the
+     * latch it just declined.
      */
     mock230_npc_face_player(npc, npc->combat_target);
     /* Flinch. Overwritten below if this was the killing blow. */
@@ -677,7 +747,7 @@ mock230_combat_hit_npc(
          * because a mode left armed for the tick between the blow and the death
          * script is a tick of a corpse chasing somebody.
          */
-        npc->mode = mock230_world_npc_default_mode(npc);
+        mock230_npc_reset_defaults(npc);
         for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
@@ -691,6 +761,74 @@ mock230_combat_hit_npc(
          * returned — which is after `npc_del`. So the loot lands on the tick the
          * corpse disappears, and `mock230_combat_npc_tick` is where that is. */
     }
+}
+
+void
+mock230_combat_poison_npc(
+    struct Mock230Server* srv,
+    int slot,
+    const struct Mock230Player* source,
+    int severity)
+{
+    struct Mock230Npc* npc;
+
+    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX || severity <= 0 )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->death_tick >= 0 )
+        return;
+
+    /* ContentAPI.applyPoison retains a strictly stronger timer and replaces
+     * an equal/weaker one, including the source credited for the hit. */
+    if( npc->poison_severity > severity )
+        return;
+    npc->poison_severity = severity;
+    npc->poison_clock = srv->tick + 30;
+    npc->poison_source_pid = source && source->active ? source->pid : -1;
+    npc->poison_source_gen = source && source->active ? source->login_generation : 0;
+}
+
+void
+mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
+{
+    struct Mock230Npc* npc;
+    struct Mock230Player* source = NULL;
+    struct Mock230Player* saved_active;
+    int damage;
+
+    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active || npc->poison_severity <= 0 )
+        return;
+    if( npc->death_tick >= 0 )
+    {
+        npc->poison_severity = 0;
+        return;
+    }
+    if( srv->tick < npc->poison_clock )
+        return;
+
+    damage = (npc->poison_severity + 4) / 5;
+    npc->poison_severity--;
+    if( npc->poison_severity > 0 )
+        npc->poison_clock = srv->tick + 30;
+
+    if( npc->poison_source_pid >= 0 && npc->poison_source_pid < MOCK230_PLAYER_MAX )
+    {
+        struct Mock230Player* candidate = &srv->players[npc->poison_source_pid];
+
+        if( candidate->active && candidate->login_generation == npc->poison_source_gen )
+            source = candidate;
+    }
+
+    /* The normal damage path attributes retaliation through active_player.
+     * A delayed poison hit must restore its captured source, and a stale one
+     * must not fall through to whichever player the NPC phase ran after. */
+    saved_active = srv->active_player;
+    mock230_world_set_active(srv, source);
+    mock230_combat_hit_npc(srv, slot, hitsplat_poison(), damage);
+    mock230_world_set_active(srv, saved_active);
 }
 
 void
@@ -805,8 +943,26 @@ mock230_combat_engage(
          */
         mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, slot, npc->type,
                                       npc->x, npc->z, npc->level, size, size);
-        mock230_scene_npc_approach(size, &approach);
-        mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+        /*
+         * Only walk if the click did not already land in range.
+         *
+         * `mock230_scene_npc_approach` builds a melee-adjacency shape (the
+         * npc's own footprint, not the attacker's reach), so issuing this
+         * unconditionally sent every ranged/magic "Attack" click on a
+         * satisfied target straight toward melee adjacency — a bow already
+         * standing at range 9 of a range-10 target got yanked in on every
+         * click. `mock230_combat_player_approach` (the per-tick repath,
+         * below) already gates the same walk on `in_player_attack_range`;
+         * this is that same gate, just on the click that starts the fight
+         * rather than the tick that continues it.
+         */
+        if( in_player_attack_range(player, npc) )
+            mock230_world_steps_clear(player);
+        else
+        {
+            mock230_scene_npc_approach(size, &approach);
+            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+        }
     }
 }
 
@@ -1360,11 +1516,23 @@ mock230_combat_npc_tick(
          * rule inlined beside it, and no route behind it — "a blocked step is
          * simply not taken, the npc will try again next tick". That is only
          * true if the block goes away, and a wall does not. */
+        /*
+         * `mover_size` is the NPC's own footprint, not 1.
+         *
+         * The approach and the reach test have to be asking the same question:
+         * this decides when the npc stops walking, `in_npc_attack_range`
+         * decides when it swings, and a 2x2 npc that stopped on the anchor
+         * rule stopped one tile short of where the swing rule wanted it — or,
+         * where the map allowed, on top of the player. `mover_size` is the
+         * only thing `collision_test_rect_adjacent` needs to answer for a
+         * rectangle instead of a tile (and it also reads the shared edge's
+         * wall bit, so an npc no longer counts a fence as arrival).
+         */
         struct CollisionApproach approach = {
             .kind = COLL_APPROACH_RECT_ADJACENT,
             .loc_width = 1,
             .loc_length = 1,
-            .mover_size = 1,
+            .mover_size = npc->size > 0 ? npc->size : 1,
         };
 
         /* Moves *then* gives up, which is the reference's order
@@ -1437,15 +1605,20 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * Content that wants any of it back gets it back: `spawn_pending` below
          * re-runs `[ai_spawn]`, which is where those overrides are set.
          */
-        npc->mode = mock230_world_npc_default_mode(npc);
+        mock230_npc_reset_defaults(npc);
         npc->huntmode = npc_def(npc)->huntmode;
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));
+        npc->poison_severity = 0;
+        npc->poison_clock = 0;
+        npc->poison_source_pid = -1;
+        npc->poison_source_gen = 0;
         npc->patrol_index = 0;
         npc->patrol_pause = 0;
         npc->attack_clock = 0;
         npc->step_dir = -1;
+        npc->run_dir = -1;
         /* A respawn is a fresh npc to every observer, so it faces the way a
          * fresh npc does rather than wherever it was walking when it died. */
         npc->face_dir = MOCK230_FACE_SOUTH;

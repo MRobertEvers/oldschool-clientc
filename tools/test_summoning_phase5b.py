@@ -222,6 +222,12 @@ def config_records(path: Path) -> dict[str, list[str]]:
         text = raw.strip()
         if not text:
             continue
+        # cachepack's config parser accepts `//` comments, and the lane's
+        # records use them to carry per-record source provenance (the rev-530
+        # npc id a footprint came from). Reading them as properties would fail
+        # a file the packer is perfectly happy with.
+        if text.startswith("//"):
+            continue
         if text.startswith("[") and text.endswith("]"):
             current = text[1:-1]
             if current in records:

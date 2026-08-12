@@ -19,6 +19,10 @@ struct WorldEntity_NPC
      *  they claim the tile in the one-entity-per-tile dedup (Client.ts
      *  addNpcs, called first with alwaysontop=true). */
     bool alwaysontop;
+    /** NpcType.minimap (opcode 93). false = no minimap dot for this npc
+     *  (Client.ts minimapDraw skips it). Defaults true at spawn so an npc
+     *  whose type never resolved still shows, which is the old behaviour. */
+    bool minimap_visible;
     int combat_level;
     char name[32];
     struct WorldEntityFacet_Action actions[5];

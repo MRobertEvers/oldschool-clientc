@@ -20,6 +20,7 @@
 #include "game/rs_if1_buttons.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_player_stats.h"
+#include "game/rs_prefs.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
@@ -235,6 +236,13 @@ struct AppConfig
      * overrides both. */
     int features_ground_click_nearest;
     int features_ground_click_nearest_set;
+    /** `[features:boot] ground_click_unbounded` / `ground_click_offmap` — the
+     * two permissive ground-click extensions (features.h). Both are 0 in every
+     * era table because the client is deob-exact by default; these keys, and
+     * TORIRS_GROUND_CLICK_UNBOUNDED / TORIRS_GROUND_CLICK_OFFMAP, are the only
+     * way to turn one on. -1 = not stated. */
+    int features_ground_click_unbounded;
+    int features_ground_click_offmap;
     /** `[features:boot] painter_draw_distance`, in the official OSRS 25..90
      * tile interval. Absent keeps Client-TS's fixed 25-tile radius;
      * TORIRS_DRAW_DISTANCE overrides it at runtime. */
@@ -330,6 +338,17 @@ enum ToriRS_WorldRenderMode
  * script.
  */
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES 30
+
+/**
+ * Logic cycles a settings change waits before it is written to disk.
+ *
+ * A slider drag reports a new volume every 20ms cycle, so writing on each one
+ * would be fifty file rewrites a second for one gesture. Half a second of quiet
+ * collapses a drag into a single write and is still far shorter than the time
+ * between changing a setting and quitting; App_Shutdown flushes the tail
+ * either way.
+ */
+#define APP_PREFS_SAVE_SETTLE_TICKS 25
 
 struct App
 {
@@ -780,6 +799,18 @@ struct App
     struct ToriRS_AudioFeedback audio_feedback;
     /** Outbound audio requests for the host to hand a backend (App_DrainAudio). */
     struct ToriRS_AudioQueue audio_out;
+    /**
+     * Device settings that outlive the process: the audio panel's volumes and
+     * the rest of the CS2 option store (game/rs_prefs.h). Loaded during boot,
+     * mirrored back from the host as the player changes things.
+     */
+    struct RS_Prefs prefs;
+    /** Where prefs are written; NULL turns persistence off (TORIRS_PREFS=""). */
+    char const* prefs_path;
+    /** logic_cycle at which prefs last moved, or 0 when they are on disk. A
+     *  slider drag changes them every tick, so the write waits for the drag to
+     *  settle rather than rewriting the file 50 times a second. */
+    uint64_t prefs_dirty_cycle;
     /**
      * Camera scripting (CAM_* packets).
      *
@@ -1329,6 +1360,16 @@ App_WorldSpawnSyncedNpc(
     int scene_z,
     int level);
 
+struct UITreeMinimapDot;
+
+/** Build this frame's minimap dot overlay (the UITREE_HOST_GET_MINIMAP_DOTS
+ * body). Returns the dot count and points `*out_dots` at the app-owned array,
+ * valid until the next call. Exposed for the dot-gating test. */
+int
+App_MinimapBuildDots(
+    struct App* app,
+    struct UITreeMinimapDot const** out_dots);
+
 struct PktPlayerAppearance;
 
 /** Rebuild + swap the player's composited model and apply the decoded
@@ -1780,5 +1821,21 @@ App_SimulateLocOp(
     int abs_x,
     int abs_z,
     int loc_id);
+
+/**
+ * The npc counterpart of App_SimulateLocOp: send one ordinary OPNPC1..5 for the
+ * first live npc of the given cache type. Returns the server slot the operation
+ * was addressed to, or -1 when no synced npc of that type is in the scene.
+ *
+ * Targeting by type is what makes this usable from a test. A world click needs
+ * the npc's pixels, which move with the camera and the tile the server picked;
+ * the packet needs its server slot, which is assigned at spawn. The type is the
+ * only one of the three a test can write down.
+ */
+int
+App_SimulateNpcOp(
+    struct App* app,
+    int op_num,
+    int npc_id);
 
 #endif

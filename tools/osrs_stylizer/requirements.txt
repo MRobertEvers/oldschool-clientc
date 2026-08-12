@@ -1,0 +1,8 @@
+# Python-side dependencies for the OSRS stylizer pipeline.
+# NOTE: modifier.py runs inside Blender's bundled Python and needs none of these.
+torch>=2.1
+torchvision>=0.16
+transformers>=4.40
+optuna>=3.6
+pillow>=10.0
+numpy>=1.24

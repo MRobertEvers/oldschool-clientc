@@ -69,6 +69,45 @@ Reordered deliberately. The README is one of the four explicit asks, and writing
 straight after the container work meant documenting formats I had just verified
 field by field. Phase 5 is ~33 encoders and would have deferred it a long way.
 
+### A6. `RSCache_Dat2Disk` grew a required storage vtable *(Deviation)*
+
+Added after the fact, for a host outside the plan's scope: the browser build,
+whose only durable storage is IndexedDB. The dat2 container solves a problem a
+filesystem has and a key-value store does not — packing variable-length archives
+into one file without a per-archive inode — so laying a sector chain over
+IndexedDB would pay the 520-byte sector headers and the orphaned sectors every
+rewrite leaves behind, for nothing.
+
+So `struct RSCache_Dat2Store` is now where a disk's archives live, and the dat2
+file backing (`RSCache_Dat2DiskFileStore`) is one implementation of it rather
+than the thing the disk *is*. Reads go through `get`, writes through `put`,
+table discovery through `has_table`, and the two artifacts only files have — the
+zero-byte idxN presence sentinel and reopening a reader whose buffered state
+predates an append — through `commit_table`.
+
+**Required, not optional, and that is the deviation worth recording.** An "if
+there is a store, else read the file" disk has two backings and two sets of
+bugs, and the file path stays the one that is really exercised. Every
+constructor now installs a store; `store.get` is non-NULL on every open disk.
+
+Consequences a caller may notice:
+
+- `disk->dat2_file` is the file store's handle and is NULL under any other
+  backing. Only `3rd/rscache/tools/cachepack/cp_binary.c` reads it, and it only
+  ever opens directories.
+- `RSCache_Dat2DiskWriteArchive` still takes a directory and so cannot reach a
+  store. `RSCache_Dat2DiskWriteArchiveTo` takes the disk and is what callers
+  holding one should use; the JS5 storage adapter was moved onto it.
+- A read-only disk gets no `put` at all, which makes the promise
+  `NewReadOnlyFromDirectory` advertises structural rather than a flag every
+  writer has to remember to test.
+
+Verified by the existing suites rather than by new ones — the file backing is
+now exercised through the vtable on every call, so `test-js5` (64 checks),
+`test-js5-server` (121 + 8), `test-io-wire` (223) and a full native build cover
+it. The browser backing lives outside this library, in
+`src/platform/dat2_web_store.c`; see `docs/WEB_CACHE_INDEXEDDB.md`.
+
 ### A5. Cross-cache porting *(Updated)*
 
 The library itself still ships no automatic porting layer inside the codecs —

@@ -107,6 +107,22 @@ struct RS_MinimenuBuildCtx
     struct World* world;
     struct World_PickSet const* world_pickset;
     bool click_in_world;
+
+    /*
+     * Destination for "Walk here" when the click hit no terrain at all — the
+     * sky, the void outside an instance's floor, a tile the pick refuses.
+     * Unset (the zero value) leaves the row inert, which is the reference
+     * behaviour: such a click walks nowhere. Tile (0,0) is a legal scene tile,
+     * so presence is carried by the flag, never by a sentinel coordinate.
+     *
+     * A resolved value rather than a callback because only the click paths pay
+     * for it: the hover-text build runs this whole builder every frame and has
+     * no use for the tile, so it leaves the flag false.
+     */
+    bool ground_fallback_valid;
+    int ground_fallback_x;
+    int ground_fallback_z;
+    int ground_fallback_level;
 };
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,

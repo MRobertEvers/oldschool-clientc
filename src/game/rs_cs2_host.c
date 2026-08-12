@@ -697,23 +697,20 @@ RS_CS2Host_Init(
     host->cam_follow_height = 0;
     /* The audio engine starts at full gain; the option host must report the
      * same state before interface 116 sends its first slider update. */
-    host->volume_music = 100;
-    host->volume_sounds = 100;
-    host->volume_area_sounds = 100;
-    host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME] = 100;
-    host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME] = 100;
-    host->game_options[RS_CS2_GAMEOPTION_AREA_VOLUME] = 100;
-    host->device_options[RS_CS2_DEVICEOPTION_MASTER_VOLUME] = 100;
+    for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
+    {
+        host->game_options[id] = RS_CS2Host_OptionDefault(RS_CS2_OPTION_GAME, id);
+        host->device_options[id] = RS_CS2Host_OptionDefault(RS_CS2_OPTION_DEVICE, id);
+    }
+    host->volume_music = host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME];
+    host->volume_sounds = host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME];
+    host->volume_area_sounds = host->game_options[RS_CS2_GAMEOPTION_AREA_VOLUME];
     /* Start at the low end of the documented 2..8 range; a settings panel or the
      * server can drive it. Real default is TBD once minimap zoom is rendered. */
     host->minimap_zoom = 2;
     host->logout_requested = false;
     host->close_modal_requested = false;
     host->resume_pausebutton_component_id = -1;
-    /* Preserve what VIEWPORT_GETFOV/GETZOOM returned before they were
-     * host-routed (cs2_host_ui.c defaults for fixed-layout clients). */
-    host->viewport_fov = 128;
-    host->viewport_fov_max = 896;
     /* Orbit-distance zoom endpoints (reference client.field780/field747, set at
      * client.java:4264). These are read by the follow camera every cycle, so the
      * defaults have to be the reference's, not the old GETZOOM placeholders —
@@ -721,11 +718,18 @@ RS_CS2Host_Init(
      * and stretched it 3.5x at a tall one. */
     host->viewport_zoom = 256;
     host->viewport_zoom_max = 320;
-    /* Reference default for the interpolation endpoints (class159 reads them
-     * before any SETFOV has run). Written here, read only by the env-gated
-     * TORIRS_WEDGE_SCALE path — nothing in the default build looks at them. */
+    /* Reference default for the interpolation endpoints (class159.method5357
+     * and VIEWPORT_GETEFFECTIVESIZE read them before any SETFOV has run). */
     host->viewport_zoom_near = 256;
     host->viewport_zoom_far = 256;
+    /* The reference's own "unset" values for the two CLAMPFOV ranges, which is
+     * also what `viewport_clampfov(0, 0, 0, 0)` restores. Not zero: zero is
+     * outside both ranges and would letterbox the viewport away before any
+     * script had asked for a clamp. */
+    host->viewport_fov_min = 1;
+    host->viewport_fov_max_clamp = 32767;
+    host->viewport_aspect_min = 1;
+    host->viewport_aspect_max = 32767;
     host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
@@ -1082,6 +1086,182 @@ RS_CS2Host_TakeSound(
     host->sound_head = (host->sound_head + 1) % RS_CS2_HOST_SOUND_MAX;
     host->sound_count--;
     return true;
+}
+
+/*
+ * The two option tables, exactly as the reference enumerates them.
+ *
+ * rev-239 deob: `class64` is the device table and `class67` the game table,
+ * each entry a (handler ordinal, option id) pair. Reproduced here as ids
+ * because that is all this client needs — which table an id belongs to, and
+ * whether the reference keeps it on disk.
+ *
+ * `persist` is read off `class79`: an option whose handler calls a `class79`
+ * setter is written to preferences<N>.dat, one that does not is session state.
+ * Only two are not:
+ *
+ *   device 6  brightness — the handler calls the gamma helper directly.
+ *   device 22 the file still carries a byte for it, but the loader reads that
+ *             byte and forces the field false, so the stored value cannot
+ *             survive a launch. Writing it would be persistence in name only.
+ *
+ * device 19 (master volume) is the one place this client is deliberately not
+ * the reference: the reference's file has a master-volume field, but the live
+ * value the mixer reads is a *different* field that the encoder never writes,
+ * so a reference master volume does not come back. This client has one master
+ * volume and keeps it, which is what that file field was plainly for.
+ */
+struct OptionSpec
+{
+    int id;
+    bool persist;
+};
+
+static const struct OptionSpec device_option_spec[] = {
+    { 2, true },   /* hide username on the login screen */
+    { 3, true },   /* stored; nothing in rev 239 reads it back */
+    { 4, true },   /* title music disabled */
+    { 5, true },
+    { 6, false },  /* brightness — applied on the spot, never saved */
+    { 14, true },  /* draw distance */
+    { 19, true },  /* master volume — see above */
+    { 22, false }, /* retired: the reference discards it on load */
+};
+
+static const struct OptionSpec game_option_spec[] = {
+    { RS_CS2_GAMEOPTION_HIDE_ROOFS, true },   /* 1 */
+    { RS_CS2_GAMEOPTION_MUSIC_VOLUME, true }, /* 7 */
+    { RS_CS2_GAMEOPTION_SOUND_VOLUME, true }, /* 8 */
+    { RS_CS2_GAMEOPTION_AREA_VOLUME, true },  /* 9 */
+};
+
+static const struct OptionSpec*
+option_spec(
+    int kind,
+    int option_id)
+{
+    const struct OptionSpec* table;
+    size_t count;
+
+    if( kind == RS_CS2_OPTION_DEVICE )
+    {
+        table = device_option_spec;
+        count = sizeof(device_option_spec) / sizeof(device_option_spec[0]);
+    }
+    else if( kind == RS_CS2_OPTION_GAME )
+    {
+        table = game_option_spec;
+        count = sizeof(game_option_spec) / sizeof(game_option_spec[0]);
+    }
+    else
+        return NULL;
+
+    for( size_t i = 0; i < count; i++ )
+        if( table[i].id == option_id )
+            return &table[i];
+    return NULL;
+}
+
+int
+RS_CS2Host_ClientOptionKind(int option_id)
+{
+    if( option_spec(RS_CS2_OPTION_DEVICE, option_id) )
+        return RS_CS2_OPTION_DEVICE;
+    if( option_spec(RS_CS2_OPTION_GAME, option_id) )
+        return RS_CS2_OPTION_GAME;
+    return -1;
+}
+
+int
+RS_CS2Host_OptionPersists(
+    int kind,
+    int option_id)
+{
+    const struct OptionSpec* spec = option_spec(kind, option_id);
+
+    return spec && spec->persist;
+}
+
+/* Whether an option id is one of the four the mixer follows. */
+static bool
+option_is_volume(
+    int kind,
+    int option_id)
+{
+    if( kind == RS_CS2_OPTION_GAME )
+        return option_id == RS_CS2_GAMEOPTION_MUSIC_VOLUME ||
+               option_id == RS_CS2_GAMEOPTION_SOUND_VOLUME ||
+               option_id == RS_CS2_GAMEOPTION_AREA_VOLUME;
+    return kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME;
+}
+
+int
+RS_CS2Host_OptionDefault(
+    int kind,
+    int option_id)
+{
+    /* Full volume, matching the mixer's own starting gain: an option nothing
+     * has written must not read back as silence. Every other option is zero,
+     * which is CS2's answer for an option no script has set. */
+    return option_is_volume(kind, option_id) ? 100 : 0;
+}
+
+static int*
+option_table(
+    struct RS_CS2Host* host,
+    int kind)
+{
+    switch( kind )
+    {
+    case RS_CS2_OPTION_GAME:
+        return host->game_options;
+    case RS_CS2_OPTION_DEVICE:
+        return host->device_options;
+    default:
+        return NULL;
+    }
+}
+
+int
+RS_CS2Host_GetOption(
+    struct RS_CS2Host const* host,
+    int kind,
+    int option_id)
+{
+    int const* table;
+
+    if( !host || option_id < 0 || option_id >= RS_CS2_OPTION_MAX )
+        return 0;
+    table = option_table((struct RS_CS2Host*)host, kind);
+    return table ? table[option_id] : 0;
+}
+
+void
+RS_CS2Host_SetOption(
+    struct RS_CS2Host* host,
+    int kind,
+    int option_id,
+    int value)
+{
+    int* table;
+
+    if( !host || option_id < 0 || option_id >= RS_CS2_OPTION_MAX )
+        return;
+    table = option_table(host, kind);
+    if( !table )
+        return;
+    if( option_is_volume(kind, option_id) )
+        value = clamp_percent(value);
+    table[option_id] = value;
+    if( !option_is_volume(kind, option_id) )
+        return;
+    if( option_id == RS_CS2_GAMEOPTION_MUSIC_VOLUME && kind == RS_CS2_OPTION_GAME )
+        host->volume_music = value;
+    else if( option_id == RS_CS2_GAMEOPTION_SOUND_VOLUME && kind == RS_CS2_OPTION_GAME )
+        host->volume_sounds = value;
+    else if( option_id == RS_CS2_GAMEOPTION_AREA_VOLUME && kind == RS_CS2_OPTION_GAME )
+        host->volume_area_sounds = value;
+    host->audio_settings_dirty = true;
 }
 
 bool
@@ -1787,12 +1967,6 @@ clamp_percent(int value)
     return value;
 }
 
-static bool
-option_id_valid(int id)
-{
-    return id >= 0 && id < RS_CS2_OPTION_MAX;
-}
-
 /* Audio volumes (3203..3208) and client/game/device options (3209..3217).
  * Interface 116 writes music/effects/area through game options 7/8/9 and
  * master through device option 19. Store every in-range option for GET
@@ -1828,53 +2002,54 @@ exec_client_option(
     case CS2_OP_GETVOLUMEAREASOUNDS:
         return CS2VM2_PushInt(thread, host->volume_area_sounds);
 
+    /* Hide roofs: the named form of game option 1, stored in the same place so
+     * the two spellings cannot disagree. "On" means every roof is hidden; off
+     * is the selective, tile-flag removal the world render does anyway
+     * (reference roofCheck/roofCheck2, both of which return the player's level
+     * outright when this is set). */
+    case CS2_OP_SETREMOVEROOFS:
+        RS_CS2Host_SetOption(
+            host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS, request.value ? 1 : 0);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_GETREMOVEROOFS:
+        return CS2VM2_PushInt(
+            thread,
+            RS_CS2Host_GetOption(host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) ? 1
+                                                                                         : 0);
+
+    /* The SET cases are the same store with the same clamp and the same volume
+     * mirroring, which is why they go through one function: the preferences
+     * restore (game/rs_prefs.c) writes the tables too, and a restored volume
+     * that skipped the mirroring would leave GETVOLUMEMUSIC disagreeing with
+     * GAMEOPTION_GET on the same setting.
+     *
+     * CLIENTOPTION is the generic form and names no table: the reference looks
+     * the id up in the device table, then the game table. It used to land in a
+     * private third array here, which meant a script setting the music volume
+     * through 3209 changed nothing audible and read back through 3215 as
+     * whatever the slider had left. */
     case CS2_OP_CLIENTOPTION_SET:
-        if( option_id_valid(request.option_id) )
-            host->client_options[request.option_id] = request.value;
+        RS_CS2Host_SetOption(
+            host, RS_CS2Host_ClientOptionKind(request.option_id), request.option_id,
+            request.value);
         return CS2VM_EXECNO_OK;
     case CS2_OP_GAMEOPTION_SET:
-        if( option_id_valid(request.option_id) )
-        {
-            int value = request.value;
-            if( request.option_id == RS_CS2_GAMEOPTION_MUSIC_VOLUME ||
-                request.option_id == RS_CS2_GAMEOPTION_SOUND_VOLUME ||
-                request.option_id == RS_CS2_GAMEOPTION_AREA_VOLUME )
-                value = clamp_percent(value);
-            host->game_options[request.option_id] = value;
-            if( request.option_id == RS_CS2_GAMEOPTION_MUSIC_VOLUME )
-                host->volume_music = value;
-            else if( request.option_id == RS_CS2_GAMEOPTION_SOUND_VOLUME )
-                host->volume_sounds = value;
-            else if( request.option_id == RS_CS2_GAMEOPTION_AREA_VOLUME )
-                host->volume_area_sounds = value;
-            else
-                return CS2VM_EXECNO_OK;
-            host->audio_settings_dirty = true;
-        }
+        RS_CS2Host_SetOption(host, RS_CS2_OPTION_GAME, request.option_id, request.value);
         return CS2VM_EXECNO_OK;
     case CS2_OP_DEVICEOPTION_SET:
-        if( option_id_valid(request.option_id) )
-        {
-            host->device_options[request.option_id] =
-                request.option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME
-                    ? clamp_percent(request.value)
-                    : request.value;
-            if( request.option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME )
-                host->audio_settings_dirty = true;
-        }
+        RS_CS2Host_SetOption(host, RS_CS2_OPTION_DEVICE, request.option_id, request.value);
         return CS2VM_EXECNO_OK;
     case CS2_OP_CLIENTOPTION_GET:
         return CS2VM2_PushInt(
             thread,
-            option_id_valid(request.option_id) ? host->client_options[request.option_id] : 0);
+            RS_CS2Host_GetOption(
+                host, RS_CS2Host_ClientOptionKind(request.option_id), request.option_id));
     case CS2_OP_GAMEOPTION_GET:
         return CS2VM2_PushInt(
-            thread,
-            option_id_valid(request.option_id) ? host->game_options[request.option_id] : 0);
+            thread, RS_CS2Host_GetOption(host, RS_CS2_OPTION_GAME, request.option_id));
     case CS2_OP_DEVICEOPTION_GET:
         return CS2VM2_PushInt(
-            thread,
-            option_id_valid(request.option_id) ? host->device_options[request.option_id] : 0);
+            thread, RS_CS2Host_GetOption(host, RS_CS2_OPTION_DEVICE, request.option_id));
     case CS2_OP_DEVICEOPTION_GETRANGE:
     {
         /* min then max (reference range order). */
@@ -1964,6 +2139,89 @@ rs_cs2_viewport_zoom_decode(int arg)
     return zoom > 0 ? zoom : 256;
 }
 
+/* Statics.method9013, the inverse VIEWPORT_GETFOV answers with. Lossy against
+ * the decode above, which is the reference's behaviour and not a rounding bug
+ * here: 220 decodes to 232 and encodes back to 219. */
+static int
+rs_cs2_viewport_zoom_encode(int zoom)
+{
+    if( zoom <= 0 )
+        return 0;
+    return (int)((log((double)zoom) / log(2.0) - 7.0) * 256.0);
+}
+
+/*
+ * class159.method5357's sizing half — the reference's "effective viewport".
+ *
+ * Given the viewport widget's box it interpolates the FOV over the widget's
+ * HEIGHT (the two SETFOV endpoints, over the 100px band above the fixed frame's
+ * 334), forms `height * fov * 512 / (width * 334)`, and letterboxes whichever
+ * axis is needed to pull that back inside the CLAMPFOV range: too small and the
+ * sides are cut, too large and the top and bottom are. What remains is what
+ * VIEWPORT_GETEFFECTIVESIZE answers.
+ *
+ * The reference also paints the cut bands black and stores the rect in
+ * client.field811/897/813/837; opcode 6203 passes `false` for the drawing and
+ * this client's renderer owns its own viewport rect, so only the size is
+ * reproduced here.
+ *
+ * The integer division in the interpolation is the reference's, not a
+ * simplification: field976/field801 are shorts and the expression truncates
+ * before it is widened.
+ */
+static void
+rs_cs2_viewport_effective_size(
+    struct RS_CS2Host const* host,
+    int width,
+    int height,
+    int* out_width,
+    int* out_height)
+{
+    if( width < 1 )
+        width = 1;
+    if( height < 1 )
+        height = 1;
+
+    int const band = height - 334;
+    double fov;
+    if( band < 0 )
+        fov = host->viewport_zoom_near;
+    else if( band >= 100 )
+        fov = host->viewport_zoom_far;
+    else
+        fov = ((host->viewport_zoom_far - host->viewport_zoom_near) * band) / 100 +
+              host->viewport_zoom_near;
+
+    double const aspect = height * fov * 512.0 / (width * 334);
+    if( aspect < host->viewport_aspect_min )
+    {
+        double const floor_aspect = host->viewport_aspect_min;
+        fov = width * floor_aspect * 334.0 / (height * 512);
+        if( fov > host->viewport_fov_max_clamp )
+        {
+            fov = host->viewport_fov_max_clamp;
+            double const visible = height * fov * 512.0 / (floor_aspect * 334.0);
+            int const cut = (int)((width - visible) / 2.0);
+            width -= cut * 2;
+        }
+    }
+    else if( aspect > host->viewport_aspect_max )
+    {
+        double const ceil_aspect = host->viewport_aspect_max;
+        fov = width * ceil_aspect * 334.0 / (height * 512);
+        if( fov < host->viewport_fov_min )
+        {
+            fov = host->viewport_fov_min;
+            double const visible = width * ceil_aspect * 334.0 / (fov * 512.0);
+            int const cut = (int)((height - visible) / 2.0);
+            height -= cut * 2;
+        }
+    }
+
+    *out_width = width;
+    *out_height = height;
+}
+
 static int
 exec_viewport(
     struct RS_CS2Host* host,
@@ -1973,12 +2231,8 @@ exec_viewport(
     switch( request.opcode )
     {
     case CS2_OP_VIEWPORT_SETFOV:
-        host->viewport_fov = request.args[0];
-        host->viewport_fov_max = request.args[1];
-        /* Also keep the decoded near/far zoom endpoints (Statics.method5659).
-         * The raw pair above is what GETFOV must answer; these are what
-         * class159.method5357 actually projects with. Nothing in the default
-         * build reads them — see the TORIRS_WEDGE_SCALE gate in app.c. */
+        /* Reference Statics.method6341 case 6200: only the DECODED endpoints are
+         * kept (Statics.method5659), each falling back to 256. */
         host->viewport_zoom_near = rs_cs2_viewport_zoom_decode(request.args[0]);
         host->viewport_zoom_far = rs_cs2_viewport_zoom_decode(request.args[1]);
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
@@ -1990,10 +2244,12 @@ exec_viewport(
         return CS2VM_EXECNO_OK;
     case CS2_OP_VIEWPORT_GETFOV:
     {
-        int result = CS2VM2_PushInt(thread, host->viewport_fov);
+        /* Case 6205 re-encodes with Statics.method9013 rather than answering
+         * the arguments SETFOV was given — see the field note in the header. */
+        int result = CS2VM2_PushInt(thread, rs_cs2_viewport_zoom_encode(host->viewport_zoom_near));
         if( result != CS2VM_EXECNO_OK )
             return result;
-        return CS2VM2_PushInt(thread, host->viewport_fov_max);
+        return CS2VM2_PushInt(thread, rs_cs2_viewport_zoom_encode(host->viewport_zoom_far));
     }
     case CS2_OP_VIEWPORT_SETZOOM:
         /* Reference Statics.method6341 case 6201: the two args are the NEAR and
@@ -2012,16 +2268,59 @@ exec_viewport(
     }
     case CS2_OP_VIEWPORT_CLAMPFOV:
     {
-        int value = request.args[0];
-        int min = request.args[1];
-        int max = request.args[2];
-        if( value < min )
-            value = min;
-        if( value > max )
-            value = max;
-        host->viewport_fov = value;
-        host->viewport_fov_max = max;
+        /* Reference Statics.method6341 case 6202. Two independent ranges, each
+         * argument defaulting when <= 0 and each maximum raised to its own
+         * minimum. It deliberately leaves the FOV alone; the old code here read
+         * the four as value/min/max, clamped viewport_fov with them and dropped
+         * the fourth, which made GETFOV answer the clamp instead of SETFOV and
+         * left method5357 with no bounds to letterbox against at all. */
+        host->viewport_fov_min = request.args[0] > 0 ? request.args[0] : 1;
+        host->viewport_fov_max_clamp = request.args[1] > 0 ? request.args[1] : 32767;
+        if( host->viewport_fov_max_clamp < host->viewport_fov_min )
+            host->viewport_fov_max_clamp = host->viewport_fov_min;
+        host->viewport_aspect_min = request.args[2] > 0 ? request.args[2] : 1;
+        host->viewport_aspect_max = request.args[3] > 0 ? request.args[3] : 32767;
+        if( host->viewport_aspect_max < host->viewport_aspect_min )
+            host->viewport_aspect_max = host->viewport_aspect_min;
         return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
+    {
+        /*
+         * Reference Statics.method6341 case 6203: the size of the VIEWPORT
+         * WIDGET (client.field6268 — the clientCode-1337 layer, which
+         * method3791 latches while it lays the tree out), run through
+         * method5357's letterbox. Not the canvas: at rev 239 the resizable
+         * gameframe hands the world a container 42px narrower than the window
+         * to leave room for the right-hand icon strip, and answering the canvas
+         * made toplevel_resize size interface_161:92/94 to the full window and
+         * centre them inside that narrower parent — a 21px left shift that
+         * every descendant inherited, the modal slot included.
+         *
+         * -1,-1 when the open interface has no viewport at all, which is the
+         * reference's answer and not an error.
+         */
+        struct UITree* tree = rs_cs2_tree(host);
+        int32_t const idx = tree ? tree->world_index : -1;
+        int width = -1;
+        int height = -1;
+
+        if( idx >= 0 && (uint32_t)idx < tree->component_count )
+        {
+            struct UITreeComponent const* c;
+            /* The reference reads the widget mid-layout, so its box is current
+             * by construction; here a script can ask between a set and the next
+             * resolve. */
+            UITree_EnsureLayoutFor(tree, idx);
+            c = &tree->components[idx];
+            rs_cs2_viewport_effective_size(
+                host, c->position.abs_w, c->position.abs_h, &width, &height);
+        }
+
+        int result = CS2VM2_PushInt(thread, width);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return CS2VM2_PushInt(thread, height);
     }
     default:
         fprintf(stderr, "exec_viewport: unhandled opcode %d\n", request.opcode);
@@ -5501,6 +5800,10 @@ rs_cs2_host_exec_dispatch(
             request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
             return CS2VM_EXECNO_OK;
         host->default_window_mode = request->u.window_mode.mode;
+        /* A script chose it, so it is the player's setting and outlives the
+         * launch (game/rs_prefs.c). The boot config setting the same field is
+         * not that, which is what this flag separates. */
+        host->default_window_mode_from_script = true;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG:

@@ -96,7 +96,7 @@ dbg_menu_layout(int line_box)
     l.chrome_h = box + 5;
     l.hover_above = box - 3;
     l.hover_below = 3;
-    l.width_pad = 16;
+    l.width_pad = 8;
     l.border_inset = box + 3;
     return l;
 }

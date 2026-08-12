@@ -58,6 +58,19 @@ struct ToriRS_Bones
     gc_boneint_t* bones_sizes;
 };
 
+/**
+ * ToriRS_Model::flags -- decode bookkeeping, NOT render policy.
+ *
+ * This namespace is unrelated to ToriDraw_Model::flags (TORIDRAW_MODEL_FLAG_*),
+ * which the renderer owns and whose bit 0 is TORIDRAW_MODEL_FLAG_ZBUFFER. The
+ * two fields share a name and a width and nothing else; copying one into the
+ * other opts every cache model into the depth-tested kernels and silently drops
+ * its face priorities. ToriDraw_ModelFromToriRS deliberately does not forward
+ * them -- see the comment there.
+ */
+#define TORIRS_MODEL_FLAG_DECODED ((uint8_t)(1u << 0))
+#define TORIRS_MODEL_FLAG_TEXTURED ((uint8_t)(1u << 1))
+
 struct ToriRS_Model
 {
     uint8_t flags;
@@ -338,6 +351,11 @@ struct ToriRS_Npctype
      *  reference adds alwaysontop NPCs before other players/normal NPCs
      *  (Client.ts addNpcs), so they win the one-entity-per-tile dedup. */
     bool alwaysontop;
+    /** NpcType.minimap (opcode 93, a bare flag that *clears* the default).
+     *  false = this npc draws no minimap dot — how the reference hides scenery-
+     *  like npcs (spawn points, glyphs, invisible event npcs) from the map.
+     *  Defaults true; only a record that states opcode 93 turns it off. */
+    bool minimap_visible;
     /** NpcType ambient/contrast (opcodes 100/101). Contrast arrives pre-scaled
      *  by 5 from the decoder. Used when the era/manifest enables
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */

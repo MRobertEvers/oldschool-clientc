@@ -641,8 +641,6 @@ decode_tile(
             td->face_textures[i] = face_texture_ids[i];
         free(face_texture_ids);
 
-        td->flags |= 0x02u;
-
         /* Tile overlay UVs use SW/SE/NW corners (vertices 0,1,3), not per-face corners. */
         td->textured_face_count = 1;
         td->textured_p_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
@@ -660,7 +658,11 @@ decode_tile(
         td->textured_n_coordinate[0] = 3;
     }
 
-    td->flags |= 0x01u;
+    /* td->flags stays 0. This builds a ToriDraw_Model directly, so `flags` is the
+     * RENDERER's word (TORIDRAW_MODEL_FLAG_*), not the ToriRS decode bookkeeping
+     * this used to mirror: bit 0 there is TORIDRAW_MODEL_FLAG_ZBUFFER, which
+     * routes the tile through the depth-tested kernels, and bit 1 means nothing
+     * at all. Terrain is painter-sorted like the rest of the scene. */
 
     td->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
     if( !td->bounds_cylinder )

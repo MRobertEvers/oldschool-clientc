@@ -35,6 +35,28 @@ Js5ServerCacheOpen(const char* cache_dir);
 void
 Js5ServerCacheFree(struct Js5ServerCache* cache);
 
+/*
+ * Reload the store when the cache directory has changed underneath it.
+ *
+ * Everything this store answers with is a snapshot taken at open: the master
+ * index, the CRC and version each archive is validated against, and the decoded
+ * reference tables. Repack the cache while the server runs and that snapshot
+ * describes a file that is no longer there — the server would then hand out a
+ * master its own dat2 disagrees with, and every group read would fail its CRC
+ * with nothing saying why.
+ *
+ * Cheap enough to call from the reactor loop: two stat() calls unless something
+ * actually moved. Returns 1 when the store was reloaded, 0 when it was already
+ * current, and -1 when the directory changed but does not yet re-validate — a
+ * repack in progress — in which case the previous contents keep being served
+ * and the next call tries again.
+ *
+ * Sessions keep their pointer to the store across a reload; blobs they already
+ * hold are owned copies.
+ */
+int
+Js5ServerCacheRefreshIfStale(struct Js5ServerCache* cache);
+
 /* Load an owned exact container. Local u16/u32 version trailers are removed. */
 enum Js5ServerCacheResult
 Js5ServerCacheLoad(

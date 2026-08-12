@@ -74,6 +74,11 @@ test/ui_tree/output/
 # poser-gl writes its settings into the working directory, as the reference does
 poser-gl.settings
 
+# The client's own device settings (audio volumes, CS2 options), written into
+# the working directory for the same reason. See src/game/rs_prefs.h.
+preferences.ini
+preferences.ini.tmp
+
 # Python bytecode from tools/ (tools are run as scripts, never imported).
 __pycache__/
 *.pyc

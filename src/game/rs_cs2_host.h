@@ -79,12 +79,32 @@ enum RS_CS2SocialSendKind
  */
 #define RS_CS2_HOST_SOUND_MAX 64
 
-/* Cache script option ids used by interface 116's audio panel. */
+/* Cache script option ids used by interface 116's audio panel, plus the one
+ * game option that is not audio: "hide roofs", which GETREMOVEROOFS /
+ * SETREMOVEROOFS (3111/3112) name directly and which the world render reads. */
+#define RS_CS2_GAMEOPTION_HIDE_ROOFS 1
 #define RS_CS2_GAMEOPTION_MUSIC_VOLUME 7
 #define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
 #define RS_CS2_GAMEOPTION_AREA_VOLUME 9
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
 #define RS_CS2_OPTION_MAX 64
+
+/**
+ * The two option tables.
+ *
+ * There is no third one: CLIENTOPTION_GET/SET (3209/3210) is the *generic*
+ * form, and the reference resolves its id against the device table first and
+ * the game table second (rev-239 deob, Statics 3209/3210 — `class64` device
+ * options, `class67` game options). A private third table would silently
+ * swallow a script that sets a volume through the generic op and reads it back
+ * through GAMEOPTION_GET. See RS_CS2Host_ClientOptionKind.
+ */
+enum RS_CS2OptionKind
+{
+    RS_CS2_OPTION_GAME = 0,
+    RS_CS2_OPTION_DEVICE = 1,
+    RS_CS2_OPTION_KIND_COUNT = 2
+};
 
 /* Backing varps used by interface 116. Its mute icons write these without
  * calling GAMEOPTION_SET / DEVICEOPTION_SET. */
@@ -319,6 +339,12 @@ struct RS_CS2Host
      *  up in next boot; nothing persists it yet. */
     int window_mode;
     int default_window_mode;
+    /** True once a clientscript has chosen the default window mode
+     *  (SETDEFAULTWINDOWMODE), as opposed to the boot config having stated one.
+     *  game/rs_prefs.c saves only the former: the manifest's `--window-mode`
+     *  configures a run, and a run's configuration must not quietly become the
+     *  player's saved setting. */
+    bool default_window_mode_from_script;
     bool window_mode_dirty;
     /** Display-panel client layout mode 0/1/2 (Fixed / Classic / Modern).
      *  Stashed when [clientscript,settings_client_mode] (cache script_3998)
@@ -344,7 +370,7 @@ struct RS_CS2Host
     int volume_music;
     int volume_sounds;
     int volume_area_sounds;
-    int client_options[RS_CS2_OPTION_MAX];
+    /* Two tables, not three — see enum RS_CS2OptionKind. */
     int game_options[RS_CS2_OPTION_MAX];
     int device_options[RS_CS2_OPTION_MAX];
     bool audio_settings_dirty;
@@ -367,11 +393,6 @@ struct RS_CS2Host
      *  by the App through button_sink.resume_pausebutton. */
     int resume_pausebutton_component_id;
 
-    /** Viewport FOV/zoom, backing VIEWPORT_SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM.
-     *  Host-owned so SET/CLAMP round-trips through the matching GET; defaults
-     *  match the values these getters returned before they were host-routed. */
-    int viewport_fov;
-    int viewport_fov_max;
     /** VIEWPORT_SETZOOM/GETZOOM (6201/6204) = reference client.field780 and
      *  field747: the NEAR and FAR endpoints of the FOLLOW CAMERA'S ORBIT
      *  DISTANCE, interpolated over the world viewport height the same way
@@ -385,11 +406,40 @@ struct RS_CS2Host
      *  decodes them (Statics.method5659: (int)pow(2, arg/256 + 7), falling back
      *  to 256 when that is <= 0). They are the NEAR and FAR endpoints of a zoom
      *  interpolated over the world viewport HEIGHT in class159.method5357, not a
-     *  value/max pair — see docs/ORANGE_WEDGE.md 2. Stored alongside the raw
-     *  args (which GETFOV must keep answering); read only by the env-gated
-     *  TORIRS_WEDGE_SCALE experiment in app.c. */
+     *  value/max pair — see docs/ORANGE_WEDGE.md 2.
+     *
+     *  This decoded pair is the ONLY thing the reference stores (client.field976
+     *  / field801); GETFOV re-encodes it with Statics.method9013 rather than
+     *  answering the raw arguments, so the round trip is deliberately lossy —
+     *  `viewport_setfov(512, 220)` reads back as 512, 219. Keeping the raw args
+     *  beside these to answer GETFOV exactly would be a nicer API and a
+     *  divergence, and CLAMPFOV used to overwrite them, which made GETFOV report
+     *  the clamp instead of the FOV.
+     *
+     *  Read by the env-gated TORIRS_WEDGE_SCALE experiment in app.c and by
+     *  rs_cs2_viewport_effective_size. */
     int viewport_zoom_near;
     int viewport_zoom_far;
+
+    /**
+     * VIEWPORT_CLAMPFOV's four arguments (reference client.field804 / field805
+     * / field1040 / field810, set by Statics.method6341 case 6202).
+     *
+     * They are two independent ranges, not a value/min/max: the first pair
+     * bounds the interpolated FOV and the second bounds
+     * `height * fov * 512 / (width * 334)`, the quantity class159.method5357
+     * letterboxes on. CLAMPFOV does NOT touch the FOV itself — GETFOV keeps
+     * answering whatever SETFOV last stored.
+     *
+     * Each argument falls back to the reference's default when <= 0 (1 for a
+     * minimum, 32767 for a maximum), and each maximum is raised to its own
+     * minimum. `viewport_clampfov(0, 0, 0, 0)` — what toplevel_resize sends for
+     * the ordinary camera — therefore means "no clamp at all".
+     */
+    int viewport_fov_min;
+    int viewport_fov_max_clamp;
+    int viewport_aspect_min;
+    int viewport_aspect_max;
 
     /** UI zoom, backing UIZOOM_SET/GET/RESET (GETDEFAULT is a fixed constant,
      *  not read from here). Host-owned so it round-trips like the other
@@ -670,6 +720,68 @@ void
 RS_CS2Host_SyncAudioVarp(
     struct RS_CS2Host* host,
     int varp_id);
+
+/**
+ * The value an option holds on a fresh client.
+ *
+ * RS_CS2Host_Init seeds the three tables from this, and game/rs_prefs.c omits
+ * from the preferences file any option still equal to it. Both need the same
+ * answer, so it is one function rather than the same constant written twice —
+ * a default stated in two places is a default that drifts, and the symptom
+ * there would be a saved file that silently re-mutes the client.
+ */
+int
+RS_CS2Host_OptionDefault(
+    int kind,
+    int option_id);
+
+/**
+ * Which table a bare CLIENTOPTION id names: device if that table has the id,
+ * game otherwise, and -1 when neither does.
+ *
+ * The reference throws "Unrecognized client option %d" on the -1 case; this
+ * client reports and carries on, because a settings id from a newer cache is
+ * not a reason to kill the script that mentioned it.
+ */
+int
+RS_CS2Host_ClientOptionKind(int option_id);
+
+/**
+ * Whether this option is one the reference keeps on disk.
+ *
+ * Not every option is device state. Brightness (device option 6) is applied
+ * the moment it is set and never written to the preferences file — the
+ * reference's option handler calls the gamma helper directly rather than a
+ * `class79` setter — so restoring it at boot would be this client inventing
+ * persistence the reference does not have. game/rs_prefs.c asks this before
+ * writing an entry and before honouring one it read.
+ */
+int
+RS_CS2Host_OptionPersists(
+    int kind,
+    int option_id);
+
+/** Read one option table entry. Out-of-range ids read 0, as CS2's GET does. */
+int
+RS_CS2Host_GetOption(
+    struct RS_CS2Host const* host,
+    int kind,
+    int option_id);
+
+/**
+ * Write one option table entry, with the side effects CS2's SET has: the four
+ * volume ids are clamped to 0..100, mirrored into the volume_* fields the
+ * GETVOLUME* opcodes read, and flagged for the App to push at the mixer.
+ *
+ * The CS2 SET opcodes and the preferences restore both go through here so a
+ * restored volume behaves exactly like a dragged one.
+ */
+void
+RS_CS2Host_SetOption(
+    struct RS_CS2Host* host,
+    int kind,
+    int option_id,
+    int value);
 
 bool
 RS_CS2Host_TakeTriggerOp(

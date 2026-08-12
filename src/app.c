@@ -1,5 +1,10 @@
 #include "app.h"
 
+#if defined(TORIRS_WEB_CACHE_IDB)
+#include "platform/dat2_web_store.h"
+#include "platform/web_cache_boot.h"
+#endif
+
 #include "bootmanifest/bootmanifest.h"
 
 #include "cmd/cmdbus.h"
@@ -1528,8 +1533,8 @@ app_worldmap_drag_tick(
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
  * (white), the destination flag, then the local-player 3x3 white square.
  * mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker frame 0 flag. */
-static int
-app_minimap_build_dots(
+int
+App_MinimapBuildDots(
     struct App* app,
     struct UITreeMinimapDot const** out_dots)
 {
@@ -1613,9 +1618,11 @@ app_minimap_build_dots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-            /* Reference gates on NpcType.minimap; the flag is not decoded
-             * into ToriRS_Npctype yet, so every NPC dot draws. */
-            if( !npc || npc->grid_position.level != local->grid_position.level )
+            /* NpcType.minimap (config opcode 93), copied onto the entity when
+             * its type resolves: an npc that clears it draws no dot at all
+             * (reference minimapDraw's `npc.type.minimap` gate). */
+            if( !npc || !npc->minimap_visible ||
+                npc->grid_position.level != local->grid_position.level )
                 continue;
             app_minimap_push_dot(
                 app,
@@ -2425,7 +2432,7 @@ app_host_request(
         return app->world_map_scene_id;
     }
     case UITREE_HOST_GET_MINIMAP_DOTS:
-        return app_minimap_build_dots(app, req->u.get_minimap_dots.out_dots);
+        return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
         return app_worldmap_build_tiles(app, req);
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
@@ -3410,7 +3417,37 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
-#if defined(TORIRS_PLATFORM_WEB)
+#if defined(TORIRS_WEB_CACHE_IDB)
+    /*
+     * The browser has no cache *directory*, but on this lane it does have a
+     * cache: a keyed record store the page hydrated from IndexedDB, wearing a
+     * dat2 face (see platform/dat2_web_store.h). So the disk opens normally and
+     * everything below this point — table id resolution, the map XTEA gate,
+     * reference tables, the archive decode path — is the code the desktop build
+     * runs, against the same struct.
+     *
+     * The store was opened before main() by the JS5 metadata barrier, which had
+     * to run first: this constructor decodes reference tables, and it is not a
+     * tolerant reader.
+     */
+    {
+        struct Dat2WebStore* store = WebCacheBoot_Store();
+        struct RSCache_Dat2Store ops;
+
+        if( !store )
+        {
+            fprintf(
+                stderr,
+                "app: no browser record store for %s — the JS5 prime did not run\n",
+                cfg->cache_dir ? cfg->cache_dir : "(unnamed cache)");
+        }
+        assert(store != NULL);
+        ops = Dat2WebStore_Ops(store);
+        app->dat2_disk = RSCache_Dat2DiskNewFromStore(cfg->cache_dir, &ops);
+        assert(app->dat2_disk != NULL);
+        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+    }
+#elif defined(TORIRS_PLATFORM_WEB)
     /* The browser has no cache directory to open. Every read the disk layer
      * would have answered goes to the IO server instead, which holds the real
      * cache and therefore also the things only an open cache can answer:
@@ -3503,7 +3540,7 @@ App_Init(
      * how those get the answer their geometry assumes. */
     app->scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
-        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
 
@@ -3673,6 +3710,23 @@ App_Init(
             if( model >= 0 )
                 app->features_storage.ground_click_nearest_model = model;
         }
+        /*
+         * The two permissive ground-click extensions. Every era table leaves
+         * them off — the client is deob-exact unless a boot asks otherwise —
+         * so this is the only place either can be turned on.
+         */
+        if( cfg->features_ground_click_unbounded )
+            app->features_storage.ground_click_nearest_unbounded = 1;
+        if( cfg->features_ground_click_offmap )
+            app->features_storage.ground_click_offmap_nearest = 1;
+        {
+            char const* env = getenv("TORIRS_GROUND_CLICK_UNBOUNDED");
+            if( env && env[0] )
+                app->features_storage.ground_click_nearest_unbounded = env[0] != '0';
+            env = getenv("TORIRS_GROUND_CLICK_OFFMAP");
+            if( env && env[0] )
+                app->features_storage.ground_click_offmap_nearest = env[0] != '0';
+        }
         if( cfg->features_painter_draw_distance_set )
             app->features_storage.painter_draw_distance =
                 cfg->features_painter_draw_distance;
@@ -3680,10 +3734,12 @@ App_Init(
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr,
                     "app: features era=%s ground_click_nearest=%s "
-                    "painter_draw_distance=%d\n",
+                    "unbounded=%d offmap=%d painter_draw_distance=%d\n",
                     app->features->name,
                     ToriRS_Features_NearestModelName(
                         app->features->ground_click_nearest_model),
+                    app->features->ground_click_nearest_unbounded,
+                    app->features->ground_click_offmap_nearest,
                     ToriRS_Features_PainterDrawDistance(app->features));
         RS_Audio_SetFeatures(&app->audio, app->features);
 
@@ -3811,10 +3867,43 @@ App_UiLogic(struct App const* app)
     return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_UI_LOGIC_CS1 : APP_UI_LOGIC_CS2;
 }
 
+/*
+ * Write out a settings change that has not reached its settle window yet.
+ *
+ * Quitting is exactly when that happens: the player turns the music down and
+ * closes the client, and the tick that would have queued the save never comes.
+ *
+ * Stepped here against a private IO rather than handed to the App's runner:
+ * that queue may hold tasks parked on state a shutting-down client will never
+ * produce, so draining it could return with the save still queued. One task
+ * against one IO list terminates on both backends — the platform answers a
+ * client-file item inline in Process.
+ */
+static void
+app_prefs_flush(struct App* app)
+{
+    struct ToriRS_Task* task;
+    struct ToriRS_IO io;
+    int guard = 0;
+
+    if( !app->prefs_path )
+        return;
+    if( !RS_Prefs_CaptureFromHost(&app->prefs, &app->host) && !app->prefs_dirty_cycle )
+        return; /* everything the player chose is already on disk */
+    app->prefs_dirty_cycle = 0;
+
+    memset(&io, 0, sizeof(io));
+    task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    while( task_run(task, &io) == PT_YIELDED && guard++ < 8 )
+        PlatformX_IO_Process(app->runner.px, &io);
+    task_free(task);
+}
+
 void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    app_prefs_flush(app);
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
@@ -4992,6 +5081,34 @@ Task_AppBoot_Run(
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
     /*
+     * The settings the player chose last launch, before anything reads one.
+     *
+     * Volumes are device settings: no packet carries them to a server and none
+     * carries them back, so the file this reads is the only thing standing
+     * between "turn the music down" and a client that is loud again tomorrow.
+     * Restoring into the option store (not the varps) is the right direction —
+     * the store is what GAMEOPTION_GET answers with, and the four varps below
+     * are then seeded from it, so both halves of interface 116 agree.
+     */
+    app->prefs_path = RS_Prefs_Path();
+    RS_Prefs_Defaults(&app->prefs);
+    if( app->prefs_path )
+        TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
+    RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+
+    /*
+     * A window mode the manifest or command line stated wins over the saved
+     * one. App_SetBootWindowMode has already run (it must, before the root's
+     * scripts call getwindowmode), so the restore above just overwrote it;
+     * `cfg.window_mode` is 0 when nothing said anything, which is when the
+     * saved default is the only opinion there is. Same precedence as a server
+     * VARP over the seeded volumes: an explicit instruction for this run beats
+     * what the last run happened to leave behind.
+     */
+    if( app->cfg.window_mode )
+        app->host.default_window_mode = app->cfg.window_mode;
+
+    /*
      * Seed the four audio volumes.
      *
      * The mixer starts at full gain and RS_CS2Host's option snapshot says 100,
@@ -5010,10 +5127,24 @@ Task_AppBoot_Run(
      * snapshot stays in agreement with the varps; and before the tree is built,
      * so 116 constructs its bobbles green rather than needing a repaint.
      */
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MASTER_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MUSIC_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_SOUND_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_AREA_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MASTER_VOLUME,
+        RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_SOUND_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_AREA_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
+
+    /* Baseline for the change detection below: what is in the host now is what
+     * is on disk, so nothing written here counts as a change worth saving. */
+    RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
+    app->prefs_dirty_cycle = 0;
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         fprintf(
             stderr,
@@ -5027,6 +5158,28 @@ Task_AppBoot_Run(
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_SOUND_VOLUME),
             RS_CS2_VARP_AREA_VOLUME,
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_AREA_VOLUME));
+
+    /*
+     * Seed the "interface resizing" setting, for the same reason and with the
+     * same precedence as the four volumes above: it is a client setting nobody
+     * transmits, and the zero SetVarbitTypes leaves behind is a value, not an
+     * absence.
+     *
+     * Which era owns the id — and the whole account of what the two branches do
+     * — is in features.h. In short: at zero the cache's interface-window helper
+     * (clientscript 1898, and 1904 for the skill guide) positions a modal's
+     * panel at `if_getx/if_gety(mainmodal)`, the slot's *parent-relative*
+     * origin, inside the modal's own root. In resizable mode the slot is
+     * centred in `hud_container_front`, so that applies the centring offset
+     * twice and every main modal sits down-and-right of the hole clientscript
+     * 910 dims for it, half-under the sidebar and the chatbox.
+     *
+     * Optimistic, before the tree is built, and overridable by a server VARP —
+     * all three for the reasons stated above the volumes.
+     */
+    if( app->features->varbit_interface_resizing > 0 )
+        VarPManager_SetVarbitOptimistic(
+            &app->varps, app->features->varbit_interface_resizing, 1);
 
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
@@ -5259,9 +5412,16 @@ Task_OpenSubRefresh_Run(
     PT_BEGIN(&self->pt);
     /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
      * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
-     * before mount_pack_under_target asserts. */
-    while( app->app_state == APP_STATE_BOOTING )
-        PT_YIELD(&self->pt);
+     * before mount_pack_under_target asserts.
+     *
+     * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
+     * deadlock. Only Task_AppBoot on app->runner clears APP_STATE_BOOTING, and
+     * app->runner is stepped by the frame loop — which cannot get its turn back
+     * while this queue is still settling. A plain yield here therefore spins
+     * app_logic_tick's exec drain forever at 100% CPU: measured on every
+     * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
+     * mounts in one burst. */
+    TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
     if( self->interface_id > 0 &&
         UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
@@ -5621,6 +5781,44 @@ App_SimulateLocOp(
             loc_id));
 }
 
+int
+App_SimulateNpcOp(
+    struct App* app,
+    int op_num,
+    int npc_id)
+{
+    assert(app);
+    if( !app->world )
+        return -1;
+    /*
+     * Addressed by npc TYPE rather than by server slot, which is the only id a
+     * test can state up front: slots are handed out by the server as npcs enter
+     * the build area and are not stable between runs. The first live entity of
+     * that type wins, the same one a click would land on when there is only one
+     * — a familiar, a spawned quest actor.
+     */
+    struct World_EntityPool* pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+
+        if( !npc || npc->npc_id != npc_id || npc->server_slot < 0 )
+            continue;
+        APP_NET_SEND(
+            app,
+            net_out_opnpc(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                op_num,
+                npc->server_slot));
+        return npc->server_slot;
+    }
+    return -1;
+}
+
 /* Shared per-frame completion polls for async work (world load, textures,
  * deferred seq binds, tree refresh). Not run while BOOTING. */
 static void
@@ -5824,7 +6022,22 @@ app_logic_tick(struct App* app)
 
         for( ;; )
         {
-            enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->exec_runner);
+            enum TaskRunnerStat stat;
+
+            /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
+             * on app->runner. Every packet behind it targets components that
+             * do not exist yet, so hold the whole pipeline rather than feed it
+             * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
+             * this: it runs at the top of the frame, and the rebuild starts
+             * here, below it — including on a later catch-up tick in the same
+             * App_RunOnce. */
+            if( app->app_state == APP_STATE_BOOTING )
+            {
+                app->exec_runner_had_work = 1;
+                break;
+            }
+
+            stat = TaskRunner_SettleFrame(&app->exec_runner);
 
             if( stat != TASK_RUNNER_IDLE )
             {
@@ -6326,6 +6539,33 @@ app_logic_tick(struct App* app)
                 &app->audio, TORIRS_AUDIO_BUS_EFFECTS, sounds, &app->audio_out);
             RS_Audio_SetBusVolume(
                 &app->audio, TORIRS_AUDIO_BUS_AREA, area, &app->audio_out);
+        }
+    }
+
+    /*
+     * Mirror the option store to disk once the player has stopped moving it.
+     *
+     * Every path that changes a setting lands in the option store first (the
+     * sliders through GAMEOPTION/DEVICEOPTION_SET, the mute icons through
+     * their varps and RS_CS2Host_SyncAudioVarp), so one comparison here catches
+     * all of them and nothing has to remember to call a save.
+     *
+     * The delay is what makes a drag one write rather than fifty: the bobble
+     * reports a new value every 20ms tick, and each would otherwise be a
+     * separate file rewrite. Anything still pending is flushed by App_Shutdown.
+     */
+    if( app->prefs_path )
+    {
+        if( RS_Prefs_CaptureFromHost(&app->prefs, &app->host) )
+            app->prefs_dirty_cycle = app->logic_cycle;
+        else if( app->prefs_dirty_cycle &&
+                 app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        {
+            /* Queued, not written here: the write is the platform's, and this
+             * is the middle of a frame. */
+            ToriRS_TaskQueue_Add(
+                app->runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
+            app->prefs_dirty_cycle = 0;
         }
     }
 
@@ -6946,6 +7186,18 @@ app_world_roof_check(struct App* app)
     if( !player || !world || !world->tile_flags )
         return 3;
     level = player->grid_position.level;
+
+    /*
+     * "Hide roofs" — game option 1, and the first thing both of the reference's
+     * roof checks test (`if (!prefs.isHidingRoofs())` guards the whole selective
+     * walk in each; when it is set they return the player's level outright).
+     * The Display panel's toggle and the reference's ::toggleroof cheat write
+     * this same setting, whose two messages say what the two states are:
+     * "Roofs are now all hidden" against "Roofs will only be removed
+     * selectively".
+     */
+    if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) )
+        return level;
 
     if( app->cam_script.scripted )
     {
@@ -7682,6 +7934,110 @@ app_world_mouse_gate(
            mouse_y < clip->y + clip->h;
 }
 
+/*
+ * Ground-click fallback: the closest walkable-level tile to a click that hit no
+ * terrain at all.
+ *
+ * Picking happens during rasterisation — a tile registers a hit only if it
+ * DREW and the click landed inside one of its two triangles (torirs_pick.c,
+ * reference World.ts insideTriangle -> World.groundX). So a click on the sky,
+ * on the void outside an instance's floor (the Inferno arena is ringed by it),
+ * or on a tile the level filter refuses leaves the pickset with no terrain
+ * item, and "Walk here" is emitted with no destination. The reference drops
+ * that click outright; we resolve it to the nearest tile instead, which is
+ * what the player meant — the router's own unreachable fallback
+ * (features->ground_click_nearest_model, client-side or server-side depending
+ * on pathing_mode) then closes whatever gap is left.
+ *
+ * "Nearest" is measured in SCREEN space against the tile centres, using the
+ * same camera the frame was drawn with: the tile that looks closest to the
+ * cursor is the one the click meant, and that stays true above the horizon
+ * (where no ground plane intersection exists) and over sloped ground.
+ *
+ * Only tiles that carry terrain are candidates, so the void never becomes a
+ * destination; levels above the player's are excluded for the same reason the
+ * pick classifier excludes them (that is a roof you are standing under).
+ * Called once per world click — never per frame — because a full scene sweep
+ * costs two divides a tile.
+ */
+static int
+app_world_nearest_ground_tile(
+    struct App* app,
+    int click_x,
+    int click_y,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct World* world = app->world;
+    struct WorldEntity_Player* player;
+    int max_level, level;
+    /* 64-bit: a tile just past the near plane projects thousands of screen
+     * widths out, and the square of that does not fit in an int. */
+    long long best_d2 = LLONG_MAX;
+
+    if( !world || !world->load_complete || !app->world_view_valid )
+        return 0;
+
+    player = app_local_player(app);
+    max_level = player ? player->grid_position.level : 0;
+    if( max_level < 0 )
+        max_level = 0;
+    if( max_level >= WORLD_MAP_TERRAIN_LEVELS )
+        max_level = WORLD_MAP_TERRAIN_LEVELS - 1;
+
+    /* Descending, with a strict improvement test, so the player's own level
+     * wins a tie against the bridge deck / VIS_BELOW tile drawn beneath it. */
+    for( level = max_level; level >= 0; level-- )
+    {
+        for( int x = 0; x < world->_scene_size; x++ )
+        {
+            for( int z = 0; z < world->_scene_size; z++ )
+            {
+                int fine_x, fine_z, sx, sy;
+                long long dx, dy, d2;
+
+                if( World_TerrainElementAt(world, x, z, level) < 0 )
+                    continue;
+                fine_x = x * 128 + 64;
+                fine_z = z * 128 + 64;
+                if( !app_world_project_at(
+                        app,
+                        fine_x,
+                        fine_z,
+                        app_world_height(app, fine_x, fine_z, level),
+                        &sx,
+                        &sy) )
+                    continue; /* behind the near plane */
+                dx = sx - click_x;
+                dy = sy - click_y;
+                d2 = dx * dx + dy * dy;
+                if( d2 < best_d2 )
+                {
+                    best_d2 = d2;
+                    *out_x = x;
+                    *out_z = z;
+                    *out_level = level;
+                }
+            }
+        }
+    }
+
+    if( best_d2 == LLONG_MAX )
+        return 0;
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
+            click_x,
+            click_y,
+            *out_x,
+            *out_z,
+            *out_level,
+            best_d2);
+    return 1;
+}
+
 /* Reference Client.tryMove for ground (type 0) / minimap (type 1) clicks:
  * BFS route on the local player's level from the player's final route tile
  * (routeX[0]) to the clicked scene tile with the era's unreachable fallback
@@ -7733,6 +8089,40 @@ app_try_move(
         return 0;
     }
 
+    /*
+     * The era's ceiling on how far a GROUND pick may be from the player
+     * (features->ground_click_clamp_tiles). Deob class112.method4269 applies
+     * it where the hittest records the tile; this client applies it where the
+     * recorded tile is spent, which is the same tile — our pick has no
+     * `field1664` of its own to rewrite, and the minimap click (type 1) must
+     * not be caught by it, since the reference computes that tile from the
+     * minimap's own geometry and never routes it through method4269.
+     */
+    if( type == 0 && app->features->ground_click_clamp_tiles > 0 )
+    {
+        int clamp = app->features->ground_click_clamp_tiles;
+        int px = (int)player->draw_position.x >> 7;
+        int pz = (int)player->draw_position.z >> 7;
+        int dx = px - dst_x;
+        int dz = pz - dst_z;
+        /* (int) Math.hypot(...) - clamp: truncated, so a tile at exactly the
+         * ceiling is left alone. */
+        int over = (int)sqrt((double)(dx * dx + dz * dz)) - clamp;
+
+        if( over > 0 )
+        {
+            int clamped_x = (px * over + dst_x * clamp) / (over + clamp);
+            int clamped_z = (pz * over + dst_z * clamp) / (over + clamp);
+            if( getenv("TORIRS_NET_DEBUG") )
+                fprintf(
+                    stderr,
+                    "groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
+                    dst_x, dst_z, clamped_x, clamped_z, px, pz, over, clamp);
+            dst_x = clamped_x;
+            dst_z = clamped_z;
+        }
+    }
+
     level = player->grid_position.level;
     if( level < 0 )
         level = 0;
@@ -7756,6 +8146,8 @@ app_try_move(
 
         collision_nearest_opts_from_model(
             app->features->ground_click_nearest_model, &nearest_opts);
+        /* Ground/minimap clicks only — see the field. */
+        nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
         route_len = collision_map_try_route(
             cm,
             player->pathing.route_x[0],
@@ -9256,9 +9648,10 @@ app_world_spawn_npc_now(
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
         return -1;
     }
-    /* Set explicitly both ways: the ToriRS adaptor already sets bit 0 on every
-     * model it converts, and bit 0 is the z-buffer opt-in, so leaving it alone
-     * would opt every npc in the moment the scene carries a buffer. */
+    /* Set explicitly both ways. Models arrive from ToriDraw_ModelFromToriRS with
+     * no render flags, so the opt-in is this line and nothing else; clearing is
+     * still written out because this model may be a cache copy of one that was
+     * opted in earlier under a different npc id. */
     if( app_npc_wants_zbuffer(npc_id, npctype) )
         model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
     else
@@ -9306,6 +9699,7 @@ app_world_spawn_npc_now(
         {
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
+            npc->minimap_visible = npctype->minimap_visible;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
@@ -12015,6 +12409,42 @@ app_hover_text_update(
         app->need_redraw = 1;
 }
 
+/*
+ * Give "Walk here" a destination when this click's pickset holds no terrain.
+ *
+ * OFF unless features->ground_click_offmap_nearest says otherwise, because the
+ * reference has no such destination to give: no ground triangle contained the
+ * point, so nothing was recorded and nothing is sent. See the field.
+ *
+ * Only the click paths call this: resolving the tile sweeps the scene, and the
+ * hover-text builder runs the same menu every frame for a row whose text does
+ * not depend on the tile. A pickset that DOES hold terrain is left alone — the
+ * row targets the picked tile there, exactly as before.
+ */
+static void
+app_minimenu_ctx_ground_fallback(
+    struct App* app,
+    struct RS_MinimenuBuildCtx* mctx,
+    int click_x,
+    int click_y)
+{
+    int x = 0, z = 0, level = 0;
+
+    if( !app->features->ground_click_offmap_nearest )
+        return;
+    if( !mctx->click_in_world || !mctx->world_pickset )
+        return;
+    for( int i = 0; i < mctx->world_pickset->count; i++ )
+        if( mctx->world_pickset->items[i].type == WORLD_PICK_TERRAIN )
+            return;
+    if( !app_world_nearest_ground_tile(app, click_x, click_y, &x, &z, &level) )
+        return;
+    mctx->ground_fallback_valid = true;
+    mctx->ground_fallback_x = x;
+    mctx->ground_fallback_z = z;
+    mctx->ground_fallback_level = level;
+}
+
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
@@ -12048,6 +12478,7 @@ app_minimenu_open(
     int content_w = 0;
     int line_box = 0;
 
+    app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
@@ -12057,16 +12488,26 @@ app_minimenu_open(
         /* The two Attack options ride this dump because a missing or
          * right-click-only Attack row is otherwise indistinguishable from a
          * pick that never happened — and Hidden is what both settings hold
-         * until the server transmits varp clientcode 18/22. */
-        fprintf(
-            stderr,
-            "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d\n",
-            click_x,
-            click_y,
-            click_in_world,
-            click_in_world ? app->world_pickset.count : 0,
-            app->player_attack_option,
-            app->npc_attack_option);
+         * until the server transmits varp clientcode 18/22. The local combat
+         * level rides it for the same reason: under "Depends on combat levels"
+         * the setting alone does not say whether a row was sunk, the
+         * comparison against THIS number does. */
+        {
+            struct WorldEntity_Player* lp =
+                app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid)
+                           : NULL;
+            fprintf(
+                stderr,
+                "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
+                "mylevel=%d\n",
+                click_x,
+                click_y,
+                click_in_world,
+                click_in_world ? app->world_pickset.count : 0,
+                app->player_attack_option,
+                app->npc_attack_option,
+                lp ? lp->combat_level : -1);
+        }
         if( click_in_world )
             for( int i = 0; i < app->world_pickset.count; i++ )
             {
@@ -12093,8 +12534,25 @@ app_minimenu_open(
                 menu->options[i].text);
     }
 
+    /* The popup is sized from measured text, so a font the scene cannot hand
+     * back is not a cosmetic miss: PrepareShow falls back to a per-character
+     * estimate and the rows draw past the border. The boot-time resolve can
+     * land before the b12 load does, so re-resolve on a miss and carry the id
+     * to the node that draws the rows — measure and draw must share a font. */
     {
         struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
+        if( !font )
+        {
+            int const resolved = app_minimenu_font_scene_id(app);
+            if( resolved > 0 )
+            {
+                int32_t const idx = UITree_FindByComponentId(app->tree, APP_COM_ID_MINIMENU);
+                menu->font_id = resolved;
+                if( idx >= 0 )
+                    app->tree->components[idx].u.minimenu.font_id = resolved;
+                font = ToriDraw_SceneFontGet(app->scene, resolved);
+            }
+        }
         if( font )
             line_box = ToriDraw_FontLineBoxHeight(font);
     }
@@ -12103,6 +12561,17 @@ app_minimenu_open(
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app->need_redraw = 1;
+        /* Geometry beside the rows: a popup too narrow for its own text is a
+         * measure that returned nothing, and this line is what says so. */
+        if( getenv("TORIRS_MINIMENU_DEBUG") )
+            fprintf(
+                stderr,
+                "minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
+                menu->font_id,
+                line_box,
+                content_w,
+                menu->width,
+                menu->height);
     }
 }
 
@@ -12840,8 +13309,26 @@ app_minimenu_run_option(
         return 0;
 
     {
+        /*
+         * Every op row paints its cross here, unconditionally, exactly like
+         * the reference (Client-TS doAction sets crossMode = 2 in each branch
+         * before the packet goes out).
+         *
+         * A WALK row does NOT. The reference's walk branch touches no cross at
+         * all — it only re-arms the hittest — and the cross is set one frame
+         * later, inside the block that emits the move, so a walk that resolves
+         * to nothing leaves the screen alone. Deob client.java:9305 puts the
+         * two in the same basic block, guarded by class112.method3951():
+         *
+         *     field760 = ...; field714 = ...;   // cross x, y
+         *     field800 = 1282583357;            // crossMode 1
+         *     field910 = 0;                     // crossCycle
+         *
+         * Painting it up front here is what made a dead click on the sky look
+         * like an executed one. UI_MINIMENU_PICK_TERRAIN shows it on success.
+         */
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
-        if( cross_mode != UI_CROSS_OFF )
+        if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
     }
 
@@ -13232,8 +13719,13 @@ app_minimenu_run_option(
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
                 app->world ? app->world->_base_tile_z + opt.pick.tertiary_id : -1);
-        app_try_move(
-            app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held);
+        /* Cross only if the move actually went out — the reference sets
+         * crossMode in the same block that emits the packet (Client-TS
+         * `if (success)`, deob client.java:9305 under method3951()). A click
+         * the router refuses leaves the screen alone. */
+        if( app_try_move(
+                app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held) )
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -13354,6 +13846,12 @@ app_minimenu_run_option(
         }
         return 0;
     }
+    case UI_MINIMENU_PICK_NONE:
+        /* Cancel, and the "Walk here" row of a click that hit no terrain and
+         * for which no fallback tile could be resolved (no world loaded, no
+         * viewport, a scene with no ground at all). Nothing to run — not an
+         * unhandled kind, so it must not warn. */
+        return 0;
     default:
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
@@ -14221,6 +14719,8 @@ App_RunOnce(
 
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
+        app_minimenu_ctx_ground_fallback(
+            app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
@@ -15576,8 +16076,12 @@ App_WorldRebuildShift(
     for( int i = 0; i < 5; i++ )
         app->cam_script.shake[i] = 0;
 
-    /* Minimenu (deob field766 = 0). */
-    UIMinimenu_Reset(&app->interact.minimenu);
+    /* Minimenu (deob field766 = 0): the rebuild closes an open popup, it does
+     * not reconfigure it. Hide, never Reset — Reset also clears font_id, and
+     * the id is boot-time chrome state nothing re-derives, so a reset here left
+     * every later popup measuring against no font and sized by the character
+     * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
+    UIMinimenu_Hide(&app->interact.minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;
@@ -15713,6 +16217,13 @@ App_WorldApplyNpcType(
     npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
     if( !npctype )
         return;
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "npc_retype: world_idx=%d element=%d type=%d\n",
+            world_idx,
+            element_id,
+            npc_type);
 
     {
         struct AppModelRecolorSpec recolors = {
@@ -15734,6 +16245,11 @@ App_WorldApplyNpcType(
             app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
             app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
     }
+    /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
+     * re-decide it against the new type -- exactly as the spawn path does. */
+    if( model && app_npc_wants_zbuffer(npc_type, npctype) )
+        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {
         struct ToriDraw_ModelHandle hnd;
@@ -15786,6 +16302,7 @@ App_WorldApplyNpcType(
         {
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
+            npc->minimap_visible = npctype->minimap_visible;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )

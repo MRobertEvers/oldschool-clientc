@@ -543,6 +543,24 @@ w239_midi_song(
 }
 
 /*
+ * MidiSongStopEncoder v12. Both fields are p2Alt3, which is the writer side of
+ * the two `RSProt_BufferG2Le_add128` reads the client's own parse does
+ * (osrs239_parse.c, PKT_NAME_MIDI_SONG_STOP) — so the pair is confirmed from
+ * both ends rather than transcribed once.
+ *
+ * A separate packet and not `midi_song(-1)` on the wire: MIDI_SONG's id field
+ * is two bytes with 65535 meaning "no track", and the 239 client maps that to
+ * -1 and then *starts* nothing — it does not stop what is already playing.
+ * Stopping is this packet.
+ */
+static void
+w239_midi_song_stop(struct RSAreaBuf* buf, int fade_out_delay, int fade_out_speed)
+{
+    rsab_p2_alt3(buf, fade_out_delay);
+    rsab_p2_alt3(buf, fade_out_speed);
+}
+
+/*
  * AmbientSoundStartEncoder / AmbientSoundStopEncoder.
  *
  * The client reads the first byte as a boolean ("fade rather than cut"), not as
@@ -948,8 +966,11 @@ w239_zone_payload(
          * this revision is `pool pid + 1` (mock230_wire_player_index: the
          * client's table is 1..2047 with 0 unused). The event carries the
          * classic form, `-pid - 1`, so a player target is one further from zero
-         * here. Npc targets need no adjustment: NPC_INFO writes the raw slot,
-         * so the two numberings already agree.
+         * here. Npc targets need no adjustment *at this layer*: they arrive
+         * already stated in the recipient's own npc numbering, which is a
+         * per-client translation and so belongs where the event is fanned out
+         * to each client (`mock230_zone.c` projanim_target_for_client) rather
+         * than in a writer that is handed one event and no recipient.
          *
          * Sent unadjusted, a shot aimed at the only player in the world names
          * client index 0 -- the slot that is never occupied -- so the
@@ -1037,6 +1058,7 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .chat_filter = w239_chat_filter,
     .synth_sound = w239_synth_sound,
     .midi_song = w239_midi_song,
+    .midi_song_stop = w239_midi_song_stop,
     .ambientsound_start = w239_ambientsound_start,
     .ambientsound_stop = w239_ambientsound_stop,
     .friendlist_loaded = w239_friendlist_loaded,
@@ -1105,7 +1127,8 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
-    PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_FRIENDLIST_LOADED,
+    PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_MIDI_SONG_STOP,
+    PKT_NAME_FRIENDLIST_LOADED,
     PKT_NAME_AMBIENTSOUND_START, PKT_NAME_AMBIENTSOUND_STOP,
     PKT_NAME_UPDATE_INV_FULL,  PKT_NAME_UPDATE_INV_PARTIAL,
     PKT_NAME_UPDATE_INV_STOP_TRANSMIT,

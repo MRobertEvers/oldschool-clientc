@@ -299,6 +299,17 @@ struct CollisionNearestOpts
      *  distance to the loc_width x loc_length rect at the destination, ties
      *  broken by step count (the official / rsmod 21x21 search). */
     int rank_by_rect_distance;
+    /**
+     * Last resort when the box above holds no flooded tile at all: rank the
+     * WHOLE flood by squared distance to the destination and walk to the
+     * closest tile it reached. Deliberately NOT a reference behaviour — every
+     * reference bounds the search by `range` and drops a click further out
+     * than that (the void ringing the Inferno arena, the far bank of a wide
+     * river). Set from ToriRS_Features.ground_click_nearest_unbounded, which
+     * is where the reasoning lives. Ranking is always by distance here: step
+     * count over an unbounded set would just pick a neighbouring tile.
+     */
+    int unbounded;
 };
 
 /**

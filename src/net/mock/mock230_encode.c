@@ -143,6 +143,7 @@ enum
     OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
     OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
+    OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
     OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
     OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
     OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
@@ -502,6 +503,25 @@ mock230_slotmap_world(
 }
 
 /*
+ * This client's name for `world_slot`, or -1 when it has none.
+ *
+ * The read-only half of `mock230_slotmap_acquire`, and the distinction is the
+ * point: an encoder that names an npc the client is not tracking must say "no
+ * entity", not mint a name for one it has never been told about. Acquiring here
+ * would hand out a slot the client cannot resolve and hold it against a real
+ * npc entering view later.
+ */
+int
+mock230_slotmap_client(
+    const struct Mock230Player* player,
+    int world_slot)
+{
+    if( !player || world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+        return -1;
+    return player->npc_slots.client_of[world_slot];
+}
+
+/*
  * Translate an actor's canonical FACE_ENTITY target for one recipient.
  *
  * The mock keeps NPC targets as world-pool slots so one actor can be encoded
@@ -518,9 +538,7 @@ mock230_face_entity_for_client(
 {
     if( face_entity < 0 || face_entity >= MOCK230_FACE_PLAYER_BASE )
         return face_entity;
-    if( !recipient || face_entity >= MOCK230_NPC_MAX )
-        return -1;
-    return recipient->npc_slots.client_of[face_entity];
+    return mock230_slotmap_client(recipient, face_entity);
 }
 
 /** Give back this client's name for `world_slot`. Idempotent. */
@@ -1909,6 +1927,33 @@ mock230_send_midi_song_envelope(
 }
 
 void
+mock230_send_midi_song_stop(
+    struct Mock230Player* player,
+    int fade_out_delay,
+    int fade_out_speed)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    /*
+     * Return rather than flush an empty body when the revision has no writer.
+     *
+     * `mock230_send_midi_song` above flushes unconditionally, which for a
+     * revision with no `midi_song` writer puts a zero-length MIDI_SONG on the
+     * wire — harmless there only because every revision this tree runs has one.
+     * MIDI_SONG_STOP is genuinely absent from osrs230's packet table, so this
+     * one WILL take the missing-writer path, and a 0-byte body where the client
+     * expects 4 desynchronises the stream rather than being ignored.
+     * `mock230_send` reports the unmapped name once by itself.
+     */
+    if( !pl || !pl->midi_song_stop )
+        return;
+    open_packet(&buf, 8);
+    pl->midi_song_stop(&buf, fade_out_delay, fade_out_speed);
+    flush(player, &buf, OP_MIDI_SONG_STOP, 0);
+}
+
+void
 mock230_send_midi_song(
     struct Mock230Player* player,
     int id)
@@ -2517,7 +2562,20 @@ put_appearance_v5(
     }
 
     rsab_pjstr(buf, player->display_name, RSAB_JSTR_NUL);
-    rsab_p1(buf, 3); /* combat level */
+    /*
+     * The player's own combat level, not a placeholder.
+     *
+     * This is the number `localPlayer.combatLevel` is read from, and the NPC
+     * minimenu compares every npc against it: under the default "Depends on
+     * combat levels" Attack option the reference deprioritizes ALL of a
+     * higher-level npc's operations (deob Statics.method7229, outside its
+     * attack-pass branch). A literal 3 therefore makes every npc in the world
+     * above level 3 right-click-only, and a left click on one falls through to
+     * "Walk here" — which is itself inert wherever no ground triangle sits
+     * under the cursor (a tall model against a wall, e.g. TzKal-Zuk). The
+     * symptom is a click that does nothing at all, not even a yellow cross.
+     */
+    rsab_p1(buf, (uint8_t)mock230_combat_level(player));
     rsab_p2(buf, 0); /* skill level, shown only in some minigames */
     rsab_p1(buf, 0); /* hidden */
     /*
@@ -2603,7 +2661,9 @@ put_appearance(
      * an empty one makes everybody in the world an anonymous body.
      */
     rsab_p8(buf, (int64_t)strtobase37(player->display_name));
-    rsab_p1(buf, 3); /* combat level */
+    /* The player's own combat level — see the v5 encoder above for what a
+     * placeholder costs (every npc above it goes right-click-only). */
+    rsab_p1(buf, (uint8_t)mock230_combat_level(player));
 }
 
 int
@@ -3797,6 +3857,29 @@ npc_add_requires_transformation(const struct Mock230Npc* npc)
 }
 
 /*
+ * Every TRANSFORMATION block this process has written, for the selftest.
+ *
+ * A transformation is not a cosmetic field: the client answers one by
+ * rebuilding the npc's model and re-applying the new type's `readyanim`, which
+ * cancels whatever the npc was animating. So "a transformation nobody asked
+ * for" is indistinguishable, in the game, from "this npc has no attack, defend
+ * or death animation" — and it is invisible on the server, where the animation
+ * was resolved, played and encoded correctly.
+ *
+ * A counter rather than a packet assertion because the bit section ahead of the
+ * extended blocks is variable-width: reading the flag back out of a captured
+ * NPC_INFO means reimplementing the client's reader inside the test. What the
+ * test needs to know is only whether one was written at all.
+ */
+static long g_npc_transformation_writes;
+
+long
+mock230_encode_npc_transformation_writes(void)
+{
+    return g_npc_transformation_writes;
+}
+
+/*
  * NPC_INFO carries only 14 type bits in its initial add. Revision 239 uses the
  * same-packet TRANSFORMATION block (client mask bit 0x1) to bootstrap a
  * 16-bit config id. The initial type is only a placeholder in that case.
@@ -3805,6 +3888,41 @@ static int
 npc_initial_wire_type(const struct Mock230Npc* npc)
 {
     return npc_add_requires_transformation(npc) ? 0 : npc->type;
+}
+
+/*
+ * One npc's slot in an NPC_INFO packet's extended-info queue.
+ *
+ * A record per npc rather than one array per field. The parallel-array form is
+ * what let a queue site fill `force_face` and leave `force_type` as whatever
+ * the stack held; `npc_queue_push` takes every latch the record carries, so a
+ * half-written entry no longer compiles. See
+ * mock230_encode_npc_transformation_writes for what the omission cost.
+ */
+struct Mock230NpcExtendedQueue
+{
+    int slot;
+    /** Enter-view: re-emit the latched FACE_ENTITY the per-tick mask cleared. */
+    int force_face;
+    /** Enter-view with a config id wider than the add's 14 bits: re-state it
+     *  as a TRANSFORMATION block in the same packet. */
+    int force_type;
+};
+
+static void
+npc_queue_push(
+    struct Mock230NpcExtendedQueue* queue,
+    int* count,
+    int slot,
+    int force_face,
+    int force_type)
+{
+    if( *count >= MOCK230_TRACKED_NPC_MAX )
+        return;
+    queue[*count].slot = slot;
+    queue[*count].force_face = force_face;
+    queue[*count].force_type = force_type;
+    (*count)++;
 }
 
 static void
@@ -3825,6 +3943,9 @@ put_npc_extended_v5(
 
     if( hit )
         flag |= V5_NPC_HITMARKS;
+    if( getenv("MOCK230_SPLAT_DEBUG") && hit )
+        fprintf(stderr, "  SPLAT npc type=%d dmg=%d type=%d hp=%d/%d\n", npc->type,
+                npc->damage, npc->damage_type, npc->hitpoints, npc->max_hitpoints);
     if( hit && npc->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 &&
         mock230_ids()->healthbar_standard_width > 0 )
         flag |= V5_NPC_HEADBARS;
@@ -3903,6 +4024,7 @@ put_npc_extended_v5(
     if( flag & V5_NPC_TRANSFORMATION )
     {
         /* NpcTransformationEncoder: unsigned little-endian/add short. */
+        g_npc_transformation_writes++;
         rsab_p2_alt3(buf, force_type_latch ? npc->type : npc->change_type);
     }
     if( has_face )
@@ -4028,7 +4150,10 @@ put_npc_extended(
         rsab_p1(buf, npc->max_hitpoints);
     }
     if( mask & MOCK230_NMASK_CHANGE_TYPE )
+    {
+        g_npc_transformation_writes++;
         rsab_p2(buf, force_type_latch ? npc->type : npc->change_type);
+    }
     if( mask & MOCK230_NMASK_SPOTANIM )
     {
         rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
@@ -4053,13 +4178,12 @@ mock230_send_npc_info(struct Mock230Player* player)
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
-     * so remember that order while writing the bits. queued_force_face marks
-     * enter-view slots that must re-emit a latched FACE_ENTITY. */
-    int queued[MOCK230_TRACKED_NPC_MAX];
+     * so remember that order while writing the bits. Zeroed rather than left as
+     * scratch: "no latch" is the right default for a field a queue site forgot,
+     * and one of them was forgotten — see struct Mock230NpcExtendedQueue. */
+    struct Mock230NpcExtendedQueue queued[MOCK230_TRACKED_NPC_MAX] = { { 0, 0, 0 } };
     int nearby[MOCK230_TRACKED_NPC_MAX];
     int nearby_count;
-    int queued_force_face[MOCK230_TRACKED_NPC_MAX];
-    int queued_force_type[MOCK230_TRACKED_NPC_MAX];
     int queued_count = 0;
     int kept[MOCK230_TRACKED_NPC_MAX];
     int kept_count = 0;
@@ -4135,11 +4259,16 @@ mock230_send_npc_info(struct Mock230Player* player)
         {
             int slot = player->tracked[i];
             struct Mock230Npc* npc = &srv->npcs[slot];
-            int dx = npc->x - player->x;
-            int dz = npc->z - player->z;
-            int in_range = npc->active && npc->level == player->level &&
-                           dx >= -MOCK230_NPC_VIEW_TILES && dx <= MOCK230_NPC_VIEW_TILES &&
-                           dz >= -MOCK230_NPC_VIEW_TILES && dz <= MOCK230_NPC_VIEW_TILES;
+            /* The gap to the npc's FOOTPRINT, and the same measure the adds
+             * below and the ZoneMap query use: keeping and adding have to agree
+             * or an npc is added and removed on alternate ticks. */
+            int view_dx;
+            int view_dz;
+            int in_range;
+
+            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            in_range = npc->active && npc->level == player->level &&
+                       view_dx <= MOCK230_NPC_VIEW_TILES && view_dz <= MOCK230_NPC_VIEW_TILES;
 
             if( !in_range || npc->tele )
             {
@@ -4162,7 +4291,18 @@ mock230_send_npc_info(struct Mock230Player* player)
             {
                 int const extended = npc_extended_pending_v5(player, npc, 0);
 
-                if( npc->step_dir >= 0 )
+                if( npc->run_dir >= 0 )
+                {
+                    /* Two tiles this tick — update type 2, two 3-bit
+                     * directions. `playerfollow` is the only mover that fills
+                     * `run_dir`; see `Mock230Npc.run_dir`. */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 2); /* run */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 3, npc->run_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
+                else if( npc->step_dir >= 0 )
                 {
                     rsab_pbit(&buf, 1, 1);
                     rsab_pbit(&buf, 2, 1); /* walk */
@@ -4181,11 +4321,11 @@ mock230_send_npc_info(struct Mock230Player* player)
                 {
                     rsab_pbit(&buf, 1, 0); /* unchanged */
                 }
+                /* Already tracked: neither latch is re-emitted. This branch is
+                 * the one that used to state only the face latch, and left the
+                 * type latch reading whatever was on the stack. */
                 if( extended )
-                {
-                    queued[queued_count++] = slot;
-                    queued_force_face[queued_count - 1] = 0;
-                }
+                    npc_queue_push(queued, &queued_count, slot, 0, 0);
             }
         }
 
@@ -4201,17 +4341,20 @@ mock230_send_npc_info(struct Mock230Player* player)
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx;
             int dz;
+            int view_dx;
+            int view_dz;
 
             if( !npc->active || player->npc_tracked[slot] )
                 continue;
             dx = npc->x - player->x;
             dz = npc->z - player->z;
+            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
             /*
-             * The SAME radius the high-resolution loop keeps at, and it has to
-             * be. The 6-bit delta could carry +-31, but an npc added at 20 tiles
-             * is out of range on the very next tick, so it is removed, re-added,
-             * removed... every tick, and never renders. The wire's capacity is
-             * not the view distance.
+             * The SAME radius and the SAME measure the high-resolution loop
+             * keeps at, and it has to be. The 6-bit delta could carry +-31, but
+             * an npc added at 20 tiles is out of range on the very next tick, so
+             * it is removed, re-added, removed... every tick, and never renders.
+             * The wire's capacity is not the view distance.
              */
             /* The plane, here rather than in the candidate set. The area is a
              * *subscription* and it spans all four on purpose — a loc change
@@ -4219,9 +4362,24 @@ mock230_send_npc_info(struct Mock230Player* player)
              * streams, which are single-plane, filter at the point of use. */
             if( npc->level != player->level )
                 continue;
-            if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
-                dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
+            if( view_dx > MOCK230_NPC_VIEW_TILES || view_dz > MOCK230_NPC_VIEW_TILES )
                 continue;
+            /*
+             * And what the record can actually say. The deltas written below are
+             * from the npc's ORIGIN, so a footprint in view at 15 puts the
+             * origin as far as 15 + (MOCK230_NPC_SIZE_MAX - 1); 6 signed bits
+             * stop at 31. The two constants are chosen so this cannot fire —
+             * it is here so that if either moves, a boss goes missing with a
+             * line in the log rather than silently landing 64 tiles away.
+             */
+            if( dx < -32 || dx > 31 || dz < -32 || dz > 31 )
+            {
+                fprintf(stderr,
+                        "mock230: npc %d (type %d, size %d) is in view at %d,%d but its "
+                        "origin delta %d,%d does not fit the v5 add; not sent\n",
+                        slot, npc->type, npc->size, npc->x, npc->z, dx, dz);
+                continue;
+            }
             if( kept_count >= MOCK230_TRACKED_NPC_MAX )
                 break;
             adds[add_count++] = slot;
@@ -4273,11 +4431,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              */
             rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc_initial_wire_type(npc));
             if( extended )
-            {
-                queued[queued_count++] = slot;
-                queued_force_face[queued_count - 1] = 1;
-                queued_force_type[queued_count - 1] = force_type;
-            }
+                npc_queue_push(queued, &queued_count, slot, 1, force_type);
         }
 
         /* Encode the byte-aligned tail separately. Whether a sentinel is
@@ -4287,8 +4441,8 @@ mock230_send_npc_info(struct Mock230Player* player)
         memset(extended_data, 0, sizeof(extended_data));
         rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
         for( int i = 0; i < queued_count; i++ )
-            put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i]],
-                                queued_force_face[i], queued_force_type[i]);
+            put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i].slot],
+                                queued[i].force_face, queued[i].force_type);
 
         /*
          * The terminator, only when the golden client's low-resolution guard
@@ -4363,6 +4517,15 @@ mock230_send_npc_info(struct Mock230Player* player)
          * ignored level too; now that the candidates come from the ZoneMap —
          * which is keyed by level — an npc left tracked across a climb could
          * never be re-added, only re-encoded forever. */
+        /*
+         * The ORIGIN corner, deliberately, where the v5 encoder above measures
+         * the footprint. This revision's add carries 5-bit signed deltas from
+         * the origin — -16..15, and no room at all for the 15 + (size - 1) a
+         * footprint measure reaches. Keeping a sized npc past what the add can
+         * re-express means it is dropped on the tick it leaves and can never
+         * come back, which is worse than losing it early. Large npcs on the
+         * classic wire want a wider add field, not a wider keep test.
+         */
         int in_range = npc->active && npc->level == player->level && dx >= -15 && dx <= 15 &&
                        dz >= -15 && dz <= 15;
         int extended = npc_extended_pending(npc);
@@ -4393,7 +4556,16 @@ mock230_send_npc_info(struct Mock230Player* player)
         }
 
         kept[kept_count++] = slot;
-        if( npc->step_dir >= 0 )
+        if( npc->run_dir >= 0 )
+        {
+            /* Two tiles this tick — see the v5 encoder above. */
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 2);
+            rsab_pbit(&buf, 3, npc->step_dir);
+            rsab_pbit(&buf, 3, npc->run_dir);
+            rsab_pbit(&buf, 1, extended);
+        }
+        else if( npc->step_dir >= 0 )
         {
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 1);
@@ -4410,11 +4582,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 0);
         }
         if( extended )
-        {
-            queued_force_face[queued_count] = 0;
-            queued_force_type[queued_count] = 0;
-            queued[queued_count++] = slot;
-        }
+            npc_queue_push(queued, &queued_count, slot, 0, 0);
     }
 
     /*
@@ -4429,8 +4597,11 @@ mock230_send_npc_info(struct Mock230Player* player)
      * exact range test below still decides; what changed is how many npcs it is
      * asked about.
      */
-    /* Same query as the v5 path above, and it has to be the same: the two
-     * encoders differ in how they spell an add, not in who is addable. */
+    /* Same query as the v5 path above — the two encoders differ in how they
+     * spell an add, not in who they ask about. The query answers on footprints,
+     * so it can hand this loop a sized npc whose origin is further out than the
+     * 5-bit delta reaches; the origin test below is what turns that down, for
+     * the reason given at the high-resolution loop. */
     nearby_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
                                      MOCK230_TRACKED_NPC_MAX);
     for( int i = 0; i < nearby_count; i++ )
@@ -4472,11 +4643,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 5, dz & 0x1f);
             rsab_pbit(&buf, 1, extended);
             if( extended )
-            {
-                queued_force_face[queued_count] = force_face;
-                queued_force_type[queued_count] = force_type;
-                queued[queued_count++] = slot;
-            }
+                npc_queue_push(queued, &queued_count, slot, force_face, force_type);
         }
         player->npc_tracked[slot] = 1;
         kept[kept_count++] = slot;
@@ -4486,8 +4653,8 @@ mock230_send_npc_info(struct Mock230Player* player)
     rsab_bytes(&buf);
 
     for( int i = 0; i < queued_count; i++ )
-        put_npc_extended(&buf, player, &srv->npcs[queued[i]], queued_force_face[i],
-                         queued_force_type[i]);
+        put_npc_extended(&buf, player, &srv->npcs[queued[i].slot], queued[i].force_face,
+                         queued[i].force_type);
 
     flush(player, &buf, OP_NPC_INFO, 2);
 

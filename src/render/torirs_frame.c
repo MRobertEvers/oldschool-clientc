@@ -1692,12 +1692,35 @@ try_emit_world_draw_model(
                                 cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ? "(pick)" : "",
                                 (int)cmd->_terrain._bf_terrain_x, (int)cmd->_terrain._bf_terrain_z,
                                 (int)cmd->_terrain._bf_terrain_y);
-                    else
-                        fprintf(stderr, "order %4d cmd=%4d LOC loc=%d slot=%d,%d size=%dx%d\n", seq++,
+                    else if( sc )
+                        fprintf(stderr,
+                                "order %4d cmd=%4d LOC loc=%d slot=%d,%d L%d size=%dx%d\n", seq++,
                                 frame->painters_index - 1,
-                                sc ? sc->loc_id : -1, sc ? sc->grid_position.x : -1,
-                                sc ? sc->grid_position.z : -1,
-                                sc ? sc->debug.draw_size_x : 0, sc ? sc->debug.draw_size_z : 0);
+                                sc->loc_id, sc->grid_position.x, sc->grid_position.z,
+                                sc->grid_position.level,
+                                sc->debug.draw_size_x, sc->debug.draw_size_z);
+                    else
+                    {
+                        /* Everything that is not baked scenery: npcs, players,
+                         * projectiles, spotanims. A draw-order question about a
+                         * loc almost always has an npc on the other side of it,
+                         * and "loc=-1" cannot answer which npc. */
+                        struct WorldEntity_NPC* npc =
+                            World_NpcGetByElementId(frame->world, element_id, NULL);
+                        if( npc )
+                            fprintf(stderr,
+                                    "order %4d cmd=%4d NPC npc=%d tile=%d,%d L%d size=%d "
+                                    "draw=%d,%d\n",
+                                    seq++, frame->painters_index - 1, npc->npc_id,
+                                    npc->grid_position.x, npc->grid_position.z,
+                                    npc->grid_position.level, npc->size,
+                                    (int)npc->draw_position.x, (int)npc->draw_position.z);
+                        else
+                            fprintf(stderr, "order %4d cmd=%4d ELEM element=%d at=%d,%d,%d\n",
+                                    seq++, frame->painters_index - 1, element_id,
+                                    el->world_position.x, el->world_position.y,
+                                    el->world_position.z);
+                    }
                 }
             }
         }

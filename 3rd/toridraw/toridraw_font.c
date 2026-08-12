@@ -191,16 +191,42 @@ font_match_icase_literal(
     return true;
 }
 
+/**
+ * The style the markup tags mutate as a string is walked: glyph colour plus the
+ * two rule colours, where -1 means the rule is off. One struct because the
+ * tokens that set them share a grammar, so every walk that needs one of them
+ * has to skip all of them — a walk that knows `<col=…>` but not `<str>` prints
+ * the tag it does not know as literal text.
+ */
+struct FontMarkupStyle
+{
+    int color;
+    int underline;
+    int strike;
+};
+
+static struct FontMarkupStyle
+font_markup_style_init(int default_color)
+{
+    struct FontMarkupStyle style;
+    style.color = default_color;
+    style.underline = -1;
+    style.strike = -1;
+    return style;
+}
+
+/**
+ * `style` is optional: pass NULL to only measure the token grammar (how many
+ * bytes the token spans and what character it renders), which is what the
+ * measuring and wrapping walks want.
+ */
 static int
 font_try_consume_markup(
     char const* text,
     int len,
     int i,
     int default_color,
-    int* color_out,
-    bool apply_color,
-    int* underline_out,
-    bool apply_underline,
+    struct FontMarkupStyle* style,
     unsigned char* emit_char_out)
 {
     if( !text || i < 0 || i >= len )
@@ -211,11 +237,11 @@ font_try_consume_markup(
 
     if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
     {
-        if( apply_color && color_out )
+        if( style )
         {
             int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
             if( tagged >= 0 )
-                *color_out = tagged;
+                style->color = tagged;
         }
         return 5;
     }
@@ -238,16 +264,23 @@ font_try_consume_markup(
 
     if( text[i] == '<' && len - i >= 6 && strncmp(&text[i], "</col>", 6) == 0 )
     {
-        if( apply_color && color_out )
-            *color_out = default_color;
+        if( style )
+            style->color = default_color;
         return 6;
     }
 
     if( text[i] == '<' && len - i >= 4 && strncmp(&text[i], "</u>", 4) == 0 )
     {
-        if( apply_underline && underline_out )
-            *underline_out = -1;
+        if( style )
+            style->underline = -1;
         return 4;
+    }
+
+    if( text[i] == '<' && len - i >= 6 && strncmp(&text[i], "</str>", 6) == 0 )
+    {
+        if( style )
+            style->strike = -1;
+        return 6;
     }
 
     if( text[i] == '<' && len - i >= 10 && strncmp(&text[i], "<col=", 5) == 0 )
@@ -261,11 +294,11 @@ font_try_consume_markup(
         }
         if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
         {
-            if( apply_color && color_out )
+            if( style )
             {
                 int const parsed = font_parse_hex_rgb(&text[i + 5], hex_len);
                 if( parsed >= 0 )
-                    *color_out = parsed;
+                    style->color = parsed;
             }
             return j - i + 1;
         }
@@ -276,8 +309,8 @@ font_try_consume_markup(
     {
         if( text[i + 2] == '>' )
         {
-            if( apply_underline && underline_out )
-                *underline_out = 0;
+            if( style )
+                style->underline = 0;
             return 3;
         }
         if( text[i + 2] == '=' && len - i >= 10 )
@@ -291,11 +324,44 @@ font_try_consume_markup(
             }
             if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
             {
-                if( apply_underline && underline_out )
+                if( style )
                 {
                     int const parsed = font_parse_hex_rgb(&text[i + 3], hex_len);
                     if( parsed >= 0 )
-                        *underline_out = parsed;
+                        style->underline = parsed;
+                }
+                return j - i + 1;
+            }
+        }
+    }
+
+    /* Strikethrough, same shape as underline: bare `<str>` takes the reference's
+     * fixed dark red (deob class671 sets 0x800000), `<str=rrggbb>` overrides it,
+     * and neither recolors glyphs. */
+    if( text[i] == '<' && len - i >= 5 && strncmp(&text[i], "<str", 4) == 0 )
+    {
+        if( text[i + 4] == '>' )
+        {
+            if( style )
+                style->strike = TORIDRAW_FONT_STRIKE_DEFAULT_RGB;
+            return 5;
+        }
+        if( text[i + 4] == '=' && len - i >= 12 )
+        {
+            int j = i + 5;
+            int hex_len = 0;
+            while( j < len && hex_len < 8 && font_is_hex_digit(text[j]) )
+            {
+                j++;
+                hex_len++;
+            }
+            if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
+            {
+                if( style )
+                {
+                    int const parsed = font_parse_hex_rgb(&text[i + 5], hex_len);
+                    if( parsed >= 0 )
+                        style->strike = parsed;
                 }
                 return j - i + 1;
             }
@@ -312,8 +378,7 @@ ToriDraw_FontMarkupTokenLength(
     int index,
     unsigned char* emit_char_out)
 {
-    return font_try_consume_markup(
-        text, len, index, 0, NULL, false, NULL, false, emit_char_out);
+    return font_try_consume_markup(text, len, index, 0, NULL, emit_char_out);
 }
 
 static int
@@ -502,7 +567,7 @@ font_measure_range(
     {
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -822,14 +887,16 @@ font_visit_glyphs_range(
 {
     assert(font && text && len > 0 && callback);
 
-    int color = default_color_rgb;
+    /* Glyph callbacks draw glyphs only, so the rule colours this collects are
+     * unused here — the two renderers that want rules stroke them separately. */
+    struct FontMarkupStyle style = font_markup_style_init(default_color_rgb);
     int const space_adv = font_space_advance(font);
 
     for( int i = 0; i < len; i++ )
     {
         unsigned char emit_char = 0;
-        int const consumed = font_try_consume_markup(
-            text, len, i, default_color_rgb, &color, true, NULL, false, &emit_char);
+        int const consumed =
+            font_try_consume_markup(text, len, i, default_color_rgb, &style, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -839,7 +906,7 @@ font_visit_glyphs_range(
                 {
                     int const gx = x + font->offset_x[gi];
                     int const gy = y + font->offset_y[gi];
-                    callback(ctx, font, gi, gx, gy, color);
+                    callback(ctx, font, gi, gx, gy, style.color);
                 }
                 x += font_glyph_advance(font, gi);
             }
@@ -857,7 +924,7 @@ font_visit_glyphs_range(
         {
             int const gx = x + font->offset_x[gi];
             int const gy = y + font->offset_y[gi];
-            callback(ctx, font, gi, gx, gy, color);
+            callback(ctx, font, gi, gx, gy, style.color);
         }
         x += font_glyph_advance(font, gi);
     }
@@ -951,8 +1018,9 @@ font_draw_mask(
     }
 }
 
+/** One-pixel horizontal rule under (underline) or through (strike) one advance. */
 static void
-font_draw_underline_span(
+font_draw_rule_span(
     int x,
     int y,
     int width,
@@ -978,6 +1046,29 @@ font_draw_underline_span(
         row[px] = argb;
 }
 
+/** Both rules for one advance — they are independent and can be on together. */
+static void
+font_draw_style_rules(
+    struct FontMarkupStyle const* style,
+    int x,
+    int advance,
+    int underline_y,
+    int strike_y,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
+    int* pixel_buffer)
+{
+    if( style->strike >= 0 )
+        font_draw_rule_span(
+            x, strike_y, advance, style->strike, cl, ct, cr, cb, stride, pixel_buffer);
+    if( style->underline >= 0 )
+        font_draw_rule_span(
+            x, underline_y, advance, style->underline, cl, ct, cr, cb, stride, pixel_buffer);
+}
+
 static int
 font_draw_string_range(
     struct ToriDraw_Font const* font,
@@ -996,31 +1087,26 @@ font_draw_string_range(
     assert(font && text && len > 0 && pixel_buffer);
 
     int pixels_written = 0;
-    int current_color = color;
-    int underline = -1;
+    struct FontMarkupStyle style = font_markup_style_init(color);
     int const space_adv = font_space_advance(font);
     int const ascent = font->line_height > 0 ? font->line_height : 1;
     int const underline_y = y + ascent + 1;
+    /* Reference puts the strike 0.7 of the ascent down from the line top
+     * (deob class671: `(int)(ascent * 0.7) + top`), which lands it across the
+     * x-height rather than on the baseline. */
+    int const strike_y = y + (ascent * 7) / 10;
 
     for( int i = 0; i < len; i++ )
     {
         unsigned char emit_char = 0;
-        int const consumed = font_try_consume_markup(
-            text,
-            len,
-            i,
-            color,
-            &current_color,
-            true,
-            &underline,
-            true,
-            &emit_char);
+        int const consumed =
+            font_try_consume_markup(text, len, i, color, &style, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
             {
                 int const gi = font_glyph_index(font, emit_char);
-                int const opaque_color = (int)(0xFF000000u | (uint32_t)current_color);
+                int const opaque_color = (int)(0xFF000000u | (uint32_t)style.color);
                 int const adv = font_glyph_advance(font, gi);
                 pixels_written += font_draw_glyph_pixels(
                     font,
@@ -1034,9 +1120,8 @@ font_draw_string_range(
                     cb,
                     stride,
                     pixel_buffer);
-                if( underline >= 0 )
-                    font_draw_underline_span(
-                        x, underline_y, adv, underline, cl, ct, cr, cb, stride, pixel_buffer);
+                font_draw_style_rules(
+                    &style, x, adv, underline_y, strike_y, cl, ct, cr, cb, stride, pixel_buffer);
                 x += adv;
             }
             i += consumed - 1;
@@ -1044,14 +1129,23 @@ font_draw_string_range(
         }
         if( font_is_rs_space_char((unsigned char)text[i]) )
         {
-            if( underline >= 0 )
-                font_draw_underline_span(
-                    x, underline_y, space_adv, underline, cl, ct, cr, cb, stride, pixel_buffer);
+            font_draw_style_rules(
+                &style,
+                x,
+                space_adv,
+                underline_y,
+                strike_y,
+                cl,
+                ct,
+                cr,
+                cb,
+                stride,
+                pixel_buffer);
             x += space_adv;
             continue;
         }
         int const gi = font_glyph_index(font, (unsigned char)text[i]);
-        int const opaque_color = (int)(0xFF000000u | (uint32_t)current_color);
+        int const opaque_color = (int)(0xFF000000u | (uint32_t)style.color);
         int const adv = font_glyph_advance(font, gi);
         pixels_written += font_draw_glyph_pixels(
             font,
@@ -1065,9 +1159,8 @@ font_draw_string_range(
             cb,
             stride,
             pixel_buffer);
-        if( underline >= 0 )
-            font_draw_underline_span(
-                x, underline_y, adv, underline, cl, ct, cr, cb, stride, pixel_buffer);
+        font_draw_style_rules(
+            &style, x, adv, underline_y, strike_y, cl, ct, cr, cb, stride, pixel_buffer);
         x += adv;
     }
     return pixels_written;
@@ -1097,7 +1190,7 @@ font_draw_string_shadow_range(
     {
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -1233,7 +1326,7 @@ font_line_vertical_extents(
     {
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )
@@ -1394,7 +1487,7 @@ font_segment_has_visible_content(
 
         unsigned char emit_char = 0;
         int const consumed =
-            font_try_consume_markup(text, len, i, 0, NULL, false, NULL, false, &emit_char);
+            font_try_consume_markup(text, len, i, 0, NULL, &emit_char);
         if( consumed > 0 )
         {
             if( emit_char )

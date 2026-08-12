@@ -169,7 +169,7 @@ transcoded and verified in the marked Summoning overlay.
 
 The ordinary familiar arrival effect is implemented for both initial pouch
 summoning and **Call familiar** in
-[`summoning_spirit_wolf.rs2`](../../OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2).
+[`summoning_core.rs2`](../../OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/scripts/summoning_core.rs2).
 Immediately after the familiar is added or relocated, the active NPC receives
 the size-appropriate spot graphic and sound `188` is played. Dreadfowl uses
 the small graphic; Spirit wolf and Spirit terrorbird use the large graphic.

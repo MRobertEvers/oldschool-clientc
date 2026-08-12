@@ -543,6 +543,83 @@ test_local_alone_no_player_ops(void)
     World_Free(world);
 }
 
+/* The "Walk here" row of a pickset with no terrain in it. */
+static struct UIMinimenuOption const*
+menu_walk_row(struct UIMinimenu const* menu)
+{
+    for( int i = 0; i < menu->option_count; i++ )
+        if( menu->options[i].action == REVCONFIG_MINIMENU_WALK )
+            return &menu->options[i];
+    return NULL;
+}
+
+/*
+ * A click that hit no terrain (the sky, the void ringing an instance's floor)
+ * leaves the pickset without a terrain item. The row is offered either way,
+ * but it only walks anywhere when the caller resolved a fallback tile — the
+ * closest tile to the click. Without one it stays inert, which is what the
+ * reference does with a click on nothing.
+ */
+static void
+test_walk_here_ground_fallback(void)
+{
+    printf("TEST: no-terrain click walks to the resolved fallback tile\n");
+
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World* world = World_TestMakeReady(104);
+    world->local_pid = 7;
+
+    int lp = World_PlayerSpawn(world, 400, 0, 50, 50, idle);
+    struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, lp);
+    local->server_pid = 7;
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks); /* nothing drew under the cursor at all */
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    struct UIMinimenu menu;
+    struct UIMinimenuOption const* walk;
+
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    walk = menu_walk_row(&menu);
+    TEST_ASSERT(walk != NULL, "no fallback: Walk here is still offered");
+    TEST_ASSERT(
+        walk && walk->pick.kind == UI_MINIMENU_PICK_NONE,
+        "no fallback: the row carries no destination");
+
+    ctx.ground_fallback_valid = true;
+    ctx.ground_fallback_x = 44;
+    ctx.ground_fallback_z = 61;
+    ctx.ground_fallback_level = 2;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    walk = menu_walk_row(&menu);
+    TEST_ASSERT(walk != NULL, "fallback: Walk here is offered");
+    TEST_ASSERT(
+        walk && walk->pick.kind == UI_MINIMENU_PICK_TERRAIN,
+        "fallback: the row walks like a picked tile");
+    TEST_ASSERT(walk && walk->pick.secondary_id == 44, "fallback tile x reaches the row");
+    TEST_ASSERT(walk && walk->pick.tertiary_id == 61, "fallback tile z reaches the row");
+    TEST_ASSERT(walk && walk->pick.quaternary_id == 2, "fallback tile level reaches the row");
+
+    /* A pickset that DOES hold terrain is untouched by the fallback: the
+     * clicked tile wins, never the nearest one. */
+    World_PickSetAdd(&picks, 1, WORLD_PICK_TERRAIN, 51, 52, 0);
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    walk = menu_walk_row(&menu);
+    TEST_ASSERT(walk && walk->pick.secondary_id == 51, "picked tile beats the fallback (x)");
+    TEST_ASSERT(walk && walk->pick.tertiary_id == 52, "picked tile beats the fallback (z)");
+
+    World_Free(world);
+}
+
 /*
  * ---------------------------------------------------------------------------
  * Controls-settings Attack options (rs_attack_option.h).
@@ -854,6 +931,7 @@ main(void)
     test_local_player_pick_expands_ground_items();
     test_obj_pick_expands_siblings();
     test_local_alone_no_player_ops();
+    test_walk_here_ground_fallback();
     test_npc_attack_option();
     test_player_attack_option();
     test_player_attack_option_clan();

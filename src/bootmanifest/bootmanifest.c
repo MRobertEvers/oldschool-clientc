@@ -733,6 +733,22 @@ bm_set_kv(
             bm->features_ground_click_nearest = model;
             return;
         }
+        /* The two permissive extensions. Off in every era table by design, so
+         * a boot that wants one has to say so here. */
+        if( strcmp(key, "ground_click_unbounded") == 0 )
+        {
+            int on;
+            if( bm_parse_int(key, value, &on) )
+                bm->features_ground_click_unbounded = on ? 1 : 0;
+            return;
+        }
+        if( strcmp(key, "ground_click_offmap") == 0 )
+        {
+            int on;
+            if( bm_parse_int(key, value, &on) )
+                bm->features_ground_click_offmap = on ? 1 : 0;
+            return;
+        }
         if( strcmp(key, "painter_draw_distance") == 0 )
         {
             int distance;
@@ -857,6 +873,8 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     /* -1 = "not stated": 0 is TORIRS_NEAREST_RING3_STEPS, a real model, so a
      * zeroed struct must not read as an override to it. */
     bm->features_ground_click_nearest = -1;
+    bm->features_ground_click_unbounded = -1;
+    bm->features_ground_click_offmap = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
     /* -1 rather than 0: a chatbox may legitimately have no input line or no
@@ -1058,6 +1076,10 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->features_ground_click_nearest = bm->features_ground_click_nearest;
         cfg->features_ground_click_nearest_set = 1;
     }
+    if( bm->features_ground_click_unbounded >= 0 )
+        cfg->features_ground_click_unbounded = bm->features_ground_click_unbounded;
+    if( bm->features_ground_click_offmap >= 0 )
+        cfg->features_ground_click_offmap = bm->features_ground_click_offmap;
     if( bm->features_painter_draw_distance > 0 )
     {
         cfg->features_painter_draw_distance = bm->features_painter_draw_distance;

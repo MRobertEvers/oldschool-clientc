@@ -340,7 +340,7 @@ torirs_model_move_from_rscache(
     }
 
     if( tfc > 0 || had_per_face_tex_coords )
-        dst->flags |= 0x02u;
+        dst->flags |= TORIRS_MODEL_FLAG_TEXTURED;
 
     if( src->vertex_bone_map )
         dst->vertex_bones = torirs_bones_new(src->vertex_bone_map, src->vertex_count);
@@ -394,7 +394,7 @@ torirs_model_move_from_rscache(
                 dst->vertices_z);
     }
 
-    dst->flags |= 0x01u;
+    dst->flags |= TORIRS_MODEL_FLAG_DECODED;
     torirs_sanitize_pnm_texture_coords(dst);
     ToriRS_ModelAssertPnmTextureInvariant(dst);
 }

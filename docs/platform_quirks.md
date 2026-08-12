@@ -698,16 +698,156 @@ one lane only.
   and disables automatic extension enablement. It uses no VAOs, 32-bit element
   indices, uniform blocks, sized GLES3 texture formats, BGRA upload, instancing,
   derivative, depth-texture, or float-texture extensions.
-- **Required alternatives:** Rebind attributes per draw; split retained ranges
-  into 16-bit base windows; use plain uniforms and ES2 formats; convert ToriDraw
-  ARGB pixels to RGBA before upload. The world texture atlas is pinned to
-  2048x2048 (256 slots) even when the browser reports a larger limit.
+- **Required alternatives:** Re-point attributes when the base vertex changes;
+  split retained ranges into 16-bit base windows; use plain uniforms and ES2
+  formats; convert ToriDraw ARGB pixels to RGBA before upload. The world texture
+  atlas is pinned to 2048x2048 (256 slots) even when the browser reports a
+  larger limit.
+- **Also absent, and not obvious:** `GL_UNPACK_ROW_LENGTH`. It is a
+  GLES3/desktop pixel-store parameter, so a sub-rectangle of a wider CPU buffer
+  cannot be handed to `glTexSubImage2D` in place — the rows must be packed into
+  a tight staging buffer first. Both GPU backends run that same packed path so a
+  bug in it cannot hide on the host nobody tests.
 - **Reason:** The renderer must work on a conforming WebGL1 implementation,
   rather than only on browsers that happen to expose a desktop-like extension
   set.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
   [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
   [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/)
+
+### GPU-PROJ-001 - The projection is a scale, never a field of view
+
+- **Status:** Resolved defect
+- **Applies to:** Desktop `--opengl3`, Web `--webgl1`, Win32/Win64 `--d3d9`
+- **Behavior:** ToriDraw projects `screen = coord * scale / z`, where `scale` is
+  an integer recomputed per layout from the world viewport height
+  (`class159.method5357`). The GPU backends must build their projection matrix
+  from that same scale, resolved through
+  [`3rd/toridraw/graphics/projection.h`](../3rd/toridraw/graphics/projection.h)
+  so the rasterizer and the GPU cannot disagree about what the camera asked for.
+  `trspk_compute_pass_matrices` takes the camera's `proj_mode`, `proj_scale`,
+  `fov_rpi2048` and `parallel_zoom16` and does that resolution.
+- **What was wrong:** It previously took a hardcoded 90-degree field of view,
+  which multiplied a hardcoded `512`. That is exactly right when the camera
+  happens to sit at the reference's default scale of 512 and wrong by the ratio
+  otherwise. At the osrs239 boot viewport the real scale is ~191, so all three
+  GPU backends drew the world **2.7x magnified** about the viewport centre while
+  Soft3D drew it correctly — same camera, same scene, different size.
+- **Why an angle cannot be the interface:** the fov conversion opens with
+  `fov >> 1`, so only 320 of the 961 integer scales in [64,1024] are reachable
+  and the reference's own 191 is not among them. A backend that takes an angle
+  can only ever approximate the rasterizer it is meant to match. This is the
+  same finding as the Inferno "orange wedge" (`docs/ORANGE_WEDGE.md` §11-12),
+  reaching the GPU backends.
+- **Parallel projection:** `TORIDRAW_PROJ_MODE_PARALLEL` now builds an
+  orthographic matrix from `parallel_zoom16` instead of silently projecting
+  perspective.
+- **Verification:** Capture the same scene on Soft3D and on the GPU backend and
+  compare the 3D viewport. Before: 66.7% of sampled pixels differed by more than
+  24/255. After: 7.6%, and 0.3% by more than 96 — the residue is texture
+  filtering and scene animation between two independent captures, not geometry.
+- **Sources:** [`3rd/trspk/core/trspk_core_math.c`](../3rd/trspk/core/trspk_core_math.c),
+  [`3rd/trspk/core/trspk_math.h`](../3rd/trspk/core/trspk_math.h)
+
+### GPU-UPLOAD-001 - GL retained resources upload only when dirty
+
+- **Status:** Contract
+- **Applies to:** Desktop `--opengl3`, Web `--webgl1`
+- **Behavior:** The same discipline WINDOWS-D3D9-UPLOAD-001 states for D3D9.
+  The world atlas allocates its texture storage once and every later write is a
+  `glTexSubImage2D` over the merged dirty rectangle. Static model vertices
+  upload only when their retained generation changes. The index stream uploads
+  once per visible frame, because painter order changes every frame.
+- **What was wrong:** the atlas re-uploaded the *entire* 2048x2048 RGBA texture
+  (16 MiB) with `glTexImage2D` on every dirty flag — and `glTexImage2D`
+  reallocates rather than writes, so the driver also discarded and revalidated
+  the texture object each time. One newly-decoded 128x128 tile cost the whole
+  atlas.
+- **Profile counters:** In a steady unchanged scene `gl_atlas_upload_bytes`,
+  `gl_atlas_uploads`, `gl_static_vbo_upload_bytes` and `gl_static_vbo_uploads`
+  must all be zero; `gl_ibo_uploads` is expected to be exactly 1 per frame.
+  Measured on a settled osrs239 boot: window 0 (boot) carries one 16 MiB atlas
+  allocation and one 64 MB static vertex upload; window 1 (steady) carries
+  neither, and 120 frames produce 120 index uploads.
+- **Sources:** [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
+  [`src/perf/torirs_perf.h`](../src/perf/torirs_perf.h)
+
+### WEB-GL1-002 - 16-bit indices cost a draw call per visible model
+
+- **Status:** Open - measured, partially mitigated
+- **Applies to:** Web `--webgl1`
+- **Behavior:** WebGL1 draws with `GL_UNSIGNED_SHORT` and has no
+  `glDrawElementsBaseVertex`, so a draw's vertices must lie inside one
+  65536-vertex window and the base is folded into the `glVertexAttribPointer`
+  offsets. `trspk_webgl1_split16` groups consecutive triangles into one draw
+  for as long as the span between the lowest and highest vertex index they
+  touch stays inside that window.
+- **A draw call should cost a state change, and here it costs an arena jump.**
+  The renderer is otherwise built the right way — static models baked once into
+  retained buffers, dynamic elements baked per frame, the index chain built from
+  face order at render time, and draws split at state boundaries. A settled
+  osrs239 scene produces exactly **one** draw range, i.e. one state config for
+  the whole world pass. It then submits ~48,900 triangles as **2,878 draw
+  calls**, and every one of those extra splits is the 16-bit window, not a state
+  change.
+- **The cause is arena locality, measured** (`TORIRS_GL_CHUNK_DEBUG=1`, settled
+  osrs239 boot). Distance between consecutive drawn triangles' arena indices:
+
+  | delta | count | |
+  |---|---|---|
+  | < 64 | 29,432 | within one model |
+  | < 1K | 16,157 | within one model |
+  | < 8K | 209 | |
+  | < 64K | 212 | |
+  | >= 64K | **2,875** | forces a split |
+
+  94% of transitions group perfectly; it is the model-to-model boundary that
+  fails, and it fails essentially every time (2,875 of 2,877). The drawn models
+  span the entire 1,333,334-vertex arena (bases 582..1,333,010), so painter
+  order — which is distance order — is uncorrelated with arena order, which is
+  load order.
+- **What does not fix it:** a better splitter (the runs it can merge, it already
+  merges), and baking into 64K-sized VBOs (painter order would hop among 21
+  buffers just as randomly, for the same ~2,878 switches). Reordering draws is
+  not available either: painter order is the correctness constraint.
+- **What would fix it:** allocating static arena slots with *spatial* locality
+  rather than in load order, so that a spatial traversal is also a local arena
+  traversal. Then a run stays inside one 64K window across many models and the
+  draw count falls toward the state-change count, which is 1. This is not done.
+- **Paging the arena was tried and is worse.** Setting the arena page to 65536
+  (as D3D9 does at `D3D9_VBO_PAGE`, for the identical 16-bit limit) lets the
+  base be derived from the triangle's page in one pass with no search, which
+  sounds strictly better. It is not: a page boundary is an arbitrary place to
+  cut, while the sliding window merges any run that happens to fit wherever it
+  starts. Measured on the same scene, **2,990 chunks paged versus 2,878
+  searching**. `trspk_webgl1_split16_paged` is kept for the arena-invariant
+  check it makes possible, and is not what the renderer uses. D3D9 needs the
+  paging because fixed-function `SetStreamSource` binds a page; WebGL1 folds
+  the base into pointers and does not.
+- **What was mitigated:** the per-chunk state. Each chunk used to issue twelve
+  GL calls (an array-buffer bind, five `glEnableVertexAttribArray`, five
+  `glVertexAttribPointer`, an element-buffer bind); only the five pointers carry
+  the base vertex. The buffer binds and enables are now hoisted out of the draw
+  loop, taking the frame from ~37,400 GL calls to ~17,300. Every GL call on this
+  host is a crossing out of wasm into JavaScript.
+- **Measured effect:** under SwiftShader (headless software GL) the `render`
+  stage moved 4.97ms -> 4.82ms of a 6.9ms frame, so on that host rasterization
+  dominates and the call reduction is small. The saving is expected to matter
+  more on a real GPU, where the driver call is the cost rather than the
+  fragments; that has not been measured here and should not be assumed.
+- **Do not re-bake the visible set per frame to get around this.** It would make
+  the indices sequential and collapse the draw count, and it is the wrong trade:
+  it throws away the retained static buffers that WINDOWS-D3D9-UPLOAD-001 and
+  GPU-UPLOAD-001 exist to protect, and pays ~7 MB/frame of vertex upload
+  (146K vertices x 48 bytes) to save GL calls. Static geometry is baked once;
+  only dynamic elements are baked per frame. Fix the allocation order instead.
+- **Diagnostic:** `TORIRS_GL_CHUNK_DEBUG=1` dumps one frame's chunking —
+  chunks, triangles per chunk, single-triangle chunks, and how many 64K windows
+  the bases span. Use it before changing anything here; the obvious metric
+  (whether adjacent chunks share a base) is tautologically zero, because the
+  splitter has already merged any that would.
+- **Sources:** [`3rd/trspk/webgl1/webgl1_index16.c`](../3rd/trspk/webgl1/webgl1_index16.c),
+  [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
 
 ### GPU-CAPTURE-001 - The generic BMP dump is a Soft3D image
 

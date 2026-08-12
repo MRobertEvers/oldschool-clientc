@@ -2556,19 +2556,20 @@ SSC_Declare(
                 continue;
 
             /*
-             * A debugproc is a global user-facing ::command. Two declarations
+             * Some script names are singleton entry points. Two declarations
              * cannot be composed and there is no meaningful precedence: the
              * old compiler assigned both declarations a slot and finish_script
              * then resolved both bodies back to the first matching name,
              * silently replacing whichever body compiled first.
              *
-             * That exact behavior hid a second [debugproc,crystal_set] while
-             * the client was also consuming ::crystal_set as the `cry` emote.
-             * Reject all duplicate debug commands here, during the declaration
-             * pass, so no provider ordering or stale pack can choose a winner.
-             * See docs/CRYSTAL_SET_COMMAND.md.
+             * That behavior first hid a second [debugproc,crystal_set]. It also
+             * let quest NPC bootstraps replace [login,_], skipping the canonical
+             * login's IF_SETEVENTS burst and making every backpack item inert.
+             * Reject both singleton families during the declaration pass so a
+             * source-order winner can never reach a script pack.
              */
-            if( strcmp(trigger, "debugproc") == 0 )
+            if( strcmp(trigger, "debugproc") == 0 ||
+                (strcmp(trigger, "login") == 0 && strcmp(subject, "_") == 0) )
             {
                 char full_name[SSC_MAX_NAME];
 
@@ -2579,9 +2580,18 @@ SSC_Declare(
                     {
                         snprintf(diag->file, sizeof(diag->file), "%s", path);
                         diag->line = lexer.current.line;
-                        snprintf(diag->message, sizeof(diag->message),
-                                 "duplicate global debug command '%s'; keep exactly one declaration",
-                                 full_name);
+                        if( strcmp(trigger, "debugproc") == 0 )
+                            snprintf(
+                                diag->message,
+                                sizeof(diag->message),
+                                "duplicate global debug command '%s'; keep exactly one declaration",
+                                full_name);
+                        else
+                            snprintf(
+                                diag->message,
+                                sizeof(diag->message),
+                                "duplicate global login trigger '%s'; keep one canonical declaration and call procedures from it",
+                                full_name);
                     }
                     free(source);
                     return 0;

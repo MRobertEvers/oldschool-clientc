@@ -498,6 +498,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # engine rather than publishing drops and trying to hide them in content
     # keeps the ownership check on every packet and take path.
     "OBJ_ADD_PRIVATE": (11032, 5, 0, 0, 0),
+
+    # npc_poison(int $severity)
+    #
+    # Apply an owner-attributed poison timer to the active NPC. The reference
+    # keeps this in an entity timer: it replaces a weaker timer, carries its
+    # attacker for credit, and ticks every 30 game ticks. This host has no NPC
+    # varn/timer namespace for content to express that state.
+    "NPC_POISON": (11033, 1, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -634,6 +642,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # like IF_CLOSESUB above; it does not dereference an SSVM entity pointer.
     "WALKSTEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_FINDOWNED2": (1 << POINTER_BITS["p_active_player"], 0),
+    "NPC_POISON": (
+        (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
+        0,
+    ),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

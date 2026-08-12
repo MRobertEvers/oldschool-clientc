@@ -1112,6 +1112,54 @@ test_duplicate_debugproc(void)
 }
 
 static void
+test_duplicate_login(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[900];
+    FILE* file;
+
+    printf("duplicate global login trigger\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_login_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    /* A second [login,_] used to replace the first body by sorted source path.
+     * Losing the canonical body also loses its IF_SETEVENTS setup, so ordinary
+     * inventory clicks are silently rejected by the client permission mask. */
+    snprintf(path, sizeof(path), "%s/a.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[login,_]\nmes(\"canonical\");\n", file);
+    fclose(file);
+    snprintf(path, sizeof(path), "%s/b.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[login,_]\nmes(\"replacement\");\n", file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a duplicate global login trigger fails the compile");
+    CHECK(strstr(diag.message, "duplicate global login trigger") != NULL,
+          "and names the singleton-trigger invariant");
+    CHECK(strstr(diag.message, "[login,_]") != NULL,
+          "and identifies the exact trigger name");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
 test_implicit_return(void)
 {
     struct Fixture fixture;
@@ -1277,6 +1325,7 @@ main(void)
     test_runclientscript_vararg();
     test_vararg_limits();
     test_duplicate_debugproc();
+    test_duplicate_login();
     test_stat_argument_hint();
     test_param_type_shadowing();
     test_script_name_argument();

@@ -60,7 +60,7 @@ def main() -> int:
     script = (
         REPO
         / "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning"
-        / "scripts/summoning_spirit_wolf.rs2"
+        / "scripts/summoning_points.rs2"
     ).read_text(encoding="utf-8")
     expect("[oploc2,summoning_obelisk]" in script, "Renew-points is not bound to loc op2")
     expect(
