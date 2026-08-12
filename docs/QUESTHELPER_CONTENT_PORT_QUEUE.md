@@ -332,7 +332,7 @@ filed under `helpers/miniquests/` are at the end.
 | 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
-| 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | pending | npcs=wgstaverley,wgstaverley,wgsbroav |
+| 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done |  |
 | 174 | recipefordisaster | `recipefordisaster` | 3,370 | pending | npcs=cook,hundreddwar,hundreddwar |
 | 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
@@ -5824,3 +5824,123 @@ filed under `helpers/miniquests/` are at the end.
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #172 While Guthix Sleeps, 2,288 lines (#174 Recipe for
   Disaster, 3,370 lines, is the only other pending row left in the table).
+
+- slice done (2026-08-12): #172 While Guthix Sleeps -- one of OSRS's own
+  largest, most infamous quests (2,288-line quest-helper source, fetched
+  via raw.githubusercontent.com). Grep-first per methodology: `lc_quests.
+  txt` has `quest_tearsofguthix` only (not this quest); no `guthixsleeps`/
+  `whileguthixsleeps` proc anywhere in `server/scripts`.
+  `SCAPE2009_CONTENT_PORT_QUEUE.md`'s own skip list carries a
+  `whileguthixsleeps -> "RS2-only; never shipped in OSRS"` row -- this is
+  factually wrong (it's a live OSRS Grandmaster quest, added 5 Feb 2015)
+  but the row is `skip`, not `done`, so it doesn't gate anything; flagged
+  in the constant file, not corrected here (out of this queue's scope).
+  Native dbrow `quest_whileguthixsleeps` (id 189, endstate 900, questpoints
+  5, startnpc 13510=`wgs_ivy_sophista`) is unusually trustworthy for this
+  queue: its own `requirement_stats` (Thieving 72/Magic 67/Agility 66/
+  Herblore 65/Farming 65/Hunter 62) and `stat_xp_awarded` (800000/750000/
+  750000/500000, confirmed = quest-helper's own real XP rewards x10, this
+  engine's own tenths-of-XP `stat_advance` convention) both match quest-
+  helper's own `getGeneralRequirements()`/`getExperienceRewards()` exactly
+  -- used directly, no correction needed, unlike most prior slices.
+  `requirement_quests` is still the usual corruption (decodes to Legends'
+  Quest/Garden of Death/Troll Romance/Song of the Elves/Land of the
+  Goblins/Client of Kourend/Depths of Despair/Enakhra's Lament, none real)
+  -- hard-gated instead on the real prerequisite chain from quest-helper's
+  own source (Defender of Varrock/The Path of Glouphrie/Fight Arena/Dream
+  Mentor/The Hand in the Sand/Wanted!/Temple of the Eye/A Tail of Two Cats/
+  Tears of Guthix/Nature Spirit, all FINISHED, via each quest's own
+  completion varp: `%dov`, `%pog`, `%arenaquest`, `%dream_prog`, `%hand
+  sand_quest`, `%wanted_main`, `%tote`, `%tog_juna_bowl`, `%druidspirit`).
+  A Tail of Two Cats is soft-skipped: `quest_atailoftwocats/scripts/
+  twocats.rs2` never advances `%twocats_quest` past 25 despite its own
+  reachable `[queue,twocats_quest_complete]` calling `~quest_complete
+  (quest_tailoftwocats)` -- a pre-existing bug in that already-`done` slice
+  (not touched, out of scope), so no reliable "finished" signal exists for
+  it -- same "soft-skip an unwritten gate" idiom this queue's own
+  methodology names explicitly (Priest in Peril). Native varbit schema
+  fully declared on basevar `wgs_primary` (`wgs`, bits 0-9, matching quest-
+  helper's own `steps.put` keys 0..890 with 10 bits of headroom) plus
+  `wgs_primary_2` (the seven `wgs_*_recruit` flags + `wgs_hero_statues_
+  vis`), both claimed via a bare-reservation `.varp` file, same precedent
+  as `quest_dreammentor`/`quest_pathofglouphrie`. A curated subset of
+  quest-helper's own step numbers is reused directly as `%wgs` checkpoints
+  (0/2/3/4/8/21/24/25/30/34/38/44/430/440/460/597/610/620/660/680/770/800/
+  840/870/880/900 -- finishing at the dbrow's own 900 rather than quest-
+  helper's own 890). Real geography used throughout (every coord converted
+  from quest-helper's own `WorldPoint` constructors): Taverley (Ivy
+  Sophista/Thaerisk Cemphier/two level-167 assassins), the Khazard
+  battlefield's broken table (Movario's base entrance), Falador White
+  Knights' Castle (Akrisae/Idria, kept at one shared coord for the whole
+  quest rather than also modelling Idria's earlier McGrubor's Wood meeting
+  -- see Simplifications), the Falador jail cell (`wgs_prison_door_
+  locked`, a real native loc, "true terror" reveal), the Black Knights'
+  Fortress catacombs (real `elite_black_knight_1` x2 + `dark_squall_
+  combat`/Surok Magis, level 265, both hand-spawned/fought for real), and
+  the hidden Guthixian temple (`luc2_stone_of_jas_named_noop`/`luc2_
+  stone_of_jas_named`, real locs; `wgs_balance_elemental` level 524,
+  `wgs_movario_temple`, `tormented_demon_1` x2 level 450 -- distinct from
+  `rs2012_tormented_demon_melee/magic/ranged` used by the unrelated
+  postquest Ancient Guthix Temple minigame in `area_rs2012_tormented_
+  demons`, grep-confirmed zero name collision -- all real fights, no
+  combat ordering invented where quest-helper's own code doesn't order it
+  either, same finding as Dream Mentor/The Path of Glouphrie's own multi-
+  boss encounters). `bkfortressdoor1`/`bksecretdoor`/`kr_bkf_basement_
+  laddertop` already have live triggers from `quest_blackknight`/`quest_
+  kingsransom` (grep-confirmed) -- reused as plain unscripted geography,
+  not re-triggered. None of the four always-present hub npcs (`wgs_ivy_
+  sophista`/`wgs_thaerisk_cemphier`/`wgs_akrisae`/`wgs_idria`) have a
+  native `.spawn` entry (the map-dump source this cache's spawn files are
+  generated from never captured an account with this quest's own rare
+  prerequisite state) -- hand-spawned idempotently via a new `~wgs_login;`
+  line in `server/scripts/player/login.rs2`'s `[login,_]` dispatch list,
+  same "hand-spawn on trigger, no `.spawn` entry" idiom as Dream Mentor/
+  Land of the Goblins' bosses, fired from login instead of a door click
+  since these are dialogue hubs, not door-gated combat encounters.
+  Simplifications (documented, same "collapse a puzzle/cutscene/
+  combinatorial mechanic with no precedent to one deterministic beat"
+  convention as every prior large slice, applied more heavily than usual
+  given this is quest-helper's single largest helper in the whole queue):
+  the broav hunting/trapping/tracking subplot, the entire Movario's-base
+  infiltration (door-rune puzzle, 7-bookcase electricity puzzle, bed-chest
+  search, weight/painting puzzle -- ~500 quest-helper lines), the
+  snapdragon-seed/rose-tinted-lens/truth-serum/sketch subplot, the seven-
+  hero recruitment (quest-helper's own Lunar spellbook "Contact NPC" spell
+  -- this engine has no spellbook-switching system anywhere, grep-
+  confirmed, same deferral as Dream Mentor's/Lunar Diplomacy's own Lunar
+  spellbook unlocks, so this one specifically has no possible native
+  implementation regardless of scope budget), the Black Knights' Fortress
+  catacombs' own bridge-jump/wall-climb/wardrobe-search/map-room chain
+  (collapsed to one Akrisae-directed beat that still ends in the real
+  Surok Magis fight), the "true terror" cutscene (narrated, no native
+  cutscene wrapper npc ever scripted before this slice), and the Abyss
+  entry (four braziers/orbs/blocks + a skull puzzle) all collapse to one
+  deterministic narrated beat apiece -- each one individually matches this
+  queue's own repeated "native widget/room puzzle with no precedent
+  collapses to one click" convention, just applied to more sub-puzzles
+  than any single prior slice given this helper's unmatched raw size.
+  Rewards: 5 questpoints (dbrow), Thieving/Farming/Herblore/Hunter XP per
+  the dbrow's own (trustworthy, see above) `stat_xp_awarded`, and --
+  critically -- `%rs2012_wgs_complete = 1` set in the completion proc: this
+  is the exact gate `area_rs2012_tormented_demons/configs/rs2012_
+  tormented_demons.varp` has been carrying since that unrelated earlier
+  slice, whose own comment reads "the full While Guthix Sleeps quest is
+  outside this encounter slice. Its eventual completion script must set
+  this to 1." -- this slice is that completion script, so the postquest
+  Ancient Guthix Temple Tormented Demons minigame is now actually
+  reachable end-to-end for the first time. Wiki https://oldschool.
+  runescape.wiki/w/While_Guthix_Sleeps + .../Quick_guide (fetched via
+  curl/raw.githubusercontent.com for quest-helper's own source; dialogue
+  paraphrased not verbatim per copyright, same caveat as every prior
+  slice). Zero duplicate triggers found across every touched npc/loc
+  (full-tree grep before and after writing -- `elite_black_knight_1`/
+  `bkfortressdoor1`-family locs confirmed already owned by `quest_
+  blackknight`/`quest_kingsransom` and deliberately NOT re-triggered,
+  everything else genuinely new). `mingw32-make -C src sscompile` clean,
+  `mingw32-make -C src mock230-scripts` exit 0 (15,001 scripts, up from
+  14,971; zero `wgs`/`guthixsleeps`-named warnings/errors anywhere in the
+  full build log). Files: `quests/quest_whileguthixsleeps/{configs/
+  whileguthixsleeps.{constant,varp}, scripts/wgs_{quest,journal}.rs2}` +
+  merges into `player/login.rs2` and `interface_questjournal/scripts/
+  quest_journal.rs2`. Next pending row: #174 Recipe for Disaster, 3,370
+  lines -- the only row left in the entire table.
