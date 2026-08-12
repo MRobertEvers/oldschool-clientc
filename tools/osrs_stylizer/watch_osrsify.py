@@ -314,7 +314,8 @@ PAGE = """<!doctype html>
   .dot.off { background:#c96a6a; }
   .chip .cnt { color:#8b8e99; font-size:.85em; margin-left:.3em; }
   #modal { position:fixed; inset:0; background:rgba(10,10,12,.88);
-           overflow:auto; padding:2rem; display:none; }
+           overflow:auto; padding:2rem; display:none;
+           z-index:15; /* above the sticky run bar/headers (10/9), below the lightbox (20) */ }
   #modal .inner { background:#1d1f25; border:1px solid #3a3e4a;
                   border-radius:10px; padding:1rem 1.4rem; max-width:1200px;
                   margin:0 auto; }
