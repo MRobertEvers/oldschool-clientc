@@ -482,6 +482,66 @@ test_minimenu_release_swallow(void)
 }
 
 /*
+ * A click made while the hand is still moving is a click.
+ *
+ * The input layer arms a 5px pointer deadzone (try_start_drag) as soon as the
+ * cursor drifts from the press origin, with no dead time. PushMouseUp used to
+ * report that release as drag_end *instead of* is_click, and left_click_miss --
+ * the gate for walk-here and every world default op -- requires is_click. The
+ * symptom was "click, move the mouse, click again: the second click does
+ * nothing until you let the mouse settle", because only a press-and-release
+ * from a dead stop stayed inside the deadzone.
+ *
+ * The reference has no such rule: GameShell.pointerDown arms the click on every
+ * press and the mainloop consumes it unconditionally, so nothing between press
+ * and release can cancel it (CLIENT_TS_PARITY §29a).
+ */
+static void
+test_click_survives_pointer_motion(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeHost host;
+    struct TestHostState host_state;
+    struct UIInteraction interact;
+    struct LibToriRS_Input input_storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+
+    UITree_TestHostInit(&host, &host_state);
+    UITree_TestResolve(tree);
+    UIInteraction_Init(&interact);
+
+    input = LibToriRS_Input_Init(&input_storage, 0);
+
+    /* Press over bare world, well past the 5px deadzone from the last click. */
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 300, 200);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 300, 200);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+
+    /* The hand keeps moving through the press: 40px of drift arms drag_active. */
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, 340, 230);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+    TEST_ASSERT(LibToriRS_Input_IsDragging(input, TORIRSM_LEFT), "deadzone armed by the drift");
+
+    LibToriRS_Input_Begin(input, 40);
+    LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 340, 230);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrame(&interact, tree, &host, input, 40, &out);
+
+    TEST_ASSERT(LibToriRS_Input_IsClick(input, TORIRSM_LEFT), "drifted release is still a click");
+    TEST_ASSERT(LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT), "and still ends the gesture");
+    TEST_ASSERT(out.left_click_miss, "drifted click reaches the world");
+    TEST_ASSERT(out.left_click_miss_x == 340, "world click x is the release point");
+    TEST_ASSERT(out.left_click_miss_y == 230, "world click y is the release point");
+
+    UITree_Free(tree);
+}
+
+/*
  * Mouseover text composition (reference proc 4727): top row verbatim, plus
  * "</col> / N more options" once more than one actionable row exists, and
  * nothing at all for a Cancel-only menu (minimenu_numops == 0).
@@ -591,5 +651,6 @@ test_minimenu(void)
     test_cross_model();
     test_cross_action_policy();
     test_minimenu_release_swallow();
+    test_click_survives_pointer_motion();
     test_interact_hover_uses_host();
 }

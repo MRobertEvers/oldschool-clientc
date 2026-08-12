@@ -334,11 +334,11 @@ bridge_input_to_uitree(
     }
     else if( LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
     {
-        /* A release that ended a drag sets drag_end, NOT is_click. The UP must
-         * still reach the UI state machine: it fires onDragComplete and clears
-         * the source's drag_active — otherwise the widget keeps rendering at
-         * its stale drag visual (scrollbar body frozen while the CS2 script
-         * moves the caps). */
+        /* Fallback for a drag_end that carries no is_click (a release the input
+         * layer never saw pressed). The UP must still reach the UI state
+         * machine: it fires onDragComplete and clears the source's drag_active —
+         * otherwise the widget keeps rendering at its stale drag visual
+         * (scrollbar body frozen while the CS2 script moves the caps). */
         struct UIInputEvent up = {
             .kind = UI_INPUT_UP,
             .x = input->curr.mouse_x,
@@ -1326,8 +1326,15 @@ UITree_InteractFrame(
     /* Left click that hit no component at all: pass-through elements (the
      * world viewport) sit under it, so the app runs its world hittest. The
      * minimenu early-return above already swallows clicks while a menu is
-     * open, and scrollbar ownership zeroes ui_result. */
-    if( !sb_owns_mouse && !swallow_click && ui_result.clicked < 0 &&
+     * open, and scrollbar ownership zeroes ui_result.
+     *
+     * drag_ended is the *UITree* drag machine, not the input layer's 5px
+     * pointer deadzone: a widget that was actually picked up and dropped owns
+     * its release, so letting go of a dragged scrollbar/item over the viewport
+     * must not also walk there. The input deadzone deliberately no longer
+     * speaks to this (see LibToriRS_Input_PushMouseUp) — a click made while the
+     * hand is still moving is a click. */
+    if( !sb_owns_mouse && !swallow_click && !ui_result.drag_ended && ui_result.clicked < 0 &&
         LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
     {
         out->left_click_miss = 1;
