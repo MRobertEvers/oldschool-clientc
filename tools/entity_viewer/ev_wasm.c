@@ -21,6 +21,8 @@ EV_EXPORT int ev_w_frame_count(void) { return ev_frame_count(); }
 EV_EXPORT int ev_w_frame_delay(int i) { return ev_frame_delay(i); }
 EV_EXPORT int ev_w_model_height(void) { return ev_model_height(); }
 EV_EXPORT int ev_w_last_cull(void) { return ev_last_cull(); }
+EV_EXPORT void ev_w_set_pan(int x, int y) { ev_set_pan(x, y); }
+EV_EXPORT void ev_w_set_zbuffer(int on) { ev_set_zbuffer(on); }
 
 EV_EXPORT uint8_t*
 ev_w_render(int w, int h, int yaw, int pitch, int zoom, int frame)

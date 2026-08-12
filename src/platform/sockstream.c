@@ -388,7 +388,17 @@ sockstream_recv(
         {
             printf("Socket recv error: %s\n", strerror(errno));
             stream->status = SOCKSTREAM_STATUS_ERROR;
-            return SOCKSTREAM_ERROR_NODATA;
+            /*
+             * Distinct from would-block, which used to share this return.
+             *
+             * The two are opposites — "nothing yet, ask again" against "this
+             * connection is over" — and collapsing them meant a peer that
+             * vanished (ECONNRESET, which is what a killed server sends when
+             * it still had unread bytes queued) looked exactly like a quiet
+             * one. The client kept polling a dead socket forever and only
+             * noticed via a fifteen-second silence timer, if at all.
+             */
+            return SOCKSTREAM_ERROR_CLOSED;
         }
 
         // Would block - return -1, caller should check errno

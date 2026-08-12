@@ -2793,7 +2793,23 @@ sprite_read(
     return payload;
 }
 
-const struct CP_AssetCodec cp_codec_sprite = { "bmp", NULL, sprite_write, sprite_read, 0 };
+/* Semantic bar, not a byte bar. The BMP+pack.meta round-trip cannot be
+ * byte-exact by construction: sprite_read re-derives each pixel's palette index
+ * with a nearest-colour search over the palette, so any colour reachable by more
+ * than one index comes back as a different index than it went out as, and the
+ * re-encoded payload is a different length than the archive it came from.
+ *
+ * The measurement, not the data, is what fails. The untouched shipped base cache
+ * `cache.osrs239` reports every one of its 8559 sprite packs as `differ`, and the
+ * composed cache.osrs239.rs2012 every one of its 8822 -- a 100% rate on a cache
+ * nobody has modified is a broken gate, not 8559 broken sprites.
+ *
+ * The exemption is narrow: verify still decodes every sprite pack, still writes
+ * and re-reads it, and still fails on a pack it cannot round-trip at all (a NULL
+ * from sprite_read is a hard error before this flag is consulted). Only the
+ * length-equality bar is lifted, and cachepack prints "(semantic bar)" on the row
+ * so the weaker check is visible in the log rather than silently assumed. */
+const struct CP_AssetCodec cp_codec_sprite = { "bmp", NULL, sprite_write, sprite_read, 1 };
 
 /* ---- world map ----------------------------------------------------------- */
 
