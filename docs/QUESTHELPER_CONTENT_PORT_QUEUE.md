@@ -151,7 +151,7 @@ These are the only remaining QH dirs that implement OSRS content released after 
 | P2 | Asoul's Bane | `asoulsbane` | 330 | in_progress | Mar 2019 — Asoul, dragonfire weapon quest; found 2026-08-10 already scripted (`quest_asoulsbane/scripts/soulbaine.rs2`, 193 lines, full room/cutscene/completion flow, npcs resolve e.g. `soulbane_launa`) by an untracked earlier tick, but its `quest_deviousminds`-style dbrow row was never declared (`configs/all.dbrow` has no `[quest_asoulsbane]` block; sscompile's own allocator log shows it only as `STALE=1 66540=quest_asoulsbane (no longer declared; kept, ids are stable)`) — the id resolves so it compiles clean, but `~quest_complete(quest_asoulsbane)` reads name/questpoints off a row with no declared fields. Needs a real dbrow block authored before this can be trusted `done` |
 | P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | done | Dec 2013 — Elid, spirit world, Khazard war; native dbrow `quest_spiritsoftheelid` (id 100, endstate 60) + native varbit schema on basevar `elid_main` reused as-is; see Log |
 | P4 | Another Slice of Ham | `anothersliceofham` | 485 | done | Oct 2012 — Ham cult, Dorgesh-Kaan/Goblin Village/Sigmund; native dbrow `quest_anothersliceofham` (id 133, endstate 11) + native varbit schema on basevar `slice_base` reused as-is; see Log |
-| P5 | Darkness of Hallow Vale | `darknessofhallowvale` | 816 | pending | Aug 2013 — Drakan's descendant, vampire theme |
+| P5 | Darkness of Hallow Vale | `darknessofhallowvale` | 816 | done | Sept 2006 — Drakan's descendant, vampire theme; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` reused as-is; see Log |
 
 ## Queue
 
@@ -304,13 +304,13 @@ filed under `helpers/miniquests/` are at the end.
 | 142 | troubledtortugans | `troubledtortugans` | 803 | done |  |
 | 143 | undergroundpass | `undergroundpass` | 812 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_upass` (31 files, 2602 lines, dbrow `quest_undergroundpass` journal wired `interface_questjournal/scripts/quest_journal.rs2:535`) already fully implements it — found while auditing #111's neighbours, see Log |
 | 144 | hazeelcult | `hazeelcult` | 814 | done (LC) | OSRS has 11 rs2 files (not in PORT_QUEUE table) |
-| 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | pending | npcs=myq5veliaf,myq3citizen,myq3citizen |
-| 146 | ghostsahoy | `ghostsahoy` | 821 | pending | npcs=ahoyoldman,giantlobste,ahoyvelorin |
+| 145 | darknessofhallowvale | `darknessofhallowvale` | 816 | done | Sept 2006 — Myreque #3; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` (`myq3_*`) reused as-is; see Log |
+| 146 | ghostsahoy | `ghostsahoy` | 821 | done | Feb 2005 -- Velorina asks the player to free the ghosts of Port Phasmatys from Necrovarus's curse; native dbrow (id 73, endstate 8) + native varbit schema on basevar `ahoy_varbits_1` reused; see Log |
 | 147 | deathontheisle | `deathontheisle` | 827 | done |  |
 | 148 | scrambled | `scrambled` | 840 | done |  |
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | done |  |
 | 150 | regicide | `regicide` | 944 | done (LC) | OSRS has 13 rs2 files (not in PORT_QUEUE table) |
-| 151 | theeyesofglouphrie | `theeyesofglouphrie` | 969 | pending | npcs=gnomebrimst,gnomebrimst,grandtreeha |
+| 151 | theeyesofglouphrie | `theeyesofglouphrie` | 969 | done | Jul 2006 -- Brimstail's anti-illusion machine exposes Glouphrie's exile and six disguised Arposandran spies; native dbrow (id 116, endstate 60) + native varbit schema on basevar `eyeglo_var1`/`eyeglo_var2` reused; see Log |
 | 152 | monkeymadnessi | `monkeymadnessi` | 988 | pending | npcs=grandtreena,pilotgrand,mmcaranock |
 | 153 | forgettabletale | `forgettabletale` | 1,000 | pending | npcs=dwarfcityb,dwarfcityd,dwarfcityr |
 | 154 | toweroflife | `toweroflife` | 1,021 | pending | npcs=tolnpcefer,tolnpcbarr,tolhomoncul |
@@ -4390,3 +4390,375 @@ filed under `helpers/miniquests/` are at the end.
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #145 Darkness of Hallowvale, 816 lines (rows #140-144
   are already `done`/`done (LC)`).
+- slice #145 / P5 done: Darkness of Hallowvale (Myreque #3, Sept 2006, not
+  Aug 2013 as the row's old note guessed). Grep-first: no LC proc (only
+  coincidental `heartofdarkness`), no 2009scape entry, `lc_quests.txt`
+  clean. Native dbrow `quest_darknessofhallowvale` (id 117, endstate 320,
+  questpoints 2, requirement_stats matches quest-helper's own
+  getGeneralRequirements() exactly) confirms the corrupt-`requirement_
+  quests`-decode failure mode again (decodes to dbrow 77 = The Feud, not a
+  real prereq) — real prereq per quest-helper AND the wiki infobox nested
+  list is In Aid of the Myreque (already `done`, dbrow 107, hard-gated
+  below via `%myreque_2_quest >= ^myreque2_complete`), which itself chains
+  to In Search of the Myreque → Nature Spirit → Priest in Peril / Restless
+  Ghost; ISOM is not ported anywhere in this tree and IAOM's own port
+  already documents soft-skipping that same gap rather than hard-gating on
+  it (see `myreque2.constant`) — followed that precedent rather than
+  re-deriving it, only IAOM itself is hard-checked (the one direct,
+  genuinely-completable, immediately-broken-without-it dependency). Full
+  native varbit schema recovered on basevars `myreque_3_main_var`/
+  `myreque3_multivar` (`myq3_main_quest` 0-511 matching quest-helper's own
+  steps.put range exactly, plus ~20 real sub-fields for every mechanical
+  beat — boat/chute repair, floorboard entry, the sickle agility course's
+  door-key/table-trapdoor/ladder-repair/three-pushwalls, the hideout
+  press-wall/trapdoor, Safalaan visibility, Sarius visibility, tapestry,
+  portrait/key, vampyre-statue door, rune-case) plus matching native
+  multiloc/multinpc wrapper records for every one of them (cache wins, all
+  reused as-is, zero invented geometry) — recovered by fetching quest-
+  helper's own `DarknessOfHallowvale.java` directly from GitHub raw
+  (`Zoinkwiz/quest-helper`) since no local checkout exists on this machine,
+  cross-checked step-for-step against the varbit dump. `npcs=myq5veliaf,
+  myq3citizen` in the row's old note was itself a stale bad guess — `myq5`
+  is Sins of the Father's own basevar (`%myq5`, confirmed via its own
+  `sinsofthefather.constant`), not this quest's; the real prefix
+  throughout is `myq3` (Veliaf's own DoH-era npc is quest-helper's chosen
+  `MYQ5_VELIAF_CHILD` — a separate, later "grown-up" Veliaf identity shared
+  with Sins of the Father, not to be confused with the `myq5` progress
+  var). Six cross-quest trigger merges, all grep-verified free of
+  duplicates before touching (never a second definition of an existing
+  `[opnpc1,X]`/`[oploc1,X]`/`[opheldu,X]` header): `route_veliaf_hurtz` in
+  `quest_inaidofthemyreque/scripts/myreque2_hideout.rs2` (start/finish
+  hub), `myq5_veliaf_child` (`sf_veliaf_talk` label) and `myq3_lab_door_
+  locked_l`/`myq3_lab_stairs_down` in `quest_sinsofthefather/scripts/
+  sinsofthefather.rs2`, `priestperiltrappedmonk_vis` in `quest_
+  inaidofthemyreque/scripts/myreque2_trek.rs2` (Drezel), `myq3_aeonisig_
+  roalds_advisor` in `quest_defenderofvarrock/scripts/dov_invasion.rs2`,
+  `myq4_vertida_visible`/`myreque_pt3_safalaan` (`toh_safalaan_talk` label)
+  in `quest_tasteofhope/scripts/tasteofhope.rs2`, plus `[opheldu,charcoal]`/
+  `[opheldu,papyrus]` (generic item pair, already claimed by `quest_itexam/
+  scripts/itexam_chemistry.rs2` and `quest_golem/scripts/golem_portal.rs2`
+  respectively) merged as a `doh_sketch_attempt` proc returning handled/
+  not-handled rather than risking a third silent duplicate. Simplifications
+  (documented, no established precedent anywhere in this tree for the
+  alternative): the full sickle-logo rooftop agility course (quest-helper's
+  own three `LinePoints` waypoint lists, 60+ points, zero player decisions
+  anywhere in the step map) collapses to its real state-changing native
+  objects narrated with `mes()` between them, same "no real choice,
+  collapse to deterministic action" reasoning as Elemental Workshop II's
+  priming chain / In Aid of the Myreque's rubble-clearing; the Vyrewatch
+  "pay tithe/fight/distract/mines" random-encounter system is wiki-
+  documented as fully avoidable and never gates a real breakpoint —
+  deferred; the mine-cart route is modelled as the sole return path (quest-
+  helper's own faster alternative, "one path modelled" convention);
+  Vanstrom Klause's ambush (attack-immune, survive 5 hits) has no
+  established unkillable-boss precedent in `skill_combat` — narrated via
+  `mes()`, matching Sins of the Father's own "Soft-skip: combat resolved"
+  idiom; the Tome of experience's own per-skill Read/xp-choice widget is
+  granted as a real item (`myq3_xp_tome_3`) but its consumption UI is not
+  wired, matching Elemental Workshop II's own precedent. Wiki
+  `oldschool.runescape.wiki/w/Darkness_of_Hallowvale` + `.../Quick_guide`
+  (paraphrased, not verbatim, per copyright, same caveat as every prior
+  slice); full infobox/requirements wikitext fetched via the wiki's own
+  `action=parse` API to cross-check the corrupted dbrow requirement against
+  quest-helper's `getGeneralRequirements()` independently. `mingw32-make -C
+  src sscompile` clean (only pre-existing snprintf-truncation warnings in
+  the compiler itself); `mingw32-make -C src mock230-scripts` exit 0,
+  14,670 scripts compiled (up from 14,606, +64); full build log grepped for
+  `darknessofhallowvale`/`doh_`/`myq3_` returned zero warnings or errors; a
+  tree-wide self-sweep of every trigger header this slice authored (51
+  `[opnpc*]`/`[oploc*]`/`[opheldu]` headers across 6 new files) confirmed
+  exactly one definition each; a second sweep cross-checked all 51 against
+  the tree's 57 pre-existing (unrelated, out-of-scope) duplicate-trigger
+  keys and found zero overlap. Files: `quests/quest_darknessofhallowvale/
+  {configs/darknessofhallowvale.constant, scripts/doh_{shared,burgh,
+  meiyerditch,urgent,castle,lab}.rs2}`, additive branches in the six files
+  above, and wiring into `interface_questjournal/scripts/quest_journal.rs2`.
+  This was the last of the queue's own curated P1-P5 "genuinely post-
+  Jan-2009 QuestHelper-only" list (P1/P3/P4/P5 done, only P2 Asoul's Bane
+  remains `in_progress`, needing its own dbrow block authored before it can
+  be trusted `done` — see its own row note); the ~74 other QH dirs already
+  classified mid-era belong on `SCAPE2009_CONTENT_PORT_QUEUE.md`, not here.
+- slice #146 done: Ghosts Ahoy (15 Feb 2005) -- Velorina asks the player to
+  help the ghosts of Port Phasmatys "pass on"; Necrovarus, the corrupt high
+  priest of the Ectofuntus, refuses. Grep-first: no LC proc anywhere in
+  `server/scripts` or `lc_quests.txt` (only the cache's own dbrow/synth/loc
+  compack records, not scripted content), no `SCAPE2009_CONTENT_PORT_QUEUE.md`
+  entry. Native dbrow `quest_ghostsahoy` (id 73, endstate 8, questpoints 2,
+  requirement_stats (16,25)=Agility 25 / (7,20)=Cooking 20, both boostable
+  per quest-helper's own `SkillRequirement(...,true)` but gated on
+  `stat_base` like every other boostable requirement in this tree -- no
+  boosted-level accessor exists anywhere in `server/scripts`) matches
+  quest-helper's own `getGeneralRequirements()` on the stat side; dbrow
+  `requirement_quests` decodes to dbrow ids 111/120 = Swansong / My Arm's Big
+  Adventure -- neither a real prerequisite, same known cache-decode-
+  corruption failure mode this queue warns about repeatedly. Real
+  prerequisites per quest-helper: Priest in Peril FINISHED and The Restless
+  Ghost FINISHED. The Restless Ghost (`%prieststart >= ^priest_complete`,
+  reached by real gameplay in `quest_priest/scripts/quest_priest.rs2`) is
+  hard-gated; Priest in Peril is soft-skipped -- `%priestperil` never
+  advances past `^priestperil_meet_in_mausoleum` (8) anywhere in this tree's
+  real gameplay scripts (the only write of `^priestperil_complete`, 60, is a
+  debugproc in `quest_rumdeal/scripts/deal_debug.rs2`), the exact same
+  finding Cabin Fever's own port already documented -- hard-gating on it
+  would make Ghosts Ahoy itself permanently unstartable. Full native varbit
+  schema recovered on basevar `ahoy_varbits_1` (`ahoy_questvar` bits 28-31,
+  collapsed 0..8 matching dbrow's own endstate exactly; `ahoy_given_manual/
+  robes/book`, `ahoy_signaturecounter` (0-31, quest-helper's own dual-purpose
+  petition/bone-key-drop counter -- this port stops at a deterministic 11
+  rather than replicating a ~20-repeat random-drop dialogue loop, no such
+  precedent anywhere in this tree), `ahoy_subquest_toyboat` (0-3, matches
+  quest-helper's own `hadChestKey`/`unlockedChest2` varbit thresholds
+  exactly), `ahoy_killed_lobster`, `ahoy_subquest_bow`, `ahoy_templedoor_
+  unlocked`, `ahoy_requested_sheet` -- every sub-field used directly, no
+  local catch-all invented; `ahoy_windspeed`/`ahoy_grinder_status`/`ahoy_
+  ectotokens_base/more` are NOT used, all three orphaned or unrelated to
+  quest-helper's own step map, see `ghostsahoy.constant` for why each one).
+  Native multi-npc records `ahoy_akharanu_multi` (`multivarbit=ahoy_questvar`)
+  and `protester_ghostspeak_multi`/`protester_standardspeak_multi`
+  (`multivarbit=wearing_ghost_speak_amulet`, both wrappers spawned at the
+  same coord for Gravingas) independently confirm the basevar and are bound
+  directly -- this server only ever spawns wrapper npc/loc types, same
+  finding as every prior slice; all other npcs (Velorina, Necrovarus, the
+  Old Crone, Old Man, Robin, Ghost innkeeper, ghost villagers, Ghost
+  captains, the Ghost disciple) and every loc/obj used (shipwreck chests/
+  mast/gangplank, the harbour door, the coffin, the town Energy Barrier) are
+  already world-spawned/cache-declared, grep-confirmed via `areas/world/
+  configs/*.spawn` and `configs/all.{npc,loc,obj}` -- only trigger logic was
+  added, no new spawns or cache records. Ship/Ectofuntus tower navigation is
+  already handled by the generic climb system (`ladders_stairs`); the
+  harbour door is `category=door_closed` in `doors/configs/doors.loc` (would
+  open for free via the generic `[oploc1,_door_closed]` handler) -- this
+  port adds a name-specific `[oploc1,ahoy_harbour_door]` override
+  (bone-key gated, calling `~door_open_active` once unlocked), the exact
+  precedent already proven by Darkness of Hallowvale's own `myq3_lab_door_
+  locked_l` override. Cross-file merges, all grep-verified free of
+  duplicates before touching: `[opnpc1,ahoy_crone]` (shared with Animal
+  Magnetism, `quest_animalmagnetism/scripts/anma_farm.rs2`) gains an
+  additive `~ahoy_crone_hub` branch at the top, falling through to Animal
+  Magnetism's own unmodified logic otherwise; `[opheld1,spade]` (`general_
+  use/scripts/spade.rs2`) gains one more `~ahoy_try_dig` hook in its
+  existing dig-dispatch chain (same pattern as X Marks the Spot / Making
+  History / Olaf's Quest). A genuine **pre-existing** duplicate was found and
+  not compounded: `[opheldu,bucket_milk]` was already declared twice
+  (`skill_cooking/scripts/cakes.rs2` and `skill_cooking/scripts/gnome_
+  cooking/gnome_cooking.rs2`, both silent, neither diagnosed by `sscompile`,
+  matching this queue's own warning that duplicate triggers compile clean)
+  -- this quest's own nettle-tea-plus-milk case was added as an additive
+  branch inside `cakes.rs2`'s existing trigger (calling a new `ahoy_add_milk_
+  to_tea` proc) rather than becoming a third definition; the pre-existing
+  cakes/gnome_cooking conflict itself is left undiagnosed, out of scope for
+  this slice. The Ectofuntus's own ghost-disciple ecto-token trade
+  (`ahoy_disciple`, world-spawned but with zero trigger anywhere in this tree
+  before this slice, its own file literally commented "Disciple ectotoken
+  tally deferred") was completed here (`skill_prayer/scripts/ectofuntus.rs2`,
+  new `ecto_worship_credits` varp, banked 1:1 per worship offering and
+  redeemed at the disciple) since Ghosts Ahoy's own ~31-token travel cost
+  (Energy Barrier toll + Dragontooth Island boat fare) cannot be satisfied
+  end-to-end otherwise -- shared Ectofuntus infrastructure, not exclusively
+  Ghosts Ahoy content, but required for the "playable end-to-end" bar.
+  Simplifications (documented, no established precedent anywhere in this
+  tree for the alternative): `DyeShipSteps`'s own per-player-randomised
+  mast/flag colour-matching puzzle (search repeatedly, learn 3 of 6 possible
+  colours, dye each of 3 shapes to match) has no established randomised-
+  per-player-state-discovered-via-repeated-search precedent -- collapsed to
+  one deterministic action requiring the wiki's own "3 primary-coloured
+  dyes" (red/blue/yellow), zero invented mixed-dye items; the "wait for low
+  wind before searching the mast" cosmetic timer (zero player decision) is
+  not modelled, same convention as every prior slice's waiting-game
+  simplification. Robin's Rune-Draw gambling minigame ("draw runes until a
+  death rune, beat him a few times until he owes 100 coins") has no card/
+  dice-minigame precedent anywhere in `minigames/` or `server/scripts` --
+  collapsed to one deterministic win gated on holding the coins and the bow.
+  The petition's "don't ask the same ghost twice in a row" anti-macro
+  restriction is a client-side spam guard, not a real quest-helper
+  `steps.put` breakpoint -- not modelled. Nettle tea's own fire-cooking step
+  has no reachable generic firemaking-and-cook-on-open-fire hook point
+  within this slice's scope -- collapsed to a single `[opheld1,
+  bowl_nettlewater]` action. The two non-combat hull-chest instances sharing
+  gameval `ahoy_chest_closed`/`ahoy_chest_open` (the lobster chest and the
+  rocks-agility chest) are handled by one combined trigger rather than
+  coordinate-disambiguated separately, since the rocks leg is pure
+  navigation with zero player decision (same "no real choice, collapse to
+  deterministic action" reasoning as every prior slice) -- both remaining
+  map scraps are granted together once the Giant Lobster (a real, fought,
+  `ai_queue3`-death-detected combat npc, never spawned elsewhere in this
+  tree) is defeated. Wiki `oldschool.runescape.wiki/w/Ghosts_Ahoy` +
+  `.../Quick_guide` (paraphrased, not verbatim, per copyright) plus quest-
+  helper's own `GhostsAhoy.java`/`DyeShipSteps.java` fetched via GitHub raw
+  (no local checkout on this machine). `mingw32-make -C src sscompile`
+  clean (only pre-existing snprintf-truncation warnings in the compiler
+  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,709 scripts
+  compiled (up from 14,670, +39), full build log grepped for `ahoy` returned
+  zero warnings or errors. Self-sweep: every trigger header this slice
+  authored (38 across 5 new files) confirmed exactly one definition each
+  tree-wide before the bucket_milk fix, and zero remaining duplicates after
+  it. Files: `quests/quest_ghostsahoy/{configs/ghostsahoy.constant,
+  scripts/ahoy_{shared,hub,book,manual,robes}.rs2}`, additive branches in
+  `quest_animalmagnetism/scripts/anma_farm.rs2`, `general_use/scripts/
+  spade.rs2`, `skill_cooking/scripts/cakes.rs2`, `skill_prayer/scripts/
+  ectofuntus.rs2` (+ its own `configs/ectofuntus.varp`), and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #151 The Eyes of Glouphrie, 969 lines.
+- slice #151 done: The Eyes of Glouphrie (17 Jul 2006) -- Brimstail the
+  gnome researcher shows the player Oaknock the Engineer's anti-illusion
+  machine; Hazelmere (mind-linked, 46 Magic) reveals that the exiled mage
+  Glouphrie the Untrusted once hid the death of a sacred Spirit Tree with
+  illusion magic and fled to found Arposandra; an invisible saboteur wrecks
+  the machine, the player repairs it (magic glue, oak/maple timber,
+  Construction 5) and unlocks it, revealing that six "cute creatures"
+  scattered around the Tree Gnome Stronghold -- including Brimstail's own
+  pet Izzie -- are disguised Arposandran spies; the player kills all six and
+  reports to King Narnode for a Crystal saw seed. Grep-first: no LC proc
+  anywhere in `server/scripts` or `lc_quests.txt` (only the cache's own
+  `m33_77.spawn` flashback-battle spawn list and `npc_anims.generated.npc`,
+  not scripted content, released 2006 anyway, after LostCity's Sept 2004
+  cutoff), no `SCAPE2009_CONTENT_PORT_QUEUE.md` entry. Native dbrow
+  `quest_eyesofglouphrie` (id 116, endstate 60, questpoints 2, startnpc
+  4913 = Brimstail, requirement_stats (6,46)=Magic 46 / (22,5)=Construction
+  5, both matching quest-helper's own `getGeneralRequirements()` and the
+  wiki's own explicit "not required to start" note exactly --
+  `requirement_check_skills_on_start=0` independently confirms this, so both
+  are hard-gated at the specific narrative beat that actually needs them
+  (Magic at the Hazelmere mind-link, Construction at the machine repair)
+  rather than at quest start. dbrow `requirement_quests` decodes to dbrow id
+  66 = Throne of Miscellania -- not a real prerequisite, the same known
+  cache-decode-corruption failure mode this queue's methodology warns about
+  repeatedly; the real prerequisite, per quest-helper's own
+  `getGeneralRequirements()` AND the wiki infobox, is The Grand Tree
+  FINISHED (IN-LC, genuinely completable here), hard-gated via `%grandtree
+  >= ^grandtree_complete`. dbrow `stat_xp_awarded` selects the right four
+  skills (Magic/Runecraft/Woodcutting/Construction, matching quest-helper's
+  own `getExperienceRewards()` exactly) but every amount is exactly 10x the
+  real reward (dbrow: 120000/60000/25000/2500 vs quest-helper's and the
+  wiki's own 12,000/6,000/2,500/250) -- the real amounts are used, same
+  "dbrow row is a hint, not gospel" finding as Darkness of Hallowvale and
+  Ghosts Ahoy. Full native varbit schema recovered on basevar `eyeglo_var1`
+  (`eyeglo_quest` bits 0-5, 0..60 -- unusually for this queue, quest-helper's
+  own `steps.put` numbers and the dbrow's own endstate already agree with
+  the native scale exactly, so this port uses a *subset* of quest-helper's
+  own numbers as breakpoints directly (0, 1, 2, 12, 15, 25, 36, 45, 60)
+  rather than inventing a smaller collapsed enum; `eyeglo_machine_broken`
+  bits 10-11 (0=locked/"Unlock", 1=broken/"Repair", 2=fixed/"Operate",
+  matching `eyeglo_gnome_machine_02_multiloc`'s own `multiloc1/2/3` order
+  and `PuzzleStep.java`'s own `getVarbitValue(EYEGLO_MACHINE_BROKEN) == 2`
+  branch exactly); `eyeglo_bowl_seen`/`eyeglo_machine_seen` (native, used
+  directly); `eyeglo_killed_eye_1..6` (0-3 each, quest-helper's own
+  `killedCreature1..6` conditions, `== 2` for "killed") independently
+  confirmed by the native multi-npc records `eyeglo_fluffie_1..6`
+  (`multinpc1`=cute, `multinpc2`=evil/attackable, `multinpc3`=an invisible
+  despawn npc at value 2) -- this port spawns the *wrapper* names via
+  `npc_add`, matching this tree's own established wrapper-binding
+  convention (`[opnpc1,grandtree_narnode]` in
+  `quest_grandtree/scripts/king_narnode.rs2` already binds the wrapper, not
+  the `_1op`/`_2op` leaves, and the engine resolves clickability/op-labels
+  from whichever leaf the multivarbit currently selects). The crystal-disc
+  puzzle's own internal bookkeeping fields (`eyeglo_coin_value_1..4`,
+  `eyeglo_unlock_*`/`eyeglo_operate*_*` on `eyeglo_temp2`/`eyeglo_temp3`,
+  and the matching varps) are NOT used, see Simplifications. Native items
+  used as-is: `ics_little_sap_bucket` (Bucket of sap -- already a real
+  item in this tree via the existing `[oplocu,evergreen]`/
+  `[oplocu,evergreen_large]` trigger in
+  `quest_icthlarin/scripts/icthlarin_embalm.rs2`, gated there on
+  Icthlarin's Little Helper's own stage -- this port adds an additive
+  branch gated on this quest's own state, falling through unchanged
+  otherwise), `mudrune`, `eyeglo_ground_mud_runes`, `eyeglo_magic_glue`,
+  `oak_logs`, `maple_logs`, `hammer` (plain, matching this tree's own
+  established "any hammer" simplification), `poh_saw` -- **not** a bare
+  `saw` gameval, which does not exist in this cache; `poh_saw` (`name=Saw`)
+  is the real item, found only after `sscompile` failed loudly on the
+  invented name, exactly bar 1 working as intended -- `eyeglo_violet_
+  pentagon`/`eyeglo_red_square`/`eyeglo_yellow_triangle` (flavour discs,
+  granted narratively but not checked, see Simplifications),
+  `crystal_seed_old_small` ("Crystal saw seed", the wiki's own reward item
+  name, confirmed via its own in-cache `desc` field) and `eyeglo_crystal_saw`
+  (produced from the seed via the singing bowl's own native `op3=Sing-
+  crystal` -- no invented seed-growth mechanic needed, the cache already
+  states both the seed item and the exact op that converts it).
+  Cross-file merges, all grep-verified free of duplicates before touching
+  (one genuine near-miss caught and fixed: this port's own first draft
+  declared a second, competing `[opnpc1,gnome_brimstail]` trigger without
+  checking first -- `areas/area_gnome/scripts/brimstail.rs2` already
+  declares it, for Rune Mysteries' essence-mine teleport offer; converted
+  to the same additive-hub-proc pattern used everywhere else in this queue
+  before landing, not left as a silent duplicate): `[opnpc1,
+  gnome_brimstail]` (Rune Mysteries) gains one line calling
+  `~eyeglo_brimstail_hub`, which returns 1 (handled) whenever this quest is
+  in its own active window, falling through to Rune Mysteries' unmodified
+  logic otherwise (always true once complete) -- same pattern as Ghosts
+  Ahoy's own `ahoy_crone_hub` merge. `[opnpc1,grandtree_hazelmere]`
+  (Grand Tree's own post-quest bark-sample trigger) and `[opnpc1,
+  grandtree_narnode]` (Grand Tree's own reward dialogue) each gain one line
+  calling `~eyeglo_hazelmere_hub`/`~eyeglo_narnode_hub` the same way.
+  `[oplocu,evergreen]`/`[oplocu,evergreen_large]`
+  (`quest_icthlarin/scripts/icthlarin_embalm.rs2`) gain an additive
+  `eyeglo`-gated branch ahead of Icthlarin's own check, falling through
+  unchanged otherwise. `[opheldu,pestle_and_mortar]`
+  (`skill_herblore/scripts/grind_ingredient.rs2`) gains a `last_useitem =
+  mudrune` short-circuit ahead of the generic `~attempt_grind_ingredient`
+  lookup, the same pattern already used there for Garden of Tranquility's
+  own `rune_shards` case (mudrune is not a real herblore grindable). The
+  cave-entrance two-way toggle reuses the exact `p_telejump` coordinates
+  already proven by the pre-existing `gnome_caveladder`/`gnome_caveentrance`
+  triggers in `brimstail.rs2` (the Rune Mysteries-era entrance to the same
+  cave), independently cross-checking this port's own WorldPoint -> zone/
+  local conversion for `eyeglo_brimstails_cave_entrance` (a separate,
+  distinct loc, quest-helper's own `ObjectID.EYEGLO_BRIMSTAILS_CAVE_
+  ENTRANCE`, not a duplicate of the two above). Simplifications
+  (documented, no established precedent anywhere in this tree for the
+  alternative): `PuzzleStep.java`'s own two crystal-disc widget puzzles (a
+  single-value "front panel" unlock then a three-slot "control panel"
+  combinatorial match across 34 discs, solved live against the rev-230
+  `EyegloGnomeMachineLocked`/`EyegloGnomeMachineUnlocked` IF3 interfaces)
+  has no established native drag-widget/interface-puzzle precedent
+  anywhere in this tree -- collapsed to one deterministic action: clicking
+  the repaired machine immediately unlocks and operates it in a single
+  beat, matching this queue's own repeated "native widget puzzle with no
+  precedent collapses to one deterministic action" convention (Darkness of
+  Hallowvale's Tome of experience, Ghosts Ahoy's Rune-Draw gambling and
+  mast-dye puzzle). The flavour discs are granted for narrative colour but
+  not consumed/checked -- inventing a partial puzzle-matching requirement
+  without the real widget to back it would be a bigger invention than
+  skipping it outright. The gnome-goblin war / Argento's-death flashback
+  cutscene (`gnome_glouphrie`/`eyeglo_king_healthorg`/goblin-and-gnome-
+  soldier battle line, native-spawned at `m33_77.spawn` but with zero
+  trigger anywhere in this tree before this slice) has no established
+  flashback-cutscene precedent reachable within this slice's scope --
+  narrated via `mesbox` lines during the Hazelmere mind-link instead,
+  matching Sins of the Father's own "Soft-skip: combat/spectacle resolved
+  via mes()" idiom. `eyeglo_hazelmeres_book`/`eyeglo_crystal_book` (native
+  "Read" flavour items referenced nowhere in quest-helper's own step map)
+  are not granted -- unused, same "not every native item needs to be used"
+  finding as Ghosts Ahoy's own `ahoy_windspeed`/`ahoy_grinder_status`. Wiki
+  `oldschool.runescape.wiki/w/The_Eyes_of_Glouphrie` +
+  `.../Quick_guide` (paraphrased, not verbatim, per copyright); the wiki's
+  own `Transcript:` page declined verbatim reproduction on request this
+  session, so all dialogue below is original paraphrase carrying the same
+  story beats, not a copy -- noted explicitly since every prior slice's
+  transcript dialogue was itself already a paraphrase, but this is the
+  first time the source declined outright. Quest-helper's own
+  `TheEyesOfGlouphrie.java` (340 lines) and `PuzzleStep.java` (629 lines,
+  969 total matching the queue row's own line count) fetched via GitHub raw
+  (no local checkout on this machine). `mingw32-make -C src sscompile`
+  clean (only pre-existing snprintf-truncation warnings in the compiler
+  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,738 scripts
+  compiled (up from 14,709, +29); full build log grepped for
+  `eyeglo|theeyesofglouphrie|brimstail|hazelmere.rs2|king_narnode|
+  icthlarin_embalm|grind_ingredient` returned zero warnings or errors. A
+  first build attempt failed loudly on an invented `saw` gameval (fixed to
+  `poh_saw`) and, after a manual duplicate-trigger self-sweep (not caught
+  by `sscompile`, which accepts duplicates silently by design per this
+  queue's own standing warning), on a genuine competing `[opnpc1,
+  gnome_brimstail]` definition this slice itself had drafted -- both fixed
+  before the build reported here; a full re-sweep of every trigger header
+  this slice authored (feet: 1 cave-entrance oploc, 2 singing-bowl oplocs,
+  1 machine oploc1, 1 machine oplocu, 1 ground-mud-runes opheldu, 6x
+  opnpc2 + 6x ai_queue3 for the six spies, plus procs/debugprocs) confirmed
+  exactly one definition each tree-wide after the fixes. Files:
+  `quests/quest_theeyesofglouphrie/{configs/theeyesofglouphrie.constant,
+  scripts/eyeglo_{shared,quest}.rs2}`, additive branches in
+  `areas/area_gnome/scripts/{brimstail,hazelmere}.rs2`,
+  `quests/quest_grandtree/scripts/king_narnode.rs2`,
+  `quests/quest_icthlarin/scripts/icthlarin_embalm.rs2`,
+  `skill_herblore/scripts/grind_ingredient.rs2`, and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #152 Monkey Madness I, 988 lines.
