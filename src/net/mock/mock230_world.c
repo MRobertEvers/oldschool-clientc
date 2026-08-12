@@ -8941,6 +8941,17 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
  * which is the right failure: a loc that changed and never changes back is a
  * visible bug, where refusing the change outright would make the script look
  * broken instead.
+ *
+ * A duration that cannot be incremented is "never" as well, and that is not a
+ * theoretical case: `^inferno_loc_duration` is `^max_32bit_int`, which is how
+ * the Inferno states a permanent mutation. `INT_MAX + 1` below is signed
+ * overflow, and once the tree started building optimised by default the
+ * wrapped counter read as already-expired — so every seal wall snapped back to
+ * its intact form a tick after it changed, the middle slab that had just been
+ * deleted came back, and the terminal rubble was removed again the tick after
+ * it was placed. The whole Zuk cutscene played against locs that undid
+ * themselves. Clamping here rather than in the content keeps any script's
+ * "forever" from meaning "next tick".
  */
 int
 mock230_world_loc_revert_queue(
@@ -8953,7 +8964,7 @@ mock230_world_loc_revert_queue(
     int z,
     int level)
 {
-    if( duration <= 0 )
+    if( duration <= 0 || duration >= INT_MAX )
         return 1;
     for( int i = 0; i < MOCK230_LOC_REVERT_MAX; i++ )
     {
@@ -26986,18 +26997,38 @@ mock230_world_selftest(void)
                            "each wall should receive its mirrored 90-frame sequence once, "
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 5,
-                           "the flank collapse should follow the glyph delay plus Zuk handoff; "
+            /*
+             * `^inferno_seal_bind_ticks` (6) is the whole length of the held
+             * shot: the fade-in and the state2 swap start it and the flanks
+             * giving way end it. The script spends `bind - 2` on `p_delay`
+             * (which resumes at tick + 1 + n) and then one more zero-delay
+             * yield for the Zuk handoff, so the flanks animate six ticks after
+             * the swap they were bound by.
+             *
+             * This said `+ 5` and the two checks below pinned the fade and the
+             * glyph to Zuk's own tick. That was not a measurement of the
+             * cutscene — it was this fixture being re-fitted to a content
+             * regression that had moved the fade-in to the far side of the
+             * collapse and the middle slab to the far side of the fade. Pinned
+             * to the design here so the fixture fails if that happens again.
+             */
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 6,
+                           "the flank collapse should end the bind gap the swap started; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
-            SELFTEST_CHECK(fade_in_tick == zuk_tick,
-                           "fade-in must start with Zuk's intact-rock frame; "
-                           "got fade=%d zuk=%d",
-                           fade_in_tick, zuk_tick);
-            SELFTEST_CHECK(glyph_move_tick == zuk_tick,
-                           "the glyph must take its first step with Zuk's intact-rock frame; "
-                           "got glyph=%d zuk=%d",
-                           glyph_move_tick, zuk_tick);
+            SELFTEST_CHECK(fade_in_tick == change_tick,
+                           "the fade-in must start on the swap tick — the ramp leaves full "
+                           "black slowly enough to hide the state1 -> state2 exchange, which "
+                           "the client applies a cycle late; got fade=%d change=%d",
+                           fade_in_tick, change_tick);
+            /* The glyph is not on the cutscene's thread: it is added with
+             * `npc_settimer(1)` and walks itself out of `[ai_timer]` once
+             * `%inferno_glyph_stopped` passes `^inferno_glyph_drop_delay` (3),
+             * which is the tick after the third counted one. */
+            SELFTEST_CHECK(glyph_add_tick >= 0 && glyph_move_tick == glyph_add_tick + 4,
+                           "the glyph must take its first step four ticks after it is added; "
+                           "got glyph=%d added=%d",
+                           glyph_move_tick, glyph_add_tick);
             SELFTEST_CHECK(rocks_tick == anim_tick + 6,
                            "the settled flank rocks must appear on the 180-cycle "
                            "animation boundary; got anim=%d rocks=%d",
@@ -27031,10 +27062,22 @@ mock230_world_selftest(void)
                                "east terminal flank must retain authored rotation 3, got %d",
                                east ? east->angle : -1);
             }
-            SELFTEST_CHECK(mid_removal_tick == glyph_add_tick,
-                           "the centre wall and glyph NPC must exchange on one tick; "
-                           "got middle=%d glyph=%d",
-                           mid_removal_tick, glyph_add_tick);
+            /*
+             * The middle is not a loc animation and never was: model 33037
+             * carries no rig, so every op of a `loc_anim` aimed at it is
+             * discarded. Its collapse is the rock half of `zuk_spawn`, which
+             * opens posed as the intact wall — so the rigid slab is deleted on
+             * the same tick Zuk is added playing it, and the spawn's opening
+             * hold covers the substitution frame for frame.
+             *
+             * This used to read `== glyph_add_tick`, which is the slab going
+             * five ticks early, under black, with nothing standing in its place
+             * until Zuk arrives.
+             */
+            SELFTEST_CHECK(mid_removal_tick >= 0 && mid_removal_tick == zuk_tick,
+                           "the centre slab must be handed to zuk_spawn on Zuk's own tick; "
+                           "got middle=%d zuk=%d",
+                           mid_removal_tick, zuk_tick);
             SELFTEST_CHECK(total_pillar_seq == 0,
                            "the server must not send Kronos's incorrect seq 7561, got %d",
                            total_pillar_seq);
@@ -27161,8 +27204,8 @@ mock230_world_selftest(void)
                            "and 7561 must stay off the rigless middle wall; "
                            "got left=%d right=%d pillar=%d",
                            total_left_seq, total_right_seq, total_pillar_seq);
-            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 5,
-                           "the repeated seal should preserve the delayed flank handoff; "
+            SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 6,
+                           "the repeated seal should preserve the bind gap; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             SELFTEST_CHECK(!player->rebuild_scene_pending,
