@@ -15,14 +15,33 @@
  * glDrawElementsBaseVertex, which WebGL1 also lacks, done with the base folded
  * into the glVertexAttribPointer offsets instead. That is what a chunk is.
  *
- * The split is a scan, not a sort: a range's indices come from faces walked in
- * painter order over one baked model, so they are already clustered and a
- * chunk usually swallows a whole range. A chunk closes only when the next
- * triangle would put more than 65535 vertices between the lowest and highest
- * index it holds.
+ * There are two ways to find those windows, and which one you can use is a
+ * property of the arena rather than of the splitter:
  *
- * Nothing here is WebGL-specific beyond the limit, and D3D9's DrawIndexedPrimitive
- * takes the same (base vertex, local indices) shape.
+ *   trspk_webgl1_split16        Searches. Takes triangles while the span
+ *                               between the lowest and highest index it holds
+ *                               stays under 65536. Correct for any arena, and
+ *                               only as good as the arena's clustering.
+ *
+ *   trspk_webgl1_split16_paged  Does not search. Requires an arena paged at
+ *                               `page_size`, so a model never straddles a page
+ *                               and a triangle's three vertices are always in
+ *                               one. The base is then simply the triangle's
+ *                               page, and consecutive triangles in that page
+ *                               merge into one chunk.
+ *
+ * The paged form exists because the searching one degenerates badly, and the
+ * measurement is worth recording: with the world in a single arena page, a
+ * settled osrs239 scene produced **2878 chunks from one draw range** — a draw
+ * call and a five-pointer attribute rebind per triangle. Painter order is
+ * distance order, arena order is load order, and consecutive triangles are
+ * routinely more than 65535 vertices apart in an arena of 1.3M, so the sliding
+ * window closes almost every triangle.
+ *
+ * Paging the arena is what D3D9 has always done here (D3D9_VBO_PAGE = 65536,
+ * for the identical 16-bit index limit), and its DrawIndexedPrimitive takes the
+ * same (base vertex, local indices) shape. Nothing about either is
+ * WebGL-specific beyond which of them a backend is forced into.
  */
 
 #include <stdint.h>
@@ -61,5 +80,28 @@ trspk_webgl1_split16(
     uint32_t chunk_capacity,
     uint32_t* out_chunk_count,
     int* out_overflow);
+
+/*
+ * The same rewrite for an arena paged at `page_size` (a power of two, at most
+ * 65536). A chunk is a run of consecutive triangles sharing one page, and the
+ * base is that page — no search, one pass.
+ *
+ * `out_straddle` counts triangles whose three vertices did not land in one
+ * page. That is not something this function can paper over: the local index
+ * would exceed 65535 and silently address the wrong vertex. Such triangles are
+ * dropped and counted, so a broken arena invariant is visible as missing
+ * geometry plus a number rather than as subtly wrong geometry.
+ */
+uint32_t
+trspk_webgl1_split16_paged(
+    struct TRSPK_DrawRangeList const* ranges,
+    uint32_t const* src,
+    uint16_t* dst,
+    struct TRSPK_WebGL1Chunk* chunks,
+    uint32_t chunk_capacity,
+    uint32_t page_size,
+    uint32_t* out_chunk_count,
+    int* out_overflow,
+    uint32_t* out_straddle);
 
 #endif

@@ -102,3 +102,87 @@ done:
         *out_overflow = overflow;
     return written;
 }
+
+uint32_t
+trspk_webgl1_split16_paged(
+    struct TRSPK_DrawRangeList const* ranges,
+    uint32_t const* src,
+    uint16_t* dst,
+    struct TRSPK_WebGL1Chunk* chunks,
+    uint32_t chunk_capacity,
+    uint32_t page_size,
+    uint32_t* out_chunk_count,
+    int* out_overflow,
+    uint32_t* out_straddle)
+{
+    uint32_t written = 0u;
+    uint32_t chunk_count = 0u;
+    uint32_t straddle = 0u;
+    int overflow = 0;
+    struct TRSPK_DrawRange const* range;
+
+    if( out_chunk_count )
+        *out_chunk_count = 0u;
+    if( out_overflow )
+        *out_overflow = 0;
+    if( out_straddle )
+        *out_straddle = 0u;
+    if( !ranges || !src || !dst || !chunks || chunk_capacity == 0u || page_size == 0u ||
+        page_size > TRSPK_WEBGL1_INDEX_SPAN + 1u )
+        return 0u;
+
+    range = trspk_drawrangelist_head((struct TRSPK_DrawRangeList*)ranges);
+    while( range )
+    {
+        /* A chunk never spans two ranges: they differ in draw config or group,
+         * which is state set between draw calls. */
+        uint32_t open = 0u;   /* a chunk is being accumulated */
+        uint32_t open_base = 0u;
+
+        for( uint32_t i = range->start; i + 2u < range->end; i += 3u )
+        {
+            uint32_t const base = src[i] - (src[i] % page_size);
+
+            /* The arena's promise, checked rather than assumed. */
+            if( src[i + 1u] - base >= page_size || src[i + 2u] - base >= page_size )
+            {
+                straddle++;
+                continue;
+            }
+
+            if( !open || base != open_base )
+            {
+                if( chunk_count >= chunk_capacity )
+                {
+                    overflow = 1;
+                    goto done;
+                }
+                chunks[chunk_count].index_start = written;
+                chunks[chunk_count].index_count = 0u;
+                chunks[chunk_count].base_vertex = base;
+                chunks[chunk_count].group = range->group;
+                chunks[chunk_count].config_idx = range->config_idx;
+                chunk_count++;
+                open = 1u;
+                open_base = base;
+            }
+
+            dst[written + 0u] = (uint16_t)(src[i + 0u] - base);
+            dst[written + 1u] = (uint16_t)(src[i + 1u] - base);
+            dst[written + 2u] = (uint16_t)(src[i + 2u] - base);
+            written += 3u;
+            chunks[chunk_count - 1u].index_count += 3u;
+        }
+
+        range = trspk_drawrangelist_next((struct TRSPK_DrawRangeList*)ranges, range);
+    }
+
+done:
+    if( out_chunk_count )
+        *out_chunk_count = chunk_count;
+    if( out_overflow )
+        *out_overflow = overflow;
+    if( out_straddle )
+        *out_straddle = straddle;
+    return written;
+}
