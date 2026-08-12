@@ -311,9 +311,9 @@ filed under `helpers/miniquests/` are at the end.
 | 149 | beneathcursedsands | `beneathcursedsands` | 859 | done |  |
 | 150 | regicide | `regicide` | 944 | done (LC) | OSRS has 13 rs2 files (not in PORT_QUEUE table) |
 | 151 | theeyesofglouphrie | `theeyesofglouphrie` | 969 | done | Jul 2006 -- Brimstail's anti-illusion machine exposes Glouphrie's exile and six disguised Arposandran spies; native dbrow (id 116, endstate 60) + native varbit schema on basevar `eyeglo_var1`/`eyeglo_var2` reused; see Log |
-| 152 | monkeymadnessi | `monkeymadnessi` | 988 | pending | npcs=grandtreena,pilotgrand,mmcaranock |
-| 153 | forgettabletale | `forgettabletale` | 1,000 | pending | npcs=dwarfcityb,dwarfcityd,dwarfcityr |
-| 154 | toweroflife | `toweroflife` | 1,021 | pending | npcs=tolnpcefer,tolnpcbarr,tolhomoncul |
+| 152 | monkeymadnessi | `monkeymadnessi` | 988 | done (LC) | found 2026-08-11: this row was stale -- already flagged on this file's own skip list (line 95, "spelling-only mismatches already owned elsewhere") but the Queue table row itself was never flipped. LostCity's `quest_mm/` (25 scripts, 4,149 lines: `mm_narnode`/`mm_caranock`/`mm_daero`/`mm_waydar`/`mm_lumdo`/`mm_zooknock`/`mm_lumo`/`mm_karam`/`mm_garkor`/`mm_monkey_child`/`mm_kruk`/`mm_awowogei`/`mm_shopkeepers`/`mm_warehouse`/`mm_supply_crates`/`mm_puzzle`/etc.) already implements Monkey Madness I end-to-end on basevar `%mm_main` against `configs/quest_mm.constant`'s `^monkeymadness_*` scale; `mm_narnode.rs2:233` sets `%mm_main = ^monkeymadness_complete`; journal wired `interface_questjournal/scripts/quest_journal.rs2:727-728` (`quest_monkeymadness1` -> `~mm_journal`). Matches `CONTENT_PORT_QUEUE.md`'s own extensive slice history (32z, 33u, 34n-34y, 35a-35g, final log 12368 scripts) -- belongs there, not here, per this queue's own ownership rule (LC proc presence, not completion state). Not re-verified for completeness here (out of scope for this queue); next pending row promoted to #153 A Forgettable Tale... (forgettabletale) |
+| 153 | forgettabletale | `forgettabletale` | 1,000 | done | Jul 2005 -- Commander Veldaban's Red Axe investigation via Keldagrim's Drunken Dwarf, the legendary kelda beer (farming+brewing side-quest), and the hidden mine-cart tunnel network under the trading Consortium; native dbrow `quest_forgettabletale` (id 88, endstate 140, questpoints 2) + native varbit schema on basevar `forget_main_var` (`forget_quest` 0-255, `forget_farming` 0-15, confirmed authoritative via `farming_hops_patch_keldagrim`'s own 10-state multiloc) reused as-is; see Log |
+| 154 | toweroflife | `toweroflife` | 1,021 | done | Feb 2007 -- Effigy asks the player to repair the derelict Tower of Life so its resident "alchemists" (secretly harmless gnomes) can resume homunculus-making; a builder's-outfit fetch quest (quiz, pickpocket, beer trade, bush search) gates entry, then three broken machines (pressure, pipe, cage) must be rebuilt and fixed to free the caged homunculus; native dbrow `quest_toweroflife` (id 129, endstate 18, questpoints 2) + native varbit schema on basevars `tol_main`/`tol_main2` reused; see Log |
 | 155 | mourningsendpartii | `mourningsendpartii` | 1,100 | pending | npcs=mourningari,mournerhide,mourningari |
 | 156 | enlightenedjourney | `enlightenedjourney` | 1,168 | pending | npcs=zeppiccard,shipmonk1c,zeppiccard |
 | 157 | onesmallfavour | `onesmallfavour` | 1,244 | pending | npcs=slagilith,favourpetra,shiloantique |
@@ -4762,3 +4762,249 @@ filed under `helpers/miniquests/` are at the end.
   `skill_herblore/scripts/grind_ingredient.rs2`, and wiring into
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #152 Monkey Madness I, 988 lines.
+
+- row #152 corrected 2026-08-11, not ported here: Monkey Madness I
+  (`monkeymadnessi`) turned out already stale-`pending` -- this file's own
+  skip list (line 95, "spelling-only mismatches already owned elsewhere")
+  already flagged it, but the Queue table row itself was never flipped.
+  LostCity's `quest_mm/` (25 scripts, 4,149 lines: `mm_narnode`/
+  `mm_caranock`/`mm_daero`/`mm_waydar`/`mm_lumdo`/`mm_zooknock`/`mm_lumo`/
+  `mm_karam`/`mm_garkor`/`mm_monkey_child`/`mm_kruk`/`mm_awowogei`/
+  `mm_shopkeepers`/`mm_warehouse`/`mm_supply_crates`/`mm_puzzle`/etc.)
+  already implements Monkey Madness I end-to-end on basevar `%mm_main`
+  against `configs/quest_mm.constant`'s `^monkeymadness_*` scale;
+  `mm_narnode.rs2:233` sets `%mm_main = ^monkeymadness_complete`; journal
+  wired `interface_questjournal/scripts/quest_journal.rs2:727-728`
+  (`quest_monkeymadness1` -> `~mm_journal`) -- matches `CONTENT_PORT_QUEUE.md`'s
+  own extensive slice history (32z, 33u, 34n-34y, 35a-35g, final log 12368
+  scripts). Row flipped to `done (LC)`, out of scope for this queue per its
+  own ownership rule (LC proc presence, not completion state). Real slice
+  for this tick promoted to the next genuinely-pending smallest row: #153 A
+  Forgettable Tale of a Drunken Dwarf, 1,000 lines.
+
+- slice 153 done: A Forgettable Tale of a Drunken Dwarf (`forgettabletale`)
+  -- Jul 2005, npcs=dwarfcityb/dwarfcityd/dwarfcityr (quest-helper's own
+  abbreviations for the Drunken Dwarf/one of Rowdy Dwarf/Gauss -- cache
+  wins, real gameval names `dwarf_city_drunken_dwarf`/
+  `dwarf_city_rowdy_dwarf`/`dwarf_city_dwarf_man6`); Commander Veldaban asks
+  the player to investigate the Red Axe (the same syndicate as The Giant
+  Dwarf / Between a Rock...) by loosening Keldagrim's Drunken Dwarf's
+  tongue with a legendary kelda beer (a mini farming + brewing side-quest:
+  4 kelda seeds from the Drunken Dwarf/Rowdy/Khorvak/Gauss, grown on
+  `farming_hops_patch_keldagrim`, brewed in the east pub's upstairs vat),
+  then infiltrating a hidden mine-cart tunnel network under the trading
+  Consortium floor -- capped by the quest's own joke ending (kebab + beer =
+  total memory loss, matching the quest's own name). Native dbrow
+  `quest_forgettabletale` (id 88, endstate 140, questpoints 2,
+  requirement_stats cooking 20 + farming 17, both boostable via
+  requirements_boostable=1, gated with `stat()` not `stat_base()`;
+  requirement_check_skills_on_start=0, matching quest-helper's own
+  getGeneralRequirements not blocking the start dialogue; stat_xp_awarded
+  cooking 50000=5000xp + farming 50000=5000xp, matching quest-helper's own
+  ExperienceReward calls exactly -- the java's own
+  SkillRequirement(COOKING, 22, true) is stale vs this dbrow's 20, cache
+  wins). `requirement_quests` decodes to dbrow 63 (Shades of Mortton) and a
+  non-existent id 52 -- corrupt, same cache decode issue flagged repeatedly
+  on this queue; real prerequisites per quest-helper's own
+  getGeneralRequirements() are The Giant Dwarf (`%giantdwarf_quest >=
+  ^gdwarf_complete`) and Fishing Contest (`%fishingcompo >=
+  ^fishingcompo_complete`), both already implemented in this tree and hard
+  gated (`forget_meets_quest_reqs`). This quest has a **native varbit
+  schema** even though quest-helper's own java never reads a single master
+  progress varbit (it infers the step map from sub-varbit combinations
+  instead): `forget_quest` (basevar `forget_main_var`, bits 0-7, 0..255,
+  comfortably holds this dbrow's own endstate 140) is confirmed as the real
+  master field by grepping `configs/all.varbit` directly, not guessed. Also
+  on `forget_main_var`: `forget_farming` (bits 8-11, 0..15) -- confirmed
+  authoritative via this cache's own `farming_hops_patch_keldagrim`
+  multiloc record (`configs/all.loc`), which keys `multivarbit=
+  forget_farming` across ten states (weeds x3, weeded, seed, growing x3,
+  fully grown, harvested/gone) landing exactly on quest-helper's own
+  thresholds (`plotRaked` >=3, `keldaGrowing` >=4, `keldaGrown` >=8);
+  `forget_boarding_removed` likewise confirmed via
+  `keldagrim_boardedupdoor_multi`, which removes `route_boardedupdoor`
+  entirely (multiloc2=-1) once set, matching the Director's own "boarded up
+  tunnel" dialogue; `forget_beer_given`, `forget_seed2_given`,
+  `forget_seed3_given`, `forget_seed4_given`, `forget_tunnel_cutscene1/2/3`
+  are all read as simple per-friend / per-tunnel-room flags. The nine real
+  rail-junction widget puzzles (interfaces 244/247/248, native fields
+  `forget_if1..if19` on basevars `forget_puzzle_var`/`forget_puzzle_var2`)
+  + the listening room + the library have no generic widget-puzzle
+  primitive anywhere in this tree (grep-confirmed, same gap Between a
+  Rock...'s own schematic assembly and The Great Brain Robbery's crate
+  build hit), so all three tunnel rooms collapse into one deterministic
+  "search the box, work the machinery" beat each, matching this queue's
+  established "native widget puzzle with no precedent collapses to one
+  deterministic action" convention -- gated on the real per-room
+  `forget_tunnel_cutscene1/2/3` flags, so it is a faithful compression, not
+  an invented shortcut. The vat/barrel brewing sub-timer
+  (`brewing_vat_varbit_1`/`brewing_barrel_varbit_1`, native but packed into
+  the *shared* `farming_varp_9` basevar with real-time-tick semantics
+  quest-helper's own thresholds of 1/2/68/69/71 imply but do not fully
+  specify) is not driven natively here -- this port tracks the brewing
+  sub-steps as plain `%forget_quest` plateaus instead, to avoid depending on
+  an unverified shared timer field another future brewing feature might
+  also need; `brewing_vat_1`/`brewing_barrel_1` are themselves native
+  multilocs keyed on those same shared fields, so their models do not
+  visually reskin as ingredients are added, same "logic correct, display
+  deferred" simplification as The Giant Dwarf's own Riki model reskin.
+  Every `vat_*`/`barrel_*` leaf state in the cache declares no op1/op2 of
+  its own (grep-confirmed), so the four vat additions and the barrel
+  glass-fill bind as `oplocu` (use-item-on-loc, needs no declared menu op)
+  against the multiloc wrapper name, matching quest-helper's own
+  `addIcon(ItemID....)` steps exactly -- only the valve (`vat_valve_1`,
+  real `op1=Turn`) is a plain click. Kelda growth uses a `settimer`/
+  `[timer,...]` callback, same idiom as Rum Deal's own quest-only Blindweed
+  patch (`deal_farming.rs2`'s `deal_blindweed_grow` timer) rather than a
+  real-time multi-stage catchup loop. `keldagrim_train_cart` is placed at
+  two different coordinates by quest-helper itself (the ordinary White Wolf
+  Mountain shuttle and the "secret" southern cart into the tunnels) --
+  disambiguated with `loc_coord`, same pattern established by Spirits of
+  the Elid's crevice hole. Rowdy Dwarf's own item request is quest-helper's
+  `randomItem = ItemRequirement("A random item per player", -1, -1)` -- a
+  per-player server-rolled item with no fixed identity, impossible to
+  replicate faithfully; simplified to a running gag (a single coin "for the
+  road") rather than inventing a fixed plausible-looking item. Three npcs
+  are pre-existing SHARED triggers, spliced into (not duplicated, critical
+  correctness rule): `dwarf_city_black_guard_leader` (Commander Veldaban,
+  `quest_giantdwarf/scripts/gdwarf_start.rs2`), `dwarfrock_engineer2`
+  (Khorvak, matching quest-helper's own `DWARFROCK_ENGINEER2`,
+  `quest_betweenarock/scripts/betweenarock_schematics.rs2`), and
+  `dwarf_city_director_blue_opal`/`_cutscene` (`quest_giantdwarf/scripts/
+  gdwarf_consortium.rs2`, one early branch inside the shared
+  `gdwarf_director_talk` proc rather than two duplicated branches); `kebab`'s
+  existing generic Eat trigger (`player/scripts/consumption/kebab.rs2`)
+  gets one early branch for this quest's own joke ending. Wiki
+  https://oldschool.runescape.wiki/w/A_Forgettable_Tale.../Quick_guide;
+  Transcript declined verbatim reproduction (same as prior slices on this
+  queue) -- dialogue is original paraphrase covering the same beats.
+  Quest-helper's own `ForgettableTale.java` (1,000 lines, matching this
+  row's own line count) fetched via GitHub raw (no local checkout on this
+  machine); `tools/questhelper_extract.py forgettabletale --check` exit 0
+  (every ItemID/NpcID/ObjectID/VarbitID resolves clean). `mingw32-make -C
+  src sscompile` clean (only pre-existing snprintf-truncation warnings in
+  the compiler itself); `mingw32-make -C src mock230-scripts` exit 0,
+  14,763 scripts compiled (up from 14,738, +25); full build log grepped for
+  `forget|dwarf_city_rowdy|dwarf_city_dwarf_man6|dwarf_city_train_conductor|
+  keldagrim_track_junction|brewing_vat_1|brewing_barrel_1|vat_valve_1|
+  dwarf_keldagrim_stairs|farming_hops_patch_keldagrim|ge_keldagrim_trapdoor|
+  whitewolfmountain_train_cart|blandebir|dwarfrock_engineer2|
+  dwarf_city_director_blue_opal|dwarf_city_black_guard_leader|kebab`
+  returned zero warnings or errors; a manual duplicate-trigger sweep (not
+  caught by `sscompile`, which accepts duplicates silently by design per
+  this queue's own standing warning) confirmed exactly one definition
+  tree-wide for every trigger header this slice authored or spliced into.
+  `tools/ss_allocate.py --tree OSRS-Content/osrs239-content --check` exit 0
+  (no pending allocations -- `forget_main_var` is a native pre-existing
+  basevar, not something the server needed to allocate). Files:
+  `quests/quest_forgettabletale/{configs/forgettabletale.constant,
+  configs/forgettabletale.varp, scripts/forget_{shared,keldagrim,brewing,
+  tunnels}.rs2}`, additive branches in `quests/quest_giantdwarf/scripts/
+  {gdwarf_start,gdwarf_consortium}.rs2`, `quests/quest_betweenarock/scripts/
+  betweenarock_schematics.rs2`, `player/scripts/consumption/kebab.rs2`, and
+  wiring into `interface_questjournal/scripts/quest_journal.rs2`. Next
+  pending row (smallest-first): #154 Tower of Life, 1,021 lines.
+
+- slice 154 done: Tower of Life (`toweroflife`) -- Feb 2007, npcs=Effigy
+  (`tol_npc_efergy01`), Bonafido (`tol_npc_barry01`), a caged homunculus
+  (`tol_homonculus_cage_broken` / `_nocage`). Effigy asks the player to help
+  repair the derelict Tower of Life; Bonafido won't allow entry without a
+  full builder's outfit (hard hat from a three-question quiz with
+  'Black-eye', boots pickpocketed off 'No fingers' after first asking him,
+  a shirt traded for a beer with 'The Guns', trousers found searching
+  bushes); inside, three broken machines (pressure/pipe/cage) on three
+  floors must be rebuilt from crate materials and fixed, which frees the
+  caged homunculus -- a friendly, curious creature (not the dangerous
+  "alchemist" Effigy feared) who asks the player a few questions about
+  magic before being sent to have a final word downstairs. Native dbrow
+  `quest_toweroflife` (id 129, endstate 18, questpoints 2,
+  requirement_stats construction 10 (stat 22) -- no
+  `requirements_boostable` column on this row (unlike A Forgettable Tale's),
+  so gated with `stat_base()`, not `stat()`; stat_xp_awarded construction
+  10000=1000xp (stat 22) + crafting 5000=500xp (stat 12) + thieving
+  5000=500xp (stat 17), matching quest-helper's own `ExperienceReward` calls
+  exactly -- no stale mismatch this time. No `requirement_quests` column at
+  all on this row, matching quest-helper's own `getGeneralRequirements()`,
+  which names only the Construction level, no prerequisite quest. This
+  quest has a rich **native varbit schema**, all packed onto two bare-name
+  basevars, `tol_main`/`tol_main2`, claimed in
+  `configs/toweroflife.varp` per this queue's established "claim a bare
+  cache reservation" precedent (Contact!'s `contact_master`, The Great
+  Brain Robbery's `brain_quest_var`): `tol_prog` (bits 0-4, 0..31) is the
+  real master field, confirmed authoritative (not guessed) by grepping
+  `tol_npc_efergy01_multi` / `tol_homonculus_multi` in `configs/all.npc`,
+  both `multivarbit=tol_prog` and landing Effigy's own on/off visibility and
+  the broken-cage homunculus's own visibility exactly on the values
+  quest-helper's step map implies -- confirming states 13/15 are pure
+  filler (the homunculus stays visible across 12/14/16 without a break) and
+  licensing this port's 12->16 compression with zero loss of native-visible
+  npc state. `tol_pres_prog`/`tol_pipe_prog`/`tol_cage_prog` (0=not built /
+  1=built / 2=fixed) are confirmed authoritative via `tol_pipe_machine_multi`
+  and `tol_cage_multi`'s own multiloc leaves in `configs/all.loc`, which
+  land exactly on quest-helper's own `VarbitRequirement` thresholds; the
+  pressure machine (`tol_pressure_machine01`) has no multiloc wrapper at
+  all -- the same static op1=Fix leaf serves both the build and calibrate
+  clicks, so this port dispatches on `tol_pres_prog` internally rather than
+  a model swap, same idiom quest-helper's own java uses (one ObjectStep,
+  two different Conditions gates). `tol_cage_state` doubles as
+  quest-helper's own `isTowerFixed` flag and is set the moment the cage --
+  fixed last of the three machines -- is repaired.
+  `tol_nofingers_asked` is confirmed authoritative as `hasSpokenToNoFingers`
+  both by name and by matching quest-helper's own pickpocket-gate exactly.
+  The three widget puzzles (`PuzzleSolver.java`'s `pressureSolver`/
+  `pipeSolver`/`cageSolver`, backed by real sub-varbits --
+  `tol_pres1..4_level`, `tol_pipe_piece1..5_active`, etc) have no generic
+  widget-puzzle primitive anywhere in this tree (grep-confirmed, same gap
+  every prior slice on this queue has hit), so each machine collapses into
+  one deterministic "gather materials, build, fix" beat per this queue's
+  established convention -- logic correct via the real `_prog` plateaus,
+  puzzle-widget display deferred, not invented. Quest-helper's own
+  `talkToHomunculusBasement` targets a separate dungeon region
+  (`WorldPoint(3040, 4400, 0)`, reached via the `TOL_TRAPDOOR_MULTI` loc);
+  this cache's own world spawn file
+  (`server/scripts/areas/world/configs/m41_50.spawn`) disagrees and places
+  `tol_homonculus_multi2` (the very npc `tol_homonc_pres` gates) at ground
+  level (2640, 3221, 0), inside the same map square as Effigy and the
+  builders, not any separate region -- cache wins per this queue's standing
+  rule, so this port has the final conversation happen at that native
+  ground-level spawn instead of building bespoke separate-region navigation
+  this engine's generic `~climb` (one plane, same tile) cannot reach and no
+  precedent on this queue attempts; the trapdoor itself is left as
+  unclaimed scenery (it already climbs via the generic ladder category on
+  its own, it is simply not this port's route to the final npc). All
+  floor-to-floor navigation (`tol_stairs01`/`tol_gapfill01`/
+  `area_sanguine_ghetto_ladder_up`/`_down`) was already wired generically by
+  category in `ladders_stairs/configs/ladders.loc` +
+  `scripts/ladders.rs2` -- zero content needed, confirmed by direct lookup
+  of all four names before writing anything. Black-eye's own hat riddle
+  (quest-helper's `addDialogStep` records only the three correct answers,
+  "Three"/"Torn curtains"/"10 clay pieces", no question text of its own) is
+  reproduced as an original three-question quiz using exactly those three
+  answers; the top-of-tower homunculus's fourteen-question curiosity
+  dialogue is compressed to two representative questions, same "faithful
+  compression, not omission" convention. Wiki
+  https://oldschool.runescape.wiki/w/Tower_of_Life/Quick_guide; transcript
+  declined verbatim reproduction (same as every prior slice on this queue)
+  -- dialogue is original paraphrase covering the same beats. Quest-helper's
+  own `TowerOfLife.java` (504 lines) + `PuzzleSolver.java` (517 lines, guide-
+  only client UI, no server state of its own) sum to exactly this row's own
+  1,021 lines, fetched via GitHub raw (no local checkout on this machine);
+  `tools/questhelper_extract.py toweroflife --check` exit 0 (every
+  ItemID/NpcID/ObjectID/VarbitID resolves clean, including all 20
+  puzzle-widget sub-varbits this port deliberately does not drive). `mingw32-
+  make -C src sscompile` clean (only the pre-existing snprintf-truncation
+  warnings in the compiler itself); `mingw32-make -C src mock230-scripts`
+  exit 0, 14,788 scripts compiled (up from 14,763, +25); full build log
+  grepped case-insensitively for `tol_|toweroflife` returned zero warnings
+  or errors. A manual duplicate-trigger sweep (not caught by `sscompile`,
+  which accepts duplicates silently by design per this queue's own standing
+  warning) confirmed exactly one definition tree-wide for every trigger/proc
+  header this slice authored. `tools/ss_allocate.py --tree
+  OSRS-Content/osrs239-content --check` exit 0 (no pending allocations --
+  `tol_main`/`tol_main2` are native pre-existing basevars, not something the
+  server needed to allocate). Files: `quests/quest_toweroflife/{configs/
+  toweroflife.constant, configs/toweroflife.varp, scripts/tol_{shared,start,
+  outfit,tower,homunculus}.rs2}`, and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #155 Mourning's End Part II, 1,100 lines (not yet
+  verified for staleness).
