@@ -2930,7 +2930,8 @@ ToriDraw_ProjectedModelContainsAabb(
  * `rough` picks between them at the bottom.
  *
  * `include_hidden` lifts the hidden-face filter for ground tiles, which the
- * reference picks down a different path entirely — see
+ * reference picks down a different path entirely — a path that is also exact
+ * rather than rough, so the two flags move together. See
  * ToriDraw_ProjectedTileMouseHitTest.
  */
 static bool
@@ -3066,7 +3067,10 @@ ToriDraw_ProjectedTileMouseHitTest(
     int screen_x,
     int screen_y)
 {
+    /* Exact containment, not the model test's slop — see the header. The
+     * ground pick has its own reference routine (deob class112.method4206 /
+     * Client-TS World3D.insideTriangle) and it is the strict one. */
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, /* rough */ true,
+        scene, hnd, view_port, screen_x, screen_y, /* rough */ false,
         /* include_hidden */ true);
 }

@@ -163,6 +163,49 @@ struct ToriRS_FeatureTable
      */
     int ground_click_nearest_model;
     /**
+     * Deliberate deviation from every reference, and the only field here that
+     * is a product decision rather than a revision's behaviour: 1 = when the
+     * model above finds nothing in its box, walk to the flooded tile closest
+     * to the click anyway.
+     *
+     * The references bound that search (3x3 or 21x21) and a click further out
+     * than the box does NOTHING — which is what "I clicked outside the Inferno
+     * arena and my player just stood there" is: the void ringing an instance's
+     * floor is more than ten tiles from anything walkable, so the official
+     * fallback has nothing to offer. Clicking off the walkable world should
+     * still walk you as close as the map allows, so this client says yes for
+     * every era. Clear it in the era tables to restore reference parity.
+     *
+     * Ground and minimap clicks only — an interaction click that cannot reach
+     * its target still runs the era's own model, because "walk somewhere near
+     * it and do nothing" is not what an op means.
+     */
+    int ground_click_nearest_unbounded;
+    /**
+     * Ceiling, in tiles, on how far from the local player a GROUND pick may
+     * land. A pick further out is pulled back along the line to the player
+     * until it sits exactly this far away. 0 = no ceiling.
+     *
+     * Deob class112.method4269, which is where the rev-239 client records the
+     * tile a ground hittest landed on:
+     *
+     *     int var12 = (int) Math.hypot(var7 - var1, var8 - var2) - 70;
+     *     if (var12 > 0) {
+     *         var4 = (var7 * var12 + var1 * 70) / (var12 + 70);
+     *         var5 = (var8 * var12 + var2 * 70) / (var12 + 70);
+     *     }
+     *
+     * var7/var8 are the local player's tile, var1/var2 the hit tile: the
+     * weights put the result at distance exactly 70. It is guarded by the
+     * view's own flag and `isTopLevel()`, i.e. only the main world view, which
+     * is the only view this client has.
+     *
+     * 0 for the classic eras on purpose — the 2004 client stores the hit tile
+     * verbatim (Client-TS `World.groundX = tileX`), so a ceiling there would
+     * be an invention.
+     */
+    int ground_click_clamp_tiles;
+    /**
      * 0 = asymmetric LoS (2004 / LostCity / live PvM): A can range B while B
      * cannot range back. 1 = modern symmetric LoS for *player-vs-player only*
      * (the 29 Aug 2019 LMS update): los(a→b) && los(b→a). PvM stays asymmetric
@@ -242,6 +285,40 @@ struct ToriRS_FeatureTable
      * all land within a few ticks of each other.
      */
     int effects_monophonic;
+
+    /* --- interface settings ---------------------------------------------- */
+
+    /**
+     * The varbit carrying the player's "interface resizing" setting, or 0 for
+     * an era that has no such setting (the classic default: 2004 has no
+     * resizable mode at all).
+     *
+     * This is a *client* setting — the settings panel toggles it with
+     * `setvarbit` (clientscript 3965 case 442) and no server transmits it — so
+     * an unseeded client comes up with it at 0, which is not what a real
+     * account looks like and is not a neutral value.
+     *
+     * It decides where every main modal is drawn. `~script7925` gates the
+     * cache's interface-window helper on it, and the branch it selects places
+     * the modal's panel inside the modal's own root two different ways:
+     *
+     *   on  — clamp the saved default box to the host
+     *         (`max(0, min(%varcint1170, host_w - %varcint1168))`), which
+     *         collapses to (0,0) when the host is the 512x334 mainmodal slot,
+     *         i.e. the panel lands exactly on the slot.
+     *   off — `if_setposition(if_getx(mainmodal), if_gety(mainmodal), 0, 0, …)`,
+     *         which is the slot's own *parent-relative* origin. In resizable
+     *         mode the slot is centred in `hud_container_front`, so that adds
+     *         the centring offset a second time and every modal drifts down and
+     *         right by half the chrome insets (+374,+219 at 1511x938) — out
+     *         from under the dimmer hole clientscript 910 paints for it.
+     *
+     * Off is only self-consistent where the slot's relative origin is (0,0),
+     * which is why the same proc also returns 0 for fixed window mode and for
+     * mobile. Stating it here rather than in app.c because the id is a lineage
+     * fact: rev 230's varbit table stops at 17425, so the seed no-ops there.
+     */
+    int varbit_interface_resizing;
 };
 
 /* Era getters (static singletons, like the rev tables). */

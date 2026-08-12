@@ -903,12 +903,25 @@ RS_Minimenu_AddWorldRows(
         }
         else
         {
-            UIMinimenu_AddOption(
-                menu,
-                "Walk here",
-                REVCONFIG_MINIMENU_WALK,
-                0,
-                (struct UIMinimenuPick){ .kind = UI_MINIMENU_PICK_NONE });
+            /*
+             * Nothing under the cursor drew any ground: the sky, the void
+             * around an instance's floor, or a tile the pick's level filter
+             * refused. The row is offered either way (the reference always
+             * offers it), but it only carries a destination when the caller
+             * resolved one — see ground_fallback_valid. Without it the row is
+             * inert and the click walks nowhere, which is the reference
+             * behaviour and what a click on the sky does.
+             */
+            struct UIMinimenuPick pick = { .kind = UI_MINIMENU_PICK_NONE };
+            if( ctx->ground_fallback_valid )
+            {
+                pick.kind = UI_MINIMENU_PICK_TERRAIN;
+                pick.id = -1; /* no scene element — this tile was not picked */
+                pick.secondary_id = ctx->ground_fallback_x;
+                pick.tertiary_id = ctx->ground_fallback_z;
+                pick.quaternary_id = ctx->ground_fallback_level;
+            }
+            UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
         }
     }
 

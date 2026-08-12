@@ -1762,8 +1762,13 @@ mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out)
 void
 mock230_scene_ground_nearest_opts(struct CollisionNearestOpts* out)
 {
+    struct ToriRS_FeatureTable const* features = mock230_scene_features();
+
     assert(out);
-    collision_nearest_opts_from_model(mock230_scene_features()->ground_click_nearest_model, out);
+    collision_nearest_opts_from_model(features->ground_click_nearest_model, out);
+    /* The click landed where no route can end: walk as close as the flood got
+     * rather than not at all. Ground/minimap only — see the field. */
+    out->unbounded = features->ground_click_nearest_unbounded;
 }
 
 static void

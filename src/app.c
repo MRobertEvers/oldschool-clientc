@@ -5028,6 +5028,28 @@ Task_AppBoot_Run(
             RS_CS2_VARP_AREA_VOLUME,
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_AREA_VOLUME));
 
+    /*
+     * Seed the "interface resizing" setting, for the same reason and with the
+     * same precedence as the four volumes above: it is a client setting nobody
+     * transmits, and the zero SetVarbitTypes leaves behind is a value, not an
+     * absence.
+     *
+     * Which era owns the id — and the whole account of what the two branches do
+     * — is in features.h. In short: at zero the cache's interface-window helper
+     * (clientscript 1898, and 1904 for the skill guide) positions a modal's
+     * panel at `if_getx/if_gety(mainmodal)`, the slot's *parent-relative*
+     * origin, inside the modal's own root. In resizable mode the slot is
+     * centred in `hud_container_front`, so that applies the centring offset
+     * twice and every main modal sits down-and-right of the hole clientscript
+     * 910 dims for it, half-under the sidebar and the chatbox.
+     *
+     * Optimistic, before the tree is built, and overridable by a server VARP —
+     * all three for the reasons stated above the volumes.
+     */
+    if( app->features->varbit_interface_resizing > 0 )
+        VarPManager_SetVarbitOptimistic(
+            &app->varps, app->features->varbit_interface_resizing, 1);
+
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
      * Skipped when networked, for the same reason [ui:gameframe] is. */
@@ -7682,6 +7704,110 @@ app_world_mouse_gate(
            mouse_y < clip->y + clip->h;
 }
 
+/*
+ * Ground-click fallback: the closest walkable-level tile to a click that hit no
+ * terrain at all.
+ *
+ * Picking happens during rasterisation — a tile registers a hit only if it
+ * DREW and the click landed inside one of its two triangles (torirs_pick.c,
+ * reference World.ts insideTriangle -> World.groundX). So a click on the sky,
+ * on the void outside an instance's floor (the Inferno arena is ringed by it),
+ * or on a tile the level filter refuses leaves the pickset with no terrain
+ * item, and "Walk here" is emitted with no destination. The reference drops
+ * that click outright; we resolve it to the nearest tile instead, which is
+ * what the player meant — the router's own unreachable fallback
+ * (features->ground_click_nearest_model, client-side or server-side depending
+ * on pathing_mode) then closes whatever gap is left.
+ *
+ * "Nearest" is measured in SCREEN space against the tile centres, using the
+ * same camera the frame was drawn with: the tile that looks closest to the
+ * cursor is the one the click meant, and that stays true above the horizon
+ * (where no ground plane intersection exists) and over sloped ground.
+ *
+ * Only tiles that carry terrain are candidates, so the void never becomes a
+ * destination; levels above the player's are excluded for the same reason the
+ * pick classifier excludes them (that is a roof you are standing under).
+ * Called once per world click — never per frame — because a full scene sweep
+ * costs two divides a tile.
+ */
+static int
+app_world_nearest_ground_tile(
+    struct App* app,
+    int click_x,
+    int click_y,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct World* world = app->world;
+    struct WorldEntity_Player* player;
+    int max_level, level;
+    /* 64-bit: a tile just past the near plane projects thousands of screen
+     * widths out, and the square of that does not fit in an int. */
+    long long best_d2 = LLONG_MAX;
+
+    if( !world || !world->load_complete || !app->world_view_valid )
+        return 0;
+
+    player = app_local_player(app);
+    max_level = player ? player->grid_position.level : 0;
+    if( max_level < 0 )
+        max_level = 0;
+    if( max_level >= WORLD_MAP_TERRAIN_LEVELS )
+        max_level = WORLD_MAP_TERRAIN_LEVELS - 1;
+
+    /* Descending, with a strict improvement test, so the player's own level
+     * wins a tie against the bridge deck / VIS_BELOW tile drawn beneath it. */
+    for( level = max_level; level >= 0; level-- )
+    {
+        for( int x = 0; x < world->_scene_size; x++ )
+        {
+            for( int z = 0; z < world->_scene_size; z++ )
+            {
+                int fine_x, fine_z, sx, sy;
+                long long dx, dy, d2;
+
+                if( World_TerrainElementAt(world, x, z, level) < 0 )
+                    continue;
+                fine_x = x * 128 + 64;
+                fine_z = z * 128 + 64;
+                if( !app_world_project_at(
+                        app,
+                        fine_x,
+                        fine_z,
+                        app_world_height(app, fine_x, fine_z, level),
+                        &sx,
+                        &sy) )
+                    continue; /* behind the near plane */
+                dx = sx - click_x;
+                dy = sy - click_y;
+                d2 = dx * dx + dy * dy;
+                if( d2 < best_d2 )
+                {
+                    best_d2 = d2;
+                    *out_x = x;
+                    *out_z = z;
+                    *out_level = level;
+                }
+            }
+        }
+    }
+
+    if( best_d2 == LLONG_MAX )
+        return 0;
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
+            click_x,
+            click_y,
+            *out_x,
+            *out_z,
+            *out_level,
+            best_d2);
+    return 1;
+}
+
 /* Reference Client.tryMove for ground (type 0) / minimap (type 1) clicks:
  * BFS route on the local player's level from the player's final route tile
  * (routeX[0]) to the clicked scene tile with the era's unreachable fallback
@@ -7733,6 +7859,40 @@ app_try_move(
         return 0;
     }
 
+    /*
+     * The era's ceiling on how far a GROUND pick may be from the player
+     * (features->ground_click_clamp_tiles). Deob class112.method4269 applies
+     * it where the hittest records the tile; this client applies it where the
+     * recorded tile is spent, which is the same tile — our pick has no
+     * `field1664` of its own to rewrite, and the minimap click (type 1) must
+     * not be caught by it, since the reference computes that tile from the
+     * minimap's own geometry and never routes it through method4269.
+     */
+    if( type == 0 && app->features->ground_click_clamp_tiles > 0 )
+    {
+        int clamp = app->features->ground_click_clamp_tiles;
+        int px = (int)player->draw_position.x >> 7;
+        int pz = (int)player->draw_position.z >> 7;
+        int dx = px - dst_x;
+        int dz = pz - dst_z;
+        /* (int) Math.hypot(...) - clamp: truncated, so a tile at exactly the
+         * ceiling is left alone. */
+        int over = (int)sqrt((double)(dx * dx + dz * dz)) - clamp;
+
+        if( over > 0 )
+        {
+            int clamped_x = (px * over + dst_x * clamp) / (over + clamp);
+            int clamped_z = (pz * over + dst_z * clamp) / (over + clamp);
+            if( getenv("TORIRS_NET_DEBUG") )
+                fprintf(
+                    stderr,
+                    "groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
+                    dst_x, dst_z, clamped_x, clamped_z, px, pz, over, clamp);
+            dst_x = clamped_x;
+            dst_z = clamped_z;
+        }
+    }
+
     level = player->grid_position.level;
     if( level < 0 )
         level = 0;
@@ -7756,6 +7916,8 @@ app_try_move(
 
         collision_nearest_opts_from_model(
             app->features->ground_click_nearest_model, &nearest_opts);
+        /* Ground/minimap clicks only — see the field. */
+        nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
         route_len = collision_map_try_route(
             cm,
             player->pathing.route_x[0],
@@ -12015,6 +12177,36 @@ app_hover_text_update(
         app->need_redraw = 1;
 }
 
+/*
+ * Give "Walk here" a destination when this click's pickset holds no terrain.
+ *
+ * Only the click paths call this: resolving the tile sweeps the scene, and the
+ * hover-text builder runs the same menu every frame for a row whose text does
+ * not depend on the tile. A pickset that DOES hold terrain is left alone — the
+ * row targets the picked tile there, exactly as before.
+ */
+static void
+app_minimenu_ctx_ground_fallback(
+    struct App* app,
+    struct RS_MinimenuBuildCtx* mctx,
+    int click_x,
+    int click_y)
+{
+    int x = 0, z = 0, level = 0;
+
+    if( !mctx->click_in_world || !mctx->world_pickset )
+        return;
+    for( int i = 0; i < mctx->world_pickset->count; i++ )
+        if( mctx->world_pickset->items[i].type == WORLD_PICK_TERRAIN )
+            return;
+    if( !app_world_nearest_ground_tile(app, click_x, click_y, &x, &z, &level) )
+        return;
+    mctx->ground_fallback_valid = true;
+    mctx->ground_fallback_x = x;
+    mctx->ground_fallback_z = z;
+    mctx->ground_fallback_level = level;
+}
+
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
@@ -12048,6 +12240,7 @@ app_minimenu_open(
     int content_w = 0;
     int line_box = 0;
 
+    app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
@@ -13354,6 +13547,12 @@ app_minimenu_run_option(
         }
         return 0;
     }
+    case UI_MINIMENU_PICK_NONE:
+        /* Cancel, and the "Walk here" row of a click that hit no terrain and
+         * for which no fallback tile could be resolved (no world loaded, no
+         * viewport, a scene with no ground at all). Nothing to run — not an
+         * unhandled kind, so it must not warn. */
+        return 0;
     default:
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
@@ -14221,6 +14420,8 @@ App_RunOnce(
 
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
+        app_minimenu_ctx_ground_fallback(
+            app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )

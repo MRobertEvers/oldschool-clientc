@@ -405,6 +405,36 @@ test_hidden_tile_faces_still_pick(void)
     CHECK(pick_tile(10, 10), "as a tile face, hidden must still pick");
 }
 
+/*
+ * The ground pick is exact containment, where the model pick is the 5px-slop
+ * bounding box. Same triangle, same click, opposite answers: (30,30) is inside
+ * the bbox of (0,0),(40,0),(0,40) but past the hypotenuse.
+ *
+ * Reference: the tile click test is class155 -> class112.method3946 ->
+ * method4206 (bbox reject, then the three edge signs), and Client-TS
+ * World3D.insideTriangle. Only Model.draw carries the slop.
+ *
+ * Not a detail: tiles tile the plane, so a slop of 5 makes one click match the
+ * neighbouring tiles as well, and the winner becomes whichever of them the
+ * painter drew last instead of the one under the cursor.
+ */
+static void
+test_tile_pick_is_containment_not_bbox(void)
+{
+    fixture_reset();
+    int a = add_vertex(0, 0);
+    int b = add_vertex(40, 0);
+    int c = add_vertex(0, 40);
+    add_face(a, b, c);
+
+    CHECK(pick(30, 30), "as a model face, the bbox corner picks");
+    CHECK(!pick_tile(30, 30), "as a tile face, past the hypotenuse must miss");
+    CHECK(pick_tile(10, 10), "a point genuinely inside the tile still picks");
+    /* The slop is what would carry a click 5px beyond the edge onto this
+     * triangle; on a tile nothing does. */
+    CHECK(!pick_tile(43, 2), "3px past the tile's edge must miss");
+}
+
 /* Everything else the tile pick inherits unchanged — an invisible tile must not
  * become a click sponge for geometry that was never under the cursor. */
 static void
@@ -452,6 +482,7 @@ main(void)
     test_all_hidden_model();
     test_missing_colour_channel_picks_every_face();
     test_hidden_tile_faces_still_pick();
+    test_tile_pick_is_containment_not_bbox();
     test_tile_pick_keeps_the_other_gates();
 
     if( g_failures )

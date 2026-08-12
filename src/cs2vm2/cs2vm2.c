@@ -5932,21 +5932,6 @@ CS2VM2_Op_GetCanvasSize(
 }
 
 int
-CS2VM2_Op_ViewPortGetEffectiveSize(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
-{
-    assert(vm);
-    assert(frame);
-    (void)operand;
-
-    if( CS2VM2_PushInt(vm, vm->canvas_w) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-    return CS2VM2_PushInt(vm, vm->canvas_h);
-}
-
-int
 CS2VM2_Op_GetWindowMode(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -9599,11 +9584,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_LoginInt24(vm, frame, operand);
     case CS2_OP_GETCANVASSIZE:
         return CS2VM2_Op_GetCanvasSize(vm, frame, operand);
-    case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
-        return CS2VM2_Op_ViewPortGetEffectiveSize(vm, frame, operand);
-    /* SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM (6200..6205, GETEFFECTIVESIZE
-     * excluded) all route through the host so a SET/CLAMP round-trips through
-     * the matching GET; see CS2VM2_Op_Viewport. */
+    /* All of 6200..6205 route through the host so a SET/CLAMP round-trips
+     * through the matching GET; see CS2VM2_Op_Viewport. GETEFFECTIVESIZE joins
+     * them because its answer is the viewport WIDGET's box put through the
+     * CLAMPFOV letterbox, and only the host can reach either. */
     case CS2_OP_VIEWPORT_SETFOV:
     case CS2_OP_VIEWPORT_SETZOOM:
         return CS2VM2_Op_Viewport(vm, opcode, 2);
@@ -9611,6 +9595,7 @@ CS2VM2_RunOp(
         return CS2VM2_Op_Viewport(vm, opcode, 4);
     case CS2_OP_VIEWPORT_GETZOOM:
     case CS2_OP_VIEWPORT_GETFOV:
+    case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
         return CS2VM2_Op_Viewport(vm, opcode, 0);
     /* UI zoom (6210..6214): SET pops a value, GET/RESET/GETDEFAULT pop nothing. */
     case CS2_OP_UIZOOM_SET:

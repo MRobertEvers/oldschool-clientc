@@ -710,10 +710,6 @@ RS_CS2Host_Init(
     host->logout_requested = false;
     host->close_modal_requested = false;
     host->resume_pausebutton_component_id = -1;
-    /* Preserve what VIEWPORT_GETFOV/GETZOOM returned before they were
-     * host-routed (cs2_host_ui.c defaults for fixed-layout clients). */
-    host->viewport_fov = 128;
-    host->viewport_fov_max = 896;
     /* Orbit-distance zoom endpoints (reference client.field780/field747, set at
      * client.java:4264). These are read by the follow camera every cycle, so the
      * defaults have to be the reference's, not the old GETZOOM placeholders —
@@ -721,11 +717,18 @@ RS_CS2Host_Init(
      * and stretched it 3.5x at a tall one. */
     host->viewport_zoom = 256;
     host->viewport_zoom_max = 320;
-    /* Reference default for the interpolation endpoints (class159 reads them
-     * before any SETFOV has run). Written here, read only by the env-gated
-     * TORIRS_WEDGE_SCALE path — nothing in the default build looks at them. */
+    /* Reference default for the interpolation endpoints (class159.method5357
+     * and VIEWPORT_GETEFFECTIVESIZE read them before any SETFOV has run). */
     host->viewport_zoom_near = 256;
     host->viewport_zoom_far = 256;
+    /* The reference's own "unset" values for the two CLAMPFOV ranges, which is
+     * also what `viewport_clampfov(0, 0, 0, 0)` restores. Not zero: zero is
+     * outside both ranges and would letterbox the viewport away before any
+     * script had asked for a clamp. */
+    host->viewport_fov_min = 1;
+    host->viewport_fov_max_clamp = 32767;
+    host->viewport_aspect_min = 1;
+    host->viewport_aspect_max = 32767;
     host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
@@ -1964,6 +1967,89 @@ rs_cs2_viewport_zoom_decode(int arg)
     return zoom > 0 ? zoom : 256;
 }
 
+/* Statics.method9013, the inverse VIEWPORT_GETFOV answers with. Lossy against
+ * the decode above, which is the reference's behaviour and not a rounding bug
+ * here: 220 decodes to 232 and encodes back to 219. */
+static int
+rs_cs2_viewport_zoom_encode(int zoom)
+{
+    if( zoom <= 0 )
+        return 0;
+    return (int)((log((double)zoom) / log(2.0) - 7.0) * 256.0);
+}
+
+/*
+ * class159.method5357's sizing half — the reference's "effective viewport".
+ *
+ * Given the viewport widget's box it interpolates the FOV over the widget's
+ * HEIGHT (the two SETFOV endpoints, over the 100px band above the fixed frame's
+ * 334), forms `height * fov * 512 / (width * 334)`, and letterboxes whichever
+ * axis is needed to pull that back inside the CLAMPFOV range: too small and the
+ * sides are cut, too large and the top and bottom are. What remains is what
+ * VIEWPORT_GETEFFECTIVESIZE answers.
+ *
+ * The reference also paints the cut bands black and stores the rect in
+ * client.field811/897/813/837; opcode 6203 passes `false` for the drawing and
+ * this client's renderer owns its own viewport rect, so only the size is
+ * reproduced here.
+ *
+ * The integer division in the interpolation is the reference's, not a
+ * simplification: field976/field801 are shorts and the expression truncates
+ * before it is widened.
+ */
+static void
+rs_cs2_viewport_effective_size(
+    struct RS_CS2Host const* host,
+    int width,
+    int height,
+    int* out_width,
+    int* out_height)
+{
+    if( width < 1 )
+        width = 1;
+    if( height < 1 )
+        height = 1;
+
+    int const band = height - 334;
+    double fov;
+    if( band < 0 )
+        fov = host->viewport_zoom_near;
+    else if( band >= 100 )
+        fov = host->viewport_zoom_far;
+    else
+        fov = ((host->viewport_zoom_far - host->viewport_zoom_near) * band) / 100 +
+              host->viewport_zoom_near;
+
+    double const aspect = height * fov * 512.0 / (width * 334);
+    if( aspect < host->viewport_aspect_min )
+    {
+        double const floor_aspect = host->viewport_aspect_min;
+        fov = width * floor_aspect * 334.0 / (height * 512);
+        if( fov > host->viewport_fov_max_clamp )
+        {
+            fov = host->viewport_fov_max_clamp;
+            double const visible = height * fov * 512.0 / (floor_aspect * 334.0);
+            int const cut = (int)((width - visible) / 2.0);
+            width -= cut * 2;
+        }
+    }
+    else if( aspect > host->viewport_aspect_max )
+    {
+        double const ceil_aspect = host->viewport_aspect_max;
+        fov = width * ceil_aspect * 334.0 / (height * 512);
+        if( fov < host->viewport_fov_min )
+        {
+            fov = host->viewport_fov_min;
+            double const visible = width * ceil_aspect * 334.0 / (fov * 512.0);
+            int const cut = (int)((height - visible) / 2.0);
+            height -= cut * 2;
+        }
+    }
+
+    *out_width = width;
+    *out_height = height;
+}
+
 static int
 exec_viewport(
     struct RS_CS2Host* host,
@@ -1973,12 +2059,8 @@ exec_viewport(
     switch( request.opcode )
     {
     case CS2_OP_VIEWPORT_SETFOV:
-        host->viewport_fov = request.args[0];
-        host->viewport_fov_max = request.args[1];
-        /* Also keep the decoded near/far zoom endpoints (Statics.method5659).
-         * The raw pair above is what GETFOV must answer; these are what
-         * class159.method5357 actually projects with. Nothing in the default
-         * build reads them — see the TORIRS_WEDGE_SCALE gate in app.c. */
+        /* Reference Statics.method6341 case 6200: only the DECODED endpoints are
+         * kept (Statics.method5659), each falling back to 256. */
         host->viewport_zoom_near = rs_cs2_viewport_zoom_decode(request.args[0]);
         host->viewport_zoom_far = rs_cs2_viewport_zoom_decode(request.args[1]);
         if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
@@ -1990,10 +2072,12 @@ exec_viewport(
         return CS2VM_EXECNO_OK;
     case CS2_OP_VIEWPORT_GETFOV:
     {
-        int result = CS2VM2_PushInt(thread, host->viewport_fov);
+        /* Case 6205 re-encodes with Statics.method9013 rather than answering
+         * the arguments SETFOV was given — see the field note in the header. */
+        int result = CS2VM2_PushInt(thread, rs_cs2_viewport_zoom_encode(host->viewport_zoom_near));
         if( result != CS2VM_EXECNO_OK )
             return result;
-        return CS2VM2_PushInt(thread, host->viewport_fov_max);
+        return CS2VM2_PushInt(thread, rs_cs2_viewport_zoom_encode(host->viewport_zoom_far));
     }
     case CS2_OP_VIEWPORT_SETZOOM:
         /* Reference Statics.method6341 case 6201: the two args are the NEAR and
@@ -2012,16 +2096,59 @@ exec_viewport(
     }
     case CS2_OP_VIEWPORT_CLAMPFOV:
     {
-        int value = request.args[0];
-        int min = request.args[1];
-        int max = request.args[2];
-        if( value < min )
-            value = min;
-        if( value > max )
-            value = max;
-        host->viewport_fov = value;
-        host->viewport_fov_max = max;
+        /* Reference Statics.method6341 case 6202. Two independent ranges, each
+         * argument defaulting when <= 0 and each maximum raised to its own
+         * minimum. It deliberately leaves the FOV alone; the old code here read
+         * the four as value/min/max, clamped viewport_fov with them and dropped
+         * the fourth, which made GETFOV answer the clamp instead of SETFOV and
+         * left method5357 with no bounds to letterbox against at all. */
+        host->viewport_fov_min = request.args[0] > 0 ? request.args[0] : 1;
+        host->viewport_fov_max_clamp = request.args[1] > 0 ? request.args[1] : 32767;
+        if( host->viewport_fov_max_clamp < host->viewport_fov_min )
+            host->viewport_fov_max_clamp = host->viewport_fov_min;
+        host->viewport_aspect_min = request.args[2] > 0 ? request.args[2] : 1;
+        host->viewport_aspect_max = request.args[3] > 0 ? request.args[3] : 32767;
+        if( host->viewport_aspect_max < host->viewport_aspect_min )
+            host->viewport_aspect_max = host->viewport_aspect_min;
         return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_VIEWPORT_GETEFFECTIVESIZE:
+    {
+        /*
+         * Reference Statics.method6341 case 6203: the size of the VIEWPORT
+         * WIDGET (client.field6268 — the clientCode-1337 layer, which
+         * method3791 latches while it lays the tree out), run through
+         * method5357's letterbox. Not the canvas: at rev 239 the resizable
+         * gameframe hands the world a container 42px narrower than the window
+         * to leave room for the right-hand icon strip, and answering the canvas
+         * made toplevel_resize size interface_161:92/94 to the full window and
+         * centre them inside that narrower parent — a 21px left shift that
+         * every descendant inherited, the modal slot included.
+         *
+         * -1,-1 when the open interface has no viewport at all, which is the
+         * reference's answer and not an error.
+         */
+        struct UITree* tree = rs_cs2_tree(host);
+        int32_t const idx = tree ? tree->world_index : -1;
+        int width = -1;
+        int height = -1;
+
+        if( idx >= 0 && (uint32_t)idx < tree->component_count )
+        {
+            struct UITreeComponent const* c;
+            /* The reference reads the widget mid-layout, so its box is current
+             * by construction; here a script can ask between a set and the next
+             * resolve. */
+            UITree_EnsureLayoutFor(tree, idx);
+            c = &tree->components[idx];
+            rs_cs2_viewport_effective_size(
+                host, c->position.abs_w, c->position.abs_h, &width, &height);
+        }
+
+        int result = CS2VM2_PushInt(thread, width);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+        return CS2VM2_PushInt(thread, height);
     }
     default:
         fprintf(stderr, "exec_viewport: unhandled opcode %d\n", request.opcode);

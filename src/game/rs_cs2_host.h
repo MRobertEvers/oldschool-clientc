@@ -367,11 +367,6 @@ struct RS_CS2Host
      *  by the App through button_sink.resume_pausebutton. */
     int resume_pausebutton_component_id;
 
-    /** Viewport FOV/zoom, backing VIEWPORT_SETFOV/SETZOOM/CLAMPFOV/GETFOV/GETZOOM.
-     *  Host-owned so SET/CLAMP round-trips through the matching GET; defaults
-     *  match the values these getters returned before they were host-routed. */
-    int viewport_fov;
-    int viewport_fov_max;
     /** VIEWPORT_SETZOOM/GETZOOM (6201/6204) = reference client.field780 and
      *  field747: the NEAR and FAR endpoints of the FOLLOW CAMERA'S ORBIT
      *  DISTANCE, interpolated over the world viewport height the same way
@@ -385,11 +380,40 @@ struct RS_CS2Host
      *  decodes them (Statics.method5659: (int)pow(2, arg/256 + 7), falling back
      *  to 256 when that is <= 0). They are the NEAR and FAR endpoints of a zoom
      *  interpolated over the world viewport HEIGHT in class159.method5357, not a
-     *  value/max pair — see docs/ORANGE_WEDGE.md 2. Stored alongside the raw
-     *  args (which GETFOV must keep answering); read only by the env-gated
-     *  TORIRS_WEDGE_SCALE experiment in app.c. */
+     *  value/max pair — see docs/ORANGE_WEDGE.md 2.
+     *
+     *  This decoded pair is the ONLY thing the reference stores (client.field976
+     *  / field801); GETFOV re-encodes it with Statics.method9013 rather than
+     *  answering the raw arguments, so the round trip is deliberately lossy —
+     *  `viewport_setfov(512, 220)` reads back as 512, 219. Keeping the raw args
+     *  beside these to answer GETFOV exactly would be a nicer API and a
+     *  divergence, and CLAMPFOV used to overwrite them, which made GETFOV report
+     *  the clamp instead of the FOV.
+     *
+     *  Read by the env-gated TORIRS_WEDGE_SCALE experiment in app.c and by
+     *  rs_cs2_viewport_effective_size. */
     int viewport_zoom_near;
     int viewport_zoom_far;
+
+    /**
+     * VIEWPORT_CLAMPFOV's four arguments (reference client.field804 / field805
+     * / field1040 / field810, set by Statics.method6341 case 6202).
+     *
+     * They are two independent ranges, not a value/min/max: the first pair
+     * bounds the interpolated FOV and the second bounds
+     * `height * fov * 512 / (width * 334)`, the quantity class159.method5357
+     * letterboxes on. CLAMPFOV does NOT touch the FOV itself — GETFOV keeps
+     * answering whatever SETFOV last stored.
+     *
+     * Each argument falls back to the reference's default when <= 0 (1 for a
+     * minimum, 32767 for a maximum), and each maximum is raised to its own
+     * minimum. `viewport_clampfov(0, 0, 0, 0)` — what toplevel_resize sends for
+     * the ordinary camera — therefore means "no clamp at all".
+     */
+    int viewport_fov_min;
+    int viewport_fov_max_clamp;
+    int viewport_aspect_min;
+    int viewport_aspect_max;
 
     /** UI zoom, backing UIZOOM_SET/GET/RESET (GETDEFAULT is a fixed constant,
      *  not read from here). Host-owned so it round-trips like the other

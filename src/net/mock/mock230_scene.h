@@ -275,7 +275,8 @@ mock230_scene_op_nearest_opts(struct CollisionNearestOpts* out);
  *  `ground_click_nearest_model`, resolved through
  *  collision_nearest_opts_from_model. This is the whole of "the click was
  *  unreachable, walk as close as you can" for a modern client, which sends the
- *  clicked tile and never routes. */
+ *  clicked tile and never routes — plus `ground_click_nearest_unbounded`, this
+ *  client's answer for a click the era's box cannot reach at all. */
 void
 mock230_scene_ground_nearest_opts(struct CollisionNearestOpts* out);
 
