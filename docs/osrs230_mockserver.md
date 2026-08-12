@@ -1086,6 +1086,20 @@ roster is built from the map squares in walk order, so a slot number is a
 different npc between runs) and `::fight` with no argument takes the nearest
 attackable npc.
 
+`::give <item_name> [count]` is the same idea for items — `::give
+scythe_of_vitur`, `::give coins 100000`, `::give rune_platebody 2`. The argument
+resolves in four steps, most specific first: a bare number (so `::item`'s
+argument still works), the cache's own gameval out of `configs/all.obj.compack`
+(already underscored — `scythe_of_vitur` is 22325), the *display* name
+underscored the same way (which keeps the command working against a cache whose
+gamevals were never packed), and finally a **unique** substring of a gameval.
+Unique is the rule: two matches is an ambiguous request, so the command names the
+candidates and adds nothing rather than picking whichever the scan reached first.
+The add goes through `mock230_container_add`, so a stackable merges onto the
+stack already held; unstackables are added one unit at a time, because the shared
+`Inventory.add` puts a whole count in one slot and five platebodies are not a
+stack of five.
+
 ## 3.11g The emotes tab, and how a dynamic child is addressed
 
 The emotes tab is entirely client-built. Interface 216's onload (clientscript

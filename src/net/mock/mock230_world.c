@@ -5368,6 +5368,15 @@ cheat_obj_from_name(
                      used ? ", " : "", name);
         }
     }
+    /* Say how many were left out. A list that stops at six reads as the whole
+     * answer, and "which of these six" is a different question from "which of
+     * these two hundred" — the second means narrow the search, not choose. */
+    if( matches > 6 && suggest && suggest_size )
+    {
+        size_t used = strlen(suggest);
+
+        snprintf(suggest + used, suggest_size - used, " (+%d more)", matches - 6);
+    }
     if( matches == 1 )
     {
         if( suggest && suggest_size )
@@ -20856,6 +20865,120 @@ mock230_world_selftest(void)
             memcpy(who->worn, worn_before, sizeof(worn_before));
             memcpy(who->stat_level, level_before, sizeof(level_before));
             memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
+        }
+
+        /*
+         * `::give <name> [count]`, through the same CLIENT_CHEAT payload shape.
+         *
+         * Four things this asserts that a "did it add something" check cannot:
+         * that a gameval spelling reaches the id the pack holds, that a
+         * stackable merges rather than taking a second slot, that an
+         * unstackable takes one slot *per unit* (the shared `Inventory.add`
+         * would put all three in one, which is why the branch loops), and that
+         * an ambiguous or unknown name adds nothing at all. The last is the one
+         * worth having: a cheat that silently gives the wrong item is worse
+         * than one that refuses.
+         */
+        {
+            struct Mock230Player* who = srv.active_player;
+            struct Mock230Item inv_before[MOCK230_INV_SLOTS];
+            static const uint8_t give_scythe[] = "~give scythe_of_vitur\n";
+            static const uint8_t give_coins[] = "~give coins 100\n";
+            static const uint8_t give_coins_more[] = "~give coins 50\n";
+            static const uint8_t give_swords[] = "~give bronze_sword 3\n";
+            static const uint8_t give_numeric[] = "~give 995 7\n";
+            static const uint8_t give_unknown[] = "~give nosuchitemname 1\n";
+            static const uint8_t give_ambiguous[] = "~give of_vitur 1\n";
+            int scythe = mock230_content_symbol(MOCK230_PACK_OBJ, "scythe_of_vitur");
+            int coins = mock230_content_symbol(MOCK230_PACK_OBJ, "coins");
+            int sword = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_sword");
+            char suggest[256];
+            int slots_used;
+            int total;
+
+            memcpy(inv_before, who->inv, sizeof(inv_before));
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(who, i, -1, 0);
+
+            SELFTEST_CHECK(scythe > 0 && coins > 0 && sword > 0,
+                           "the three names ::give is asserted on must be in the obj pack");
+
+            handle_cheat(&srv, give_scythe, (int)sizeof(give_scythe) - 1);
+            SELFTEST_CHECK(selftest_find(who, scythe) >= 0,
+                           "::~give scythe_of_vitur puts obj %d in the backpack", scythe);
+
+            handle_cheat(&srv, give_coins, (int)sizeof(give_coins) - 1);
+            handle_cheat(&srv, give_coins_more, (int)sizeof(give_coins_more) - 1);
+            slots_used = 0;
+            total = 0;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                if( who->inv[i].obj_id != coins )
+                    continue;
+                slots_used++;
+                total += who->inv[i].count;
+            }
+            SELFTEST_CHECK(slots_used == 1 && total == 150,
+                           "a stackable merges: 100 then 50 coins is one slot of 150, "
+                           "got %d slots totalling %d",
+                           slots_used, total);
+
+            handle_cheat(&srv, give_swords, (int)sizeof(give_swords) - 1);
+            slots_used = 0;
+            total = 0;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                if( who->inv[i].obj_id != sword )
+                    continue;
+                slots_used++;
+                total += who->inv[i].count;
+            }
+            SELFTEST_CHECK(slots_used == 3 && total == 3,
+                           "an unstackable takes one slot per unit, got %d slots "
+                           "totalling %d",
+                           slots_used, total);
+
+            /* A bare id still works — `::item`'s argument, through `::give`. */
+            handle_cheat(&srv, give_numeric, (int)sizeof(give_numeric) - 1);
+            total = 0;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( who->inv[i].obj_id == 995 )
+                    total += who->inv[i].count;
+            SELFTEST_CHECK(coins != 995 || total == 157,
+                           "::~give 995 7 adds to the same coin stack, total %d", total);
+
+            /* Neither miss may add anything: `of_vitur` names several objs and
+             * `nosuchitemname` names none. */
+            slots_used = 0;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( who->inv[i].obj_id >= 0 )
+                    slots_used++;
+            handle_cheat(&srv, give_unknown, (int)sizeof(give_unknown) - 1);
+            handle_cheat(&srv, give_ambiguous, (int)sizeof(give_ambiguous) - 1);
+            total = 0;
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                if( who->inv[i].obj_id >= 0 )
+                    total++;
+            SELFTEST_CHECK(total == slots_used,
+                           "an unknown or ambiguous name gives nothing, %d slots -> %d",
+                           slots_used, total);
+
+            /* The resolver's own contract, where the command can only show the
+             * outcome: exact beats substring, and an ambiguous substring hands
+             * back candidates instead of picking one. */
+            SELFTEST_CHECK(cheat_obj_from_name("scythe_of_vitur", NULL, 0) == scythe,
+                           "an exact gameval wins over the substrings that contain it");
+            SELFTEST_CHECK(cheat_obj_from_name("Bronze sword", NULL, 0) == sword,
+                           "a display name underscores to the same answer");
+            suggest[0] = '\0';
+            SELFTEST_CHECK(cheat_obj_from_name("of_vitur", suggest, sizeof(suggest)) < 0 &&
+                               suggest[0],
+                           "an ambiguous substring refuses and names candidates: '%s'",
+                           suggest);
+
+            memcpy(who->inv, inv_before, sizeof(inv_before));
+            mock230_container_mark_all(
+                mock230_container_resolve(&srv, who, mock230_ids()->inv_backpack));
         }
 
         /*
