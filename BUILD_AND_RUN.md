@@ -101,7 +101,7 @@ server script pack, and starts the whole thing. It is the normal way to run.
 | **A C11 compiler** | everything is C11 | clang or gcc; the Windows lanes use pinned MinGW-w64 |
 | **A POSIX `sh`** | every make recipe is POSIX shell | Git for Windows ships one at `C:\Program Files\Git\usr\bin` |
 | **Python 3.10+** | content allocation, codegen, contract gates, RuneLite helpers | `python3` must be on `PATH` — `mock230-scripts` calls it |
-| **Git LFS** | the Windows toolchain archives under `lib/` | only needed for the Windows lanes |
+| **Git LFS** | the Windows toolchain and stylizer model archives under `lib/` | toolchain zips: Windows lanes; `osrs-stylizer-models.zip`: only the ML stylizer tools |
 | **A cache** | the client boots from a RuneScape cache | not in the repo — see [§3](#3-getting-the-source-and-the-data) |
 
 ### macOS

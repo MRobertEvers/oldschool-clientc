@@ -96,6 +96,22 @@ tools/osrs_stylizer/
 └── runs/                      # optimization outputs (per study)
 ```
 
+**You do not need to train anything to use this tool.** All three trained
+checkpoints are committed through Git LFS as `lib/osrs-stylizer-models.zip`
+(alongside the pinned compiler archives — see
+[`tools/toolchain/README.md`](../toolchain/README.md)):
+
+```powershell
+git lfs pull --include="lib/osrs-stylizer-models.zip"
+Expand-Archive lib\osrs-stylizer-models.zip -DestinationPath tools\osrs_stylizer\ -Force
+pip install -r tools\osrs_stylizer\requirements.txt
+```
+
+That places the checkpoints at their default `models/*.pt` paths and installs
+the Python dependencies to run them; `MODELS.md` inside the archive summarizes
+each checkpoint's benchmarks and calibration. The training pipeline below is
+for reproducing or extending them.
+
 ---
 
 ## What each tool does
@@ -486,6 +502,9 @@ round-trip per frame. Wire files are cached under `<run>/wire/`.
 
 ## Reproducing the model from scratch
 
+(Optional — the trained checkpoints ship in `lib/osrs-stylizer-models.zip`,
+see the top of this file. This section is for retraining from nothing.)
+
 This run was done natively on Windows: Windows Python (3.14, CPU torch) runs
 everything, with a portable native Blender for Class 2 and the repo engine for
 Class 1. The WSL scripts (`setup_wsl_env.sh`, `train_in_wsl.sh`) remain a
@@ -521,8 +540,11 @@ training itself has minor nondeterminism (thread scheduling), so validation
 accuracy can vary by a fraction of a percent between reruns.
 
 The generated `data/`, `highpoly_src/`, `models/`, and `runs/` directories are
-all gitignored — **do not commit them**; anyone can regenerate them with the
-five steps above.
+all gitignored — **do not commit them**. The blessed checkpoints are
+distributed as `lib/osrs-stylizer-models.zip` (Git LFS); everything else is
+regenerable with the five steps above. If you deliberately retrain and want to
+bless a new checkpoint set, rebuild that archive and update its SHA-256 in
+[`tools/toolchain/README.md`](../toolchain/README.md).
 
 ---
 
