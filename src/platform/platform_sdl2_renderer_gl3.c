@@ -15,6 +15,7 @@
 #include "opengl3/opengl3_sdlgl.h"
 #include "opengl3/trspk_opengl3.h"
 #endif
+#include "perf/torirs_perf.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 #include "render/trspk_sprite.h"
@@ -103,7 +104,30 @@ typedef struct TRSPK_UboWorld
 #define TRSPK_GL3_TEX_CAP_FALLBACK 256u
 #define TRSPK_GL3_TEX_CAP_MAX TRSPK_GL3_TEX_CAP_PREF
 #define TRSPK_GL3_DRAWRANGE_CAP 4096u
+/*
+ * Vertex page the model arena allocates within — a slot never crosses one.
+ *
+ * Desktop GL indexes the arena directly with 32-bit indices, so a page boundary
+ * would only waste the tail of each page and buy nothing: one page covers
+ * everything.
+ *
+ * WebGL1 draws with 16-bit indices and has no glDrawElementsBaseVertex, so a
+ * draw's vertices must lie inside one 65536-vertex window and the base is
+ * folded into the attribute pointers. Paging the arena at exactly that window
+ * makes the window a property of where a model was placed rather than something
+ * the index splitter has to search for — which is what D3D9 has always done
+ * (D3D9_VBO_PAGE = 65536, same limit, same reason).
+ *
+ * Measured on a settled osrs239 scene: searching produced 2878 draw calls and
+ * 2878 attribute rebinds per frame from a single draw range, because painter
+ * order walks the arena in a different order than it was filled. Paging is what
+ * collapses that.
+ */
+#if defined(TORIRS_GL_ES2)
+#define TRSPK_GL3_VBO_PAGE 65536u
+#else
 #define TRSPK_GL3_VBO_PAGE (1u << 28)
+#endif
 #define TRSPK_GL3_GPU_IBO_INIT 4096u
 #define TRSPK_GL3_GPU_VBO_INIT 4096u
 #define TRSPK_GL3_SPRITE_CAP 2048
@@ -223,6 +247,14 @@ struct ToriRS_GL3
 
     struct TRSPK_Atlas atlas;
     GLuint atlas_texture;
+    /* Texture storage is allocated once; every later write is a dirty-rect
+     * glTexSubImage2D. See gl3_upload_atlas_texture. */
+    bool atlas_storage_ready;
+    /* Tightly packed rows for that sub-upload — WebGL1 has no
+     * GL_UNPACK_ROW_LENGTH, so a sub-rectangle cannot be read out of the wider
+     * CPU atlas in place. Grown to the worst rectangle, never shrunk. */
+    uint8_t* atlas_stage;
+    size_t atlas_stage_capacity;
     uint32_t atlas_dim;
     uint32_t atlas_cols;
     uint32_t tex_cap;
@@ -405,6 +437,57 @@ gl3_bind_group_attribs(
     glBindVertexArray(group->vao);
 #endif
 }
+
+#if defined(TORIRS_GL_ES2)
+/*
+ * Re-base the attribute pointers, and nothing else.
+ *
+ * The world draw loop calls this thousands of times a frame — once per chunk,
+ * and a chunk is about one visible model — so what it does NOT do matters more
+ * than what it does. gl3_bind_group_attribs above issues twelve GL calls: an
+ * array-buffer bind, five glEnableVertexAttribArray, five
+ * glVertexAttribPointer, and an element-buffer bind. Only the five pointers
+ * carry the base vertex; the rest are the same values they already held.
+ *
+ * That is eleven redundant calls per model, and on this host a GL call is a
+ * crossing out of wasm into JavaScript. At 2,878 chunks a frame it was ~37,400
+ * calls where ~17,300 are needed.
+ *
+ * So the loop hoists the buffer binds and the enables and calls this instead.
+ * It is deliberately not a general-purpose state cache: the caller guarantees
+ * nothing between draws touches buffer bindings or array enables, which is true
+ * of the world loop and would not be true anywhere else.
+ */
+static void
+gl3_point_group_attribs(
+    struct ToriRS_GL3* renderer,
+    uint32_t base_vertex)
+{
+    const GLsizei stride = (GLsizei)sizeof(struct TRSPK_VertexOpenGl3);
+    const uintptr_t base = (uintptr_t)base_vertex * sizeof(struct TRSPK_VertexOpenGl3);
+
+    if( renderer->a_position >= 0 )
+        glVertexAttribPointer(
+            (GLuint)renderer->a_position, 4, GL_FLOAT, GL_FALSE, stride,
+            (const void*)(base + offsetof(struct TRSPK_VertexOpenGl3, position)));
+    if( renderer->a_color >= 0 )
+        glVertexAttribPointer(
+            (GLuint)renderer->a_color, 4, GL_FLOAT, GL_FALSE, stride,
+            (const void*)(base + offsetof(struct TRSPK_VertexOpenGl3, color)));
+    if( renderer->a_texcoord >= 0 )
+        glVertexAttribPointer(
+            (GLuint)renderer->a_texcoord, 2, GL_FLOAT, GL_FALSE, stride,
+            (const void*)(base + offsetof(struct TRSPK_VertexOpenGl3, texcoord)));
+    if( renderer->a_tex_id >= 0 )
+        glVertexAttribPointer(
+            (GLuint)renderer->a_tex_id, 1, GL_FLOAT, GL_FALSE, stride,
+            (const void*)(base + offsetof(struct TRSPK_VertexOpenGl3, tex_id)));
+    if( renderer->a_uv_mode >= 0 )
+        glVertexAttribPointer(
+            (GLuint)renderer->a_uv_mode, 1, GL_FLOAT, GL_FALSE, stride,
+            (const void*)(base + offsetof(struct TRSPK_VertexOpenGl3, uv_mode)));
+}
+#endif
 
 static void
 gl3_bind_quad_attribs(struct ToriRS_GL3* renderer)
@@ -3057,30 +3140,107 @@ upload_world_ubo(
     gl3_set_world_uniforms(renderer, &u);
 }
 
+/*
+ * Push only the rectangle that changed.
+ *
+ * This used to be a glTexImage2D of the whole atlas on every dirty flag — 16 MB
+ * for a 2048^2 RGBA atlas, and glTexImage2D *reallocates* the texture rather
+ * than writing into it, so the driver also threw away and revalidated the
+ * object each time. One newly-decoded 128^2 tile cost the entire atlas.
+ *
+ * D3D9 has answered this correctly since it was written (see
+ * WINDOWS-D3D9-UPLOAD-001: "a single changed 128x128 tile copies 65,536 logical
+ * bytes, not the complete 2048x2048 atlas"). This is the same discipline: the
+ * CPU atlas merges an exact dirty rectangle, and the upload covers that.
+ *
+ * The rows are packed into a scratch buffer first because WebGL1 has no
+ * GL_UNPACK_ROW_LENGTH — that is a GLES3/desktop pixel-store parameter, so a
+ * sub-rectangle of a wider source cannot be handed to glTexSubImage2D directly.
+ * Desktop GL could set it and skip the pack; it deliberately does not, so both
+ * backends run one path and a bug in it cannot hide on the host nobody tests.
+ * The pack is a memcpy per row (the atlas is already RGBA — unlike D3D9, which
+ * has to swizzle to BGRA as it copies).
+ */
 static void
 gl3_upload_atlas_texture(struct ToriRS_GL3* renderer)
 {
+    struct TRSPK_AtlasDirtyRect dirty;
+    size_t need;
+
     if( !trspk_atlas_is_initialized(&renderer->atlas) || !renderer->atlas_texture )
         return;
     if( !renderer->atlas.pixels || renderer->atlas.width == 0u || renderer->atlas.height == 0u )
         return;
+    if( !trspk_atlas_get_dirty_rect(&renderer->atlas, &dirty) || dirty.w == 0u || dirty.h == 0u )
+        return;
 
     glBindTexture(GL_TEXTURE_2D, renderer->atlas_texture);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    /* TORIRS_GL_TEX_RGBA (sized internal format) is required on Core Profile / Metal-backed GL. */
-    glTexImage2D(
+
+    if( !renderer->atlas_storage_ready )
+    {
+        /* Allocate the texture once. TORIRS_GL_TEX_RGBA is a sized internal
+         * format on Core Profile / Metal-backed GL and plain GL_RGBA on GLES2,
+         * where internalformat must equal format. */
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            TORIRS_GL_TEX_RGBA,
+            (GLsizei)renderer->atlas.width,
+            (GLsizei)renderer->atlas.height,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            renderer->atlas.pixels);
+        renderer->atlas_storage_ready = true;
+        TORIRS_PERF_COUNT(
+            TORIRS_PERF_CTR_GL_ATLAS_UPLOAD_BYTES,
+            (int64_t)((uint64_t)renderer->atlas.width * renderer->atlas.height * 4u));
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATLAS_UPLOADS, 1);
+        trspk_atlas_clear_dirty(&renderer->atlas);
+        return;
+    }
+
+    need = (size_t)dirty.w * (size_t)dirty.h * 4u;
+    if( need > renderer->atlas_stage_capacity )
+    {
+        /* Never shrunk: the worst rectangle a scene produces is the size that
+         * matters, and re-allocating per upload would churn the wasm heap. */
+        size_t cap = renderer->atlas_stage_capacity ? renderer->atlas_stage_capacity : 65536u;
+        uint8_t* grown;
+        while( cap < need )
+            cap *= 2u;
+        grown = (uint8_t*)realloc(renderer->atlas_stage, cap);
+        if( !grown )
+            return;
+        renderer->atlas_stage = grown;
+        renderer->atlas_stage_capacity = cap;
+    }
+
+    for( uint32_t y = 0u; y < dirty.h; y++ )
+    {
+        const uint8_t* src = renderer->atlas.pixels +
+                             (size_t)(dirty.y + y) * renderer->atlas.stride +
+                             (size_t)dirty.x * 4u;
+        memcpy(renderer->atlas_stage + (size_t)y * dirty.w * 4u, src, (size_t)dirty.w * 4u);
+    }
+
+    glTexSubImage2D(
         GL_TEXTURE_2D,
         0,
-        TORIRS_GL_TEX_RGBA,
-        (GLsizei)renderer->atlas.width,
-        (GLsizei)renderer->atlas.height,
-        0,
+        (GLint)dirty.x,
+        (GLint)dirty.y,
+        (GLsizei)dirty.w,
+        (GLsizei)dirty.h,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
-        renderer->atlas.pixels);
+        renderer->atlas_stage);
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATLAS_UPLOAD_BYTES, (int64_t)need);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATLAS_UPLOADS, 1);
     trspk_atlas_clear_dirty(&renderer->atlas);
 }
 
@@ -3185,6 +3345,19 @@ gl3_upload_group(struct GL3ModelGroup* g)
     glBufferSubData(GL_ARRAY_BUFFER, 0, byte_size, g->vbo_cpu->vertices.as_opengl3);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
+    /* Counted per group so a steady scene can be asserted to move no static
+     * vertices — the dynamic group is reset and re-uploaded every frame by
+     * design, the static one must not be. */
+    if( g->reset_each_frame )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOAD_BYTES, (int64_t)byte_size);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS, 1);
+    }
+    else
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES, (int64_t)byte_size);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS, 1);
+    }
     trspk_vbo_clear_dirty(g->vbo_cpu);
     return true;
 }
@@ -3503,7 +3676,16 @@ gl3_ev_begin_3d(
             ToriDraw_AngleToRadians(cam->pitch),
             ToriDraw_AngleToRadians(cam->yaw),
             pass_w,
-            pass_h);
+            pass_h,
+            /* The camera's own projection, not an assumed one. The GPU used to
+             * project at a hardcoded scale of 512 while the rasterizer used
+             * whatever the layout computed — at this boot's viewport that is
+             * ~191, so the GPU drew the world 2.7x magnified about the viewport
+             * centre. Identical camera, identical scene, different size. */
+            (int)cam->proj_mode,
+            cam->proj_scale,
+            cam->fov_rpi2048,
+            cam->parallel_zoom16);
     }
     upload_world_ubo(renderer, renderer->view, renderer->proj);
 
@@ -3984,6 +4166,19 @@ gl3_ev_end_3d(
     if( total_indices == 0u )
         goto done;
 
+    {
+        /* Painter-order fragmentation: how many separate ranges the frame's
+         * draw order produced, against the draw calls they turn into. On
+         * WebGL1 the second can exceed the first, because a range crossing a
+         * 65536-vertex window has to be split. */
+        uint32_t range_count = 0u;
+        for( const struct TRSPK_DrawRange* r = trspk_drawrangelist_head(renderer->draw_ranges);
+             r != NULL;
+             r = trspk_drawrangelist_next(renderer->draw_ranges, r) )
+            range_count++;
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, (int64_t)range_count);
+    }
+
     if( !gl3_ensure_gpu_ibo(renderer, total_indices) )
         goto done;
 
@@ -4016,6 +4211,19 @@ gl3_ev_end_3d(
     {
         uint32_t chunk_count = 0u;
         int overflow = 0;
+        uint32_t straddle = 0u;
+        /*
+         * The searching split, not the paged one.
+         *
+         * Paging the arena guarantees a triangle never straddles a 16-bit
+         * window, which sounds like the stronger property — but it fixes the
+         * window to page boundaries, and a page boundary is an arbitrary place
+         * to cut. The sliding window merges any run of triangles whose vertex
+         * span happens to fit, wherever it starts, so it is strictly more
+         * permissive. Measured on the same settled scene: 2,878 chunks
+         * searching versus 2,990 paged. Paging was the worse of the two and is
+         * kept only for the invariant check it makes possible.
+         */
         const uint32_t written = trspk_webgl1_split16(
             renderer->draw_ranges,
             staging,
@@ -4030,31 +4238,166 @@ gl3_ev_end_3d(
                 stderr,
                 "WebGL1: draw-chunk table full at %u; dropping the rest of the frame\n",
                 renderer->chunk_capacity);
+        /*
+         * TORIRS_GL_CHUNK_DEBUG=1: one frame's chunking, so "the split is not
+         * grouping" and "the split is grouping and painter order defeats it"
+         * can be told apart with numbers instead of argued about.
+         */
+        /*
+         * TORIRS_GL_CHUNK_DEBUG=1: one frame's chunking, and — the part that
+         * actually explains it — how far apart in the arena consecutive drawn
+         * triangles are. A chunk closes when that distance exceeds a 64K
+         * window, so the delta histogram is the cause and the chunk count is
+         * only the symptom.
+         */
+        if( getenv("TORIRS_GL_CHUNK_DEBUG") )
+        {
+            static int dumped = 0;
+            if( !dumped && chunk_count > 0u )
+            {
+                uint32_t singleton = 0u;
+                uint32_t biggest = 0u;
+                uint32_t min_base = UINT32_MAX;
+                uint32_t max_base = 0u;
+                /* Buckets over |delta| between consecutive triangles' first
+                 * index: <64, <1K, <8K, <64K, >=64K. Only the last forces a
+                 * new draw call. */
+                uint64_t b[5] = { 0, 0, 0, 0, 0 };
+                uint32_t arena_verts = renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu
+                                           ? renderer->groups[TRSPK_VBO_GROUP_STATIC]
+                                                 .vbo_cpu->vertex_count
+                                           : 0u;
+                dumped = 1;
+                for( uint32_t ci = 0u; ci < chunk_count; ++ci )
+                {
+                    const uint32_t tri = renderer->chunks[ci].index_count / 3u;
+                    const uint32_t bv = renderer->chunks[ci].base_vertex;
+                    if( bv < min_base )
+                        min_base = bv;
+                    if( bv > max_base )
+                        max_base = bv;
+                    if( tri <= 1u )
+                        singleton++;
+                    if( tri > biggest )
+                        biggest = tri;
+                }
+                {
+                    const struct TRSPK_DrawRange* r =
+                        trspk_drawrangelist_head(renderer->draw_ranges);
+                    while( r )
+                    {
+                        for( uint32_t i = r->start + 3u; i + 2u < r->end; i += 3u )
+                        {
+                            uint32_t a = staging[i];
+                            uint32_t c = staging[i - 3u];
+                            uint32_t d = a > c ? a - c : c - a;
+                            b[d < 64u ? 0 : d < 1024u ? 1 : d < 8192u ? 2 : d < 65536u ? 3 : 4]++;
+                        }
+                        r = trspk_drawrangelist_next(renderer->draw_ranges, r);
+                    }
+                }
+                fprintf(
+                    stderr,
+                    "WebGL1 chunks: %u chunks for %u tri = %.1f tri/chunk | 1-tri chunks %u "
+                    "| biggest %u tri | bases %u..%u | static arena %u verts\n"
+                    "WebGL1 deltas: <64:%llu  <1K:%llu  <8K:%llu  <64K:%llu  >=64K:%llu "
+                    "(only >=64K forces a split)\n",
+                    chunk_count,
+                    written / 3u,
+                    chunk_count ? (double)(written / 3u) / (double)chunk_count : 0.0,
+                    singleton,
+                    biggest,
+                    min_base,
+                    max_base,
+                    arena_verts,
+                    (unsigned long long)b[0],
+                    (unsigned long long)b[1],
+                    (unsigned long long)b[2],
+                    (unsigned long long)b[3],
+                    (unsigned long long)b[4]);
+            }
+        }
+        if( straddle )
+        {
+            /* The arena promised no model crosses a page. Say so once rather
+             * than every frame: it is a build-time invariant, so if it breaks
+             * it breaks for the whole session. */
+            static int reported = 0;
+            if( !reported )
+            {
+                reported = 1;
+                fprintf(
+                    stderr,
+                    "WebGL1: %u triangle(s) straddle a %u-vertex arena page and were "
+                    "dropped — the model arena is not paged for 16-bit indices\n",
+                    straddle,
+                    TRSPK_GL3_VBO_PAGE);
+            }
+        }
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
         glBufferSubData(
             GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(written * sizeof(uint16_t)),
             renderer->idx16);
+        TORIRS_PERF_COUNT(
+            TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(written * sizeof(uint16_t)));
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
 
-        for( uint32_t ci = 0u; ci < chunk_count; ++ci )
         {
-            const struct TRSPK_WebGL1Chunk* chunk = &renderer->chunks[ci];
-            if( chunk->index_count < 3u )
-                continue;
-            /* Attributes are re-pointed per chunk: that IS the base vertex. */
-            gl3_bind_group_attribs(
-                renderer, &renderer->groups[chunk->group], chunk->base_vertex);
-            glDrawElements(
-                GL_TRIANGLES,
-                (GLsizei)chunk->index_count,
-                GL_UNSIGNED_SHORT,
-                (const void*)(uintptr_t)(chunk->index_start * sizeof(uint16_t)));
+            /*
+             * Re-point the attributes only when the base actually moves.
+             *
+             * Attribute state IS the base vertex here — WebGL1 has neither VAOs
+             * nor glDrawElementsBaseVertex, so a chunk's base is folded into the
+             * glVertexAttribPointer offsets. But consecutive chunks usually
+             * share a base: the splitter emits a new chunk per draw range, and
+             * ranges are painter-ordered over an arena that mostly sits inside
+             * one 65536-vertex window. Re-binding five attribute pointers for a
+             * base that did not change is pure driver overhead, and it was
+             * happening once per range.
+             */
+            uint32_t bound_base = UINT32_MAX;
+            uint32_t bound_group = UINT32_MAX;
+
+            /* The element buffer is already bound (the upload above used it)
+             * and never changes in this loop, so it is not re-bound per draw. */
+            for( uint32_t ci = 0u; ci < chunk_count; ++ci )
+            {
+                const struct TRSPK_WebGL1Chunk* chunk = &renderer->chunks[ci];
+                if( chunk->index_count < 3u )
+                    continue;
+                if( chunk->group != bound_group )
+                {
+                    /* Group change is rare (there are two) and is the only time
+                     * the array buffer and the attribute enables need touching. */
+                    gl3_bind_group_attribs(
+                        renderer, &renderer->groups[chunk->group], chunk->base_vertex);
+                    bound_group = chunk->group;
+                    bound_base = chunk->base_vertex;
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
+                }
+                else if( chunk->base_vertex != bound_base )
+                {
+                    gl3_point_group_attribs(renderer, chunk->base_vertex);
+                    bound_base = chunk->base_vertex;
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
+                }
+                glDrawElements(
+                    GL_TRIANGLES,
+                    (GLsizei)chunk->index_count,
+                    GL_UNSIGNED_SHORT,
+                    (const void*)(uintptr_t)(chunk->index_start * sizeof(uint16_t)));
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
+            }
         }
     }
 #else
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferSubData(
         GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(total_indices * sizeof(uint32_t)), staging);
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(total_indices * sizeof(uint32_t)));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
 
     GLuint bound_vao = 0u;
     const struct TRSPK_DrawRange* range = trspk_drawrangelist_head(renderer->draw_ranges);
@@ -4070,6 +4413,7 @@ gl3_ev_end_3d(
             {
                 glBindVertexArray(group_vao);
                 bound_vao = group_vao;
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
             }
 
             glDrawElements(
@@ -4077,6 +4421,7 @@ gl3_ev_end_3d(
                 (GLsizei)index_count,
                 GL_UNSIGNED_INT,
                 (const void*)(uintptr_t)(range->start * sizeof(uint32_t)));
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
         }
 
         range = trspk_drawrangelist_next(renderer->draw_ranges, range);

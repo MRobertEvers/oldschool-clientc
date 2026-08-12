@@ -5343,7 +5343,13 @@ d3d9_begin_3d(
         ToriDraw_AngleToRadians(command->camera.pitch),
         ToriDraw_AngleToRadians(command->camera.yaw),
         pass_w,
-        pass_h);
+        pass_h,
+        /* See the note at the GL caller: this used to project at a hardcoded
+         * 512 regardless of what the camera asked for. */
+        (int)command->camera.proj_mode,
+        command->camera.proj_scale,
+        command->camera.fov_rpi2048,
+        command->camera.parallel_zoom16);
     if( renderer->z_buffer_enabled )
         d3d9_set_projection_zbuffer(
             renderer->proj,
