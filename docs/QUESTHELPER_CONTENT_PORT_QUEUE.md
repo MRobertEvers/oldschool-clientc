@@ -160,10 +160,10 @@ been audited yet as of the rule change -- every row below is effectively
 |---|---|---|
 | `animalmagnetism` | quest_animalmagnetism | IN-LC — CONTENT_PORT_QUEUE |
 | `biohazard` | quest_biohazard | IN-LC — CONTENT_PORT_QUEUE |
-| `cooksassistant` | quest_cook | IN-LC — CONTENT_PORT_QUEUE |
+| `cooksassistant` | quest_cook | audited-fixed 2026-08-12: this is docs/PORTING_GUIDE.md's own §4.1 precedent slice, and it held up well — ingredient gather/hand-in, journal (3 states, wired), reward (300 cooking xp, 1 QP via `~quest_complete(quest_cooksassistant)`), and the post-quest small talk (`~p_choice4`, matches Transcript:Cook_(Lumbridge)'s post-quest tree) were all already correct. One real gap: the file's own header comment said "the player cannot decline the quest" because `~p_choice*` wasn't portable yet when this was first written — but `interface_chat/scripts/chat.rs2` implements `~p_choice2`/`~p_choice4` for real now (this file already uses `~p_choice4` for the post-quest chat), so the comment was stale and the decline branch was just never restored. Added the accept/decline `~p_choice2` on the initial offer with Transcript:Cook's_Assistant's refusal line ("Fine. I always knew you Adventurer types were callous beasts. Go on your merry way!"). |
 | `dwarfcannon` | quest_mcannon | audited-fixed 2026-08-12: state constants (0-11) and the journal (`mcannon_journal.rs2`) covered the whole quest, but nothing anywhere ever advanced `%mcannon` past what the railings/cave/crate scripts touch internally — the quest giver **Captain Lawgof** (`lawgof2`, dbrow startnpc) and **Nulodion** (`nulodion`) had zero `[opnpc1,...]` dialogue anywhere in the tree, so the quest could never even be started, `mcannontoolkit` (gates the cannon repair) and `ammo_mould` (gates `skill_smithing/scripts/smelting/cannonballs.rs2`'s own cannonball recipe) were never granted to any player, and there was no `~quest_complete` call in the whole quest. Added `quests/quest_mcannon/scripts/mcannon_commander.rs2` — full Lawgof + Nulodion talk-to state machine (accept/refuse quest offer, railing/watchtower/goblin-cave/cannon/Nulodion checkpoints, all matching Transcript:Dwarf_Cannon paraphrased) — granting `mcannonrailing1_obj`x6, `mcannontoolkit`, `nulodions_notes` + `ammo_mould` at the right checkpoints, ending in `stat_advance(crafting,7500)` + `~quest_complete(quest_dwarfcannon)`. Both npcs already had real world `.spawn` entries (`m40_54`/`m47_53`) — no hand-spawning needed. |
 | `eaglespeak` | quest_eaglepeak | IN-LC — CONTENT_PORT_QUEUE |
-| `eadgarsruse` | quest_eadgar | IN-LC — CONTENT_PORT_QUEUE |
+| `eadgarsruse` | quest_eadgar | audit-in_progress (2026-08-12): the biggest gap found this pass, and explicitly self-documented as such — every file in `quest_eadgar/` and the shared npcs it touches (`sanfew.rs2`, `troll_eadgar.rs2`) carries a header comment naming the missing piece ("Full body deferred", "Eadgar's Ruse start deferred", "Eadgar's Ruse dialog trees deferred", "Fake-man use ... deferred", "Grind/brew / ranarr mix / cooking dry deferred", "Greegree unequip / setbit / aviary hatch deferred"). Concretely: Sanfew (`areas/area_taverly/scripts/sanfew.rs2` `sanfew_more_work` label) never offers the Eadgar's Ruse quest at all — `%eadgar_quest`/`%eadgar_bits` never leave their zero state through any reachable trigger. Mad Eadgar (`quest_troll/scripts/troll_eadgar.rs2`) only has his unrelated flavour "Mad Eadgar's stew shop" Talk-to, not the real quest dialogue (parrot plan, item list, potion handoff). The Burntmeat/troll-cook goutweed-quest arm is real and complete (`eadgar_troll_chief_cook.rs2`, including a documented prior fix removing a duplicate `[opnpc1,eadgar_troll_chief_cook]` trigger shared with My Arm's Big Adventure). But the connecting tissue is missing end to end: no parrot-catch/hide-under-rack mechanic, no `%eadgar_bits` logs/clothes/chicken/grain collection wiring (`eadgar_zoo_keeper_aviary.rs2`'s own header: "Greegree unequip / %eadgar_bits setbit / aviary hatch deferred"), no troll-thistle grind+dry+ranarr-potion mix (`eadgar_troll_thistle.rs2`: "Grind/brew / ranarr mix / cooking dry deferred"), no storeroom key/unlock, no goutweed pickup in the storeroom, and no Sanfew hand-in / Trollheim Teleport spell reward. The journal (`eadgar_journal.rs2`) is, unusually, *already fully written* for every one of these states (cites real OSRS playthrough timestamps) — it is the one file in the whole quest that is complete, which made the size of the gap easy to see precisely. Left `audit-in_progress`: this is a full quest's worth of new dialogue/mechanic content (comparable to the Holy Grail row above), too large to build and verify in one tick. Follow-up: (1) Sanfew's `sanfew_more_work` quest-offer branch; (2) Eadgar's real dialogue tree replacing the stew-shop default at `troll_eadgar.rs2`'s `@eadgar_default_tree`; (3) parrot catch (zoo aviary) + hide-in-prison-rack + fetch-back state transitions; (4) `%eadgar_bits` item collection (logs/clothes) + `%eadgar_chickens`/`%eadgar_grain` counters wired to real inv_del sites; (5) troll thistle grind+dry+ranarr-potion combine; (6) storeroom key/unlock/goutweed pickup; (7) Sanfew reward hand-in (`~quest_complete(quest_eadgarsruse)` + Trollheim Teleport spell unlock). |
 | `heroesquest` | quest_hero | IN-LC — CONTENT_PORT_QUEUE |
 | `holygrail` | quest_grail | audit-in_progress (2026-08-12): dialogue trees are thorough (king_arthur/merlin/brother_galahad/grail_crone/fisher_king/sir_percival/black_knight_titan/grail_realm_npcs all wired, journal complete) but the physical world layer has real quest-blocking holes vs the wiki quick guide + Transcript:Holy_Grail — no spawn (static or dynamic) for `sir_percival` anywhere in the tree (he should be found by searching/opening a sack in Goblin Village; no goblin-village sack loc/oploc exists either), no `opheldu`/blow trigger on `magic_whistle` to teleport into the Fisher Realm and gate the Black Knight Titan fight (wiki: blow near the tower NW of Brimhaven; re-blowing after the Titan's dead should skip the rematch), and no oploc/opobj "ring" trigger on the dynamically-spawned `grail_bell` for castle access. `magic_whistle`/`holy_grail` items themselves already have real static obj spawns in `m41_73.spawn` (cache-derived, confirmed reachable via generic pickup) so those two don't need new item plumbing — just the teleport-gate script. Follow-up: (1) find sir_percival's real cache spawn/sack coordinate or the Goblin Village sack loc name and wire an oploc search trigger + `npc_add`; (2) write the whistle-blow teleport proc (Titan-fight gate + no-rematch-after-defeat state) parallel to the `black_knight_titan.rs2` fight logic already present; (3) wire the grail_bell ring trigger for castle entry. Left `audit-in_progress`, not `audited-fixed` — too large to finish and verify in one tick. |
 | `druidicritual` | quest_druid / quest_druidspirit | IN-LC — CONTENT_PORT_QUEUE |
@@ -175,7 +175,7 @@ been audited yet as of the rule change -- every row below is effectively
 | `seaslug` | quest_seaslug | audited-fixed 2026-08-12: very thorough LC port already (caroline/holgart/kennith/kent/bailey/quest_seaslug.rs2 cover every wiki-documented (Transcript:Sea_Slug) scene incl. refuse, lost-torch replacement, and post-quest dialogue). Fixed two real gaps: (1) `caroline.rs2`'s completion queue awarded QP via a bespoke `%qp = add(...)` instead of `~quest_complete(quest_seaslug)`, silently skipping `%quests_completed_count` — every other audited quest in this table uses the real proc, now this one does too. (2) the "possessed fisherman" flavour dialogue (`fisherman.rs2`) only had 2 of the wiki's 6 randomised cryptic lines; expanded to all 6 (paraphrased, non-gating). |
 | `sheepherder` | quest_sheepherder (not `quest_sheep`, which is the unrelated Sheep Shearer quest / dbrow `quest_sheepshearer`) | audited-ok 2026-08-12: matches wiki (Quick_guide) exactly — Councillor Halgrive's accept/refuse offer, Doctor Orbon plague-suit gear, cattleprod+poisoned-feed sheep mechanic, incinerator disposal, and completion (`~quest_complete(quest_sheepherder)`, 3100 coins reimbursement matching wiki 100+3000) all present; `diseased_sheep.rs2` even cross-checks against Mourning's End Part I's later reuse of the same world npcs. |
 | `treegnomevillage` | quest_tree | audited-fixed 2026-08-12: dialogue trees (King Bolren start/mid/end, Montai, three tracker gnomes, Khazard warlord fight, ballista coordinate puzzle, orb chest, wall breach) all matched wiki (Quick_guide) end to end — but quest completion (`areas/area_gnome/scripts/king_bolren.rs2` `[queue,tree_quest_complete]`) awarded QP via a bespoke `%qp = add(%qp, ^tree_questpoints)` instead of `~quest_complete(quest_treegnomevillage)`, same bug class as Sea Slug's prior fix — silently skipped `%quests_completed_count`. Fixed to call the real proc; reward values (2 QP, 11450 attack xp, gnome amulet) already matched the dbrow/wiki exactly, untouched. |
-| `trollromance` | quest_troll / quest_troll_love | IN-LC — CONTENT_PORT_QUEUE |
+| `trollromance` | quest_troll / quest_troll_love | audit-in_progress (2026-08-12): the actual quest lives in `quest_troll_love/` (`quest_troll` is the separate Troll Stronghold quest, shares only the Eadgar-stew-shop npc — see `eadgarsruse` row above). Found one clear-cut bug and fixed it, but the quest has a much larger structural gap I did not attempt: the entire "get to Trollweiss" middle third — talk to Tenzing about the flower's location, bring Dunstan (`quest_death/scripts/death_dunstan.rs2`, whose own header says "Deferred: troll_quest / troll_love sled ...") materials (yew/maple logs + iron bar + rope) for a sled, make sled wax (wax + swamp tar + cake tin), ride the sled down the mountain past the ice trolls, and the Trollweiss flower pick trigger itself — is **entirely unimplemented**. The `%troll_love` progression constants for all of this exist (`^troll_love_learnt_about_trollweiss`/`_bring_dunstan_materials`/`_dunstan_made_sled`/`_waxed_sled`/`_picked_trollweiss`) and the journal (`troll_love_journal.rs2`) already narrates every one of these states correctly, but grepping the whole tree found zero triggers that ever write `%troll_love` into that range or grant `trollromance_rare_flower` — so in practice the quest is stuck at `^troll_love_aga_wants_trollweiss` (state 10) after the first Aga conversation; the back end (Arrg fight via `trollromance_arrg.rs2`, fully implemented combat+dialogue) is unreachable through normal play. The bug I did fix is independent of that gap: `trollromance_ug.rs2`'s `trollromance_ug_defeated_arrg` completion label was a bare `mes("Troll Romance quest rewards are not wired yet.")` stub — no reward, no `~quest_complete` call, `%troll_love` just advanced to `^troll_love_complete` and stopped. Wired the real Transcript:Troll_Romance / Quick_guide reward ("Take pretty rocks as thanks" = 1 uncut diamond, 2 uncut ruby, 4 uncut emerald) + 8,000 Agility xp + 4,000 Strength xp + `~quest_complete(quest_trollromance)`. Left `audit-in_progress` rather than `audited-fixed` — the sled/Tenzing/Dunstan/wax/flower-pick chapter is a full mini-quest's worth of new content (area triggers + an NPC + a crafting recipe + a traversal mechanic), out of scope for this tick. |
 | `waterfallquest` | quest_waterfall | audited-ok 2026-08-12: extremely thorough existing port (10 files) — Almera/Hudon/Hadley/Gerald/Golrie dialogue trees match Quick_guide + wiki almost verbatim including all four multi-choice Hadley tourism branches, pillar rune puzzle, urn/chalice reward gate (2 diamonds, 2 gold bars, 40 mithril seeds, 13750 attack+strength xp matching dbrow exactly), proper `~quest_complete(quest_waterfall)`. No gaps found. |
 | `watchtower` | quest_itwatchtower | audited-fixed 2026-08-12: very thorough existing port (14 files) covering every wiki-documented beat (rock cake theft, deathrune/skavid-map city guard riddle, 4-talker skavid word-learning puzzle + mad skavid final riddle, nightshade enclave-guard distraction, ogre shaman potions, Rock of Dalgroth mining, crystal-lever completion) with proper `~quest_complete(quest_watchtower)`. Fixed one real numeric bug: completion granted `stat_advance(magic, 153000)` (15300 xp) but the dbrow's own `stat_xp_awarded` and the wiki both say 152500 raw (15250 xp) — a 50xp overpay; corrected to match. |
 | `zogreflesheaters` | quest_zogreflesheaters | IN-LC — CONTENT_PORT_QUEUE |
@@ -191,7 +191,7 @@ been audited yet as of the rule change -- every row below is effectively
 | `undergroundpass` | quest_upass | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing this queue) |
 | `thegrandtree` | quest_grandtree | IN-LC — CONTENT_PORT_QUEUE |
 | `thelosttribe` | quest_losttribe | IN-LC — CONTENT_PORT_QUEUE |
-| `junglepotion` | quest_junglepotion | IN-LC — CONTENT_PORT_QUEUE |
+| `junglepotion` | quest_junglepotion | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Jungle_Potion) closely — Trufitus's full offer tree (`trufitus.rs2`) has multiple decline branches at every stage ("I am sorry, but I am very busy." at 3 separate points, all routing to a real farewell label), the five-herb collection loop (snake weed/ardrigal/sito foil/volencia moss/rogues purse) with correct clue re-asks, wrong-herb/dirty-herb/not-fresh rejections, and the `%druidquest = ^druid_complete` prerequisite gate (Druidic Ritual) all match. Herb cleaning is correctly *not* duplicated per-quest — `skill_herblore/scripts/identify.rs2`'s generic `attempt_clean_herb` dbtable-driven proc already covers all 5 `unidentified_*` jungle herbs alongside regular grimy herbs. Reward (775 herblore xp = `stat_advance(herblore,7750)`, 1 QP) via real `~quest_complete(quest_junglepotion)`; journal (`junglepotion_journal.rs2`) tracks all 12 states including live `inv_total` re-checks and is wired in `interface_questjournal/scripts/quest_journal.rs2`. No gaps found. |
 | `recruitmentdrive` | quest_recruitmentdrive | IN-LC — CONTENT_PORT_QUEUE |
 | `regicide` | quest_regicide | IN-LC — CONTENT_PORT_QUEUE |
 | `tearsofguthix` | quest_tearsofguthix | IN-LC — CONTENT_PORT_QUEUE |
@@ -6363,3 +6363,74 @@ filed under `helpers/miniquests/` are at the end.
     quest_itwatchtower.rs2`, `server/scripts/areas/area_gnome/scripts/
     king_bolren.rs2`. 29 rows remain unaudited in the IN-LC table (38
     total minus the 9 audited across both passes).
+- **IN-LC audit pass 3 (2026-08-12):** audited 4 more rows, researched
+  synchronously (no nested background sub-agents, per this tick's explicit
+  instruction) one quest at a time: `cooksassistant`/quest_cook,
+  `junglepotion`/quest_junglepotion, `eadgarsruse`/quest_eadgar,
+  `trollromance`/quest_troll_love. Read each LC script tree fully + the
+  wiki quest page, `/Quick_guide`, and `Transcript:` pages before comparing.
+  - `cooksassistant` -> **audited-fixed**: this is `PORTING_GUIDE.md` §4.1's
+    own precedent slice and it held up well on every axis but one — the
+    file's header comment said the player couldn't decline the quest
+    because `~p_choice*` wasn't portable when it was first written, but
+    that gap closed tree-wide since then (this same file already uses
+    `~p_choice4` for its post-quest small talk) and the comment was just
+    never revisited. Added the accept/decline `~p_choice2` on Cook's
+    initial offer with Transcript:Cook's_Assistant's refusal line. Reward
+    (300 cooking xp, 1 QP via `~quest_complete(quest_cooksassistant)`) and
+    journal were already correct and untouched.
+  - `junglepotion` -> **audited-ok**: Trufitus's full 5-herb collection
+    loop (`trufitus.rs2`) matches Transcript:Jungle_Potion closely,
+    including decline branches at every offer stage, wrong/dirty/not-fresh
+    herb rejections, and the Druidic Ritual prerequisite gate. Herb
+    cleaning correctly lives once in the generic
+    `skill_herblore/scripts/identify.rs2` dbtable-driven proc rather than
+    being duplicated per-quest. Reward (775 herblore xp, 1 QP) via the real
+    `~quest_complete(quest_junglepotion)`; 12-state journal wired. No gaps
+    found.
+  - `eadgarsruse` -> **audit-in_progress**, the biggest find this pass:
+    every file touching this quest already self-documents its own gap in
+    its header comment ("Full body deferred", "Eadgar's Ruse start
+    deferred", "dialog trees deferred", "Grind/brew ... deferred",
+    "aviary hatch deferred") — a rare case of honest prior breadcrumbing
+    rather than a silent hole. Sanfew never actually offers the quest,
+    Mad Eadgar has no real quest dialogue (only his unrelated stew-shop
+    flavour Talk), and the connecting mechanics (parrot catch/hide/fetch,
+    `%eadgar_bits` item collection, troll thistle potion brewing, storeroom
+    unlock, Sanfew reward hand-in) are all missing, even though the
+    Burntmeat/goutweed-quest arm is complete and the journal is *fully*
+    written for every state already (unusual — normally the journal is the
+    thing that's missing). Did not attempt a fix — this is a full quest's
+    worth of new content, comparable in size to the Holy Grail row from
+    pass 1. Left `audit-in_progress` with a 7-item follow-up list in the
+    row's own note.
+  - `trollromance` -> **audit-in_progress**: found and fixed one clear,
+    contained bug — `quest_troll_love/scripts/trollromance_ug.rs2`'s
+    completion label (`trollromance_ug_defeated_arrg`) was a bare
+    `mes("Troll Romance quest rewards are not wired yet.")` stub with no
+    reward and no `~quest_complete` call. Wired the real
+    Transcript:Troll_Romance / Quick_guide reward (1 uncut diamond, 2 uncut
+    ruby, 4 uncut emerald "pretty rocks", 8000 Agility xp, 4000 Strength
+    xp) + `~quest_complete(quest_trollromance)`. That fix is necessary but
+    not sufficient: the whole "get to Trollweiss" middle third (Tenzing,
+    Dunstan's sled, sled wax, the mountain sled ride, the actual flower
+    pick trigger) is unimplemented — confirmed by grepping for every
+    `%troll_love =` write in the quest tree and finding none in that state
+    range, even though the journal already narrates all of it. In current
+    form the quest is stuck after the first Aga conversation; the
+    fully-implemented Arrg fight is unreachable through normal play. Left
+    `audit-in_progress`, not `audited-fixed`, for the same reason as
+    `eadgarsruse` above — the missing middle is a mini-quest's worth of new
+    area/NPC/crafting content.
+  - Build: `mingw32-make -C src sscompile` clean, `mingw32-make -C src
+    mock230-scripts` exit 0, 15081 scripts compiled (unchanged from pass 2
+    — both fixes this pass edited existing trigger bodies, no new
+    `[opnpc1,...]`/`[label,...]` triggers added), zero new errors/warnings.
+    No duplicate triggers introduced (both edits are inside pre-existing
+    trigger blocks). Files touched:
+    `server/scripts/quests/quest_cook/scripts/quest_cook.rs2`,
+    `server/scripts/quests/quest_troll_love/scripts/trollromance_ug.rs2`.
+    25 rows remain unaudited in the IN-LC table (38 total minus the 13
+    audited across three passes; 3 of those 13 — `holygrail`,
+    `eadgarsruse`, `trollromance` — are `audit-in_progress` rather than
+    fully closed).
