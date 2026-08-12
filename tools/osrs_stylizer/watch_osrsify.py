@@ -329,6 +329,9 @@ PAGE = """<!doctype html>
 </style>
 <h1>osrsify live <span class="muted" id="stamp"></span></h1>
 <div id="runbar"><span class="muted" style="font-size:.85em">runs</span>
+  <span class="chip" onclick="selectAllRuns(true)" title="show every run">all</span>
+  <span class="chip" onclick="selectAllRuns(false)" title="hide every run">none</span>
+  <span class="muted" style="font-size:.85em">·</span>
   <span id="runchips" style="display:contents"></span>
   <label class="muted" style="font-size:.8rem; cursor:pointer;
                               margin-left:auto; white-space:nowrap">
@@ -661,8 +664,24 @@ function toggleRun(name) {
   localStorage.setItem('osrsifyRunSel', JSON.stringify(RUNSEL));
   render();
 }
+function selectAllRuns(on) {
+  if (on) {
+    RUNSEL = null;
+    localStorage.removeItem('osrsifyRunSel');
+  } else {
+    RUNSEL = {};
+    for (const n of Object.keys(DATA)) RUNSEL[n] = false;
+    localStorage.setItem('osrsifyRunSel', JSON.stringify(RUNSEL));
+  }
+  render();
+}
 function renderRunBar() {
-  const names = Object.keys(DATA).sort();
+  // newest runs first, so the chips read like the run history
+  const started = n => {
+    const m = (DATA[n] && DATA[n]._meta) || {};
+    return m.started || m.updated || 0;
+  };
+  const names = Object.keys(DATA).sort((a, b) => started(b) - started(a));
   document.getElementById('runchips').innerHTML = names.map(n => {
     const doc = DATA[n];
     const meta = (doc && doc._meta) || {};
