@@ -301,8 +301,11 @@ ws_read_socket(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
             if( n < (int)sizeof(chunk) )
                 break;
         }
-        else if( n == 0 )
+        else if( n == 0 || n == SOCKSTREAM_ERROR_CLOSED )
         {
+            /* Both, for the reason platform_socket.c's read loop spells out:
+             * sockstream_recv signals a dead connection with the code, never
+             * with a zero-length read. */
             ws_close(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
             return 0;
         }

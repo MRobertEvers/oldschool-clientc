@@ -379,7 +379,9 @@ sockstream_recv(
         {
             printf("Socket recv error: %d\n", recv_err);
             stream->status = SOCKSTREAM_STATUS_ERROR;
-            return SOCKSTREAM_ERROR_NODATA;
+            /* See the POSIX branch: a real error is a closed connection, not
+             * a quiet one. */
+            return SOCKSTREAM_ERROR_CLOSED;
         }
         // Would block - return -1, caller should check errno/WSAGetLastError
         return SOCKSTREAM_ERROR_NODATA;

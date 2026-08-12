@@ -244,9 +244,18 @@ PlatformSocket_Poll(
             if( n < TORIRS_CMD_MAX_PAYLOAD )
                 break;
         }
-        else if( n == 0 )
+        else if( n == 0 || n == SOCKSTREAM_ERROR_CLOSED )
         {
-            /* Peer closed the connection. */
+            /*
+             * Peer closed the connection.
+             *
+             * SOCKSTREAM_ERROR_CLOSED as well as 0: sockstream_recv reports a
+             * graceful close and a fatal error with that code and never
+             * returns 0 at all, so a transport testing only for 0 treats
+             * every dead socket as a quiet one and polls it forever. That is
+             * what made a killed server invisible to this client until a
+             * fifteen-second silence timer noticed the absence of packets.
+             */
             sockstream_close(sock->stream);
             sock->stream = NULL;
             emit_status(sock, bus, TORIRS_NET_STATUS_DISCONNECTED);
@@ -254,7 +263,7 @@ PlatformSocket_Poll(
         }
         else
         {
-            break; /* -1: would-block or error; try next poll */
+            break; /* would-block; try next poll */
         }
     }
 }

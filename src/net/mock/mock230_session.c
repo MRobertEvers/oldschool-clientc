@@ -452,6 +452,19 @@ step_login(
         return 1;
     }
     session->reconnect = session->in[0] == OSRS239_LOGIN_GAMERECONNECT;
+    if( session->reconnect && !login_is_239(srv) )
+    {
+        /*
+         * Refuse rather than hang. The reconnect answer is RECONNECT_OK
+         * carrying a v5 player-info init block, and a pre-239 wire has no such
+         * block to send — so accepting the opcode here would arm the ciphers,
+         * defer a response that never comes, and leave the client waiting on a
+         * connection that looks alive.
+         */
+        fprintf(stderr, "mock230: GAMERECONNECT is a revision-239 opcode; this world is not\n");
+        session->state = MOCK230_SESSION_DEAD;
+        return 1;
+    }
     payload_len = (session->in[1] << 8) | session->in[2];
     if( payload_len < 13 || payload_len > MOCK230_SESSION_IN_MAX - 3 )
     {
