@@ -4,6 +4,9 @@
 Reads each run's results.json (atomically rewritten by osrsify.py after every
 candidate) and serves an exploration page:
 
+  - left sidebar: every run with a status dot, candidate count, show/hide
+    filtering, a per-run kill button, and a "new run" form exposing every
+    osrsify.py option so searches can be launched from the browser
   - per-run summary strip (candidates, pass rate, best, baseline margin)
   - "best so far" podium and a recent-candidates strip (not the full history)
   - fitness chart: every candidate as a point (reduce: x = kept vertex
@@ -17,7 +20,8 @@ candidate) and serves an exploration page:
     python watch_osrsify.py                       # watches runs/osrsify_*
     python watch_osrsify.py --port 9000 runs/osrsify_qbd_reduce
 
-Stdlib only; read-only over the run directories.
+Stdlib only. Read-only over the run directories themselves, but the kill and
+start controls do manage osrsify.py processes on this machine.
 """
 
 import argparse
@@ -26,6 +30,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -250,6 +255,255 @@ def build_wire(run, tag=None, seq=None):
     return out, None
 
 
+# ---------------------------------------------------------------------------
+# run control: kill a run's search process, or start a new one.
+
+# Every osrsify.py knob, mirrored for the new-run form. kind: 'str' | 'int' |
+# 'float' | 'flag' | 'choice' | 'list' (repeatable flag, one value per line).
+# default '' means "leave the flag out and let osrsify.py pick its own
+# default" (tool paths, optional overrides).
+OPTS = [
+    dict(flag="preset", kind="str", default="", group="inputs",
+         help="name from rs2012_backport_audit/presets.json"),
+    dict(flag="model", kind="list", default="", group="inputs",
+         help="part .ob3 paths, one per line (overrides preset)"),
+    dict(flag="seq", kind="list", default="", group="inputs",
+         help="sequence names or bare ids, one per line"),
+    dict(flag="seqcfg", kind="str", default="", group="inputs",
+         help="rs2012.seq config path"),
+    dict(flag="cache", kind="str", default="", group="inputs",
+         help="packed dat2 cache dir"),
+    dict(flag="out-dir", kind="str", default="", group="inputs",
+         help="run directory (blank = runs/osrsify_web_<timestamp>)"),
+    dict(flag="regime", kind="choice", choices=["reduce", "sculpt", "both"],
+         default="reduce", group="search", help="search regime"),
+    dict(flag="time-budget", kind="float", default="3600", group="search",
+         help="seconds of search after the baseline is banked"),
+    dict(flag="fracs", kind="str", default="0.85,0.70,0.55,0.45,0.35",
+         group="search", help="reduce ladder of vertex fractions"),
+    dict(flag="seeds", kind="int", default="3", group="search",
+         help="seeds per fraction"),
+    dict(flag="jitter", kind="int", default="8", group="search",
+         help="decimator candidate-pool jitter"),
+    dict(flag="max-cost", kind="float", default="0.0", group="search",
+         help="decimator collapse cost ceiling (0 = judges decide)"),
+    dict(flag="sa-iters", kind="int", default="400", group="search",
+         help="sculpt anneal iterations"),
+    dict(flag="sa-temp", kind="float", default="0.6", group="search",
+         help="sculpt anneal temperature"),
+    dict(flag="sa-seed", kind="int", default="1", group="search",
+         help="sculpt anneal seed"),
+    dict(flag="zbuffer", kind="flag", default="", group="render",
+         help="render depth-tested instead of painter's order "
+              "(content authored against the z-buffer, e.g. QBD)"),
+    dict(flag="frames-per-seq", kind="int", default="4", group="render",
+         help="posed frames judged per sequence"),
+    dict(flag="angles", kind="int", default="4", group="render",
+         help="bind render yaws"),
+    dict(flag="pose-angles", kind="int", default="2", group="render",
+         help="posed render yaws"),
+    dict(flag="pitch", kind="int", default="128", group="render",
+         help="camera pitch"),
+    dict(flag="tile", kind="int", default="256", group="render",
+         help="render tile size"),
+    dict(flag="bg", kind="str", default="808080", group="render",
+         help="background colour (hex)"),
+    dict(flag="id-gate", kind="float", default="55.0", group="gates",
+         help="bind identity floor"),
+    dict(flag="pose-id-gate", kind="float", default="50.0", group="gates",
+         help="posed identity floor"),
+    dict(flag="cov-band", kind="str", default="0.5,2.0", group="gates",
+         help="allowed candidate/baseline coverage ratio per view"),
+    dict(flag="regions", kind="int", default="8", group="regions",
+         help="max close-up regions to judge (0 disables)"),
+    dict(flag="region-min-verts", kind="int", default="30", group="regions",
+         help="ignore rig labels smaller than this"),
+    dict(flag="region-pad", kind="float", default="1.3", group="regions",
+         help="close-up camera radius = region half-diagonal x pad"),
+    dict(flag="region-id-gate", kind="float", default="45.0", group="regions",
+         help="minimum per-region close-up identity"),
+    dict(flag="defight", kind="choice", choices=["auto", "on", "off"],
+         default="auto", group="defight",
+         help="repair z-fighting on the base models before the search "
+              "(auto = on when zbuffer)"),
+    dict(flag="defight-min-pixels", kind="int", default="", group="defight",
+         help="pair qualification threshold (tool default 24)"),
+    dict(flag="defight-yaws", kind="int", default="", group="defight",
+         help="view sweep yaw count (tool default 16)"),
+    dict(flag="defight-fight-eps", kind="float", default="", group="defight",
+         help="depth-tie epsilon (tool default 2.5)"),
+    dict(flag="defight-deltas", kind="str", default="", group="defight",
+         help="displacement ladder CSV (tool default 3,6,9,12)"),
+    dict(flag="defight-timeout", kind="float", default="600", group="defight",
+         help="seconds before the defight tool is abandoned"),
+    dict(flag="force-priorities", kind="choice",
+         choices=["off", "solve", "keep"], default="off", group="priorities",
+         help="painter's priority buckets instead of the z-buffer: 'solve' "
+              "re-derives the bands, 'keep' audits the inherited ones"),
+    dict(flag="prio-views", kind="int", default="16", group="priorities",
+         help="priority solve yaw sweep"),
+    dict(flag="prio-pitches", kind="int", default="6", group="priorities",
+         help="priority solve elevation sweep"),
+    dict(flag="prio-slow", kind="int", default="800", group="priorities",
+         help="slow-anneal iterations (0 disables)"),
+    dict(flag="prio-slow-views", kind="int", default="8", group="priorities",
+         help="slow-anneal yaw sweep"),
+    dict(flag="prio-slow-pitches", kind="int", default="4", group="priorities",
+         help="slow-anneal elevation sweep"),
+    dict(flag="prio-repair", kind="int", default="256", group="priorities",
+         help="engine-judged greedy re-banding trials (0 disables)"),
+    dict(flag="prio-measure-views", kind="int", default="16",
+         group="priorities", help="z-violation audit yaw sweep"),
+    dict(flag="prio-measure-pitches", kind="int", default="5",
+         group="priorities", help="z-violation audit elevation sweep"),
+    dict(flag="prio-measure-res", kind="int", default="192",
+         group="priorities", help="z-violation audit render size"),
+    dict(flag="prio-zviol-tol", kind="float", default="1.15",
+         group="priorities",
+         help="reject when violation fraction exceeds baseline*tol + 0.25pp"),
+    dict(flag="prio-ghost-tol", kind="float", default="1.25",
+         group="priorities",
+         help="reject when ghost faces exceed baseline*tol + 16"),
+    dict(flag="prio-zviol-weight", kind="float", default="0.4",
+         group="priorities",
+         help="fitness penalty per pp of violation above baseline"),
+    dict(flag="prio-timeout", kind="float", default="3600",
+         group="priorities", help="seconds per priority-tool invocation"),
+    dict(flag="style-ckpt", kind="str", default="", group="tools",
+         help="style judge checkpoint (blank = default)"),
+    dict(flag="viewer", kind="str", default="", group="tools",
+         help="viewer binary (blank = default)"),
+    dict(flag="decimator", kind="str", default="", group="tools",
+         help="decimator binary (blank = default)"),
+    dict(flag="nudge", kind="str", default="", group="tools",
+         help="nudge binary (blank = default)"),
+    dict(flag="defight-tool", kind="str", default="", group="tools",
+         help="defight binary (blank = default)"),
+    dict(flag="prio-tool", kind="str", default="", group="tools",
+         help="priority solver binary (blank = default)"),
+    dict(flag="viewer-timeout", kind="float", default="300", group="tools",
+         help="seconds per viewer render"),
+    dict(flag="decimate-timeout", kind="float", default="600", group="tools",
+         help="seconds per decimator call"),
+]
+GROUPS = [
+    ["inputs", "inputs"],
+    ["search", "search"],
+    ["render", "render"],
+    ["gates", "identity gates"],
+    ["regions", "region close-ups"],
+    ["defight", "defight pre-pass"],
+    ["priorities", "priority solve & z-violation audit"],
+    ["tools", "tools & timeouts"],
+]
+
+PROCS = {}        # run name -> Popen, for searches this dashboard started
+AUTO_SCAN = True  # rescan runs/osrsify_* on /data (off with explicit dirs)
+
+
+def scan_runs():
+    """Pick up run dirs created after startup — e.g. dashboard-started runs
+    or waves launched from another terminal."""
+    if not AUTO_SCAN:
+        return
+    for d in glob.glob(os.path.join(HERE, "runs", "osrsify_*")):
+        d = os.path.abspath(d)
+        if os.path.isdir(d):
+            RUNS.setdefault(os.path.basename(d), d)
+
+
+def run_pids(run):
+    """PIDs of osrsify.py searches feeding this run, found by command line:
+    the run dir's basename appears in the wave's --out-dir argument. The
+    watcher itself is excluded ('osrsify.py' is a substring of its name)."""
+    token = os.path.basename(RUNS[run])
+    pids = []
+    try:
+        if os.name == "nt":
+            ps = ("Get-CimInstance Win32_Process -Filter "
+                  "\"Name='python.exe' or Name='py.exe'\" | ForEach-Object "
+                  "{ '{0}|{1}' -f $_.ProcessId, $_.CommandLine }")
+            r = subprocess.run(["powershell", "-NoProfile", "-Command", ps],
+                               capture_output=True, text=True, timeout=30)
+        else:
+            r = subprocess.run(["ps", "-eo", "pid=,args="],
+                               capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return pids
+    for line in (r.stdout or "").splitlines():
+        line = line.strip()
+        pid, _, cl = line.partition("|" if os.name == "nt" else " ")
+        if (pid.isdigit() and "osrsify.py" in cl
+                and "watch_osrsify" not in cl and token in cl):
+            pids.append(int(pid))
+    return pids
+
+
+def kill_run(run):
+    """Kill every osrsify process tree feeding the run; returns the pids."""
+    pids = set(run_pids(run))
+    p = PROCS.get(run)
+    if p is not None and p.poll() is None:
+        pids.add(p.pid)
+    pids.discard(os.getpid())
+    for pid in sorted(pids):
+        try:
+            if os.name == "nt":
+                # /T takes the whole tree: the search plus whatever solver,
+                # viewer or decimator subprocess it is inside at the moment
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)],
+                               capture_output=True, timeout=30)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    return sorted(pids)
+
+
+def start_run(form):
+    """Assemble an osrsify.py command from the form's options and spawn it
+    detached, logging to <out-dir>/launch.log. Returns the launch facts."""
+    form = dict(form)
+    if not form.get("preset") and not all(
+            form.get(k) for k in ("model", "seq", "seqcfg", "cache")):
+        raise ValueError("need model + seq + seqcfg + cache, or a preset")
+    out_dir = form.get("out-dir") or os.path.join(
+        "runs", "osrsify_web_%s" % time.strftime("%Y%m%d_%H%M%S"))
+    if not os.path.isabs(out_dir):
+        out_dir = os.path.join(HERE, out_dir)
+    form["out-dir"] = out_dir = os.path.abspath(out_dir)
+    cmd = [sys.executable, "-u", os.path.join(HERE, "osrsify.py")]
+    for spec in OPTS:
+        v = form.get(spec["flag"])
+        if v in (None, False, ""):
+            continue
+        if spec["kind"] == "flag":
+            cmd.append("--" + spec["flag"])
+        elif spec["kind"] == "list":
+            for item in str(v).replace("\r", "").split("\n"):
+                if item.strip():
+                    cmd += ["--" + spec["flag"], item.strip()]
+        else:
+            cmd += ["--" + spec["flag"], str(v)]
+    os.makedirs(out_dir, exist_ok=True)
+    log_path = os.path.join(out_dir, "launch.log")
+    creation = 0
+    if os.name == "nt":
+        creation = (subprocess.CREATE_NEW_PROCESS_GROUP
+                    | getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    with open(log_path, "ab") as logf:
+        logf.write((subprocess.list2cmdline(cmd) + "\n").encode("utf-8"))
+        logf.flush()
+        p = subprocess.Popen(cmd, cwd=HERE, stdin=subprocess.DEVNULL,
+                             stdout=logf, stderr=subprocess.STDOUT,
+                             creationflags=creation)
+    name = os.path.basename(out_dir)
+    RUNS[name] = out_dir
+    PROCS[name] = p
+    return {"run": name, "pid": p.pid, "log": log_path,
+            "cmd": subprocess.list2cmdline(cmd)}
+
+
 PAGE = """<!doctype html>
 <meta charset="utf-8">
 <title>osrsify live</title>
@@ -291,12 +545,17 @@ PAGE = """<!doctype html>
            text-transform:uppercase; letter-spacing:.06em; }
   canvas.chart { background:#1d1f25; border:1px solid #2c2e36;
                  border-radius:8px; width:100%; max-width:820px; height:180px; }
-  #runbar { position:sticky; top:0; z-index:10; background:#17181c;
-            border-bottom:1px solid #2c2e36; padding:.5rem 0; margin:0 0 .6rem;
-            display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
-  /* Each run's own header sticks just below the run bar; sections scope the
-     stickiness so the next run's header replaces the previous one. */
-  .runhead { position:sticky; top:var(--runbar-h, 2.6rem); z-index:9;
+  /* Left sidebar holds run status/filtering; the main column scrolls beside
+     it. Each run's own header sticks to the top of the viewport; sections
+     scope the stickiness so the next run's header replaces the previous. */
+  #layout { display:flex; align-items:flex-start; gap:1.4rem; }
+  #sidebar { position:sticky; top:0; flex:0 0 250px; width:250px;
+             max-height:100vh; overflow-y:auto; box-sizing:border-box;
+             padding:.2rem 0 1rem; }
+  #maincol { flex:1; min-width:0; }
+  #sidectl { display:flex; gap:.4rem; align-items:center; flex-wrap:wrap;
+             margin:.5rem 0 .6rem; }
+  .runhead { position:sticky; top:0; z-index:9;
              background:#17181c; border-bottom:1px solid #2c2e36;
              padding:.15rem 0 .5rem; }
   .runhead h2 { margin:.4rem 0 .4rem; }
@@ -305,14 +564,64 @@ PAGE = """<!doctype html>
           user-select:none; white-space:nowrap; }
   .chip.on { color:#d8d9de; border-color:#3a5f8a; background:#26405f; }
   .chip:hover { border-color:#5a5e6c; }
-  .chip .dot { display:inline-block; width:.55em; height:.55em;
-               border-radius:50%; margin-right:.35em; background:#8b8e99;
-               vertical-align:baseline; }
+  .runitem { display:flex; align-items:center; gap:.4em; margin:.3rem 0;
+             padding:.28em .5em; border:1px solid #2c2e36; border-radius:6px;
+             background:#1d1f25; color:#8b8e99; font-size:.8em;
+             cursor:pointer; user-select:none; }
+  .runitem.on { color:#d8d9de; border-color:#3a5f8a; background:#26405f; }
+  .runitem:hover { border-color:#5a5e6c; }
+  .runitem .rname { flex:1; min-width:0; overflow:hidden;
+                    text-overflow:ellipsis; white-space:nowrap; }
+  .runitem .cnt { color:#8b8e99; font-size:.85em; }
+  .runitem .kill { visibility:hidden; background:none; border:none;
+                   color:#c96a6a; cursor:pointer; font:inherit;
+                   padding:0 .15em; line-height:1; }
+  .runitem:hover .kill { visibility:visible; }
+  .runitem .kill:hover { color:#ff9d9d; }
+  .dot { display:inline-block; width:.55em; height:.55em;
+         border-radius:50%; background:#8b8e99; flex:0 0 auto; }
   .dot.live { background:#7ec97e; box-shadow:0 0 5px #7ec97e; }
   .dot.stale { background:#e6b450; }
   .dot.idle { background:#8b8e99; }
   .dot.off { background:#c96a6a; }
-  .chip .cnt { color:#8b8e99; font-size:.85em; margin-left:.3em; }
+  #newrunbtn { margin-top:.8rem; width:100%; background:#26405f;
+               color:#cfe2f7; border:1px solid #3a5f8a; border-radius:6px;
+               padding:.35em .6em; font:inherit; cursor:pointer; }
+  #newrunbtn:hover { background:#2f4f75; }
+  #newrun { position:fixed; inset:0; background:rgba(10,10,12,.88);
+            overflow:auto; padding:2rem; display:none;
+            z-index:16; /* above the candidate modal, below the lightbox */ }
+  #newrun .inner { background:#1d1f25; border:1px solid #3a3e4a;
+                   border-radius:10px; padding:1rem 1.4rem; max-width:1100px;
+                   margin:0 auto; }
+  #newrun .close { float:right; cursor:pointer; font-size:1.4rem;
+                   color:#8b8e99; }
+  #newrun fieldset { border:1px solid #2c2e36; border-radius:8px;
+                     margin:.7rem 0; padding:.5rem .8rem .7rem; }
+  #newrun legend { color:#9aa; text-transform:uppercase; font-size:.72rem;
+                   letter-spacing:.06em; padding:0 .4em; }
+  .optgrid { display:grid; gap:.45rem .9rem;
+             grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); }
+  .opt label { display:block; font-size:.75em; color:#8b8e99;
+               margin-bottom:.12em; font-family:monospace; }
+  .opt input[type=text], .opt input[type=number], .opt select,
+  .opt textarea, #nr-prefill {
+    width:100%; box-sizing:border-box; background:#14151a; color:#d8d9de;
+    border:1px solid #2c2e36; border-radius:4px; padding:.25em .4em;
+    font:inherit; font-size:.85em; }
+  #nr-prefill { width:auto; }
+  .opt textarea { min-height:3.4em; resize:vertical; font-family:monospace; }
+  .opt.wide { grid-column:1 / -1; }
+  .opt .chk { display:flex; gap:.4em; align-items:center; color:#d8d9de;
+              font-size:.85em; }
+  #nr-launch { background:#274a2c; color:#9fd9a5; border:1px solid #3f7a48;
+               border-radius:6px; padding:.35em 1.1em; font:inherit;
+               cursor:pointer; }
+  #nr-launch:hover { background:#2f5a35; }
+  @media (max-width: 900px) {
+    #layout { display:block; }
+    #sidebar { position:static; width:auto; max-height:none; }
+  }
   #modal { position:fixed; inset:0; background:rgba(10,10,12,.88);
            overflow:auto; padding:2rem; display:none;
            z-index:15; /* above the sticky run bar/headers (10/9), below the lightbox (20) */ }
@@ -334,20 +643,47 @@ PAGE = """<!doctype html>
   #lightbox .hint { position:absolute; bottom:.8rem; left:0; right:0;
                     text-align:center; color:#8b8e99; font-size:.85em; }
 </style>
-<h1>osrsify live <span class="muted" id="stamp"></span></h1>
-<div id="runbar"><span class="muted" style="font-size:.85em">runs</span>
-  <span class="chip" onclick="selectAllRuns(true)" title="show every run">all</span>
-  <span class="chip" onclick="selectAllRuns(false)" title="hide every run">none</span>
-  <span class="muted" style="font-size:.85em">·</span>
-  <span id="runchips" style="display:contents"></span>
-  <label class="muted" style="font-size:.8rem; cursor:pointer;
-                              margin-left:auto; white-space:nowrap">
-    <input type="checkbox" id="latest-only"> latest run only</label></div>
-<div id="root" class="muted">loading…</div>
+<div id="layout">
+<aside id="sidebar">
+  <h1>osrsify live</h1>
+  <div class="muted" id="stamp" style="font-size:.75em"></div>
+  <div id="sidectl">
+    <span class="chip" onclick="selectAllRuns(true)" title="show every run">all</span>
+    <span class="chip" onclick="selectAllRuns(false)" title="hide every run">none</span>
+    <label class="muted" style="font-size:.75rem; cursor:pointer; white-space:nowrap">
+      <input type="checkbox" id="latest-only"> latest only</label>
+  </div>
+  <div id="runchips"></div>
+  <button id="newrunbtn" onclick="openNewRun()">＋ new run</button>
+</aside>
+<main id="maincol">
+  <div id="root" class="muted">loading…</div>
+</main>
+</div>
 <div id="modal" onclick="if(event.target===this)closeModal()"><div class="inner" id="modal-body"></div></div>
+<div id="newrun" onclick="if(event.target===this)closeNewRun()">
+  <div class="inner">
+    <span class="close" onclick="closeNewRun()">✕</span>
+    <h2>start a new run</h2>
+    <div class="muted" style="font-size:.85em">
+      every osrsify.py option — blank fields fall back to the tool's own
+      defaults; hover a field for its meaning. Needs <b>model + seq + seqcfg +
+      cache</b>, or a <b>preset</b>. &nbsp;prefill from
+      <select id="nr-prefill"><option value="">— run —</option></select></div>
+    <form id="nr-form" onsubmit="return false"></form>
+    <div style="margin:.8rem 0 .2rem; display:flex; gap:.8rem; align-items:center">
+      <button id="nr-launch" onclick="submitNewRun()">launch</button>
+      <span id="nr-status" class="muted" style="font-size:.85em"></span>
+    </div>
+  </div>
+</div>
 <div id="lightbox"><img id="lb-img"><div class="hint">scroll to zoom &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp; Esc / click to close</div></div>
 <script>
-const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const esc = s => String(s).replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// every osrsify.py option (server-injected), for the new-run form
+const OPTS = __OPTS__;
+const GROUPS = __GROUPS__;
 let DATA = {};
 let FAVS = [];
 
@@ -694,8 +1030,8 @@ function selectAllRuns(on) {
   }
   render();
 }
-function renderRunBar() {
-  // newest runs first, so the chips read like the run history
+function renderSidebar() {
+  // newest runs first, so the list reads like the run history
   const started = n => {
     const m = (DATA[n] && DATA[n]._meta) || {};
     return m.started || m.updated || 0;
@@ -707,20 +1043,110 @@ function renderRunBar() {
     const cands = ((doc && doc.candidates) || []).length;
     const age = doc ? Date.now() / 1000 - (meta.updated || 0) : Infinity;
     const st = !doc ? ['off', 'no results.json yet']
+      : doc._starting ? ['stale', 'starting — no results.json yet']
+      : !doc.baseline ? ['off', meta.proc || 'no results yet']
       : age < 180 ? ['live', `live — updated ${Math.max(0, Math.round(age))}s ago`]
       : age < 900 ? ['stale', `quiet — last update ${Math.round(age / 60)}m ago`]
       : ['idle', `idle — last update ${fmtTime(meta.updated)}`];
     const tip = st[1] +
+      (meta.proc ? ` · ${meta.proc}` : '') +
       (doc && doc.best && doc.best.id ? ` · best ${doc.best.id}` : '') +
       (meta.started ? ` · started ${fmtTime(meta.started)}` : '');
-    return `<span class="chip${runShown(n) && !latestBox.checked ? ' on' : ''}"
-       title="${esc(tip)}" onclick="toggleRun('${esc(n)}')"><span
-       class="dot ${st[0]}"></span>${esc(n)}<span class="cnt">${cands}</span></span>`;
+    return `<div class="runitem${runShown(n) && !latestBox.checked ? ' on' : ''}"
+       title="${esc(tip)}" onclick="toggleRun('${esc(n)}')">
+       <span class="dot ${st[0]}"></span><span class="rname">${esc(n)}</span>
+       <span class="cnt">${cands}</span>
+       <button class="kill" title="kill this run's search process tree"
+         onclick="event.stopPropagation();killRun('${esc(n)}')">✕</button></div>`;
   }).join('');
 }
 
+async function killRun(run) {
+  if (!confirm(`Kill the search feeding "${run}"?\\nThis stops its whole process tree.`))
+    return;
+  try {
+    const res = await fetch('/api/kill/' + encodeURIComponent(run), { method: 'POST' });
+    const body = await res.json();
+    alert(body.message || JSON.stringify(body));
+  } catch (e) { alert('kill failed: ' + e); }
+}
+
+// ---- new-run form: every osrsify.py knob, grouped; blank = tool default ----
+function optField(o) {
+  const id = 'nr-' + o.flag;
+  let input;
+  if (o.kind === 'flag')
+    input = `<span class="chk"><input type="checkbox" name="${o.flag}" id="${id}"> on</span>`;
+  else if (o.kind === 'choice')
+    input = `<select name="${o.flag}" id="${id}">` +
+      o.choices.map(c => `<option${c === o.default ? ' selected' : ''}>${c}</option>`).join('') +
+      `</select>`;
+  else if (o.kind === 'list')
+    input = `<textarea name="${o.flag}" id="${id}" spellcheck="false"
+              placeholder="one per line"></textarea>`;
+  else
+    input = `<input type="${o.kind === 'str' ? 'text' : 'number'}"
+              ${o.kind === 'float' ? 'step="any"' : o.kind === 'int' ? 'step="1"' : ''}
+              name="${o.flag}" id="${id}" value="${esc(o.default)}"
+              placeholder="default" spellcheck="false">`;
+  return `<div class="opt${o.kind === 'list' ? ' wide' : ''}"
+      title="${esc(o.help || '')}">
+      <label for="${id}">--${o.flag}</label>${input}</div>`;
+}
+function openNewRun() {
+  document.getElementById('nr-form').innerHTML = GROUPS.map(([key, label]) =>
+    `<fieldset><legend>${esc(label)}</legend><div class="optgrid">` +
+    OPTS.filter(o => o.group === key).map(optField).join('') +
+    `</div></fieldset>`).join('');
+  const sel = document.getElementById('nr-prefill');
+  sel.innerHTML = '<option value="">— run —</option>' +
+    Object.keys(DATA).map(n => `<option>${esc(n)}</option>`).join('');
+  sel.onchange = () => prefillFrom(sel.value);
+  document.getElementById('nr-status').textContent = '';
+  document.getElementById('newrun').style.display = 'block';
+}
+function closeNewRun() { document.getElementById('newrun').style.display = 'none'; }
+// copy an existing run's recorded config into matching fields (never its
+// out-dir: a new search must not write into the source run's directory)
+function prefillFrom(run) {
+  const cfg = (DATA[run] || {}).config;
+  if (!cfg) return;
+  const map = { base_models: 'model', seqs: 'seq' };
+  for (const [k, v] of Object.entries(cfg)) {
+    if (v === null || (typeof v === 'object' && !Array.isArray(v))) continue;
+    const flag = map[k] || k.replace(/_/g, '-');
+    if (flag === 'out-dir') continue;
+    const el = document.getElementById('nr-' + flag);
+    if (!el) continue;
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (el.tagName === 'TEXTAREA') el.value = Array.isArray(v) ? v.join('\\n') : v;
+    else el.value = Array.isArray(v) ? v.join(',') : v;
+  }
+}
+async function submitNewRun() {
+  const opts = {};
+  for (const o of OPTS) {
+    const el = document.getElementById('nr-' + o.flag);
+    if (!el) continue;
+    if (o.kind === 'flag') { if (el.checked) opts[o.flag] = true; }
+    else if (el.value.trim() !== '') opts[o.flag] = el.value;
+  }
+  const status = document.getElementById('nr-status');
+  status.textContent = 'launching…';
+  try {
+    const res = await fetch('/api/start', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts) });
+    const text = await res.text();
+    if (!res.ok) { status.textContent = text; return; }
+    const info = JSON.parse(text);
+    status.textContent =
+      `launched ${info.run} (pid ${info.pid}) — logging to ${info.log}`;
+  } catch (e) { status.textContent = 'launch failed: ' + e; }
+}
+
 function render() {
-  renderRunBar();
+  renderSidebar();
   let h = '';
   if (FAVS.length) {
     h += `<h2>favorites <span class="muted" style="font-size:.75em">
@@ -728,8 +1154,13 @@ function render() {
           <div class="row">` + FAVS.map(favCard).join('') + `</div>`;
   }
   for (const [run, doc] of visibleRuns()) {
-    if (!doc) { h += `<section><div class="runhead"><h2>${esc(run)}</h2></div>
-                      <p class="muted">no results.json yet</p></section>`; continue; }
+    if (!doc || !doc.baseline) {
+      h += `<section><div class="runhead"><h2>${esc(run)}</h2></div>
+            <p class="muted">${doc && doc._starting
+              ? 'starting — waiting for the baseline'
+              : 'no results.json yet'}</p></section>`;
+      continue;
+    }
     const all = doc.candidates || [], best = doc.best && doc.best.id;
     const cands = all.filter(c => inRange(run, c));
     const pass = cands.filter(c => c.fitness !== null && c.fitness !== undefined);
@@ -777,12 +1208,8 @@ function render() {
          `</div></section>`;
   }
   document.getElementById('root').innerHTML = h;
-  // Run headers stick immediately below the run bar, whose height depends on
-  // how many chips wrapped; measure it rather than guessing.
-  document.documentElement.style.setProperty(
-    '--runbar-h', document.getElementById('runbar').offsetHeight + 'px');
   for (const [run, doc] of visibleRuns())
-    if (doc) {
+    if (doc && doc.baseline) {
       const cands = (doc.candidates || []).filter(c => inRange(run, c));
       drawChart(document.getElementById('chart-' + run), doc, cands);
       drawPreserver(document.getElementById('pres-' + run), cands);
@@ -884,6 +1311,8 @@ window.addEventListener('mouseup', () => {
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (lbBox.style.display === 'block') closeLightbox();
+  else if (document.getElementById('newrun').style.display === 'block')
+    closeNewRun();
   else closeModal();
 });
 
@@ -1205,10 +1634,13 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(unquote(self.path))
         path = url.path
         if path in ("/", "/index.html"):
-            return self.send(200, "text/html; charset=utf-8", PAGE.encode())
+            page = (PAGE.replace("__OPTS__", json.dumps(OPTS))
+                        .replace("__GROUPS__", json.dumps(GROUPS)))
+            return self.send(200, "text/html; charset=utf-8", page.encode())
         if path == "/data":
+            scan_runs()
             out = {}
-            for name, d in RUNS.items():
+            for name, d in list(RUNS.items()):
                 try:
                     with open(os.path.join(d, "results.json"), "r",
                               encoding="utf-8") as f:
@@ -1218,6 +1650,16 @@ class Handler(BaseHTTPRequestHandler):
                 if out[name] is not None:
                     out[name]["_meta"] = run_meta(name, out[name])
                     stamp_candidates(name, out[name])
+                if name in PROCS:
+                    p = PROCS[name]
+                    alive = p.poll() is None
+                    proc = ("running (pid %d)" % p.pid if alive
+                            else "exited %s" % p.returncode)
+                    if out[name] is None:
+                        out[name] = {"_starting": alive,
+                                     "_meta": {"proc": proc}}
+                    else:
+                        out[name]["_meta"]["proc"] = proc
             return self.send(200, "application/json", json.dumps(out).encode())
         if path == "/favs":
             return self.send(200, "application/json",
@@ -1293,6 +1735,26 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(unquote(self.path)).path
+        m = re.match(r"^/api/kill/([^/]+)$", path)
+        if m and m.group(1) in RUNS:
+            pids = kill_run(m.group(1))
+            msg = ("killed process tree(s): %s" % ", ".join(map(str, pids))
+                   if pids else "no running osrsify process found for this run")
+            return self.send(200, "application/json",
+                             json.dumps({"killed": pids,
+                                         "message": msg}).encode())
+        if path == "/api/start":
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                form = json.loads(self.rfile.read(n).decode("utf-8") or "{}")
+                if not isinstance(form, dict):
+                    raise ValueError("expected a JSON object of options")
+                info = start_run(form)
+            except (OSError, ValueError) as e:
+                return self.send(400, "text/plain; charset=utf-8",
+                                 ("start failed: %s" % e).encode())
+            return self.send(200, "application/json",
+                             json.dumps(info).encode())
         m = re.match(r"^/fav/([^/]+)/(.+)$", path)
         if m and m.group(1) in RUNS and safe_tag(m.group(2)):
             try:
@@ -1319,6 +1781,8 @@ def main():
     ap.add_argument("--host", default="0.0.0.0",
                     help="bind address (default all interfaces; use 127.0.0.1 for local-only)")
     o = ap.parse_args()
+    global AUTO_SCAN
+    AUTO_SCAN = not o.runs
     dirs = o.runs or sorted(glob.glob(os.path.join(HERE, "runs", "osrsify_*")))
     for d in dirs:
         d = os.path.abspath(d)
