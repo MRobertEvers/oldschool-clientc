@@ -3654,7 +3654,22 @@ gl3_ev_model_draw(
     if( mcmd->pick_only )
         return;
     {
-        int face_count = ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
+        /*
+         * The depth pass must not sort.
+         *
+         * That is the whole point of the mode: the depth buffer decides what
+         * covers what, so the priority/depth face sort is work whose result is
+         * thrown away. Calling it here anyway — which this did — made every
+         * model pay it, and then translucent models paid a second one inside
+         * the submit. The face count comes from the model instead.
+         *
+         * There is no `<= 0` early-out to lose: a model whose faces are all
+         * hidden still has a raw face count, and the classification marks them
+         * SKIP, so nothing extra is drawn.
+         */
+        int face_count = renderer->z_buffer_enabled
+                             ? trspk_toridraw_face_count(mcmd->model)
+                             : ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
         int* face_order;
         if( face_count <= 0 )
             return;
@@ -3691,11 +3706,7 @@ gl3_ev_model_draw(
         }
         if( renderer->z_buffer_enabled )
         {
-            /* face_count above came from the sort, which the depth pass does
-             * not want for opaque geometry. Re-take the model's own face count
-             * so faces are walked in natural order. */
-            int natural = trspk_toridraw_face_count(mcmd->model);
-            GL3ZB_SubmitModel(renderer, mcmd, ctx, group, vertex_base, natural);
+            GL3ZB_SubmitModel(renderer, mcmd, ctx, group, vertex_base, face_count);
             return;
         }
 

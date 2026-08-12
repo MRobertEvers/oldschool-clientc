@@ -405,12 +405,22 @@ one lane only.
   models paying the sort. Output differs from painter order by 0.3% of sampled
   pixels (none above 96/255) — the same image by a different occlusion
   mechanism.
-- **No sorting in the collection path.** `App_SetWorldRenderMode(TORIRS_WORLD_DEPTH)`
-  selects `painter_collect_visible_depth`, which emits the visible set linearly
-  and applies occlusion only — no tile wavefront, no opaque face-distance sort.
-  The one sort that remains is `ToriDraw_RenderModel2SortFaces` for models that
-  actually have translucent faces, and it cannot be removed: translucency
-  composites, so it has to be back-to-front. D3D9 keeps the same exception.
+- **Nothing sorts unless translucency forces it.** Two levels:
+  `App_SetWorldRenderMode(TORIRS_WORLD_DEPTH)` selects
+  `painter_collect_visible_depth`, which emits the visible set linearly with
+  occlusion only — no tile wavefront, no opaque face-distance sort. And the
+  per-model face sort (`ToriDraw_RenderModel2SortFaces`) runs *only* for models
+  that actually have translucent faces, because translucency composites and has
+  to be back-to-front. D3D9 keeps the same single exception.
+- **Regression to watch for:** the model event used to call
+  `ToriDraw_RenderModel2SortFaces` unconditionally, before the depth branch, to
+  get its face count. That made every model pay the sort the mode exists to
+  remove, and translucent models pay a second one inside the submit — while
+  `gl_z_sorted_models` still read 36, because it only counts the second. The
+  count now comes from `trspk_toridraw_face_count` in depth mode. Removing that
+  one call took the render stage from 5.79ms to 4.07ms and the frame from
+  7.27ms to 5.53ms on a settled osrs239 boot; do not reintroduce a sort to
+  obtain a face count.
 - **Classification is cached** per (element, track, pose), as D3D9 does. It
   depends on the pose's final face alpha, which animation writes when the pose
   is baked, so it is stable for as long as that baked pose is. Element unload
@@ -418,10 +428,21 @@ one lane only.
   `*ZB_ForgetTrack`), so a reused pose id cannot serve the previous pose's
   opaque/blended split. Caching moved the depth pass's render stage from 6.87ms
   to 5.79ms on a settled osrs239 boot under SwiftShader.
-- **Still slower than painter on this host** (5.79ms vs 4.82ms render) despite
-  submitting fewer triangles: SwiftShader pays real per-fragment cost for the
-  depth test and write. That ranking is a property of a software rasterizer and
-  should be re-measured on a GPU before being treated as the mode's cost.
+- **Swept for other software-rasterizer-only work**, since the sort above was
+  not the only candidate. What was checked and what it turned out to be:
+
+  | candidate | verdict |
+  |---|---|
+  | `App_Render` (the Soft3D rasterizer) still running each frame | No — the GPU frame path returns before it. |
+  | Scene collection still doing the painter traversal | No — `TORIRS_WORLD_DEPTH` selects `painter_collect_visible_depth`. Measured: `build` stage 1.73ms painter vs 1.15ms depth. |
+  | Near-clip kernel forced on for every model | No — `may_clip = true` is behind `TORIDRAW_NEAR_CLIP_FORCE_ALL`, off by default. |
+  | Per-vertex CPU projection duplicating the GPU's | **Needed, not waste.** The vertex bake reads object-space `model->vertices_x`, but the front-face test and every pick hit-test read `scene->screen_vertices_*`. |
+  | CPU front-face test replaceable by `GL_CULL_FACE` | **Deliberately not.** Hardware culling would leave back faces in the index stream, roughly doubling index upload and vertex work to save ~44k integer cross products. Rejecting them on the CPU is the right trade when draw/index bandwidth is the constraint, and it is what D3D9 does. |
+
+- **Now faster than painter order** on the same host: 4.07ms render / 5.53ms
+  frame, against painter's 4.82ms / 6.94ms. It submits fewer triangles (45,325
+  vs 48,862 — back faces and hidden faces never enter the stream) and no longer
+  sorts them.
 - **Sources:**
   [`src/platform/platform_sdl2_renderer_webgl1zb.c`](../src/platform/platform_sdl2_renderer_webgl1zb.c),
   [`src/platform/platform_sdl2_renderer_gl3zb.c`](../src/platform/platform_sdl2_renderer_gl3zb.c)
