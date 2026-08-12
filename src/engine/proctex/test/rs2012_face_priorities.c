@@ -728,6 +728,7 @@ struct raster
     int* face_depth;
     int* face_band;
     int* face_order;
+    int* face_order2; /* splice scratch for build_draw_order */
 };
 
 /**
@@ -823,6 +824,95 @@ cmp_face_order(const void* a, const void* b)
 }
 
 /**
+ * The engine's draw order for a band assignment, splice and all.
+ *
+ * ToriDraw's sorter (sort_face_draw_order) emits the hard bands 0..9 in band
+ * order, each internally far-to-near, but the flexible faces -- band 10's list
+ * with band 11's appended, walked as ONE sequential list -- are spliced in at
+ * three averaged depths: before band 0 while deeper than avg(bands 1,2),
+ * before band 3 while deeper than avg(bands 3,4), before band 5 while deeper
+ * than avg(bands 6,8), remainder after band 9. An empty band pair averages 0,
+ * which floods the remaining flexible faces to the very back. The averages
+ * count only faces the client actually draws, so back-facing faces are culled
+ * here before they can weigh in.
+ *
+ * Fills r->face_order with the emission order and returns how many faces are
+ * in it (culled faces are absent, exactly as they are absent from the engine's
+ * depth buckets). The walks compare absolute depths on both sides, so the
+ * engine's model-relative bucket indices reduce to the same order.
+ */
+static int
+build_draw_order(const struct geometry* g, struct raster* r, const int* band)
+{
+    long depth_sum[HARD_BANDS] = { 0 };
+    int band_count[HARD_BANDS] = { 0 };
+    int n = 0;
+
+    for( int f = 0; f < g->face_count; f++ )
+    {
+        int const ia = g->fa[f], ib = g->fb[f], ic = g->fc[f];
+        long const ax = r->sx[ia], ay = r->sy[ia];
+        long const bx = r->sx[ib], by = r->sy[ib];
+        long const cx = r->sx[ic], cy = r->sy[ic];
+        int const b = band[g->face_feature[f]];
+
+        r->face_depth[f] = (r->sz[ia] + r->sz[ib] + r->sz[ic]) / 3;
+        r->face_band[f] = b;
+        if( (ax - bx) * (cy - by) - (ay - by) * (cx - bx) <= 0 )
+            continue;
+        r->face_order[n++] = f;
+        if( b < HARD_BANDS )
+        {
+            depth_sum[b] += r->face_depth[f];
+            band_count[b]++;
+        }
+    }
+
+    g_sort_depth = r->face_depth;
+    g_sort_band = r->face_band;
+    qsort(r->face_order, (size_t)n, sizeof(int), cmp_face_order);
+
+    /* Sorted, the array is the hard runs back to back followed by band 10's
+     * faces then band 11's, each far-to-near with ties in face order -- byte
+     * for byte the engine's merged flexible list. */
+    int flex_start = n;
+    for( int i = 0; i < n; i++ )
+        if( r->face_band[r->face_order[i]] >= HARD_BANDS )
+        {
+            flex_start = i;
+            break;
+        }
+
+    long avg12 = 0, avg34 = 0, avg68 = 0;
+    if( band_count[1] + band_count[2] > 0 )
+        avg12 = (depth_sum[1] + depth_sum[2]) / (band_count[1] + band_count[2]);
+    if( band_count[3] + band_count[4] > 0 )
+        avg34 = (depth_sum[3] + depth_sum[4]) / (band_count[3] + band_count[4]);
+    if( band_count[6] + band_count[8] > 0 )
+        avg68 = (depth_sum[6] + depth_sum[8]) / (band_count[6] + band_count[8]);
+
+    int* out = r->face_order2;
+    int oi = 0, hi = 0, fi = flex_start;
+    while( fi < n && r->face_depth[r->face_order[fi]] > avg12 )
+        out[oi++] = r->face_order[fi++];
+    while( hi < flex_start && r->face_band[r->face_order[hi]] <= 2 )
+        out[oi++] = r->face_order[hi++];
+    while( fi < n && r->face_depth[r->face_order[fi]] > avg34 )
+        out[oi++] = r->face_order[fi++];
+    while( hi < flex_start && r->face_band[r->face_order[hi]] <= 4 )
+        out[oi++] = r->face_order[hi++];
+    while( fi < n && r->face_depth[r->face_order[fi]] > avg68 )
+        out[oi++] = r->face_order[fi++];
+    while( hi < flex_start )
+        out[oi++] = r->face_order[hi++];
+    while( fi < n )
+        out[oi++] = r->face_order[fi++];
+
+    memcpy(r->face_order, out, (size_t)n * sizeof(int));
+    return n;
+}
+
+/**
  * Score every ordered feature pair for one view.
  *
  * Three passes over the same projection:
@@ -871,17 +961,8 @@ measure_view(
         });
     }
 
-    for( int f = 0; f < g->face_count; f++ )
-    {
-        r->face_depth[f] = (r->sz[g->fa[f]] + r->sz[g->fb[f]] + r->sz[g->fc[f]]) / 3;
-        r->face_band[f] = band[g->face_feature[f]];
-        r->face_order[f] = f;
-    }
-    g_sort_depth = r->face_depth;
-    g_sort_band = r->face_band;
-    qsort(r->face_order, (size_t)g->face_count, sizeof(int), cmp_face_order);
-
-    for( int i = 0; i < g->face_count; i++ )
+    int const order_count = build_draw_order(g, r, band);
+    for( int i = 0; i < order_count; i++ )
     {
         int const f = r->face_order[i];
         int const feat = g->face_feature[f];
@@ -1162,6 +1243,45 @@ compact_bands(int feature_count, int* band)
         band[i] = map[band[i]];
 }
 
+/**
+ * The same assignment with its heaviest hard band moved to the flexible one.
+ *
+ * A feature left in a hard band with the bulk flexible is no longer pinned in
+ * front of everything: the sorter splices the flexible run around it at the
+ * averaged depths, so the feature sorts as a unit at its own depth -- over the
+ * far half of the surface it sits on and under the near half. No arrangement
+ * of hard bands can express that.
+ */
+static void
+bulk_flex_spelling(int* dst, const int* src, const struct feature* features, int feature_count)
+{
+    long weight[HARD_BANDS] = { 0 };
+    int bulk = 0;
+
+    memcpy(dst, src, (size_t)feature_count * sizeof(int));
+    for( int i = 0; i < feature_count; i++ )
+        if( dst[i] < HARD_BANDS )
+            weight[dst[i]] += features[i].face_count;
+    for( int b = 1; b < HARD_BANDS; b++ )
+        if( weight[b] > weight[bulk] )
+            bulk = b;
+    for( int i = 0; i < feature_count; i++ )
+        if( dst[i] == bulk )
+            dst[i] = FLEX_BAND;
+}
+
+/* Feature order for the repair stage: worst offender first, ties stable. */
+static __thread const long* g_sort_weight;
+
+static int
+cmp_weight_desc(const void* a, const void* b)
+{
+    int const fa = *(const int*)a, fb = *(const int*)b;
+    if( g_sort_weight[fa] != g_sort_weight[fb] )
+        return g_sort_weight[fb] > g_sort_weight[fa] ? 1 : -1;
+    return fa - fb;
+}
+
 
 /* ------------------------------------------------------- the slow search -- */
 
@@ -1190,8 +1310,9 @@ raster_scratch_alloc(struct raster* r, int res, int vertex_count, int face_count
     r->face_depth = (int*)malloc((size_t)face_count * sizeof(int));
     r->face_band = (int*)malloc((size_t)face_count * sizeof(int));
     r->face_order = (int*)malloc((size_t)face_count * sizeof(int));
+    r->face_order2 = (int*)malloc((size_t)face_count * sizeof(int));
     return r->paint_feature && r->paint_z && r->sx && r->sy && r->sz && r->face_depth &&
-           r->face_band && r->face_order;
+           r->face_band && r->face_order && r->face_order2;
 }
 
 static void
@@ -1205,6 +1326,7 @@ raster_scratch_free(struct raster* r)
     free(r->face_depth);
     free(r->face_band);
     free(r->face_order);
+    free(r->face_order2);
     memset(r, 0, sizeof(*r));
 }
 
@@ -1239,16 +1361,8 @@ raster_painter(struct geometry* g, struct raster* r, const int* band)
         r->paint_feature[i] = -1;
         r->paint_z[i] = 1 << 30;
     }
-    for( int f = 0; f < g->face_count; f++ )
-    {
-        r->face_depth[f] = (r->sz[g->fa[f]] + r->sz[g->fb[f]] + r->sz[g->fc[f]]) / 3;
-        r->face_band[f] = band[g->face_feature[f]];
-        r->face_order[f] = f;
-    }
-    g_sort_depth = r->face_depth;
-    g_sort_band = r->face_band;
-    qsort(r->face_order, (size_t)g->face_count, sizeof(int), cmp_face_order);
-    for( int i = 0; i < g->face_count; i++ )
+    int const order_count = build_draw_order(g, r, band);
+    for( int i = 0; i < order_count; i++ )
     {
         int const f = r->face_order[i];
         int const feat = g->face_feature[f];
@@ -1318,18 +1432,48 @@ slow_eval(struct geometry* g2, const int* band, struct slowctx* ctx)
     return total;
 }
 
+/**
+ * Wrong-pixel weight per feature under the current bands: which features are
+ * painting over surfaces the z-buffer says should win, and by how many pixels.
+ * The anneal draws its victims from this distribution, so the walk spends its
+ * budget where the violations are instead of uniformly over features that were
+ * never wrong. Serial over the slow views; recomputed only at pull-home. */
+static void
+violation_weights(
+    struct geometry* g2, const int* band, struct slowctx* ctx, long* w, int feature_count)
+{
+    struct raster* r = &ctx->rasters[0];
+
+    for( int i = 0; i < feature_count; i++ )
+        w[i] = 1; /* floor: every feature stays reachable */
+    for( int vi = 0; vi < ctx->view_count; vi++ )
+    {
+        struct slowview* sv = &ctx->views[vi];
+        project_view(g2, &sv->v, r, sv->distance, ctx->scale);
+        raster_painter(g2, r, band);
+        for( int i = 0; i < r->w * r->h; i++ )
+        {
+            int const pf = r->paint_feature[i];
+            if( pf >= 0 && sv->ref_id[i] >= 0 && pf != sv->ref_id[i] &&
+                r->paint_z[i] > sv->ref_z[i] + 6 )
+                w[pf]++;
+        }
+    }
+}
+
 
 /* ---------------------------------------------------- the stock judge ----- */
 
 /*
  * Score candidates with the ENGINE, not with a model of the engine.
  *
- * Everything above this line approximates the sorter: a painter that orders
- * strictly by (band, depth). The real sorter does more -- it splices flexible
- * priorities into the fixed run at three depth averages, walks depth buckets,
- * biases by the model's depth extent -- and the approximation was measured
- * drifting from it (a candidate the internal judge scored 12.8%% better tied
- * under the engine). This judge closes that gap by construction:
+ * Everything above this line approximates the sorter. The approximation now
+ * implements the flexible-priority splice (build_draw_order), but the real
+ * sorter still does more -- walks quantized depth buckets, biases by the
+ * model's depth extent -- and the earlier, spliceless approximation was
+ * measured drifting from it (a candidate the internal judge scored 12.8%%
+ * better tied under the engine). This judge closes the remaining gap by
+ * construction:
  *
  *   reference  = the model rendered through the STOCK depth-tested kernels
  *                (TORIDRAW_MODEL_FLAG_ZBUFFER), once per view, cached;
@@ -1653,7 +1797,7 @@ stock_setup(
     {
         j->scenes[t] = ToriDraw_SceneNew(
             TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
-            TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+            TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
         j->pixels[t] = (toripixel_t*)calloc((size_t)tile * (size_t)tile, sizeof(toripixel_t));
         if( !j->scenes[t] || !j->pixels[t] ||
             !ToriDraw_SceneZBufferResize(j->scenes[t], tile, tile) )
@@ -1690,6 +1834,299 @@ stock_setup(
     return true;
 }
 
+/* ------------------------------------------------- the z-violation audit -- */
+
+/*
+ * --measure: how much do the priorities the inputs ALREADY carry violate the
+ * z-buffer? Writes nothing; reports only. Runs at FACE granularity -- no
+ * welding, no segmentation -- because the question is about the bytes on
+ * disk, not about what a solve would group.
+ *
+ * Three verdicts, each against the same z-buffer reference:
+ *
+ *   internal        painter with the carried priorities vs the z-buffer:
+ *                   pixels showing a face that is behind the true surface by
+ *                   more than the slack. Face identity is exact here, so this
+ *                   counts occlusion violations even where the two faces
+ *                   happen to share a colour.
+ *   depth_only      the same painter with every priority stripped: what the
+ *                   plain depth sort would violate anyway. The difference is
+ *                   the part the priorities themselves cause.
+ *   ghost faces     the literal artefact: a face the z-buffer shows NOWHERE
+ *                   in a view (completely occluded) that the prioritized
+ *                   painter draws anyway.
+ *
+ * The stock judge then repeats the first two through the real engine sorter
+ * (flex splice and all) as visible-pixel diffs, so an approximation drift in
+ * the internal painter cannot pass a model the engine would mangle.
+ *
+ * Every "ZVIOL key: k=v ..." line is machine-readable on purpose; the search
+ * harness parses them.
+ */
+static int
+run_measure(
+    struct input* inputs,
+    int input_count,
+    struct geometry* g,
+    struct poses* poses,
+    int pose_count,
+    int yaw_steps,
+    int pitch_steps,
+    double elev_min_deg,
+    double elev_max_deg,
+    int res,
+    int judge_tile,
+    bool use_stock)
+{
+    int const slack = 2;
+    int const ghost_min_px = 3;
+    int const scale = 512;
+    int distance = 0;
+    struct raster r;
+    int* ref_id = NULL;
+    int* ref_z = NULL;
+    int* fband = NULL;
+    int* zeroband = NULL;
+    int* view_ref_px = NULL;
+    int* view_paint_px = NULL;
+    long* face_ghost_px = NULL;
+    long* face_ghost_views = NULL;
+    long covered = 0, wrong = 0, wrong_depth = 0;
+    long ghost_face_views = 0, ghost_px = 0;
+    int views_measured = 0, poses_measured = 0;
+    bool any_prio = false;
+    int rc = 1;
+
+    memset(&r, 0, sizeof(r));
+
+    /* Face granularity: each face is its own feature, so the painter's band
+     * lookup and the reference's pixel owner are both the face id itself. */
+    for( int f = 0; f < g->face_count; f++ )
+        g->face_feature[f] = f;
+
+    fband = (int*)calloc((size_t)g->face_count, sizeof(int));
+    zeroband = (int*)calloc((size_t)g->face_count, sizeof(int));
+    view_ref_px = (int*)malloc((size_t)g->face_count * sizeof(int));
+    view_paint_px = (int*)malloc((size_t)g->face_count * sizeof(int));
+    face_ghost_px = (long*)calloc((size_t)g->face_count, sizeof(long));
+    face_ghost_views = (long*)calloc((size_t)g->face_count, sizeof(long));
+    ref_id = (int*)malloc((size_t)res * res * sizeof(int));
+    ref_z = (int*)malloc((size_t)res * res * sizeof(int));
+    if( !fband || !zeroband || !view_ref_px || !view_paint_px || !face_ghost_px ||
+        !face_ghost_views || !ref_id || !ref_z ||
+        !raster_scratch_alloc(&r, res, g->vertex_count, g->face_count) )
+        goto out;
+
+    for( int i = 0; i < input_count; i++ )
+    {
+        const struct RSCache_Model* m = inputs[i].model;
+        if( !m->face_priorities )
+            continue;
+        any_prio = true;
+        for( int f = 0; f < m->face_count; f++ )
+            fband[inputs[i].face_base + f] = m->face_priorities[f];
+    }
+
+    /* Frame the bind pose exactly as the solve frames it. */
+    {
+        int min_v[3] = { 1 << 30, 1 << 30, 1 << 30 };
+        int max_v[3] = { -(1 << 30), -(1 << 30), -(1 << 30) };
+        int center[3];
+        long radius2 = 0;
+        int extent;
+
+        for( int v = 0; v < g->vertex_count; v++ )
+        {
+            int c[3] = { g->vx[v], g->vy[v], g->vz[v] };
+            for( int k = 0; k < 3; k++ )
+            {
+                if( c[k] < min_v[k] ) min_v[k] = c[k];
+                if( c[k] > max_v[k] ) max_v[k] = c[k];
+            }
+        }
+        for( int k = 0; k < 3; k++ )
+            center[k] = (min_v[k] + max_v[k]) / 2;
+        for( int v = 0; v < g->vertex_count; v++ )
+        {
+            long dx = g->vx[v] -= center[0];
+            long dy = g->vy[v] -= center[1];
+            long dz = g->vz[v] -= center[2];
+            long d2 = dx * dx + dy * dy + dz * dz;
+            if( d2 > radius2 )
+                radius2 = d2;
+        }
+        extent = (int)sqrt((double)radius2) + 1;
+        distance = (int)((double)extent * scale / (0.45 * res)) + extent;
+    }
+
+    for( int pose = 0; pose < pose_count; pose++ )
+    {
+        int pose_distance = distance;
+        if( poses->anim && !apply_pose(poses, g, pose, res, scale, &pose_distance) )
+            continue;
+        poses_measured++;
+        for( int p = 0; p < pitch_steps; p++ )
+        {
+            double pitch =
+                elev_min_deg * PRIO_PI / 180.0 +
+                (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                    (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
+            for( int y = 0; y < yaw_steps; y++ )
+            {
+                struct view v;
+                view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
+                project_view(g, &v, &r, pose_distance, scale);
+                raster_zbuffer_ref(g, &r, ref_id, ref_z);
+
+                raster_painter(g, &r, fband);
+                memset(view_ref_px, 0, (size_t)g->face_count * sizeof(int));
+                memset(view_paint_px, 0, (size_t)g->face_count * sizeof(int));
+                for( int i = 0; i < res * res; i++ )
+                {
+                    int const pf = r.paint_feature[i];
+                    if( ref_id[i] >= 0 )
+                        view_ref_px[ref_id[i]]++;
+                    if( pf < 0 )
+                        continue;
+                    covered++;
+                    view_paint_px[pf]++;
+                    if( ref_id[i] >= 0 && pf != ref_id[i] &&
+                        r.paint_z[i] > ref_z[i] + slack )
+                        wrong++;
+                }
+                for( int f = 0; f < g->face_count; f++ )
+                    if( view_ref_px[f] == 0 && view_paint_px[f] >= ghost_min_px )
+                    {
+                        ghost_face_views++;
+                        ghost_px += view_paint_px[f];
+                        face_ghost_px[f] += view_paint_px[f];
+                        face_ghost_views[f]++;
+                    }
+
+                raster_painter(g, &r, zeroband);
+                for( int i = 0; i < res * res; i++ )
+                {
+                    int const pf = r.paint_feature[i];
+                    if( pf >= 0 && ref_id[i] >= 0 && pf != ref_id[i] &&
+                        r.paint_z[i] > ref_z[i] + slack )
+                        wrong_depth++;
+                }
+                views_measured++;
+            }
+        }
+    }
+
+    {
+        int ghost_faces = 0, worst = -1;
+        for( int f = 0; f < g->face_count; f++ )
+            if( face_ghost_views[f] )
+            {
+                ghost_faces++;
+                if( worst < 0 || face_ghost_px[f] > face_ghost_px[worst] )
+                    worst = f;
+            }
+
+        printf(
+            "\nz-violation audit (priorities as carried by the inputs%s):\n",
+            any_prio ? "" : " -- none carried; plain depth sort measured");
+        printf(
+            "ZVIOL summary: views=%d poses=%d res=%d slack=%d ghost_min_px=%d\n",
+            views_measured, poses_measured, res, slack, ghost_min_px);
+        printf(
+            "ZVIOL internal: wrong_px=%ld covered=%ld frac_pct=%.4f\n",
+            wrong, covered, covered ? 100.0 * (double)wrong / (double)covered : 0.0);
+        printf(
+            "ZVIOL internal_depth_only: wrong_px=%ld covered=%ld frac_pct=%.4f\n",
+            wrong_depth, covered,
+            covered ? 100.0 * (double)wrong_depth / (double)covered : 0.0);
+        printf("ZVIOL internal_prio_delta: wrong_px=%+ld\n", wrong - wrong_depth);
+        printf(
+            "ZVIOL ghost: face_views=%ld faces=%d px=%ld worst_face=%d worst_face_px=%ld\n",
+            ghost_face_views, ghost_faces, ghost_px, worst,
+            worst >= 0 ? face_ghost_px[worst] : 0);
+
+        if( ghost_faces )
+        {
+            printf(
+                "\nworst ghost faces (z-buffer shows them nowhere; painted anyway):\n"
+                "%6s %6s %6s %6s %8s %6s\n",
+                "input", "face", "global", "views", "px", "prio");
+            for( int n = 0; n < 10; n++ )
+            {
+                int pick = -1;
+                for( int f = 0; f < g->face_count; f++ )
+                    if( face_ghost_views[f] &&
+                        (pick < 0 || face_ghost_px[f] > face_ghost_px[pick]) )
+                        pick = f;
+                if( pick < 0 )
+                    break;
+                {
+                    int owner = 0;
+                    while( owner + 1 < input_count && inputs[owner + 1].face_base <= pick )
+                        owner++;
+                    printf(
+                        "%6d %6d %6d %6ld %8ld %6d\n",
+                        owner, pick - inputs[owner].face_base, pick,
+                        face_ghost_views[pick], face_ghost_px[pick], fband[pick]);
+                }
+                face_ghost_views[pick] = 0;
+            }
+        }
+    }
+
+    /* The engine's own verdict on the same priorities: visible-pixel diffs
+     * through the real sorter, splice and all, bind pose. */
+    if( use_stock )
+    {
+        struct stockjudge judge;
+        int const jp = pitch_steps > 5 ? 5 : pitch_steps;
+
+        if( stock_setup(
+                &judge, inputs, input_count, g, judge_tile, yaw_steps, jp,
+                elev_min_deg, elev_max_deg) )
+        {
+            long diff = stock_eval(&judge, g, fband);
+            long diff_depth = stock_eval(&judge, g, zeroband);
+
+            printf(
+                "ZVIOL stock: diff_px=%ld ref_px=%ld frac_pct=%.4f views=%d tile=%d\n",
+                diff, judge.ref_covered,
+                judge.ref_covered ? 100.0 * (double)diff / (double)judge.ref_covered
+                                  : 0.0,
+                judge.view_count, judge.tile);
+            printf(
+                "ZVIOL stock_depth_only: diff_px=%ld ref_px=%ld frac_pct=%.4f\n",
+                diff_depth, judge.ref_covered,
+                judge.ref_covered
+                    ? 100.0 * (double)diff_depth / (double)judge.ref_covered
+                    : 0.0);
+            printf("ZVIOL stock_prio_delta: diff_px=%+ld\n", diff - diff_depth);
+        }
+        else
+            fprintf(
+                stderr,
+                "rs2012_face_priorities: stock judge setup failed; "
+                "internal audit above stands alone\n");
+        if( judge.model )
+            judge.model->face_priorities = NULL; /* freed as judge.packed */
+        stock_free(&judge);
+    }
+
+    rc = 0;
+
+out:
+    raster_scratch_free(&r);
+    free(ref_id);
+    free(ref_z);
+    free(fband);
+    free(zeroband);
+    free(view_ref_px);
+    free(view_paint_px);
+    free(face_ghost_px);
+    free(face_ghost_views);
+    return rc;
+}
+
 /* ------------------------------------------------------------------ main -- */
 
 static void
@@ -1698,9 +2135,20 @@ usage(const char* argv0)
     fprintf(
         stderr,
         "Usage: %s --in FILE.ob3 [--in FILE.ob3 ...] [--out FILE.ob3 ...]\n"
-        "       [--report] [--views N] [--pitches N] [--res N] [--rounds N]\n"
+        "       [--report] [--measure] [--views N] [--pitches N] [--res N]\n"
         "       [--min-pixels N] [--no-weld] [--elev MIN,MAX] [--bulk-flex]\n"
         "\n"
+        "  --strip         write each input with its per-face priority array\n"
+        "                  REMOVED: every face falls into one flat bucket (the\n"
+        "                  header's single model priority), so the painter\n"
+        "                  depth-sorts the whole model instead of layering it.\n"
+        "                  Skips all analysis; needs one --out per --in.\n"
+        "  --measure       audit-only: score the priorities the inputs ALREADY\n"
+        "                  carry against the z-buffer (occlusion-violation\n"
+        "                  pixels, ghost faces, stock-engine visible diff) and\n"
+        "                  write nothing. Machine-readable ZVIOL lines on\n"
+        "                  stdout. Honours --views/--pitches/--res/--elev and\n"
+        "                  the pose flags; incompatible with --out.\n"
         "  --views N       yaw samples around the model (default 12)\n"
         "  --pitches N     elevation samples across --elev (default 5)\n"
         "  --elev MIN,MAX  elevation range in degrees, default -20,67. The max\n"
@@ -1716,6 +2164,9 @@ usage(const char* argv0)
         "  --bulk-flex     put the unpromoted bulk at priority 10 (flexible)\n"
         "                  rather than band 0, so a promoted feature splices in\n"
         "                  at its own depth instead of pinning in front\n"
+        "  --repair N      after ranking, spend up to N engine-judged trials\n"
+        "                  re-banding the features that paint the most wrong\n"
+        "                  pixels (default 192; 0 disables). Stock judge only.\n"
         "\n"
         "Analysis runs over every --in together; each --out receives the slice\n"
         "belonging to the --in at the same position. Inputs are never written.\n",
@@ -1729,6 +2180,8 @@ main(int argc, char** argv)
     int input_count = 0;
     int out_count = 0;
     bool do_report = false;
+    bool do_measure = false;
+    bool do_strip = false;
     bool weld = true;
     int yaw_steps = 12;
     int pitch_steps = 5;
@@ -1761,6 +2214,7 @@ main(int argc, char** argv)
     struct tally tally = { 0, 0, 0 };
     struct tally baseline = { 0, 0, 0 };
     struct assignment* proposals = NULL;
+    int repair_trials = 192;
     int slow_iters = 0;
     int slow_res = 128;
     int slow_yaws = 6;
@@ -1808,8 +2262,14 @@ main(int argc, char** argv)
         }
         else if( strcmp(argv[i], "--report") == 0 )
             do_report = true;
+        else if( strcmp(argv[i], "--measure") == 0 )
+            do_measure = true;
+        else if( strcmp(argv[i], "--strip") == 0 )
+            do_strip = true;
         else if( strcmp(argv[i], "--no-weld") == 0 )
             weld = false;
+        else if( strcmp(argv[i], "--repair") == 0 && i + 1 < argc )
+            repair_trials = atoi(argv[++i]);
         else if( strcmp(argv[i], "--slow") == 0 && i + 1 < argc )
             slow_iters = atoi(argv[++i]);
         else if( strcmp(argv[i], "--slow-res") == 0 && i + 1 < argc )
@@ -1867,6 +2327,18 @@ main(int argc, char** argv)
         usage(argv[0]);
         return 2;
     }
+    if( do_measure && out_count )
+    {
+        fprintf(stderr, "rs2012_face_priorities: --measure writes nothing; drop --out\n");
+        return 2;
+    }
+    if( do_strip && (do_measure || out_count != input_count) )
+    {
+        fprintf(
+            stderr,
+            "rs2012_face_priorities: --strip needs one --out per --in and no --measure\n");
+        return 2;
+    }
 
     /* ---- load and concatenate ---- */
     for( int i = 0; i < input_count; i++ )
@@ -1890,6 +2362,86 @@ main(int argc, char** argv)
         inputs[i].face_base = g.face_count;
         g.vertex_count += inputs[i].model->vertex_count;
         g.face_count += inputs[i].model->face_count;
+    }
+
+    /* ---- --strip branches off straight after decode: no geometry, poses or
+     * analysis. With the per-face array gone the encoder falls back to the
+     * header's single model priority, so the painter depth-sorts the whole
+     * model as one bucket. The flat value is arbitrary within the strict
+     * bands (a uniform model behaves identically at any of 0-10); 5 keeps it
+     * mid-ladder and away from the interleaved 11-12 semantics. */
+    if( do_strip )
+    {
+        enum
+        {
+            STRIP_PRIORITY = 5
+        };
+        for( int i = 0; i < input_count; i++ )
+        {
+            struct RSCache_Model* m = inputs[i].model;
+            struct RSCache_ModelProvenance* p = inputs[i].provenance;
+            uint8_t* encoded = NULL;
+            uint32_t bound, written;
+
+            free(m->face_priorities);
+            m->face_priorities = NULL;
+            m->model_priority = STRIP_PRIORITY;
+            /* The encoder prefers the provenance's recorded header, so its
+             * priority byte has to drop from 255 ("per face") to the flat
+             * value or the absent array is still advertised. */
+            if( p->header_flag_count > 1 )
+                p->header_flags[1] = STRIP_PRIORITY;
+
+            bound = RSCache_ModelEncodeBound(m, p);
+            encoded = bound ? (uint8_t*)malloc(bound) : NULL;
+            written =
+                encoded ? RSCache_ModelEncodeFormat(m, p, p->format, encoded, bound) : 0;
+            if( !written )
+            {
+                fprintf(
+                    stderr, "rs2012_face_priorities: cannot encode %s\n", inputs[i].out_path);
+                free(encoded);
+                goto done;
+            }
+
+            /* Prove the file that lands decodes back with no per-face array. */
+            {
+                struct RSCache_ModelProvenance* cp = NULL;
+                struct RSCache_Model* check =
+                    RSCache_ModelNewDecodeProvenance(encoded, (int)written, &cp);
+                bool ok = check && cp && check->face_count == m->face_count &&
+                          check->face_priorities == NULL &&
+                          check->model_priority == STRIP_PRIORITY;
+                RSCache_ModelFree(check);
+                RSCache_ModelProvenanceFree(cp);
+                if( !ok )
+                {
+                    fprintf(
+                        stderr,
+                        "rs2012_face_priorities: %s failed its strip decode check\n",
+                        inputs[i].out_path);
+                    free(encoded);
+                    goto done;
+                }
+            }
+
+            if( !write_file(inputs[i].out_path, encoded, written) )
+            {
+                fprintf(
+                    stderr, "rs2012_face_priorities: cannot write %s\n", inputs[i].out_path);
+                free(encoded);
+                goto done;
+            }
+            free(encoded);
+            printf(
+                "rs2012_face_priorities: %s -> %s stripped to flat priority %d (%u bytes)\n",
+                inputs[i].in_path,
+                inputs[i].out_path,
+                STRIP_PRIORITY,
+                written);
+        }
+        rc = 0;
+        goto done;
     }
 
     g.vx = (int*)malloc((size_t)g.vertex_count * sizeof(int));
@@ -2023,6 +2575,17 @@ main(int argc, char** argv)
             frame_stride);
     }
 
+    /* --measure branches off before segmentation: the audit runs at face
+     * granularity over the priorities the inputs already carry, and never
+     * solves or writes. Everything it needs is loaded by this point. */
+    if( do_measure )
+    {
+        rc = run_measure(
+            inputs, input_count, &g, &poses, pose_count, yaw_steps, pitch_steps,
+            elev_min_deg, elev_max_deg, res, judge_tile, stock);
+        goto done;
+    }
+
     feature_count = segment(&g, weld);
     if( feature_count <= 0 || feature_count > MAX_FEATURES )
     {
@@ -2104,9 +2667,11 @@ main(int argc, char** argv)
     r.face_depth = (int*)malloc((size_t)g.face_count * sizeof(int));
     r.face_band = (int*)malloc((size_t)g.face_count * sizeof(int));
     r.face_order = (int*)malloc((size_t)g.face_count * sizeof(int));
+    r.face_order2 = (int*)malloc((size_t)g.face_count * sizeof(int));
     if( !r.near_feature || !r.near_z || !r.paint_feature || !r.paint_z || !r.scratch_z ||
         !r.scratch_stamp ||
-        !r.touched || !r.sx || !r.sy || !r.sz || !r.face_depth || !r.face_band || !r.face_order )
+        !r.touched || !r.sx || !r.sy || !r.sz || !r.face_depth || !r.face_band ||
+        !r.face_order || !r.face_order2 )
         goto done;
 
     band = (int*)malloc((size_t)feature_count * sizeof(int));
@@ -2156,12 +2721,14 @@ main(int argc, char** argv)
     {
         long const floors[] = { 10, 40, 150, 400 };
         int const floor_count = (int)(sizeof(floors) / sizeof(floors[0]));
-        /* No bulk-flex candidates: this evaluator's painter sorts strictly
-         * by (band, depth), while the real sorter SPLICES priorities 10/11
-         * into the fixed run at three depth averages. Ranking a flex
-         * spelling with the wrong rule scored it at 40%% wrong for reasons
-         * that were the model's, not the content's. */
-        int const slots = floor_count + 2;
+        /* Four slots per floor: the climb, its bulk-flex spelling, and the
+         * same pair again after re-measuring under the climbed answer (the
+         * pairwise evidence depends on the painter's order, so one
+         * measurement under the flat scaffold is a first draft, not the
+         * fixed point the header promises). The internal painter now
+         * implements the engine's flexible-priority splice, so flex
+         * spellings and inherited 10/11 are rankable under either judge. */
+        int const slots = 2 + floor_count * 4;
         int best = 0;
 
         proposals = (struct assignment*)calloc((size_t)slots, sizeof(struct assignment));
@@ -2196,7 +2763,12 @@ main(int argc, char** argv)
                 {
                     int const feat = g.face_feature[inputs[i].face_base + f];
                     int const prio = m->face_priorities[f];
-                    proposals[1].band[feat] = prio < HARD_BANDS ? prio : HARD_BANDS - 1;
+                    /* Authored 10/11 are the FLEXIBLE band — depth-spliced
+                     * into the fixed run, not pinned in front of it. Both
+                     * judges implement that splice now, so the shipped
+                     * spelling is ranked as shipped. */
+                    proposals[1].band[feat] =
+                        prio <= HARD_BANDS + 1 ? prio : HARD_BANDS - 1;
                 }
             }
             if( any )
@@ -2241,6 +2813,60 @@ main(int argc, char** argv)
                 floors[fi]);
             candidate_count++;
 
+            bulk_flex_spelling(
+                proposals[candidate_count].band, work, features, feature_count);
+            snprintf(
+                proposals[candidate_count].name,
+                sizeof(proposals[candidate_count].name),
+                "climb, floor %ld, bulk flex",
+                floors[fi]);
+            candidate_count++;
+
+            /* Alternation: the fixable/breakable counts above were gathered
+             * under the flat scaffold, but which violations remain depends on
+             * the order actually drawn. Re-measure under the climbed answer
+             * and climb again; if it settles somewhere new, rank that too. */
+            {
+                int* work2 = proposals[candidate_count].band;
+
+                memcpy(work2, work, (size_t)feature_count * sizeof(int));
+                evaluate_assignment(
+                    &g, &r, &poses, work2, feature_count, feature_face_offset,
+                    feature_faces, fixable, breakable, pose_count, yaw_steps,
+                    pitch_steps, elev_min_deg, elev_max_deg, res, scale, distance);
+                for( int a = 0; a < feature_count; a++ )
+                    for( int b = 0; b < feature_count; b++ )
+                    {
+                        long const fix = fixable[(long)a * feature_count + b];
+                        long const brk = breakable[(long)a * feature_count + b];
+                        long value = 0;
+                        if( a != b && (fix >= floors[fi] || brk >= floors[fi]) &&
+                            fix - brk > 0 )
+                            value = fix - brk;
+                        net[(long)a * feature_count + b] = value;
+                    }
+                solve_bands(feature_count, net, work2, 32);
+                compact_bands(feature_count, work2);
+                if( memcmp(work2, work, (size_t)feature_count * sizeof(int)) != 0 )
+                {
+                    snprintf(
+                        proposals[candidate_count].name,
+                        sizeof(proposals[candidate_count].name),
+                        "climb x2, floor %ld",
+                        floors[fi]);
+                    candidate_count++;
+
+                    bulk_flex_spelling(
+                        proposals[candidate_count].band, work2, features,
+                        feature_count);
+                    snprintf(
+                        proposals[candidate_count].name,
+                        sizeof(proposals[candidate_count].name),
+                        "climb x2, floor %ld, bulk flex",
+                        floors[fi]);
+                    candidate_count++;
+                }
+            }
         }
 
         /* ---- score every proposal the same way ---- */
@@ -2322,6 +2948,121 @@ main(int argc, char** argv)
                 "reachable by priorities.\n");
     }
 
+    /* ---- directed repair: re-band the measured offenders, engine-judged ----
+     *
+     * The climb optimizes a pairwise model and the ranking merely picks among
+     * its outputs; neither ever asks "which feature is painting the wrong
+     * pixels NOW, and would one band move fix it?". So ask exactly that:
+     * attribute every wrong pixel of the chosen assignment to the feature
+     * painting it (splice-aware, over the full solve sweep), then walk the
+     * offenders worst-first trying a step down, a step up, the back, and both
+     * flexible bands, keeping strictly engine-judged improvements. */
+    if( repair_trials > 0 && judge_ready && feature_count > 0 )
+    {
+        long* offend = (long*)calloc((size_t)feature_count, sizeof(long));
+        int* order = (int*)malloc((size_t)feature_count * sizeof(int));
+
+        if( offend && order )
+        {
+            long cur = tally.wrong_between;
+            long const before = cur;
+            int trials = 0, moves = 0;
+            bool moved = true;
+
+            for( int pose = 0; pose < pose_count; pose++ )
+            {
+                int pose_distance = distance;
+                if( poses.anim && !apply_pose(&poses, &g, pose, res, scale, &pose_distance) )
+                    continue;
+                for( int p = 0; p < pitch_steps; p++ )
+                {
+                    double pitch =
+                        elev_min_deg * PRIO_PI / 180.0 +
+                        (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                            (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
+                    for( int y = 0; y < yaw_steps; y++ )
+                    {
+                        struct view v;
+                        view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
+                        project_view(&g, &v, &r, pose_distance, scale);
+                        raster_zbuffer_ref(&g, &r, r.near_feature, r.near_z);
+                        raster_painter(&g, &r, band);
+                        for( int i = 0; i < res * res; i++ )
+                        {
+                            int const pf = r.paint_feature[i];
+                            if( pf >= 0 && r.near_feature[i] >= 0 &&
+                                pf != r.near_feature[i] &&
+                                r.paint_z[i] > r.near_z[i] + 2 )
+                                offend[pf]++;
+                        }
+                    }
+                }
+            }
+
+            for( int i = 0; i < feature_count; i++ )
+                order[i] = i;
+            g_sort_weight = offend;
+            qsort(order, (size_t)feature_count, sizeof(int), cmp_weight_desc);
+
+            while( moved && trials < repair_trials )
+            {
+                moved = false;
+                for( int oi = 0; oi < feature_count && trials < repair_trials; oi++ )
+                {
+                    int const feat = order[oi];
+                    int const from = band[feat];
+                    int cand[5];
+                    int cand_count = 0;
+                    long best_trial = cur;
+                    int best_to = from;
+
+                    if( offend[feat] == 0 )
+                        break; /* sorted: everything after is clean too */
+                    if( from > 0 && from <= HARD_BANDS - 1 )
+                        cand[cand_count++] = from - 1;
+                    if( from < HARD_BANDS - 1 )
+                        cand[cand_count++] = from + 1;
+                    cand[cand_count++] = 0;
+                    cand[cand_count++] = FLEX_BAND;
+                    cand[cand_count++] = FLEX_BAND + 1;
+
+                    for( int c = 0; c < cand_count && trials < repair_trials; c++ )
+                    {
+                        int const to = cand[c];
+                        bool dup = to == from;
+                        for( int k = 0; k < c && !dup; k++ )
+                            dup = cand[k] == to;
+                        if( dup )
+                            continue;
+                        band[feat] = to;
+                        trials++;
+                        long const t = stock_eval(&judge, &g, band);
+                        if( t < best_trial )
+                        {
+                            best_trial = t;
+                            best_to = to;
+                        }
+                    }
+                    band[feat] = best_to;
+                    if( best_to != from )
+                    {
+                        cur = best_trial;
+                        moved = true;
+                        moves++;
+                    }
+                }
+            }
+
+            printf(
+                "\nrepair:   %d trial(s), %d move(s), %ld -> %ld wrong px\n",
+                trials, moves, before, cur);
+            tally.wrong_between = cur;
+            gain = baseline.wrong_between - cur;
+        }
+        free(offend);
+        free(order);
+    }
+
 
     /* ---- the slow search: anneal bands AND geometry against the z-buffer ----
      *
@@ -2349,6 +3090,8 @@ main(int argc, char** argv)
         int* best_off = NULL;
         int* work_band = NULL;
         int* best_band = NULL;
+        long* pick_w = NULL;
+        long pick_total = 0;
         long cur_cost, best_cost, base_cost;
         uint32_t rng = slow_seed;
         int accepted = 0, improved = 0;
@@ -2375,10 +3118,12 @@ main(int argc, char** argv)
         best_off = (int*)calloc((size_t)fc2, sizeof(int));
         work_band = (int*)malloc((size_t)fc2 * sizeof(int));
         best_band = (int*)malloc((size_t)fc2 * sizeof(int));
+        pick_w = (long*)calloc((size_t)fc2, sizeof(long));
         sctx.views = (struct slowview*)calloc((size_t)sctx.view_count, sizeof(struct slowview));
         sctx.rasters = (struct raster*)calloc((size_t)sctx.thread_count, sizeof(struct raster));
         if( !g2.vx || !g2.vy || !g2.vz || !vertex_feature || !dir_x || !dir_y || !dir_z ||
-            !off || !best_off || !work_band || !best_band || !sctx.views || !sctx.rasters )
+            !off || !best_off || !work_band || !best_band || !pick_w || !sctx.views ||
+            !sctx.rasters )
             goto slow_done;
 
         memcpy(g2.vx, g.vx, (size_t)g.vertex_count * sizeof(int));
@@ -2487,6 +3232,12 @@ main(int argc, char** argv)
             base_cost);
         fflush(stdout);
 
+        /* Where the wrong pixels are right now; the walk starts there. */
+        violation_weights(&g2, work_band, &sctx, pick_w, fc2);
+        pick_total = 0;
+        for( int i = 0; i < fc2; i++ )
+            pick_total += pick_w[i];
+
         for( int it = 0; it < slow_iters; it++ )
         {
             double const t01 = (double)it / (slow_iters > 1 ? slow_iters - 1 : 1);
@@ -2496,17 +3247,58 @@ main(int argc, char** argv)
              * 4,000 iterations at 2%% never got back under its own start. */
             double const temp = 0.002 * (double)(base_cost > 0 ? base_cost : 1) *
                                 pow(0.01, t01);
-            int const F = (int)(xorshift32(&rng) % (uint32_t)fc2);
+            /* Most picks target a feature currently painting wrong pixels;
+             * the rest stay uniform so nothing is unreachable. */
+            int F;
+            if( pick_total > fc2 && xorshift32(&rng) % 100 < 70 )
+            {
+                long target = (long)(xorshift32(&rng) % (uint32_t)pick_total);
+                F = fc2 - 1;
+                for( int i = 0; i < fc2; i++ )
+                {
+                    target -= pick_w[i];
+                    if( target < 0 )
+                    {
+                        F = i;
+                        break;
+                    }
+                }
+            }
+            else
+                F = (int)(xorshift32(&rng) % (uint32_t)fc2);
+
             int saved_band = work_band[F];
             int saved_off = off[F];
+            int F2 = -1, saved_band2 = 0;
             long trial;
             bool geometry_moved = false;
+            uint32_t const move = xorshift32(&rng) % 100;
 
-            if( xorshift32(&rng) % 100 < 55 )
+            if( move < 45 )
             {
-                work_band[F] = (int)(xorshift32(&rng) % HARD_BANDS);
+                /* Both flexible values are drawable: FLEX_BAND joins the
+                 * depth-spliced run, FLEX_BAND+1 its appended tail. Both
+                 * judges implement the splice. */
+                int const nbands = HARD_BANDS + 2;
+                work_band[F] = (int)(xorshift32(&rng) % (uint32_t)nbands);
                 if( work_band[F] == saved_band )
-                    work_band[F] = (saved_band + 1) % HARD_BANDS;
+                    work_band[F] = (saved_band + 1) % nbands;
+            }
+            else if( move < 60 )
+            {
+                /* Swap two features' bands: reorders them against each other
+                 * without disturbing either one's relation to the rest, a
+                 * move two single-band steps can only reach through a worse
+                 * intermediate the cold schedule would reject. */
+                F2 = (int)(xorshift32(&rng) % (uint32_t)fc2);
+                if( F2 == F || work_band[F2] == saved_band )
+                {
+                    F2 = -1;
+                    continue;
+                }
+                saved_band2 = work_band[F2];
+                work_band[F] = saved_band2;
+                work_band[F2] = saved_band;
             }
             else
             {
@@ -2562,6 +3354,8 @@ main(int argc, char** argv)
             else
             {
                 work_band[F] = saved_band;
+                if( F2 >= 0 )
+                    work_band[F2] = saved_band2;
                 if( geometry_moved )
                 {
                     off[F] = saved_off;
@@ -2609,6 +3403,15 @@ main(int argc, char** argv)
                     }
                 }
                 cur_cost = best_cost;
+            }
+            /* The distribution of wrong pixels moves as the walk fixes some
+             * and causes others; refresh the bias where the walker regroups. */
+            if( (it + 1) % 500 == 0 )
+            {
+                violation_weights(&g2, work_band, &sctx, pick_w, fc2);
+                pick_total = 0;
+                for( int i = 0; i < fc2; i++ )
+                    pick_total += pick_w[i];
             }
             if( (it + 1) % 200 == 0 )
             {
@@ -2679,6 +3482,7 @@ main(int argc, char** argv)
         free(best_off);
         free(work_band);
         free(best_band);
+        free(pick_w);
     }
 
     for( int i = 0; i < feature_count; i++ )
@@ -2687,8 +3491,10 @@ main(int argc, char** argv)
     /* ---- report ---- */
     if( do_report )
     {
-        int band_faces[HARD_BANDS] = { 0 };
-        int band_features[HARD_BANDS] = { 0 };
+        /* +2: the chosen assignment may legitimately carry the flexible
+         * bands 10/11 (inherited or proposed under the stock judge). */
+        int band_faces[HARD_BANDS + 2] = { 0 };
+        int band_features[HARD_BANDS + 2] = { 0 };
 
         printf(
             "geometry: %d vertices, %d faces across %d input model(s)\n",
@@ -2729,9 +3535,12 @@ main(int argc, char** argv)
             band_features[features[i].band]++;
         }
         printf("%6s %10s %10s\n", "band", "features", "faces");
-        for( int b = 0; b < HARD_BANDS; b++ )
+        for( int b = 0; b < HARD_BANDS + 2; b++ )
             if( band_features[b] )
-                printf("%6d %10d %10d\n", b, band_features[b], band_faces[b]);
+                printf("%6d%s %10d %10d\n", b, b >= FLEX_BAND ? "*" : " ",
+                       band_features[b], band_faces[b]);
+        if( band_features[FLEX_BAND] || band_features[FLEX_BAND + 1] )
+            printf("        (* flexible: depth-spliced into the fixed run)\n");
 
         printf("\nlargest features:\n%6s %7s %6s\n", "id", "faces", "band");
         {
@@ -2966,6 +3775,7 @@ done:
     free(r.face_depth);
     free(r.face_band);
     free(r.face_order);
+    free(r.face_order2);
     for( int i = 0; i < input_count; i++ )
     {
         RSCache_ModelFree(inputs[i].model);

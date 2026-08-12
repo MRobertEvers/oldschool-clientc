@@ -59,21 +59,62 @@ trspk_compute_view_matrix(
     out_matrix[15] = 1.0f;
 }
 
+/**
+ * The GPU spelling of the rasterizer's projection.
+ *
+ * ToriDraw projects `screen = coord * scale / z` (see
+ * 3rd/toridraw/graphics/projection.h): a plain integer multiplier recomputed
+ * per layout from the world viewport height, not an angle. So this takes that
+ * same scale, and the matrix is the identity translation of the formula —
+ * divide the screen offset by half the viewport to reach NDC:
+ *
+ *     ndc_x =  (scale * x / z) / (w/2)
+ *     ndc_y = -(scale * y / z) / (h/2)      y is down in screen space
+ *     w_clip = z
+ *
+ * There used to be a `fov` parameter here, multiplying a hardcoded 512. It is
+ * gone on purpose. An angle cannot express most scales — the conversion opens
+ * with `fov >> 1`, so only 320 of the 961 integer scales in [64,1024] are
+ * reachable and the reference's own 191 is not among them — and a renderer that
+ * takes an angle can only ever approximate the rasterizer it is meant to match.
+ * Callers resolve `toridraw_proj_cot16(...) / 128.0f` and pass the result.
+ */
 static inline void
 trspk_compute_projection_matrix(
     float out_matrix[16],
-    float fov,
+    float proj_scale,
     float screen_width,
     float screen_height)
 {
-    const float y = 1.0f / tanf(fov * 0.5f);
-    const float x = y;
     memset(out_matrix, 0, sizeof(float) * 16u);
-    out_matrix[0] = x * 512.0f / (screen_width / 2.0f);
-    out_matrix[5] = -y * 512.0f / (screen_height / 2.0f);
+    out_matrix[0] = proj_scale / (screen_width * 0.5f);
+    out_matrix[5] = -proj_scale / (screen_height * 0.5f);
     out_matrix[11] = 1.0f;
     out_matrix[14] = -1.0f;
     out_matrix[15] = 0.0f;
+}
+
+/**
+ * Parallel (map-editor) projection: no perspective divide at all.
+ *
+ * `zoom` is pixels per world unit. Depth still has to reach clip space, so z is
+ * mapped through the same [-1,1] range the perspective path lands in, with the
+ * near plane behind the camera — under parallel projection nothing is unsafe,
+ * so the near plane is policy rather than a singularity.
+ */
+static inline void
+trspk_compute_projection_matrix_parallel(
+    float out_matrix[16],
+    float zoom,
+    float screen_width,
+    float screen_height,
+    float depth_range)
+{
+    memset(out_matrix, 0, sizeof(float) * 16u);
+    out_matrix[0] = zoom / (screen_width * 0.5f);
+    out_matrix[5] = -zoom / (screen_height * 0.5f);
+    out_matrix[10] = 1.0f / depth_range;
+    out_matrix[15] = 1.0f;
 }
 
 static inline void
@@ -233,7 +274,17 @@ trspk_color_argb_to_rgba(
     rgba[3] = (float)((argb >> 24) & 0xFF) / 255.0f;
 }
 
-/* cam_* is the camera's world position (not pre-negated). */
+/*
+ * View + projection for one world pass.
+ *
+ * cam_* is the camera's world position (not pre-negated).
+ *
+ * proj_mode / proj_scale / fov_rpi2048 / parallel_zoom16 are the camera's
+ * projection knobs, passed as ints so this header stays free of toridraw's —
+ * the same reason graphics/projection.h takes ints. Resolution goes through
+ * that header, so the GPU backends and the rasterizer cannot disagree about
+ * what the camera asked for.
+ */
 void
 trspk_compute_pass_matrices(
     float view[16],
@@ -244,7 +295,11 @@ trspk_compute_pass_matrices(
     float pitch_rad,
     float yaw_rad,
     int pass_w,
-    int pass_h);
+    int pass_h,
+    int proj_mode,
+    int proj_scale,
+    int fov_rpi2048,
+    int parallel_zoom16);
 
 #ifdef __cplusplus
 }

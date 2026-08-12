@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rs2012 backport audit</title>
+<style>
+  /* Dark-committed tool page. Palette: dataviz reference instance, dark steps,
+     validated (4 categorical slots, status set, chrome inks). */
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--page); color: var(--ink-2);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 14px 16px 40px;
+  }
+  h1 { font-size: 15px; color: var(--ink); font-weight: 600; }
+  h2 { font-size: 12px; color: var(--ink); font-weight: 600; text-transform: uppercase;
+       letter-spacing: .06em; margin-bottom: 8px; }
+  header { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px;
+          border: 1px solid var(--ring); color: var(--ink-2); }
+  .chip.run { border-color: var(--s1); color: var(--s1); }
+  .chip.done { border-color: var(--good); color: var(--good); }
+  .chip.err { border-color: var(--critical); color: var(--critical); }
+  #modelline { color: var(--muted); font-size: 12px; }
+  #bar { height: 4px; background: var(--baseline); border-radius: 2px; overflow: hidden;
+         flex: 1 1 160px; min-width: 120px; align-self: center; }
+  #bar > div { height: 100%; background: var(--s1); width: 0%; transition: width .4s; }
+  .grid { display: grid; grid-template-columns: 290px 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px;
+          padding: 12px; margin-bottom: 12px; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tile { padding: 8px 10px; border: 1px solid var(--ring); border-radius: 6px; }
+  .tile .v { font-size: 20px; color: var(--ink); }
+  .tile .l { font-size: 11px; color: var(--muted); }
+  ul.stages { list-style: none; }
+  ul.stages li { padding: 3px 0 3px 18px; position: relative; color: var(--muted); }
+  ul.stages li::before { content: ""; position: absolute; left: 2px; top: 8px; width: 8px;
+    height: 8px; border-radius: 50%; background: var(--baseline); }
+  ul.stages li.run { color: var(--ink); }
+  ul.stages li.run::before { background: var(--s1); }
+  ul.stages li.done { color: var(--ink-2); }
+  ul.stages li.done::before { background: var(--good); }
+  .finding { display: flex; gap: 8px; padding: 6px 0; border-top: 1px solid var(--grid); }
+  .finding:first-of-type { border-top: 0; }
+  .sev { flex: 0 0 auto; font-size: 11px; padding: 1px 7px; border-radius: 9px;
+         border: 1px solid; height: fit-content; }
+  .sev.critical { color: var(--critical); border-color: var(--critical); }
+  .sev.warn { color: var(--warn); border-color: var(--warn); }
+  .sev.info { color: var(--muted); border-color: var(--baseline); }
+  .finding b { color: var(--ink); font-weight: 600; display: block; font-size: 12px; }
+  .finding p { color: var(--muted); font-size: 12px; }
+  .shotrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .shot { text-align: center; }
+  .shot img { display: block; border: 1px solid var(--ring); border-radius: 4px;
+              max-width: 100%; cursor: zoom-in; background: #202430; }
+  .shot .cap { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .legend button { background: none; border: 0; color: var(--ink-2); font: inherit;
+    display: inline-flex; gap: 6px; align-items: center; cursor: pointer; padding: 0; }
+  .legend button.off { opacity: .35; }
+  .legend .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .mtoggle { display: flex; gap: 4px; margin-bottom: 6px; }
+  .mtoggle button, .tbl-btn { background: none; border: 1px solid var(--ring); color: var(--muted);
+    border-radius: 5px; padding: 2px 8px; font: 11px system-ui, sans-serif; cursor: pointer; }
+  .mtoggle button.on { color: var(--ink); border-color: var(--s1); }
+  svg text { font: 10px system-ui, sans-serif; fill: var(--muted); }
+  .tip { position: absolute; pointer-events: none; background: #0d0d0dee;
+    border: 1px solid var(--ring); border-radius: 5px; padding: 6px 8px; font-size: 11px;
+    color: var(--ink-2); display: none; z-index: 5; white-space: nowrap; }
+  .tip b { color: var(--ink); }
+  table { border-collapse: collapse; width: 100%; font-size: 11px; }
+  th, td { text-align: right; padding: 3px 7px; border-bottom: 1px solid var(--grid);
+    font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  th { color: var(--muted); font-weight: 500; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.chosen td { color: var(--good); }
+  #log { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--muted);
+    max-height: 130px; overflow-y: auto; }
+  #log .t { color: var(--baseline); }
+  #glossary div { margin: 0 0 7px; }
+  #glossary dt { display: inline; color: var(--ink); font-weight: 600; }
+  #glossary dt::after { content: " — "; color: var(--muted); font-weight: 400; }
+  #glossary dd { display: inline; margin: 0; color: var(--muted); }
+  #lightbox { position: fixed; inset: 0; background: #000c; display: none;
+    align-items: center; justify-content: center; z-index: 10; cursor: zoom-out; }
+  #lightbox img { max-width: 96vw; max-height: 96vh; }
+  .bars .row { display: grid; grid-template-columns: 82px 1fr 52px; gap: 8px;
+    align-items: center; margin: 4px 0; font-size: 12px; }
+  .bars .track { height: 12px; background: none; position: relative; }
+  .bars .fill { height: 12px; border-radius: 0 4px 4px 0; }
+  .bars .val { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .rec { border-left: 3px solid var(--s1); padding: 6px 10px; color: var(--ink); font-size: 13px; }
+  .waiting { color: var(--muted); padding: 30px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>rs2012 backport audit</h1>
+  <span class="chip" id="stagechip">waiting</span>
+  <div id="bar"><div></div></div>
+  <span id="progresstext" class="muted"></span>
+  <span id="elapsed" class="muted"></span>
+  <span id="modelline"></span>
+</header>
+<div id="waiting" class="waiting">waiting for the audit to write its first status…</div>
+<div class="grid" id="main" style="display:none">
+  <div>
+    <div class="card"><h2>Verdict</h2><div id="tiles" class="tiles"></div>
+      <div id="recommendation"></div><div id="verdictbars" class="bars"></div></div>
+    <div class="card"><h2>Pipeline</h2><ul class="stages" id="stages"></ul></div>
+    <div class="card"><h2>Findings</h2><div id="findings" class="muted">none yet</div></div>
+    <div class="card"><h2>Structures (rig × priorities)</h2>
+      <div id="structures" class="muted">analyzed after decode</div></div>
+    <div class="card"><h2>Search</h2><div id="search" class="muted">not run yet</div></div>
+    <div class="card"><h2>What the terms mean</h2>
+      <dl id="glossary" style="font-size:12px">
+        <div><dt>painter</dt><dd>how this engine draws: whole faces sorted
+          back-to-front by depth, near ones painted over far ones. It cannot
+          show two surfaces interleaving through each other.</dd></div>
+        <div><dt>depth-tested / z-buffer</dt><dd>resolves visibility per pixel
+          instead of per face — the kind of renderer this 2012 model was
+          authored for. Used here as the reference picture ("truth").</dd></div>
+        <div><dt>priorities / bands</dt><dd>per-face bytes that pin a face into
+          a draw layer regardless of depth — the painter's crutch. The 2012
+          bytes were authored against a z-buffer, so they order nothing
+          useful here.</dd></div>
+        <div><dt>sort error</dt><dd>% of the model's pixels where the painter
+          shows a surface that is genuinely <i>behind</i> the true one.</dd></div>
+        <div><dt>z-fighting / ties</dt><dd>two faces at the same depth with no
+          stable order — ownership of those pixels flips frame to frame
+          (shimmer). Measured as contested pixels within ±2 depth units whose
+          winner also flips when the draw order reverses; a contested pixel
+          with a stable winner is layering, not fighting.</dd></div>
+        <div><dt>flicker</dt><dd>pixels that change between consecutive frames
+          in the painter while the reference is still — z-fighting as the
+          player would see it.</dd></div>
+        <div><dt>cracks</dt><dd>silhouette pixels one pipeline covers and the
+          other doesn't. Should be ~0; nonzero means moved geometry opened a
+          seam.</dd></div>
+        <div><dt>bind pose</dt><dd>the model as stored in the file, before any
+          animation frame moves it.</dd></div>
+        <div><dt>rig group / structure (g12)</dt><dd>the set of vertices an
+          animation moves as one unit (a jaw, a wing segment). Artifacts are
+          attributed to pairs of these.</dd></div>
+        <div><dt>patch (g12#3)</dt><dd>one connected shell inside a rig group
+          — faces joined by shared vertices. A group is often several shells
+          stacked (a plate over the body it covers); the patch is what a
+          z-fighting separation can actually move.</dd></div>
+        <div><dt>depth levels</dt><dd>the sort table's resolution: a model
+          needs its whole posed diameter in levels or faces silently vanish.
+          Reference engine: 1,500. DEPTH_16K: 16,384.</dd></div>
+        <div><dt>order-check</dt><dd>draw the depth-tested render twice with
+          face order reversed; surviving differences are translucent faces,
+          which blend in order by design. The floor no candidate beats.</dd></div>
+        <div><dt>repair</dt><dd>bounded whole-group moves (inflate a structure
+          a few units) that separate fighting pairs — adopted only when
+          measured ties drop and nothing else regresses.</dd></div>
+      </dl></div>
+    <div class="card"><h2>Log</h2><div id="log"></div></div>
+  </div>
+  <div>
+    <div class="card" id="livecard" style="display:none"><h2>Live model
+      <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">
+      — drag to orbit, scrub poses, flip candidates</span></h2>
+      <div id="livecontrols"></div>
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <img id="liveimg" draggable="false" alt="live model view"
+             style="border:1px solid var(--ring);border-radius:4px;cursor:grab;
+                    touch-action:none;background:#202430;width:384px;max-width:100%">
+        <div id="livestatus" class="muted" style="max-width:200px"></div>
+      </div>
+    </div>
+    <div class="card"><h2>Static baseline (bind pose)</h2><div id="static"></div></div>
+    <div id="seqs"></div>
+    <div class="card" id="repaircard" style="display:none"><h2>Z-fighting repair</h2>
+      <div id="repair"></div></div>
+    <div class="card"><h2>Structure clipping &amp; z-fighting (bone-group pairs)</h2>
+      <div id="attr" class="muted">runs after the sweep</div></div>
+  </div>
+</div>
+<div id="lightbox" onclick="this.style.display='none'"><img alt=""></div>
+<div class="tip" id="tip"></div>
+
+<script>
+"use strict";
+const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500"];
+const STAGES = [
+  ["decode", "Decode model + sequences"],
+  ["structures", "Structure analysis"],
+  ["static", "Static baseline"],
+  ["prescan", "Frame prescan"],
+  ["sweep", "Animation sweep"],
+  ["attribution", "Artifact attribution"],
+  ["repair", "Z-fighting repair"],
+  ["search", "Priority search"],
+  ["rescore", "Re-score new candidates"],
+  ["verdict", "Verdict"],
+];
+const METRICS = [["pct", "Sort error"], ["flicker_pct", "Flicker"], ["crack_pct", "Cracks"]];
+
+/* Plain-language explanations for the jargon, shown as captions and tooltips. */
+const CAND_DESC = {
+  inherited: "the model exactly as shipped, 2012 priority bytes included",
+  stripped: "priorities removed — the pure depth sort, the “do nothing” floor",
+  repaired: "stripped + the audit’s adopted geometry moves that separate z-fighting structures",
+  searched: "priority bands re-authored by the search tool, judged over animation poses",
+};
+const MODE_DESC = {
+  painter: "the real engine: whole faces sorted back-to-front (what actually ships)",
+  zbuf: "per-pixel depth test — the reference this model was authored against",
+};
+const METRIC_DESC = {
+  pct: "sort error: % of covered pixels showing a surface that is genuinely behind the true one",
+  flicker_pct: "flicker: % of geometrically-stable pixels that still change between frames — z-fighting you’d see as shimmer",
+  crack_pct: "cracks: silhouette pixels one pipeline covers and the other doesn’t (should be ~0 unless geometry was moved)",
+};
+const TILE_DESC = {
+  "anim mean": "average sort error across every sampled animation frame, best candidate",
+  "worst frame": "the single worst frame’s sort error for that candidate",
+  "depth levels": "the sort table indexes faces by projected depth; this model’s posed diameter needs this many levels (reference engine has 1,500; DEPTH_16K has 16,384)",
+  "order-check": "pixels that change when the depth-tested render draws its faces in reverse — the floor set by translucent faces, which composite in order by design",
+};
+const state = { metric: "pct", hidden: new Set(), tables: new Set(), lastUpdated: 0,
+                candColor: new Map() };
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+};
+const fmt = (v, unit = "%") => v === null || v === undefined ? "–" :
+  (typeof v === "number" ? v.toFixed(2) + unit : v);
+
+function candColor(name) {
+  if (!state.candColor.has(name))
+    state.candColor.set(name, SERIES[Math.min(state.candColor.size, SERIES.length - 1)]);
+  return state.candColor.get(name);
+}
+
+async function poll() {
+  try {
+    const r = await fetch("status.json", { cache: "no-store" });
+    if (r.ok) render(await r.json());
+  } catch (e) { /* server between writes */ }
+  setTimeout(poll, 1200);
+}
+
+function render(doc) {
+  $("waiting").style.display = "none";
+  $("main").style.display = "";
+  const meta = doc.meta;
+  const chip = $("stagechip");
+  chip.textContent = meta.error ? "error" : meta.finished ? "finished" : meta.stage;
+  chip.className = "chip " + (meta.error ? "err" : meta.finished ? "done" : "run");
+  const p = meta.progress || { done: 0, total: 0 };
+  $("bar").firstElementChild.style.width =
+    p.total ? (100 * p.done / p.total).toFixed(1) + "%" : (meta.finished ? "100%" : "0%");
+  $("progresstext").textContent = p.total ? `${p.done}/${p.total}` : "";
+  const secs = Math.max(0, (meta.finished ? meta.updated : Date.now() / 1000) - meta.started);
+  $("elapsed").textContent = `${Math.floor(secs / 60)}m${String(Math.floor(secs % 60)).padStart(2, "0")}s`;
+  renderModelLine(doc);
+  renderStages(meta);
+  renderTiles(doc);
+  renderFindings(doc.findings || []);
+  renderLog(doc.log || []);
+  renderLive(doc);
+  if (meta.updated === state.lastUpdated) return;
+  state.lastUpdated = meta.updated;
+  (doc.candidates || []).forEach(candColor);
+  renderStatic(doc);
+  renderSeqs(doc);
+  renderStructures(doc.structures);
+  renderRepair(doc.repair);
+  renderAttr(doc.attribution);
+  renderSearch(doc.search);
+  renderVerdict(doc);
+  if (meta.error) {
+    const f = $("findings");
+    const d = el("div", "finding");
+    d.append(el("span", "sev critical", "error"), el("div", "", meta.error));
+    f.prepend(d);
+  }
+}
+
+function renderModelLine(doc) {
+  const c = doc.model_card;
+  if (!c) return;
+  $("modelline").textContent =
+    `${(c.models || []).join(" + ")} — ${c.vertices ?? "?"} verts, ${c.faces ?? "?"} faces` +
+    `, ${c.alpha_faces ?? 0} alpha, ${c.textured ?? 0} textured, scratch ${c.scratch_tier ?? "?"}`;
+}
+
+function renderStages(meta) {
+  const ul = $("stages");
+  ul.textContent = "";
+  const order = STAGES.map(s => s[0]);
+  const at = order.indexOf(meta.stage);
+  STAGES.forEach(([key, label], i) => {
+    const li = el("li", "", label);
+    if (meta.finished || i < at) li.className = "done";
+    else if (i === at && !meta.error) li.className = "run";
+    ul.append(li);
+  });
+}
+
+function renderTiles(doc) {
+  const tiles = [];
+  const v = doc.verdict;
+  const best = v && v.best ? v.table[v.best] : null;
+  if (best) tiles.push([fmt(best.anim_mean_pct), `anim mean — ${v.best}`]);
+  if (best) tiles.push([fmt(best.anim_max_pct), "worst frame"]);
+  const card = doc.model_card || {};
+  let depth = card.bind_depth_needed || 0;
+  for (const s of Object.values(doc.seqs || {})) depth = Math.max(depth, s.depth_needed || 0);
+  if (depth) tiles.push([depth.toLocaleString(), "depth levels needed / 16,384"]);
+  const oc = doc.static && doc.static.inherited && doc.static.inherited.order_check_pct;
+  if (oc !== undefined && oc !== null) tiles.push([fmt(oc), "order-check residual"]);
+  const t = $("tiles");
+  t.textContent = "";
+  tiles.slice(0, 4).forEach(([value, label]) => {
+    const d = el("div", "tile");
+    const key = Object.keys(TILE_DESC).find(k => label.includes(k));
+    if (key) d.title = TILE_DESC[key];
+    d.append(el("div", "v", value), el("div", "l", label));
+    t.append(d);
+  });
+}
+
+function renderFindings(findings) {
+  const box = $("findings");
+  box.textContent = "";
+  if (!findings.length) { box.textContent = "none yet"; return; }
+  findings.forEach(f => {
+    const d = el("div", "finding");
+    const body = el("div");
+    body.append(el("b", "", f.title), el("p", "", f.detail));
+    d.append(el("span", "sev " + f.severity,
+      f.severity === "critical" ? "✕ critical" : f.severity === "warn" ? "▲ warn" : "ℹ info"), body);
+    box.append(d);
+  });
+}
+
+function renderLog(log) {
+  const box = $("log");
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  box.textContent = "";
+  log.slice(-40).forEach(line => {
+    const d = el("div");
+    const ts = new Date(line.t * 1000);
+    d.append(el("span", "t", ts.toTimeString().slice(0, 8) + " "), document.createTextNode(line.m));
+    box.append(d);
+  });
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function shotStrip(shots, caps) {
+  const row = el("div", "shotrow");
+  Object.entries(shots || {}).forEach(([kind, s]) => {
+    const box = el("div", "shot");
+    const img = el("img");
+    img.src = s.thumb; img.alt = kind;
+    img.onclick = () => { const lb = $("lightbox"); lb.firstElementChild.src = s.full;
+                          lb.style.display = "flex"; };
+    box.append(img, el("div", "cap", (caps && caps[kind]) || kind));
+    row.append(box);
+  });
+  return row;
+}
+
+function renderStatic(doc) {
+  const box = $("static");
+  box.textContent = "";
+  const entries = Object.entries(doc.static || {});
+  if (!entries.length) { box.append(el("div", "muted", "rendering…")); return; }
+  entries.forEach(([cand, s]) => {
+    const head = el("div");
+    head.style.margin = "6px 0 4px";
+    head.title = CAND_DESC[cand] || "user-supplied candidate";
+    const sw = el("span", "sw");
+    sw.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:3px;` +
+      `background:${candColor(cand)};margin-right:6px`;
+    head.append(sw, el("b", "", cand + "  "),
+      el("span", "muted", ` sort error ${fmt(s.pct)}` +
+        (s.order_check_pct !== undefined ? ` · order-check ${fmt(s.order_check_pct)}` : "")));
+    box.append(head, shotStrip(s.shots, {
+      painter: "painter", zbuf: "z-buffer truth", diff: "what depth-testing changes",
+      mask: "sort-error mask" }));
+  });
+}
+
+function seqCard(name, seq, candidates) {
+  const card = el("div", "card");
+  const h = el("h2", "", name);
+  card.append(h);
+  const info = el("div", "muted");
+  info.style.marginBottom = "6px";
+  info.textContent = `${seq.sampled}/${seq.frames_total} frames · radius ${seq.radius ?? "?"}` +
+    ` · needs ${seq.depth_needed ?? "?"} depth levels`;
+  card.append(info);
+
+  const frames = seq.per_frame || [];
+  if (!frames.length) { card.append(el("div", "muted", "prescanned; waiting for sweep…")); return card; }
+
+  const legend = el("div", "legend");
+  candidates.forEach(cand => {
+    const b = el("button", state.hidden.has(cand) ? "off" : "");
+    b.title = (CAND_DESC[cand] || "user-supplied candidate") + " (click to hide/show)";
+    const sw = el("span", "sw"); sw.style.background = candColor(cand);
+    b.append(sw, document.createTextNode(cand));
+    b.onclick = () => { state.hidden.has(cand) ? state.hidden.delete(cand)
+                        : state.hidden.add(cand); state.lastUpdated = 0; };
+    legend.append(b);
+  });
+  card.append(legend);
+
+  const toggles = el("div", "mtoggle");
+  METRICS.forEach(([key, label]) => {
+    const b = el("button", key === state.metric ? "on" : "", label);
+    b.title = METRIC_DESC[key] || "";
+    b.onclick = () => { state.metric = key; state.lastUpdated = 0; };
+    toggles.append(b);
+  });
+  const tb = el("button", "tbl-btn", state.tables.has(name) ? "chart" : "table");
+  tb.onclick = () => { state.tables.has(name) ? state.tables.delete(name)
+                       : state.tables.add(name); state.lastUpdated = 0; };
+  toggles.append(tb);
+  card.append(toggles);
+
+  if (state.tables.has(name)) card.append(seqTable(frames, candidates));
+  else card.append(seqChart(name, frames, candidates));
+
+  const worst = frames.reduce((a, b) =>
+    ((b.cands.inherited || {}).pct || 0) > ((a.cands.inherited || {}).pct || 0) ? b : a, frames[0]);
+  const latest = frames[frames.length - 1];
+  const pick = worst === latest ? [["worst+latest", worst]] :
+    [["worst frame " + worst.index, worst], ["latest frame " + latest.index, latest]];
+  pick.forEach(([label, fr]) => {
+    const cand = candidates.find(c => fr.cands[c] && fr.cands[c].shots &&
+                                      Object.keys(fr.cands[c].shots).length) || candidates[0];
+    const entry = fr.cands[cand] || {};
+    card.append(el("div", "muted", `${label} — ${cand} ${fmt(entry.pct)}`));
+    card.append(shotStrip(entry.shots || {}));
+  });
+  return card;
+}
+
+function seqChart(name, frames, candidates) {
+  const W = 640, H = 170, L = 38, R = 8, T = 8, B = 22;
+  const wrap = el("div");
+  wrap.style.position = "relative";
+  const live = candidates.filter(c => !state.hidden.has(c));
+  const val = (fr, c) => (fr.cands[c] || {})[state.metric];
+  let maxV = 1;
+  frames.forEach(fr => live.forEach(c => { const v = val(fr, c); if (v > maxV) maxV = v; }));
+  maxV *= 1.15;
+  const x = i => L + (W - L - R) * (frames.length === 1 ? 0.5 : i / (frames.length - 1));
+  const y = v => T + (H - T - B) * (1 - v / maxV);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.style.width = "100%";
+  let g = "";
+  for (let t = 0; t <= 4; t++) {
+    const v = maxV * t / 4, yy = y(v).toFixed(1);
+    g += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="${t ? "#2c2c2a" : "#383835"}" stroke-width="1"/>` +
+         `<text x="${L - 5}" y="${+yy + 3}" text-anchor="end">${v.toFixed(v >= 10 ? 0 : 1)}</text>`;
+  }
+  frames.forEach((fr, i) => {
+    if (i % Math.ceil(frames.length / 8) === 0 || i === frames.length - 1)
+      g += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="middle">f${fr.index}</text>`;
+  });
+  live.forEach(cand => {
+    const pts = frames.map((fr, i) => [i, val(fr, cand)]).filter(p => p[1] !== undefined && p[1] !== null);
+    if (!pts.length) return;
+    const path = pts.map((p, k) => `${k ? "L" : "M"}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join("");
+    g += `<path d="${path}" fill="none" stroke="${candColor(cand)}" stroke-width="2" stroke-linejoin="round"/>`;
+    pts.forEach(p => {
+      g += `<circle cx="${x(p[0]).toFixed(1)}" cy="${y(p[1]).toFixed(1)}" r="2.5" fill="${candColor(cand)}"/>`;
+    });
+    const last = pts[pts.length - 1];
+    if (live.length <= 4) {
+      const lx = x(last[0]), fits = lx + 6 + 6.2 * cand.length <= W - 2;
+      g += `<text x="${(fits ? lx + 6 : lx - 6).toFixed(1)}" y="${(y(last[1]) - 6).toFixed(1)}"` +
+           ` text-anchor="${fits ? "start" : "end"}" fill="#c3c2b7">${cand}</text>`;
+    }
+  });
+  frames.forEach((fr, i) => {
+    const culled = live.some(c => (fr.cands[c] || {}).culled_views);
+    if (culled)
+      g += `<text x="${x(i).toFixed(1)}" y="${T + 9}" text-anchor="middle" fill="#fab219">▲</text>`;
+  });
+  g += `<line id="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#898781" stroke-width="1" style="display:none"/>`;
+  svg.innerHTML = g;
+  wrap.append(svg);
+  svg.addEventListener("mousemove", ev => {
+    const rect = svg.getBoundingClientRect();
+    const fx = (ev.clientX - rect.left) * W / rect.width;
+    let i = Math.round((fx - L) / ((W - L - R) / Math.max(1, frames.length - 1)));
+    i = Math.max(0, Math.min(frames.length - 1, i));
+    const cross = svg.querySelector("#cross");
+    cross.style.display = "";
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i));
+    const tip = $("tip");
+    const fr = frames[i];
+    tip.innerHTML = `<b>frame ${fr.index}</b> (packed ${fr.packed})<br>` + live.map(c => {
+      const v = val(fr, c);
+      return `<span style="color:${candColor(c)}">●</span> ${c}: <b>${fmt(v)}</b>`;
+    }).join("<br>");
+    tip.style.display = "block";
+    tip.style.left = (ev.pageX + 14) + "px";
+    tip.style.top = (ev.pageY - 10) + "px";
+  });
+  svg.addEventListener("mouseleave", () => {
+    $("tip").style.display = "none";
+    const cross = svg.querySelector("#cross");
+    if (cross) cross.style.display = "none";
+  });
+  return wrap;
+}
+
+function seqTable(frames, candidates) {
+  const t = el("table");
+  const metricLabel = METRICS.find(m => m[0] === state.metric)[1];
+  const head = el("tr");
+  head.append(el("th", "", "frame"));
+  candidates.forEach(c => head.append(el("th", "", `${c} ${metricLabel} %`)));
+  t.append(head);
+  frames.forEach(fr => {
+    const tr = el("tr");
+    tr.append(el("td", "", "f" + fr.index));
+    candidates.forEach(c => tr.append(el("td", "", fmt((fr.cands[c] || {})[state.metric], ""))));
+    t.append(tr);
+  });
+  return t;
+}
+
+function renderSeqs(doc) {
+  const box = $("seqs");
+  box.textContent = "";
+  (doc.seq_order || []).forEach(name => {
+    const seq = (doc.seqs || {})[name];
+    if (seq) box.append(seqCard(name, seq, doc.candidates || []));
+  });
+}
+
+/* ------------------------------------------------------------- live view */
+const live = { ready: false, cand: null, mode: "painter", pose: -1,
+               yaw: 420, pitch: 140, zoom: null, inflight: false, dirty: false,
+               frames: [], url: null, sig: "" };
+
+function sendLive() {
+  if (!live.ready) return;
+  if (live.inflight) { live.dirty = true; return; }
+  live.inflight = true;
+  const q = `cand=${encodeURIComponent(live.cand)}&pose=${live.pose}` +
+    `&yaw=${((live.yaw % 2048) + 2048) % 2048}&pitch=${((live.pitch % 2048) + 2048) % 2048}` +
+    `&zoom=${live.zoom.toFixed(3)}&mode=${live.mode}`;
+  fetch("/live?" + q).then(r => {
+    if (!r.ok) throw new Error("http " + r.status);
+    return r.blob();
+  }).then(b => {
+    const url = URL.createObjectURL(b);
+    $("liveimg").src = url;
+    if (live.url) URL.revokeObjectURL(live.url);
+    live.url = url;
+    $("livestatus").textContent = liveLabel();
+  }).catch(e => {
+    $("livestatus").textContent = "live render unavailable (" + e.message + ")";
+  }).finally(() => {
+    live.inflight = false;
+    if (live.dirty) { live.dirty = false; sendLive(); }
+  });
+}
+
+function liveLabel() {
+  const f = live.pose >= 0 && live.frames[live.pose];
+  return `${live.cand} · ${live.mode === "zbuf" ? "depth-tested" : "painter"} · ` +
+    (f ? `${f.seq} f${f.index}` : "bind pose");
+}
+
+function liveButtonRow(parent, items, isOn, onPick, descs) {
+  const row = el("div", "mtoggle");
+  items.forEach(([key, label]) => {
+    const b = el("button", isOn(key) ? "on" : "", label);
+    if (descs && descs[key]) b.title = descs[key];
+    b.onclick = () => { onPick(key); buildLiveControls(); sendLive(); };
+    row.append(b);
+  });
+  parent.append(row);
+  return row;
+}
+
+function buildLiveControls() {
+  const box = $("livecontrols");
+  box.textContent = "";
+  liveButtonRow(box, live.cands.map(c => [c, c]),
+    k => k === live.cand, k => { live.cand = k; }, CAND_DESC);
+  liveButtonRow(box, [["painter", "painter"], ["zbuf", "depth-tested"]],
+    k => k === live.mode, k => { live.mode = k; }, MODE_DESC);
+  const cap = el("div", "muted");
+  cap.style.cssText = "font-size:11px;margin:2px 0 4px;max-width:640px";
+  cap.textContent = `${live.cand} = ${CAND_DESC[live.cand] || "user-supplied candidate model set"}. ` +
+    `${live.mode === "zbuf" ? "depth-tested" : "painter"} = ${MODE_DESC[live.mode]}.`;
+  box.append(cap);
+  const row = el("div", "mtoggle");
+  const scrub = el("input");
+  scrub.type = "range"; scrub.min = -1; scrub.max = live.frames.length - 1;
+  scrub.value = live.pose; scrub.style.flex = "1";
+  scrub.oninput = () => { live.pose = +scrub.value;
+                          $("livestatus").textContent = liveLabel(); sendLive(); };
+  const zoom = el("input");
+  zoom.type = "range"; zoom.min = 30; zoom.max = 300;
+  zoom.value = Math.round(live.zoom * 100); zoom.style.width = "90px";
+  zoom.oninput = () => { live.zoom = +zoom.value / 100; sendLive(); };
+  row.append(el("span", "muted", "pose"), scrub, el("span", "muted", "zoom"), zoom);
+  box.append(row);
+}
+
+function renderLive(doc) {
+  if (!doc.live || !(doc.candidates || []).length) return;
+  const sig = JSON.stringify([doc.candidates, doc.live.frames.length]);
+  $("livecard").style.display = "";
+  live.frames = doc.live.frames;
+  live.cands = doc.candidates;
+  if (!live.ready) {
+    live.ready = true;
+    live.cand = doc.candidates[0];
+    live.zoom = doc.live.zoom || 1;
+    hookLiveDrag();
+    buildLiveControls();
+    sendLive();
+  } else if (sig !== live.sig) {
+    if (!doc.candidates.includes(live.cand)) live.cand = doc.candidates[0];
+    buildLiveControls();
+  }
+  live.sig = sig;
+}
+
+function hookLiveDrag() {
+  const img = $("liveimg");
+  let drag = null;
+  img.addEventListener("pointerdown", ev => {
+    drag = { x: ev.clientX, y: ev.clientY, yaw: live.yaw, pitch: live.pitch };
+    img.setPointerCapture(ev.pointerId);
+    img.style.cursor = "grabbing";
+  });
+  img.addEventListener("pointermove", ev => {
+    if (!drag) return;
+    live.yaw = drag.yaw - Math.round((ev.clientX - drag.x) * 2048 / 360);
+    live.pitch = drag.pitch + Math.round((ev.clientY - drag.y) * 2048 / 720);
+    sendLive();
+  });
+  const up = () => { drag = null; img.style.cursor = "grab"; };
+  img.addEventListener("pointerup", up);
+  img.addEventListener("pointercancel", up);
+}
+
+function renderStructures(structures) {
+  const box = $("structures");
+  if (!structures) return;
+  box.textContent = "";
+  box.className = "";
+  box.append(el("div", "muted",
+    `${structures.groups.length} largest of the rig's groups; suspects are ` +
+    `overlapping pairs judged from rigging + shipped priorities alone`));
+  const t = el("table");
+  const head = el("tr");
+  ["pair", "kind", "weight"].forEach(h => head.append(el("th", "", h)));
+  t.append(head);
+  (structures.suspects || []).slice(0, 8).forEach(s => {
+    const tr = el("tr");
+    tr.append(el("td", "", `g${s.a} × g${s.b}`), el("td", "", s.kind),
+              el("td", "", String(s.weight)));
+    t.append(tr);
+  });
+  box.append(t);
+}
+
+function renderRepair(repair) {
+  if (!repair) return;
+  $("repaircard").style.display = "";
+  const box = $("repair");
+  box.textContent = "";
+  const cfg = repair.config || {};
+  box.append(el("div", "muted",
+    `judge-frame baseline: ${repair.baseline.tie_total} tie px, ` +
+    `${repair.baseline.wrong} wrong px · amounts ±${(cfg.amounts || []).join("/±")}` +
+    ` · ${cfg.rounds || 1} rounds · budget ${cfg.trial_budget || "∞"} trials` +
+    (repair.trials_used !== undefined ? ` (${repair.trials_used} used)` : "")));
+  (repair.pairs || []).forEach(p => {
+    const d = el("div");
+    d.style.margin = "8px 0 0";
+    d.append(el("b", "", `${p.a} × ${p.b}`), el("span", "muted",
+      `  round ${p.round ?? 0} · evidence ${p.evidence} · ${p.base_ties} tie px` +
+      (p.adopted ? "" : p.trials.length ? " · no safe move" : " · trying…")));
+    if (p.adopted)
+      d.append(el("div", "",
+        `→ adopted ${p.adopted.move}: ${p.base_ties} → ${p.adopted.pair_ties} tie px`));
+    const t = el("table");
+    const head = el("tr");
+    ["move", "pair ties", "all ties", "wrong", "ok"].forEach(h =>
+      head.append(el("th", "", h)));
+    t.append(head);
+    (p.trials || []).forEach(tr0 => {
+      const tr = el("tr", tr0.ok ? "chosen" : "");
+      tr.append(
+        el("td", "", tr0.error ? `${tr0.move} (failed)` : (tr0.move || "–")),
+        el("td", "", tr0.pair_ties === undefined ? "–" : String(tr0.pair_ties)),
+        el("td", "", tr0.tie_total === undefined ? "–" : String(tr0.tie_total)),
+        el("td", "", tr0.wrong === undefined ? "–" : String(tr0.wrong)),
+        el("td", "", tr0.ok === undefined ? "–" : tr0.ok ? "✓" : "✕"));
+      t.append(tr);
+    });
+    d.append(t);
+    box.append(d);
+  });
+  const an = repair.anneal;
+  if (an) {
+    const d = el("div");
+    d.style.margin = "8px 0 0";
+    d.append(el("b", "", "anneal tier"),
+      el("span", "muted", `  ${an.iteration ?? an.iterations} iters · seed ${an.seed} · ` +
+        `${an.accepted} accepted · best ties ${an.best_ties} (from ${an.start_ties}) · ` +
+        (an.adopted ? "ADOPTED" : "deterministic result stands")));
+    box.append(d);
+  }
+  const vp = repair.vertex_pass;
+  if (vp) {
+    const d = el("div");
+    d.style.margin = "8px 0 0";
+    d.append(el("b", "", `vertex pass — ${vp.pair[0]} × ${vp.pair[1]}`),
+      el("span", "muted", `  ${vp.verts_tried} verts · ${vp.sweeps} sweep(s) · ` +
+        `${vp.base_ties} → ${vp.final_ties ?? vp.base_ties} tie px`));
+    if ((vp.adopted || []).length)
+      d.append(el("div", "muted", "adopted: " + vp.adopted.join("; ")));
+    else
+      d.append(el("div", "muted", "no single-vertex move survived the guards"));
+    box.append(d);
+  }
+  if (repair.outcome)
+    box.append(el("div", "rec", repair.outcome));
+}
+
+function pairTable(pairs) {
+  const t = el("table");
+  const head = el("tr");
+  ["drawn on top", "true surface", "pixels"].forEach(h => head.append(el("th", "", h)));
+  t.append(head);
+  pairs.forEach(p => {
+    const tr = el("tr");
+    tr.append(el("td", "", "group " + p.over), el("td", "", "group " + p.under),
+              el("td", "", String(p.pixels)));
+    t.append(tr);
+  });
+  return t;
+}
+
+function tieMaskImg(rel) {
+  const img = el("img");
+  img.src = rel;
+  img.style.cssText = "max-width:100%;border:1px solid var(--ring);border-radius:4px;cursor:zoom-in";
+  img.onclick = () => { const lb = $("lightbox"); lb.firstElementChild.src = rel;
+                        lb.style.display = "flex"; };
+  return img;
+}
+
+function renderAttr(attr) {
+  const box = $("attr");
+  if (!attr) return;
+  box.textContent = "";
+  box.className = "";
+  box.append(el("div", "muted", "Wrong layering as (group OVER group); z-fighting as " +
+    "unordered tie pairs. Masks: magenta = fighting (no stable order), red = wrong layering. " +
+    "Pairs under a frame but absent at bind are what the animation introduces."));
+  const cols = el("div");
+  cols.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-top:8px";
+  const bind = el("div");
+  bind.append(el("b", "", "bind pose"));
+  if (attr.bind_tie_mask) bind.append(tieMaskImg(attr.bind_tie_mask));
+  bind.append(el("div", "muted", "layering:"), pairTable(attr.bind_pairs || []));
+  if ((attr.bind_ties || []).length)
+    bind.append(el("div", "muted", "fighting:"),
+      pairTable(attr.bind_ties.map(t => ({ over: t.a, under: t.b, pixels: t.pixels }))));
+  cols.append(bind);
+  (attr.frames || []).forEach(fr => {
+    const d = el("div");
+    d.append(el("b", "", `${fr.seq} f${fr.frame} (${fmt(fr.pct)})`));
+    if (fr.tie_mask) d.append(tieMaskImg(fr.tie_mask));
+    if ((fr.ties || []).length)
+      d.append(el("div", "muted", "fighting:"),
+        pairTable(fr.ties.map(t => ({ over: t.a, under: t.b, pixels: t.pixels })).slice(0, 6)));
+    if ((fr.new_pairs || []).length)
+      d.append(el("div", "muted", "new layering under animation:"), pairTable(fr.new_pairs.slice(0, 6)));
+    else d.append(el("div", "muted", "no animation-only layering"));
+    cols.append(d);
+  });
+  box.append(cols);
+}
+
+function renderSearch(search) {
+  const box = $("search");
+  if (!search) return;
+  box.textContent = "";
+  box.className = "";
+  box.append(el("div", "muted",
+    `pose corpus: ${(search.corpus || []).length} frames` +
+    (search.slow ? ` · slow ${search.slow}` : "")));
+  if ((search.table || []).length) {
+    const t = el("table");
+    const head = el("tr");
+    ["strategy", "wrong", "%"].forEach(h => head.append(el("th", "", h)));
+    t.append(head);
+    search.table.forEach(row => {
+      const tr = el("tr", row.chosen ? "chosen" : "");
+      tr.append(el("td", "", row.strategy + (row.chosen ? " ←" : "")),
+        el("td", "", String(row.wrong)), el("td", "", row.pct.toFixed(2)));
+      t.append(tr);
+    });
+    box.append(t);
+  }
+  if (!search.ok) box.append(el("div", "muted", "search produced no output"));
+}
+
+function renderVerdict(doc) {
+  const v = doc.verdict;
+  const rec = $("recommendation");
+  const bars = $("verdictbars");
+  if (!v) { rec.textContent = ""; bars.textContent = ""; return; }
+  rec.className = "rec";
+  rec.textContent = v.recommendation || "";
+  bars.textContent = "";
+  const entries = Object.entries(v.table || {}).filter(([, s]) => s.anim_mean_pct !== null);
+  if (!entries.length) return;
+  const max = Math.max(...entries.map(([, s]) => s.anim_max_pct || s.anim_mean_pct || 0), 1);
+  bars.append(el("div", "muted", "anim mean (bar) and worst frame (tick), % pixels wrong"));
+  entries.forEach(([cand, s]) => {
+    const row = el("div", "row");
+    row.title = CAND_DESC[cand] || "user-supplied candidate";
+    row.append(el("div", "", cand));
+    const track = el("div", "track");
+    const fill = el("div", "fill");
+    fill.style.width = (100 * (s.anim_mean_pct || 0) / max) + "%";
+    fill.style.background = candColor(cand);
+    track.append(fill);
+    if (s.anim_max_pct) {
+      const tick = el("div");
+      tick.style.cssText = `position:absolute;top:-2px;bottom:-2px;width:2px;background:#ffffff55;` +
+        `left:${(100 * s.anim_max_pct / max)}%`;
+      track.append(tick);
+    }
+    row.append(track, el("div", "val", fmt(s.anim_mean_pct)));
+    bars.append(row);
+  });
+}
+
+poll();
+</script>
+</body>
+</html>

@@ -6,13 +6,19 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 
 
+# The C runtime is always this repository's; the content tree is whichever one
+# is being baked, which is not necessarily the submodule -- MOCK230_CONTENT_DIR
+# selects it. The `ported/rs2012_qbd_td` lane this bridge is about lives only in
+# a tree that carries it, and a hardcoded tree without one does not fail
+# helpfully: parse_pack falls back to the tree-wide pack/ and reports the whole
+# cache's 12010 sound effects against an expectation of 29.
 REPO = Path(__file__).resolve().parents[1]
-TREE = REPO / "OSRS-Content" / "osrs239-content"
-LANE = TREE / "ported" / "rs2012_qbd_td"
+DEFAULT_TREE = REPO / "OSRS-Content" / "osrs239-content"
 DEFAULT_AUDIOPROBE = REPO / "3rd/rscache/tools/audioprobe/audioprobe"
 
 
@@ -123,8 +129,8 @@ def verify_tree(root: Path) -> None:
             "loc contains an unresolved sound id")
 
 
-def verify_authority() -> None:
-    ledger = TREE / "port/rs2012_qbd_td.map"
+def verify_authority(tree: Path) -> None:
+    ledger = tree / "port/rs2012_qbd_td.map"
     counts: dict[str, int] = {}
     with ledger.open(newline="") as stream:
         for row in csv.DictReader(stream, delimiter="\t"):
@@ -136,7 +142,7 @@ def verify_authority() -> None:
         require(counts.get(kind) == expected,
                 f"ledger {kind} count {counts.get(kind, 0)} != {expected}")
 
-    session = (TREE / "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
+    session = (tree / "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
                "rs2012_qbd_session.rs2").read_text()
     awoken = session.index("midi_song(1119);")
     combat = session.index("if ($expected = 1) midi_song(1118);")
@@ -170,7 +176,8 @@ def probe(audioprobe: Path, cache: Path, revision: str, *arguments: str) -> str:
     return completed.stdout
 
 
-def verify_composed_cache(cache: Path, audioprobe: Path, revision: str) -> None:
+def verify_composed_cache(cache: Path, audioprobe: Path, revision: str,
+                          tree: Path) -> None:
     """Decode the exact foreign closure after cachepack has composed it."""
 
     require(cache.is_dir(), f"composed cache does not exist: {cache}")
@@ -178,7 +185,7 @@ def verify_composed_cache(cache: Path, audioprobe: Path, revision: str) -> None:
             f"composed cache has no dat2 file: {cache}")
     require(audioprobe.is_file(), f"audioprobe does not exist: {audioprobe}")
 
-    samples = parse_pack(TREE, "14_musicsamples.pack")
+    samples = parse_pack(tree, "14_musicsamples.pack")
     sample_ids = sorted(set(samples) - {16000})
     require(len(sample_ids) == 83,
             f"expected 83 recorded samples to probe, got {len(sample_ids)}")
@@ -214,6 +221,9 @@ def verify_composed_cache(cache: Path, audioprobe: Path, revision: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--content", type=Path, default=None,
+                        help="OSRS-Content tree carrying ported/rs2012_qbd_td "
+                             "(default: $MOCK230_CONTENT_DIR, else the submodule)")
     parser.add_argument("--staged", type=Path,
                         help="also verify a tree produced by stage_rs2012_overlay.py")
     parser.add_argument("--cache", type=Path,
@@ -223,15 +233,23 @@ def main() -> None:
     parser.add_argument("--revision", default="osrs239",
                         help="cache profile passed to audioprobe (default: osrs239)")
     args = parser.parse_args()
-    verify_tree(TREE)
-    verify_authority()
+
+    tree = args.content or os.environ.get("MOCK230_CONTENT_DIR") or DEFAULT_TREE
+    tree = Path(tree).resolve()
+    require(tree.is_dir(), f"no content tree at {tree}")
+    require((tree / "ported/rs2012_qbd_td").is_dir(),
+            f"{tree} has no ported/rs2012_qbd_td lane; point --content or "
+            "MOCK230_CONTENT_DIR at a tree that carries it")
+
+    verify_tree(tree)
+    verify_authority(tree)
     checks = ["source"]
     if args.staged is not None:
         verify_tree(args.staged.resolve())
         checks.append("staged")
     if args.cache is not None:
         verify_composed_cache(
-            args.cache.resolve(), args.audioprobe.resolve(), args.revision)
+            args.cache.resolve(), args.audioprobe.resolve(), args.revision, tree)
         checks.append("composed cache: 83/83 samples, songs 1118/1119, patch 1157 decoded")
     print(
         "rs2012 audio bridge: PASS "
