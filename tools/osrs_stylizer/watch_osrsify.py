@@ -545,6 +545,19 @@ PAGE = """<!doctype html>
            text-transform:uppercase; letter-spacing:.06em; }
   canvas.chart { background:#1d1f25; border:1px solid #2c2e36;
                  border-radius:8px; width:100%; max-width:820px; height:180px; }
+  .legend { display:flex; gap:1rem; flex-wrap:wrap; align-items:center;
+            font-size:.75em; color:#8b8e99; margin:.15rem 0 .3rem;
+            max-width:820px; }
+  .legend span { white-space:nowrap; }
+  .legend i { display:inline-block; margin-right:.35em; }
+  .legend .sw { width:.8em; height:.8em; border-radius:50%;
+                vertical-align:-.1em; }
+  .legend .swline { width:1.3em; height:0; border-top:2px solid;
+                    vertical-align:.25em; }
+  .legend .swdash { width:1.3em; height:0; border-top:2px dashed;
+                    vertical-align:.25em; }
+  .legend .swband { width:1.3em; height:.8em; vertical-align:-.1em; }
+  .legend .swtick { width:.45em; height:.8em; vertical-align:-.1em; }
   /* Left sidebar holds run status/filtering; the main column scrolls beside
      it. Each run's own header sticks to the top of the viewport; sections
      scope the stickiness so the next run's header replaces the previous. */
@@ -792,6 +805,14 @@ function paramline(c, run) {
   }
   return s + when;
 }
+// chart legends: swatch shape ('sw' dot, 'swline'/'swdash' line, 'swband'
+// area, 'swtick' reject marker), colour, label
+function legend(items) {
+  return `<div class="legend">` + items.map(([shape, color, label]) =>
+    `<span><i class="${shape}" style="${
+      shape === 'swline' || shape === 'swdash' ? 'border-color' : 'background'
+    }:${color}"></i>${label}</span>`).join('') + `</div>`;
+}
 function card(run, c, best) {
   const rej = c.fitness === null || c.fitness === undefined;
   const cls = 'card' + (c.id === best ? ' best' : '') + (rej ? ' rej' : '');
@@ -891,7 +912,6 @@ function drawPreserver(canvas, cands) {
     ctx.fillText(lbl, 34, py(v) - 3 * devicePixelRatio);
   }
   const series = [['identity', '#e6b450'], ['pose_id', '#7ec9c9'], ['region_min', '#c97ea8']];
-  let lx = W - 260 * devicePixelRatio / 2;
   for (const [key, col] of series) {
     ctx.strokeStyle = col; ctx.fillStyle = col;
     ctx.lineWidth = devicePixelRatio;
@@ -908,11 +928,9 @@ function drawPreserver(canvas, cands) {
       if (c[key] === undefined) return;
       ctx.beginPath(); ctx.arc(px(i), py(c[key]), 2 * devicePixelRatio, 0, 7); ctx.fill();
     });
-    ctx.fillText(key, lx, H - 6);
-    lx += (key.length + 3) * 7 * devicePixelRatio;
   }
   ctx.fillStyle = '#8b8e99';
-  ctx.fillText('candidates →', 34, H - 6 - 14 * devicePixelRatio);
+  ctx.fillText('candidates →', 34, H - 6);
 }
 
 // OSRS matcher (style judge): the ResNet18 osrs-vs-highpoly classifier that
@@ -985,7 +1003,7 @@ function drawMatcher(canvas, doc, cands) {
     ctx.beginPath(); ctx.arc(px(i), py(m), 2 * devicePixelRatio, 0, 7); ctx.fill();
   }
   ctx.fillStyle = '#8b8e99';
-  ctx.fillText('candidates → · green beats baseline · red failed a gate', 34, H - 6);
+  ctx.fillText('candidates →', 34, H - 6);
 }
 
 // "latest run only": collapse the page to the most recently started run.
@@ -1198,12 +1216,27 @@ function render() {
                  placeholder="max" value="${f.max}"
                  onchange="setFilter('${esc(run)}','max',this.value)"></span>
       </div></div>
-      <h3>fitness map</h3><canvas class="chart" id="chart-${esc(run)}"></canvas>
+      <h3>fitness map</h3>
+      ${legend([['sw', '#7ec97e', 'current best'],
+                ['sw', '#e6b450', 'passed gates'],
+                ['swtick', '#6a4a4a', 'rejected (tick at bottom)'],
+                ['swline', '#33363f', 'baseline (fitness 0)']])}
+      <canvas class="chart" id="chart-${esc(run)}"></canvas>
       <h3>content preserver</h3>
       ${preserverSummary(cands)}
+      ${legend([['swline', '#e6b450', 'bind identity'],
+                ['swline', '#7ec9c9', 'pose identity'],
+                ['swline', '#c97ea8', 'region close-up min'],
+                ['swband', 'rgba(126,201,126,.4)', 'safe &ge;85'],
+                ['swband', 'rgba(201,106,106,.4)', 'broken &le;60']])}
       <canvas class="chart" id="pres-${esc(run)}"></canvas>
       <h3>OSRS matcher</h3>
       ${matcherSummary(doc, cands)}
+      ${legend([['sw', '#7ec97e', 'beats baseline'],
+                ['sw', '#7e9cc9', 'passed gates'],
+                ['sw', '#c96a6a', 'rejected'],
+                ['swdash', '#c9b47e', 'baseline margin'],
+                ['swline', '#33363f', 'zero — OSRS above']])}
       <canvas class="chart" id="match-${esc(run)}"></canvas>`;
     if (top.length) {
       h += `<h3>best so far</h3><div class="row">` +
