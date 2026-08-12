@@ -21,6 +21,13 @@ details are in
 [`docs/JS5_INCREMENTAL_CACHE.md`](../../docs/JS5_INCREMENTAL_CACHE.md) and
 [`docs/JS5_SERVER.md`](../../docs/JS5_SERVER.md).
 
+The browser build uses this same client against a cache that is not a dat2 file
+— IndexedDB records behind a dat2 facade — with the metadata barrier driven by
+the page rather than by a spin loop, and the background fill off by default. See
+[`docs/WEB_CACHE_INDEXEDDB.md`](../../docs/WEB_CACHE_INDEXEDDB.md). Nothing in
+`js5.[ch]` is web-specific; the storage adapter and the executor around it are
+what differ.
+
 ## Source provenance
 
 The review used the existing local checkouts below. The commit IDs are recorded

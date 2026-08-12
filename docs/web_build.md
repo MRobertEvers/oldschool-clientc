@@ -38,11 +38,30 @@ make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
 make -C src web-debug        # emscripten, -O0 + assertions
+make -C src web-idb          # emscripten, cache in IndexedDB (see below)
 make -C src win64            # modern Windows x64 -> src/torirs_win64.exe
 make -C src winxp            # Windows XP i686    -> src/torirs.exe
 make -C src io-server        # the web build's cache backend (always native)
 make -C src PLATFORM=web <target>   # any target, web flavor
 ```
+
+### Two web lanes, two places the cache lives
+
+`make -C src web` is the lane this page describes: there is no cache in the
+browser, and every `ToriRS_IOItem` crosses a socket to `io_server`, which holds
+one and runs the real `PlatformX_IO_LoadItem` against it.
+
+`make -C src web-idb` is the other answer. The browser gets a cache of its own —
+archive records in IndexedDB behind a dat2 facade, filled incrementally over
+JS5 — so the page needs a `js5_server` and a static file server, and no
+`io_server` at all. It links `platform_x_io.c`, the desktop backend, rather than
+`platform_x_io_web.c`. **[The browser's cache: IndexedDB behind a dat2
+facade](WEB_CACHE_INDEXEDDB.md)** is that lane's page; everything below here
+describes the wire lane.
+
+The two cannot coexist in one module (both define `PlatformX_IO`), which is why
+the choice is a link-time lane with its own object directory rather than a
+runtime flag.
 
 `PLATFORM` values are `macos`, `linux`, `win32`, `win64`, and `web`; the
 default, `native`, resolves to `macos`, `linux`, or modern Windows `win64`.

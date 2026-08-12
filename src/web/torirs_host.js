@@ -831,7 +831,7 @@
       }
       if (status < 0) {
         this.report();
-        this.fail('the JS5 server did not answer');
+        this.fail(this.diagnose());
         return;
       }
       log('cache: metadata ready in ' +
@@ -851,8 +851,40 @@
       Module._free(ptr);
     },
 
+    // Two failures look identical from the page and have opposite fixes: no
+    // server there, versus a server whose cache the client will not accept.
+    // Whether any bytes arrived separates them, so say which one it was rather
+    // than printing the "start a server" advice at someone whose server is
+    // running and answering.
+    diagnose: function () {
+      if (typeof Module._torirs_web_cache_prime_stats !== 'function') { return null; }
+      var ptr = Module._malloc(5 * 4);
+      Module._torirs_web_cache_prime_stats(ptr);
+      var base = ptr >> 2;
+      var bytes = Module.HEAP32[base + 2];
+      var error = Module.HEAP32[base + 4];
+      Module._free(ptr);
+      if (bytes > 0) {
+        return { answered: true, bytes: bytes, error: error };
+      }
+      return { answered: false, bytes: bytes, error: error };
+    },
+
     fail: function (why) {
-      log('cache: ' + why + '. Start one with:', true);
+      if (why && why.answered) {
+        // JS5_ERROR_* from src/js5/js5.h. 11 is REFERENCE, which for a cache
+        // this repo packed itself is nearly always the 16-bit ceiling: the JS5
+        // request carries a 2-byte group id, so a table holding ids at or above
+        // 65536 cannot be served by this protocol at all.
+        log('cache: the JS5 server answered (' + kb(why.bytes) + ') but the client ' +
+            'rejected its metadata — JS5 error ' + why.error +
+            (why.error === 11 ? ' (reference table): a table almost certainly holds ' +
+              'group ids past 65535, which a 4-byte JS5 request cannot address' : ''), true);
+        this.finish();
+        return;
+      }
+      log('cache: ' + (typeof why === 'string' ? why : 'the JS5 server did not answer') +
+          '. Start one with:', true);
       log('  make -C src js5-server && ./src/build_opt/js5_server --cache <dir> ' +
           '--revision <rev> --port ' + js5Port, true);
       this.finish();

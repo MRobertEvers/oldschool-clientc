@@ -72,6 +72,12 @@ struct WebCacheBoot
 
     int begun;
     int status; /* 0 running, 1 ready, -1 failed */
+
+    /* The primer is torn down the moment it finishes, so its last progress is
+     * copied out first. Without this the page's failure report reads zero bytes
+     * received and concludes there is no server — the opposite diagnosis from
+     * the one the numbers support. */
+    struct Js5Progress final_progress;
 };
 
 static struct WebCacheBoot g_boot;
@@ -289,6 +295,7 @@ torirs_web_cache_prime_step(void)
         return 0;
 
     PlatformXIOJs5Cache_GetProgress(g_boot.prime, &progress);
+    g_boot.final_progress = progress;
     if( g_boot.status < 0 )
         fprintf(
             stderr,
@@ -325,12 +332,12 @@ torirs_web_cache_prime_stats(int* out)
     if( !out )
         return;
     memset(out, 0, 5 * sizeof(int));
-    if( !g_boot.prime )
-    {
-        out[0] = g_boot.status;
-        return;
-    }
-    PlatformXIOJs5Cache_GetProgress(g_boot.prime, &progress);
+    /* Live while the primer exists, the retained snapshot afterwards — which is
+     * the case the page's failure report reads. */
+    if( g_boot.prime )
+        PlatformXIOJs5Cache_GetProgress(g_boot.prime, &progress);
+    else
+        progress = g_boot.final_progress;
     out[0] = g_boot.status;
     out[1] = (int)progress.references_ready;
     out[2] = (int)progress.bytes_received;

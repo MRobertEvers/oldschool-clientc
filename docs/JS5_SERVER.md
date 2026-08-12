@@ -69,6 +69,25 @@ client ──4-byte packets (requests + controls), pipelined─► server
 client ◄──block-framed group responses, in service order─ server
 ```
 
+### Before the handshake: which framing
+
+The first byte decides whether this connection is raw JS5 or a WebSocket, and
+nothing else does — there is no configuration for it, so one port serves both.
+An upgrade request opens with `'G'` (of `GET`); a JS5 stream opens with opcode
+15. One byte is also all a server may look at, because a raw client sends its
+handshake and then waits, so peeking further would deadlock.
+
+The WebSocket branch exists because a browser build cannot use the other one:
+emscripten implements BSD sockets as WebSockets, so the client's `connect()`
+arrives here as an HTTP upgrade and every byte after it is inside a frame. Once
+the framing is peeled off, the protocol below is identical — the session state
+machine never learns which transport it is on.
+
+Emscripten requests the `binary` subprotocol and a browser fails the connection
+outright if the server does not confirm one that was offered, so the server
+echoes the first. A server that ignores that header looks, from the page,
+exactly like a server that is not listening.
+
 ### Handshake — 21 bytes, client to server
 
 | Offset | Size | Field |
@@ -359,7 +378,13 @@ read-only handles; it does not update or repair the served cache.
 A traditional OldSchool endpoint multiplexes game login opcode 14 and JS5
 opcode 15 on one port. This executable is deliberately dedicated, so a combined
 deployment needs a TCP front end or the existing game-session handshake branch
-to route those protocols.
+to route those protocols. (The WebSocket branch above is not an exception to
+that: it multiplexes two *framings* of JS5, not two protocols.)
+
+Accepting WebSocket connections means a browser can reach this server directly,
+with no bridge in front of it — which also means the loopback default matters
+more, not less. There is no origin check and no authentication; any page the
+browser loads can open a socket to it.
 
 ## Verification
 
