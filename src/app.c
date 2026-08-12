@@ -5664,6 +5664,44 @@ App_SimulateLocOp(
             loc_id));
 }
 
+int
+App_SimulateNpcOp(
+    struct App* app,
+    int op_num,
+    int npc_id)
+{
+    assert(app);
+    if( !app->world )
+        return -1;
+    /*
+     * Addressed by npc TYPE rather than by server slot, which is the only id a
+     * test can state up front: slots are handed out by the server as npcs enter
+     * the build area and are not stable between runs. The first live entity of
+     * that type wins, the same one a click would land on when there is only one
+     * — a familiar, a spawned quest actor.
+     */
+    struct World_EntityPool* pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+
+        if( !npc || npc->npc_id != npc_id || npc->server_slot < 0 )
+            continue;
+        APP_NET_SEND(
+            app,
+            net_out_opnpc(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                op_num,
+                npc->server_slot));
+        return npc->server_slot;
+    }
+    return -1;
+}
+
 /* Shared per-frame completion polls for async work (world load, textures,
  * deferred seq binds, tree refresh). Not run while BOOTING. */
 static void

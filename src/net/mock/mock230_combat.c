@@ -81,6 +81,50 @@ npc_def(const struct Mock230Npc* npc)
 }
 
 /*
+ * The gap between the npc's FOOTPRINT and the player's tile, per axis.
+ *
+ * Zero on an axis the two overlap on, otherwise the number of tiles between
+ * the near edges. `npc->x/npc->z` is the south-west anchor of a `size x size`
+ * square, not the whole npc, and everything in combat that measured the anchor
+ * was measuring a 1x1 npc that happens to be most of the roster.
+ *
+ * It is not most of the roster. A cow and a unicorn are 2x2: pressed against
+ * the player's tile on their east face they are one tile away and their anchor
+ * is two, so a reach test on the anchor said "not in range" while the two were
+ * touching. The npc then pursued a player it was already standing against,
+ * the pathfinder (which *is* footprint-aware) answered with a step around the
+ * perimeter, and the fight never started — the only way to satisfy the anchor
+ * test was to walk ON TOP of the player, which `npc_travel_extra`'s PLAYER_OCC
+ * bit correctly forbids. Every size>1 npc in the game retaliated, faced the
+ * player, followed them around and never landed a blow.
+ *
+ * The reference's `CoordGrid.distanceTo` is this, and `npc_player_distance` in
+ * mock230_world.c is the same arithmetic for the mode machine's range tests.
+ */
+static void
+npc_player_gap(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc,
+    int* out_dx,
+    int* out_dz)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+    *out_dx = dx;
+    *out_dz = dz;
+}
+
+/*
  * Melee squares up: a diagonal is NOT in range.
  *
  * OldSchool melee requires orthogonal adjacency. Two entities standing corner
@@ -89,6 +133,11 @@ npc_def(const struct Mock230Npc* npc)
  * distance (a diagonal costs the same as a straight step) is the right metric
  * for *walking* and the wrong one for *reach*, and using it here let fights
  * happen corner to corner and never square up.
+ *
+ * Stated on the footprint gap, both axes zero means the two overlap, so
+ * `(dx + dz) == 1` is "sharing an edge" for rectangles exactly as it was
+ * "orthogonally adjacent" for two tiles — a corner touch is 1,1 and still
+ * fails, and an overlap is 0,0 and fails too.
  *
  * Only melee is orthogonal. A ranged or magic attacker with `attackrange > 1`
  * uses the diagonal-permitting distance, which is why the two cases split here
@@ -111,13 +160,12 @@ in_attack_range_with(
     if( player->level != npc->level )
         return 0;
 
-    dx = abs_of(player->x - npc->x);
-    dz = abs_of(player->z - npc->z);
+    npc_player_gap(player, npc, &dx, &dz);
 
     if( range <= 1 )
         return (dx + dz) == 1;
 
-    return tile_distance(player->x, player->z, npc->x, npc->z) <= range;
+    return (dx > dz ? dx : dz) <= range;
 }
 
 /** Player weapon reach from the cache's `weapon_attackrange` param, capped at
@@ -1450,11 +1498,23 @@ mock230_combat_npc_tick(
          * rule inlined beside it, and no route behind it — "a blocked step is
          * simply not taken, the npc will try again next tick". That is only
          * true if the block goes away, and a wall does not. */
+        /*
+         * `mover_size` is the NPC's own footprint, not 1.
+         *
+         * The approach and the reach test have to be asking the same question:
+         * this decides when the npc stops walking, `in_npc_attack_range`
+         * decides when it swings, and a 2x2 npc that stopped on the anchor
+         * rule stopped one tile short of where the swing rule wanted it — or,
+         * where the map allowed, on top of the player. `mover_size` is the
+         * only thing `collision_test_rect_adjacent` needs to answer for a
+         * rectangle instead of a tile (and it also reads the shared edge's
+         * wall bit, so an npc no longer counts a fence as arrival).
+         */
         struct CollisionApproach approach = {
             .kind = COLL_APPROACH_RECT_ADJACENT,
             .loc_width = 1,
             .loc_length = 1,
-            .mover_size = 1,
+            .mover_size = npc->size > 0 ? npc->size : 1,
         };
 
         /* Moves *then* gives up, which is the reference's order

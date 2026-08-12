@@ -16932,6 +16932,52 @@ mock230_world_selftest(void)
                                "an npc nothing describes is silent, not synth 0");
 
                 /*
+                 * The Inferno, which is the other half of the same statement.
+                 *
+                 * These come down the *authored* path — `minigames/
+                 * minigame_inferno/configs/inferno.npc` — and every id in them
+                 * was researched rather than generated, because no generator
+                 * has a source for 2017 content (docs/INFERNO_SOUNDS.md). Two
+                 * npcs, chosen because they fail differently:
+                 *
+                 *   Zuk's `attack_sound` is the strongest row in the file (the
+                 *   wiki states 155 outright) and it is the one the Inferno's
+                 *   own `[ai_timer]` reads with `npc_param(attack_sound)` —
+                 *   so this asserts the id the fight actually plays.
+                 *
+                 *   Jal-Nib is the one monster deliberately left silent, and it
+                 *   is the assertion that matters most: it is what stops a
+                 *   later "fill in the gaps" pass from quietly turning an
+                 *   open slot into a guess. The gap is the finding.
+                 */
+                {
+                    struct Mock230NpcDef const* zuk = mock230_content_npc(
+                        mock230_content_symbol(MOCK230_PACK_NPC, "inferno_tzkalzuk_placeholder"));
+                    struct Mock230NpcDef const* nib = mock230_content_npc(
+                        mock230_content_symbol(MOCK230_PACK_NPC, "inferno_nibbler"));
+
+                    SELFTEST_CHECK(zuk != NULL, "the content tree should describe TzKal-Zuk");
+                    if( zuk )
+                    {
+                        SELFTEST_CHECK(zuk->attack_sound == 155,
+                                       "Zuk's fireblast_cast_and_fire should be 155, got %d",
+                                       zuk->attack_sound);
+                        SELFTEST_CHECK(zuk->defend_sound == 410,
+                                       "Zuk's dragon_hit should be 410, got %d",
+                                       zuk->defend_sound);
+                        SELFTEST_CHECK(zuk->death_sound == 409,
+                                       "Zuk's dragon_death should be 409, got %d",
+                                       zuk->death_sound);
+                    }
+                    SELFTEST_CHECK(nib != NULL, "the content tree should describe Jal-Nib");
+                    if( nib )
+                        SELFTEST_CHECK(nib->attack_sound == -1 && nib->defend_sound == -1 &&
+                                           nib->death_sound == -1,
+                                       "Jal-Nib has no source and must stay silent, got %d/%d/%d",
+                                       nib->attack_sound, nib->defend_sound, nib->death_sound);
+                }
+
+                /*
                  * The goblin, because it is *authored*, and authored npcs were
                  * the ones that stayed mute.
                  *
@@ -17210,6 +17256,104 @@ mock230_world_selftest(void)
              * has been told about it again. */
             SELFTEST_CHECK(player->npc_tracked[goblin],
                            "and re-added to the client's npc list");
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: a large npc reaches the player it is fighting\n");
+    {
+        /*
+         * A 2x2 npc standing against the player has to be able to swing.
+         *
+         * Every reach test in combat measured the npc's SOUTH-WEST ANCHOR
+         * against the player's tile — `(dx + dz) == 1` on `npc->x/npc->z` —
+         * which is the whole npc only while the npc is 1x1. A cow is 2x2: with
+         * the player pressed against its east face on the northern row the
+         * anchor is two tiles away on x and one on z, so the reach test said
+         * "no" while the two were touching. The npc then pursued a target it
+         * was already standing on, the pathfinder (which *is* footprint-aware)
+         * answered with a shuffle around the perimeter, and the fight never
+         * started. Cows, unicorns, and every other size>1 npc on the roster
+         * retaliated, faced the player, followed them around and never landed
+         * a hit.
+         *
+         * The fixture stands the player at the far corner of the footprint on
+         * purpose: `npc->x + size, npc->z + size - 1` is adjacent to the npc
+         * and NOT adjacent to its anchor, so a corner-based reach test fails
+         * here and an edge-to-edge one passes. Standing at `npc->x - 1,
+         * npc->z` instead — which is what a 1x1 fixture does — passes under
+         * both and would have shipped the bug.
+         */
+        int cow_type = mock230_content_symbol(MOCK230_PACK_NPC, "cow");
+        int cow = cow_type >= 0 ? npc_spawn(&srv, cow_type, g_home_x + 8, g_home_z + 8, 0) : -1;
+
+        SELFTEST_CHECK(cow >= 0, "the fixture cow should spawn (type %d)", cow_type);
+        if( cow >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[cow];
+            int size = npc->size > 0 ? npc->size : 1;
+            int start_x = npc->x;
+            int start_z = npc->z;
+            int retaliated = 0;
+
+            /* The premise. A roster that ever shrinks the cow to 1x1 turns
+             * every check below into a test of the goblin case again. */
+            SELFTEST_CHECK(size == 2, "a cow is 2x2 in this cache, got %d", size);
+            SELFTEST_CHECK(mock230_combat_attackable(npc->type),
+                           "and it is attackable, or it has no swing to test");
+
+            selftest_park_player(&srv, npc->x + size, npc->z + size - 1);
+            /*
+             * The park has to be a real one, occupancy and all.
+             *
+             * `selftest_park_player` writes x/z straight into the player and
+             * leaves the collision map alone, so a fixture player is a hole an
+             * npc can walk through — and walking through is exactly what a 2x2
+             * npc does to satisfy a corner-based reach test. Without this the
+             * cow ends the loop standing ON the player, having swung once it
+             * got there, and the section reads as a pass. Live players occupy
+             * their tile (`player_take_step`), so `npc_travel_extra`'s
+             * PLAYER_OCC bit stops the overlap and the fight never starts at
+             * all — which is the bug being reproduced.
+             */
+            player_set_occupancy(player, 1);
+            player->level = npc->level;
+            player->hitpoints = player->max_hitpoints;
+            player->damage_type = -1;
+            npc->hitpoints = npc->max_hitpoints;
+
+            /* One point of damage: enough to be hit, nowhere near enough to
+             * die, so nothing below is racing a death animation. */
+            mock230_combat_hit_npc(&srv, cow, 0, 1);
+            SELFTEST_CHECK(npc->combat_target == player->pid,
+                           "being hit gives the cow a target, got %d want %d",
+                           npc->combat_target, player->pid);
+
+            /* Well past the cow's 6-tick attackrate. The player never engages,
+             * so anything landing on them came from the cow. */
+            for( int i = 0; i < 20 && !retaliated; i++ )
+            {
+                mock230_world_tick(&srv);
+                retaliated = player->hitpoints < player->max_hitpoints ||
+                             player->damage_type >= 0;
+            }
+            SELFTEST_CHECK(retaliated,
+                           "the cow should swing at the player it is touching: "
+                           "player hp %d/%d splat %d, cow at %d,%d (spawned %d,%d), "
+                           "player at %d,%d, target %d",
+                           player->hitpoints, player->max_hitpoints, player->damage_type,
+                           npc->x, npc->z, start_x, start_z, player->x, player->z,
+                           npc->combat_target);
+            /* And it fought where it stood rather than orbiting: the shuffle is
+             * the visible half of the bug and outlives any one swing. */
+            SELFTEST_CHECK(npc->x == start_x && npc->z == start_z,
+                           "and stand still doing it, moved %d,%d -> %d,%d", start_x,
+                           start_z, npc->x, npc->z);
+
+            /* Hand the tile back: the bit was set by hand and nothing else in
+             * this file would clear it. */
+            player_set_occupancy(player, 0);
+            npc->combat_target = -1;
+            selftest_park_player(&srv, g_home_x, g_home_z);
         }
     }
 

@@ -1,0 +1,79 @@
+entry,source_npc,source_name,source_attack,source_defend,source_death,target_attack,target_defend,target_death,payload_check,disposition
+abyssal_lukrer,6820,Abyssal lurker,,,,,,,,none_in_source
+abyssal_parasite,6818,Abyssal parasite,,,,,,,,none_in_source
+abyssal_titan,7349,Abyssal titan,,,,,,,,none_in_source
+adamant_minotaur,6861,Adamant minotaur,,,,,,,,none_in_source
+albino_rat,6847,Albino rat,703,705,704,703,705,704,sha256 identical,target_native_same_id
+arctic_bear,6839,Arctic bear,498,500,499,498,500,499,sha256 identical,target_native_same_id
+barker_toad,6889,Barker toad,,,,,,,,none_in_source
+beaver,6808,Beaver,,,,,,,,none_in_source
+bloated_leech,6843,Bloated leech,,,,,,,,none_in_source
+bronze_minotaur,6853,Bronze minotaur,,,,,,,,none_in_source
+bull_ant,6867,Bull ant,,,,,,,,none_in_source
+bunyip,6813,Bunyip,,,,,,,,none_in_source
+compost_mound,6871,Compost mound,,,,,,,,none_in_source
+desert_wyrm,6831,Desert wyrm,,,,,,,,none_in_source
+dreadfowl,6825,Dreadfowl,,,,,,,,none_in_source
+evil_turnip,6833,Evil turnip,,,,,,,,none_in_source
+fire_titan,7355,Fire titan,,,,,,,,none_in_source
+forge_regent_beast,7335,Forge regent,,,,,,,,none_in_source
+fruit_bat,6817,Fruit bat,,,,,,,,none_in_source
+geyser_titan,7339,Geyser titan,,,,,,,,none_in_source
+giant_chinchompa,7353,Giant chinchompa,,,,,,,,none_in_source
+giant_ent,6800,Giant ent,,,,,,,,none_in_source
+granite_crab,6796,Granite crab,,,,,,,,none_in_source
+granite_lobster,6849,Granite lobster,,,,,,,,none_in_source
+honey_badger,6845,Honey badger,,,,,,,,none_in_source
+hydra,6811,Hydra,,,,,,,,none_in_source
+ibis,6991,Ibis,,,,,,,,none_in_source
+ice_titan,7359,Ice titan,,,,,,,,none_in_source
+iron_minotaur,6855,Iron minotaur,,,,,,,,none_in_source
+iron_titan,7375,Iron titan,,,,,,,,none_in_source
+karamthulhu,6809,Karamthulhu overlord,,,,,,,,none_in_source
+lava_titan,7341,Lava titan,,,,,,,,none_in_source
+macaw,6851,Macaw,,,,,,,,none_in_source
+magpie,6824,Magpie,,,,,,,,none_in_source
+mithril_minotaur,6859,Mithril minotaur,,,,,,,,none_in_source
+moss_titan,7357,Moss titan,,,,,,,,none_in_source
+obsidian_golem,7345,Obsidian golem,,,,,,,,none_in_source
+pack_yak,6873,Pack yak,,,,,,,,none_in_source
+phoenix,8575,Phoenix,,,,,,,,none_in_source
+praying_mantis,6798,Praying mantis,,,,,,,,none_in_source
+pyrelord,7377,Pyrelord,,,,,,,,none_in_source
+ravenous_locust,7372,Ravenous locust,,,,,,,,none_in_source
+rune_minotaur,6863,Rune minotaur,,,,,,,,none_in_source
+smoke_devil,6865,Smoke devil,,,,,,,,none_in_source
+spirit_cobra,6802,Spirit cobra,,,,,,,,none_in_source
+spirit_cockatrice,6875,Spirit cockatrice,,,,,,,,none_in_source
+spirit_coraxatrice,6885,Spirit coraxatrice,,,,,,,,none_in_source
+spirit_dagannoth,6804,Spirit dagannoth,,,,,,,,none_in_source
+spirit_graahk,7363,Spirit graahk,,,,,,,,none_in_source
+spirit_guthatrice,6877,Spirit guthatrice,,,,,,,,none_in_source
+spirit_jelly,6992,Spirit jelly,,,,,,,,none_in_source
+spirit_kalphite,6994,Spirit kalphite,,,,,,,,none_in_source
+spirit_kyatt,7365,Spirit kyatt,,,,,,,,none_in_source
+spirit_larupia,7337,Spirit larupia,,,,,,,,none_in_source
+spirit_mosquito,7331,Spirit mosquito,,,,,,,,none_in_source
+spirit_pengatrice,6883,Spirit pengatrice,,,,,,,,none_in_source
+spirit_saratrice,6879,Spirit saratrice,703,705,704,703,705,704,sha256 identical,target_native_same_id
+spirit_scorpion,6837,Spirit scorpion,3611,3612,3610,3611,3612,3610,sha256 identical,target_native_same_id
+spirit_spider,6841,Spirit spider,537,539,538,537,539,538,sha256 identical,target_native_same_id
+spirit_terrorbird,6794,Spirit terrorbird,,,,,,,,none_in_source
+spirit_tz_kih,7361,Spirit Tz-Kih,,,,,,,,none_in_source
+spirit_vulatrice,6887,Spirit vulatrice,,,,,,,,none_in_source
+spirit_wolf,6829,Spirit wolf,,,,,,,,none_in_source
+spirit_zamatrice,6881,Spirit zamatrice,,,,,,,,none_in_source
+steel_minotaur,6857,Steel minotaur,,,,,,,,none_in_source
+steel_titan,7343,Steel titan,,,,,,,,none_in_source
+stranger_plant,6827,Stranger plant,,,,,,,,none_in_source
+swamp_titan,7329,Swamp titan,,,,,,,,none_in_source
+talon_beast,7347,Talon beast,,,,,,,,none_in_source
+thorny_snail,6806,Thorny snail,,,,,,,,none_in_source
+unicorn_stallion,6822,Unicorn stallion,4135,4196,4195,4748,4707,4625,sha256 identical,target_native_renumbered
+vampire_bat,6835,Vampire bat,,,,,,,,none_in_source
+void_ravager,7370,Void ravager,,,,,,,,none_in_source
+void_shifter,7367,Void shifter,,,,,,,,none_in_source
+void_spinner,7333,Void spinner,,,,,,,,none_in_source
+void_torcher,7351,Void torcher,,,,,,,,none_in_source
+war_tortoise,6815,War tortoise,,,,,,,,none_in_source
+wolpertinger,6869,Wolpertinger,,,,,,,,none_in_source

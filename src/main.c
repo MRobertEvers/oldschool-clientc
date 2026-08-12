@@ -1134,6 +1134,50 @@ frame_loop_step(void)
             }
         }
 
+        /* TORIRS_SIM_OPNPC="frame,op,npc": the npc counterpart of the above.
+         * The npc is named by cache type, not by server slot — see
+         * App_SimulateNpcOp for why that is the only stable handle a test has.
+         * Same route as a world click: net_out_opnpc, then the server's
+         * ordinary OPNPC trigger dispatch. */
+        {
+            static int sim_opnpc_init = 0;
+            static long sim_opnpc_frame = -1;
+            static long sim_opnpc_op;
+            static long sim_opnpc_npc;
+            if( !sim_opnpc_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_OPNPC");
+                char* end = NULL;
+                sim_opnpc_init = 1;
+                if( spec && *spec )
+                {
+                    sim_opnpc_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                        sim_opnpc_op = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_opnpc_npc = strtol(end + 1, &end, 0);
+                    else
+                        sim_opnpc_frame = -1;
+                }
+            }
+            if( sim_opnpc_frame >= 0 && frame_count >= sim_opnpc_frame )
+            {
+                int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
+
+                fprintf(
+                    stderr,
+                    "sim_opnpc: op=%ld npc=%ld slot=%d\n",
+                    sim_opnpc_op,
+                    sim_opnpc_npc,
+                    slot);
+                /* Retry on the next frame while the npc has not arrived yet:
+                 * the caller picks a frame, the server picks the tick its spawn
+                 * lands on, and a one-shot would race that. */
+                if( slot >= 0 )
+                    sim_opnpc_frame = -1;
+            }
+        }
+
         /* TORIRS_SIM_RUNSCRIPT="frame,script[,arg0[,arg1...]][;frame,...]":
          * run a clientscript by id at that main-loop frame, with up to four
          * int args.

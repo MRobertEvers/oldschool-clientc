@@ -228,7 +228,7 @@ def main() -> int:
     expect(
         "[opnpc1,summoning_cohort_dreadfowl_dreadfowl]" in source
         and "[opnpc2,summoning_cohort_dreadfowl_dreadfowl]" in source,
-        "Dreadfowl call/dismiss handlers are absent",
+        "Dreadfowl interact/dismiss handlers are absent",
     )
     expect(
         "~summoning_familiar_body_model(%summoning_familiar_type)" in source

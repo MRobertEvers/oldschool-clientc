@@ -1798,4 +1798,20 @@ App_SimulateLocOp(
     int abs_z,
     int loc_id);
 
+/**
+ * The npc counterpart of App_SimulateLocOp: send one ordinary OPNPC1..5 for the
+ * first live npc of the given cache type. Returns the server slot the operation
+ * was addressed to, or -1 when no synced npc of that type is in the scene.
+ *
+ * Targeting by type is what makes this usable from a test. A world click needs
+ * the npc's pixels, which move with the camera and the tile the server picked;
+ * the packet needs its server slot, which is assigned at spawn. The type is the
+ * only one of the three a test can write down.
+ */
+int
+App_SimulateNpcOp(
+    struct App* app,
+    int op_num,
+    int npc_id);
+
 #endif

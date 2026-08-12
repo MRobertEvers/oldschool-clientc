@@ -4123,6 +4123,30 @@ put_npc_extended(
     }
 }
 
+/* PROBE ONLY (revert): view delta measured to the npc's nearest FOOTPRINT tile
+ * instead of its south-west origin. */
+static void
+npc_view_delta_probe(
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player,
+    int* out_dx,
+    int* out_dz)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+    *out_dx = dx;
+    *out_dz = dz;
+}
+
 void
 mock230_send_npc_info(struct Mock230Player* player)
 {
@@ -4218,9 +4242,13 @@ mock230_send_npc_info(struct Mock230Player* player)
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx = npc->x - player->x;
             int dz = npc->z - player->z;
-            int in_range = npc->active && npc->level == player->level &&
-                           dx >= -MOCK230_NPC_VIEW_TILES && dx <= MOCK230_NPC_VIEW_TILES &&
-                           dz >= -MOCK230_NPC_VIEW_TILES && dz <= MOCK230_NPC_VIEW_TILES;
+            int probe_dx;
+            int probe_dz;
+            int in_range;
+            npc_view_delta_probe(npc, player, &probe_dx, &probe_dz);
+            in_range = npc->active && npc->level == player->level &&
+                       probe_dx <= MOCK230_NPC_VIEW_TILES &&
+                       probe_dz <= MOCK230_NPC_VIEW_TILES;
 
             if( !in_range || npc->tele )
             {
@@ -4285,7 +4313,7 @@ mock230_send_npc_info(struct Mock230Player* player)
          * mock230_zone_npcs_active: a raw box reaches outside the build area
          * near its edge, and an npc the client has no scene for is placed at a
          * coordinate that does not exist for it. */
-        nearby_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
+        nearby_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES + 8, nearby,
                                          MOCK230_TRACKED_NPC_MAX);
         for( int i = 0; i < nearby_count; i++ )
         {
@@ -4293,11 +4321,14 @@ mock230_send_npc_info(struct Mock230Player* player)
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx;
             int dz;
+            int probe_dx;
+            int probe_dz;
 
             if( !npc->active || player->npc_tracked[slot] )
                 continue;
             dx = npc->x - player->x;
             dz = npc->z - player->z;
+            npc_view_delta_probe(npc, player, &probe_dx, &probe_dz);
             /*
              * The SAME radius the high-resolution loop keeps at, and it has to
              * be. The 6-bit delta could carry +-31, but an npc added at 20 tiles
@@ -4311,8 +4342,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              * streams, which are single-plane, filter at the point of use. */
             if( npc->level != player->level )
                 continue;
-            if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
-                dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
+            if( probe_dx > MOCK230_NPC_VIEW_TILES || probe_dz > MOCK230_NPC_VIEW_TILES )
                 continue;
             if( kept_count >= MOCK230_TRACKED_NPC_MAX )
                 break;
