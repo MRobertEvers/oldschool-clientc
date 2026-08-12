@@ -55,6 +55,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -96,6 +97,66 @@ def log(msg):
 def run(cmd, timeout=300):
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return (r.stdout or "") + (r.stderr or ""), r.returncode
+
+
+# ------------------------------------------------------- liveness + pausing
+
+HEARTBEAT = {"state": "starting"}
+
+
+def write_heartbeat(o):
+    """Drop <run>/heartbeat.json so the dashboard can tell a live search from
+    a dead one without scanning the process table. Swallows every error — a
+    liveness beacon must not be able to kill the run it reports on."""
+    path = os.path.join(o.out_dir, "heartbeat.json")
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(), "ts": round(time.time(), 1),
+                       "state": HEARTBEAT["state"]}, f)
+        for _ in range(5):
+            try:
+                os.replace(tmp, path)
+                return
+            except PermissionError:  # dashboard mid-read (Windows)
+                time.sleep(0.05)
+    except OSError:
+        pass
+
+
+def start_heartbeat(o):
+    """Beat every 5s from a daemon thread, so the beacon stays fresh even
+    while the main loop sits inside a long render/judge subprocess."""
+    HEARTBEAT["state"] = "running"
+    write_heartbeat(o)
+
+    def beat():
+        while HEARTBEAT["state"] != "done":
+            time.sleep(5.0)
+            write_heartbeat(o)
+    threading.Thread(target=beat, daemon=True).start()
+
+
+def pause_gate(o):
+    """Cooperative pause: while <run>/PAUSE exists (the dashboard's pause
+    button drops it), idle here between candidates. Paused time is refunded
+    to the deadline so pausing does not eat the time budget. Returns the
+    seconds spent paused (0.0 when the flag was absent)."""
+    flag = os.path.join(o.out_dir, "PAUSE")
+    if not os.path.isfile(flag):
+        return 0.0
+    log("paused — hit resume in the dashboard (or delete %s) to continue"
+        % flag)
+    HEARTBEAT["state"] = "paused"
+    t0 = time.time()
+    while os.path.isfile(flag):
+        time.sleep(2.0)
+    paused = time.time() - t0
+    o.deadline += paused
+    HEARTBEAT["state"] = "running"
+    log("resumed after %.0fs pause (time budget extended to compensate)"
+        % paused)
+    return paused
 
 
 def absify(path):
@@ -649,6 +710,7 @@ def regime_reduce(o, ctx):
     tried = set()
 
     def attempt(frac, seed, jitter):
+        pause_gate(o)
         tag = "r%.2f_s%d" % (frac, seed)
         if tag in tried or time.time() > o.deadline:
             return
@@ -740,6 +802,9 @@ def regime_sculpt(o, ctx):
         return "\n".join(lines) + "\n"
 
     while it < o.sa_iters and time.time() < o.deadline:
+        # a pause shifts the anneal clock too, so the temperature schedule
+        # resumes where it left off instead of jumping ahead
+        t0 += pause_gate(o)
         it += 1
         cand = mutate(state)
         if not cand["inflate"] and not cand["quant"]:
@@ -1085,6 +1150,7 @@ def main():
     log("osrsify: %d parts, %d seqs, regime=%s, budget=%.0fs"
         % (len(o.base_models), len(o.seqs), o.regime, o.time_budget))
     log("run dir: %s" % o.out_dir)
+    start_heartbeat(o)
 
     # ---- z-fighting repair BEFORE anything else sees the models: the fixed
     # parts become the baseline, every reduce/sculpt candidate, and the
@@ -1191,6 +1257,8 @@ def main():
     log("done: %d candidates (%d passed gates), best=%s"
         % (n, passing, best["id"] if best else "none"))
     log("results: %s" % ctx["results_path"])
+    HEARTBEAT["state"] = "done"
+    write_heartbeat(o)
 
 
 if __name__ == "__main__":

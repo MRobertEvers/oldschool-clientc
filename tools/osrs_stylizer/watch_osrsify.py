@@ -4,9 +4,14 @@
 Reads each run's results.json (atomically rewritten by osrsify.py after every
 candidate) and serves an exploration page:
 
-  - left sidebar: every run with a status dot, candidate count, show/hide
-    filtering, a per-run kill button, and a "new run" form exposing every
-    osrsify.py option so searches can be launched from the browser
+  - left sidebar: every run with a liveness dot (the /data poll cross-checks
+    each search's heartbeat.json against its pid, so a dead, paused or
+    finished search shows within seconds), candidate count, show/hide
+    filtering, per-run pause/resume and kill buttons, and a "new run" form
+    exposing every osrsify.py option so searches can be launched from the
+    browser. Pause is cooperative: the button drops <run>/PAUSE, the search
+    idles at the next candidate boundary until it is lifted, and the paused
+    time is refunded to the run's time budget.
   - per-run summary strip (candidates, pass rate, best, baseline margin)
   - "best so far" podium and a recent-candidates strip (not the full history)
   - fitness chart: every candidate as a point (reduce: x = kept vertex
@@ -20,8 +25,9 @@ candidate) and serves an exploration page:
     python watch_osrsify.py                       # watches runs/osrsify_*
     python watch_osrsify.py --port 9000 runs/osrsify_qbd_reduce
 
-Stdlib only. Read-only over the run directories themselves, but the kill and
-start controls do manage osrsify.py processes on this machine.
+Stdlib only. Read-only over the run directories themselves (except the PAUSE
+flag), but the kill and start controls do manage osrsify.py processes on this
+machine.
 """
 
 import argparse
@@ -478,6 +484,88 @@ def run_pids(run):
     return pids
 
 
+def pid_alive(pid):
+    """Cheap liveness probe for one pid — no subprocess spawn, so it is safe
+    to call on every dashboard poll. On Windows os.kill(pid, 0) would
+    TERMINATE the process (sig is an exit code there), so use OpenProcess."""
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        SYNCHRONIZE = 0x00100000
+        h = k32.OpenProcess(SYNCHRONIZE, 0, pid)
+        if not h:
+            return False
+        WAIT_TIMEOUT = 0x102  # still running
+        r = k32.WaitForSingleObject(h, 0)
+        k32.CloseHandle(h)
+        return r == WAIT_TIMEOUT
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except (PermissionError, OSError):
+        return True
+
+
+def run_state(run):
+    """Liveness verdict for a run, from <run>/heartbeat.json (osrsify.py
+    beats every 5s from a daemon thread) cross-checked against its recorded
+    pid. Waves started before the heartbeat existed report 'unknown' and the
+    UI falls back to results.json freshness. 'pause_requested' means the
+    PAUSE flag is down but the search has not reached a candidate boundary
+    yet (or predates the pause feature and never will)."""
+    d = RUNS[run]
+    st = {"paused_flag": os.path.isfile(os.path.join(d, "PAUSE"))}
+    try:
+        with open(os.path.join(d, "heartbeat.json"), "r",
+                  encoding="utf-8") as f:
+            hb = json.load(f)
+    except (OSError, ValueError):
+        hb = None
+    if hb is None:
+        p = PROCS.get(run)
+        if p is not None:
+            st["state"] = "running" if p.poll() is None else "dead"
+            st["pid"] = p.pid
+        else:
+            st["state"] = "unknown"
+        return st
+    st["pid"] = hb.get("pid")
+    st["beat_age"] = max(0, round(time.time() - (hb.get("ts") or 0)))
+    hb_state = hb.get("state", "running")
+    if hb_state == "done":
+        st["state"] = "finished"
+    elif not pid_alive(st["pid"]):
+        st["state"] = "dead"
+    elif hb_state == "paused":
+        st["state"] = "paused"
+    elif st["paused_flag"]:
+        st["state"] = "pause_requested"
+    else:
+        st["state"] = "running"
+    return st
+
+
+def set_paused(run, on):
+    """Drop or lift the cooperative PAUSE flag osrsify.py checks between
+    candidates. Works on any run dir, including waves launched outside the
+    dashboard — but only searches new enough to know the flag honor it."""
+    flag = os.path.join(RUNS[run], "PAUSE")
+    if on:
+        with open(flag, "w", encoding="utf-8") as f:
+            f.write("paused via dashboard %s\n"
+                    % time.strftime("%Y-%m-%d %H:%M:%S"))
+        return ("pause requested — the search pauses at the next candidate "
+                "boundary and its time budget stops burning while paused. "
+                "(Searches started before the pause feature ignore this.)")
+    if os.path.isfile(flag):
+        os.remove(flag)
+    return "resumed"
+
+
 def kill_run(run):
     """Kill every osrsify process tree feeding the run; returns the pids."""
     pids = set(run_pids(run))
@@ -496,6 +584,12 @@ def kill_run(run):
                 os.kill(pid, signal.SIGTERM)
         except (OSError, subprocess.TimeoutExpired):
             pass
+    # a killed run cannot resume, and a stale PAUSE flag would insta-pause
+    # the next wave someone points at this run dir
+    try:
+        os.remove(os.path.join(RUNS[run], "PAUSE"))
+    except OSError:
+        pass
     return sorted(pids)
 
 
@@ -582,6 +676,14 @@ PAGE = """<!doctype html>
            border:1px solid #3f7a48; border-radius:4px; padding:0 .5em;
            margin-left:.5em; font-size:.65em; vertical-align:middle;
            text-transform:uppercase; letter-spacing:.06em; }
+  .badge.st-running { background:#1f3a22; color:#7ec97e; border-color:#2f5a35; }
+  .badge.st-paused { background:#20304a; color:#7e9cc9; border-color:#31507a; }
+  .badge.st-dead { background:#402226; color:#c96a6a; border-color:#6a3540; }
+  .badge.st-finished { background:#2a2d36; color:#9aa; border-color:#3c404c; }
+  button.pausebtn { background:#20304a; color:#7e9cc9; border:1px solid #31507a;
+           border-radius:4px; padding:.1em .6em; font:inherit; font-size:.85em;
+           cursor:pointer; }
+  button.pausebtn:hover { color:#b9d4f0; border-color:#4a6f9f; }
   canvas.chart { background:#1d1f25; border:1px solid #2c2e36;
                  border-radius:8px; width:100%; max-width:820px; height:180px; }
   .halfrow { display:flex; gap:.8rem; flex-wrap:wrap; max-width:820px; }
@@ -628,20 +730,25 @@ PAGE = """<!doctype html>
   .runitem .rname { flex:1; min-width:0; overflow:hidden;
                     text-overflow:ellipsis; white-space:nowrap; }
   .runitem .cnt { color:#8b8e99; font-size:.85em; }
-  .runitem .kill, .runitem .clone { visibility:hidden; background:none;
+  .runitem .kill, .runitem .clone, .runitem .pause {
+                   visibility:hidden; background:none;
                    border:none; cursor:pointer; font:inherit;
                    padding:0 .15em; line-height:1; }
   .runitem .kill { color:#c96a6a; }
   .runitem .clone { color:#7ea6d9; }
-  .runitem:hover .kill, .runitem:hover .clone { visibility:visible; }
+  .runitem .pause { color:#c9b47e; }
+  .runitem:hover .kill, .runitem:hover .clone,
+  .runitem:hover .pause { visibility:visible; }
   .runitem .kill:hover { color:#ff9d9d; }
   .runitem .clone:hover { color:#b9d4f0; }
+  .runitem .pause:hover { color:#ecd9a8; }
   .dot { display:inline-block; width:.55em; height:.55em;
          border-radius:50%; background:#8b8e99; flex:0 0 auto; }
   .dot.live { background:#7ec97e; box-shadow:0 0 5px #7ec97e; }
   .dot.stale { background:#e6b450; }
   .dot.idle { background:#8b8e99; }
   .dot.off { background:#c96a6a; }
+  .dot.paused { background:#7e9cc9; box-shadow:0 0 5px #7e9cc9; }
   #newrunbtn { margin-top:.8rem; width:100%; background:#26405f;
                color:#cfe2f7; border:1px solid #3a5f8a; border-radius:6px;
                padding:.35em .6em; font:inherit; cursor:pointer; }
@@ -1173,6 +1280,23 @@ function selectAllRuns(on) {
   }
   render();
 }
+// The server-side liveness ping (heartbeat + pid probe, refreshed every
+// poll) mapped to a [dot class, human label]. Returns null for runs from
+// before heartbeats existed, so callers fall back to results.json age.
+function liveState(meta) {
+  const ls = meta.state || {};
+  if (ls.state === 'running')
+    return ['live', `alive — heartbeat ${ls.beat_age}s ago (pid ${ls.pid})`];
+  if (ls.state === 'pause_requested')
+    return ['paused', 'pause requested — the search pauses at the next candidate boundary (searches older than the pause feature ignore it)'];
+  if (ls.state === 'paused')
+    return ['paused', `paused — process alive (pid ${ls.pid}), budget clock stopped, waiting on resume`];
+  if (ls.state === 'dead')
+    return ['off', `search process is gone — last heartbeat ${ls.beat_age === undefined ? 'unknown' : ls.beat_age + 's ago'}`];
+  if (ls.state === 'finished')
+    return ['idle', 'finished — the search completed its budget'];
+  return null;
+}
 function renderSidebar() {
   // newest runs first, so the list reads like the run history
   const started = n => {
@@ -1185,12 +1309,14 @@ function renderSidebar() {
     const meta = (doc && doc._meta) || {};
     const cands = ((doc && doc.candidates) || []).length;
     const age = doc ? Date.now() / 1000 - (meta.updated || 0) : Infinity;
-    const st = !doc ? ['off', 'no results.json yet']
+    const fallback = !doc ? ['off', 'no results.json yet']
       : doc._starting ? ['stale', 'starting — no results.json yet']
       : !doc.baseline ? ['off', meta.proc || 'no results yet']
       : age < 180 ? ['live', `live — updated ${Math.max(0, Math.round(age))}s ago`]
       : age < 900 ? ['stale', `quiet — last update ${Math.round(age / 60)}m ago`]
       : ['idle', `idle — last update ${fmtTime(meta.updated)}`];
+    const st = liveState(meta) || fallback;
+    const flagged = (meta.state || {}).paused_flag;
     const tip = st[1] +
       (meta.proc ? ` · ${meta.proc}` : '') +
       (doc && doc.best && doc.best.id ? ` · best ${doc.best.id}` : '') +
@@ -1199,11 +1325,25 @@ function renderSidebar() {
        title="${esc(tip)}" onclick="toggleRun('${esc(n)}')">
        <span class="dot ${st[0]}"></span><span class="rname">${esc(n)}</span>
        <span class="cnt">${cands}</span>
+       <button class="pause" title="${flagged
+         ? 'resume this search'
+         : 'pause this search at the next candidate (budget clock stops)'}"
+         onclick="event.stopPropagation();pauseRun('${esc(n)}', ${flagged ? 'false' : 'true'})">${flagged ? '▶' : '⏸'}</button>
        <button class="clone" title="new run prefilled from this run's options"
          onclick="event.stopPropagation();openNewRun('${esc(n)}')">⧉</button>
        <button class="kill" title="kill this run's search process tree"
          onclick="event.stopPropagation();killRun('${esc(n)}')">✕</button></div>`;
   }).join('');
+}
+
+async function pauseRun(run, on) {
+  try {
+    const res = await fetch('/api/' + (on ? 'pause' : 'resume') + '/' +
+                            encodeURIComponent(run), { method: 'POST' });
+    const body = await res.json();
+    if (on && body.message) alert(body.message);
+  } catch (e) { alert((on ? 'pause' : 'resume') + ' failed: ' + e); }
+  refresh();
 }
 
 async function killRun(run) {
@@ -1300,9 +1440,23 @@ function render() {
           <div class="row">` + FAVS.map(favCard).join('') + `</div>`;
   }
   for (const [run, doc] of visibleRuns()) {
+    const meta = (doc && doc._meta) || {};
+    const ls = meta.state || {};
+    const stLabel = { running: 'running', pause_requested: 'pausing…',
+                      paused: 'paused', dead: 'dead', finished: 'finished' }[ls.state];
+    const stateBadge = stLabel
+      ? `<span class="badge st-${ls.state === 'pause_requested' ? 'paused' : ls.state}"
+           title="${esc((liveState(meta) || ['', ''])[1])}">${stLabel}</span>`
+      : '';
+    const pauseBtn = ls.state === 'dead' || ls.state === 'finished' ? '' :
+      `<span><button class="pausebtn"
+         title="${ls.paused_flag
+           ? 'lift the pause flag — the search picks up where it left off'
+           : 'pause at the next candidate boundary — the time budget stops burning while paused'}"
+         onclick="pauseRun('${esc(run)}', ${ls.paused_flag ? 'false' : 'true'})">${ls.paused_flag ? '▶ resume' : '⏸ pause'}</button></span>`;
     if (!doc || !doc.baseline) {
-      h += `<section><div class="runhead"><h2>${esc(run)}</h2></div>
-            <p class="muted">${doc && doc._starting
+      h += `<section><div class="runhead"><h2>${esc(run)}${stateBadge}</h2></div>
+            <p class="muted">${doc && (doc._starting || ls.state === 'running')
               ? 'starting — waiting for the baseline'
               : 'no results.json yet'}</p></section>`;
       continue;
@@ -1316,11 +1470,10 @@ function render() {
     const f = fltOf(run);
     const shown = cands.length !== all.length
       ? ` <span class="muted">(showing ${cands.length}/${all.length})</span>` : '';
-    const meta = doc._meta || {};
     const badge = meta.defight
       ? `<span class="badge" title="${esc(meta.defight_summary || 'z-fighting repaired before the search')}">Defight</span>`
       : '';
-    h += `<section><div class="runhead"><h2>${esc(run)}${badge}</h2>
+    h += `<section><div class="runhead"><h2>${esc(run)}${badge}${stateBadge}</h2>
       <div class="strip">
         <span>candidates <b>${cands.length}</b>${shown}</span>
         <span>passed gates <b>${pass.length}</b></span>
@@ -1333,6 +1486,7 @@ function render() {
               &nbsp;·&nbsp; updated ${fmtTime(meta.updated)}</span>
         <span><a class="viewbtn" href="/view/${esc(run)}/baseline"
                  target="_blank">baseline viewer</a></span>
+        ${pauseBtn}
         <span class="muted">frac
           <input class="flt" type="number" step="0.05" min="0" max="1"
                  placeholder="min" value="${f.min}"
@@ -1491,7 +1645,7 @@ document.addEventListener('keydown', e => {
   else closeModal();
 });
 
-async function tick() {
+async function refresh() {
   try {
     DATA = await (await fetch('/data')).json();
     await refreshFavs();
@@ -1500,6 +1654,9 @@ async function tick() {
     if (document.getElementById('modal').style.display !== 'block' &&
         !(ae && ae.classList && ae.classList.contains('flt'))) render();
   } catch (e) {}
+}
+async function tick() {
+  await refresh();
   setTimeout(tick, 5000);
 }
 tick();
@@ -1892,6 +2049,14 @@ class Handler(BaseHTTPRequestHandler):
                                      "_meta": {"proc": proc}}
                     else:
                         out[name]["_meta"]["proc"] = proc
+                # liveness ping: heartbeat + pid probe on every poll, so the
+                # UI reflects a dead/paused/finished search within seconds —
+                # attached even before the first results.json checkpoint
+                st = run_state(name)
+                if out[name] is None:
+                    out[name] = {"_meta": {"state": st}}
+                else:
+                    out[name].setdefault("_meta", {})["state"] = st
             return self.send(200, "application/json", json.dumps(out).encode())
         if path == "/favs":
             return self.send(200, "application/json",
@@ -1982,6 +2147,15 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, "application/json",
                              json.dumps({"killed": pids,
                                          "message": msg}).encode())
+        m = re.match(r"^/api/(pause|resume)/([^/]+)$", path)
+        if m and m.group(2) in RUNS:
+            try:
+                msg = set_paused(m.group(2), m.group(1) == "pause")
+            except OSError as e:
+                return self.send(500, "text/plain; charset=utf-8",
+                                 ("pause flag failed: %s" % e).encode())
+            return self.send(200, "application/json",
+                             json.dumps({"message": msg}).encode())
         if path == "/api/start":
             try:
                 n = int(self.headers.get("Content-Length") or 0)
