@@ -11,18 +11,26 @@ command as the local ``cry`` emote before CLIENT_CHEAT, while a second global
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
 
-CLIENT = Path("OSRS-Content/osrs239-content/scripts/script_7304.cs2")
-CHAT_ENTER = Path("OSRS-Content/osrs239-content/scripts/script_73.cs2")
-SCRIPTS = Path("OSRS-Content/osrs239-content/server/scripts")
+# Two roots, not one. The C and the docs are always this repository's; the CS2
+# and the server scripts belong to whichever OSRS-Content tree is being built,
+# which is not necessarily the submodule -- MOCK230_CONTENT_DIR selects it, and
+# a checker that ignored it reported the submodule's failures against a bake of
+# a different tree entirely.
+CLIENT = Path("scripts/script_7304.cs2")
+CHAT_ENTER = Path("scripts/script_73.cs2")
+SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
 PACKET_TABLE = Path("src/net/rev/osrs239/packetout.h")
 WORLD = Path("src/net/mock/mock230_world.c")
 INCIDENT_DOC = Path("docs/CRYSTAL_SET_COMMAND.md")
+
+DEFAULT_CONTENT = Path("OSRS-Content/osrs239-content")
 
 
 def client_errors(text: str) -> list[str]:
@@ -98,26 +106,29 @@ def run_self_test() -> None:
     ), "negative control: duplicate debugproc must fail"
 
 
-def check(root: Path) -> list[str]:
+def check(root: Path, content: Path) -> list[str]:
     errors: list[str] = []
 
-    client = (root / CLIENT).read_text(encoding="utf-8")
-    errors.extend(f"{CLIENT}: {item}" for item in client_errors(client))
+    # Content paths are reported as they were actually opened. When the tree is
+    # not the submodule, that is the only thing in the message that says so.
+    client = (content / CLIENT).read_text(encoding="utf-8")
+    errors.extend(f"{content / CLIENT}: {item}" for item in client_errors(client))
 
-    chat_enter = (root / CHAT_ENTER).read_text(encoding="utf-8")
+    chat_enter = (content / CHAT_ENTER).read_text(encoding="utf-8")
     local = chat_enter.find("~script7304(")
     server = chat_enter.find("docheat(")
     if local < 0 or server < 0 or local >= server:
         errors.append(
-            f"{CHAT_ENTER}: expected local script7304 dispatch before the docheat server path"
+            f"{content / CHAT_ENTER}: expected local script7304 dispatch "
+            "before the docheat server path"
         )
 
     definitions: list[Path] = []
     header = re.compile(r"^\s*\[debugproc,crystal_set\]\s*$", re.MULTILINE)
-    for path in sorted((root / SCRIPTS).rglob("*.rs2")):
+    for path in sorted((content / SCRIPTS).rglob("*.rs2")):
         if header.search(path.read_text(encoding="utf-8")):
-            definitions.append(path.relative_to(root))
-    proc_text = (root / CRYSTAL_PROC).read_text(encoding="utf-8")
+            definitions.append(path.relative_to(content))
+    proc_text = (content / CRYSTAL_PROC).read_text(encoding="utf-8")
     errors.extend(crystal_definition_errors(definitions, proc_text))
 
     packet = (root / PACKET_TABLE).read_text(encoding="utf-8")
@@ -158,12 +169,27 @@ def main() -> int:
         default=Path(__file__).resolve().parents[1],
         help="repository root (default: parent of tools/)",
     )
+    parser.add_argument(
+        "--content",
+        type=Path,
+        default=None,
+        help="OSRS-Content tree to check (default: $MOCK230_CONTENT_DIR, "
+        "else <repo>/OSRS-Content/osrs239-content)",
+    )
     parser.add_argument("--self-test", action="store_true", help="run checker negative controls")
     args = parser.parse_args()
 
     if args.self_test:
         run_self_test()
-    errors = check(args.repo.resolve())
+
+    repo = args.repo.resolve()
+    content = args.content or os.environ.get("MOCK230_CONTENT_DIR") or (repo / DEFAULT_CONTENT)
+    content = Path(content).resolve()
+    if not content.is_dir():
+        print(f"crystal-set contract: ERROR: no content tree at {content}", file=sys.stderr)
+        return 1
+
+    errors = check(repo, content)
     if errors:
         for error in errors:
             print(f"crystal-set contract: ERROR: {error}", file=sys.stderr)

@@ -316,6 +316,23 @@ DLL needs to be installed on the target.
 .\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini --soft3d   # GDI fallback
 ```
 
+For any other make target, use `.\make.ps1` — it resolves the pinned toolchain
+and a POSIX `sh` exactly as `build_windows.ps1` does, then adds `-C src` and
+`CC=gcc` and passes the rest through untouched:
+
+```powershell
+.\make.ps1 -j win64                  # make -C src CC=gcc -j<cores> win64
+.\make.ps1 -Embed -j win64           # ... EMBED_SERVER=1
+.\make.ps1 mock230-scripts           # targets, VAR=value, and make's own flags
+.\make.ps1 -n mock230-servpack       #   all go through as written
+.\make.ps1 -Directory 3rd\rscache\tools cachepack
+```
+
+`-j` is opt-in on purpose. The compile lanes are parallel-safe; the content
+bakes are not, because `mock230-cache-rs2012` and `mock230-cache-summoning`
+have prerequisites that each rebuild the shared `cachepack` binary, and racing
+those corrupts the tool mid-link.
+
 By hand, if you must:
 
 ```powershell
@@ -625,10 +642,61 @@ make -C src mock230-scripts                    # the script pack is a separate b
 TORIRS_TRANSPORT=embed src/torirs --manifest manifest_osrs239.ini --user testc --pass test
 ```
 
-Or just `./run-live.sh manifest_osrs239.ini testc test`, which does all three.
+Or just `./run-live.sh manifest_osrs239.ini`, which does all three. On Windows
+that is `.\run-live.ps1 manifest_osrs239.ini` (`run-live.bat` is a shim onto the
+same script, for a cmd prompt). Credentials are optional in both: a manifest
+carrying its own `user=`/`pass=` supplies them, falling back to `asdf`/`a`, and
+an explicit argument still wins.
 
 The client's revision is passed through the transport, so the embed cannot boot
 on a different wire than the client speaks.
+
+A manifest naming a **composed** cache — one built by a bake rather than
+shipped — also gets that bake before the client starts, so the launcher and the
+cache cannot drift apart:
+
+| Manifest | Cache | Built by |
+|---|---|---|
+| `manifest_osrs239_rs2012.ini` (QBD), `manifest_osrs239_rs2012_td.ini` (Tormented Demons) | `cache.osrs239.rs2012` | `mock230-cache-rs2012` + `mock230-servpack` |
+| `manifest_osrs239_summoning.ini` | `cache.osrs239.summoning` | `mock230-cache-summoning` |
+
+The bake deletes and repacks the cache, which takes minutes and tears it out
+from under anything else reading it (a second client, an osrsify search wave).
+`TORIRS_NO_CACHE_BAKE=1` runs against the cache as it stands — the right choice
+while iterating on C or on scripts, and the wrong one the moment the content
+tree changed.
+
+Those bakes read the OSRS-Content tree, and they need its `ported/` lanes —
+`mock230-scripts` feeds both `ported/scape2009_summoning` and
+`ported/rs2012_qbd_td` to `sscompile` on every embedded run, so a checkout
+without them fails on a missing `all.varbit.compack`, which names nothing about
+the real problem.
+
+Neither launcher makes you know which checkout that is. Both look at
+`OSRS-Content/osrs239-content` first, then each `build/*/osrs239-content`, and
+take the first one carrying both lanes:
+
+```powershell
+.\run-live.ps1 manifest_osrs239_rs2012.ini      # finds the tree itself
+```
+
+`TORIRS_PRINT_ONLY=1` reports which tree was chosen and how (`auto`,
+`-ContentDir`, or `MOCK230_CONTENT_DIR`) without building anything. To override
+the choice, name it — an explicit tree is obeyed even when it lacks the lanes,
+with a warning rather than a substitution, because mid-port the caller knows
+better:
+
+```powershell
+.\run-live.ps1 manifest_osrs239_rs2012.ini -ContentDir some\other\osrs239-content
+```
+
+```sh
+MOCK230_CONTENT_DIR=$PWD/some/other/osrs239-content \
+  ./run-live.sh manifest_osrs239_rs2012.ini
+```
+
+If no candidate carries the lanes, the run stops before building and lists
+every path it looked at.
 
 ### 6.2 mock230 standalone socket server
 

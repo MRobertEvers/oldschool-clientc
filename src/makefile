@@ -1805,7 +1805,12 @@ test-mock230-bank: mock230-bank
 # a banner and then does almost nothing, rather than answering every trigger out
 # of C and playing a second, silently different game.
 # Ids are rev-230 ids from cache.osrs239, NOT LostCity's.
-MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
+#
+# `?=` so a content tree elsewhere (a second clone parked on a porting branch,
+# which is how the ported/ lanes are usually carried) can be selected by
+# exporting MOCK230_CONTENT_DIR once, instead of repeating it on every make
+# command line. A command-line assignment still wins over both.
+MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 SUMMONING_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_scape2009_summoning
 SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
 RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
@@ -1829,7 +1834,8 @@ SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # that marker before both debugproc and built-in dispatch. Full incident:
 # docs/CRYSTAL_SET_COMMAND.md.
 check-crystal-set-contract:
-	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test
+	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test \
+		--content $(MOCK230_CONTENT_DIR)
 
 # scape2009_summoning/configs holds ~1600 text records (npc/loc/obj/seq/spotanim
 # for every cohort creature) that are known-stale against the lane's own pack/
@@ -1911,7 +1917,7 @@ test-rs2012-server-overlay:
 mock230-servpack: test-rs2012-server-overlay
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
-		--src OSRS-Content/osrs239-content --server-only
+		--src $(MOCK230_CONTENT_DIR) --server-only
 
 # The client half of the same bake: the tree written back into a cache the
 # client can boot (PORTING_GUIDE §1, `cachepack pack ──► client cache (--out)`).
@@ -2014,7 +2020,7 @@ mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 	@cd $(REPO_ROOT) && python3 tools/stage_rs2012_overlay.py \
 		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR)
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
-		--staged $(RS2012_OVERLAY_DIR)
+		--content $(MOCK230_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
 	@test "$(abspath $(RS2012_CACHE_DIR))" != "$(REPO_ROOT)" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_BASE))" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "/" || { \
@@ -2029,6 +2035,7 @@ mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 			--cache $(RS2012_CACHE_DIR) --rev osrs239 --src $(RS2012_OVERLAY_DIR) \
 			--assets=interfaces,sprites,scripts,synth,songs,samples,patches --tmp "$$tmp"
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
+		--content $(MOCK230_CONTENT_DIR) \
 		--cache $(RS2012_CACHE_DIR) --audioprobe $(AUDIOPROBE_BIN)
 	@echo "mock230-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
 
