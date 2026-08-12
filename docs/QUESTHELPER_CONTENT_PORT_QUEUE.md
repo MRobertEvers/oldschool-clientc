@@ -161,7 +161,7 @@ been audited yet as of the rule change -- every row below is effectively
 | `animalmagnetism` | quest_animalmagnetism | IN-LC — CONTENT_PORT_QUEUE |
 | `biohazard` | quest_biohazard | IN-LC — CONTENT_PORT_QUEUE |
 | `cooksassistant` | quest_cook | IN-LC — CONTENT_PORT_QUEUE |
-| `dwarfcannon` | quest_mcannon | IN-LC — CONTENT_PORT_QUEUE |
+| `dwarfcannon` | quest_mcannon | audited-fixed 2026-08-12: state constants (0-11) and the journal (`mcannon_journal.rs2`) covered the whole quest, but nothing anywhere ever advanced `%mcannon` past what the railings/cave/crate scripts touch internally — the quest giver **Captain Lawgof** (`lawgof2`, dbrow startnpc) and **Nulodion** (`nulodion`) had zero `[opnpc1,...]` dialogue anywhere in the tree, so the quest could never even be started, `mcannontoolkit` (gates the cannon repair) and `ammo_mould` (gates `skill_smithing/scripts/smelting/cannonballs.rs2`'s own cannonball recipe) were never granted to any player, and there was no `~quest_complete` call in the whole quest. Added `quests/quest_mcannon/scripts/mcannon_commander.rs2` — full Lawgof + Nulodion talk-to state machine (accept/refuse quest offer, railing/watchtower/goblin-cave/cannon/Nulodion checkpoints, all matching Transcript:Dwarf_Cannon paraphrased) — granting `mcannonrailing1_obj`x6, `mcannontoolkit`, `nulodions_notes` + `ammo_mould` at the right checkpoints, ending in `stat_advance(crafting,7500)` + `~quest_complete(quest_dwarfcannon)`. Both npcs already had real world `.spawn` entries (`m40_54`/`m47_53`) — no hand-spawning needed. |
 | `eaglespeak` | quest_eaglepeak | IN-LC — CONTENT_PORT_QUEUE |
 | `eadgarsruse` | quest_eadgar | IN-LC — CONTENT_PORT_QUEUE |
 | `heroesquest` | quest_hero | IN-LC — CONTENT_PORT_QUEUE |
@@ -173,11 +173,11 @@ been audited yet as of the rule change -- every row below is effectively
 | `ragandboneman` | quest_ragandbone | IN-LC — CONTENT_PORT_QUEUE |
 | `runemysteries` | quest_runemysteries | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Rune_Mysteries) — Duke Horacio/Sedridor/Aubury chains all cover lost-item replacement, refuse branches, re-talks, and post-quest lines. One out-of-scope note: the wiki's reward list includes 5 Kudos claimable at the Varrock Museum, but the Kudos system isn't implemented anywhere in this tree (cross-cutting dozens of quests) — not this quest's gap to close alone. |
 | `seaslug` | quest_seaslug | audited-fixed 2026-08-12: very thorough LC port already (caroline/holgart/kennith/kent/bailey/quest_seaslug.rs2 cover every wiki-documented (Transcript:Sea_Slug) scene incl. refuse, lost-torch replacement, and post-quest dialogue). Fixed two real gaps: (1) `caroline.rs2`'s completion queue awarded QP via a bespoke `%qp = add(...)` instead of `~quest_complete(quest_seaslug)`, silently skipping `%quests_completed_count` — every other audited quest in this table uses the real proc, now this one does too. (2) the "possessed fisherman" flavour dialogue (`fisherman.rs2`) only had 2 of the wiki's 6 randomised cryptic lines; expanded to all 6 (paraphrased, non-gating). |
-| `sheepherder` | quest_sheep / quest_sheepherser | IN-LC — CONTENT_PORT_QUEUE |
-| `treegnomevillage` | quest_tree | IN-LC — CONTENT_PORT_QUEUE |
+| `sheepherder` | quest_sheepherder (not `quest_sheep`, which is the unrelated Sheep Shearer quest / dbrow `quest_sheepshearer`) | audited-ok 2026-08-12: matches wiki (Quick_guide) exactly — Councillor Halgrive's accept/refuse offer, Doctor Orbon plague-suit gear, cattleprod+poisoned-feed sheep mechanic, incinerator disposal, and completion (`~quest_complete(quest_sheepherder)`, 3100 coins reimbursement matching wiki 100+3000) all present; `diseased_sheep.rs2` even cross-checks against Mourning's End Part I's later reuse of the same world npcs. |
+| `treegnomevillage` | quest_tree | audited-fixed 2026-08-12: dialogue trees (King Bolren start/mid/end, Montai, three tracker gnomes, Khazard warlord fight, ballista coordinate puzzle, orb chest, wall breach) all matched wiki (Quick_guide) end to end — but quest completion (`areas/area_gnome/scripts/king_bolren.rs2` `[queue,tree_quest_complete]`) awarded QP via a bespoke `%qp = add(%qp, ^tree_questpoints)` instead of `~quest_complete(quest_treegnomevillage)`, same bug class as Sea Slug's prior fix — silently skipped `%quests_completed_count`. Fixed to call the real proc; reward values (2 QP, 11450 attack xp, gnome amulet) already matched the dbrow/wiki exactly, untouched. |
 | `trollromance` | quest_troll / quest_troll_love | IN-LC — CONTENT_PORT_QUEUE |
-| `waterfallquest` | quest_waterfall | IN-LC — CONTENT_PORT_QUEUE |
-| `watchtower` | quest_itwatchtower | IN-LC — CONTENT_PORT_QUEUE |
+| `waterfallquest` | quest_waterfall | audited-ok 2026-08-12: extremely thorough existing port (10 files) — Almera/Hudon/Hadley/Gerald/Golrie dialogue trees match Quick_guide + wiki almost verbatim including all four multi-choice Hadley tourism branches, pillar rune puzzle, urn/chalice reward gate (2 diamonds, 2 gold bars, 40 mithril seeds, 13750 attack+strength xp matching dbrow exactly), proper `~quest_complete(quest_waterfall)`. No gaps found. |
+| `watchtower` | quest_itwatchtower | audited-fixed 2026-08-12: very thorough existing port (14 files) covering every wiki-documented beat (rock cake theft, deathrune/skavid-map city guard riddle, 4-talker skavid word-learning puzzle + mad skavid final riddle, nightshade enclave-guard distraction, ogre shaman potions, Rock of Dalgroth mining, crystal-lever completion) with proper `~quest_complete(quest_watchtower)`. Fixed one real numeric bug: completion granted `stat_advance(magic, 153000)` (15300 xp) but the dbrow's own `stat_xp_awarded` and the wiki both say 152500 raw (15250 xp) — a 50xp overpay; corrected to match. |
 | `zogreflesheaters` | quest_zogreflesheaters | IN-LC — CONTENT_PORT_QUEUE |
 | `thefremennikexiles` | quest_fremennikexiles | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue; corrected 2026-08-11 -- was mislabeled as `quest_viking`, which actually implements `thefremenniktrials` / row #159, see Log) |
 | `thefremenniktrials` | quest_viking | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 correcting row #159's mislabel; see Log) |
@@ -6292,3 +6292,74 @@ filed under `helpers/miniquests/` are at the end.
     `server/scripts/areas/area_fishing_platform/scripts/fisherman.rs2`,
     `server/scripts/areas/ardougne_east/scripts/caroline.rs2`. 34 rows
     remain unaudited in the IN-LC table (38 total minus the 4 above).
+- **IN-LC audit pass 2 (2026-08-12):** audited 5 more rows from the IN-LC
+  table: `dwarfcannon`/quest_mcannon, `waterfallquest`/quest_waterfall,
+  `watchtower`/quest_itwatchtower, `treegnomevillage`/quest_tree,
+  `sheepherder`/quest_sheepherder. Read each LC script tree fully + the wiki
+  quest page, `/Quick_guide`, and `Transcript:` pages before comparing.
+  - `dwarfcannon` -> **audited-fixed**, the biggest find this pass: the
+    quest had a full 0-11 `%mcannon` state constant range and a journal
+    that narrates every one of them, but **no dialogue existed anywhere**
+    for the quest giver Captain Lawgof (`lawgof2`) or Nulodion
+    (`nulodion`) — zero `[opnpc1,...]` triggers for either npc in the
+    whole tree, meaning `%mcannon` could never leave state 0 and the quest
+    could never be started at all. `mcannontoolkit` (gates the cannon
+    repair) and `ammo_mould` (gates the smithing-side cannonball recipe in
+    `skill_smithing/scripts/smelting/cannonballs.rs2`) were never granted
+    to any player either, and there was no `~quest_complete` call anywhere.
+    Added `quests/quest_mcannon/scripts/mcannon_commander.rs2`: full
+    Lawgof + Nulodion state machine paraphrased from
+    Transcript:Dwarf_Cannon, covering the accept/refuse offer and every
+    checkpoint (railings -> watchtower -> goblin cave -> rescue -> cannon
+    repair -> Nulodion -> completion), granting `mcannonrailing1_obj`x6,
+    `mcannontoolkit`, `nulodions_notes`+`ammo_mould` at the right beats,
+    ending in `stat_advance(crafting,7500)` +
+    `~quest_complete(quest_dwarfcannon)` (dbrow name, not `quest_mcannon`).
+    Both npcs already had real world `.spawn` entries (`m40_54`/`m47_53`
+    per the cache) — no hand-spawning needed.
+  - `waterfallquest` -> **audited-ok**: 10-file port already matches the
+    wiki almost verbatim (Almera/Hudon/Hadley/Gerald/Golrie dialogue incl.
+    all 4 Hadley tourism branches, rune-pillar puzzle, urn/chalice reward
+    gate) with correct rewards (2 diamonds/2 gold bars/40 mithril seeds,
+    13750 attack+strength xp matching dbrow) and a proper
+    `~quest_complete(quest_waterfall)`. No gaps found.
+  - `watchtower` -> **audited-fixed**: very thorough 14-file port covering
+    every documented beat (rock cake theft, deathrune/skavid-map riddle,
+    4-talker skavid word-learning puzzle + mad skavid final riddle,
+    nightshade distraction, ogre shaman potions, Rock of Dalgroth mining)
+    already using the real `~quest_complete` proc. Fixed a real numeric
+    bug: completion granted `stat_advance(magic, 153000)` (15300xp) but
+    both the dbrow's own `stat_xp_awarded` and the current wiki reward
+    (15,250 Magic xp) say 152500 raw — corrected the 50xp overpay.
+  - `treegnomevillage` -> **audited-fixed**: exactly the completion-proc
+    bug class flagged at the top of this doc's methodology — dialogue
+    (King Bolren, Montai, 3 tracker gnomes, Khazard warlord fight,
+    ballista coordinate puzzle) all matched the wiki, but
+    `areas/area_gnome/scripts/king_bolren.rs2`'s `[queue,
+    tree_quest_complete]` awarded QP via a bespoke
+    `%qp = add(%qp, ^tree_questpoints)` instead of
+    `~quest_complete(quest_treegnomevillage)`, silently skipping
+    `%quests_completed_count` exactly like Sea Slug's prior-tick bug.
+    Fixed to call the real proc; reward values (2 QP, 11450 attack xp,
+    gnome amulet) already matched dbrow/wiki and were left untouched.
+  - `sheepherder` -> **audited-ok**: note the QuestHelper dir name is
+    misleading — the real LC script dir is `quest_sheepherder` (dbrow
+    `quest_sheepherder`, "Sheep Herder"), not `quest_sheep` (dbrow
+    `quest_sheepshearer`, the unrelated Sheep Shearer quest, tracked
+    separately as Queue row #13). Councillor Halgrive's accept/refuse
+    offer, Doctor Orbon's plague gear, the cattleprod+poisoned-feed sheep
+    mechanic, and completion (`~quest_complete(quest_sheepherder)`, 3100
+    coins matching wiki's 100+3000 breakdown) all present and correct;
+    `diseased_sheep.rs2` even cross-checks against Mourning's End Part I's
+    later reuse of the same world npcs to avoid a duplicate trigger.
+  - Build: `mingw32-make -C src sscompile` clean, `mingw32-make -C src
+    mock230-scripts` exit 0, 15081 scripts compiled (up from 15079 at tick
+    start — 2 new triggers from the new `mcannon_commander.rs2` file:
+    `[opnpc1,lawgof2]` + `[opnpc1,nulodion]`), zero new errors/warnings. No
+    duplicate triggers (grepped `server/scripts` for every touched
+    npc/trigger name before adding). Files touched:
+    `server/scripts/quests/quest_mcannon/scripts/mcannon_commander.rs2`
+    (new), `server/scripts/quests/quest_itwatchtower/scripts/
+    quest_itwatchtower.rs2`, `server/scripts/areas/area_gnome/scripts/
+    king_bolren.rs2`. 29 rows remain unaudited in the IN-LC table (38
+    total minus the 9 audited across both passes).
