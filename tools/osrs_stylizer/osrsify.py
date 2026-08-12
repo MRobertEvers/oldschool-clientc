@@ -858,7 +858,8 @@ def run_priorities(o):
     # offsets against the pristine z-buffer) so orderings the fast rank
     # cannot reach are still explored.
     cmd += ["--report", "--views", str(o.prio_views),
-            "--pitches", str(o.prio_pitches)]
+            "--pitches", str(o.prio_pitches),
+            "--repair", str(o.prio_repair)]
     if o.prio_slow > 0:
         cmd += ["--slow", str(o.prio_slow),
                 "--slow-views", str(o.prio_slow_views),
@@ -993,6 +994,10 @@ def main():
                          "band+geometry space")
     ap.add_argument("--prio-slow-views", type=int, default=8)
     ap.add_argument("--prio-slow-pitches", type=int, default=4)
+    ap.add_argument("--prio-repair", type=int, default=256,
+                    help="engine-judged greedy re-banding trials on the worst "
+                         "violating features, between ranking and the anneal "
+                         "(0 disables)")
     ap.add_argument("--prio-measure-views", type=int, default=16,
                     help="z-violation audit yaw sweep (runs per candidate)")
     ap.add_argument("--prio-measure-pitches", type=int, default=5)
