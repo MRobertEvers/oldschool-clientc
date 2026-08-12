@@ -182,15 +182,15 @@ been audited yet as of the rule change -- every row below is effectively
 | `thefremennikexiles` | quest_fremennikexiles | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue; corrected 2026-08-11 -- was mislabeled as `quest_viking`, which actually implements `thefremenniktrials` / row #159, see Log) |
 | `thefremenniktrials` | quest_viking | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 correcting row #159's mislabel; see Log) |
 | `deserttreasureii` / `deserttreasure2` | quest_deserttreasureii | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
-| `dragonslayer` / `dragonslayer1` | quest_dragon | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing row #111 of this queue) |
+| `dragonslayer` / `dragonslayer1` | quest_dragon | audited-ok 2026-08-12: an unusually complete 11-file port that matches Quick_guide + Transcript:Dragon_Slayer_I almost verbatim end to end — Guildmaster's Champions'-Guild-access branch, Oziach's full map-piece/shield hint tree (with a real branch-menu that revisits any of the three pieces or the antidragon-shield hint in any order, matching the transcript's own non-linear structure), the Oracle's map-piece rhyme + 30-line random-flavour table, Wormbrain's full pay/kill/story/forget-it branches (goblinchat matches transcript), the Dwarven-mine magic-door 4-item puzzle (silk/lobster pot/unfired bowl/wizard's mind bomb), Melzar's Maze (6-coloured-key monster drops + chest), Duke Horacio's optional antidragon shield hand-out, Klarense's ship-purchase/repair/board dialogue (2000gp + 3-plank/12-nail hole patching), Ned's sail-to-Crandor cutscene, and Elvarg's fire-breath/melee AI (shield + Protect Magic maxhit reduction) all present and correct. Completion uses the real `~quest_complete(quest_dragonslayer1)`; reward `stat_advance(strength/defence, 186500)` (18,650 xp each) matches the dbrow's `stat_xp_awarded` (columndef 33: stat 1 and 2, both 186500) and the wiki exactly; 2 QP matches dbrow `questpoints`. No gaps found. |
 | `dragonslayerii` / `dragonslayer2` | quest_dragonslayer2 / quest_dragon | audit-in_progress (2026-08-12): fully self-contained (zero references to DS1's `quest_dragon/` — own header confirms this). Completion plumbing is correct and not the bespoke-QP bug: `[proc,ds2_quest_complete]` calls `~quest_complete(quest_dragonslayer2)` via the real dbrow, and all four skill-xp lamp rewards (80k smithing / 60k mining / 50k agility / 50k thieving, 4x25k combat lamp, 5 QP) match the wiki exactly. But the quest body itself is almost entirely soft-skip stub content, not a real port — the file's own header lists it: Crandor mine/mural/spawn, the 24-piece map puzzle, boat building, Lithkren traversal, the dream-potion/Robert the Strong fight, all four key-piece side-quests (including the level-392 Vorkath fight, which doesn't appear anywhere in the file, not even stubbed), key reforging, the four-kingdom diplomatic tour, the ship-defense minigame, four dragon-wave fights, and the four-phase Galvek fight are each collapsed into a single `~chatnpc`/`mes` line with an instant varp jump — essentially 0% of the actual wiki-documented content exists behind a ~95%-wired state skeleton. This is one of the wiki's longest, most mechanically dense quests; building real content for all of it is far beyond one audit tick and is left for dedicated follow-up work, tracked here rather than attempted piecemeal. One concrete, independently-fixable bug found along the way: `^ds2_roald`(155) to `^ds2_bob3`(165) has no live-trigger bridge anywhere in `ds2_bob_talk` (`dragonslayer2.rs2`) — `^ds2_recruit`/`^ds2_dining` are only ever set inside `[debugproc,ds2run]`, and there's no `king_roald` NPC handler in the file at all, so a live player reaching state 155 is permanently softlocked outside the debug harness. Follow-up: (1) fix the roald->bob3 softlock as a standalone, scoped task (add a `king_roald` handler or a live-trigger branch bridging 155->165) independent of the larger soft-skip content backlog; (2) treat the rest as a large, separate content-build effort per chapter (mirrors Eadgar's Ruse/Holy Grail/Troll Romance in scale, likely larger). **Update 2026-08-12 (follow-up scoped task):** the roald->bob3 softlock does *not* actually reproduce -- the earlier note only grepped `dragonslayer2.rs2` itself. A `%ds2 >= ^ds2_roald & %ds2 < ^ds2_recruit` branch already exists spliced into the *shared* `[opnpc1,king_roald]` handler in `server/scripts/areas/varrock/scripts/king_roald.rs2` (lines 15-21, following the same "additive branch on the shared NPC" idiom used for `lunar_oneiromancer`/`wise_old_man` elsewhere in this codebase), setting `^ds2_recruit` -> `^ds2_dining` -> `^ds2_bob3` in one soft-skip step; it was added back in the early DS2-skeleton commit (`132fc3f014`, 2026-08-04), predating even the full soft-skip content port (`77ffc48cbd`, 2026-08-11). Confirmed the full chain is live and gapless: `ds2_bob_talk` 150->155 (release->roald) -> `king_roald` 155->165 (roald->recruit->dining->bob3) -> `ds2_bob_talk` 165->170 (bob3->ungael). No duplicate `[opnpc1,king_roald]` block exists elsewhere (grepped whole `server/scripts` tree), so no sscompile shadowing risk either. No code changes were needed; `mingw32-make -C src mock230-scripts` still exits 0 with no new/unexpected king_roald or dragonslayer2 diagnostics. The rest of this row's finding (large soft-skip content backlog: mural/spawn, boat build, Vorkath, Galvek, etc.) still stands and is unaffected -- this row remains audit-in_progress, not audited-ok. |
-| `taibwowannaitrio` | quest_tbwt | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing row #112 of this queue) |
-| `naturespirit` | quest_druidspirit | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing this queue; sibling of `druidicritual` / `quest_druid`) |
-| `murdermystery` | quest_murder | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11, reused by King's Ransom slice #115) |
-| `shadowofthestorm` | quest_shadowstorm | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing this queue) |
-| `undergroundpass` | quest_upass | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing this queue) |
-| `thegrandtree` | quest_grandtree | IN-LC — CONTENT_PORT_QUEUE |
-| `thelosttribe` | quest_losttribe | IN-LC — CONTENT_PORT_QUEUE |
+| `taibwowannaitrio` | quest_tbwt | audited-fixed 2026-08-12: exceptionally thorough 8-file port matching Quick_guide + Transcript:Tai_Bwo_Wannai_Trio almost verbatim — Timfraku's title-selection opening, all three brothers' full dialogue trees (Tiadeche's karambwan-vessel fishing chain incl. the free-first-catch offer, Tinsay's three-item fetch-quest chain with the "how do I..." hint menu at every stage, Tamayu's agility-potion/poisoned-spear Shaikahan-hunt cutscene with a real pass/fail assessment based on spear+poison+agility state), Lubufu's apprentice chain, and the four separate "final" (village) NPCs that hand out the real per-brother rewards all present. Completion uses the real `~quest_complete(quest_taibwowannaitrio)`. Reward audit against Transcript/wiki's exact breakdown (1,500 fishing during via Lubufu + 5,000 fishing/5,000 cooking/2,500 attack+2,500 strength+rune spear from the three brothers' final dialogue + 2,000 coins from Timfraku) — every one of these matched the script exactly (`stat_advance(fishing,15000)` in `tbwt_lubufu.rs2`, `stat_advance(fishing/cooking,50000)` and `stat_advance(attack/strength,25000)` in the three `areas/area_karamja/scripts/tbwt_*_final.rs2` files, `inv_add(inv,coins,2000)` in `tbwt_timfraku.rs2`). One real gap: the wiki (Jogre_bones page) documents burning Jogre bones two ways -- a furnace (any Firemaking level, 25 Cooking xp, already implemented) or a tinderbox at Firemaking 30+ (90 Firemaking xp) -- and the tinderbox path didn't exist anywhere in the tree at all. Added it by splicing a `tbwt_jogre_bones` case into `skill_firemaking/scripts/firemaking.rs2`'s existing `[opheldu,tinderbox]` trigger (not a duplicate -- spliced per the standing rule) calling a new `[label,tbwt_light_jogre_bones]` in `quest_tbwt/scripts/tbwt_jogre_bones.rs2` (30 Firemaking level gate + `stat_advance(firemaking,900)`, matching the wiki's message and xp exactly). Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics on either touched file. |
+| `naturespirit` | quest_druidspirit | audit-in_progress (2026-08-12): everything downstream of the quest actually starting is complete and wiki-accurate -- `filliman.rs2`'s full ghost-proof/journal/puzzle/transformation dialogue tree (matches Transcript:Nature_Spirit closely, including the three-stone puzzle, the "something with faith/from nature/freely given" riddle, and every `~p_choice` branch), the grotto mechanics in `quest_druidspirit.rs2` (stone absorption, bloom-spell casting with the 3x3 area roll, sickle blessing, and the exact 3/2/1-point pear/stem/mushroom pouch-filling formula from the wiki), and the ghast-fight mechanics (`ghast.rs2`: pouch-reveal, 3-kill counter, prayer-drain food-eating "backpack attack") all match the wiki/Quick_guide exactly. Completion is the real `~quest_complete(quest_naturespirit)` with reward `stat_advance(crafting/hitpoints/defence, 30000/20000/20000)` matching the dbrow's `stat_xp_awarded` (columndef 33: stat 12/3/1, values 30000/20000/20000) and the wiki (3,000/2,000/2,000) exactly. But the quest is **completely unstartable through normal play**: `mort_myre_gate_guard.rs2` only lets the player through once `%druidspirit ! ^druidspirit_not_started`, and grepping the *whole* `server/scripts` tree found zero live triggers anywhere that ever write `%druidspirit = ^druidspirit_started` -- Drezel (`priestperiltrappedmonk`, shared with Priest in Peril, `quest_priestperil/scripts/trapped_drezel.rs2`) has no Nature-Spirit quest-offer branch at all (no pies, no blessing offer), confirmed by the fact that `druidspirit_journal.rs2`'s own `^druidspirit_started` case text already narrates "After talking to Drezel in the temple of Saradomin I've agreed to look for a Druid called Filliman Tarlock" -- a state the journal assumes is reachable but that no script anywhere actually produces (same bug shape as `eadgarsruse`'s Sanfew gap). Root cause traced one level deeper: Nature Spirit's own prerequisite, Priest in Peril, is *itself* incomplete -- grepping every `%priestperil = ...` assignment tree-wide, the highest value ever written by real gameplay is `^priestperil_meet_in_mausoleum` (8); `^priestperil_begin_bring_essence` (10) through `^priestperil_complete` (60) are never assigned anywhere except `quest_rumdeal/scripts/deal_debug.rs2`'s debug harness. Priest in Peril's entire final chapter (bringing essence to restore the holy barrier, per the wiki) is missing, which also blocks every other quest that gates on `%priestperil >= ^priestperil_complete` (Rum Deal, Ghosts Ahoy, Haunted Mine, Making History -- confirmed by grep, not fixed here, out of this row's scope). Left `audit-in_progress`: fixing this properly means building out Priest in Peril's missing finale first (a separate, large quest-audit item, `quest_priestperil` is not one of this pass's targets), then adding Drezel's Nature-Spirit quest-offer branch (3 meat pies + 3 apple pies per the wiki) into the existing `[opnpc1,priestperiltrappedmonk]` block in `trapped_drezel.rs2`. One independent, self-contained gap fixed this pass regardless: the Mort Myre swamp-decay damage-over-time mechanic (`swamp_decay.rs2`'s `start_swampdecay_timer` proc) was fully written but its own header said "Callers (music mapzone) deferred -- proc exported for later wire-up" and grep confirmed it was never called anywhere, so the swamp never actually damaged unprotected players; wired it into `quest_druidspirit.rs2`'s `open_mortmyre_gate` on entry. Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics on either touched file. |
+| `murdermystery` | quest_murder | audited-fixed 2026-08-12: one of the most thorough ports audited this whole queue (20 files) -- the randomised 1-of-6 culprit system (`%murdersus = ~random_range(1,6)`), all six suspects' full poison-purchase/thread/alibi dialogue (`anna.rs2`/`bob.rs2`/`carol.rs2`/`david.rs2`/`elizabeth.rs2`/`frank.rs2`), the flour+flypaper fingerprint-matching puzzle (`quest_murder_prints.rs2`), the six poison-proof search locations each keyed to the right suspect (`quest_murder_poisonproof.rs2`: compost/beehive/drain/spiders'-nest/fountain/family-crest), the barrel/window/gate evidence collection (`quest_murder_barrels.rs2`, `quest_murder_window.rs2`), and the guard's tiered accusation dialogue (correctly requiring thread+fingerprint+poison-proof together for the real "conclusive proof" ending, matching the wiki's evidence-gating) were all cross-checked against Quick_guide and match exactly, including the "drop the necklace before turning in evidence" wiki tip (`murder_clear_evidence` sweeps `worn` as well as `inv`/`bank`, matching the wiki's warning that even worn evidence gets confiscated). Completion uses the real `~quest_complete(quest_murdermystery)`; also correctly spliced into the shared `gossipy_man`/`murderguard` NPCs' King's Ransom follow-up content without duplicating either trigger. One real numeric bug: completion granted `stat_advance(crafting, 14060)` (1406.0 xp) but the dbrow's own `stat_xp_awarded` (columndef 33: stat 12, value 14062) is 1406.2 xp -- a 0.2xp underpay; corrected `murder_guard.rs2`'s `[queue,murder_quest_complete]` to `14062`. Build: `mingw32-make -C src mock230-scripts` exit 0, no new diagnostics on the touched file. |
+| `shadowofthestorm` | quest_shadowstorm | audit-in_progress (2026-08-12): heavily soft-skipped port -- the overall `%agrith_quest` state machine (10 stages, Reen/Badden/Denath/Jennifer/Matthew/Dave dialogue) is wired end-to-end and does reach a real `~quest_complete(quest_shadowofthestorm)`, but almost every mechanically distinct chapter documented on Transcript:Shadow_of_the_Storm / the wiki quick guide is collapsed into a single soft-skip line: the four-kiln search for Josef's demonic tome is one unconditional pickup (`shadowstorm_ritual.rs2`'s own comment: "kiln Search deferred"), the unique per-player incantation puzzle (memorise Denath's chant, find it reversed in the recovered tome) doesn't exist, the strange-implement/clay-golem interrogation for the demon ritual scroll is entirely missing, the second-ritual sigil chase (killing Tanya's ghosts and Eric via Evil Dave, collecting their sigils) is replaced by an instant `mesbox`, and the final Agrith-Naar fight (level 100, Fire Blast/Telekinetic Grab AI switching, must land the finishing blow with Silverlight) is any-kill-counts. The wiki's bonus reward (six cut gems if the throne gems weren't collected during The Golem) is also unimplemented. Reward xp (10,000 xp, player's choice of any combat skill but Prayer) is represented via the shared `thosf_reward_lamp` genie-lamp item, the same convention ~14 other quests in this tree use -- but that item has no rub/redeem handler anywhere in the whole `server/scripts` tree (confirmed by grep; `quest_pathofglouphrie/configs/pathofglouphrie.constant`'s own comment already says so: "no generic magic-lamp-rub handler"), so the reward is currently unclaimable tree-wide -- same class of cross-cutting gap as the `runemysteries` row's Kudos note above, not scoped to this quest alone. Left `audit-in_progress`, research-only this pass (no code changes): the kiln/incantation/implement/chase/boss-mechanic content is a multi-chapter build comparable in scope to Eadgar's Ruse/Holy Grail, and the reward-lamp redemption gap needs a tree-wide fix, not a per-quest one. No duplicate-trigger risk found -- grepped every NPC/loc name this quest uses tree-wide, all clean. |
+| `undergroundpass` | quest_upass | audited-ok 2026-08-12: extremely thorough existing port (31 files, 2602 lines) -- spot-checked the full critical path against Transcript:Underground_Pass / Quick_guide and found it faithful everywhere checked: King Lathas's Biohazard-resolution and Underground Pass start dialogue (`areas/area_ardougne_east/scripts/king_lathas.rs2`) matches near-verbatim including the ranged-25 gate and `~setupassgrilltrap` grid seeding; Klank's tinderbox/gauntlets hand-out plus the wiki's 5000gp repurchase-a-lost-pair branch; the doll-of-Iban altar mechanic (`upass_tomb.rs2`'s `[oplocu,cave_temple_altar]`) matches the wiki's throw-the-doll-in-the-pit finale beat for beat, including the post-kill deathrune/firerune bonus loot and temple-collapse cutscene; the bloodwell/badge/unicorn-horn door-unlock mechanic (`upass_bloodwell.rs2`) is fully wired. Completion (`king_lathas.rs2`'s `[queue,upass_quest_complete]`) uses the real `~quest_complete(quest_undergroundpass)` with reward xp (30000 agility + 30000 attack = 3000/3000, matches dbrow `stat_xp_awarded` exactly) and 5 QP. One known, non-blocking gap: Iban's staff recharge at the well (`upass_bloodwell.rs2`'s `case ibanstaff`) is a no-op -- `%iban_staff_charges` doesn't exist anywhere in the port/vars map, i.e. this engine has no generic weapon-charge system yet; same class of cross-cutting/systemic gap as the reward-lamp note above, not specific to this quest. |
+| `thegrandtree` | quest_grandtree | audited-ok 2026-08-12: high-quality existing port (16 files, 1816 lines) matching Transcript:The_Grand_Tree / Quick_guide closely everywhere checked -- Hazelmere's bark-sample/scroll exchange, King Narnode's full 5-choice translation-verification dialogue tree (narrowing down to the exact wiki sentence "A man came to me with the King's seal...And Daconia rocks will kill the tree!"), the Foreman's exact three-question loyalty quiz (wife/favourite dish/girlfriend's name, wrong answers -> combat) in `foreman.rs2`, the Ka-Lu-Min shipyard gate password puzzle in `shipyardworker.rs2`, Femi's helped-free-vs-1000gp-toll branch, and the black demon fight/twig-pillar trapdoor unlock are all present and correct. Completion (`king_narnode.rs2`) uses the real `~quest_complete(quest_grandtree)` with reward xp (184000 attack + 79000 agility + 21500 magic = 18400/7900/2150, matches dbrow `stat_xp_awarded` exactly) and 5 QP. Several files' own header comments claim "Full Grand Tree quest body deferred" -- stale, same pattern as several other rows in this table; the body is in fact essentially complete. One minor, non-blocking simplification: the twig-on-pillar puzzle accepts any twig on any of the four pillars rather than enforcing the wiki's T-U-Z-O left-to-right order (any twig used anywhere, all four just need to end up out of the inventory) -- same end state reached, just without the wiki's negative feedback for a wrong slot; not worth a fix given this codebase's existing precedent for this class of puzzle simplification (see the Waterfall Quest row's pillar-rune note above). |
+| `thelosttribe` | quest_losttribe | audited-fixed 2026-08-12: matches Transcript:The_Lost_Tribe closely overall (Sigmund/Duke Horacio dialogue chains, brooch dig + Reldo/bookcase identification, goblin generals Bentnoze/Wartface's full in-character banter unlocking Goblin Bow/Salute, Mistag contact, HAM pickpocket/chest/crate silverware retrieval, treaty-signing cutscene) ending in the real `~quest_complete(quest_losttribe)` with reward (1 QP, 30000 mining xp = 3000, matches dbrow `stat_xp_awarded` exactly) plus a ring of life. The `lost_tribe_cook_witness` proc reused by Cook's Assistant (flagged in this loop's brief as a possible duplicate-trigger risk to check before touching) turned out to be a real, different bug: cross-checking Transcript:The_Lost_Tribe verbatim showed the cellar-incident eyewitness account ("Last night I was in the kitchen and I heard a noise from the cellar...") is spoken by **Bob** (Bob's Brilliant Axes), not the Cook -- the Cook's actual wiki line is an unrelated red herring ("Oh no, it's terrible, isn't it? There was rock dust everywhere, it got on all my ingredients!"). Moved the witness proc (renamed `lost_tribe_bob_witness`) from `[opnpc1,cook]` to `[opnpc1,bob]` (`areas/lumbridge/scripts/bob.rs2`, splicing into its existing block, not a competing one) and restored the Cook's correct red-herring line in `quest_cook.rs2`. Also added a real, wiki-documented, entirely-missing post-quest reward branch: the quest's reward list includes "A mining helmet from giving the brooch back to Mistag" (confirmed via the page's raw `{{Quest rewards}}` template, since the in-quest transcript doesn't cover post-quest interactions) -- added an `[opnpcu,lost_tribe_mistag_1op]` use-brooch-on-Mistag handler in `losttribe_mistag.rs2` granting `cave_goblin_mining_helmet_unlit` (one-time, gated on not already owning a helmet). Build: `mingw32-make -C src mock230-scripts` exit 0 after each fix, no new diagnostics on any touched file. |
 | `junglepotion` | quest_junglepotion | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Jungle_Potion) closely — Trufitus's full offer tree (`trufitus.rs2`) has multiple decline branches at every stage ("I am sorry, but I am very busy." at 3 separate points, all routing to a real farewell label), the five-herb collection loop (snake weed/ardrigal/sito foil/volencia moss/rogues purse) with correct clue re-asks, wrong-herb/dirty-herb/not-fresh rejections, and the `%druidquest = ^druid_complete` prerequisite gate (Druidic Ritual) all match. Herb cleaning is correctly *not* duplicated per-quest — `skill_herblore/scripts/identify.rs2`'s generic `attempt_clean_herb` dbtable-driven proc already covers all 5 `unidentified_*` jungle herbs alongside regular grimy herbs. Reward (775 herblore xp = `stat_advance(herblore,7750)`, 1 QP) via real `~quest_complete(quest_junglepotion)`; journal (`junglepotion_journal.rs2`) tracks all 12 states including live `inv_total` re-checks and is wired in `interface_questjournal/scripts/quest_journal.rs2`. No gaps found. |
 | `recruitmentdrive` | quest_recruitmentdrive | IN-LC — CONTENT_PORT_QUEUE |
 | `regicide` | quest_regicide | IN-LC — CONTENT_PORT_QUEUE |
@@ -408,6 +408,154 @@ filed under `helpers/miniquests/` are at the end.
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
 ## Log
+
+- **IN-LC audit pass 6 (2026-08-12):** audited 4 more rows, one quest at a
+  time, synchronously (no nested background sub-agents): `shadowofthestorm`/
+  quest_shadowstorm, `undergroundpass`/quest_upass, `thegrandtree`/
+  quest_grandtree, `thelosttribe`/quest_losttribe. Read each LC script tree
+  fully + the wiki quest page, `/Quick_guide`, and `Transcript:` pages before
+  comparing; checked every completion path for the recurring bespoke-`%qp`
+  bug and 10x-fixed-point xp mismatches explicitly (none found this pass --
+  all four completing quests already used the real `~quest_complete` proc
+  with dbrow-matching xp).
+  - `shadowofthestorm` -> **audit-in_progress**: the `%agrith_quest` state
+    machine and Reen/Badden/Denath/Jennifer/Matthew/Dave dialogue are wired
+    end-to-end into a real `~quest_complete`, but nearly every mechanically
+    distinct wiki chapter is soft-skipped to a single line: no four-kiln
+    search, no unique per-player incantation puzzle, no strange-implement/
+    golem interrogation, no Tanya/Eric sigil chase, no Fire-Blast/Telekinetic
+    Grab boss AI (any kill counts), no bonus-gems branch. Also found (but did
+    not fix, since it's tree-wide not quest-specific): the `thosf_reward_lamp`
+    genie-lamp item this quest (and ~14 others) uses for skill-choice xp
+    rewards has no rub/redeem handler anywhere in `server/scripts` --
+    confirmed via grep and a pre-existing comment in
+    `quest_pathofglouphrie/configs/pathofglouphrie.constant` admitting the
+    same gap. Left `audit-in_progress`, research-only -- comparable in scope
+    to Eadgar's Ruse/Holy Grail.
+  - `undergroundpass` -> **audited-ok**: extremely thorough existing port (31
+    files, 2602 lines); spot-checked King Lathas's start/end dialogue, the
+    doll-of-Iban altar finale (deathrune/firerune bonus loot + temple
+    collapse, matching the wiki beat for beat), Klank's gauntlets/tinderbox
+    hand-out incl. the 5000gp repurchase branch, and the bloodwell badge/horn
+    door-unlock mechanic -- all faithful. One known non-blocking gap: Iban's
+    staff recharge-at-the-well is a no-op (`%iban_staff_charges` doesn't
+    exist -- this engine has no generic weapon-charge system yet), same
+    cross-cutting class as the reward-lamp gap above.
+  - `thegrandtree` -> **audited-ok**: high-quality existing port (16 files,
+    1816 lines) matching Transcript:The_Grand_Tree closely everywhere
+    checked -- King Narnode's full 5-choice translation-verification puzzle
+    (narrows to the exact wiki sentence), the Foreman's exact three-question
+    loyalty quiz with combat on a wrong answer, the Ka-Lu-Min shipyard
+    password puzzle, Femi's helped-free-vs-1000gp-toll branch, and the black
+    demon fight/twig-pillar trapdoor are all present and correct; several
+    files' "quest body deferred" header comments are stale, same pattern as
+    prior passes. One minor accepted simplification noted (twig-pillar order
+    not enforced) -- not fixed, matches this codebase's existing precedent
+    for this puzzle class (see Waterfall Quest).
+  - `thelosttribe` -> **audited-fixed**: matches Transcript:The_Lost_Tribe
+    closely, but the `lost_tribe_cook_witness` proc this loop's brief flagged
+    as a possible duplicate-trigger risk (reused by Cook's Assistant) turned
+    out to be a real, different bug on closer look: the transcript shows the
+    cellar-incident eyewitness account is spoken by **Bob** (Bob's Brilliant
+    Axes), not the Cook, whose real line is an unrelated red herring. Moved
+    the witness proc (renamed `lost_tribe_bob_witness`) from `[opnpc1,cook]`
+    to `[opnpc1,bob]` (splicing into its existing block) and restored the
+    Cook's correct red-herring line. Also added a real, wiki-documented,
+    entirely-missing post-quest reward: "a mining helmet from giving the
+    brooch back to Mistag" (confirmed via the page's raw `{{Quest rewards}}`
+    template) -- added an `[opnpcu,lost_tribe_mistag_1op]` handler granting
+    `cave_goblin_mining_helmet_unlit` once.
+  - Build: `mingw32-make -C src mock230-scripts` exit 0 after every fix
+    (checked incrementally), 15090 scripts compiled, zero new diagnostics
+    touching any file this pass edited. Grepped every touched npc/trigger
+    name tree-wide before adding to confirm no duplicate-trigger shadowing.
+    Files touched: `server/scripts/quests/quest_losttribe/scripts/
+    losttribe.rs2`, `losttribe_mistag.rs2`; `server/scripts/quests/
+    quest_cook/scripts/quest_cook.rs2`; `server/scripts/areas/lumbridge/
+    scripts/bob.rs2`. `shadowofthestorm`/`undergroundpass`/`thegrandtree`
+    were research-only this pass (`undergroundpass`/`thegrandtree` needed no
+    fix; `shadowofthestorm`'s gap is too large for one tick -- see row note).
+
+- **IN-LC audit pass 7 (2026-08-12):** audited 4 more IN-LC rows, one quest at
+  a time, synchronously (no nested background sub-agents), wiki-first:
+  `dragonslayer`/quest_dragon, `taibwowannaitrio`/quest_tbwt,
+  `naturespirit`/quest_druidspirit, `murdermystery`/quest_murder.
+  - `dragonslayer` -> **audited-ok**: an 11-file port matching Quick_guide +
+    Transcript:Dragon_Slayer_I almost verbatim (Guildmaster, Oziach's full
+    map-piece/shield hint menu, Oracle's rhyme, Wormbrain's pay/kill/story
+    branches, Melzar's Maze coloured-key chest, Duke Horacio's optional
+    shield, Klarense's ship purchase/repair, Elvarg's fire-breath/melee AI
+    with shield+Protect Magic maxhit reduction). Real `~quest_complete`;
+    reward (18,650 str/def xp, 2 QP) matches dbrow `stat_xp_awarded` and wiki
+    exactly. No gaps found.
+  - `taibwowannaitrio` -> **audited-fixed**: exceptionally thorough 8-file
+    port matching Quick_guide + Transcript:Tai_Bwo_Wannai_Trio almost
+    verbatim, including the four separate "final" village NPCs
+    (`areas/area_karamja/scripts/tbwt_{tinsay,tiadeche,tamayu}_final.rs2`)
+    that hand out the real per-brother rewards. Cross-checked the full
+    reward breakdown against the wiki's own precise split (1,500 fishing
+    during via Lubufu + 5,000 fishing/5,000 cooking/2,500 attack+2,500
+    strength+rune spear from the brothers + 2,000 coins from Timfraku) --
+    every number matched exactly. One real gap: the wiki documents burning
+    Jogre bones two ways (furnace, any level, 25 Cooking xp -- already
+    implemented; tinderbox at Firemaking 30+, 90 Firemaking xp -- missing
+    entirely). Added the tinderbox arm by splicing a case into
+    `skill_firemaking/scripts/firemaking.rs2`'s existing `[opheldu,tinderbox]`
+    trigger (not duplicated) calling a new label in
+    `quest_tbwt/scripts/tbwt_jogre_bones.rs2`.
+  - `naturespirit` -> **audit-in_progress**: everything downstream of the
+    quest actually starting -- `filliman.rs2`'s full ghost/journal/puzzle/
+    transformation dialogue, the grotto stone/bloom/sickle/pouch mechanics in
+    `quest_druidspirit.rs2` (exact 3/2/1-point pear/stem/mushroom formula),
+    and the ghast fight mechanics -- is complete and wiki-accurate, ending in
+    the real `~quest_complete(quest_naturespirit)` with reward matching the
+    dbrow and wiki exactly (3,000 crafting/2,000 defence/2,000 hitpoints).
+    But the quest is **completely unstartable through normal play**: grepping
+    the whole tree found zero live triggers that ever set
+    `%druidspirit = ^druidspirit_started` -- Drezel
+    (`priestperiltrappedmonk`, shared with Priest in Peril,
+    `quest_priestperil/scripts/trapped_drezel.rs2`) has no Nature-Spirit
+    quest-offer branch at all, confirmed by `druidspirit_journal.rs2`'s own
+    `^druidspirit_started`-state text narrating a Drezel conversation that no
+    script ever produces (same bug shape as `eadgarsruse`'s Sanfew gap).
+    Traced one level deeper: the root cause is that Priest in Peril itself is
+    incomplete -- grepping every `%priestperil = ...` assignment tree-wide,
+    the highest value real gameplay ever reaches is
+    `^priestperil_meet_in_mausoleum` (8); `^priestperil_complete` (60) is
+    never written anywhere except `quest_rumdeal/scripts/deal_debug.rs2`'s
+    debug harness, meaning Priest in Peril's entire final chapter (bringing
+    essence to restore the holy barrier) is unbuilt, which also blocks every
+    other quest gating on `%priestperil >= ^priestperil_complete` (Rum Deal,
+    Ghosts Ahoy, Haunted Mine, Making History -- not fixed here, out of this
+    row's scope). Left `audit-in_progress`: needs Priest in Peril's missing
+    finale built first (its own large audit item, not one of this pass's
+    targets), then Drezel's Nature-Spirit quest-offer branch (3 meat pies + 3
+    apple pies per the wiki) spliced into the existing
+    `[opnpc1,priestperiltrappedmonk]` block. One independent, self-contained
+    gap fixed regardless: the Mort Myre swamp-decay damage-over-time
+    mechanic (`swamp_decay.rs2`) was fully written but never called anywhere
+    (own header said so) -- wired it into `quest_druidspirit.rs2`'s
+    `open_mortmyre_gate` on entry.
+  - `murdermystery` -> **audited-fixed**: one of the most thorough ports
+    audited this whole queue (20 files) -- the randomised 1-of-6 culprit
+    system, all six suspects' full poison/thread/alibi dialogue, the flour+
+    flypaper fingerprint puzzle, the six poison-proof search locations each
+    keyed to the right suspect, and the guard's tiered accusation dialogue
+    (correctly requiring thread+fingerprint+poison-proof together for the
+    real "conclusive proof" ending) all matched Quick_guide exactly,
+    including the "drop the necklace before turning in evidence" wiki tip
+    (`murder_clear_evidence` sweeps `worn` as well as `inv`/`bank`). Real
+    `~quest_complete`; correctly spliced into the shared `gossipy_man`/
+    `murderguard` NPCs' King's Ransom follow-up without duplicating either
+    trigger. One real numeric bug: completion granted
+    `stat_advance(crafting, 14060)` (1406.0 xp) but the dbrow's own
+    `stat_xp_awarded` is 14062 (1406.2 xp) -- a 0.2xp underpay; corrected.
+  - Build verified after each fix: `mingw32-make -C src mock230-scripts`
+    exit 0 throughout, no new diagnostics on any touched file (one build
+    attempt mid-pass hit transient errors/link failures from a concurrent
+    sibling agent's in-progress edits elsewhere in the tree; unrelated to
+    this pass's own files, confirmed by diffing and rebuilding once those
+    landed).
 
 - **IN-LC audit pass 5 (2026-08-12):** audited 4 more rows, one quest at a
   time, synchronously (no nested background sub-agents): `eaglespeak`/
