@@ -16177,6 +16177,7 @@ mock230_world_selftest(void)
             struct Mock230Npc* npc = &srv.npcs[goblin];
             int start_hp = npc->hitpoints;
             int ticks = 0;
+            long transformations_before;
 
             SELFTEST_CHECK(start_hp > 0, "an npc spawns with hitpoints, got %d", start_hp);
 
@@ -16439,12 +16440,41 @@ mock230_world_selftest(void)
              * land only 0-damage hitsplats and leave HP unchanged. Retaliation is
              * still real — content's damage() wrote a splat. Track that. */
             player->damage_type = -1;
+            transformations_before = mock230_encode_npc_transformation_writes();
             while( npc->hitpoints > 0 && ticks < 200 )
             {
                 mock230_world_tick(&srv);
                 ticks++;
             }
             mock230_capture_end(&srv);
+
+            /*
+             * Nothing in this fight transforms, so nothing may say it did.
+             *
+             * The client answers a TRANSFORMATION by rebuilding the npc's model
+             * and re-applying the new type's `readyanim` — which cancels
+             * whatever the npc was animating. A stray one lands on the same
+             * tick as the attack, flinch or death it is stomping, so the whole
+             * of combat looks unanimated while every check above still passes:
+             * the sequences resolve, the priority gate admits them, the ANIM
+             * mask is set and the bytes go out.
+             *
+             * It happened. `mock230_send_npc_info` carries the enter-view
+             * latches in two parallel arrays, and the v5 already-tracked branch
+             * wrote only one of them, so the type latch was uninitialised
+             * stack. Non-zero at that index meant a transformation for an npc
+             * that never had one — intermittently, because it depended on what
+             * had been on the stack.
+             *
+             * Both wires are covered: the counter is bumped at both write
+             * sites, and `MOCK230_REV=osrs239 --selftest` is what runs the v5
+             * one.
+             */
+            SELFTEST_CHECK(
+                mock230_encode_npc_transformation_writes() == transformations_before,
+                "an npc that never transformed must not be sent a TRANSFORMATION "
+                "(the client answers one by cancelling its animation); %ld written",
+                mock230_encode_npc_transformation_writes() - transformations_before);
 
             SELFTEST_CHECK(ticks < 200, "the fight should end, took %d ticks", ticks);
             SELFTEST_CHECK(npc->hitpoints == 0, "the goblin should die, hp %d",

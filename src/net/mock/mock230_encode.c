@@ -3814,6 +3814,29 @@ npc_add_requires_transformation(const struct Mock230Npc* npc)
 }
 
 /*
+ * Every TRANSFORMATION block this process has written, for the selftest.
+ *
+ * A transformation is not a cosmetic field: the client answers one by
+ * rebuilding the npc's model and re-applying the new type's `readyanim`, which
+ * cancels whatever the npc was animating. So "a transformation nobody asked
+ * for" is indistinguishable, in the game, from "this npc has no attack, defend
+ * or death animation" — and it is invisible on the server, where the animation
+ * was resolved, played and encoded correctly.
+ *
+ * A counter rather than a packet assertion because the bit section ahead of the
+ * extended blocks is variable-width: reading the flag back out of a captured
+ * NPC_INFO means reimplementing the client's reader inside the test. What the
+ * test needs to know is only whether one was written at all.
+ */
+static long g_npc_transformation_writes;
+
+long
+mock230_encode_npc_transformation_writes(void)
+{
+    return g_npc_transformation_writes;
+}
+
+/*
  * NPC_INFO carries only 14 type bits in its initial add. Revision 239 uses the
  * same-packet TRANSFORMATION block (client mask bit 0x1) to bootstrap a
  * 16-bit config id. The initial type is only a placeholder in that case.
@@ -3822,6 +3845,41 @@ static int
 npc_initial_wire_type(const struct Mock230Npc* npc)
 {
     return npc_add_requires_transformation(npc) ? 0 : npc->type;
+}
+
+/*
+ * One npc's slot in an NPC_INFO packet's extended-info queue.
+ *
+ * A record per npc rather than one array per field. The parallel-array form is
+ * what let a queue site fill `force_face` and leave `force_type` as whatever
+ * the stack held; `npc_queue_push` takes every latch the record carries, so a
+ * half-written entry no longer compiles. See
+ * mock230_encode_npc_transformation_writes for what the omission cost.
+ */
+struct Mock230NpcExtendedQueue
+{
+    int slot;
+    /** Enter-view: re-emit the latched FACE_ENTITY the per-tick mask cleared. */
+    int force_face;
+    /** Enter-view with a config id wider than the add's 14 bits: re-state it
+     *  as a TRANSFORMATION block in the same packet. */
+    int force_type;
+};
+
+static void
+npc_queue_push(
+    struct Mock230NpcExtendedQueue* queue,
+    int* count,
+    int slot,
+    int force_face,
+    int force_type)
+{
+    if( *count >= MOCK230_TRACKED_NPC_MAX )
+        return;
+    queue[*count].slot = slot;
+    queue[*count].force_face = force_face;
+    queue[*count].force_type = force_type;
+    (*count)++;
 }
 
 static void
@@ -3920,6 +3978,7 @@ put_npc_extended_v5(
     if( flag & V5_NPC_TRANSFORMATION )
     {
         /* NpcTransformationEncoder: unsigned little-endian/add short. */
+        g_npc_transformation_writes++;
         rsab_p2_alt3(buf, force_type_latch ? npc->type : npc->change_type);
     }
     if( has_face )
@@ -4045,7 +4104,10 @@ put_npc_extended(
         rsab_p1(buf, npc->max_hitpoints);
     }
     if( mask & MOCK230_NMASK_CHANGE_TYPE )
+    {
+        g_npc_transformation_writes++;
         rsab_p2(buf, force_type_latch ? npc->type : npc->change_type);
+    }
     if( mask & MOCK230_NMASK_SPOTANIM )
     {
         rsab_p2(buf, npc->spotanim_id < 0 ? 65535 : npc->spotanim_id);
@@ -4070,26 +4132,12 @@ mock230_send_npc_info(struct Mock230Player* player)
     struct Mock230Server* srv = player->world;
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
-     * so remember that order while writing the bits. queued_force_face marks
-     * enter-view slots that must re-emit a latched FACE_ENTITY;
-     * queued_force_type marks the ones that must re-emit their config id as a
-     * TRANSFORMATION block.
-     *
-     * Both are zeroed rather than left as scratch. Every queue site is
-     * supposed to write both, and one of the four did not: the v5
-     * already-tracked branch set only `queued_force_face`, so the type latch
-     * was whatever was on the stack. A non-zero read puts an unasked-for
-     * TRANSFORMATION on the wire, and the client answers a transformation by
-     * rebuilding the npc's model and re-applying its `readyanim` — on the same
-     * tick as whatever animation the npc was actually sent. Attack, defend and
-     * death all vanished into the ready pose, intermittently, because it
-     * depended on stack contents at that index. Defaulting to "no latch" makes
-     * a missed write a no-op instead. */
-    int queued[MOCK230_TRACKED_NPC_MAX];
+     * so remember that order while writing the bits. Zeroed rather than left as
+     * scratch: "no latch" is the right default for a field a queue site forgot,
+     * and one of them was forgotten — see struct Mock230NpcExtendedQueue. */
+    struct Mock230NpcExtendedQueue queued[MOCK230_TRACKED_NPC_MAX] = { { 0, 0, 0 } };
     int nearby[MOCK230_TRACKED_NPC_MAX];
     int nearby_count;
-    int queued_force_face[MOCK230_TRACKED_NPC_MAX] = { 0 };
-    int queued_force_type[MOCK230_TRACKED_NPC_MAX] = { 0 };
     int queued_count = 0;
     int kept[MOCK230_TRACKED_NPC_MAX];
     int kept_count = 0;
@@ -4222,15 +4270,11 @@ mock230_send_npc_info(struct Mock230Player* player)
                 {
                     rsab_pbit(&buf, 1, 0); /* unchanged */
                 }
+                /* Already tracked: neither latch is re-emitted. This branch is
+                 * the one that used to state only the face latch, and left the
+                 * type latch reading whatever was on the stack. */
                 if( extended )
-                {
-                    queued[queued_count++] = slot;
-                    /* Already tracked: neither latch is re-emitted. Both are
-                     * written out, because the pair has to move together —
-                     * see the declaration. */
-                    queued_force_face[queued_count - 1] = 0;
-                    queued_force_type[queued_count - 1] = 0;
-                }
+                    npc_queue_push(queued, &queued_count, slot, 0, 0);
             }
         }
 
@@ -4318,11 +4362,7 @@ mock230_send_npc_info(struct Mock230Player* player)
              */
             rsab_pbit(&buf, MOCK230_NPC_TYPE_BITS, npc_initial_wire_type(npc));
             if( extended )
-            {
-                queued[queued_count++] = slot;
-                queued_force_face[queued_count - 1] = 1;
-                queued_force_type[queued_count - 1] = force_type;
-            }
+                npc_queue_push(queued, &queued_count, slot, 1, force_type);
         }
 
         /* Encode the byte-aligned tail separately. Whether a sentinel is
@@ -4332,8 +4372,8 @@ mock230_send_npc_info(struct Mock230Player* player)
         memset(extended_data, 0, sizeof(extended_data));
         rsab_wrap(&extended_buf, extended_data, sizeof(extended_data));
         for( int i = 0; i < queued_count; i++ )
-            put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i]],
-                                queued_force_face[i], queued_force_type[i]);
+            put_npc_extended_v5(&extended_buf, player, &srv->npcs[queued[i].slot],
+                                queued[i].force_face, queued[i].force_type);
 
         /*
          * The terminator, only when the golden client's low-resolution guard
@@ -4464,11 +4504,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 0);
         }
         if( extended )
-        {
-            queued_force_face[queued_count] = 0;
-            queued_force_type[queued_count] = 0;
-            queued[queued_count++] = slot;
-        }
+            npc_queue_push(queued, &queued_count, slot, 0, 0);
     }
 
     /*
@@ -4526,11 +4562,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 5, dz & 0x1f);
             rsab_pbit(&buf, 1, extended);
             if( extended )
-            {
-                queued_force_face[queued_count] = force_face;
-                queued_force_type[queued_count] = force_type;
-                queued[queued_count++] = slot;
-            }
+                npc_queue_push(queued, &queued_count, slot, force_face, force_type);
         }
         player->npc_tracked[slot] = 1;
         kept[kept_count++] = slot;
@@ -4540,8 +4572,8 @@ mock230_send_npc_info(struct Mock230Player* player)
     rsab_bytes(&buf);
 
     for( int i = 0; i < queued_count; i++ )
-        put_npc_extended(&buf, player, &srv->npcs[queued[i]], queued_force_face[i],
-                         queued_force_type[i]);
+        put_npc_extended(&buf, player, &srv->npcs[queued[i].slot], queued[i].force_face,
+                         queued[i].force_type);
 
     flush(player, &buf, OP_NPC_INFO, 2);
 

@@ -5429,6 +5429,19 @@ mock230_send_player_info(struct Mock230Player* player);
 void
 mock230_send_npc_info(struct Mock230Player* player);
 
+/**
+ * How many NPC TRANSFORMATION blocks have been written since the process
+ * started, on either wire.
+ *
+ * For the selftest. A transformation makes the client rebuild the npc's model
+ * and re-apply its `readyanim`, cancelling whatever it was animating — so one
+ * written for an npc that never transformed reads, in the game, as "npcs have
+ * no attack, defend or death animation" while every server-side check still
+ * passes. See the counter's definition.
+ */
+long
+mock230_encode_npc_transformation_writes(void);
+
 /* Per-client npc names — see struct Mock230PlayerSlotMap. */
 void
 mock230_slotmap_reset(struct Mock230Player* player);
