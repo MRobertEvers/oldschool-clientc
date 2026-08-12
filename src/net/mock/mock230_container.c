@@ -434,24 +434,31 @@ mock230_container_set(
  * says how much, which is what `inv_add` needs.
  *
  * ------------------------------------------------------------------
- * The half that is deliberately NOT the reference, and how it was measured
+ * Stack policy: one slot per unit, and the two containers that override it
  * ------------------------------------------------------------------
  *
- * `Inventory.add` puts an unstackable obj in **one slot per unit**; this puts
- * all `count` of it in one slot, which is what every caller here did before.
- * That is a refusal, not an oversight, and the measurement is reproducible:
- * writing the reference's loop turns four bank assertions red at once, because
- * `[proc,newplayer_bank]` says `inv_add(bank, logs, 100)` and a bank stacks
- * everything. The missing input is `InvType.stackType` — `ALWAYS_STACK` for a
- * bank, `NEVER_STACK` for the shops' sale invs — which LostCity reads from its
- * server-side `inv.dat`. Phase 6a deliberately declares only native size;
- * stack policy and scope still have no server definition here. Doing the spread
- * unconditionally would trade a known-wrong stack for a known-wrong bank.
+ * `Inventory.add` puts an unstackable obj in **one slot per unit**, and this
+ * does too. It used to put all `count` in one slot pending `InvType.stackType`,
+ * and that shortcut is what a player saw on death: `[proc,moveallinv]` moves an
+ * obj by `inv_total`, so three separately-kept sharks left `deathkeep` as one
+ * `inv_moveitem(deathkeep, inv, shark, 3)` and came back as a single backpack
+ * cell reading "3". The same route runs the gravestone (`inv` -> `gravestone`
+ * -> `inv`), so every unstackable a death touched arrived home stacked.
  *
- * So the *merge* lands (it needs no per-inv field: a stackable obj stacks in
- * every inv there is) and the *spread* waits. Nothing regresses either way —
- * one slot holding N unstackables is exactly what `interaction_engine_obj` and
- * `inv_add` already produced.
+ * The input that was missing is still missing — LostCity reads `stackType`
+ * (`ALWAYS_STACK` for a bank, `NEVER_STACK` for the shops' sale invs) from its
+ * server-side `inv.dat`, and this cache's inv config carries only size — so the
+ * containers that genuinely always stack are named here instead, in
+ * `always_stacks()` below (the bank and the collection log; see
+ * mock230_ids.h for why each). That is a smaller and more honest gap than the
+ * old one: those two are the whole of what this tree adds an unstackable pile
+ * to in bulk (`[proc,newplayer_bank]` says `inv_add(bank, logs, 100)`), and
+ * everything else now behaves the way `~pickup_obj_check_for_space` already
+ * assumed it did when it asked `inv_itemspace` for one free slot per unit.
+ *
+ * A consequence worth stating: with `assure_full` set, a pile of three
+ * unstackables over two free slots is now refused rather than crammed into one
+ * cell. That is `obj_takeitem` agreeing with the content guard in front of it.
  *
  * Returns the number added: never negative, never more than `count`.
  */
@@ -487,6 +494,24 @@ mock230_container_placeholder_slot(
     return -1;
 }
 
+/*
+ * Does this container stack everything, whatever the obj record says?
+ *
+ * LostCity's `InvType.stackType == ALWAYS_STACK`, for the invs this tree can
+ * answer without a server-side inv definition — the two are named and explained
+ * in mock230_ids.h. Every other inv follows the obj record. Kept as one function
+ * so the day a real stack-policy field lands, this is its only caller-visible
+ * seam; an unresolved id is -1 and matches no container.
+ */
+static int
+always_stacks(const struct Mock230Container* container)
+{
+    const struct Mock230Ids* ids = mock230_ids();
+
+    return container->inv_id == ids->inv_bank ||
+           container->inv_id == ids->inv_collection_log;
+}
+
 int
 mock230_container_add(
     struct Mock230Container* container,
@@ -504,7 +529,7 @@ mock230_container_add(
     if( obj_id < 0 || count <= 0 )
         return 0;
 
-    stackable = mock230_objinfo(obj_id)->stackable ? 1 : 0;
+    stackable = mock230_objinfo(obj_id)->stackable || always_stacks(container) ? 1 : 0;
 
     for( int i = 0; i < container->slots; i++ )
     {
@@ -555,23 +580,28 @@ mock230_container_add(
         return count;
     }
 
-    /* Unstackable: one slot holding all of it, pending `stackType`. See above.
-     * A placeholder slot is not free but is available to the obj it stands for,
-     * so it satisfies the space test as well as winning the position. */
+    /* Unstackable: one slot per unit, `Inventory.add`'s own loop. A placeholder
+     * slot is not free but is available to the obj it stands for, so it counts
+     * toward the space test as well as winning the position of the first unit. */
+    if( placeholder_slot >= 0 )
+        free_slots++;
+    if( assure_full && count > free_slots )
+        return 0;
+    if( count > free_slots )
+        count = free_slots;
+    if( count <= 0 )
+        return 0;
     if( placeholder_slot >= 0 )
     {
-        mock230_container_set(container, placeholder_slot, obj_id, count);
-        return count;
+        mock230_container_set(container, placeholder_slot, obj_id, 1);
+        added++;
     }
-    if( free_slots <= 0 )
-        return 0;
-    for( int i = 0; i < container->slots; i++ )
+    for( int i = 0; i < container->slots && added < count; i++ )
     {
         if( container->items[i].obj_id >= 0 )
             continue;
-        mock230_container_set(container, i, obj_id, count);
-        added = count;
-        break;
+        mock230_container_set(container, i, obj_id, 1);
+        added++;
     }
     return added;
 }

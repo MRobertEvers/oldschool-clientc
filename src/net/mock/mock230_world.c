@@ -5731,11 +5731,10 @@ handle_cheat(
          *
          * The add goes through `mock230_container_add` — the same
          * `Inventory.add` the `inv_add` opcode uses — so a stackable merges
-         * onto the stack already held and the backpack's listener sends an
-         * UPDATE_INV without this branch knowing a packet exists. Unstackables
-         * are added one at a time on purpose: the shared add puts a whole count
-         * in one slot (its `stackType` gap, see mock230_container.c), which
-         * would render five platebodies as one slot reading "5".
+         * onto the stack already held, an unstackable takes one slot per unit,
+         * and the backpack's listener sends an UPDATE_INV without this branch
+         * knowing a packet exists. The one-at-a-time loop this used to need (the
+         * shared add put a whole count in one slot) went with that gap.
          */
         char arg[64] = { 0 };
         char suggest[256] = { 0 };
@@ -5774,15 +5773,7 @@ handle_cheat(
             say(srv, "No backpack container.");
             return;
         }
-        if( info->stackable )
-        {
-            given = mock230_container_add(row, obj_id, want, 0);
-        }
-        else
-        {
-            while( given < want && mock230_container_add(row, obj_id, 1, 0) == 1 )
-                given++;
-        }
+        given = mock230_container_add(row, obj_id, want, 0);
         if( given <= 0 )
             say(srv, "No room for %s.", info->name);
         else if( given < want )
@@ -17722,6 +17713,48 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::god absorbs damage at the funnel\n");
+    {
+        /*
+         * The two halves that matter are "a lethal hit does nothing" and "the
+         * flag is what did it" — so the same hit runs twice, once each way,
+         * and the god-mode half is asserted against the *not* god-mode half
+         * rather than against a constant. A gate that was never reached would
+         * pass a one-sided test here: the second stanza is what fails if the
+         * `if( player->godmode )` line is deleted.
+         */
+        int saved_hp = player->hitpoints;
+        int saved_dying = player->dying;
+        int saved_god = player->godmode;
+
+        player->dying = 0;
+        player->hitpoints = player->max_hitpoints;
+
+        player->godmode = 1;
+        mock230_combat_hit_player(&srv, 0, player->max_hitpoints);
+        SELFTEST_CHECK(player->hitpoints == player->max_hitpoints,
+                       "a lethal hit under ::god should not move the bar, got %d/%d",
+                       player->hitpoints, player->max_hitpoints);
+        SELFTEST_CHECK(!player->dying, "and should not enter the death state");
+        /* The splat still goes out — content's defend animation and the npc's
+         * retaliation both hang off it, so absorbing damage must not also
+         * silence the hit. */
+        SELFTEST_CHECK(player->damage == 0 && (player->masks & MOCK230_PMASK_DAMAGE),
+                       "and should still send a block splat, got damage=%d mask=%d",
+                       player->damage, (player->masks & MOCK230_PMASK_DAMAGE) ? 1 : 0);
+
+        player->godmode = 0;
+        mock230_combat_hit_player(&srv, 0, player->max_hitpoints);
+        SELFTEST_CHECK(player->hitpoints == 0 && player->dying,
+                       "the same hit without ::god should still kill, got %d/%d dying=%d",
+                       player->hitpoints, player->max_hitpoints, player->dying);
+
+        player->godmode = saved_god;
+        player->hitpoints = saved_hp;
+        player->dying = saved_dying;
+        mock230_combat_sync_hitpoints(player);
+    }
+
     fprintf(stderr, "mock230 selftest: the player dies and the script revives them\n");
     {
         /*
@@ -17748,9 +17781,43 @@ mock230_world_selftest(void)
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
+            /*
+             * The kept items, and the reason this stanza carries an inventory
+             * fixture at all.
+             *
+             * `[proc,player_death_lose_items]` keeps the three priciest by
+             * moving them one at a time into `deathkeep`, and `[proc,moveallinv]`
+             * brings them back with `inv_moveitem(deathkeep, inv, $obj,
+             * inv_total(deathkeep, $obj))` — one move of three. So the whole
+             * retention path lands on `Inventory.add`'s count, and while that
+             * put a whole count in one slot, three logs died as three slots and
+             * respawned as one cell reading "3". Nothing else in this file adds
+             * an unstackable obj more than one at a time, which is why the bug
+             * lived in the one place a player meets it.
+             *
+             * Three of one obj on purpose: the retention rule keeps exactly
+             * three when unskulled and not protecting, so all of them come back
+             * and there is no price ordering to reason about. Saved and restored
+             * around the death — later stanzas read the starting kit, and a
+             * destructive fixture here is six failures further down.
+             */
+            struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
+            struct Mock230Item saved_worn[MOCK230_WORN_SLOTS];
+            const int kept_obj = 1511; /* logs — unstackable, no destroy_death */
+            int kept_slots = 0;
+            int kept_units = 0;
             int died_x;
             int died_z;
             int ticks = 0;
+
+            memcpy(saved_inv, player->inv, sizeof(saved_inv));
+            memcpy(saved_worn, player->worn, sizeof(saved_worn));
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, -1, 0);
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+                worn_set(player, i, -1, 0);
+            for( int i = 0; i < 3; i++ )
+                inv_set(player, i, kept_obj, 1);
 
             selftest_park_player(&srv, npc->x + 1, npc->z);
             player->level = npc->level;
@@ -17813,6 +17880,26 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX,
                            "and its healenergy refilled the run bar, got %d of %d",
                            player->run_energy, MOCK230_RUN_ENERGY_MAX);
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                if( player->inv[i].obj_id != kept_obj )
+                    continue;
+                kept_slots++;
+                kept_units += player->inv[i].count;
+            }
+            SELFTEST_CHECK(kept_units == 3,
+                           "the three kept items should all come back, got %d", kept_units);
+            SELFTEST_CHECK(kept_slots == 3,
+                           "and an unstackable obj comes back one per slot — a death that "
+                           "returns them as one cell reading \"3\" is the retention path "
+                           "stacking what the obj record says never stacks, got %d slot(s) "
+                           "for %d item(s)",
+                           kept_slots, kept_units);
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, saved_inv[i].obj_id, saved_inv[i].count);
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+                worn_set(player, i, saved_worn[i].obj_id, saved_worn[i].count);
 
             /* The regression: engaging is gated on `dying`, so a gate that never
              * clears reads exactly like a click that did nothing. */
@@ -19569,11 +19656,10 @@ mock230_world_selftest(void)
          * three bones over two free slots is refused by content and taken by
          * the C. Unbind `[opobj3,_]` and this check goes red on its own.
          *
-         * Worth stating because it is a real inconsistency and not just a
-         * probe: content's guard is stricter than `obj_takeitem`'s add, which
-         * still puts unstackables in one slot pending `InvType.stackType` (see
-         * mock230_container.c). Conservative in the safe direction — it never
-         * loses items — and it closes when that field lands.
+         * The two now agree on the arithmetic — `mock230_container_add` takes
+         * one slot per unit for an unstackable obj, so `obj_takeitem`'s
+         * `assure_full` add refuses the same pile content's guard refuses — but
+         * only content produces the *message*, which is what this leg measures.
          */
         {
             struct Mock230Item saved[MOCK230_INV_SLOTS];
@@ -21325,9 +21411,10 @@ mock230_world_selftest(void)
          * Four things this asserts that a "did it add something" check cannot:
          * that a gameval spelling reaches the id the pack holds, that a
          * stackable merges rather than taking a second slot, that an
-         * unstackable takes one slot *per unit* (the shared `Inventory.add`
-         * would put all three in one, which is why the branch loops), and that
-         * an ambiguous or unknown name adds nothing at all. The last is the one
+         * unstackable takes one slot *per unit* (this is the shared
+         * `Inventory.add` doing it — the branch used to loop because the add put
+         * a whole count in one slot), and that an ambiguous or unknown name adds
+         * nothing at all. The last is the one
          * worth having: a cheat that silently gives the wrong item is worse
          * than one that refuses.
          */

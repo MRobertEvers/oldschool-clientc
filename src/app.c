@@ -14783,6 +14783,11 @@ App_RunOnce(
      * path that runs the last two has no input handle. */
     app->ctrl_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? 1 : 0;
 
+    /* The cycle the widget timers just ran on. onMouseRepeat has to be paired
+     * with them: the cache's mouseover container is torn down and rebuilt by a
+     * per-cycle timer, and the repeat is what puts the tooltip back. */
+    app->interact.client_cycle = app->logic_cycle;
+
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
         UITree_InteractFrame(&app->interact, app->tree, &app->ui_host, input, now_ms, &out);

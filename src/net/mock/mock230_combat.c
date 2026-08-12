@@ -839,6 +839,17 @@ mock230_combat_hit_player(
 {
     struct Mock230Player* player = srv->active_player;
 
+    /*
+     * `::god` absorbs the hit here rather than at any call site, because this
+     * is the only place player hitpoints go down — content's damage() opcode
+     * and every engine path both land here. Zeroing `amount` keeps the rest of
+     * the function honest: a block splat is still sent, retaliation and the
+     * defend animation still run, so the encounter behaves exactly as it does
+     * without the flag apart from the subtraction.
+     */
+    if( player->godmode )
+        amount = 0;
+
     if( amount > player->hitpoints )
         amount = player->hitpoints;
     player->hitpoints -= amount;

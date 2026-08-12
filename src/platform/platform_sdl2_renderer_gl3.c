@@ -630,6 +630,15 @@ gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
     if( b->vert_count == 0u )
         return;
 
+    /* Counted here rather than at the call sites because most flushes are not
+     * calls at all: gl3_batch2d_flush_if_needed breaks the batch whenever the
+     * texture, scissor, text mode or uv bounds change, so the per-frame count
+     * is a property of the UI's draw order and nothing else reports it. It
+     * matters because each flush ends in a glBufferSubData over the *same*
+     * quad_vbo range this function is about to draw from, which is a GPU
+     * synchronisation point on drivers that will not orphan the buffer. */
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES, 1);
+
     if( b->scissor_set )
     {
         if( gl3_text_debug_enabled() && b->text_mode )

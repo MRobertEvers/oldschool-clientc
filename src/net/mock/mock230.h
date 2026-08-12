@@ -2319,6 +2319,19 @@ struct Mock230Player
      *  happens during it, is `[queue,player_death]`. There was a `death_tick`
      *  here, which meant the engine owned the length of a death. */
     int dying;
+    /** Debug invulnerability (`::god`). Gates the one player damage funnel,
+     *  `mock230_combat_hit_player`, so every source — npc melee, the Inferno's
+     *  queued projectile damage, poison, content's own `damage()` — lands as a
+     *  block splat instead of a subtraction.
+     *
+     *  This is engine rather than content on purpose. A cheat here is normally
+     *  a `[debugproc]` (see handle_cheat), but "absorb all damage" is not
+     *  something a script can express: content reaches hitpoints only *through*
+     *  this funnel, so a content-side flag would still need this same gate and
+     *  would only add a second copy of the state. It exists so a profiling run
+     *  can move around a live encounter without the death sequence rewriting
+     *  the scene mid-measurement. */
+    int godmode;
     /** Reject the player's own movement/action packets while leaving the
      *  simulation live. Unlike busy/canAccess this does not pause scripts,
      *  queues, timers, or damage; content owns the duration through

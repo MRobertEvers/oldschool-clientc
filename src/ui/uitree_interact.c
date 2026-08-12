@@ -30,6 +30,7 @@ UIInteraction_Init(struct UIInteraction* interact)
     interact->input_state.pressed = -1;
     interact->hover_com_id = -1;
     interact->prev_hover_com_id = -1;
+    interact->last_repeat_cycle = UINT64_MAX;
     UIMinimenu_Reset(&interact->minimenu);
 }
 
@@ -914,12 +915,14 @@ interact_hover(
     }
 
     /* onMouseRepeat fires for the still-hovered component once per client
-     * cycle (reference gates on cycleCntr; 20ms game tick). */
-    if( interact->hover_com_id >= 0 && now_ms - interact->last_repeat_ms >= 20 )
+     * cycle (reference gates on cycleCntr; 20ms game tick). Keyed on the cycle
+     * the app is in, NOT on elapsed milliseconds — see client_cycle in the
+     * header for why the difference is visible. */
+    if( interact->hover_com_id >= 0 && interact->client_cycle != interact->last_repeat_cycle )
     {
         struct UITreeRuntimeScriptHook const* repeat_hook = hook_by_component_id(
             tree, interact->hover_com_id, pick_on_mouse_repeat);
-        interact->last_repeat_ms = now_ms;
+        interact->last_repeat_cycle = interact->client_cycle;
         if( repeat_hook && repeat_hook->script_id > 0 )
         {
             struct UIIntent intent = {
