@@ -1,33 +1,68 @@
 # Quest Helper content port queue
 
 Agent-loop state for **RuneLite Quest Helper -> OSRS-Content** forward port of
-quests that LostCity (Sept 2004) and 2009scape (~Jan 2009) never implemented.
+OSRS quests.
 
-LostCity remains the content *shape* (RuneScript triggers, procs, configs).
+**2026-08-12 rule change (standing directive):** the OSRS Wiki is the single
+source of truth for **every** quest this queue touches, full stop. The prior
+"ownership" exclusivity rule — STOP and defer to `CONTENT_PORT_QUEUE.md` or
+`SCAPE2009_CONTENT_PORT_QUEUE.md` the instant either lane has *any* proc for a
+quest — is **retired**. This queue's job is now to finish ALL quests, not just
+the post-Jan-2009 QuestHelper-only slice it started with. Which lane a quest
+happens to be filed under does not gate whether it gets completed here.
+
+What this means in practice:
+- **Before writing anything, still check what already exists** (this tree,
+  `lc_quests.txt`, the IN-LC/mid-era audit tables below) — not to decide
+  whether you're *allowed* to touch the quest, but so you don't blindly
+  duplicate a trigger/state that's already there (`sscompile` gives no
+  diagnostic for a duplicate trigger — this has bitten multiple slices).
+- **A `done`/`done (LC)`/`done (2009scape)` status on any row in any of the
+  three queue docs is a claim, not a guarantee.** Audit it against the current
+  wiki quest page + transcript before trusting it end-to-end. If it's
+  wiki-accurate and complete, leave it alone and move on. If it's missing a
+  branch, a reward, a refuse-option, or an entire chapter, **fix it here**,
+  in place, using the wiki as ground truth — do not wait for another lane's
+  loop to get to it.
+  Now targeting the ownership-gated backlog it previously deferred as
+  out-of-scope: the ~30-entry IN-LC table (pre-Sept-2004 quests filed under
+  `CONTENT_PORT_QUEUE.md`) and the ~74 mid-era quests filed under
+  `SCAPE2009_CONTENT_PORT_QUEUE.md`'s own tracking — both are now fair game
+  for a wiki-accuracy pass from this queue too. See the audit tables below.
+- LostCity's `.rs2`/trigger/config *shape* (not its content boundary) is still
+  the shape this tree uses — that part of the original rule stands.
+- The "unblock the other pending files" side of this directive: both sibling
+  queues (`CONTENT_PORT_QUEUE.md`, `SCAPE2009_CONTENT_PORT_QUEUE.md`) each
+  currently list only one straggler `pending` row of their own — these are
+  now in scope for this loop to pick up directly too, same wiki-first rule,
+  rather than waiting on those lanes' own loops.
+
 Quest Helper
-(`/Users/matthewevers/Documents/git_repos/quest-helper/src/main/java/com/questhelper/helpers/quests`)
-is the **state-machine / test guide**: each helper's `steps.put(N, ...)` is the
-quest varbit progression a `.rs2` port must reproduce. It does **not** define
-implementation -- dialogue trees (including branches the helper never lists),
-dig rewards, and combat come from the OSRS wiki transcript / cache / play,
-guided by the helper's step map and gameval names. See methodology step 5 and
-`PORTING_GUIDE` section 4.6 step 4.
+(`https://github.com/Zoinkwiz/quest-helper`, fetch via `curl`/GitHub API — no
+local checkout on this machine) remains a useful **state-machine / test
+guide** where it exists: each helper's `steps.put(N, ...)` is the quest varbit
+progression a `.rs2` port should reproduce. It does **not** define
+implementation and is not required reading for quests it doesn't cover (the
+IN-LC/mid-era/pre-2004 quests mostly predate it or aren't in its scope) --
+dialogue trees (including branches no helper ever lists), dig rewards, and
+combat come from the OSRS wiki transcript / cache / play. See methodology
+step 5 and `PORTING_GUIDE` section 4.6 step 4.
 
 Gameval constants (`NpcID.FOO` -> `foo` in `configs/all.*.compack`) are the
-cache's own names -- **no id remapping**. When the helper and the osrs239 cache
-disagree, **the cache wins**.
+cache's own names -- **no id remapping**. When a helper (or any other
+secondary source) and the osrs239 cache disagree, **the cache wins**.
 
-Parallel to:
+Parallel to (no longer hard ownership boundaries, see rule change above):
 
 - [`CONTENT_PORT_QUEUE.md`](CONTENT_PORT_QUEUE.md) - LostCity -> tree
 - [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) - mid-era
 - [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md) - post-2009 skills/bosses
 
-**Do not steal LC or 2009scape slices.** Ownership: no LostCity proc **and** no
-2009scape implementation (registry presence alone in `Quests.kt` is not
-implementation).
+**Do not silently duplicate another lane's in-flight work.** If a row in a
+sibling doc is `in_progress` (actively claimed), leave it; if it's `pending`
+or `done`-but-audit-fails, it's fair game here per the rule above.
 
-Each tick ports **one** pending unblocked slice per `docs/PORTING_GUIDE.md` §4
+Each tick ports/audits **one** unblocked slice per `docs/PORTING_GUIDE.md` §4
 and §4.6. Status: `pending` | `in_progress` | `done` | `blocked`.
 
 **Depth-first:** a row stays `in_progress` until every `steps.put` value is
@@ -48,11 +83,18 @@ user stops the loop.
 
 ## Methodology (non-negotiable)
 
-1. **Grep LostCity first** (PORTING_GUIDE section 2.2). If LC has the proc, it belongs
-   on `CONTENT_PORT_QUEUE`, not here.
-2. **Grep 2009scape second.** If 2009scape has an implementation (not merely a
-   `Quests.kt` enum entry), prefer
-   [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md).
+1. **Check what already exists first** (PORTING_GUIDE section 2.2 grep, plus
+   `lc_quests.txt` and this doc's own IN-LC/mid-era audit tables) — not to
+   decide whether the quest is in scope (per the 2026-08-12 rule change,
+   everything is in scope), but to find the existing implementation, if any,
+   so you audit and complete it in place rather than writing a colliding
+   duplicate. If nothing exists anywhere, this is a clean net-new port.
+2. **The wiki is authoritative, for every quest, regardless of era or which
+   lane historically owned it.** Open the quest page + `Transcript:` pages
+   (see the table in step 5) and treat them as ground truth. Where an
+   existing implementation (LC, 2009scape, or this queue's own earlier work)
+   disagrees with the wiki or is missing a documented branch/reward/chapter,
+   the wiki wins — fix it in place.
 3. **No game-facing strings / ids / config constants in C.** Quest Helper Java is
    a *guide*, not something to re-implement in the engine. Express as `.rs2` +
    configs. New Server VM opcodes only when content cannot say it
@@ -92,14 +134,27 @@ user stops the loop.
 | `helpers/skills/**` (skillsagility/, skillsmining/, skillswoodcutting/) | skill guides |
 | `helpers/playerquests/**` | player-authored |
 | League / `LeagueQuestRegions` variants | temporary league content |
-| Spelling-only mismatches already owned elsewhere (`vampyreslayer`, `romeoandjuliet`, `monkeymadnessi`, `fairytalei/ii`, `blackknightfortress`) | LC / 2009scape under other names |
-| Pre-Sept 2004 quests with LostCity `.rs2` implementations (see IN-LC list below) | belongs on CONTENT_PORT_QUEUE, not here |
-| Mid-era (~Jan 2005 to Jan 2009) quests with 2009scape implementations | belongs on SCAPE2009_CONTENT_PORT_QUEUE |
+| Spelling-only mismatches already owned elsewhere (`vampyreslayer`, `romeoandjuliet`, `monkeymadnessi`, `fairytalei/ii`, `blackknightfortress`) | same npc/dbrow as an already-audited row under another name -- don't re-audit under the alias too |
 | Helpers whose gameval names fail `--check` | `blocked` until pack grows |
 
-### IN-LC: pre-Sept 2004 QuestHelper dirs that belong on CONTENT_PORT_QUEUE
+**Retired 2026-08-12** (were skip rows, now audit targets, see the rule change
+at the top of this doc): "Pre-Sept 2004 quests with LostCity implementations"
+and "mid-era quests with 2009scape implementations" are no longer skipped —
+see the IN-LC and mid-era audit tables below.
 
-These QH helpers implement LostCity-era quests already ported (or should be ported) via the main CONTENT_PORT_QUEUE. They are **not** post-Jan-2009 content and do not qualify for this queue:
+### IN-LC: pre-Sept 2004 QuestHelper dirs -- wiki-accuracy audit queue
+
+These QH helpers implement LostCity-era quests. Filed on `CONTENT_PORT_QUEUE.md`
+by era, but as of the 2026-08-12 rule change this queue also audits/completes
+them directly rather than treating LC ownership as a hard boundary: pick the
+next unaudited row (smallest LC script first if line-count data exists,
+otherwise any), open the LC script + the quest's wiki page + `Transcript:`
+pages, and confirm every wiki-documented branch/reward/chapter is present and
+correct. If it is, mark `audited-ok`; if it's missing something, port the gap
+in place (same no-duplicate-trigger rules as everywhere else) and mark
+`audited-fixed` with a one-line note on what was added. This table has not
+been audited yet as of the rule change -- every row below is effectively
+`pending` audit:
 
 | Quest Helper path | LC script name | Status |
 |---|---|---|
@@ -141,6 +196,20 @@ These QH helpers implement LostCity-era quests already ported (or should be port
 | `regicide` | quest_regicide | IN-LC — CONTENT_PORT_QUEUE |
 | `tearsofguthix` | quest_tearsofguthix | IN-LC — CONTENT_PORT_QUEUE |
 | `whatliesbelow` | quest_whatliesbelow | IN-LC — CONTENT_PORT_QUEUE |
+
+### Mid-era (~Jan 2005 to Jan 2009): wiki-accuracy audit queue
+
+~74 QuestHelper dirs were classified mid-era and filed on
+`SCAPE2009_CONTENT_PORT_QUEUE.md` rather than enumerated here (see this
+doc's Log, 2026-08-06 entry, for the original classification pass). Per the
+2026-08-12 rule change these are also in scope from this queue now, same
+audit-and-complete rule as the IN-LC table above. Rather than duplicate that
+~74-row list into this file, pull the next row directly from
+`SCAPE2009_CONTENT_PORT_QUEUE.md`'s own tracking when the IN-LC table above
+is exhausted (or interleave — depth-first smallest-first across BOTH tables
+combined is fine). `SCAPE2009_CONTENT_PORT_QUEUE.md` itself also has one
+straggler `pending` row of its own (`22h`, Recruitment Drive Miss Cheevers)
+— also fair game.
 
 ### PENDING: genuinely post-Jan-2009 QuestHelper-only quests (no LC, no 2009scape)
 
@@ -6157,3 +6226,18 @@ filed under `helpers/miniquests/` are at the end.
   documents Freeing Pirate Pete as a soft-skipped unported prerequisite --
   now that it's real, a future tick could tighten that gate. Only one row
   remains `in_progress` in the whole queue: #43/P2 asoulsbane.
+- **rule change (2026-08-12):** at the user's explicit direction, the
+  ownership-exclusivity methodology (steps 1-2, "grep LC/2009scape, STOP
+  and defer to that lane if either has any proc") is retired. The wiki is
+  now authoritative for every quest this queue touches, regardless of era
+  or which lane historically claimed it; a `done` status anywhere is an
+  audit target, not a hard stop. See the rewritten intro/methodology/skip
+  list sections above for the full text. Practical effect: the ~30-row
+  IN-LC table and the ~74-quest mid-era set (tracked on
+  `SCAPE2009_CONTENT_PORT_QUEUE.md`) are now in scope for a wiki-accuracy
+  audit-and-complete pass from this queue, alongside each sibling queue's
+  own single straggler `pending` row (`CONTENT_PORT_QUEUE.md` #8,
+  `SCAPE2009_CONTENT_PORT_QUEUE.md` #22h). Next: begin the IN-LC audit
+  queue depth-first, starting with the smallest/simplest entries, spot-
+  checking each LC script against its current wiki quest + transcript
+  pages for missing branches/rewards/chapters.
