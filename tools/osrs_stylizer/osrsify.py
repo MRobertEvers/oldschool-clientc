@@ -653,18 +653,22 @@ def regime_reduce(o, ctx):
         if tag in tried or time.time() > o.deadline:
             return
         tried.add(tag)
+        t0 = time.time()
         outs, err, stats = run_decimate(o, tag, frac, seed, jitter)
         params = {"regime": "reduce", "frac": frac, "seed": seed,
                   "jitter": jitter}
         if err:
             rec = {"id": tag, "params": params, "status": "rejected:" + err,
-                   "fitness": None, "ts": round(time.time())}
+                   "fitness": None, "ts": round(time.time()),
+                   "wall_s": round(time.time() - t0, 1)}
             ctx["results"]["candidates"].append(rec)
             log("[%s] %s" % (tag, rec["status"]))
             checkpoint(ctx)
             return
         params["parts"] = stats
         rec = evaluate(o, ctx, tag, outs, params)
+        # The judge stamps its own span; the attempt's is decimate + judge.
+        rec["wall_s"] = round(time.time() - t0, 1)
         maps = [p[:-4] + ".map.json" for p in outs]
         record(o, ctx, rec, outs, outs + maps)
 
@@ -741,6 +745,7 @@ def regime_sculpt(o, ctx):
         if not cand["inflate"] and not cand["quant"]:
             continue
         tag = "a%04d" % it
+        a0 = time.time()
         cand_dir = os.path.join(o.out_dir, "cand", tag)
         os.makedirs(cand_dir, exist_ok=True)
         moves_path = os.path.join(cand_dir, "moves.txt")
@@ -759,12 +764,14 @@ def regime_sculpt(o, ctx):
                   .split("\n")}
         if rc != 0:
             rec = {"id": tag, "params": params, "status": "rejected:nudge-failed",
-                   "fitness": None, "ts": round(time.time())}
+                   "fitness": None, "ts": round(time.time()),
+                   "wall_s": round(time.time() - a0, 1)}
             ctx["results"]["candidates"].append(rec)
             log("[%s] %s" % (tag, rec["status"]))
             checkpoint(ctx)
             continue
         rec = evaluate(o, ctx, tag, outs, params)
+        rec["wall_s"] = round(time.time() - a0, 1)
         fit = record(o, ctx, rec, outs, outs + [moves_path])
         # Annealing acceptance on the SEARCH state (the global best is kept
         # separately by record()): temperature decays over the time budget.

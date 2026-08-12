@@ -584,6 +584,9 @@ PAGE = """<!doctype html>
            text-transform:uppercase; letter-spacing:.06em; }
   canvas.chart { background:#1d1f25; border:1px solid #2c2e36;
                  border-radius:8px; width:100%; max-width:820px; height:180px; }
+  .halfrow { display:flex; gap:.8rem; flex-wrap:wrap; max-width:820px; }
+  .halfrow canvas.chart { flex:1 1 300px; width:auto; min-width:0;
+                          height:150px; }
   .legend { display:flex; gap:1rem; flex-wrap:wrap; align-items:center;
             font-size:.75em; color:#8b8e99; margin:.15rem 0 .3rem;
             max-width:820px; }
@@ -810,6 +813,84 @@ function fmtTime(t) {
       d.toLocaleTimeString([], opts);
 }
 
+// Attempt durations: the run stamps wall_s (decimate/nudge + judge wall
+// time) on every record it writes; candidates from before that stamp fall
+// back to the gap since the previous record — approximate, shown with ~.
+function annotateDurations(doc) {
+  const cs = doc.candidates || [];
+  cs.forEach((c, i) => {
+    if (c.wall_s !== undefined) { c._dur = c.wall_s; c._durApprox = false; }
+    else if (i > 0 && c.ts && cs[i - 1].ts && c.ts >= cs[i - 1].ts) {
+      c._dur = c.ts - cs[i - 1].ts; c._durApprox = true;
+    }
+  });
+}
+function fmtDur(s) {
+  if (s >= 90)
+    return `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, '0')}s`;
+  return `${Math.round(s)}s`;
+}
+
+// Throughput: attempts = every candidate the run recorded (rejects
+// included), solves = the ones that passed every gate and got a fitness.
+// Rates are per second of wall clock across the run's records.
+function rateSummary(all) {
+  const ts = all.filter(c => c.ts).map(c => c.ts);
+  const span = ts.length > 1 ? Math.max(...ts) - Math.min(...ts) : 0;
+  const solved = all.filter(c => c.fitness !== null &&
+                                 c.fitness !== undefined).length;
+  const r = n => span > 0 ? (n / span).toPrecision(2) : '—';
+  return { att: r(all.length), sol: r(solved) };
+}
+function drawRate(canvas, all, pred, col, label) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.clientWidth * devicePixelRatio;
+  const H = canvas.height = canvas.clientHeight * devicePixelRatio;
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = `${11 * devicePixelRatio}px system-ui`;
+  const ts = all.filter(c => c.ts).map(c => c.ts);
+  if (ts.length < 2) {
+    ctx.fillStyle = '#8b8e99';
+    ctx.fillText(label + ' — not enough data yet', 10, H / 2);
+    return;
+  }
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  // Rolling window: an eighth of the run so far, at least five minutes —
+  // attempts take about a minute each, so anything shorter is all noise.
+  const WIN = Math.max(300, (t1 - t0) / 8);
+  const sel = all.filter(c => c.ts && pred(c)).map(c => c.ts)
+                 .sort((a, b) => a - b);
+  const N = 72, pts = [];
+  for (let i = 0; i <= N; i++) {
+    const t = t0 + (t1 - t0) * i / N;
+    // Near the start the window sticks out before the run began; divide by
+    // the overlap so early rates are not artificially deflated.
+    const win = Math.min(WIN, t - t0 + 60);
+    const n = sel.filter(v => v > t - win && v <= t).length;
+    pts.push([t, n / win]);
+  }
+  const ymax = Math.max(...pts.map(p => p[1]), 1e-6);
+  const px = t => 8 + (t - t0) / (t1 - t0 || 1) * (W - 16);
+  const py = v => 24 * devicePixelRatio + (ymax - v) / ymax *
+                  (H - 24 * devicePixelRatio - 22 * devicePixelRatio);
+  ctx.strokeStyle = '#33363f'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(8, py(0)); ctx.lineTo(W - 8, py(0)); ctx.stroke();
+  ctx.strokeStyle = col; ctx.lineWidth = devicePixelRatio;
+  ctx.beginPath();
+  pts.forEach(([t, v], i) =>
+    i ? ctx.lineTo(px(t), py(v)) : ctx.moveTo(px(t), py(v)));
+  ctx.stroke();
+  const last = pts[pts.length - 1];
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(px(last[0]), py(last[1]), 2.5 * devicePixelRatio, 0, 7);
+  ctx.fill();
+  ctx.fillStyle = '#8b8e99';
+  ctx.fillText(`${label} — now ${last[1].toPrecision(2)}/s · peak ` +
+               `${ymax.toPrecision(2)}/s`, 10, 14 * devicePixelRatio);
+  ctx.fillText('run time →', 10, H - 6);
+}
+
 function tiles(run, tag, n, prefix) {
   let h = '<div class="tiles">';
   for (let y = 0; y < n; y++)
@@ -828,6 +909,8 @@ function scoreline(c) {
 function paramline(c, run) {
   const p = c.params || {};
   const when = c.ts ? ` · ${fmtTime(c.ts)}` : '';
+  const took = c._dur !== undefined
+    ? ` · took ${c._durApprox ? '~' : ''}${fmtDur(c._dur)}` : '';
   let s = p.regime === 'sculpt' ? esc((p.moves || []).join('; '))
                                 : `fraction ${p.frac} · seed ${p.seed}`;
   let parts = p.parts, orig = false;
@@ -842,7 +925,7 @@ function paramline(c, run) {
     const verts = parts.reduce((a, x) => a + ((orig ? x.orig_vertices : x.vertices) || 0), 0);
     s += ` · ${faces.toLocaleString()} faces · ${verts.toLocaleString()} vertices`;
   }
-  return s + when;
+  return s + took + when;
 }
 // chart legends: swatch shape ('sw' dot, 'swline'/'swdash' line, 'swband'
 // area, 'swtick' reject marker), colour, label
@@ -1224,7 +1307,9 @@ function render() {
               : 'no results.json yet'}</p></section>`;
       continue;
     }
+    annotateDurations(doc);
     const all = doc.candidates || [], best = doc.best && doc.best.id;
+    const rates = rateSummary(all);
     const cands = all.filter(c => inRange(run, c));
     const pass = cands.filter(c => c.fitness !== null && c.fitness !== undefined);
     const top = pass.slice().sort((a, b) => b.fitness - a.fitness).slice(0, 3);
@@ -1239,6 +1324,8 @@ function render() {
       <div class="strip">
         <span>candidates <b>${cands.length}</b>${shown}</span>
         <span>passed gates <b>${pass.length}</b></span>
+        <span>attempts/sec <b>${rates.att}</b></span>
+        <span>solves/sec <b>${rates.sol}</b></span>
         <span>best <b>${best ? esc(best) : '—'}</b></span>
         <span>baseline margin <b>${doc.baseline.style_margin}</b>
               <span class="muted">(gain > 0 is progress)</span></span>
@@ -1255,6 +1342,11 @@ function render() {
                  placeholder="max" value="${f.max}"
                  onchange="setFilter('${esc(run)}','max',this.value)"></span>
       </div></div>
+      <h3>throughput</h3>
+      <div class="halfrow">
+        <canvas class="chart" id="rate-att-${esc(run)}"></canvas>
+        <canvas class="chart" id="rate-sol-${esc(run)}"></canvas>
+      </div>
       <h3>fitness map</h3>
       ${legend([['sw', '#7ec97e', 'current best'],
                 ['sw', '#e6b450', 'passed gates'],
@@ -1289,6 +1381,11 @@ function render() {
   for (const [run, doc] of visibleRuns())
     if (doc && doc.baseline) {
       const cands = (doc.candidates || []).filter(c => inRange(run, c));
+      drawRate(document.getElementById('rate-att-' + run), doc.candidates || [],
+               () => true, '#7e9cc9', 'attempts per second');
+      drawRate(document.getElementById('rate-sol-' + run), doc.candidates || [],
+               c => c.fitness !== null && c.fitness !== undefined, '#7ec97e',
+               'solves per second');
       drawChart(document.getElementById('chart-' + run), doc, cands);
       drawPreserver(document.getElementById('pres-' + run), cands);
       drawMatcher(document.getElementById('match-' + run), doc, cands);
