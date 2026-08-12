@@ -573,11 +573,14 @@ PAGE = """<!doctype html>
   .runitem .rname { flex:1; min-width:0; overflow:hidden;
                     text-overflow:ellipsis; white-space:nowrap; }
   .runitem .cnt { color:#8b8e99; font-size:.85em; }
-  .runitem .kill { visibility:hidden; background:none; border:none;
-                   color:#c96a6a; cursor:pointer; font:inherit;
+  .runitem .kill, .runitem .clone { visibility:hidden; background:none;
+                   border:none; cursor:pointer; font:inherit;
                    padding:0 .15em; line-height:1; }
-  .runitem:hover .kill { visibility:visible; }
+  .runitem .kill { color:#c96a6a; }
+  .runitem .clone { color:#7ea6d9; }
+  .runitem:hover .kill, .runitem:hover .clone { visibility:visible; }
   .runitem .kill:hover { color:#ff9d9d; }
+  .runitem .clone:hover { color:#b9d4f0; }
   .dot { display:inline-block; width:.55em; height:.55em;
          border-radius:50%; background:#8b8e99; flex:0 0 auto; }
   .dot.live { background:#7ec97e; box-shadow:0 0 5px #7ec97e; }
@@ -1056,6 +1059,8 @@ function renderSidebar() {
        title="${esc(tip)}" onclick="toggleRun('${esc(n)}')">
        <span class="dot ${st[0]}"></span><span class="rname">${esc(n)}</span>
        <span class="cnt">${cands}</span>
+       <button class="clone" title="new run prefilled from this run's options"
+         onclick="event.stopPropagation();openNewRun('${esc(n)}')">⧉</button>
        <button class="kill" title="kill this run's search process tree"
          onclick="event.stopPropagation();killRun('${esc(n)}')">✕</button></div>`;
   }).join('');
@@ -1093,7 +1098,7 @@ function optField(o) {
       title="${esc(o.help || '')}">
       <label for="${id}">--${o.flag}</label>${input}</div>`;
 }
-function openNewRun() {
+function openNewRun(fromRun) {
   document.getElementById('nr-form').innerHTML = GROUPS.map(([key, label]) =>
     `<fieldset><legend>${esc(label)}</legend><div class="optgrid">` +
     OPTS.filter(o => o.group === key).map(optField).join('') +
@@ -1102,6 +1107,7 @@ function openNewRun() {
   sel.innerHTML = '<option value="">— run —</option>' +
     Object.keys(DATA).map(n => `<option>${esc(n)}</option>`).join('');
   sel.onchange = () => prefillFrom(sel.value);
+  if (fromRun && DATA[fromRun]) { sel.value = fromRun; prefillFrom(fromRun); }
   document.getElementById('nr-status').textContent = '';
   document.getElementById('newrun').style.display = 'block';
 }
