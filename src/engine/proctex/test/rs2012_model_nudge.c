@@ -32,6 +32,12 @@
  *                                       surface normal (area-weighted over
  *                                       every face touching it) — the finest
  *                                       tier, one vertex at a time
+ *   quantize <group|-1> <step>          snap the group's (-1: every group's)
+ *                                       vertex coordinates to multiples of
+ *                                       <step> analysis units. Runs LAST,
+ *                                       after all other geometry moves — the
+ *                                       coarse-grid look of hand-built OSRS
+ *                                       meshes is a final projection
  *   strip-priorities                    drop every priority byte
  *   bulk-flex                           every face to band 10 (flexible): the
  *                                       depth-sorted bulk a pinned patch can
@@ -66,6 +72,7 @@ enum move_kind
     MV_TRANSLATE,
     MV_PATCH_NORMAL,
     MV_VERTS_NORMAL,
+    MV_QUANTIZE,
     MV_STRIP_PRIORITIES,
     MV_BULK_FLEX,
     MV_PRIORITY_FACES,
@@ -229,6 +236,11 @@ main(int argc, char** argv)
                 mv->kind = MV_TRANSLATE;
                 move_count++;
             }
+            else if( sscanf(line, "quantize %d %lf", &mv->group, &mv->amount) == 2 )
+            {
+                mv->kind = MV_QUANTIZE;
+                move_count++;
+            }
             else if( sscanf(line, "patch-normal %d %lf %65535s", &mv->part, &mv->amount,
                             list_buf) == 3 )
             {
@@ -333,6 +345,15 @@ main(int argc, char** argv)
             (mv->part < 0 || mv->part >= in_count) )
         {
             fprintf(stderr, "rs2012_model_nudge: no part %d\n", mv->part);
+            goto done;
+        }
+        if( mv->kind == MV_QUANTIZE &&
+            (mv->amount <= 0.0 ||
+             (mv->group != -1 && (mv->group < 0 || mv->group >= MAX_GROUPS ||
+                                  group_verts[mv->group] == 0))) )
+        {
+            fprintf(stderr, "rs2012_model_nudge: bad quantize (group %d step %g)\n",
+                    mv->group, mv->amount);
             goto done;
         }
     }
@@ -498,6 +519,40 @@ main(int argc, char** argv)
                         m->vertices_z[vtx] += ddz << shift;
                         moved++;
                     }
+                }
+            }
+        }
+
+        /* quantize: final geometry pass, a projection onto a coarse grid in
+         * analysis units — for v13+ parts this deliberately discards the 4x
+         * sub-unit precision, which is the point */
+        for( int k = 0; k < move_count; k++ )
+        {
+            struct move const* mv = &moves[k];
+
+            if( mv->kind != MV_QUANTIZE )
+                continue;
+            for( int v = 0; v < m->vertex_count; v++ )
+            {
+                int const ax = m->vertices_x[v] >> shift;
+                int const ay = m->vertices_y[v] >> shift;
+                int const az = m->vertices_z[v] >> shift;
+                int qx, qy, qz;
+
+                if( mv->group != -1 && m->vertex_bone_map[v] != mv->group )
+                    continue;
+                qx = (int)lround(lround((double)ax / mv->amount) * mv->amount);
+                qy = (int)lround(lround((double)ay / mv->amount) * mv->amount);
+                qz = (int)lround(lround((double)az / mv->amount) * mv->amount);
+                if( qx != ax || qy != ay || qz != az ||
+                    m->vertices_x[v] != (qx << shift) ||
+                    m->vertices_y[v] != (qy << shift) ||
+                    m->vertices_z[v] != (qz << shift) )
+                {
+                    m->vertices_x[v] = qx << shift;
+                    m->vertices_y[v] = qy << shift;
+                    m->vertices_z[v] = qz << shift;
+                    moved++;
                 }
             }
         }

@@ -66,7 +66,7 @@ def import_model(path: str) -> None:
     elif ext == ".stl":
         bpy.ops.import_mesh.stl(filepath=path)
     else:
-        raise SystemExit(f"unsupported format: {ext}")
+        raise RuntimeError(f"unsupported format: {ext}")
 
 
 def stable_color(name: str):
@@ -79,12 +79,30 @@ def stable_color(name: str):
     return colorsys.hsv_to_rgb(hue, sat, val)
 
 
+# bpy.ops.object.join() costs roughly quadratic time in the number of objects.
+# A handful of Khronos assets are deliberate node-count stress tests
+# (NodePerformanceTest, RecursiveSkeletons) with thousands of objects, and
+# joining one of those stalls the entire manifest chunk it happens to land in.
+# They are shader/loader conformance fixtures, not examples of the modern art
+# style this class is supposed to teach, so skipping them costs the corpus
+# nothing. Ordinary multi-part assets are far below this bound.
+MAX_MESH_OBJECTS = 400
+
+
 def prepare(objname: str):
     """Join meshes, smooth-shade, ensure a material color exists.
     Returns (object, has_texture)."""
     meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
+    # RuntimeError, not SystemExit: these are per-model conditions and the
+    # batch loop in main() must be able to catch them and move on. SystemExit
+    # derives from BaseException, so raising it here would tear down Blender
+    # and take the other 39 models in the chunk with it.
     if not meshes:
-        raise SystemExit("no mesh in input")
+        raise RuntimeError("no mesh in input")
+    if len(meshes) > MAX_MESH_OBJECTS:
+        raise RuntimeError(
+            f"{len(meshes)} mesh objects exceeds the {MAX_MESH_OBJECTS} join "
+            f"limit — node-count stress asset, skipped")
     bpy.ops.object.select_all(action="DESELECT")
     for m in meshes:
         m.select_set(True)

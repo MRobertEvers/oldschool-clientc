@@ -71,6 +71,16 @@
  *                   against the fixed --focus/--radius and writes one tile BMP,
  *                   answering `ok PATH cull=N`. `quit` exits. This is the live
  *                   viewer the audit driver's web UI orbits.
+ *   --wire-out PREFIX  write PREFIX.model (and, with --cache/--frames,
+ *                   PREFIX.anim) in the entity viewer's ev_wire format instead
+ *                   of rendering. The model goes out LIT, in bind pose, in its
+ *                   own coordinates (no recentre) — exactly the state
+ *                   ev_render's browser orbit expects, which poses and frames
+ *                   the model itself.
+ *   --delays A,B,.. per-frame delays in client ticks for the animation,
+ *                   parallel to --frames (default: 1 each). Only the wire
+ *                   output carries them anywhere; the sheet renderer ignores
+ *                   timing.
  */
 
 #include "datatypes/dat2_frame.h"
@@ -85,6 +95,7 @@
 #include "engine/torirs_types.h"
 
 #include <bmp.h>
+#include <ev_wire.h>
 #include <toridraw.h>
 
 #include <math.h>
@@ -136,6 +147,7 @@ static struct ToriDraw_Animation*
 load_animation_from_cache(
     const char* cache_dir,
     const int* frame_ids,
+    const int* frame_delays,
     int frame_count)
 {
     struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
@@ -222,7 +234,7 @@ load_animation_from_cache(
                 stderr, "rs2012_face_priorities: cannot load frame %d\n", frame_ids[i]);
             goto done;
         }
-        delays[i] = 1;
+        delays[i] = frame_delays ? frame_delays[i] : 1;
     }
 
     out = ToriDraw_AnimationFromRSCache(
@@ -237,6 +249,27 @@ done:
     RSCache_Dat2FramemapFree(framemap);
     RSCache_Dat2DiskFree(disk);
     return out;
+}
+
+static int
+write_wire_file(const char* path, const struct EV_WireBuf* buf)
+{
+    FILE* f = fopen(path, "wb");
+    size_t wrote;
+
+    if( !f )
+    {
+        fprintf(stderr, "rs2012_model_view: cannot write %s\n", path);
+        return 0;
+    }
+    wrote = fwrite(buf->data, 1, buf->len, f);
+    fclose(f);
+    if( wrote != buf->len )
+    {
+        fprintf(stderr, "rs2012_model_view: short write %s\n", path);
+        return 0;
+    }
+    return 1;
 }
 
 static uint8_t*
@@ -1174,8 +1207,11 @@ main(int argc, char** argv)
     const char* diff_path = NULL;
     const char* cache_dir = NULL;
     const char* frames_arg = NULL;
+    const char* delays_arg = NULL;
+    const char* wire_out = NULL;
     struct ToriDraw_Animation* anim = NULL;
     int* frame_ids = NULL;
+    int* frame_delays = NULL;
     int frame_id_count = 0;
     /* The QBD is near-black geometry. On a black clear it reads as an empty
      * sheet, which is the same as producing nothing. */
@@ -1311,6 +1347,10 @@ main(int argc, char** argv)
             cache_dir = argv[++i];
         else if( strcmp(argv[i], "--frames") == 0 && i + 1 < argc )
             frames_arg = argv[++i];
+        else if( strcmp(argv[i], "--delays") == 0 && i + 1 < argc )
+            delays_arg = argv[++i];
+        else if( strcmp(argv[i], "--wire-out") == 0 && i + 1 < argc )
+            wire_out = argv[++i];
         else if( strcmp(argv[i], "--bg") == 0 && i + 1 < argc )
             background = (int)strtol(argv[++i], NULL, 16);
         else if( strcmp(argv[i], "--radius") == 0 && i + 1 < argc )
@@ -1405,7 +1445,24 @@ main(int argc, char** argv)
                     s2++;
             }
         }
-        anim = load_animation_from_cache(cache_dir, frame_ids, frame_id_count);
+        if( delays_arg )
+        {
+            const char* s2 = delays_arg;
+            int n = 0;
+            frame_delays = (int*)malloc((size_t)frame_id_count * sizeof(int));
+            if( !frame_delays )
+                goto done;
+            while( *s2 && n < frame_id_count )
+            {
+                frame_delays[n++] = (int)strtol(s2, (char**)&s2, 10);
+                if( *s2 == ',' )
+                    s2++;
+            }
+            /* A short list pads with 1s rather than reading past its end. */
+            while( n < frame_id_count )
+                frame_delays[n++] = 1;
+        }
+        anim = load_animation_from_cache(cache_dir, frame_ids, frame_delays, frame_id_count);
         if( !anim )
             goto done;
         ToriDraw_ModelCaptureOriginalVertices(model);
@@ -1418,6 +1475,67 @@ main(int argc, char** argv)
                     model->vertices_y[v] != model->original_vertices_y[v] ||
                     model->vertices_z[v] != model->original_vertices_z[v] )
                     moved_vertices++;
+    }
+
+    /* The wire path leaves before the recentre below on purpose: ev_render's
+     * orbit camera lifts the model by half its own height off a floor at y=0,
+     * which is the client's convention and the model's own — a recentred model
+     * would orbit around its middle twice over and sit half a body too low.
+     * The browser poses frames itself off the captured bind, so the model goes
+     * out reset to bind, and lit here because the sheet path only lights after
+     * the recentre this path skips. */
+    if( wire_out )
+    {
+        char wire_path[1100];
+        struct EV_WireBuf buf = { 0 };
+
+        if( model->original_vertices_x )
+            ToriDraw_ModelAnimateReset(model);
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        ToriDraw_ModelCalculateVertexNormals(model);
+        ToriDraw_LightModelActor(hnd, 0, 0);
+        ToriDraw_ModelSetBoundsCylinder(model);
+        if( !model->original_vertices_x )
+            ToriDraw_ModelCaptureOriginalVertices(model);
+
+        if( !ev_wire_write_model(&buf, model) )
+        {
+            fprintf(stderr, "rs2012_model_view: wire model serialise failed\n");
+            ev_wire_free(&buf);
+            goto done;
+        }
+        snprintf(wire_path, sizeof(wire_path), "%s.model", wire_out);
+        if( !write_wire_file(wire_path, &buf) )
+        {
+            ev_wire_free(&buf);
+            goto done;
+        }
+        ev_wire_free(&buf);
+
+        if( anim )
+        {
+            if( !ev_wire_write_anim(&buf, anim) )
+            {
+                fprintf(stderr, "rs2012_model_view: wire anim serialise failed\n");
+                ev_wire_free(&buf);
+                goto done;
+            }
+            snprintf(wire_path, sizeof(wire_path), "%s.anim", wire_out);
+            if( !write_wire_file(wire_path, &buf) )
+            {
+                ev_wire_free(&buf);
+                goto done;
+            }
+            ev_wire_free(&buf);
+        }
+        printf(
+            "wire: %s.model%s frames=%d\n",
+            wire_out,
+            anim ? " +.anim" : "",
+            anim ? anim->frame_count : 0);
+        rc = 0;
+        goto done;
     }
 
     /* The REPL re-poses per request off the captured bind, so the capture has
@@ -1564,7 +1682,7 @@ main(int argc, char** argv)
     scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K |
             ((zbuffered || compare || repl) ? TORIDRAW_SCENE_MODEL_ZBUFFER : 0u),
-        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     if( !scene )
         goto done;
 
@@ -2112,6 +2230,7 @@ done:
     free(z_zbuf);
     free(score_pixels);
     free(frame_ids);
+    free(frame_delays);
     ToriDraw_AnimationFree(anim);
     free(reference_pixels);
     free(reference_tile);

@@ -1,9 +1,20 @@
 #!/bin/sh
 # Train the OSRS style classifier inside WSL.
+#
+# Only needed when the training environment lives in WSL. With a native
+# PyTorch install (Windows, macOS, Linux) just run train_classifier.py
+# directly against ./data — there is nothing to stage:
+#
+#     python train_classifier.py --data-root data --epochs 3 \
+#         --batch-size 64 --out models/osrs_classifier.pt
+#
 # The dataset is copied to WSL-native disk first: DataLoader workers reading
-# thousands of small PNGs through /mnt/c (9p) would bottleneck every epoch.
+# tens of thousands of small PNGs through /mnt/c (9p) would bottleneck every
+# epoch.
 set -e
-SRC=/mnt/c/Users/mrobe/Documents/git_repos/3d-raster/tools/osrs_stylizer
+# Derived from this script's own location, not hardcoded — the tool has to
+# keep working when the repo is cloned somewhere else.
+SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 rm -rf /root/osrs_data
 mkdir -p /root/osrs_data
 cp -r "$SRC/data/osrs" /root/osrs_data/osrs

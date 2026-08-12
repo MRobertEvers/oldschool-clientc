@@ -31,6 +31,11 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
+# The exact background both corpus classes are rendered on (0x808080), as
+# display-referred floats. The style judge only ever saw this gray during
+# training, so every render it scores has to land on it too — see setup_render.
+CORPUS_BACKGROUND = (0x80 / 255, 0x80 / 255, 0x80 / 255)
+
 # ---------------------------------------------------------------------------
 # CLI — Blender passes everything after "--" through untouched in sys.argv.
 # ---------------------------------------------------------------------------
@@ -38,7 +43,8 @@ from mathutils import Vector
 def parse_args() -> argparse.Namespace:
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser(prog="modifier.py")
-    ap.add_argument("--input", required=True, help=".obj or .fbx to stylize")
+    ap.add_argument("--input", required=True,
+                    help=".obj, .fbx, .glb or .gltf to stylize")
     ap.add_argument("--outdir", required=True, help="folder for renders + .glb")
     ap.add_argument("--decimate", type=float, default=0.1,
                     help="Decimate modifier ratio, (0,1]; 1.0 = no reduction")
@@ -48,8 +54,11 @@ def parse_args() -> argparse.Namespace:
                     help="palette size for baked vertex colors; 0 = keep textures")
     ap.add_argument("--resolution", type=int, default=512, help="square render size")
     ap.add_argument("--prefix", default="view", help="render filename prefix")
-    ap.add_argument("--bg", type=float, nargs=3, default=(0.5, 0.5, 0.5),
-                    help="solid background color, 3 floats 0..1")
+    ap.add_argument("--bg", type=float, nargs=3, default=CORPUS_BACKGROUND,
+                    help="solid background color as 3 DISPLAY-referred floats "
+                         "0..1 (i.e. what you'd read off a color picker). The "
+                         "default is the corpus gray and should be left alone "
+                         "unless you retrain on a different background.")
     return ap.parse_args(argv)
 
 
@@ -63,7 +72,10 @@ def reset_scene() -> None:
 
 
 def import_model(path: str) -> None:
-    """Import .obj or .fbx, handling the Blender 4.x OBJ operator rename."""
+    """Import .obj, .fbx, or .glb/.gltf, handling the Blender 4.x OBJ operator
+    rename. glTF matters here beyond convenience: it is the only one of these
+    the corpus fetcher downloads with real textures, and the color-quantization
+    stage has nothing to quantize without them."""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".fbx":
         bpy.ops.import_scene.fbx(filepath=path)
@@ -72,8 +84,11 @@ def import_model(path: str) -> None:
             bpy.ops.wm.obj_import(filepath=path)
         else:                                         # legacy Python importer
             bpy.ops.import_scene.obj(filepath=path)
+    elif ext in (".glb", ".gltf"):
+        bpy.ops.import_scene.gltf(filepath=path)
     else:
-        raise SystemExit(f"Unsupported input format: {ext} (use .obj or .fbx)")
+        raise SystemExit(
+            f"Unsupported input format: {ext} (use .obj, .fbx, .glb, or .gltf)")
 
 
 def unify_to_single_mesh() -> bpy.types.Object:
@@ -87,6 +102,11 @@ def unify_to_single_mesh() -> bpy.types.Object:
     for obj in meshes:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = meshes[0]
+    # glTF scenes routinely carry the real transform on parent nodes (the
+    # Khronos Duck's 0.01 node scale, any rigged asset's armature). Bake the
+    # world transform into each mesh before the parents are deleted below, or
+    # the object silently jumps or rescales.
+    bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
     if len(meshes) > 1:
         bpy.ops.object.join()
     obj = bpy.context.view_layer.objects.active
@@ -301,13 +321,23 @@ def force_flat_shading(obj: bpy.types.Object) -> None:
 # Rendering (Workbench engine: deterministic, CPU-headless-safe, faceted look)
 # ---------------------------------------------------------------------------
 
-def setup_render(resolution: int, bg, use_vertex_color: bool) -> None:
+def setup_render(resolution: int, use_vertex_color: bool) -> None:
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x = resolution
     scene.render.resolution_y = resolution
-    scene.render.film_transparent = False
     scene.render.image_settings.file_format = "PNG"
+    # Transparent film + an explicit composite (see composite_background), which
+    # is the same contract render_highpoly_corpus.py uses. Workbench's viewport
+    # background settings are simply ignored by headless final renders —
+    # setting shading.background_color to seven different values produces seven
+    # identical frames — so painting the gray in Blender is not an option.
+    scene.render.film_transparent = True
+    scene.render.image_settings.color_mode = "RGBA"
+    # 'Standard', matching gen_osrs_corpus/render_highpoly_corpus. Blender 4's
+    # default AgX view transform tone-maps the whole frame, which would shift
+    # the object colors away from the corpus the judge was trained on.
+    scene.view_settings.view_transform = "Standard"
 
     shading = scene.display.shading
     shading.light = "STUDIO"       # built-in studio lights — no lamps needed
@@ -316,8 +346,44 @@ def setup_render(resolution: int, bg, use_vertex_color: bool) -> None:
     shading.show_cavity = False
     # Stylized trials render the baked palette; baseline renders the textures.
     shading.color_type = "VERTEX" if use_vertex_color else "TEXTURE"
-    shading.background_type = "VIEWPORT"
-    shading.background_color = tuple(bg)
+
+
+def composite_background(path: str, bg) -> None:
+    """Flatten one transparent-film render onto `bg`, in place.
+
+    Blender's image `pixels` for an 8-bit PNG are display-referred (a 0x80 gray
+    reads back as 0.50196, not its 0.21586 linear equivalent) and save_render
+    writes them straight back out, so the whole operation stays in display
+    space and 0x80 in means exactly 0x80 out.
+
+    Compositing in display space is also what we *want* rather than merely what
+    is convenient: gen_highpoly_corpus.py flattens the entire Class 2 corpus
+    with PIL's paste(mask=alpha), which does exactly this. Doing the more
+    physically-correct linear blend here would put every scored render slightly
+    off the distribution the judge was trained on, which is the whole bug this
+    function exists to close.
+    """
+    img = bpy.data.images.load(path)
+    try:
+        px = np.asarray(img.pixels[:], dtype=np.float32).reshape(-1, 4)
+        alpha = px[:, 3:4]
+        px[:, :3] = px[:, :3] * alpha + np.asarray(bg, dtype=np.float32) * (1.0 - alpha)
+        px[:, 3] = 1.0
+        img.pixels = px.ravel().tolist()
+        img.file_format = "PNG"
+        # Write 3-channel RGB, matching the corpus tiles exactly. The alpha is
+        # uniformly 1.0 by now so nothing is lost, but leaving a channel behind
+        # invites a future consumer to composite against it a second time.
+        settings = bpy.context.scene.render.image_settings
+        settings.color_mode = "RGB"
+        try:
+            img.save_render(filepath=path, scene=bpy.context.scene)
+        finally:
+            settings.color_mode = "RGBA"   # the next view still renders a film
+    finally:
+        # Renders run in a loop; leaking a datablock per view would grow the
+        # blend file for no reason.
+        bpy.data.images.remove(img)
 
 
 def _bounding_sphere(obj: bpy.types.Object):
@@ -328,7 +394,7 @@ def _bounding_sphere(obj: bpy.types.Object):
     return center, max(radius, 1e-6)
 
 
-def render_views(obj: bpy.types.Object, outdir: str, prefix: str) -> None:
+def render_views(obj: bpy.types.Object, outdir: str, prefix: str, bg) -> None:
     """Render the three canonical views. Camera distance is derived from the
     bounding sphere and the camera FOV so any model, any scale, fills the
     frame consistently — critical, because both scorers compare renders and
@@ -356,8 +422,10 @@ def render_views(obj: bpy.types.Object, outdir: str, prefix: str) -> None:
         cam.location = center + direction * distance
         # Aim the camera's -Z axis back at the model center, Y up.
         cam.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
-        bpy.context.scene.render.filepath = os.path.join(outdir, f"{prefix}_{name}.png")
+        path = os.path.join(outdir, f"{prefix}_{name}.png")
+        bpy.context.scene.render.filepath = path
         bpy.ops.render.render(write_still=True)
+        composite_background(path, bg)
 
 
 def export_glb(obj: bpy.types.Object, path: str) -> None:
@@ -392,8 +460,8 @@ def main() -> None:
 
     export_glb(obj, os.path.join(args.outdir, f"{args.prefix}.glb"))
 
-    setup_render(args.resolution, args.bg, use_vertex_color=args.colors > 0)
-    render_views(obj, args.outdir, args.prefix)
+    setup_render(args.resolution, use_vertex_color=args.colors > 0)
+    render_views(obj, args.outdir, args.prefix, args.bg)
     print(f"[modifier] done -> {args.outdir}")
 
 

@@ -183,7 +183,7 @@ ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
 
 EMCC ?= emcc
 SIMD ?= 1
-EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_malloc,_free
+EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_malloc,_free
 
 EM_OPT := -O3 -flto -mnontrapping-fptoint
 ifeq ($(SIMD),1)

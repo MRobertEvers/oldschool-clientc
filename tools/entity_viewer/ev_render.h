@@ -49,6 +49,20 @@ ev_frame_delay(int index);
 uint8_t*
 ev_render(int width, int height, int yaw, int pitch, int zoom, int frame);
 
+/** Pan the view: shift where the orbit centre lands on the canvas, in canvas
+ *  pixels (+x right, +y down). Persists until changed; 0,0 recentres. Kept
+ *  out of ev_render's signature so existing embedders stay source- and
+ *  wasm-ABI-compatible. */
+void
+ev_set_pan(int x, int y);
+
+/** Choose the render discipline: 0 (default) is the painter's sort honouring
+ *  face priorities; 1 depth-tests instead, which also drops priorities — the
+ *  same trade TORIDRAW_MODEL_FLAG_ZBUFFER makes in-game. Applies to the
+ *  current model and any adopted later. */
+void
+ev_set_zbuffer(int on);
+
 /** Pose the model for `frame`; -1 is the bind pose. Branches between classic
  *  and skeletal animation, and is the only place that does. */
 void

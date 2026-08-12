@@ -36,6 +36,21 @@ static uint8_t* g_rgba = NULL;
 static int g_pix_w = 0;
 static int g_pix_h = 0;
 static int g_last_cull = -1;
+/* View pan in canvas pixels: where the orbit centre lands relative to the
+ * canvas centre. Applied as a world-space offset to the model position, not to
+ * view_port.x_center/y_center: the raster stage centres at width/2 regardless
+ * of those fields (see toridraw_model_sprite.c's padded-buffer workaround), so
+ * shifting the viewport centre moves nothing. The model centre sits at camera
+ * depth `zoom` exactly, which makes the pixel→world conversion exact there. */
+static int g_pan_x = 0;
+static int g_pan_y = 0;
+/* Render discipline, mirroring the client's per-npc choice (app_npc_wants_
+ * zbuffer): 0 draws the painter's sort with face priorities — the authored
+ * path — and 1 depth-tests instead, which also drops priorities at sort time
+ * exactly as TORIDRAW_MODEL_FLAG_ZBUFFER does in-game. The page picks per
+ * run: a search that rendered with --zbuffer is judged z-tested, so the
+ * viewer must show the same picture. */
+static int g_zbuffer = 0;
 
 /** Background behind the model. Matches the page's panel colour so the canvas
  *  does not read as a hole when the model is small. */
@@ -47,8 +62,11 @@ ev_init(void)
     if( g_scene )
         return;
     ToriDraw_Init();
+    /* MODEL_ZBUFFER only allocates the depth scratch lazily, on the first
+     * raster of a model that opts in — painter-mode sessions pay nothing. */
     g_scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_DEPTH_16K, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 }
 
 /* JS hands bytes over by writing into a block it asked for here. */
@@ -77,7 +95,23 @@ ev_set_model(const uint8_t* data, int len)
 
     ToriDraw_ModelFree(g_model);
     g_model = next;
+    if( g_zbuffer )
+        g_model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    else
+        g_model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
     return g_model->face_count;
+}
+
+void
+ev_set_zbuffer(int on)
+{
+    g_zbuffer = on ? 1 : 0;
+    if( !g_model )
+        return;
+    if( g_zbuffer )
+        g_model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    else
+        g_model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
 }
 
 /** Adopt an animation. Returns its frame count, 0 when the blob did not parse. */
@@ -326,6 +360,26 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     position.z = cos_pitch;
     position.yaw = yaw & 2047;
 
+    /*
+     * Pan, as a camera-space translation of the model.
+     *
+     * The projection is screen = centre + cam_coord * proj_scale / cam_z, and
+     * the framing above puts the model centre at cam_z == zoom exactly
+     * (cam_z = y*sin + z*cos = zoom*sin² + zoom*cos²), so a shift of
+     * pan_px * zoom / proj_scale camera units moves the image by pan_px pixels.
+     * Camera x is world x (camera yaw is 0); camera y maps back to world through
+     * the inverse pitch rotation, with the z term keeping cam_z unchanged so the
+     * pan never alters depth, culling, or apparent size.
+     */
+    if( g_pan_x || g_pan_y )
+    {
+        int dx_cam = (g_pan_x * zoom) / TORIDRAW_PROJ_SCALE_DEFAULT;
+        int dy_cam = (g_pan_y * zoom) / TORIDRAW_PROJ_SCALE_DEFAULT;
+        position.x += dx_cam;
+        position.y += (int)(((int64_t)dy_cam * ToriDraw_Cos(camera.pitch)) >> 16);
+        position.z -= (int)(((int64_t)dy_cam * ToriDraw_Sin(camera.pitch)) >> 16);
+    }
+
     g_last_cull = ToriDraw_RenderModel1Project(hnd, g_scene, &position, &view_port, &camera);
     if( g_last_cull == TORIDRAW_CULL_VISIBLE )
     {
@@ -365,4 +419,13 @@ int
 ev_last_cull(void)
 {
     return g_last_cull;
+}
+
+void
+ev_set_pan(int x, int y)
+{
+    /* Clamp to the raster's own dimension cap: a pan that far has already put
+     * the model off every canvas this renderer can allocate. */
+    g_pan_x = x < -EV_MAX_DIM ? -EV_MAX_DIM : (x > EV_MAX_DIM ? EV_MAX_DIM : x);
+    g_pan_y = y < -EV_MAX_DIM ? -EV_MAX_DIM : (y > EV_MAX_DIM ? EV_MAX_DIM : y);
 }

@@ -45,6 +45,11 @@ def _embed(image_path: str, device: str) -> torch.Tensor:
     inputs = processor(images=image, return_tensors="pt").to(dev)
     with torch.no_grad():
         features = model.get_image_features(**inputs)
+        if not torch.is_tensor(features):
+            # transformers 5.x wraps the projected image embedding in a
+            # BaseModelOutputWithPooling instead of returning the tensor;
+            # its pooler_output is already the 512-dim CLIP embedding.
+            features = features.pooler_output
     return features / features.norm(dim=-1, keepdim=True)
 
 

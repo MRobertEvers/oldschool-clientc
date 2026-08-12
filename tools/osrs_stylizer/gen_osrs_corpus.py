@@ -22,6 +22,7 @@ import subprocess
 import sys
 import tempfile
 
+import numpy
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -81,8 +82,10 @@ def render_one(viewer: str, model_path: str, out_dir: str, tmp_dir: str) -> int:
             for a in range(ANGLES):
                 tile = sheet.crop((a * TILE, 0, (a + 1) * TILE, TILE))
                 # Coverage check: fraction of pixels that differ from the
-                # background clear color.
-                bg_count = sum(1 for px in tile.getdata() if px == BACKGROUND_RGB)
+                # background clear color. Vectorized — a per-pixel Python loop
+                # over 2400 tiles dominates the runtime of the whole script.
+                px = numpy.asarray(tile)
+                bg_count = int((px == BACKGROUND_RGB).all(axis=2).sum())
                 coverage = 1.0 - bg_count / (TILE * TILE)
                 if coverage >= MIN_COVERAGE:
                     tile.save(os.path.join(out_dir, f"{stem}_y{a}.png"))

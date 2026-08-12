@@ -894,6 +894,47 @@ rs2012-model-nudge: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
+.PHONY: rs2012-model-decimate
+
+# Rig-preserving vertex decimation for imported OB3s: half-edge collapses
+# restricted to same-bone-label pairs (so sequences still drive the result),
+# QEM + label-centroid-drift cost, seeded jitter for outer searches, and a
+# JSON old->new vertex/face mapping that ports per-vertex data onto the
+# reduced model. The REDUCE half of the osrsify pipeline
+# (tools/osrs_stylizer); rs2012-model-nudge is the SCULPT half.
+rs2012-model-decimate: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_decimate \
+		engine/proctex/test/rs2012_model_decimate.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-defight
+
+# Multi-view z-fighting repair for OB3 part sets: renders a yaw x pitch view
+# grid with a top-two depth raster, finds coplanar face pairs that tie in the
+# z-buffer (the priority layering the painter's path honors is dropped under
+# TORIDRAW_MODEL_FLAG_ZBUFFER), and pushes the authored-on-top layer outward
+# along its normal, duplicating shared vertices so rigging and animations are
+# untouched. The pre-DECIMATION pass of the osrsify pipeline.
+rs2012-model-defight: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_defight \
+		engine/proctex/test/rs2012_model_defight.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-faces
+
+# Per-face attribute dump (JSON lines): geometry, color, priority, alpha,
+# texture ids. The inspection end of the defight/priority tooling.
+rs2012-model-faces: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_faces \
+		engine/proctex/test/rs2012_model_faces.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
 .PHONY: rs2012-model-view rs2012-face-priorities
 
 # OB3 viewer: renders a model through the real project/sort/raster path and
@@ -904,10 +945,11 @@ RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o 
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/bmp.o
 rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
+	$(CC) $(CFLAGS) -I../tools/entity_viewer -o $(OBJ_DIR)/rs2012_model_view \
 		engine/proctex/test/rs2012_model_view.c \
 		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
 		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		../tools/entity_viewer/ev_wire.c \
 		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
 
 .PHONY: rs2012-wake-dump

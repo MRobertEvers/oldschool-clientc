@@ -1653,7 +1653,7 @@ stock_setup(
     {
         j->scenes[t] = ToriDraw_SceneNew(
             TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
-            TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+            TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
         j->pixels[t] = (toripixel_t*)calloc((size_t)tile * (size_t)tile, sizeof(toripixel_t));
         if( !j->scenes[t] || !j->pixels[t] ||
             !ToriDraw_SceneZBufferResize(j->scenes[t], tile, tile) )
@@ -2156,12 +2156,15 @@ main(int argc, char** argv)
     {
         long const floors[] = { 10, 40, 150, 400 };
         int const floor_count = (int)(sizeof(floors) / sizeof(floors[0]));
-        /* No bulk-flex candidates: this evaluator's painter sorts strictly
-         * by (band, depth), while the real sorter SPLICES priorities 10/11
-         * into the fixed run at three depth averages. Ranking a flex
-         * spelling with the wrong rule scored it at 40%% wrong for reasons
-         * that were the model's, not the content's. */
-        int const slots = floor_count + 2;
+        /* Flex candidates exist ONLY under the stock judge. The internal
+         * evaluator's painter sorts strictly by (band, depth), while the
+         * real sorter SPLICES priorities 10/11 into the fixed run at three
+         * depth averages; ranking a flex spelling with the wrong rule
+         * scored it at 40%% wrong for reasons that were the model's, not
+         * the content's. The stock judge renders through the real sorter,
+         * splice and all, so under it each climb also gets a bulk-flex
+         * spelling and inherited 10/11 survive unclamped. */
+        int const slots = 2 + floor_count * 2;
         int best = 0;
 
         proposals = (struct assignment*)calloc((size_t)slots, sizeof(struct assignment));
@@ -2196,7 +2199,17 @@ main(int argc, char** argv)
                 {
                     int const feat = g.face_feature[inputs[i].face_base + f];
                     int const prio = m->face_priorities[f];
-                    proposals[1].band[feat] = prio < HARD_BANDS ? prio : HARD_BANDS - 1;
+                    /* Authored 10/11 are the FLEXIBLE band — depth-spliced
+                     * into the fixed run, not pinned in front of it. Only the
+                     * stock judge implements that splice, so only it may see
+                     * them; the internal painter would score a flex face as
+                     * "hard band above 9", which is the opposite of what the
+                     * engine does with it. Clamping under the stock judge
+                     * (the old behaviour) meant the shipped spelling was
+                     * never actually ranked. */
+                    proposals[1].band[feat] =
+                        stock ? (prio <= HARD_BANDS + 1 ? prio : HARD_BANDS - 1)
+                              : (prio < HARD_BANDS ? prio : HARD_BANDS - 1);
                 }
             }
             if( any )
@@ -2241,6 +2254,35 @@ main(int argc, char** argv)
                 floors[fi]);
             candidate_count++;
 
+            /* The same climb with its unpromoted bulk moved to the flexible
+             * band. A feature left in a hard band with the bulk flexible is
+             * no longer pinned in front of everything: the sorter splices
+             * the flexible run around it at the averaged depths, so the
+             * feature sorts as a unit at its own depth — over the far half
+             * of the surface it sits on and under the near half. No
+             * arrangement of hard bands can express that. */
+            if( stock )
+            {
+                int* flex = proposals[candidate_count].band;
+                long weight[HARD_BANDS] = { 0 };
+                int bulk = 0;
+
+                memcpy(flex, work, (size_t)feature_count * sizeof(int));
+                for( int i = 0; i < feature_count; i++ )
+                    weight[flex[i]] += features[i].face_count;
+                for( int b = 1; b < HARD_BANDS; b++ )
+                    if( weight[b] > weight[bulk] )
+                        bulk = b;
+                for( int i = 0; i < feature_count; i++ )
+                    if( flex[i] == bulk )
+                        flex[i] = FLEX_BAND;
+                snprintf(
+                    proposals[candidate_count].name,
+                    sizeof(proposals[candidate_count].name),
+                    "climb, floor %ld, bulk flex",
+                    floors[fi]);
+                candidate_count++;
+            }
         }
 
         /* ---- score every proposal the same way ---- */
@@ -2504,9 +2546,14 @@ main(int argc, char** argv)
 
             if( xorshift32(&rng) % 100 < 55 )
             {
-                work_band[F] = (int)(xorshift32(&rng) % HARD_BANDS);
+                /* Under the stock judge the draw includes one extra value:
+                 * FLEX_BAND (== HARD_BANDS), the depth-spliced flexible band.
+                 * The internal judge has no splice, so without it the walk
+                 * stays in the hard bands. */
+                int const nbands = stock ? HARD_BANDS + 1 : HARD_BANDS;
+                work_band[F] = (int)(xorshift32(&rng) % (uint32_t)nbands);
                 if( work_band[F] == saved_band )
-                    work_band[F] = (saved_band + 1) % HARD_BANDS;
+                    work_band[F] = (saved_band + 1) % nbands;
             }
             else
             {
@@ -2687,8 +2734,10 @@ main(int argc, char** argv)
     /* ---- report ---- */
     if( do_report )
     {
-        int band_faces[HARD_BANDS] = { 0 };
-        int band_features[HARD_BANDS] = { 0 };
+        /* +2: the chosen assignment may legitimately carry the flexible
+         * bands 10/11 (inherited or proposed under the stock judge). */
+        int band_faces[HARD_BANDS + 2] = { 0 };
+        int band_features[HARD_BANDS + 2] = { 0 };
 
         printf(
             "geometry: %d vertices, %d faces across %d input model(s)\n",
@@ -2729,9 +2778,12 @@ main(int argc, char** argv)
             band_features[features[i].band]++;
         }
         printf("%6s %10s %10s\n", "band", "features", "faces");
-        for( int b = 0; b < HARD_BANDS; b++ )
+        for( int b = 0; b < HARD_BANDS + 2; b++ )
             if( band_features[b] )
-                printf("%6d %10d %10d\n", b, band_features[b], band_faces[b]);
+                printf("%6d%s %10d %10d\n", b, b >= FLEX_BAND ? "*" : " ",
+                       band_features[b], band_faces[b]);
+        if( band_features[FLEX_BAND] || band_features[FLEX_BAND + 1] )
+            printf("        (* flexible: depth-spliced into the fixed run)\n");
 
         printf("\nlargest features:\n%6s %7s %6s\n", "id", "faces", "band");
         {

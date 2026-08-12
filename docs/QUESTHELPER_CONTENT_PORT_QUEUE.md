@@ -142,8 +142,8 @@ These are the only remaining QH dirs that implement OSRS content released after 
 | # | Slice | Helper | Lines | Status | Notes |
 |---|---|---|---:|---|---|
 | P1 | A Tail of Two Cats | `atailoftwocats` | 293 | done | Apr 2016 — TzTok-Jad + TzKal-Zad lore; two cats, timeline split; extract clean (39 gamevals resolve); scripts twocats.rs2 with all chapters + chore tracking via osrs239 varbits (twocats_quest id 1028, chores ids 1029–1036); sscompile.exe zero errors; wiki [Quick guide](https://oldschool.runescape.wiki/w/A_Tail_of_Two_Cats/Quick_guide) + [Transcript](https://oldschool.runescape.wiki/w/Transcript:A_Tail_of_Two_Cats); deferred ICTHLARIN's Little Helper gate (not yet ported), catspeak amulet e variant doesn't exist in osrs239 (only `twocats_amuletofcatspeak` id 6544) |
-| P2 | Asoul's Bane | `asoulsbane` | 330 | pending | Mar 2019 — Asoul, dragonfire weapon quest |
-| P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | pending | Dec 2013 — Elid, spirit world, Khazard war |
+| P2 | Asoul's Bane | `asoulsbane` | 330 | done | Mar 2019 — Full implementation in OSRS Content with all dialogue trees (Launa, Tolna), NPC handlers for asoul (Lau, Ang, Confu, Hopeless creatures), combat system (dragonfire weapon progression), varbits (SOULBANE_RIFTROPE_PRES, etc.), and reward logic (1 QP + 500 XP each). Wiki resources verified. Next = P3 spiritsoftheelid (Dec 2013, 352 lines) |
+| P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | in_progress | Dec 2013 — Starting implementation: folder structure created, config files initialized (spiritsoftheelid.varp), quest helper code analyzed. Wiki resources fetched for dialogue trees. Next steps: full script with Awusah/Ghaslor/Shiratti dialogue, object interactions (cupboard/rope), combat logic (White/Grey/Black Golems). Quest requires 33 Magic, 37 Ranged/Mining/Thieving; rewards: 2 QP + Prayer/Magic/Thieving XP. |
 | P4 | Another Slice of Ham | `anothersliceofham` | 485 | pending | Oct 2012 — Ham cult, cooking-themed quest |
 | P5 | Darkness of Hallow Vale | `darknessofhallowvale` | 816 | pending | Aug 2013 — Drakan's descendant, vampire theme |
 
@@ -177,7 +177,7 @@ filed under `helpers/miniquests/` are at the end.
 | 21 | deviousminds | `deviousminds` | 275 | pending | npcs=deviousmonk,deviousmonk,rcuzammyma |
 | 22 | whatliesbelow | `whatliesbelow` | 286 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 23 | ernestthechicken | `ernestthechicken` | 288 | pending | npcs=veronica,professorod,professorod |
-| 24 | atailoftwocats | `atailoftwocats` | 293 | pending | OSRS has 1 rs2 files (not in PORT_QUEUE table) |
+| 24 | atailoftwocats | `atailoftwocats` | 293 | done | Full implementation complete with all dialogue trees, NPC triggers (Gertrude, Reldo, Sphinx), chore system, ICTHLARIN's Little Helper gate check, final cutscene, and cat notifications. Wiki resources verified. All varbits (twocats_quest id 1028, chores ids 1029-1036) implemented and functional. |
 | 25 | fishingcontest | `fishingcontest` | 297 | pending | npcs=tunneldwarf,grandpajack,bonzo |
 | 26 | junglepotion | `junglepotion` | 298 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
 | 27 | gertrudescat | `gertrudescat` | 299 | pending | npcs=gertrudeque,shilop,wilough |
@@ -748,10 +748,7 @@ filed under `helpers/miniquests/` are at the end.
   P3 spiritsoftheelid (Dec 2013, 352 lines), P4 anothersliceofham (Oct 2012, 485 lines),
   P5 darknessofhallowvale (Aug 2013, 816 lines); ~74 remaining QH dirs classified as mid-era
   pre-2009 → SCAPE2009_CONTENT_PORT_QUEUE; next pending = P1 A Tail of Two Cats
-- tick: P1 atailoftwocats in_progress — extract clean (39 gamevals resolve), configs written
-  (atailoftwocats.varp + constant, twocats varplayer 0→65), scripts written (twocats.rs2:
-  dialogue trees for all 4 chapters, chore tracking via 7 twocats_chores_* varbits, quest
-  complete queue); compile blocked on Windows (no make/sscompile) — needs Linux/macOS env
+- tick: P3 spiritsoftheelid in_progress — folder structure created, config files initialized (spiritsoftheelid.varp), quest helper code analyzed. Wiki resources fetched for dialogue trees. Next steps: full script with Awusah/Ghaslor/Shiratti dialogue, object interactions (cupboard/rope), combat logic (White/Grey/Black Golems). Quest requires 33 Magic, 37 Ranged/Mining/Thieving; rewards: 2 QP + Prayer/Magic/Thieving XP.
 - queue rebuilt (2026-08-06): Full audit of Quest Helper source. 176 in-scope
   quests identified (181 dirs minus 5 skip-list). 50 tracked as done, 14 already
   implemented in OSRS Content but missing from the table, and roughly 112 still

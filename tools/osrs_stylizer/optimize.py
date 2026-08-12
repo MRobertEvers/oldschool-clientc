@@ -21,13 +21,13 @@ Usage:
 import argparse
 import json
 import os
-import shutil
 import statistics
 import subprocess
 import sys
 
 import optuna
 
+from blender_locate import Blender
 from content_scorer import get_content_score
 from osrs_scorer import get_osrs_score
 
@@ -35,16 +35,17 @@ VIEWS = ("front", "side", "iso")   # must match modifier.py's render names
 BLENDER_TIMEOUT_S = 900            # kill runaway Blender processes
 
 
-def run_blender(blender: str, input_path: str, outdir: str, *,
+def run_blender(blender: Blender, input_path: str, outdir: str, *,
                 decimate: float, grid: float, colors: int,
                 resolution: int) -> None:
     """Invoke the headless Blender modifier. Raises on failure so the caller
     can prune the trial instead of scoring garbage renders."""
     modifier = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modifier.py")
     cmd = [
-        blender, "-b", "--factory-startup", "-P", modifier, "--",
-        "--input", input_path,
-        "--outdir", outdir,
+        *blender.launcher, "-b", "--factory-startup",
+        "-P", blender.path(modifier), "--",
+        "--input", blender.path(input_path),
+        "--outdir", blender.path(outdir),
         "--decimate", str(decimate),
         "--grid", str(grid),
         "--colors", str(colors),
@@ -63,7 +64,7 @@ def run_blender(blender: str, input_path: str, outdir: str, *,
             f"--- stderr tail ---\n{result.stderr[-2000:]}")
 
 
-def ensure_baseline(blender: str, input_path: str, baseline_dir: str,
+def ensure_baseline(blender: Blender, input_path: str, baseline_dir: str,
                     resolution: int) -> None:
     """Render the UNMODIFIED model once (decimate=1, grid=0, colors=0 keeps
     geometry and textures intact). These renders are the content anchor every
@@ -79,6 +80,20 @@ def ensure_baseline(blender: str, input_path: str, baseline_dir: str,
 
 def make_objective(args: argparse.Namespace, baseline_dir: str, trials_dir: str):
     """Build the Optuna objective closure over the fixed run configuration."""
+
+    if args.content_scorer == "preserver":
+        # Imported lazily so the CLIP path never pays for (or requires) the
+        # preserver checkpoint, and vice versa.
+        from preserver_scorer import get_identity_score
+
+        def content_fn(baseline: str, render: str) -> float:
+            # get_identity_score is already 0..100; renormalize to the 0..1
+            # range get_content_score reports so the shared *100 below and
+            # the pareto.json scale stay identical across both scorers.
+            return get_identity_score(baseline, render,
+                                      checkpoint_path=args.preserver) / 100.0
+    else:
+        content_fn = get_content_score
 
     def objective(trial: optuna.trial.Trial) -> tuple[float, float]:
         # ------------------------- search space --------------------------
@@ -111,7 +126,7 @@ def make_objective(args: argparse.Namespace, baseline_dir: str, trials_dir: str)
             render = os.path.join(trial_dir, f"view_{view}.png")
             baseline = os.path.join(baseline_dir, f"view_{view}.png")
             osrs_scores.append(get_osrs_score(render, checkpoint_path=args.classifier))
-            content_scores.append(get_content_score(baseline, render))
+            content_scores.append(content_fn(baseline, render))
 
         osrs_score = statistics.mean(osrs_scores)             # 0..100
         content_score = statistics.mean(content_scores) * 100  # cosine -> 0..100 scale
@@ -136,19 +151,24 @@ def main() -> None:
     ap.add_argument("--input", required=True, help="high-poly .obj/.fbx to stylize")
     ap.add_argument("--classifier", default="models/osrs_classifier.pt",
                     help="checkpoint from train_classifier.py")
+    ap.add_argument("--content-scorer", choices=("clip", "preserver"),
+                    default="clip",
+                    help="content judge: off-the-shelf CLIP similarity, or "
+                         "the trained Content Preserver (train_preserver.py)")
+    ap.add_argument("--preserver", default="models/content_preserver.pt",
+                    help="checkpoint for --content-scorer preserver")
     ap.add_argument("--n-trials", type=int, default=50)
     ap.add_argument("--resolution", type=int, default=512)
-    ap.add_argument("--blender", default=os.environ.get("BLENDER", "blender"),
-                    help="path to the Blender executable")
+    ap.add_argument("--blender", default=None,
+                    help="path to the Blender executable; 'wsl' forces the "
+                         "WSL route. Default: autodetect.")
     ap.add_argument("--outdir", default="runs")
     ap.add_argument("--study-name", default=None,
                     help="defaults to the input file's base name")
     args = ap.parse_args()
     args.input = os.path.abspath(args.input)
-
-    if shutil.which(args.blender) is None and not os.path.isfile(args.blender):
-        raise SystemExit(f"Blender executable not found: {args.blender!r} "
-                         f"(set --blender or the BLENDER env var)")
+    args.blender = Blender.locate(args.blender)
+    print(f"[optimize] blender: {args.blender.describe()}")
 
     study_name = args.study_name or os.path.splitext(os.path.basename(args.input))[0]
     run_dir = os.path.join(args.outdir, study_name)
