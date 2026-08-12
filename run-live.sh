@@ -316,7 +316,6 @@ build_scripts() {
     esac
 }
 
-<<<<<<< HEAD
 # The same argument, one layer down, for the marked lanes.
 #
 # `ported/` is excluded from the ordinary content walk on purpose, so a lane's
@@ -361,13 +360,12 @@ cache_overlay() {
 # The bases match the Makefile's `?=` defaults, and honour the same overrides:
 # a caller that moves SUMMONING_CACHE_BASE must not leave the freshness check
 # watching a cache the bake no longer reads.
-=======
+#
 # A composed cache is deleted and repacked from scratch, which takes minutes and
 # tears the cache out from under anything else reading it (a second client, an
 # osrsify search wave). TORIRS_NO_CACHE_BAKE=1 runs against the cache as it
 # already stands -- the right choice while iterating on C or on scripts, and the
 # wrong one the moment the content tree changed.
->>>>>>> cd48ca55bbe9367e296c9664083483713a13e818
 build_cache_overlay() {
     if [ "${TORIRS_NO_CACHE_BAKE:-0}" = "1" ]; then
         echo "run-live.sh: TORIRS_NO_CACHE_BAKE=1 -- using $CACHE_DIR as it stands" >&2
