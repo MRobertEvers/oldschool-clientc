@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import threading
@@ -253,6 +254,41 @@ def build_wire(run, tag=None, seq=None):
         if r.returncode != 0 or not os.path.isfile(out):
             return None, (r.stderr or r.stdout or "viewer failed").strip()
     return out, None
+
+
+def wire_priorities(path):
+    """Face-priority census of a wire .model file (ev_wire.h layout: every
+    scalar a little-endian int32; priorities packed two 4-bit values per
+    byte, even face in the low nibble). Returns {face_count, model_priority,
+    counts} where counts is None when the model carries no per-face array,
+    or None outright when the file does not parse."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        vals = struct.unpack_from("<%di" % (len(data) // 4), data)
+        if not vals or vals[0] != 0x314D5645:  # "EVM1"
+            return None
+        pos = 1
+        _flags, vcount, fcount, mprio = vals[pos:pos + 4]
+        pos += 4
+        pos += 3 * vcount + 3 * fcount
+        for _ in range(4):  # face colors, alphas, infos, textures
+            present = vals[pos]
+            pos += 1
+            if present:
+                pos += fcount
+        counts = None
+        if vals[pos]:
+            packed = vals[pos + 1:pos + 1 + (fcount + 1) // 2]
+            counts = {}
+            for i in range(fcount):
+                b = packed[i >> 1] & 0xFF
+                p = (b >> 4) if (i & 1) else (b & 0x0F)
+                counts[p] = counts.get(p, 0) + 1
+        return {"face_count": fcount, "model_priority": mprio,
+                "counts": counts}
+    except (OSError, IndexError, struct.error):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1391,6 +1427,20 @@ VIEWER_PAGE = """<!doctype html>
   canvas { background:#141821; border:1px solid #2c2e36; border-radius:8px;
            cursor:grab; touch-action:none; }
   canvas:active { cursor:grabbing; }
+  #stage { display:flex; gap:1rem; align-items:flex-start; flex-wrap:wrap; }
+  #prio { background:#1d1f25; border:1px solid #2c2e36; border-radius:8px;
+          padding:.6rem .9rem; min-width:200px; }
+  #prio h2 { font-size:.78rem; margin:0 0 .45rem; color:#8b8e99;
+             font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  #prio table { border-collapse:collapse; font-family:monospace;
+                font-size:.9em; font-variant-numeric:tabular-nums; }
+  #prio th { color:#8b8e99; font-weight:normal; }
+  #prio td, #prio th { padding:.12rem .55rem; text-align:right; }
+  #prio td:first-child, #prio th:first-child { text-align:left;
+                                               padding-left:0; }
+  #prio tr.total td { border-top:1px solid #2c2e36; color:#8b8e99; }
+  #prio .note { color:#8b8e99; font-size:.78em; max-width:220px;
+                margin-top:.5rem; line-height:1.4; }
 </style>
 <h1><span class="tag">__TAG__</span> <span class="muted">__RUN__ — live toridraw
   (wasm) render · __MODE__</span>
@@ -1404,7 +1454,13 @@ VIEWER_PAGE = """<!doctype html>
   <button id="reset">Reset view</button>
   <span id="label" class="muted">loading model…</span>
 </div>
-<canvas id="view" width="720" height="720"></canvas>
+<div id="stage">
+  <canvas id="view" width="720" height="720"></canvas>
+  <div id="prio">
+    <h2>faces per priority</h2>
+    <div id="priobody" class="muted">loading&hellip;</div>
+  </div>
+</div>
 <div class="muted" style="margin-top:.5rem">drag to look &nbsp;·&nbsp; wheel or
   W/S to fly forward/back &nbsp;·&nbsp; A/D strafe &nbsp;·&nbsp; R/F up/down
   &nbsp;·&nbsp; arrows turn the camera &nbsp;·&nbsp;
@@ -1457,6 +1513,42 @@ function aimAtModel() {
 }
 
 function setLabel(t) { document.getElementById('label').textContent = t; }
+
+// Fill the faces-per-priority table from the census route. Runs after the
+// model wire is built, so the server just re-parses the cached file.
+async function loadPriorities() {
+  const el = document.getElementById('priobody');
+  const zbNote = ZBUFFER
+    ? ' This run renders z-buffered, so priorities are not used here.' : '';
+  try {
+    const res = await fetch(`/wire/${RUN}/${encodeURIComponent(TAG)}.prio`);
+    if (!res.ok) { el.textContent = 'census unavailable'; return; }
+    const d = await res.json();
+    const note = `<div class="note">0&ndash;10 draw as strict layers,` +
+      ` depth-sorted within each; 11&ndash;12 interleave with neighbours by` +
+      ` average depth.${zbNote}</div>`;
+    if (!d.counts) {
+      el.innerHTML = `no per-face priorities &mdash; model priority` +
+        ` <b>${d.model_priority}</b> applies to all ${d.face_count}` +
+        ` faces${note}`;
+      return;
+    }
+    const prios = Object.keys(d.counts).map(Number).sort((a, b) => a - b);
+    let rows = '';
+    for (const p of prios) {
+      const n = d.counts[p];
+      const pct = (100 * n / d.face_count).toFixed(1);
+      rows += `<tr><td>${p}</td><td>${n}</td>` +
+              `<td class="muted">${pct}%</td></tr>`;
+    }
+    el.innerHTML = `<table>` +
+      `<tr><th>prio</th><th>faces</th><th>share</th></tr>${rows}` +
+      `<tr class="total"><td>all</td><td>${d.face_count}</td>` +
+      `<td>100%</td></tr></table>${note}`;
+  } catch (e) {
+    el.textContent = 'census unavailable';
+  }
+}
 
 async function feed(url, fn) {
   const res = await fetch(url);
@@ -1646,6 +1738,7 @@ function wireInput() {
   const faces = await feed(`/wire/${RUN}/${encodeURIComponent(TAG)}.model`,
                            (p, n) => st.wasm.setModel(p, n));
   if (!faces) return;
+  loadPriorities();
   const h = st.wasm.modelHeight();
   st.zoom0 = Math.max(260, Math.min(12000, Math.round(h * 1.6) || 900));
   st.speed = Math.max(500, st.zoom0);
@@ -1755,19 +1848,26 @@ class Handler(BaseHTTPRequestHandler):
                     .replace("__MODE__",
                              "z-buffered" if zb else "painter + priorities"))
             return self.send(200, "text/html; charset=utf-8", page.encode())
-        m = re.match(r"^/wire/([^/]+)/(.+)\.(model|anim)$", path)
+        m = re.match(r"^/wire/([^/]+)/(.+)\.(model|anim|prio)$", path)
         if m and m.group(1) in RUNS and safe_tag(m.group(2)):
             run, name, kind = m.group(1), m.group(2), m.group(3)
             try:
-                if kind == "model":
-                    out, err = build_wire(run, tag=name)
-                else:
+                if kind == "anim":
                     out, err = build_wire(run, seq=name)
+                else:
+                    out, err = build_wire(run, tag=name)
             except (OSError, ValueError) as e:
                 out, err = None, str(e)
             if not out:
                 return self.send(500, "text/plain; charset=utf-8",
                                  ("wire build failed: %s" % err).encode())
+            if kind == "prio":
+                census = wire_priorities(out)
+                if census is None:
+                    return self.send(500, "text/plain; charset=utf-8",
+                                     b"wire model did not parse")
+                return self.send(200, "application/json",
+                                 json.dumps(census).encode())
             with open(out, "rb") as f:
                 return self.send(200, "application/octet-stream", f.read())
         self.send(404, "text/plain", b"not found")
