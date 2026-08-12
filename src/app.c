@@ -1528,8 +1528,8 @@ app_worldmap_drag_tick(
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
  * (white), the destination flag, then the local-player 3x3 white square.
  * mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker frame 0 flag. */
-static int
-app_minimap_build_dots(
+int
+App_MinimapBuildDots(
     struct App* app,
     struct UITreeMinimapDot const** out_dots)
 {
@@ -1613,9 +1613,11 @@ app_minimap_build_dots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-            /* Reference gates on NpcType.minimap; the flag is not decoded
-             * into ToriRS_Npctype yet, so every NPC dot draws. */
-            if( !npc || npc->grid_position.level != local->grid_position.level )
+            /* NpcType.minimap (config opcode 93), copied onto the entity when
+             * its type resolves: an npc that clears it draws no dot at all
+             * (reference minimapDraw's `npc.type.minimap` gate). */
+            if( !npc || !npc->minimap_visible ||
+                npc->grid_position.level != local->grid_position.level )
                 continue;
             app_minimap_push_dot(
                 app,
@@ -2425,7 +2427,7 @@ app_host_request(
         return app->world_map_scene_id;
     }
     case UITREE_HOST_GET_MINIMAP_DOTS:
-        return app_minimap_build_dots(app, req->u.get_minimap_dots.out_dots);
+        return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
         return app_worldmap_build_tiles(app, req);
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
@@ -9488,6 +9490,7 @@ app_world_spawn_npc_now(
         {
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
+            npc->minimap_visible = npctype->minimap_visible;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
@@ -16048,6 +16051,7 @@ App_WorldApplyNpcType(
         {
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
+            npc->minimap_visible = npctype->minimap_visible;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )

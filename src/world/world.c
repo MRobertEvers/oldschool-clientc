@@ -615,6 +615,9 @@ World_NpcSpawn(
                      .route_z = { (uint8_t)scene_z } },
         .npc_id = npc_id,
         .size = size,
+        /* Default-on: the config flag only ever clears it, and a spawn whose
+         * npc type has not resolved yet must still draw its dot. */
+        .minimap_visible = true,
         .idle_animations = idle_animations,
         .facing = { .entity_id = WORLD_FACING_ENTITY_NONE,
                     .fallback_angle = -1,

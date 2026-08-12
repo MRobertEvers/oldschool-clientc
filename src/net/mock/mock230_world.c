@@ -38,6 +38,7 @@
 #include <rsareabuf.h>
 
 #include <assert.h>
+#include <ctype.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -5242,6 +5243,140 @@ handle_opobju(
  * the other four: for locs, npcs and ground objs the subject is the target.
  */
 
+/* ------------------------------------------------------------------ */
+/* `::give` — an obj id from the spelling a human has                  */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A display name in the shape a command line can carry: lowercase, one `_` per
+ * run of anything that is not a letter or a digit, no leading or trailing one.
+ *
+ * "Scythe of Vitur" -> `scythe_of_vitur`, "Ring of dueling(8)" ->
+ * `ring_of_dueling_8`. That is deliberately the same shape the cache's own
+ * gamevals use, which is what lets one spelling reach an obj through either
+ * table: the pack when the cache names it, this when it does not.
+ */
+static void
+obj_name_underscore(
+    char* out,
+    size_t size,
+    const char* in)
+{
+    size_t written = 0;
+
+    if( !out || size == 0 )
+        return;
+    for( ; in && *in && written + 1 < size; in++ )
+    {
+        unsigned char c = (unsigned char)*in;
+
+        if( isalnum(c) )
+            out[written++] = (char)tolower(c);
+        else if( written > 0 && out[written - 1] != '_' )
+            out[written++] = '_';
+    }
+    while( written > 0 && out[written - 1] == '_' )
+        written--;
+    out[written] = '\0';
+}
+
+/*
+ * The obj a `::give` argument means, or -1.
+ *
+ * Four ways in, most specific first, because a cheat that guesses is worse than
+ * one that refuses:
+ *
+ *   1. a plain number — `::give 995 1000` still has to work, and `::item` is
+ *      the only other way to name an id;
+ *   2. the cache's own gameval (`configs/all.obj.compack`), which is already
+ *      underscored — `scythe_of_vitur` is 22325 there;
+ *   3. the *display* name underscored, so the command still resolves against a
+ *      cache whose gamevals were never packed;
+ *   4. a unique substring of a gameval. Unique is the whole rule: two matches
+ *      is an ambiguous request, and the caller gets the candidates to choose
+ *      from rather than whichever one the scan reached first.
+ *
+ * `suggest` is filled only on the ambiguous and empty cases (2..N candidates,
+ * or none), so a miss can say *why* it missed. NULL when the caller does not
+ * want one.
+ */
+static int
+cheat_obj_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    char wanted[128];
+    int obj_count = mock230_objinfo_count();
+    int pack_count;
+    int match = -1;
+    int matches = 0;
+    char* end = NULL;
+    long numeric;
+
+    if( suggest && suggest_size )
+        suggest[0] = '\0';
+    if( !arg || !arg[0] )
+        return -1;
+
+    numeric = strtol(arg, &end, 10);
+    if( end && end != arg && *end == '\0' )
+        return (int)numeric;
+
+    obj_name_underscore(wanted, sizeof(wanted), arg);
+    if( !wanted[0] )
+        return -1;
+
+    match = mock230_content_symbol(MOCK230_PACK_OBJ, wanted);
+    if( match >= 0 )
+        return match;
+
+    for( int id = 0; id < obj_count; id++ )
+    {
+        const struct Mock230ObjInfo* info = mock230_objinfo(id);
+        char have[128];
+
+        /* Every note record is named `null` and every placeholder is unnamed;
+         * neither is what a human typing an item name is asking for. */
+        if( !info->known || !info->name || strcmp(info->name, "null") == 0 )
+            continue;
+        obj_name_underscore(have, sizeof(have), info->name);
+        if( strcmp(have, wanted) == 0 )
+            return id;
+    }
+
+    /* Nothing exact. Substring over the gamevals, and the answer is only an
+     * answer when exactly one name carries it. */
+    pack_count = mock230_content_symbol_walk(MOCK230_PACK_OBJ, -1, NULL, NULL);
+    for( int i = 0; i < pack_count; i++ )
+    {
+        int id = -1;
+        const char* name = NULL;
+
+        if( !mock230_content_symbol_walk(MOCK230_PACK_OBJ, i, &id, &name) || !name )
+            continue;
+        if( !strstr(name, wanted) )
+            continue;
+        matches++;
+        if( match < 0 )
+            match = id;
+        if( suggest && suggest_size && matches <= 6 )
+        {
+            size_t used = strlen(suggest);
+
+            snprintf(suggest + used, suggest_size - used, "%s%s",
+                     used ? ", " : "", name);
+        }
+    }
+    if( matches == 1 )
+    {
+        if( suggest && suggest_size )
+            suggest[0] = '\0';
+        return match;
+    }
+    return -1;
+}
+
 /*
  * Server commands, so a session can be steered without a UI.
  *
@@ -5521,6 +5656,82 @@ handle_cheat(
                 slot, best);
         }
         mock230_combat_engage(srv, slot);
+        return;
+    }
+
+    if( strncmp(text, "give", 4) == 0 )
+    {
+        /*
+         * `::give <name> [count]` — any item in the game, by the name a player
+         * would say it out loud, underscored: `::give scythe_of_vitur`,
+         * `::give coins 100000`, `::give rune_platebody 2`.
+         *
+         * `::item` is the same act keyed on a number, and a number is not
+         * something anyone has: an obj id has to be looked up in a table before
+         * it can be typed, which is the step this removes. It stays because a
+         * harness that already knows the id should not be made to spell it.
+         *
+         * The add goes through `mock230_container_add` — the same
+         * `Inventory.add` the `inv_add` opcode uses — so a stackable merges
+         * onto the stack already held and the backpack's listener sends an
+         * UPDATE_INV without this branch knowing a packet exists. Unstackables
+         * are added one at a time on purpose: the shared add puts a whole count
+         * in one slot (its `stackType` gap, see mock230_container.c), which
+         * would render five platebodies as one slot reading "5".
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int want = 1;
+        int given = 0;
+        struct Mock230Container* row;
+        const struct Mock230ObjInfo* info;
+
+        if( sscanf(text, "give %63s %d", arg, &want) < 1 )
+        {
+            say(srv, "Usage: ::give <item_name> [count]");
+            return;
+        }
+        if( want < 1 )
+            want = 1;
+
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No item named '%s'.", arg);
+            return;
+        }
+        info = mock230_objinfo(obj_id);
+        if( !info->known )
+        {
+            say(srv, "Obj %d ('%s') has no record in this cache.", obj_id, arg);
+            return;
+        }
+
+        row = mock230_container_resolve(srv, player, mock230_ids()->inv_backpack);
+        if( !row )
+        {
+            say(srv, "No backpack container.");
+            return;
+        }
+        if( info->stackable )
+        {
+            given = mock230_container_add(row, obj_id, want, 0);
+        }
+        else
+        {
+            while( given < want && mock230_container_add(row, obj_id, 1, 0) == 1 )
+                given++;
+        }
+        if( given <= 0 )
+            say(srv, "No room for %s.", info->name);
+        else if( given < want )
+            say(srv, "Gave %d x %s (%d), %d did not fit.", given, info->name, obj_id,
+                want - given);
+        else
+            say(srv, "Gave %d x %s (%d).", given, info->name, obj_id);
         return;
     }
 

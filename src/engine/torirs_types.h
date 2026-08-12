@@ -351,6 +351,11 @@ struct ToriRS_Npctype
      *  reference adds alwaysontop NPCs before other players/normal NPCs
      *  (Client.ts addNpcs), so they win the one-entity-per-tile dedup. */
     bool alwaysontop;
+    /** NpcType.minimap (opcode 93, a bare flag that *clears* the default).
+     *  false = this npc draws no minimap dot — how the reference hides scenery-
+     *  like npcs (spawn points, glyphs, invisible event npcs) from the map.
+     *  Defaults true; only a record that states opcode 93 turns it off. */
+    bool minimap_visible;
     /** NpcType ambient/contrast (opcodes 100/101). Contrast arrives pre-scaled
      *  by 5 from the decoder. Used when the era/manifest enables
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */

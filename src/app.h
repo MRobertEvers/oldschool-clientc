@@ -1336,6 +1336,16 @@ App_WorldSpawnSyncedNpc(
     int scene_z,
     int level);
 
+struct UITreeMinimapDot;
+
+/** Build this frame's minimap dot overlay (the UITREE_HOST_GET_MINIMAP_DOTS
+ * body). Returns the dot count and points `*out_dots` at the app-owned array,
+ * valid until the next call. Exposed for the dot-gating test. */
+int
+App_MinimapBuildDots(
+    struct App* app,
+    struct UITreeMinimapDot const** out_dots);
+
 struct PktPlayerAppearance;
 
 /** Rebuild + swap the player's composited model and apply the decoded
