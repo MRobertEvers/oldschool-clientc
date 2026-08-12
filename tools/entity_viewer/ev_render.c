@@ -66,7 +66,7 @@ ev_init(void)
      * raster of a model that opts in — painter-mode sessions pay nothing. */
     g_scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
-        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
 }
 
 /* JS hands bytes over by writing into a block it asked for here. */
