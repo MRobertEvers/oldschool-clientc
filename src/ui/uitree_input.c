@@ -138,11 +138,14 @@ UITree_ComponentIsPassThrough(
         }
         return true;
     case UIELEM_BUILTIN_CROSS:
-    {
-        assert(host);
-        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_CROSS_ACTIVE };
-        return UITree_Host(host, &req) == 0;
-    }
+        /* The click marker is decoration, same as the two arms below — it is
+         * never a target. Gating this on GET_CROSS_ACTIVE (which is what
+         * ComponentVisibleHost/ComponentShouldEmit legitimately ask, and which
+         * still drives whether it draws) made the node interactive for the 400ms
+         * the cross animates: its layout box is 16x16 at the canvas origin, so
+         * the top-left corner of the viewport went dead for the rest of every
+         * click's marker. */
+        return true;
     case UIELEM_BUILTIN_MINIMENU:
     {
         assert(host);
