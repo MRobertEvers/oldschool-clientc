@@ -674,7 +674,7 @@ queue's tree to green your compile. Fix your slice. See PORTING_GUIDE §7 and
 | 32e | Observatory journal | done | ~itgronigen_journal + quest_observatory wire |
 | 32f | Troll Romance journal | done | ~troll_love_journal + quest_trollromance wire |
 | 32g | Horror from the Deep journal | done | ~horror_journal + quest_horrorfromthedeep wire |
-| 32h | Dwarf Cannon journal | done | ~mcannon_journal + quest_dwarfcannon; railing varbits |
+| 32h | Dwarf Cannon journal | done | ~mcannon_journal + quest_dwarfcannon; railing varbits; **found 2026-08-11 (auditing Between a Rock..., QUESTHELPER_CONTENT_PORT_QUEUE.md #133):** despite this row and 26f/26v/26y/27c/31c/33f all being individually real, the quest is NOT actually completable -- grep of every `%mcannon =` assignment in the tree shows the master varp never advances 0->1, 8->9, or 10->11; the "Dwarf Commander" quest-giver and Nulodion's own talk dialogue (only his *item* mesbox exists) have no script anywhere. Not re-scored (missing content, not a wrong `done`), but any future slice gating on Dwarf Cannon FINISHED must soft-skip it until a commander-dialogue slice lands |
 | 32i | Tribal Totem journal | done | ~totem_journal + quest_tribaltotem; handelmort_traps_disabled authored |
 | 32j | Watchtower journal | done | ~itwatchtower_journal + quest_watchtower wire |
 | 32k | Troll Stronghold journal | done | ~troll_journal + quest_trollstronghold wire |
