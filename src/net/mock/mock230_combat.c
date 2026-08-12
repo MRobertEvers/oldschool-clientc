@@ -943,8 +943,26 @@ mock230_combat_engage(
          */
         mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, slot, npc->type,
                                       npc->x, npc->z, npc->level, size, size);
-        mock230_scene_npc_approach(size, &approach);
-        mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+        /*
+         * Only walk if the click did not already land in range.
+         *
+         * `mock230_scene_npc_approach` builds a melee-adjacency shape (the
+         * npc's own footprint, not the attacker's reach), so issuing this
+         * unconditionally sent every ranged/magic "Attack" click on a
+         * satisfied target straight toward melee adjacency — a bow already
+         * standing at range 9 of a range-10 target got yanked in on every
+         * click. `mock230_combat_player_approach` (the per-tick repath,
+         * below) already gates the same walk on `in_player_attack_range`;
+         * this is that same gate, just on the click that starts the fight
+         * rather than the tick that continues it.
+         */
+        if( in_player_attack_range(player, npc) )
+            mock230_world_steps_clear(player);
+        else
+        {
+            mock230_scene_npc_approach(size, &approach);
+            mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
+        }
     }
 }
 
