@@ -429,16 +429,28 @@ function tiles(run, tag, n, prefix) {
 function scoreline(c) {
   if (c.fitness === null || c.fitness === undefined)
     return `<span class="muted">${esc(c.status)}</span>`;
-  const reg = c.region_min !== undefined ? ` reg ${c.region_min}` : '';
+  const reg = c.region_min !== undefined ? ` · region min ${c.region_min}` : '';
   return `fitness <b style="color:#e6b450">${c.fitness}</b>
-       <span class="muted">m ${c.style_margin} id ${c.identity} pose ${c.pose_id}${reg}</span>`;
+       <span class="muted">margin ${c.style_margin} · identity ${c.identity} ·
+       pose ${c.pose_id}${reg}</span>`;
 }
-function paramline(c) {
+function paramline(c, run) {
   const p = c.params || {};
   const when = c.ts ? ` · ${fmtTime(c.ts)}` : '';
-  if (p.regime === 'sculpt') return esc((p.moves || []).join('; ')) + when;
-  let s = `frac ${p.frac} seed ${p.seed}`;
-  if (p.parts) s += ' — ' + p.parts.map(x => `${x.vertices}v`).join('+');
+  let s = p.regime === 'sculpt' ? esc((p.moves || []).join('; '))
+                                : `fraction ${p.frac} · seed ${p.seed}`;
+  let parts = p.parts, orig = false;
+  if (!parts && p.regime === 'sculpt' && run && DATA[run]) {
+    // Sculpt only moves vertices, so its counts are the base models' —
+    // recoverable from any reduce candidate's original-model stats.
+    const donor = (DATA[run].candidates || []).find(x => (x.params || {}).parts);
+    if (donor) { parts = donor.params.parts; orig = true; }
+  }
+  if (parts) {
+    const faces = parts.reduce((a, x) => a + ((orig ? x.orig_faces : x.faces) || 0), 0);
+    const verts = parts.reduce((a, x) => a + ((orig ? x.orig_vertices : x.vertices) || 0), 0);
+    s += ` · ${faces.toLocaleString()} faces · ${verts.toLocaleString()} vertices`;
+  }
   return s + when;
 }
 function card(run, c, best) {
@@ -449,7 +461,7 @@ function card(run, c, best) {
     <span class="star${fav ? ' fav' : ''}" title="save to favorites"
       onclick="event.stopPropagation();toggleFav('${run}','${esc(c.id)}')">${fav ? '★' : '☆'}</span>
     <span class="tag">${esc(c.id)}</span>${scoreline(c)}
-    <div class="muted" style="font-size:.8em">${paramline(c)}</div>
+    <div class="muted" style="font-size:.8em">${paramline(c, run)}</div>
     ${tiles(run, c.id, 4)}</div>`;
 }
 
@@ -791,7 +803,7 @@ async function openModal(run, tag) {
          target="_blank" onclick="event.stopPropagation()">Open in viewer</a>
       <span class="star${isFav(run, tag) ? ' fav' : ''}" title="save to favorites"
         onclick="modalFav('${run}','${esc(tag)}',this)">${isFav(run, tag) ? '★' : '☆'}</span></h2>
-    <div class="muted">${paramline(c)}</div>
+    <div class="muted">${paramline(c, run)}</div>
     <h3>bind render (style + identity judges)</h3><div>` +
     bind.map(f => `<img src="/img/${run}/work/${f}">`).join('') + `</div>`;
   if (c.anim) {
