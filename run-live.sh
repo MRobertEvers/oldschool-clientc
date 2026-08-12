@@ -100,6 +100,16 @@ else
     done
 fi
 
+# MOCK230_CONTENT_DIR is the BUILD side (src/makefile); MOCK230_CONTENT is the
+# RUNTIME side (mock230_boot.c resolve_content_dir), which otherwise falls back
+# to a hardcoded OSRS-Content/osrs239-content. Setting only the first compiles
+# script.dat into one tree and boots another's -- the "Unknown command:
+# rs2012qbdmanifest" failure. See run-live.ps1's Set-ContentTree.
+if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
+    MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
+    export MOCK230_CONTENT
+fi
+
 # ws_host/ws_port: where a browser reaches the same server (the web build's
 # sockets are WebSockets). For LostCity that is also where /crc lives, which is
 # why the CRC fetch below uses it rather than assuming port 80. TORIRS_WS_* wins

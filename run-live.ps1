@@ -18,7 +18,8 @@
         overlay is built before the client runs.
       * scripts=...build_summoning selects the Summoning script pack.
       * the OSRS-Content tree is discovered, not demanded: the first checkout
-        carrying both ported\ lanes wins, submodule before build\ clones.
+        carrying both ported\ lanes wins, build\ checkouts before the submodule
+        (the submodule tracks main, which has the lanes but not their facebake).
 
     The server script pack is a SEPARATE build from the binary, and an embedded
     server loads whatever script.dat was compiled last -- not what the tree says
@@ -173,7 +174,27 @@ function Get-ContentCandidates {
 function Set-ContentTree([string]$Dir) {
     # Absolute and forward-slashed: the recipes hand this to sh and to python,
     # neither of which wants a Windows-relative path.
-    $env:MOCK230_CONTENT_DIR = ([IO.Path]::GetFullPath($Dir)) -replace '\\', '/'
+    $resolved = ([IO.Path]::GetFullPath($Dir)) -replace '\\', '/'
+
+    # Two variables, one tree, and they must not disagree.
+    #
+    # MOCK230_CONTENT_DIR is the BUILD side: src/makefile reads it to decide
+    # which tree to compile the server script pack from and to stage the cache
+    # overlay out of. MOCK230_CONTENT is the RUNTIME side: mock230_boot.c's
+    # resolve_content_dir() reads it, and with it unset falls back to a
+    # hardcoded "OSRS-Content/osrs239-content" -- the submodule, whatever tree
+    # the build just used.
+    #
+    # Setting only the first is how a run compiles script.dat into the build\
+    # worktree and then boots the submodule's months-old copy. That is not
+    # hypothetical: it is why `::rs2012qbdmanifest` answered "Unknown command"
+    # -- the debugproc was in the pack that had just been built (7.2MB, today)
+    # and absent from the pack that was loaded (6.7MB, a week older). Nothing
+    # reported the mismatch, because from the build's point of view everything
+    # succeeded. content_dir also resolves the world's server/pack reads, so
+    # the same split silently feeds the world pre-bake npc/loc records.
+    $env:MOCK230_CONTENT_DIR = $resolved
+    $env:MOCK230_CONTENT = $resolved
 }
 
 # An explicit choice is obeyed even when it looks wrong -- warned about, not
