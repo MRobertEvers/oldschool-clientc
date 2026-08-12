@@ -293,12 +293,12 @@ filed under `helpers/miniquests/` are at the end.
 | 131 | icthlarinslittlehelper | `icthlarinslittlehelper` | 707 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_icthlarin`); this Queue row was stale, table-sync fix only. `quest_icthlarin` (5 files, 684 lines, dbrow `quest_icthlarinslittlehelper` journal wired `interface_questjournal/scripts/quest_journal.rs2:703`) |
 | 132 | inaidofthemyreque | `inaidofthemyreque` | 710 | done | Jan 2006 -- Burgh de Rott repairs, Gadderanks's blood tithe raid, Ivan's Temple Trek escort, Rod of Ivandis; native dbrow `quest_inaidofthemyreque` (id 107, endstate 430, requirement_stats Crafting25/Mining15/Magic7) + native varbit schema on basevars `myreque_2_main_var`/`myreque2_multivar`/`myreque2_extravar` reused as-is, matching quest-helper's own VarbitID names exactly; dbrow `requirement_quests` decodes to Desert Treasure I (corrupt, known failure mode) -- real prereq (In Search of the Myreque FINISHED) soft-skipped since `%routequest` is never written anywhere in this tree (that quest has no scripted content beyond its own journal/dbrow, confirmed via grep -- row #65's "done (LC)" is optimistic); Crafting/Mining/Magic gate still hard-checked. Shares `myq5_veliaf_child` with Sins of the Father's own hub trigger (merged branch in `sinsofthefather.rs2`, not duplicated) and adds one case to the shared furnace hub (`skill_smithing/scripts/smelting/smelting.rs2`) for the Rod of Ivandis mould. See Log. |
 | 133 | betweenarock | `betweenarock` | 716 | done | Mar 2005 -- Dondakan the Dwarf's cannon-through-the-rock scheme uncovers a sealed Arzinian realm; dwarven lore book + 3 torn pages, a golden cannonball, four schematic fragments, a golden helmet, and an Avatar guardian boss; see Log |
-| 134 | ratcatchers | `ratcatchers` | 737 | pending | npcs=gertrudepos,vcphingspet,pitratsarim |
-| 135 | dreammentor | `dreammentor` | 745 | pending | npcs=dreaminadeq,dreameverla,dreamuntouc |
+| 134 | ratcatchers | `ratcatchers` | 737 | done | 2QP, Thieving 4500xp; native dbrow+varbit schema reused; see Log |
+| 135 | dreammentor | `dreammentor` | 745 | blocked | 2026-08-11: real, hard prerequisite (Lunar Diplomacy FINISHED, quest-helper's own getGeneralRequirements()) is itself still `pending` on this exact queue at #169 (1,756 lines) and zero Lunar Isle content of any kind exists in this tree (grep-confirmed: no `lunar*` script files anywhere, no scripted mainland<->Lunar Isle boat transport); unlike prior soft-skipped prereqs (Priest in Peril for Cabin Fever, ISOTR for In Aid of the Myreque), Dream Mentor's entire setting depends on it, not just a gate check — see Log |
 | 136 | watchtower | `watchtower` | 758 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_itwatchtower`); this Queue row was stale, table-sync fix only. `quest_itwatchtower` (13 files, 2010 lines, dbrow `quest_watchtower` journal wired `interface_questjournal/scripts/quest_journal.rs2:599`) |
 | 137 | shadowofthestorm | `shadowofthestorm` | 759 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_shadowstorm` (3 files, 509 lines, `shadowstorm_ritual.rs2` calls `~quest_complete(quest_shadowofthestorm)`; journal wired `interface_questjournal/scripts/quest_journal.rs2:707`) already implements it — found while auditing #111's neighbours, see Log |
-| 138 | landofthegoblins | `landofthegoblins` | 760 | pending | npcs=lotggrubfoo,lotgzanikf,lotggoblin |
-| 139 | elementalworkshopii | `elementalworkshopii` | 770 | pending | npcs=elem1qipea,elem1qipea,elem1qipea |
+| 138 | landofthegoblins | `landofthegoblins` | 760 | done | 2QP, Agility/Fishing/Thieving/Herblore 8000xp each; native dbrow+varbit schema (`%lotg`) reused; see Log |
+| 139 | elementalworkshopii | `elementalworkshopii` | 770 | done | 1QP, Smithing/Crafting 7500xp each; native dbrow+20-field varbit schema (`%elemental_quest_2_main` + sub-fields) reused, real prerequisite EW1 FINISHED; see Log |
 | 140 | deserttreasure | `deserttreasure` | 803 | done (LC) | OSRS has 3 rs2 files (not in PORT_QUEUE table) |
 | 141 | thedigsite | `thedigsite` | 803 | done (LC) | re-audit 2026-08-10: LostCity's own internal codename for this quest is `itexam`, not `thedigsite`/`digsite` -- `quest_itexam` (`server/scripts/quests/quest_itexam/`, `examiner.rs2`/`digsite_workman.rs2`/`area_digsite.rs2`/`panning_guide.rs2`/`itexam_chemistry.rs2`, trowel + specimen_brush reuse) already fully implements it; found while checking Another Slice of H.A.M.'s (#85) real prerequisite chain |
 | 142 | troubledtortugans | `troubledtortugans` | 803 | done |  |
@@ -3977,3 +3977,416 @@ filed under `helpers/miniquests/` are at the end.
   `skill_mining/scripts/mining.rs2`, and wiring into
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #134 Ratcatchers, 737 lines.
+- slice 134 done: Ratcatchers -- Gertrude sends the player to four retired
+  ratcatchers (Jimmy Dazzler, Hooknosed Jack, Smokin' Joe, The Face/Felkrash)
+  to train a cat, culminating in a King Rat fight and charming the Port Sarim
+  Rat Pits with a snake charm. Grep-verified first (methodology steps 1-2): no
+  LC proc (`lc_quests.txt` clean, no `quest_ratcatchers` dir), no 2009scape
+  impl; genuinely pending. Fetched `Zoinkwiz/quest-helper`'s actual filename
+  `RatCatchers.java` (capital C) + its companion `RatCharming.java` (540+197
+  =737 lines, matching this row's own line count exactly) via GitHub's tree
+  API after a direct raw-githubusercontent guess 404'd. Native dbrow
+  `quest_ratcatchers` (id 99, endstate 127, questpoints 2, stat_xp_awarded
+  thieving 45000 raw=4500xp, matching quest-helper's own
+  ExperienceReward/QuestPointReward exactly). dbrow `requirement_quests`=75
+  resolves to neither Gertrude's Cat (id 50) nor Icthlarin's Little Helper (id
+  80) -- same known-corrupt column already flagged for row #109/#130; real
+  prereqs are quest-helper's own getGeneralRequirements(): Icthlarin's Little
+  Helper FINISHED (`%ics_little_var >= ^ics_complete`, verified genuinely
+  reachable -- `icthlarin_pyramid.rs2:142` actually writes it, unlike the
+  ISOTR/Dwarf Cannon false-`done` traps this queue warns about) plus The Giant
+  Dwarf STARTED (`%giantdwarf_quest >= 1`). Icthlarin's Little Helper's own
+  prereq is Gertrude's Cat, so gating on ICS transitively covers it; Gertrude's
+  Cat itself independently verified real too (`quest_fluffs/scripts/
+  quest_fluffs.rs2`'s own `~quest_complete(quest_gertrudescat)` write, npc
+  `gertrudescat`, real dialogue -- not a stub). Native varbit schema on
+  basevars `main_ratcatch_var` (`%ratcatch_var`, 8 bits 0-255) and
+  `ratcatch_var_multi` (`%vc_raton_off1..6`) reused as-is, matching
+  quest-helper's own VarbitID names exactly; `%ratcatch_var` breakpoints are
+  quest-helper's own `steps.put` keys where no native sub-field already
+  tracks the same ground, private intermediate values elsewhere (sewer-rat
+  count, "directions read") in the same unclaimed range, same convention as
+  `betweenarock`'s own private sub-values alongside its native bits. Native
+  multi-npc records independently confirm the mansion's 6 rats: six
+  `vc_partyrat_multi1..6` wrappers, each keyed on its own `vc_raton_off1..6`
+  bit and world-spawned at exact coordinates in `m44_79.spawn` -- resolved to
+  `vc_party_rat` and disambiguated by `npc_coord`, same idiom as
+  `quest_fluffs`'s own `npc_coord = %fluffs_crate` check; **zero hand-spawning
+  needed for the mansion rats**. The Varrock Sewer's 8 rats have no such
+  native wrapper (`pitrat_sarim_def`, the id quest-helper names, has zero
+  world spawns anywhere near the sewer -- it only lives in the Port Sarim rat
+  pit map) -- the already-world-baked generic `rat` npc (dozens of instances
+  in `m50_154.spawn`, right where Phingspet stands) stands in for it instead,
+  again with **zero hand-spawning**. All items/npcs/locs resolved natively
+  (gertrude_post/vc_phingspet/pitrat_sarim_def/vc_jimmy_dazzler/vc_party_rat/
+  vc_hooknosed_jack/apothecary/vc_smokin_joe/vc_felkrash_the_bard/vc_face,
+  ratcatchers_rathole1-5/vc_blank_walldecor/vc_trellis_base/vc_manhole_open/
+  vc_ladder/fai_varrock_ladder(top)/feud_money_bowl, rat_poison/
+  ratcatchers_poisonedcheese/ratcatchers_weedpot/ratcatchers_smokey_weedpot/
+  ratcatchers_cat_antipoison/ratcatchers_party_directions/snake_flute/
+  ratcatchers_music/vc_rat_pole -- every single one already declared, none
+  invented). This tree has no follower/pet system at all (`quest_fluffs`'s
+  own documented deferral), so "a cat is following you" and "a catspeak
+  amulet is equipped" are modelled as inventory/worn checks over the same
+  kitten/grown-cat item enumeration `gertrude.rs2`'s own `fluffs_has_pet_cat`
+  already established, restricted to non-overgrown. **Two simplifications,
+  both documented with "no established precedent" same as prior slices**: (1)
+  the King Rat fight (`vc_blank_walldecor`, use cat + 8 fish) is one
+  deterministic action, same "one action, no scripted pet-vs-monster combat
+  loop" convention as `betweenarock`'s own Avatar fight; (2) the snake-charm
+  8-note tune minigame (native rev-230 `interfaces/ratcatcher_flute.if`,
+  interface 282, `cs1script1`-driven note buttons) collapses to one action
+  once the snake charm + music scroll are held and the player is outside the
+  Port Sarim manhole -- grep-confirmed **zero** `[if_button,...]` triggers
+  anywhere in the whole tree drive any cs1script-heavy widget server-side,
+  same precedent as `betweenarock`'s own schematics puzzle deferral AND
+  `quest_death`'s own `death_dice` deferral (both also native rev-230
+  interfaces left unwired for the identical reason). **Critical correctness
+  catches this slice hit**: the Port Sarim Rat Pits sit on the same +6400
+  world-Z underground map-sheet offset as Varrock Sewer, so the manhole/ladder
+  there needed `general_use/scripts/manholes.rs2`'s own `p_telejump`+
+  `movecoord(coord,0,0,6400)` idiom, NOT the simple `~climb` plane-delta proc
+  (which blocks below plane 0 and would have silently no-opped); caught before
+  building by checking the zone's own world-Z band, not by trial and error.
+  Also hit **four real pre-existing trigger collisions** merged in rather than
+  duplicated (grep-first, every one): `[opnpc1,gertrude_post]`
+  (`quest_atailoftwocats/scripts/twocats.rs2`, gated so it only steals the
+  turn from A Tail of Two Cats for players who are actually eligible to start
+  or already mid/post Ratcatchers -- never for someone who simply hasn't met
+  its prereqs); `[opheldu,pot_empty]` (`quest_swansong/scripts/
+  swansong_army.rs2`, pot-of-weeds branch added ahead of its airtight-pot
+  logic); `[opnpc1,apothecary]` (`areas/varrock/scripts/apothecary.rs2`,
+  branch added ahead of the My Arm's Big Adventure/Between a Rock/romeojuliet
+  chain already there) -- while checking this one, found a **pre-existing,
+  unrelated latent duplicate**: `quest_atailoftwocats/scripts/twocats.rs2`
+  *also* independently declares its own `[opnpc1,apothecary]` (line 313),
+  meaning one of the two already silently shadows the other for real players.
+  Not this quest's file and not caused by this slice -- left alone, flagged
+  here for a future tick to actually fix. `mingw32-make -C src sscompile`
+  clean (only pre-existing snprintf-truncation warnings in the compiler
+  itself); `mingw32-make -C src mock230-scripts` exit 0, 14486 scripts
+  compiled (up from 14453, +33 -- exactly matching this slice's own
+  27+5+1=33 authored script/proc blocks); a full self-sweep of every trigger
+  header this slice authored (21 opnpc/oploc/opheld/oplocu triggers) against
+  the rest of the tree found zero collisions beyond the four merged above.
+  Deferred, documented: full Rat Pits minigame content (doesn't exist as a
+  tree anywhere in this repo -- a separate, much larger slice, matching this
+  queue's own "never park sibling content" boundary in reverse: not stealing
+  a whole minigame's scope into one quest slice); training overgrown cats
+  into wily/lazy cats (same pet.rs2 deferral as Gertrude's Cat); Ring of
+  Charos(a) snake-charmer price discount (no favour-item price-override
+  precedent on an unrelated quest's NPC); DS2's own separate catspeak unlock
+  path (no native item/varbit for it anywhere, same TODO quest-helper itself
+  leaves). Wiki `oldschool.runescape.wiki/w/Ratcatchers` +
+  `.../Quick_guide` + `Transcript:Ratcatchers` (dialogue paraphrased, not
+  verbatim, per copyright, same caveat as every prior slice). Files:
+  `quests/quest_ratcatchers/{configs/ratcatchers.{constant,varp},
+  scripts/ratcatchers_{shared,journal}.rs2, scripts/ratcatchers.rs2}` +
+  merges into `quest_atailoftwocats/scripts/twocats.rs2`,
+  `quest_swansong/scripts/swansong_army.rs2`,
+  `areas/varrock/scripts/apothecary.rs2`, and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #135 Dream Mentor, 745 lines.
+- slice 135 BLOCKED (not ported): Dream Mentor -- grep-verified first
+  (methodology steps 1-2, including `lc_quests.txt`): no LC proc, no
+  2009scape impl, genuinely otherwise-pending. Fetched `Zoinkwiz/quest-
+  helper`'s `DreamMentor.java` (441 lines) + `CyrisusArmourSet.java`/
+  `CyrisusBankConditional.java`/`CyrisusBankItem.java`/
+  `SelectingCombatGear.java` (101+39+62+102=304, summing to 745, matching
+  this row's own line count exactly). Native dbrow `quest_dreammentor` (id
+  134, endstate 28, questpoints 2, requirement_combat 85,
+  stat_xp_awarded hitpoints 150000 raw=15000xp + magic 100000 raw=10000xp,
+  matches wiki exactly) + a genuine native varbit schema on basevars
+  `dream_prog`/`dream_combattype`/`dream_health`/`dream_armament`/
+  `dream_cutscene_seen`/etc, matching quest-helper's own VarbitID names
+  exactly -- the port itself would have been straightforward. dbrow
+  `requirement_quests`=88,36 decodes to Forgettable Tale / Plague City --
+  same known-corrupt column this queue repeatedly flags -- but unlike
+  every prior corrupt-dbrow case, quest-helper's own real
+  getGeneralRequirements() here is Combat 85 (fine, a stat check) +
+  **Lunar Diplomacy FINISHED** + Eadgar's Ruse FINISHED. Eadgar's Ruse is
+  genuinely real and reachable (`quest_eadgar`, already implemented, IN-LC
+  list). Lunar Diplomacy is NOT a corrupt-dbrow artifact to soft-skip --
+  it is itself still `pending` on this exact queue, row #169, at 1,756
+  lines, and grep of the whole tree for any `lunar*` script file, any
+  `lunar_oneiromancer`/`lunar_pirate_captain` trigger, or any mainland<->
+  Lunar Isle boat transport returned **zero hits**. Lunar Isle's own
+  geography, npcs, bank booth (`[oploc2,lunar_moonclan_bankbooth]
+  ~openbank;`) and mine ladders are all genuinely world-baked cache data
+  (confirmed via `m32_60.spawn`/`m32_61.spawn` and
+  `ladders_stairs/configs/ladders.loc`'s own `lunar_mine_slanty_ladder_*`/
+  `lunar_moonclan_ladder`), same "no per-object destination lookup"
+  pattern as everywhere else -- but the *only* way there in real OSRS,
+  Lunar Diplomacy's own opening boat trip (`lunar_pirate_captain`,
+  `lunar_captains_parrot`), has no scripted op anywhere in this tree.
+  This is categorically different from this queue's prior soft-skipped
+  prerequisites (Priest in Peril for Cabin Fever, In Search of the
+  Myreque for In Aid of the Myreque): those were single unwritten gate
+  variables on quests whose own content stood alone regardless. Dream
+  Mentor's entire setting (Lunar Isle, the Oneiromancer, the dream-vial/
+  brazier ritual, the "7 new Lunar spells" reward) is physically
+  unreachable and thematically meaningless without Lunar Diplomacy having
+  run first -- porting it now would mean either fabricating Lunar Isle
+  transport wholesale (no native precedent to build from responsibly) or
+  quietly stealing Lunar Diplomacy's own already-queued opening scope into
+  this slice, both of which violate this queue's own "never park/steal
+  sibling content" rule in reverse. Correctly left `pending` -> `blocked`
+  rather than force-ported; re-queue once #169 Lunar Diplomacy lands. No
+  files written, no build changes. Next pending row (smallest-first): #138
+  Land of the Goblins, 760 lines (row #136 Watchtower and #137 Shadow of
+  the Storm are already `done (LC)` stale-row fixes from an earlier tick).
+- slice 138 done: Land of the Goblins -- Dorgeshuun Mines dweller Grubfoot's
+  troubling dream sends the player (with Zanik) to infiltrate the Fishing
+  Guild's goblin temple in disguise, free Zanik from its north-east cell,
+  answer High Priest Bighead's loyalty quiz, thieve six enclave keys from
+  six colour-coded priests, defeat five named skeleton high priests in the
+  crypt beneath (Snothead/Snailfeet/Mosschin/Redeyes/Strongbones, each
+  naming the next), and fix Oldak's fairy ring machine to reach Yu'biusk,
+  the goblins' promised land. Grep-verified first (methodology steps 1-2,
+  including `lc_quests.txt`): no LC proc, no 2009scape impl. Fetched
+  `Zoinkwiz/quest-helper`'s `LandOfTheGoblins.java` (760 lines, matching
+  this row's own line count exactly, single file). Native dbrow
+  `quest_landofthegoblins` (id 166, endstate 56, questpoints 2,
+  requirement_stats herblore48/thieving45/fishing40/agility38,
+  stat_xp_awarded agility/fishing/thieving/herblore 80000 raw=8000xp each,
+  matches quest-helper's own getExperienceRewards() exactly). dbrow
+  `requirement_quests`=1,52 decodes to Cook's Assistant / Mage Arena I --
+  same known-corrupt column this queue repeatedly flags -- real prereqs
+  per quest-helper's own getGeneralRequirements() are Another Slice of
+  H.A.M. FINISHED (`%slice_quest >= ^slice_complete`, already real,
+  `quest_anothersliceofham/scripts/slice_sigmund.rs2` writes it) and
+  Fishing Contest FINISHED (`%fishingcompo >= ^fishingcompo_complete`,
+  already real, LC's own `quest_fishingcompo`), both independently
+  confirmed genuinely reachable, plus the four hard skill gates above.
+  Native varbit schema on basevars `lotg_base` (`%lotg`, 9 bits 0-511,
+  breakpoints 0/2/4/.../52 matching quest-helper's own `steps.put` keys
+  exactly, independently confirmed via the Java's own
+  `VarbitRequirement(VarbitID.LOTG, 36, ...)`) and `lotg_base_2` reused
+  as-is, matching quest-helper's own VarbitID names exactly; real
+  sub-fields `%lotg_player_is_a_goblin` (disguise state),
+  `%lotg_know_about_fish`, `%lotg_found_sphere`, `%lotg_machine_explained`,
+  `%lotg_connectors_1/2/3` + `%lotg_fairy_ring_animating` (fairy ring
+  puzzle) all driven directly rather than reinvented. All named npcs
+  (`lotg_grubfoot`, `lotg_zanik` + its cutscene/yubiusk variants,
+  `lotg_goblin_guard_black/white/yellow/darkblue/orange/purple`,
+  `lotg_goblin_priest_<colour>_1op/2op`, `lotg_goblin_high_priest`,
+  `lotg_goblin_skeleton_high_priest1..5` + `..._defeated` variants,
+  `dorgesh_oldak_there`/`_1op`) and every loc/item (six enclave keys,
+  Dorgesh-Kaan sphere, goblin mail in all six colours, `lotg_temple_
+  huge_door`, five crypt graves, `lotg_bandos_sarcophagus`) are already
+  natively declared -- none invented. **Zero hand-spawning needed for any
+  of the geography**: the Goblin Cave, temple, crypt and Yu'biusk are all
+  genuinely world-baked map data (confirmed via `configs/all.loc.compack`'s
+  own `lotg_*` ids and the `m32_*`/`m38_*`-style world dressing), same
+  "no per-object destination lookup" pattern as everywhere else in this
+  tree -- only the five named skeleton priests are hand-spawned on trigger
+  (zero `.spawn` entries anywhere, grep-confirmed), same idiom as
+  `betweenarock`'s own Avatar. Travel between Dorgesh-Kaan's floors and its
+  lower caves is already generic `category=climb_up`/`climb_down`
+  (`ladders_stairs/configs/ladders.loc`'s own `dorgesh_1stairs`/
+  `dorgesh_2stairs_posh`/`dorgesh_caves_ladder_down`) -- no custom
+  transport scripting needed. The Goblin Cave itself is reached via the
+  *already-existing* `[oploc1,mcannoncave]` (Dwarf Cannon's own real,
+  IN-LC-listed `quest_mcannon`, confirmed genuinely implemented, not a
+  false-`done` trap) -- confirmed its own `p_telejump` destination lands
+  within a few tiles of quest-helper's own cited Goblin Cave coordinate,
+  so this slice adds its own npcs inside that already-reachable
+  underground zone rather than touching the trigger at all.
+  **Five real pre-existing trigger collisions found and merged in rather
+  than duplicated** (grep-first, every one, per this queue's own
+  non-negotiable rule): (1) `[opnpc1,makeover_mage]`
+  (`areas/falador/scripts/makeover_mage.rs2`) -- gated branch ahead of the
+  generic cosmetic-makeover dialogue; (2) `[opnpc1,aggie]`
+  (`areas/draynor/scripts/aggie.rs2`) -- gated branch ahead of the generic
+  dye-shop dialogue for the whitefish/black-mail/white-mail-plus-four-dyes
+  trade; (3) `[opnpc1,0_41_53_sinisterfishspot]`
+  (`quest_fishingcompo/scripts/hemenster_fishing.rs2`) -- Fishing Contest's
+  own competition logic silently no-ops outside an active competition, so
+  the LOTG whitefish catch (disambiguated by slimy-eel bait) is checked
+  first; (4) `[opheldu,toadflaxvial]`
+  (`skill_herblore/scripts/brew_potion.rs2`) -- the generic herblore brew
+  table, with a pharmakos-berry check ahead of it (not a real herblore
+  recipe); (5) `[opheldu,golem_ink]` (`quest_golem/scripts/
+  golem_portal.rs2`) -- quest-helper's own "Black dye" is this exact same
+  `ItemID.GOLEM_INK`, and the entire black-mushroom-pick + pestle-and-
+  mortar-grind pipeline (`[oploc1,golem_black_mushrooms]` +
+  `[opheldu,golem_mushroom]`) already exists verbatim, shared with Shadow
+  of the Storm's own Silverlight-dyeing step -- this slice adds only the
+  "dye goblin mail" case to the existing switch, reusing the pickup/grind
+  chain entirely unmodified. **Also found and fixed**: Goblin Diplomacy's
+  own pre-existing `~dye_goblin_mail_armour` proc
+  (`quest_gobdip/scripts/quest_gobdip.rs2`) only ever consumed the plain
+  `goblin_armour` item, which would have silently failed for LOTG's own
+  redye-in-place loop (colouring an already-coloured mail again) --
+  extended in place to consume whichever mail colour is actually held,
+  backward-compatible with Goblin Diplomacy's own always-plain-mail usage,
+  and `skill_crafting/scripts/dye_cape.rs2`'s own `[opheldu,yellowdye]`/
+  `[opheldu,bluedye]`/`[opheldu,orangedye]`/`[opheldu,purpledye]` switches
+  extended with the missing goblin-mail cases (yellow and purple had none
+  at all; blue and orange only matched plain mail). Simplifications
+  (documented, no established precedent anywhere in this tree for the
+  alternative, matching this queue's own repeated convention): (1) the
+  "confirm to become a goblin" widget (native rev-230 interface 739,
+  quest-helper's own text says "Your selection doesn't matter") collapses
+  to an instant flag set on drinking the potion; (2) the fairy ring
+  power-relay dial puzzle (native rev-230 interface 738, six increase/
+  decrease buttons targeting exact values 9/4/1) collapses to one
+  deterministic "fix the machine" action, same "no per-component widget
+  click sequence" reasoning as `betweenarock`'s schematics puzzle /
+  `quest_death`'s dice; (3) no follower/pet system exists in this tree
+  (`quest_fluffs`'s own documented deferral) -- "Grubfoot/Zanik is
+  following you" is an instant flag advance, not a literal companion NPC;
+  (4) the optional "guess my goblin name" flavour exchange has no
+  gameplay effect on progression per quest-helper itself, not modelled;
+  (5) Yu'biusk (`InInstanceRequirement`) has no dynamic per-player
+  instance precedent anywhere in this tree -- modelled as the real,
+  shared, static map area already baked into the cache, same convention
+  as `betweenarock`'s own Arzinian realm; (6) the five named skeleton high
+  priests' unique special mechanics (stat-draining hits, summoned
+  Skoblins) are left to the generic combat system, same reasoning as Royal
+  Trouble's Giant Sea Snake; (7) High Priest Bighead's "true/false/false"
+  quiz is one deterministic dialogue chain, no wrong-answer branch
+  precedent anywhere in this tree's quest dialogue. Wiki
+  `oldschool.runescape.wiki/w/Land_of_the_Goblins` +
+  `.../Quick_guide` (dialogue paraphrased, not verbatim, per copyright,
+  same caveat as every prior slice). `mingw32-make -C src sscompile`
+  clean (only pre-existing snprintf-truncation warnings in the compiler
+  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,557 scripts
+  compiled (up from 14,486, +71); full build log grepped for every
+  touched/new filename (`lotg`, `landofthegoblins`, `quest_gobdip`,
+  `dye_cape`, `golem_portal`, `brew_potion`, `hemenster_fishing`,
+  `makeover_mage`, `aggie.rs2`) returned zero warnings or errors; a
+  self-sweep of every trigger header this slice authored (grep batch
+  covering every `opnpc`/`oploc`/`opheld`/`ai_queue` name) against the
+  rest of the tree found zero collisions beyond the five merged above.
+  Deferred: none identified beyond the documented simplifications above --
+  every `steps.put` breakpoint is real and playable end-to-end. Files:
+  `quests/quest_landofthegoblins/{configs/landofthegoblins.{constant,varp},
+  scripts/lotg_{shared,intro,temple,keys,crypt,yubiusk,journal}.rs2}` +
+  merges into `areas/falador/scripts/makeover_mage.rs2`,
+  `areas/draynor/scripts/aggie.rs2`,
+  `quests/quest_fishingcompo/scripts/hemenster_fishing.rs2`,
+  `skill_herblore/scripts/brew_potion.rs2`,
+  `quests/quest_golem/scripts/golem_portal.rs2`,
+  `quests/quest_gobdip/scripts/quest_gobdip.rs2`,
+  `skill_crafting/scripts/dye_cape.rs2`, and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #139 Elemental Workshop II, 770 lines.
+- slice 139 done: Elemental Workshop II -- decrypting the sequel to the
+  Book of the Elemental Shield, sneaking into the sealed lower half of the
+  Seers' Village elemental workshop, repairing its crane/press/water-tank/
+  wind-tunnel machinery to prime an elemental bar, imbuing it with the
+  power of the mind in a basement extractor, and smithing a Mind Helmet.
+  Grep-verified first (methodology steps 1-2, including `lc_quests.txt`):
+  no LC proc, no 2009scape implementation. Fetched `Zoinkwiz/quest-helper`'s
+  `ElementalWorkshopII.java` (683 lines) + `ConnectPipes.java` (87 lines),
+  770 total, matching this row's own line count exactly. Row #56 Elemental
+  Workshop I was independently re-audited as this slice's real
+  prerequisite (not just trusted as `done`): `quest_elemental_workshop`'s
+  three files genuinely set `%elemental_workshop_book`/`_key` and drive
+  `%elemental_workshop_finished` as a real completion flag read by its own
+  journal -- confirmed genuinely completable, used directly as the gate
+  here (dbrow `requirement_quests`=38 does not resolve to EW1's own dbrow
+  id 55 -- the same known-corrupt column this queue has repeatedly
+  flagged; the real prerequisite is quest-helper's own
+  `QuestRequirement(ELEMENTAL_WORKSHOP_I, FINISHED)`). Native dbrow
+  `quest_elementalworkshop2` (id 119, endstate 11, questpoints 1,
+  requirement_stats magic(6)20/smithing(13)30 boostable, stat_xp_awarded
+  smithing(13)/crafting(12) 75000 raw = 7500xp each -- matches
+  quest-helper's own SkillRequirement/ExperienceReward calls exactly).
+  Native varbit schema entirely pre-declared, none invented: 20 named
+  sub-fields on three basevars (`elemental_quest_2_main` as the top-level
+  progress var, `_hide_key`, `_hatch`, `_jig_pos`, `_jig_state`,
+  `_fire_state`, `_fire_pos`, `_earth_pipe_1/2/3_state`, `_water_state`,
+  `_water_valve_1/2`, `_water_door`, `_water_level`, `_air_cog1/2/3`,
+  `_air_fan_state`, `_mind_jig`, `_box_state`), matching quest-helper's own
+  `VarbitID.ELEMENTAL_QUEST_2_*` names exactly (lowercased) --
+  `%elemental_quest_2_main` driven through 12 breakpoints (0-11) matching
+  quest-helper's own `steps.put(0..10)` map 1:1, reaching 11 at
+  completion, matching the dbrow's own `endstate`. Native MULTI-NPC/
+  MULTI-LOC records keyed on these varbits recovered real progression
+  breakpoints and let all cosmetic state-swapping be skipped entirely
+  (grep-confirmed, none invented): `elem2_cart_npc` (multinpc on
+  `_jig_state`, 6 leaves), `elem2_stairs_door` (multiloc on `_hatch`),
+  `elemental_workshop_2_boiler_multi` (multiloc on `_hide_key`),
+  `elemental_piping_blue_broken_multi` (multiloc on `_water_state`),
+  `elem2_wind_pin_high/low/left_multi` (multiloc on `_air_cog1/2/3`),
+  `elem_windtunnel_fanblade` (multiloc on `_air_fan_state`),
+  `elem_extractor_gun` (multiloc on `_mind_jig`); per this tree's own
+  precedent (`quest_priest`'s `restless_ghost_altar_skull`/`_no_skull`),
+  every trigger below binds to the *resolved leaf* name, not the
+  multivarbit wrapper -- self-audited against all seven wrappers to
+  confirm. `elem1_qip_earth_elemental_rock_version_rock` (mineable rock,
+  own `op1=Mine`) is world-spawned 47 times in the west room
+  (`areas/world/configs/m42_154.spawn`); the awakened
+  `elem1_qip_earth_elemental_rock_version` is not statically spawned
+  anywhere (grep-confirmed) -- hand-spawned on trigger, same idiom as
+  `betweenarock`'s Avatar, and its combat/drop table
+  (`quest_elemental_workshop/scripts/elemental_drops.rs2`) was already
+  fully implemented by EW1's own port, reused unmodified. **Two real
+  pre-existing shared-object collisions found and merged in rather than
+  duplicated** (grep-first, per this queue's own non-negotiable rule):
+  (1) `elemental_workshop_workbench` -- EW1's own port never used this loc
+  (grep-confirmed) so this slice claims the sole
+  `[opheldu,elemental_workshop_workbench]` trigger, but *within this
+  slice itself* the claw-smithing and Mind-Helmet-smithing actions both
+  target it, so one shared trigger dispatches by held item to
+  `~elem2_make_claw`/inline helmet logic rather than declaring the header
+  twice (sscompile accepts silent duplicates with no diagnostic -- caught
+  by a self-sweep grepping every trigger header this slice authored
+  against the whole tree, confirming exactly one definition each); (2)
+  `elemental_workshop_furnace` -- shared physical object with EW1's own
+  (unimplemented) lava/waterwheel/bellows middle section
+  (`multivarbit=elemental_workshop_fire`, EW1's own furnace-lighting flag,
+  never set anywhere in this tree, grep-confirmed) -- an unwritten EW1
+  sub-mechanic, soft-skipped per this queue's own convention rather than
+  treated as a hard blocker; this slice's own ore-smelting trigger works
+  from either multiloc leaf without touching that flag. Simplifications
+  (documented, no established precedent anywhere in this tree for the
+  alternative): (1) the pipe-connection minigame (native rev-230 widget
+  `ElemMagicpressPipes`, `WidgetModelRequirement` in quest-helper's own
+  `ConnectPipes.java`) has no established drag-connect widget precedent --
+  collapses to one deterministic "open the junction box and reconnect the
+  pipes" action, directly setting the three `_earth_pipe_N_state` fields
+  to quest-helper's own solved target values (5, 6, 13), same "no
+  per-component widget click sequence" reasoning as Land of the Goblins'
+  fairy ring dial; (2) no native multiloc exists anywhere for
+  `_fire_pos`/`_fire_state` (grep-confirmed) -- the crane's 15-variant
+  track/lava-arm never visually swaps position in this cache build, so
+  every crane/priming lever action narrates via `mes()` against a single
+  fixed loc (`elem2_crane_track_up_empty`) rather than reproducing that
+  client-side animation; (3) the optional second bar / Slashed Book ->
+  Mind Shield side loop (quest-helper's own "if you want to smith a mind
+  shield after this quest" asides) is not required by any `steps.put`
+  breakpoint -- not modelled, explicitly optional per quest-helper itself.
+  **The "priming a bar" apparatus itself (crane, press, water tank, wind
+  tunnel) was NOT collapsed** -- quest-helper's own `primingInWorkshop`
+  `ConditionalStep` chain has no player decisions anywhere (every state
+  has exactly one valid next action), so this slice independently
+  re-derived that entire priority-ordered chain (cross-checked against
+  every named lever/valve/corkscrew object and its own WorldPoint) into a
+  real deterministic finite-state machine played with the actual 9 named
+  objects (`elem2_fire_lever_1/2`, `elem2_lever_3way`,
+  `elem2_earth_lever_1`, `elem2_water_lever`, `elem2_corkscrew`,
+  `elem2_valve_1/2`, `elem2_air_lever`) plus the jig cart -- ordinary
+  object-click content this tree already has an idiom for, just an
+  unusually long chain, not a widget puzzle. Wiki
+  `oldschool.runescape.wiki/w/Elemental_Workshop_II` +
+  `.../Quick_guide` (paraphrased, not verbatim, per copyright, same
+  caveat as every prior slice). `mingw32-make -C src sscompile` clean
+  (only pre-existing snprintf-truncation warnings in the compiler
+  itself); `mingw32-make -C src mock230-scripts` exit 0, 14,606 scripts
+  compiled (up from 14,557, +49); full build log grepped for `elem2`/
+  `elementalworkshopii`/`elementalworkshop2` returned zero warnings or
+  errors; a self-sweep of all 34 trigger headers this slice authored
+  (grep batch covering every `opnpc`/`oploc`/`opheld`/`opnpcu`/`oplocu`
+  name) against the rest of the tree confirmed exactly one definition
+  each, including the one intentionally-shared workbench trigger.
+  Deferred: none identified beyond the documented simplifications above
+  -- every `steps.put` breakpoint (0-10) is real and playable end-to-end.
+  Files: `quests/quest_elementalworkshopii/{configs/elementalworkshopii.
+  constant, scripts/elem2_{shared,intro,gather,repair,priming,helm,
+  journal}.rs2}` and wiring into
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #145 Darkness of Hallowvale, 816 lines (rows #140-144
+  are already `done`/`done (LC)`).
