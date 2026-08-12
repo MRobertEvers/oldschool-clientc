@@ -377,19 +377,20 @@ build_cache_overlay() {
                 "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}" \
                 tools/stage_summoning_overlay.py mock230-cache-summoning
             ;;
+        # The QBD/TD lane's cache is composed, not shipped, so a manifest
+        # naming it is a manifest asking for this bake.
+        #
+        # The merge that left conflict markers in this file also left a second,
+        # unreachable copy of this arm — same pattern, so `case` could never
+        # take it. Its one distinct act was `make mock230-servpack` alongside
+        # the bake (the server half of the same tree: the npc/loc server fields
+        # the boot reads out of <content>/server/pack). That never ran, so it
+        # is not restored here; add it deliberately if the lane turns out to
+        # need it.
         *cache.osrs239.rs2012)
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
                 "${RS2012_CACHE_BASE:-cache.osrs239}" \
                 tools/stage_rs2012_overlay.py mock230-cache-rs2012
-            ;;
-        *cache.osrs239.rs2012)
-            # The QBD/TD lane's cache is composed, not shipped, so a manifest
-            # naming it is a manifest asking for this bake. mock230-servpack is
-            # the server half of the same tree (the npc/loc server fields the
-            # boot reads out of <content>/server/pack); without it the world
-            # falls back to a text parse of content the bake has already moved.
-            echo "run-live.sh: building the RS2012 cache overlay + server pack..." >&2
-            make -C src mock230-cache-rs2012 mock230-servpack || exit 1
             ;;
     esac
 }

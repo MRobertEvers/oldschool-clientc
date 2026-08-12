@@ -4,47 +4,12 @@ rem double-click. This is a shim: run-live.ps1 is the implementation.
 rem
 rem   run-live.bat <manifest.ini> [user] [pass] [client args...]
 rem
-<<<<<<< HEAD
-rem The manifest (manifest_osrs239_rs2012.ini, manifest_osrs230.ini, ...) names
-rem the cache, rev, transport, host/port and RSA keys. user/pass default to
-rem asdf/a, and anything after them is handed to the client verbatim, so
-rem `run-live.bat manifest_osrs239_rs2012.ini testc test --soft3d` works.
-rem
-rem For osrs230 / osrs239 without --offline this always runs the in-process
-rem server: it builds with EMBED_SERVER=1, sets TORIRS_TRANSPORT=embed, and
-rem exports MOCK230_REV from the manifest so the embedded world writes the same
-rem wire the client speaks.
-rem
-rem The server script pack is a SEPARATE build from the binary, and an embedded
-rem server loads whatever script.dat was compiled last -- not what the tree says
-rem today. Building the binary and not the pack is how a session ends up running
-rem content nobody has written for weeks, with nothing anywhere reporting the
-rem mismatch, so the pack is rebuilt here for every embedded run.
-rem
-rem The same argument one layer down: when the manifest names a marked-lane
-rem cache (cache.osrs239.rs2012, cache.osrs239.summoning), that cache is the ONLY
-rem place those records exist -- `ported/` is excluded from the ordinary content
-rem walk, so no other bake writes them. It is rebuilt here when the content tree
-rem has moved under it. tools\cache_overlay_stale.py owns that decision and is
-rem shared with run-live.sh, so the two launchers cannot drift.
-rem
-rem Knobs:
-rem   TORIRS_NO_BUILD=1   run the existing exe, skip both builds
-rem   TORIRS_FORCE_CACHE_BAKE=1  rebake the lane cache without asking
-rem   TORIRS_PRINT_ONLY=1 print what would run (rev, embed decision, argv) and
-rem                       exit -- how you check a manifest resolves as expected
-rem                       without booting a client
-rem   TORIRS_TOOLCHAIN    MinGW bin directory (default toolchain\mingw64\bin)
-rem   plus every TORIRS_* the client itself reads (TORIRS_NET_DEBUG=1,
-rem   TORIRS_MAX_FRAMES, TORIRS_EXIT_BMP, TORIRS_ZBUFFER_NPCS=25000, ...)
-=======
 rem There were two Windows launchers for a while and they disagreed about
 rem credentials -- the batch one defaulted to asdf/a and never read the
 rem manifest's own user=/pass=, so a self-contained manifest silently logged in
 rem as the wrong account. One implementation, in PowerShell, is why that cannot
 rem happen again. See run-live.ps1 for the manifest keys it reads, the composed
 rem cache bakes it triggers, and the TORIRS_* knobs.
->>>>>>> cd48ca55bbe9367e296c9664083483713a13e818
 rem
 rem `run-live.sh web` has no equivalent here: the web lane needs emscripten and
 rem a POSIX shell throughout. Use Git Bash and run-live.sh for that.
@@ -75,200 +40,11 @@ shift
 goto :collect
 :collected
 
-<<<<<<< HEAD
-if not exist "%MANIFEST%" (
-    echo run-live.bat: manifest "%MANIFEST%" not found 1>&2
-    popd & exit /b 1
-)
-
-rem rev comes from the manifest's [net:boot] section.
-set "REV="
-for /f "usebackq tokens=2 delims==" %%R in (`findstr /r /c:"^[ 	]*rev[ 	]*=" "%MANIFEST%"`) do (
-    if not defined REV set "REV=%%R"
-)
-for /f "tokens=* delims= " %%T in ("!REV!") do set "REV=%%T"
-if not defined REV (
-    echo run-live.bat: no rev= in [net:boot] of "%MANIFEST%" 1>&2
-    popd & exit /b 1
-)
-
-rem The cache the manifest boots, from [cache:boot] dir=. Only used to recognise
-rem a marked lane below; the client resolves its own path from the manifest.
-set "CACHE_DIR="
-for /f "usebackq tokens=2 delims==" %%C in (`findstr /r /c:"^[ 	]*dir[ 	]*=" "%MANIFEST%"`) do (
-    if not defined CACHE_DIR set "CACHE_DIR=%%C"
-)
-for /f "tokens=* delims= " %%T in ("!CACHE_DIR!") do set "CACHE_DIR=%%T"
-
-rem --offline never logs in, so it never wants the embedded server.
-set "OFFLINE=0"
-echo !EXTRA! | findstr /c:"--offline" >nul 2>&1 && set "OFFLINE=1"
-
-set "EMBED=0"
-if "!OFFLINE!"=="0" (
-    if /I "!REV!"=="osrs230" set "EMBED=1"
-    if /I "!REV!"=="osrs239" set "EMBED=1"
-)
-
-if "!EMBED!"=="1" (
-    set "TORIRS_TRANSPORT=embed"
-    if not defined MOCK230_REV set "MOCK230_REV=!REV!"
-)
-
-if "%TORIRS_PRINT_ONLY%"=="1" (
-    echo manifest        : %MANIFEST%
-    echo rev             : !REV!
-    echo offline         : !OFFLINE!
-    echo embedded server : !EMBED!
-    if "!EMBED!"=="1" echo TORIRS_TRANSPORT: !TORIRS_TRANSPORT!  MOCK230_REV: !MOCK230_REV!
-    echo argv            : "%EXE%" --manifest "%MANIFEST%" --user "%USER_NAME%" --pass "%PASS%"!EXTRA!
-    popd
-    exit /b 0
-)
-
-if "%TORIRS_NO_BUILD%"=="1" goto :run
-
-rem --- toolchain -----------------------------------------------------------
-rem The repository owns its compiler (lib\mingw64-win64-toolchain.zip, extracted
-rem to toolchain\mingw64 by build_windows.ps1). src/makefile's recipes are POSIX,
-rem so a real sh.exe has to be on PATH as well -- Git for Windows ships one.
-set "TC=%TORIRS_TOOLCHAIN%"
-if not defined TC set "TC=%CD%\toolchain\mingw64\bin"
-if not exist "!TC!\mingw32-make.exe" (
-    where mingw32-make.exe >nul 2>&1
-    if errorlevel 1 (
-        echo run-live.bat: no mingw32-make. Run .\build_windows.ps1 once to 1>&2
-        echo   unpack toolchain\mingw64, or set TORIRS_TOOLCHAIN to a MinGW bin dir. 1>&2
-        popd
-        exit /b 1
-    )
-    set "TC="
-)
-
-set "SHBIN="
-for %%D in ("C:\Program Files\Git\usr\bin" "C:\Program Files (x86)\Git\usr\bin" "%LOCALAPPDATA%\Programs\Git\usr\bin") do (
-    if not defined SHBIN if exist "%%~D\sh.exe" set "SHBIN=%%~D"
-)
-if not defined SHBIN (
-    where sh.exe >nul 2>&1
-    if errorlevel 1 (
-        echo run-live.bat: no sh.exe found. src\makefile uses POSIX recipes -- 1>&2
-        echo   install Git for Windows, or put sh.exe on PATH. 1>&2
-        popd
-        exit /b 1
-    )
-)
-if defined TC set "PATH=!TC!;!PATH!"
-if defined SHBIN set "PATH=!SHBIN!;!PATH!"
-
-set "JOBS=%NUMBER_OF_PROCESSORS%"
-if not defined JOBS set "JOBS=4"
-
-rem --- build ---------------------------------------------------------------
-if "!EMBED!"=="1" (
-    call :cache_overlay
-    if errorlevel 1 (
-        popd
-        exit /b 1
-    )
-)
-
-if "!EMBED!"=="1" (
-    echo run-live.bat: !REV! -- building with EMBED_SERVER=1 ^(in-process server, MOCK230_REV=!MOCK230_REV!^) 1>&2
-    echo run-live.bat: building the server script pack... 1>&2
-    mingw32-make -C src PLATFORM=win64 CC=gcc mock230-scripts
-    if errorlevel 1 (
-        echo run-live.bat: script pack build failed 1>&2
-        popd
-        exit /b 1
-    )
-    mingw32-make -C src EMBED_SERVER=1 CC=gcc -j!JOBS! win64
-    if errorlevel 1 (
-        echo run-live.bat: client build failed 1>&2
-        popd
-        exit /b 1
-    )
-) else (
-    if not exist "%EXE%" (
-        echo run-live.bat: building %EXE%... 1>&2
-        mingw32-make -C src CC=gcc -j!JOBS! win64
-        if errorlevel 1 (
-            echo run-live.bat: client build failed 1>&2
-            popd
-            exit /b 1
-        )
-    )
-)
-
-:run
-if not exist "%EXE%" (
-    echo run-live.bat: %EXE% not found -- build it with .\build_windows.ps1 -Opt 1>&2
-    popd & exit /b 1
-)
-
-"%EXE%" --manifest "%MANIFEST%" --user "%USER_NAME%" --pass "%PASS%"%EXTRA%
-set "RC=%ERRORLEVEL%"
-popd
-exit /b %RC%
-
-rem --- marked-lane cache overlay --------------------------------------------
-rem Returns 1 only when a bake was needed and failed. A manifest naming an
-rem ordinary cache returns immediately, so this costs nothing for those.
-rem
-rem `echo(` and no space before the pipe: `echo x | findstr` feeds findstr a
-rem trailing space, which /e would then refuse to match.
-:cache_overlay
-if not defined CACHE_DIR exit /b 0
-set "LANE="
-echo(!CACHE_DIR!|findstr /e /c:"cache.osrs239.rs2012" >nul 2>&1 && (
-    set "LANE=rs2012_qbd_td"
-    set "LANE_LABEL=RS2012 QBD/TD"
-    set "LANE_BASE=cache.osrs239"
-    set "LANE_STAGER=tools\stage_rs2012_overlay.py"
-    set "LANE_TARGET=mock230-cache-rs2012"
-)
-echo(!CACHE_DIR!|findstr /e /c:"cache.osrs239.summoning" >nul 2>&1 && (
-    set "LANE=scape2009_summoning"
-    set "LANE_LABEL=Summoning"
-    set "LANE_BASE=cache.osrs239.baked"
-    set "LANE_STAGER=tools\stage_summoning_overlay.py"
-    set "LANE_TARGET=mock230-cache-summoning"
-)
-if not defined LANE exit /b 0
-
-rem Only exit code 1 means "skip". Everything else bakes, including a missing
-rem python3 (9009): a predicate that could not answer must never be read as up
-rem to date -- a needless bake costs minutes, a wrongly skipped one costs a
-rem session spent debugging content that was never packed.
-python3 tools\cache_overlay_stale.py --cache "!CACHE_DIR!" --lane "!LANE!" ^
-    --base "!LANE_BASE!" --input "!LANE_STAGER!" --input src\makefile ^
-    --input 3rd\rscache\tools\cachepack 1>&2
-if errorlevel 2 goto :cache_overlay_bake
-if errorlevel 1 (
-    echo run-live.bat: !LANE_LABEL! cache overlay is up to date ^(set TORIRS_FORCE_CACHE_BAKE=1 to rebake^) 1>&2
-    exit /b 0
-)
-
-:cache_overlay_bake
-echo run-live.bat: building the !LANE_LABEL! cache overlay... 1>&2
-mingw32-make -C src PLATFORM=win64 CC=gcc !LANE_TARGET!
-if errorlevel 1 (
-    echo run-live.bat: !LANE_LABEL! cache overlay build failed 1>&2
-    exit /b 1
-)
-exit /b 0
-
-:web_note
-echo run-live.bat: the web lane needs emscripten and a POSIX shell throughout. 1>&2
-echo   Use Git Bash:  ./run-live.sh web ^<manifest.ini^> [user] [pass] 1>&2
-popd & exit /b 1
-=======
 rem No `--` separator before %EXTRA%: PowerShell rejects a bare `--` as an
 rem ambiguous parameter name. Client arguments are long-form (--soft3d,
 rem --opengl3), so they never match a parameter and land in ClientArgs anyway.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" "%MANIFEST%" -User "%USER_NAME%" -Pass "%PASS%"%EXTRA%
 exit /b %ERRORLEVEL%
->>>>>>> cd48ca55bbe9367e296c9664083483713a13e818
 
 :usage
 echo usage: run-live.bat ^<manifest.ini^> [user] [pass] [client args...]
