@@ -165,6 +165,109 @@ ORDERING_CONDITION = re.compile(r"^(always first|after conversation \d+|randomly
 # understood it always has something to say; without them it has nothing.
 BOB_ITEMS = re.compile(r"^With .+ having (\d+)( or less)? items in inventory\.?$", re.I)
 
+# Every other condition the wiki records needs a concrete obj/category token
+# from THIS cache, and most of the wiki's items either don't exist in this
+# content pack under the expected name or need a mechanic (area, familiar-
+# carried state) this lane has nothing to check against. Each is verified
+# against `configs/all.obj` and `pack/category.pack` before being listed here —
+# see docs/summoning_port/FAMILIAR_INTERACT.md for the full per-condition audit.
+# Anything not in this table stays in `conditional`, unimplemented, with the
+# reason recorded in that doc rather than guessed at here.
+#
+# guard shapes:
+#   {"kind": "cat", "container": "inv"|"worn", "category": <category.pack name>,
+#    "op": ">=", "count": N}
+#   {"kind": "sum", "terms": [(container, obj), ...], "op": ">=", "count": N}
+#   {"kind": "hp_missing"}          -- stat(hitpoints) < stat_base(hitpoints)
+#   {"kind": "run_energy_zero"}     -- runenergy = 0
+# The 38 real (non-cert, non-placeholder) obj records this cache carries with
+# `category=6` — enumerated rather than passed as `inv_totalcat(inv, bones)`,
+# because `bones` is BOTH a category name (category.pack: `6=bones`) AND a real
+# obj's own name, and inv_totalcat's symbol resolution took the obj (confirmed
+# live: `inv_totalcat(inv, bones)` measured 0 with 5 [bones] in the inventory,
+# `inv_total(inv, bones)` measured 5 at the same time). category.pack's own
+# header warns about exactly this collision shape for `arrows_dragon` vs
+# `dragon_arrows`; `firemaking_logs` and `weapon_pickaxe` below do not collide
+# with any obj name and were confirmed to resolve correctly the same way.
+BONES = (
+    "bones", "bones_burnt", "bat_bones", "big_bones", "babydragon_bones",
+    "dragon_bones", "wolf_bones", "tbwt_beast_bones", "tbwt_jogre_bones",
+    "tbwt_burnt_jogre_bones", "mm_small_ninja_monkey_bones",
+    "mm_medium_ninja_monkey_bones", "mm_normal_gorilla_monkey_bones",
+    "mm_bearded_gorilla_monkey_bones", "mm_normal_monkey_bones",
+    "mm_small_zombie_monkey_bones", "mm_large_zombie_monkey_bones",
+    "mm_skeleton_bones", "zogre_bones", "zogre_ancestral_bones_fayg",
+    "zogre_ancestral_bones_raurg", "zogre_ancestral_bones_ourg",
+    "dagannoth_king_bones", "wyvern_bones", "dorgesh_construction_bone",
+    "dorgesh_construction_bone_curved", "lava_dragon_bones",
+    "dragon_bones_superior", "wyrm_bones", "drake_bones", "hydra_bones",
+    "shade_bleached_bones", "babywyrm_bones", "giant_bones", "alan_bones",
+    "strykewyrm_bones", "frost_dragon_bones", "bull_bones",
+)
+
+CURATED_GUARDS: dict[tuple[int, str], dict] = {
+    (1, "If the player has any type of bone in their inventory"): {
+        "kind": "sum", "terms": [("inv", name) for name in BONES], "op": ">=", "count": 1,
+    },
+    (5, "If the player is wearing a snelm"): {
+        "kind": "sum",
+        "terms": [
+            ("worn", name)
+            for name in (
+                "snelm_round_swamp", "snelm_round_red+black", "snelm_round_yellow",
+                "snelm_round_blue", "snelm_round_orange", "snelm_point_swamp",
+                "snelm_point_red+black", "snelm_point_yellow", "snelm_point_blue",
+            )
+        ],
+        "op": ">=", "count": 1,
+    },
+    (8, "when wielding pickaxe"): {
+        "kind": "cat", "container": "worn", "category": "weapon_pickaxe", "op": ">=", "count": 1,
+    },
+    (10, "With at least one dose of prayer potion in the inventory"): {
+        "kind": "sum",
+        "terms": [
+            ("inv", name)
+            for name in (
+                "1doseprayerrestore", "2doseprayerrestore",
+                "3doseprayerrestore", "4doseprayerrestore",
+            )
+        ],
+        "op": ">=", "count": 1,
+    },
+    (15, "when missing life points"): {"kind": "hp_missing"},
+    (17, "If the player has logs in their inventory"): {
+        "kind": "cat", "container": "inv", "category": "firemaking_logs", "op": ">=", "count": 1,
+    },
+    (22, "When the player has 0% running energy"): {"kind": "run_energy_zero"},
+    (37, "If the player has at least two raw sharks in their inventory"): {
+        "kind": "sum", "terms": [("inv", "raw_shark")], "op": ">=", "count": 2,
+    },
+    (38, "If the player has a Ball of wool in their inventory"): {
+        "kind": "sum", "terms": [("inv", "ball_of_wool")], "op": ">=", "count": 1,
+    },
+    (44, "while wearing the ring of charos (a)"): {
+        "kind": "sum", "terms": [("worn", "ring_of_charos_unlocked")], "op": ">=", "count": 1,
+    },
+    (46, "while holding a swamp toad in inventory"): {
+        "kind": "sum", "terms": [("inv", "swamp_toad")], "op": ">=", "count": 1,
+    },
+    (49, "With 5 or more papayas in inventory"): {
+        "kind": "sum", "terms": [("inv", "papaya")], "op": ">=", "count": 5,
+    },
+    (55, "with Butterfly net equipped or in inventory"): {
+        "kind": "sum",
+        "terms": [("worn", "hunting_butterfly_net"), ("inv", "hunting_butterfly_net")],
+        "op": ">=", "count": 1,
+    },
+    (65, "with any type of swamp tar or paste in inventory"): {
+        "kind": "sum",
+        "terms": [("inv", "swamp_tar"), ("inv", "rawswamppaste"), ("inv", "swamppaste")],
+        "op": ">=", "count": 1,
+    },
+    (72, "when the player does not have maximum life points"): {"kind": "hp_missing"},
+}
+
 
 def clean(text: str) -> str:
     """Wikitext to the plain sentence the dialogue box shows."""
@@ -307,15 +410,50 @@ def main() -> int:
 
     familiars = {}
     problems: list[str] = []
+    guarded_count = 0
     for type_id in sorted(names):
         page = pages[type_id]
         entry = parse(page, raw[page], names[type_id])
         entry["level"] = levels[type_id]
         entry["chat_level"] = levels[type_id] + 10
         problems.extend(entry.pop("unparsed"))
+
+        # Conditions this lane can actually check move out of `conditional`
+        # into `conversations`, in front of the random pool — the wiki's own
+        # shape: the special line when the condition holds, the ordinary pool
+        # otherwise.
+        remaining = []
+        for conditional_entry in entry["conditional"]:
+            guard = CURATED_GUARDS.get((type_id, conditional_entry["condition"]))
+            if guard is None:
+                remaining.append(conditional_entry)
+                continue
+            guarded_count += 1
+            entry["conversations"].insert(
+                0, {**conditional_entry, "guard": guard}
+            )
+        entry["conditional"] = remaining
+
         if not entry["conversations"]:
             problems.append(f"{page}: no unconditional conversation")
         familiars[str(type_id)] = entry
+
+    # Every curated guard must have actually matched a parsed condition, so a
+    # future wiki edit that reflows the condition text is a loud failure here
+    # rather than a guard that silently stops applying.
+    consumed = {
+        (int(t), c["condition"])
+        for t, f in familiars.items()
+        for c in f["conversations"]
+        if "guard" in c and "condition" in c
+    }
+    stale = [f"{t} {c!r}" for (t, c) in CURATED_GUARDS if (t, c) not in consumed]
+    if stale:
+        raise SystemExit(
+            "CURATED_GUARDS entries did not match any parsed condition (wiki "
+            "text changed?): " + "; ".join(stale)
+        )
+    print(f"build_familiar_dialogue_corpus: {guarded_count} curated guard(s) applied")
 
     corpus = {
         "_meta": {
@@ -342,7 +480,9 @@ def main() -> int:
             ),
             "held_out": (
                 "Conditional conversations keep their condition text but stay out "
-                "of the random pool; overhead lines are ambient chat, not Interact."
+                "of the random pool unless CURATED_GUARDS gives them a real "
+                "ServerScript check against this cache's own objs/categories; "
+                "overhead lines are ambient chat, not Interact."
             ),
         },
         "familiars": familiars,

@@ -16,9 +16,12 @@
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
-#if !defined(TORIRS_PLATFORM_WEB)
+#if !defined(TORIRS_PLATFORM_WEB) || defined(TORIRS_WEB_CACHE_IDB)
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
+#endif
+#if defined(TORIRS_WEB_CACHE_IDB)
+#include "platform/web_cache_boot.h"
 #endif
 #if defined(TORIRS_HAVE_GL3)
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
@@ -2271,6 +2274,58 @@ executor_attach_and_prime_js5(void)
 }
 #endif
 
+#if defined(TORIRS_WEB_CACHE_IDB)
+/*
+ * The browser's half of the same two steps.
+ *
+ * The prime that precedes App_Init already happened: the page ran it before
+ * main() through the exported torirs_web_cache_prime_* functions, because a
+ * WebSocket cannot deliver a byte to a thread that is spinning on it (see
+ * platform/web_cache_boot.c). All that is left here is the attach.
+ *
+ * And the attach does not wait. On the desktop the second pass blocks, but
+ * blocking is the one thing this host cannot do, and it does not need to: the
+ * reference tables are already installed, so what the attached client re-runs
+ * is a local CRC check. A group read that arrives before it finishes parks in
+ * the ordinary way — PlatformX_IO_Pending is what tells TaskRunner_Step not to
+ * resume a task whose slot is unfilled, and it makes no distinction between
+ * waiting on a download and waiting on this.
+ */
+static int
+executor_attach_js5_web(void)
+{
+    struct Js5Config js5;
+
+    if( !WebCacheBoot_Ready() )
+    {
+        fprintf(stderr, "torirs: JS5 metadata was never primed; cache reads will fail\n");
+        return -1;
+    }
+
+    Js5ConfigInit(&js5);
+    js5.host = WebCacheBoot_Js5Host();
+    js5.primary_port = (uint16_t)WebCacheBoot_Js5Port();
+    js5.fallback_port = 0; /* a browser has one endpoint; 443 is not a second */
+    js5.revision = (uint32_t)WebCacheBoot_Js5Revision();
+    /* Demand-only. A tab must not quietly pull a couple of hundred megabytes,
+     * and the reads the boot is blocked on should not queue behind a mirror
+     * nobody asked for. The cache converges on the working set instead. */
+    js5.background_fill = false;
+    if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
+    {
+        fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
+        return -1;
+    }
+    fprintf(
+        stderr,
+        "torirs: JS5 attached (ws://%s:%d, rev %d) — filling on demand\n",
+        WebCacheBoot_Js5Host(),
+        WebCacheBoot_Js5Port(),
+        WebCacheBoot_Js5Revision());
+    return 0;
+}
+#endif
+
 struct MainArgState
 {
     int write_bmp;
@@ -2788,7 +2843,13 @@ main(
         return 1;
 #endif
     App_Init(&app, &cfg);
-#if !defined(TORIRS_PLATFORM_WEB)
+#if defined(TORIRS_WEB_CACHE_IDB)
+    if( executor_attach_js5_web() != 0 )
+    {
+        App_Shutdown(&app);
+        return 1;
+    }
+#elif !defined(TORIRS_PLATFORM_WEB)
     if( executor_attach_and_prime_js5() != 0 )
     {
         App_Shutdown(&app);

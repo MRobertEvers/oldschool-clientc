@@ -1,5 +1,10 @@
 #include "app.h"
 
+#if defined(TORIRS_WEB_CACHE_IDB)
+#include "platform/dat2_web_store.h"
+#include "platform/web_cache_boot.h"
+#endif
+
 #include "bootmanifest/bootmanifest.h"
 
 #include "cmd/cmdbus.h"
@@ -3412,7 +3417,37 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
-#if defined(TORIRS_PLATFORM_WEB)
+#if defined(TORIRS_WEB_CACHE_IDB)
+    /*
+     * The browser has no cache *directory*, but on this lane it does have a
+     * cache: a keyed record store the page hydrated from IndexedDB, wearing a
+     * dat2 face (see platform/dat2_web_store.h). So the disk opens normally and
+     * everything below this point — table id resolution, the map XTEA gate,
+     * reference tables, the archive decode path — is the code the desktop build
+     * runs, against the same struct.
+     *
+     * The store was opened before main() by the JS5 metadata barrier, which had
+     * to run first: this constructor decodes reference tables, and it is not a
+     * tolerant reader.
+     */
+    {
+        struct Dat2WebStore* store = WebCacheBoot_Store();
+        struct RSCache_Dat2Store ops;
+
+        if( !store )
+        {
+            fprintf(
+                stderr,
+                "app: no browser record store for %s — the JS5 prime did not run\n",
+                cfg->cache_dir ? cfg->cache_dir : "(unnamed cache)");
+        }
+        assert(store != NULL);
+        ops = Dat2WebStore_Ops(store);
+        app->dat2_disk = RSCache_Dat2DiskNewFromStore(cfg->cache_dir, &ops);
+        assert(app->dat2_disk != NULL);
+        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+    }
+#elif defined(TORIRS_PLATFORM_WEB)
     /* The browser has no cache directory to open. Every read the disk layer
      * would have answered goes to the IO server instead, which holds the real
      * cache and therefore also the things only an open cache can answer:
@@ -3505,7 +3540,7 @@ App_Init(
      * how those get the answer their geometry assumes. */
     app->scene = ToriDraw_SceneNew(
         TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
-        TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+        TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
 
@@ -3832,10 +3867,43 @@ App_UiLogic(struct App const* app)
     return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_UI_LOGIC_CS1 : APP_UI_LOGIC_CS2;
 }
 
+/*
+ * Write out a settings change that has not reached its settle window yet.
+ *
+ * Quitting is exactly when that happens: the player turns the music down and
+ * closes the client, and the tick that would have queued the save never comes.
+ *
+ * Stepped here against a private IO rather than handed to the App's runner:
+ * that queue may hold tasks parked on state a shutting-down client will never
+ * produce, so draining it could return with the save still queued. One task
+ * against one IO list terminates on both backends — the platform answers a
+ * client-file item inline in Process.
+ */
+static void
+app_prefs_flush(struct App* app)
+{
+    struct ToriRS_Task* task;
+    struct ToriRS_IO io;
+    int guard = 0;
+
+    if( !app->prefs_path )
+        return;
+    if( !RS_Prefs_CaptureFromHost(&app->prefs, &app->host) && !app->prefs_dirty_cycle )
+        return; /* everything the player chose is already on disk */
+    app->prefs_dirty_cycle = 0;
+
+    memset(&io, 0, sizeof(io));
+    task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    while( task_run(task, &io) == PT_YIELDED && guard++ < 8 )
+        PlatformX_IO_Process(app->runner.px, &io);
+    task_free(task);
+}
+
 void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    app_prefs_flush(app);
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
@@ -5013,6 +5081,34 @@ Task_AppBoot_Run(
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
     /*
+     * The settings the player chose last launch, before anything reads one.
+     *
+     * Volumes are device settings: no packet carries them to a server and none
+     * carries them back, so the file this reads is the only thing standing
+     * between "turn the music down" and a client that is loud again tomorrow.
+     * Restoring into the option store (not the varps) is the right direction —
+     * the store is what GAMEOPTION_GET answers with, and the four varps below
+     * are then seeded from it, so both halves of interface 116 agree.
+     */
+    app->prefs_path = RS_Prefs_Path();
+    RS_Prefs_Defaults(&app->prefs);
+    if( app->prefs_path )
+        TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
+    RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+
+    /*
+     * A window mode the manifest or command line stated wins over the saved
+     * one. App_SetBootWindowMode has already run (it must, before the root's
+     * scripts call getwindowmode), so the restore above just overwrote it;
+     * `cfg.window_mode` is 0 when nothing said anything, which is when the
+     * saved default is the only opinion there is. Same precedence as a server
+     * VARP over the seeded volumes: an explicit instruction for this run beats
+     * what the last run happened to leave behind.
+     */
+    if( app->cfg.window_mode )
+        app->host.default_window_mode = app->cfg.window_mode;
+
+    /*
      * Seed the four audio volumes.
      *
      * The mixer starts at full gain and RS_CS2Host's option snapshot says 100,
@@ -5031,10 +5127,24 @@ Task_AppBoot_Run(
      * snapshot stays in agreement with the varps; and before the tree is built,
      * so 116 constructs its bobbles green rather than needing a repaint.
      */
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MASTER_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MUSIC_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_SOUND_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_AREA_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MASTER_VOLUME,
+        RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_SOUND_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_AREA_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
+
+    /* Baseline for the change detection below: what is in the host now is what
+     * is on disk, so nothing written here counts as a change worth saving. */
+    RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
+    app->prefs_dirty_cycle = 0;
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         fprintf(
             stderr,
@@ -5302,9 +5412,16 @@ Task_OpenSubRefresh_Run(
     PT_BEGIN(&self->pt);
     /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
      * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
-     * before mount_pack_under_target asserts. */
-    while( app->app_state == APP_STATE_BOOTING )
-        PT_YIELD(&self->pt);
+     * before mount_pack_under_target asserts.
+     *
+     * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
+     * deadlock. Only Task_AppBoot on app->runner clears APP_STATE_BOOTING, and
+     * app->runner is stepped by the frame loop — which cannot get its turn back
+     * while this queue is still settling. A plain yield here therefore spins
+     * app_logic_tick's exec drain forever at 100% CPU: measured on every
+     * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
+     * mounts in one burst. */
+    TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
     if( self->interface_id > 0 &&
         UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
@@ -5905,7 +6022,22 @@ app_logic_tick(struct App* app)
 
         for( ;; )
         {
-            enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->exec_runner);
+            enum TaskRunnerStat stat;
+
+            /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
+             * on app->runner. Every packet behind it targets components that
+             * do not exist yet, so hold the whole pipeline rather than feed it
+             * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
+             * this: it runs at the top of the frame, and the rebuild starts
+             * here, below it — including on a later catch-up tick in the same
+             * App_RunOnce. */
+            if( app->app_state == APP_STATE_BOOTING )
+            {
+                app->exec_runner_had_work = 1;
+                break;
+            }
+
+            stat = TaskRunner_SettleFrame(&app->exec_runner);
 
             if( stat != TASK_RUNNER_IDLE )
             {
@@ -6407,6 +6539,33 @@ app_logic_tick(struct App* app)
                 &app->audio, TORIRS_AUDIO_BUS_EFFECTS, sounds, &app->audio_out);
             RS_Audio_SetBusVolume(
                 &app->audio, TORIRS_AUDIO_BUS_AREA, area, &app->audio_out);
+        }
+    }
+
+    /*
+     * Mirror the option store to disk once the player has stopped moving it.
+     *
+     * Every path that changes a setting lands in the option store first (the
+     * sliders through GAMEOPTION/DEVICEOPTION_SET, the mute icons through
+     * their varps and RS_CS2Host_SyncAudioVarp), so one comparison here catches
+     * all of them and nothing has to remember to call a save.
+     *
+     * The delay is what makes a drag one write rather than fifty: the bobble
+     * reports a new value every 20ms tick, and each would otherwise be a
+     * separate file rewrite. Anything still pending is flushed by App_Shutdown.
+     */
+    if( app->prefs_path )
+    {
+        if( RS_Prefs_CaptureFromHost(&app->prefs, &app->host) )
+            app->prefs_dirty_cycle = app->logic_cycle;
+        else if( app->prefs_dirty_cycle &&
+                 app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        {
+            /* Queued, not written here: the write is the platform's, and this
+             * is the middle of a frame. */
+            ToriRS_TaskQueue_Add(
+                app->runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
+            app->prefs_dirty_cycle = 0;
         }
     }
 
@@ -7027,6 +7186,18 @@ app_world_roof_check(struct App* app)
     if( !player || !world || !world->tile_flags )
         return 3;
     level = player->grid_position.level;
+
+    /*
+     * "Hide roofs" — game option 1, and the first thing both of the reference's
+     * roof checks test (`if (!prefs.isHidingRoofs())` guards the whole selective
+     * walk in each; when it is set they return the player's level outright).
+     * The Display panel's toggle and the reference's ::toggleroof cheat write
+     * this same setting, whose two messages say what the two states are:
+     * "Roofs are now all hidden" against "Roofs will only be removed
+     * selectively".
+     */
+    if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) )
+        return level;
 
     if( app->cam_script.scripted )
     {
@@ -12317,16 +12488,26 @@ app_minimenu_open(
         /* The two Attack options ride this dump because a missing or
          * right-click-only Attack row is otherwise indistinguishable from a
          * pick that never happened — and Hidden is what both settings hold
-         * until the server transmits varp clientcode 18/22. */
-        fprintf(
-            stderr,
-            "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d\n",
-            click_x,
-            click_y,
-            click_in_world,
-            click_in_world ? app->world_pickset.count : 0,
-            app->player_attack_option,
-            app->npc_attack_option);
+         * until the server transmits varp clientcode 18/22. The local combat
+         * level rides it for the same reason: under "Depends on combat levels"
+         * the setting alone does not say whether a row was sunk, the
+         * comparison against THIS number does. */
+        {
+            struct WorldEntity_Player* lp =
+                app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid)
+                           : NULL;
+            fprintf(
+                stderr,
+                "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
+                "mylevel=%d\n",
+                click_x,
+                click_y,
+                click_in_world,
+                click_in_world ? app->world_pickset.count : 0,
+                app->player_attack_option,
+                app->npc_attack_option,
+                lp ? lp->combat_level : -1);
+        }
         if( click_in_world )
             for( int i = 0; i < app->world_pickset.count; i++ )
             {
@@ -12353,8 +12534,25 @@ app_minimenu_open(
                 menu->options[i].text);
     }
 
+    /* The popup is sized from measured text, so a font the scene cannot hand
+     * back is not a cosmetic miss: PrepareShow falls back to a per-character
+     * estimate and the rows draw past the border. The boot-time resolve can
+     * land before the b12 load does, so re-resolve on a miss and carry the id
+     * to the node that draws the rows — measure and draw must share a font. */
     {
         struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
+        if( !font )
+        {
+            int const resolved = app_minimenu_font_scene_id(app);
+            if( resolved > 0 )
+            {
+                int32_t const idx = UITree_FindByComponentId(app->tree, APP_COM_ID_MINIMENU);
+                menu->font_id = resolved;
+                if( idx >= 0 )
+                    app->tree->components[idx].u.minimenu.font_id = resolved;
+                font = ToriDraw_SceneFontGet(app->scene, resolved);
+            }
+        }
         if( font )
             line_box = ToriDraw_FontLineBoxHeight(font);
     }
@@ -12363,23 +12561,17 @@ app_minimenu_open(
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app->need_redraw = 1;
+        /* Geometry beside the rows: a popup too narrow for its own text is a
+         * measure that returned nothing, and this line is what says so. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
-        {
             fprintf(
                 stderr,
-                "minimenu: font=%d line_box=%d content_w=%d width=%d\n",
+                "minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
                 menu->font_id,
                 line_box,
                 content_w,
-                menu->width);
-            for( int i = 0; i < menu->option_count; i++ )
-                fprintf(
-                    stderr,
-                    "  measure[%d]=%d \"%s\"\n",
-                    i,
-                    app_measure_text_cb(app, menu->font_id, menu->options[i].text),
-                    menu->options[i].text);
-        }
+                menu->width,
+                menu->height);
     }
 }
 
@@ -15884,8 +16076,12 @@ App_WorldRebuildShift(
     for( int i = 0; i < 5; i++ )
         app->cam_script.shake[i] = 0;
 
-    /* Minimenu (deob field766 = 0). */
-    UIMinimenu_Reset(&app->interact.minimenu);
+    /* Minimenu (deob field766 = 0): the rebuild closes an open popup, it does
+     * not reconfigure it. Hide, never Reset — Reset also clears font_id, and
+     * the id is boot-time chrome state nothing re-derives, so a reset here left
+     * every later popup measuring against no font and sized by the character
+     * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
+    UIMinimenu_Hide(&app->interact.minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;

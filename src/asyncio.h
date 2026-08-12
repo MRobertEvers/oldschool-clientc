@@ -16,6 +16,10 @@
 #define TORIRS_ASYNCIO_STAT_ERROR -1
 #define TORIRS_ASYNCIO_STAT_YIELD 0
 #define TORIRS_ASYNCIO_STAT_DONE 1
+/* The head task parked on client state rather than on a read (see
+ * TASK_AWAIT_STATE). Nothing this queue can do will unblock it, so the caller
+ * must hand control back to the frame loop instead of stepping again. */
+#define TORIRS_ASYNCIO_STAT_BLOCKED 2
 
 #define TORIRS_IO_CACHE_DAT2 0
 #define TORIRS_IO_CACHE_DAT1 1
@@ -36,6 +40,19 @@ enum ToriRS_IOKind
     TORIRS_IOK_CONFIG_FILE,
     TORIRS_IOK_SCRIPT,
     TORIRS_IOK_REFERENCE_TABLE,
+    /*
+     * A file the *client* owns, at a path the client names: its saved
+     * settings. Unlike CONFIG_FILE and SCRIPT the path is used verbatim rather
+     * than under a base directory, because it is the player's (TORIRS_PREFS may
+     * name anywhere) and not part of the cache install.
+     *
+     * FILE_WRITE is the first item that carries data *into* the platform:
+     * `data`/`data_size` are the bytes to write, borrowed for the duration of
+     * the request, and the platform must neither free nor replace them. Every
+     * other kind fills those two fields in on the way back.
+     */
+    TORIRS_IOK_FILE_READ,
+    TORIRS_IOK_FILE_WRITE,
 };
 
 struct IOItem_Cache
@@ -61,6 +78,11 @@ struct IOItem_ReferenceTable
     int table_id;
 };
 
+struct IOItem_File
+{
+    char path[TORIRS_IOITEM_MAX_PATH];
+};
+
 struct ToriRS_IOItem
 {
     enum ToriRS_IOKind kind;
@@ -70,6 +92,7 @@ struct ToriRS_IOItem
         struct IOItem_ConfigFile config_file;
         struct IOItem_Script script;
         struct IOItem_ReferenceTable reference_table;
+        struct IOItem_File file;
     } u;
 
     int error_code;
@@ -102,6 +125,11 @@ struct ToriRS_Task
 {
     struct ToriRS_TaskVTable* vtable;
     char name[32];
+
+    /* Set by TASK_AWAIT_STATE for the duration of one yield: this task is
+     * waiting on state only some OTHER queue can change. Cleared on every
+     * resume, so it always describes the yield that just happened. */
+    int blocked;
 
     struct ToriRS_Task* next;
     struct ToriRS_Task* prev;
@@ -139,8 +167,32 @@ task_run(
     assert(io != NULL);
     assert(task->vtable->run);
 
+    task->blocked = 0;
     return task->vtable->run(task, io);
 }
+
+/*
+ * Wait for a condition this queue cannot make true.
+ *
+ * A plain PT_YIELD means "I asked the platform for something; resume me when
+ * it lands", and the runner honours that by stepping the queue again straight
+ * away. A task that instead waits on client state — a tree rebuild running on
+ * another queue, say — must NOT be stepped again: that state can only change
+ * once the frame loop gets its turn back, so re-running the task in place is
+ * an unbreakable busy-wait, not a wait.
+ *
+ * This marks the yield so the runner can tell the two apart and end the frame.
+ * The condition is re-tested on each resume, i.e. once per frame at most.
+ */
+#define TASK_AWAIT_STATE(task, pt, cond)                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        while( !(cond) )                                                                           \
+        {                                                                                          \
+            (task)->blocked = 1;                                                                   \
+            PT_YIELD(pt);                                                                          \
+        }                                                                                          \
+    } while( 0 )
 
 static inline void
 push_active(
@@ -216,6 +268,51 @@ ToriRS_IO_QueueScript(
 
     item->kind = TORIRS_IOK_SCRIPT;
     strcpy(item->u.script.path, path);
+    push_active(io, slot_id);
+}
+
+/** Read a client-owned file whole. `path` is used as given. */
+static inline void
+ToriRS_IO_QueueFileRead(
+    struct ToriRS_IO* io,
+    int slot_id,
+    const char* path)
+{
+    assert(io != NULL);
+    assert(path != NULL);
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    memset(item, 0, sizeof(struct ToriRS_IOItem));
+
+    item->kind = TORIRS_IOK_FILE_READ;
+    snprintf(item->u.file.path, sizeof(item->u.file.path), "%s", path);
+    push_active(io, slot_id);
+}
+
+/**
+ * Write `data` to `path`.
+ *
+ * The buffer is borrowed, not handed over: it must outlive the yield that waits
+ * for this item, and freeing it is still the caller's job. The platform reads
+ * it and reports only `error_code`.
+ */
+static inline void
+ToriRS_IO_QueueFileWrite(
+    struct ToriRS_IO* io,
+    int slot_id,
+    const char* path,
+    void* data,
+    int data_size)
+{
+    assert(io != NULL);
+    assert(path != NULL);
+    assert(data != NULL || data_size == 0);
+    struct ToriRS_IOItem* item = &io->io_slots[slot_id];
+    memset(item, 0, sizeof(struct ToriRS_IOItem));
+
+    item->kind = TORIRS_IOK_FILE_WRITE;
+    snprintf(item->u.file.path, sizeof(item->u.file.path), "%s", path);
+    item->data = data;
+    item->data_size = data_size;
     push_active(io, slot_id);
 }
 
@@ -335,6 +432,11 @@ ToriRS_TaskQueue_Run(
         switch( res )
         {
         case PT_YIELDED:
+            /* Head parked on client state (TASK_AWAIT_STATE): stepping again
+             * cannot change that state, so say so and let the caller unwind to
+             * the frame loop. Everything behind it stays queued in order. */
+            if( task->blocked )
+                return TORIRS_ASYNCIO_STAT_BLOCKED;
             /* Head is blocked on IO — hand control back so the platform can
              * satisfy the request; the next pass resumes this task. */
             return TORIRS_ASYNCIO_STAT_YIELD;

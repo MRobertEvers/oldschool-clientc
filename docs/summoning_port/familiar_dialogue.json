@@ -6,7 +6,7 @@
   "why": "2009scape authors a familiar conversation for spirit graahk only and marks its fallback line as likely inauthentic; the porting policy permits a cited external reference when the local method is absent.",
   "chat_level_rule": "Summoning level + 10, agreed by three independent sources: SpiritGraahkDialogue.kt gates a level-57 familiar at 67, FamiliarDialoguePlugin's commented-out pet gate reads getSummoningLevel() + 10, and Transcript:Spirit wolf splits a level-1 familiar at 11.",
   "below_gate_rule": "Below the gate the familiar makes its noise without the translation. Transcript:Spirit wolf is the only page that records the split and that is what it shows: 'Whurf?' below level 11, 'Whurf? (What are you doing?)' at 11+.",
-  "held_out": "Conditional conversations keep their condition text but stay out of the random pool; overhead lines are ambient chat, not Interact."
+  "held_out": "Conditional conversations keep their condition text but stay out of the random pool unless CURATED_GUARDS gives them a real ServerScript check against this cache's own objs/categories; overhead lines are ambient chat, not Interact."
  },
  "familiars": {
   "1": {
@@ -15,6 +15,178 @@
    "url": "https://runescape.wiki/w/Transcript:Spirit_wolf",
    "below_gate": "Whurf?",
    "conversations": [
+    {
+     "lines": [
+      {
+       "who": "npc",
+       "text": "Whuff-whuff! Arf! (Throw the bone! I want to chase!)"
+      },
+      {
+       "who": "player",
+       "text": "I can't just throw bones away - I need them to train my Prayer!"
+      }
+     ],
+     "condition": "If the player has any type of bone in their inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "bones"
+       ],
+       [
+        "inv",
+        "bones_burnt"
+       ],
+       [
+        "inv",
+        "bat_bones"
+       ],
+       [
+        "inv",
+        "big_bones"
+       ],
+       [
+        "inv",
+        "babydragon_bones"
+       ],
+       [
+        "inv",
+        "dragon_bones"
+       ],
+       [
+        "inv",
+        "wolf_bones"
+       ],
+       [
+        "inv",
+        "tbwt_beast_bones"
+       ],
+       [
+        "inv",
+        "tbwt_jogre_bones"
+       ],
+       [
+        "inv",
+        "tbwt_burnt_jogre_bones"
+       ],
+       [
+        "inv",
+        "mm_small_ninja_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_medium_ninja_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_normal_gorilla_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_bearded_gorilla_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_normal_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_small_zombie_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_large_zombie_monkey_bones"
+       ],
+       [
+        "inv",
+        "mm_skeleton_bones"
+       ],
+       [
+        "inv",
+        "zogre_bones"
+       ],
+       [
+        "inv",
+        "zogre_ancestral_bones_fayg"
+       ],
+       [
+        "inv",
+        "zogre_ancestral_bones_raurg"
+       ],
+       [
+        "inv",
+        "zogre_ancestral_bones_ourg"
+       ],
+       [
+        "inv",
+        "dagannoth_king_bones"
+       ],
+       [
+        "inv",
+        "wyvern_bones"
+       ],
+       [
+        "inv",
+        "dorgesh_construction_bone"
+       ],
+       [
+        "inv",
+        "dorgesh_construction_bone_curved"
+       ],
+       [
+        "inv",
+        "lava_dragon_bones"
+       ],
+       [
+        "inv",
+        "dragon_bones_superior"
+       ],
+       [
+        "inv",
+        "wyrm_bones"
+       ],
+       [
+        "inv",
+        "drake_bones"
+       ],
+       [
+        "inv",
+        "hydra_bones"
+       ],
+       [
+        "inv",
+        "shade_bleached_bones"
+       ],
+       [
+        "inv",
+        "babywyrm_bones"
+       ],
+       [
+        "inv",
+        "giant_bones"
+       ],
+       [
+        "inv",
+        "alan_bones"
+       ],
+       [
+        "inv",
+        "strykewyrm_bones"
+       ],
+       [
+        "inv",
+        "frost_dragon_bones"
+       ],
+       [
+        "inv",
+        "bull_bones"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
     {
      "lines": [
       {
@@ -68,21 +240,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Whuff-whuff! Arf! (Throw the bone! I want to chase!)"
-      },
-      {
-       "who": "player",
-       "text": "I can't just throw bones away - I need them to train my Prayer!"
-      }
-     ],
-     "condition": "If the player has any type of bone in their inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Grrrrr...",
     "Whuff-whuff!"
@@ -389,6 +547,82 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Schlorp... (...)"
+      },
+      {
+       "who": "player",
+       "text": "What's the matter?"
+      },
+      {
+       "who": "npc",
+       "text": "Schlorpslither sclorp... (Check your head...)"
+      },
+      {
+       "who": "player",
+       "text": "What about it... Oh, wait! Oh, this is pretty awkward..."
+      },
+      {
+       "who": "npc",
+       "text": "Slitherslimeslither slime slime slither schlorp... (You're wearing the spine of one of my relatives as a hat.)"
+      },
+      {
+       "who": "player",
+       "text": "Well more of a faux-pas, then."
+      },
+      {
+       "who": "npc",
+       "text": "Schlorp schlorp slither... (Just a bit...)"
+      }
+     ],
+     "condition": "If the player is wearing a snelm",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "worn",
+        "snelm_round_swamp"
+       ],
+       [
+        "worn",
+        "snelm_round_red+black"
+       ],
+       [
+        "worn",
+        "snelm_round_yellow"
+       ],
+       [
+        "worn",
+        "snelm_round_blue"
+       ],
+       [
+        "worn",
+        "snelm_round_orange"
+       ],
+       [
+        "worn",
+        "snelm_point_swamp"
+       ],
+       [
+        "worn",
+        "snelm_point_red+black"
+       ],
+       [
+        "worn",
+        "snelm_point_yellow"
+       ],
+       [
+        "worn",
+        "snelm_point_blue"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Slitherslime slitherslither schlorp schlorp. (All this running around the place is fun!)"
       },
       {
@@ -478,41 +712,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Schlorp... (...)"
-      },
-      {
-       "who": "player",
-       "text": "What's the matter?"
-      },
-      {
-       "who": "npc",
-       "text": "Schlorpslither sclorp... (Check your head...)"
-      },
-      {
-       "who": "player",
-       "text": "What about it... Oh, wait! Oh, this is pretty awkward..."
-      },
-      {
-       "who": "npc",
-       "text": "Slitherslimeslither slime slime slither schlorp... (You're wearing the spine of one of my relatives as a hat.)"
-      },
-      {
-       "who": "player",
-       "text": "Well more of a faux-pas, then."
-      },
-      {
-       "who": "npc",
-       "text": "Schlorp schlorp slither... (Just a bit...)"
-      }
-     ],
-     "condition": "If the player is wearing a snelm"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Slither!",
     "Sclurp!"
@@ -726,6 +926,46 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Sssshsss hsss ssshsss? (If you have that pick, why make me dig?)"
+      },
+      {
+       "who": "player",
+       "text": "Because it's a little quicker and easier on my arms."
+      },
+      {
+       "who": "npc",
+       "text": "Sssshsssssshsss ssssss hssss... (I should take industrial action over this...)"
+      },
+      {
+       "who": "player",
+       "text": "You mean you won't work for me any more?"
+      },
+      {
+       "who": "npc",
+       "text": "Hsssss. Ssssshsssshsssss sss ssssshssss. (No. It means me and the lads feed you legs-first into some industrial machinery, maybe the Blast Furnace.)"
+      },
+      {
+       "who": "player",
+       "text": "I'll just be over here, digging."
+      },
+      {
+       "who": "npc",
+       "text": "Ssssshssssss! (That's the spirit, lad/lass!)"
+      }
+     ],
+     "condition": "when wielding pickaxe",
+     "guard": {
+      "kind": "cat",
+      "container": "worn",
+      "category": "weapon_pickaxe",
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Hssshsss ssss ssssss...Hssshsssssss sssssss sshss. (This is so unsafe... I should have a hard-hat for this work.)"
       },
       {
@@ -811,41 +1051,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Sssshsss hsss ssshsss? (If you have that pick, why make me dig?)"
-      },
-      {
-       "who": "player",
-       "text": "Because it's a little quicker and easier on my arms."
-      },
-      {
-       "who": "npc",
-       "text": "Sssshsssssshsss ssssss hssss... (I should take industrial action over this...)"
-      },
-      {
-       "who": "player",
-       "text": "You mean you won't work for me any more?"
-      },
-      {
-       "who": "npc",
-       "text": "Hsssss. Ssssshsssshsssss sss ssssshssss. (No. It means me and the lads feed you legs-first into some industrial machinery, maybe the Blast Furnace.)"
-      },
-      {
-       "who": "player",
-       "text": "I'll just be over here, digging."
-      },
-      {
-       "who": "npc",
-       "text": "Ssssshssssss! (That's the spirit, lad/lass!)"
-      }
-     ],
-     "condition": "when wielding pickaxe"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Ssssss!",
     "Hssssss!"
@@ -997,6 +1203,66 @@
     {
      "lines": [
       {
+       "who": "npc",
+       "text": "Squee squee pree, squee squee pree. (You drink pray, me drink pray.)"
+      },
+      {
+       "who": "player",
+       "text": "What's that, Tz-Kih?"
+      },
+      {
+       "who": "npc",
+       "text": "Squeepree. Squee squee pree. (You got pray pray pot Tz-Kih drink pray pray you, you drink pray pray pot.)"
+      },
+      {
+       "who": "player",
+       "text": "You want to drink my Prayer points?"
+      },
+      {
+       "who": "npc",
+       "text": "Squee. Pree pree. (Yes. Pray pray.)"
+      },
+      {
+       "who": "player",
+       "text": "Err, not right now, Tz-Kih. I, er, need them myself."
+      },
+      {
+       "who": "player",
+       "text": "Sorry."
+      },
+      {
+       "who": "npc",
+       "text": "Squee, pree preeee...? (But, pray praaaay...?)"
+      }
+     ],
+     "condition": "With at least one dose of prayer potion in the inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "1doseprayerrestore"
+       ],
+       [
+        "inv",
+        "2doseprayerrestore"
+       ],
+       [
+        "inv",
+        "3doseprayerrestore"
+       ],
+       [
+        "inv",
+        "4doseprayerrestore"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
        "who": "player",
        "text": "How's it going, Tz-Kih?"
       },
@@ -1079,45 +1345,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Squee squee pree, squee squee pree. (You drink pray, me drink pray.)"
-      },
-      {
-       "who": "player",
-       "text": "What's that, Tz-Kih?"
-      },
-      {
-       "who": "npc",
-       "text": "Squeepree. Squee squee pree. (You got pray pray pot Tz-Kih drink pray pray you, you drink pray pray pot.)"
-      },
-      {
-       "who": "player",
-       "text": "You want to drink my Prayer points?"
-      },
-      {
-       "who": "npc",
-       "text": "Squee. Pree pree. (Yes. Pray pray.)"
-      },
-      {
-       "who": "player",
-       "text": "Err, not right now, Tz-Kih. I, er, need them myself."
-      },
-      {
-       "who": "player",
-       "text": "Sorry."
-      },
-      {
-       "who": "npc",
-       "text": "Squee, pree preeee...? (But, pray praaaay...?)"
-      }
-     ],
-     "condition": "With at least one dose of prayer potion in the inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Squee!",
     "Squee squee!"
@@ -1689,6 +1917,22 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Squeak squeak? (You're vasting all that blood, can I have some?)"
+      },
+      {
+       "who": "player",
+       "text": "No!"
+      }
+     ],
+     "condition": "when missing life points",
+     "guard": {
+      "kind": "hp_missing"
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Squeak squeak squeak! (Ven are you going to feed me?)"
       },
       {
@@ -1723,19 +1967,6 @@
     }
    ],
    "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Squeak squeak? (You're vasting all that blood, can I have some?)"
-      },
-      {
-       "who": "player",
-       "text": "No!"
-      }
-     ],
-     "condition": "when missing life points"
-    },
     {
      "lines": [
       {
@@ -2598,6 +2829,30 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Gnawgnawgnaw gnawgnaw gnawgnaw gnaw! ('Ere, you 'ave ze logs, now form zem into a mighty dam!)"
+      },
+      {
+       "who": "player",
+       "text": "Well, I was thinking of burning, selling, or fletching them."
+      },
+      {
+       "who": "npc",
+       "text": "Gnawgnaw... (Sacre bleu! Such a waste.)"
+      }
+     ],
+     "condition": "If the player has logs in their inventory",
+     "guard": {
+      "kind": "cat",
+      "container": "inv",
+      "category": "firemaking_logs",
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Gnawgnawgnaw gnaw gnawgnaw? (Vot are you doing 'ere when we could be logging and building mighty dams, alors?)"
       },
       {
@@ -2667,25 +2922,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Gnawgnawgnaw gnawgnaw gnawgnaw gnaw! ('Ere, you 'ave ze logs, now form zem into a mighty dam!)"
-      },
-      {
-       "who": "player",
-       "text": "Well, I was thinking of burning, selling, or fletching them."
-      },
-      {
-       "who": "npc",
-       "text": "Gnawgnaw... (Sacre bleu! Such a waste.)"
-      }
-     ],
-     "condition": "If the player has logs in their inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Gnawgnaw...",
     "Gnaw ..."
@@ -3137,6 +3374,38 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Clatterclicker clicker clatter? (What's the matter, Private? Not enjoying the run?)"
+      },
+      {
+       "who": "player",
+       "text": "Sir...wheeze...yes Sir!"
+      },
+      {
+       "who": "npc",
+       "text": "Clatterclick clatter? Clicker click? (Not enjoying the run? You need more training, biped?)"
+      },
+      {
+       "who": "player",
+       "text": "Sir, no Sir! Sir, I'm enjoying the run a great deal, Sir!"
+      },
+      {
+       "who": "npc",
+       "text": "Clickclackclatter! (Then hop to, Private!)"
+      },
+      {
+       "who": "player",
+       "text": "Sir, yes Sir!"
+      }
+     ],
+     "condition": "When the player has 0% running energy",
+     "guard": {
+      "kind": "run_energy_zero"
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Clatterclatter click clatter click. (All right you worthless biped, fall in!)"
       },
       {
@@ -3214,37 +3483,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Clatterclicker clicker clatter? (What's the matter, Private? Not enjoying the run?)"
-      },
-      {
-       "who": "player",
-       "text": "Sir...wheeze...yes Sir!"
-      },
-      {
-       "who": "npc",
-       "text": "Clatterclick clatter? Clicker click? (Not enjoying the run? You need more training, biped?)"
-      },
-      {
-       "who": "player",
-       "text": "Sir, no Sir! Sir, I'm enjoying the run a great deal, Sir!"
-      },
-      {
-       "who": "npc",
-       "text": "Clickclackclatter! (Then hop to, Private!)"
-      },
-      {
-       "who": "player",
-       "text": "Sir, yes Sir!"
-      }
-     ],
-     "condition": "When the player has 0% running energy"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Click click!",
     "Click!"
@@ -5146,6 +5385,42 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Chirupclackchirrup? (Can I look after those sharks for you?)"
+      },
+      {
+       "who": "player",
+       "text": "I don't know. Would you eat them?"
+      },
+      {
+       "who": "npc",
+       "text": "Chirrup! (Yes!)"
+      },
+      {
+       "who": "npc",
+       "text": "Clack... (Ooops...)"
+      },
+      {
+       "who": "player",
+       "text": "I think I'll hang onto them myself for now."
+      }
+     ],
+     "condition": "If the player has at least two raw sharks in their inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "raw_shark"
+       ]
+      ],
+      "op": ">=",
+      "count": 2
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Chirruptwit clackchirrup! (I am the best fisherman ever!)"
       },
       {
@@ -5207,33 +5482,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Chirupclackchirrup? (Can I look after those sharks for you?)"
-      },
-      {
-       "who": "player",
-       "text": "I don't know. Would you eat them?"
-      },
-      {
-       "who": "npc",
-       "text": "Chirrup! (Yes!)"
-      },
-      {
-       "who": "npc",
-       "text": "Clack... (Ooops...)"
-      },
-      {
-       "who": "player",
-       "text": "I think I'll hang onto them myself for now."
-      }
-     ],
-     "condition": "If the player has at least two raw sharks in their inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Chirp!",
     "Twitter!"
@@ -5247,6 +5496,54 @@
    "url": "https://runescape.wiki/w/Transcript:Spirit_kyatt",
    "below_gate": null,
    "conversations": [
+    {
+     "lines": [
+      {
+       "who": "npc",
+       "text": "Growl hisss. (Human, hand me that ball of wool.)"
+      },
+      {
+       "who": "player",
+       "text": "Aww...do you want to play with it?"
+      },
+      {
+       "who": "npc",
+       "text": "Rawr snarrl grr. (I do not 'play', human.)"
+      },
+      {
+       "who": "player",
+       "text": "If you say so, kitty! Alright, you can have it."
+      },
+      {
+       "who": "npc",
+       "text": "Mrrrowl grrrr. (Aha! Ball of wool: you are mine now. I will destroy you!)"
+      },
+      {
+       "who": "player",
+       "text": "Well I'm not giving it to you, now! I'll never get it back."
+      },
+      {
+       "who": "npc",
+       "text": "Grrrr howl snarl. (Then you leave me no choice but to destroy YOU, human!)"
+      },
+      {
+       "who": "player",
+       "text": "Bad kitty!"
+      }
+     ],
+     "condition": "If the player has a Ball of wool in their inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "ball_of_wool"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
     {
      "lines": [
       {
@@ -5376,45 +5673,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Growl hisss. (Human, hand me that ball of wool.)"
-      },
-      {
-       "who": "player",
-       "text": "Aww...do you want to play with it?"
-      },
-      {
-       "who": "npc",
-       "text": "Rawr snarrl grr. (I do not 'play', human.)"
-      },
-      {
-       "who": "player",
-       "text": "If you say so, kitty! Alright, you can have it."
-      },
-      {
-       "who": "npc",
-       "text": "Mrrrowl grrrr. (Aha! Ball of wool: you are mine now. I will destroy you!)"
-      },
-      {
-       "who": "player",
-       "text": "Well I'm not giving it to you, now! I'll never get it back."
-      },
-      {
-       "who": "npc",
-       "text": "Grrrr howl snarl. (Then you leave me no choice but to destroy YOU, human!)"
-      },
-      {
-       "who": "player",
-       "text": "Bad kitty!"
-      }
-     ],
-     "condition": "If the player has a Ball of wool in their inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Grrrrrr!",
     "Mrrrowl!"
@@ -6083,6 +6342,58 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Hssssssssshssshsss ssss hsss! (You are under my power!)"
+      },
+      {
+       "who": "player",
+       "text": "No, you are under my power!"
+      },
+      {
+       "who": "npc",
+       "text": "Hsssss hssssssssshssshsss ssss hsss! (No, you are under my power!)"
+      },
+      {
+       "who": "player",
+       "text": "No, my power is greater!"
+      },
+      {
+       "who": "npc",
+       "text": "Sssss hss ssss hsss... (Your power is the greater...)"
+      },
+      {
+       "who": "player",
+       "text": "Your powers are no match for mine!"
+      },
+      {
+       "who": "npc",
+       "text": "Hsssshssss hssss hsssshsss... (You are convinced you have won this argument...)"
+      },
+      {
+       "who": "player",
+       "text": "I won the argument...yay!"
+      },
+      {
+       "who": "npc",
+       "text": "Hssshssshssshssshsshsss! (*Manic serpentine laughter*)"
+      }
+     ],
+     "condition": "while wearing the ring of charos (a)",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "worn",
+        "ring_of_charos_unlocked"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Hsssshsssss hssshssss hssss? (Do we have to do thissss right now?)"
       },
       {
@@ -6196,49 +6507,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Hssssssssshssshsss ssss hsss! (You are under my power!)"
-      },
-      {
-       "who": "player",
-       "text": "No, you are under my power!"
-      },
-      {
-       "who": "npc",
-       "text": "Hsssss hssssssssshssshsss ssss hsss! (No, you are under my power!)"
-      },
-      {
-       "who": "player",
-       "text": "No, my power is greater!"
-      },
-      {
-       "who": "npc",
-       "text": "Sssss hss ssss hsss... (Your power is the greater...)"
-      },
-      {
-       "who": "player",
-       "text": "Your powers are no match for mine!"
-      },
-      {
-       "who": "npc",
-       "text": "Hsssshssss hssss hsssshsss... (You are convinced you have won this argument...)"
-      },
-      {
-       "who": "player",
-       "text": "I won the argument...yay!"
-      },
-      {
-       "who": "npc",
-       "text": "Hssshssshssshssshsshsss! (*Manic serpentine laughter*)"
-      }
-     ],
-     "condition": "while wearing the ring of charos (a)"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Hssssssss!",
     "Hsss!"
@@ -6423,6 +6692,46 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Bwaaarp graaaawk? (What's that croaking in your inventory?)"
+      },
+      {
+       "who": "player",
+       "text": "Ah, you mean that toad?"
+      },
+      {
+       "who": "player",
+       "text": "Oh, I'm guessing you're not going to like me carrying a toad about."
+      },
+      {
+       "who": "npc",
+       "text": "Craaawk, croak. (I might not be all that happy, no.)"
+      },
+      {
+       "who": "player",
+       "text": "I'm not going to eat it."
+      },
+      {
+       "who": "npc",
+       "text": "Craaaaawk braaap croak. (Weeeeell, I'd hope not! Reminds me of my mama toad. She was inflated and fed to a jubbly, you know. A sad, demeaning way to die.)"
+      }
+     ],
+     "condition": "while holding a swamp toad in inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "swamp_toad"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Braaap, craaaawk craaaawk, craaaaawk. (Ladies and gentlemen; for my next trick, I shall swallow this fly!)"
       },
       {
@@ -6533,35 +6842,6 @@
       }
      ],
      "condition": "after being loaded with a cannonball"
-    },
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Bwaaarp graaaawk? (What's that croaking in your inventory?)"
-      },
-      {
-       "who": "player",
-       "text": "Ah, you mean that toad?"
-      },
-      {
-       "who": "player",
-       "text": "Oh, I'm guessing you're not going to like me carrying a toad about."
-      },
-      {
-       "who": "npc",
-       "text": "Craaawk, croak. (I might not be all that happy, no.)"
-      },
-      {
-       "who": "player",
-       "text": "I'm not going to eat it."
-      },
-      {
-       "who": "npc",
-       "text": "Craaaaawk braaap croak. (Weeeeell, I'd hope not! Reminds me of my mama toad. She was inflated and fed to a jubbly, you know. A sad, demeaning way to die.)"
-      }
-     ],
-     "condition": "while holding a swamp toad in inventory"
     }
    ],
    "overhead": [
@@ -6840,6 +7120,38 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Squeeksqueekasqueeksquee? (Can I have a papaya?)"
+      },
+      {
+       "who": "player",
+       "text": "No, I have a very specific plan for them."
+      },
+      {
+       "who": "npc",
+       "text": "Squeek? (What?)"
+      },
+      {
+       "who": "player",
+       "text": "I was just going to grate it over some other vegetables and eat it. Yum."
+      }
+     ],
+     "condition": "With 5 or more papayas in inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "papaya"
+       ]
+      ],
+      "op": ">=",
+      "count": 5
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Squeekasqueek squeek? (How much longer do you want me for?)"
       },
       {
@@ -6902,27 +7214,6 @@
       }
      ],
      "condition": "Anywhere in Karamja"
-    },
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Squeeksqueekasqueeksquee? (Can I have a papaya?)"
-      },
-      {
-       "who": "player",
-       "text": "No, I have a very specific plan for them."
-      },
-      {
-       "who": "npc",
-       "text": "Squeek? (What?)"
-      },
-      {
-       "who": "player",
-       "text": "I was just going to grate it over some other vegetables and eat it. Yum."
-      }
-     ],
-     "condition": "With 5 or more papayas in inventory"
     }
    ],
    "overhead": [
@@ -7547,6 +7838,46 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Clatter click chitter click? (Wouldn't you learn focus better if you used chopsticks?)"
+      },
+      {
+       "who": "player",
+       "text": "Huh?"
+      },
+      {
+       "who": "npc",
+       "text": "Clicker chirrupchirrup. (For catching the butterflies, grasshopper.)"
+      },
+      {
+       "who": "player",
+       "text": "Oh, right! Well, if I use anything but the net I squash them."
+      },
+      {
+       "who": "npc",
+       "text": "Chirrupchirrup click! (Then, I could have them!)"
+      }
+     ],
+     "condition": "with Butterfly net equipped or in inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "worn",
+        "hunting_butterfly_net"
+       ],
+       [
+        "inv",
+        "hunting_butterfly_net"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Chitter chirrup chirrup? (Have you been following your training, grasshopper?)"
       },
       {
@@ -7648,33 +7979,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Clatter click chitter click? (Wouldn't you learn focus better if you used chopsticks?)"
-      },
-      {
-       "who": "player",
-       "text": "Huh?"
-      },
-      {
-       "who": "npc",
-       "text": "Clicker chirrupchirrup. (For catching the butterflies, grasshopper.)"
-      },
-      {
-       "who": "player",
-       "text": "Oh, right! Well, if I use anything but the net I squash them."
-      },
-      {
-       "who": "npc",
-       "text": "Chirrupchirrup click! (Then, I could have them!)"
-      }
-     ],
-     "condition": "with Butterfly net equipped or in inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Chitter!",
     "Clack clack!"
@@ -9097,6 +9402,50 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Do you smell that? Swamp tar, master. I LOVE the smell of swamp tar in the morning. Smells like...victorin."
+      },
+      {
+       "who": "player",
+       "text": "You actually LIKE the smell of this stuff? It's gross."
+      },
+      {
+       "who": "npc",
+       "text": "Of course! I am made of swamp, after all."
+      },
+      {
+       "who": "player",
+       "text": "Oh, I'm sorry. I didn't mean...I meant the swamp tar itself smells gross, not you. You smell like lavender. Yes, lavender."
+      },
+      {
+       "who": "npc",
+       "text": "*sob* Lavender? Lavender! Why would you be so mean? I'm supposed to smell bad."
+      }
+     ],
+     "condition": "with any type of swamp tar or paste in inventory",
+     "guard": {
+      "kind": "sum",
+      "terms": [
+       [
+        "inv",
+        "swamp_tar"
+       ],
+       [
+        "inv",
+        "rawswamppaste"
+       ],
+       [
+        "inv",
+        "swamppaste"
+       ]
+      ],
+      "op": ">=",
+      "count": 1
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "I’m alone, all alone I say."
       },
       {
@@ -9234,33 +9583,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Do you smell that? Swamp tar, master. I LOVE the smell of swamp tar in the morning. Smells like...victorin."
-      },
-      {
-       "who": "player",
-       "text": "You actually LIKE the smell of this stuff? It's gross."
-      },
-      {
-       "who": "npc",
-       "text": "Of course! I am made of swamp, after all."
-      },
-      {
-       "who": "player",
-       "text": "Oh, I'm sorry. I didn't mean...I meant the swamp tar itself smells gross, not you. You smell like lavender. Yes, lavender."
-      },
-      {
-       "who": "npc",
-       "text": "*sob* Lavender? Lavender! Why would you be so mean? I'm supposed to smell bad."
-      }
-     ],
-     "condition": "with any type of swamp tar or paste in inventory"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Something smells clean...",
     "The power of stench compels you!"
@@ -9944,6 +10267,38 @@
      "lines": [
       {
        "who": "npc",
+       "text": "Whicker snort! Whinny whinny whinny. (You're hurt! Let me try to heal you.)"
+      },
+      {
+       "who": "player",
+       "text": "Yes, please do!"
+      },
+      {
+       "who": "npc",
+       "text": "Snuffle whicker whicker neigh neigh... (Okay, we'll begin with acupuncture and some reiki, then I'll get my crystals...)"
+      },
+      {
+       "who": "player",
+       "text": "Or you could use some sort of magic...like the other unicorns..."
+      },
+      {
+       "who": "npc",
+       "text": "Whicker whinny whinny neigh. (Yes, but I believe in alternative medicine.)"
+      },
+      {
+       "who": "player",
+       "text": "Riiight. Don't worry about it, then: I'll be fine."
+      }
+     ],
+     "condition": "when the player does not have maximum life points",
+     "guard": {
+      "kind": "hp_missing"
+     }
+    },
+    {
+     "lines": [
+      {
+       "who": "npc",
        "text": "Neigh neigh neighneigh snort? (Isn't everything so awesomely wonderful?)"
       },
       {
@@ -10013,37 +10368,7 @@
      ]
     }
    ],
-   "conditional": [
-    {
-     "lines": [
-      {
-       "who": "npc",
-       "text": "Whicker snort! Whinny whinny whinny. (You're hurt! Let me try to heal you.)"
-      },
-      {
-       "who": "player",
-       "text": "Yes, please do!"
-      },
-      {
-       "who": "npc",
-       "text": "Snuffle whicker whicker neigh neigh... (Okay, we'll begin with acupuncture and some reiki, then I'll get my crystals...)"
-      },
-      {
-       "who": "player",
-       "text": "Or you could use some sort of magic...like the other unicorns..."
-      },
-      {
-       "who": "npc",
-       "text": "Whicker whinny whinny neigh. (Yes, but I believe in alternative medicine.)"
-      },
-      {
-       "who": "player",
-       "text": "Riiight. Don't worry about it, then: I'll be fine."
-      }
-     ],
-     "condition": "when the player does not have maximum life points"
-    }
-   ],
+   "conditional": [],
    "overhead": [
     "Whinney!",
     "Neigh!"

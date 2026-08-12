@@ -28,6 +28,7 @@
 #include "engine/torirs_sound_from_rscache.h"
 #include "game/rs_audio.h"
 #include "game/rs_cs2_host.h"
+#include "game/rs_prefs.h"
 #include "features/features.h"
 #include "platform/platform_audio_null.h"
 #include "platform/platform_x_io.h"
@@ -40,6 +41,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define REPO_ROOT "/Users/matthewevers/Documents/git_repos/3draster"
 
@@ -120,6 +122,152 @@ test_audio_settings_snapshot(void)
     }
     free(types);
     VarPManager_Free(&varps);
+}
+
+/*
+ * Settings that outlive the process.
+ *
+ * The bug this covers is not subtle in effect and was invisible in code: the
+ * volumes lived only in the option store, nothing wrote them anywhere, and
+ * every launch re-seeded them to 100 — so "turn the music down" lasted until
+ * the client closed. What is asserted is the whole round trip a relaunch makes,
+ * option store -> file -> option store, plus the two values a naive writer
+ * loses: a deliberate zero (mute), and a default that must survive a file that
+ * never mentioned the option.
+ */
+static void
+test_prefs_persistence(void)
+{
+    char const* path = "prefs_test_tmp.ini";
+    struct RS_Prefs saved;
+    struct RS_Prefs loaded;
+    struct RS_CS2Host host;
+    struct PlatformX_IO* px;
+    struct ToriRS_IO io;
+    struct ToriRS_Task* task;
+
+    printf("client preferences round trip\n");
+    remove(path);
+
+    /* A client whose player has dragged music to 30 and muted area sounds. */
+    memset(&host, 0, sizeof(host));
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME, 30);
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME, 100);
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME, 0);
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 60);
+    /* Brightness (device option 6) and the default window mode are the two
+     * other things the player can move here. The reference keeps one and not
+     * the other; see RS_CS2Host_OptionPersists. */
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, 6, 25);
+    /* Hide roofs is a game option like the volumes, and the world render reads
+     * it every frame — so it has to come back on the next launch too. */
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS, 1);
+    host.default_window_mode = 1;
+    host.default_window_mode_from_script = true;
+
+    RS_Prefs_Defaults(&saved);
+    CHECK(RS_Prefs_CaptureFromHost(&saved, &host), "a changed option is seen as a change");
+    CHECK(!RS_Prefs_CaptureFromHost(&saved, &host), "an unchanged store is not a change");
+
+    /* Through the real seam, not a private fopen: the file the next launch
+     * reads is the one the platform wrote. */
+    px = PlatformX_IO_New();
+    CHECK(px != NULL, "platform io available");
+    task = CreateTask_PrefsSave(&saved, path);
+    memset(&io, 0, sizeof(io));
+    while( task_run(task, &io) == PT_YIELDED )
+        PlatformX_IO_Process(px, &io);
+    task_free(task);
+    CHECK(access(path, F_OK) == 0, "preferences written");
+
+    /* The next launch: a fresh host, defaults everywhere, then the file. */
+    memset(&host, 0, sizeof(host));
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME, 100);
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME, 100);
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME, 100);
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 100);
+    task = CreateTask_PrefsLoad(&loaded, path);
+    memset(&io, 0, sizeof(io));
+    while( task_run(task, &io) == PT_YIELDED )
+        PlatformX_IO_Process(px, &io);
+    task_free(task);
+    RS_Prefs_ApplyToHost(&loaded, &host);
+
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME) == 30,
+        "music volume survives a relaunch");
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) ==
+            60,
+        "master volume survives a relaunch");
+    /* Zero is a choice, not an absence: a writer that skipped falsy values
+     * would come back at full blast on the one setting the player silenced. */
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME) == 0,
+        "a muted volume stays muted");
+    /* Untouched sound effects were never written, so this is the default path,
+     * and the default is full volume rather than the zero a memset gives. */
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME) == 100,
+        "an option the file omits keeps its default");
+    CHECK(host.volume_music == 30, "GETVOLUMEMUSIC agrees with the restored option");
+    CHECK(host.audio_settings_dirty, "a restore leaves the mixer a snapshot to apply");
+    /* The reference applies brightness on the spot and never writes it to the
+     * file, so a relaunch is back at the default however dark the last session
+     * was. Persisting it would be this client inventing a setting. */
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_DEVICE, 6) == 0,
+        "brightness is session state, as in the reference");
+    CHECK(host.default_window_mode == 1, "the default window mode survives a relaunch");
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) == 1,
+        "hide roofs survives a relaunch");
+    /* A boot config states a window mode on every fixed-mode launch. Saving
+     * that would turn one run's configuration into the player's setting. */
+    {
+        struct RS_Prefs from_config = saved;
+        struct RS_CS2Host config_host;
+
+        memset(&config_host, 0, sizeof(config_host));
+        config_host.default_window_mode = 2;
+        config_host.default_window_mode_from_script = false;
+        RS_Prefs_CaptureFromHost(&from_config, &config_host);
+        CHECK(
+            from_config.default_window_mode == 1,
+            "a config-set window mode is not captured as a preference");
+    }
+
+    /* CLIENTOPTION (3209/3210) names no table: the reference resolves the id
+     * against the device table and then the game table. Id 7 is the music
+     * volume, so setting it generically must be audible and must read back
+     * through GAMEOPTION_GET — it used to land in a private third array that
+     * nothing else could see. */
+    CHECK(
+        RS_CS2Host_ClientOptionKind(RS_CS2_GAMEOPTION_MUSIC_VOLUME) == RS_CS2_OPTION_GAME,
+        "a game-table id resolves to the game table");
+    CHECK(
+        RS_CS2Host_ClientOptionKind(RS_CS2_DEVICEOPTION_MASTER_VOLUME) ==
+            RS_CS2_OPTION_DEVICE,
+        "a device-table id resolves to the device table");
+    CHECK(RS_CS2Host_ClientOptionKind(60) == -1, "an id in neither table resolves to neither");
+    RS_CS2Host_SetOption(
+        &host, RS_CS2Host_ClientOptionKind(RS_CS2_GAMEOPTION_MUSIC_VOLUME),
+        RS_CS2_GAMEOPTION_MUSIC_VOLUME, 12);
+    CHECK(host.volume_music == 12, "a generic client-option write reaches the music volume");
+
+    /* No file at all is a first launch, not an error, and must read as
+     * defaults rather than leaving whatever was in the struct. */
+    remove(path);
+    memset(&loaded, 0, sizeof(loaded));
+    task = CreateTask_PrefsLoad(&loaded, path);
+    memset(&io, 0, sizeof(io));
+    while( task_run(task, &io) == PT_YIELDED )
+        PlatformX_IO_Process(px, &io);
+    task_free(task);
+    CHECK(
+        loaded.options[RS_CS2_OPTION_GAME][RS_CS2_GAMEOPTION_MUSIC_VOLUME] == 100,
+        "a missing file leaves defaults, not zeroes");
+    PlatformX_IO_Free(px);
 }
 
 /** One frame: tick the game's sound queue, pump async loads, hand the platform
@@ -730,6 +878,7 @@ main(void)
     g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 
     test_audio_settings_snapshot();
+    test_prefs_persistence();
     test_queue_without_cache();
 
     if( !RSCache_ProfileByName("lc254", &dat1_profile) )

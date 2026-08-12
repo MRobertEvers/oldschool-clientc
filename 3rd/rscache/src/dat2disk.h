@@ -263,10 +263,93 @@ RSCache_Dat2DiskTableForGame(
  */
 #define RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID 255
 
+/**
+ * Where a disk's archive containers actually live.
+ *
+ * Every RSCache_Dat2Disk has one. The dat2 sector file is not the interface, it
+ * is an *implementation* of the interface — the one this library ships for
+ * hosts that have a filesystem (RSCache_Dat2DiskFileStore, installed by the
+ * NewFromDirectory constructors). A host with different storage supplies its
+ * own and gets everything else unchanged: reference tables, table id
+ * resolution, XTEA, archive metadata and the whole decode path are the same
+ * code, because they were never about the container layout.
+ *
+ * Making it required rather than optional is the point. An "if there is a
+ * store, else read the file" disk has two backings and two sets of bugs, and
+ * the file path stays the one that is really tested; one mandatory vtable means
+ * the browser exercises the same call sites the desktop does.
+ *
+ * ## Why anyone would want a different one
+ *
+ * The dat2 layout solves a problem a filesystem has and a key-value store does
+ * not: packing variable-length archives into one file without a per-archive
+ * inode. A host whose durable storage is already keyed — IndexedDB in a
+ * browser, which is what forced this — gains nothing from sector chains and
+ * pays for them twice, in the 520-byte sector headers and in the orphaned
+ * sectors every rewrite leaves behind (RSCache_Dat2DiskWriteArchive appends and
+ * re-points, exactly as the real client does).
+ *
+ * ## The unit
+ *
+ * A record is the exact idx-record payload: the JS5 container, plus whatever
+ * local version trailer the writer appended. That is deliberately the same blob
+ * RSCache_Dat2DiskArchiveNewLoadRaw returns and RSCache_Dat2DiskWriteArchiveTo
+ * accepts, so a store transports bytes this library already round-trips and is
+ * never a second encoding to keep in step.
+ */
+struct RSCache_Dat2Store
+{
+    /** Passed to every callback below. The file store points it at the disk. */
+    void* user;
+
+    /**
+     * Fetch one record. Returns 1 and hands over a malloc'd buffer the caller
+     * frees, 0 when the record does not exist, -1 on error.
+     *
+     * "Does not exist" and "cannot be produced right now" must not be confused:
+     * a store that cannot answer synchronously has to report -1, because 0 is
+     * what tells JS5 the group is missing and worth downloading again.
+     */
+    int (*get)(void* user, int table_id, int archive_id, uint8_t** data, int* size);
+
+    /** Create or replace one record. Returns 0 on success, -1 on failure.
+     *  NULL for a store that cannot be written (a read-only serving cache). */
+    int (*put)(void* user, int table_id, int archive_id, const uint8_t* data, int size);
+
+    /**
+     * Non-zero when table_id holds at least one record. This is the store's
+     * answer to "is there a main_file_cache.idxN": it decides which tables the
+     * open scans for a reference table, so a store that answered optimistically
+     * would report a failed decode for every table the cache does not have.
+     */
+    int (*has_table)(void* user, int table_id);
+
+    /**
+     * Optional. Called after a reference table container has been put, so a
+     * backing with side structures can bring them up to date.
+     *
+     * It exists for exactly one thing: the file store's zero-byte idxN presence
+     * sentinel, and reopening the dat2 reader whose buffered state predates the
+     * write. A keyed store has neither — has_table answers from the records
+     * themselves — and leaves this NULL. Returns 0 on success.
+     */
+    int (*commit_table)(void* user, int table_id);
+
+    /** Optional. Frees `user` when the disk closes. NULL when the store's state
+     *  is owned elsewhere (the file store's is the disk itself). */
+    void (*destroy)(void* user);
+};
+
 struct RSCache_Dat2Disk
 {
+    /** The cache directory, or — for a store the caller supplied — a label
+     *  naming it. Only the file store opens it as a path; it is kept for every
+     *  backing because diagnostics and callers such as the JS5 storage adapter
+     *  identify a cache by it. */
     char* directory;
     struct RSCache_ReferenceTable* tables[RSCACHE_DAT2_DISK_TABLE_CAPACITY];
+    /** The file store's handle on main_file_cache.dat2, and NULL under any
+     *  other backing. Nothing outside the file store may read through it. */
     FILE* dat2_file;
     /** Stated identity. game/revision drive table ids and the map XTEA gate.
      *  Unset (ProfileZero) until RSCache_Dat2DiskSetProfile. */
@@ -274,6 +357,8 @@ struct RSCache_Dat2Disk
     int profile_set;
     /** Non-zero when opened through NewReadOnlyFromDirectory. */
     int read_only;
+    /** The backing. Never empty: store.get is non-NULL on every open disk. */
+    struct RSCache_Dat2Store store;
 };
 
 bool
@@ -327,6 +412,34 @@ RSCache_Dat2DiskNewReadOnlyFromDirectory(const char* directory);
  */
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewSparseFromDirectory(const char* directory);
+
+/**
+ * Open a cache whose archives live in `store` rather than in dat2/idx files.
+ *
+ * `label` names the cache for diagnostics and for callers that identify one by
+ * `disk->directory`; nothing opens it as a path. `store` is required and must
+ * supply at least `get`. Unless it sets `destroy`, `store->user` stays the
+ * caller's and must outlive the disk.
+ *
+ * Reference tables are decoded at open exactly as for a directory, so an empty
+ * store yields a disk with no tables, which is the correct starting point for
+ * an incremental (JS5-populated) cache.
+ */
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewFromStore(
+    const char* label,
+    const struct RSCache_Dat2Store* store);
+
+/**
+ * The dat2-file backing, bound to `disk`.
+ *
+ * This is what the NewFromDirectory constructors install, exposed so that the
+ * shipped backing is a peer of any other rather than a hidden default. It reads
+ * `disk->directory`, `disk->dat2_file` and `disk->read_only`, so it is only
+ * meaningful for a disk those describe.
+ */
+struct RSCache_Dat2Store
+RSCache_Dat2DiskFileStore(struct RSCache_Dat2Disk* disk);
 
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewUninitialized(void);
@@ -454,6 +567,24 @@ RSCache_Dat2DiskWriteFlush(void);
 int
 RSCache_Dat2DiskWriteArchive(
     const char* directory,
+    int table_id,
+    int archive_id,
+    const uint8_t* data,
+    int data_size);
+
+/**
+ * Write one archive into whichever backing `disk` has.
+ *
+ * The directory-keyed form above predates stores and cannot reach one, because
+ * a path is not enough to name a store. Callers that hold a disk should use
+ * this: it routes to the store when there is one and to the disk's directory
+ * otherwise, so the same call site serves both backings.
+ *
+ * Returns 0 on success, -1 on failure (including a read-only disk).
+ */
+int
+RSCache_Dat2DiskWriteArchiveTo(
+    struct RSCache_Dat2Disk* disk,
     int table_id,
     int archive_id,
     const uint8_t* data,

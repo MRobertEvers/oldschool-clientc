@@ -231,6 +231,32 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_D3D9_Z_BLENDED_TRIANGLES,
     TORIRS_PERF_CTR_D3D9_Z_SORTED_MODELS,
 
+    /*
+     * GPU retained-resource traffic, for --opengl3 and --webgl1.
+     *
+     * Deliberately the same questions the D3D9 block above answers, because the
+     * contract is the same one (WINDOWS-D3D9-UPLOAD-001): in a steady scene
+     * where nothing loaded, the atlas and static vertex counters must be zero,
+     * and only the index stream moves — painter order changes every frame.
+     *
+     * The chunk counters are WebGL1's alone. It has no VAOs and indexes with 16
+     * bits, so a draw range that spans a 65536-vertex boundary becomes several
+     * draws with the attribute pointers re-based between them; chunks-per-range
+     * is how much that is costing.
+     */
+    TORIRS_PERF_CTR_GL_ATLAS_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_GL_ATLAS_UPLOADS,
+    TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_GL_STATIC_VBO_UPLOADS,
+    TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS,
+    TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES,
+    TORIRS_PERF_CTR_GL_IBO_UPLOADS,
+    TORIRS_PERF_CTR_GL_DRAW_RANGES,
+    TORIRS_PERF_CTR_GL_DRAW_CALLS,
+    TORIRS_PERF_CTR_GL_ATTRIB_REBINDS,
+    TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES,
+
     TORIRS_PERF_CTR_COUNT
 };
 

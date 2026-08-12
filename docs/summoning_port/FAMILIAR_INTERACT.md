@@ -137,14 +137,77 @@ applied to its own first line. Karamthulhu overlord is the single exception: it
 is telepathic, every line it speaks is a parenthetical thought, so it has no
 untranslated sound and falls back.
 
-### What the corpus holds out
+### What the corpus implements vs. holds out
 
-* **State-conditional conversations** (37) keep their condition text but stay out
-  of the random pool — nothing here models "if the player has a mirror shield
-  equipped". Spirit terrorbird is the exception that proves it useful: its three
-  conversations key on how loaded its beast-of-burden inventory is, which *is* a
-  real container here, so they are guarded on `~summoning_familiar_bob_items`
-  and it always has something to say.
+Every conditional conversation the wiki records is checked against a curated
+table, `CURATED_GUARDS` in `build_familiar_dialogue_corpus.py`: a
+`(type_id, condition_text)` pair mapped to a real ServerScript check, built
+only from an obj/category token independently confirmed to exist in THIS
+cache (`configs/all.obj`, `pack/category.pack`) — not assumed from the wiki's
+English. A condition with no safe token stays in `conditional`, unimplemented.
+
+**Implemented — 18 guarded conversations, checked before the random pool,
+matching the wiki's own shape (the special line when the condition holds, the
+ordinary pool otherwise):**
+
+| Familiar | Condition | Check |
+| --- | --- | --- |
+| Spirit wolf | any bone in inventory | sum of the 38 real bones-category objs |
+| Thorny snail | wearing a snelm | sum of the 9 snelm colour/style objs, worn |
+| Desert wyrm | wielding a pickaxe | `inv_totalcat(worn, weapon_pickaxe)` |
+| Spirit tz-kih | a prayer potion dose | sum of the 4 dose objs |
+| Vampire bat, Unicorn stallion | missing/not max life points | `stat(hitpoints) < stat_base(hitpoints)` |
+| Beaver | logs in inventory | `inv_totalcat(inv, firemaking_logs)` |
+| Bull ant | 0% run energy | `runenergy = 0` |
+| Ibis | 2+ raw sharks | `inv_total(inv, raw_shark) >= 2` |
+| Spirit kyatt | a ball of wool | `inv_total(inv, ball_of_wool)` |
+| Spirit cobra | ring of charos(a) worn | `inv_total(worn, ring_of_charos_unlocked)` |
+| Barker toad | holding a swamp toad | `inv_total(inv, swamp_toad)` |
+| Fruit bat | 5+ papayas | `inv_total(inv, papaya) >= 5` |
+| Praying mantis | butterfly net worn or carried | sum, worn + inv |
+| Swamp titan | swamp tar or paste | sum of the 3 tar/paste objs |
+| Spirit terrorbird ×3 | beast-of-burden load | `~summoning_familiar_bob_items`, pre-existing |
+
+Verified live for two guard kinds (category and multi-obj sum), through a real
+OPNPC1 packet and the mounted dialogue box — see `test_summoning_interact.py`
+cases C, and the `summoning_dialogue_guard_kit` debugproc that provisions them.
+
+**The `bones`/`inv_totalcat` trap.** The first attempt used
+`inv_totalcat(inv, bones)`, matching the working precedent for
+`firemaking_logs` and `weapon_pickaxe`. It compiled clean — no diagnostic —
+and measured **0** live with 5 `[bones]` in the inventory, while
+`inv_total(inv, bones)` measured 5 at the same instant. `bones` is both
+`category.pack`'s name for category 6 AND a real obj's own name, and the
+symbol resolved to the obj, not the category — the exact collision shape
+`category.pack`'s own header warns about for `arrows_dragon` vs.
+`dragon_arrows`, except silent here instead of diagnosed. The fix enumerates
+the category's 38 real objs and sums them instead of naming the category;
+`test_summoning_interact.py` asserts `inv_totalcat(inv, bones)` never
+reappears in the generated file, and that the two category-kind guards left
+(`firemaking_logs`, `weapon_pickaxe`) don't collide with any obj name.
+
+**Held out — 22 conditions, no safe token found in this cache:**
+
+* No matching item exists under any plausible name: flies (Spirit spider),
+  purple sweets (Void spinner), a standard/red chinchompa (Giant chinchompa),
+  a plain mirror shield (Sp. cockatrice ×7 — only `slayer_mirror_shield`
+  exists, a different reward item), a real keris (Spirit kalphite — only
+  `contact_keris*`, a "Contact!" quest prop, exists), a standard cannonball
+  (Barker toad's "loaded with a cannonball" — only Dwarf-cannon-quest and
+  Barrows/Fever-cannon variants exist), a fire cape (Obsidian golem — only
+  `skillcape_max_firecape`, the combined skill cape, exists).
+* No category exists for "any raw fish" (Bunyip) or "any weapon" (Ravenous
+  locust, Steel titan) — building one would mean minting a new
+  `category.pack` entry or OR-ing ~30 weapon categories, both out of scope for
+  a dialogue port.
+* No area/region system exists to check Karamja (Fruit bat), the Rellekka
+  Hunter area (Arctic bear), the Kharidian Desert (Ice titan), or "a dark
+  area" (Vampire bat).
+* No familiar-carried state is tracked for Compost mound's bucket or Barker
+  toad's cannonball load — the special-move system that could track it
+  (`summoning_special_targeted.rs2`) drives Compost mound's special into a
+  real farming bin, not something the familiar visibly holds.
+
 * **Ordering conditions** ("always first", "after conversation 1") stay in the
   pool with the condition recorded. The source unlocks them in sequence; this
   picks at random.

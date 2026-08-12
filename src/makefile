@@ -407,6 +407,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
+	game/rs_prefs.c game/task_prefs_io.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
@@ -431,7 +432,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
-	platform/net_transport_ws_frame.c platform/net_transport_embed.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
+	platform/net_transport_embed.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
 	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
@@ -492,7 +494,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
 	net/mock/mock230_zone.c net/mock/mock230_zone_index.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
-	platform/net_transport_ws_frame.c $(SS_SRCS)
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
 
 # EMBED_SERVER=1: link the rev-230 server into the client, so a manifest saying
 # `[net:boot] transport=embed` runs the whole game in one process with no socket.
@@ -511,6 +513,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c \
 	platform/net_transport_ws_frame.c \
+	platform/net_transport_ws_handshake.c \
 	engine/world_builder/collision_map.c \
 	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
@@ -571,7 +574,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
+.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact summoning-dialogue
 
@@ -611,13 +614,50 @@ WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js
 ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
 endif
-web:
-	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
-	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
-	@echo "built $(REPO_ROOT)/build-web/torirs.js — serve with: make -C src io-server && ./src/build/io_server <cache_dir>"
+# --- Servers -------------------------------------------------------------
+# The two processes a browser run needs, built together because needing both
+# and being told about one is how a web build ends up half-runnable. They stay
+# separate executables — they have different jobs, different lifetimes and
+# different exposure — but there is one command that produces them.
+#
+#   io_server    HTTP: the page, the module, GET /boot/<path>, POST /io
+#   js5_server   the cache, over raw TCP or WebSocket on one port
+#
+# Both are always native, even from a web build. See docs/WEB_SERVERS.md.
+.PHONY: servers
+servers:
+	$(MAKE) io-server
+	$(MAKE) js5-server
+	@echo "servers: src/build/io_server and src/$(OBJ_DIR)/js5_server"
 
-web-debug:
-	$(MAKE) PLATFORM=web OPT=0 MEMTRACE=$(MEMTRACE) all
+web: servers
+	$(MAKE) PLATFORM=web OPT=1 CACHE=$(CACHE) MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+	@echo "built $(REPO_ROOT)/build-web/torirs.js — run it with:"
+	@echo "  ./src/build/io_server --manifest <boot.ini> --root build-web"
+
+web-debug: servers
+	$(MAKE) PLATFORM=web OPT=0 CACHE=$(CACHE) MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+
+# --- Web target, IndexedDB cache -----------------------------------------
+# The same module with its cache underneath it instead of across a socket:
+# archive records in IndexedDB behind a dat2 facade, filled over JS5. The page
+# is then self-contained — it needs a JS5 server and a static file server, and
+# no io_server at all.
+#
+# Separate targets rather than a flag on `web` because the two link different
+# IO backends and therefore must not share an object directory; platform.mk
+# gives this lane its own (build_web_idb).
+web-idb: servers
+	$(MAKE) PLATFORM=web OPT=1 CACHE=idb MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+	@echo "built $(REPO_ROOT)/build-web/torirs.js (IndexedDB cache) — run it with:"
+	@echo "  ./src/$(OBJ_DIR)/js5_server --cache <cache_dir> --revision <rev> &"
+	@echo "  ./src/build/io_server --root build-web --boot-root ."
+
+web-idb-debug: servers
+	$(MAKE) PLATFORM=web OPT=0 CACHE=idb MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
 
 # --- Windows XP target ---------------------------------------------------
@@ -652,9 +692,12 @@ win64-debug:
 # SAME PlatformX_IO_LoadItem the native build uses. Always built native, even
 # when PLATFORM=web, so `make -C src web io-server` produces both halves.
 IO_SERVER_OBJ_DIR = build
+# features/features.c: BootManifest_LoadFile resolves `[features:boot]` names
+# through it, so a server that reads a manifest needs it too — without it the
+# link fails on ToriRS_Features_ByName.
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
-	bootmanifest/bootmanifest.c $(INI_SRC)
+	bootmanifest/bootmanifest.c features/features.c $(INI_SRC)
 io-server:
 	$(MAKE) PLATFORM=native $(IO_SERVER_OBJ_DIR)/io_server
 $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
@@ -822,6 +865,11 @@ test-cs2-target-verb: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/target_verb_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_target_verb_ops_test
 
+test-cs2-options: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_client_option_ops_test \
+		cs2vm2/test/client_option_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_client_option_ops_test
+
 test-cs2-triggerop: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_trigger_op_test \
 		cs2vm2/test/trigger_op_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
@@ -869,6 +917,76 @@ rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscac
 		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(LDFLAGS)
 
+.PHONY: rs2012-lane-bake rs2012-lane-bake-check
+
+# The RS727 source cache the bake reads. It is ~461MB and matched by
+# .gitignore's `cache.*/`, so it is NOT carried by a clone and every machine
+# must obtain it out of band; the recipe fails with that instruction rather
+# than baking something wrong. Override with RS2012_SRC_CACHE=<dir>.
+RS2012_SRC_CACHE ?= $(REPO_ROOT)/cache.rs727_preeoc
+# The lane ships matte 60. This is the tool's `--matte` flag, not its default
+# (which is 0), which is why it must live somewhere a build can read rather
+# than in a branch name.
+RS2012_LANE_MATTE ?= 60
+
+define RS2012_REQUIRE_SRC_CACHE
+	@test -f "$(RS2012_SRC_CACHE)/main_file_cache.dat2" || { \
+		echo "rs2012-lane-bake: no RS727 source cache at $(RS2012_SRC_CACHE)" >&2; \
+		echo "  It is ~461MB and deliberately not in the repo (.gitignore: cache.*/)." >&2; \
+		echo "  Copy it there, or pass RS2012_SRC_CACHE=<dir>." >&2; exit 1; }
+endef
+
+# Both the source cache and the tree are usually supplied from outside, and on
+# Windows the usual mistake is a backslash path, which make's shell eats
+# silently -- the bake then reports a missing pack under a mangled name. Check
+# the lane up front and say which variable is wrong.
+define RS2012_REQUIRE_LANE
+	@test -d "$(RS2012_QBD_TD_CLIENT_LANE)" || { \
+		echo "rs2012-lane-bake: no lane at $(RS2012_QBD_TD_CLIENT_LANE)" >&2; \
+		echo "  MOCK230_CONTENT_DIR=$(MOCK230_CONTENT_DIR)" >&2; \
+		echo "  is not a content tree carrying ported/rs2012_qbd_td." >&2; \
+		case '$(MOCK230_CONTENT_DIR)' in *\\*) \
+			echo "  (that path contains backslashes -- use forward slashes)" >&2;; esac; \
+		exit 1; }
+endef
+
+# Re-backport the QBD/TD lane from the RS727 cache into the content tree, then
+# tell you to re-pack. Writes $(MOCK230_CONTENT_DIR) in place -- point that at
+# the tree you mean (see the note at MOCK230_CONTENT_DIR).
+#
+# This exists because the bake was previously a hand-typed command whose one
+# load-bearing flag (--matte) lived only in a branch name, so no two machines
+# ran it the same way. It is byte-reproducible as of the p[256] fix in
+# proctex_ops.u.c; `rs2012-lane-bake-check` is the gate that keeps it that way.
+rs2012-lane-bake: rs2012-material-bake
+	$(RS2012_REQUIRE_SRC_CACHE)
+	$(RS2012_REQUIRE_LANE)
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/rs2012_material_bake \
+		--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+		--matte $(RS2012_LANE_MATTE) --apply
+	@echo "rs2012-lane-bake: wrote $(MOCK230_CONTENT_DIR); now run mock230-cache-rs2012"
+
+# Determinism gate. Two bakes into disposable directories must be byte-identical;
+# if they are not, the bake has picked up uninitialised or address-dependent
+# state again and no two machines will agree on the lane. Writes nothing to the
+# content tree.
+rs2012-lane-bake-check: rs2012-material-bake
+	$(RS2012_REQUIRE_SRC_CACHE)
+	$(RS2012_REQUIRE_LANE)
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+		cd $(REPO_ROOT) && for run in a b; do \
+			mkdir -p "$$tmp/$$run"; \
+			./src/$(OBJ_DIR)/rs2012_material_bake \
+				--cache $(RS2012_SRC_CACHE) --tree $(MOCK230_CONTENT_DIR) \
+				--matte $(RS2012_LANE_MATTE) --models-out "$$tmp/$$run" >/dev/null || exit 1; \
+		done; \
+		if diff -r "$$tmp/a" "$$tmp/b" >/dev/null; then \
+			echo "rs2012-lane-bake-check: deterministic ($$(ls "$$tmp/a" | wc -l) models identical across two runs)"; \
+		else \
+			echo "rs2012-lane-bake-check: NOT deterministic -- two runs differ:" >&2; \
+			diff -rq "$$tmp/a" "$$tmp/b" | head -20 >&2; exit 1; \
+		fi
+
 .PHONY: rs2012-strip-priorities
 
 # RS2012 models were authored against a z-buffered client, so their face render
@@ -878,6 +996,60 @@ rs2012-strip-priorities: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_strip_priorities \
 		engine/proctex/test/rs2012_strip_priorities.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-nudge
+
+# Applies bounded per-vertex-group geometry moves (inflate/translate) to an
+# OB3 and re-encodes it. The APPLY half of the audit driver's z-fighting
+# repair: tools/rs2012_backport_audit proposes moves off measured tie pixels
+# and judges them through the real renderer; this only executes them.
+rs2012-model-nudge: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_nudge \
+		engine/proctex/test/rs2012_model_nudge.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-decimate
+
+# Rig-preserving vertex decimation for imported OB3s: half-edge collapses
+# restricted to same-bone-label pairs (so sequences still drive the result),
+# QEM + label-centroid-drift cost, seeded jitter for outer searches, and a
+# JSON old->new vertex/face mapping that ports per-vertex data onto the
+# reduced model. The REDUCE half of the osrsify pipeline
+# (tools/osrs_stylizer); rs2012-model-nudge is the SCULPT half.
+rs2012-model-decimate: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_decimate \
+		engine/proctex/test/rs2012_model_decimate.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-defight
+
+# Multi-view z-fighting repair for OB3 part sets: renders a yaw x pitch view
+# grid with a top-two depth raster, finds coplanar face pairs that tie in the
+# z-buffer (the priority layering the painter's path honors is dropped under
+# TORIDRAW_MODEL_FLAG_ZBUFFER), and pushes the authored-on-top layer outward
+# along its normal, duplicating shared vertices so rigging and animations are
+# untouched. The pre-DECIMATION pass of the osrsify pipeline.
+rs2012-model-defight: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_defight \
+		engine/proctex/test/rs2012_model_defight.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: rs2012-model-faces
+
+# Per-face attribute dump (JSON lines): geometry, color, priority, alpha,
+# texture ids. The inspection end of the defight/priority tooling.
+rs2012-model-faces: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_faces \
+		engine/proctex/test/rs2012_model_faces.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
@@ -891,10 +1063,11 @@ RS2012_MODEL_TOOL_DEPS = $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o 
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 	$(OBJ_DIR)/bmp.o
 rs2012-model-view: $(OBJ_DIR) $(RS2012_MODEL_TOOL_DEPS)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_model_view \
+	$(CC) $(CFLAGS) -I../tools/entity_viewer -o $(OBJ_DIR)/rs2012_model_view \
 		engine/proctex/test/rs2012_model_view.c \
 		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
 		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		../tools/entity_viewer/ev_wire.c \
 		$(RS2012_MODEL_TOOL_DEPS) $(LDFLAGS)
 
 .PHONY: rs2012-wake-dump
@@ -1645,8 +1818,13 @@ MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CO
 #   tools/js5_probe.py --host 127.0.0.1 --rev 239 --archive 255 --group 255
 #
 # See docs/RSPROT_OSRS239_PORT.md.
+# The two ws_ units are what lets a browser reach this server at all: an
+# emscripten client's connect() is a WebSocket, so the reactor sniffs the first
+# byte and speaks either raw JS5 or RFC 6455 on the same port.
 JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
-	js5/server/js5_server_session.c js5/server/js5_server_cache.c
+	js5/server/js5_server_conn.c \
+	js5/server/js5_server_session.c js5/server/js5_server_cache.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c
 
 js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
@@ -1774,7 +1952,12 @@ test-mock230-bank: mock230-bank
 # a banner and then does almost nothing, rather than answering every trigger out
 # of C and playing a second, silently different game.
 # Ids are rev-230 ids from cache.osrs239, NOT LostCity's.
-MOCK230_CONTENT_DIR = $(REPO_ROOT)/OSRS-Content/osrs239-content
+#
+# `?=` so a content tree elsewhere (a second clone parked on a porting branch,
+# which is how the ported/ lanes are usually carried) can be selected by
+# exporting MOCK230_CONTENT_DIR once, instead of repeating it on every make
+# command line. A command-line assignment still wins over both.
+MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 SUMMONING_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_scape2009_summoning
 SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
 RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
@@ -1798,7 +1981,8 @@ SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # that marker before both debugproc and built-in dispatch. Full incident:
 # docs/CRYSTAL_SET_COMMAND.md.
 check-crystal-set-contract:
-	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test
+	@python3 $(REPO_ROOT)/tools/check_crystal_set_contract.py --self-test \
+		--content $(MOCK230_CONTENT_DIR)
 
 # scape2009_summoning/configs holds ~1600 text records (npc/loc/obj/seq/spotanim
 # for every cohort creature) that are known-stale against the lane's own pack/
@@ -1880,7 +2064,7 @@ test-rs2012-server-overlay:
 mock230-servpack: test-rs2012-server-overlay
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
-		--src OSRS-Content/osrs239-content --server-only
+		--src $(MOCK230_CONTENT_DIR) --server-only
 
 # The client half of the same bake: the tree written back into a cache the
 # client can boot (PORTING_GUIDE §1, `cachepack pack ──► client cache (--out)`).
@@ -1983,7 +2167,7 @@ mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 	@cd $(REPO_ROOT) && python3 tools/stage_rs2012_overlay.py \
 		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR)
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
-		--staged $(RS2012_OVERLAY_DIR)
+		--content $(MOCK230_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
 	@test "$(abspath $(RS2012_CACHE_DIR))" != "$(REPO_ROOT)" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_BASE))" -a \
 		"$(abspath $(RS2012_CACHE_DIR))" != "/" || { \
@@ -1998,6 +2182,7 @@ mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 			--cache $(RS2012_CACHE_DIR) --rev osrs239 --src $(RS2012_OVERLAY_DIR) \
 			--assets=interfaces,sprites,scripts,synth,songs,samples,patches --tmp "$$tmp"
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
+		--content $(MOCK230_CONTENT_DIR) \
 		--cache $(RS2012_CACHE_DIR) --audioprobe $(AUDIOPROBE_BIN)
 	@echo "mock230-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
 

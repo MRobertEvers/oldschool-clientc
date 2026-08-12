@@ -26,7 +26,13 @@ proctex_permutations(uint8_t seed)
     if( g_perm_ready[seed] )
         return g_perm_cache[seed];
 
-    p = malloc(512);
+    /* calloc, not malloc: the writes below cover 0..255 and 257..511, so p[256]
+     * is never assigned. The source is a Java `byte[512]`, which the JVM
+     * zero-fills, so p[256] is a defined 0 there and every lookup that lands on
+     * it is deterministic. Under malloc it was whatever the heap held, which is
+     * what made the bake nondeterministic: 246 of 512 material frames differed
+     * between two runs on identical arguments, and 392 of 660 models with them. */
+    p = calloc(512, 1);
     assert(p);
     proctex_jrand_seed(&rnd, seed);
     for( i = 0; i < 255; i++ )

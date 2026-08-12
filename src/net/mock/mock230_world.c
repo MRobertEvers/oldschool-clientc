@@ -2494,6 +2494,9 @@ npc_spawn(
              * footprint and still has to obey its turnspeed. */
             const struct Mock230NpcInfo* info = mock230_npcinfo_record(type);
             npc->size = (info && info->size > 0) ? info->size : 1;
+            if( getenv("DBG_ZUK_SIZE") )
+                fprintf(stderr, "DBG spawn type=%d x=%d z=%d info=%p info_size=%d npc_size=%d\n",
+                        type, x, z, (void*)info, info ? info->size : -1, npc->size);
             /*
              * NPC_INFO measures view range to the footprint, and the ZoneMap's
              * zone pre-reject pads by MOCK230_NPC_SIZE_MAX to match. An npc
@@ -10067,11 +10070,6 @@ phase_cleanup(struct Mock230Server* srv)
 
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
-        if( getenv("MOCK230_NPC_MASK_DEBUG") && srv->npcs[i].active && srv->npcs[i].masks )
-            fprintf(stderr, "MASK t=%d slot=%d type=%d masks=%08x anim=%d face=%d,%d ent=%d\n",
-                    srv->tick, i, srv->npcs[i].type, (unsigned)srv->npcs[i].masks,
-                    srv->npcs[i].anim_id, srv->npcs[i].face_x, srv->npcs[i].face_z,
-                    srv->npcs[i].face_entity);
         srv->npcs[i].masks = 0;
         /* LostCity `Npc.processMovement`: `lastMovement = currentTick + 1`
          * whenever the tile changed. Recorded here, off the tick's final
@@ -29178,6 +29176,100 @@ mock230_world_selftest(void)
                 }
             }
 
+            /*
+             * And an add that is mid-`npc_delay` still drains its queue.
+             *
+             * The player's melee swing ends in `npc_queue(2, $damage, 0)`
+             * (skill_combat/combat_stats.rs2 `[proc,player_melee_swing]`), so
+             * for anything the player attacks, the npc's queue *is* the damage
+             * path — ranged, magic and every special already went that way and
+             * melee joined them. Jal-Xil, meanwhile, attacks on `npc_delay(4)`.
+             *
+             * Those two facts used to cancel each other out. The queue drain
+             * re-read `delayed_until` after `[ai_timer]` had run, and the add's
+             * timer ends in the delay that the drain then refused to look past
+             * — so the tick the delay expired was also the tick a fresh one was
+             * armed, and the entries piled up four-per-swing and never fired.
+             * Reported as "the Inferno adds show no hitsplats"; measured as
+             * Jal-Xil sitting at 125/125 with eleven queue entries on it.
+             *
+             * `::zukstill 3` rather than `::zuk`, because the fixture has to be
+             * an add that is *actually* running its attack loop: the adds do not
+             * reach the real fight until tick ~92, and a hand-spawned one with
+             * no timer never delays itself, which is the whole condition under
+             * test. Six ticks is more than the four an add's delay can hold the
+             * drain for, so a queue that fires at all fires inside the window.
+             */
+            {
+                int ranger_type =
+                    mock230_content_symbol(MOCK230_PACK_NPC, "inferno_ranger_finalwave");
+                int ranger = -1;
+
+                selftest_reset_world(&srv, player, 402, 402);
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zukstill 3"),
+                               "::zukstill 3 should stage the adds against a walking glyph");
+                for( int tick = 0; tick < 24 && ranger < 0; tick++ )
+                {
+                    /* The instance teleport parks the fixture's own queue behind
+                     * a scene barrier the live client answers and a sessionless
+                     * selftest never would; `[queue,inferno_zuk_still]` is what
+                     * adds the npcs, so without this the arena stays empty and
+                     * every check below reads "no add spawned". */
+                    if( player->rebuild_scene_pending )
+                        mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                    mock230_world_tick(&srv);
+                    ranger = selftest_find_npc(&srv, ranger_type);
+                }
+                SELFTEST_CHECK(ranger >= 0, "the fixture should leave a Jal-Xil standing");
+                if( ranger >= 0 )
+                {
+                    struct Mock230Npc* xil = &srv.npcs[ranger];
+                    int delayed = 0;
+                    int hp_before;
+                    int armed = -1;
+
+                    /* Wait for the add to be inside its own attack delay — the
+                     * state the drain used to refuse to run in. Asserted rather
+                     * than assumed: an add that never delays would make every
+                     * check below pass for the wrong reason. */
+                    for( int tick = 0; tick < 12 && !delayed; tick++ )
+                    {
+                        mock230_world_tick(&srv);
+                        delayed = xil->delayed_until > srv.tick;
+                    }
+                    SELFTEST_CHECK(delayed,
+                                   "Jal-Xil's [ai_timer] should hold it on npc_delay between "
+                                   "swings — without that this stanza tests nothing");
+
+                    hp_before = xil->hitpoints;
+                    for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+                    {
+                        if( xil->queue[i].active )
+                            continue;
+                        /* `npc_queue(2, 7, 0)`, spelled the way the opcode
+                         * spells it — the player's swing and this are the same
+                         * request. */
+                        xil->queue[i].active = 1;
+                        xil->queue[i].queue = 2;
+                        xil->queue[i].delay = 0;
+                        xil->queue[i].arg = 7;
+                        armed = i;
+                        break;
+                    }
+                    SELFTEST_CHECK(armed >= 0, "the add should have a free queue slot");
+
+                    for( int tick = 0; tick < 6; tick++ )
+                        mock230_world_tick(&srv);
+
+                    SELFTEST_CHECK(armed < 0 || !xil->queue[armed].active,
+                                   "a delayed add must still drain its queue within its own "
+                                   "attack delay");
+                    SELFTEST_CHECK(xil->hitpoints == hp_before - 7,
+                                   "and take the queued damage — [ai_queue2] is where every "
+                                   "hit on an add lands; %d -> %d",
+                                   hp_before, xil->hitpoints);
+                }
+            }
         }
         mock230_scripts_free(&srv);
     }

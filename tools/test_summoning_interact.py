@@ -294,6 +294,51 @@ def main() -> int:
     overlong = [s for s in spoken if len(s) > 220]
     expect(not overlong, f"dialogue strings exceed one chat page: {[len(s) for s in overlong][:3]}")
 
+    # 6b. Curated guards — the 15 wiki conditions this lane can actually check
+    #     against real objs/categories in this cache, verified live (bones,
+    #     firemaking_logs, weapon_pickaxe, raw_shark all traced through a real
+    #     dialogue box during this change).
+    guarded = [
+        (int(t), c)
+        for t, f in familiars.items()
+        for c in f["conversations"]
+        if "guard" in c
+    ]
+    # 15 from CURATED_GUARDS plus the 3 pre-existing bob_items guards (spirit
+    # terrorbird's own beast-of-burden partition, wired before this change).
+    expect(len(guarded) == 18, f"expected 18 total guarded conversations, found {len(guarded)}")
+    expect(
+        "[debugproc,summoning_dialogue_guard_kit]" in (SCRIPT_LANE / "scripts/summoning_debug.rs2").read_text(),
+        "the guard-kit provisioning debugproc for acceptance runs is missing",
+    )
+    # Regression guard for the collision this change found live: `bones` is
+    # BOTH category.pack's name for category 6 AND a real obj's own name, and
+    # `inv_totalcat(inv, bones)` silently measured 0 with 5 [bones] in the
+    # inventory while `inv_total(inv, bones)` measured 5 at the same time —
+    # the obj resolution won over the category one, with no compiler warning.
+    # The fix enumerates the category's 38 real objs and sums them instead of
+    # naming the category. Nothing here may reintroduce the collision.
+    expect(
+        "inv_totalcat(inv, bones)" not in dialogue and "inv_totalcat(worn, bones)" not in dialogue,
+        "the bones guard reintroduced the inv_totalcat/bones name collision "
+        "(inv_totalcat(inv, bones) silently measures 0 — see the comment above "
+        "BONES in build_familiar_dialogue_corpus.py)",
+    )
+    bones_guard = next(c for t, c in guarded if t == 1)
+    expect(
+        len(bones_guard["guard"].get("terms", [])) == 38,
+        f"the Spirit wolf bone guard should enumerate 38 objs, found "
+        f"{len(bones_guard['guard'].get('terms', []))}",
+    )
+    # The two other category-kind guards (firemaking_logs, weapon_pickaxe) do
+    # not collide with an obj name and were confirmed live to resolve
+    # correctly — `inv_totalcat` is otherwise trustworthy for those.
+    cat_guards = {c["guard"]["category"] for t, c in guarded if c["guard"]["kind"] == "cat"}
+    expect(
+        cat_guards == {"firemaking_logs", "weapon_pickaxe"},
+        f"unexpected category-kind guards: {cat_guards}",
+    )
+
     # 7. The three option boxes still route Chat into the shared path rather than
     #    keeping 2009scape's placeholder line.
     for type_id, proc in ((38, "kyatt"), (40, "graahk"), (64, "lava_titan")):
@@ -383,7 +428,56 @@ def main() -> int:
             "no Spirit wolf transcript line reached the dialogue box",
         )
 
-        # C. The branch that has a teleport. Selecting a row is out of reach, so
+        # C. A curated guard, above the gate, WITH the item the wiki's condition
+        #    names. This is the live half of the CURATED_GUARDS proof: the guard
+        #    check has to run before the random pool and has to read the real
+        #    container. `summoning_dialogue_guard_kit` is what caught the
+        #    bones/inv_totalcat collision (see the regression check above) — it
+        #    measured 0 the first time this ran, live, before the fix.
+        saves = Path(root) / "guarded"
+        saves.mkdir()
+        guarded_log = run_client(
+            saves,
+            {
+                "TORIRS_NET_CHEAT": (
+                    "summoning_unlock;setlevel 24 20;summoning_dialogue_guard_kit;summoning_demo"
+                ),
+                "TORIRS_SIM_OPNPC": f"200,1,{wolf}",
+            },
+            420,
+        )
+        (args.out / "guarded.log").write_text(guarded_log)
+        tail = after_op(guarded_log)
+        expect(tail != "", "the Interact packet never went out with the guard kit provisioned")
+        expect(
+            "text='Whuff-whuff! Arf! (Throw the bone! I want to chase!)'" in tail,
+            "the bones guard (enumerated sum, not inv_totalcat) did not fire with bones in "
+            "the inventory",
+        )
+
+        ibis = alloc["summoning_cohort_ibis_ibis"]
+        saves = Path(root) / "guarded_ibis"
+        saves.mkdir()
+        ibis_log = run_client(
+            saves,
+            {
+                "TORIRS_NET_CHEAT": (
+                    "summoning_unlock;setlevel 24 66;summoning_dialogue_guard_kit;"
+                    "summoning_summon 37"
+                ),
+                "TORIRS_SIM_OPNPC": f"200,1,{ibis}",
+            },
+            420,
+        )
+        (args.out / "guarded_ibis.log").write_text(ibis_log)
+        tail = after_op(ibis_log)
+        expect(tail != "", "the Interact packet never went out for the guarded Ibis")
+        expect(
+            "text='Chirupclackchirrup? (Can I look after those sharks for you?)'" in tail,
+            "the raw-shark sum guard did not fire with 2 raw sharks in the inventory",
+        )
+
+        # D. The branch that has a teleport. Selecting a row is out of reach, so
         #    this proves the option box opens: interface 219 armed for resume and
         #    clientscript 58 (chatbox_multi_init) handed the two rows.
         saves = Path(root) / "graahk"
@@ -409,7 +503,7 @@ def main() -> int:
             "the graahk Interact fell through to Call Follower",
         )
 
-        # C. Call Follower still calls. `~summoning_call_familiar` grew a message
+        # E. Call Follower still calls. `~summoning_call_familiar` grew a message
         #    parameter for the teleport recall; this is the operation that must
         #    keep printing.
         saves = Path(root) / "call"

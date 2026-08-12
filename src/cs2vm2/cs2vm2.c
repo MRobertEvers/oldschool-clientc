@@ -10593,6 +10593,15 @@ CS2VM2_RunOp(
     case CS2_OP_GETVOLUMESOUNDS:
     case CS2_OP_GETVOLUMEAREASOUNDS:
         return CS2VM2_Op_ClientOption(vm, opcode, false, false);
+    /* Hide-roofs (3111/3112). Same shape as the direct volume ops — no id, the
+     * host owns the value — because they are the *named* form of game option 1
+     * and write the same preference the reference's ::toggleroof cheat does.
+     * Both had no case here at all, so the Display panel's Roofs toggle popped
+     * its argument through the stack stub and changed nothing. */
+    case CS2_OP_SETREMOVEROOFS:
+        return CS2VM2_Op_ClientOption(vm, opcode, false, true);
+    case CS2_OP_GETREMOVEROOFS:
+        return CS2VM2_Op_ClientOption(vm, opcode, false, false);
     /* Client/game/device options (3209..3217): id-keyed. SET pops (id, value);
      * GET/GETRANGE pop the id, the host pushes the result(s). */
     case CS2_OP_CLIENTOPTION_SET:

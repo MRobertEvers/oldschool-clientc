@@ -520,6 +520,7 @@ Js5ConfigInit(struct Js5Config* config)
     config->max_response_bytes = 2u * 1024u * 1024u;
     config->local_scan_budget = 32u;
     config->random_seed = 0x6d2b79f5u;
+    config->background_fill = true;
 }
 
 void

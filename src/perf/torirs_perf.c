@@ -209,6 +209,18 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "d3d9_z_opaque_triangles",
     "d3d9_z_blended_triangles",
     "d3d9_z_sorted_models",
+    "gl_atlas_upload_bytes",
+    "gl_atlas_uploads",
+    "gl_static_vbo_upload_bytes",
+    "gl_static_vbo_uploads",
+    "gl_dynamic_vbo_upload_bytes",
+    "gl_dynamic_vbo_uploads",
+    "gl_ibo_upload_bytes",
+    "gl_ibo_uploads",
+    "gl_draw_ranges",
+    "gl_draw_calls",
+    "gl_attrib_rebinds",
+    "gl_2d_batch_flushes",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
