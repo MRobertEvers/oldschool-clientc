@@ -935,7 +935,7 @@ def main():
     ap.add_argument("--pitch", type=int, default=128)
     ap.add_argument("--tile", type=int, default=256)
     ap.add_argument("--bg", default="808080")
-    ap.add_argument("--fracs", default="0.85,0.70,0.55,0.45,0.35",
+    ap.add_argument("--fracs", default="0.85,0.70,0.55,0.45,0.35,0.20",
                     help="reduce ladder of vertex fractions")
     ap.add_argument("--seeds", type=int, default=3, help="seeds per fraction")
     ap.add_argument("--jitter", type=int, default=8,

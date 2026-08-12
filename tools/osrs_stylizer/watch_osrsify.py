@@ -279,7 +279,7 @@ OPTS = [
          default="reduce", group="search", help="search regime"),
     dict(flag="time-budget", kind="float", default="3600", group="search",
          help="seconds of search after the baseline is banked"),
-    dict(flag="fracs", kind="str", default="0.85,0.70,0.55,0.45,0.35",
+    dict(flag="fracs", kind="str", default="0.85,0.70,0.55,0.45,0.35,0.20",
          group="search", help="reduce ladder of vertex fractions"),
     dict(flag="seeds", kind="int", default="3", group="search",
          help="seeds per fraction"),
