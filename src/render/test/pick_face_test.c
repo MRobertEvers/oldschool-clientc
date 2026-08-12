@@ -435,6 +435,42 @@ test_tile_pick_is_containment_not_bbox(void)
     CHECK(!pick_tile(43, 2), "3px past the tile's edge must miss");
 }
 
+/*
+ * A ground face that projects to ZERO AREA still picks.
+ *
+ * The reference's tile test (class112.method4206 / Client-TS insideTriangle)
+ * has no denominator to divide by: it asks whether the three edge
+ * cross-products share a sign, and when the first two vanish it answers yes.
+ * A barycentric containment test bails on the same input, and every tile seen
+ * edge-on — the wall of a pit, a far tile whose three vertices round onto one
+ * screen row — projects exactly like this. Those are precisely the tiles a
+ * player cannot afford to have go dead.
+ */
+static void
+test_degenerate_tile_still_picks(void)
+{
+    fixture_reset();
+    /* Collinear on a screen row: a tile face seen exactly edge-on. */
+    int a = add_vertex(0, 20);
+    int b = add_vertex(20, 20);
+    int c = add_vertex(40, 20);
+    add_face(a, b, c);
+
+    CHECK(pick_tile(20, 20), "a zero-area tile face picks on its line");
+    CHECK(pick_tile(0, 20), "and at its first vertex");
+    CHECK(pick_tile(40, 20), "and at its last");
+    CHECK(!pick_tile(20, 40), "but not 20px off it");
+
+    /* The same face vertical, which is what a pit wall projects to. */
+    fixture_reset();
+    a = add_vertex(15, 0);
+    b = add_vertex(15, 25);
+    c = add_vertex(15, 50);
+    add_face(a, b, c);
+    CHECK(pick_tile(15, 25), "a vertical zero-area tile face picks too");
+    CHECK(!pick_tile(45, 25), "and still misses off to the side");
+}
+
 /* Everything else the tile pick inherits unchanged — an invisible tile must not
  * become a click sponge for geometry that was never under the cursor. */
 static void
@@ -483,6 +519,7 @@ main(void)
     test_missing_colour_channel_picks_every_face();
     test_hidden_tile_faces_still_pick();
     test_tile_pick_is_containment_not_bbox();
+    test_degenerate_tile_still_picks();
     test_tile_pick_keeps_the_other_gates();
 
     if( g_failures )

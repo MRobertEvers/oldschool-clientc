@@ -245,6 +245,12 @@ struct BootManifest
     int features_ground_click_nearest;
     /* [features:boot] painter_draw_distance, or 0 for "not stated". */
     int features_painter_draw_distance;
+    /* [features:boot] ground_click_unbounded / ground_click_offmap — the two
+     * permissive ground-click extensions (features.h), 0/1, or -1 for "not
+     * stated". Every era table leaves both off, so these keys are how a boot
+     * asks for behaviour the reference does not have. */
+    int features_ground_click_unbounded;
+    int features_ground_click_offmap;
 
     /* [render:light] — optional overrides. Each *_set flag is 1 when the key
      * was present; App_Init merges set fields over the era/compiled defaults. */

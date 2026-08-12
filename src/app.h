@@ -235,6 +235,13 @@ struct AppConfig
      * overrides both. */
     int features_ground_click_nearest;
     int features_ground_click_nearest_set;
+    /** `[features:boot] ground_click_unbounded` / `ground_click_offmap` — the
+     * two permissive ground-click extensions (features.h). Both are 0 in every
+     * era table because the client is deob-exact by default; these keys, and
+     * TORIRS_GROUND_CLICK_UNBOUNDED / TORIRS_GROUND_CLICK_OFFMAP, are the only
+     * way to turn one on. -1 = not stated. */
+    int features_ground_click_unbounded;
+    int features_ground_click_offmap;
     /** `[features:boot] painter_draw_distance`, in the official OSRS 25..90
      * tile interval. Absent keeps Client-TS's fixed 25-tile radius;
      * TORIRS_DRAW_DISTANCE overrides it at runtime. */

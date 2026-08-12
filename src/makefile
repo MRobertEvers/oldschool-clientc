@@ -2590,6 +2590,17 @@ test-zbuffer: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o 
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/zbuffer_test
 
+# The ToriRS -> ToriDraw adaptor must not forward decode flags into the render
+# flag word: the two `flags` bytes are different namespaces, and bit 0 on the
+# ToriDraw side is TORIDRAW_MODEL_FLAG_ZBUFFER, which drops face priorities.
+test-model-render-flags: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		$(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/model_render_flags_test \
+		engine/test/model_render_flags_test.c engine/toridraw_model_from_torirs.c \
+		engine/torirs_types.c $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/model_render_flags_test
+
 # Client-TS near-plane parity: sentinel faces bypass the meaningless pre-clip
 # winding, then the clipped polygon receives the real front-face test.
 # bmp.o: ToriDraw_SpriteWriteBmpFile is in the unity, so every target that links

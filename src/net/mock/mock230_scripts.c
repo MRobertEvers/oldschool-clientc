@@ -5323,6 +5323,11 @@ mock230_script_command(
 
         slot = mock230_scene_find_loc_id(coord_x(coord), coord_z(coord), coord_level(coord),
                                          loc_id);
+        if( getenv("MOCK230_LOC_DEBUG") )
+            fprintf(stderr,
+                    "loc_find(%d,%d,%d, id=%d) slot=%d contains=%d\n",
+                    coord_x(coord), coord_z(coord), coord_level(coord), (int)loc_id, slot,
+                    mock230_scene_contains(coord_x(coord), coord_z(coord)));
         if( slot >= 0 )
         {
             SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
@@ -5406,6 +5411,11 @@ mock230_script_command(
             SSVM_Abort(state, "loc_change to %d, which is not in the cache", loc_id);
             return 1;
         }
+        if( getenv("MOCK230_LOC_DEBUG") )
+            fprintf(stderr,
+                    "loc_change(%d,%d,%d shape=%d) %d -> %d; refind slot=%d\n",
+                    x, z, level, shape, was_id, (int)loc_id,
+                    mock230_scene_find_loc_id(x, z, level, (int)loc_id));
         mock230_world_loc_revert_queue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
     }

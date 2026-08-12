@@ -2871,6 +2871,74 @@ toridraw_triangle_contains_point(
     return a_num >= 0 && b_num >= 0 && c_num >= 0;
 }
 
+/*
+ * Which triangle predicate a pick walk uses. Three, because the reference has
+ * three answers: a loose box for models, exact containment for ground, and —
+ * ours alone — a true barycentric test for callers that want geometry rather
+ * than parity (ToriDraw_ProjectedModelContainsPoint).
+ */
+enum ToriDrawPickTest
+{
+    TORIDRAW_PICKTEST_ROUGH = 0,          /* deob class144.method4915 */
+    TORIDRAW_PICKTEST_REFERENCE_TILE = 1, /* deob class112.method4206 */
+    TORIDRAW_PICKTEST_EXACT = 2,          /* not a reference rule */
+};
+
+/*
+ * The GROUND pick's containment test, ported statement for statement from deob
+ * class112.method4206 (reached as class155 -> method3946), which is also
+ * Client-TS World3D.insideTriangle.
+ *
+ * Not the same routine as toridraw_triangle_contains_point above, and the
+ * difference is not academic:
+ *
+ *  - The barycentric version divides the winding out through a `denominator`
+ *    and REFUSES a triangle whose projected area is zero. The reference has no
+ *    denominator: it takes the three edge cross-products and asks whether they
+ *    share a sign, so a face that projects to a line — a tile seen edge-on,
+ *    which is every wall of a pit and every far tile whose vertices round onto
+ *    one row — still picks. Bailing on those is how a hole in the floor
+ *    becomes unclickable.
+ *  - Zero is on the inside of every comparison here, so a click exactly on a
+ *    shared edge picks both tiles rather than falling between them.
+ *
+ * The int arithmetic is deliberate: the reference overflows the same products
+ * on the same inputs, and a widened version would answer differently where it
+ * does.
+ */
+static inline bool
+toridraw_reference_triangle_contains_point(
+    int x1,
+    int y1,
+    int x2,
+    int y2,
+    int x3,
+    int y3,
+    int x,
+    int y)
+{
+    if( y < y1 && y < y2 && y < y3 )
+        return false;
+    if( y > y1 && y > y2 && y > y3 )
+        return false;
+    if( x < x1 && x < x2 && x < x3 )
+        return false;
+    if( x > x1 && x > x2 && x > x3 )
+        return false;
+
+    int e0 = (y - y1) * (x2 - x1) - (x - x1) * (y2 - y1);
+    int e1 = (y - y2) * (x3 - x2) - (x - x2) * (y3 - y2);
+    int e2 = (y - y3) * (x1 - x3) - (x - x3) * (y1 - y3);
+
+    if( e0 != 0 )
+        return e0 < 0 ? (e1 <= 0 && e2 <= 0) : (e1 >= 0 && e2 >= 0);
+    if( e1 == 0 )
+        return true;
+    if( e1 < 0 )
+        return e2 <= 0;
+    return e2 >= 0;
+}
+
 /**
  * The reference's per-face hit test is NOT containment: it asks whether the
  * cursor, grown by `TORIDRAW_PICK_SLOP` in each direction, overlaps the
@@ -2926,8 +2994,8 @@ ToriDraw_ProjectedModelContainsAabb(
 
 /**
  * Shared face walk behind both per-face tests. Which faces are eligible is the
- * same question for either one — only the triangle predicate differs, so
- * `rough` picks between them at the bottom.
+ * same question for any of them — only the triangle predicate differs, so
+ * `test` picks between them at the bottom.
  *
  * `include_hidden` lifts the hidden-face filter for ground tiles, which the
  * reference picks down a different path entirely — a path that is also exact
@@ -2941,7 +3009,7 @@ toridraw_projected_model_hit_face(
     struct ToriDraw_ViewPort* view_port,
     int screen_x,
     int screen_y,
-    bool rough,
+    enum ToriDrawPickTest test,
     bool include_hidden)
 {
     if( !ToriDraw_ProjectedModelContainsAabb(scene, screen_x, screen_y) )
@@ -3022,10 +3090,22 @@ toridraw_projected_model_hit_face(
         int y2 = scene->screen_vertices_y[face_b];
         int y3 = scene->screen_vertices_y[face_c];
 
-        bool hit = rough ? toridraw_mouse_roughly_inside_triangle(
-                               x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y)
-                         : toridraw_triangle_contains_point(
-                               x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y);
+        bool hit;
+        switch( test )
+        {
+        case TORIDRAW_PICKTEST_ROUGH:
+            hit = toridraw_mouse_roughly_inside_triangle(
+                x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y);
+            break;
+        case TORIDRAW_PICKTEST_REFERENCE_TILE:
+            hit = toridraw_reference_triangle_contains_point(
+                x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y);
+            break;
+        default:
+            hit = toridraw_triangle_contains_point(
+                x1, y1, x2, y2, x3, y3, adjusted_screen_x, adjusted_screen_y);
+            break;
+        }
         if( hit )
             return true;
     }
@@ -3042,7 +3122,7 @@ ToriDraw_ProjectedModelContainsPoint(
     int screen_y)
 {
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, /* rough */ false,
+        scene, hnd, view_port, screen_x, screen_y, TORIDRAW_PICKTEST_EXACT,
         /* include_hidden */ false);
 }
 
@@ -3055,7 +3135,7 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_y)
 {
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, /* rough */ true,
+        scene, hnd, view_port, screen_x, screen_y, TORIDRAW_PICKTEST_ROUGH,
         /* include_hidden */ false);
 }
 
@@ -3067,10 +3147,10 @@ ToriDraw_ProjectedTileMouseHitTest(
     int screen_x,
     int screen_y)
 {
-    /* Exact containment, not the model test's slop — see the header. The
-     * ground pick has its own reference routine (deob class112.method4206 /
-     * Client-TS World3D.insideTriangle) and it is the strict one. */
+    /* The ground pick's own reference routine — containment, not the model
+     * test's slop, and NOT the barycentric one, which refuses a face that
+     * projects to zero area. See toridraw_reference_triangle_contains_point. */
     return toridraw_projected_model_hit_face(
-        scene, hnd, view_port, screen_x, screen_y, /* rough */ false,
+        scene, hnd, view_port, screen_x, screen_y, TORIDRAW_PICKTEST_REFERENCE_TILE,
         /* include_hidden */ true);
 }

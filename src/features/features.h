@@ -162,25 +162,51 @@ struct ToriRS_FeatureTable
      * routes (mock230_scene_route). They must not disagree.
      */
     int ground_click_nearest_model;
+    /*
+     * ---- The two permissive extensions -------------------------------------
+     *
+     * Everything else in this table states what some revision does. These two
+     * state what this client may do INSTEAD, and both are 0 in every era table
+     * on purpose: out of the box the ground click is deob-exact, down to the
+     * clicks that do nothing. Turn one on per boot ([features:boot] keys /
+     * TORIRS_GROUND_CLICK_* env), never by editing an era table — an era table
+     * that carries a deviation stops being a statement about the era.
+     */
     /**
-     * Deliberate deviation from every reference, and the only field here that
-     * is a product decision rather than a revision's behaviour: 1 = when the
-     * model above finds nothing in its box, walk to the flooded tile closest
-     * to the click anyway.
+     * 1 = when `ground_click_nearest_model` finds nothing in its box, walk to
+     * the flooded tile closest to the click anyway.
      *
      * The references bound that search (3x3 or 21x21) and a click further out
-     * than the box does NOTHING — which is what "I clicked outside the Inferno
-     * arena and my player just stood there" is: the void ringing an instance's
-     * floor is more than ten tiles from anything walkable, so the official
-     * fallback has nothing to offer. Clicking off the walkable world should
-     * still walk you as close as the map allows, so this client says yes for
-     * every era. Clear it in the era tables to restore reference parity.
+     * than the box does nothing: Statics.method5592 ends `if (var22 ==
+     * Integer.MAX_VALUE) return -1`. That is the whole of "I clicked past the
+     * Inferno's lava skirt and my player stood there" — the void ringing an
+     * instance's floor is more than ten tiles from anything walkable.
      *
-     * Ground and minimap clicks only — an interaction click that cannot reach
+     * Ground and minimap clicks only. An interaction click that cannot reach
      * its target still runs the era's own model, because "walk somewhere near
      * it and do nothing" is not what an op means.
+     *
+     * Read by both halves of the tree, like the model above, and under a
+     * server-authoritative era it is the SERVER's copy that decides anything —
+     * the client sends a tile and never routes. Both halves read
+     * TORIRS_GROUND_CLICK_UNBOUNDED so an embedded boot cannot end up with one
+     * half permissive and the other strict.
      */
     int ground_click_nearest_unbounded;
+    /**
+     * 1 = a click that hit no ground triangle at all resolves to the scene
+     * tile whose centre is nearest the cursor on screen, instead of walking
+     * nowhere.
+     *
+     * The reference records a ground tile only from inside the rasterizer
+     * (class155 -> class112.method4269), so a click on the sky, on the void
+     * outside an instance's floor, or on a tile the plane filter refused
+     * leaves field1664 at -1 — and class112.method3951 (`field1670 &&
+     * field1681 != -1`) then never lets the move packet be built. No packet,
+     * no map flag, and no cross either.
+     */
+    int ground_click_offmap_nearest;
+    /* ---- end permissive extensions ---------------------------------------- */
     /**
      * Ceiling, in tiles, on how far from the local player a GROUND pick may
      * land. A pick further out is pulled back along the line to the player

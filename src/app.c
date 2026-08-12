@@ -3673,6 +3673,23 @@ App_Init(
             if( model >= 0 )
                 app->features_storage.ground_click_nearest_model = model;
         }
+        /*
+         * The two permissive ground-click extensions. Every era table leaves
+         * them off — the client is deob-exact unless a boot asks otherwise —
+         * so this is the only place either can be turned on.
+         */
+        if( cfg->features_ground_click_unbounded )
+            app->features_storage.ground_click_nearest_unbounded = 1;
+        if( cfg->features_ground_click_offmap )
+            app->features_storage.ground_click_offmap_nearest = 1;
+        {
+            char const* env = getenv("TORIRS_GROUND_CLICK_UNBOUNDED");
+            if( env && env[0] )
+                app->features_storage.ground_click_nearest_unbounded = env[0] != '0';
+            env = getenv("TORIRS_GROUND_CLICK_OFFMAP");
+            if( env && env[0] )
+                app->features_storage.ground_click_offmap_nearest = env[0] != '0';
+        }
         if( cfg->features_painter_draw_distance_set )
             app->features_storage.painter_draw_distance =
                 cfg->features_painter_draw_distance;
@@ -3680,10 +3697,12 @@ App_Init(
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr,
                     "app: features era=%s ground_click_nearest=%s "
-                    "painter_draw_distance=%d\n",
+                    "unbounded=%d offmap=%d painter_draw_distance=%d\n",
                     app->features->name,
                     ToriRS_Features_NearestModelName(
                         app->features->ground_click_nearest_model),
+                    app->features->ground_click_nearest_unbounded,
+                    app->features->ground_click_offmap_nearest,
                     ToriRS_Features_PainterDrawDistance(app->features));
         RS_Audio_SetFeatures(&app->audio, app->features);
 
@@ -9418,9 +9437,10 @@ app_world_spawn_npc_now(
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
         return -1;
     }
-    /* Set explicitly both ways: the ToriRS adaptor already sets bit 0 on every
-     * model it converts, and bit 0 is the z-buffer opt-in, so leaving it alone
-     * would opt every npc in the moment the scene carries a buffer. */
+    /* Set explicitly both ways. Models arrive from ToriDraw_ModelFromToriRS with
+     * no render flags, so the opt-in is this line and nothing else; clearing is
+     * still written out because this model may be a cache copy of one that was
+     * opted in earlier under a different npc id. */
     if( app_npc_wants_zbuffer(npc_id, npctype) )
         model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
     else
@@ -12180,6 +12200,10 @@ app_hover_text_update(
 /*
  * Give "Walk here" a destination when this click's pickset holds no terrain.
  *
+ * OFF unless features->ground_click_offmap_nearest says otherwise, because the
+ * reference has no such destination to give: no ground triangle contained the
+ * point, so nothing was recorded and nothing is sent. See the field.
+ *
  * Only the click paths call this: resolving the tile sweeps the scene, and the
  * hover-text builder runs the same menu every frame for a row whose text does
  * not depend on the tile. A pickset that DOES hold terrain is left alone — the
@@ -12194,6 +12218,8 @@ app_minimenu_ctx_ground_fallback(
 {
     int x = 0, z = 0, level = 0;
 
+    if( !app->features->ground_click_offmap_nearest )
+        return;
     if( !mctx->click_in_world || !mctx->world_pickset )
         return;
     for( int i = 0; i < mctx->world_pickset->count; i++ )
@@ -13033,8 +13059,26 @@ app_minimenu_run_option(
         return 0;
 
     {
+        /*
+         * Every op row paints its cross here, unconditionally, exactly like
+         * the reference (Client-TS doAction sets crossMode = 2 in each branch
+         * before the packet goes out).
+         *
+         * A WALK row does NOT. The reference's walk branch touches no cross at
+         * all — it only re-arms the hittest — and the cross is set one frame
+         * later, inside the block that emits the move, so a walk that resolves
+         * to nothing leaves the screen alone. Deob client.java:9305 puts the
+         * two in the same basic block, guarded by class112.method3951():
+         *
+         *     field760 = ...; field714 = ...;   // cross x, y
+         *     field800 = 1282583357;            // crossMode 1
+         *     field910 = 0;                     // crossCycle
+         *
+         * Painting it up front here is what made a dead click on the sky look
+         * like an executed one. UI_MINIMENU_PICK_TERRAIN shows it on success.
+         */
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
-        if( cross_mode != UI_CROSS_OFF )
+        if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
     }
 
@@ -13425,8 +13469,13 @@ app_minimenu_run_option(
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
                 app->world ? app->world->_base_tile_z + opt.pick.tertiary_id : -1);
-        app_try_move(
-            app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held);
+        /* Cross only if the move actually went out — the reference sets
+         * crossMode in the same block that emits the packet (Client-TS
+         * `if (success)`, deob client.java:9305 under method3951()). A click
+         * the router refuses leaves the screen alone. */
+        if( app_try_move(
+                app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held) )
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -15935,6 +15984,11 @@ App_WorldApplyNpcType(
             app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
             app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
     }
+    /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
+     * re-decide it against the new type -- exactly as the spawn path does. */
+    if( model && app_npc_wants_zbuffer(npc_type, npctype) )
+        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {
         struct ToriDraw_ModelHandle hnd;

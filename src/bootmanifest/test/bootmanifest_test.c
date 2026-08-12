@@ -217,6 +217,11 @@ test_apply_to_config(void)
     CHECK(cfg.features_era && strcmp(cfg.features_era, "server_routed") == 0);
     CHECK(cfg.features_ground_click_nearest_set == 1);
     CHECK(cfg.features_ground_click_nearest == TORIRS_NEAREST_BOX10_RECT);
+    /* The two permissive ground-click extensions. Every era table leaves them
+     * off, so these keys are the only way a boot can ask for them — an
+     * unparsed key would silently mean "reference behaviour" forever. */
+    CHECK(cfg.features_ground_click_unbounded == 1);
+    CHECK(cfg.features_ground_click_offmap == 1);
     CHECK(cfg.features_painter_draw_distance_set == 1);
     CHECK(cfg.features_painter_draw_distance == 90);
 }

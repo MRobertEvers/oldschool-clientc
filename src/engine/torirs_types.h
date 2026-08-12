@@ -58,6 +58,19 @@ struct ToriRS_Bones
     gc_boneint_t* bones_sizes;
 };
 
+/**
+ * ToriRS_Model::flags -- decode bookkeeping, NOT render policy.
+ *
+ * This namespace is unrelated to ToriDraw_Model::flags (TORIDRAW_MODEL_FLAG_*),
+ * which the renderer owns and whose bit 0 is TORIDRAW_MODEL_FLAG_ZBUFFER. The
+ * two fields share a name and a width and nothing else; copying one into the
+ * other opts every cache model into the depth-tested kernels and silently drops
+ * its face priorities. ToriDraw_ModelFromToriRS deliberately does not forward
+ * them -- see the comment there.
+ */
+#define TORIRS_MODEL_FLAG_DECODED ((uint8_t)(1u << 0))
+#define TORIRS_MODEL_FLAG_TEXTURED ((uint8_t)(1u << 1))
+
 struct ToriRS_Model
 {
     uint8_t flags;

@@ -13,11 +13,9 @@
  * 2004 behaviour so adding one cannot move an existing era.
  */
 
-/* 2004-era / LostCity: everything classic, every slot at its zero default —
- * except ground_click_nearest_unbounded, which is a product decision this
- * client makes for every era rather than a revision's behaviour. Written out
- * with explicit designated initializers anyway, because "this era is the zero
- * table" is the fact worth stating. */
+/* 2004-era / LostCity: everything classic, every slot at its zero default.
+ * Written out with explicit designated initializers anyway, because "this era
+ * is the zero table" is the fact worth stating. */
 static struct ToriRS_FeatureTable const k_features_lostcity = {
     .era = TORIRS_FEATURE_ERA_LOSTCITY,
     .name = "lostcity",
@@ -27,8 +25,9 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 0,
     .ground_click_nearest_model = TORIRS_NEAREST_RING3_STEPS,
-    /* Not a 2004 behaviour — see the field's comment. */
-    .ground_click_nearest_unbounded = 1,
+    /* Both permissive extensions off: reference behaviour, per boot only. */
+    .ground_click_nearest_unbounded = 0,
+    .ground_click_offmap_nearest = 0,
     /* Client-TS records the hit tile verbatim; no ceiling exists to port. */
     .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 0,
@@ -73,7 +72,8 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .op_click_nearest_range = 10,
     .nearest_ranks_by_rect_distance = 1,
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
-    .ground_click_nearest_unbounded = 1,
+    .ground_click_nearest_unbounded = 0,
+    .ground_click_offmap_nearest = 0,
     .ground_click_clamp_tiles = 70,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
@@ -108,7 +108,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .nearest_ranks_by_rect_distance = 1,
     /* xrsps runs the same 21x21 alternative-route search for every request. */
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
-    .ground_click_nearest_unbounded = 1,
+    .ground_click_nearest_unbounded = 0,
+    .ground_click_offmap_nearest = 0,
     /* Deliberately unset: the 70-tile ceiling is read out of the rev-239
      * gamepack, and xrsps is a different client — an unverified port of one
      * client's constant onto another is a guess, not parity. */
