@@ -680,6 +680,13 @@ PAGE = """<!doctype html>
   .badge.st-paused { background:#20304a; color:#7e9cc9; border-color:#31507a; }
   .badge.st-dead { background:#402226; color:#c96a6a; border-color:#6a3540; }
   .badge.st-finished { background:#2a2d36; color:#9aa; border-color:#3c404c; }
+  .badge.st-pending { background:#3a3325; color:#e6b450; border-color:#5f5535; }
+  .spinner { display:inline-block; width:.7em; height:.7em; flex:0 0 auto;
+             box-sizing:border-box; border:2px solid #4a4e5c;
+             border-top-color:#e6b450; border-radius:50%;
+             animation:spin .8s linear infinite; vertical-align:-.1em; }
+  .badge .spinner { width:.85em; height:.85em; margin-right:.3em; }
+  @keyframes spin { to { transform:rotate(360deg); } }
   button.pausebtn { background:#20304a; color:#7e9cc9; border:1px solid #31507a;
            border-radius:4px; padding:.1em .6em; font:inherit; font-size:.85em;
            cursor:pointer; }
@@ -1280,6 +1287,26 @@ function selectAllRuns(on) {
   }
   render();
 }
+// Actions the user fired that the poll has not confirmed yet, keyed by run:
+// {action: 'stop'|'pause'|'resume', since: ms}. Set on click for instant
+// feedback (spinner), cleared only when the server-observed state acks the
+// action — or when the click handler learns the search can never ack it
+// (pre-heartbeat waves have state 'unknown').
+const PENDING = {};
+function pendingInfo(run, meta) {
+  const p = PENDING[run];
+  if (!p) return null;
+  const ls = meta.state || {};
+  const acked =
+    ls.state === 'dead' || ls.state === 'finished' ||
+    (p.action === 'stop' && (meta.proc || '').indexOf('exited') === 0) ||
+    (p.action === 'pause' && (ls.state === 'pause_requested' || ls.state === 'paused')) ||
+    (p.action === 'resume' && ls.state === 'running' && !ls.paused_flag) ||
+    // safety valve: never spin forever if the ack cannot be observed
+    Date.now() - p.since > (p.action === 'stop' ? 120000 : 30000);
+  if (acked) { delete PENDING[run]; return null; }
+  return { stop: 'stop pending', pause: 'pause pending', resume: 'resume pending' }[p.action];
+}
 // The server-side liveness ping (heartbeat + pid probe, refreshed every
 // poll) mapped to a [dot class, human label]. Returns null for runs from
 // before heartbeats existed, so callers fall back to results.json age.
@@ -1315,16 +1342,16 @@ function renderSidebar() {
       : age < 180 ? ['live', `live — updated ${Math.max(0, Math.round(age))}s ago`]
       : age < 900 ? ['stale', `quiet — last update ${Math.round(age / 60)}m ago`]
       : ['idle', `idle — last update ${fmtTime(meta.updated)}`];
-    const st = liveState(meta) || fallback;
+    const pend = pendingInfo(n, meta);
+    const st = pend ? ['pending', pend + ' — waiting for the search to acknowledge']
+                    : (liveState(meta) || fallback);
     const flagged = (meta.state || {}).paused_flag;
     const tip = st[1] +
       (meta.proc ? ` · ${meta.proc}` : '') +
       (doc && doc.best && doc.best.id ? ` · best ${doc.best.id}` : '') +
       (meta.started ? ` · started ${fmtTime(meta.started)}` : '');
-    return `<div class="runitem${runShown(n) && !latestBox.checked ? ' on' : ''}"
-       title="${esc(tip)}" onclick="toggleRun('${esc(n)}')">
-       <span class="dot ${st[0]}"></span><span class="rname">${esc(n)}</span>
-       <span class="cnt">${cands}</span>
+    // while an action is pending the buttons vanish so it cannot double-fire
+    const btns = pend ? '' : `
        <button class="pause" title="${flagged
          ? 'resume this search'
          : 'pause this search at the next candidate (budget clock stops)'}"
@@ -1332,28 +1359,58 @@ function renderSidebar() {
        <button class="clone" title="new run prefilled from this run's options"
          onclick="event.stopPropagation();openNewRun('${esc(n)}')">⧉</button>
        <button class="kill" title="kill this run's search process tree"
-         onclick="event.stopPropagation();killRun('${esc(n)}')">✕</button></div>`;
+         onclick="event.stopPropagation();killRun('${esc(n)}')">✕</button>`;
+    return `<div class="runitem${runShown(n) && !latestBox.checked ? ' on' : ''}"
+       title="${esc(tip)}" onclick="toggleRun('${esc(n)}')">
+       ${pend ? '<span class="spinner"></span>' : `<span class="dot ${st[0]}"></span>`}<span class="rname">${esc(n)}</span>
+       <span class="cnt">${cands}</span>` + btns + `</div>`;
   }).join('');
 }
 
+// A run whose search predates the heartbeat feature can never ack a pause
+// or kill through the poll (its state stays 'unknown'), so the fetch
+// response is the best confirmation we will ever get for it.
+function canAck(run) {
+  const st = ((DATA[run] || {})._meta || {}).state || {};
+  return st.state && st.state !== 'unknown';
+}
+
 async function pauseRun(run, on) {
+  PENDING[run] = { action: on ? 'pause' : 'resume', since: Date.now() };
+  render();
   try {
     const res = await fetch('/api/' + (on ? 'pause' : 'resume') + '/' +
                             encodeURIComponent(run), { method: 'POST' });
-    const body = await res.json();
-    if (on && body.message) alert(body.message);
-  } catch (e) { alert((on ? 'pause' : 'resume') + ' failed: ' + e); }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await res.json();
+    if (!canAck(run)) delete PENDING[run];
+  } catch (e) {
+    delete PENDING[run];
+    alert((on ? 'pause' : 'resume') + ' failed: ' + e);
+  }
   refresh();
 }
 
 async function killRun(run) {
   if (!confirm(`Kill the search feeding "${run}"?\\nThis stops its whole process tree.`))
     return;
+  PENDING[run] = { action: 'stop', since: Date.now() };
+  render();
   try {
     const res = await fetch('/api/kill/' + encodeURIComponent(run), { method: 'POST' });
     const body = await res.json();
-    alert(body.message || JSON.stringify(body));
-  } catch (e) { alert('kill failed: ' + e); }
+    if (!body.killed || !body.killed.length) {
+      delete PENDING[run];
+      alert(body.message || JSON.stringify(body));
+    } else if (!canAck(run)) {
+      // taskkill already returned; nothing will ever confirm it via heartbeat
+      delete PENDING[run];
+    }
+  } catch (e) {
+    delete PENDING[run];
+    alert('kill failed: ' + e);
+  }
+  refresh();
 }
 
 // ---- new-run form: every osrsify.py knob, grouped; blank = tool default ----
@@ -1442,13 +1499,17 @@ function render() {
   for (const [run, doc] of visibleRuns()) {
     const meta = (doc && doc._meta) || {};
     const ls = meta.state || {};
+    const pend = pendingInfo(run, meta);
     const stLabel = { running: 'running', pause_requested: 'pausing…',
                       paused: 'paused', dead: 'dead', finished: 'finished' }[ls.state];
-    const stateBadge = stLabel
+    const stateBadge = pend
+      ? `<span class="badge st-pending"
+           title="waiting for the search to acknowledge — searches older than the pause feature never will"><span class="spinner"></span>${pend}</span>`
+      : stLabel
       ? `<span class="badge st-${ls.state === 'pause_requested' ? 'paused' : ls.state}"
-           title="${esc((liveState(meta) || ['', ''])[1])}">${stLabel}</span>`
+           title="${esc((liveState(meta) || ['', ''])[1])}">${ls.state === 'pause_requested' ? '<span class="spinner"></span>' : ''}${stLabel}</span>`
       : '';
-    const pauseBtn = ls.state === 'dead' || ls.state === 'finished' ? '' :
+    const pauseBtn = pend || ls.state === 'dead' || ls.state === 'finished' ? '' :
       `<span><button class="pausebtn"
          title="${ls.paused_flag
            ? 'lift the pause flag — the search picks up where it left off'
