@@ -3463,8 +3463,23 @@ advance_npcs(struct Mock230Server* srv)
          * fire on the next npc phase. A player's queue compares the value before
          * its decrement; the two conventions really do differ by one, which is
          * why it is written out here rather than shared.
+         *
+         * **The delay is the one this turn started with, not the one the timer
+         * above just set.** `Npc.processNpc` asks once, at the top of the turn,
+         * and then runs `processTimers()` and `processQueue()` unconditionally;
+         * re-reading `delayed_until` here asks a second time, after an
+         * `[ai_timer]` that ended in `npc_delay` has already moved it.
+         *
+         * That is not a rounding difference, it is starvation: every Inferno
+         * monster attacks on `npc_delay(4)`, so the tick its delay expires is
+         * also the tick its timer re-arms a fresh one — and the queue was never
+         * drained on any other tick, because the top gate skipped those. The
+         * player's melee swing ends in `npc_queue(2, $damage, 0)`
+         * (combat_stats.rs2), so the queue is where *every* hit on the adds
+         * lives: the entries piled up, none ever fired, and Jal-Xil took no
+         * damage, showed no hitsplat and never flinched however long you hit it.
          */
-        if( npc->active && srv->tick >= npc->delayed_until )
+        if( npc->active )
         {
             for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
             {

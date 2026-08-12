@@ -47,7 +47,9 @@ Read at `../2009scape`, under
 
 All three open the same box — header "Select an Option", rows "Chat" and
 "Teleport" — and all three refuse Chat with a "does not feel like talking now"
-line when no conversation exists.
+line when no conversation exists. The port keeps the box and the teleports and
+routes Chat into the shared conversation path below, so the refusal line is no
+longer what any of them answers with.
 
 | Familiar | Type id here | Chat | Teleport |
 | --- | --- | --- | --- |
@@ -69,13 +71,88 @@ It looks like the generic familiar small-talk and is not. All 173 ids in its
 clockwork cat 3598, dogs 6958-6969 / 7237-7260, baby dragons 6900-6907, monkeys
 7210-7227, vultures 7319-7328, and so on. No combat-familiar id appears in it:
 spirit wolf 6829, dreadfowl 6825, and spirit terrorbird 6794 are all absent.
+I swept every `getIds()` in the server tree against all 258 familiar npc ids in
+the port map to confirm it; the only other dialogue-plugin hits are kyatt 7365,
+graahk 7363/7364 and lava titan 8700.
 
-So in 2009scape, Interact on a familiar that is not kyatt/graahk/lava titan
-finds no plugin, `open` returns `false`, and the click produces nothing visible.
+So in 2009scape, Interact on a familiar that is not one of those three finds no
+plugin, `open` returns `false`, and the click produces nothing visible.
 
 Clockwork cat — the one pet in this lane — carries `op1=Pick-up`, not Interact,
 and is handled by `summoning_pet_clockwork_cat.rs2`. That plugin therefore has
 no port here.
+
+## The conversations come from the wiki, not from 2009scape
+
+The reference has one familiar conversation (spirit graahk) and a placeholder
+for the rest, which its own author flags:
+
+> `player.sendMessage("The Graahk does not feel like talking now.")` —
+> *"This message is likely inauthentic, but I cannot source the correct one so
+> I'm keeping the default here -Bishop"*
+
+Two things say the conversations exist in the real game:
+
+* **Every one of the 78 npc records imports a `head1` chathead.** A chathead is
+  drawn nowhere but a dialogue box. Jagex would not have shipped 78 of them for
+  familiars that never speak.
+* **The option box is a choice between Chat and a teleport.** It exists for the
+  three familiars that have somewhere to send you. A familiar with no teleport
+  has nothing to choose, so Chat is simply what Interact does.
+
+`SUMMONING_SPECIALS.md`'s porting policy allows "a cited historical reference or
+another known-good implementation only when the local 2009scape method is
+absent" — and it is absent. The RuneScape Wiki's `Category:Familiar dialogue`
+transcripts are that reference.
+
+| | |
+| --- | --- |
+| Corpus | `docs/summoning_port/familiar_dialogue.json` (checked in) |
+| Built by | `tools/build_familiar_dialogue_corpus.py` — a **one-off** wiki pull; nothing in the build reaches the network |
+| Compiled by | `tools/generate_familiar_dialogue_script.py` → `summoning_dialogue.rs2`, via `make -C src summoning-dialogue` |
+| Coverage | 78 familiars, 408 conversations, 1,647 dialogue pages |
+| Licence | CC BY-NC-SA 3.0 — attribute the wiki when reusing the transcripts |
+
+The wiki's spirit graahk transcript is the same conversation 2009scape has, a
+few words closer to the original ("I got **you** a present"), so all 78 are
+generated from the one source rather than two.
+
+### The level gate
+
+Chat is gated on the **static** Summoning level at **the familiar's own level +
+10**. Three independent sources agree, which is why it is applied to all 78
+rather than hardcoded where it was found:
+
+* `SpiritGraahkDialogue.kt:48` gates a level-57 familiar at 67;
+* `FamiliarDialoguePlugin.java:46-70`'s commented-out pet gate reads
+  `getSummoningLevel() + 10`;
+* `Transcript:Spirit wolf` splits a level-1 familiar at 11.
+
+Below the gate the familiar **still speaks** — the player just cannot make sense
+of it. That is the wiki's own reading of the split rather than a substitute for
+it: `Transcript:Spirit wolf` is the only page that records both sides, and it
+shows the same utterance with the translation withheld — "Whurf?" below level
+11, "Whurf? (What are you doing?)" at 11+. Every other familiar has that rule
+applied to its own first line. Karamthulhu overlord is the single exception: it
+is telepathic, every line it speaks is a parenthetical thought, so it has no
+untranslated sound and falls back.
+
+### What the corpus holds out
+
+* **State-conditional conversations** (37) keep their condition text but stay out
+  of the random pool — nothing here models "if the player has a mirror shield
+  equipped". Spirit terrorbird is the exception that proves it useful: its three
+  conversations key on how loaded its beast-of-burden inventory is, which *is* a
+  real container here, so they are guarded on `~summoning_familiar_bob_items`
+  and it always has something to say.
+* **Ordering conditions** ("always first", "after conversation 1") stay in the
+  pool with the condition recorded. The source unlocks them in sequence; this
+  picks at random.
+* **Overhead dialogue** is the familiar's ambient chat, not the Interact result.
+  Recorded in the corpus, unimplemented.
+* **Fire titan** keeps its "Dialogue options prior to 6 December 2011" set. The
+  page's other section is a post-2011 rewrite, and a later revision cannot
+  override the period value.
 
 ## The port
 
@@ -85,8 +162,8 @@ no port here.
 1. account gate;
 2. the clicked npc must be the player's own familiar, else
    "This is not your familiar.";
-3. dispatch on the persisted familiar type — 38 kyatt, 40 graahk, 64 lava titan,
-   everything else the no-conversation path;
+3. dispatch on the persisted familiar type — 38 kyatt, 40 graahk and 64 lava
+   titan open the option box, everything else goes straight to Chat;
 4. `npc_setmode(playerfollow)` on the way out, which is
    `FamiliarDialoguePlugin`'s stage-99 `startFollowing()`. `~chatnpc` and
    `~p_choice_open` hand the npc `playerfaceclose`, a standing mode with no
@@ -103,29 +180,32 @@ the world, and the familiar records carry no `category=`, so the 78 rows are
 written out per record. That matches the 78 `[opheld4,…]` pouch rows already in
 the same file.
 
-### Two deliberate deviations
+### The deliberate deviation
 
-1. **The no-conversation familiars answer.** The source is silent for those 75;
-   a silent op1 is indistinguishable from the unbound one this change is fixing.
-   The port prints the source's own generic no-conversation line, the one all
-   three implemented familiars use verbatim: "The \<name\> does not feel like
-   talking now." No conversation is invented for a familiar the source does not
-   write one for.
-2. **No wilderness gate on the teleports.**
-   `WildernessZone.checkTeleport(player, 20)` guards all three, refusing above
-   wilderness level 20. This world has no wilderness zone and no skull manager.
-   The guard is omitted rather than approximated; when a wilderness zone lands it
-   belongs in `~summoning_familiar_interact_teleport` and nowhere else.
+**No wilderness gate on the teleports.**
+`WildernessZone.checkTeleport(player, 20)` guards all three, refusing above
+wilderness level 20. This world has no wilderness zone and no skull manager. The
+guard is omitted rather than approximated; when a wilderness zone lands it
+belongs in `~summoning_familiar_interact_teleport` and nowhere else.
+
+2009scape's "does not feel like talking now." survives only as the fallback for
+a familiar whose every recorded conversation is state-conditional. With the
+corpus in place, no familiar on the roster actually reaches it.
 
 Two smaller notes:
 
-* The graahk's chathead expressions (`GHRAAK_SHAKE_VIGOROUS`, `GHRAAK_SHAKE_MILD`,
-  `GRAAHK_NOD`) are rev-530 head sequences this cache has no counterpart for.
-  Those lines use the neutral head and the source expression survives as a
-  comment. The player-side expressions map one-to-one.
-* Source lines split across arguments are joined with a space, per
-  `interface_chat/scripts/chat.rs2`'s rule for this era's single wrapping body
-  component.
+* Every familiar keeps the neutral chathead. The rev-530 head sequences the
+  source expressions name (`GHRAAK_SHAKE_VIGOROUS`, `GRAAHK_NOD`, ...) have no
+  counterpart in this cache.
+* **Pagination.** The wiki records a familiar's whole speech as one bullet; this
+  era's dialogue body is a single 479x67 component that wraps and then CLIPS at
+  about four lines, and `mock230_send_if_settext` builds its packet in a
+  512-byte buffer. Pack yak's longest line is 675 characters. Long lines are
+  split at sentence boundaries into successive dialogue pages — which is what
+  the player clicks through in the real game anyway.
+* **Character folding.** Curly quotes and ellipses fold to ASCII, and angle
+  brackets to parentheses, because `<` opens a colour tag in this client's text
+  renderer.
 
 ### Supporting changes
 

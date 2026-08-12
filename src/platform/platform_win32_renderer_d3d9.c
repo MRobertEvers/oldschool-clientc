@@ -2457,7 +2457,7 @@ d3d9_ui_font_glyph(
 }
 
 static void
-d3d9_ui_draw_font_underlines(
+d3d9_ui_draw_font_rules(
     struct ToriRS_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
@@ -2495,7 +2495,7 @@ d3d9_ui_draw_font_text(
         d3d9_ui_font_glyph,
         &context);
     if( !shadow )
-        d3d9_ui_draw_font_underlines(renderer, slot->font, scissor, text, x, y, center);
+        d3d9_ui_draw_font_rules(renderer, slot->font, scissor, text, x, y, center);
 }
 
 static bool
@@ -2695,7 +2695,7 @@ d3d9_ui_draw_font_rule_range(
 }
 
 static void
-d3d9_ui_draw_font_underlines(
+d3d9_ui_draw_font_rules(
     struct ToriRS_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
@@ -2715,7 +2715,7 @@ d3d9_ui_draw_font_underlines(
         if( center && length > 0 )
             line_x -= d3d9_ui_font_measure_range(font, rest, length) / 2;
         if( length > 0 )
-            d3d9_ui_draw_font_underline_range(
+            d3d9_ui_draw_font_rule_range(
                 renderer, font, scissor, rest, length, line_x, y);
         if( advance == 0 )
             break;

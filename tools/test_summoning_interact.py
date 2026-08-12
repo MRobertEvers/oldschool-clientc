@@ -40,7 +40,12 @@ REPO = Path(__file__).resolve().parents[1]
 CONTENT = REPO / "OSRS-Content/osrs239-content"
 LANE = CONTENT / "ported/scape2009_summoning"
 SCRIPT_LANE = CONTENT / "server/scripts/ported_scape2009_summoning"
-CLIENT = REPO / "src/torirs"
+# `make -C src` by anyone relinks src/torirs without the embedded server, which
+# breaks every runtime check here for a reason unrelated to the test. Point
+# TORIRS_CLIENT at a privately built binary to sidestep a shared tree:
+#   mkdir -p src/build_embed && make -C src torirs_embed EMBED_SERVER=1 \
+#       TORIDRAW_OPT=1 PLATFORM_OBJ_BASE=build_embed PLATFORM_TARGET=torirs_embed
+CLIENT = Path(os.environ.get("TORIRS_CLIENT") or REPO / "src/torirs")
 CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
 MANIFEST = REPO / "manifest_osrs239.ini"
@@ -123,6 +128,16 @@ def run_client(saves: Path, env_extra: dict[str, str], frames: int) -> str:
     )
     if result.returncode:
         raise RuntimeError(f"client exited {result.returncode}\n{result.stdout[-4000:]}")
+    # A plain `make -C src` by anyone relinks src/torirs without the embedded
+    # server, and then every packet assertion below fails for a reason that has
+    # nothing to do with what is being tested. Say so once, loudly, instead.
+    if "this build has no embedded server" in result.stdout:
+        raise RuntimeError(
+            "src/torirs has no embedded server — every runtime check here would fail "
+            "for that reason alone. Rebuild with:\n"
+            "  make -C src EMBED_SERVER=1 TORIDRAW_OPT=1 torirs\n"
+            "or build a private one and set TORIRS_CLIENT to it (see the top of this file)."
+        )
     return result.stdout
 
 

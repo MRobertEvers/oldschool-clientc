@@ -139,6 +139,10 @@ def check(tree: Path) -> int:
             12003: "summoning_familiar_status",
             12004: "summoning_orb_modern_init",
             12005: "summoning_stats_scroll",
+            # The familiar special badge's target-mode pair: one registers the
+            # hooks and op base at mount, one paints the selection outline.
+            12006: "summoning_familiar_target_init",
+            12007: "summoning_familiar_targetmode",
         }
         if lane_script_rows != expected_scripts:
             errors.append(f"{lane_scripts}: expected {expected_scripts}, got {lane_script_rows}")

@@ -12131,8 +12131,6 @@ app_measure_text_cb(
     struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, font_id);
     if( !font || !text )
         return 0;
-    if( getenv("TORIRS_MEASURE_FAIL") )
-        return 0;
     return ToriDraw2D_MeasureString(font, text);
 }
 
