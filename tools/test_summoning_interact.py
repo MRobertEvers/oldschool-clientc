@@ -28,6 +28,7 @@ children), so the branches behind it are checked against the source instead.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -153,6 +154,7 @@ def main() -> int:
     bindings = (SCRIPT_LANE / "scripts/summoning_bindings.rs2").read_text(encoding="utf-8")
     interact = (SCRIPT_LANE / "scripts/summoning_interact.rs2").read_text(encoding="utf-8")
     core = (SCRIPT_LANE / "scripts/summoning_core.rs2").read_text(encoding="utf-8")
+    dialogue = (SCRIPT_LANE / "scripts/summoning_dialogue.rs2").read_text(encoding="utf-8")
     tab = (SCRIPT_LANE / "scripts/summoning_tab.rs2").read_text(encoding="utf-8")
     constants = (SCRIPT_LANE / "configs/summoning.constant").read_text(encoding="utf-8")
 
@@ -233,22 +235,60 @@ def main() -> int:
                 f"{constant} is {match.group(1)}, which is not the source's {absolute}",
             )
     expect(
-        "if (stat_base(summoning) < 67)" in interact,
-        "the graahk conversation gate is not the source's static level 67",
+        "if (stat_base(summoning) < add(~summoning_familiar_level($type), 10)) {" in interact,
+        "the chat gate is not the STATIC Summoning level at the familiar's level + 10",
+    )
+
+    # 6. The conversations. They are wiki transcripts compiled from a checked-in
+    #    corpus, so the checks are that the corpus covers the roster, that the
+    #    generated script is not stale against it, and that no conversation was
+    #    hand-edited into the generated file.
+    corpus = json.loads((REPO / "docs/summoning_port/familiar_dialogue.json").read_text())
+    familiars = corpus["familiars"]
+    expect(len(familiars) == 78, f"corpus covers {len(familiars)} familiars, not 78")
+    expect(
+        all(str(t) in familiars for t in range(1, 79)),
+        "the corpus is not keyed by the registry's 1..78 type ids",
+    )
+    empty = [f["name"] for f in familiars.values() if not f["conversations"]]
+    expect(not empty, f"familiars with no conversation at all: {empty[:5]}")
+    for type_id, entry in familiars.items():
+        expect(
+            f"if ($type = {type_id}) return(~summoning_familiar_chat_{type_id}($familiar));"
+            in dialogue,
+            f"type {type_id} ({entry['name']}) is not in the chat dispatcher",
+        )
+    expect(
+        "GENERATED FILE" in dialogue.split("\n", 1)[0],
+        "summoning_dialogue.rs2 lost its generated-file banner",
+    )
+    stale = subprocess.run(
+        [sys.executable, str(REPO / "tools/generate_familiar_dialogue_script.py"), "--check"],
+        cwd=REPO, text=True, capture_output=True, check=False,
     )
     expect(
-        'mes("The Kyatt does not feel like talking now.");' in interact
-        and 'mes("The lava titan does not feel like talking now.");' in interact
-        and 'mes("The Graahk does not feel like talking now.");' in interact,
-        "one of the three source refusal lines was not transcribed verbatim",
+        stale.returncode == 0,
+        "summoning_dialogue.rs2 is stale against the corpus: " + stale.stderr.strip(),
     )
+    # Every spoken string must survive this era's chat interface: `<` opens a
+    # colour tag, and mock230_send_if_settext builds its packet in 512 bytes.
+    spoken = re.findall(r'"([^"]*)"', dialogue)
+    expect(spoken, "the generated dialogue has no strings")
+    bad = [s for s in spoken if "<" in s or ">" in s]
+    expect(not bad, f"dialogue strings carry colour-tag brackets: {bad[:3]}")
+    overlong = [s for s in spoken if len(s) > 220]
+    expect(not overlong, f"dialogue strings exceed one chat page: {[len(s) for s in overlong][:3]}")
+
+    # 7. The three option boxes still route Chat into the shared path rather than
+    #    keeping 2009scape's placeholder line.
+    for type_id, proc in ((38, "kyatt"), (40, "graahk"), (64, "lava_titan")):
+        expect(
+            f"~summoning_familiar_interact_chat($familiar, {type_id});" in interact,
+            f"the {proc} option box does not route Chat into the shared conversation path",
+        )
     expect(
-        interact.count("[proc,summoning_familiar_interact_graahk_") == 5,
-        "SpiritGraahkDialogueFile's four labels plus the guarded say helper are not all present",
-    )
-    expect(
-        "def_int $conversation = random(4);" in interact,
-        "the graahk conversation is not picked the way RandomFunction.random(4) picks it",
+        interact.count('" does not feel like talking now."') == 1,
+        "the no-conversation fallback is stated more than once",
     )
 
     if args.static_only or errors:
@@ -260,8 +300,10 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="summoning_interact_") as root:
-        # A. The 75 familiars with no source conversation. The op must answer and
-        #    must NOT move the familiar: a recall re-sends the arrival spotanim.
+        # A. A plain familiar, BELOW the chat gate. It must answer with its own
+        #    untranslated sound and must NOT be recalled: a recall re-sends the
+        #    arrival spotanim. Spirit wolf is level 1, so a fresh account at
+        #    Summoning 1 is below its level-11 gate.
         saves = Path(root) / "plain"
         saves.mkdir()
         plain = run_client(
@@ -276,8 +318,12 @@ def main() -> int:
         tail = after_op(plain)
         expect(tail != "", "the Interact packet never went out for the Spirit wolf")
         expect(
-            "The Spirit wolf does not feel like talking now." in tail,
-            "Interact on a plain familiar did not answer",
+            "text='Whurf?'" in tail,
+            "below the gate the familiar did not make its own untranslated sound",
+        )
+        expect(
+            "(What are you doing?)" not in tail,
+            "below the gate the player understood the familiar anyway",
         )
         expect(
             "You call your familiar." not in tail,
@@ -288,7 +334,41 @@ def main() -> int:
             "Interact moved the familiar — an arrival graphic followed the op",
         )
 
-        # B. The branch that has a dialogue. Selecting a row is out of reach, so
+        # B. The same familiar ABOVE the gate: a real transcript conversation,
+        #    in the chathead dialogue box rather than a chatbox line.
+        saves = Path(root) / "gated"
+        saves.mkdir()
+        gated = run_client(
+            saves,
+            {
+                "TORIRS_NET_CHEAT": "summoning_unlock;setlevel 24 20;summoning_demo",
+                "TORIRS_SIM_OPNPC": f"200,1,{wolf}",
+            },
+            420,
+        )
+        (args.out / "gated.log").write_text(gated)
+        tail = after_op(gated)
+        expect(tail != "", "the Interact packet never went out above the gate")
+        expect(
+            "text='Spirit wolf'" in tail,
+            "the dialogue box was not labelled with the familiar's name",
+        )
+        expect(
+            "does not feel like talking now" not in tail,
+            "above the gate the familiar still refused to talk",
+        )
+        wolf_lines = [
+            line["text"]
+            for conversation in familiars["1"]["conversations"]
+            for line in conversation["lines"]
+            if line["who"] == "npc"
+        ]
+        expect(
+            any(f"text='{text}'" in tail for text in wolf_lines),
+            "no Spirit wolf transcript line reached the dialogue box",
+        )
+
+        # C. The branch that has a teleport. Selecting a row is out of reach, so
         #    this proves the option box opens: interface 219 armed for resume and
         #    clientscript 58 (chatbox_multi_init) handed the two rows.
         saves = Path(root) / "graahk"
@@ -308,10 +388,7 @@ def main() -> int:
             "runclientscript: script=58" in tail,
             "the graahk Interact did not open the source's option box",
         )
-        expect(
-            "(219:1)" in tail,
-            "chatmenu:options was not armed for the graahk option box",
-        )
+        expect("(219:1)" in tail, "chatmenu:options was not armed for the graahk option box")
         expect(
             "You call your familiar." not in tail,
             "the graahk Interact fell through to Call Follower",

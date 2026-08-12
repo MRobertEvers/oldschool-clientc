@@ -333,6 +333,32 @@ destination square, so entering, leaving and being rebuilt into a different
 instance all re-ask, and walking between two destination squares of one instance
 re-asks and gets the same answer.
 
+**And the room's music now goes out with the picture.** The cutscene fades to
+black, shakes the camera on three axes and drops the prison seal — over a
+four-minute loop that had not noticed. `midi_song(-1)` on the fade-out tick,
+`midi_song(^inferno_music_track)` on the tick `cam_reset` brings the camera
+home. The restore has to be named: `mock230_music_enter_region` only fires on a
+map-square crossing and the player has not moved since the teleport, so nothing
+would restart it until they left the Inferno.
+
+Three engine pieces this needed, and the third is the one worth remembering:
+
+1. `MIDI_SONG_STOP` had no encoder. It is a separate packet and not
+   `midi_song(-1)` on the wire, because MIDI_SONG's id is two bytes with 65535
+   as the sentinel and the 239 client turns that into -1 and then *starts*
+   nothing — it never stops what is playing. `w239_midi_song_stop` is two
+   `p2Alt3` fields, which is the writer side of the two `G2Le_add128` reads the
+   client's own parse already does, so the pair is confirmed from both ends.
+2. `SS_OP_MIDI_SONG` now routes a negative id to it — the same "a negative id is
+   nothing, not entity -1" rule `SS_OP_SOUND_SYNTH` states a few cases above.
+3. **`mock230_wire.c`'s `transcribed` allow-list.** A packet with a resolvable
+   opcode *and* a registered writer is still refused unless its name is in
+   `k_transcribed_osrs239`, and the refusal is a one-line stderr note nobody is
+   reading. Symptom: `midi_song(-1)` reached the opcode (verified with a probe:
+   the case ran eight times with a live player), called the encoder, and no
+   packet appeared in the capture. Adding the writer is three edits, not two,
+   and the third one has no compiler to catch it.
+
 Covered by `mock230 --selftest`, "instanced music resolves the source square",
 which asserts the *address* rather than the track id: what broke was the
 address, and a track assertion would pass just as happily on a table row that

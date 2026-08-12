@@ -1122,19 +1122,8 @@ mock230_playerzonemap_move(struct Mock230Player* player)
     player->zonemap.built_zone_z = srv->zone_z;
 }
 
-/*
- * Who is standing in this client's zones, right now.
- *
- * Walked at the moment a packet needs it rather than kept up to date, which is
- * what makes it impossible for the answer to be stale.
- *
- * The plane and the view radius are applied HERE, per entity — not per zone and
- * not by the caller. Per zone is not enough: a zone straddling the edge of the
- * radius contributes everything in it, up to 7 tiles past the range, and `out`
- * is bounded, so a dense fringe can fill it with entities that will be
- * discarded and crowd out ones that are actually beside the player. That is
- * unreachable while a world holds 63 npcs and ordinary at 23,139.
- */
+/* The gap to a npc's FOOTPRINT, per axis. See mock230_zone.h — the header
+ * carries why view range must not be measured off the origin corner. */
 void
 mock230_npc_view_deltas(
     const struct Mock230Npc* npc,
@@ -1155,11 +1144,23 @@ mock230_npc_view_deltas(
     else if( player->z > npc->z + size - 1 )
         dz = player->z - (npc->z + size - 1);
 
-    *out_dx = 0; /* MUTATION: never out of range */
-    *out_dz = 0;
-    (void)dx; (void)dz;
+    *out_dx = dx;
+    *out_dz = dz;
 }
 
+/*
+ * Who is standing in this client's zones, right now.
+ *
+ * Walked at the moment a packet needs it rather than kept up to date, which is
+ * what makes it impossible for the answer to be stale.
+ *
+ * The plane and the view radius are applied HERE, per entity — not per zone and
+ * not by the caller. Per zone is not enough: a zone straddling the edge of the
+ * radius contributes everything in it, up to 7 tiles past the range, and `out`
+ * is bounded, so a dense fringe can fill it with entities that will be
+ * discarded and crowd out ones that are actually beside the player. That is
+ * unreachable while a world holds 63 npcs and ordinary at 23,139.
+ */
 static int
 area_entities(
     struct Mock230Player* player,

@@ -17,6 +17,7 @@ EXPECTED_MODULES = frozenset(
         "summoning_combat.rs2",
         "summoning_core.rs2",
         "summoning_debug.rs2",
+        "summoning_dialogue.rs2",
         "summoning_infuse.rs2",
         "summoning_interact.rs2",
         "summoning_pet_clockwork_cat.rs2",

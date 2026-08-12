@@ -10052,6 +10052,11 @@ phase_cleanup(struct Mock230Server* srv)
 
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
+        if( getenv("MOCK230_NPC_MASK_DEBUG") && srv->npcs[i].active && srv->npcs[i].masks )
+            fprintf(stderr, "MASK t=%d slot=%d type=%d masks=%08x anim=%d face=%d,%d ent=%d\n",
+                    srv->tick, i, srv->npcs[i].type, (unsigned)srv->npcs[i].masks,
+                    srv->npcs[i].anim_id, srv->npcs[i].face_x, srv->npcs[i].face_z,
+                    srv->npcs[i].face_entity);
         srv->npcs[i].masks = 0;
         /* LostCity `Npc.processMovement`: `lastMovement = currentTick + 1`
          * whenever the tile changed. Recorded here, off the tick's final
