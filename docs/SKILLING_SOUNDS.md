@@ -544,7 +544,7 @@ worktree's OSRS-Content confirms this touches none of the 11 files edited
 here; it is a content-pack registration gap orthogonal to this work, not a
 sound regression.
 
-### 5.3 Phase 2 — the production skills (2–3 days)
+### 5.3 Phase 2 — the production skills — **done, 2026-08-12**
 
 | # | skill | edits | note |
 |---|---|---|---|
@@ -557,13 +557,25 @@ sound regression.
 | 11 | **Prayer** | 7 + 24 | see §5.4 — this one is a config change, not edits |
 | 12 | **Runecraft** | 4 | L throughout |
 
+**Landed** (same worktree as Phase 1, `worktree-skilling-sounds`):
+
+- **Smithing**: `anvil_4` on every hammer strike (`smithing.rs2`, `dragon_sq.rs2`), `furnace` on smelting (`smelting.rs2`, `cannonballs.rs2`). Confirmed `anvil` (bare) collides with an obj category per §5.0 rule 3 — used `anvil_4` throughout, never bare `anvil`.
+- **Cooking**: `fry` in the single shared `[label,cook_item]`.
+- **Crafting**: `chisel` (gems, snelm), `spinning` (wool/flax), `furnace`+`glassblowing` (glass), `pottery`+`furnace` (pottery, sound *before* anim there — matches LC's own ordering), `furnace` (jewellery gold/silver), `stitching` (leather, W-layer — LC states none).
+- **Herblore**: `grind` on both brew_potion and grind_ingredient (LC uses `grind` for both, not `liquid`/`vial_mix` — kept faithful rather than "improving" on the reference); clean_herb pseudo-randomizes across the wiki's four `herblore_clean_herb_N` names.
+- **Fletching**: `fletch` on cutting logs; bolt-tip cutting gets a flat `chisel` rather than LC's per-row `skill_sound` column, which this port's `fletching.dbtable` dropped — restoring it is future work, noted inline.
+- **Thieving**: `pick` (pickpocket + stalls, including the "steal bread" easter-egg re-play), `stunned` on a failed pickpocket, `locked`/`chest_open`/`lever` across both trapped-chest scripts. The npc's own `attack_sound` is skipped, not silently dropped — `npc_param(attack_sound)` isn't a declared param name yet in this pack and would be a **compile error**, not a runtime no-op; caught before it broke the build.
+- **Prayer**: a `sound` **int** column on `prayer_table` (not `synth` — nothing else in this content tree uses that dbtable type yet, and the ids are native to this cache, not ported across eras, so a plain int carries no risk `PORTING_GUIDE §4.1 rule 4` warns about). All 29 rows carry a value; the 24 pre-2005 prayers get their real id, the 5 post-2004 additions (Preserve, Chivalry, Piety, Rigour, Augury) get an explicit `-1` — never omitted, because an omitted int column does not reliably read as "no value" here. One call site each for on (`db_getfield(…, sound, 0)`, 0 loops, matching LC exactly) and off (`prayer_off`); a third site (`cancel_prayer`) turned out to belong to *conflict auto-deactivation*, not "cancel all" as originally guessed — LC's `[proc,prayer_deactivate]` is the analogue of this port's `prayer_deactivate_specific`, not `prayer_deactivate_all`, which itself plays no sound in the reference. Also wired `bones_down` (`bury_bone.rs2`, the exact file whose comment stated the now-false "unnamed synth table" rationale in §1) and `prayer_boost`/`prayer_recharge` (`altar.rs2`, same stale rationale).
+- **Runecraft**: `teleport_all` (exit portal, both ruins-entry paths), `bind_runes` (crafting), plus `essence_mine.rs2` (`curse_all` on the Abyss curse-cast, `teleport_all` on the exit portal) — not itemized in §4.16 originally but the same pattern and fully LC-stated.
+
+Verification: `make mock230-scripts` — same **14,240 scripts**, zero new errors; `db columns` count went **367→368**, confirming the new `prayer_table.sound` column packed. `make test-sound` and `make test-db` both fully green (the latter specifically exercises `db_getfield` on omitted/declared-default columns, relevant to the `-1` sentinel choice above). `make mock230-servpack` still fails on the same pre-existing, unrelated npc.server field-registration gap from Phase 1 — confirmed by `0 unresolved names` in the dbtable/dbrow pack step, meaning this change's config edits themselves pack clean.
+
 ### 5.4 Phase 3 — the data-driven and post-2004 skills (3–5 days)
 
-**Prayer is different and should be done as data.** Add a `sound,synth` column
-to the prayers dbtable and 24 `data=sound,<name>` rows, then one
-`sound_synth(db_getfield($data, prayers:sound, 0), 0, 0)` in the activation
-proc — exactly LostCity's shape (`prayer.rs2:22`). One call site, 24 sounds.
-Note the reference passes **`0` loops**, not 1, at that site; keep it.
+Prayer's `sound` column landed in Phase 2 above, ahead of schedule — it turned
+out to gate the rest of prayer's sound cleanly, so it made more sense done with
+prayer than deferred. What's left here is the skills with no LostCity
+reference at all: agility (rooftops), farming, hunter, construction, slayer.
 
 The rest have no LostCity reference at all and are pure layer **W**, so they are
 slower per row and want a pass in the running game to confirm each sound is not
