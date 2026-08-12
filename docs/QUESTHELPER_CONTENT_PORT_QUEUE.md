@@ -158,19 +158,19 @@ been audited yet as of the rule change -- every row below is effectively
 
 | Quest Helper path | LC script name | Status |
 |---|---|---|
-| `animalmagnetism` | quest_animalmagnetism | IN-LC — CONTENT_PORT_QUEUE |
-| `biohazard` | quest_biohazard | IN-LC — CONTENT_PORT_QUEUE |
+| `animalmagnetism` | quest_animalmagnetism | audited-fixed 2026-08-12: very thorough existing port (7 files) — Ava's chicken/magnet/tree/notes/container chain, the witch's selected-iron magnet-hammer minigame, Alice/husband/crone ghostspeak-amulet chain (with lost-amulet replacement), and the research-notes on/off button puzzle all matched Transcript:Animal_Magnetism, ending in the real `~quest_complete(quest_animalmagnetism)` with reward xp matching the dbrow exactly (1000 crafting/fletching/slayer, 2500 woodcutting) and the ranged-50 device-tier branch. One real gap: Ava's opening offer was a straight-line intro with no way to decline — added the wiki's two refusal branches (`~p_choice3`: "I'm not much into interior design..." and "What's a nice girl like you...") from Transcript:Animal_Magnetism. |
+| `biohazard` | quest_biohazard | audited-fixed 2026-08-12: dialogue trees (chemist/errand boys/Guidor/Guidor's wife/Elena/King Lathas) are thorough and match Transcript:Biohazard closely, ending in the real `~quest_complete(quest_biohazard)` (3 QP, 1250 thieving xp, matches dbrow). One real quest-blocking gap: `quests/quest_biohazard/scripts/quest_biohazard_locs.rs2`'s `biohazard_climb_ladder` label (the wall-crossing cutscene) was fully written but **nothing anywhere ever called it** — Omart and Kilron both have real world `.spawn` entries but zero `[opnpc1,...]` Talk-to triggers, so a player who reached `^biohazard_released_pigeons` had no way to actually cross into West Ardougne. Added both NPC handlers (Omart: "Okay, let's do it"/"Not yet." choice + free repeat crossings; Kilron: return-trip + Mourner HQ location hint), matching Transcript:Biohazard's Omart/Kilron lines. |
 | `cooksassistant` | quest_cook | audited-fixed 2026-08-12: this is docs/PORTING_GUIDE.md's own §4.1 precedent slice, and it held up well — ingredient gather/hand-in, journal (3 states, wired), reward (300 cooking xp, 1 QP via `~quest_complete(quest_cooksassistant)`), and the post-quest small talk (`~p_choice4`, matches Transcript:Cook_(Lumbridge)'s post-quest tree) were all already correct. One real gap: the file's own header comment said "the player cannot decline the quest" because `~p_choice*` wasn't portable yet when this was first written — but `interface_chat/scripts/chat.rs2` implements `~p_choice2`/`~p_choice4` for real now (this file already uses `~p_choice4` for the post-quest chat), so the comment was stale and the decline branch was just never restored. Added the accept/decline `~p_choice2` on the initial offer with Transcript:Cook's_Assistant's refusal line ("Fine. I always knew you Adventurer types were callous beasts. Go on your merry way!"). |
 | `dwarfcannon` | quest_mcannon | audited-fixed 2026-08-12: state constants (0-11) and the journal (`mcannon_journal.rs2`) covered the whole quest, but nothing anywhere ever advanced `%mcannon` past what the railings/cave/crate scripts touch internally — the quest giver **Captain Lawgof** (`lawgof2`, dbrow startnpc) and **Nulodion** (`nulodion`) had zero `[opnpc1,...]` dialogue anywhere in the tree, so the quest could never even be started, `mcannontoolkit` (gates the cannon repair) and `ammo_mould` (gates `skill_smithing/scripts/smelting/cannonballs.rs2`'s own cannonball recipe) were never granted to any player, and there was no `~quest_complete` call in the whole quest. Added `quests/quest_mcannon/scripts/mcannon_commander.rs2` — full Lawgof + Nulodion talk-to state machine (accept/refuse quest offer, railing/watchtower/goblin-cave/cannon/Nulodion checkpoints, all matching Transcript:Dwarf_Cannon paraphrased) — granting `mcannonrailing1_obj`x6, `mcannontoolkit`, `nulodions_notes` + `ammo_mould` at the right checkpoints, ending in `stat_advance(crafting,7500)` + `~quest_complete(quest_dwarfcannon)`. Both npcs already had real world `.spawn` entries (`m40_54`/`m47_53`) — no hand-spawning needed. |
 | `eaglespeak` | quest_eaglepeak | IN-LC — CONTENT_PORT_QUEUE |
 | `eadgarsruse` | quest_eadgar | audit-in_progress (2026-08-12): the biggest gap found this pass, and explicitly self-documented as such — every file in `quest_eadgar/` and the shared npcs it touches (`sanfew.rs2`, `troll_eadgar.rs2`) carries a header comment naming the missing piece ("Full body deferred", "Eadgar's Ruse start deferred", "Eadgar's Ruse dialog trees deferred", "Fake-man use ... deferred", "Grind/brew / ranarr mix / cooking dry deferred", "Greegree unequip / setbit / aviary hatch deferred"). Concretely: Sanfew (`areas/area_taverly/scripts/sanfew.rs2` `sanfew_more_work` label) never offers the Eadgar's Ruse quest at all — `%eadgar_quest`/`%eadgar_bits` never leave their zero state through any reachable trigger. Mad Eadgar (`quest_troll/scripts/troll_eadgar.rs2`) only has his unrelated flavour "Mad Eadgar's stew shop" Talk-to, not the real quest dialogue (parrot plan, item list, potion handoff). The Burntmeat/troll-cook goutweed-quest arm is real and complete (`eadgar_troll_chief_cook.rs2`, including a documented prior fix removing a duplicate `[opnpc1,eadgar_troll_chief_cook]` trigger shared with My Arm's Big Adventure). But the connecting tissue is missing end to end: no parrot-catch/hide-under-rack mechanic, no `%eadgar_bits` logs/clothes/chicken/grain collection wiring (`eadgar_zoo_keeper_aviary.rs2`'s own header: "Greegree unequip / %eadgar_bits setbit / aviary hatch deferred"), no troll-thistle grind+dry+ranarr-potion mix (`eadgar_troll_thistle.rs2`: "Grind/brew / ranarr mix / cooking dry deferred"), no storeroom key/unlock, no goutweed pickup in the storeroom, and no Sanfew hand-in / Trollheim Teleport spell reward. The journal (`eadgar_journal.rs2`) is, unusually, *already fully written* for every one of these states (cites real OSRS playthrough timestamps) — it is the one file in the whole quest that is complete, which made the size of the gap easy to see precisely. Left `audit-in_progress`: this is a full quest's worth of new dialogue/mechanic content (comparable to the Holy Grail row above), too large to build and verify in one tick. Follow-up: (1) Sanfew's `sanfew_more_work` quest-offer branch; (2) Eadgar's real dialogue tree replacing the stew-shop default at `troll_eadgar.rs2`'s `@eadgar_default_tree`; (3) parrot catch (zoo aviary) + hide-in-prison-rack + fetch-back state transitions; (4) `%eadgar_bits` item collection (logs/clothes) + `%eadgar_chickens`/`%eadgar_grain` counters wired to real inv_del sites; (5) troll thistle grind+dry+ranarr-potion combine; (6) storeroom key/unlock/goutweed pickup; (7) Sanfew reward hand-in (`~quest_complete(quest_eadgarsruse)` + Trollheim Teleport spell unlock). |
-| `heroesquest` | quest_hero | IN-LC — CONTENT_PORT_QUEUE |
+| `heroesquest` | quest_hero | audited-fixed 2026-08-12: several files' own header comments claimed "full quest body (gangs/firebird/ice queen/grip) deferred", but that was stale — the quest is genuinely almost entirely built across `garv.rs2`/`grubor.rs2`/`trobert.rs2`/`brimhaven_scarface_mansion.rs2` (Black Arm disguise-as-deputy infiltration), `fire_feather.rs2` + `drop_tables/scripts/entrana_firebird.rs2` (firebird feather), `gerrant.rs2`/`oily_fishing_rod.rs2`/`skill_fishing/scripts/fishing_spots/lavafish.rs2` (lava eel), and `achietties.rs2` (start/turn-in, reward matches dbrow exactly: 3075 combat-stat xp x4, 2075 ranged, 2725 fishing, 2825 cooking, 1575 wc/fm, 2275 smithing, 2575 mining, 1325 herblore, 1 QP via real `~quest_complete`). Five real, connected gaps found and fixed: (1) `areas/varrock/scripts/katrine.rs2` and `straven.rs2` (Black Arm / Phoenix gang leaders) never touched `%heroquest` at all, so neither gang path's armband sub-quest could ever start (`quest_hero/scripts/grubor.rs2`'s password gate and `areas/area_brimhaven/scripts/brimhaven_thin.rs2`'s Alfonse gate both check exact `%heroquest` states nothing ever set) — added the missing "is there a way to get the rank of master thief" ask + candlestick hand-in branches to both NPCs' existing menus. (2) `drop_tables/scripts/grip.rs2` never dropped `grip_keys` (Transcript: "Take Grip's keyring"), so the treasure-room door in `brimhaven_scarface_mansion.rs2` could never be unlocked by anyone — added the drop. (3) that same door's unlock gate only recognised the Black Arm checkpoint, permanently locking out a Phoenix-path player even holding real `grip_keys` — broadened to check either gang's own checkpoint (soft single-player stand-in for the real two-player hand-off; noted in the code). (4) Ice Queen (White Wolf Mountain, level 111) had a world spawn but zero drop table anywhere in the tree, so `ice_gloves` — required by `fire_feather.rs2`'s `opheldu` burn-damage gate — was unobtainable; added `drop_tables/scripts/ice_queen.rs2` (100% drop per wiki, not one of the reference tree's 69/71 ported files). (5) `raw_lava_eel` had no cooking recipe anywhere in `skill_cooking/configs/cooking_generic.dbrow`, so a caught eel could never become the `lava_eel` Achietties wants — added the row (level 53, 30xp, never burns, per wiki). Not touched (non-blocking flavour only, no `%heroquest` gate reads it): `areas/entrana/scripts/high_priest_of_entrana.rs2` still has no Heroes' Quest branch confirming the firebird's existence. |
 | `holygrail` | quest_grail | audit-in_progress (2026-08-12): dialogue trees are thorough (king_arthur/merlin/brother_galahad/grail_crone/fisher_king/sir_percival/black_knight_titan/grail_realm_npcs all wired, journal complete) but the physical world layer has real quest-blocking holes vs the wiki quick guide + Transcript:Holy_Grail — no spawn (static or dynamic) for `sir_percival` anywhere in the tree (he should be found by searching/opening a sack in Goblin Village; no goblin-village sack loc/oploc exists either), no `opheldu`/blow trigger on `magic_whistle` to teleport into the Fisher Realm and gate the Black Knight Titan fight (wiki: blow near the tower NW of Brimhaven; re-blowing after the Titan's dead should skip the rematch), and no oploc/opobj "ring" trigger on the dynamically-spawned `grail_bell` for castle access. `magic_whistle`/`holy_grail` items themselves already have real static obj spawns in `m41_73.spawn` (cache-derived, confirmed reachable via generic pickup) so those two don't need new item plumbing — just the teleport-gate script. Follow-up: (1) find sir_percival's real cache spawn/sack coordinate or the Goblin Village sack loc name and wire an oploc search trigger + `npc_add`; (2) write the whistle-blow teleport proc (Titan-fight gate + no-rematch-after-defeat state) parallel to the `black_knight_titan.rs2` fight logic already present; (3) wire the grail_bell ring trigger for castle entry. Left `audit-in_progress`, not `audited-fixed` — too large to finish and verify in one tick. |
 | `druidicritual` | quest_druid / quest_druidspirit | IN-LC — CONTENT_PORT_QUEUE |
 | `icthlarinslittlehelper` | quest_icthlarin | IN-LC — CONTENT_PORT_QUEUE |
 | `impcatcher` | quest_imp | audited-fixed 2026-08-12: matched wiki (Transcript:Imp_Catcher + Quick_guide) closely already; fixed two gaps — (1) `wizard_mizgog.rs2`'s quest-offer branch never let the player decline ("I've better things to do than chase imps."), always force-started the quest; added the accept/refuse `~p_choice2` + Mizgog's "That's great, thank you." accept line. (2) added the documented post-quest repeatable amulet trade ("Have you got another one of those fancy schmancy amulets?" -> trade 4 beads for another amulet of accuracy) that was entirely missing. Also added `wizard_grayzag.rs2`'s missing `[opnpc1,...]` talk-to dialogue (3 quest-state branches, Transcript:Wizard_Grayzag) — he had combat AI but no talk trigger at all. |
 | `legendsquest` | quest_legends | IN-LC — CONTENT_PORT_QUEUE |
-| `ragandboneman` | quest_ragandbone | IN-LC — CONTENT_PORT_QUEUE |
+| `ragandboneman` | quest_ragandbone | audited-ok 2026-08-12: matches wiki (Quick_guide + gameplay) exactly — Odd Old Man's accept/refuse/curious-about-the-mumbling branches, all 8 quest bone drops correctly wired onto their monsters (`ramunsheered*`/`ramsheered`, `bat`/`bat_unaggressive`/`olaf2_giant_bat`/`non_combat_bat`, `medium_frog` in `quest_ragandboneman/scripts/ragandboneman_drops.rs2`; `bear`/`goblin`/`giant_rat`/`unicorn` in `drop_tables/scripts/`; `monkey` spliced into the existing `quest_tbwt/scripts/tbwt_monkey.rs2` trigger rather than a second competing one), Fortunato's vinegar sale (1gp/jug, matches wiki), and the full vinegar-pour/bone-add/pot-boiler/light-logs/20-tick(=12s)-boil/retrieve mechanic for all 8 bones. Reward (`~quest_complete(quest_ragandboneman1)`, 500 cooking + 500 prayer xp, 1 QP) matches the dbrow exactly. No gaps found. |
 | `runemysteries` | quest_runemysteries | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Rune_Mysteries) — Duke Horacio/Sedridor/Aubury chains all cover lost-item replacement, refuse branches, re-talks, and post-quest lines. One out-of-scope note: the wiki's reward list includes 5 Kudos claimable at the Varrock Museum, but the Kudos system isn't implemented anywhere in this tree (cross-cutting dozens of quests) — not this quest's gap to close alone. |
 | `seaslug` | quest_seaslug | audited-fixed 2026-08-12: very thorough LC port already (caroline/holgart/kennith/kent/bailey/quest_seaslug.rs2 cover every wiki-documented (Transcript:Sea_Slug) scene incl. refuse, lost-torch replacement, and post-quest dialogue). Fixed two real gaps: (1) `caroline.rs2`'s completion queue awarded QP via a bespoke `%qp = add(...)` instead of `~quest_complete(quest_seaslug)`, silently skipping `%quests_completed_count` — every other audited quest in this table uses the real proc, now this one does too. (2) the "possessed fisherman" flavour dialogue (`fisherman.rs2`) only had 2 of the wiki's 6 randomised cryptic lines; expanded to all 6 (paraphrased, non-gating). |
 | `sheepherder` | quest_sheepherder (not `quest_sheep`, which is the unrelated Sheep Shearer quest / dbrow `quest_sheepshearer`) | audited-ok 2026-08-12: matches wiki (Quick_guide) exactly — Councillor Halgrive's accept/refuse offer, Doctor Orbon plague-suit gear, cattleprod+poisoned-feed sheep mechanic, incinerator disposal, and completion (`~quest_complete(quest_sheepherder)`, 3100 coins reimbursement matching wiki 100+3000) all present; `diseased_sheep.rs2` even cross-checks against Mourning's End Part I's later reuse of the same world npcs. |
@@ -6434,3 +6434,75 @@ filed under `helpers/miniquests/` are at the end.
     audited across three passes; 3 of those 13 — `holygrail`,
     `eadgarsruse`, `trollromance` — are `audit-in_progress` rather than
     fully closed).
+- **IN-LC audit pass 4 (2026-08-12):** audited 4 more rows, one quest at a
+  time, synchronously (no nested background sub-agents): `animalmagnetism`/
+  quest_animalmagnetism, `biohazard`/quest_biohazard, `heroesquest`/
+  quest_hero, `ragandboneman`/quest_ragandbone. Read each LC script tree
+  fully + the wiki quest page, `/Quick_guide`, and `Transcript:` pages
+  before comparing; checked every completion path for the recurring
+  bespoke-`%qp` bug explicitly (none found this pass — all four already
+  used the real `~quest_complete` proc).
+  - `animalmagnetism` -> **audited-fixed**: very thorough existing 7-file
+    port matching Transcript:Animal_Magnetism end to end (chicken/magnet/
+    tree/notes/container chain, witch's iron-selection minigame, Alice/
+    husband/crone amulet chain with lost-item replacement, research-notes
+    button puzzle), reward xp matching the dbrow exactly. One gap: Ava's
+    opening offer had no decline path at all (straight-line intro); added
+    the wiki's two refusal branches.
+  - `biohazard` -> **audited-fixed**: dialogue trees thorough and matched
+    Transcript:Biohazard closely, real `~quest_complete` with correct
+    reward (3 QP, 1250 thieving xp). One quest-blocking gap: the
+    `biohazard_climb_ladder` wall-crossing label was fully written but
+    nothing ever called it — Omart and Kilron had world spawns but zero
+    Talk-to triggers, so a player who distracted the watchtower had no way
+    to actually cross into West Ardougne. Added both NPC handlers.
+  - `heroesquest` -> **audited-fixed**, the biggest find this pass: several
+    files' own header comments claimed "full quest body deferred", but
+    that was stale documentation — the quest is genuinely almost entirely
+    built (Black Arm mansion-infiltration disguise chain, firebird feather
+    chapter, lava eel chapter, Achietties start/turn-in with reward matching
+    the dbrow exactly). Found and fixed five real, connected gaps: (1)
+    Katrine/Straven (the two gang leaders) never touched `%heroquest` at
+    all, so neither gang's armband sub-quest could ever start even though
+    the mid-game NPCs gating on those exact states already existed —
+    added the missing ask/hand-in branches to both; (2) Grip's death never
+    dropped `grip_keys`, permanently locking the treasure room for
+    everyone; (3) that door's unlock gate only recognised the Black Arm
+    checkpoint, locking out the Phoenix path even with real keys —
+    broadened to either gang's own checkpoint (documented as a soft
+    single-player stand-in for the real two-player hand-off); (4) Ice
+    Queen had a world spawn but no drop table anywhere, so `ice_gloves`
+    (required to safely pick up the firebird feather) was unobtainable —
+    added `drop_tables/scripts/ice_queen.rs2` (not one of the reference
+    tree's 69/71 already-ported files); (5) `raw_lava_eel` had no cooking
+    recipe in `skill_cooking/configs/cooking_generic.dbrow`, so a caught
+    eel could never become the cooked item Achietties wants — added the
+    row (level 53, never burns, per wiki). See the row's own note for full
+    file list. Left one confirmed non-blocking gap untouched: the Entrana
+    high priest still has no Heroes' Quest dialogue branch (pure flavour —
+    nothing reads a state it would set).
+  - `ragandboneman` -> **audited-ok**: matches wiki exactly — accept/refuse/
+    curious-about-the-mumbling branches, all 8 quest bones correctly wired
+    onto their monsters' drop tables (the `monkey` bone was spliced into
+    quest_tbwt's existing `[ai_queue3,monkey]` trigger rather than adding a
+    second competing one), Fortunato's vinegar sale, and the full
+    vinegar-pour/pot-boiler/20-tick-boil mechanic for all 8 bones. Reward
+    matches the dbrow exactly. No gaps found.
+  - Build: `mingw32-make -C src mock230-scripts` exit 0 after every fix
+    (checked incrementally, not just at the end), 15084 scripts compiled
+    (up from 15081 at pass start — 3 new triggers: `[opnpc1,omart]` +
+    `[opnpc1,kilron]` in biohazard, `[ai_queue3,ice_queen]` in the new
+    drop-table file), zero new errors. Grepped every touched npc/trigger
+    name tree-wide before adding to confirm no duplicate-trigger shadowing.
+    Files touched: `server/scripts/quests/quest_animalmagnetism/scripts/
+    anma.rs2`; `server/scripts/quests/quest_biohazard/scripts/
+    quest_biohazard_locs.rs2`; `server/scripts/quests/quest_hero/scripts/
+    quest_hero.rs2`, `brimhaven_scarface_mansion.rs2`;
+    `server/scripts/areas/varrock/scripts/katrine.rs2`, `straven.rs2`;
+    `server/scripts/areas/heroes_guild/scripts/achietties.rs2`;
+    `server/scripts/drop_tables/scripts/grip.rs2`, `ice_queen.rs2` (new);
+    `server/scripts/skill_cooking/configs/cooking_generic.dbrow`. 21 rows
+    remain unaudited in the IN-LC table (38 total minus the 17 audited
+    across four passes; 3 of those 17 — `holygrail`, `eadgarsruse`,
+    `trollromance` — are still `audit-in_progress` rather than fully
+    closed).
