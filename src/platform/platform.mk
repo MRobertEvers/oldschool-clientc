@@ -75,7 +75,8 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_audio_sdl2.c \
-                       platform/platform_sdl2_renderer_gl3.c
+                       platform/platform_sdl2_renderer_gl3.c \
+                       platform/platform_sdl2_renderer_gl3zb.c
   # The desktop-GL binding. The web lane builds the same renderer against
   # WebGL1 and needs its index-splitting object instead; the Windows lanes own
   # D3D9 in their regular platform source and need no binding object here.
@@ -320,7 +321,8 @@ else ifeq ($(PLATFORM),web)
                          platform/dat2_web_store.c \
                          platform/web_cache_boot.c \
                          platform/platform_audio_wasm.c \
-                         platform/platform_sdl2_renderer_gl3.c
+                         platform/platform_sdl2_renderer_webgl1.c \
+                         platform/platform_sdl2_renderer_webgl1zb.c
     JS5_SRCS          := $(wildcard js5/*.c)
     WEB_CACHE_CFLAGS  := -DTORIRS_WEB_CACHE_IDB=1
     # The page drives the metadata barrier, so those three entry points have to
@@ -341,7 +343,8 @@ else ifeq ($(PLATFORM),web)
     PLATFORM_SRCS     := platform/platform_x_io_web.c \
                          platform/io_wire.c \
                          platform/platform_audio_wasm.c \
-                         platform/platform_sdl2_renderer_gl3.c
+                         platform/platform_sdl2_renderer_webgl1.c \
+                         platform/platform_sdl2_renderer_webgl1zb.c
     JS5_SRCS          :=
     WEB_CACHE_CFLAGS  :=
     WEB_CACHE_EXPORTS := ,"_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"

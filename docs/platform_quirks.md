@@ -376,6 +376,56 @@ one lane only.
   [`src/painters/painters_bucket.u.c`](../src/painters/painters_bucket.u.c),
   [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c)
 
+### GPU-ZBUFFER-001 - The GL backends have a depth-buffered world pass
+
+- **Status:** Opt-in contract
+- **Applies to:** Web `--webgl1-zbuffer`, desktop `--opengl3-zbuffer`
+- **Behavior:** The peer of `--d3d9-zbuffer`. The context is created with a
+  depth buffer (decided at Init — it is part of the pixel format), depth is
+  cleared once per world pass scissored to the world viewport, and the
+  projection gets a real GL `[-w, w]` depth row in place of the painter path's
+  constant clip-Z. The caller must also put the app in `TORIRS_WORLD_DEPTH`.
+- **Two passes:** faces are classified SKIP / OPAQUE / CUTOUT / BLENDED. Opaque
+  and cutout are depth-order independent and are submitted in natural face
+  order, front-facing only, with depth test and write on — the priority/depth
+  sort is skipped entirely. Blended faces keep the model's own order, are queued
+  per model with the model's projected depth, and are drawn back-to-front after
+  the opaque pass with the depth test on and depth writes **off**, so two
+  translucent surfaces remain visible through each other.
+- **Ordering detail:** the depth function is LEQUAL, not LESS. Coplanar geometry
+  submitted twice (a decor plane on its floor tile) must keep the later one,
+  which is what painter order did and what the content is authored against.
+- **Clear detail:** `glClear` obeys the depth mask, so the mask is forced on for
+  the clear. A clear issued under a false mask silently does nothing and leaves
+  last frame's depth to reject this frame's geometry — which reads as randomly
+  missing models, not as a state bug.
+- **Verification:** In a scene without translucent faces `gl_z_sorted_models`
+  must be zero while `gl_z_opaque_triangles` is nonzero. Measured on a settled
+  osrs239 boot: 44,646 opaque triangles, 679 blended, and only **36** of ~2,900
+  models paying the sort. Output differs from painter order by 0.3% of sampled
+  pixels (none above 96/255) — the same image by a different occlusion
+  mechanism.
+- **No sorting in the collection path.** `App_SetWorldRenderMode(TORIRS_WORLD_DEPTH)`
+  selects `painter_collect_visible_depth`, which emits the visible set linearly
+  and applies occlusion only — no tile wavefront, no opaque face-distance sort.
+  The one sort that remains is `ToriDraw_RenderModel2SortFaces` for models that
+  actually have translucent faces, and it cannot be removed: translucency
+  composites, so it has to be back-to-front. D3D9 keeps the same exception.
+- **Classification is cached** per (element, track, pose), as D3D9 does. It
+  depends on the pose's final face alpha, which animation writes when the pose
+  is baked, so it is stable for as long as that baked pose is. Element unload
+  and track replacement drop the entry (`*ZB_ForgetElement` /
+  `*ZB_ForgetTrack`), so a reused pose id cannot serve the previous pose's
+  opaque/blended split. Caching moved the depth pass's render stage from 6.87ms
+  to 5.79ms on a settled osrs239 boot under SwiftShader.
+- **Still slower than painter on this host** (5.79ms vs 4.82ms render) despite
+  submitting fewer triangles: SwiftShader pays real per-fragment cost for the
+  depth test and write. That ranking is a property of a software rasterizer and
+  should be re-measured on a GPU before being treated as the mode's cost.
+- **Sources:**
+  [`src/platform/platform_sdl2_renderer_webgl1zb.c`](../src/platform/platform_sdl2_renderer_webgl1zb.c),
+  [`src/platform/platform_sdl2_renderer_gl3zb.c`](../src/platform/platform_sdl2_renderer_gl3zb.c)
+
 ### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
 
 - **Status:** Contract
@@ -689,6 +739,37 @@ one lane only.
 - **Constraint:** Manifest `[client:args]` entries are literal argv tokens, not
   shell text. Keep platform-only renderer flags out of shared manifests.
 - **Detail:** [Web query-string and manifest arguments](web_build.md#the-query-string-is-the-command-line)
+
+### WEB-GL1-000 - WebGL1 is its own renderer, not a compile flag on GL3
+
+- **Status:** Contract
+- **Applies to:** Web `--webgl1` / `--webgl1-zbuffer`, desktop `--opengl3` /
+  `--opengl3-zbuffer`
+- **Behavior:** There are four GPU world renderers, in four sets of files, with
+  no preprocessor switch between them:
+
+  | | painter order | depth buffered |
+  |---|---|---|
+  | WebGL1 | `platform_sdl2_renderer_webgl1.c` | `platform_sdl2_renderer_webgl1zb.c` |
+  | GL 3.2 | `platform_sdl2_renderer_gl3.c` | `platform_sdl2_renderer_gl3zb.c` |
+
+  Each backend's pair shares its own `*_internal.h` (renderer state, constants,
+  the few helpers both need). Both backends implement the same public interface
+  in `platform_sdl2_renderer_gl3.h`; `platform.mk` links exactly one, so the
+  shared handle name is the interface and not the backend.
+- **Why:** it used to be one renderer compiled twice, with `TORIRS_GL_ES2`
+  choosing at 21 branches. That made WebGL1 correctness depend on someone
+  remembering to add an `#else`, and it stopped GL3 from using GL3 — every
+  desktop feature needed an ES2 twin beside it. Neither file now contains the
+  switch: the WebGL1 pair may use only WebGL1 with no extensions, and the GL3
+  pair may use anything GL 3.2 core offers.
+- **Verification:** `grep -c TORIRS_GL_ES2` over the four `.c` files is zero.
+  The WebGL1 pair contains no `glBindVertexArray`, `GL_UNSIGNED_INT` element
+  type, sized internal format, `GL_BGRA`, `glReadBuffer` or
+  `GL_UNPACK_ROW_LENGTH` (mentions of those names survive only in comments
+  explaining why they are unavailable).
+- **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/`](../src/platform/)
 
 ### WEB-GL1-001 - WebGL1 means no extensions
 

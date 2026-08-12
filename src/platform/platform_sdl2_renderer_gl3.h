@@ -30,11 +30,22 @@ ToriRS_GL3_SetViewport(
     int width,
     int height);
 
+/**
+ * Bring up the GL context and the renderer's resources.
+ *
+ * `z_buffer` selects the depth-buffered world pass instead of the painter one,
+ * the same opt-in D3D9 has (`--d3d9-zbuffer`; see WINDOWS-D3D9-ZBUFFER-001).
+ * It must be decided here rather than per frame: it changes the pixel format
+ * the context is created with, and the caller must also put the app into
+ * TORIRS_WORLD_DEPTH so the visible set is collected without the tile wavefront
+ * and the opaque face-distance sort.
+ */
 bool
 ToriRS_GL3_Init(
     struct ToriRS_GL3* gl3,
     SDL_Window* window,
-    struct ToriDraw_Scene* scene);
+    struct ToriDraw_Scene* scene,
+    bool z_buffer);
 
 void
 ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y);

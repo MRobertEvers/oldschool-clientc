@@ -256,6 +256,14 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_GL_DRAW_CALLS,
     TORIRS_PERF_CTR_GL_ATTRIB_REBINDS,
     TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES,
+    /* Depth-buffered world pass (--webgl1-zbuffer / --opengl3-zbuffer). The
+     * same three questions D3D9's z counters answer: in a scene with no
+     * translucent faces gl_z_sorted_models must be zero while
+     * gl_z_opaque_triangles is nonzero, because only models with real
+     * translucency pay the priority/depth sort. */
+    TORIRS_PERF_CTR_GL_Z_OPAQUE_TRIANGLES,
+    TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES,
+    TORIRS_PERF_CTR_GL_Z_SORTED_MODELS,
 
     TORIRS_PERF_CTR_COUNT
 };

@@ -2332,6 +2332,9 @@ struct MainArgState
     int use_opengl3;
     int use_d3d9;
     int d3d9_zbuffer;
+    /* Depth-buffered world pass for the GL backends — the peer of
+     * --d3d9-zbuffer. Selected by --opengl3-zbuffer / --webgl1-zbuffer. */
+    int gl3_zbuffer;
 };
 
 static void
@@ -2346,7 +2349,8 @@ main_print_usage(char const* program)
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
         "[--windowmode fixed|resizable] [--window WxH] "
-        "[--opengl3|--webgl1|--d3d9|--d3d9-zbuffer|--soft3d]\n",
+        "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|--d3d9|"
+        "--d3d9-zbuffer|--soft3d]\n",
         program);
 }
 
@@ -2523,6 +2527,7 @@ main_parse_argument_layer(
             state->use_opengl3 = 1;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
+            state->gl3_zbuffer = 0;
             continue;
 #elif defined(TORIRS_GL_ES2)
             fprintf(stderr, "torirs: this build renders through WebGL1 — use --webgl1\n");
@@ -2538,9 +2543,47 @@ main_parse_argument_layer(
             state->use_opengl3 = 1;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
+            state->gl3_zbuffer = 0;
             continue;
 #else
             fprintf(stderr, "torirs: --webgl1 is the browser build's flag — use --opengl3\n");
+            return 0;
+#endif
+        }
+        /* The depth-buffered spelling of the two above. Each build accepts only
+         * the name it can honour, and names the other, so a flag is never
+         * silently ignored. */
+        if( strcmp(argv[argi], "--opengl3-zbuffer") == 0 )
+        {
+#if defined(TORIRS_HAVE_GL3) && !defined(TORIRS_GL_ES2)
+            state->use_opengl3 = 1;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            state->gl3_zbuffer = 1;
+            continue;
+#elif defined(TORIRS_GL_ES2)
+            fprintf(
+                stderr,
+                "torirs: this build renders through WebGL1 — use --webgl1-zbuffer\n");
+            return 0;
+#else
+            fprintf(stderr, "torirs: --opengl3-zbuffer is not available in this build\n");
+            return 0;
+#endif
+        }
+        if( strcmp(argv[argi], "--webgl1-zbuffer") == 0 )
+        {
+#if defined(TORIRS_GL_ES2)
+            state->use_opengl3 = 1;
+            state->use_d3d9 = 0;
+            state->d3d9_zbuffer = 0;
+            state->gl3_zbuffer = 1;
+            continue;
+#else
+            fprintf(
+                stderr,
+                "torirs: --webgl1-zbuffer is the browser build's flag — "
+                "use --opengl3-zbuffer\n");
             return 0;
 #endif
         }
@@ -2573,6 +2616,7 @@ main_parse_argument_layer(
             state->use_opengl3 = 0;
             state->use_d3d9 = 0;
             state->d3d9_zbuffer = 0;
+            state->gl3_zbuffer = 0;
             continue;
         }
         if( positional == 0 && argv[argi][0] != '-' )
@@ -2651,6 +2695,7 @@ main(
         .use_opengl3 = TORIRS_GPU_DEFAULT,
         .use_d3d9 = TORIRS_D3D9_DEFAULT,
         .d3d9_zbuffer = 0,
+        .gl3_zbuffer = 0,
     };
     int argi;
     int i;
@@ -2698,6 +2743,7 @@ main(
     int const use_opengl3 = arg_state.use_opengl3;
     int const use_d3d9 = arg_state.use_d3d9;
     int const d3d9_zbuffer = arg_state.d3d9_zbuffer;
+    int const gl3_zbuffer = arg_state.gl3_zbuffer;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
      * through the named-profile registry. Bare --dat1/--dat2 is not enough. */
@@ -3582,7 +3628,8 @@ main(
             }
             gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             if( !gl3 ||
-                !ToriRS_GL3_Init(gl3, PlatformSDL2_Window(sdl), app.scene) )
+                !ToriRS_GL3_Init(
+                    gl3, PlatformSDL2_Window(sdl), app.scene, gl3_zbuffer != 0) )
             {
                 fprintf(stderr, "GL3 renderer init failed\n");
                 ToriRS_GL3_Free(gl3);
@@ -3590,6 +3637,11 @@ main(
                 App_Shutdown(&app);
                 return 1;
             }
+            /* The depth pass needs the app to stop collecting the visible set
+             * through the tile wavefront and the opaque face-distance sort;
+             * that is what TORIRS_WORLD_DEPTH selects. Same contract as D3D9. */
+            App_SetWorldRenderMode(
+                &app, gl3_zbuffer ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
         }
         else
 #else

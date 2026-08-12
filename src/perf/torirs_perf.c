@@ -221,6 +221,9 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "gl_draw_calls",
     "gl_attrib_rebinds",
     "gl_2d_batch_flushes",
+    "gl_z_opaque_triangles",
+    "gl_z_blended_triangles",
+    "gl_z_sorted_models",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
