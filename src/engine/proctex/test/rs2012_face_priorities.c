@@ -1690,6 +1690,299 @@ stock_setup(
     return true;
 }
 
+/* ------------------------------------------------- the z-violation audit -- */
+
+/*
+ * --measure: how much do the priorities the inputs ALREADY carry violate the
+ * z-buffer? Writes nothing; reports only. Runs at FACE granularity -- no
+ * welding, no segmentation -- because the question is about the bytes on
+ * disk, not about what a solve would group.
+ *
+ * Three verdicts, each against the same z-buffer reference:
+ *
+ *   internal        painter with the carried priorities vs the z-buffer:
+ *                   pixels showing a face that is behind the true surface by
+ *                   more than the slack. Face identity is exact here, so this
+ *                   counts occlusion violations even where the two faces
+ *                   happen to share a colour.
+ *   depth_only      the same painter with every priority stripped: what the
+ *                   plain depth sort would violate anyway. The difference is
+ *                   the part the priorities themselves cause.
+ *   ghost faces     the literal artefact: a face the z-buffer shows NOWHERE
+ *                   in a view (completely occluded) that the prioritized
+ *                   painter draws anyway.
+ *
+ * The stock judge then repeats the first two through the real engine sorter
+ * (flex splice and all) as visible-pixel diffs, so an approximation drift in
+ * the internal painter cannot pass a model the engine would mangle.
+ *
+ * Every "ZVIOL key: k=v ..." line is machine-readable on purpose; the search
+ * harness parses them.
+ */
+static int
+run_measure(
+    struct input* inputs,
+    int input_count,
+    struct geometry* g,
+    struct poses* poses,
+    int pose_count,
+    int yaw_steps,
+    int pitch_steps,
+    double elev_min_deg,
+    double elev_max_deg,
+    int res,
+    int judge_tile,
+    bool use_stock)
+{
+    int const slack = 2;
+    int const ghost_min_px = 3;
+    int const scale = 512;
+    int distance = 0;
+    struct raster r;
+    int* ref_id = NULL;
+    int* ref_z = NULL;
+    int* fband = NULL;
+    int* zeroband = NULL;
+    int* view_ref_px = NULL;
+    int* view_paint_px = NULL;
+    long* face_ghost_px = NULL;
+    long* face_ghost_views = NULL;
+    long covered = 0, wrong = 0, wrong_depth = 0;
+    long ghost_face_views = 0, ghost_px = 0;
+    int views_measured = 0, poses_measured = 0;
+    bool any_prio = false;
+    int rc = 1;
+
+    memset(&r, 0, sizeof(r));
+
+    /* Face granularity: each face is its own feature, so the painter's band
+     * lookup and the reference's pixel owner are both the face id itself. */
+    for( int f = 0; f < g->face_count; f++ )
+        g->face_feature[f] = f;
+
+    fband = (int*)calloc((size_t)g->face_count, sizeof(int));
+    zeroband = (int*)calloc((size_t)g->face_count, sizeof(int));
+    view_ref_px = (int*)malloc((size_t)g->face_count * sizeof(int));
+    view_paint_px = (int*)malloc((size_t)g->face_count * sizeof(int));
+    face_ghost_px = (long*)calloc((size_t)g->face_count, sizeof(long));
+    face_ghost_views = (long*)calloc((size_t)g->face_count, sizeof(long));
+    ref_id = (int*)malloc((size_t)res * res * sizeof(int));
+    ref_z = (int*)malloc((size_t)res * res * sizeof(int));
+    if( !fband || !zeroband || !view_ref_px || !view_paint_px || !face_ghost_px ||
+        !face_ghost_views || !ref_id || !ref_z ||
+        !raster_scratch_alloc(&r, res, g->vertex_count, g->face_count) )
+        goto out;
+
+    for( int i = 0; i < input_count; i++ )
+    {
+        const struct RSCache_Model* m = inputs[i].model;
+        if( !m->face_priorities )
+            continue;
+        any_prio = true;
+        for( int f = 0; f < m->face_count; f++ )
+            fband[inputs[i].face_base + f] = m->face_priorities[f];
+    }
+
+    /* Frame the bind pose exactly as the solve frames it. */
+    {
+        int min_v[3] = { 1 << 30, 1 << 30, 1 << 30 };
+        int max_v[3] = { -(1 << 30), -(1 << 30), -(1 << 30) };
+        int center[3];
+        long radius2 = 0;
+        int extent;
+
+        for( int v = 0; v < g->vertex_count; v++ )
+        {
+            int c[3] = { g->vx[v], g->vy[v], g->vz[v] };
+            for( int k = 0; k < 3; k++ )
+            {
+                if( c[k] < min_v[k] ) min_v[k] = c[k];
+                if( c[k] > max_v[k] ) max_v[k] = c[k];
+            }
+        }
+        for( int k = 0; k < 3; k++ )
+            center[k] = (min_v[k] + max_v[k]) / 2;
+        for( int v = 0; v < g->vertex_count; v++ )
+        {
+            long dx = g->vx[v] -= center[0];
+            long dy = g->vy[v] -= center[1];
+            long dz = g->vz[v] -= center[2];
+            long d2 = dx * dx + dy * dy + dz * dz;
+            if( d2 > radius2 )
+                radius2 = d2;
+        }
+        extent = (int)sqrt((double)radius2) + 1;
+        distance = (int)((double)extent * scale / (0.45 * res)) + extent;
+    }
+
+    for( int pose = 0; pose < pose_count; pose++ )
+    {
+        int pose_distance = distance;
+        if( poses->anim && !apply_pose(poses, g, pose, res, scale, &pose_distance) )
+            continue;
+        poses_measured++;
+        for( int p = 0; p < pitch_steps; p++ )
+        {
+            double pitch =
+                elev_min_deg * PRIO_PI / 180.0 +
+                (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                    (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
+            for( int y = 0; y < yaw_steps; y++ )
+            {
+                struct view v;
+                view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
+                project_view(g, &v, &r, pose_distance, scale);
+                raster_zbuffer_ref(g, &r, ref_id, ref_z);
+
+                raster_painter(g, &r, fband);
+                memset(view_ref_px, 0, (size_t)g->face_count * sizeof(int));
+                memset(view_paint_px, 0, (size_t)g->face_count * sizeof(int));
+                for( int i = 0; i < res * res; i++ )
+                {
+                    int const pf = r.paint_feature[i];
+                    if( ref_id[i] >= 0 )
+                        view_ref_px[ref_id[i]]++;
+                    if( pf < 0 )
+                        continue;
+                    covered++;
+                    view_paint_px[pf]++;
+                    if( ref_id[i] >= 0 && pf != ref_id[i] &&
+                        r.paint_z[i] > ref_z[i] + slack )
+                        wrong++;
+                }
+                for( int f = 0; f < g->face_count; f++ )
+                    if( view_ref_px[f] == 0 && view_paint_px[f] >= ghost_min_px )
+                    {
+                        ghost_face_views++;
+                        ghost_px += view_paint_px[f];
+                        face_ghost_px[f] += view_paint_px[f];
+                        face_ghost_views[f]++;
+                    }
+
+                raster_painter(g, &r, zeroband);
+                for( int i = 0; i < res * res; i++ )
+                {
+                    int const pf = r.paint_feature[i];
+                    if( pf >= 0 && ref_id[i] >= 0 && pf != ref_id[i] &&
+                        r.paint_z[i] > ref_z[i] + slack )
+                        wrong_depth++;
+                }
+                views_measured++;
+            }
+        }
+    }
+
+    {
+        int ghost_faces = 0, worst = -1;
+        for( int f = 0; f < g->face_count; f++ )
+            if( face_ghost_views[f] )
+            {
+                ghost_faces++;
+                if( worst < 0 || face_ghost_px[f] > face_ghost_px[worst] )
+                    worst = f;
+            }
+
+        printf(
+            "\nz-violation audit (priorities as carried by the inputs%s):\n",
+            any_prio ? "" : " -- none carried; plain depth sort measured");
+        printf(
+            "ZVIOL summary: views=%d poses=%d res=%d slack=%d ghost_min_px=%d\n",
+            views_measured, poses_measured, res, slack, ghost_min_px);
+        printf(
+            "ZVIOL internal: wrong_px=%ld covered=%ld frac_pct=%.4f\n",
+            wrong, covered, covered ? 100.0 * (double)wrong / (double)covered : 0.0);
+        printf(
+            "ZVIOL internal_depth_only: wrong_px=%ld covered=%ld frac_pct=%.4f\n",
+            wrong_depth, covered,
+            covered ? 100.0 * (double)wrong_depth / (double)covered : 0.0);
+        printf("ZVIOL internal_prio_delta: wrong_px=%+ld\n", wrong - wrong_depth);
+        printf(
+            "ZVIOL ghost: face_views=%ld faces=%d px=%ld worst_face=%d worst_face_px=%ld\n",
+            ghost_face_views, ghost_faces, ghost_px, worst,
+            worst >= 0 ? face_ghost_px[worst] : 0);
+
+        if( ghost_faces )
+        {
+            printf(
+                "\nworst ghost faces (z-buffer shows them nowhere; painted anyway):\n"
+                "%6s %6s %6s %6s %8s %6s\n",
+                "input", "face", "global", "views", "px", "prio");
+            for( int n = 0; n < 10; n++ )
+            {
+                int pick = -1;
+                for( int f = 0; f < g->face_count; f++ )
+                    if( face_ghost_views[f] &&
+                        (pick < 0 || face_ghost_px[f] > face_ghost_px[pick]) )
+                        pick = f;
+                if( pick < 0 )
+                    break;
+                {
+                    int owner = 0;
+                    while( owner + 1 < input_count && inputs[owner + 1].face_base <= pick )
+                        owner++;
+                    printf(
+                        "%6d %6d %6d %6ld %8ld %6d\n",
+                        owner, pick - inputs[owner].face_base, pick,
+                        face_ghost_views[pick], face_ghost_px[pick], fband[pick]);
+                }
+                face_ghost_views[pick] = 0;
+            }
+        }
+    }
+
+    /* The engine's own verdict on the same priorities: visible-pixel diffs
+     * through the real sorter, splice and all, bind pose. */
+    if( use_stock )
+    {
+        struct stockjudge judge;
+        int const jp = pitch_steps > 5 ? 5 : pitch_steps;
+
+        if( stock_setup(
+                &judge, inputs, input_count, g, judge_tile, yaw_steps, jp,
+                elev_min_deg, elev_max_deg) )
+        {
+            long diff = stock_eval(&judge, g, fband);
+            long diff_depth = stock_eval(&judge, g, zeroband);
+
+            printf(
+                "ZVIOL stock: diff_px=%ld ref_px=%ld frac_pct=%.4f views=%d tile=%d\n",
+                diff, judge.ref_covered,
+                judge.ref_covered ? 100.0 * (double)diff / (double)judge.ref_covered
+                                  : 0.0,
+                judge.view_count, judge.tile);
+            printf(
+                "ZVIOL stock_depth_only: diff_px=%ld ref_px=%ld frac_pct=%.4f\n",
+                diff_depth, judge.ref_covered,
+                judge.ref_covered
+                    ? 100.0 * (double)diff_depth / (double)judge.ref_covered
+                    : 0.0);
+            printf("ZVIOL stock_prio_delta: diff_px=%+ld\n", diff - diff_depth);
+        }
+        else
+            fprintf(
+                stderr,
+                "rs2012_face_priorities: stock judge setup failed; "
+                "internal audit above stands alone\n");
+        if( judge.model )
+            judge.model->face_priorities = NULL; /* freed as judge.packed */
+        stock_free(&judge);
+    }
+
+    rc = 0;
+
+out:
+    raster_scratch_free(&r);
+    free(ref_id);
+    free(ref_z);
+    free(fband);
+    free(zeroband);
+    free(view_ref_px);
+    free(view_paint_px);
+    free(face_ghost_px);
+    free(face_ghost_views);
+    return rc;
+}
+
 /* ------------------------------------------------------------------ main -- */
 
 static void
@@ -1698,9 +1991,15 @@ usage(const char* argv0)
     fprintf(
         stderr,
         "Usage: %s --in FILE.ob3 [--in FILE.ob3 ...] [--out FILE.ob3 ...]\n"
-        "       [--report] [--views N] [--pitches N] [--res N] [--rounds N]\n"
+        "       [--report] [--measure] [--views N] [--pitches N] [--res N]\n"
         "       [--min-pixels N] [--no-weld] [--elev MIN,MAX] [--bulk-flex]\n"
         "\n"
+        "  --measure       audit-only: score the priorities the inputs ALREADY\n"
+        "                  carry against the z-buffer (occlusion-violation\n"
+        "                  pixels, ghost faces, stock-engine visible diff) and\n"
+        "                  write nothing. Machine-readable ZVIOL lines on\n"
+        "                  stdout. Honours --views/--pitches/--res/--elev and\n"
+        "                  the pose flags; incompatible with --out.\n"
         "  --views N       yaw samples around the model (default 12)\n"
         "  --pitches N     elevation samples across --elev (default 5)\n"
         "  --elev MIN,MAX  elevation range in degrees, default -20,67. The max\n"
@@ -1729,6 +2028,7 @@ main(int argc, char** argv)
     int input_count = 0;
     int out_count = 0;
     bool do_report = false;
+    bool do_measure = false;
     bool weld = true;
     int yaw_steps = 12;
     int pitch_steps = 5;
@@ -1808,6 +2108,8 @@ main(int argc, char** argv)
         }
         else if( strcmp(argv[i], "--report") == 0 )
             do_report = true;
+        else if( strcmp(argv[i], "--measure") == 0 )
+            do_measure = true;
         else if( strcmp(argv[i], "--no-weld") == 0 )
             weld = false;
         else if( strcmp(argv[i], "--slow") == 0 && i + 1 < argc )
@@ -1865,6 +2167,11 @@ main(int argc, char** argv)
         pitch_steps < 1 || res < 32 || res > 1024 )
     {
         usage(argv[0]);
+        return 2;
+    }
+    if( do_measure && out_count )
+    {
+        fprintf(stderr, "rs2012_face_priorities: --measure writes nothing; drop --out\n");
         return 2;
     }
 
@@ -2021,6 +2328,17 @@ main(int argc, char** argv)
             poses.anim->frame_count,
             cache_dir ? cache_dir : anim_path,
             frame_stride);
+    }
+
+    /* --measure branches off before segmentation: the audit runs at face
+     * granularity over the priorities the inputs already carry, and never
+     * solves or writes. Everything it needs is loaded by this point. */
+    if( do_measure )
+    {
+        rc = run_measure(
+            inputs, input_count, &g, &poses, pose_count, yaw_steps, pitch_steps,
+            elev_min_deg, elev_max_deg, res, judge_tile, stock);
+        goto done;
     }
 
     feature_count = segment(&g, weld);

@@ -518,6 +518,38 @@ def evaluate(o, ctx, tag, cand_models, params):
     if anim["pose_id"] < o.pose_id_gate:
         rec.update(status="rejected:pose_id<%g" % o.pose_id_gate, fitness=None)
         return rec
+    # Priority mode: the carried per-face priorities must not paint occluded
+    # faces over nearer geometry any worse than the baseline models do. Hard
+    # caps on the violation fraction and on ghost faces (faces the z-buffer
+    # shows nowhere in a view but the painter draws anyway), then a soft
+    # fitness penalty for anything between baseline and the cap.
+    zpenalty = 0.0
+    base_zv = ctx.get("base_zviol")
+    if base_zv is not None:
+        zv, zerr = measure_zviol(o, cand_models)
+        if zerr:
+            rec.update(status="rejected:zviol-measure:" + zerr, fitness=None)
+            return rec
+        frac = zv["internal.frac_pct"]
+        ghosts = int(zv.get("ghost.faces", 0))
+        rec["zviol"] = {
+            "frac_pct": round(frac, 3),
+            "depth_only_pct": round(zv.get("internal_depth_only.frac_pct", 0.0), 3),
+            "ghost_faces": ghosts,
+            "ghost_px": int(zv.get("ghost.px", 0)),
+        }
+        frac_cap = base_zv["frac_pct"] * o.prio_zviol_tol + 0.25
+        ghost_cap = int(base_zv["ghost_faces"] * o.prio_ghost_tol) + 16
+        if frac > frac_cap:
+            rec.update(status="rejected:zviol:%.2f%%>cap%.2f%%" % (frac, frac_cap),
+                       fitness=None)
+            return rec
+        if ghosts > ghost_cap:
+            rec.update(status="rejected:zviol-ghosts:%d>cap%d" % (ghosts, ghost_cap),
+                       fitness=None)
+            return rec
+        zpenalty = o.prio_zviol_weight * max(0.0, frac - base_zv["frac_pct"])
+        rec["zviol"]["penalty"] = round(zpenalty, 4)
     # Fitness: primarily the style-margin gain over baseline, with soft
     # pressure to keep both identity scores near 100 rather than hovering at
     # the gates. The gates are the safety; the soft terms are the taste.
@@ -525,6 +557,7 @@ def evaluate(o, ctx, tag, cand_models, params):
     fit = gain + 0.03 * (bind["identity"] - 100.0) + 0.03 * (anim["pose_id"] - 100.0)
     if regs["region_mean"] is not None:
         fit += 0.02 * (regs["region_mean"] - 100.0)
+    fit -= zpenalty
     rec["fitness"] = round(fit, 4)
     rec["wall_s"] = round(time.time() - t0, 1)
     return rec
@@ -820,7 +853,16 @@ def run_priorities(o):
         cmd += ["--in", m]
     for m in solved:
         cmd += ["--out", m]
-    cmd += ["--report"]
+    # Hardened search space: a denser view/elevation sweep than the tool's
+    # defaults, plus the slow anneal (bands AND sub-visual-threshold vertex
+    # offsets against the pristine z-buffer) so orderings the fast rank
+    # cannot reach are still explored.
+    cmd += ["--report", "--views", str(o.prio_views),
+            "--pitches", str(o.prio_pitches)]
+    if o.prio_slow > 0:
+        cmd += ["--slow", str(o.prio_slow),
+                "--slow-views", str(o.prio_slow_views),
+                "--slow-pitches", str(o.prio_slow_pitches)]
     out, rc = run(cmd, timeout=o.prio_timeout)
     with open(os.path.join(pdir, "report.txt"), "w", encoding="utf-8") as f:
         f.write(out)
@@ -829,6 +871,41 @@ def run_priorities(o):
                          % (rc, out.strip()))
     log("priorities: solved bands for %d parts -> %s" % (len(solved), pdir))
     o.base_models = solved
+
+
+def measure_zviol(o, models):
+    """Audit how much the per-face priorities the models carry violate the
+    z-buffer, via rs2012_face_priorities --measure: pixels where the painter
+    shows a face that is behind the true surface (occlusion violations), and
+    'ghost' faces the z-buffer shows nowhere in a view but the prioritized
+    painter draws anyway — the artefact prio mode is known to produce.
+    Returns ({metric: value}, None) or (None, reason)."""
+    cmd = [o.prio_tool]
+    for m in models:
+        cmd += ["--in", m]
+    cmd += ["--measure", "--views", str(o.prio_measure_views),
+            "--pitches", str(o.prio_measure_pitches),
+            "--res", str(o.prio_measure_res)]
+    try:
+        out, rc = run(cmd, timeout=min(o.prio_timeout, 600))
+    except Exception as exc:
+        return None, str(exc)
+    if rc != 0:
+        return None, "rc=%d" % rc
+    zv = {}
+    for line in out.splitlines():
+        if not line.startswith("ZVIOL "):
+            continue
+        key, _, rest = line[6:].partition(":")
+        for kv in rest.split():
+            k, _, v = kv.partition("=")
+            try:
+                zv["%s.%s" % (key.strip(), k)] = float(v)
+            except ValueError:
+                pass
+    if "internal.frac_pct" not in zv:
+        return None, "unparseable"
+    return zv, None
 
 
 def main():
@@ -906,6 +983,29 @@ def main():
                          "disable --zbuffer)")
     ap.add_argument("--prio-tool", default=DEFAULT_PRIO)
     ap.add_argument("--prio-timeout", type=float, default=3600)
+    ap.add_argument("--prio-views", type=int, default=16,
+                    help="priority solve yaw sweep (tool default 12)")
+    ap.add_argument("--prio-pitches", type=int, default=6,
+                    help="priority solve elevation sweep (tool default 5)")
+    ap.add_argument("--prio-slow", type=int, default=800,
+                    help="priority solve slow-anneal iterations (0 disables); "
+                         "widens the solve beyond the fast rank into joint "
+                         "band+geometry space")
+    ap.add_argument("--prio-slow-views", type=int, default=8)
+    ap.add_argument("--prio-slow-pitches", type=int, default=4)
+    ap.add_argument("--prio-measure-views", type=int, default=16,
+                    help="z-violation audit yaw sweep (runs per candidate)")
+    ap.add_argument("--prio-measure-pitches", type=int, default=5)
+    ap.add_argument("--prio-measure-res", type=int, default=192)
+    ap.add_argument("--prio-zviol-tol", type=float, default=1.15,
+                    help="reject a candidate whose occlusion-violation pixel "
+                         "fraction exceeds baseline*tol + 0.25pp")
+    ap.add_argument("--prio-ghost-tol", type=float, default=1.25,
+                    help="reject a candidate whose ghost-face count exceeds "
+                         "baseline*tol + 16")
+    ap.add_argument("--prio-zviol-weight", type=float, default=0.4,
+                    help="fitness penalty per percentage point of occlusion "
+                         "violation above the baseline")
     ap.add_argument("--viewer-timeout", type=float, default=300)
     ap.add_argument("--decimate-timeout", type=float, default=600)
     o = ap.parse_args()
@@ -952,6 +1052,7 @@ def main():
     # bands (solved or authored) ride along through decimate/nudge into
     # every candidate, and rendering switches to the painter so the judges
     # score the priority look ----
+    base_zviol = None
     if o.force_priorities != "off":
         if o.force_priorities == "solve":
             run_priorities(o)
@@ -959,9 +1060,30 @@ def main():
             log("priorities: dropping --zbuffer so renders honour the "
                 "per-face bands (the z-buffer path ignores them)")
             o.zbuffer = False
+        # Bank the z-violation baseline of the models every candidate will be
+        # judged against. Prio mode without this audit is exactly how the
+        # ghost-face regressions slipped through, so a failed measurement is
+        # fatal rather than a warning.
+        zv, zerr = measure_zviol(o, o.base_models)
+        if zerr:
+            raise SystemExit("osrsify: z-violation baseline audit failed (%s); "
+                             "refusing to run prio mode unmeasured" % zerr)
+        base_zviol = {
+            "frac_pct": zv["internal.frac_pct"],
+            "depth_only_pct": zv.get("internal_depth_only.frac_pct", 0.0),
+            "ghost_faces": int(zv.get("ghost.faces", 0)),
+            "ghost_px": int(zv.get("ghost.px", 0)),
+        }
+        log("z-violation baseline: %.2f%% wrong px (depth-only %.2f%%), "
+            "%d ghost faces / %d px; candidate caps: frac<=%.2f%% ghosts<=%d"
+            % (base_zviol["frac_pct"], base_zviol["depth_only_pct"],
+               base_zviol["ghost_faces"], base_zviol["ghost_px"],
+               base_zviol["frac_pct"] * o.prio_zviol_tol + 0.25,
+               int(base_zviol["ghost_faces"] * o.prio_ghost_tol) + 16))
 
     ctx = {"work": work, "judge": StyleJudge(o.style_ckpt),
-           "results_path": os.path.join(o.out_dir, "results.json")}
+           "results_path": os.path.join(o.out_dir, "results.json"),
+           "base_zviol": base_zviol}
 
     # ---- baseline: bind style/identity anchors + per-seq shared cameras ----
     log("banking baseline...")
@@ -990,6 +1112,7 @@ def main():
         "config": {k: v for k, v in vars(o).items()
                    if isinstance(v, (str, int, float, list, tuple))},
         "baseline": {"style_margin": round(ctx["base_margin"], 3),
+                     "zviol": base_zviol,
                      "views": len(ctx["base_tiles"]),
                      "seqs": {n: len(pl["frames"])
                               for n, pl in ctx["plans"].items()},
