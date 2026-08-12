@@ -25,10 +25,17 @@ What this means in practice:
   in place, using the wiki as ground truth — do not wait for another lane's
   loop to get to it.
   Now targeting the ownership-gated backlog it previously deferred as
-  out-of-scope: the ~30-entry IN-LC table (pre-Sept-2004 quests filed under
-  `CONTENT_PORT_QUEUE.md`) and the ~74 mid-era quests filed under
-  `SCAPE2009_CONTENT_PORT_QUEUE.md`'s own tracking — both are now fair game
-  for a wiki-accuracy pass from this queue too. See the audit tables below.
+  out-of-scope: the 38-entry IN-LC table (pre-Sept-2004 quests filed under
+  `CONTENT_PORT_QUEUE.md`, **audit complete as of 2026-08-12** — all 38
+  rows have a first wiki-accuracy pass) and the mid-era quests filed under
+  `SCAPE2009_CONTENT_PORT_QUEUE.md`'s own tracking (the "~74" figure quoted
+  here through 2026-08-12 was a bookkeeping artifact with no real dir list
+  behind it — the actual mid-era tracking surface holds only 6 distinct
+  quests not already duplicate-tracked under IN-LC, and those are **also
+  audit-complete as of 2026-08-12** — see the mid-era table below). Both
+  audit tables below are now fully passed at least once; remaining work is
+  the large-content follow-ups on quests left `audit-in_progress`, not
+  further discovery.
 - LostCity's `.rs2`/trigger/config *shape* (not its content boundary) is still
   the shape this tree uses — that part of the original rule stands.
 - The "unblock the other pending files" side of this directive: both sibling
@@ -199,17 +206,46 @@ been audited yet as of the rule change -- every row below is effectively
 
 ### Mid-era (~Jan 2005 to Jan 2009): wiki-accuracy audit queue
 
-~74 QuestHelper dirs were classified mid-era and filed on
-`SCAPE2009_CONTENT_PORT_QUEUE.md` rather than enumerated here (see this
-doc's Log, 2026-08-06 entry, for the original classification pass). Per the
-2026-08-12 rule change these are also in scope from this queue now, same
-audit-and-complete rule as the IN-LC table above. Rather than duplicate that
-~74-row list into this file, pull the next row directly from
-`SCAPE2009_CONTENT_PORT_QUEUE.md`'s own tracking when the IN-LC table above
-is exhausted (or interleave — depth-first smallest-first across BOTH tables
-combined is fine). `SCAPE2009_CONTENT_PORT_QUEUE.md` itself also has one
-straggler `pending` row of its own (`22h`, Recruitment Drive Miss Cheevers)
-— also fair game.
+**2026-08-12 correction:** the "~74 QuestHelper dirs classified mid-era"
+figure quoted here previously (from this doc's Log, 2026-08-06 entry) turned
+out to be dead bookkeeping, not a real backlog — a dedicated reconciliation
+pass found no directory list was ever attached to that count anywhere (not
+in this doc, not in `lc_quests.txt`, not in `SCAPE2009_CONTENT_PORT_QUEUE.md`
+itself), and `SCAPE2009_CONTENT_PORT_QUEUE.md`'s own Queue table (the actual
+tracking surface that mid-era content lives on) contains only **15 distinct
+quest-groups** total, most split into many small numbered slices (e.g. rows
+`22`–`22h` are all Recruitment Drive). Of those 15, **9 turned out to be the
+exact same `.rs2`/dbrow files** already covered by the IN-LC table above
+(Recruitment Drive, Lost Tribe, Animal Magnetism, Icthlarin's Little Helper,
+What Lies Below, Tears of Guthix, Rag and Bone Man, Zogre Flesh Eaters,
+Eagles' Peak) — the original pre-Sept-2004/mid-era split was imprecise for
+this set, not a clean partition. `SCAPE2009_CONTENT_PORT_QUEUE.md`'s Queue
+table has no other `pending` rows among its quest-tagged slices; the only
+non-`done` entry is `2ay` (Eagles' Peak's Asyff clothes shop, `blocked` on
+this engine's shop runtime — an engine-level gap, not a quest-content one,
+not completion-blocking).
+
+The remaining 6 distinct mid-era quests have now all been through a first
+wiki-accuracy audit pass (2026-08-12):
+
+| Quest | Implementing dir | Status |
+|---|---|---|
+| Priest in Peril | quest_priestperil | **audited-fixed**: the mausoleum Drezel NPC (`priestperiltrappedmonk2`, a real live world spawn) had zero `[opnpc1,...]`/`[opnpcu,...]` triggers anywhere — the wiki's "bring 50 essence to purify the Salve" finale had no implementation at all, and `%priestperil` could never advance past `^priestperil_meet_in_mausoleum`(8) through real play, only via `[debugproc,dealdebug]`. This transitively blocked every quest gating on Priest in Peril completion: Nature Spirit, Rum Deal, Ghosts Ahoy, Haunted Mine, Making History, Animal Magnetism, Creature of Fenkenstrain, Desert Treasure. New file `mausoleum_drezel.rs2` implements the essence hand-in (accepts `blankrune`/`blankrune_high`, matching the wiki's "mixture of rune and pure essence") and real completion (`~quest_complete(quest_priestinperil)`, 1,406 Prayer XP matching the dbrow, `dagger_wolfbane`), advancing to `^priestperil_access_holy_barrier`(61) — the actual value downstream quests gate on, not 60. Collateral fix: Making History's eligibility check used `%priestperil ! ^priestperil_complete` (exact-equal to 60) instead of `<`, which would have newly broken the moment priestperil could reach 61. |
+| Dig Site | quest_itexam | **audited-ok**: all 9 progress states have real live triggers (`examiner.rs2`/`digsite_workman.rs2`/`area_digsite.rs2`/`archaeological_expert.rs2`); requirements (Agility 10/Herblore 10/Thieving 25) and reward (15,300 Mining + 2,000 Herblore XP + 2 gold bars, real `~quest_complete(quest_digsite)`) match the wiki and dbrow exactly. No gaps found. |
+| The Golem | quest_golem | **audited-fixed**: `golem_notes` and `golem_phoenixfeather` had zero live acquisition triggers (debugproc-only), permanently keeping `%golem_b < 2` and blocking the quest from ever reaching `~quest_complete(quest_golem)` in live play — this also blocked Shadow of the Storm's own start gate (`%golem_a < ^golem_complete`). Added a bookcase-search trigger and a phoenix feather-grab trigger in `golem_portal.rs2`, plus a short wiki-accurate Elissa exchange spliced into an npc-id shared with Desert Treasure II (guarded on `npc_type` per the standing duplicate-trigger caution). Reward XP (1,000 Crafting + 1,000 Thieving) was already correct. |
+| Creature of Fenkenstrain | quest_fenkenstrain | **audited-fixed**: every completion-chain transition already had a real live trigger ending in a genuine `~quest_complete(quest_creatureoffenkenstrain)` (1,000 Thieving XP + Ring of Charos, matching the wiki). One real bug: the start gate required full Restless Ghost completion, but the wiki (and Making History's own already-correct gate, same prereq pair) only requires it *started* — fixed `^priest_complete` → `^priest_started`. |
+| A Soul's Bane | quest_soulsbane | **audited-fixed**: the "dbrow never declared" concern flagged earlier in this session (see old row #43/P2 below) was a false alarm — `quest_soulsbane` is correctly declared in `all.dbrow` (1 QP, 500 Defence + 500 Hitpoints XP, matching the wiki). The real bug was a dead, abandoned duplicate `quest_asoulsbane/` folder (193 lines, never referenced by `lc_quests.txt` or the journal) that redeclared three triggers already owned by the real `quest_soulsbane/` implementation (silent-duplicate-trigger shadowing risk) and called `~quest_complete` on a dbrow that doesn't exist — deleted. Also fixed a genuine duplicate within the live implementation itself: `[oploc1,soul_bane_hwall_void_exit]` was defined twice (`soulsbane.rs2` and `soulsbane_hope.rs2`); merged into the one real handler. |
+| Desert Treasure (original, not II) | quest_deserttreasure | **audit-in_progress**: large, well-built implementation (~1,850 lines) tracking the wiki closely end to end (Asgarnia → Bedabin/Bandit Camp → Eblis mirror-gathering → all four elemental diamond sub-quests → four obelisks → Azzanadra), real `~quest_complete(quest_deserttreasure)`, no duplicate-trigger risk found. One real bug fixed: completion granted `stat_advance(magic, 20000)` (2,000.0 XP) when the wiki and the quest's own dbrow specify 20,006.9 Magic XP (`200069` in this codebase's 10x fixed-point encoding) — the quest's single largest reward was being shorted by ~10x; fixed. Left `audit-in_progress` rather than `audited-ok`: the four boss fights (Dessous/Fareed/Kamil/Damis) are plain combat, missing their wiki-documented signature mechanics (silver-weapon bonus, water/fire elemental weaknesses, prayer-drain phase); the pyramid trap/maze pathing and ancient spellbook unlock are explicitly deferred in-file; and the Entrana-blessing gate on the blood-pot chain wasn't traced in this pass. None of these are silent — each is either code-commented or explicitly flagged here — but they're real content gaps, not yet closed. |
+
+Combined with the IN-LC table above, this means **every mid-era and
+pre-Sept-2004 quest this queue is aware of has now been through at least one
+wiki-accuracy audit pass.** The only quests still short of `audited-ok` across
+both tables are the large, explicitly-scoped `audit-in_progress` rows: this
+Desert Treasure row, plus (from the IN-LC table) `eadgarsruse`, `holygrail`,
+`trollromance`, `dragonslayerii`, `legendsquest`, `thefremenniktrials`,
+`shadowofthestorm`, and `regicide`. Those are each a full quest's worth of
+missing content, not audit gaps — see the "large content follow-up" work
+tracked in this doc's Log rather than treating them as unaudited.
 
 ### PENDING: genuinely post-Jan-2009 QuestHelper-only quests (no LC, no 2009scape)
 
@@ -218,7 +254,7 @@ These are the only remaining QH dirs that implement OSRS content released after 
 | # | Slice | Helper | Lines | Status | Notes |
 |---|---|---|---:|---|---|
 | P1 | A Tail of Two Cats | `atailoftwocats` | 293 | done | Apr 2016 — TzTok-Jad + TzKal-Zad lore; two cats, timeline split; extract clean (39 gamevals resolve); scripts twocats.rs2 with all chapters + chore tracking via osrs239 varbits (twocats_quest id 1028, chores ids 1029–1036); sscompile.exe zero errors; wiki [Quick guide](https://oldschool.runescape.wiki/w/A_Tail_of_Two_Cats/Quick_guide) + [Transcript](https://oldschool.runescape.wiki/w/Transcript:A_Tail_of_Two_Cats); deferred ICTHLARIN's Little Helper gate (not yet ported), catspeak amulet e variant doesn't exist in osrs239 (only `twocats_amuletofcatspeak` id 6544) |
-| P2 | Asoul's Bane | `asoulsbane` | 330 | in_progress | Mar 2019 — Asoul, dragonfire weapon quest; found 2026-08-10 already scripted (`quest_asoulsbane/scripts/soulbaine.rs2`, 193 lines, full room/cutscene/completion flow, npcs resolve e.g. `soulbane_launa`) by an untracked earlier tick, but its `quest_deviousminds`-style dbrow row was never declared (`configs/all.dbrow` has no `[quest_asoulsbane]` block; sscompile's own allocator log shows it only as `STALE=1 66540=quest_asoulsbane (no longer declared; kept, ids are stable)`) — the id resolves so it compiles clean, but `~quest_complete(quest_asoulsbane)` reads name/questpoints off a row with no declared fields. Needs a real dbrow block authored before this can be trusted `done` |
+| P2 | Asoul's Bane | `asoulsbane` | 330 | **resolved (2026-08-12), see Log** | this row and #43 were a stale duplicate-tracking bug, not real open work. "A Soul's Bane" is a real, distinct, 2005 mid-era quest, already fully implemented at `quest_soulsbane/` (not `quest_asoulsbane/`) — see the mid-era audit table above. The `quest_asoulsbane/scripts/soulbaine.rs2` this row described was a dead, abandoned 193-line duplicate that silently shadowed three of `quest_soulsbane/`'s real triggers and called `~quest_complete` on a dbrow that never existed; deleted during the 2026-08-12 mid-era audit pass. Nothing further to do here. |
 | P3 | Spirits of the Elid | `spiritsoftheelid` | 352 | done | Dec 2013 — Elid, spirit world, Khazard war; native dbrow `quest_spiritsoftheelid` (id 100, endstate 60) + native varbit schema on basevar `elid_main` reused as-is; see Log |
 | P4 | Another Slice of Ham | `anothersliceofham` | 485 | done | Oct 2012 — Ham cult, Dorgesh-Kaan/Goblin Village/Sigmund; native dbrow `quest_anothersliceofham` (id 133, endstate 11) + native varbit schema on basevar `slice_base` reused as-is; see Log |
 | P5 | Darkness of Hallow Vale | `darknessofhallowvale` | 816 | done | Sept 2006 — Drakan's descendant, vampire theme; native dbrow `quest_darknessofhallowvale` (id 117, endstate 320) + native varbit schema on basevars `myreque_3_main_var`/`myreque3_multivar` reused as-is; see Log |
@@ -272,7 +308,7 @@ filed under `helpers/miniquests/` are at the end.
 | 40 | theknightssword | `theknightssword` | 320 | done (LC) | re-audit 2026-08-10: `quest_squire` (`squire.rs2`, `reldo.rs2`; dbrow `quest_knightssword` journal wired) |
 | 41 | trollromance | `trollromance` | 321 | done (LC) | re-audit 2026-08-10: IN-LC duplicate row, dbrow `quest_trollromance` exists — see IN-LC table (`quest_troll`/`quest_troll_love`) |
 | 42 | fightarena | `fightarena` | 322 | done (LC) | re-audit 2026-08-10: `quest_arena` (`general_khazard.rs2`, `khazard_guard.rs2`, `fightslave.rs2`; dbrow `quest_fightarena` journal wired) |
-| 43 | asoulsbane | `asoulsbane` | 330 | in_progress | see P2 row — scripted but dbrow-less, found 2026-08-10 |
+| 43 | asoulsbane | `asoulsbane` | 330 | **done** | resolved 2026-08-12, see P2 row — real quest already fully implemented at `quest_soulsbane/`, audited-fixed under the mid-era table above; this row's own dead duplicate `quest_asoulsbane/` was deleted, not fixed |
 | 44 | childrenofthesun | `childrenofthesun` | 337 | done |  |
 | 45 | deathplateau | `deathplateau` | 337 | done (LC) | re-audit 2026-08-10: `quest_death` (shared dir w/ Troll Stronghold; `death_denulth.rs2`, `death_dunstan.rs2`; dbrow `quest_deathplateau` journal wired) |
 | 46 | seaslug | `seaslug` | 338 | done (LC) | OSRS has 2 rs2 files (not in PORT_QUEUE table) |
@@ -6765,3 +6801,69 @@ filed under `helpers/miniquests/` are at the end.
     across four passes; 3 of those 17 — `holygrail`, `eadgarsruse`,
     `trollromance` — are still `audit-in_progress` rather than fully
     closed).
+
+- **IN-LC audit table complete + mid-era audit pass (2026-08-12):** landed
+  four more audit-batch passes (5 through 8, ~130 subagent tool-uses each)
+  covering the remaining 20 IN-LC rows, bringing the IN-LC table to full
+  coverage (38/38 rows, each with at least one wiki-accuracy pass). Notable
+  fixes this stretch: Eagles' Peak (Nickolaus softlocked behind debug-only
+  npc names), Icthlarin's Little Helper (invented sphinx riddle replaced with
+  the real one, including the "lose your cat" risk), Zogre Flesh Eaters (10x
+  XP underpay), Fremennik Exiles (duplicate-trigger shadowing a shared
+  citizen npc — also corrected this row's own stale dbrow mapping),
+  Desert Treasure II (duplicate-trigger collision with Defender of Varrock),
+  Lost Tribe (a cellar-witness line misattributed to the wrong NPC per the
+  transcript + a missing post-quest reward), Tai Bwo Wannai Trio (missing
+  tinderbox burn method), Recruitment Drive (a fictitious gender-gated boss
+  mechanic replaced with the real anti-blade one), What Lies Below (outlaw
+  camp NPCs had no live spawn path, debug-only). Two genuine large-gap rows
+  confirmed and left `audit-in_progress` with full chapter breakdowns:
+  Shadow of the Storm (soft-skipped kiln/incantation/interrogation/sigil/boss
+  chapters) and Regicide (footprint puzzle, camp-guard fight, bomb-crafting,
+  and the entire ending — no `~quest_complete` call exists at all). Also hit
+  and fixed a real process bug: two concurrent audit-batch agents editing
+  `docs/QUESTHELPER_CONTENT_PORT_QUEUE.md` at the same time raced on a
+  full-file read/write, and one silently clobbered the other's findings for
+  4 rows (`zogreflesheaters`/`thefremennikexiles`/`thefremenniktrials`/
+  `deserttreasureii`) — recovered by reconstructing the lost text from the
+  agents' original reports still present in-session; their underlying code
+  fixes were never at risk (committed separately, safe throughout).
+  Switched process for all subsequent batches: audit agents report findings
+  as plain text instead of self-editing the shared doc, and the orchestrating
+  session applies all doc edits centrally, once, per batch.
+
+  Moved on to the mid-era set next. A reconciliation pass found the "~74
+  mid-era quests" figure quoted in this doc since 2026-08-06 was dead
+  bookkeeping — no directory list was ever attached to that count anywhere,
+  and `SCAPE2009_CONTENT_PORT_QUEUE.md`'s own Queue table (the real tracking
+  surface) holds only 15 distinct quest-groups, 9 of which are the exact same
+  `.rs2`/dbrow files already covered by the IN-LC table (the original
+  pre-Sept-2004/mid-era split was imprecise for that set, not a clean
+  partition). Audited the 6 genuinely distinct remaining mid-era quests:
+  Priest in Peril (**high-value fix** — the mausoleum Drezel finale had zero
+  live triggers, permanently blocking not just this quest but every quest
+  gating on its completion: Nature Spirit, Rum Deal, Ghosts Ahoy, Haunted
+  Mine, Making History, Animal Magnetism, Creature of Fenkenstrain, Desert
+  Treasure — wired the missing essence hand-in and completion), Dig Site
+  (audited-ok), The Golem (two item-acquisition triggers were debug-only,
+  permanently blocking completion — fixed), Creature of Fenkenstrain (wrong
+  Restless Ghost prereq strictness — fixed), A Soul's Bane (resolved a
+  previously-flagged, never-fixed loose end from earlier in this session —
+  the "dbrow never declared" concern was a false alarm; the real bug was a
+  dead duplicate `quest_asoulsbane/` folder shadowing the real
+  `quest_soulsbane/`'s triggers, deleted, plus a genuine intra-quest
+  duplicate trigger merged), Desert Treasure original (large, mostly solid
+  port; fixed a 10x magic-XP underpay, left `audit-in_progress` for the four
+  softened boss fights and deferred pyramid/spellbook content). Reconciled
+  and closed out two stale duplicate-tracking rows (`#43`/`P2` asoulsbane)
+  that had been sitting `in_progress` since before this session even started.
+
+  **Both the IN-LC and mid-era wiki-accuracy audit tables are now fully
+  passed at least once.** Remaining open work is entirely large-content
+  follow-ups on quests left `audit-in_progress` (not further discovery):
+  `eadgarsruse`, `holygrail`, `trollromance`, `dragonslayerii`,
+  `legendsquest`, `thefremenniktrials`, `shadowofthestorm`, `regicide`, and
+  `quest_deserttreasure`'s boss-fight mechanics — each a full quest's (or
+  large quest-chapter's) worth of missing content, not an audit gap. Next:
+  start dedicating build agents to actually closing these out one at a time,
+  per the user's "finish ALL quests" directive.
