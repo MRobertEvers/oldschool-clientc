@@ -6,6 +6,28 @@ The backporter for the QBD / Tormented Demon lane
 build it with `make -C src rs2012-material-bake` (or `.\make.ps1
 rs2012-material-bake`) and it lands at `src/build_win64_opt/rs2012_material_bake.exe`.
 
+**Most people should not run this tool.** Its output is committed to
+OSRS-Content, so pulling the content repo and packing a cache is enough; see §9.
+Run it when you are changing the port itself.
+
+```sh
+# rebake the lane the way it ships, then re-pack the cache
+make -C src rs2012-lane-bake          # --matte 60 --apply, into MOCK230_CONTENT_DIR
+make -C src mock230-cache-rs2012
+
+# prove the bake is reproducible (two bakes into scratch dirs, must be identical)
+make -C src rs2012-lane-bake-check
+```
+
+Both need the RS727 source cache — `cache.rs727_preeoc`, ~461 MB, matched by
+`.gitignore`'s `cache.*/`, so a clone does not carry it and it has to be
+obtained out of band. Point `RS2012_SRC_CACHE=<dir>` at it if it is not at the
+repo root; the targets fail with that instruction rather than baking something
+wrong. `RS2012_LANE_MATTE` (60) is the one load-bearing tuning value and lives
+in the makefile because it used to live only in a branch name.
+
+Underneath, the targets are just:
+
 ```sh
 # dry run — writes OB3s to a scratch dir, never touches the lane
 src/build_win64_opt/rs2012_material_bake.exe \
@@ -17,14 +39,20 @@ src/build_win64_opt/rs2012_material_bake.exe \
 … --matte 60 --apply
 ```
 
+`--models-out` and `--apply` are independent: **`--models-out` alone never
+writes the lane**, so a cache packed after one shows no change. That is the
+usual explanation for "I re-backported and the cachepack didn't pick it up."
+
 **This document is the rule list.** Every decision the tool makes about a face
 is one of the rules below, each with the flag that changes it and the evidence
 it rests on. Two things are worth knowing before reading them:
 
-- **The tool is nondeterministic.** 418 of 660 models differ between two runs on
-  identical arguments, in the procedural texture bake. Diff two runs of the same
-  configuration to establish the noise floor before attributing a difference to
-  a flag.
+- **The tool is byte-reproducible**, and there is a make target that proves it:
+  `make -C src rs2012-lane-bake-check` bakes twice into scratch directories and
+  fails if the two differ. It was *not* reproducible until the `p[256]` fix
+  described in §9 — 246 of 512 material frames and 392 of 660 models used to
+  differ between two runs on identical arguments — so a difference against an
+  older lane is expected and is not evidence about a flag.
 - **Most rules are inferences, and they are labelled.** RS727's material table
   carries `valid` and `alpha_mode`; everything else — is this a mask, a
   membrane, a wisp — is read back out of the baked frame. Where a rule
@@ -348,3 +376,54 @@ Sheets live in [`sheets/`](sheets/):
   `v10-m60` behaviour). 139 translucent, 57 heavy.
 - `attempt2_wisp_alpha_off_m60.png` — `--matte 60`, wisp alpha `off` (current
   default). 80 translucent, 31 heavy.
+- `attempt3_determinism_fix_m60.png` — the same configuration after the `p[256]`
+  fix (§9). Also 80 translucent / 31 heavy: the fix changed 429 of 660 models,
+  but only in the procedural texture noise, which is what it should have done.
+  **This is the lane as it ships.**
+
+## 9. Reproducibility — how another machine gets these models
+
+Two machines on the same OSRS-Content commit must render the same lane. Two
+separate things had to be true for that, and only one of them is about this
+tool.
+
+### The bake is deterministic (fixed)
+
+`proctex_permutations` in
+[`src/engine/proctex/proctex_ops.u.c`](../../src/engine/proctex/proctex_ops.u.c)
+built its 512-entry Perlin permutation table with `malloc`. The init and shuffle
+loops write indices 0..255 and 257..511 — **`p[256]` is never assigned**. The
+Java original is a `byte[512]`, which the JVM zero-fills, so there `p[256]` is a
+defined 0 and every lookup landing on it is stable; under `malloc` it was
+whatever the heap held. The table is cached per seed for the process lifetime,
+so a single run was self-consistent and only *separate* runs disagreed — which
+is exactly the shape that hides from a re-run and shows up on someone else's
+machine.
+
+It is `calloc(512, 1)` now. Two bakes on identical arguments went from **246 of
+512 material frames and 392 of 660 models differing** to **0 and 0**.
+`rs2012-lane-bake-check` is the standing gate. Only the offline bake was ever
+affected: `proctex_generator.o` links into `test-proctex-coverage` and
+`rs2012-material-bake` and nothing else, so no shipped client read that table.
+
+### The models have to actually be in the commit
+
+This is the part that bites, and it is not a tool problem. The baked OB3s are
+**tracked content** — they live in OSRS-Content at
+`osrs239-content/models/ported/rs2012_qbd_td/`. A machine that pulls the content
+repo and runs `make -C src mock230-cache-rs2012` therefore needs no RS727 cache
+and no bake at all; it packs the models the commit carries.
+
+Which means: if a rebake is not committed *and reachable from the commit the
+superproject's submodule pointer names*, nobody else sees it. The failure is
+silent — `cachepack pack --base` keeps the base cache's bytes for anything the
+overlay does not supply, so a stale or unstaged lane ships the *old* models
+rather than erroring. The checklist after a rebake is:
+
+1. commit the lane in OSRS-Content;
+2. merge it to the branch the superproject tracks and push;
+3. bump the `OSRS-Content` submodule pointer in this repo, commit, push.
+
+Skipping (3) is the common one, and it reproduces as "same commit, different
+models" — the submodule pointer, not the branch name, is what a `git submodule
+update` resolves.
