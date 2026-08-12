@@ -10239,6 +10239,38 @@ selftest_capture_has_midi_song_envelope(
     return 0;
 }
 
+/*
+ * How many SYNTH_SOUND packets in this capture name a given effect.
+ *
+ * The body is `p2 id, p1 loops, p2 delay` (mock230_send_synth_sound's default
+ * writer), so the id is the first two bytes. Counting rather than testing
+ * presence: an Inferno noise emitted once per hunted player instead of once per
+ * event is a real bug shape, and a boolean cannot see it.
+ */
+static int
+selftest_capture_synth_count(
+    struct Mock230Capture const* capture,
+    struct Mock230Wire const* wire,
+    int synth_id)
+{
+    int opcode;
+    int seen = 0;
+
+    if( !capture || !wire )
+        return 0;
+    opcode = mock230_wire_opcode(wire, PKT_NAME_SYNTH_SOUND);
+    for( int i = 0; i < capture->count; i++ )
+    {
+        struct Mock230CapturedPacket const* pkt = &capture->packets[i];
+
+        if( pkt->opcode != opcode || pkt->len < 2 )
+            continue;
+        if( (int)(((uint32_t)pkt->data[0] << 8) | (uint32_t)pkt->data[1]) == synth_id )
+            seen++;
+    }
+    return seen;
+}
+
 /* RUNCLIENTSCRIPT keeps its script id as the final big-endian int after the
  * zero-terminated type string and reverse-ordered arguments. The Zuk timing
  * gate only needs to identify fade_overlay's 948, not decode its arguments. */
@@ -17276,12 +17308,13 @@ mock230_world_selftest(void)
          * retaliated, faced the player, followed them around and never landed
          * a hit.
          *
-         * The fixture stands the player at the far corner of the footprint on
-         * purpose: `npc->x + size, npc->z + size - 1` is adjacent to the npc
-         * and NOT adjacent to its anchor, so a corner-based reach test fails
-         * here and an edge-to-edge one passes. Standing at `npc->x - 1,
-         * npc->z` instead — which is what a 1x1 fixture does — passes under
-         * both and would have shipped the bug.
+         * All four faces, and on each one the tile FURTHEST from the anchor:
+         * `x + size, z + size - 1` and its three rotations are adjacent to the
+         * npc and never adjacent to its anchor, so a corner-based reach test
+         * fails on all four and an edge-to-edge one passes on all four. The
+         * two tiles a 1x1 fixture would use — due west and due south of the
+         * anchor — pass under both rules, which is exactly why standing there
+         * to test this would have shipped the bug.
          */
         int cow_type = mock230_content_symbol(MOCK230_PACK_NPC, "cow");
         int cow = cow_type >= 0 ? npc_spawn(&srv, cow_type, g_home_x + 8, g_home_z + 8, 0) : -1;
@@ -17291,9 +17324,25 @@ mock230_world_selftest(void)
         {
             struct Mock230Npc* npc = &srv.npcs[cow];
             int size = npc->size > 0 ? npc->size : 1;
-            int start_x = npc->x;
-            int start_z = npc->z;
-            int retaliated = 0;
+            int hp_level_before;
+            int hp_boost_before;
+            int hp_xp_before;
+            /* east, north, west, south — each the far end of that face. */
+            static const char* k_face[4] = { "east", "north", "west", "south" };
+            const int k_stand[4][2] = {
+                { size, size - 1 }, { size - 1, size }, { -1, size - 1 }, { size - 1, -1 }
+            };
+
+            /* The player arrives here on whatever hitpoints the sections above
+             * left them, which is one. A cow that connects then kills them,
+             * and the death respawns them at Lumbridge — so the first face
+             * measured the cow and the other three measured a cow chasing a
+             * corpse across the map. Snapshot, raise, restore: the level is
+             * this section's fixture, not its subject. */
+            hp_level_before = player->stat_level[MOCK230_STAT_HITPOINTS];
+            hp_boost_before = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+            hp_xp_before = player->stat_xp_tenths[MOCK230_STAT_HITPOINTS];
+            mock230_combat_set_level(player, MOCK230_STAT_HITPOINTS, 40);
 
             /* The premise. A roster that ever shrinks the cow to 1x1 turns
              * every check below into a test of the goblin case again. */
@@ -17301,58 +17350,131 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_combat_attackable(npc->type),
                            "and it is attackable, or it has no swing to test");
 
-            selftest_park_player(&srv, npc->x + size, npc->z + size - 1);
-            /*
-             * The park has to be a real one, occupancy and all.
-             *
-             * `selftest_park_player` writes x/z straight into the player and
-             * leaves the collision map alone, so a fixture player is a hole an
-             * npc can walk through — and walking through is exactly what a 2x2
-             * npc does to satisfy a corner-based reach test. Without this the
-             * cow ends the loop standing ON the player, having swung once it
-             * got there, and the section reads as a pass. Live players occupy
-             * their tile (`player_take_step`), so `npc_travel_extra`'s
-             * PLAYER_OCC bit stops the overlap and the fight never starts at
-             * all — which is the bug being reproduced.
-             */
-            player_set_occupancy(player, 1);
-            player->level = npc->level;
-            player->hitpoints = player->max_hitpoints;
-            player->damage_type = -1;
-            npc->hitpoints = npc->max_hitpoints;
-
-            /* One point of damage: enough to be hit, nowhere near enough to
-             * die, so nothing below is racing a death animation. */
-            mock230_combat_hit_npc(&srv, cow, 0, 1);
-            SELFTEST_CHECK(npc->combat_target == player->pid,
-                           "being hit gives the cow a target, got %d want %d",
-                           npc->combat_target, player->pid);
-
-            /* Well past the cow's 6-tick attackrate. The player never engages,
-             * so anything landing on them came from the cow. */
-            for( int i = 0; i < 20 && !retaliated; i++ )
+            for( int face = 0; face < 4; face++ )
             {
-                mock230_world_tick(&srv);
-                retaliated = player->hitpoints < player->max_hitpoints ||
-                             player->damage_type >= 0;
-            }
-            SELFTEST_CHECK(retaliated,
-                           "the cow should swing at the player it is touching: "
-                           "player hp %d/%d splat %d, cow at %d,%d (spawned %d,%d), "
-                           "player at %d,%d, target %d",
-                           player->hitpoints, player->max_hitpoints, player->damage_type,
-                           npc->x, npc->z, start_x, start_z, player->x, player->z,
-                           npc->combat_target);
-            /* And it fought where it stood rather than orbiting: the shuffle is
-             * the visible half of the bug and outlives any one swing. */
-            SELFTEST_CHECK(npc->x == start_x && npc->z == start_z,
-                           "and stand still doing it, moved %d,%d -> %d,%d", start_x,
-                           start_z, npc->x, npc->z);
+                int start_x = npc->x;
+                int start_z = npc->z;
+                int retaliated = 0;
 
-            /* Hand the tile back: the bit was set by hand and nothing else in
-             * this file would clear it. */
-            player_set_occupancy(player, 0);
-            npc->combat_target = -1;
+                selftest_park_player(&srv, start_x + k_stand[face][0],
+                                     start_z + k_stand[face][1]);
+                /*
+                 * The park has to be a real one, occupancy and all.
+                 *
+                 * `selftest_park_player` writes x/z straight into the player
+                 * and leaves the collision map alone, so a fixture player is a
+                 * hole an npc can walk through — and walking through is
+                 * exactly what a 2x2 npc does to satisfy a corner-based reach
+                 * test. Without this the cow ends the loop standing ON the
+                 * player, having swung once it got there, and the section
+                 * reads as a pass on two of the four faces. Live players
+                 * occupy their tile (`player_take_step`), so
+                 * `npc_travel_extra`'s PLAYER_OCC bit stops the overlap and
+                 * the fight never starts at all — which is the bug being
+                 * reproduced.
+                 */
+                player_set_occupancy(player, 1);
+                player->level = npc->level;
+                player->hitpoints = player->max_hitpoints;
+                player->damage_type = -1;
+                npc->hitpoints = npc->max_hitpoints;
+
+                /* One point of damage: enough to be hit, nowhere near enough
+                 * to die, so nothing below is racing a death animation. */
+                mock230_combat_hit_npc(&srv, cow, 0, 1);
+                SELFTEST_CHECK(npc->combat_target == player->pid,
+                               "being hit on its %s face gives the cow a target, got %d "
+                               "want %d",
+                               k_face[face], npc->combat_target, player->pid);
+
+                /* Well past the cow's 6-tick attackrate. The player never
+                 * engages, so anything landing on them came from the cow. */
+                for( int i = 0; i < 20 && !retaliated; i++ )
+                {
+                    mock230_world_tick(&srv);
+                    retaliated = player->hitpoints < player->max_hitpoints ||
+                                 player->damage_type >= 0;
+                }
+                SELFTEST_CHECK(retaliated,
+                               "the cow should swing at the player touching its %s face: "
+                               "player hp %d/%d splat %d, cow at %d,%d (was %d,%d), "
+                               "player at %d,%d, target %d",
+                               k_face[face], player->hitpoints, player->max_hitpoints,
+                               player->damage_type, npc->x, npc->z, start_x, start_z,
+                               player->x, player->z, npc->combat_target);
+                /* And it fought where it stood rather than orbiting: the
+                 * shuffle is the visible half of the bug and outlives any one
+                 * swing. */
+                SELFTEST_CHECK(npc->x == start_x && npc->z == start_z,
+                               "and stand still doing it on its %s face, moved %d,%d -> "
+                               "%d,%d",
+                               k_face[face], start_x, start_z, npc->x, npc->z);
+
+                /* Hand the tile back: the bit was set by hand and nothing else
+                 * in this file would clear it. */
+                player_set_occupancy(player, 0);
+                npc->combat_target = -1;
+            }
+
+            /*
+             * And from underneath, which is where the approach half of the fix
+             * lives.
+             *
+             * A player walks THROUGH an npc — `player_travel_extra` reads no
+             * NPC_OCC — so standing inside a 2x2 footprint is an ordinary
+             * place to end up. Overlap is not reach (both gaps are zero, so
+             * `dx + dz` is 0 and not 1), so the cow has to step out before it
+             * can swing, and what lets it is the pursue approach knowing its
+             * own footprint. With `mover_size = 1` the anchor is already
+             * orthogonally adjacent to the player standing on the tile east of
+             * it, `mock230_world_npc_walk_to_approach` reports arrival and
+             * refuses to move, and the cow stands on the player's head for the
+             * rest of the fight without ever being in range to hit them.
+             *
+             * `npc->x + 1, npc->z` is that tile specifically: inside the
+             * footprint AND cardinally adjacent to the anchor. The other three
+             * tiles of the square are not, so they walk out under either rule.
+             */
+            {
+                int start_x = npc->x;
+                int start_z = npc->z;
+                int retaliated = 0;
+
+                selftest_park_player(&srv, start_x + 1, start_z);
+                player_set_occupancy(player, 1);
+                player->level = npc->level;
+                player->hitpoints = player->max_hitpoints;
+                player->damage_type = -1;
+                npc->hitpoints = npc->max_hitpoints;
+
+                mock230_combat_hit_npc(&srv, cow, 0, 1);
+                for( int i = 0; i < 20 && !retaliated; i++ )
+                {
+                    mock230_world_tick(&srv);
+                    retaliated = player->hitpoints < player->max_hitpoints ||
+                                 player->damage_type >= 0;
+                }
+                SELFTEST_CHECK(retaliated,
+                               "a cow standing on the player should step off and swing: "
+                               "player hp %d/%d splat %d, cow at %d,%d (was %d,%d), "
+                               "player at %d,%d, target %d",
+                               player->hitpoints, player->max_hitpoints, player->damage_type,
+                               npc->x, npc->z, start_x, start_z, player->x, player->z,
+                               npc->combat_target);
+                SELFTEST_CHECK(npc->x != start_x || npc->z != start_z,
+                               "which means it had to move, and it did not (%d,%d)", npc->x,
+                               npc->z);
+
+                player_set_occupancy(player, 0);
+                npc->combat_target = -1;
+            }
+            /* Put the level back by hand — `mock230_combat_set_level` would
+             * re-derive the xp from it and the sections below read both. */
+            player->stat_level[MOCK230_STAT_HITPOINTS] = hp_level_before;
+            player->stat_boosted[MOCK230_STAT_HITPOINTS] = hp_boost_before;
+            player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = hp_xp_before;
+            mock230_combat_sync_hitpoints(player);
+            player->hitpoints = player->max_hitpoints;
             selftest_park_player(&srv, g_home_x, g_home_z);
         }
     }
@@ -28239,6 +28361,13 @@ mock230_world_selftest(void)
             int total_right_seq = 0;
             int total_pillar_seq = 0;
             int barrier_seen = 0;
+            /* The cutscene's three noises — see docs/INFERNO_SOUNDS.md §7.
+             * Ticks, so the ORDER can be asserted: a rumble that arrives after
+             * the seal has already fallen is not a rumble. */
+            int rumble_tick = -1;
+            int collapse_sound_tick = -1;
+            int settle_sound_tick = -1;
+            int total_collapse_sound = 0;
 
             /* Literal revision-239 cache ids make this a packet-layout
              * regression, rather than a test that can follow a bad symbol
@@ -28302,6 +28431,19 @@ mock230_world_selftest(void)
                     mock230_world_handle(
                         player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
                     continue;
+                }
+                {
+                    int tick_collapse = selftest_capture_synth_count(&capture, srv.wire, 2039);
+
+                    total_collapse_sound += tick_collapse;
+                    if( rumble_tick < 0 &&
+                        selftest_capture_synth_count(&capture, srv.wire, 2045) )
+                        rumble_tick = tick;
+                    if( collapse_sound_tick < 0 && tick_collapse )
+                        collapse_sound_tick = tick;
+                    if( settle_sound_tick < 0 &&
+                        selftest_capture_synth_count(&capture, srv.wire, 2294) )
+                        settle_sound_tick = tick;
                 }
                 if( tick_left && tick_right && change_tick < 0 )
                     change_tick = tick;
@@ -28416,6 +28558,35 @@ mock230_world_selftest(void)
                            "the settled flank rocks must appear on the 180-cycle "
                            "animation boundary; got anim=%d rocks=%d",
                            anim_tick, rocks_tick);
+            /*
+             * The cutscene's audio, pinned to the events it belongs to rather
+             * than merely asserted to exist.
+             *
+             * The whole sequence used to be silent — camera shaking on three
+             * axes, a prison coming apart, nothing in the player's ears — and
+             * "silent" is the one outcome every other assertion in this
+             * fixture is happy with. The ids are docs/INFERNO_SOUNDS.md §7's
+             * cave-ambience family: 2045 rumble, 2039 break, 2294 settle.
+             *
+             * Ticks and not booleans, because the ordering IS the content: a
+             * rumble after the seal has already fallen, or a settle that
+             * arrives with the break instead of six ticks later, would both
+             * satisfy a presence check and neither is the cutscene.
+             */
+            SELFTEST_CHECK(rumble_tick >= 0 && rumble_tick < anim_tick,
+                           "the cave rumble must play under the camera lock, before the "
+                           "flanks let go; got rumble=%d anim=%d",
+                           rumble_tick, anim_tick);
+            SELFTEST_CHECK(collapse_sound_tick == anim_tick,
+                           "the collapse must be heard on the tick the LOC_ANIMs go out; "
+                           "got sound=%d anim=%d",
+                           collapse_sound_tick, anim_tick);
+            SELFTEST_CHECK(total_collapse_sound == 1,
+                           "one seal, one collapse noise — got %d", total_collapse_sound);
+            SELFTEST_CHECK(settle_sound_tick == rocks_tick,
+                           "the settle must land with the state3 rubble; got sound=%d "
+                           "rocks=%d",
+                           settle_sound_tick, rocks_tick);
             /* 7560/7559 are 90 frames at two client cycles each: 180 cycles,
              * exactly six server ticks. The temporary state2 locs are removed
              * on the same boundary that installs their state3 terminal pose. */

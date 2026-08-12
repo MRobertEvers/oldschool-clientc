@@ -353,6 +353,18 @@ template's — without that check the test could pass while proving nothing.
 - **Zuk's death.** 409 `dragon_death` is layer `t`, reached from the wiki's
   `dragon_hit` row. Plausible; unstated.
 - **Every `f` row in §8.** One corroboration is not a proof.
+- **The `npc_combat/i/inferno_*.combat` ledgers are stale in one respect.**
+  They are `tools/gen_npc_combat.py`'s output and none of this work went
+  through it — there is nothing for a generator to key on here, which is the
+  whole point of §1. Their sound rows still read `-  // s3 ... carries none`,
+  which remains *true about the sequence* and is now misleading about the game.
+  The generator already has the fix and it is automatic: `write_ledger`'s
+  `shadowed_by` branch stamps "NOT COMPILED ... an authored .npc block always
+  wins" on any npc `inferno.npc` states, and blocks that previously stated only
+  levels (`inferno_jad_healer`, `inferno_creature_harpie`, and the rest) now
+  state sound. Re-running `tools/gen_npc_combat.py --write` stamps them. It was
+  not run here because it rewrites all 6,460 ledgers and another session was
+  working in this tree.
 - **The route that would settle all of it** is the one
   `docs/NPC_SOUNDS_ANIMS.md` §"What to do with that" already named: observe
   `SYNTH_SOUND` from a live server, keyed to the npc that emitted it. `rsprox`
