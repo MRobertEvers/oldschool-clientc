@@ -317,16 +317,43 @@ enum
      * out of range on the very next tick, so it is removed, re-added, removed,
      * and never renders. The wire's capacity is not the view distance.
      *
-     * It sits one tile inside MOCK230_REBUILD_MARGIN, and that is not a
-     * coincidence to be left unwritten. The player's zone window is clipped to
-     * the build area (`rebuild_active`), so once this exceeds the margin the
-     * scene stops being re-centred before the view reaches past the build
-     * area's edge, and NPC_INFO starts naming npcs the client has no scene for.
-     * `mock230_zone_npcs_active` makes that structural rather than a margin, but
-     * the margin is what made it safe before and the assertion below is what
-     * stops the two drifting apart silently.
+     * It is measured to the npc's FOOTPRINT, not to its south-west origin —
+     * `mock230_npc_view_deltas`. The distinction is the whole difference
+     * between a size-1 npc and a boss: TzKal-Zuk is 7x7 with his origin on his
+     * west edge, so a corner measure removed him from the client 16 tiles east
+     * of that origin while his nearest tile was 10 tiles away and his model
+     * filled the screen. That looked like a painter bug for as long as nobody
+     * checked whether the entity was still in the client's pool.
+     *
+     * Two bounds hold the reach in:
+     *
+     *   - The wire. The v5 add carries 6-bit signed deltas from the ORIGIN, so
+     *     origins may reach 15 + (MOCK230_NPC_SIZE_MAX - 1) = 22 and 31 is the
+     *     ceiling. The classic add carries 5 bits (-16..15) and cannot express
+     *     even 16, so that encoder keeps the corner box — see there.
+     *   - The scene. It used to be argued from this constant sitting one tile
+     *     inside MOCK230_REBUILD_MARGIN; that argument is gone now that a
+     *     footprint reaches past the margin, and it was never the real one.
+     *     `window_holds` clips the client's zone window to the build area, so
+     *     the candidate set cannot contain an npc the client has no scene for
+     *     however far this reaches. The NPC_INFO selftest in mock230_world.c
+     *     builds that edge rather than walking to it precisely because the
+     *     margin coincidence used to hide the structural clip.
      */
     MOCK230_NPC_VIEW_TILES = 15,
+
+    /*
+     * The biggest npc footprint the view test reaches out for, and a real
+     * limit rather than a description: the zone pre-reject in `area_entities`
+     * pads by it, so an npc bigger than this can be dropped from the candidate
+     * set with its body in plain view. `mock230_world_npc_spawn` warns when
+     * the cache hands it one, which is the only way that stays loud.
+     *
+     * 8 covers everything in the OSRS239 roster (Zuk is the largest at 7) with
+     * a tile to spare, and 15 + (8 - 1) = 22 is inside both the v5 delta's ±31
+     * and the zone window's guaranteed 24 tiles (MOCK230_ZONE_VIEW_RADIUS * 8).
+     */
+    MOCK230_NPC_SIZE_MAX = 8,
 
     /*
      * The same distance for players, and a separate constant because it is a

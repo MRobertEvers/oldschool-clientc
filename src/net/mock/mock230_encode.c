@@ -4216,11 +4216,16 @@ mock230_send_npc_info(struct Mock230Player* player)
         {
             int slot = player->tracked[i];
             struct Mock230Npc* npc = &srv->npcs[slot];
-            int dx = npc->x - player->x;
-            int dz = npc->z - player->z;
-            int in_range = npc->active && npc->level == player->level &&
-                           dx >= -MOCK230_NPC_VIEW_TILES && dx <= MOCK230_NPC_VIEW_TILES &&
-                           dz >= -MOCK230_NPC_VIEW_TILES && dz <= MOCK230_NPC_VIEW_TILES;
+            /* The gap to the npc's FOOTPRINT, and the same measure the adds
+             * below and the ZoneMap query use: keeping and adding have to agree
+             * or an npc is added and removed on alternate ticks. */
+            int view_dx;
+            int view_dz;
+            int in_range;
+
+            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            in_range = npc->active && npc->level == player->level &&
+                       view_dx <= MOCK230_NPC_VIEW_TILES && view_dz <= MOCK230_NPC_VIEW_TILES;
 
             if( !in_range || npc->tele )
             {
@@ -4293,17 +4298,20 @@ mock230_send_npc_info(struct Mock230Player* player)
             struct Mock230Npc* npc = &srv->npcs[slot];
             int dx;
             int dz;
+            int view_dx;
+            int view_dz;
 
             if( !npc->active || player->npc_tracked[slot] )
                 continue;
             dx = npc->x - player->x;
             dz = npc->z - player->z;
+            mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
             /*
-             * The SAME radius the high-resolution loop keeps at, and it has to
-             * be. The 6-bit delta could carry +-31, but an npc added at 20 tiles
-             * is out of range on the very next tick, so it is removed, re-added,
-             * removed... every tick, and never renders. The wire's capacity is
-             * not the view distance.
+             * The SAME radius and the SAME measure the high-resolution loop
+             * keeps at, and it has to be. The 6-bit delta could carry +-31, but
+             * an npc added at 20 tiles is out of range on the very next tick, so
+             * it is removed, re-added, removed... every tick, and never renders.
+             * The wire's capacity is not the view distance.
              */
             /* The plane, here rather than in the candidate set. The area is a
              * *subscription* and it spans all four on purpose — a loc change
@@ -4311,9 +4319,24 @@ mock230_send_npc_info(struct Mock230Player* player)
              * streams, which are single-plane, filter at the point of use. */
             if( npc->level != player->level )
                 continue;
-            if( dx < -MOCK230_NPC_VIEW_TILES || dx > MOCK230_NPC_VIEW_TILES ||
-                dz < -MOCK230_NPC_VIEW_TILES || dz > MOCK230_NPC_VIEW_TILES )
+            if( view_dx > MOCK230_NPC_VIEW_TILES || view_dz > MOCK230_NPC_VIEW_TILES )
                 continue;
+            /*
+             * And what the record can actually say. The deltas written below are
+             * from the npc's ORIGIN, so a footprint in view at 15 puts the
+             * origin as far as 15 + (MOCK230_NPC_SIZE_MAX - 1); 6 signed bits
+             * stop at 31. The two constants are chosen so this cannot fire —
+             * it is here so that if either moves, a boss goes missing with a
+             * line in the log rather than silently landing 64 tiles away.
+             */
+            if( dx < -32 || dx > 31 || dz < -32 || dz > 31 )
+            {
+                fprintf(stderr,
+                        "mock230: npc %d (type %d, size %d) is in view at %d,%d but its "
+                        "origin delta %d,%d does not fit the v5 add; not sent\n",
+                        slot, npc->type, npc->size, npc->x, npc->z, dx, dz);
+                continue;
+            }
             if( kept_count >= MOCK230_TRACKED_NPC_MAX )
                 break;
             adds[add_count++] = slot;

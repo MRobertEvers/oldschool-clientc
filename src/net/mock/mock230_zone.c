@@ -1135,6 +1135,30 @@ mock230_playerzonemap_move(struct Mock230Player* player)
  * discarded and crowd out ones that are actually beside the player. That is
  * unreachable while a world holds 63 npcs and ordinary at 23,139.
  */
+void
+mock230_npc_view_deltas(
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player,
+    int* out_dx,
+    int* out_dz)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+
+    *out_dx = dx;
+    *out_dz = dz;
+}
+
 static int
 area_entities(
     struct Mock230Player* player,
@@ -1145,6 +1169,14 @@ area_entities(
 {
     struct Mock230Server* srv = player->world;
     int count = 0;
+    /*
+     * The zone box below rejects whole zones on the ORIGIN tile, which is the
+     * only coordinate a zone files an npc under — so it has to allow for a
+     * footprint reaching back into range from an origin outside it, or the
+     * per-entity test never gets asked about the npc that needed it. Players
+     * are 1x1 and pay nothing.
+     */
+    int zone_pad = want_players ? 0 : MOCK230_NPC_SIZE_MAX - 1;
 
     if( !srv )
         return 0;
@@ -1163,9 +1195,11 @@ area_entities(
             continue;
         /* The zone box first, as a cheap reject for the 40-odd zones that
          * cannot contain anything in range. */
-        if( zone_x > player->x + radius || zone_x + MOCK230_ZONE_TILES - 1 < player->x - radius )
+        if( zone_x > player->x + radius + zone_pad ||
+            zone_x + MOCK230_ZONE_TILES - 1 < player->x - radius - zone_pad )
             continue;
-        if( zone_z > player->z + radius || zone_z + MOCK230_ZONE_TILES - 1 < player->z - radius )
+        if( zone_z > player->z + radius + zone_pad ||
+            zone_z + MOCK230_ZONE_TILES - 1 < player->z - radius - zone_pad )
             continue;
         zone = zone_by_index(srv, index);
         if( !zone )
@@ -1188,10 +1222,13 @@ area_entities(
             for( int n = 0; n < zone->npc_count && count < max; n++ )
             {
                 struct Mock230Npc* npc = &srv->npcs[zone->npcs[n]];
+                int dx;
+                int dz;
 
-                if( npc->x < player->x - radius || npc->x > player->x + radius )
-                    continue;
-                if( npc->z < player->z - radius || npc->z > player->z + radius )
+                /* To the footprint, not to the origin corner — see
+                 * mock230_npc_view_deltas. */
+                mock230_npc_view_deltas(npc, player, &dx, &dz);
+                if( dx > radius || dz > radius )
                     continue;
                 out[count++] = zone->npcs[n];
             }
