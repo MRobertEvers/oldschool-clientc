@@ -3900,6 +3900,9 @@ put_npc_extended_v5(
 
     if( hit )
         flag |= V5_NPC_HITMARKS;
+    if( getenv("MOCK230_SPLAT_DEBUG") && hit )
+        fprintf(stderr, "  SPLAT npc type=%d dmg=%d type=%d hp=%d/%d\n", npc->type,
+                npc->damage, npc->damage_type, npc->hitpoints, npc->max_hitpoints);
     if( hit && npc->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 &&
         mock230_ids()->healthbar_standard_width > 0 )
         flag |= V5_NPC_HEADBARS;

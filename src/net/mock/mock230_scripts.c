@@ -4276,6 +4276,20 @@ mock230_script_command(
         {
             mock230_npc_set_mode_target(npc, NULL);
         }
+        /*
+         * `null` is not a synonym for `none` — the comment above says the two
+         * "both mean stop" and that is the half of it that is true. In
+         * `NpcOps.NPC_SETMODE`, `none` is `clearInteraction()` (stop, and stay
+         * stopped) while `null` is `resetDefaults()` (stop *this*, and go back
+         * to what the record does), and only `none` reaches the mode field.
+         *
+         * Storing -1 instead left the npc in a mode the machine dispatches
+         * nothing for, so an npc handed `npc_setmode(null)` never patrolled or
+         * wandered again — the one outcome the reference's spelling of "revert"
+         * is chosen to avoid.
+         */
+        if( mode == MOCK230_NPCMODE_NULL )
+            mock230_npc_reset_defaults(npc);
         return 1;
     }
 

@@ -3100,10 +3100,14 @@ npc_run_mode(
     if( npc->mode == MOCK230_NPCMODE_WANDER )
         return 0; /* The roam below is what wander means. */
 
-    player = npc->mode == MOCK230_NPCMODE_PATROL ? NULL : npc_mode_player(srv, npc);
-
-    if( npc->mode != MOCK230_NPCMODE_PATROL )
+    if( npc->mode == MOCK230_NPCMODE_PATROL )
     {
+        player = NULL;
+        range = 0;
+    }
+    else
+    {
+        player = npc_mode_player(srv, npc);
         /* No target, or one that no longer qualifies: back to the default mode,
          * and no movement this tick — `resetDefaults(); return;` is where the
          * reference's targeted dispatch ends. */
@@ -3113,10 +3117,6 @@ npc_run_mode(
             return 0;
         }
         range = npc_player_range(npc, player);
-    }
-    else
-    {
-        range = 0;
     }
 
     /* Every player-facing mode faces the player; only some of them move.
@@ -13379,8 +13379,14 @@ mock230_world_selftest(void)
         {
             int hans_type = mock230_content_symbol(MOCK230_PACK_NPC, "hans");
             int hans;
+            /* Every section runs against the same server, so this one puts the
+             * player back on the tile it borrowed them from — see
+             * `selftest_park_player`'s comment. Resetting the world instead
+             * would be cheaper to write and would re-init the player, which
+             * costs six later sections their starting kit. */
+            int return_x = player->x;
+            int return_z = player->z;
 
-            selftest_reset_world(&srv, player, 402, 402);
             SELFTEST_CHECK(hans_type > 0, "npc hans should resolve by name");
             hans = selftest_find_npc(&srv, hans_type);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
@@ -13412,11 +13418,16 @@ mock230_world_selftest(void)
                                "and aim the mode at the player it is talking to, got pid %d",
                                npc->mode_target_pid);
 
+                /* Phase 4 only, not a whole world tick. The mode machine is
+                 * all this section is about, and thirty full ticks here move
+                 * every combat clock, respawn timer and roam die in the world
+                 * the *next* section inherits — the roam and patrol sections
+                 * drive it the same way for the same reason. */
                 held_x = npc->x;
                 held_z = npc->z;
                 for( int i = 0; i < 30 && !moved; i++ )
                 {
-                    mock230_world_tick(&srv);
+                    advance_npcs(&srv);
                     if( npc->x != held_x || npc->z != held_z )
                         moved = 1;
                 }
@@ -13432,7 +13443,7 @@ mock230_world_selftest(void)
                 /* Walking away releases it — the reference's `resetDefaults()`
                  * on the one-tile clause, and the only exit this mode has. */
                 selftest_park_player(&srv, held_x + 4, held_z + 4);
-                mock230_world_tick(&srv);
+                advance_npcs(&srv);
                 SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_PATROL,
                                "leaving must release the hold back to patrol, got mode %d",
                                npc->mode);
@@ -13442,12 +13453,13 @@ mock230_world_selftest(void)
                 moved = 0;
                 for( int i = 0; i < 30 && !moved; i++ )
                 {
-                    mock230_world_tick(&srv);
+                    advance_npcs(&srv);
                     if( npc->x != held_x || npc->z != held_z )
                         moved = 1;
                 }
                 SELFTEST_CHECK(moved, "and the released npc must resume its patrol");
             }
+            selftest_park_player(&srv, return_x, return_z);
             mock230_scripts_free(&srv);
         }
     }
@@ -27731,9 +27743,16 @@ mock230_world_selftest(void)
                     }
                 }
                 /* State3 is the settled terminal rubble on the bridge plane. */
+                /* On the player's plane, which is the plane the state2 walls
+                 * these replace stand on. This probed plane 1 for as long as
+                 * `[ai_queue6]` placed them with `map_instance_coord(..., 1)`;
+                 * content now uses `~inferno_coord`, so the rubble lands where
+                 * the wall it replaces was rather than a storey above it. */
                 if( rocks_tick < 0 &&
-                    mock230_scene_find_loc_id(player->x - 3, player->z + 12, 1, rocks_l) >= 0 &&
-                    mock230_scene_find_loc_id(player->x + 2, player->z + 12, 1, rocks_r) >= 0 )
+                    mock230_scene_find_loc_id(player->x - 3, player->z + 12,
+                                              player->level, rocks_l) >= 0 &&
+                    mock230_scene_find_loc_id(player->x + 2, player->z + 12,
+                                              player->level, rocks_r) >= 0 )
                     rocks_tick = tick;
                 if( anim_tick >= 0 && removal_tick < 0 &&
                     mock230_scene_find_loc_id(
@@ -27822,9 +27841,9 @@ mock230_world_selftest(void)
                            cam_reset_tick, rocks_tick);
             {
                 int west_slot = mock230_scene_find_loc_id(
-                    player->x - 3, player->z + 12, 1, rocks_l);
+                    player->x - 3, player->z + 12, player->level, rocks_l);
                 int east_slot = mock230_scene_find_loc_id(
-                    player->x + 2, player->z + 12, 1, rocks_r);
+                    player->x + 2, player->z + 12, player->level, rocks_r);
                 struct Mock230SceneLoc* west = mock230_scene_loc(west_slot);
                 struct Mock230SceneLoc* east = mock230_scene_loc(east_slot);
                 SELFTEST_CHECK(west && west->angle == 3,
@@ -27985,6 +28004,119 @@ mock230_world_selftest(void)
                            "acknowledgement the rev239 client does not send");
 
             /*
+             * Every Zuk-phase add states its own hitpoints.
+             *
+             * This server reads an npc's hitpoints from its `.npc` block and
+             * from nowhere else, so an npc that states none gets
+             * `npc_default.npc`'s 10 — and `mock230_combat_hit_npc` clamps
+             * damage to the hitpoints remaining, so ten means every real hit is
+             * lethal and the splat it sends shares its tick with the death. The
+             * reported symptom was "no hitsplats on the adds"; the cause was
+             * four adds fighting the Zuk phase on ten hitpoints.
+             *
+             * Two ways they got there and both are pinned here: Jal-Zek and
+             * JalTok-Jad never stated hitpoints at all, and Jal-Xil and
+             * Jal-MejJak stated theirs in a SECOND block that the packer
+             * reported as `duplicate config:` and then resolved in favour of
+             * the first. A duplicate-config warning is not noise.
+             *
+             * Asserted against the record rather than by killing something: the
+             * value is the whole fact, and reading it cannot be confounded by
+             * whatever weapon the fixture happens to be holding.
+             */
+            {
+                static const struct
+                {
+                    const char* name;
+                    int hp;
+                    int att;
+                    int str;
+                    int def;
+                    int mage;
+                    int range;
+                    int rate;
+                } k_adds[] = {
+                    /* OldSchool wiki `?action=raw` infobox lines, matched to the
+                     * monster the CACHE names for each id (`configs/all.npc`
+                     * `name=`). Jal-Nib's 10 hitpoints really is 10 and is the
+                     * one value here that collides with the engine default, so
+                     * it is exempted from the "must differ" check below.
+                     * `rate` is the wiki's attack speed in ticks. It comes
+                     * from the cache's param 14 unless a block states it.
+                     *          hp   att   str   def  mage range rate */
+                    { "inferno_ranger_finalwave",      125,  140,  180,   60,   90,  250,  4 },
+                    { "inferno_mager_finalwave",       220,  370,  510,  260,  300,  510,  4 },
+                    { "inferno_jad_finalwave",         350,  750, 1020,  480,  510, 1020,  8 },
+                    { "inferno_jad_healer_finalwave",   90,  165,  125,  100,  150,  150,  4 },
+                    { "inferno_zuk_healer",             75,    1,    1,  100,    1,    1,  3 },
+                    { "inferno_creature_ranger",       125,  140,  180,   60,   90,  250,  4 },
+                    { "inferno_creature_mager",        220,  370,  510,  260,  300,  510,  4 },
+                    { "inferno_jad",                   350,  750, 1020,  480,  510, 1020,  8 },
+                    { "inferno_jad_healer",             90,  165,  125,  100,  150,  150,  4 },
+                    { "inferno_creature_melee",         75,  210,  290,  120,  120,  220,  4 },
+                    { "inferno_creature_melee_small",   75,  210,  290,  120,  120,  220,  4 },
+                    { "inferno_creature_harpie",        25,    0,    0,   55,  120,  120,  3 },
+                    { "inferno_creature_splitter",      40,  160,  160,   95,  160,  160,  6 },
+                    { "inferno_creature_splitter_melee",15,  120,  120,   95,    1,    1,  4 },
+                    { "inferno_creature_splitter_mage", 15,    1,    1,   95,  120,    1,  4 },
+                    { "inferno_creature_splitter_range",15,    1,    1,   95,    1,  120,  4 },
+                    { "inferno_nibbler",                10,    1,    1,   15,   15,    1,  4 },
+                    { "inferno_tzkalzuk_placeholder", 1200,  350,  600,  260,  150,  400, 10 },
+                };
+                int fallback = mock230_content_npc_default()->hitpoints;
+
+                SELFTEST_CHECK(fallback == 10,
+                               "npc_default.npc should still state hitpoints=10 — this "
+                               "stanza is about npcs that fall back to it, got %d",
+                               fallback);
+                for( size_t i = 0; i < sizeof(k_adds) / sizeof(k_adds[0]); i++ )
+                {
+                    int type = mock230_content_symbol(MOCK230_PACK_NPC, k_adds[i].name);
+                    int slot = mock230_world_npc_spawn(&srv, type, player->x + 1,
+                                                       player->z, player->level);
+                    const struct Mock230NpcDef* def =
+                        slot >= 0 ? srv.npcs[slot].def : NULL;
+
+                    SELFTEST_CHECK(def != NULL, "%s should spawn with a record",
+                                   k_adds[i].name);
+                    if( !def )
+                        continue;
+                    SELFTEST_CHECK(k_adds[i].hp == fallback ||
+                                       def->hitpoints != fallback,
+                                   "%s must state its own hitpoints — it is on the engine "
+                                   "default of %d, so one hit kills it and its splat dies "
+                                   "with it",
+                                   k_adds[i].name, fallback);
+                    SELFTEST_CHECK(def->hitpoints == k_adds[i].hp,
+                                   "%s hitpoints should be %d, got %d",
+                                   k_adds[i].name, k_adds[i].hp, def->hitpoints);
+                    /*
+                     * And the other five, which were missing outright: every
+                     * Inferno monster ran on npc_default.npc's
+                     * `attack=1 strength=1 defence=1`, so nothing here could
+                     * land a hit on the player and everything here was hit by
+                     * the player every swing.
+                     */
+                    SELFTEST_CHECK(def->attack == k_adds[i].att &&
+                                       def->strength == k_adds[i].str &&
+                                       def->defence == k_adds[i].def &&
+                                       def->magic == k_adds[i].mage &&
+                                       def->ranged == k_adds[i].range,
+                                   "%s combat levels should be att/str/def/mage/range "
+                                   "%d/%d/%d/%d/%d, got %d/%d/%d/%d/%d",
+                                   k_adds[i].name, k_adds[i].att, k_adds[i].str,
+                                   k_adds[i].def, k_adds[i].mage, k_adds[i].range,
+                                   def->attack, def->strength, def->defence, def->magic,
+                                   def->ranged);
+                    SELFTEST_CHECK(def->attackrate == k_adds[i].rate,
+                                   "%s attack speed should be %d ticks, got %d",
+                                   k_adds[i].name, k_adds[i].rate, def->attackrate);
+                    /* Leave nothing standing for the glyph stanza below. */
+                    srv.npcs[slot].active = 0;
+                }
+            }
+
+            /*
              * And the Ancestral Glyph never leaves its row.
              *
              * `moverestrict=nomove` is not available to it — walking that row
@@ -28046,6 +28178,127 @@ mock230_world_selftest(void)
 
         }
         mock230_scripts_free(&srv);
+    }
+
+    fprintf(stderr, "mock230 selftest: the Zuk fight row has six tiles blind to Zuk\n");
+    {
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv,
+                                          "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * The OSRS Wiki states a number for this room, and it is a claim
+             * about our map data and our ray cast at the same time:
+             *
+             *   "Due to two rock outcrops on either side of the boss, there are
+             *    a total of six (three per side) grouped tiles from which a
+             *    player has no line of sight to TzKal-Zuk for a ranged or magic
+             *    attack. Attempting to attack from these tiles will draw the
+             *    player towards the middle of the room until they have a line
+             *    of sight."
+             *
+             * Counted on the row the fight happens on — the northernmost
+             * standable row, where the player tracks the shield. Not over the
+             * whole floor: a blocker beside the target casts a shadow that
+             * widens the further south you stand, so the whole-floor count is
+             * 96 and means nothing. `::zuklos` prints both maps.
+             *
+             * Zuk is 7x7 and the target of a sized LoS ray is its nearest tile,
+             * so the ray aims at (clamp(x, zuk_x, zuk_x+6), zuk_z) — the same
+             * clamp `collision_line_coordinate` applies. The two rock outcrops
+             * that cast the shadow are map-square locs at the tiles either side
+             * of him; the settled flank rubble is `blockrange=0` in the cache
+             * and correctly blocks nothing.
+             *
+             * Mutating either half turns this red: drop the outcrops from the
+             * collision build and the count goes to 0; break the ray's
+             * major-axis tie-break and the groups lose their symmetry.
+             */
+            int const zuk_lx = 28;  /* ^inferno_zuk_lx */
+            int const zuk_lz = 52;  /* ^inferno_zuk_lz */
+            int const fight_lz = 45; /* MUTATION */
+            int handle;
+            int base_x = 0;
+            int base_z = 0;
+            int blind[64];
+            int blind_count = 0;
+            int groups = 0;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zukstill"),
+                           "::zukstill should allocate the settled Zuk arena");
+            /* The arena is queued behind ^inferno_reset_delay, and the locs it
+             * adds only reach the collision map once that queue has run. */
+            for( int tick = 0; tick < 6; tick++ )
+                mock230_world_tick(&srv);
+            handle = mock230_mapinstance_find(player->x, player->z);
+            SELFTEST_CHECK(handle != 0, "::zukstill should leave the player in its instance");
+            if( handle != 0 && mock230_mapinstance_base(handle, &base_x, &base_z) )
+            {
+                int const zuk_x = base_x + zuk_lx;
+                int const zuk_z = base_z + zuk_lz;
+                int const row_z = base_z + fight_lz;
+
+                for( int lx = 0; lx < 64; lx++ )
+                {
+                    int const x = base_x + lx;
+                    int target_x = x;
+
+                    if( mock230_scene_walk_blocked(player->level, x, row_z) )
+                        continue;
+                    if( target_x < zuk_x )
+                        target_x = zuk_x;
+                    if( target_x > zuk_x + 6 )
+                        target_x = zuk_x + 6;
+                    if( mock230_scene_line_of_sight(player->level, x, row_z, target_x, zuk_z,
+                                                    1, 1, 1, 1, 0) )
+                        continue;
+                    if( blind_count < (int)(sizeof(blind) / sizeof(blind[0])) )
+                        blind[blind_count] = lx;
+                    blind_count++;
+                }
+                for( int i = 0; i < blind_count && i < (int)(sizeof(blind) / sizeof(blind[0]));
+                     i++ )
+                {
+                    if( i == 0 || blind[i] != blind[i - 1] + 1 )
+                        groups++;
+                }
+
+                SELFTEST_CHECK(blind_count == 6,
+                               "the Zuk fight row should have six tiles with no line of "
+                               "sight to him, got %d",
+                               blind_count);
+                SELFTEST_CHECK(groups == 2,
+                               "and they should fall in two groups, one per rock outcrop, "
+                               "got %d",
+                               groups);
+                if( blind_count == 6 && groups == 2 )
+                {
+                    /* Mirrored about Zuk's centre column: the arena is
+                     * symmetric, and an asymmetric answer means the ray is
+                     * resolving its diagonal ties in one direction only. */
+                    int const centre = zuk_lx + 3;
+                    int mirrored = 1;
+
+                    for( int i = 0; i < 6; i++ )
+                        mirrored &= (blind[i] - centre) == -(blind[5 - i] - centre);
+                    SELFTEST_CHECK(mirrored,
+                                   "and mirror about Zuk's centre column; got "
+                                   "%d,%d,%d and %d,%d,%d",
+                                   blind[0], blind[1], blind[2], blind[3], blind[4],
+                                   blind[5]);
+                }
+            }
+            mock230_scripts_free(&srv);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: Inferno death drains Zuk and releases its instance\n");
