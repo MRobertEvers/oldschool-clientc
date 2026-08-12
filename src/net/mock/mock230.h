@@ -5291,6 +5291,14 @@ mock230_send_midi_song_envelope(
     int fade_out_speed,
     int fade_in_delay,
     int fade_in_speed);
+/* MIDI_SONG_STOP. Silence is its own packet: MIDI_SONG's id field cannot say
+ * "nothing", only "this track", and the 239 client's 65535 sentinel starts
+ * nothing rather than stopping what is playing. */
+void
+mock230_send_midi_song_stop(
+    struct Mock230Player* player,
+    int fade_out_delay,
+    int fade_out_speed);
 /* SYNTH_SOUND. Declared here because two callers want it: `SS_OP_SOUND_SYNTH`,
  * where a script asks for a noise, and mock230_combat.c, where an npc makes one
  * without a script being involved. */

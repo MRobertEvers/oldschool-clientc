@@ -543,6 +543,24 @@ w239_midi_song(
 }
 
 /*
+ * MidiSongStopEncoder v12. Both fields are p2Alt3, which is the writer side of
+ * the two `RSProt_BufferG2Le_add128` reads the client's own parse does
+ * (osrs239_parse.c, PKT_NAME_MIDI_SONG_STOP) — so the pair is confirmed from
+ * both ends rather than transcribed once.
+ *
+ * A separate packet and not `midi_song(-1)` on the wire: MIDI_SONG's id field
+ * is two bytes with 65535 meaning "no track", and the 239 client maps that to
+ * -1 and then *starts* nothing — it does not stop what is already playing.
+ * Stopping is this packet.
+ */
+static void
+w239_midi_song_stop(struct RSAreaBuf* buf, int fade_out_delay, int fade_out_speed)
+{
+    rsab_p2_alt3(buf, fade_out_delay);
+    rsab_p2_alt3(buf, fade_out_speed);
+}
+
+/*
  * AmbientSoundStartEncoder / AmbientSoundStopEncoder.
  *
  * The client reads the first byte as a boolean ("fade rather than cut"), not as
@@ -1040,6 +1058,7 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .chat_filter = w239_chat_filter,
     .synth_sound = w239_synth_sound,
     .midi_song = w239_midi_song,
+    .midi_song_stop = w239_midi_song_stop,
     .ambientsound_start = w239_ambientsound_start,
     .ambientsound_stop = w239_ambientsound_stop,
     .friendlist_loaded = w239_friendlist_loaded,

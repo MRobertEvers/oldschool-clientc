@@ -1155,8 +1155,9 @@ mock230_npc_view_deltas(
     else if( player->z > npc->z + size - 1 )
         dz = player->z - (npc->z + size - 1);
 
-    *out_dx = dx;
-    *out_dz = dz;
+    *out_dx = 0; /* MUTATION: never out of range */
+    *out_dz = 0;
+    (void)dx; (void)dz;
 }
 
 static int

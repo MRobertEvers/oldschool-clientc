@@ -64,15 +64,42 @@ layers is what turns a guess into a finding.
 
 ## Grades
 
-  confirmed   L1 or L2 kin agree unanimously AND the triple is stem-coherent
-  probable    one strong layer, stem-coherent, no contradiction
-  weak        name-only, or layers disagree
+  confirmed   two or more independent layers agree, and stem-coherent
+  probable    one strong layer (L1/L2), stem-coherent
+  weak        name or stem only
+  incoherent  a candidate exists but its three ids are not one creature's
+              triple — reported, never silently dropped
   none        nothing proposed
 
-`confirmed` is not "port this". It means the evidence is worth a human minute.
+## How accurate is it? Measure, do not assume — `--validate`
+
+Six familiars have a known answer, so run the inference against them with their
+own record (and their combat pair) hidden and see what it says. As of
+2026-08-12 that scores **3 correct, 3 wrong, 0 abstained** — a coin flip — and
+the three wrong answers are the interesting part:
+
+  Arctic bear       rig says grizzly/black bear 300/302/301; 2009scape says
+                    498/500/499, which is `jungle_horror_*`. Graded `confirmed`.
+  Spirit saratrice  rig says cockatrice 363/365/364; 2009scape says
+                    703/705/704, which is `anger_rat_*` — the Albino rat's
+                    exact triple, which looks like a copied row.
+  Unicorn stallion  name kin reaches "black unicorn", which uses `cow_*`
+                    369/371/370. Right family, wrong animal.
+
+The first two identified the creature correctly and the *source* is the odd one;
+the third is the inference being naive. No amount of extra layering separates
+those cases, because the disagreement is about what rev 530 actually shipped and
+neither side of it is observable from here.
+
+**So the grade does not predict correctness — a `confirmed` row is wrong in this
+sample.** Nothing in the output belongs in a `.npc` file on the strength of this
+tool. What it is genuinely good for is narrowing 12,010 sound effects to three
+named candidates that a person can listen to in a minute, which is the only step
+that can actually settle one of these.
 
 Usage:
-    python3 tools/infer_familiar_combat_audio.py [--out CSV] [--scratch DIR]
+    python3 tools/infer_familiar_combat_audio.py --scratch DIR [--out CSV]
+    python3 tools/infer_familiar_combat_audio.py --scratch DIR --validate
 
 `--scratch` needs `npc530.csv` (tools/dump_stats --rev 530) and an unpacked
 rev-530 seq tree (`cachepack unpack --rev 530 --types seq`); the tool says how
@@ -119,7 +146,6 @@ CREATURE_WORD = {
     "praying_mantis": "mantis",
     "ravenous_locust": "locust",
     "stranger_plant": "plant",
-    "talon_beast": "beast",
     "thorny_snail": "snail",
     "unicorn_stallion": "unicorn",
     "war_tortoise": "tortoise",
@@ -251,11 +277,20 @@ def npc_models(row: dict) -> set[int]:
 
 
 def audio_of(row: dict) -> tuple[int, int, int] | None:
+    """The [attack, hit, death] triple, or None.
+
+    A triple containing 0 is not a sound: `NPC.getAudio` explicitly refuses
+    `audio.id != 0` because effect 0 is a real clip and cannot double as "no
+    sound" — the same distinction that costs this tree a bug whenever it is
+    forgotten (docs/WEAPON_FX.md 6.6). Several records carry all-zero arrays.
+    """
     raw = row.get("combat_audio")
     if not raw:
         return None
     parts = [int(v) for v in str(raw).split(",")]
-    return (parts[0], parts[1], parts[2]) if len(parts) == 3 else None
+    if len(parts) != 3 or 0 in parts:
+        return None
+    return (parts[0], parts[1], parts[2])
 
 
 def stem_of(triple: tuple[int, int, int], names: dict[int, str]) -> str | None:
@@ -273,106 +308,176 @@ def stem_of(triple: tuple[int, int, int], names: dict[int, str]) -> str | None:
     return stems.pop() if len(stems) == 1 else None
 
 
+class Evidence:
+    """Every layer's opinion about one familiar, and the grade that follows."""
+
+    def __init__(self, npc_id: int, word: str, invented: bool):
+        self.npc_id = npc_id
+        self.word = word
+        self.invented = invented
+        self.votes: dict[tuple[int, int, int], set[str]] = defaultdict(set)
+        self.layers: set[str] = set()
+
+    def add(self, layer: str, triple, why: str) -> None:
+        if triple is None:
+            return
+        self.votes[triple].add(f"{layer} {why}")
+        self.layers.add(layer)
+
+    def verdict(self, names: dict[int, str]):
+        if not self.votes:
+            return None, set(), "none"
+        best, why = max(self.votes.items(), key=lambda kv: (len(kv[1]), -sum(kv[0])))
+        stem = stem_of(best, names)
+        layers = {w.split()[0] for w in why}
+        strong = bool(layers & {"L1", "L2"})
+        if not stem:
+            return best, why, "incoherent"
+        if len(layers) >= 2:
+            return best, why, "confirmed"
+        return best, why, "probable" if strong else "weak"
+
+
+def infer(entry: dict, ctx: dict, hide: set[int]) -> Evidence:
+    """Run every layer for one familiar.
+
+    `hide` is what makes `--validate` honest: pass the familiar's own record and
+    its combat pair and the layers cannot read the answer off the thing they are
+    being asked to predict. A pair is (id, id+1) — 2009scape gives the fighting
+    variant of a familiar the next id, with the same audio.
+    """
+    npc_id = int(entry["source_npc"])
+    name = entry["entry"]
+    word = CREATURE_WORD.get(name, name.replace("spirit_", "").replace("_", " "))
+    ev = Evidence(npc_id, word, name in INVENTED)
+    row = ctx["dump"].get(npc_id)
+    by_id, names, triples = ctx["by_id"], ctx["names"], ctx["triples"]
+
+    if row:
+        bas = (row.get("bas_type_id") or "").strip()
+        if bas and bas != "-1":
+            for kin in ctx["kin_by_bas"].get(int(bas), []):
+                if kin in hide:
+                    continue
+                ev.add("L1", audio_of(by_id[kin]), f"rig:{by_id[kin].get('name')}")
+        for model in npc_models(row):
+            for kin in ctx["kin_by_model"].get(model, []):
+                if kin in hide:
+                    continue
+                ev.add("L2", audio_of(by_id[kin]), f"model:{by_id[kin].get('name')}")
+
+    # A made-up species has no live counterpart, so a name that happens to
+    # contain a common word ("talon BEAST" -> dark beast) is noise, not kin.
+    if not ev.invented:
+        for kin_id, kin_name, audio in ctx["named_with_audio"]:
+            if kin_id in hide:
+                continue
+            if re.search(rf"\b{re.escape(word)}\b", kin_name):
+                ev.add("L3", audio, f"name:{kin_name}")
+        for stem, slots in sorted(triples.items()):
+            if re.search(rf"(^|_){re.escape(word.replace(' ', '_'))}(_|$)", stem):
+                ev.add("L4", (slots["attack"], slots["hit"], slots["death"]), f"stem:{stem}")
+                break
+    return ev
+
+
+def build_context(scratch: Path) -> dict:
+    names = load_sound_names()
+    source = load_source_npcs()
+    dump = load_npc_dump(scratch)
+    by_id = {int(r["id"]): r for r in source}
+    kin_by_bas: dict[int, list[int]] = defaultdict(list)
+    kin_by_model: dict[int, list[int]] = defaultdict(list)
+    for npc_id, row in dump.items():
+        if not audio_of(by_id.get(npc_id, {})):
+            continue
+        bas = (row.get("bas_type_id") or "").strip()
+        if bas and bas != "-1":
+            kin_by_bas[int(bas)].append(npc_id)
+        for model in npc_models(row):
+            kin_by_model[model].append(npc_id)
+    return dict(
+        names=names, triples=load_triples(names), dump=dump, by_id=by_id,
+        kin_by_bas=kin_by_bas, kin_by_model=kin_by_model,
+        named_with_audio=[(int(r["id"]), (r.get("name") or "").lower(), audio_of(r))
+                          for r in source if audio_of(r)])
+
+
+def validate(ctx: dict, roster: list[dict]) -> int:
+    """Score the inference against the six familiars whose answer is known."""
+    print("blind validation — the familiar's own record and its pair are hidden\n")
+    print("%-20s %-18s %-18s %s" % ("familiar", "2009scape says", "inference says", "verdict"))
+    correct = wrong = abstain = 0
+    for entry in sorted(roster, key=lambda r: r["entry"]):
+        npc_id = int(entry["source_npc"])
+        truth = audio_of(ctx["by_id"].get(npc_id, {}))
+        if not truth:
+            continue
+        ev = infer(entry, ctx, hide={npc_id, npc_id + 1, npc_id - 1})
+        best, why, grade = ev.verdict(ctx["names"])
+        if best is None:
+            verdict, abstain = "abstained", abstain + 1
+        elif best == truth:
+            verdict, correct = f"MATCH ({grade})", correct + 1
+        else:
+            verdict, wrong = f"WRONG ({grade})", wrong + 1
+        print("%-20s %-18s %-18s %s" % (
+            entry["entry"], str(truth), str(best) if best else "-", verdict))
+        if best and best != truth:
+            print("      %s -> %s ; source triple is %s" % (
+                sorted(why)[0],
+                stem_of(best, ctx["names"]),
+                stem_of(truth, ctx["names"])))
+    print(f"\n{correct} correct, {wrong} wrong, {abstain} abstained "
+          f"out of {correct + wrong + abstain} with a known answer")
+    if wrong:
+        print("A wrong answer at this rate means no row in the candidate ledger "
+              "is portable on its own.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path,
                         default=REPO / "docs/summoning_port/familiar_combat_audio_candidates.csv")
     parser.add_argument("--scratch", type=Path, required=True,
                         help="directory holding npc530.csv and src530/")
+    parser.add_argument("--validate", action="store_true",
+                        help="score the inference against the six known familiars and exit")
     args = parser.parse_args()
 
-    names = load_sound_names()
-    triples = load_triples(names)
-    source = load_source_npcs()
-    dump = load_npc_dump(args.scratch)
-    seq_archives = load_seq_archives(args.scratch)
-
-    by_id = {int(r["id"]): r for r in source}
-    # Every source npc that has combat audio, indexed by the evidence we can
-    # join it on. Built once; every familiar queries it.
-    kin_by_archive: dict[int, list[int]] = defaultdict(list)
-    kin_by_model: dict[int, list[int]] = defaultdict(list)
-    for npc_id, row in dump.items():
-        if not audio_of(by_id.get(npc_id, {})):
-            continue
-        for archive in npc_archives(row, seq_archives):
-            kin_by_archive[archive].append(npc_id)
-        for model in npc_models(row):
-            kin_by_model[model].append(npc_id)
-
-    named_with_audio = [
-        (int(r["id"]), (r.get("name") or "").lower(), audio_of(r))
-        for r in source if audio_of(r)
-    ]
-
+    ctx = build_context(args.scratch)
+    names = ctx["names"]
     roster = list(csv.DictReader(ROSTER.open(encoding="utf-8")))
+    if args.validate:
+        return validate(ctx, roster)
+
     out_rows = []
     for entry in sorted(roster, key=lambda r: r["entry"]):
         name = entry["entry"]
         npc_id = int(entry["source_npc"])
-        own = audio_of(by_id.get(npc_id, {}))
+        own = audio_of(ctx["by_id"].get(npc_id, {}))
         if own:
             out_rows.append(dict(
                 entry=name, source_npc=npc_id, source_name=entry["source_name"],
                 grade="source", attack=own[0], defend=own[1], death=own[2],
-                stem=stem_of(own, names) or "", layer="L0 2009scape combat_audio",
-                evidence="the familiar's own record"))
+                stem=stem_of(own, names) or "", layer="L0",
+                evidence="2009scape combat_audio on the familiar's own record"))
             continue
-
-        row = dump.get(npc_id)
-        word = CREATURE_WORD.get(name, name.replace("spirit_", "").replace("_", " "))
-        votes: dict[tuple[int, int, int], set[str]] = defaultdict(set)
-        layers: set[str] = set()
-
-        if row:
-            for archive in npc_archives(row, seq_archives):
-                for kin in kin_by_archive.get(archive, []):
-                    votes[audio_of(by_id[kin])].add(f"L1 rig:{by_id[kin].get('name')}")
-                    layers.add("L1")
-            for model in npc_models(row):
-                for kin in kin_by_model.get(model, []):
-                    votes[audio_of(by_id[kin])].add(f"L2 model:{by_id[kin].get('name')}")
-                    layers.add("L2")
-
-        for kin_id, kin_name, audio in named_with_audio:
-            if kin_id == npc_id:
-                continue
-            if re.search(rf"\b{re.escape(word)}\b", kin_name):
-                votes[audio].add(f"L3 name:{kin_name}")
-                layers.add("L3")
-
-        stem_hit = None
-        for stem, slots in triples.items():
-            if re.search(rf"(^|_){re.escape(word.replace(' ', '_'))}(_|$)", stem):
-                stem_hit = (stem, (slots["attack"], slots["hit"], slots["death"]))
-                votes[stem_hit[1]].add(f"L4 stem:{stem}")
-                layers.add("L4")
-                break
-
-        if not votes:
+        ev = infer(entry, ctx, hide={npc_id, npc_id + 1})
+        best, why, grade = ev.verdict(names)
+        if best is None:
             out_rows.append(dict(
                 entry=name, source_npc=npc_id, source_name=entry["source_name"],
                 grade="none", attack="", defend="", death="", stem="",
-                layer="invented species" if name in INVENTED else "",
-                evidence="no kin with combat audio, no name match, no stem"))
+                layer="invented species" if ev.invented else "",
+                evidence="no rig or model kin with combat audio, no name kin, no stem"))
             continue
-
-        best, why = max(votes.items(), key=lambda kv: (len(kv[1]), -sum(kv[0])))
-        stem = stem_of(best, names)
-        strong = any(w.startswith(("L1", "L2")) for w in why)
-        unanimous = len(votes) == 1
-        if not stem:
-            grade = "incoherent"
-        elif strong and unanimous:
-            grade = "confirmed"
-        elif strong or (len(why) > 1):
-            grade = "probable"
-        else:
-            grade = "weak"
         out_rows.append(dict(
             entry=name, source_npc=npc_id, source_name=entry["source_name"],
             grade=grade, attack=best[0], defend=best[1], death=best[2],
-            stem=stem or "MIXED", layer="+".join(sorted(layers)),
+            stem=stem_of(best, names) or "MIXED",
+            layer="+".join(sorted(ev.layers)),
             evidence="; ".join(sorted(why))[:400]))
 
     args.out.parent.mkdir(parents=True, exist_ok=True)

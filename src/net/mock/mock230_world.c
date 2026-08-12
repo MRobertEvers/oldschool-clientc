@@ -2494,6 +2494,20 @@ npc_spawn(
              * footprint and still has to obey its turnspeed. */
             const struct Mock230NpcInfo* info = mock230_npcinfo_record(type);
             npc->size = (info && info->size > 0) ? info->size : 1;
+            /*
+             * NPC_INFO measures view range to the footprint, and the ZoneMap's
+             * zone pre-reject pads by MOCK230_NPC_SIZE_MAX to match. An npc
+             * past that pad can be dropped from the candidate set while its
+             * body is in plain view — the same class of disappearance the
+             * footprint measure exists to fix, so it says so rather than
+             * waiting to be rediscovered from a screenshot.
+             */
+            if( npc->size > MOCK230_NPC_SIZE_MAX )
+                fprintf(stderr,
+                        "mock230: npc type %d is size %d, above MOCK230_NPC_SIZE_MAX (%d) — "
+                        "it can leave view early on its east/north sides; raise the "
+                        "constant\n",
+                        type, npc->size, MOCK230_NPC_SIZE_MAX);
             /* The server overlay wins when it states one, because the cache
              * the server booted from is not necessarily the cache the client
              * did. Unstated (-1) defers to the record. */
@@ -25261,12 +25275,21 @@ mock230_world_selftest(void)
                  * entities the encoder will discard and crowds out ones
                  * genuinely beside the player — silent, and reachable now the
                  * world roster is 23,139 rather than 63.
+                 *
+                 * Measured to the FOOTPRINT, which is the measure the query
+                 * answers on (mock230_npc_view_deltas). Against the origin
+                 * corner this reads as a leak the moment a sized npc is in
+                 * range — a 7x7 boss beside the player has an origin six tiles
+                 * away on each axis and belongs in the set.
                  */
-                if( npc->x < player->x - MOCK230_NPC_VIEW_TILES ||
-                    npc->x > player->x + MOCK230_NPC_VIEW_TILES ||
-                    npc->z < player->z - MOCK230_NPC_VIEW_TILES ||
-                    npc->z > player->z + MOCK230_NPC_VIEW_TILES )
-                    area_outrange++;
+                {
+                    int view_dx;
+                    int view_dz;
+
+                    mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+                    if( view_dx > MOCK230_NPC_VIEW_TILES || view_dz > MOCK230_NPC_VIEW_TILES )
+                        area_outrange++;
+                }
             }
             SELFTEST_CHECK(area_stray == 0,
                            "everything the area yields should stand in a zone it subscribes "
@@ -25437,6 +25460,133 @@ mock230_world_selftest(void)
         player->tracked_count = 0;
         memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
         mock230_world_tick(&srv);
+    }
+
+    fprintf(stderr, "mock230 selftest: NPC_INFO measures view range to the footprint\n");
+    {
+        /*
+         * A sized npc is in view while any TILE of it is, not while its
+         * south-west origin is.
+         *
+         * The corner measure is only wrong for things bigger than 1x1, so it
+         * survived every roster this suite had until a 7x7 boss stood in a room
+         * you can walk 17 tiles east in: TzKal-Zuk's origin is his west edge, so
+         * from the east side of the Inferno arena he was removed from the client
+         * with his nearest tile ten tiles away and his model filling the screen.
+         * Nothing about that says "server" — it reads as the painter dropping
+         * him, and it was diagnosed as one for a while.
+         *
+         * Both directions, because only the pair pins a measure: the near case
+         * fails against the origin corner, and the far case fails against a test
+         * that has stopped measuring anything. The size is set on the spawned
+         * npc rather than found in the roster so the geometry is the fixture's
+         * and not the content's.
+         */
+        int type = mock230_content_symbol(MOCK230_PACK_NPC, "test_combat");
+        int slot = -1;
+        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+        const struct Mock230Wire* wire230 = mock230_wire_by_name("osrs230");
+        int const size = 7;
+        /* Origin 16 tiles west — one past the old corner box — so the body
+         * spans [x-16, x-10] and its nearest tile is 10 away. */
+        int const near_origin_dx = -16;
+        /* Origin 22 west: the body spans [x-22, x-16], nearest tile 16, which
+         * is out of view by one on the measure that matters. */
+        int const far_origin_dx = -22;
+
+        SELFTEST_CHECK(type >= 0, "test_combat should be available as the sized-npc fixture");
+        SELFTEST_CHECK(wire239 && wire230, "both npc-stream wires should exist");
+        if( type >= 0 && wire239 && wire230 )
+        {
+            selftest_park_player(&srv, g_home_x, g_home_z);
+            mock230_world_set_active(&srv, player);
+            slot = mock230_world_npc_spawn(&srv, type, player->x + near_origin_dx, player->z,
+                                           player->level);
+        }
+        SELFTEST_CHECK(slot >= 0, "the sized-npc fixture should spawn");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[slot];
+            int origin_dx;
+
+            npc->spawn_pending = 0;
+            npc->size = size;
+            npc->mode = MOCK230_NPCMODE_NONE;
+
+            /* The footprint measure is the modern stream's — the classic add
+             * cannot express the origin delta it implies, which the third case
+             * below states outright. */
+            srv.wire = wire239;
+
+            player->tracked_count = 0;
+            memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+            mock230_slotmap_reset(player);
+            /* Phase 8's order by hand — this section does not run a tick, and
+             * the map files an npc only when the reconcile runs. */
+            mock230_zone_sync_npcs(&srv);
+            mock230_playerzonemap_move(player);
+            mock230_send_npc_info(player);
+
+            SELFTEST_CHECK(player->npc_tracked[slot],
+                           "a %dx%d npc whose nearest tile is %d away should be in view, "
+                           "origin %d tiles out", size, size, -near_origin_dx - (size - 1),
+                           -near_origin_dx);
+
+            /* And the add the client was handed can say where it is: the record
+             * carries the ORIGIN delta in 6 signed bits. */
+            origin_dx = npc->x - player->x;
+            SELFTEST_CHECK(origin_dx >= -32 && origin_dx <= 31,
+                           "and the v5 add's 6-bit origin delta should reach it, %d does not",
+                           origin_dx);
+
+            npc->x = player->x + far_origin_dx;
+            npc->tele = 0;
+            player->tracked_count = 0;
+            memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+            mock230_slotmap_reset(player);
+            mock230_zone_sync_npcs(&srv);
+            mock230_playerzonemap_move(player);
+            mock230_send_npc_info(player);
+
+            SELFTEST_CHECK(!player->npc_tracked[slot],
+                           "and the same npc with its nearest tile %d away should not be, "
+                           "or the range test has stopped measuring",
+                           -far_origin_dx - (size - 1));
+
+            /*
+             * And the classic stream keeps the corner, on purpose.
+             *
+             * Its add carries 5-bit signed deltas from the origin (-16..15), so
+             * an npc kept by its footprint at 16 out is one it can never
+             * re-express: it would be dropped on the tick it left view and
+             * never come back. Stated as a test because "the two encoders
+             * differ in how they spell an add, not in who is addable" is the
+             * rule everywhere else in this file, and this is the one place it
+             * does not hold.
+             */
+            npc->x = player->x + near_origin_dx;
+            srv.wire = wire230;
+            player->tracked_count = 0;
+            memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+            mock230_slotmap_reset(player);
+            mock230_zone_sync_npcs(&srv);
+            mock230_playerzonemap_move(player);
+            mock230_send_npc_info(player);
+
+            SELFTEST_CHECK(!player->npc_tracked[slot],
+                           "the classic stream should keep the origin box, its add reaches "
+                           "-16..15 and this origin is %d out", -near_origin_dx);
+
+            srv.wire = saved_wire;
+            npc->active = 0;
+            mock230_zone_sync_npcs(&srv);
+            player->tracked_count = 0;
+            memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
+            mock230_slotmap_reset(player);
+            selftest_park_player(&srv, g_home_x, g_home_z);
+            mock230_world_tick(&srv);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: an npc nothing describes still wanders\n");
@@ -28384,6 +28534,9 @@ mock230_world_selftest(void)
             int collapse_sound_tick = -1;
             int settle_sound_tick = -1;
             int total_collapse_sound = 0;
+            /* And the room's music going out and coming back around it. */
+            int music_stop_tick = -1;
+            int music_resume_tick = -1;
 
             /* Literal revision-239 cache ids make this a packet-layout
              * regression, rather than a test that can follow a bad symbol
@@ -28434,6 +28587,40 @@ mock230_world_selftest(void)
                 total_right_seq += tick_right_seq;
                 total_pillar_seq += tick_pillar_seq;
 
+                /*
+                 * Audio, counted BEFORE the barrier's `continue`.
+                 *
+                 * The loc assertions below can skip the rebuild tick because a
+                 * loc event on it is the thing they are forbidding. Audio is
+                 * the opposite case: `midi_song(-1)` is the first line of
+                 * `~inferno_zuk_begin` and shares its tick with the fade, which
+                 * is exactly the tick the rebuild is pending on — so measuring
+                 * it after the `continue` measures nothing and reports it as
+                 * "never sent".
+                 */
+                {
+                    int tick_collapse = selftest_capture_synth_count(&capture, srv.wire, 2039);
+
+                    total_collapse_sound += tick_collapse;
+                    if( rumble_tick < 0 &&
+                        selftest_capture_synth_count(&capture, srv.wire, 2045) )
+                        rumble_tick = tick;
+                    if( collapse_sound_tick < 0 && tick_collapse )
+                        collapse_sound_tick = tick;
+                    if( settle_sound_tick < 0 &&
+                        selftest_capture_synth_count(&capture, srv.wire, 2294) )
+                        settle_sound_tick = tick;
+                    if( music_stop_tick < 0 &&
+                        mock230_capture_find(
+                            &capture, mock230_wire_opcode(srv.wire, PKT_NAME_MIDI_SONG_STOP),
+                            0) >= 0 )
+                        music_stop_tick = tick;
+                    if( music_stop_tick >= 0 && music_resume_tick < 0 &&
+                        mock230_capture_find(
+                            &capture, mock230_wire_opcode(srv.wire, PKT_NAME_MIDI_SONG), 0) >= 0 )
+                        music_resume_tick = tick;
+                }
+
                 if( player->rebuild_scene_pending && !barrier_seen )
                 {
                     barrier_seen = 1;
@@ -28447,19 +28634,6 @@ mock230_world_selftest(void)
                     mock230_world_handle(
                         player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
                     continue;
-                }
-                {
-                    int tick_collapse = selftest_capture_synth_count(&capture, srv.wire, 2039);
-
-                    total_collapse_sound += tick_collapse;
-                    if( rumble_tick < 0 &&
-                        selftest_capture_synth_count(&capture, srv.wire, 2045) )
-                        rumble_tick = tick;
-                    if( collapse_sound_tick < 0 && tick_collapse )
-                        collapse_sound_tick = tick;
-                    if( settle_sound_tick < 0 &&
-                        selftest_capture_synth_count(&capture, srv.wire, 2294) )
-                        settle_sound_tick = tick;
                 }
                 if( tick_left && tick_right && change_tick < 0 )
                     change_tick = tick;
@@ -28603,6 +28777,28 @@ mock230_world_selftest(void)
                            "the settle must land with the state3 rubble; got sound=%d "
                            "rocks=%d",
                            settle_sound_tick, rocks_tick);
+            /*
+             * The room's music, out with the picture and back with the camera.
+             *
+             * The failure this pins is one-sided and quiet: forgetting to stop
+             * it leaves a four-minute loop over the whole collapse, and
+             * forgetting to *restart* it leaves the fight silent for as long as
+             * the player stays in the Inferno — because region music only fires
+             * on a map-square crossing and the player does not move again.
+             * Neither shows up anywhere else in this fixture.
+             *
+             * MIDI_SONG_STOP before the first LOC_ADD_CHANGE: the stop shares
+             * its tick with the fade-out, which is the first thing the script
+             * does, and every wall event waits for the rebuild barrier.
+             */
+            SELFTEST_CHECK(music_stop_tick >= 0 && music_stop_tick <= change_tick,
+                           "the room music must stop with the fade, before the seal is "
+                           "touched; got stop=%d change=%d",
+                           music_stop_tick, change_tick);
+            SELFTEST_CHECK(music_resume_tick == cam_reset_tick,
+                           "the music must come back on the tick the camera does; got "
+                           "resume=%d cam_reset=%d",
+                           music_resume_tick, cam_reset_tick);
             /* 7560/7559 are 90 frames at two client cycles each: 180 cycles,
              * exactly six server ticks. The temporary state2 locs are removed
              * on the same boundary that installs their state3 terminal pose. */

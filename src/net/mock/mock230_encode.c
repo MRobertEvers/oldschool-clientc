@@ -143,6 +143,7 @@ enum
     OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
     OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
+    OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
     OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
     OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
     OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
@@ -1923,6 +1924,33 @@ mock230_send_midi_song_envelope(
                 &buf, id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
     }
     flush(player, &buf, OP_MIDI_SONG, 0);
+}
+
+void
+mock230_send_midi_song_stop(
+    struct Mock230Player* player,
+    int fade_out_delay,
+    int fade_out_speed)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    /*
+     * Return rather than flush an empty body when the revision has no writer.
+     *
+     * `mock230_send_midi_song` above flushes unconditionally, which for a
+     * revision with no `midi_song` writer puts a zero-length MIDI_SONG on the
+     * wire — harmless there only because every revision this tree runs has one.
+     * MIDI_SONG_STOP is genuinely absent from osrs230's packet table, so this
+     * one WILL take the missing-writer path, and a 0-byte body where the client
+     * expects 4 desynchronises the stream rather than being ignored.
+     * `mock230_send` reports the unmapped name once by itself.
+     */
+    if( !pl || !pl->midi_song_stop )
+        return;
+    open_packet(&buf, 8);
+    pl->midi_song_stop(&buf, fade_out_delay, fade_out_speed);
+    flush(player, &buf, OP_MIDI_SONG_STOP, 0);
 }
 
 void
@@ -4474,6 +4502,15 @@ mock230_send_npc_info(struct Mock230Player* player)
          * ignored level too; now that the candidates come from the ZoneMap —
          * which is keyed by level — an npc left tracked across a climb could
          * never be re-added, only re-encoded forever. */
+        /*
+         * The ORIGIN corner, deliberately, where the v5 encoder above measures
+         * the footprint. This revision's add carries 5-bit signed deltas from
+         * the origin — -16..15, and no room at all for the 15 + (size - 1) a
+         * footprint measure reaches. Keeping a sized npc past what the add can
+         * re-express means it is dropped on the tick it leaves and can never
+         * come back, which is worse than losing it early. Large npcs on the
+         * classic wire want a wider add field, not a wider keep test.
+         */
         int in_range = npc->active && npc->level == player->level && dx >= -15 && dx <= 15 &&
                        dz >= -15 && dz <= 15;
         int extended = npc_extended_pending(npc);
@@ -4545,8 +4582,11 @@ mock230_send_npc_info(struct Mock230Player* player)
      * exact range test below still decides; what changed is how many npcs it is
      * asked about.
      */
-    /* Same query as the v5 path above, and it has to be the same: the two
-     * encoders differ in how they spell an add, not in who is addable. */
+    /* Same query as the v5 path above — the two encoders differ in how they
+     * spell an add, not in who they ask about. The query answers on footprints,
+     * so it can hand this loop a sized npc whose origin is further out than the
+     * 5-bit delta reaches; the origin test below is what turns that down, for
+     * the reason given at the high-resolution loop. */
     nearby_count = mock230_playerzonemap_npcs(player, MOCK230_NPC_VIEW_TILES, nearby,
                                      MOCK230_TRACKED_NPC_MAX);
     for( int i = 0; i < nearby_count; i++ )

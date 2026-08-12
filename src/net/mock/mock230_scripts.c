@@ -8188,7 +8188,28 @@ mock230_script_command(
              * The next mapped region can then restore its normal track when an
              * instanced encounter teleports the player back out. */
             player->music_track = id;
-            mock230_send_midi_song(player, id);
+            /*
+             * A negative id is "no music", not track -1 — the same rule
+             * `SS_OP_SOUND_SYNTH` states a few cases above, and for the same
+             * reason: these ids default to -1, so a caller that means silence
+             * has one spelling and it should not be a second command.
+             *
+             * It has to be MIDI_SONG_STOP and not MIDI_SONG carrying the id.
+             * MIDI_SONG's id is two bytes with 65535 as the sentinel, and the
+             * 239 client turns that into -1 and then starts nothing — it never
+             * stops what is already playing. So `midi_song(-1)` on a track that
+             * is running would leave the track running, which is the failure a
+             * cutscene asking for silence cannot see: it would look exactly
+             * like the command not being called at all.
+             *
+             * 0 delay, 30 speed: the same 600 ms ramp `mock230_music_enter_region`
+             * uses in both directions, so a stop and the region's own fade-in
+             * are the same length rather than two different-feeling ramps.
+             */
+            if( id < 0 )
+                mock230_send_midi_song_stop(player, 0, 30);
+            else
+                mock230_send_midi_song(player, id);
         }
         return 1;
     }

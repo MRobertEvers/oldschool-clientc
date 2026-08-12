@@ -12363,6 +12363,23 @@ app_minimenu_open(
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app->need_redraw = 1;
+        if( getenv("TORIRS_MINIMENU_DEBUG") )
+        {
+            fprintf(
+                stderr,
+                "minimenu: font=%d line_box=%d content_w=%d width=%d\n",
+                menu->font_id,
+                line_box,
+                content_w,
+                menu->width);
+            for( int i = 0; i < menu->option_count; i++ )
+                fprintf(
+                    stderr,
+                    "  measure[%d]=%d \"%s\"\n",
+                    i,
+                    app_measure_text_cb(app, menu->font_id, menu->options[i].text),
+                    menu->options[i].text);
+        }
     }
 }
 
