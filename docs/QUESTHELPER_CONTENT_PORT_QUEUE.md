@@ -334,7 +334,7 @@ filed under `helpers/miniquests/` are at the end.
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done |  |
-| 174 | recipefordisaster | `recipefordisaster` | 3,370 | in_progress | 2026-08-12: intro + Evil Dave + Lumbridge Guide + Goblin generals done; Dwarf/Pirate Pete/Uglogwee/Amik Varze/Awowogei/finale remain; see Log |
+| 174 | recipefordisaster | `recipefordisaster` | 3,370 | done | 2026-08-12: full port complete -- intro + all 8 sub-quests (Evil Dave, Lumbridge Guide, Goblin generals, Mountain Dwarf, Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei) + Culinaromancer finale, across two ticks; see Log |
 | 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
@@ -6008,3 +6008,152 @@ filed under `helpers/miniquests/` are at the end.
   the table -- the queue's `pending` backlog is now exhausted; two rows
   remain `in_progress` (#43/P2 asoulsbane, dbrow-less from an earlier tick,
   and this one).
+
+- slice 174 Recipe for Disaster (2026-08-12, second tick): `done` -- the
+  remaining five sub-quests plus the Culinaromancer finale, completing the
+  quest end-to-end. Checked both suggested cross-reference leads first, per
+  the brief: `quest_recruitmentdrive` turned out to be a dead end for Sir
+  Amik Varze (it never references him at all; its own `recruitmentdrive.rs2`
+  carries an unrelated stray comment pointing at `quest_wanted/scripts/
+  wanted_tiffy_amik.rs2`, a different "real world" Amik at the White
+  Knights' Castle -- RFD's own Amik is the frozen ambassador `hundred_varze_
+  base`, never touched by either quest); `quest_monkeymadnessi`/`ii` were
+  the opposite -- genuinely load-bearing, see below. **Freeing the Mountain
+  Dwarf**: Kaylee (`risingsun_barmaid2`/`_barmaid`/`_barmaid3`, already
+  merged-into by `quest_belowicemountain`) already sells `asgarnian_ale` for
+  3gp, matching the wiki's own price, so no purchase script was needed, only
+  a merged "what do you know about dwarves" branch; Rohak
+  (`hundred_dwarf_dad`) is genuinely new. GetRohakDrunk.java's real 4-dose
+  "keep giving him ale" loop collapses to one asgoldian-ale use (same
+  precedent as Evil Dave's own stew-dosing), and the rock cake's real
+  cooling step (ice gloves, or an icefiend kill) is skipped entirely -- no
+  "combat kill transforms a held item" mechanic exists anywhere in this tree
+  -- Rohak just hands over an already-cool cake. **Freeing Pirate Pete**:
+  the largest individual collapse of the tick -- diving-helmet crafting
+  (bronze wire + needle), 5 rocks to distract mudskippers, and the raw/burn-
+  chance cooking distinction all dropped (no precedent for any of the
+  three); what stayed real: Murphy (merged into `minigames/game_trawler/
+  scripts/murphy.rs2`'s live `[opnpc1,murphy]`) hands over ready-made diving
+  gear, then real underwater combat against `hundred_pirate_giant_
+  mudskipper`/`_crab` (both already world-spawned in `m46_148.spawn`, zero
+  hand-spawning needed) for Nung (`100_pirate_mogre_nung`, also world-
+  spawned, genuinely new trigger), then the Cook (third merged branch into
+  `quest_cook.rs2`'s `[opnpc1,cook]`, now carrying intro + Pirate Pete +
+  Amik Varze) grinds/cooks the ingredients himself. Caught and fixed a self-
+  introduced bug while adding the third Cook branch: the Pirate Pete merge's
+  own guard (`%rfd_pirate < ^rfd_pirate_cake_made`) was missing a `%rfd_
+  pirate >= ^rfd_pirate_inspected` lower bound, so any player who'd finished
+  the RFD intro but never once inspected Pete would have the Cook's normal
+  post-Cook's-Assistant banter permanently hijacked into a "go inspect Pete"
+  loop -- fixed before it shipped, both new Cook branches now correctly
+  guarded on their own ambassador having been inspected first. **Freeing
+  Skrach Uglogwee**: Rantz's real Feldip-Hills-to-Karamja ferry (push-tree
+  boat, spit-roast a chompy, sail back) and the toad-balloon-lure-then-shoot
+  mechanic for the jubbly bird both collapse (no toad-luring/balloon
+  mechanic or lured-target archery sequence anywhere in this tree) to:
+  giving Rantz (merged into `quest_onesmallfavour/scripts/
+  onesmallfavour_relay.rs2`'s live `[opnpc1,rantz]`) a raw chompy, then real
+  combat against a hand-spawned `100_jubbly_bird` (no native `.spawn` entry
+  exists for it, same "hand-spawn on trigger" idiom as Dream Mentor),
+  cooked for real on Rantz's own spit-roast loc (`multi_chompybird_
+  spitroast_entity`, no existing trigger). **Freeing Sir Amik Varze**: by
+  far the most heavily-gated sub-quest -- real hard prerequisites on Family
+  Crest/Waterfall Quest/Shilo Village/Heroes' Quest/Underground Pass/Lost
+  City all being FINISHED, every one of them confirmed actually `done` in
+  this queue first (`%crestquest`/`%waterfall_quest`/`%zombiequeen`/
+  `%heroquest`/`%upass`/`%zanaris`). The real seven-stage brulee (cornflour
+  from windmill-ground sweetcorn, a Kharazi Jungle vanilla pod, dramen-
+  branch garnish, cinnamon, then rubbing a token to summon a fairy dragon to
+  flambe it) collapses to the Wise Old Man (third merged branch into
+  `quest_makingfriendswithmyarm/scripts/makingfriendswithmyarm.rs2`'s
+  shared `[opnpc1,wise_old_man]`, alongside Garden of Tranquility and Swan
+  Song's own branches) finishing it himself once handed an egg, a token,
+  milk and cream -- he's already the RFD-relevant "strange beasts" expert
+  in the real transcript. What stayed real: the Evil Chicken fight (hand-
+  spawned for real via sacrificing a raw chicken on the actual `fairy_
+  chicken_shrine` loc, not narrated) and the black dragon fight for the
+  dragon token -- `black_dragon` already has a tree-wide `[ai_queue3,
+  black_dragon]` generic loot table (`drop_tables/scripts/black_dragon.rs2`)
+  reused via a coordinate-gated merge (bounded to the real Zanaris chicken-
+  lair box, 2430-2492/4355-4407) so the token doesn't drop from every black
+  dragon in the game. **Freeing King Awowogei**: per the brief, checked
+  `quest_mm`/`quest_monkeymadnessii` first and found them genuinely load-
+  bearing rather than a dead end -- Ape Atoll's own greegree-disguise system
+  (`quest_mm/scripts/mm_greegree.rs2`, `~mm_wearing_greegree` proc) is
+  reused as-is, and Awowogei's own throne (`mm_throne`) already carries live
+  `[oploc1,mm_throne]`/`[oplocu,mm_throne]` triggers from `quest_mm/scripts/
+  mm_awowogei.rs2` (itself already carrying Monkey Madness II's own soft-
+  skips) -- merged, not duplicated, gated behind `%mm_main >= ^monkeymadness
+  _complete` so it can never collide with either quest's in-progress
+  dialogue. The real three-greegree relay (gorilla for the banana tree,
+  ninja for the nut hole, zombie for the hot-rock cooking dungeon) plus a
+  Crash Island boat trip collapses -- no precedent anywhere for chaining
+  three disguise-gated sub-zones in one fetch quest -- to: real combat
+  against a Big Snake (`hundred_ilm_snake`, a real level-84 native spawn in
+  `m47_85.spawn`, no hand-spawning needed) for its corpse, then the Wise
+  Monkeys (`hundred_ilm_iwazaru`, also a real native spawn in `m43_43.spawn`,
+  genuinely new trigger) prepare and cook the stuffed snake themselves once
+  handed the corpse plus plain banana/monkey nuts/rope/knife/pestle and
+  mortar -- both Awowogei and the Wise Monkeys still gate on a real equipped
+  greegree + held M'speak amulet, reusing Monkey Madness I's own access
+  rule rather than inventing a new one. **The Culinaromancer finale**: with
+  all 8 sub-quests genuinely complete this tick, attempted and finished it
+  too -- unlike the sub-quests it has no gathering/crafting content at all,
+  just a straight six-boss gauntlet (Agrith-Na-Na, Flambeed, Karamel,
+  Dessourt, the Gelatinnoth Mother, the Culinaromancer) through a portal
+  (`hundred_portal_multi`, new trigger) into the real fighting arena, hard-
+  gated on all eight `%rfd_*` sub-quest states plus the real Desert Treasure
+  (`%deserttreasure >= ^dt_complete`) and Horror from the Deep (`%horrorquest
+  >= ^horror_complete`) prerequisites, both already `done` in this queue.
+  All six boss npcs have no native `.spawn` entry anywhere in this tree, so
+  each is hand-spawned in sequence on defeating the last, same idiom as
+  Dream Mentor. One simplification: the real Gelatinnoth Mother cycles
+  through six elemental resistances (air/earth/fire/water/melee/ranged) with
+  no elemental-weakness-cycling boss mechanic anywhere else in this tree, so
+  she's fought once in a single fixed form (`hundred_minion5_air`), ordinary
+  combat -- nothing else about the gauntlet is shortened, every fight is
+  real. On completion, both `subquest_rfd_finale` and the parent
+  `quest_recipefordisaster` dbrow (id 106, 0 extra questpoints -- all 10 QP
+  across the saga were already paid one-by-one) are marked complete via
+  `~quest_complete`, so anything checking the parent dbrow directly (e.g.
+  the quest list UI) now sees "Recipe for Disaster" as finished, not just
+  its sub-parts. Journal wired for every one of the 6 new dbrows (`subquest_
+  rfd_dwarf`/`_pirate`/`_ogre`/`_amikvarze`/`_monkey`/`_finale`) plus the
+  parent overview updated to no longer list any "not yet portable" guests
+  and to report the finale's own real availability once every guest is
+  free. Wikis: `https://oldschool.runescape.wiki/w/Recipe_for_Disaster/
+  Quick_guide` + `Transcript:Recipe_for_Disaster/{Freeing_the_Mountain_
+  Dwarf,Freeing_Pirate_Pete,Freeing_Skrach_Uglogwee,Freeing_Sir_Amik_Varze,
+  Freeing_King_Awowogei,Defeat_the_Culinaromancer!}` (dialogue paraphrased,
+  not verbatim, per copyright, same caveat as every prior slice); quest-
+  helper's own Java source fetched via `raw.githubusercontent.com`/
+  `api.github.com` for all six remaining helpers (`RFDDwarf`/`RFDPiratePete`
+  /`RFDSkrachUglogwee`/`RFDSirAmikVarze`/`RFDAwowogei`/`RFDFinal`.java, plus
+  `GetRohakDrunk.java`). Zero duplicate triggers found across every touched
+  npc/loc/item (full-tree grep before writing every merge point: `murphy`,
+  `cook`, `rantz`, `wise_old_man`, `black_dragon`, `mm_throne`,
+  `risingsun_barmaid2`, `bread` were all pre-owned and merged additively;
+  every hand-spawned npc and every ambassador loc/item confirmed genuinely
+  free first). Incremental builds after every sub-quest, not just at the
+  end: `mingw32-make -C src sscompile` clean and `mingw32-make -C src
+  mock230-scripts` exit 0 at each step (15,030 after Dwarf, 15,041 after
+  Pirate Pete, 15,050 after Uglogwee, 15,058 after Amik Varze, 15,065 after
+  Awowogei, 15,077 after the finale -- up from 15,024 at the start of this
+  tick), zero warnings or errors anywhere naming `recipefordisaster`/
+  `rfd_*`/any touched npc, on every single run. Files: `quests/quest_
+  recipefordisaster/scripts/recipefordisaster_{dwarf,pirate,ogre,amikvarze,
+  monkey,finale}.rs2` (new) + `recipefordisaster_journal.rs2` (extended) +
+  `configs/recipefordisaster.{constant,varp}` (extended) + merges into
+  `quests/quest_belowicemountain/scripts/belowicemountain.rs2`,
+  `minigames/game_trawler/scripts/murphy.rs2`, `quests/quest_cook/scripts/
+  quest_cook.rs2`, `quests/quest_onesmallfavour/scripts/
+  onesmallfavour_relay.rs2`, `quests/quest_makingfriendswithmyarm/scripts/
+  makingfriendswithmyarm.rs2`, `drop_tables/scripts/black_dragon.rs2`,
+  `quests/quest_mm/scripts/mm_awowogei.rs2`, `interface_questjournal/
+  scripts/quest_journal.rs2`. Row flips to `done` -- Recipe for Disaster,
+  the largest quest in the entire queue, is now fully ported end-to-end
+  across two ticks. One follow-up opportunity flagged, not acted on (out of
+  this row's scope): `quest_thegreatbrainrobbery`'s own constant file
+  documents Freeing Pirate Pete as a soft-skipped unported prerequisite --
+  now that it's real, a future tick could tighten that gate. Only one row
+  remains `in_progress` in the whole queue: #43/P2 asoulsbane.
