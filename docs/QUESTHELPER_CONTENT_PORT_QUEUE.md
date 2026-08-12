@@ -124,7 +124,8 @@ These QH helpers implement LostCity-era quests already ported (or should be port
 | `waterfallquest` | quest_waterfall | IN-LC — CONTENT_PORT_QUEUE |
 | `watchtower` | quest_itwatchtower | IN-LC — CONTENT_PORT_QUEUE |
 | `zogreflesheaters` | quest_zogreflesheaters | IN-LC — CONTENT_PORT_QUEUE |
-| `thefremennikexiles` | quest_viking | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
+| `thefremennikexiles` | quest_fremennikexiles | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue; corrected 2026-08-11 -- was mislabeled as `quest_viking`, which actually implements `thefremenniktrials` / row #159, see Log) |
+| `thefremenniktrials` | quest_viking | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 correcting row #159's mislabel; see Log) |
 | `deserttreasureii` / `deserttreasure2` | quest_deserttreasureii | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
 | `dragonslayer` / `dragonslayer1` | quest_dragon | IN-LC — CONTENT_PORT_QUEUE (found 2026-08-11 auditing row #111 of this queue) |
 | `dragonslayerii` / `dragonslayer2` | quest_dragonslayer2 / quest_dragon | IN-LC — CONTENT_PORT_QUEUE (already done on QH queue) |
@@ -316,9 +317,9 @@ filed under `helpers/miniquests/` are at the end.
 | 154 | toweroflife | `toweroflife` | 1,021 | done | Feb 2007 -- Effigy asks the player to repair the derelict Tower of Life so its resident "alchemists" (secretly harmless gnomes) can resume homunculus-making; a builder's-outfit fetch quest (quiz, pickpocket, beer trade, bush search) gates entry, then three broken machines (pressure, pipe, cage) must be rebuilt and fixed to free the caged homunculus; native dbrow `quest_toweroflife` (id 129, endstate 18, questpoints 2) + native varbit schema on basevars `tol_main`/`tol_main2` reused; see Log |
 | 155 | mourningsendpartii | `mourningsendpartii` | 1,100 | done | Oct 2005 -- direct sequel to Mourning's End Part I (#106): Arianwyn sends the player to find missing elf Edern near the old Temple of Light; native dbrow `quest_mourningsendpart2` (id 93, startnpc 5292=`mourning_arianwyn`, endstate 60, questpoints 2) + native varbit `mourning_quest_main` (basevar `mourning_quest_part2`) reused on a coarse 0/10/.../60 scale; see Log |
 | 156 | enlightenedjourney | `enlightenedjourney` | 1,168 | done | Nov 2006 -- Auguste (`zep_piccard`) on Entrana asks the player to help build and fly a hot air balloon (papyrus/wool/candle test models, a flash-mob mishap, then sandbags/dye/silk/bowl/willow-branch basket/logs for the real one), landing in Taverley; native dbrow `quest_enlightenedjourney` (id 121, startnpc 4715=`zep_piccard`, endstate 200, questpoints 1) + native varbit `zep_quest` (basevar `zep_var`) reused on quest-helper's own 0/10/20/40/60/70/80/90 scale, jumping straight to 200 for the true finish; also unlocks the native 6-node balloon transport network (Entrana/Taverley/Castle Wars/Grand Tree/Crafting Guild/Varrock); see Log |
-| 157 | onesmallfavour | `onesmallfavour` | 1,244 | pending | npcs=slagilith,favourpetra,shiloantique |
+| 157 | onesmallfavour | `onesmallfavour` | 1,244 | done | Feb 2005 -- Yanni Salika's red-mahogany request unravels into a long relay of favours across Kandarin/Misthalin/Karamja; native dbrow `quest_onesmallfavour` (id 74, endstate 285, startnpc 5361=`shiloantiques`) + native top-level varp `onesmallfavour` (unpacked, no independent multiloc/multivarp cross-validation beyond quest-helper's own steps.put keys) + native `onesmallfavourmulti` sub-fields (weathervane/landing-light puzzle) reused as-is; see Log |
 | 158 | legendsquest | `legendsquest` | 1,261 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_legends`); this Queue row was stale, table-sync fix only. `quest_legends` (15 files, dbrow `quest_legends`, journal wired `interface_questjournal/scripts/quest_journal.rs2:~660`, `~legends_journal`) |
-| 159 | thefremenniktrials | `thefremenniktrials` | 1,269 | pending | npcs=vikingaskel,vikingenemy,vikingenemy |
+| 159 | thefremenniktrials | `thefremenniktrials` | 1,269 | done (LC) | 2026-08-11: row was stale/mislabeled -- LostCity's `quest_viking` (NOT `quest_fremennikexiles`, a separate already-implemented folder) implements this quest end-to-end: `quest_viking_progress.rs2` header literally reads "Fremennik Trials progress + trial bit ranges"; its 7-vote council trial cast (Swensen the Navigator maze, Sigmund the Merchant fetch chain, Sigli the Hunter vs. Draugen, Peer the Seer maze, Thorvald the Warrior vs. Koschei, the Reveller drinking contest, Olaf the Bard's lyre) is the real Fremennik Trials plot, not Exiles' Freygerd/basilisk plot; dbrow `quest_fremenniktrials` (configs/all.dbrow:3128) wired at `interface_questjournal/scripts/quest_journal.rs2:711-713` to `~viking_journal`, whose journal text (`quest_viking/scripts/viking_journal.rs2`) titles every entry "The Fremennik Trials" verbatim. IN-LC table above corrected to match (was mapping `thefremennikexiles` to `quest_viking`; fixed to the real `quest_fremennikexiles` folder, dbrow id at all.dbrow:3000, Freygerd/basilisk plot confirmed via `fremennikexiles.rs2`). No new port needed. |
 | 160 | thefinaldawn | `thefinaldawn` | 1,274 | done |  |
 | 161 | secretsofthenorth | `secretsofthenorth` | 1,293 | done |  |
 | 162 | theforsakentower | `theforsakentower` | 1,353 | done |  |
@@ -328,7 +329,7 @@ filed under `helpers/miniquests/` are at the end.
 | 166 | thecurseofarrav | `thecurseofarrav` | 1,665 | done |  |
 | 167 | sinsofthefather | `sinsofthefather` | 1,668 | done |  |
 | 168 | ragandboneman | `ragandboneman` | 1,729 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
-| 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | pending | npcs=lunaroneiro,lunarmoond,lunarfremen |
+| 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | pending | varbit=s; npcs=poggolriec,poggolriec,poggolriec |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | pending | npcs=wgstaverley,wgstaverley,wgsbroav |
@@ -5265,3 +5266,328 @@ filed under `helpers/miniquests/` are at the end.
   (no pending allocations -- every var this slice touches is a pre-existing
   native id). Next pending row (smallest-first): #157 One Small Favour,
   1,244 lines (not yet verified for staleness).
+- slice #157 done: One Small Favour -- Feb 2005, Yanni Salika (Shilo
+  Village antiques dealer) wants a red mahogany log; getting one unravels
+  into the genre's longest relay-chain quest, roughly 20 NPCs across
+  Kandarin, Misthalin and Karamja each asking the player to do one more
+  favour before the last one pays off. Grep-first confirmed genuinely
+  unowned before this slice: no `onesmallfavour` proc anywhere in
+  `server/scripts` (only a prose mention in `quest_swansong.constant`,
+  which soft-skips this quest as one of its own two unported real
+  prerequisites -- flagged there for a future tick to tighten now that
+  this row is real). `lc_quests.txt` clean; not on either Skip/IN-LC table.
+  Quest Helper source fetched via `raw.githubusercontent.com/Zoinkwiz/
+  quest-helper` (`OneSmallFavour.java`, 1,244 lines, matching this row's
+  own line count exactly); `tools/questhelper_extract.py onesmallfavour
+  --check` (after staging the fetched source under a local `helpers/
+  quests/onesmallfavour/` shape) resolved every `ItemID`/`NpcID`/
+  `ObjectID`/`VarbitID` name clean, zero unresolved. Native dbrow
+  `quest_onesmallfavour` (`configs/all.dbrow`, id 74): startnpc 5361
+  (`shiloantiques` = Yanni Salika, matching quest-helper's own
+  `steps.put(0, talkToYanni)` exactly), endstate 285, questpoints 2,
+  requirement_stats (16,36)+(13,30)+(12,25)+(15,18) = Agility 36 +
+  Smithing 30 + Crafting 25 + Herblore 18, matching quest-helper's own
+  `getGeneralRequirements()` SkillRequirement list exactly (a rare case
+  where this decode was *not* corrupted). `requirement_quests` decodes to
+  dbrow ids 133/125 (Another Slice of Ham / Lair of Tarn Razorlor) --
+  wrong again, same recurring corruption this queue's methodology warns
+  about; real prereqs per quest-helper + wiki are Rune Mysteries
+  (FINISHED), Druidic Ritual (FINISHED), Shilo Village (FINISHED). Rune
+  Mysteries and Druidic Ritual are real, hard-gated at the quest start
+  (`%runemysteries >= ^runemysteries_complete`, `%druidquest >=
+  ^druid_complete`, both IN-LC). Shilo Village is soft-skipped: LostCity's
+  own `quest_shilovillage` dbrow exists, but `areas/area_brimhaven/
+  scripts/hajedy.rs2` (line 8) explicitly documents it as "quest body
+  deferred -- gate stays closed at 0", i.e. unimplemented -- same
+  unported-sibling-prereq precedent as King's Ransom / Great Brain
+  Robbery.
+
+  Primary progress var is native and unpacked: plain top-level varp
+  `onesmallfavour` (`configs/all.varp`, no basevar/bitfield). No
+  multiloc/multinpc record in this cache keys off the bare `onesmallfavour`
+  varp directly (checked both `multivarp=`/`multivarbit=` across
+  `configs/all.loc`/`configs/all.npc`, zero hits), so unlike several prior
+  slices, the ~50 stage breakpoints below are **not independently
+  cross-validated** beyond quest-helper's own `steps.put` keys -- collapsed
+  onto 45 named constants (`^osf_not_started` .. `^osf_yanni_done`,
+  `^osf_complete` = the dbrow's own endstate 285), same "coarser scale"
+  convention every prior slice with duplicate `steps.put` keys for one
+  NpcStep used. **The weathervane-repair and gnome-glider landing-light
+  sub-puzzles ARE independently cross-validated**, via native multiloc
+  records reused as-is: `[osf_weathervane]` (`multivarbit=weathervanefixed`,
+  swapping `favour_weathervane_broken`/`favour_weathervane`) and 4x
+  `[osf_multi_landinglight_*]` (`multivarbit=all_lights_fixed`), both on
+  basevar `onesmallfavourmulti` alongside quest-helper's own exact
+  VarbitID field names (`directionalsfixed`/`ornamentfixed`/
+  `rotatingpillarfixed`/`fixedlandinglights`/8x `*light*_taken`/`*_fixed`),
+  all reused verbatim.
+
+  Vertical movement needed zero new scripting -- every ladder/trapdoor/
+  staircase this quest's geography touches (`ham_multi_trapdoor`,
+  `fai_dwarf_trapdoor_down`, `favour_seer_ladder`, `favour_roof_trapdoor`/
+  `favour_seer_laddertop`, `kr_ladder_directional`, `kr_laddertop`/
+  `kr_laddertop_directional`) is already a generic `category=climb_*`
+  record handled by the existing `ladders_stairs` climb system (confirmed
+  via `quest_betweenarock/scripts/betweenarock_travel.rs2`'s own
+  precedent comment and a direct grep of `ladders_stairs/configs/
+  ladders.loc`) or already gated on `%ham_thief` by Lost Tribe, per
+  `quest_deathtothedorgeshuun/scripts/dttd_haminfiltrate.rs2`'s own
+  header comment -- narrowing this slice's own scripting to dialogue,
+  item exchanges, two hand-spawned fights, and three real sub-puzzles.
+
+  Shared npcs/locs merged into their existing triggers (all grep-verified
+  before writing, "no duplicate trigger" caution): `shiloantiques`
+  (areas/area_shilo/scripts/yanni_salika.rs2), `jungleforester_f`/`_m`
+  (quest_legends/scripts/jungle_forester.rs2), `brian` (areas/port_sarim/
+  scripts/brian.rs2), `favour_johanhus_ulsbrecht`
+  (quest_deathtothedorgeshuun/scripts/dttd_haminfiltrate.rs2, already had
+  real DTTD dialogue on this exact trigger), `fred_the_farmer`
+  (areas/lumbridge/scripts/fred_the_farmer.rs2 -- a pre-existing *second*
+  `[opnpc1,fred_the_farmer]` already exists in quest_coldwar/scripts/
+  coldwar_lumbridge.rs2, sscompile tolerates it silently, same tech-debt
+  tier as apothecary below, not touched), `favour_seth_groats`
+  (quest_idesofmilk/scripts/idesofmilk.rs2), `horvik_the_armourer`
+  (areas/varrock/scripts/horvik.rs2, same additive-branch idiom as its own
+  pre-existing `%dov` branch), `apothecary` (areas/varrock/scripts/
+  apothecary.rs2 -- a pre-existing *second* `[opnpc1,apothecary]` already
+  exists in quest_atailoftwocats/scripts/twocats.rs2, already flagged as
+  tech debt by quest_ratcatchers's own comment, not touched), `sanfew`
+  (areas/area_taverly/scripts/sanfew.rs2), `arhein` (areas/area_catherby/
+  scripts/arhein.rs2 -- a pre-existing *second* `[opnpc1,arhein]` already
+  exists in quest_currentaffairs/scripts/currentaffairs.rs2, not touched),
+  `cromperty_pre_diary`/`cromperty_post_diary` (areas/area_ardougne_east/
+  scripts/wizard_cromperty.rs2), the anvil (`[oplocu,_anvil]` in
+  skill_smithing/scripts/smithing/smithing.rs2, same "check last_useitem,
+  call out, fall through" idiom the Dragon square shield repair already
+  established there), `pot_empty`/`potlid` (quest_swansong/scripts/
+  swansong_army.rs2, which already produces this same shared
+  `favour_airtight_pot` item for its own beat -- confirmed by name match),
+  the generic pottery wheel/oven menus (skill_crafting/scripts/pottery/
+  pottery.rs2, extended with a 4th "Pot lid" `craft_pottery_menu`/
+  `fire_pottery_menu`/`fire_pottery` option alongside Pot/Pie dish/Bowl),
+  and `guam_leaf`/`marentill`/`harralander` (skill_herblore/scripts/
+  brew_potion.rs2's own `[opheldu,...]` triggers, additive branch for the
+  reverse herb-on-cup click order, same idiom as that file's own
+  `white_berries`/Hand in the Sand precedent) -- 15 merge edits total, one
+  real duplicate-trigger sweep confirmed exactly one declaration
+  tree-wide for every trigger this slice authored or merged into.
+
+  New content: `quest_onesmallfavour/{configs/onesmallfavour.constant,
+  scripts/onesmallfavour_relay.rs2, scripts/onesmallfavour_puzzles.rs2,
+  scripts/onesmallfavour_journal.rs2}`, wired into
+  `interface_questjournal/scripts/quest_journal.rs2`. Hand-spawned combat
+  (native `npc_combat/s/` stats reused as-is, no world-spawn entry
+  touched): Slagilith (level 92, "takes reduced damage from anything
+  other than a pickaxe" per quest-helper, left to the generic combat
+  system same as every prior boss slice) inside the sculpture wall's own
+  animate-rock puzzle, and Hammerspike Stoutbeard's 3 dwarf gang members
+  hand-spawned sequentially on each kill (`favour_gangster_dwarf` ->
+  `_2` -> `_3`), same "spawn on trigger" idiom as Contact's Giant Scarab.
+  Real sub-puzzles kept mechanically genuine: the anvil repair of the 3
+  broken weathervane parts (each its own correct bar -- steel/bronze/iron
+  -- matching quest-helper's own per-part `useVaneNOnAnvil` combinations
+  exactly) and placing each fixed part back onto the vane individually,
+  each setting its own real native varbit
+  (`directionalsfixed`/`ornamentfixed`/`rotatingpillarfixed`) until
+  `weathervanefixed` flips the native loc's own broken/fixed model; the
+  Guthix Rest tea brew (bowl of hot water + empty cup, then 2 guam +
+  marrentill + harralander) is a real 2-step make chain, both click
+  orders covered.
+
+  Deferred (collapse tier, matching this queue's "no rs2 precedent for a
+  fine-grained multi-click puzzle collapses to one deterministic action"
+  convention -- same tier as Cold War's crush-course, Spirits of the
+  Elid's golem matrix, Mourning's End Part II's light-beam maze): the
+  8-lamp gnome landing-light puzzle (quest-helper's own `fixAllLamps`,
+  bundling 8x take-lamp/cut-gem/put-lamp with no enforced order) collapses
+  to one Gnormadium Avlafrim dialogue exchange that still sets every real
+  underlying per-lamp `*_taken`/`*_fixed` bit and the combined
+  `fixedlandinglights`/`all_lights_fixed` fields correctly, so the native
+  loc-swap visuals stay genuinely correct afterwards; the weathervane's
+  own "search / hammer / search again" 3-click sequence to obtain the 3
+  broken parts collapses to one `osf_weathervane` interaction (still
+  gated on holding a hammer + 3 free inventory slots, matching
+  quest-helper's own requirements). Also deferred: the Gnome Glider
+  network's own Feldip Hills destination unlock (no existing gate in
+  `areas/area_gnome/scripts/gnome_glider.rs2` checks any quest var for
+  that destination -- narrated as a reward line only, same tier Mourning's
+  End Part II deferred its own unlock hookups); pigeon cages / T.R.A.S.H.
+  as tracked items (quest-helper itself names no `ItemID` for T.R.A.S.H.,
+  purely a dialogue joke; pigeon cages folded into Horvik's own dialogue
+  rather than a literal Ardougne ground-item pickup); backup-purchase
+  paths for lost quest items (Tindel/Cromperty/Gnormadium/Phantuwti
+  selling replacements per quest-helper's own item tooltips) -- primary
+  path only.
+
+  Wiki: https://oldschool.runescape.wiki/w/One_Small_Favour +
+  .../Quick_guide + Transcript:One_Small_Favour (dialogue authored is
+  original wording covering the same relay-chain beats, same Jagex-
+  copyright caveat every prior slice on this queue has noted).
+  `mingw32-make -C src sscompile` clean (only the pre-existing
+  snprintf-truncation warnings in the compiler itself); `mingw32-make -C
+  src mock230-scripts` exit 0, 14,855 scripts compiled; full build log
+  grepped case-insensitively for `onesmallfavour|osf_|favour_|slagilith|
+  hammerspike|tassie|phantuwti|gnormadium|rantz|tindel|petra|cromperty|
+  arhein|yanni|jungleforester|brian|apothecary|horvik|seth|johanhus|
+  sanfew|bleemadge|pilot_white_wolf|weathervane` returned zero warnings,
+  errors, or notes. A duplicate-trigger sweep (`sscompile` accepts
+  duplicates silently by design) confirmed exactly one real declaration
+  tree-wide for every trigger this slice's own new files declare.
+  `tools/ss_allocate.py --tree OSRS-Content/osrs239-content --check` exit
+  0 (no pending allocations -- every var this slice touches is a
+  pre-existing native id). Next pending row (smallest-first): #159 The
+  Fremennik Trials, 1,269 lines (not yet verified for staleness).
+
+- 2026-08-11, #159 The Fremennik Trials (correction, no new port): row was
+  stale, not pending. A much earlier tick today (porting Olaf's Quest, #72)
+  had already found in passing and logged (see above, "found in the
+  process that `quest_viking` (mislabeled 'Fremennik Exiles' in the IN-LC
+  table above) actually implements Fremennik Trials") but left the table
+  uncorrected as out-of-scope. Verified ground truth directly this tick by
+  reading `quest_viking`'s own files rather than trusting the aside:
+  `quest_viking/scripts/quest_viking_progress.rs2`'s header comment reads
+  verbatim "Fremennik Trials progress + trial bit ranges"; its bit-range
+  constants and progress procs are named for the real Fremennik Trials'
+  7-vote council cast (`^swensen_*`/`^sigmund_*`/`^sigli_*`/`^peer_*`/
+  `^thorvald_*`/`^reveller_*`/`^olaf_*` = Navigator maze, Merchant fetch
+  chain, Hunter vs. Draugen, Seer maze, Warrior vs. Koschei, drinking
+  contest, Bard's lyre) -- none of which appear in Exiles (Freygerd's
+  basilisk investigation). `quest_viking/scripts/viking_journal.rs2`
+  titles every journal entry "The Fremennik Trials" verbatim and narrates
+  exactly this 7-vote trial structure. Confirmed the dbrow wiring:
+  `configs/all.dbrow:3128` declares `[quest_fremenniktrials]`, and
+  `interface_questjournal/scripts/quest_journal.rs2:711-713` routes
+  `quest_fremenniktrials` to `~viking_journal`. Also discovered a
+  previously-unnoticed second folder, `quest_fremennikexiles/` (separate
+  from `quest_viking`), whose `fremennikexiles.rs2` genuinely implements
+  Exiles' real plot (Freygerd, basilisk threat, `configs/all.dbrow:3000`
+  `[quest_fremennikexiles]`) -- so the IN-LC table's row 127 had the QH
+  slug pointing at the wrong LC folder entirely (mapped
+  `thefremennikexiles` -> `quest_viking` instead of the real
+  `quest_fremennikexiles`), not just a mislabel. Fixed both IN-LC rows:
+  `thefremennikexiles` now correctly maps to `quest_fremennikexiles`, and
+  a new `thefremenniktrials` row was added mapping to `quest_viking`.
+  Flipped row #159 to `done (LC)`. No new `.rs2`/config files written --
+  correction only, no build re-verification needed (no code touched).
+  Next pending row (smallest-first): #169 Lunar Diplomacy, 1,756 lines
+  (not yet verified for staleness).
+- slice 169 done: Lunar Diplomacy -- 24 Jul 2006, Rellekka / Lunar Isle. The
+  Fremennik want nothing to do with the reclusive Moon Clan; the player
+  sails to Lunar Isle with Lokar Searunner and Captain Bentley's crew,
+  proves themselves to the Oneiromancer (defeat a Suqah, brew a potion
+  with Baba Yaga, assemble a lunar staff from the four elemental altars,
+  gather a full set of ceremonial regalia from five named Moon Clan
+  monks), then enters a shared dream to pass six ethereal trials and duel
+  their own reflection, "Me". Grep-verified first (methodology steps 1-2,
+  including `lc_quests.txt` and this file's own Skip/IN-LC tables): no LC
+  proc, no 2009scape impl, zero `lunar*` script files existed anywhere in
+  `server/scripts` before this slice. Native dbrow `quest_lunardiplomacy`
+  (id 115, endstate 190, questpoints 2, startcoord decodes to plane 0, x
+  2620, y 3691 -- matches this cache's own `lunar_fremennik_pirate` spawn
+  in `m40_57.spawn` almost exactly; requirement_stats magic65/
+  crafting61/mining60/woodcutting55/firemaking49/defence40/herblore5,
+  matches quest-helper's own getGeneralRequirements() and the wiki
+  exactly; stat_xp_awarded magic5000+runecraft5000, raw/10, matches the
+  wiki exactly). dbrow `requirement_quests`=57,133,86,125 decodes to
+  Nature Spirit/Another Slice of H.A.M./Recruitment Drive/Lair of Tarn
+  Razorlor -- none real, same known cache-decode-corruption pattern this
+  queue warns about repeatedly -- gated instead on the real prerequisites
+  (The Fremennik Trials/Lost City/Rune Mysteries/Shilo Village, all four
+  genuinely completable native/LC content): `quest_viking`
+  (`%viking>=^viking_complete`), `quest_zanaris`
+  (`%zanaris>=^zanaris_complete`, this cache's own codename for Lost City,
+  confirmed via `quest_journal.rs2:631-632`), `quest_runemysteries`, and
+  `quest_zombiequeen` (this cache's own codename for Shilo Village --
+  confirmed via `quest_journal.rs2:727-728` -> `~zombiequeen_journal`,
+  whose own journal text reads "I discovered Shilo Village was being
+  overrun by zombies"). Extensive native varbit schema pre-declared on
+  basevars `lunar_quest`/`lunar_quest1..5` (`configs/all.varbit`),
+  matching quest-helper's own VarbitID names almost exactly:
+  `lunar_quest_symbolpres1..5` (ship symbol hunt), `lunar_pt2_oneiro_
+  given_helm/cape/amulet/torso/gloves/boots/trousers/ring` (the 8-piece
+  regalia handoff checklist -- no `given_tiara` bit exists, confirming the
+  tiara is traded away rather than worn into the dream), `lunar_monk_
+  cape_intro`/`_ring_intro`/`_amulet_intro`/`_tanclothes_intro` (which
+  monk covers which garment) and `lunar_dice_prog`/`lunar_num_prog`/
+  `lunar_tree_prog`/`lunar_floor_prog`/`lunar_skill_prog`/`lunar_emote_
+  prog` (the six dream trials) -- all reused as-is; no local catch-all
+  var invented, all claimed via a bare-reservation `.varp` file matching
+  `cabinfever`/`greatbrainrobbery`'s own precedent. `%lunar_quest_main`'s
+  own intermediate breakpoints (0/10 and 190 are cache-confirmed via
+  dbrow endstate; the granularity between is this slice's own invention,
+  documented not guessed-as-recovered, same caveat as Royal Trouble).
+  Native items confirmed and used directly: `lunar_seal_of_passage`,
+  `lunar_helmet/cape/amulet/torso/legs/gloves/boots/tiara/ring`,
+  `dramen_staff` (Lost City reward), `astralrune`. No `suqah_tooth`/
+  `suqah_hide`/`lunar_ore`/`lunar_bar`/`lunar_staff` items exist anywhere
+  in this pack (grep-confirmed, same "no native item, same TODO
+  quest-helper itself leaves" pattern as Ratcatchers) -- the raw-material
+  fetch/craft sub-chain isn't modelled item-by-item; each Moon Clan monk
+  grants their finished regalia piece directly in one narrated
+  interaction instead (same "grant the full requirement in one action"
+  simplification as Cabin Fever's locker searches), and the lunar staff
+  is the real `dramen_staff` item plus four altar-visit breakpoints
+  (merged into `skill_runecraft/scripts/runecraft.rs2`'s own shared
+  `[oplocu,_rc_altar]` trigger as a `case dramen_staff` branch, same
+  convention as The Slug Menace's `slugmenace_charge_rune`) rather than a
+  separate crafted prop. Native npcs used directly, matching the wiki's
+  named cast exactly: Lokar Searunner, the ship's crew (Captain Bentley,
+  'Eagle-eye' Shultz, cabin boy, 'Beefy' Burns, First mate 'Davey-boy',
+  'Birds-Eye' Jack, the parrot), the Oneiromancer, Baba Yaga, five named
+  monks (Pauline Polaris/Meteora/Melana Moonlander/Selene/Rimae
+  Sirsalis) and Clan Guard, seven fightable Suqah (level 111, matches
+  wiki), six dream trial hosts (Ethereal Numerator/Expert/Perceptive/
+  Guide/Fluke/Mimic, already world-spawned in the dream instance,
+  `m27_79.spawn`) and the final boss (`quest_lunar_mirror_of_player`,
+  "Me", level 79, matches wiki, already world-spawned in `m28_79.spawn`
+  -- no hand-spawn needed). `lunar_oneiromancer` already carried an
+  `[opnpc1,...]` trigger in `quest_dragonslayer2/scripts/
+  dragonslayer2.rs2` (a soft-skipped DS2 dream step) -- `sscompile`
+  accepts a duplicate trigger header with no diagnostic, so this quest's
+  Oneiromancer dialogue was written as a proc (`lunardip_oneiromancer_
+  talk`) and called from DS2's own existing trigger as its fallback
+  instead of duplicating the header. Boat transport is genuinely
+  functional, not narrated: Lokar Searunner at Rellekka's westernmost
+  dock starts the quest and teleports the player to the real docked-ship
+  geography on the Lunar Isle side once boarded (coords derived from this
+  cache's own npc spawns, not invented); post-quest, his `_by_pirateship`
+  wrapper (native `op3=Pirate's Cove`) becomes a real three-way hub
+  between Rellekka, Lunar Isle and Pirates' Cove -- **this is the
+  functional Lunar Isle transport row #135 Dream Mentor was blocked on;
+  that row's own blocker is resolved and should be re-checked by a future
+  tick** (not re-verified/unblocked here, out of this slice's budget).
+  Deferred, no established precedent anywhere in this tree for the
+  alternative (documented, not silently dropped): the ship wall-chart
+  interface (`interfaces/quest_lunar_galleon.if`) and the Lunar spellbook
+  itself -- this engine has no spellbook-switching system anywhere
+  (grep-confirmed, zero `spellbook`-named scripts in the whole tree), so
+  "unlocks the Lunar spellbook" is flavour text plus the completion
+  varbit only, no mechanical spellbook swap; the six dream trials' own
+  RNG puzzle logic (target-sum dice, number sequences, memory-maze
+  jumping, timed log race, hurdle race) is condensed to one pass/fail
+  interaction per trial host (same condensing precedent as Cabin Fever's
+  canister-firing / Royal Trouble's picture wall), except the Ethereal
+  Mimic's emote copy, which reuses Cold War's own real `p_choice4`
+  emote-matching precedent (`coldwar_shared.rs2`) for two rounds instead
+  of the wiki's five; the mine/stalagmite prop, Pauline-Polaris disguise
+  riddle and blue-flower ring dig are narrated inside monk dialogue
+  rather than separately modelled (no disguise/diggable-flower precedent
+  anywhere in this tree). Wiki https://oldschool.runescape.wiki/w/
+  Lunar_Diplomacy/Quick_guide + https://oldschool.runescape.wiki/w/
+  Transcript:Lunar_Diplomacy + quest-helper's own `LunarDiplomacy.java`
+  (1,756 lines, fetched via WebFetch summary, dialogue paraphrased not
+  verbatim per copyright, same caveat as every prior slice).
+  `mingw32-make -C src sscompile` clean, `mingw32-make -C src
+  mock230-scripts` exit 0 (14,905 scripts, up from 14,855; zero
+  `lunar`-related warnings/errors in the build log); also fixed a genuine
+  duplicate-trigger bug this slice would otherwise have introduced
+  (`[opnpc1,lunar_oneiromancer]` merge into `dragonslayer2.rs2`, see
+  above -- no other duplicate triggers found across every touched npc,
+  full-tree scan). Files: `quests/quest_lunardiplomacy/{configs/
+  lunardiplomacy.{constant,varp}, scripts/lunardip_{shared,transport,
+  ship,isle,staff,regalia,dream,journal}.rs2}` + merges into
+  `quest_dragonslayer2/scripts/dragonslayer2.rs2`,
+  `skill_runecraft/scripts/runecraft.rs2`, and
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #171 The Path of Glouphrie, 1,959 lines (row #170
+  Dragon Slayer II and #173 Monkey Madness II are already `done`).
