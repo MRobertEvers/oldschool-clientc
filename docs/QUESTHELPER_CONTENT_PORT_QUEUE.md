@@ -295,7 +295,7 @@ filed under `helpers/miniquests/` are at the end.
 | 132 | inaidofthemyreque | `inaidofthemyreque` | 710 | done | Jan 2006 -- Burgh de Rott repairs, Gadderanks's blood tithe raid, Ivan's Temple Trek escort, Rod of Ivandis; native dbrow `quest_inaidofthemyreque` (id 107, endstate 430, requirement_stats Crafting25/Mining15/Magic7) + native varbit schema on basevars `myreque_2_main_var`/`myreque2_multivar`/`myreque2_extravar` reused as-is, matching quest-helper's own VarbitID names exactly; dbrow `requirement_quests` decodes to Desert Treasure I (corrupt, known failure mode) -- real prereq (In Search of the Myreque FINISHED) soft-skipped since `%routequest` is never written anywhere in this tree (that quest has no scripted content beyond its own journal/dbrow, confirmed via grep -- row #65's "done (LC)" is optimistic); Crafting/Mining/Magic gate still hard-checked. Shares `myq5_veliaf_child` with Sins of the Father's own hub trigger (merged branch in `sinsofthefather.rs2`, not duplicated) and adds one case to the shared furnace hub (`skill_smithing/scripts/smelting/smelting.rs2`) for the Rod of Ivandis mould. See Log. |
 | 133 | betweenarock | `betweenarock` | 716 | done | Mar 2005 -- Dondakan the Dwarf's cannon-through-the-rock scheme uncovers a sealed Arzinian realm; dwarven lore book + 3 torn pages, a golden cannonball, four schematic fragments, a golden helmet, and an Avatar guardian boss; see Log |
 | 134 | ratcatchers | `ratcatchers` | 737 | done | 2QP, Thieving 4500xp; native dbrow+varbit schema reused; see Log |
-| 135 | dreammentor | `dreammentor` | 745 | blocked | 2026-08-11: real, hard prerequisite (Lunar Diplomacy FINISHED, quest-helper's own getGeneralRequirements()) is itself still `pending` on this exact queue at #169 (1,756 lines) and zero Lunar Isle content of any kind exists in this tree (grep-confirmed: no `lunar*` script files anywhere, no scripted mainland<->Lunar Isle boat transport); unlike prior soft-skipped prereqs (Priest in Peril for Cabin Fever, ISOTR for In Aid of the Myreque), Dream Mentor's entire setting depends on it, not just a gate check — see Log |
+| 135 | dreammentor | `dreammentor` | 745 | done | 2026-08-12: unblocked -- Lunar Diplomacy (#169) landed with genuinely functional Rellekka<->Lunar Isle boat transport; re-verified end to end, ported same tick. 2QP, Hitpoints 15000xp + Magic 10000xp; native dbrow+varbit schema (`dream_prog`/`dream_health`/`dream_armament`) reused; real prereqs Combat 85 + Lunar Diplomacy FINISHED + Eadgar's Ruse FINISHED all hard-gated; see Log |
 | 136 | watchtower | `watchtower` | 758 | done (LC) | 2026-08-11: duplicate row — already correctly listed on the IN-LC table (`quest_itwatchtower`); this Queue row was stale, table-sync fix only. `quest_itwatchtower` (13 files, 2010 lines, dbrow `quest_watchtower` journal wired `interface_questjournal/scripts/quest_journal.rs2:599`) |
 | 137 | shadowofthestorm | `shadowofthestorm` | 759 | done (LC) | found 2026-08-11: pre-Sept-2004 quest (2002), belongs on IN-LC list not this queue — LC's own `quest_shadowstorm` (3 files, 509 lines, `shadowstorm_ritual.rs2` calls `~quest_complete(quest_shadowofthestorm)`; journal wired `interface_questjournal/scripts/quest_journal.rs2:707`) already implements it — found while auditing #111's neighbours, see Log |
 | 138 | landofthegoblins | `landofthegoblins` | 760 | done | 2QP, Agility/Fishing/Thieving/Herblore 8000xp each; native dbrow+varbit schema (`%lotg`) reused; see Log |
@@ -331,7 +331,7 @@ filed under `helpers/miniquests/` are at the end.
 | 168 | ragandboneman | `ragandboneman` | 1,729 | done (LC) | OSRS has 4 rs2 files (not in PORT_QUEUE table) |
 | 169 | lunardiplomacy | `lunardiplomacy` | 1,756 | done | 2026-08-11: full port, functional Rellekka<->Lunar Isle boat transport (unblocks #135 Dream Mentor's own setting -- re-check that row); see Log |
 | 170 | dragonslayerii | `dragonslayerii` | 1,782 | done |  |
-| 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | pending | varbit=s; npcs=poggolriec,poggolriec,poggolriec |
+| 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | pending | npcs=wgstaverley,wgstaverley,wgsbroav |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done |  |
 | 174 | recipefordisaster | `recipefordisaster` | 3,370 | pending | npcs=cook,hundreddwar,hundreddwar |
@@ -5591,3 +5591,236 @@ filed under `helpers/miniquests/` are at the end.
   `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
   (smallest-first): #171 The Path of Glouphrie, 1,959 lines (row #170
   Dragon Slayer II and #173 Monkey Madness II are already `done`).
+- slice 135 UNBLOCKED and done: Dream Mentor -- re-checked the row #169
+  Lunar Diplomacy blocker before touching anything else (Part 1 of this
+  tick). Read `quest_lunardiplomacy/scripts/lunardip_transport.rs2` in
+  full: `[opnpc1,lunar_fremennik_pirate_1op]` (the resolved multivarbit
+  morph of the native `lunar_fremennik_pirate` npc, cache-confirmed via
+  `configs/all.npc`'s own `multivarbit=lunar_quest_main`/`multinpc1..12`
+  block) is a real, reachable trigger -- `lunar_fremennik_pirate` spawns at
+  (2620,3693,0) in `m40_57.spawn`, matching the dbrow's own `^lunardip_
+  rellekka_dock_coord` (0_40_57_60_45) almost exactly. Traced the full
+  `%lunar_quest_main` state chain end to end across every `lunardip_*.rs2`
+  file (`^lunardip_accepted` -> `_ship_boarded` -> `_symbols_found` ->
+  `_met_oneiromancer` -> `_suqah_defeated` -> `_potion_delivered` ->
+  `_staff_started` -> `_staff_air/fire/water/earth_done` ->
+  `_regalia_started` -> `_dream_entered` -> `_games_complete` ->
+  `_mirror_defeated` -> `_complete`): every breakpoint is both set by an
+  earlier script and read by a later one, no dead ends, no unreachable
+  gate. `^lunardip_isle_harbour_coord` (0_33_60_39_28 -> 2151,3868,0)
+  matches `lunar_oneiromancer`'s own native spawn in `m33_60.spawn` almost
+  exactly. Post-quest, `lunar_fremennik_pirate_by_pirateship` (native
+  `op3=Pirate's Cove`) is a real three-way Rellekka/Lunar Isle/Pirates'
+  Cove hub with no further gate. Genuinely unblocked, not just optimistic
+  -- confirmed, not assumed.
+  Then fetched `Zoinkwiz/quest-helper`'s `DreamMentor.java` (441 lines) +
+  `CyrisusArmourSet.java`/`CyrisusBankConditional.java`/
+  `CyrisusBankItem.java`/`SelectingCombatGear.java` (101+39+62+102=304,
+  summing to 745, matching this row's own line count exactly, same files
+  the prior BLOCKED tick had already fetched and read). Confirmed Dream
+  Mentor's real setting is Lunar Isle itself (Cyrisus in the Lunar Mine at
+  (2300-2370,10313-10354,2), the Oneiromancer at (2151,3867,0) -- almost
+  exactly the harbour coord above -- 'Bird's-Eye' Jack in the Lunar Isle
+  bank) plus a separate dream-instance arena at (1806-1840,5135-5167,2),
+  **not** Nightmare Zone -- exactly the setting the newly-functional boat
+  transport reaches. `getGeneralRequirements()`: CombatLevelRequirement(85)
+  + QuestRequirement(LUNAR_DIPLOMACY, FINISHED) + QuestRequirement(EADGARS_
+  RUSE, FINISHED); Eadgar's Ruse is already real/IN-LC (`quest_eadgar`).
+  Re-grepped for any LC proc / 2009scape impl / prior `dreammentor` files
+  in this tree: none (methodology steps 1-2 clean). `tools/
+  questhelper_extract.py dreammentor --check` (using a local scratch copy
+  of the 5 fetched Java files under `helpers/quests/dreammentor/`, this
+  machine has no `/Users/matthewevers/...quest-helper` checkout) exits 0:
+  every one of 14 npc / 5 loc / 14 item / 8 varbit gameval names resolves
+  cleanly against this cache, zero unresolved rows. Native dbrow `quest_
+  dreammentor` (id 134, endstate 28, questpoints 2, requirement_combat 85,
+  stat_xp_awarded hitpoints 150000 raw=15000xp + magic 100000 raw=10000xp,
+  matches wiki exactly; `requirement_quests`=88,36 decodes to Forgettable
+  Tale/Plague City, same known cache-decode-corruption pattern this queue
+  warns about repeatedly, real prereqs hard-gated instead). Native varbit
+  schema on basevars `dream_main`/`dream_main2`/`dream_main3` (`dream_
+  prog`, `dream_health` thresholds 40/70/100 cache-confirmed via
+  `VarbitRequirement(DREAM_HEALTH, N, GREATER_EQUAL)`, `dream_armament`
+  ==100 cache-confirmed, `dream_cutscene_seen`, `dream_combattype`, `dream_
+  arma_item1..5`) reused as-is, matching quest-helper's own VarbitID names
+  exactly; claimed via a bare-reservation `.varp` file, same precedent as
+  `lunardiplomacy`/`cabinfever`. All named npcs (Cyrisus's four recovery-
+  stage morphs `dream_cyrisus_unconscious`/`_barely_conscious`/`_sitting`/
+  `dream_cyrisus` + combat variants `_melee`/`_ranger`/`_caster`, `dream_
+  birds_eye_jack`, the four dream bosses `dream_inadequacy`(343)/`dream_
+  everlasting`(223)/`dream_untouchable`(274)/`dream_illusive`(108), all
+  matching the wiki's levels exactly) and locs (`dream_cave_wall_entrance`,
+  `lunar_mine_slanty_ladder_up`/`_down` -- already generic `category=
+  climb_up`/`climb_down`, no custom transport scripting needed --,
+  `lunar_moonclan_sink`, `lunar_moonclan_brazier_multi`) are already
+  natively declared -- none invented. Only `dream_inadequacy` has a
+  `.spawn` entry anywhere in this tree (`m28_80.spawn`); the other three
+  bosses are hand-spawned in sequence on trigger via `~dreammentor_spawn_
+  if_absent` (`npc_find`/`npc_add`), same idiom as Land of the Goblins'
+  skeleton high priests, with `npc_del;` on each Cyrisus recovery-stage
+  morph transition (`[opnpc1,...]` context, same convention as `merlin.
+  rs2`'s crystal-prison rush-off). Fight order (Inadequacy -> Everlasting
+  -> Untouchable -> Illusive) is this slice's own invention -- quest-
+  helper's own `ConditionalStep` ordering only states which boss is
+  currently present, not a sequence -- documented, not guessed-as-
+  recovered, same caveat as Royal Trouble's breakpoint scale.
+  Simplifications (documented, same "condense a repetitive/RNG sub-
+  mechanic" precedent as Cabin Fever/Royal Trouble/Lunar Diplomacy): (1)
+  the wiki's "alternate between >=3 food types" feeding nuance isn't
+  modelled -- any of 12 common food items counts, and `%dream_health`
+  itself doubles as the feed counter (+10 per food, snapping to the cache-
+  confirmed 40/70/100 thresholds); (2) `CyrisusArmourSet`/`CyrisusBankItem`
+  model picking 5 specific Barrows/adamant-boots/infinity-boots/ancient-
+  staff bank items -- three of those exact items (adamant boots, infinity
+  boots, ancient staff) don't exist anywhere in this cache (grep-
+  confirmed) -- condensed to one narrated interaction with 'Bird's-Eye'
+  Jack granting the real `dream_chest` item directly, which is *also* what
+  quest-helper's own `chest` ItemRequirement already represents in the
+  real quest (the 5-item bank fetch is already abstracted behind a single
+  chest prop even in authentic OSRS); `%dream_combattype` is still
+  computed from the account's real combat levels, matching
+  `CyrisusArmourSet.getCorrectSet`'s own tie-break exactly (melee*2 >=
+  max(ranged*3,magic*3) -> melee; else ranged*3>magic*3 -> ranged; else
+  magic), to pick which native Cyrisus combat morph fights alongside the
+  player; (3) the dream arena's own exit ("only leave via the lecturn ...
+  cannot pray") has no confirmed native loc id anywhere (quest-helper's
+  own Java never names an ObjectID for it) -- the player is teleported
+  straight back to the Oneiromancer the moment the fourth boss falls.
+  Rewards: 2 questpoints (dbrow), 15,000 Hitpoints XP + 10,000 Magic XP
+  (raw/10, matches wiki exactly), the shared `thosf_reward_lamp` item (same
+  as `quest_contact`/`quest_kingsransom`/etc, `inv_add` only). Deferred,
+  same "no spellbook-switching system anywhere" caveat as Lunar
+  Diplomacy's own Lunar spellbook unlock: the "7 new Lunar spells" reward
+  is flavour text plus the completion varbit only. The "bank without seal
+  of passage via 'Bird's-Eye' Jack" unlock *is* mechanically real
+  (`~openbank` on the post-quest branch, same convention as `lunar_
+  moonclan_bankbooth`'s `[oploc2,...] ~openbank;`). Wiki https://
+  oldschool.runescape.wiki/w/Dream_Mentor/Quick_guide +
+  https://oldschool.runescape.wiki/w/Transcript:Dream_Mentor (dialogue
+  paraphrased, not verbatim, per copyright, same caveat as every prior
+  slice). **Five real pre-existing trigger collisions found and merged in
+  rather than duplicated** (grep-first, every one): (1)
+  `[opnpc1,lunar_oneiromancer]` (`quest_dragonslayer2/scripts/
+  dragonslayer2.rs2`) -- already shared with DS2's soft-skip and Lunar
+  Diplomacy's own dialogue, this quest's branch added as a third gated
+  fallback (`~dreammentor_oneiromancer_talk`), checked only once `%lunar_
+  quest_main >= ^lunardip_complete`; (2) `[opheldu,hammer]` (`general_use/
+  scripts/hammer.rs2`) -- added a `case astralrune` to the shared switch;
+  (3) `[opheldu,pestle_and_mortar]` (`skill_herblore/scripts/
+  grind_ingredient.rs2`) -- added a `dream_astral_shards` short-circuit
+  ahead of the generic `herblore_grind_table` lookup, same pattern as the
+  existing `rune_shards`/`mudrune` short-circuits in that same file; (4)-
+  (5) `lunar_seal_of_passage` and `%lunar_brazier_lit`/`canoeing_menu`
+  (native carrier already claimed by `interface_farming/configs/
+  farming_tools.varp`) reused directly, no new varp declared. `mingw32-
+  make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit
+  0 (14,939 scripts, up from 14,905; zero `dreammentor`-related warnings/
+  errors in the build log, grep-confirmed). `mock230_pack --check-only`
+  was also attempted per the guardrails, but this isolated worktree has no
+  `cache.osrs239` checked out (`cannot open the cache` is the tool's very
+  first error) -- its whole-tree category/cache cross-reference is
+  unusable here independent of this slice (963 pre-existing errors, 8297
+  warnings, none naming `dreammentor` except one downstream-of-the-same-
+  missing-cache false positive claiming `dream_inadequacy` has no Attack
+  op, contradicted directly by `configs/all.npc`'s own `op2=Attack` on that
+  record) -- treated `sscompile`+`mock230-scripts` exit 0 as the real bar,
+  same as every prior slice's own logged verification. Files: `quests/
+  quest_dreammentor/{configs/dreammentor.{constant,varp}, scripts/
+  dreammentor_{shared,cyrisus,dream,journal}.rs2}` + merges into
+  `quest_dragonslayer2/scripts/dragonslayer2.rs2`, `general_use/scripts/
+  hammer.rs2`, `skill_herblore/scripts/grind_ingredient.rs2`, and
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #171 The Path of Glouphrie, 1,959 lines (unchanged --
+  did not move on to it this tick, Dream Mentor's unblock absorbed the
+  budget).
+- slice 171 done: The Path of Glouphrie -- King Bolren's pet "Dumpling" is
+  actually one of Glouphrie the Untrusted's disguised evil creatures.
+  Methodology steps 1-2 clean (grep-confirmed: no `glouphrie`/
+  `pathofglouphrie` proc anywhere in `server/scripts` or `lc_quests.txt`;
+  the row's own npc field, `poggolriec,poggolriec,poggolriec`, was garbled/
+  stale as this queue's methodology warned -- the real npcs, found by
+  grepping `pog_`-prefixed records in `configs/all.npc`, are `king_bolren`
+  (shared), `roving_golrie`, `aluft_gnome_delivery_controller` (Gianne
+  jnr.), `pog_watcher` (the Dumpling wrapper), `pog_gnome_longramble` and
+  `pog_mutated_terrorbird_boss_1/2/3`). Fetched quest-helper's own
+  `ThePathOfGlouphrie.java` + `sections/{StartingOff,UnveilEvil,
+  InformKingBolren,FindLongramble,TheWarpedDepths}.java` +
+  `MonolithPuzzle.java`/`YewnocksPuzzle.java`/`Solution.java`/
+  `DiscInsertionStep.java` (9 files, 1,959 lines total, exact match to this
+  row's own line count) via GitHub API/raw.githubusercontent.com into a
+  local scratch tree, then ran `tools/questhelper_extract.py ... --check`:
+  exit 0, every one of 12 npc / 25 loc / 35 item / 8 varbit gameval names
+  resolved cleanly, zero unresolved rows. Native dbrow `quest_
+  pathofglouphrie` (id 186, endstate 50, questpoints 2) has a trustworthy
+  `requirement_stats` this time (Strength 60/Slayer 56/Thieving 56/Ranged
+  47/Agility 45, matches quest-helper's own `getGeneralRequirements()`
+  exactly) but the usual corrupted `requirement_quests` (decoded to Tourist
+  Trap/Tears of Guthix/Sins of the Father, none real) -- hard-gated on the
+  real prereqs instead (The Eyes of Glouphrie/Waterfall Quest/Tree Gnome
+  Village FINISHED, all three already IN-LC/this queue). Native varbit
+  schema fully declared on basevar `pog_primary` (`pog` 0..50, matching
+  quest-helper's own `steps.put` keys and the dbrow endstate directly --
+  independently confirmed by the native `pog_gnome_longramble` multi-npc
+  record's own `multinpc27..32=pog_gnome_longramble_vis`, i.e. Longramble
+  only becomes visible starting exactly at quest-helper's own `steps.put(26,
+  findLongramble.talkToLongramble)` breakpoint) reused as-is, claimed via a
+  bare-reservation `.varp` file, same precedent as `lunardiplomacy`/
+  `dreammentor`. Simplifications (documented, same "condense a puzzle/
+  cutscene with no established precedent" convention as every prior slice):
+  (1) `MonolithPuzzle.java`'s push-block Sokoban puzzle and `YewnocksPuzzle.
+  java`/`Solution.java`/`DiscInsertionStep.java`'s live 30-disc combinatorial
+  machine puzzle (1,171 combined lines) both collapse to one deterministic
+  click apiece (`pog_chest_closed` Search, `pog_gnome_machine_02` Operate),
+  same precedent as The Eyes of Glouphrie's own crystal-disc machine; (2)
+  Roving Elves is genuinely complete in this tree (`quest_rovingelves`), so
+  this port hard-assumes it's finished rather than also modelling quest-
+  helper's own pre-Roving-Elves fallback dungeon layout and Waterfall
+  Quest's key-in-a-crate reuse -- soft-gated with a one-line message if
+  somehow unfinished, same "soft-skip an unwritten gate" idiom as Priest in
+  Peril; (3) the three Warped Terrorbirds (native `pog_mutated_terrorbird_
+  boss_1/2/3`, vislevel 138 matching quest-helper's own combat text exactly,
+  fully statted but with no `.spawn` entry) are hand-spawned together via
+  `~pog_spawn_terrorbirds_if_absent` and fought in the real non-instanced
+  boss chamber rather than a dynamically-built instance (quest-helper's own
+  code comments that this fallback area already exists in live OSRS for
+  logged-out players) -- no combat order invented, same "no established
+  boss-order precedent" finding as Dream Mentor's own bosses, this time
+  genuinely unordered since quest-helper's own code never orders them
+  either; (4) the Advisor's illusion and Dumpling's true nature are narrated
+  via `mesbox` rather than a live flashback cutscene with `pog_bolrie`/
+  `pog_bolrie_noking`/`pog_advisor` (all three natively `vislevel=0`
+  cutscene-only doubles, zero scripted trigger anywhere before this slice),
+  same idiom as The Eyes of Glouphrie's own gnome-goblin war flashback; (5)
+  `pog_spirit_tree_multi`'s own 33 native multiloc states all resolve to the
+  same `pog_spirit_tree_dead` leaf (grep-confirmed, no distinct "revived"
+  state exists in the cache), so Incomitatus's revival is narrated rather
+  than a loc swap. Grapple crossing to Longramble (`pog_grapple_tree_base_
+  op`) reuses the exact same Ranged-level/mithril-grapple/wielded-crossbow
+  gate already scripted at `[oploc1,godwars_grapple_pillar]` in `areas/
+  area_godwars/scripts/godwars_entrance.rs2`, not invented fresh. Rewards:
+  2 questpoints (dbrow), 30,000 Strength + 20,000 Slayer + 5,000 Thieving +
+  5,000 Magic XP (dbrow's own `stat_xp_awarded` is exactly 10x-inflated,
+  same "dbrow row is a hint, not gospel" finding as The Eyes of Glouphrie/
+  Darkness of Hallowvale/Ghosts Ahoy -- real amounts used, matching the wiki
+  reward table and quest-helper's own `getExperienceRewards()` exactly),
+  the four native `pog_strength_lamp`/`pog_slayer_lamp`/`pog_thieving_lamp`/
+  `pog_magic_lamp` items granted via `inv_add` alongside the direct XP
+  (matches the wiki's own "recover lost lamps from Hazelmere" note; no
+  generic magic-lamp-rub handler exists anywhere in this tree, grep-
+  confirmed, same "grant the flavour item, don't invent a rub mechanic"
+  precedent as Dream Mentor's own `thosf_reward_lamp`). Wiki https://
+  oldschool.runescape.wiki/w/The_Path_of_Glouphrie + .../Quick_guide
+  (fetched via WebFetch summary, dialogue paraphrased not verbatim per
+  copyright, same caveat as every prior slice). Zero duplicate triggers
+  found across every touched npc/loc (full-tree grep before and after
+  writing, `[opnpc1,king_bolren]`/`[opnpc1,grandtree_hazelmere]` merged
+  additively as hub-proc calls, everything else genuinely new). `mingw32-
+  make -C src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0
+  (14,971 scripts, up from 14,939; zero `pog`/`pathofglouphrie`/`glouphrie`-
+  named warnings/errors in the full build log). Files: `quests/quest_
+  pathofglouphrie/{configs/pathofglouphrie.{constant,varp}, scripts/
+  pog_{quest,storeroom,longramble,sewers,journal}.rs2}` + merges into
+  `areas/area_gnome/scripts/{king_bolren,hazelmere}.rs2` and
+  `interface_questjournal/scripts/quest_journal.rs2`. Next pending row
+  (smallest-first): #172 While Guthix Sleeps, 2,288 lines (#174 Recipe for
+  Disaster, 3,370 lines, is the only other pending row left in the table).
