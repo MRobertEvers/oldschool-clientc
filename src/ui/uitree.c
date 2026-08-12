@@ -3869,51 +3869,35 @@ drop_target_pick_in_subtree(
             child_scroll_y += c->scroll_y;
     }
 
-    for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+    /* Mounted roots are physical children in UITree, but reference input walks
+     * them as a separate final group. Ordinary children inherit this host's
+     * local scroll; InterfaceParent roots use the raw host origin. Keep the
+     * existing drop-candidate semantics across a type-0 boundary: Java does
+     * not clear its current dragged-on widget there. */
+    int const has_mounts = UITree_ContainerHasMounts(tree, c->component_id);
+    for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
-        drop_target_pick_in_subtree(
-            tree, child, px, py, exclude_component_id,
-            child_scroll_x, child_scroll_y, &child_clip, &child_surface, best_id, best_depth,
-            depth + 1);
-    }
-
-    /* InterfaceParent mounts drawn/hit last under this container. */
-    {
-        int mi;
-        for( mi = 0; mi < tree->interface_parent_count; mi++ )
+        for( child = c->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
         {
-            struct UITreeInterfaceParent const* ip = &tree->interface_parents[mi];
-            int32_t root;
-            if( ip->container_uid != c->component_id )
+            int const is_mount =
+                has_mounts &&
+                UITree_ChildMountType(tree, c->component_id, &tree->components[child]) >= 0;
+            if( is_mount != mount_sweep )
                 continue;
-            for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
-            {
-                int cid = tree->components[root].component_id;
-                int group = (cid >> 16) & 0xffff;
-                if( group != ip->group_id )
-                    continue;
-                /* Mounted roots may be reparented; still walk from pack roots. */
-                if( tree->components[root].parent >= 0 &&
-                    tree->components[tree->components[root].parent].component_id ==
-                        ip->container_uid )
-                {
-                    /* Mounted sub-interfaces live in the container's viewport
-                     * space: reset scroll accumulation (matches emit). */
-                    drop_target_pick_in_subtree(
-                        tree,
-                        root,
-                        px,
-                        py,
-                        exclude_component_id,
-                        scroll_off_x,
-                        scroll_off_y,
-                        &child_clip,
-                        &child_surface,
-                        best_id,
-                        best_depth,
-                        depth + 1);
-                }
-            }
+            drop_target_pick_in_subtree(
+                tree,
+                child,
+                px,
+                py,
+                exclude_component_id,
+                is_mount ? scroll_off_x : child_scroll_x,
+                is_mount ? scroll_off_y : child_scroll_y,
+                &child_clip,
+                &child_surface,
+                best_id,
+                best_depth,
+                depth + 1);
         }
     }
 

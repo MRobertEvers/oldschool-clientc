@@ -56,6 +56,110 @@ test_minimenu_layout_math(void)
     }
 }
 
+/* Bold-12-ish: the widths a real cache font reports for these rows, minus the
+ * `@col@` tags the font layer swallows. Deliberately not a constant per glyph —
+ * the point is that the estimate PrepareShow falls back on has to hold up
+ * against a font whose glyphs are wider than the estimate assumes. */
+static int
+measure_b12ish(void* ud, int font_id, char const* text)
+{
+    int width = 0;
+    (void)ud;
+    (void)font_id;
+    for( char const* p = text; *p; p++ )
+    {
+        if( p[0] == '@' && p[1] && p[2] && p[3] && p[4] == '@' )
+        {
+            p += 4;
+            continue;
+        }
+        width += (*p == ' ' || *p == 'i' || *p == 'l' || *p == 't') ? 5 : 7;
+    }
+    return width;
+}
+
+static int
+measure_no_font(void* ud, int font_id, char const* text)
+{
+    (void)ud;
+    (void)font_id;
+    (void)text;
+    return 0;
+}
+
+/*
+ * The popup has to be wide enough for the rows it was built from, on both the
+ * measured path and the degraded one.
+ *
+ * Rows draw at x+3 and the popup keeps a border column on each side, so a row
+ * fits only while width >= measured + 6. The degraded path (no font in the
+ * scene, measure reports nothing) used to size from six pixels a character —
+ * narrower than the bold-12 rows it was sizing, which is how a long option came
+ * to draw past the border with the popup itself looking correct.
+ */
+static void
+test_minimenu_width_holds_the_rows(void)
+{
+    /* Untagged rows on purpose: `@col@` markup pads the character count the
+     * fallback counts without adding a pixel to the text it is sizing, so a row
+     * carrying tags would cover for an estimate that is too narrow. The row
+     * that exposed this in the client had none. */
+    char const* const rows[] = {
+        "Take beast of burden items",
+        "Withdraw-all from the familiar",
+        "Cancel",
+    };
+    struct UIMinimenuLayout layout;
+    struct UIMinimenu menu;
+    int measured_w = 0;
+    int fallback_w = 0;
+    int widest = 0;
+
+    UIMinimenu_Reset(&menu);
+    for( int i = 0; i < (int)(sizeof(rows) / sizeof(rows[0])); i++ )
+    {
+        UIMinimenu_AddOption(&menu, rows[i], TEST_ACTION_OP1, i, pick_none());
+        if( measure_b12ish(NULL, -1, rows[i]) > widest )
+            widest = measure_b12ish(NULL, -1, rows[i]);
+    }
+    if( measure_b12ish(NULL, -1, "Choose Option") > widest )
+        widest = measure_b12ish(NULL, -1, "Choose Option");
+
+    TEST_ASSERT(
+        UIMinimenu_PrepareShow(&menu, 16, measure_b12ish, NULL, &layout, &measured_w),
+        "prepare with a font");
+    TEST_ASSERT(measured_w >= widest + 6, "measured width holds the widest row");
+
+    TEST_ASSERT(
+        UIMinimenu_PrepareShow(&menu, 16, measure_no_font, NULL, &layout, &fallback_w),
+        "prepare without a font");
+    TEST_ASSERT(fallback_w >= widest + 6, "fallback width holds the widest row");
+}
+
+/*
+ * Hide closes the popup; Reset also forgets which font to measure with.
+ *
+ * App_WorldRebuildShift closes an open menu on every map rebuild (deob
+ * field766 = 0). Nothing re-derives font_id after boot, so calling Reset there
+ * silently retired the measure path for the rest of the session and every later
+ * popup came out sized by the character estimate above.
+ */
+static void
+test_minimenu_hide_keeps_font(void)
+{
+    struct UIMinimenu menu;
+
+    UIMinimenu_Reset(&menu);
+    menu.font_id = 496;
+    UIMinimenu_AddOption(&menu, "Cancel", TEST_ACTION_CANCEL, -1, pick_none());
+    UIMinimenu_Hide(&menu);
+    TEST_ASSERT(!menu.visible && menu.option_count == 0, "hide closes the popup");
+    TEST_ASSERT(menu.font_id == 496, "hide keeps the measuring font");
+
+    UIMinimenu_Reset(&menu);
+    TEST_ASSERT(menu.font_id == -1, "reset clears the measuring font");
+}
+
 static void
 test_minimenu_clamping(void)
 {
@@ -478,6 +582,8 @@ test_minimenu(void)
     printf("TEST: minimenu / cross\n");
     test_hovertext_compose();
     test_minimenu_layout_math();
+    test_minimenu_width_holds_the_rows();
+    test_minimenu_hide_keeps_font();
     test_minimenu_clamping();
     test_minimenu_sort();
     test_minimenu_hit_and_hover();

@@ -213,10 +213,11 @@ UITree_ComponentIsPassThrough(
  *     the cache field on type-0 records, decoded beside scrollWidth/Height, and
  *     `Cs1ScriptRunner:542` resets the whole minimenu to Cancel when one is
  *     under the pointer — i.e. it discards the world rows the scene pass added.
- *   - the root of a mounted sub-interface. A mounted interface owns its panel
- *     even when the component under the pointer has no click hook or menu op;
- *     otherwise that actionless part of the panel leaks the click to the
- *     world. This includes overlay/tab mounts as well as modal mounts.
+ *   - the clipped host rectangle of a modal sub-interface (IF_OPENSUB type 0).
+ *     The reference applies this barrier at the host before walking the mounted
+ *     group, so blank space outside a smaller/offset mounted root is modal too.
+ *     Overlay/tab mounts remain transparent unless one of their own layers
+ *     raises noClickThrough.
  *
  * It deliberately does NOT include "some widget here is interactive" — the
  * caller already tests that separately, and folding the two would make a
@@ -297,11 +298,6 @@ hit_test_interactive_recursive(
     int blocks = (point_in_self && component->no_click_through) ? 1 : 0;
     int blocks_world = blocks;
 
-    if( point_in_self && !blocks_world && component->parent >= 0 &&
-        (uint32_t)component->parent < tree->component_count )
-        blocks_world = UITree_ChildMountType(
-                           tree, tree->components[component->parent].component_id, component) >= 0;
-
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
     struct UITreeScrollClip child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
@@ -341,38 +337,66 @@ hit_test_interactive_recursive(
             child_scroll_y += component->scroll_y;
     }
 
-    /* Inactive sidebar tabs already returned above, so all sidebars reaching
-     * here are active — recurse unconditionally. */
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    /* The physical tree reparents mounted interface roots under their host, but
+     * the reference still traverses them as a separate, final pass. Ordinary
+     * children inherit the host's local scroll; mounted roots deliberately do
+     * not (ancestor scroll is already present in scroll_off_x/y).
+     *
+     * A type-0 InterfaceParent raises its barrier at this boundary, against the
+     * host's clipped rectangle. That discards the host/ordinary-child hit just
+     * as class415 clears earlier mouse/menu work, while allowing the mounted
+     * subtree walked next to become the target. */
+    int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
+    int const has_mounts = mount_rec >= 0;
+    int const mount_type = has_mounts ? tree->interface_parents[mount_rec].type : -1;
+    for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
-        int child_blocks = 0;
-        int child_blocks_world = 0;
-        int32_t child_hit = hit_test_interactive_recursive(
-            tree,
-            host,
-            child,
-            px,
-            py,
-            child_scroll_x,
-            child_scroll_y,
-            &child_clip,
-            &child_surface,
-            &child_blocks,
-            &child_blocks_world);
-        /* Later siblings render on top. A blocking child also discards this
-         * node's own hit and earlier siblings. */
-        if( child_blocks )
+        if( mount_sweep == 1 && mount_type == 0 && point_in_self )
         {
-            hit = child_hit;
+            hit = -1;
             blocks = 1;
-        }
-        else if( child_hit >= 0 )
-            hit = child_hit;
-        /* World blocking only accumulates: a sibling drawn later cannot un-block
-         * what an earlier one covered, because both are still on screen. */
-        if( child_blocks_world )
             blocks_world = 1;
+        }
+
+        for( int32_t child = component->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            int const is_mount =
+                has_mounts &&
+                UITree_ChildMountType(
+                    tree, component->component_id, &tree->components[child]) >= 0;
+            int child_blocks = 0;
+            int child_blocks_world = 0;
+            int32_t child_hit;
+
+            if( is_mount != mount_sweep )
+                continue;
+            child_hit = hit_test_interactive_recursive(
+                tree,
+                host,
+                child,
+                px,
+                py,
+                is_mount ? scroll_off_x : child_scroll_x,
+                is_mount ? scroll_off_y : child_scroll_y,
+                &child_clip,
+                &child_surface,
+                &child_blocks,
+                &child_blocks_world);
+            /* Later siblings render on top. A blocking child also discards this
+             * node's own hit and earlier siblings. */
+            if( child_blocks )
+            {
+                hit = child_hit;
+                blocks = 1;
+            }
+            else if( child_hit >= 0 )
+                hit = child_hit;
+            /* World blocking only accumulates: a sibling drawn later cannot
+             * un-block what an earlier one covered, because both remain drawn. */
+            if( child_blocks_world )
+                blocks_world = 1;
+        }
     }
 
     if( out_blocks )
@@ -446,7 +470,7 @@ struct collect_nodes_ctx
     int32_t* out;
     int max;
     int count;
-    /** Entries below this index were drawn under a no_click_through panel. */
+    /** Entries below this index were drawn under a blocking panel/mount. */
     int barrier;
 };
 
@@ -563,22 +587,39 @@ collect_nodes_recursive(
             child_scroll_y += component->scroll_y;
     }
 
-    /* Inactive sidebar tabs already returned above (before the barrier); all
-     * sidebars reaching here are active, so recurse unconditionally. */
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    /* Keep menu traversal in the same mount-last order and coordinate space as
+     * rendering. At the type-0 boundary, slice away the host and everything
+     * below/inside its ordinary subtree; mounted entries appended afterwards
+     * remain eligible. */
+    int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
+    int const has_mounts = mount_rec >= 0;
+    int const mount_type = has_mounts ? tree->interface_parents[mount_rec].type : -1;
+    for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
-        collect_nodes_recursive(
-            tree,
-            host,
-            child,
-            px,
-            py,
-            child_scroll_x,
-            child_scroll_y,
-            &child_clip,
-            &child_surface,
-            ctx);
+        if( mount_sweep == 1 && mount_type == 0 && point_in_self )
+            ctx->barrier = ctx->count;
+
+        for( int32_t child = component->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            int const is_mount =
+                has_mounts &&
+                UITree_ChildMountType(
+                    tree, component->component_id, &tree->components[child]) >= 0;
+            if( is_mount != mount_sweep )
+                continue;
+            collect_nodes_recursive(
+                tree,
+                host,
+                child,
+                px,
+                py,
+                is_mount ? scroll_off_x : child_scroll_x,
+                is_mount ? scroll_off_y : child_scroll_y,
+                &child_clip,
+                &child_surface,
+                ctx);
+        }
     }
 }
 

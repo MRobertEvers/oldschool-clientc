@@ -356,6 +356,15 @@ struct CS2VM2_Thread
     int yield_halt_pc;
     int yield_halt_count;
 
+    /* Cache-load retry identity belongs to the executing thread, not the
+     * shared game host. Several Task_CS2Run instances can be parked at once;
+     * a host-global marker lets one script erase another's completed wait and
+     * makes the first script yield twice at the same opcode. */
+    bool has_awaited;
+    enum CS2VM_HostRequestKind awaited_kind;
+    int awaited_id;
+    int awaited_id2;
+
     /* Per-op undo log for VM-field mutations (currently array stores). A yielding
      * op must leave VM state untouched so its replay-on-resume is idempotent
      * (see CS2VM_EXECNO_YIELD); the pointer-only checkpoint covers the stacks and

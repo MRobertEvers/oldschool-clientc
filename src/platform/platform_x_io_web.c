@@ -434,6 +434,65 @@ PlatformX_IO_LoadItem(
     return -1;
 }
 
+/* Read or write a client-owned file against the browser's own filesystem.
+ * Same contract as the native backend's two handlers, including the borrowed
+ * write payload. Returns 0 when the item was answered. */
+static int
+web_client_file(struct ToriRS_IOItem* item)
+{
+    FILE* fp;
+
+    if( item->kind == TORIRS_IOK_FILE_WRITE )
+    {
+        item->error_code = 0;
+        fp = fopen(item->u.file.path, "wb");
+        if( !fp )
+        {
+            item->error_code = -1;
+            return -1;
+        }
+        if( item->data_size > 0 &&
+            fwrite(item->data, 1, (size_t)item->data_size, fp) != (size_t)item->data_size )
+            item->error_code = -1;
+        fclose(fp);
+        return item->error_code;
+    }
+
+    item->data = NULL;
+    item->data_size = 0;
+    item->error_code = 0;
+    fp = fopen(item->u.file.path, "rb");
+    if( !fp )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+    {
+        long size;
+        void* data;
+
+        if( fseek(fp, 0, SEEK_END) != 0 || (size = ftell(fp)) < 0 ||
+            fseek(fp, 0, SEEK_SET) != 0 )
+        {
+            fclose(fp);
+            item->error_code = -1;
+            return -1;
+        }
+        data = malloc((size_t)size > 0 ? (size_t)size : 1);
+        if( !data || (size > 0 && fread(data, 1, (size_t)size, fp) != (size_t)size) )
+        {
+            free(data);
+            fclose(fp);
+            item->error_code = -1;
+            return -1;
+        }
+        fclose(fp);
+        item->data = data;
+        item->data_size = (int)size;
+    }
+    return 0;
+}
+
 int
 PlatformX_IO_Process(
     struct PlatformX_IO* px,
@@ -451,6 +510,27 @@ PlatformX_IO_Process(
         struct WebCacheKey key;
         int cacheable = cache_key_for(item, &key);
         struct WebPending* pending;
+
+        /*
+         * Client-owned files never cross the wire.
+         *
+         * They are the player's settings, and they are device-local by
+         * definition: sending them to the IO server would put one shared copy
+         * on a machine that may be answering several browsers, and read them
+         * back into a client that never chose them. The browser's own
+         * filesystem is where a browser's device settings belong, so this
+         * backend serves them itself — Emscripten's FS is synchronous, so they
+         * are answered before Process returns, exactly like a cache hit.
+         *
+         * Persistence beyond the tab is the page's business: a MEMFS-only
+         * build simply forgets them, the same way it forgets everything else.
+         */
+        if( item->kind == TORIRS_IOK_FILE_READ || item->kind == TORIRS_IOK_FILE_WRITE )
+        {
+            if( web_client_file(item) == 0 )
+                served++;
+            continue;
+        }
 
         item->data = NULL;
         item->data_size = 0;

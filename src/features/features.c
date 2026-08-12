@@ -25,6 +25,11 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 0,
     .ground_click_nearest_model = TORIRS_NEAREST_RING3_STEPS,
+    /* Both permissive extensions off: reference behaviour, per boot only. */
+    .ground_click_nearest_unbounded = 0,
+    .ground_click_offmap_nearest = 0,
+    /* Client-TS records the hit tile verbatim; no ceiling exists to port. */
+    .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 0,
     .route_window_tiles = 0,
     .target_mask_held = TORIRS_TARGET_MASK_HELD_CLASSIC,
@@ -32,6 +37,8 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .npc_light_uses_type_ambient_contrast = 0,
     .player_head_light_ambient = 0,
     .effects_monophonic = 1,
+    /* No resizable mode, so no such setting. */
+    .varbit_interface_resizing = 0,
 };
 
 /*
@@ -48,6 +55,9 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
  *     "walk as close as you can" is entirely the server's answer; the rev-239
  *     client's own copy of the routine (Statics.method5592) is what the
  *     constants were read from.
+ *   - ground_click_clamp_tiles 70: class112.method4269 pulls a ground pick
+ *     further than 70 tiles from the player back onto that radius before it is
+ *     ever recorded.
  *   - los_symmetric_pvp: the 2019 LMS update — PvP LoS is symmetric; PvM is
  *     not.
  *   - route_window_tiles 128: rsmod's PathFinder floods a fixed 128x128 box
@@ -62,6 +72,9 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .op_click_nearest_range = 10,
     .nearest_ranks_by_rect_distance = 1,
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
+    .ground_click_nearest_unbounded = 0,
+    .ground_click_offmap_nearest = 0,
+    .ground_click_clamp_tiles = 70,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
     /* IF3 moved the held-item target flag one bit up. */
@@ -73,6 +86,9 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .player_head_light_ambient = 0,
     /* The modern client mixes effects; only the 2004 one is monophonic. */
     .effects_monophonic = 0,
+    /* `settings_interface_resizing` (gameval name, archive 14). Absent from
+     * rev 230's varbit table, where the seed is a no-op. */
+    .varbit_interface_resizing = 17772,
 };
 
 /*
@@ -92,6 +108,12 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .nearest_ranks_by_rect_distance = 1,
     /* xrsps runs the same 21x21 alternative-route search for every request. */
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
+    .ground_click_nearest_unbounded = 0,
+    .ground_click_offmap_nearest = 0,
+    /* Deliberately unset: the 70-tile ceiling is read out of the rev-239
+     * gamepack, and xrsps is a different client — an unverified port of one
+     * client's constant onto another is a guess, not parity. */
+    .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
     .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
@@ -101,6 +123,7 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .npc_light_uses_type_ambient_contrast = 1,
     .player_head_light_ambient = 128,
     .effects_monophonic = 0,
+    .varbit_interface_resizing = 17772,
 };
 
 struct ToriRS_FeatureTable const*

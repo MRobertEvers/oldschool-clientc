@@ -104,8 +104,10 @@ container(
     int opcode)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+    struct Mock230Player* player =
+        (struct Mock230Player*)SSVM_Active(state, SSVM_ENT_PLAYER);
     struct Mock230Container* row =
-        srv ? mock230_container_resolve(srv, srv->active_player, inv_id) : NULL;
+        srv ? mock230_container_resolve(srv, player ? player : srv->active_player, inv_id) : NULL;
 
     if( !row )
         SSVM_Abort(state, "%s on unknown container %d", SSVM_OpcodeName(opcode), (int)inv_id);
@@ -149,7 +151,7 @@ mock230_ops_inv(
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
 
-    (void)dot;
+    (void)dot; /* SSVM_Active selects the dotted slot from state->dot. */
 
     switch( opcode )
     {

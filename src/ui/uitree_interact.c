@@ -97,16 +97,24 @@ find_wheel_scroll_layer(
         int32_t i = tree->scroll_layers.slots[si];
         struct UITreeComponent const* c;
         int bx = 0, by = 0, bw = 0, bh = 0;
+        int offx = 0, offy = 0;
         assert(i >= 0 && (uint32_t)i < tree->component_count);
         c = &tree->components[i];
-        if( c->type != UIELEM_RS_LAYER || c->behavior.hide || c->if3 || c->freed )
+        if( c->type != UIELEM_RS_LAYER || c->if3 || c->freed || c->component_id < 0 )
+            continue;
+        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         if( bw <= 0 || bh <= 0 )
             continue;
-        if( mx < bx || my < by || mx >= bx + bw || my >= by + bh )
+        /* Native wheel handling uses the layer's drawn rectangle. This is not
+         * always abs_x/y: ordinary descendants inherit ancestor scroll, while
+         * an InterfaceParent root deliberately ignores its mount host's local
+         * scroll. The shared accumulator encodes exactly that boundary. */
+        UITree_AccumScrollOffset(tree, i, &offx, &offy);
+        if( !UITree_PointInScrolledBounds(mx, my, bx, by, bw, bh, offx, offy) )
             continue;
         {
             int area = bw * bh;

@@ -16,9 +16,12 @@
 #include "platform/net_transport.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_sdl2.h"
-#if !defined(TORIRS_PLATFORM_WEB)
+#if !defined(TORIRS_PLATFORM_WEB) || defined(TORIRS_WEB_CACHE_IDB)
 #include "platform/platform_x_io_js5.h"
 #include "platform/platform_x_io_js5_cache.h"
+#endif
+#if defined(TORIRS_WEB_CACHE_IDB)
+#include "platform/web_cache_boot.h"
 #endif
 #if defined(TORIRS_HAVE_GL3)
 /* The GPU renderer. Desktop GL 3.2 natively, WebGL1 in the browser — one file,
@@ -546,6 +549,32 @@ interactive_render_present(
     }
 }
 
+/* App_RunOnce returned no frame commit.  The software surface can safely
+ * re-upload its retained pixels (useful after a window expose), but swapping an
+ * undrawn GL backbuffer can alternate to older contents and a D3D9 DISCARD
+ * swapchain explicitly does not preserve its backbuffer.  Leave GPU front
+ * buffers alone; the window/compositor retains the last committed frame. */
+static void
+interactive_present_retained(
+    struct PlatformSDL2* sdl,
+    struct ToriRS_GL3* gl3,
+    struct ToriRS_D3D9* d3d9)
+{
+#if defined(TORIRS_HAVE_D3D9)
+    if( d3d9 )
+        return;
+#else
+    (void)d3d9;
+#endif
+#if defined(TORIRS_HAVE_GL3)
+    if( gl3 )
+        return;
+#else
+    (void)gl3;
+#endif
+    PlatformSDL2_Present(sdl);
+}
+
 
 /* --- the interactive frame loop -----------------------------------------
  *
@@ -610,6 +639,9 @@ static char const* sim_setvarp;
 static char const* sim_settab;
 static int sim_settab_done;
 static int uncapped;
+/* Retain gesture/key one-shots while App_RunOnce is holding the last committed
+ * visual frame. They are cleared only after a stable tree reaches interaction. */
+static int input_frame_pending;
 
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
@@ -694,7 +726,8 @@ frame_loop_step(void)
                     &series_step,
                     &series_count);
         }
-        if( series_start >= 0 && series_written < series_count && frame_count >= series_start &&
+        if( App_FrameSettled(&app) && series_start >= 0 && series_written < series_count &&
+            frame_count >= series_start &&
             (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
         {
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
@@ -1101,6 +1134,50 @@ frame_loop_step(void)
                     (int)sim_oploc_z,
                     (int)sim_oploc_id);
                 sim_oploc_frame = -1;
+            }
+        }
+
+        /* TORIRS_SIM_OPNPC="frame,op,npc": the npc counterpart of the above.
+         * The npc is named by cache type, not by server slot — see
+         * App_SimulateNpcOp for why that is the only stable handle a test has.
+         * Same route as a world click: net_out_opnpc, then the server's
+         * ordinary OPNPC trigger dispatch. */
+        {
+            static int sim_opnpc_init = 0;
+            static long sim_opnpc_frame = -1;
+            static long sim_opnpc_op;
+            static long sim_opnpc_npc;
+            if( !sim_opnpc_init )
+            {
+                char const* spec = getenv("TORIRS_SIM_OPNPC");
+                char* end = NULL;
+                sim_opnpc_init = 1;
+                if( spec && *spec )
+                {
+                    sim_opnpc_frame = strtol(spec, &end, 0);
+                    if( end && *end == ',' )
+                        sim_opnpc_op = strtol(end + 1, &end, 0);
+                    if( end && *end == ',' )
+                        sim_opnpc_npc = strtol(end + 1, &end, 0);
+                    else
+                        sim_opnpc_frame = -1;
+                }
+            }
+            if( sim_opnpc_frame >= 0 && frame_count >= sim_opnpc_frame )
+            {
+                int slot = App_SimulateNpcOp(&app, (int)sim_opnpc_op, (int)sim_opnpc_npc);
+
+                fprintf(
+                    stderr,
+                    "sim_opnpc: op=%ld npc=%ld slot=%d\n",
+                    sim_opnpc_op,
+                    sim_opnpc_npc,
+                    slot);
+                /* Retry on the next frame while the npc has not arrived yet:
+                 * the caller picks a frame, the server picks the tick its spawn
+                 * lands on, and a one-shot would race that. */
+                if( slot >= 0 )
+                    sim_opnpc_frame = -1;
             }
         }
 
@@ -1536,7 +1613,10 @@ frame_loop_step(void)
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_COMMAND_DRAIN)
     {
-        LibToriRS_Input_Begin(input, now);
+        if( input_frame_pending )
+            LibToriRS_Input_Continue(input, now);
+        else
+            LibToriRS_Input_Begin(input, now);
         App_DrainCommands(&app, &bus, input);
         LibToriRS_Input_End(input);
     }
@@ -1566,6 +1646,8 @@ frame_loop_step(void)
     {
         app_redraw = App_RunOnce(&app, now, input);
     }
+    input_frame_pending =
+        app.app_state == APP_STATE_READY && !App_InputFrameConsumed(&app);
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
@@ -1573,29 +1655,11 @@ frame_loop_step(void)
             interactive_render_present(&app, sdl, gl3, d3d9);
         }
     }
-#if defined(TORIRS_HAVE_D3D9)
-    else if( d3d9 )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            ToriRS_D3D9_Present(d3d9);
-        }
-    }
-#endif
-#if defined(TORIRS_HAVE_GL3)
-    else if( gl3 )
-    {
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
-        {
-            PlatformSDL2_PresentGL(sdl);
-        }
-    }
-#endif
     else
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            PlatformSDL2_Present(sdl);
+            interactive_present_retained(sdl, gl3, d3d9);
         }
     }
 
@@ -2210,6 +2274,58 @@ executor_attach_and_prime_js5(void)
 }
 #endif
 
+#if defined(TORIRS_WEB_CACHE_IDB)
+/*
+ * The browser's half of the same two steps.
+ *
+ * The prime that precedes App_Init already happened: the page ran it before
+ * main() through the exported torirs_web_cache_prime_* functions, because a
+ * WebSocket cannot deliver a byte to a thread that is spinning on it (see
+ * platform/web_cache_boot.c). All that is left here is the attach.
+ *
+ * And the attach does not wait. On the desktop the second pass blocks, but
+ * blocking is the one thing this host cannot do, and it does not need to: the
+ * reference tables are already installed, so what the attached client re-runs
+ * is a local CRC check. A group read that arrives before it finishes parks in
+ * the ordinary way — PlatformX_IO_Pending is what tells TaskRunner_Step not to
+ * resume a task whose slot is unfilled, and it makes no distinction between
+ * waiting on a download and waiting on this.
+ */
+static int
+executor_attach_js5_web(void)
+{
+    struct Js5Config js5;
+
+    if( !WebCacheBoot_Ready() )
+    {
+        fprintf(stderr, "torirs: JS5 metadata was never primed; cache reads will fail\n");
+        return -1;
+    }
+
+    Js5ConfigInit(&js5);
+    js5.host = WebCacheBoot_Js5Host();
+    js5.primary_port = (uint16_t)WebCacheBoot_Js5Port();
+    js5.fallback_port = 0; /* a browser has one endpoint; 443 is not a second */
+    js5.revision = (uint32_t)WebCacheBoot_Js5Revision();
+    /* Demand-only. A tab must not quietly pull a couple of hundred megabytes,
+     * and the reads the boot is blocked on should not queue behind a mirror
+     * nobody asked for. The cache converges on the working set instead. */
+    js5.background_fill = false;
+    if( PlatformXIO_Js5Enable(app.runner.px, &js5) != 0 )
+    {
+        fprintf(stderr, "torirs: failed to attach JS5 cache producer\n");
+        return -1;
+    }
+    fprintf(
+        stderr,
+        "torirs: JS5 attached (ws://%s:%d, rev %d) — filling on demand\n",
+        WebCacheBoot_Js5Host(),
+        WebCacheBoot_Js5Port(),
+        WebCacheBoot_Js5Revision());
+    return 0;
+}
+#endif
+
 struct MainArgState
 {
     int write_bmp;
@@ -2727,7 +2843,13 @@ main(
         return 1;
 #endif
     App_Init(&app, &cfg);
-#if !defined(TORIRS_PLATFORM_WEB)
+#if defined(TORIRS_WEB_CACHE_IDB)
+    if( executor_attach_js5_web() != 0 )
+    {
+        App_Shutdown(&app);
+        return 1;
+    }
+#elif !defined(TORIRS_PLATFORM_WEB)
     if( executor_attach_and_prime_js5() != 0 )
     {
         App_Shutdown(&app);

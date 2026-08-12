@@ -2457,7 +2457,7 @@ d3d9_ui_font_glyph(
 }
 
 static void
-d3d9_ui_draw_font_underlines(
+d3d9_ui_draw_font_rules(
     struct ToriRS_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
@@ -2495,7 +2495,7 @@ d3d9_ui_draw_font_text(
         d3d9_ui_font_glyph,
         &context);
     if( !shadow )
-        d3d9_ui_draw_font_underlines(renderer, slot->font, scissor, text, x, y, center);
+        d3d9_ui_draw_font_rules(renderer, slot->font, scissor, text, x, y, center);
 }
 
 static bool
@@ -2602,7 +2602,34 @@ d3d9_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char ch)
 }
 
 static void
-d3d9_ui_draw_font_underline_range(
+d3d9_ui_append_rule_quad(
+    struct ToriRS_D3D9* renderer,
+    const RECT* scissor,
+    int x,
+    int y,
+    int advance,
+    int rgb)
+{
+    d3d9_ui_append_quad(
+        renderer,
+        NULL,
+        false,
+        scissor,
+        (float)x,
+        (float)y,
+        (float)(x + advance),
+        (float)(y + 1),
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        (D3DCOLOR)(0xff000000u | ((uint32_t)rgb & 0x00ffffffu)));
+}
+
+/* Underline and strikethrough: the glyph pass draws glyphs only, so the rules
+ * get their own walk over the same tokens. */
+static void
+d3d9_ui_draw_font_rule_range(
     struct ToriRS_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
@@ -2611,8 +2638,11 @@ d3d9_ui_draw_font_underline_range(
     int x,
     int y)
 {
+    int ascent = font->line_height > 0 ? font->line_height : 1;
     int underline_rgb = -1;
-    int underline_y = y + (font->line_height > 0 ? font->line_height : 1) + 1;
+    int strike_rgb = -1;
+    int underline_y = y + ascent + 1;
+    int strike_y = y + (ascent * 7) / 10;
     int i = 0;
     while( i < length )
     {
@@ -2632,6 +2662,17 @@ d3d9_ui_draw_font_underline_range(
                 if( parsed >= 0 )
                     underline_rgb = parsed;
             }
+            else if( consumed == 6 && strncmp(text + i, "</str>", 6) == 0 )
+                strike_rgb = -1;
+            else if( consumed == 5 && strncmp(text + i, "<str>", 5) == 0 )
+                strike_rgb = TORIDRAW_FONT_STRIKE_DEFAULT_RGB;
+            else if( (consumed == 12 || consumed == 14) &&
+                strncmp(text + i, "<str=", 5) == 0 )
+            {
+                int parsed = ToriDraw_FontParseHexColor(text + i + 5, consumed - 6);
+                if( parsed >= 0 )
+                    strike_rgb = parsed;
+            }
             i += consumed;
             if( emit_char == 0 )
                 continue;
@@ -2640,27 +2681,21 @@ d3d9_ui_draw_font_underline_range(
             emit_char = (unsigned char)text[i++];
 
         advance = d3d9_ui_font_char_advance(font, emit_char);
-        if( underline_rgb >= 0 && advance > 0 )
-            d3d9_ui_append_quad(
-                renderer,
-                NULL,
-                false,
-                scissor,
-                (float)x,
-                (float)underline_y,
-                (float)(x + advance),
-                (float)(underline_y + 1),
-                0.0f,
-                0.0f,
-                0.0f,
-                0.0f,
-                (D3DCOLOR)(0xff000000u | ((uint32_t)underline_rgb & 0x00ffffffu)));
+        if( advance > 0 )
+        {
+            if( strike_rgb >= 0 )
+                d3d9_ui_append_rule_quad(
+                    renderer, scissor, x, strike_y, advance, strike_rgb);
+            if( underline_rgb >= 0 )
+                d3d9_ui_append_rule_quad(
+                    renderer, scissor, x, underline_y, advance, underline_rgb);
+        }
         x += advance;
     }
 }
 
 static void
-d3d9_ui_draw_font_underlines(
+d3d9_ui_draw_font_rules(
     struct ToriRS_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
@@ -2680,7 +2715,7 @@ d3d9_ui_draw_font_underlines(
         if( center && length > 0 )
             line_x -= d3d9_ui_font_measure_range(font, rest, length) / 2;
         if( length > 0 )
-            d3d9_ui_draw_font_underline_range(
+            d3d9_ui_draw_font_rule_range(
                 renderer, font, scissor, rest, length, line_x, y);
         if( advance == 0 )
             break;

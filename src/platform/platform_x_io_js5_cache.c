@@ -71,12 +71,16 @@ PlatformXIOJs5Cache_New(
     /*
      * The platform cache is generic, so populate every physical table the
      * rscache container can address. Missing master entries are ordinary and
-     * therefore optional; every present entry is scanned and filled in the
-     * background. An executor demand promotes its group to the urgent lane.
+     * therefore optional; every present entry is scanned, and — when the
+     * config asks for it — filled in the background. An executor demand
+     * promotes its group to the urgent lane either way, so a cache with the
+     * background fill off still answers every read; it just stops at what was
+     * asked for. See Js5Config::background_fill.
      */
     effective = *config;
     for( int archive = 0; archive < RSCACHE_DAT2_DISK_TABLE_CAPACITY; archive++ )
-        Js5ArchiveSelectionSet(&effective.archives, archive, true, true, true);
+        Js5ArchiveSelectionSet(
+            &effective.archives, archive, true, config->background_fill, true);
 
     cache->client = Js5ClientNew(&effective, NULL, NULL, &storage, &cache->storage);
     if( !cache->client )

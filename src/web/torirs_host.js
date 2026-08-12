@@ -83,6 +83,13 @@
   var statsUrl = ioUrl.replace(/\/io$/, '/stats');
   var useSync = params.get('io_sync') !== '0';
 
+  // Where the IndexedDB build reaches JS5. Defaults to this page's host, which
+  // is right when the client and the cache server are served from one machine
+  // (the usual local setup) and overridable when they are not.
+  var js5Host = params.get('js5_host') || window.location.hostname || 'localhost';
+  var js5Port = parseInt(params.get('js5_port') || '43594', 10);
+  var cacheReset = params.get('cache_reset') === '1';
+
   var FRAME_MS = 1000 / 60;
 
   // ------------------------------------------------------------------- log
@@ -121,16 +128,38 @@
   // which keeps bytes 0x80-0xFF from being mangled into replacement chars.
 
   function xhrSyncBytes(method, url, body) {
+    var result = xhrSync(method, url, body, null);
+    return result.status === 200 ? result.bytes : null;
+  }
+
+  // The same transfer, but reporting enough to do a conditional request:
+  // {status, bytes, etag}. status 0 means the request never reached anyone,
+  // which is a different thing from a 404 and has a different answer.
+  function xhrSync(method, url, body, etag) {
     var xhr = new XMLHttpRequest();
-    xhr.open(method, url, false);
-    xhr.overrideMimeType('text/plain; charset=x-user-defined');
-    if (body) { xhr.setRequestHeader('Content-Type', 'application/octet-stream'); }
-    xhr.send(body || null);
-    if (xhr.status !== 200) { return null; }
+    try {
+      xhr.open(method, url, false);
+      xhr.overrideMimeType('text/plain; charset=x-user-defined');
+      if (body) { xhr.setRequestHeader('Content-Type', 'application/octet-stream'); }
+      // Asks the server "still this one?". A 304 comes back with no body, so
+      // the copy already held is the answer.
+      if (etag) { xhr.setRequestHeader('If-None-Match', etag); }
+      xhr.send(body || null);
+    } catch (err) {
+      return { status: 0, bytes: null, etag: null, error: err.message };
+    }
+    if (xhr.status === 304) {
+      return { status: 304, bytes: null, etag: etag };
+    }
+    if (xhr.status !== 200) {
+      return { status: xhr.status, bytes: null, etag: null };
+    }
     var text = xhr.responseText;
     var out = new Uint8Array(text.length);
     for (var i = 0; i < text.length; i++) { out[i] = text.charCodeAt(i) & 0xFF; }
-    return out;
+    var tag = null;
+    try { tag = xhr.getResponseHeader('ETag'); } catch (err) { /* not exposed */ }
+    return { status: 200, bytes: out, etag: tag };
   }
 
   // ------------------------------------------------------------ boot files
@@ -143,6 +172,10 @@
   var boot = {
     loaded: [],
     missing: [],
+    /** Files the server confirmed unchanged (304), and files served from the
+     *  stored copy because nothing answered. */
+    revalidated: 0,
+    offline: 0,
 
     write: function (path, bytes) {
       var parts = path.split('/').filter(function (s) { return s.length > 0; });
@@ -154,12 +187,66 @@
       Module.FS.writeFile('/' + parts.join('/'), bytes);
     },
 
+    /*
+     * Fetch one boot file, revalidating rather than re-downloading.
+     *
+     * These are the client's configuration — the manifest and the RevConfig
+     * INIs it names — and they are edited by hand between runs, so a copy held
+     * from last time can never simply be trusted. Nor should it be thrown away:
+     * a conditional request asks the server "still this one?" and a 304 answers
+     * it in a header instead of a body.
+     *
+     * Three outcomes, and the third is the reason any of this exists:
+     *
+     *   200  the file changed (or is new) — take it and remember the validator
+     *   304  unchanged — use the stored copy, no body transferred
+     *   0    nothing answered — the server is gone, so use the stored copy and
+     *        say so. A page whose config server is down still boots from what
+     *        it fetched last time, instead of failing on a file it has.
+     *
+     * The IO server's /boot/ route is tried first and the bare path second: the
+     * IndexedDB build has no IO server, and its page may be served by anything
+     * that hands out files.
+     */
     fetch: function (path) {
-      var bytes = xhrSyncBytes('GET', bootUrl + '/' + path);
-      if (!bytes) { this.missing.push(path); return null; }
-      this.write(path, bytes);
-      this.loaded.push(path);
-      return bytes;
+      var cached = store.bootGet(path);
+      var result = xhrSync('GET', bootUrl + '/' + path, null, cached && cached.etag);
+      var via = '/boot/';
+
+      if (result.status === 404 || result.status === 0) {
+        var direct = xhrSync('GET', '/' + path, null, cached && cached.etag);
+        // Prefer whichever route actually said something about the file.
+        if (direct.status === 200 || direct.status === 304) {
+          result = direct;
+          via = '/';
+        } else if (result.status === 0 && direct.status !== 0) {
+          result = direct;
+          via = '/';
+        }
+      }
+
+      if (result.status === 200) {
+        store.bootPut(path, result.bytes, result.etag);
+        this.write(path, result.bytes);
+        this.loaded.push(path + (cached ? ' (changed)' : ''));
+        return result.bytes;
+      }
+      if (result.status === 304 && cached) {
+        this.write(path, cached.bytes);
+        this.loaded.push(path + ' (unchanged)');
+        this.revalidated++;
+        return cached.bytes;
+      }
+      if (cached) {
+        // Unreachable, or the server no longer has it. Either way this page has
+        // a copy and refusing to boot would help nobody.
+        this.write(path, cached.bytes);
+        this.loaded.push(path + ' (offline copy)');
+        this.offline++;
+        return cached.bytes;
+      }
+      this.missing.push(path);
+      return null;
     },
 
     // `revconfig_ui` / `revconfig_cache` out of an INI, comments stripped.
@@ -254,6 +341,300 @@
         if (argumentTakesValue(flag) && i + 1 < args.length) { i++; }
       }
       takeArgFiles(args);
+    }
+  };
+
+  // --------------------------------------------------------------- store
+  //
+  // The browser's cache, for the `make -C src web-idb` build. Absent from the
+  // wire build, where io_server holds the cache and this is dead weight — the
+  // module simply never calls into it.
+  //
+  // ## What it holds and why it is shaped this way
+  //
+  // One record per archive, keyed by (cache, table, archive), holding the exact
+  // container bytes an idx record would have addressed. Not a dat2 file: a
+  // sector chain exists to pack variable-length archives into one file without
+  // a per-archive inode, and IndexedDB is already a keyed store, so the chain
+  // would cost the 520-byte sector headers and the orphaned sectors every
+  // rewrite leaves behind while buying nothing.
+  //
+  // ## Why the bytes live here rather than in the wasm heap
+  //
+  // The C side reads through a synchronous dat2 facade and this lane has no
+  // ASYNCIFY, so a get() that had to reach IndexedDB could not answer the call
+  // it stands in for. The resolution is to hold the records on this side,
+  // hydrated in one cursor pass before main() runs, and let get() be a map
+  // lookup. As a bonus the resident set is not wasm memory, so a cache larger
+  // than the 4GB wasm ceiling is not itself a reason the module dies.
+  //
+  // A record that is not resident reads as absent, which is what an empty cache
+  // looks like — so JS5 downloads it again and re-writes it. That is a
+  // bandwidth cost and never a wrong archive.
+
+  var STORE_DB = 'torirs-cache';
+  var STORE_VERSION = 1;
+  // Writes are batched: a JS5 boot installs hundreds of records, and a
+  // transaction each would spend more time in IndexedDB than on the wire.
+  var STORE_FLUSH_RECORDS = 64;
+  var STORE_FLUSH_MS = 250;
+
+  var store = {
+    db: null,
+    cacheKey: null,
+    records: new Map(),   // "table/archive" -> Uint8Array
+    tables: new Map(),    // table -> record count
+    bytes: 0,
+    files: new Map(),     // client-owned file path -> Uint8Array
+    bootFiles: new Map(), // boot config path -> {bytes, etag}
+    pendingGroups: [],
+    pendingFiles: [],
+    pendingBoot: [],
+    flushTimer: null,
+    writeErrors: 0,
+    hydrated: 0,
+
+    open: function () {
+      var self = this;
+      return new Promise(function (resolve, reject) {
+        var request = indexedDB.open(STORE_DB, STORE_VERSION);
+        request.onupgradeneeded = function (event) {
+          var db = event.target.result;
+          if (!db.objectStoreNames.contains('groups')) {
+            var groups = db.createObjectStore('groups', { keyPath: 'k' });
+            // The hydrate cursor walks one cache; without this index it would
+            // have to scan every generation the browser has ever held.
+            groups.createIndex('by_cache', 'c', { unique: false });
+          }
+          if (!db.objectStoreNames.contains('files')) {
+            db.createObjectStore('files', { keyPath: 'k' });
+          }
+          // Configuration the client opens by name — the manifest, the
+          // RevConfig INIs — kept with the validator the server gave it, so the
+          // next boot can ask "still this one?" instead of re-downloading, and
+          // can fall back to this copy when nothing answers.
+          if (!db.objectStoreNames.contains('boot')) {
+            db.createObjectStore('boot', { keyPath: 'k' });
+          }
+        };
+        request.onsuccess = function () { self.db = request.result; resolve(); };
+        request.onerror = function () { reject(request.error); };
+      });
+    },
+
+    // Drop every record for one cache. `?cache_reset=1` — the only way to make
+    // a cold boot reproducible once a warm one has been measured.
+    clear: function (cacheKey) {
+      var self = this;
+      return new Promise(function (resolve) {
+        if (!self.db) { resolve(0); return; }
+        var tx = self.db.transaction(['groups'], 'readwrite');
+        var index = tx.objectStore('groups').index('by_cache');
+        var removed = 0;
+        index.openCursor(IDBKeyRange.only(cacheKey)).onsuccess = function (ev) {
+          var cursor = ev.target.result;
+          if (!cursor) { return; }
+          cursor.delete();
+          removed++;
+          cursor.continue();
+        };
+        tx.oncomplete = function () { resolve(removed); };
+        tx.onerror = function () { resolve(removed); };
+      });
+    },
+
+    /*
+     * Everything that is not scoped to a cache: the client's saved options and
+     * the boot configuration, with the validators the server gave it.
+     *
+     * Split from the cache hydrate below because of an ordering knot. The cache
+     * records are keyed by cache name; the cache name is in the manifest; and
+     * the manifest is a boot file that must itself be revalidated first. So the
+     * un-scoped half loads, then the manifest is read, then the cache it names.
+     */
+    hydrateShared: function () {
+      var self = this;
+      return new Promise(function (resolve) {
+        if (!self.db) { resolve(); return; }
+        var tx = self.db.transaction(['files', 'boot'], 'readonly');
+        tx.objectStore('files').openCursor().onsuccess = function (ev) {
+          var cursor = ev.target.result;
+          if (!cursor) { return; }
+          self.files.set(cursor.value.k, new Uint8Array(cursor.value.d));
+          cursor.continue();
+        };
+        tx.objectStore('boot').openCursor().onsuccess = function (ev) {
+          var cursor = ev.target.result;
+          if (!cursor) { return; }
+          self.bootFiles.set(cursor.value.k,
+                             { bytes: new Uint8Array(cursor.value.d), etag: cursor.value.e });
+          cursor.continue();
+        };
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { resolve(); };
+      });
+    },
+
+    // One cache's archive records. This is the whole reason main() can start
+    // with a synchronous cache underneath it.
+    hydrateCache: function (cacheKey) {
+      var self = this;
+      self.cacheKey = cacheKey;
+      self.records.clear();
+      self.tables.clear();
+      self.bytes = 0;
+      return new Promise(function (resolve) {
+        if (!self.db) { resolve(); return; }
+        var tx = self.db.transaction(['groups'], 'readonly');
+        var index = tx.objectStore('groups').index('by_cache');
+        index.openCursor(IDBKeyRange.only(cacheKey)).onsuccess = function (ev) {
+          var cursor = ev.target.result;
+          if (!cursor) { return; }
+          var row = cursor.value;
+          var bytes = new Uint8Array(row.d);
+          self.records.set(row.t + '/' + row.a, bytes);
+          self.tables.set(row.t, (self.tables.get(row.t) || 0) + 1);
+          self.bytes += bytes.length;
+          cursor.continue();
+        };
+        tx.oncomplete = function () {
+          self.hydrated = self.records.size;
+          resolve();
+        };
+        tx.onerror = function () { resolve(); };
+      });
+    },
+
+    // --- the four calls dat2_web_store.c makes ---------------------------
+
+    select: function (cacheKey) {
+      // The store is per-cache and hydrated for exactly one. Asking for another
+      // is a boot that would silently read one generation's archives against
+      // another's reference tables, so it fails rather than answers.
+      return this.db !== null && this.cacheKey === cacheKey;
+    },
+
+    get: function (table, archive) {
+      return this.records.get(table + '/' + archive) || null;
+    },
+
+    put: function (table, archive, bytes) {
+      var key = table + '/' + archive;
+      var previous = this.records.get(key);
+      if (previous) { this.bytes -= previous.length; }
+      else { this.tables.set(table, (this.tables.get(table) || 0) + 1); }
+      this.records.set(key, bytes);
+      this.bytes += bytes.length;
+      this.pendingGroups.push({
+        k: this.cacheKey + '|' + table + '|' + archive,
+        c: this.cacheKey, t: table, a: archive, d: bytes
+      });
+      this.scheduleFlush();
+      return true;
+    },
+
+    hasTable: function (table) {
+      return (this.tables.get(table) || 0) > 0;
+    },
+
+    recordCount: function () { return this.records.size; },
+    byteCount: function () { return this.bytes; },
+
+    // --- boot configuration ----------------------------------------------
+    //
+    // Hydrated with everything else before main(), so boot.fetch — which runs
+    // synchronously — can consult it without reaching the database.
+
+    bootGet: function (path) {
+      return this.bootFiles.get(path) || null;
+    },
+
+    bootPut: function (path, bytes, etag) {
+      this.bootFiles.set(path, { bytes: bytes, etag: etag || null });
+      this.pendingBoot.push({ k: path, d: bytes, e: etag || null });
+      this.scheduleFlush();
+    },
+
+    // --- client-owned files ----------------------------------------------
+    //
+    // The player's saved options. MEMFS would forget them when the tab closes,
+    // which is the same defect rs_prefs.c exists to fix one layer up.
+
+    fileGet: function (path) {
+      var bytes = this.files.get(path);
+      return bytes === undefined ? null : bytes;
+    },
+
+    filePut: function (path, bytes) {
+      this.files.set(path, bytes);
+      this.pendingFiles.push({ k: path, d: bytes });
+      this.scheduleFlush();
+      return true;
+    },
+
+    // --- write-behind -----------------------------------------------------
+
+    scheduleFlush: function () {
+      var self = this;
+      if (this.pendingGroups.length + this.pendingFiles.length +
+          this.pendingBoot.length >= STORE_FLUSH_RECORDS) {
+        this.flush();
+        return;
+      }
+      if (this.flushTimer !== null) { return; }
+      this.flushTimer = window.setTimeout(function () {
+        self.flushTimer = null;
+        self.flush();
+      }, STORE_FLUSH_MS);
+    },
+
+    flush: function () {
+      var self = this;
+      var groups = this.pendingGroups;
+      var files = this.pendingFiles;
+      var bootRows = this.pendingBoot;
+
+      if (this.flushTimer !== null) {
+        window.clearTimeout(this.flushTimer);
+        this.flushTimer = null;
+      }
+      if (!this.db ||
+          (groups.length === 0 && files.length === 0 && bootRows.length === 0)) { return; }
+      this.pendingGroups = [];
+      this.pendingFiles = [];
+      this.pendingBoot = [];
+
+      try {
+        var tx = this.db.transaction(['groups', 'files', 'boot'], 'readwrite');
+        var groupStore = tx.objectStore('groups');
+        var fileStore = tx.objectStore('files');
+        var bootStore = tx.objectStore('boot');
+        groups.forEach(function (row) {
+          // A copy, and a plain ArrayBuffer: the Uint8Array came out of the
+          // wasm heap's buffer, which structured clone would either reject or
+          // serialize whole.
+          groupStore.put({ k: row.k, c: row.c, t: row.t, a: row.a, d: row.d.slice().buffer });
+        });
+        files.forEach(function (row) {
+          fileStore.put({ k: row.k, d: row.d.slice().buffer });
+        });
+        bootRows.forEach(function (row) {
+          bootStore.put({ k: row.k, d: row.d.slice().buffer, e: row.e });
+        });
+        tx.onerror = function () {
+          // Quota, most likely. The records stay resident, so this session is
+          // unaffected; what is lost is the warm start next time.
+          if (self.writeErrors++ === 0) {
+            log('cache: IndexedDB refused a write (' +
+                (tx.error ? tx.error.name : 'unknown') +
+                ') — this session is fine, but the cache will not persist', true);
+          }
+        };
+      } catch (err) {
+        if (self.writeErrors++ === 0) {
+          log('cache: could not write to IndexedDB — ' + err.message, true);
+        }
+      }
     }
   };
 
@@ -451,7 +832,11 @@
     },
 
     stats: function () {
-      if (!this.ready) { return null; }
+      // Absent on the IndexedDB build, which has no wire to count. Tested
+      // rather than assumed: this runs every frame from the moment the runtime
+      // is up, which is before the store has finished hydrating and so before
+      // anything else can tell the two lanes apart.
+      if (!this.ready || typeof Module._torirs_io_stats !== 'function') { return null; }
       if (!this.statsPtr) { this.statsPtr = Module._malloc(5 * 4); }
       Module._torirs_io_stats(this.statsPtr);
       var view = Module.HEAP32;
@@ -466,10 +851,236 @@
     }
   };
 
-  // The wasm side reaches both pumps through this (see platform_x_io_web.c).
+  // The wasm side reaches both pumps through this (see platform_x_io_web.c),
+  // and the record store through torirsStore (see dat2_web_store.c).
   var Module = {};
   window.Module = Module;
   Module.torirsIO = io;
+  Module.torirsStore = store;
+
+  // ------------------------------------------------------- the JS5 barrier
+  //
+  // Only the IndexedDB build has one. The reference tables must be installed
+  // before main() opens the cache — App_Init decodes them itself and is not a
+  // tolerant reader — and the download cannot happen inside main(), because a
+  // WebSocket delivers nothing to a thread that is spinning on it and this lane
+  // has no ASYNCIFY.
+  //
+  // So the loop is inverted: the page steps the C state machine from a
+  // setTimeout chain, which yields to the event loop between steps, and starts
+  // main() itself when the machine says ready. See
+  // src/platform/web_cache_boot.c.
+  //
+  // ## Why this cannot be a preRun run-dependency
+  //
+  // The obvious shape — addRunDependency in preRun, remove it when the prime
+  // finishes — deadlocks. preRun happens *before* initRuntime, and a run
+  // dependency taken there also holds initRuntime back, so the native functions
+  // the prime is made of cannot be called yet: emscripten's own assertion for
+  // it reads "native function called before runtime initialization" (and
+  // without assertions it is a wasm trap at a nonsense address).
+  //
+  // The correct seam is one step later. Module.noInitialRun tells the runtime
+  // to finish initializing and then stop, leaving main() to be started by
+  // Module.callMain once the barrier is done.
+
+  var js5 = {
+    active: false,
+    key: null,
+    steps: 0,
+    started: 0,
+
+    // The manifest main() will open. Same scan main.c does: the first real
+    // --manifest wins.
+    manifestPath: function () {
+      for (var i = 0; i < args.length; i++) {
+        if (args[i] === '--manifest' && i + 1 < args.length) { return args[i + 1]; }
+      }
+      return null;
+    },
+
+    // Does this build have a cache of its own to prime? Answered before the
+    // runtime finishes initializing, because the answer decides whether main()
+    // starts on its own.
+    wanted: function () {
+      return typeof Module._torirs_web_cache_prime_begin === 'function';
+    },
+
+    /*
+     * The whole pre-main() sequence, for both lanes.
+     *
+     * The ordering is forced and worth stating, because it is not obvious and
+     * it is circular-looking:
+     *
+     *   1. open IndexedDB
+     *   2. hydrate the un-scoped stores (client files, boot config + validators)
+     *   3. load the boot files — revalidating each against the server, which
+     *      needs step 2 to have a validator to send
+     *   4. ask C which cache the manifest names — needs step 3 to have put the
+     *      manifest where fopen can see it
+     *   5. hydrate that cache's records — needs step 4 for the key
+     *   6. prime the JS5 metadata, then start main()
+     *
+     * Steps 4-6 are the IndexedDB lane only; the wire lane stops after 3 and
+     * starts main(), which is why boot-file revalidation is shared by both.
+     */
+    begin: function () {
+      var self = this;
+      this.active = true;
+      this.started = performance.now();
+
+      store.open()
+        .catch(function (err) {
+          // A page in private browsing may have no IndexedDB at all. Boot
+          // files then have no stored copy and are simply fetched, which is
+          // what the harness did before any of this existed.
+          log('cache: IndexedDB is unavailable (' +
+              (err && err.message ? err.message : err) + ') — nothing will persist', true);
+        })
+        .then(function () { return store.hydrateShared(); })
+        .then(function () {
+          boot.load();
+          if (boot.loaded.length) { log('torirs: boot files ' + boot.loaded.join(' ')); }
+          if (boot.revalidated || boot.offline) {
+            log('torirs: boot config — ' + boot.revalidated + ' unchanged' +
+                (boot.offline ? ', ' + boot.offline + ' from the offline copy' : ''));
+          }
+          if (boot.missing.length) {
+            log('torirs: boot files NOT available: ' + boot.missing.join(' '), true);
+          }
+          if (!self.wanted()) { self.finish(); return null; }
+          return self.beginCache();
+        })
+        .catch(function (err) {
+          log('torirs: boot failed — ' + (err && err.message ? err.message : err), true);
+          self.finish();
+        });
+    },
+
+    beginCache: function () {
+      var self = this;
+      var manifest = this.manifestPath();
+
+      if (!manifest) {
+        log('cache: no --manifest in the query string, so no cache to open', true);
+        this.finish();
+        return null;
+      }
+      // C reads the manifest and names the cache; this side must never parse
+      // `[cache:boot] dir=` itself, or the two readers drift.
+      this.key = Module.ccall('torirs_web_cache_key', 'string', ['string'], [manifest]);
+      if (!this.key) {
+        this.fail('the manifest names no cache');
+        return null;
+      }
+
+      return Promise.resolve(cacheReset ? store.clear(self.key) : 0)
+        .then(function (cleared) {
+          if (cleared) { log('cache: cleared ' + cleared + ' record(s) for ' + self.key); }
+          return store.hydrateCache(self.key);
+        })
+        .then(function () {
+          log('cache: ' + self.key + ' — ' + store.recordCount() + ' record(s), ' +
+              kb(store.byteCount()) + ' resident' +
+              (store.recordCount() === 0 ? ' (cold start)' : ''));
+          if (Module.ccall('torirs_web_cache_prime_begin', 'number',
+                           ['string', 'number'], [js5Host, js5Port]) !== 0) {
+            self.fail('could not start the JS5 primer');
+            return;
+          }
+          self.step();
+        });
+    },
+
+    // One tick per turn of the event loop. setTimeout(0) rather than a tight
+    // loop is the entire point: it is what lets the WebSocket deliver.
+    step: function () {
+      var self = this;
+      var status = Module._torirs_web_cache_prime_step();
+      this.steps++;
+
+      if (status === 0) {
+        if (this.steps % 200 === 0) { this.report(); }
+        window.setTimeout(function () { self.step(); }, 0);
+        return;
+      }
+      if (status < 0) {
+        this.report();
+        this.fail(this.diagnose());
+        return;
+      }
+      log('cache: metadata ready in ' +
+          ((performance.now() - this.started) / 1000).toFixed(1) + 's');
+      this.finish();
+    },
+
+    report: function () {
+      if (typeof Module._torirs_web_cache_prime_stats !== 'function') { return; }
+      var ptr = Module._malloc(5 * 4);
+      Module._torirs_web_cache_prime_stats(ptr);
+      var view = Module.HEAP32;
+      var base = ptr >> 2;
+      setStatus('cache: priming from ws://' + js5Host + ':' + js5Port +
+                ' — ' + view[base + 1] + ' reference tables, ' +
+                kb(view[base + 2]) + ' received');
+      Module._free(ptr);
+    },
+
+    // Two failures look identical from the page and have opposite fixes: no
+    // server there, versus a server whose cache the client will not accept.
+    // Whether any bytes arrived separates them, so say which one it was rather
+    // than printing the "start a server" advice at someone whose server is
+    // running and answering.
+    diagnose: function () {
+      if (typeof Module._torirs_web_cache_prime_stats !== 'function') { return null; }
+      var ptr = Module._malloc(5 * 4);
+      Module._torirs_web_cache_prime_stats(ptr);
+      var base = ptr >> 2;
+      var bytes = Module.HEAP32[base + 2];
+      var error = Module.HEAP32[base + 4];
+      Module._free(ptr);
+      if (bytes > 0) {
+        return { answered: true, bytes: bytes, error: error };
+      }
+      return { answered: false, bytes: bytes, error: error };
+    },
+
+    fail: function (why) {
+      if (why && why.answered) {
+        // JS5_ERROR_* from src/js5/js5.h. 11 is REFERENCE, which for a cache
+        // this repo packed itself is nearly always the 16-bit ceiling: the JS5
+        // request carries a 2-byte group id, so a table holding ids at or above
+        // 65536 cannot be served by this protocol at all.
+        log('cache: the JS5 server answered (' + kb(why.bytes) + ') but the client ' +
+            'rejected its metadata — JS5 error ' + why.error +
+            (why.error === 11 ? ' (reference table): a table almost certainly holds ' +
+              'group ids past 65535, which a 4-byte JS5 request cannot address' : ''), true);
+        this.finish();
+        return;
+      }
+      log('cache: ' + (typeof why === 'string' ? why : 'the JS5 server did not answer') +
+          '. Start one with:', true);
+      log('  make -C src js5-server && ./src/build_opt/js5_server --cache <dir> ' +
+          '--revision <rev> --port ' + js5Port, true);
+      this.finish();
+    },
+
+    // Start main(), whether the prime succeeded or not.
+    //
+    // Running it after a failure is deliberate: the client then reports a cache
+    // it cannot read, which says what is wrong. Leaving the page on "loading…"
+    // instead is indistinguishable from a hang, and the two have completely
+    // different fixes.
+    finish: function () {
+      if (!this.active) { return; }
+      this.active = false;
+      try {
+        Module.callMain(args);
+      } catch (err) {
+        log('torirs: main() did not start — ' + (err && err.message ? err.message : err), true);
+      }
+    }
+  };
 
   // ------------------------------------------------------------------- UI
 
@@ -503,6 +1114,23 @@
   // deadlock there.
   function hostFrame() {
     io.pump();
+
+    // The IndexedDB build has no wire and so no io stats; what matters there is
+    // how the cache is filling.
+    if (store.cacheKey) {
+      setStatus(
+        'heap ' + heapMb() + 'MB' +
+        '  ·  cache ' + store.cacheKey +
+        '  ' + store.recordCount() + ' records' +
+        '  ' + kb(store.byteCount()) +
+        '  ·  hydrated ' + store.hydrated +
+        '  written ' + (store.recordCount() - store.hydrated) +
+        (store.writeErrors ? '  ·  ' + store.writeErrors + ' write errors' : '')
+      );
+      renderIoLog();
+      window.requestAnimationFrame(hostFrame);
+      return;
+    }
 
     var stats = io.stats();
     if (stats) {
@@ -542,19 +1170,33 @@
 
   Module.preRun = [function () {
     readEnv().forEach(function (pair) { ENV[pair[0]] = pair[1]; });
-    // Before main(), because main() opens the manifest on its first pass.
-    boot.load();
+    /*
+     * Take main() off the runtime's hands, on both lanes.
+     *
+     * Everything main() needs to find — the manifest, the RevConfig INIs — now
+     * comes from a store that has to be opened asynchronously first, and
+     * nothing here may call into wasm anyway: preRun runs before initRuntime.
+     * So the whole boot sequence moves after runtime init and ends by calling
+     * main() itself. See js5.begin.
+     */
+    Module.noInitialRun = true;
   }];
+
+  // The last few records a session wrote are still in the batch when the tab
+  // goes away. pagehide rather than beforeunload: it is the one that fires on
+  // mobile and on a bfcache eviction, and losing the tail of a download would
+  // make the next boot re-fetch it for no reason.
+  window.addEventListener('pagehide', function () { store.flush(); });
 
   Module.onRuntimeInitialized = function () {
     io.ready = true;
-    log('torirs: runtime up, io endpoint ' + io.endpoint +
-        ' (' + (useSync ? 'synchronous' : 'frame-gated') + ')');
-    log('torirs: argv ' + JSON.stringify(args));
-    if (boot.loaded.length) { log('torirs: boot files ' + boot.loaded.join(' ')); }
-    if (boot.missing.length) {
-      log('torirs: boot files NOT on the server: ' + boot.missing.join(' '), true);
+    if (store.cacheKey) {
+      log('torirs: runtime up, cache in IndexedDB, js5 ws://' + js5Host + ':' + js5Port);
+    } else {
+      log('torirs: runtime up, io endpoint ' + io.endpoint +
+          ' (' + (useSync ? 'synchronous' : 'frame-gated') + ')');
     }
+    log('torirs: argv ' + JSON.stringify(args));
     // Which cache the server has open. Changing the manifest in the URL
     // changes the client but not the server, and a client booting one
     // generation against another's cache just fails to decode anything —
@@ -568,6 +1210,9 @@
       .catch(function () { /* older server, or none: not worth a message */ });
     installMemtraceButton();
     window.requestAnimationFrame(hostFrame);
+    // The runtime is up, so native calls are legal — and main() has not run,
+    // because preRun set noInitialRun. This is the window the barrier needs.
+    js5.begin();
   };
 
   // ------------------------------------------------------------------ memtrace

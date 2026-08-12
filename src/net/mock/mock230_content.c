@@ -1202,6 +1202,13 @@ apply_param(
         resolved = def->attackrate = atoi(value);
     else if( strcmp(text, "attackrange") == 0 )
         resolved = def->attackrange = atoi(value);
+    /* NPC source profiles also carry the two offensive scalars that are not
+     * among the legacy twelve bonus slots.  They are script-visible params,
+     * not engine fields: ranged and magic swing code reads them through
+     * npc_param, and keeping them here preserves the normal overlay precedence
+     * over cache defaults. */
+    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "magicdamage") == 0 )
+        resolved = atoi(value);
     else if( strcmp(text, "damagetype") == 0 )
         resolved = def->damagetype = atoi(value);
     else if( strcmp(text, "huntrange") == 0 )
@@ -1403,6 +1410,10 @@ npc_config_key(
      * anything else means yes. */
     else if( strcmp(key, "givechase") == 0 )
         def->givechase = strcmp(value, "no") != 0;
+    /* Same shape as givechase above, and for the same reason: the negative is
+     * the only case worth stating, so anything but `no` means yes. */
+    else if( strcmp(key, "retaliate") == 0 )
+        def->retaliate = strcmp(value, "no") != 0;
     else if( strcmp(key, "blockwalk") == 0 )
     {
         /* LostCity BlockWalk: none / npc / all / player (NpcConfig also accepts
@@ -3324,6 +3335,8 @@ init_defaults(void)
     g_npc_default.wanderrange = 5;
     g_npc_default.maxrange = 7;
     g_npc_default.givechase = 1;
+    /* Everything fights back unless it says otherwise. */
+    g_npc_default.retaliate = 1;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
     g_npc_default.blockwalk = 1;
     g_npc_default.blocksight = 0;

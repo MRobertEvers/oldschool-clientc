@@ -638,8 +638,38 @@ def main() -> int:
             baseline_checks = stage_module.audit_roster_admission(stage_tree, lane, args.boundary)
         expect(baseline_checks > 0, "stage admission baseline executed zero checks")
 
+        # The original Spirit wolf files predate the generated cohort ledger.
+        # Their exact config stem is a path-only compatibility case: accepting
+        # it must not admit a new cohort that merely extends the same prefix.
+        base_cohort = lane / "configs/summoning_cohort_spirit_wolf.npc"
+        base_cohort.parent.mkdir(parents=True)
+        base_cohort.write_text("[summoning_spirit_wolf]\n", encoding="utf-8")
+        with redirect_stdout(baseline_output), redirect_stderr(baseline_output):
+            base_cohort_checks = stage_module.audit_roster_admission(
+                stage_tree, lane, args.boundary
+            )
+        expect(base_cohort_checks > baseline_checks,
+               "base Spirit wolf cohort path executed no admission check")
+
+        base_cohort.write_text(
+            "[summoning_cohort_spirit_wolf_probe]\n", encoding="utf-8"
+        )
+        expect_stage_rejected(
+            "generated token inside Spirit wolf base file",
+            stage_module, stage_tree, lane, args.boundary,
+            "unadmitted generated cohort",
+        )
+        base_cohort.unlink()
+
+        base_cohort_probe = lane / "configs/summoning_cohort_spirit_wolf_probe.npc"
+        base_cohort_probe.write_text("[summoning_spirit_wolf]\n", encoding="utf-8")
+        expect_stage_rejected(
+            "Spirit wolf prefix extension", stage_module, stage_tree, lane, args.boundary,
+            "unadmitted generated cohort",
+        )
+        base_cohort_probe.unlink()
+
         cohort = lane / "configs/unadmitted.npc"
-        cohort.parent.mkdir(parents=True)
         cohort.write_text("[summoning_cohort_probe_pet]\n", encoding="utf-8")
         expect_stage_rejected(
             "unadmitted pet cohort", stage_module, stage_tree, lane, args.boundary,

@@ -282,14 +282,7 @@ else ifeq ($(PLATFORM),win64)
 
 else ifeq ($(PLATFORM),web)
   PLATFORM_CC       := emcc
-  PLATFORM_OBJ_BASE := build_web
   PLATFORM_TARGET   := $(REPO_ROOT)/build-web/torirs.js
-  # The GPU renderer builds here too, against WebGL1 rather than desktop GL --
-  # same file, see TORIRS_GL_ES2 below. IO is asynchronous, audio is WebAudio.
-  PLATFORM_SRCS     := platform/platform_x_io_web.c \
-                       platform/io_wire.c \
-                       platform/platform_audio_wasm.c \
-                       platform/platform_sdl2_renderer_gl3.c
   # WebGL1 cannot index past 16 bits, so this lane needs the index-splitting
   # object the desktop GL binding does not (see webgl1_index16.h).
   PLATFORM_GPU_OBJ_NAMES := webgl1_index16.o
@@ -297,7 +290,65 @@ else ifeq ($(PLATFORM),web)
   # alongside a web build are native and take the host's suffix, which on the
   # machines this lane runs on is none.
   PLATFORM_EXE_SUFFIX :=
-  JS5_SRCS          :=
+
+  # --- Where a browser's cache reads come from -----------------------------
+  #
+  # Two answers, and they are genuinely different architectures rather than a
+  # flag, which is why each owns an object directory:
+  #
+  #   CACHE=wire (default)  There is no cache in the browser. Every item goes
+  #                         over a socket to io_server, which runs the real
+  #                         PlatformX_IO_LoadItem against a real cache. Needs
+  #                         that process; nothing persists in the browser.
+  #
+  #   CACHE=idb             The browser HAS a cache: archive records in
+  #                         IndexedDB behind a dat2 facade (dat2_web_store.h),
+  #                         filled incrementally over JS5. The client runs the
+  #                         same platform_x_io.c the desktop does, and the page
+  #                         needs no io_server at all.
+  #
+  # They cannot coexist in one module -- both define PlatformX_IO -- and the
+  # choice is made at link time rather than at run time for exactly that
+  # reason.
+  WEB_CACHE ?= $(if $(CACHE),$(CACHE),wire)
+  ifeq ($(WEB_CACHE),idb)
+    PLATFORM_OBJ_BASE := build_web_idb
+    # The desktop IO backend, its JS5 attachment, the IndexedDB record store,
+    # and the pre-main() metadata barrier the page drives.
+    PLATFORM_SRCS     := platform/platform_x_io.c \
+                         platform/platform_x_io_js5_cache.c \
+                         platform/dat2_web_store.c \
+                         platform/web_cache_boot.c \
+                         platform/platform_audio_wasm.c \
+                         platform/platform_sdl2_renderer_gl3.c
+    JS5_SRCS          := $(wildcard js5/*.c)
+    WEB_CACHE_CFLAGS  := -DTORIRS_WEB_CACHE_IDB=1
+    # The page drives the metadata barrier, so those three entry points have to
+    # survive dead-code elimination. There is no _torirs_io_* here: this lane
+    # has no wire, and naming a symbol that does not exist is a link error.
+    WEB_CACHE_EXPORTS := ,"_torirs_web_cache_key","_torirs_web_cache_prime_begin","_torirs_web_cache_prime_step","_torirs_web_cache_prime_stats"
+    # The store's EM_JS bodies call these from JavaScript. Without them on the
+    # list the runtime may drop them, and the failure is a page that loads and
+    # then throws "setValue is not defined" on the first cache read.
+    # setValue/UTF8ToString are called from the store's EM_JS bodies. Without
+    # them on the list the runtime may drop them, and the failure is a page
+    # that loads and then throws on the first cache read.
+    WEB_CACHE_RUNTIME := ,"setValue","UTF8ToString"
+  else ifeq ($(WEB_CACHE),wire)
+    PLATFORM_OBJ_BASE := build_web
+    # The GPU renderer builds here too, against WebGL1 rather than desktop GL --
+    # same file, see TORIRS_GL_ES2 below. IO is asynchronous, audio is WebAudio.
+    PLATFORM_SRCS     := platform/platform_x_io_web.c \
+                         platform/io_wire.c \
+                         platform/platform_audio_wasm.c \
+                         platform/platform_sdl2_renderer_gl3.c
+    JS5_SRCS          :=
+    WEB_CACHE_CFLAGS  :=
+    WEB_CACHE_EXPORTS := ,"_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"
+    WEB_CACHE_RUNTIME :=
+  else
+    $(error unknown CACHE '$(WEB_CACHE)' for PLATFORM=web — expected wire or idb)
+  endif
 
   # TORIRS_PLATFORM_WEB is the source-level switch (there is no local disk, so
   # App_Init must not open one). -sUSE_SDL=2 must be a *compile* flag too: it
@@ -307,7 +358,12 @@ else ifeq ($(PLATFORM),web)
   # ISO C. Apple libc declares them under -std=c11 anyway; emscripten's musl
   # headers correctly do not, and an undeclared strdup compiles to a call
   # returning int — a truncated pointer, and a crash far from the call.
-  PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE
+  #
+  # WEB_CACHE_CFLAGS is in BASE, not CFLAGS: TORIRS_WEB_CACHE_IDB changes what
+  # RSCache_Dat2Disk means to app.c AND how the vendored rscache unit is built,
+  # so a definition only the client saw would give the two halves different
+  # ideas of the same struct.
+  PLATFORM_BASE_CFLAGS := -DTORIRS_PLATFORM_WEB=1 -D_GNU_SOURCE $(WEB_CACHE_CFLAGS)
   # TORIRS_GL_ES2 builds the GPU renderer against WebGL1 (GLES2, no
   # extensions); TORIRS_HAVE_GL3 says a GPU renderer exists at all. It is
   # opt-in, like the desktop one: pass --webgl1 (in the page's query string).
@@ -354,8 +410,8 @@ else ifeq ($(PLATFORM),web)
                       -sEXIT_RUNTIME=0 \
                       -sENVIRONMENT=web \
                       -sMODULARIZE=0 \
-                      -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"]' \
-                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free","_torirs_io_request_len","_torirs_io_request_ptr","_torirs_io_request_taken","_torirs_io_response_alloc","_torirs_io_response_submit","_torirs_io_fail_pending","_torirs_io_stats"]'
+                      -sEXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPU8","HEAP32","callMain","FS","FS_readFile"$(WEB_CACHE_RUNTIME)]' \
+                      -sEXPORTED_FUNCTIONS='["_main","_malloc","_free"$(WEB_CACHE_EXPORTS)]'
   # emcc strips at the wasm level; there is no ld flag to add here.
   PLATFORM_STRIP_LDFLAGS :=
   # emscripten's musl only routes these four through --wrap; reallocf and

@@ -207,6 +207,36 @@ mock230_mapinstance_find(
     int z);
 
 /**
+ * Which square of the real map an instanced tile was copied from.
+ *
+ * `*out_x` / `*out_z` come back as an absolute *tile* in the source zone's
+ * south-west corner, so `>> 6` is the source map square and `>> 3` the source
+ * zone. Returns 0 for a dead handle, a tile outside the reservation, or a
+ * destination zone nothing was ever pointed at (an instance is allowed to have
+ * holes, and a player standing in one came from nowhere).
+ *
+ * Exists because an instance's coordinates say nothing about where it *is* in
+ * the world's terms. The pool hands out map squares from x >= 100, far past the
+ * edge of the real map, so anything keyed on the player's map square — region
+ * music is the case this was added for, but nothing about it is music-specific
+ * — reads an address that no content, table or wiki has ever described. The
+ * template square is the address that means something.
+ *
+ * `level` is the destination plane. The lookup falls back to plane 0 when the
+ * player's own plane has no zone set there, because content routinely builds
+ * one storey and leaves the rest void, and a player on the void plane is still
+ * standing in the same place.
+ */
+int
+mock230_mapinstance_source_tile(
+    int handle,
+    int level,
+    int x,
+    int z,
+    int* out_x,
+    int* out_z);
+
+/**
  * Fill the descriptor window for a scene whose origin zone is (zone_x, zone_z).
  *
  * Returns the number of set zones; 0 means no instance overlaps the scene and

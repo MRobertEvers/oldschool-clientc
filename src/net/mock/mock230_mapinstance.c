@@ -542,6 +542,50 @@ mock230_mapinstance_find(
 }
 
 int
+mock230_mapinstance_source_tile(
+    int handle,
+    int level,
+    int x,
+    int z,
+    int* out_x,
+    int* out_z)
+{
+    struct Mock230MapInstance* inst = mapinstance_get(handle);
+    const struct Mock230MapInstanceZone* zone;
+    int zone_x;
+    int zone_z;
+
+    assert(out_x && out_z);
+    if( !inst )
+        return 0;
+    /* Zone index within the instance, from the SW corner. `zone_w`/`zone_h` and
+     * not the reserved square footprint: the reservation is rounded up to whole
+     * squares and the rounding is not addressable, so a tile out there has no
+     * source even though `_find` (rightly) still calls it inside. */
+    zone_x = (x - inst->base_x) >> 3;
+    zone_z = (z - inst->base_z) >> 3;
+    if( zone_x < 0 || zone_x >= inst->zone_w || zone_z < 0 || zone_z >= inst->zone_h )
+        return 0;
+    if( level < 0 || level >= MOCK230_MAPINSTANCE_LEVELS )
+        return 0;
+
+    zone = &inst->zones[level][zone_x][zone_z];
+    if( !zone->set )
+        zone = &inst->zones[0][zone_x][zone_z];
+    if( !zone->set )
+        return 0;
+
+    /* Back to absolute tiles. `src_zone_*` was floored to the zone by
+     * `_setchunk`, so this is the source zone's south-west corner and not the
+     * tile the destination one maps to — which is what a caller asking "where
+     * in the world is this" wants, and is rotation-independent. Anyone needing
+     * the exact tile wants `mock230_mapinstance_rotate_to_src`. */
+    *out_x = zone->src_zone_x << 3;
+    *out_z = zone->src_zone_z << 3;
+    return 1;
+}
+
+int
 mock230_mapinstance_window(
     int zone_x,
     int zone_z,

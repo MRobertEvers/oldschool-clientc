@@ -129,17 +129,25 @@ def supports_inv_staging(config_suffixes: set[str], admission_suffixes: set[str]
     return ".inv" in config_suffixes and ".inv" in admission_suffixes
 
 
-def marker_hits(root: Path, marker: str, text_suffixes: set[str]) -> list[str]:
+def marker_hits(root: Path, stage_module: ModuleType, admission: object,
+                text_suffixes: set[str]) -> list[str]:
+    """Return unadmitted review-cohort references in a staged tree.
+
+    The roster boundary permits a small, explicit set of dependency records
+    from the preserved import experiment.  Looking for the raw prefix alone
+    makes those admitted references indistinguishable from a real staging
+    leak, so use the stager's policy helper as the single source of truth.
+    """
     found: list[str] = []
-    needle = marker.encode("utf-8")
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
-        if marker in relative:
+        if stage_module.review_only_tokens(relative, admission):
             found.append(relative)
             continue
-        if path.suffix in text_suffixes and needle in path.read_bytes():
+        if (path.suffix in text_suffixes and
+                stage_module.review_only_tokens(path.read_bytes().decode("latin-1"), admission)):
             found.append(relative)
     return found
 
@@ -262,7 +270,8 @@ def main() -> int:
                        "feature-on stage omitted or changed BoB client membership")
                 expect((staged / "fields/inv.ini").is_file(),
                        "feature-on stage omitted the native inv field contract")
-                review_hits = marker_hits(staged, REVIEW, stage_module.ADMISSION_TEXT_SUFFIXES)
+                review_hits = marker_hits(staged, stage_module, admission,
+                                          stage_module.ADMISSION_TEXT_SUFFIXES)
                 expect(not review_hits,
                        "feature-on stage leaked review-only roster data: " +
                        ", ".join(review_hits[:10]))

@@ -104,9 +104,14 @@ mock230_session_send(
     const uint8_t* data,
     int len)
 {
+    int result;
+
     if( session->state == MOCK230_SESSION_DEAD || !session->transport.send )
         return -1;
-    return session->transport.send(session->transport.ctx, data, len);
+    result = session->transport.send(session->transport.ctx, data, len);
+    if( result >= 0 )
+        session->output_generation++;
+    return result;
 }
 
 int
@@ -725,6 +730,7 @@ step_online(
         int len_bytes;
         int payload_len;
         int name;
+        uint64_t response_generation;
 
         if( session->pending_opcode < 0 )
         {
@@ -757,6 +763,7 @@ step_online(
             break; /* body still in flight; nothing consumed */
 
         name = wire->packetout_name(session->pending_opcode);
+        response_generation = session->output_generation;
 
         /*
          * MOCK230_TRACE_IN=1 -- the client->server half, the mirror of
@@ -826,6 +833,16 @@ step_online(
             (void)srv;
             mock230_world_handle(session->player, name, session->in + len_bytes, payload_len);
         }
+
+        /* Client input is pumped between scheduled world ticks. If handling
+         * this packet produced an immediate response, terminate that response
+         * transaction now. Otherwise a visual IF_* or RUNCLIENTSCRIPT response
+         * makes the client retain its old frame until the unrelated next
+         * 600ms tick. Quiet packets (NO_TIMEOUT, input telemetry) add nothing. */
+        if( session->player && session->state == MOCK230_SESSION_ONLINE &&
+            session->output_generation != response_generation &&
+            session->last_output_packet_name != PKT_NAME_SERVER_TICK_END )
+            mock230_send_tick_end(session->player);
 
         consume(session, len_bytes + payload_len);
         session->pending_opcode = -1;

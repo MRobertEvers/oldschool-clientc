@@ -85,6 +85,18 @@ SYNTH_SOURCE_TOKEN = re.compile(r"(?:^|_)synth_(\d+)(?:$|_)")
 DIRECT_PET_RECORD_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_pet_[a-z0-9_]+)")
 NPC_SOUNDS_YES = re.compile(r"(?mi)^\s*npc_sounds\s*=\s*yes\s*$")
 
+# The original Spirit wolf import predates the generated Phase-5 cohort
+# admission ledger.  Its five config filenames now follow the cohort naming
+# convention, but its canonical records deliberately retain their older
+# ``summoning_*`` names.  Admit only these exact legacy paths; a similarly
+# prefixed file or a generated-cohort token inside their contents must still
+# pass the ordinary boundary checks below.
+BASE_COHORT_CONFIG_TOKEN = "summoning_cohort_spirit_wolf"
+BASE_COHORT_CONFIG_PATHS = frozenset(
+    (LANE / "configs" / f"{BASE_COHORT_CONFIG_TOKEN}{suffix}").as_posix()
+    for suffix in (".loc", ".npc", ".obj", ".seq", ".spotanim")
+)
+
 
 @dataclass(frozen=True)
 class RosterAdmission:
@@ -200,14 +212,21 @@ def audit_roster_admission(tree: Path, lane: Path, boundary_path: Path) -> int:
             text = ""
             if path.suffix in ADMISSION_TEXT_SUFFIXES:
                 text = path.read_text(encoding="utf-8", errors="replace")
-            tokens = set(GENERATED_COHORT_TOKEN.findall(relative))
-            tokens.update(GENERATED_COHORT_TOKEN.findall(text))
+            path_tokens = set(GENERATED_COHORT_TOKEN.findall(relative))
+            text_tokens = set(GENERATED_COHORT_TOKEN.findall(text))
+            tokens = path_tokens | text_tokens
             for token in sorted(tokens):
                 checked += 1
                 review_only = cohort_is_review_only(token, admission)
+                base_cohort_path = (
+                    token == BASE_COHORT_CONFIG_TOKEN
+                    and relative in BASE_COHORT_CONFIG_PATHS
+                    and token in path_tokens
+                    and token not in text_tokens
+                )
                 if review_only:
                     review_only_hits += 1
-                elif not cohort_is_admitted(token, admission):
+                elif not base_cohort_path and not cohort_is_admitted(token, admission):
                     errors.append(f"unadmitted generated cohort {token!r} reaches {relative}")
                 if re.search(r"(?:^|_)pet(?:_|$)", token) and not review_only:
                     errors.append(f"pet cohort {token!r} is deferred to Phase 7 ({relative})")

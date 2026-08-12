@@ -74,6 +74,7 @@ static const struct Mock230MusicRegion k_mock230_music_regions[] = {
     {  9034,   97,   6,  31, "Hermit" },
     {  9035,  142,   9,   2, "Complication" },
     {  9038,  245,   7,   5, "Natural" },
+    {  9043,  500,  17,  13, "Inferno" },
     {  9263,  390,  10,  24, "Romper Chomper" },
     {  9265,  372,  10,   4, "Far Away" },
     {  9266,  252,   7,  10, "Elven Mist" },

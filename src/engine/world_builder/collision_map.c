@@ -971,38 +971,34 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
 }
 
 /*
- * The unreachable fallback, shared by ground clicks and (under the modern era)
- * interaction clicks. Scans a (2*range+1)-square box around the destination for
- * the best flooded tile and writes it through out_x / out_z. Returns 1 when one
- * was found.
- *
- * Two rankings, because the references rank differently and the choice only
- * makes sense alongside the box size — see struct CollisionNearestOpts.
+ * One ranked scan of the flood over the box [x0,x1] x [z0,z1]. The body of
+ * collision_nearest_fallback, factored out because the unbounded last resort
+ * runs the same scan over the whole map.
  */
 static int
-collision_nearest_fallback(
+collision_nearest_scan(
     struct CollisionMap* cm,
     int dst_x,
     int dst_z,
-    struct CollisionApproach const* approach,
-    struct CollisionNearestOpts const* opts,
+    int x0,
+    int x1,
+    int z0,
+    int z1,
+    int rect_w,
+    int rect_l,
+    int max_dist,
+    int rank_by_rect_distance,
     int const* dist_map,
     int* out_x,
     int* out_z)
 {
-    if( !opts || opts->range <= 0 )
-        return 0;
-
-    int max_dist = opts->max_dist > 0 ? opts->max_dist : 100;
-    int rect_w = approach && approach->loc_width > 0 ? approach->loc_width : 1;
-    int rect_l = approach && approach->loc_length > 0 ? approach->loc_length : 1;
     int best_cost = INT_MAX;
     int best_dist = INT_MAX;
     int found = 0;
 
-    for( int px = dst_x - opts->range; px <= dst_x + opts->range; px++ )
+    for( int px = x0; px <= x1; px++ )
     {
-        for( int pz = dst_z - opts->range; pz <= dst_z + opts->range; pz++ )
+        for( int pz = z0; pz <= z1; pz++ )
         {
             if( px < 0 || pz < 0 || px >= cm->size_x || pz >= cm->size_z )
                 continue;
@@ -1010,7 +1006,7 @@ collision_nearest_fallback(
             if( dist >= max_dist )
                 continue;
 
-            if( !opts->rank_by_rect_distance )
+            if( !rank_by_rect_distance )
             {
                 /* Reference 3x3 ring: strictly-lower step count wins, so the
                  * first tile at the minimum is kept (scan order is the
@@ -1049,6 +1045,76 @@ collision_nearest_fallback(
         }
     }
     return found;
+}
+
+/*
+ * The unreachable fallback, shared by ground clicks and (under the modern era)
+ * interaction clicks. Scans a (2*range+1)-square box around the destination for
+ * the best flooded tile and writes it through out_x / out_z. Returns 1 when one
+ * was found.
+ *
+ * Two rankings, because the references rank differently and the choice only
+ * makes sense alongside the box size — see struct CollisionNearestOpts.
+ *
+ * `opts->unbounded` adds a second, non-reference pass over the whole flood when
+ * the box came up empty: a click far outside anything walkable then walks as
+ * close to it as the map allows instead of doing nothing.
+ */
+static int
+collision_nearest_fallback(
+    struct CollisionMap* cm,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* opts,
+    int const* dist_map,
+    int* out_x,
+    int* out_z)
+{
+    if( !opts || opts->range <= 0 )
+        return 0;
+
+    int max_dist = opts->max_dist > 0 ? opts->max_dist : 100;
+    int rect_w = approach && approach->loc_width > 0 ? approach->loc_width : 1;
+    int rect_l = approach && approach->loc_length > 0 ? approach->loc_length : 1;
+
+    if( collision_nearest_scan(
+            cm,
+            dst_x,
+            dst_z,
+            dst_x - opts->range,
+            dst_x + opts->range,
+            dst_z - opts->range,
+            dst_z + opts->range,
+            rect_w,
+            rect_l,
+            max_dist,
+            opts->rank_by_rect_distance,
+            dist_map,
+            out_x,
+            out_z) )
+        return 1;
+
+    if( !opts->unbounded )
+        return 0;
+
+    /* Whole flood, always ranked by distance to the destination — a step-count
+     * ranking over an unbounded set answers "the tile next to you". */
+    return collision_nearest_scan(
+        cm,
+        dst_x,
+        dst_z,
+        0,
+        cm->size_x - 1,
+        0,
+        cm->size_z - 1,
+        rect_w,
+        rect_l,
+        max_dist,
+        1,
+        dist_map,
+        out_x,
+        out_z);
 }
 
 /* The tile range the flood may expand into: cm->route_window tiles centred on

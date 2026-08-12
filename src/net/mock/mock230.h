@@ -317,16 +317,43 @@ enum
      * out of range on the very next tick, so it is removed, re-added, removed,
      * and never renders. The wire's capacity is not the view distance.
      *
-     * It sits one tile inside MOCK230_REBUILD_MARGIN, and that is not a
-     * coincidence to be left unwritten. The player's zone window is clipped to
-     * the build area (`rebuild_active`), so once this exceeds the margin the
-     * scene stops being re-centred before the view reaches past the build
-     * area's edge, and NPC_INFO starts naming npcs the client has no scene for.
-     * `mock230_zone_npcs_active` makes that structural rather than a margin, but
-     * the margin is what made it safe before and the assertion below is what
-     * stops the two drifting apart silently.
+     * It is measured to the npc's FOOTPRINT, not to its south-west origin —
+     * `mock230_npc_view_deltas`. The distinction is the whole difference
+     * between a size-1 npc and a boss: TzKal-Zuk is 7x7 with his origin on his
+     * west edge, so a corner measure removed him from the client 16 tiles east
+     * of that origin while his nearest tile was 10 tiles away and his model
+     * filled the screen. That looked like a painter bug for as long as nobody
+     * checked whether the entity was still in the client's pool.
+     *
+     * Two bounds hold the reach in:
+     *
+     *   - The wire. The v5 add carries 6-bit signed deltas from the ORIGIN, so
+     *     origins may reach 15 + (MOCK230_NPC_SIZE_MAX - 1) = 22 and 31 is the
+     *     ceiling. The classic add carries 5 bits (-16..15) and cannot express
+     *     even 16, so that encoder keeps the corner box — see there.
+     *   - The scene. It used to be argued from this constant sitting one tile
+     *     inside MOCK230_REBUILD_MARGIN; that argument is gone now that a
+     *     footprint reaches past the margin, and it was never the real one.
+     *     `window_holds` clips the client's zone window to the build area, so
+     *     the candidate set cannot contain an npc the client has no scene for
+     *     however far this reaches. The NPC_INFO selftest in mock230_world.c
+     *     builds that edge rather than walking to it precisely because the
+     *     margin coincidence used to hide the structural clip.
      */
     MOCK230_NPC_VIEW_TILES = 15,
+
+    /*
+     * The biggest npc footprint the view test reaches out for, and a real
+     * limit rather than a description: the zone pre-reject in `area_entities`
+     * pads by it, so an npc bigger than this can be dropped from the candidate
+     * set with its body in plain view. `mock230_world_npc_spawn` warns when
+     * the cache hands it one, which is the only way that stays loud.
+     *
+     * 8 covers everything in the OSRS239 roster (Zuk is the largest at 7) with
+     * a tile to spare, and 15 + (8 - 1) = 22 is inside both the v5 delta's ±31
+     * and the zone window's guaranteed 24 tiles (MOCK230_ZONE_VIEW_RADIUS * 8).
+     */
+    MOCK230_NPC_SIZE_MAX = 8,
 
     /*
      * The same distance for players, and a separate constant because it is a
@@ -392,10 +419,25 @@ enum
      * rounding error next to a map square. Windowing it would buy nothing and
      * cost the same hysteresis problem the npcs have. */
     MOCK230_GROUND_MAX = 4096,
-    /** Pending `[ai_queue<n>]` entries per npc. */
-    MOCK230_NPC_QUEUE_MAX = 4,
+    /**
+     * Pending `[ai_queue<n>]` entries per npc.
+     *
+     * The reference's is a linked list with no cap at all, and `npc_queue`
+     * *aborts* the script when this one is full — so the number has to have
+     * room for every entry a single exchange can leave in flight, not for the
+     * typical one. A ranged swing arms two (`[ai_queue1]` retaliation and
+     * `[ai_queue2]` damage, both at the tick the projectile lands), and a rapid
+     * shortbow's three-tick cadence fires again before a shot from ten tiles
+     * away has arrived: four is exactly the point where a second shot in flight
+     * kills the swing script. Eight leaves the same headroom for a fight where
+     * an npc is being hit by more than one thing.
+     */
+    MOCK230_NPC_QUEUE_MAX = 8,
     /** Script-owned integer state slots carried by each live npc instance. */
-    MOCK230_NPC_VAR_MAX = 16,
+    /* Slots 0..15 are established runtime state; slot 16 is the
+     * GiantChinchompa post-special dismissal latch and slot 17 retains the
+     * Spirit Graahk's generation-safe normal-combat target. */
+    MOCK230_NPC_VAR_MAX = 18,
 
     /**
      * Where an npc is in the death sequence — `Mock230Npc.death_stage`.
@@ -1401,6 +1443,10 @@ struct Mock230GroundObj
      * the slot meanwhile. See mock230_ops_obj.c.
      */
     int generation;
+    /** Player id allowed to see/take this drop during its private window, or -1. */
+    int receiver_pid;
+    /** Tick the private window ends and the drop becomes public, or -1. */
+    int public_tick;
     /* `sent` was here, for the same reason `Mock230Npc.tracked` was: whether a
      * client has been told is a fact about the client. The per-client answer is
      * `Mock230Player.loaded_zones` now — see mock230_zone.h on why "does this
@@ -1686,6 +1732,31 @@ struct Mock230Npc
      *  a familiar to whoever logged into the vacated slot. */
     int owner_pid;
     uint32_t owner_gen;
+    /**
+     * The player a player-facing `mode` is being held against — the reference's
+     * `PathingEntity.target`, narrowed to the only kind of target this mode
+     * field can carry.
+     *
+     * `mode_target_gen == 0` is unbound, same convention as `owner_gen` and for
+     * the same reason: pid 0 is a real player, so the generation is what makes
+     * a recycled slot fail closed rather than silently re-aiming a standing
+     * mode at whoever logged into it.
+     *
+     * Without this the mode machine asked `srv->active_player` whose turn it
+     * was, in a phase where it is nobody's. With one player that reads
+     * correctly by accident; with two, an npc mid-conversation with player A
+     * measures its range against player B, decides the conversation partner
+     * walked off, and resumes wandering away from the person reading its
+     * dialogue.
+     */
+    int mode_target_pid;
+    uint32_t mode_target_gen;
+    /** Entity poison state. Source identity is generation-guarded so a
+     * recycled player slot cannot receive credit for an old poison timer. */
+    int poison_severity;
+    int poison_clock;
+    int poison_source_pid;
+    uint32_t poison_source_gen;
     /** Index into the content roster (`mock230_content_npc_spawns`) when this
      *  npc is the world standing one of its spawns up, and -1 when content
      *  npc_added it. Only the first kind is retired when the window moves; an
@@ -1708,6 +1779,23 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+    /**
+     * The SECOND tile of a two-tile tick — the npc half of the player's
+     * `move_dirs[1]`, and `PathingEntity.runDir` in the reference.
+     *
+     * NPC_INFO's tracked section has always had the op for it (update type 2,
+     * two 3-bit directions; `pkt_npc_info.c` decodes it and
+     * `World_NpcPathPushStep(WORLD_PATHSTEP_RUN)` applies it), but nothing on
+     * this side ever set it, because every npc mover took exactly one step.
+     * `playerfollow` needs two: a follower that walks cannot keep up with an
+     * owner who runs, and a summoning familiar left behind one tile per tick is
+     * across the region by the time its owner stops.
+     *
+     * -1 when this tick was a single step or none. Only `playerfollow` fills it
+     * — combat pursuit deliberately does not, because outrunning a monster is
+     * the mechanic.
+     */
+    int run_dir;
     /**
      * Which way the npc is FACING, in the same 0..7 space as `step_dir`
      * (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE).
@@ -2011,6 +2099,12 @@ mock230_npc_face_player(
     int pid)
 {
     int id = MOCK230_FACE_PLAYER_BASE + pid;
+
+    /* No target, nothing to face. A `retaliate=no` npc reaches the combat
+     * facing site with `combat_target` still -1, and `BASE + -1` is a latch
+     * naming a player that does not exist. */
+    if( pid < 0 )
+        return;
 
     /* `turnspeed = 0` means the record never turns, so there is nothing for a
      * facing latch to do. Gated at the seam rather than at the five callers:
@@ -3577,11 +3671,21 @@ mock230_combat_hit_npc(
     int slot,
     int type,
     int amount);
+/** Arm the active NPC's 30-tick poison timer. A stronger existing timer wins;
+ * equal severity refreshes its source, matching ContentAPI.applyPoison. */
+void
+mock230_combat_poison_npc(
+    struct Mock230Server* srv,
+    int slot,
+    const struct Mock230Player* source,
+    int severity);
 void
 mock230_combat_hit_player(
     struct Mock230Server* srv,
     int type,
     int amount);
+void
+mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot);
 
 /**
  * Re-path the player to its combat target, before phase 5 moves it.
@@ -3695,6 +3799,43 @@ mock230_world_npc_died(
 int
 mock230_world_npc_default_mode(const struct Mock230Npc* npc);
 
+/*
+ * `Npc.resetDefaults()` — stop whatever standing mode is running and go back to
+ * what this record does when nothing is being done to it.
+ *
+ * One function because the target has to be dropped with the mode. Leaving
+ * `mode_target_gen` set behind a `none`/`wander` mode is a dangling aim: the
+ * next `npc_setmode(playerface)` from a script with no active player would pick
+ * up the previous conversation's partner.
+ */
+static inline void
+mock230_npc_reset_defaults(struct Mock230Npc* npc)
+{
+    assert(npc);
+    npc->mode = mock230_world_npc_default_mode(npc);
+    npc->mode_target_pid = 0;
+    npc->mode_target_gen = 0;
+}
+
+/** Bind a player-facing mode to the player it is being held against. A NULL or
+ *  logged-out player unbinds, and the mode machine treats that as an invalid
+ *  target and resets. */
+static inline void
+mock230_npc_set_mode_target(
+    struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    assert(npc);
+    if( !player || !player->active )
+    {
+        npc->mode_target_pid = 0;
+        npc->mode_target_gen = 0;
+        return;
+    }
+    npc->mode_target_pid = player->pid;
+    npc->mode_target_gen = player->login_generation;
+}
+
 /** When a just-appeared npc may first consider roaming, staggered so a room
  *  spawned on one tick does not step in unison. Spawn and respawn both use it. */
 void
@@ -3714,6 +3855,26 @@ mock230_world_obj_add(
     int z,
     int level,
     int duration);
+
+/** Drop an obj visible only to the active player for `private_ticks`, then to
+ * everyone. A non-positive private window is the same as obj_add. */
+int
+mock230_world_obj_add_private(
+    struct Mock230Server* srv,
+    int obj_id,
+    int count,
+    int x,
+    int z,
+    int level,
+    int duration,
+    int private_ticks);
+
+/** Whether this player may currently see and take the ground-object slot. */
+int
+mock230_world_ground_visible_to(
+    const struct Mock230Server* srv,
+    int slot,
+    int pid);
 
 /** The first active ground obj of `obj_id` on that tile, or -1. */
 int
@@ -4201,7 +4362,8 @@ mock230_scripts_run_spell_trigger(
     struct Mock230Server* srv,
     int trigger,
     int spell_component,
-    int npc_slot);
+    int npc_slot,
+    int player_slot);
 
 /**
  * May this call site run its engine fallback for `result`?
@@ -5129,6 +5291,14 @@ mock230_send_midi_song_envelope(
     int fade_out_speed,
     int fade_in_delay,
     int fade_in_speed);
+/* MIDI_SONG_STOP. Silence is its own packet: MIDI_SONG's id field cannot say
+ * "nothing", only "this track", and the 239 client's 65535 sentinel starts
+ * nothing rather than stopping what is playing. */
+void
+mock230_send_midi_song_stop(
+    struct Mock230Player* player,
+    int fade_out_delay,
+    int fade_out_speed);
 /* SYNTH_SOUND. Declared here because two callers want it: `SS_OP_SOUND_SYNTH`,
  * where a script asks for a noise, and mock230_combat.c, where an npc makes one
  * without a script being involved. */
@@ -5356,6 +5526,19 @@ mock230_send_player_info(struct Mock230Player* player);
 void
 mock230_send_npc_info(struct Mock230Player* player);
 
+/**
+ * How many NPC TRANSFORMATION blocks have been written since the process
+ * started, on either wire.
+ *
+ * For the selftest. A transformation makes the client rebuild the npc's model
+ * and re-apply its `readyanim`, cancelling whatever it was animating — so one
+ * written for an npc that never transformed reads, in the game, as "npcs have
+ * no attack, defend or death animation" while every server-side check still
+ * passes. See the counter's definition.
+ */
+long
+mock230_encode_npc_transformation_writes(void);
+
 /* Per-client npc names — see struct Mock230PlayerSlotMap. */
 void
 mock230_slotmap_reset(struct Mock230Player* player);
@@ -5369,6 +5552,11 @@ int
 mock230_slotmap_world(
     const struct Mock230Player* player,
     int client_slot);
+
+int
+mock230_slotmap_client(
+    const struct Mock230Player* player,
+    int world_slot);
 
 void
 mock230_slotmap_release(

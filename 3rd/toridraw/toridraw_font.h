@@ -8,6 +8,10 @@
 
 #define TORIDRAW_FONT_GLYPH_COUNT 94
 
+/** Colour a bare `<str>` strikes with; `<str=rrggbb>` overrides it. Fixed in
+ *  the reference client (deob class671), not derived from the text colour. */
+#define TORIDRAW_FONT_STRIKE_DEFAULT_RGB 0x800000
+
 uint16_t const*
 ToriDraw_FontCharsetTable(void);
 
@@ -48,6 +52,10 @@ ToriDraw_FontParseHexColor(
  * Length in bytes of the markup token starting at text[i], or 0 if there is no
  * token there. `*emit_char_out` receives the character the token renders as
  * (`<lt>` -> '<', `<gt>` -> '>') or 0 when it renders nothing.
+ *
+ * The grammar: `@xyz@`, `<lt>`, `<gt>`, `<col=…>`/`</col>`, `<u>`/`<u=…>`/`</u>`,
+ * `<str>`/`<str=…>`/`</str>`. Anything else is literal text, so a tag the
+ * grammar does not list renders as its own characters.
  *
  * Exposed because measuring text and drawing it must agree on what is markup:
  * anything that walks a string to work out how wide it will be has to skip

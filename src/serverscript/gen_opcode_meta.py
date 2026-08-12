@@ -95,6 +95,7 @@ MANUAL_META: dict[str, tuple[int, int, int, int]] = {
     # --- commands the reference implements but never declared ---------------
     # Read straight off their handlers; engine.rs2 has no entry for any of them.
     "STAT_TOTAL": (0, 0, 1, 0),   # PlayerOps.ts: sums baseLevels -> int
+    "MAP_LOC": (1, 0, 1, 0),      # ServerOps.ts: any active loc covers coord
     "NC_VISLEVEL": (1, 0, 1, 0),  # NpcConfigOps.ts: npc -> vislevel
     "TEXT_SWITCH": (1, 2, 0, 1),  # StringOps.ts: (int, str, str) -> str
     #
@@ -489,6 +490,22 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # targeted trigger can retain its primary target while `.npc_*` addresses
     # the familiar actor.
     "NPC_FINDOWNED2": (11031, 0, 0, 1, 0),
+
+    # obj_add_private(coord, obj, count, duration, private_ticks)
+    #
+    # The familiar foragers create owner-only floor loot before it becomes
+    # public.  OBJ_ADD cannot express that receiver window; assigning it to the
+    # engine rather than publishing drops and trying to hide them in content
+    # keeps the ownership check on every packet and take path.
+    "OBJ_ADD_PRIVATE": (11032, 5, 0, 0, 0),
+
+    # npc_poison(int $severity)
+    #
+    # Apply an owner-attributed poison timer to the active NPC. The reference
+    # keeps this in an entity timer: it replaces a weaker timer, carries its
+    # attacker for credit, and ticks every 30 game ticks. This host has no NPC
+    # varn/timer namespace for content to express that state.
+    "NPC_POISON": (11033, 1, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -625,6 +642,10 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # like IF_CLOSESUB above; it does not dereference an SSVM entity pointer.
     "WALKSTEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_FINDOWNED2": (1 << POINTER_BITS["p_active_player"], 0),
+    "NPC_POISON": (
+        (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
+        0,
+    ),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

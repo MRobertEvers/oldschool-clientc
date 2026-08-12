@@ -439,3 +439,22 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 14746	57	154	3648	9856	Phasmatys	phasmatys
 14747	57	155	3648	9920	Brew Hoo Hoo!	brew hoo hoo
 15159	59	55	3776	3520	Dragontooth Island	dragontooth island
+# ---------------------------------------------------------------------------
+# Rows below this line are NOT from the Kronos MusicPlayer.java extraction that
+# produced everything above. Each says where it came from.
+#
+# 9043 -- the Inferno. Kronos has no row for it because the Inferno is
+# instanced there too, and its music player keys off the live map square, which
+# an instance never occupies. The square is the Inferno's TEMPLATE, which is
+# what mock230_world.c now resolves an instanced player's music through (see
+# docs/INFERNO_SOUNDS.md section 6):
+#
+#   ^inferno_template = 0_35_83_0_0   (inferno.constant), world base 2240,5312
+#   region id         = (35 << 8) | 83 = 9043
+#
+# The track is DBTable 44 row 2811 in this cache -- display name "Inferno",
+# js5 index-6 archive 500, unlock varp 17 bit 13 -- and its own unlock hint
+# reads "in the Inferno.", which is the game stating this mapping itself.
+# `docs/audio/music_track_names.tsv` independently recovers archive 500's name
+# from its reference-table hash as `inferno`.
+9043	35	83	2240	5312	Inferno	inferno
