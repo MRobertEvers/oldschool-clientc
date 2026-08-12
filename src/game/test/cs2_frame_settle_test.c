@@ -272,11 +272,103 @@ test_external_wait_retains_last_frame(void)
     printf("ok - external wait retains the prior frame until final CS2 state\n");
 }
 
+/*
+ * Cross-queue wait: the layout-switch deadlock.
+ *
+ * IF_OPENTOP starts a tree rebuild on app->runner and flips the app into
+ * APP_STATE_BOOTING; the IF_OPENSUB mounts that follow it in the same packet
+ * burst land on app->exec_runner and must wait for that rebuild. Only the
+ * frame loop steps app->runner, so the exec settle has to END rather than keep
+ * stepping — a ready-yield loop here is a busy-wait no amount of stepping can
+ * break, and it froze the client on every Display-panel layout change.
+ *
+ * TASK_AWAIT_STATE is what makes the two distinguishable, and process_calls is
+ * what proves the settle stopped: before the fix this test would not fail, it
+ * would hang.
+ */
+struct BootState
+{
+    int booting;
+    int mounted;
+};
+
+struct AwaitStateTask
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct BootState* boot;
+};
+
+static int
+AwaitStateTask_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IO* io)
+{
+    struct AwaitStateTask* self = (struct AwaitStateTask*)base;
+    (void)io;
+
+    PT_BEGIN(&self->pt);
+    TASK_AWAIT_STATE(base, &self->pt, !self->boot->booting);
+    self->boot->mounted = 1;
+    PT_END(&self->pt);
+}
+
+static struct ToriRS_TaskVTable k_await_state_vtable = {
+    .run = AwaitStateTask_Run,
+    .free = NULL,
+};
+
+static void
+test_cross_queue_wait_ends_the_settle(void)
+{
+    struct TaskRunner runner;
+    struct PlatformX_IO px;
+    struct WidgetState widgets;
+    struct PublishedFrame frame;
+    struct BootState boot = { .booting = 1, .mounted = 0 };
+    struct AwaitStateTask* task;
+
+    fixture_init(&runner, &px, &widgets, &frame);
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &k_await_state_vtable;
+    strcpy(task->task.name, "await-state");
+    task->boot = &boot;
+    PT_INIT(&task->pt);
+    ToriRS_TaskQueue_Add(runner.queue, &task->task);
+
+    /* Blocked, not pending: no read is outstanding, so PENDING would send the
+     * settle loop straight back into the same task. */
+    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    assert(px.pending == 0);
+    /* Exactly one pass. This is the anti-spin assertion. */
+    assert(px.process_calls == 1);
+    assert(runner.queue->head == &task->task);
+    assert(boot.mounted == 0);
+
+    /* A blocked task stays blocked while the state holds, and re-testing it
+     * costs one pass per frame — not one per step. */
+    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    assert(px.process_calls == 2);
+    assert(boot.mounted == 0);
+
+    /* The other queue got its turn back and finished the rebuild. */
+    boot.booting = 0;
+    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
+    assert(runner.queue->head == NULL);
+    assert(boot.mounted == 1);
+
+    fixture_free(&runner);
+    printf("ok - cross-queue wait ends the settle instead of spinning\n");
+}
+
 int
 main(void)
 {
     test_ready_work_drains_without_cap();
     test_external_wait_retains_last_frame();
+    test_cross_queue_wait_ends_the_settle();
     printf("cs2-frame-settle: all tests passed\n");
     return 0;
 }

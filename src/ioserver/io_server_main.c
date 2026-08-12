@@ -286,6 +286,23 @@ io_server_load(
         return;
     }
 
+    /*
+     * Client-owned files are refused outright.
+     *
+     * They are a browser's own device settings, served by that client against
+     * its own filesystem and never encoded onto the wire — so one arriving here
+     * is a request this server has no business honouring. Refusing by kind
+     * rather than trusting that nothing sends one keeps a remote "write this
+     * path" from ever becoming reachable: this process would run it with its
+     * own privileges, against a path a client chose.
+     */
+    if( item->kind == TORIRS_IOK_FILE_READ || item->kind == TORIRS_IOK_FILE_WRITE )
+    {
+        fprintf(stderr, "io: refusing a client-file request; those stay on the client\n");
+        item->error_code = -1;
+        return;
+    }
+
     if( item->kind == TORIRS_IOK_REFERENCE_TABLE )
         load_reference_table_raw(slot, item);
     else

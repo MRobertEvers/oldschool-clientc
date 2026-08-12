@@ -3832,10 +3832,43 @@ App_UiLogic(struct App const* app)
     return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_UI_LOGIC_CS1 : APP_UI_LOGIC_CS2;
 }
 
+/*
+ * Write out a settings change that has not reached its settle window yet.
+ *
+ * Quitting is exactly when that happens: the player turns the music down and
+ * closes the client, and the tick that would have queued the save never comes.
+ *
+ * Stepped here against a private IO rather than handed to the App's runner:
+ * that queue may hold tasks parked on state a shutting-down client will never
+ * produce, so draining it could return with the save still queued. One task
+ * against one IO list terminates on both backends — the platform answers a
+ * client-file item inline in Process.
+ */
+static void
+app_prefs_flush(struct App* app)
+{
+    struct ToriRS_Task* task;
+    struct ToriRS_IO io;
+    int guard = 0;
+
+    if( !app->prefs_path )
+        return;
+    if( !RS_Prefs_CaptureFromHost(&app->prefs, &app->host) && !app->prefs_dirty_cycle )
+        return; /* everything the player chose is already on disk */
+    app->prefs_dirty_cycle = 0;
+
+    memset(&io, 0, sizeof(io));
+    task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    while( task_run(task, &io) == PT_YIELDED && guard++ < 8 )
+        PlatformX_IO_Process(app->runner.px, &io);
+    task_free(task);
+}
+
 void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    app_prefs_flush(app);
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
@@ -5013,6 +5046,22 @@ Task_AppBoot_Run(
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
     /*
+     * The settings the player chose last launch, before anything reads one.
+     *
+     * Volumes are device settings: no packet carries them to a server and none
+     * carries them back, so the file this reads is the only thing standing
+     * between "turn the music down" and a client that is loud again tomorrow.
+     * Restoring into the option store (not the varps) is the right direction —
+     * the store is what GAMEOPTION_GET answers with, and the four varps below
+     * are then seeded from it, so both halves of interface 116 agree.
+     */
+    app->prefs_path = RS_Prefs_Path();
+    RS_Prefs_Defaults(&app->prefs);
+    if( app->prefs_path )
+        TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
+    RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+
+    /*
      * Seed the four audio volumes.
      *
      * The mixer starts at full gain and RS_CS2Host's option snapshot says 100,
@@ -5031,10 +5080,24 @@ Task_AppBoot_Run(
      * snapshot stays in agreement with the varps; and before the tree is built,
      * so 116 constructs its bobbles green rather than needing a repaint.
      */
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MASTER_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MUSIC_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_SOUND_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_AREA_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MASTER_VOLUME,
+        RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_SOUND_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_AREA_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
+
+    /* Baseline for the change detection below: what is in the host now is what
+     * is on disk, so nothing written here counts as a change worth saving. */
+    RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
+    app->prefs_dirty_cycle = 0;
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         fprintf(
             stderr,
@@ -5302,9 +5365,16 @@ Task_OpenSubRefresh_Run(
     PT_BEGIN(&self->pt);
     /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
      * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
-     * before mount_pack_under_target asserts. */
-    while( app->app_state == APP_STATE_BOOTING )
-        PT_YIELD(&self->pt);
+     * before mount_pack_under_target asserts.
+     *
+     * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
+     * deadlock. Only Task_AppBoot on app->runner clears APP_STATE_BOOTING, and
+     * app->runner is stepped by the frame loop — which cannot get its turn back
+     * while this queue is still settling. A plain yield here therefore spins
+     * app_logic_tick's exec drain forever at 100% CPU: measured on every
+     * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
+     * mounts in one burst. */
+    TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
     if( self->interface_id > 0 &&
         UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
@@ -5905,7 +5975,22 @@ app_logic_tick(struct App* app)
 
         for( ;; )
         {
-            enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->exec_runner);
+            enum TaskRunnerStat stat;
+
+            /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
+             * on app->runner. Every packet behind it targets components that
+             * do not exist yet, so hold the whole pipeline rather than feed it
+             * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
+             * this: it runs at the top of the frame, and the rebuild starts
+             * here, below it — including on a later catch-up tick in the same
+             * App_RunOnce. */
+            if( app->app_state == APP_STATE_BOOTING )
+            {
+                app->exec_runner_had_work = 1;
+                break;
+            }
+
+            stat = TaskRunner_SettleFrame(&app->exec_runner);
 
             if( stat != TASK_RUNNER_IDLE )
             {
@@ -6407,6 +6492,33 @@ app_logic_tick(struct App* app)
                 &app->audio, TORIRS_AUDIO_BUS_EFFECTS, sounds, &app->audio_out);
             RS_Audio_SetBusVolume(
                 &app->audio, TORIRS_AUDIO_BUS_AREA, area, &app->audio_out);
+        }
+    }
+
+    /*
+     * Mirror the option store to disk once the player has stopped moving it.
+     *
+     * Every path that changes a setting lands in the option store first (the
+     * sliders through GAMEOPTION/DEVICEOPTION_SET, the mute icons through
+     * their varps and RS_CS2Host_SyncAudioVarp), so one comparison here catches
+     * all of them and nothing has to remember to call a save.
+     *
+     * The delay is what makes a drag one write rather than fifty: the bobble
+     * reports a new value every 20ms tick, and each would otherwise be a
+     * separate file rewrite. Anything still pending is flushed by App_Shutdown.
+     */
+    if( app->prefs_path )
+    {
+        if( RS_Prefs_CaptureFromHost(&app->prefs, &app->host) )
+            app->prefs_dirty_cycle = app->logic_cycle;
+        else if( app->prefs_dirty_cycle &&
+                 app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        {
+            /* Queued, not written here: the write is the platform's, and this
+             * is the middle of a frame. */
+            ToriRS_TaskQueue_Add(
+                app->runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
+            app->prefs_dirty_cycle = 0;
         }
     }
 

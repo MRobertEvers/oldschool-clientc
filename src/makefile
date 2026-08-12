@@ -407,6 +407,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	game/rs_cs2_host.c game/task_cs2_run.c game/rs_cs2_dispatch.c game/cs2_harness.c game/rs_minimenu_build.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/rs_entity_sync.c game/rs_audio.c \
+	game/rs_prefs.c game/task_prefs_io.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \

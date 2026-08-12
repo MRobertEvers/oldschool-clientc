@@ -20,6 +20,7 @@
 #include "game/rs_if1_buttons.h"
 #include "game/rs_minimenu_build.h"
 #include "game/rs_player_stats.h"
+#include "game/rs_prefs.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
 #include "input/torirs_input.h"
@@ -337,6 +338,17 @@ enum ToriRS_WorldRenderMode
  * script.
  */
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES 30
+
+/**
+ * Logic cycles a settings change waits before it is written to disk.
+ *
+ * A slider drag reports a new volume every 20ms cycle, so writing on each one
+ * would be fifty file rewrites a second for one gesture. Half a second of quiet
+ * collapses a drag into a single write and is still far shorter than the time
+ * between changing a setting and quitting; App_Shutdown flushes the tail
+ * either way.
+ */
+#define APP_PREFS_SAVE_SETTLE_TICKS 25
 
 struct App
 {
@@ -787,6 +799,18 @@ struct App
     struct ToriRS_AudioFeedback audio_feedback;
     /** Outbound audio requests for the host to hand a backend (App_DrainAudio). */
     struct ToriRS_AudioQueue audio_out;
+    /**
+     * Device settings that outlive the process: the audio panel's volumes and
+     * the rest of the CS2 option store (game/rs_prefs.h). Loaded during boot,
+     * mirrored back from the host as the player changes things.
+     */
+    struct RS_Prefs prefs;
+    /** Where prefs are written; NULL turns persistence off (TORIRS_PREFS=""). */
+    char const* prefs_path;
+    /** logic_cycle at which prefs last moved, or 0 when they are on disk. A
+     *  slider drag changes them every tick, so the write waits for the drag to
+     *  settle rather than rewriting the file 50 times a second. */
+    uint64_t prefs_dirty_cycle;
     /**
      * Camera scripting (CAM_* packets).
      *

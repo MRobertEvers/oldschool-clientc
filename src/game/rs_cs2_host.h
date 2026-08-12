@@ -86,6 +86,17 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
 #define RS_CS2_OPTION_MAX 64
 
+/** Which of the three option tables an option id belongs to. CS2 keeps them
+ *  apart (CLIENT/GAME/DEVICEOPTION_GET/SET), and the same id means different
+ *  things in each. */
+enum RS_CS2OptionKind
+{
+    RS_CS2_OPTION_CLIENT = 0,
+    RS_CS2_OPTION_GAME = 1,
+    RS_CS2_OPTION_DEVICE = 2,
+    RS_CS2_OPTION_KIND_COUNT = 3
+};
+
 /* Backing varps used by interface 116. Its mute icons write these without
  * calling GAMEOPTION_SET / DEVICEOPTION_SET. */
 #define RS_CS2_VARP_MUSIC_VOLUME 168
@@ -694,6 +705,42 @@ void
 RS_CS2Host_SyncAudioVarp(
     struct RS_CS2Host* host,
     int varp_id);
+
+/**
+ * The value an option holds on a fresh client.
+ *
+ * RS_CS2Host_Init seeds the three tables from this, and game/rs_prefs.c omits
+ * from the preferences file any option still equal to it. Both need the same
+ * answer, so it is one function rather than the same constant written twice —
+ * a default stated in two places is a default that drifts, and the symptom
+ * there would be a saved file that silently re-mutes the client.
+ */
+int
+RS_CS2Host_OptionDefault(
+    int kind,
+    int option_id);
+
+/** Read one option table entry. Out-of-range ids read 0, as CS2's GET does. */
+int
+RS_CS2Host_GetOption(
+    struct RS_CS2Host const* host,
+    int kind,
+    int option_id);
+
+/**
+ * Write one option table entry, with the side effects CS2's SET has: the four
+ * volume ids are clamped to 0..100, mirrored into the volume_* fields the
+ * GETVOLUME* opcodes read, and flagged for the App to push at the mixer.
+ *
+ * The CS2 SET opcodes and the preferences restore both go through here so a
+ * restored volume behaves exactly like a dragged one.
+ */
+void
+RS_CS2Host_SetOption(
+    struct RS_CS2Host* host,
+    int kind,
+    int option_id,
+    int value);
 
 bool
 RS_CS2Host_TakeTriggerOp(

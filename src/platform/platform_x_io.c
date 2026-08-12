@@ -13,6 +13,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 /*
  * LRU of decompressed dat2 archives. Group archives (configs, texture defs)
@@ -261,6 +266,114 @@ read_whole_file(
     fclose(fp);
     *out_data = data;
     *out_size = (int)size;
+    return 0;
+}
+
+/*
+ * A file the client owns, read whole from the path as given.
+ *
+ * Absent is not an error the platform reports differently from unreadable —
+ * both are error_code -1 and an empty answer. Whether "no file" means a first
+ * launch or a problem is the caller's judgement, not the disk layer's.
+ */
+static int
+read_client_file_item(struct ToriRS_IOItem* item)
+{
+    void* data = NULL;
+    int data_size = 0;
+
+    if( read_whole_file(item->u.file.path, &data, &data_size) != 0 )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+    item->data = data;
+    item->data_size = data_size;
+    item->error_code = 0;
+    return 0;
+}
+
+/*
+ * `mkdir -p` over the directory part of a path, if it has one. A configured
+ * path pointing somewhere nested otherwise fails at fopen with a message that
+ * reads like a permissions problem.
+ */
+static void
+mkdir_parent(char const* path)
+{
+    char dir[TORIRS_IOITEM_MAX_PATH];
+    size_t used = 0;
+    size_t last_sep = 0;
+
+    for( char const* scan = path; *scan; scan++ )
+    {
+        if( used + 1 >= sizeof(dir) )
+            return;
+        if( *scan == '/' || *scan == '\\' )
+            last_sep = used;
+        dir[used++] = *scan;
+    }
+    if( last_sep == 0 )
+        return; /* a bare filename, or an absolute path's root */
+    for( size_t i = 1; i <= last_sep; i++ )
+    {
+        if( i == last_sep || dir[i] == '/' || dir[i] == '\\' )
+        {
+            char saved = dir[i];
+
+            dir[i] = '\0';
+#ifdef _WIN32
+            _mkdir(dir);
+#else
+            mkdir(dir, 0755);
+#endif
+            dir[i] = saved;
+        }
+    }
+}
+
+/*
+ * Write-then-rename, so an interrupted write leaves the previous file rather
+ * than a truncated one. For settings that is the difference between losing a
+ * change and losing every setting the player ever made.
+ */
+static int
+write_client_file_item(struct ToriRS_IOItem* item)
+{
+    char temp[TORIRS_IOITEM_MAX_PATH + 8];
+    FILE* fp;
+
+    if( !item->u.file.path[0] )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+    mkdir_parent(item->u.file.path);
+    snprintf(temp, sizeof(temp), "%s.tmp", item->u.file.path);
+    fp = fopen(temp, "wb");
+    if( !fp )
+    {
+        fprintf(stderr, "io: cannot write %s\n", temp);
+        item->error_code = -1;
+        return -1;
+    }
+    if( item->data_size > 0 &&
+        fwrite(item->data, 1, (size_t)item->data_size, fp) != (size_t)item->data_size )
+    {
+        fclose(fp);
+        remove(temp);
+        item->error_code = -1;
+        return -1;
+    }
+    fclose(fp);
+    if( rename(temp, item->u.file.path) != 0 )
+    {
+        fprintf(stderr, "io: cannot replace %s\n", item->u.file.path);
+        remove(temp);
+        item->error_code = -1;
+        return -1;
+    }
+    item->error_code = 0;
     return 0;
 }
 
@@ -620,6 +733,15 @@ PlatformX_IO_LoadItem(
     assert(px);
     assert(item);
 
+    /* Before the clear below: a write is the one item that arrives carrying
+     * data, and zeroing those two fields here would hand the platform an empty
+     * file to write. */
+    if( item->kind == TORIRS_IOK_FILE_WRITE )
+    {
+        item->error_code = 0;
+        return write_client_file_item(item);
+    }
+
     item->data = NULL;
     item->data_size = 0;
     item->error_code = 0;
@@ -634,6 +756,8 @@ PlatformX_IO_LoadItem(
         return load_file_item(item, px->script_dir, item->u.script.path);
     case TORIRS_IOK_REFERENCE_TABLE:
         return load_reference_table_item(px, item);
+    case TORIRS_IOK_FILE_READ:
+        return read_client_file_item(item);
     default:
         item->error_code = -1;
         return -1;
@@ -679,8 +803,12 @@ PlatformX_IO_Process(
         int slot = io->active[i];
         struct ToriRS_IOItem* item = &io->io_slots[slot];
 
-        item->data = NULL;
-        item->data_size = 0;
+        /* A write carries its payload in these two fields — see LoadItem. */
+        if( item->kind != TORIRS_IOK_FILE_WRITE )
+        {
+            item->data = NULL;
+            item->data_size = 0;
+        }
         item->error_code = 0;
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
