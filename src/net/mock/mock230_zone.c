@@ -1288,6 +1288,49 @@ write_state(
     }
 }
 
+/*
+ * Does this everyone-event name an npc, and so have to be encoded per client?
+ *
+ * A projectile that homes on an npc carries that npc's index, and an npc's index
+ * is PRIVATE to each observer (Mock230PlayerSlotMap): the world slot the event
+ * holds means a different npc — or none — on every stream it reaches. So the
+ * event is seen by everyone but cannot be *written* once for everyone, and it
+ * has to leave the shared blob even though its receiver is -1.
+ *
+ * Player targets are the other half of the same field (`-pid - 1`) and stay in
+ * the shared blob: player ids are absolute, the same number on every stream.
+ */
+static int
+zone_event_names_npc(const struct Mock230ZoneEvent* event)
+{
+    return event->kind == MOCK230_ZONE_EV_PROJANIM && event->target > 0;
+}
+
+/*
+ * The projectile's target index as ONE client names it.
+ *
+ * `target` is the wire's encoding of "whom": `slot + 1` for an npc, `-pid - 1`
+ * for a player, 0 for nobody. Only the npc half is per-client. An npc this
+ * client is not tracking becomes 0 rather than a guess: with no target the
+ * client flies the arc to the destination tile the packet already carries —
+ * which is where the target stood at the cast — whereas a stale index homes the
+ * shot onto whichever npc happens to answer to that name.
+ */
+static int
+projanim_target_for_client(
+    const struct Mock230Player* player,
+    int target)
+{
+    int client_slot;
+
+    if( target <= 0 )
+        return target;
+    client_slot = mock230_slotmap_client(player, target - 1);
+    if( client_slot < 0 )
+        return 0;
+    return client_slot + 1;
+}
+
 /** Encode the zone's everyone-events once, for however many clients are in it. */
 static void
 build_shared(
@@ -1303,6 +1346,9 @@ build_shared(
         int written;
 
         if( zone->events[i].receiver_pid >= 0 )
+            continue;
+        /* Written per client below instead — see zone_event_names_npc. */
+        if( zone_event_names_npc(&zone->events[i]) )
             continue;
         /* Revision 239's MAP_PROJANIM_V2 is 24 payload bytes plus its enclosed
          * ordinal. The classic record fitted in 16, which made a fresh zone's
@@ -1432,18 +1478,36 @@ mock230_zone_update_player(struct Mock230Player* player)
          */
         for( int e = 0; e < zone->event_count; e++ )
         {
-            if( zone->events[e].receiver_pid != player->pid )
-                continue;
-            if( mock230_zone_sub_standalone(srv->wire, zone->events[e].kind) )
+            const struct Mock230ZoneEvent* event = &zone->events[e];
+            struct Mock230ZoneEvent local;
+
+            if( event->receiver_pid >= 0 )
+            {
+                if( event->receiver_pid != player->pid )
+                    continue;
+            }
+            else if( zone_event_names_npc(event) )
+            {
+                /* Everyone sees it; only the npc it names is spelled
+                 * differently on each stream. */
+                local = *event;
+                local.target = projanim_target_for_client(player, event->target);
+                event = &local;
+            }
+            else
+            {
+                continue; /* already in the shared blob */
+            }
+
+            if( mock230_zone_sub_standalone(srv->wire, event->kind) )
             {
                 mock230_send_zone_header(player, zone_x, zone_z, zone_level, 0);
-                mock230_send_zone_sub(player, &zone->events[e]);
+                mock230_send_zone_sub(player, event);
                 continue;
             }
             {
                 uint8_t one[256];
-                int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one),
-                                                     &zone->events[e]);
+                int written = mock230_encode_zone_sub(srv->wire, one, (int)sizeof(one), event);
 
                 if( written > 0 )
                     mock230_send_zone_enclosed(player, zone_x, zone_z, zone_level, one, written);

@@ -948,8 +948,11 @@ w239_zone_payload(
          * this revision is `pool pid + 1` (mock230_wire_player_index: the
          * client's table is 1..2047 with 0 unused). The event carries the
          * classic form, `-pid - 1`, so a player target is one further from zero
-         * here. Npc targets need no adjustment: NPC_INFO writes the raw slot,
-         * so the two numberings already agree.
+         * here. Npc targets need no adjustment *at this layer*: they arrive
+         * already stated in the recipient's own npc numbering, which is a
+         * per-client translation and so belongs where the event is fanned out
+         * to each client (`mock230_zone.c` projanim_target_for_client) rather
+         * than in a writer that is handed one event and no recipient.
          *
          * Sent unadjusted, a shot aimed at the only player in the world names
          * client index 0 -- the slot that is never occupied -- so the

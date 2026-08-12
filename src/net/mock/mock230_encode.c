@@ -502,6 +502,25 @@ mock230_slotmap_world(
 }
 
 /*
+ * This client's name for `world_slot`, or -1 when it has none.
+ *
+ * The read-only half of `mock230_slotmap_acquire`, and the distinction is the
+ * point: an encoder that names an npc the client is not tracking must say "no
+ * entity", not mint a name for one it has never been told about. Acquiring here
+ * would hand out a slot the client cannot resolve and hold it against a real
+ * npc entering view later.
+ */
+int
+mock230_slotmap_client(
+    const struct Mock230Player* player,
+    int world_slot)
+{
+    if( !player || world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+        return -1;
+    return player->npc_slots.client_of[world_slot];
+}
+
+/*
  * Translate an actor's canonical FACE_ENTITY target for one recipient.
  *
  * The mock keeps NPC targets as world-pool slots so one actor can be encoded
@@ -518,9 +537,7 @@ mock230_face_entity_for_client(
 {
     if( face_entity < 0 || face_entity >= MOCK230_FACE_PLAYER_BASE )
         return face_entity;
-    if( !recipient || face_entity >= MOCK230_NPC_MAX )
-        return -1;
-    return recipient->npc_slots.client_of[face_entity];
+    return mock230_slotmap_client(recipient, face_entity);
 }
 
 /** Give back this client's name for `world_slot`. Idempotent. */
@@ -4054,12 +4071,25 @@ mock230_send_npc_info(struct Mock230Player* player)
     struct RSAreaBuf buf;
     /* Extended blocks are appended in the order the bit section queued them,
      * so remember that order while writing the bits. queued_force_face marks
-     * enter-view slots that must re-emit a latched FACE_ENTITY. */
+     * enter-view slots that must re-emit a latched FACE_ENTITY;
+     * queued_force_type marks the ones that must re-emit their config id as a
+     * TRANSFORMATION block.
+     *
+     * Both are zeroed rather than left as scratch. Every queue site is
+     * supposed to write both, and one of the four did not: the v5
+     * already-tracked branch set only `queued_force_face`, so the type latch
+     * was whatever was on the stack. A non-zero read puts an unasked-for
+     * TRANSFORMATION on the wire, and the client answers a transformation by
+     * rebuilding the npc's model and re-applying its `readyanim` — on the same
+     * tick as whatever animation the npc was actually sent. Attack, defend and
+     * death all vanished into the ready pose, intermittently, because it
+     * depended on stack contents at that index. Defaulting to "no latch" makes
+     * a missed write a no-op instead. */
     int queued[MOCK230_TRACKED_NPC_MAX];
     int nearby[MOCK230_TRACKED_NPC_MAX];
     int nearby_count;
-    int queued_force_face[MOCK230_TRACKED_NPC_MAX];
-    int queued_force_type[MOCK230_TRACKED_NPC_MAX];
+    int queued_force_face[MOCK230_TRACKED_NPC_MAX] = { 0 };
+    int queued_force_type[MOCK230_TRACKED_NPC_MAX] = { 0 };
     int queued_count = 0;
     int kept[MOCK230_TRACKED_NPC_MAX];
     int kept_count = 0;
@@ -4162,7 +4192,18 @@ mock230_send_npc_info(struct Mock230Player* player)
             {
                 int const extended = npc_extended_pending_v5(player, npc, 0);
 
-                if( npc->step_dir >= 0 )
+                if( npc->run_dir >= 0 )
+                {
+                    /* Two tiles this tick — update type 2, two 3-bit
+                     * directions. `playerfollow` is the only mover that fills
+                     * `run_dir`; see `Mock230Npc.run_dir`. */
+                    rsab_pbit(&buf, 1, 1);
+                    rsab_pbit(&buf, 2, 2); /* run */
+                    rsab_pbit(&buf, 3, npc->step_dir);
+                    rsab_pbit(&buf, 3, npc->run_dir);
+                    rsab_pbit(&buf, 1, extended);
+                }
+                else if( npc->step_dir >= 0 )
                 {
                     rsab_pbit(&buf, 1, 1);
                     rsab_pbit(&buf, 2, 1); /* walk */
@@ -4184,7 +4225,11 @@ mock230_send_npc_info(struct Mock230Player* player)
                 if( extended )
                 {
                     queued[queued_count++] = slot;
+                    /* Already tracked: neither latch is re-emitted. Both are
+                     * written out, because the pair has to move together —
+                     * see the declaration. */
                     queued_force_face[queued_count - 1] = 0;
+                    queued_force_type[queued_count - 1] = 0;
                 }
             }
         }
@@ -4393,7 +4438,16 @@ mock230_send_npc_info(struct Mock230Player* player)
         }
 
         kept[kept_count++] = slot;
-        if( npc->step_dir >= 0 )
+        if( npc->run_dir >= 0 )
+        {
+            /* Two tiles this tick — see the v5 encoder above. */
+            rsab_pbit(&buf, 1, 1);
+            rsab_pbit(&buf, 2, 2);
+            rsab_pbit(&buf, 3, npc->step_dir);
+            rsab_pbit(&buf, 3, npc->run_dir);
+            rsab_pbit(&buf, 1, extended);
+        }
+        else if( npc->step_dir >= 0 )
         {
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 1);

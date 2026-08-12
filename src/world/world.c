@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1543,7 +1544,24 @@ world_apply_primary_animation(
     if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 &&
         world_seq_priority(world, seq_id) <
             world_seq_priority(world, animation->primary.anim_id) )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "anim: seq %d (prio %d) refused by incumbent %d (prio %d)\n",
+                seq_id,
+                world_seq_priority(world, seq_id),
+                (int)animation->primary.anim_id,
+                world_seq_priority(world, animation->primary.anim_id));
         return;
+    }
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "anim: seq %d (prio %d) applied over %d\n",
+            seq_id,
+            world_seq_priority(world, seq_id),
+            (int)animation->primary.anim_id);
 
     animation->primary.anim_id = (uint16_t)seq_id;
     animation->primary.frame = 0;

@@ -15963,6 +15963,13 @@ App_WorldApplyNpcType(
     npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
     if( !npctype )
         return;
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "npc_retype: world_idx=%d element=%d type=%d\n",
+            world_idx,
+            element_id,
+            npc_type);
 
     {
         struct AppModelRecolorSpec recolors = {

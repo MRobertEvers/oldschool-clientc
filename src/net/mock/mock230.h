@@ -392,8 +392,20 @@ enum
      * rounding error next to a map square. Windowing it would buy nothing and
      * cost the same hysteresis problem the npcs have. */
     MOCK230_GROUND_MAX = 4096,
-    /** Pending `[ai_queue<n>]` entries per npc. */
-    MOCK230_NPC_QUEUE_MAX = 4,
+    /**
+     * Pending `[ai_queue<n>]` entries per npc.
+     *
+     * The reference's is a linked list with no cap at all, and `npc_queue`
+     * *aborts* the script when this one is full — so the number has to have
+     * room for every entry a single exchange can leave in flight, not for the
+     * typical one. A ranged swing arms two (`[ai_queue1]` retaliation and
+     * `[ai_queue2]` damage, both at the tick the projectile lands), and a rapid
+     * shortbow's three-tick cadence fires again before a shot from ten tiles
+     * away has arrived: four is exactly the point where a second shot in flight
+     * kills the swing script. Eight leaves the same headroom for a fight where
+     * an npc is being hit by more than one thing.
+     */
+    MOCK230_NPC_QUEUE_MAX = 8,
     /** Script-owned integer state slots carried by each live npc instance. */
     /* Slots 0..15 are established runtime state; slot 16 is the
      * GiantChinchompa post-special dismissal latch and slot 17 retains the
@@ -1721,6 +1733,23 @@ struct Mock230Npc
 
     /** Filled in by the tick, consumed by the encoder, then cleared. */
     int step_dir; /* -1 when the npc did not move this tick */
+    /**
+     * The SECOND tile of a two-tile tick — the npc half of the player's
+     * `move_dirs[1]`, and `PathingEntity.runDir` in the reference.
+     *
+     * NPC_INFO's tracked section has always had the op for it (update type 2,
+     * two 3-bit directions; `pkt_npc_info.c` decodes it and
+     * `World_NpcPathPushStep(WORLD_PATHSTEP_RUN)` applies it), but nothing on
+     * this side ever set it, because every npc mover took exactly one step.
+     * `playerfollow` needs two: a follower that walks cannot keep up with an
+     * owner who runs, and a summoning familiar left behind one tile per tick is
+     * across the region by the time its owner stops.
+     *
+     * -1 when this tick was a single step or none. Only `playerfollow` fills it
+     * — combat pursuit deliberately does not, because outrunning a monster is
+     * the mechanic.
+     */
+    int run_dir;
     /**
      * Which way the npc is FACING, in the same 0..7 space as `step_dir`
      * (0 NW, 1 N, 2 NE, 3 W, 4 E, 5 SW, 6 S, 7 SE).
@@ -5413,6 +5442,11 @@ int
 mock230_slotmap_world(
     const struct Mock230Player* player,
     int client_slot);
+
+int
+mock230_slotmap_client(
+    const struct Mock230Player* player,
+    int world_slot);
 
 void
 mock230_slotmap_release(
