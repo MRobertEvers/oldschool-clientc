@@ -110,6 +110,15 @@ struct Mock230Session
     /** Raised when the game stream arms; cleared by mock230_session_take_login
      *  so the caller runs the world's login burst exactly once. */
     int login_raised;
+
+    /** Advances for every successfully queued server->client frame. The
+     * online decoder uses it to put an explicit SERVER_TICK_END after an
+     * immediate input-response burst, rather than leaving the client waiting
+     * for the next scheduled 600ms world tick. */
+    uint64_t output_generation;
+    /** Canonical name of the most recent framed game packet. Used to avoid
+     * appending a duplicate response fence when a handler already sent one. */
+    int last_output_packet_name;
 };
 
 /*

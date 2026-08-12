@@ -155,6 +155,7 @@ UITree_TestResolve(struct UITree* tree)
 /* Unit tests */
 void test_dirty_marking(void);
 void test_walk_topology(void);
+void test_mounted_world_resize(void);
 void test_hover_input(void);
 void test_click_event_coords(void);
 void test_layout_build(void);

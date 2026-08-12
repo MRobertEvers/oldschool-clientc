@@ -53,7 +53,8 @@ def main() -> int:
     interface = read(SUMMONING_LANE / "interfaces/summoning_infuse.if")
     interface_pack = read(SUMMONING_LANE / "interfaces/summoning_infuse.compack")
     lane_pack = read(SUMMONING_LANE / "pack/3_interfaces.pack")
-    script = read(SUMMONING_SCRIPTS / "scripts/summoning_spirit_wolf.rs2")
+    script = read(SUMMONING_SCRIPTS / "scripts/summoning_infuse.rs2")
+    points_script = read(SUMMONING_SCRIPTS / "scripts/summoning_points.rs2")
     import_manifest = read(REPO / "docs/summoning_port/spirit_wolf_import.ini")
 
     expect("970=summoning_infuse" in lane_pack, "the authored infusion group is not allocated")
@@ -76,9 +77,9 @@ def main() -> int:
         "9=pouch_model" in interface_pack and "model=100002" in interface,
         "pouch output model is not authored into the panel",
     )
-    expect("[oploc1,summoning_obelisk]" in script, "Obelisk op1 does not open infusion")
+    expect("[oploc1,summoning_obelisk]" in points_script, "Obelisk op1 does not open infusion")
     expect(
-        "%summoning_infuse_obelisk_coord = loc_coord;" in script,
+        "%summoning_infuse_obelisk_coord = loc_coord;" in points_script,
         "oploc1 does not preserve the actual clicked obelisk",
     )
     expect(

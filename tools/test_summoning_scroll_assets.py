@@ -9,6 +9,8 @@ import re
 import sys
 from pathlib import Path
 
+from summoning_script_sources import definition, read_module
+
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
@@ -204,6 +206,113 @@ def main() -> int:
         for source, name in ((1503, "call_to_arms_start_gfx"), (1502, "call_to_arms_end_gfx")):
             expect(f"{source}={name}" in special_text,
                    f"Call to Arms source graphic {source} is not imported")
+        expect("5387=dreadfowl_strike" in special_text,
+               "Dreadfowl Strike's source animation is not imported")
+        for source, name in ((1523, "dreadfowl_strike_gfx"),
+                             (1318, "dreadfowl_strike_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Dreadfowl Strike source graphic {source} is not imported")
+        expect("8148=thorny_snail_slime_spray" in special_text,
+               "Slime Spray's source animation is not imported")
+        for source, name in ((1385, "thorny_snail_slime_spray_gfx"),
+                             (1386, "thorny_snail_slime_spray_projectile"),
+                             (1387, "thorny_snail_slime_spray_impact_gfx")):
+            expect(f"{source}={name}" in special_text,
+                   f"Slime Spray source graphic {source} is not imported")
+        expect("7795=desert_wyrm_electric_lash" in special_text,
+               "Electric Lash's source animation is not imported")
+        for source, name in ((1410, "desert_wyrm_electric_lash_gfx"),
+                             (1411, "desert_wyrm_electric_lash_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Electric Lash source graphic {source} is not imported")
+        expect("8275=vampire_bat_vampyre_touch" in special_text,
+               "Vampyre Touch's source animation is not imported")
+        expect("1323=vampire_bat_vampyre_touch_gfx" in special_text,
+               "Vampyre Touch's source graphic is not imported")
+        for source, name in ((7762, "petrifying_gaze"), (8026, "bull_rush")):
+            expect(f"{source}={name}" in special_text,
+                   f"shared direct-combat source sequence {source} is not imported")
+        expect("5229=rending" in special_text,
+               "Rending's source sequence is not imported")
+        for source, name in ((1467, "petrifying_gaze_gfx"),
+                             (1468, "petrifying_gaze_projectile"),
+                             (1469, "petrifying_gaze_impact_gfx"),
+                             (1496, "bull_rush_gfx"),
+                             (1497, "bull_rush_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"shared direct-combat source graphic {source} is not imported")
+        for source, name in ((1370, "rending_gfx"), (1371, "rending_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Rending source graphic {source} is not imported")
+        expect("7722=beaver_multichop" in special_text,
+               "Multichop's source animation is not imported")
+        for source, name in ((1393, "forge_regent_inferno_target_gfx"),
+                             (1394, "forge_regent_inferno_gfx")):
+            expect(f"{source}={name}" in special_text,
+                   f"Forge Regent source graphic {source} is not imported")
+        for source, name in ((1346, "ravenous_locust_famine_gfx"),
+                             (1347, "ravenous_locust_famine_target_gfx")):
+            expect(f"{source}={name}" in special_text,
+                   f"Ravenous Locust source graphic {source} is not imported")
+        for source, name in (
+            (7928, "honey_badger_insane_ferocity"),
+            (7998, "ravenous_locust_famine"),
+            (7871, "forge_regent_inferno"),
+            (7858, "giant_ent_acorn_missile"),
+            (8223, "swamp_titan_swamp_plague"),
+            (7963, "karamthulhu_doomsphere_device"),
+            (8069, "praying_mantis_mantis_strike"),
+            (5989, "talon_beast_deadly_claw"),
+            (7786, "spirit_dagannoth_spike_shot"),
+        ):
+            expect(f"{source}={name}" in special_text,
+                   f"reconstructed special sequence {source} is not imported")
+        for source, name in (
+            (1397, "honey_badger_insane_ferocity_gfx"),
+            (1399, "honey_badger_insane_ferocity_owner_gfx"),
+            (1348, "ravenous_locust_famine_impact_gfx"),
+            (1362, "giant_ent_acorn_missile_projectile"),
+            (1363, "giant_ent_acorn_missile_impact_gfx"),
+            (1491, "lava_titan_ebon_thunder_gfx"),
+            (1460, "swamp_titan_swamp_plague_gfx"),
+            (1462, "swamp_titan_swamp_plague_projectile"),
+        ):
+            expect(f"{source}={name}" in special_text,
+                   f"reconstructed special graphic {source} is not imported")
+        expect("phoenix_rise_from_the_ashes" not in special_text,
+               "Phoenix must retain its documented cache-native sequence fallback")
+        expect("8183=iron_titan_swing" in special_text and
+               "1450=iron_titan_iron_within_gfx" in special_text,
+               "Iron Within's source normal-swing sequence or charge graphic is not imported")
+        expect("8190=steel_titan_swing" in special_text and
+               "1445=steel_titan_projectile" in special_text and
+               "1449=steel_titan_steel_of_legends_gfx" in special_text,
+               "Steel of Legends' source visual closure is not imported")
+        expect("6261=spirit_scorpion_venom_shot" in special_text and
+               "1354=spirit_scorpion_venom_shot_gfx" in special_text and
+               "1355=spirit_scorpion_venom_shot_projectile" in special_text,
+               "Venom Shot's source animation/graphics closure is not imported")
+        for source, name in ((8257, "spirit_tz_kih_fireball_assault"),
+                             (7758, "giant_chinchompa_explode"),
+                             (7820, "smoke_devil_dust_cloud")):
+            expect(f"{source}={name}" in special_text,
+                   f"bounded-area familiar source sequence {source} is not imported")
+        expect("1364=giant_chinchompa_explode_gfx" in special_text,
+               "Giant Chinchompa's source graphic is not imported")
+        expect("8517=spirit_kalphite_sandstorm" in special_text,
+               "Sandstorm's source familiar sequence is not imported")
+        for source, name in ((1350, "spirit_kalphite_sandstorm_gfx"),
+                             (1349, "spirit_kalphite_sandstorm_projectile")):
+            expect(f"{source}={name}" in special_text,
+                   f"Sandstorm source graphic {source} is not imported")
+        for source, name in ((1511, "beaver_logs"), (2862, "beaver_achey_tree_logs"),
+                             (1521, "beaver_oak_logs"), (1519, "beaver_willow_logs"),
+                             (6333, "beaver_teak_logs"), (10810, "beaver_arctic_pine_logs"),
+                             (1517, "beaver_maple_logs"), (6332, "beaver_mahogany_logs"),
+                             (12581, "beaver_eucalyptus_logs"), (960, "beaver_yew_logs"),
+                             (8778, "beaver_magic_logs")):
+            expect(f"{source}={name}" in special_text,
+                   f"Multichop source log {source} is not imported")
         special_ledger = (args.tree / "port/summoning_special_moves_530.map").read_text(
             encoding="utf-8"
         )
@@ -213,6 +322,14 @@ def main() -> int:
         expect(re.search(r"^spotanim\t1316\t.*\t20003\tsummoning_special_move_gfx\t",
                          special_ledger, re.MULTILINE) is not None,
                "shared special-move graphic is absent from its translation ledger")
+        for kind, source, runtime in (
+            ("spotanim", 1350, "summoning_special_move_spirit_kalphite_sandstorm_gfx"),
+            ("spotanim", 1349, "summoning_special_move_spirit_kalphite_sandstorm_projectile"),
+            ("seq", 8517, "summoning_special_move_spirit_kalphite_sandstorm"),
+        ):
+            expect(re.search(rf"^{kind}\t{source}\t.*\t{runtime}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Sandstorm {kind} source {source} is absent from its translation ledger")
         for source, name in ((8136, "call_to_arms_start"), (8137, "call_to_arms_end")):
             expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
                              special_ledger, re.MULTILINE) is not None,
@@ -221,13 +338,145 @@ def main() -> int:
             expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
                              special_ledger, re.MULTILINE) is not None,
                    f"Call to Arms source graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t5387\t.*\tsummoning_special_move_dreadfowl_strike\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Dreadfowl Strike animation is absent from its ledger")
+        for source, name in ((1523, "dreadfowl_strike_gfx"),
+                             (1318, "dreadfowl_strike_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Dreadfowl Strike graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t8148\t.*\tsummoning_special_move_thorny_snail_slime_spray\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Slime Spray animation is absent from its ledger")
+        for source, name in ((1385, "thorny_snail_slime_spray_gfx"),
+                             (1386, "thorny_snail_slime_spray_projectile"),
+                             (1387, "thorny_snail_slime_spray_impact_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Slime Spray graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t7795\t.*\tsummoning_special_move_desert_wyrm_electric_lash\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Electric Lash animation is absent from its ledger")
+        for source, name in ((1410, "desert_wyrm_electric_lash_gfx"),
+                             (1411, "desert_wyrm_electric_lash_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Electric Lash graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t8275\t.*\tsummoning_special_move_vampire_bat_vampyre_touch\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Vampyre Touch animation is absent from its ledger")
+        expect(re.search(r"^spotanim\t1323\t.*\tsummoning_special_move_vampire_bat_vampyre_touch_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Vampyre Touch graphic is absent from its ledger")
 
-        server = (args.tree / "server/scripts/ported_scape2009_summoning/scripts/"
-                  "summoning_spirit_wolf.rs2").read_text(encoding="utf-8")
+        for source, name in ((7762, "petrifying_gaze"), (8026, "bull_rush")):
+            expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"shared direct-combat sequence {source} is absent from its ledger")
+        expect(re.search(r"^seq\t5229\t.*\tsummoning_special_move_rending\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Rending sequence is absent from its ledger")
+        for source, name in ((1467, "petrifying_gaze_gfx"),
+                             (1468, "petrifying_gaze_projectile"),
+                             (1469, "petrifying_gaze_impact_gfx"),
+                             (1496, "bull_rush_gfx"),
+                             (1497, "bull_rush_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"shared direct-combat graphic {source} is absent from its ledger")
+        for source, name in ((1370, "rending_gfx"), (1371, "rending_projectile")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Rending graphic {source} is absent from its ledger")
+        expect(re.search(r"^seq\t7722\t.*\tsummoning_special_move_beaver_multichop\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Multichop animation is absent from its translation ledger")
+        for source, name in ((1393, "forge_regent_inferno_target_gfx"),
+                             (1394, "forge_regent_inferno_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Forge Regent graphic {source} is absent from its translation ledger")
+        for source, name in ((1346, "ravenous_locust_famine_gfx"),
+                             (1347, "ravenous_locust_famine_target_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Ravenous Locust graphic {source} is absent from its translation ledger")
+        for kind, source, name in (
+            ("seq", 7928, "honey_badger_insane_ferocity"),
+            ("seq", 7998, "ravenous_locust_famine"),
+            ("seq", 7871, "forge_regent_inferno"),
+            ("seq", 7858, "giant_ent_acorn_missile"),
+            ("seq", 8223, "swamp_titan_swamp_plague"),
+            ("seq", 7963, "karamthulhu_doomsphere_device"),
+            ("seq", 8069, "praying_mantis_mantis_strike"),
+            ("seq", 5989, "talon_beast_deadly_claw"),
+            ("seq", 7786, "spirit_dagannoth_spike_shot"),
+            ("spotanim", 1397, "honey_badger_insane_ferocity_gfx"),
+            ("spotanim", 1399, "honey_badger_insane_ferocity_owner_gfx"),
+            ("spotanim", 1348, "ravenous_locust_famine_impact_gfx"),
+            ("spotanim", 1362, "giant_ent_acorn_missile_projectile"),
+            ("spotanim", 1363, "giant_ent_acorn_missile_impact_gfx"),
+            ("spotanim", 1491, "lava_titan_ebon_thunder_gfx"),
+            ("spotanim", 1460, "swamp_titan_swamp_plague_gfx"),
+            ("spotanim", 1462, "swamp_titan_swamp_plague_projectile"),
+        ):
+            expect(re.search(
+                rf"^{kind}\t{source}\t.*\tsummoning_special_move_{name}\t",
+                special_ledger,
+                re.MULTILINE,
+            ) is not None, f"reconstructed {kind} source {source} is absent from its ledger")
+        expect(re.search(r"^seq\t8183\t.*\tsummoning_special_move_iron_titan_swing\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1450\t.*\tsummoning_special_move_iron_titan_iron_within_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Iron Within's source animation closure is absent from its ledger")
+        expect(re.search(r"^seq\t8190\t.*\tsummoning_special_move_steel_titan_swing\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1445\t.*\tsummoning_special_move_steel_titan_projectile\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1449\t.*\tsummoning_special_move_steel_titan_steel_of_legends_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Steel of Legends' source visual closure is absent from its ledger")
+        expect(re.search(r"^seq\t6261\t.*\tsummoning_special_move_spirit_scorpion_venom_shot\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1354\t.*\tsummoning_special_move_spirit_scorpion_venom_shot_gfx\t",
+                         special_ledger, re.MULTILINE) is not None and
+               re.search(r"^spotanim\t1355\t.*\tsummoning_special_move_spirit_scorpion_venom_shot_projectile\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Venom Shot's source visual closure is absent from its ledger")
+        expect(re.search(r"^seq\t8211\t.*\tsummoning_special_move_stranger_plant_poisonous_blast\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Poisonous Blast's source sequence is absent from its ledger")
+        for source, name in ((1508, "stranger_plant_poisonous_blast_projectile"),
+                             (1511, "stranger_plant_poisonous_blast_impact_gfx")):
+            expect(re.search(rf"^spotanim\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Poisonous Blast graphic {source} is absent from its ledger")
+        for source, name in ((8257, "spirit_tz_kih_fireball_assault"),
+                             (7758, "giant_chinchompa_explode"),
+                             (7820, "smoke_devil_dust_cloud")):
+            expect(re.search(rf"^seq\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"bounded-area familiar source sequence {source} is absent from its ledger")
+        expect(re.search(r"^spotanim\t1364\t.*\tsummoning_special_move_giant_chinchompa_explode_gfx\t",
+                         special_ledger, re.MULTILINE) is not None,
+               "Giant Chinchompa's source graphic is absent from its ledger")
+        for source, name in ((1511, "beaver_logs"), (2862, "beaver_achey_tree_logs"),
+                             (1521, "beaver_oak_logs"), (1519, "beaver_willow_logs"),
+                             (6333, "beaver_teak_logs"), (10810, "beaver_arctic_pine_logs"),
+                             (1517, "beaver_maple_logs"), (6332, "beaver_mahogany_logs"),
+                             (12581, "beaver_eucalyptus_logs"), (960, "beaver_yew_logs"),
+                             (8778, "beaver_magic_logs")):
+            expect(re.search(rf"^obj\t{source}\t.*\tsummoning_special_move_{name}\t",
+                             special_ledger, re.MULTILINE) is not None,
+                   f"Multichop log {source} is absent from its ledger")
+
+        script_root = args.tree / "server/scripts/ported_scape2009_summoning/scripts"
+        special_core = read_module(script_root, "summoning_special_core.rs2")
         scroll_dispatch = re.findall(
             r"^if \(\$type = (\d+)\) return\((summoning_scroll_[a-z0-9_]+)\);$",
-            server[server.index("[proc,summoning_familiar_scroll]"):
-                   server.index("[proc,summoning_familiar_special_cost]")],
+            definition(script_root, "proc,summoning_familiar_scroll"),
             re.MULTILINE,
         )
         expect([int(kind) for kind, _scroll in scroll_dispatch] == list(range(1, 79)),
@@ -236,19 +485,18 @@ def main() -> int:
                "special-move dispatch is not the exact 67-object familiar scroll closure")
         cost_dispatch = re.findall(
             r"^if \(\$type = (\d+)\) return\((\d+)\);$",
-            server[server.index("[proc,summoning_familiar_special_cost]"):
-                   server.index("[proc,summoning_familiar_body_model]")],
+            definition(script_root, "proc,summoning_familiar_special_cost"),
             re.MULTILINE,
         )
         expect([int(kind) for kind, _cost in cost_dispatch] == list(range(1, 79)),
                "special-move costs do not cover familiar types 1..78 exactly once")
         expect(all(int(cost) > 0 for _kind, cost in cost_dispatch),
                "every familiar must have a positive special-move cost")
-        expect("anim(summoning_special_move_cast, 0);" in server and
-               "spotanim_pl(summoning_special_move_gfx, 0, 0);" in server,
+        expect("anim(summoning_special_move_cast, 0);" in special_core and
+               "spotanim_pl(summoning_special_move_gfx, 0, 0);" in special_core,
                "successful scroll use does not play the shared special visualization")
-        expect("inv_del(inv, $scroll, 1);" in server and
-               "~summoning_familiar_special_cost($type)" in server,
+        expect("inv_del(inv, $scroll, 1);" in special_core and
+               "~summoning_familiar_special_cost($type)" in special_core,
                "successful scroll use does not consume its scroll and special points")
     except (AssertionError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"test_summoning_scroll_assets: error: {exc}", file=sys.stderr)

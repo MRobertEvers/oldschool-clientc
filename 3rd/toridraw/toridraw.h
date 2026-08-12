@@ -96,13 +96,24 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_x,
     int screen_y);
 
-/** The same test for a GROUND TILE mesh, which the reference does not pick
- *  through Model.draw at all: World3D.drawTileUnderlay / drawTileOverlay run
- *  their pointInsideTriangle click test BEFORE the `!== 12345678` colour gate,
- *  so a tile triangle whose colour says "draw nothing" still sets
- *  clickTileX/clickTileZ. A tile decoded from a 0xFF00FF overlay (or from no
- *  underlay at all) is therefore invisible AND clickable in the reference,
- *  where the same face on a model would be neither. */
+/** The analogous test for a GROUND TILE mesh, which the reference does not pick
+ *  through Model.draw at all — and which therefore differs from the model test
+ *  in BOTH of its rules:
+ *
+ *  - Hidden faces still pick. World3D.drawTileUnderlay / drawTileOverlay run
+ *    their click test BEFORE the `!== 12345678` colour gate, so a tile triangle
+ *    whose colour says "draw nothing" still sets clickTileX/clickTileZ. A tile
+ *    decoded from a 0xFF00FF overlay (or from no underlay at all) is therefore
+ *    invisible AND clickable in the reference, where the same face on a model
+ *    would be neither.
+ *  - It is exact containment, NOT the model test's 5px-slop bounding box. The
+ *    239 deob reaches it as class155 -> class112.method3946 -> method4206,
+ *    which rejects on the bbox and then tests the three edge signs; Client-TS
+ *    spells the same thing as World3D.insideTriangle. The slop exists so the
+ *    gaps in a sparse model stay clickable; ground tiles tile the plane and
+ *    have no gaps, and slop there would make every click match its neighbours
+ *    too — which resolves the click to whichever of them drew last rather than
+ *    to the tile under the cursor. */
 bool
 ToriDraw_ProjectedTileMouseHitTest(
     struct ToriDraw_Scene* scene,

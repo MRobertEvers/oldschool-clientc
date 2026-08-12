@@ -38,9 +38,9 @@
 /*
  * `ToriDraw_ModelDropNonSdTextures` is the one function in that pair the viewer
  * does not call, and it is the only reason a CacheProvider is named at all.
- * The viewer has no material table, and a provider without one answers every id
- * as SD (see the header on ToriDraw_ModelDropNonSdTextures), so this says the
- * same thing the real answer would.
+ * The viewer has no material table or texture pixels; ev_build_npc_model strips
+ * texture selectors before lighting so those faces fall back to their source
+ * colours instead of disappearing in the raster's missing-texture path.
  */
 bool
 CacheProvider_TextureIsSd(
@@ -180,12 +180,13 @@ ev_build_npc_model(
     for( int i = 0; i < npc->retexture_count; i++ )
         ToriDraw_ModelRetexture(merged, npc->retexture_to_find[i], npc->retexture_to_replace[i]);
 
-    /* Diagnostic-only silhouette mode. The viewer deliberately has no cache
-     * material provider, so foreign models whose every face is textured can
-     * otherwise render as a blank frame. Dropping the texture selectors here
-     * leaves the source face colours/geometry and makes source-vs-destination
-     * pose comparisons possible without changing the game cache. */
-    if( getenv("EV_STRIP_TEXTURES") && merged->face_textures )
+    /* The browser renderer receives geometry but no material table or texture
+     * pixels. Its missing-texture rule skips a textured face entirely, which
+     * made texture-driven backports such as the Summoning models bake
+     * successfully and then render as a blank canvas. The reference client
+     * also falls back to the face colour when a texture is unavailable, so do
+     * that here before lighting bakes the per-corner colours. */
+    if( merged->face_textures )
         for( int face = 0; face < merged->face_count; face++ )
             merged->face_textures[face] = (faceint_t)-1;
 
@@ -193,11 +194,6 @@ ev_build_npc_model(
      * its own — a giant, a small pet — rendered at the model's raw size. */
     if( npc->width_scale != 128 || npc->height_scale != 128 )
         ToriDraw_ModelScale(merged, npc->width_scale, npc->width_scale, npc->height_scale);
-
-    /* No-op with this file's SD stub, kept because it is where the client does
-     * it and because it is the step that would matter the day the viewer grows
-     * a material table. */
-    ToriDraw_ModelDropNonSdTextures(NULL, merged);
 
     struct ToriDraw_ModelHandle hnd;
     memset(&hnd, 0, sizeof(hnd));

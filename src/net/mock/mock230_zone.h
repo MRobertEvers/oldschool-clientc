@@ -65,6 +65,7 @@
 struct Mock230Server;
 struct Mock230Player;
 struct Mock230PlayerZone;
+struct Mock230Npc;
 
 /** What a zone's membership lists hold. One enum rather than the `is_npc`
  *  boolean `refile` took, because there are three kinds now and a boolean that
@@ -312,6 +313,28 @@ void
 mock230_playerzonemap_clear(struct Mock230Player* player);
 
 /**
+ * The per-axis tile gap between the player's tile and an npc's FOOTPRINT: 0 on
+ * an axis the player overlaps, otherwise the distance to the nearer edge.
+ *
+ * The same measure as `npc_player_distance` in mock230_world.c (the reference's
+ * `CoordGrid.distanceTo`), split per axis because the wire's view test is a box
+ * rather than a Chebyshev radius. It is separate rather than shared because
+ * that one is the AI's, static to its own translation unit, and answers with a
+ * single number.
+ *
+ * Never measure view range off `npc->x/z` alone: that is the npc's SOUTH-WEST
+ * ORIGIN, so for anything bigger than 1x1 it is an arbitrary corner of the
+ * body — a 7x7 boss leaves view seven tiles early on his east and north sides
+ * and seven late on the other two.
+ */
+void
+mock230_npc_view_deltas(
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player,
+    int* out_dx,
+    int* out_dz);
+
+/**
  * Who is standing in this client's subscribed zones, right now.
  *
  * Walked at the moment a packet needs it rather than kept up to date, which is
@@ -322,7 +345,10 @@ mock230_playerzonemap_clear(struct Mock230Player* player);
  * everything in it, up to 7 tiles past the range, and a bounded `out` then
  * loses entities that are genuinely beside the player.
  *
- * `_npcs` fills npc slots, `_players` fills pids.
+ * `_npcs` measures `radius` to the npc's footprint (`mock230_npc_view_deltas`),
+ * so a sized npc is a candidate while any tile of it is in range; `_players`
+ * measures the tile, players being 1x1. Both stay exact per entity — widening
+ * the radius instead would let a far fringe crowd a bounded `out`.
  */
 int
 mock230_playerzonemap_npcs(

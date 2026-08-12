@@ -1,5 +1,10 @@
 #include "app.h"
 
+#if defined(TORIRS_WEB_CACHE_IDB)
+#include "platform/dat2_web_store.h"
+#include "platform/web_cache_boot.h"
+#endif
+
 #include "bootmanifest/bootmanifest.h"
 
 #include "cmd/cmdbus.h"
@@ -1528,8 +1533,8 @@ app_worldmap_drag_tick(
 /* Reference minimapDraw overlay: ground objs (yellow), NPCs, other players
  * (white), the destination flag, then the local-player 3x3 white square.
  * mapdots frames: 0 obj, 1 npc, 2 player, 3 friend; mapmarker frame 0 flag. */
-static int
-app_minimap_build_dots(
+int
+App_MinimapBuildDots(
     struct App* app,
     struct UITreeMinimapDot const** out_dots)
 {
@@ -1613,9 +1618,11 @@ app_minimap_build_dots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
-            /* Reference gates on NpcType.minimap; the flag is not decoded
-             * into ToriRS_Npctype yet, so every NPC dot draws. */
-            if( !npc || npc->grid_position.level != local->grid_position.level )
+            /* NpcType.minimap (config opcode 93), copied onto the entity when
+             * its type resolves: an npc that clears it draws no dot at all
+             * (reference minimapDraw's `npc.type.minimap` gate). */
+            if( !npc || !npc->minimap_visible ||
+                npc->grid_position.level != local->grid_position.level )
                 continue;
             app_minimap_push_dot(
                 app,
@@ -2425,7 +2432,7 @@ app_host_request(
         return app->world_map_scene_id;
     }
     case UITREE_HOST_GET_MINIMAP_DOTS:
-        return app_minimap_build_dots(app, req->u.get_minimap_dots.out_dots);
+        return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
         return app_worldmap_build_tiles(app, req);
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
@@ -3410,7 +3417,37 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
-#if defined(TORIRS_PLATFORM_WEB)
+#if defined(TORIRS_WEB_CACHE_IDB)
+    /*
+     * The browser has no cache *directory*, but on this lane it does have a
+     * cache: a keyed record store the page hydrated from IndexedDB, wearing a
+     * dat2 face (see platform/dat2_web_store.h). So the disk opens normally and
+     * everything below this point — table id resolution, the map XTEA gate,
+     * reference tables, the archive decode path — is the code the desktop build
+     * runs, against the same struct.
+     *
+     * The store was opened before main() by the JS5 metadata barrier, which had
+     * to run first: this constructor decodes reference tables, and it is not a
+     * tolerant reader.
+     */
+    {
+        struct Dat2WebStore* store = WebCacheBoot_Store();
+        struct RSCache_Dat2Store ops;
+
+        if( !store )
+        {
+            fprintf(
+                stderr,
+                "app: no browser record store for %s — the JS5 prime did not run\n",
+                cfg->cache_dir ? cfg->cache_dir : "(unnamed cache)");
+        }
+        assert(store != NULL);
+        ops = Dat2WebStore_Ops(store);
+        app->dat2_disk = RSCache_Dat2DiskNewFromStore(cfg->cache_dir, &ops);
+        assert(app->dat2_disk != NULL);
+        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+    }
+#elif defined(TORIRS_PLATFORM_WEB)
     /* The browser has no cache directory to open. Every read the disk layer
      * would have answered goes to the IO server instead, which holds the real
      * cache and therefore also the things only an open cache can answer:
@@ -3673,6 +3710,23 @@ App_Init(
             if( model >= 0 )
                 app->features_storage.ground_click_nearest_model = model;
         }
+        /*
+         * The two permissive ground-click extensions. Every era table leaves
+         * them off — the client is deob-exact unless a boot asks otherwise —
+         * so this is the only place either can be turned on.
+         */
+        if( cfg->features_ground_click_unbounded )
+            app->features_storage.ground_click_nearest_unbounded = 1;
+        if( cfg->features_ground_click_offmap )
+            app->features_storage.ground_click_offmap_nearest = 1;
+        {
+            char const* env = getenv("TORIRS_GROUND_CLICK_UNBOUNDED");
+            if( env && env[0] )
+                app->features_storage.ground_click_nearest_unbounded = env[0] != '0';
+            env = getenv("TORIRS_GROUND_CLICK_OFFMAP");
+            if( env && env[0] )
+                app->features_storage.ground_click_offmap_nearest = env[0] != '0';
+        }
         if( cfg->features_painter_draw_distance_set )
             app->features_storage.painter_draw_distance =
                 cfg->features_painter_draw_distance;
@@ -3680,10 +3734,12 @@ App_Init(
         if( getenv("TORIRS_NET_DEBUG") )
             fprintf(stderr,
                     "app: features era=%s ground_click_nearest=%s "
-                    "painter_draw_distance=%d\n",
+                    "unbounded=%d offmap=%d painter_draw_distance=%d\n",
                     app->features->name,
                     ToriRS_Features_NearestModelName(
                         app->features->ground_click_nearest_model),
+                    app->features->ground_click_nearest_unbounded,
+                    app->features->ground_click_offmap_nearest,
                     ToriRS_Features_PainterDrawDistance(app->features));
         RS_Audio_SetFeatures(&app->audio, app->features);
 
@@ -3811,10 +3867,43 @@ App_UiLogic(struct App const* app)
     return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_UI_LOGIC_CS1 : APP_UI_LOGIC_CS2;
 }
 
+/*
+ * Write out a settings change that has not reached its settle window yet.
+ *
+ * Quitting is exactly when that happens: the player turns the music down and
+ * closes the client, and the tick that would have queued the save never comes.
+ *
+ * Stepped here against a private IO rather than handed to the App's runner:
+ * that queue may hold tasks parked on state a shutting-down client will never
+ * produce, so draining it could return with the save still queued. One task
+ * against one IO list terminates on both backends — the platform answers a
+ * client-file item inline in Process.
+ */
+static void
+app_prefs_flush(struct App* app)
+{
+    struct ToriRS_Task* task;
+    struct ToriRS_IO io;
+    int guard = 0;
+
+    if( !app->prefs_path )
+        return;
+    if( !RS_Prefs_CaptureFromHost(&app->prefs, &app->host) && !app->prefs_dirty_cycle )
+        return; /* everything the player chose is already on disk */
+    app->prefs_dirty_cycle = 0;
+
+    memset(&io, 0, sizeof(io));
+    task = CreateTask_PrefsSave(&app->prefs, app->prefs_path);
+    while( task_run(task, &io) == PT_YIELDED && guard++ < 8 )
+        PlatformX_IO_Process(app->runner.px, &io);
+    task_free(task);
+}
+
 void
 App_Shutdown(struct App* app)
 {
     assert(app);
+    app_prefs_flush(app);
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
@@ -4992,6 +5081,34 @@ Task_AppBoot_Run(
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
     /*
+     * The settings the player chose last launch, before anything reads one.
+     *
+     * Volumes are device settings: no packet carries them to a server and none
+     * carries them back, so the file this reads is the only thing standing
+     * between "turn the music down" and a client that is loud again tomorrow.
+     * Restoring into the option store (not the varps) is the right direction —
+     * the store is what GAMEOPTION_GET answers with, and the four varps below
+     * are then seeded from it, so both halves of interface 116 agree.
+     */
+    app->prefs_path = RS_Prefs_Path();
+    RS_Prefs_Defaults(&app->prefs);
+    if( app->prefs_path )
+        TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
+    RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+
+    /*
+     * A window mode the manifest or command line stated wins over the saved
+     * one. App_SetBootWindowMode has already run (it must, before the root's
+     * scripts call getwindowmode), so the restore above just overwrote it;
+     * `cfg.window_mode` is 0 when nothing said anything, which is when the
+     * saved default is the only opinion there is. Same precedence as a server
+     * VARP over the seeded volumes: an explicit instruction for this run beats
+     * what the last run happened to leave behind.
+     */
+    if( app->cfg.window_mode )
+        app->host.default_window_mode = app->cfg.window_mode;
+
+    /*
      * Seed the four audio volumes.
      *
      * The mixer starts at full gain and RS_CS2Host's option snapshot says 100,
@@ -5010,10 +5127,24 @@ Task_AppBoot_Run(
      * snapshot stays in agreement with the varps; and before the tree is built,
      * so 116 constructs its bobbles green rather than needing a repaint.
      */
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MASTER_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_MUSIC_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_SOUND_VOLUME, 100);
-    VarPManager_SetVarpOptimistic(&app->varps, RS_CS2_VARP_AREA_VOLUME, 100);
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MASTER_VOLUME,
+        RS_CS2Host_GetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_SOUND_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
+    VarPManager_SetVarpOptimistic(
+        &app->varps, RS_CS2_VARP_AREA_VOLUME,
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
+
+    /* Baseline for the change detection below: what is in the host now is what
+     * is on disk, so nothing written here counts as a change worth saving. */
+    RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
+    app->prefs_dirty_cycle = 0;
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         fprintf(
             stderr,
@@ -5027,6 +5158,28 @@ Task_AppBoot_Run(
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_SOUND_VOLUME),
             RS_CS2_VARP_AREA_VOLUME,
             VarPManager_GetVarp(&app->varps, RS_CS2_VARP_AREA_VOLUME));
+
+    /*
+     * Seed the "interface resizing" setting, for the same reason and with the
+     * same precedence as the four volumes above: it is a client setting nobody
+     * transmits, and the zero SetVarbitTypes leaves behind is a value, not an
+     * absence.
+     *
+     * Which era owns the id — and the whole account of what the two branches do
+     * — is in features.h. In short: at zero the cache's interface-window helper
+     * (clientscript 1898, and 1904 for the skill guide) positions a modal's
+     * panel at `if_getx/if_gety(mainmodal)`, the slot's *parent-relative*
+     * origin, inside the modal's own root. In resizable mode the slot is
+     * centred in `hud_container_front`, so that applies the centring offset
+     * twice and every main modal sits down-and-right of the hole clientscript
+     * 910 dims for it, half-under the sidebar and the chatbox.
+     *
+     * Optimistic, before the tree is built, and overridable by a server VARP —
+     * all three for the reasons stated above the volumes.
+     */
+    if( app->features->varbit_interface_resizing > 0 )
+        VarPManager_SetVarbitOptimistic(
+            &app->varps, app->features->varbit_interface_resizing, 1);
 
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
@@ -5259,9 +5412,16 @@ Task_OpenSubRefresh_Run(
     PT_BEGIN(&self->pt);
     /* IF_OPENTOP remounts on the asset runner; IF_OPENSUB rides the exec
      * pipeline. Wait out APP_STATE_BOOTING so the new root's slots exist
-     * before mount_pack_under_target asserts. */
-    while( app->app_state == APP_STATE_BOOTING )
-        PT_YIELD(&self->pt);
+     * before mount_pack_under_target asserts.
+     *
+     * TASK_AWAIT_STATE, not a bare PT_YIELD loop, and the difference is a
+     * deadlock. Only Task_AppBoot on app->runner clears APP_STATE_BOOTING, and
+     * app->runner is stepped by the frame loop — which cannot get its turn back
+     * while this queue is still settling. A plain yield here therefore spins
+     * app_logic_tick's exec drain forever at 100% CPU: measured on every
+     * Display-panel layout switch, which sends IF_OPENTOP and its IF_OPENSUB
+     * mounts in one burst. */
+    TASK_AWAIT_STATE(base, &self->pt, app->app_state != APP_STATE_BOOTING);
     if( self->interface_id > 0 &&
         UITree_FindByComponentId(app->tree, self->target_uid) < 0 )
     {
@@ -5621,6 +5781,44 @@ App_SimulateLocOp(
             loc_id));
 }
 
+int
+App_SimulateNpcOp(
+    struct App* app,
+    int op_num,
+    int npc_id)
+{
+    assert(app);
+    if( !app->world )
+        return -1;
+    /*
+     * Addressed by npc TYPE rather than by server slot, which is the only id a
+     * test can state up front: slots are handed out by the server as npcs enter
+     * the build area and are not stable between runs. The first live entity of
+     * that type wins, the same one a click would land on when there is only one
+     * — a familiar, a spawned quest actor.
+     */
+    struct World_EntityPool* pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+
+        if( !npc || npc->npc_id != npc_id || npc->server_slot < 0 )
+            continue;
+        APP_NET_SEND(
+            app,
+            net_out_opnpc(
+                app->net->rev,
+                app->net->random_out,
+                _nsbuf,
+                sizeof(_nsbuf),
+                op_num,
+                npc->server_slot));
+        return npc->server_slot;
+    }
+    return -1;
+}
+
 /* Shared per-frame completion polls for async work (world load, textures,
  * deferred seq binds, tree refresh). Not run while BOOTING. */
 static void
@@ -5678,6 +5876,133 @@ App_BootWait(struct App* app)
 static void
 app_player_model_poll(struct App* app);
 
+/* Queue the CS2 work a just-completed script deferred back to the host.
+ *
+ * These requests cannot be dispatched from inside the VM which raised them:
+ * doing so would recursively run a second script on the first script's stack.
+ * They are therefore host queues, but that does not make them a later visual
+ * transaction.  A frame is not settled until these listeners, and any widget
+ * transmit listeners made dirty by the first script, have run too. */
+static int
+app_cs2_enqueue_followups(struct App* app)
+{
+    int queued = 0;
+
+    {
+        int com_id;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_CALL_ON_RESIZE_MAX * 4 &&
+               RS_CS2Host_TakeCallOnResize(&app->host, &com_id) )
+        {
+            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
+            if( idx < 0 )
+                continue;
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                com_id,
+                &UITree_Hooks(&app->tree->components[idx])->on_resize);
+            queued = 1;
+        }
+    }
+
+    {
+        struct RS_CS2TriggerOp trig;
+        int guard = 0;
+
+        while( guard++ < RS_CS2_HOST_TRIGGER_OP_MAX * 4 &&
+               RS_CS2Host_TakeTriggerOp(&app->host, &trig) )
+        {
+            int32_t idx = UITree_FindByComponentId(app->tree, trig.component_id);
+            if( idx < 0 )
+                continue;
+            RS_CS2_SetEventOp(&app->host, trig.op_index, 0);
+            RS_CS2_DispatchHook(
+                &app->host,
+                &app->runner,
+                trig.component_id,
+                &UITree_Hooks(&app->tree->components[idx])->on_op);
+            queued = 1;
+        }
+    }
+
+    if( RS_CS2_TransmitsPending(&app->host) )
+    {
+        RS_CS2_PumpTransmits(&app->host, &app->runner);
+        queued = 1;
+    }
+
+    return queued;
+}
+
+/* Run one CS2 visual transaction to a fixed point.  Cooperative yields are
+ * never frame boundaries: TaskRunner_SettleFrame crosses as many as needed.
+ * A real outstanding platform read is the only reason this can return
+ * PENDING, in which case App_RunOnce retains the previous emit list/frame and
+ * resumes settlement on a later host turn. */
+static enum TaskRunnerStat
+app_settle_cs2_frame(struct App* app)
+{
+    for( ;; )
+    {
+        enum TaskRunnerStat stat = TaskRunner_SettleFrame(&app->runner);
+
+        if( stat != TASK_RUNNER_IDLE )
+            return stat;
+        /* Resize listeners and transmit painters must observe the geometry
+         * produced by the script which queued them, not the last committed
+         * frame's bounds. */
+        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        if( !app_cs2_enqueue_followups(app) )
+        {
+            app->runner.frame_settle_pending = 0;
+            return TASK_RUNNER_IDLE;
+        }
+    }
+}
+
+/* Only packets which can change interface/CS2-visible state open a visual
+ * server-tick transaction. SERVER_TICK_END is not a universal reply fence:
+ * immediate world feedback is also sent between scheduled ticks (the map flag
+ * after MOVE_GAMECLICK is the common case). Treating every inbound packet as a
+ * tick opener retained the framebuffer until the next 600ms server cycle.
+ *
+ * This deliberately includes transmit sources as well as direct IF_* writes:
+ * a later clientscript in the same tick must observe varp/inventory/stat and
+ * social changes as part of the same UI transaction. */
+static int
+app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
+{
+    if( packet_type >= PKT_NAME_IF_OPENCHAT &&
+        packet_type <= PKT_NAME_IF_SETPLAYERMODEL_SELF )
+        return 1;
+
+    switch( packet_type )
+    {
+    case PKT_NAME_TUT_OPEN:
+    case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
+    case PKT_NAME_UPDATE_INV_FULL:
+    case PKT_NAME_UPDATE_INV_PARTIAL:
+    case PKT_NAME_UPDATE_IGNORELIST:
+    case PKT_NAME_CHAT_FILTER_SETTINGS:
+    case PKT_NAME_UPDATE_FRIENDLIST:
+    case PKT_NAME_FRIENDLIST_LOADED:
+    case PKT_NAME_UPDATE_RUNWEIGHT:
+    case PKT_NAME_UPDATE_STAT:
+    case PKT_NAME_UPDATE_RUNENERGY:
+    case PKT_NAME_TRIGGER_ONDIALOGABORT:
+    case PKT_NAME_RUNCLIENTSCRIPT:
+    case PKT_NAME_VARP_SMALL:
+    case PKT_NAME_VARP_LARGE:
+    case PKT_NAME_VARP_SYNC:
+    case PKT_NAME_VARP_RESET:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -5686,30 +6011,70 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
-    /* Pump the serial game-action pipeline: run whatever packet task /
-     * slot mount / spawn is at the head, and only pop a NEW packet off the
-     * network FIFO when the queue is idle — this is what preserves wire
-     * order even when a packet's exec enqueues follow-on tasks (a mount
-     * enqueued by IF_OPENSIDE runs before the next packet is popped). Step
-     * budget bounds a frame's work; a long chain (world rebuild) simply
-     * spans frames while gating everything behind it. */
+    /* Settle the serial game-action pipeline, then pop the next packet.  Wire
+     * order is preserved because a packet and all of the mount/CS2 work it
+     * awaits finish before its successor starts.  Ready cooperative yields
+     * are not spread over visual frames; only real external IO can pause the
+     * transaction, and that pause is covered by exec_runner_had_work below. */
     {
-        int pops = 0;
         int drained = 0;
-        for( int steps = 0; steps < 64; steps++ )
+        int fence_queued = 0;
+
+        for( ;; )
         {
-            if( TaskRunner_Step(&app->exec_runner) == TASK_RUNNER_IDLE )
+            enum TaskRunnerStat stat;
+
+            /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
+             * on app->runner. Every packet behind it targets components that
+             * do not exist yet, so hold the whole pipeline rather than feed it
+             * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
+             * this: it runs at the top of the frame, and the rebuild starts
+             * here, below it — including on a later catch-up tick in the same
+             * App_RunOnce. */
+            if( app->app_state == APP_STATE_BOOTING )
+            {
+                app->exec_runner_had_work = 1;
+                break;
+            }
+
+            stat = TaskRunner_SettleFrame(&app->exec_runner);
+
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                app->exec_runner_had_work = 1;
+                break;
+            }
+            app->exec_runner_had_work = 0;
+
+            /* Do not cross a server-tick fence before that tick's newly
+             * dispatched client scripts have settled against its final state. */
+            if( fence_queued )
+                break;
+
             {
                 struct RevPacket packet;
-                if( !app->net || pops >= 10 ||
-                    !ToriRS_Network_PopPacket(app->net, &packet) )
+
+                if( !app->net || !ToriRS_Network_PopPacket(app->net, &packet) )
                 {
                     drained = 1;
                     break;
                 }
+                /* Once a revision has demonstrated explicit tick fences,
+                 * retain only packets that participate in an atomic UI/CS2
+                 * transaction. World feedback is valid between those ticks.
+                 * SERVER_TICK_END clears this after its exec task has run. */
+                if( app->server_tick_fence_seen &&
+                    app_packet_may_mutate_ui(packet.packet_type) &&
+                    packet.packet_type != PKT_NAME_SERVER_TICK_END )
+                {
+                    if( !app->server_tick_open )
+                        app->server_tick_open_cycle = app->logic_cycle;
+                    app->server_tick_open = 1;
+                }
+                if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
+                    fence_queued = 1;
                 ToriRS_TaskQueue_Add(
                     app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
-                pops++;
                 redraw = 1;
             }
         }
@@ -5729,9 +6094,30 @@ app_logic_tick(struct App* app)
                  APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
         {
             App_FlushPendingClientScripts(app);
+            /* Same recovery fence for a connection whose tick was cut short:
+             * once we intentionally fall back to the held scripts, allow the
+             * resulting fully-settled state to publish too. */
+            app->server_tick_open = 0;
+            redraw = 1;
+        }
+        else if( drained && app->server_tick_open &&
+                 app->logic_cycle - app->server_tick_open_cycle >=
+                     APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
+        {
+            /* A fence can be lost without a RUNCLIENTSCRIPT in the tick.  The
+             * same bounded disconnect recovery must release the visual latch
+             * or the last committed frame would be retained forever. */
+            app->server_tick_open = 0;
             redraw = 1;
         }
     }
+
+    /* No widget hook may observe a half-applied packet/interface transaction.
+     * The next logic tick resumes the serial runner; the shell keeps presenting
+     * the preceding committed framebuffer in the meantime. */
+    if( app->exec_runner_had_work || app->server_tick_open ||
+        app->pending_clientscript_count > 0 )
+        return redraw;
 
     /* Rasterize inventory item icons that the server's inv packets left
      * unresolved (queued on the same serial pipeline, so it runs after the
@@ -6157,6 +6543,33 @@ app_logic_tick(struct App* app)
     }
 
     /*
+     * Mirror the option store to disk once the player has stopped moving it.
+     *
+     * Every path that changes a setting lands in the option store first (the
+     * sliders through GAMEOPTION/DEVICEOPTION_SET, the mute icons through
+     * their varps and RS_CS2Host_SyncAudioVarp), so one comparison here catches
+     * all of them and nothing has to remember to call a save.
+     *
+     * The delay is what makes a drag one write rather than fifty: the bobble
+     * reports a new value every 20ms tick, and each would otherwise be a
+     * separate file rewrite. Anything still pending is flushed by App_Shutdown.
+     */
+    if( app->prefs_path )
+    {
+        if( RS_Prefs_CaptureFromHost(&app->prefs, &app->host) )
+            app->prefs_dirty_cycle = app->logic_cycle;
+        else if( app->prefs_dirty_cycle &&
+                 app->logic_cycle - app->prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        {
+            /* Queued, not written here: the write is the platform's, and this
+             * is the middle of a frame. */
+            ToriRS_TaskQueue_Add(
+                app->runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
+            app->prefs_dirty_cycle = 0;
+        }
+    }
+
+    /*
      * Sounds CS2 asked for this tick.
      *
      * Drained here rather than played from inside the VM so a script that
@@ -6202,69 +6615,11 @@ app_logic_tick(struct App* app)
         }
     }
 
-    /*
-     * if_callonresize — run the on-resize listeners scripts asked for.
-     *
-     * The layout does not call these; a script does, and it is how a rev-230
-     * panel that draws none of itself runs its own builder. The skill guide is
-     * the clearest case: `if_setonresize` registers the layout script and
-     * `if_callonresize` on the next line is the whole of "now draw yourself".
-     * The op cannot run its listener in place — it is handled inside a running
-     * CS2 script, from a host with no task runner — so it queues, and this is
-     * the drain.
-     *
-     * A listener may queue another (a tab click does), so the loop re-reads the
-     * queue rather than snapshotting it. The queue's own cap bounds it; the
-     * extra counter is there so a listener that re-queued *itself* stops after
-     * a tick's worth instead of hanging the frame.
-     */
-    {
-        int com_id;
-        int guard = 0;
-
-        while( guard++ < RS_CS2_HOST_CALL_ON_RESIZE_MAX * 4 &&
-               RS_CS2Host_TakeCallOnResize(&app->host, &com_id) )
-        {
-            int32_t idx = UITree_FindByComponentId(app->tree, com_id);
-            if( idx < 0 )
-                continue;
-            RS_CS2_DispatchHook(
-                &app->host,
-                &app->runner,
-                com_id,
-                &UITree_Hooks(&app->tree->components[idx])->on_resize);
-            redraw = 1;
-        }
-    }
-
-    /*
-     * cc_triggerop — run the on_op listeners scripts asked for directly,
-     * without a real click. script6014 (shift-click inventory options) is
-     * the case that surfaced this: cc_find locates a component and
-     * cc_triggerop fires its op handler with an explicit op index. Same
-     * queue/drain shape as if_callonresize just above, and for the same
-     * reason: the op is reached from inside a running CS2 script, which has
-     * no runner to nest a second dispatch on.
-     */
-    {
-        struct RS_CS2TriggerOp trig;
-        int guard = 0;
-
-        while( guard++ < RS_CS2_HOST_TRIGGER_OP_MAX * 4 &&
-               RS_CS2Host_TakeTriggerOp(&app->host, &trig) )
-        {
-            int32_t idx = UITree_FindByComponentId(app->tree, trig.component_id);
-            if( idx < 0 )
-                continue;
-            RS_CS2_SetEventOp(&app->host, trig.op_index, 0);
-            RS_CS2_DispatchHook(
-                &app->host,
-                &app->runner,
-                trig.component_id,
-                &UITree_Hooks(&app->tree->components[idx])->on_op);
-            redraw = 1;
-        }
-    }
+    /* if_callonresize / cc_triggerop requests are part of the CS2 visual
+     * transaction that raised them.  Queue them here on ordinary ticks; the
+     * pre-emit settle loop below repeats this pump to a fixed point. */
+    if( app_cs2_enqueue_followups(app) )
+        redraw = 1;
 
     /*
      * if_triggeroplocal — CS2 asked the client to notify the server of a
@@ -6293,11 +6648,6 @@ app_logic_tick(struct App* app)
                     trig.sub));
         }
     }
-
-    /* Widgets-loaded transmit traversal, once per tick (TS processWidgetTransmits).
-     * Early-outs unless a widget was unhidden this tick; per-hook serial gating
-     * means already-fired hooks run nothing. */
-    RS_CS2_PumpTransmits(&app->host, &app->runner);
 
     /* CS1 (IF1) value scripts drive active state and %N text. The reference
      * re-evaluates them at draw time; here a task does it once per tick so the
@@ -6836,6 +7186,18 @@ app_world_roof_check(struct App* app)
     if( !player || !world || !world->tile_flags )
         return 3;
     level = player->grid_position.level;
+
+    /*
+     * "Hide roofs" — game option 1, and the first thing both of the reference's
+     * roof checks test (`if (!prefs.isHidingRoofs())` guards the whole selective
+     * walk in each; when it is set they return the player's level outright).
+     * The Display panel's toggle and the reference's ::toggleroof cheat write
+     * this same setting, whose two messages say what the two states are:
+     * "Roofs are now all hidden" against "Roofs will only be removed
+     * selectively".
+     */
+    if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) )
+        return level;
 
     if( app->cam_script.scripted )
     {
@@ -7545,9 +7907,10 @@ app_world_mouse_gate(
      * revconfig-baked tree; a rev-230 tree is the cache's own IF3 gameframe and
      * has neither, so the check above is dead there and every interface the
      * server mounted was transparent to the world. `UITree_PointBlocksWorld`
-     * asks the tree instead of the slot table: any mounted sub-interface or a
-     * `noClickThrough` layer over this point stops the world. Mounts own their
-     * whole panel, including actionless space between controls.
+     * asks the tree instead of the slot table: a type-0 mount owns its clipped
+     * host rectangle (including blank space outside a smaller mounted root),
+     * while a `noClickThrough` layer owns its own bounds. Overlay/tab mounts
+     * stay transparent unless their own records raise that flag.
      */
     if( app->tree && UITree_PointBlocksWorld(app->tree, &app->ui_host, mouse_x, mouse_y) )
         return 0;
@@ -7569,6 +7932,110 @@ app_world_mouse_gate(
     clip = &app->world_emit_desc.clip;
     return mouse_x >= clip->x && mouse_x < clip->x + clip->w && mouse_y >= clip->y &&
            mouse_y < clip->y + clip->h;
+}
+
+/*
+ * Ground-click fallback: the closest walkable-level tile to a click that hit no
+ * terrain at all.
+ *
+ * Picking happens during rasterisation — a tile registers a hit only if it
+ * DREW and the click landed inside one of its two triangles (torirs_pick.c,
+ * reference World.ts insideTriangle -> World.groundX). So a click on the sky,
+ * on the void outside an instance's floor (the Inferno arena is ringed by it),
+ * or on a tile the level filter refuses leaves the pickset with no terrain
+ * item, and "Walk here" is emitted with no destination. The reference drops
+ * that click outright; we resolve it to the nearest tile instead, which is
+ * what the player meant — the router's own unreachable fallback
+ * (features->ground_click_nearest_model, client-side or server-side depending
+ * on pathing_mode) then closes whatever gap is left.
+ *
+ * "Nearest" is measured in SCREEN space against the tile centres, using the
+ * same camera the frame was drawn with: the tile that looks closest to the
+ * cursor is the one the click meant, and that stays true above the horizon
+ * (where no ground plane intersection exists) and over sloped ground.
+ *
+ * Only tiles that carry terrain are candidates, so the void never becomes a
+ * destination; levels above the player's are excluded for the same reason the
+ * pick classifier excludes them (that is a roof you are standing under).
+ * Called once per world click — never per frame — because a full scene sweep
+ * costs two divides a tile.
+ */
+static int
+app_world_nearest_ground_tile(
+    struct App* app,
+    int click_x,
+    int click_y,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    struct World* world = app->world;
+    struct WorldEntity_Player* player;
+    int max_level, level;
+    /* 64-bit: a tile just past the near plane projects thousands of screen
+     * widths out, and the square of that does not fit in an int. */
+    long long best_d2 = LLONG_MAX;
+
+    if( !world || !world->load_complete || !app->world_view_valid )
+        return 0;
+
+    player = app_local_player(app);
+    max_level = player ? player->grid_position.level : 0;
+    if( max_level < 0 )
+        max_level = 0;
+    if( max_level >= WORLD_MAP_TERRAIN_LEVELS )
+        max_level = WORLD_MAP_TERRAIN_LEVELS - 1;
+
+    /* Descending, with a strict improvement test, so the player's own level
+     * wins a tie against the bridge deck / VIS_BELOW tile drawn beneath it. */
+    for( level = max_level; level >= 0; level-- )
+    {
+        for( int x = 0; x < world->_scene_size; x++ )
+        {
+            for( int z = 0; z < world->_scene_size; z++ )
+            {
+                int fine_x, fine_z, sx, sy;
+                long long dx, dy, d2;
+
+                if( World_TerrainElementAt(world, x, z, level) < 0 )
+                    continue;
+                fine_x = x * 128 + 64;
+                fine_z = z * 128 + 64;
+                if( !app_world_project_at(
+                        app,
+                        fine_x,
+                        fine_z,
+                        app_world_height(app, fine_x, fine_z, level),
+                        &sx,
+                        &sy) )
+                    continue; /* behind the near plane */
+                dx = sx - click_x;
+                dy = sy - click_y;
+                d2 = dx * dx + dy * dy;
+                if( d2 < best_d2 )
+                {
+                    best_d2 = d2;
+                    *out_x = x;
+                    *out_z = z;
+                    *out_level = level;
+                }
+            }
+        }
+    }
+
+    if( best_d2 == LLONG_MAX )
+        return 0;
+    if( getenv("TORIRS_NET_DEBUG") )
+        fprintf(
+            stderr,
+            "groundfallback: click=%d,%d -> scene=%d,%d l%d dist2=%lld\n",
+            click_x,
+            click_y,
+            *out_x,
+            *out_z,
+            *out_level,
+            best_d2);
+    return 1;
 }
 
 /* Reference Client.tryMove for ground (type 0) / minimap (type 1) clicks:
@@ -7622,6 +8089,40 @@ app_try_move(
         return 0;
     }
 
+    /*
+     * The era's ceiling on how far a GROUND pick may be from the player
+     * (features->ground_click_clamp_tiles). Deob class112.method4269 applies
+     * it where the hittest records the tile; this client applies it where the
+     * recorded tile is spent, which is the same tile — our pick has no
+     * `field1664` of its own to rewrite, and the minimap click (type 1) must
+     * not be caught by it, since the reference computes that tile from the
+     * minimap's own geometry and never routes it through method4269.
+     */
+    if( type == 0 && app->features->ground_click_clamp_tiles > 0 )
+    {
+        int clamp = app->features->ground_click_clamp_tiles;
+        int px = (int)player->draw_position.x >> 7;
+        int pz = (int)player->draw_position.z >> 7;
+        int dx = px - dst_x;
+        int dz = pz - dst_z;
+        /* (int) Math.hypot(...) - clamp: truncated, so a tile at exactly the
+         * ceiling is left alone. */
+        int over = (int)sqrt((double)(dx * dx + dz * dz)) - clamp;
+
+        if( over > 0 )
+        {
+            int clamped_x = (px * over + dst_x * clamp) / (over + clamp);
+            int clamped_z = (pz * over + dst_z * clamp) / (over + clamp);
+            if( getenv("TORIRS_NET_DEBUG") )
+                fprintf(
+                    stderr,
+                    "groundclamp: %d,%d -> %d,%d (player %d,%d; %d tiles past %d)\n",
+                    dst_x, dst_z, clamped_x, clamped_z, px, pz, over, clamp);
+            dst_x = clamped_x;
+            dst_z = clamped_z;
+        }
+    }
+
     level = player->grid_position.level;
     if( level < 0 )
         level = 0;
@@ -7645,6 +8146,8 @@ app_try_move(
 
         collision_nearest_opts_from_model(
             app->features->ground_click_nearest_model, &nearest_opts);
+        /* Ground/minimap clicks only — see the field. */
+        nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
         route_len = collision_map_try_route(
             cm,
             player->pathing.route_x[0],
@@ -9145,9 +9648,10 @@ app_world_spawn_npc_now(
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
         return -1;
     }
-    /* Set explicitly both ways: the ToriRS adaptor already sets bit 0 on every
-     * model it converts, and bit 0 is the z-buffer opt-in, so leaving it alone
-     * would opt every npc in the moment the scene carries a buffer. */
+    /* Set explicitly both ways. Models arrive from ToriDraw_ModelFromToriRS with
+     * no render flags, so the opt-in is this line and nothing else; clearing is
+     * still written out because this model may be a cache copy of one that was
+     * opted in earlier under a different npc id. */
     if( app_npc_wants_zbuffer(npc_id, npctype) )
         model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
     else
@@ -9195,6 +9699,7 @@ app_world_spawn_npc_now(
         {
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
+            npc->minimap_visible = npctype->minimap_visible;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )
@@ -11904,6 +12409,42 @@ app_hover_text_update(
         app->need_redraw = 1;
 }
 
+/*
+ * Give "Walk here" a destination when this click's pickset holds no terrain.
+ *
+ * OFF unless features->ground_click_offmap_nearest says otherwise, because the
+ * reference has no such destination to give: no ground triangle contained the
+ * point, so nothing was recorded and nothing is sent. See the field.
+ *
+ * Only the click paths call this: resolving the tile sweeps the scene, and the
+ * hover-text builder runs the same menu every frame for a row whose text does
+ * not depend on the tile. A pickset that DOES hold terrain is left alone — the
+ * row targets the picked tile there, exactly as before.
+ */
+static void
+app_minimenu_ctx_ground_fallback(
+    struct App* app,
+    struct RS_MinimenuBuildCtx* mctx,
+    int click_x,
+    int click_y)
+{
+    int x = 0, z = 0, level = 0;
+
+    if( !app->features->ground_click_offmap_nearest )
+        return;
+    if( !mctx->click_in_world || !mctx->world_pickset )
+        return;
+    for( int i = 0; i < mctx->world_pickset->count; i++ )
+        if( mctx->world_pickset->items[i].type == WORLD_PICK_TERRAIN )
+            return;
+    if( !app_world_nearest_ground_tile(app, click_x, click_y, &x, &z, &level) )
+        return;
+    mctx->ground_fallback_valid = true;
+    mctx->ground_fallback_x = x;
+    mctx->ground_fallback_z = z;
+    mctx->ground_fallback_level = level;
+}
+
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
@@ -11937,6 +12478,7 @@ app_minimenu_open(
     int content_w = 0;
     int line_box = 0;
 
+    app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
@@ -11946,16 +12488,26 @@ app_minimenu_open(
         /* The two Attack options ride this dump because a missing or
          * right-click-only Attack row is otherwise indistinguishable from a
          * pick that never happened — and Hidden is what both settings hold
-         * until the server transmits varp clientcode 18/22. */
-        fprintf(
-            stderr,
-            "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d\n",
-            click_x,
-            click_y,
-            click_in_world,
-            click_in_world ? app->world_pickset.count : 0,
-            app->player_attack_option,
-            app->npc_attack_option);
+         * until the server transmits varp clientcode 18/22. The local combat
+         * level rides it for the same reason: under "Depends on combat levels"
+         * the setting alone does not say whether a row was sunk, the
+         * comparison against THIS number does. */
+        {
+            struct WorldEntity_Player* lp =
+                app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid)
+                           : NULL;
+            fprintf(
+                stderr,
+                "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
+                "mylevel=%d\n",
+                click_x,
+                click_y,
+                click_in_world,
+                click_in_world ? app->world_pickset.count : 0,
+                app->player_attack_option,
+                app->npc_attack_option,
+                lp ? lp->combat_level : -1);
+        }
         if( click_in_world )
             for( int i = 0; i < app->world_pickset.count; i++ )
             {
@@ -11982,8 +12534,25 @@ app_minimenu_open(
                 menu->options[i].text);
     }
 
+    /* The popup is sized from measured text, so a font the scene cannot hand
+     * back is not a cosmetic miss: PrepareShow falls back to a per-character
+     * estimate and the rows draw past the border. The boot-time resolve can
+     * land before the b12 load does, so re-resolve on a miss and carry the id
+     * to the node that draws the rows — measure and draw must share a font. */
     {
         struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
+        if( !font )
+        {
+            int const resolved = app_minimenu_font_scene_id(app);
+            if( resolved > 0 )
+            {
+                int32_t const idx = UITree_FindByComponentId(app->tree, APP_COM_ID_MINIMENU);
+                menu->font_id = resolved;
+                if( idx >= 0 )
+                    app->tree->components[idx].u.minimenu.font_id = resolved;
+                font = ToriDraw_SceneFontGet(app->scene, resolved);
+            }
+        }
         if( font )
             line_box = ToriDraw_FontLineBoxHeight(font);
     }
@@ -11992,6 +12561,17 @@ app_minimenu_open(
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app->need_redraw = 1;
+        /* Geometry beside the rows: a popup too narrow for its own text is a
+         * measure that returned nothing, and this line is what says so. */
+        if( getenv("TORIRS_MINIMENU_DEBUG") )
+            fprintf(
+                stderr,
+                "minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
+                menu->font_id,
+                line_box,
+                content_w,
+                menu->width,
+                menu->height);
     }
 }
 
@@ -12729,8 +13309,26 @@ app_minimenu_run_option(
         return 0;
 
     {
+        /*
+         * Every op row paints its cross here, unconditionally, exactly like
+         * the reference (Client-TS doAction sets crossMode = 2 in each branch
+         * before the packet goes out).
+         *
+         * A WALK row does NOT. The reference's walk branch touches no cross at
+         * all — it only re-arms the hittest — and the cross is set one frame
+         * later, inside the block that emits the move, so a walk that resolves
+         * to nothing leaves the screen alone. Deob client.java:9305 puts the
+         * two in the same basic block, guarded by class112.method3951():
+         *
+         *     field760 = ...; field714 = ...;   // cross x, y
+         *     field800 = 1282583357;            // crossMode 1
+         *     field910 = 0;                     // crossCycle
+         *
+         * Painting it up front here is what made a dead click on the sky look
+         * like an executed one. UI_MINIMENU_PICK_TERRAIN shows it on success.
+         */
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
-        if( cross_mode != UI_CROSS_OFF )
+        if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
             UICross_Show(&app->cross, cross_mode, click_x, click_y);
     }
 
@@ -12800,7 +13398,7 @@ app_minimenu_run_option(
             snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
         RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
         app->need_redraw = 1;
-        return 1;
+        return 0; /* handled locally; no CS2 task was dispatched */
     }
 
     /* Arm target mode from a spell/prayer button (reference TGT_BUTTON): the
@@ -13121,8 +13719,13 @@ app_minimenu_run_option(
                 opt.pick.tertiary_id,
                 app->world ? app->world->_base_tile_x + opt.pick.secondary_id : -1,
                 app->world ? app->world->_base_tile_z + opt.pick.tertiary_id : -1);
-        app_try_move(
-            app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held);
+        /* Cross only if the move actually went out — the reference sets
+         * crossMode in the same block that emits the packet (Client-TS
+         * `if (success)`, deob client.java:9305 under method3951()). A click
+         * the router refuses leaves the screen alone. */
+        if( app_try_move(
+                app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held) )
+            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -13243,6 +13846,12 @@ app_minimenu_run_option(
         }
         return 0;
     }
+    case UI_MINIMENU_PICK_NONE:
+        /* Cancel, and the "Walk here" row of a click that hit no terrain and
+         * for which no fallback tile could be resolved (no world loaded, no
+         * viewport, a scene with no ground at all). Nothing to run — not an
+         * unhandled kind, so it must not warn. */
+        return 0;
     default:
         fprintf(stderr, "minimenu: unhandled pick kind %d\n", (int)opt.pick.kind);
         return 0;
@@ -13399,58 +14008,30 @@ App_DrainAudio(
     return ToriRS_AudioQueue_Drain(&app->audio_out, out, max);
 }
 
-/* Most a single canvas change dispatches. The gameframe registers one onResize
- * per open interface root (script 901 does it for the toplevel; panels that lay
- * themselves out register their own), so the real count is single digits — this
- * is a "something is looping" bound, not a budget. */
+/* Most hooks a single canvas change dispatches. The gameframe registers one
+ * onResize per open interface root (script 901 does it for the toplevel; panels
+ * that lay themselves out register their own), so the real count is single
+ * digits — this is a "something is looping" bound, not a budget. */
 #define APP_RESIZE_HOOK_MAX 256
 
-/*
- * Run every registered onResize listener in the tree.
- *
- * IF_SETONRESIZE is registered at open time and, until this existed, was only
- * ever dispatched from two places: the script-driven if_callonresize queue, and
- * IF_OPENSUB's step 8 — which is gated on `target_uid >= 0`, i.e. subs only, so
- * an IF_OPENTOP root's listener was registered and never fired by anything but
- * the boot path. A canvas change is the event those listeners are actually for.
- *
- * Ids are snapshotted before dispatch: a listener may cc_create or cc_delete
- * (toplevel_resize's callees do both), which reallocates tree->components and
- * invalidates any index held across the loop.
- */
+/* Dispatch a queue selected by the completed trigger=true layout pass. Ids,
+ * rather than component-array indices, survive cc_create/cc_delete reallocating
+ * the tree while a listener runs. */
 static void
-app_dispatch_resize_hooks(struct App* app)
+app_dispatch_resize_hook_ids(
+    struct App* app,
+    int const* ids,
+    int count)
 {
-    int ids[APP_RESIZE_HOOK_MAX];
-    int n = 0;
-
     assert(app);
-    if( !app->tree )
-        return;
+    assert(ids);
+    assert(count >= 0);
 
-    for( int i = 0; i < app->tree->resize_hooks.count; i++ )
-    {
-        int32_t idx = app->tree->resize_hooks.slots[i];
-        struct UITreeComponent const* c;
-        assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
-        c = &app->tree->components[idx];
-        if( c->freed || c->component_id < 0 )
-            continue;
-        if( UITree_Hooks(c)->on_resize.script_id <= 0 )
-            continue;
-        if( n >= APP_RESIZE_HOOK_MAX )
-        {
-            fprintf(stderr, "resize: more than %d onResize hooks; truncating\n", n);
-            break;
-        }
-        ids[n++] = c->component_id;
-    }
-
-    for( int i = 0; i < n; i++ )
+    for( int i = 0; i < count; i++ )
     {
         int32_t idx = UITree_FindByComponentId(app->tree, ids[i]);
         if( idx < 0 )
-            continue; /* a previous listener deleted it */
+            continue;
         RS_CS2_DispatchHook(
             &app->host,
             &app->runner,
@@ -13465,6 +14046,11 @@ App_SetCanvasSize(
     int width,
     int height)
 {
+    struct UITreeResizeHookSnapshot resize_before[APP_RESIZE_HOOK_MAX];
+    int changed_ids[APP_RESIZE_HOOK_MAX];
+    int resize_before_count = 0;
+    int changed_count = 0;
+
     assert(app);
 
     if( width < APP_CANVAS_MIN_W )
@@ -13479,6 +14065,21 @@ App_SetCanvasSize(
         app->host.viewport_w == width && app->host.viewport_h == height )
         return 0;
 
+    if( app->tree && app->tree->component_count > 0 )
+    {
+        /* Keep the cached pre-pass dimensions even when another mutation has
+         * already invalidated layout. method3791 snapshots its old computed
+         * fields immediately before recomputing; normalising pending changes
+         * against the old canvas here would incorrectly erase a real resize. */
+        resize_before_count = UITree_SnapshotResizeHooks(
+            app->tree, resize_before, APP_RESIZE_HOOK_MAX);
+        if( app->tree->resize_hooks.count > APP_RESIZE_HOOK_MAX )
+            fprintf(
+                stderr,
+                "resize: more than %d onResize hooks; truncating\n",
+                APP_RESIZE_HOOK_MAX);
+    }
+
     UITree_LayoutSetRootSize(width, height);
     app->host.viewport_w = width;
     app->host.viewport_h = height;
@@ -13490,7 +14091,18 @@ App_SetCanvasSize(
          * statements), so they have to see the new size, not the old one. */
         UITree_LayoutInvalidate(app->tree);
         UITree_LayoutResolve(app->tree, 0, 0, width, height);
-        app_dispatch_resize_hooks(app);
+        /* Physical canvas resize is method6192's trigger=true path. Build the
+         * whole changed-size queue before its first listener runs: callbacks
+         * can mutate the tree, but cannot retroactively change events already
+         * queued by the completed layout pass. */
+        changed_count = UITree_CollectResizedHookIds(
+            app->tree,
+            resize_before,
+            resize_before_count,
+            1,
+            changed_ids,
+            APP_RESIZE_HOOK_MAX);
+        app_dispatch_resize_hook_ids(app, changed_ids, changed_count);
         /* And again after: the listeners are all if_setsize/if_setposition. */
         UITree_LayoutInvalidate(app->tree);
         UITree_LayoutResolve(app->tree, 0, 0, width, height);
@@ -13713,27 +14325,42 @@ App_RunOnce(
     assert(app);
     assert(input);
 
+    /* The shell keeps this input frame intact when settlement returns before
+     * interaction. Mark it consumed only after the stable-tree gate below; a
+     * post-interaction async yield must not replay the same click. */
+    app->input_frame_consumed = 0;
+
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
 
-    /* Pump the async pipeline (bounded — never a blocking drain). While
-     * BOOTING the budget is generous so a native boot converges in a few
-     * frames; once READY a small budget keeps frame pacing. */
+    /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
+     * exception: cooperative yields are drained to completion, and a genuine
+     * external wait retains the last settled frame until it can resume. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_ASYNC)
     {
         int booting = app->app_state == APP_STATE_BOOTING;
         int budget = booting ? 512 : 32;
         enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
         int steps = 0;
-        for( int i = 0; i < budget; i++ )
+        int settling_cs2 =
+            !booting && (app->runner_had_work || app->runner.frame_settle_pending);
+
+        if( settling_cs2 )
         {
-            steps++;
-            if( booting )
-                app->boot_steps++;
-            stat = TaskRunner_Step(&app->runner);
-            if( stat == TASK_RUNNER_IDLE )
-                break;
+            stat = app_settle_cs2_frame(app);
+        }
+        else
+        {
+            for( int i = 0; i < budget; i++ )
+            {
+                steps++;
+                if( booting )
+                    app->boot_steps++;
+                stat = TaskRunner_Step(&app->runner);
+                if( stat == TASK_RUNNER_IDLE )
+                    break;
+            }
         }
         if( booting )
         {
@@ -13741,15 +14368,17 @@ App_RunOnce(
             if( steps >= budget )
                 app->boot_frames_budget_capped++;
         }
-        else if( steps >= budget )
+        else if( !settling_cs2 && steps >= budget )
         {
             /* Post-boot frame that used its whole budget with work still
              * queued: the async pipeline is being drip-fed rather than run. */
             app->busy_frames++;
             app->busy_steps += steps;
         }
+        if( settling_cs2 && stat != TASK_RUNNER_IDLE )
+            app->runner_had_work = 1;
         /* Tree-affecting async work (CS2 hooks/transmits) finished: refresh. */
-        if( app->runner_had_work && stat == TASK_RUNNER_IDLE )
+        if( settling_cs2 && stat == TASK_RUNNER_IDLE )
         {
             app->runner_had_work = 0;
             app->pending_tree_refresh = 1;
@@ -13763,6 +14392,12 @@ App_RunOnce(
         app->need_redraw = 0;
         return 1;
     }
+
+    /* A browser/cache request can be the one legitimate pause in a CS2 visual
+     * transaction.  Do not run input against the partially-mutated tree, and
+     * do not rebuild the emit list from it. */
+    if( app->runner_had_work )
+        return 0;
 
     /* Async completions: world load finish, texture publish, deferred seq
      * binds, and any queued tree refresh (relayout + CS1 + redraw). */
@@ -13784,9 +14419,31 @@ App_RunOnce(
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
                 {
                     if( app_logic_tick(app) )
-                    {
                         app->need_redraw = 1;
-                        ran_cs2 = 1;
+                }
+
+                /* A catch-up pass can process several server ticks in one
+                 * App_RunOnce.  Settle tick N's client scripts before tick
+                 * N+1 is allowed to apply, or the fence would be semantically
+                 * crossed even though the packet runner stopped at it. */
+                if( app->runner.frame_settle_pending )
+                {
+                    enum TaskRunnerStat stat;
+
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+                    {
+                        stat = app_settle_cs2_frame(app);
+                    }
+                    if( stat != TASK_RUNNER_IDLE )
+                    {
+                        app->runner_had_work = 1;
+                        ticks = t + 1;
+                        break;
+                    }
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+                    {
+                        UITree_LayoutResolve(
+                            app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
                     }
                 }
             }
@@ -13799,6 +14456,38 @@ App_RunOnce(
         /* World sim cycles == client 20ms ticks (v1 world_cycle cadence). */
         app_world_frame(app, ticks);
     }
+
+    /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue
+     * CS2 before interaction.  Settle them now so hit testing sees one coherent
+     * tree rather than the intermediate state of a yielding script. */
+    if( ran_cs2 || app->runner.frame_settle_pending )
+    {
+        enum TaskRunnerStat stat;
+
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+        {
+            stat = app_settle_cs2_frame(app);
+        }
+        if( stat != TASK_RUNNER_IDLE )
+        {
+            app->runner_had_work = 1;
+            return 0;
+        }
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+        {
+            UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        }
+        ran_cs2 = 0;
+    }
+
+    /* A server-pushed script is held until its tick fence so it observes all
+     * state packets from that tick.  Its accompanying IF_SETHIDE/IF_SETTEXT
+     * packets may already have mutated the live tree; retain the prior frame
+     * until the script has actually been dispatched and settled. */
+    if( !App_FrameSettled(app) )
+        return 0;
+
+    app->input_frame_consumed = 1;
 
     /* Per-frame interaction: returns intents; the app applies event context
      * and dispatches each hook through the game layer. */
@@ -14030,6 +14719,8 @@ App_RunOnce(
 
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
+        app_minimenu_ctx_ground_fallback(
+            app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
@@ -14428,20 +15119,23 @@ App_RunOnce(
 
     if( ran_cs2 )
     {
-        /* DispatchHook only enqueues. Drain so UI scripts (esp. on_drag →
+        /* DispatchHook only enqueues. Settle so UI scripts (esp. on_drag →
          * scrollbar_vertical_drag's if_setscrollpos / cap cc_setposition) apply
          * before this frame's layout+emit. Reference runs ScriptEvents
          * synchronously while dragging; without this the middle thumb moves via
          * drag_visual while caps and the scroll layer stay a frame (or forever
          * under a busy queue) behind. */
         {
-            enum TaskRunnerStat stat = TASK_RUNNER_IDLE;
-            int const budget = 64;
-            for( int i = 0; i < budget; i++ )
+            enum TaskRunnerStat stat;
+
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
             {
-                stat = TaskRunner_Step(&app->runner);
-                if( stat == TASK_RUNNER_IDLE )
-                    break;
+                stat = app_settle_cs2_frame(app);
+            }
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                app->runner_had_work = 1;
+                return 0;
             }
             /* Press-time track onclick → cc_dragpickup stages pending during
              * the drain above. Consume it in the same frame so the thumb jumps
@@ -14488,15 +15182,25 @@ App_RunOnce(
                         app->need_redraw = 1;
                 }
             }
+            /* cc_dragpickup's hook can itself raise resize/trigger/transmit
+             * work.  It belongs to the same click transaction. */
+            stat = app_settle_cs2_frame(app);
+            if( stat != TASK_RUNNER_IDLE )
+            {
+                app->runner_had_work = 1;
+                return 0;
+            }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
             {
                 UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
             }
-            /* Yielding scripts still need a later refresh when the queue drains. */
-            if( stat != TASK_RUNNER_IDLE )
-                app->runner_had_work = 1;
         }
     }
+
+    /* Never publish a tree while a fenced server clientscript has not run.
+     * This second gate covers a script request raised during interaction. */
+    if( !App_FrameSettled(app) )
+        return 0;
 
     if( app->need_redraw )
     {
@@ -14552,6 +15256,9 @@ App_RunOnce(
                     app->tree->components[idx].behavior.hide = 0;
             }
         }
+        /* Publication invariant: an emit list is a frame commit, not a view of
+         * whatever intermediate state the cooperative schedulers reached. */
+        assert(App_FrameSettled(app));
         app->emit.count = 0;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
         {
@@ -14566,6 +15273,22 @@ App_RunOnce(
         return 1;
     }
     return 0;
+}
+
+int
+App_FrameSettled(struct App const* app)
+{
+    assert(app);
+    return !app->runner_had_work && !app->runner.frame_settle_pending &&
+           !app->exec_runner_had_work && !app->server_tick_open &&
+           app->pending_clientscript_count == 0;
+}
+
+int
+App_InputFrameConsumed(struct App const* app)
+{
+    assert(app);
+    return app->input_frame_consumed;
 }
 
 void
@@ -15353,8 +16076,12 @@ App_WorldRebuildShift(
     for( int i = 0; i < 5; i++ )
         app->cam_script.shake[i] = 0;
 
-    /* Minimenu (deob field766 = 0). */
-    UIMinimenu_Reset(&app->interact.minimenu);
+    /* Minimenu (deob field766 = 0): the rebuild closes an open popup, it does
+     * not reconfigure it. Hide, never Reset — Reset also clears font_id, and
+     * the id is boot-time chrome state nothing re-derives, so a reset here left
+     * every later popup measuring against no font and sized by the character
+     * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
+    UIMinimenu_Hide(&app->interact.minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;
@@ -15490,6 +16217,13 @@ App_WorldApplyNpcType(
     npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
     if( !npctype )
         return;
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "npc_retype: world_idx=%d element=%d type=%d\n",
+            world_idx,
+            element_id,
+            npc_type);
 
     {
         struct AppModelRecolorSpec recolors = {
@@ -15511,6 +16245,11 @@ App_WorldApplyNpcType(
             app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
             app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
     }
+    /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
+     * re-decide it against the new type -- exactly as the spawn path does. */
+    if( model && app_npc_wants_zbuffer(npc_type, npctype) )
+        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {
         struct ToriDraw_ModelHandle hnd;
@@ -15563,6 +16302,7 @@ App_WorldApplyNpcType(
         {
             npc->combat_level = npctype->combat_level;
             npc->alwaysontop = npctype->alwaysontop;
+            npc->minimap_visible = npctype->minimap_visible;
             npc->facing.turn_speed = npctype->turn_speed;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )

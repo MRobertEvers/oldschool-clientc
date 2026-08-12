@@ -216,6 +216,39 @@ test_try_route_nearest_models(void)
     len = collision_map_try_route(cm, 10, 10, 55, 55, &box, route_x, route_z, 256, &nearest);
     TEST_ASSERT(len == -1, "far sealed dest: box10_rect declines rather than half-walking");
 
+    /*
+     * The same click with the era table's `ground_click_nearest_unbounded`:
+     * this client half-walks on purpose. The open region is x < 40 and z < 40,
+     * so the flooded tile closest to (55,55) is its corner (39,39) — a click
+     * into the void walks you up to the obstacle instead of nowhere.
+     */
+    box.unbounded = 1;
+    nearest = -1;
+    len = collision_map_try_route(cm, 10, 10, 55, 55, &box, route_x, route_z, 256, &nearest);
+    TEST_ASSERT(len >= 1, "far sealed dest, unbounded: routes anyway");
+    TEST_ASSERT(nearest == 1, "far sealed dest, unbounded: reports the fallback");
+    TEST_ASSERT(
+        route_x[0] == 39 && route_z[0] == 39,
+        "far sealed dest, unbounded: arrives on the flooded tile closest to the click");
+    TEST_ASSERT(
+        route_replay_valid(cm, 10, 10, route_x, route_z, len),
+        "far sealed dest, unbounded: replay valid");
+
+    /* Unbounded is a LAST resort: while the box still has a candidate, the
+     * era's own ranking answers. The sealed 5x5 above is untouched by it. */
+    nearest = -1;
+    len = collision_map_try_route(cm, 10, 10, 30, 30, &box, route_x, route_z, 256, &nearest);
+    {
+        int dx = route_x[0] - 30;
+        int dz = route_z[0] - 30;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        TEST_ASSERT(len >= 1 && dx <= 3 && dz <= 3,
+                    "unbounded does not displace the box10 answer");
+    }
+
     collision_map_free(cm);
 }
 

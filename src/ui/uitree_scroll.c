@@ -374,6 +374,8 @@ find_scrollbar_recursive(
         return false;
 
     struct UITreeComponent const* component = &tree->components[node_index];
+    if( component->behavior.hide )
+        return false;
     int bx = 0;
     int by = 0;
     int bw = 0;
@@ -424,14 +426,36 @@ find_scrollbar_recursive(
         if( UITree_ScrollLayerNeedsVertical(component) )
             child_scroll_y += component->scroll_y;
 
-        for( int32_t child = component->first_child; child >= 0;
-             child = tree->components[child].next_sibling )
+        /* Accumulate in render order: ordinary children, then InterfaceParent
+         * roots. A later hit overwrites `out`, so mounted/sibling content drawn
+         * on top wins. Mounted roots use the raw host origin; ordinary children
+         * keep the host's accumulated local scroll. */
+        int const has_mounts = UITree_ContainerHasMounts(tree, component->component_id);
+        bool found = false;
+        for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
         {
-            if( find_scrollbar_recursive(
-                    tree, host, child, child_scroll_x, child_scroll_y, px, py, out) )
-                return true;
+            for( int32_t child = component->first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                int const is_mount =
+                    has_mounts &&
+                    UITree_ChildMountType(
+                        tree, component->component_id, &tree->components[child]) >= 0;
+                if( is_mount != mount_sweep )
+                    continue;
+                if( find_scrollbar_recursive(
+                        tree,
+                        host,
+                        child,
+                        is_mount ? scroll_off_x : child_scroll_x,
+                        is_mount ? scroll_off_y : child_scroll_y,
+                        px,
+                        py,
+                        out) )
+                    found = true;
+            }
         }
-        return false;
+        return found;
     }
 
     if( !UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y) )
@@ -448,14 +472,25 @@ find_scrollbar_recursive(
     if( !recurse_children )
         return false;
 
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    int const has_mounts = UITree_ContainerHasMounts(tree, component->component_id);
+    bool found = false;
+    for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
-        if( find_scrollbar_recursive(
-                tree, host, child, scroll_off_x, scroll_off_y, px, py, out) )
-            return true;
+        for( int32_t child = component->first_child; child >= 0;
+             child = tree->components[child].next_sibling )
+        {
+            int const is_mount =
+                has_mounts &&
+                UITree_ChildMountType(
+                    tree, component->component_id, &tree->components[child]) >= 0;
+            if( is_mount != mount_sweep )
+                continue;
+            if( find_scrollbar_recursive(
+                    tree, host, child, scroll_off_x, scroll_off_y, px, py, out) )
+                found = true;
+        }
     }
-    return false;
+    return found;
 }
 
 bool
@@ -472,13 +507,16 @@ UITree_FindScrollbarAt(
         return false;
 
     memset(out, 0, sizeof(*out));
+    bool found = false;
     for( int32_t root = tree->root_index; root >= 0;
          root = tree->components[root].next_sibling )
     {
+        if( !UITree_RootIsDisplayable(tree, root) )
+            continue;
         if( find_scrollbar_recursive(tree, host, root, 0, 0, px, py, out) )
-            return true;
+            found = true;
     }
-    return false;
+    return found;
 }
 
 static bool

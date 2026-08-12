@@ -535,6 +535,19 @@ RSCache_Dat2DiskWriteArchive(
 }
 
 int
+RSCache_Dat2DiskWriteArchiveTo(
+    struct RSCache_Dat2Disk* disk,
+    int table_id,
+    int archive_id,
+    const uint8_t* data,
+    int data_size)
+{
+    if( !disk || disk->read_only || !disk->store.put )
+        return -1;
+    return disk->store.put(disk->store.user, table_id, archive_id, data, data_size);
+}
+
+int
 RSCache_Dat2DiskIndexFileReadRecord(
     FILE* file,
     int entry_idx,
@@ -669,6 +682,154 @@ dat2disk_read_index(
     record->idx_file_id = table_id;
     fclose(index_file);
     return 0;
+}
+
+/* --- the dat2-file backing ------------------------------------------------
+ *
+ * The sector-chained container, expressed as one implementation of
+ * RSCache_Dat2Store rather than as the thing the disk *is*. Everything it needs
+ * is already on the disk (directory, dat2 handle, read-only flag), so `user` is
+ * the disk itself and there is no separate allocation to own or free.
+ */
+
+static int
+dat2_file_store_get(
+    void* user,
+    int table_id,
+    int archive_id,
+    uint8_t** data,
+    int* size)
+{
+    struct RSCache_Dat2Disk* disk = (struct RSCache_Dat2Disk*)user;
+    struct RSCache_Dat2DiskIndexRecord index_record = { 0 };
+    struct RSCache_Dat2DiskArchive archive;
+
+    if( !disk || !disk->directory || !disk->dat2_file )
+        return -1;
+    /* An idx entry that is not there is the ordinary "no such archive", which
+     * is 0 and not an error: an incremental cache is mostly holes. */
+    if( dat2disk_read_index(&index_record, disk->directory, table_id, archive_id) != 0 )
+        return 0;
+
+    memset(&archive, 0, sizeof(archive));
+    if( RSCache_Dat2DiskDat2FileReadArchive(
+            disk->dat2_file,
+            index_record.idx_file_id,
+            index_record.archive_idx,
+            index_record.sector,
+            index_record.length,
+            &archive) != 0 )
+    {
+        free(archive.data);
+        return -1;
+    }
+    /* A record the index points at but whose chain yielded nothing is a
+     * corrupt cache, not an absent archive. */
+    if( !archive.data || archive.data_size <= 0 )
+    {
+        free(archive.data);
+        return -1;
+    }
+
+    *data = (uint8_t*)archive.data;
+    *size = archive.data_size;
+    return 1;
+}
+
+static int
+dat2_file_store_put(
+    void* user,
+    int table_id,
+    int archive_id,
+    const uint8_t* data,
+    int size)
+{
+    struct RSCache_Dat2Disk* disk = (struct RSCache_Dat2Disk*)user;
+
+    if( !disk || disk->read_only || !disk->directory )
+        return -1;
+    return RSCache_Dat2DiskWriteArchive(disk->directory, table_id, archive_id, data, size);
+}
+
+static int
+dat2_file_store_has_table(
+    void* user,
+    int table_id)
+{
+    struct RSCache_Dat2Disk* disk = (struct RSCache_Dat2Disk*)user;
+    FILE* index_file;
+
+    if( !disk || !disk->directory )
+        return 0;
+    index_file = dat2disk_fopen_index(disk->directory, table_id);
+    if( !index_file )
+        return 0;
+    fclose(index_file);
+    return 1;
+}
+
+/*
+ * Bring the side structures a reference-table write leaves stale back in line.
+ *
+ * Two of them, both artifacts of the file layout. The zero-byte idxN is the
+ * presence sentinel has_table reads, and a table written without one is
+ * invisible to the next open. The dat2 reopen is because the write went through
+ * its own FILE stream, so this disk's reader may be holding an input buffer or
+ * end-of-file state from before the append.
+ */
+static int
+dat2_file_store_commit_table(
+    void* user,
+    int table_id)
+{
+    struct RSCache_Dat2Disk* disk = (struct RSCache_Dat2Disk*)user;
+    char path[1024];
+    int path_size;
+    FILE* sentinel;
+    FILE* refreshed;
+
+    if( !disk || !disk->directory )
+        return -1;
+
+    path_size =
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", disk->directory, table_id);
+    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
+        return -1;
+    /* Append mode creates a missing file without destroying groups already
+     * cached in table N. */
+    sentinel = fopen(path, "ab");
+    if( !sentinel )
+        return -1;
+    if( fclose(sentinel) != 0 )
+        return -1;
+
+    path_size = snprintf(path, sizeof(path), "%s/main_file_cache.dat2", disk->directory);
+    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
+        return -1;
+    refreshed = fopen(path, "rb+");
+    if( !refreshed )
+        return -1;
+    if( disk->dat2_file )
+        fclose(disk->dat2_file);
+    disk->dat2_file = refreshed;
+    return 0;
+}
+
+struct RSCache_Dat2Store
+RSCache_Dat2DiskFileStore(struct RSCache_Dat2Disk* disk)
+{
+    struct RSCache_Dat2Store store;
+
+    memset(&store, 0, sizeof(store));
+    store.user = disk;
+    store.get = dat2_file_store_get;
+    /* No put on a read-only disk: refusing at the vtable is what makes the
+     * promise NewReadOnlyFromDirectory advertises structural rather than a
+     * flag every writer has to remember to test. */
+    store.put = (disk && disk->read_only) ? NULL : dat2_file_store_put;
+    store.has_table = dat2_file_store_has_table;
+    store.commit_table = dat2_file_store_commit_table;
+    return store;
 }
 
 bool
@@ -840,15 +1001,9 @@ dat2disk_table_present(
     struct RSCache_Dat2Disk* disk,
     int table_id)
 {
-    FILE* index_file;
-
-    if( !disk || !disk->directory )
+    if( !disk || !disk->store.has_table )
         return false;
-    index_file = dat2disk_fopen_index(disk->directory, table_id);
-    if( !index_file )
-        return false;
-    fclose(index_file);
-    return true;
+    return disk->store.has_table(disk->store.user, table_id) != 0;
 }
 
 static void
@@ -933,6 +1088,8 @@ dat2disk_new_from_directory(
     }
 
     disk->read_only = read_only;
+    /* After read_only, which decides whether the vtable offers a put at all. */
+    disk->store = RSCache_Dat2DiskFileStore(disk);
     init_reference_tables(disk);
     return disk;
 }
@@ -973,6 +1130,36 @@ RSCache_Dat2DiskNewSparseFromDirectory(const char* directory)
 }
 
 struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewFromStore(
+    const char* label,
+    const struct RSCache_Dat2Store* store)
+{
+    if( !store || !store->get )
+        return NULL;
+
+    struct RSCache_Dat2Disk* disk =
+        (struct RSCache_Dat2Disk*)malloc(sizeof(struct RSCache_Dat2Disk));
+    if( !disk )
+        return NULL;
+
+    memset(disk, 0, sizeof(struct RSCache_Dat2Disk));
+    disk->profile = RSCache_ProfileZero();
+    disk->profile_set = 0;
+    disk->store = *store;
+    disk->directory = strdup(label ? label : "store");
+    if( !disk->directory )
+    {
+        free(disk);
+        return NULL;
+    }
+
+    /* dat2_file stays NULL. It belongs to the file store, and a disk holding
+     * both would have two sources of truth for the same archive. */
+    init_reference_tables(disk);
+    return disk;
+}
+
+struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewUninitialized(void)
 {
     struct RSCache_Dat2Disk* disk =
@@ -991,6 +1178,10 @@ RSCache_Dat2DiskFree(struct RSCache_Dat2Disk* disk)
     if( !disk )
         return;
 
+    if( disk->store.destroy )
+        disk->store.destroy(disk->store.user);
+    /* The file store's handle. Closed after destroy so a store that wanted a
+     * final flush through it still could. */
     if( disk->dat2_file )
         fclose(disk->dat2_file);
 
@@ -1010,39 +1201,33 @@ RSCache_Dat2DiskArchiveNewLoadRaw(
     int table_id,
     int archive_id)
 {
-    if( !disk || !disk->directory || !disk->dat2_file || table_id < 0 || table_id > 255 ||
-        archive_id < 0 )
+    uint8_t* data = NULL;
+    int size = 0;
+
+    if( !disk || !disk->store.get || table_id < 0 || table_id > 255 || archive_id < 0 )
         return NULL;
+    if( disk->store.get(disk->store.user, table_id, archive_id, &data, &size) != 1 )
+        return NULL;
+    if( !data || size <= 0 )
+    {
+        free(data);
+        return NULL;
+    }
 
     struct RSCache_Dat2DiskArchive* archive =
         (struct RSCache_Dat2DiskArchive*)malloc(sizeof(struct RSCache_Dat2DiskArchive));
     if( !archive )
-        return NULL;
-    memset(archive, 0, sizeof(struct RSCache_Dat2DiskArchive));
-
-    struct RSCache_Dat2DiskIndexRecord index_record = { 0 };
-    if( dat2disk_read_index(&index_record, disk->directory, table_id, archive_id) != 0 )
-        goto error;
-
-    if( RSCache_Dat2DiskDat2FileReadArchive(
-            disk->dat2_file,
-            index_record.idx_file_id,
-            index_record.archive_idx,
-            index_record.sector,
-            index_record.length,
-            archive) != 0 )
     {
-        goto error;
+        free(data);
+        return NULL;
     }
-
+    memset(archive, 0, sizeof(struct RSCache_Dat2DiskArchive));
+    archive->data = (char*)data;
+    archive->data_size = size;
     archive->archive_id = archive_id;
     archive->table_id = table_id;
     archive->file_count = -1;
     return archive;
-
-error:
-    RSCache_Dat2DiskArchiveFree(archive);
-    return NULL;
 }
 
 struct RSCache_Dat2DiskArchive*
@@ -1157,7 +1342,7 @@ RSCache_Dat2DiskInstallReferenceTableRaw(
     const uint8_t* data,
     int data_size)
 {
-    if( !disk || disk->read_only || !disk->directory || !disk->dat2_file ||
+    if( !disk || disk->read_only || !disk->store.put ||
         !RSCache_Dat2DiskIsValidTableId(table_id) || !data || data_size <= 0 )
         return false;
 
@@ -1193,60 +1378,27 @@ RSCache_Dat2DiskInstallReferenceTableRaw(
     if( !replacement )
         return false;
 
-    if( RSCache_Dat2DiskWriteArchive(
-            disk->directory,
-            RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID,
-            table_id,
-            data,
-            data_size) != 0 )
+    if( RSCache_Dat2DiskWriteArchiveTo(
+            disk, RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID, table_id, data, data_size) != 0 )
     {
         RSCache_ReferenceTableFree(replacement);
         return false;
     }
 
-    char path[1024];
-    int path_size =
-        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", disk->directory, table_id);
-    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
+    /* Whatever side structures this backing keeps beside the record — for the
+     * dat2 files, the idxN presence sentinel and a reader whose buffered state
+     * predates the append. A keyed store has none and does not implement it. */
+    if( disk->store.commit_table &&
+        disk->store.commit_table(disk->store.user, table_id) != 0 )
     {
         RSCache_ReferenceTableFree(replacement);
         return false;
     }
 
-    /* A zero-byte idxN is the presence sentinel used by init_reference_tables.
-     * Append mode creates it without destroying groups already cached in N. */
-    FILE* sentinel = fopen(path, "ab");
-    if( !sentinel )
-    {
-        RSCache_ReferenceTableFree(replacement);
-        return false;
-    }
-    if( fclose(sentinel) != 0 )
-    {
-        RSCache_ReferenceTableFree(replacement);
-        return false;
-    }
-
-    /* The write used its own FILE stream. Reopen this disk's reader so no
-     * implementation may retain an input buffer or stale end-of-file state. */
-    path_size = snprintf(path, sizeof(path), "%s/main_file_cache.dat2", disk->directory);
-    if( path_size < 0 || (size_t)path_size >= sizeof(path) )
-    {
-        RSCache_ReferenceTableFree(replacement);
-        return false;
-    }
-    FILE* refreshed = fopen(path, "rb+");
-    if( !refreshed )
-    {
-        RSCache_ReferenceTableFree(replacement);
-        return false;
-    }
-
-    FILE* previous_file = disk->dat2_file;
+    /* Published last, so a disk whose table pointer says "installed" is one
+     * where the bytes really are in the store. */
     struct RSCache_ReferenceTable* previous_table = disk->tables[table_id];
-    disk->dat2_file = refreshed;
     disk->tables[table_id] = replacement;
-    fclose(previous_file);
     RSCache_ReferenceTableFree(previous_table);
     return true;
 }

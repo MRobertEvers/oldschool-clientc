@@ -1639,9 +1639,10 @@ UITree_ReclaimInterfaceGroup(
  * `container_uid` (0 modal, 1 overlay, 3 tab/sidemodal — IF_OPENSUB's own
  * argument), or -1 when it is an ordinary child.
  *
- * The distinction remains load-bearing for draw/layout behavior. World-input
- * gating treats every mounted interface root as an input surface, regardless
- * of this type, so actionless areas cannot click through to the scene.
+ * The distinction remains load-bearing for draw/layout behavior and world
+ * input: a modal blocks the scene across its clipped mount-host rectangle,
+ * while overlay/tab mounts remain transparent unless they declare
+ * noClickThrough themselves.
  */
 int
 UITree_ChildMountType(

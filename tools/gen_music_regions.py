@@ -35,8 +35,15 @@ TRACKS = ROOT / "docs/audio/music_tracks_osrs239.tsv"
 
 def load(path):
     # The cache's own strings are windows-1252, which is what the dump carries.
+    #
+    # `#` lines are dropped before the reader sees them, so a row that did not
+    # come from the bulk extraction can say where it did come from in the file
+    # it lives in. Without this a comment becomes a row and `int(region_id)`
+    # raises on it -- and putting the provenance only in this generator would
+    # leave the data file looking uniformly sourced when it is not.
     with open(path, encoding="cp1252") as f:
-        return list(csv.DictReader(f, delimiter="\t"))
+        rows = (line for line in f if not line.lstrip().startswith("#"))
+        return list(csv.DictReader(rows, delimiter="\t"))
 
 
 def main():

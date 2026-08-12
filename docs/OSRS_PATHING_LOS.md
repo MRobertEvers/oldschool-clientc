@@ -323,8 +323,9 @@ line-of-walk"* ([1095653912743460865](https://x.com/JagexAsh/status/109565391274
 
 ## 5. The follow "dance"
 
-Following walks to the target's **previous** tile, not its current one. Ash:
-Follow uses deliberately custom routing so the dance survives
+A **player** using the "Follow" op on another **player** walks to the target's
+**previous** tile, not its current one. Ash: Follow uses deliberately custom
+routing so the dance survives
 ([1227166364366000129](https://x.com/JagexAsh/status/1227166364366000129)).
 
 1. Each entity records `last_step_x/z` = the tile it occupied before this
@@ -335,6 +336,36 @@ Follow uses deliberately custom routing so the dance survives
 4. Tick order: NPCs phase 4, players phase 5 — within a tick the NPC sees the
    player current; the player sees the NPC stale. (Ash explicitly cannot
    confirm NPC-vs-player ordering from engine code.)
+
+### 5.1 NPCs do NOT dance
+
+**This section is about `OPPLAYER3`/`APPLAYER3` and nothing else.** `followX`
+/`followZ` is read in exactly one place in the whole reference engine —
+`Player.pathToPathingTarget` — and nowhere in the npc mode machine.
+
+An npc in `playerfollow` paths to the target's **current** tile:
+`Npc.playerFollowMode` → `Npc.pathToTarget` → `PathingEntity.naivePathToTarget`,
+which calls `findNaivePath(..., this.target.x, this.target.z, ...)`. Naive
+destination then stops it on the perimeter, which is what puts it beside the
+player rather than on them. Steady state behind a walking owner is a gap of
+**2**, because the npc phase runs before the player phase: the follower steps up
+beside the owner and the owner then steps away again.
+
+Reading `follow_x/z` from an npc mover is a two-tick error, not a one-tick one —
+`follow_x` is published *before* the target's own movement, so a mover in the
+earlier phase sees the tile before the target's last step. `mock230_world.c`
+`npc_walk_to_player` did this and familiars held a four-tile gap.
+
+### 5.2 `playerfollow` is the one mover that runs
+
+Every other npc mover takes one tile per tick. A follower takes up to **two**,
+because an owner who runs covers two and a follower that walks loses a tile a
+tick for as long as they keep going — with no leash on `playerfollow` to stop
+it. NPC_INFO has carried the op since forever (tracked update type 2, two 3-bit
+directions); the second direction goes in `Mock230Npc.run_dir`.
+
+Combat pursuit deliberately does **not** run. Outrunning a monster is a
+mechanic.
 
 **Getting stuck is correct.** Beyond diagonal→X→Z there is no recovery; the
 waypoint is kept. Escapes are per-mode stuck counters.

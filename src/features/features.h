@@ -162,6 +162,75 @@ struct ToriRS_FeatureTable
      * routes (mock230_scene_route). They must not disagree.
      */
     int ground_click_nearest_model;
+    /*
+     * ---- The two permissive extensions -------------------------------------
+     *
+     * Everything else in this table states what some revision does. These two
+     * state what this client may do INSTEAD, and both are 0 in every era table
+     * on purpose: out of the box the ground click is deob-exact, down to the
+     * clicks that do nothing. Turn one on per boot ([features:boot] keys /
+     * TORIRS_GROUND_CLICK_* env), never by editing an era table — an era table
+     * that carries a deviation stops being a statement about the era.
+     */
+    /**
+     * 1 = when `ground_click_nearest_model` finds nothing in its box, walk to
+     * the flooded tile closest to the click anyway.
+     *
+     * The references bound that search (3x3 or 21x21) and a click further out
+     * than the box does nothing: Statics.method5592 ends `if (var22 ==
+     * Integer.MAX_VALUE) return -1`. That is the whole of "I clicked past the
+     * Inferno's lava skirt and my player stood there" — the void ringing an
+     * instance's floor is more than ten tiles from anything walkable.
+     *
+     * Ground and minimap clicks only. An interaction click that cannot reach
+     * its target still runs the era's own model, because "walk somewhere near
+     * it and do nothing" is not what an op means.
+     *
+     * Read by both halves of the tree, like the model above, and under a
+     * server-authoritative era it is the SERVER's copy that decides anything —
+     * the client sends a tile and never routes. Both halves read
+     * TORIRS_GROUND_CLICK_UNBOUNDED so an embedded boot cannot end up with one
+     * half permissive and the other strict.
+     */
+    int ground_click_nearest_unbounded;
+    /**
+     * 1 = a click that hit no ground triangle at all resolves to the scene
+     * tile whose centre is nearest the cursor on screen, instead of walking
+     * nowhere.
+     *
+     * The reference records a ground tile only from inside the rasterizer
+     * (class155 -> class112.method4269), so a click on the sky, on the void
+     * outside an instance's floor, or on a tile the plane filter refused
+     * leaves field1664 at -1 — and class112.method3951 (`field1670 &&
+     * field1681 != -1`) then never lets the move packet be built. No packet,
+     * no map flag, and no cross either.
+     */
+    int ground_click_offmap_nearest;
+    /* ---- end permissive extensions ---------------------------------------- */
+    /**
+     * Ceiling, in tiles, on how far from the local player a GROUND pick may
+     * land. A pick further out is pulled back along the line to the player
+     * until it sits exactly this far away. 0 = no ceiling.
+     *
+     * Deob class112.method4269, which is where the rev-239 client records the
+     * tile a ground hittest landed on:
+     *
+     *     int var12 = (int) Math.hypot(var7 - var1, var8 - var2) - 70;
+     *     if (var12 > 0) {
+     *         var4 = (var7 * var12 + var1 * 70) / (var12 + 70);
+     *         var5 = (var8 * var12 + var2 * 70) / (var12 + 70);
+     *     }
+     *
+     * var7/var8 are the local player's tile, var1/var2 the hit tile: the
+     * weights put the result at distance exactly 70. It is guarded by the
+     * view's own flag and `isTopLevel()`, i.e. only the main world view, which
+     * is the only view this client has.
+     *
+     * 0 for the classic eras on purpose — the 2004 client stores the hit tile
+     * verbatim (Client-TS `World.groundX = tileX`), so a ceiling there would
+     * be an invention.
+     */
+    int ground_click_clamp_tiles;
     /**
      * 0 = asymmetric LoS (2004 / LostCity / live PvM): A can range B while B
      * cannot range back. 1 = modern symmetric LoS for *player-vs-player only*
@@ -242,6 +311,40 @@ struct ToriRS_FeatureTable
      * all land within a few ticks of each other.
      */
     int effects_monophonic;
+
+    /* --- interface settings ---------------------------------------------- */
+
+    /**
+     * The varbit carrying the player's "interface resizing" setting, or 0 for
+     * an era that has no such setting (the classic default: 2004 has no
+     * resizable mode at all).
+     *
+     * This is a *client* setting — the settings panel toggles it with
+     * `setvarbit` (clientscript 3965 case 442) and no server transmits it — so
+     * an unseeded client comes up with it at 0, which is not what a real
+     * account looks like and is not a neutral value.
+     *
+     * It decides where every main modal is drawn. `~script7925` gates the
+     * cache's interface-window helper on it, and the branch it selects places
+     * the modal's panel inside the modal's own root two different ways:
+     *
+     *   on  — clamp the saved default box to the host
+     *         (`max(0, min(%varcint1170, host_w - %varcint1168))`), which
+     *         collapses to (0,0) when the host is the 512x334 mainmodal slot,
+     *         i.e. the panel lands exactly on the slot.
+     *   off — `if_setposition(if_getx(mainmodal), if_gety(mainmodal), 0, 0, …)`,
+     *         which is the slot's own *parent-relative* origin. In resizable
+     *         mode the slot is centred in `hud_container_front`, so that adds
+     *         the centring offset a second time and every modal drifts down and
+     *         right by half the chrome insets (+374,+219 at 1511x938) — out
+     *         from under the dimmer hole clientscript 910 paints for it.
+     *
+     * Off is only self-consistent where the slot's relative origin is (0,0),
+     * which is why the same proc also returns 0 for fixed window mode and for
+     * mobile. Stating it here rather than in app.c because the id is a lineage
+     * fact: rev 230's varbit table stops at 17425, so the seed no-ops there.
+     */
+    int varbit_interface_resizing;
 };
 
 /* Era getters (static singletons, like the rev tables). */

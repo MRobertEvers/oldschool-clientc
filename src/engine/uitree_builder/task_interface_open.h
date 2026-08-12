@@ -35,7 +35,9 @@ CreateTask_InterfaceOpen(
 /**
  * Open a pack as a sub-interface mounted under target_uid (TS openSubInterface):
  * load → bake → reparent under target → layout(host) → onLoad → layout →
- * onResize → layout → onSubChange → inv/var transmit → layout.
+ * onSubChange → inv/var transmit → layout. Resize listeners are queued by
+ * size-changing layout passes (when enabled) or explicitly by IF_CALLONRESIZE;
+ * opening a sub-interface does not dispatch them generically.
  * type: 0 modal, 1 overlay, 3 tab/sidemodal.
  */
 struct ToriRS_Task*

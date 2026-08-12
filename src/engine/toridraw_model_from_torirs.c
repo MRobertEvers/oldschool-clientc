@@ -134,7 +134,19 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
 {
     assert(src);
 
-    struct ToriDraw_Model* dst = ToriDraw_ModelNew(src->vertex_count, src->face_count, src->flags);
+    /* Renderer flags start clear, and are NOT inherited from src->flags.
+     *
+     * The two `flags` bytes are separate namespaces that happen to share a
+     * field name. ToriRS_Model::flags is decode bookkeeping (TORIRS_MODEL_FLAG_*:
+     * "decoded" and "has textures", set on every model the cache produces);
+     * ToriDraw_Model::flags is render policy, and its bit 0 is
+     * TORIDRAW_MODEL_FLAG_ZBUFFER. Forwarding the byte therefore opted EVERY
+     * cache model into the depth-tested kernels the moment the app scene grew a
+     * z-buffer -- and that flag also drops the model's face priorities
+     * (toridraw_render.u.c), so stock geometry authored for the painter's sort
+     * lost its priority layering. Depth-testing is opt-in per model, by the
+     * caller that knows the model was authored for it (app_npc_wants_zbuffer). */
+    struct ToriDraw_Model* dst = ToriDraw_ModelNew(src->vertex_count, src->face_count, 0);
     if( !dst )
         return NULL;
 

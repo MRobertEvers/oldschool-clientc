@@ -67,12 +67,18 @@ def main() -> int:
         exports = manifest_exports(args.manifest)
         expect(len(exports) == 33, f"expected 33 pet guide objects, got {len(exports)}")
         expect(len(set(exports.values())) == 33, "pet guide object names are not unique")
+        manifest_text = args.manifest.read_text(encoding="utf-8")
+        expect("material_mode=average_hsl\n" in manifest_text,
+               "cross-revision pet materials are not flattened to source average HSL")
 
         lane = args.tree / LANE
         object_records = records(lane / "configs/summoning_guide_pet.obj")
         expected_names = {PREFIX + name for name in exports.values()}
         expect(set(object_records) == expected_names,
                "packed pet objects differ from the rev-727 guide manifest")
+        tzrek = object_records[PREFIX + "tzrek_jad"]
+        expect(all(f"resize{axis}=16\n" in tzrek for axis in "xyz"),
+               "TzRek-Jad icon model is not scaled to the target icon projection")
 
         guide_records = records(lane / "configs/summoning_guide.dbrow")
         for name in exports.values():
@@ -108,6 +114,12 @@ def main() -> int:
             expect(any((args.tree / "models" / f"{packed}{suffix}").is_file()
                        for suffix in (".model", ".ob3")),
                    f"pet inventory model payload is missing: {packed}")
+
+        for source_model in (45568, 57357, 44751):
+            flattened = (args.tree / "models" / LANE /
+                         f"summoning_guide_pet_model_{source_model}.model")
+            expect(flattened.is_file() and flattened.stat().st_size > 0,
+                   f"pet model {source_model} is missing its flattened-material payload")
 
         ledger = (args.tree / "port/summoning_guide_pets_727.map").read_text(encoding="utf-8")
         ledger_objs = {int(value) for value in re.findall(r"^obj\t(\d+)\t", ledger, re.MULTILINE)}

@@ -191,6 +191,13 @@ struct Mock230WirePayload
         int fade_out_speed,
         int fade_in_delay,
         int fade_in_speed);
+    /** MidiSongStopEncoder v12: p2Alt3 delay, p2Alt3 speed. Silence, as a
+     *  packet of its own — MIDI_SONG cannot express it, because every id it can
+     *  carry is a track. */
+    void (*midi_song_stop)(
+        struct RSAreaBuf* buf,
+        int fade_out_delay,
+        int fade_out_speed);
     /** AmbientSoundStartEncoder v2: p1Add fade flag, p2 soundscape id. The id
      *  is a config-group-15 record, not a sound effect. */
     void (*ambientsound_start)(struct RSAreaBuf* buf, int id, int fade);

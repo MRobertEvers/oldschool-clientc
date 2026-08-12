@@ -94,7 +94,7 @@ js5_rscache_install_group(
     uint32_t version)
 {
     struct Js5RscacheStorage* storage = (struct Js5RscacheStorage*)user;
-    if( !storage || !storage->directory || !container || size > (size_t)INT_MAX - 4u )
+    if( !storage || !storage->disk || !container || size > (size_t)INT_MAX - 4u )
         return JS5_STORAGE_ERROR;
     uint8_t* stored = (uint8_t*)malloc(size + 4u);
     if( !stored )
@@ -104,8 +104,11 @@ js5_rscache_install_group(
     stored[size + 1u] = (uint8_t)(version >> 16u);
     stored[size + 2u] = (uint8_t)(version >> 8u);
     stored[size + 3u] = (uint8_t)version;
-    int result = RSCache_Dat2DiskWriteArchive(
-        storage->directory, archive, group, stored, (int)(size + 4u));
+    /* Through the disk, not its directory: a store-backed cache (the browser's
+     * IndexedDB one) has no path to write to, and routing by handle is what
+     * lets the same adapter serve both backings. */
+    int result = RSCache_Dat2DiskWriteArchiveTo(
+        storage->disk, archive, group, stored, (int)(size + 4u));
     free(stored);
     return result == 0 ? JS5_STORAGE_OK : JS5_STORAGE_ERROR;
 }

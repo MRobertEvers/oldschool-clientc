@@ -59,8 +59,17 @@ def main() -> int:
             errors.append(message)
 
     ledger = CONTENT / "port/summoning_clockwork_cat_530.map"
-    script_path = CONTENT / "server/scripts/ported_scape2009_summoning/scripts/summoning_spirit_wolf.rs2"
-    for path in (CLIENT, CACHE / "main_file_cache.dat2", SCRIPTS / "script.dat", ledger, script_path):
+    script_root = CONTENT / "server/scripts/ported_scape2009_summoning/scripts"
+    pet_script_path = script_root / "summoning_pet_clockwork_cat.rs2"
+    core_script_path = script_root / "summoning_core.rs2"
+    for path in (
+        CLIENT,
+        CACHE / "main_file_cache.dat2",
+        SCRIPTS / "script.dat",
+        ledger,
+        pet_script_path,
+        core_script_path,
+    ):
         expect(path.is_file(), f"missing required input {path}")
     if errors:
         return finish(checks, errors)
@@ -77,7 +86,9 @@ def main() -> int:
         "framemap\t2035\tframemap_2035\t11300",
     ):
         expect(row in rows, f"ledger lacks {row}")
-    script = script_path.read_text(encoding="utf-8")
+    script = "\n".join(
+        path.read_text(encoding="utf-8") for path in (pet_script_path, core_script_path)
+    )
     for token in (
         "[opheld5,summoning_pet_clockwork_cat_item]",
         "[opnpc1,summoning_pet_clockwork_cat]",

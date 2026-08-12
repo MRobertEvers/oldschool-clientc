@@ -370,6 +370,23 @@ struct Mock230NpcDef
     /** LostCity `givechase=no`: this npc drops its target rather than following
      *  it a single tile. Default yes, as the reference's NpcType has it. */
     int givechase;
+    /**
+     * `retaliate=no`: being hit does not give this npc a target.
+     *
+     * Ours, not the reference's. `mock230_combat_hit_npc` fights back for any
+     * npc that is hit "whatever its hunt mode says", which is right for
+     * everything that fights and wrong for the handful of npcs that are scenery
+     * with hitpoints. `givechase=no` is not the same statement — it drops the
+     * target after one step, so the npc has still stopped, turned and taken
+     * that step — and `defaultmode=none` is not either, because the latch is
+     * `combat_target` and the npc phase hands movement to combat while one is
+     * live, ahead of any mode.
+     *
+     * The Inferno's Ancestral Glyph is the case: the adds chew on it for the
+     * whole Zuk phase and it must walk its row through all of it. Default yes,
+     * so every other npc keeps fighting back.
+     */
+    int retaliate;
 
     /* Seeded from the cache's params, overridable with `param=`. */
     int bonus[MOCK230_PARAM_BONUS_COUNT];

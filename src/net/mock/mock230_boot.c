@@ -111,13 +111,28 @@ mock230_boot_load(const struct Mock230BootConfig* config)
         else if( model >= 0 )
             features.ground_click_nearest_model = model;
     }
+    /*
+     * The unbounded fallback is a routing decision, so under a modern era it
+     * is entirely the server's: the client sends a tile and nothing else. It
+     * reads the SAME variable name the client half reads (app.c) rather than a
+     * MOCK230_ one on purpose — the two halves disagreeing about how far a
+     * click may miss is exactly the failure the shared feature field exists to
+     * prevent, and one name makes an embedded boot consistent by construction.
+     */
+    {
+        char const* env = getenv("TORIRS_GROUND_CLICK_UNBOUNDED");
+        if( env && env[0] )
+            features.ground_click_nearest_unbounded = env[0] != '0';
+    }
     mock230_scene_set_features(&features);
     fprintf(stderr,
-            "mock230: features era=%s approach=%s op_nearest=%d ground_nearest=%s\n",
+            "mock230: features era=%s approach=%s op_nearest=%d ground_nearest=%s "
+            "unbounded=%d\n",
             features.name,
             features.approach_model == TORIRS_APPROACH_RECT ? "rect" : "legacy",
             features.op_click_nearest_range,
-            ToriRS_Features_NearestModelName(features.ground_click_nearest_model));
+            ToriRS_Features_NearestModelName(features.ground_click_nearest_model),
+            features.ground_click_nearest_unbounded);
 
     /* 1. The cache's own tables. The content tree overlays these, so they have
      *    to exist before it is read. */
