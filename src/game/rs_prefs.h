@@ -36,8 +36,19 @@ struct RS_Prefs
     /** Complete value set, never sparse: an option the file did not mention
      *  holds RS_CS2Host_OptionDefault, so a comparison against the host is a
      *  plain element-wise one and a default that changes later reaches saves
-     *  that predate it. Indexed by enum RS_CS2OptionKind. */
+     *  that predate it. Indexed by enum RS_CS2OptionKind. Only the entries
+     *  RS_CS2Host_OptionPersists accepts ever reach the file. */
     int options[RS_CS2_OPTION_KIND_COUNT][RS_CS2_OPTION_MAX];
+    /**
+     * The window mode a script last chose as the default (SETDEFAULTWINDOWMODE
+     * 5309, in the CS2 `windowmode` domain: 1 fixed, 2 resizable).
+     *
+     * Device state in the reference too — `class79` carries it beside the
+     * volumes, and its constructor defaults it to 2. Distinct from the *live*
+     * window mode, which the shell owns because it owns the window, and from
+     * the server-side layout mode, which is an account setting.
+     */
+    int default_window_mode;
 };
 
 /**

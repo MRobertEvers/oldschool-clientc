@@ -432,7 +432,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
-	platform/net_transport_ws_frame.c platform/net_transport_embed.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
+	platform/net_transport_embed.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
 	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
@@ -493,7 +494,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_scene.c net/mock/mock230_mapinstance.c \
 	net/mock/mock230_zone.c net/mock/mock230_zone_index.c net/mock/mock230_worldmap.c net/mock/mock230_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
-	platform/net_transport_ws_frame.c $(SS_SRCS)
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)
 
 # EMBED_SERVER=1: link the rev-230 server into the client, so a manifest saying
 # `[net:boot] transport=embed` runs the whole game in one process with no socket.
@@ -512,6 +513,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c \
 	platform/net_transport_ws_frame.c \
+	platform/net_transport_ws_handshake.c \
 	engine/world_builder/collision_map.c \
 	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
@@ -572,7 +574,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
+.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact summoning-dialogue
 
@@ -613,12 +615,31 @@ ifeq ($(MEMTRACE),1)
 WEB_ASSETS += $(REPO_ROOT)/tools/memtrace/viewer.html
 endif
 web:
-	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
+	$(MAKE) PLATFORM=web OPT=1 CACHE=$(CACHE) MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
 	@echo "built $(REPO_ROOT)/build-web/torirs.js — serve with: make -C src io-server && ./src/build/io_server <cache_dir>"
 
 web-debug:
-	$(MAKE) PLATFORM=web OPT=0 MEMTRACE=$(MEMTRACE) all
+	$(MAKE) PLATFORM=web OPT=0 CACHE=$(CACHE) MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+
+# --- Web target, IndexedDB cache -----------------------------------------
+# The same module with its cache underneath it instead of across a socket:
+# archive records in IndexedDB behind a dat2 facade, filled over JS5. The page
+# is then self-contained — it needs a JS5 server and a static file server, and
+# no io_server at all.
+#
+# Separate targets rather than a flag on `web` because the two link different
+# IO backends and therefore must not share an object directory; platform.mk
+# gives this lane its own (build_web_idb).
+web-idb:
+	$(MAKE) PLATFORM=web OPT=1 CACHE=idb MEMTRACE=$(MEMTRACE) all
+	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
+	@echo "built $(REPO_ROOT)/build-web/torirs.js (IndexedDB cache) — serve with:"
+	@echo "  make -C src js5-server && ./src/build/js5_server --cache <cache_dir> --revision <rev>"
+
+web-idb-debug:
+	$(MAKE) PLATFORM=web OPT=0 CACHE=idb MEMTRACE=$(MEMTRACE) all
 	@cp $(WEB_ASSETS) $(REPO_ROOT)/build-web/
 
 # --- Windows XP target ---------------------------------------------------
@@ -822,6 +843,11 @@ test-cs2-target-verb: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_target_verb_ops_test \
 		cs2vm2/test/target_verb_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_target_verb_ops_test
+
+test-cs2-options: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_client_option_ops_test \
+		cs2vm2/test/client_option_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_client_option_ops_test
 
 test-cs2-triggerop: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_trigger_op_test \
@@ -1646,8 +1672,12 @@ MOCK230_SRCS = net/mock/mock230_main.c net/jbase37.c net/wordpack.c $(MOCK230_CO
 #   tools/js5_probe.py --host 127.0.0.1 --rev 239 --archive 255 --group 255
 #
 # See docs/RSPROT_OSRS239_PORT.md.
+# The two ws_ units are what lets a browser reach this server at all: an
+# emscripten client's connect() is a WebSocket, so the reactor sniffs the first
+# byte and speaks either raw JS5 or RFC 6455 on the same port.
 JS5_SERVER_SRCS = js5/server/js5_server_main.c js5/server/js5_server.c \
-	js5/server/js5_server_session.c js5/server/js5_server_cache.c
+	js5/server/js5_server_session.c js5/server/js5_server_cache.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c
 
 js5-server: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o

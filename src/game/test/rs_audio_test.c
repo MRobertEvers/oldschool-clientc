@@ -155,6 +155,15 @@ test_prefs_persistence(void)
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME, 100);
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME, 0);
     RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 60);
+    /* Brightness (device option 6) and the default window mode are the two
+     * other things the player can move here. The reference keeps one and not
+     * the other; see RS_CS2Host_OptionPersists. */
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, 6, 25);
+    /* Hide roofs is a game option like the volumes, and the world render reads
+     * it every frame — so it has to come back on the next launch too. */
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS, 1);
+    host.default_window_mode = 1;
+    host.default_window_mode_from_script = true;
 
     RS_Prefs_Defaults(&saved);
     CHECK(RS_Prefs_CaptureFromHost(&saved, &host), "a changed option is seen as a change");
@@ -203,6 +212,48 @@ test_prefs_persistence(void)
         "an option the file omits keeps its default");
     CHECK(host.volume_music == 30, "GETVOLUMEMUSIC agrees with the restored option");
     CHECK(host.audio_settings_dirty, "a restore leaves the mixer a snapshot to apply");
+    /* The reference applies brightness on the spot and never writes it to the
+     * file, so a relaunch is back at the default however dark the last session
+     * was. Persisting it would be this client inventing a setting. */
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_DEVICE, 6) == 0,
+        "brightness is session state, as in the reference");
+    CHECK(host.default_window_mode == 1, "the default window mode survives a relaunch");
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) == 1,
+        "hide roofs survives a relaunch");
+    /* A boot config states a window mode on every fixed-mode launch. Saving
+     * that would turn one run's configuration into the player's setting. */
+    {
+        struct RS_Prefs from_config = saved;
+        struct RS_CS2Host config_host;
+
+        memset(&config_host, 0, sizeof(config_host));
+        config_host.default_window_mode = 2;
+        config_host.default_window_mode_from_script = false;
+        RS_Prefs_CaptureFromHost(&from_config, &config_host);
+        CHECK(
+            from_config.default_window_mode == 1,
+            "a config-set window mode is not captured as a preference");
+    }
+
+    /* CLIENTOPTION (3209/3210) names no table: the reference resolves the id
+     * against the device table and then the game table. Id 7 is the music
+     * volume, so setting it generically must be audible and must read back
+     * through GAMEOPTION_GET — it used to land in a private third array that
+     * nothing else could see. */
+    CHECK(
+        RS_CS2Host_ClientOptionKind(RS_CS2_GAMEOPTION_MUSIC_VOLUME) == RS_CS2_OPTION_GAME,
+        "a game-table id resolves to the game table");
+    CHECK(
+        RS_CS2Host_ClientOptionKind(RS_CS2_DEVICEOPTION_MASTER_VOLUME) ==
+            RS_CS2_OPTION_DEVICE,
+        "a device-table id resolves to the device table");
+    CHECK(RS_CS2Host_ClientOptionKind(60) == -1, "an id in neither table resolves to neither");
+    RS_CS2Host_SetOption(
+        &host, RS_CS2Host_ClientOptionKind(RS_CS2_GAMEOPTION_MUSIC_VOLUME),
+        RS_CS2_GAMEOPTION_MUSIC_VOLUME, 12);
+    CHECK(host.volume_music == 12, "a generic client-option write reaches the music volume");
 
     /* No file at all is a first launch, not an error, and must read as
      * defaults rather than leaving whatever was in the struct. */

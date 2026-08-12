@@ -79,22 +79,31 @@ enum RS_CS2SocialSendKind
  */
 #define RS_CS2_HOST_SOUND_MAX 64
 
-/* Cache script option ids used by interface 116's audio panel. */
+/* Cache script option ids used by interface 116's audio panel, plus the one
+ * game option that is not audio: "hide roofs", which GETREMOVEROOFS /
+ * SETREMOVEROOFS (3111/3112) name directly and which the world render reads. */
+#define RS_CS2_GAMEOPTION_HIDE_ROOFS 1
 #define RS_CS2_GAMEOPTION_MUSIC_VOLUME 7
 #define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
 #define RS_CS2_GAMEOPTION_AREA_VOLUME 9
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
 #define RS_CS2_OPTION_MAX 64
 
-/** Which of the three option tables an option id belongs to. CS2 keeps them
- *  apart (CLIENT/GAME/DEVICEOPTION_GET/SET), and the same id means different
- *  things in each. */
+/**
+ * The two option tables.
+ *
+ * There is no third one: CLIENTOPTION_GET/SET (3209/3210) is the *generic*
+ * form, and the reference resolves its id against the device table first and
+ * the game table second (rev-239 deob, Statics 3209/3210 — `class64` device
+ * options, `class67` game options). A private third table would silently
+ * swallow a script that sets a volume through the generic op and reads it back
+ * through GAMEOPTION_GET. See RS_CS2Host_ClientOptionKind.
+ */
 enum RS_CS2OptionKind
 {
-    RS_CS2_OPTION_CLIENT = 0,
-    RS_CS2_OPTION_GAME = 1,
-    RS_CS2_OPTION_DEVICE = 2,
-    RS_CS2_OPTION_KIND_COUNT = 3
+    RS_CS2_OPTION_GAME = 0,
+    RS_CS2_OPTION_DEVICE = 1,
+    RS_CS2_OPTION_KIND_COUNT = 2
 };
 
 /* Backing varps used by interface 116. Its mute icons write these without
@@ -330,6 +339,12 @@ struct RS_CS2Host
      *  up in next boot; nothing persists it yet. */
     int window_mode;
     int default_window_mode;
+    /** True once a clientscript has chosen the default window mode
+     *  (SETDEFAULTWINDOWMODE), as opposed to the boot config having stated one.
+     *  game/rs_prefs.c saves only the former: the manifest's `--window-mode`
+     *  configures a run, and a run's configuration must not quietly become the
+     *  player's saved setting. */
+    bool default_window_mode_from_script;
     bool window_mode_dirty;
     /** Display-panel client layout mode 0/1/2 (Fixed / Classic / Modern).
      *  Stashed when [clientscript,settings_client_mode] (cache script_3998)
@@ -355,7 +370,7 @@ struct RS_CS2Host
     int volume_music;
     int volume_sounds;
     int volume_area_sounds;
-    int client_options[RS_CS2_OPTION_MAX];
+    /* Two tables, not three — see enum RS_CS2OptionKind. */
     int game_options[RS_CS2_OPTION_MAX];
     int device_options[RS_CS2_OPTION_MAX];
     bool audio_settings_dirty;
@@ -717,6 +732,32 @@ RS_CS2Host_SyncAudioVarp(
  */
 int
 RS_CS2Host_OptionDefault(
+    int kind,
+    int option_id);
+
+/**
+ * Which table a bare CLIENTOPTION id names: device if that table has the id,
+ * game otherwise, and -1 when neither does.
+ *
+ * The reference throws "Unrecognized client option %d" on the -1 case; this
+ * client reports and carries on, because a settings id from a newer cache is
+ * not a reason to kill the script that mentioned it.
+ */
+int
+RS_CS2Host_ClientOptionKind(int option_id);
+
+/**
+ * Whether this option is one the reference keeps on disk.
+ *
+ * Not every option is device state. Brightness (device option 6) is applied
+ * the moment it is set and never written to the preferences file — the
+ * reference's option handler calls the gamma helper directly rather than a
+ * `class79` setter — so restoring it at boot would be this client inventing
+ * persistence the reference does not have. game/rs_prefs.c asks this before
+ * writing an entry and before honouring one it read.
+ */
+int
+RS_CS2Host_OptionPersists(
     int kind,
     int option_id);
 

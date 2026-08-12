@@ -699,7 +699,6 @@ RS_CS2Host_Init(
      * same state before interface 116 sends its first slider update. */
     for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
     {
-        host->client_options[id] = RS_CS2Host_OptionDefault(RS_CS2_OPTION_CLIENT, id);
         host->game_options[id] = RS_CS2Host_OptionDefault(RS_CS2_OPTION_GAME, id);
         host->device_options[id] = RS_CS2Host_OptionDefault(RS_CS2_OPTION_DEVICE, id);
     }
@@ -1089,6 +1088,100 @@ RS_CS2Host_TakeSound(
     return true;
 }
 
+/*
+ * The two option tables, exactly as the reference enumerates them.
+ *
+ * rev-239 deob: `class64` is the device table and `class67` the game table,
+ * each entry a (handler ordinal, option id) pair. Reproduced here as ids
+ * because that is all this client needs — which table an id belongs to, and
+ * whether the reference keeps it on disk.
+ *
+ * `persist` is read off `class79`: an option whose handler calls a `class79`
+ * setter is written to preferences<N>.dat, one that does not is session state.
+ * Only two are not:
+ *
+ *   device 6  brightness — the handler calls the gamma helper directly.
+ *   device 22 the file still carries a byte for it, but the loader reads that
+ *             byte and forces the field false, so the stored value cannot
+ *             survive a launch. Writing it would be persistence in name only.
+ *
+ * device 19 (master volume) is the one place this client is deliberately not
+ * the reference: the reference's file has a master-volume field, but the live
+ * value the mixer reads is a *different* field that the encoder never writes,
+ * so a reference master volume does not come back. This client has one master
+ * volume and keeps it, which is what that file field was plainly for.
+ */
+struct OptionSpec
+{
+    int id;
+    bool persist;
+};
+
+static const struct OptionSpec device_option_spec[] = {
+    { 2, true },   /* hide username on the login screen */
+    { 3, true },   /* stored; nothing in rev 239 reads it back */
+    { 4, true },   /* title music disabled */
+    { 5, true },
+    { 6, false },  /* brightness — applied on the spot, never saved */
+    { 14, true },  /* draw distance */
+    { 19, true },  /* master volume — see above */
+    { 22, false }, /* retired: the reference discards it on load */
+};
+
+static const struct OptionSpec game_option_spec[] = {
+    { RS_CS2_GAMEOPTION_HIDE_ROOFS, true },   /* 1 */
+    { RS_CS2_GAMEOPTION_MUSIC_VOLUME, true }, /* 7 */
+    { RS_CS2_GAMEOPTION_SOUND_VOLUME, true }, /* 8 */
+    { RS_CS2_GAMEOPTION_AREA_VOLUME, true },  /* 9 */
+};
+
+static const struct OptionSpec*
+option_spec(
+    int kind,
+    int option_id)
+{
+    const struct OptionSpec* table;
+    size_t count;
+
+    if( kind == RS_CS2_OPTION_DEVICE )
+    {
+        table = device_option_spec;
+        count = sizeof(device_option_spec) / sizeof(device_option_spec[0]);
+    }
+    else if( kind == RS_CS2_OPTION_GAME )
+    {
+        table = game_option_spec;
+        count = sizeof(game_option_spec) / sizeof(game_option_spec[0]);
+    }
+    else
+        return NULL;
+
+    for( size_t i = 0; i < count; i++ )
+        if( table[i].id == option_id )
+            return &table[i];
+    return NULL;
+}
+
+int
+RS_CS2Host_ClientOptionKind(int option_id)
+{
+    if( option_spec(RS_CS2_OPTION_DEVICE, option_id) )
+        return RS_CS2_OPTION_DEVICE;
+    if( option_spec(RS_CS2_OPTION_GAME, option_id) )
+        return RS_CS2_OPTION_GAME;
+    return -1;
+}
+
+int
+RS_CS2Host_OptionPersists(
+    int kind,
+    int option_id)
+{
+    const struct OptionSpec* spec = option_spec(kind, option_id);
+
+    return spec && spec->persist;
+}
+
 /* Whether an option id is one of the four the mixer follows. */
 static bool
 option_is_volume(
@@ -1120,8 +1213,6 @@ option_table(
 {
     switch( kind )
     {
-    case RS_CS2_OPTION_CLIENT:
-        return host->client_options;
     case RS_CS2_OPTION_GAME:
         return host->game_options;
     case RS_CS2_OPTION_DEVICE:
@@ -1876,12 +1967,6 @@ clamp_percent(int value)
     return value;
 }
 
-static bool
-option_id_valid(int id)
-{
-    return id >= 0 && id < RS_CS2_OPTION_MAX;
-}
-
 /* Audio volumes (3203..3208) and client/game/device options (3209..3217).
  * Interface 116 writes music/effects/area through game options 7/8/9 and
  * master through device option 19. Store every in-range option for GET
@@ -1917,13 +2002,36 @@ exec_client_option(
     case CS2_OP_GETVOLUMEAREASOUNDS:
         return CS2VM2_PushInt(thread, host->volume_area_sounds);
 
-    /* The three SET cases are the same store with the same clamp and the same
-     * volume mirroring, which is why they go through one function: the
-     * preferences restore (game/rs_prefs.c) writes the tables too, and a
-     * restored volume that skipped the mirroring would leave GETVOLUMEMUSIC
-     * disagreeing with GAMEOPTION_GET on the same setting. */
+    /* Hide roofs: the named form of game option 1, stored in the same place so
+     * the two spellings cannot disagree. "On" means every roof is hidden; off
+     * is the selective, tile-flag removal the world render does anyway
+     * (reference roofCheck/roofCheck2, both of which return the player's level
+     * outright when this is set). */
+    case CS2_OP_SETREMOVEROOFS:
+        RS_CS2Host_SetOption(
+            host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS, request.value ? 1 : 0);
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_GETREMOVEROOFS:
+        return CS2VM2_PushInt(
+            thread,
+            RS_CS2Host_GetOption(host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) ? 1
+                                                                                         : 0);
+
+    /* The SET cases are the same store with the same clamp and the same volume
+     * mirroring, which is why they go through one function: the preferences
+     * restore (game/rs_prefs.c) writes the tables too, and a restored volume
+     * that skipped the mirroring would leave GETVOLUMEMUSIC disagreeing with
+     * GAMEOPTION_GET on the same setting.
+     *
+     * CLIENTOPTION is the generic form and names no table: the reference looks
+     * the id up in the device table, then the game table. It used to land in a
+     * private third array here, which meant a script setting the music volume
+     * through 3209 changed nothing audible and read back through 3215 as
+     * whatever the slider had left. */
     case CS2_OP_CLIENTOPTION_SET:
-        RS_CS2Host_SetOption(host, RS_CS2_OPTION_CLIENT, request.option_id, request.value);
+        RS_CS2Host_SetOption(
+            host, RS_CS2Host_ClientOptionKind(request.option_id), request.option_id,
+            request.value);
         return CS2VM_EXECNO_OK;
     case CS2_OP_GAMEOPTION_SET:
         RS_CS2Host_SetOption(host, RS_CS2_OPTION_GAME, request.option_id, request.value);
@@ -1934,15 +2042,14 @@ exec_client_option(
     case CS2_OP_CLIENTOPTION_GET:
         return CS2VM2_PushInt(
             thread,
-            option_id_valid(request.option_id) ? host->client_options[request.option_id] : 0);
+            RS_CS2Host_GetOption(
+                host, RS_CS2Host_ClientOptionKind(request.option_id), request.option_id));
     case CS2_OP_GAMEOPTION_GET:
         return CS2VM2_PushInt(
-            thread,
-            option_id_valid(request.option_id) ? host->game_options[request.option_id] : 0);
+            thread, RS_CS2Host_GetOption(host, RS_CS2_OPTION_GAME, request.option_id));
     case CS2_OP_DEVICEOPTION_GET:
         return CS2VM2_PushInt(
-            thread,
-            option_id_valid(request.option_id) ? host->device_options[request.option_id] : 0);
+            thread, RS_CS2Host_GetOption(host, RS_CS2_OPTION_DEVICE, request.option_id));
     case CS2_OP_DEVICEOPTION_GETRANGE:
     {
         /* min then max (reference range order). */
@@ -5693,6 +5800,10 @@ rs_cs2_host_exec_dispatch(
             request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
             return CS2VM_EXECNO_OK;
         host->default_window_mode = request->u.window_mode.mode;
+        /* A script chose it, so it is the player's setting and outlives the
+         * launch (game/rs_prefs.c). The boot config setting the same field is
+         * not that, which is what this flag separates. */
+        host->default_window_mode_from_script = true;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG:

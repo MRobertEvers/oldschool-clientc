@@ -155,6 +155,24 @@ struct Js5Config
     uint32_t local_scan_budget;
     uint32_t random_seed;
 
+    /*
+     * Fill the whole cache in the background, not just what is asked for.
+     *
+     * True is the desktop default and what "incremental cache" usually means:
+     * every group the reference tables list and the disk does not have is
+     * queued on the normal lane, so the cache converges on a complete mirror
+     * while the client runs.
+     *
+     * A browser wants the opposite. A tab that quietly pulls a couple of
+     * hundred megabytes is a bad citizen on someone's connection, it competes
+     * with the reads the boot is actually blocked on, and the records have to
+     * be held resident on the JavaScript side (see dat2_web_store.h) — so the
+     * web lane sets this false and fetches on demand. The cache then converges
+     * on the working set instead of the mirror, which is the right target when
+     * the storage is a browser's.
+     */
+    bool background_fill;
+
     struct Js5ArchiveSelection archives;
 };
 

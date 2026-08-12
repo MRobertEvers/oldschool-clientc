@@ -6,6 +6,8 @@
 
 #include "js5_server_cache.h"
 #include "js5_server_session.h"
+#include "platform/net_transport_ws_frame.h"
+#include "platform/net_transport_ws_handshake.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -42,11 +44,47 @@ static volatile LONG g_js5_server_stop;
 static volatile sig_atomic_t g_js5_server_stop;
 #endif
 
+/*
+ * How this connection's bytes are wrapped.
+ *
+ * Decided by looking at the first byte and never by configuration, so one port
+ * serves both a desktop client and a browser one. A browser has no choice in
+ * the matter: emscripten implements BSD sockets as WebSockets, so a page's
+ * connect() to this port arrives as an HTTP upgrade and every byte after it is
+ * inside a frame. A JS5 stream opens with opcode 15, an upgrade with 'G'.
+ */
+enum Js5ServerFraming
+{
+    JS5_FRAMING_UNKNOWN = 0,
+    JS5_FRAMING_RAW,
+    JS5_FRAMING_WS_HANDSHAKE,
+    JS5_FRAMING_WS,
+};
+
+/* Inbound: the largest thing a client sends is the 21-byte handshake or a
+ * 4-byte packet, so this only has to hold an upgrade request and a little
+ * slack. Outbound: one framed chunk of session output, which PeekOutput caps
+ * at its 16KB scratch, plus a frame header. */
+#define JS5_SERVER_WS_IN_BYTES 8192
+#define JS5_SERVER_WS_OUT_BYTES (JS5_SERVER_IO_BYTES + 32u)
+
 struct Js5ServerClient
 {
     js5_server_socket_t socket;
     struct Js5ServerSession* session;
     char peer[INET_ADDRSTRLEN];
+
+    enum Js5ServerFraming framing;
+    /* Bytes off the socket that are not yet a whole request or frame. Raw
+     * connections never use it: there is nothing to reassemble. */
+    uint8_t in[JS5_SERVER_WS_IN_BYTES];
+    int in_len;
+    /* Framed bytes waiting for the socket. Only used under WS, where a
+     * half-written frame cannot simply be resumed from the session's view —
+     * the header describes a length that must arrive whole. */
+    uint8_t out[JS5_SERVER_WS_OUT_BYTES];
+    int out_len;
+    int out_pos;
 };
 
 static uint64_t
@@ -331,21 +369,169 @@ js5_server_accept_clients(
     }
 }
 
+/* Drop `count` consumed bytes off the front of the inbound buffer. */
+static void
+js5_server_in_drop(
+    struct Js5ServerClient* client,
+    int count)
+{
+    if( count <= 0 )
+        return;
+    if( count >= client->in_len )
+    {
+        client->in_len = 0;
+        return;
+    }
+    memmove(client->in, client->in + count, (size_t)(client->in_len - count));
+    client->in_len -= count;
+}
+
+/* Queue an outbound control frame, if there is room. A pong is advisory —
+ * browsers do not require one to keep the connection — so a full output buffer
+ * drops it rather than stalling the data the client is actually waiting for. */
+static void
+js5_server_ws_queue_control(
+    struct Js5ServerClient* client,
+    int opcode,
+    const uint8_t* payload,
+    int payload_len)
+{
+    int written = ws_frame_encode(
+        opcode,
+        payload,
+        payload_len,
+        NULL, /* a server must not mask (RFC 6455 5.1) */
+        client->out + client->out_len,
+        (int)sizeof(client->out) - client->out_len);
+    if( written > 0 )
+        client->out_len += written;
+}
+
+/*
+ * Turn whatever whole frames are buffered into session input.
+ *
+ * Returns 0 to keep the connection, -1 to drop it. A CLOSE is a drop: JS5 has
+ * no orderly shutdown of its own, and the session has nothing to finish.
+ */
+static int
+js5_server_ws_deframe(
+    struct Js5ServerClient* client,
+    uint64_t now_ms)
+{
+    int pos = 0;
+
+    for( ;; )
+    {
+        struct WsFrame frame;
+        int consumed = 0;
+        enum WsDecodeStatus status =
+            ws_frame_decode(client->in + pos, client->in_len - pos, &frame, &consumed);
+
+        if( status == WS_DECODE_INCOMPLETE )
+            break;
+        if( status == WS_DECODE_ERROR )
+            return -1;
+
+        switch( frame.opcode )
+        {
+        case WS_OP_BINARY:
+        case WS_OP_TEXT:
+        case WS_OP_CONT:
+            if( frame.payload_len > 0 &&
+                Js5ServerSessionFeed(
+                    client->session, frame.payload, (size_t)frame.payload_len, now_ms) != 0 )
+                return -1;
+            break;
+        case WS_OP_PING:
+            js5_server_ws_queue_control(
+                client, WS_OP_PONG, frame.payload, frame.payload_len);
+            break;
+        case WS_OP_PONG:
+            break;
+        case WS_OP_CLOSE:
+        default:
+            return -1;
+        }
+        pos += consumed;
+    }
+
+    js5_server_in_drop(client, pos);
+    return 0;
+}
+
+/* Feed newly arrived bytes according to this connection's framing, deciding
+ * that framing on the first byte if it is not known yet. */
+static int
+js5_server_consume_input(
+    struct Js5ServerClient* client,
+    uint64_t now_ms)
+{
+    if( client->framing == JS5_FRAMING_UNKNOWN )
+    {
+        if( client->in_len == 0 )
+            return 0;
+        client->framing = WsHandshake_LooksLikeHttp(client->in[0]) ? JS5_FRAMING_WS_HANDSHAKE
+                                                                   : JS5_FRAMING_RAW;
+    }
+
+    if( client->framing == JS5_FRAMING_RAW )
+    {
+        int fed = client->in_len;
+        if( fed > 0 &&
+            Js5ServerSessionFeed(client->session, client->in, (size_t)fed, now_ms) != 0 )
+            return -1;
+        client->in_len = 0;
+        return 0;
+    }
+
+    if( client->framing == JS5_FRAMING_WS_HANDSHAKE )
+    {
+        struct WsHandshake handshake;
+        enum WsHandshakeStatus status =
+            WsHandshake_Consume(client->in, client->in_len, &handshake);
+
+        if( status == WS_HANDSHAKE_INCOMPLETE )
+            return 0;
+        if( status != WS_HANDSHAKE_OK )
+            return -1;
+        if( handshake.response_len > (int)sizeof(client->out) - client->out_len )
+            return -1;
+        memcpy(
+            client->out + client->out_len,
+            handshake.response,
+            (size_t)handshake.response_len);
+        client->out_len += handshake.response_len;
+        js5_server_in_drop(client, handshake.consumed);
+        client->framing = JS5_FRAMING_WS;
+        /* Anything pipelined after the headers is already frame data. */
+    }
+
+    return js5_server_ws_deframe(client, now_ms);
+}
+
 static int
 js5_server_read_client(
     struct Js5ServerClient* client,
     uint64_t now_ms)
 {
-    uint8_t input[JS5_SERVER_IO_BYTES];
-
     for( unsigned iteration = 0u; iteration < 4u; iteration++ )
     {
-        int received = recv(client->socket, (char*)input, (int)sizeof(input), 0);
+        int room = (int)sizeof(client->in) - client->in_len;
+        int received;
+
+        if( room <= 0 )
+        {
+            /* Nothing a client legitimately sends is this large. Refusing is
+             * the honest answer; growing the buffer would only postpone it. */
+            return -1;
+        }
+        received = recv(client->socket, (char*)client->in + client->in_len, room, 0);
         if( received > 0 )
         {
-            if( Js5ServerSessionFeed(client->session, input, (size_t)received, now_ms) != 0 )
+            client->in_len += received;
+            if( js5_server_consume_input(client, now_ms) != 0 )
                 return -1;
-            if( received < (int)sizeof(input) )
+            if( received < room )
                 return 0;
             continue;
         }
@@ -361,6 +547,39 @@ js5_server_read_client(
     return 0;
 }
 
+/*
+ * Push whatever is already framed. Returns bytes written, 0 when the socket
+ * would block or the buffer is empty, -1 on a dead connection.
+ */
+static int
+js5_server_flush_out(struct Js5ServerClient* client)
+{
+    while( client->out_pos < client->out_len )
+    {
+        int sent = send(
+            client->socket,
+            (const char*)client->out + client->out_pos,
+            client->out_len - client->out_pos,
+            0);
+        if( sent > 0 )
+        {
+            client->out_pos += sent;
+            continue;
+        }
+        if( sent == 0 )
+            return -1;
+        int error = js5_server_socket_error();
+        if( js5_server_would_block(error) )
+            return 0;
+        if( js5_server_interrupted(error) )
+            continue;
+        return -1;
+    }
+    client->out_pos = 0;
+    client->out_len = 0;
+    return 1;
+}
+
 static int
 js5_server_write_client(
     struct Js5ServerClient* client,
@@ -372,13 +591,50 @@ js5_server_write_client(
     {
         const uint8_t* data;
         size_t size;
-        int available = Js5ServerSessionPeekOutput(client->session, &data, &size);
+        int available;
+        int flushed = js5_server_flush_out(client);
+
+        if( flushed < 0 )
+            return -1;
+        if( client->out_pos < client->out_len )
+            return 0; /* still draining a frame; the session waits its turn */
+
+        available = Js5ServerSessionPeekOutput(client->session, &data, &size);
         if( available < 0 )
             return -1;
         if( available == 0 )
             return 0;
         if( size > budget )
             size = budget;
+
+        if( client->framing == JS5_FRAMING_WS )
+        {
+            /*
+             * Frame it into the output buffer and tell the session it is gone.
+             *
+             * The copy is what makes a partial write safe here. A frame header
+             * announces a length, so the payload has to arrive whole; leaving
+             * it in the session's view and re-peeking after a short send would
+             * emit a second header mid-message.
+             */
+            int header_len;
+            int room = (int)sizeof(client->out);
+
+            if( size > (size_t)(room - 16) )
+                size = (size_t)(room - 16);
+            header_len = ws_frame_encode_header(
+                WS_OP_BINARY, (int)size, NULL, client->out, room);
+            if( header_len < 0 )
+                return -1;
+            memcpy(client->out + header_len, data, size);
+            client->out_len = header_len + (int)size;
+            client->out_pos = 0;
+            if( Js5ServerSessionConsumeOutput(client->session, size, now_ms) != 0 )
+                return -1;
+            budget -= size;
+            continue;
+        }
+
         int sent = send(client->socket, (const char*)data, (int)size, 0);
         if( sent > 0 )
         {
@@ -500,7 +756,13 @@ Js5ServerRun(const struct Js5ServerConfig* config)
                 continue;
             }
             FD_SET(clients[i].socket, &readable);
-            if( Js5ServerSessionPeekOutput(
+            /* Already-framed bytes count too. A half-written frame, or a
+             * handshake response with no session output behind it yet, would
+             * otherwise sit in the buffer until the client happened to send
+             * something — which for the 101 response is a browser waiting
+             * forever for a handshake the server has already computed. */
+            if( clients[i].out_pos < clients[i].out_len ||
+                Js5ServerSessionPeekOutput(
                     clients[i].session, &output, &output_size) > 0 )
                 FD_SET(clients[i].socket, &writable);
 #ifndef _WIN32

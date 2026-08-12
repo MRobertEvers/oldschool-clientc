@@ -1,5 +1,10 @@
 #include "app.h"
 
+#if defined(TORIRS_WEB_CACHE_IDB)
+#include "platform/dat2_web_store.h"
+#include "platform/web_cache_boot.h"
+#endif
+
 #include "bootmanifest/bootmanifest.h"
 
 #include "cmd/cmdbus.h"
@@ -3412,7 +3417,37 @@ App_Init(
     app->exec_runner.queue = ToriRS_TaskQueue_New();
     app->exec_runner.px = app->runner.px;
 
-#if defined(TORIRS_PLATFORM_WEB)
+#if defined(TORIRS_WEB_CACHE_IDB)
+    /*
+     * The browser has no cache *directory*, but on this lane it does have a
+     * cache: a keyed record store the page hydrated from IndexedDB, wearing a
+     * dat2 face (see platform/dat2_web_store.h). So the disk opens normally and
+     * everything below this point — table id resolution, the map XTEA gate,
+     * reference tables, the archive decode path — is the code the desktop build
+     * runs, against the same struct.
+     *
+     * The store was opened before main() by the JS5 metadata barrier, which had
+     * to run first: this constructor decodes reference tables, and it is not a
+     * tolerant reader.
+     */
+    {
+        struct Dat2WebStore* store = WebCacheBoot_Store();
+        struct RSCache_Dat2Store ops;
+
+        if( !store )
+        {
+            fprintf(
+                stderr,
+                "app: no browser record store for %s — the JS5 prime did not run\n",
+                cfg->cache_dir ? cfg->cache_dir : "(unnamed cache)");
+        }
+        assert(store != NULL);
+        ops = Dat2WebStore_Ops(store);
+        app->dat2_disk = RSCache_Dat2DiskNewFromStore(cfg->cache_dir, &ops);
+        assert(app->dat2_disk != NULL);
+        PlatformX_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
+    }
+#elif defined(TORIRS_PLATFORM_WEB)
     /* The browser has no cache directory to open. Every read the disk layer
      * would have answered goes to the IO server instead, which holds the real
      * cache and therefore also the things only an open cache can answer:
@@ -5060,6 +5095,18 @@ Task_AppBoot_Run(
     if( app->prefs_path )
         TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
     RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+
+    /*
+     * A window mode the manifest or command line stated wins over the saved
+     * one. App_SetBootWindowMode has already run (it must, before the root's
+     * scripts call getwindowmode), so the restore above just overwrote it;
+     * `cfg.window_mode` is 0 when nothing said anything, which is when the
+     * saved default is the only opinion there is. Same precedence as a server
+     * VARP over the seeded volumes: an explicit instruction for this run beats
+     * what the last run happened to leave behind.
+     */
+    if( app->cfg.window_mode )
+        app->host.default_window_mode = app->cfg.window_mode;
 
     /*
      * Seed the four audio volumes.
@@ -7139,6 +7186,18 @@ app_world_roof_check(struct App* app)
     if( !player || !world || !world->tile_flags )
         return 3;
     level = player->grid_position.level;
+
+    /*
+     * "Hide roofs" — game option 1, and the first thing both of the reference's
+     * roof checks test (`if (!prefs.isHidingRoofs())` guards the whole selective
+     * walk in each; when it is set they return the player's level outright).
+     * The Display panel's toggle and the reference's ::toggleroof cheat write
+     * this same setting, whose two messages say what the two states are:
+     * "Roofs are now all hidden" against "Roofs will only be removed
+     * selectively".
+     */
+    if( RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_HIDE_ROOFS) )
+        return level;
 
     if( app->cam_script.scripted )
     {

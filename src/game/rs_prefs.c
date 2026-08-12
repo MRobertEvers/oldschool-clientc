@@ -20,13 +20,17 @@
 
 #define RS_PREFS_DEFAULT_PATH "preferences.ini"
 
+/* Resizable, matching both RS_CS2Host_Init and `class79`'s own constructor. */
+#define RS_PREFS_DEFAULT_WINDOW_MODE 2
+
+/* Indexed by enum RS_CS2OptionKind. There is no client_options section: a
+ * CLIENTOPTION id resolves to one of these two tables (RS_CS2Host_ClientOptionKind). */
 static char const* const kind_section[RS_CS2_OPTION_KIND_COUNT] = {
-    "client_options",
     "game_options",
     "device_options",
 };
 
-/* Section states that are not one of the three option kinds. */
+/* Section states that are not one of the option kinds. */
 #define PREFS_SECTION_NONE (-2)
 #define PREFS_SECTION_META (-1)
 
@@ -52,6 +56,7 @@ RS_Prefs_Defaults(struct RS_Prefs* prefs)
     for( int kind = 0; kind < RS_CS2_OPTION_KIND_COUNT; kind++ )
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
             prefs->options[kind][id] = RS_CS2Host_OptionDefault(kind, id);
+    prefs->default_window_mode = RS_PREFS_DEFAULT_WINDOW_MODE;
 }
 
 /* ------------------------------------------------------------------ */
@@ -117,6 +122,15 @@ RS_Prefs_Decode(
         {
             if( strcmp(element._keyval.name, "version") == 0 )
                 version = atoi(element._keyval.value);
+            else if( strcmp(element._keyval.name, "default_window_mode") == 0 )
+            {
+                int mode = atoi(element._keyval.value);
+
+                /* The CS2 windowmode domain has exactly two members; anything
+                 * else is a hand-edit and keeps the default. */
+                if( mode == 1 || mode == 2 )
+                    prefs->default_window_mode = mode;
+            }
             continue;
         }
         if( section >= 0 )
@@ -125,8 +139,11 @@ RS_Prefs_Decode(
 
             /* An id this build has no room for is skipped rather than clamped:
              * writing it to a neighbouring slot would be a setting the player
-             * never chose. */
-            if( id >= 0 && id < RS_CS2_OPTION_MAX )
+             * never chose. An id the reference does not keep on disk is skipped
+             * too — the same rule the writer applies, so a hand-edited file
+             * cannot give this client persistence the reference lacks. */
+            if( id >= 0 && id < RS_CS2_OPTION_MAX &&
+                RS_CS2Host_OptionPersists(section, id) )
                 prefs->options[section][id] = atoi(element._keyval.value);
         }
     }
@@ -182,12 +199,19 @@ RS_Prefs_Encode(
         "version=%d\n",
         RS_PREFS_VERSION);
 
+    if( prefs->default_window_mode != RS_PREFS_DEFAULT_WINDOW_MODE )
+        len += snprintf(
+            text + len, (size_t)(cap - len), "default_window_mode=%d\n",
+            prefs->default_window_mode);
+
     for( int kind = 0; kind < RS_CS2_OPTION_KIND_COUNT; kind++ )
     {
         int wrote_section = 0;
 
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
         {
+            if( !RS_CS2Host_OptionPersists(kind, id) )
+                continue;
             if( prefs->options[kind][id] == RS_CS2Host_OptionDefault(kind, id) )
                 continue;
             if( !wrote_section )
@@ -226,6 +250,7 @@ RS_Prefs_ApplyToHost(
     for( int kind = 0; kind < RS_CS2_OPTION_KIND_COUNT; kind++ )
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
             RS_CS2Host_SetOption(host, kind, id, prefs->options[kind][id]);
+    host->default_window_mode = prefs->default_window_mode;
 }
 
 int
@@ -247,5 +272,13 @@ RS_Prefs_CaptureFromHost(
             prefs->options[kind][id] = value;
             changed = 1;
         }
+    /* Only a script's choice, never the boot config's — see
+     * RS_CS2Host.default_window_mode_from_script. */
+    if( host->default_window_mode_from_script && host->default_window_mode > 0 &&
+        prefs->default_window_mode != host->default_window_mode )
+    {
+        prefs->default_window_mode = host->default_window_mode;
+        changed = 1;
+    }
     return changed;
 }
