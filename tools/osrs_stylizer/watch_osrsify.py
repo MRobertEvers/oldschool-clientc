@@ -10,6 +10,9 @@ candidate) and serves an exploration page:
     fraction; sculpt: x = iteration), rejected marked along the bottom
   - click any candidate to open a detail view with its bind renders and its
     animation-sweep frames side by side with the baseline's same frames
+  - star any candidate to save it as a favorite: its models, renders and
+    scores are copied to ~/Documents/osrsify/saves and shown at the top of
+    the page, surviving restarts and runs/ cleanups
 
     python watch_osrsify.py                       # watches runs/osrsify_*
     python watch_osrsify.py --port 9000 runs/osrsify_qbd_reduce
@@ -22,9 +25,11 @@ import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse, parse_qs
 
@@ -36,6 +41,11 @@ RUNS = {}  # name -> absolute run dir
 # Built with `make -C tools/entity_viewer wasm`; the page loads it and renders
 # ev_wire bytes locally, so orbiting costs no server round-trips at all.
 EV_WEB = os.path.realpath(os.path.join(HERE, "..", "entity_viewer", "web"))
+
+# Favorites live outside the run tree so a runs/ cleanup can't take them:
+# each save is a folder holding the candidate's .ob3 models, its renders, and
+# a meta.json snapshot of the scores it had when it was starred.
+SAVES = os.path.expanduser(os.path.join("~", "Documents", "osrsify", "saves"))
 
 # One wire build at a time: concurrent requests for the same file would race
 # the viewer subprocess over the same output path.
@@ -139,6 +149,61 @@ def candidate_models(run, tag, cfg):
     return models
 
 
+def save_fav(run, tag):
+    """Copy a candidate out of its run dir into SAVES: models, every render
+    with its tag prefix, and a meta.json snapshot of its candidate record.
+    Returns the meta written. Re-saving an existing favorite refreshes it."""
+    with open(os.path.join(RUNS[run], "results.json"), "r",
+              encoding="utf-8") as f:
+        doc = json.load(f)
+    cfg = doc.get("config", {})
+    cand = next((c for c in doc.get("candidates") or []
+                 if c.get("id") == tag), None)
+    d = os.path.join(SAVES, "%s__%s" % (run, tag))
+    os.makedirs(d, exist_ok=True)
+    models = candidate_models(run, tag, cfg)
+    for m in models:
+        shutil.copy2(m, os.path.join(d, os.path.basename(m)))
+    imgs = []
+    work = os.path.join(RUNS[run], "work")
+    try:
+        for name in sorted(os.listdir(work)):
+            if name.startswith(tag + "_") and name.endswith(".png"):
+                shutil.copy2(os.path.join(work, name),
+                             os.path.join(d, name))
+                imgs.append(name)
+    except OSError:
+        pass
+    meta = {"run": run, "tag": tag, "saved": time.time(), "candidate": cand,
+            "models": [os.path.basename(m) for m in models], "imgs": imgs}
+    tmp = os.path.join(d, "meta.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+    os.replace(tmp, os.path.join(d, "meta.json"))
+    return meta
+
+
+def list_favs():
+    """Every saved favorite's meta, newest first. A folder without a
+    readable meta.json is somebody else's; leave it alone and skip it."""
+    out = []
+    try:
+        names = os.listdir(SAVES)
+    except OSError:
+        return out
+    for n in names:
+        try:
+            with open(os.path.join(SAVES, n, "meta.json"), "r",
+                      encoding="utf-8") as f:
+                meta = json.load(f)
+        except (OSError, ValueError):
+            continue
+        meta["_key"] = n
+        out.append(meta)
+    out.sort(key=lambda m: m.get("saved", 0), reverse=True)
+    return out
+
+
 def build_wire(run, tag=None, seq=None):
     """Ensure <run>/wire/<name>.{model,anim} exists; return its path or
     (None, why). Model wires are per candidate tag; anim wires are per
@@ -205,6 +270,11 @@ PAGE = """<!doctype html>
               border:1px solid #3a5f8a; border-radius:5px; padding:.05em .6em;
               text-decoration:none; font-size:.8em; vertical-align:middle; }
   a.viewbtn:hover { background:#2f4f75; }
+  .star { cursor:pointer; color:#8b8e99; font-size:1.1em; padding:0 .2em;
+          user-select:none; }
+  .star:hover { color:#e6b450; }
+  .star.fav { color:#e6b450; }
+  .card .star { float:right; }
   .card { border:1px solid #2c2e36; border-radius:8px; padding:.45rem .6rem;
           background:#1d1f25; cursor:pointer; max-width:290px; }
   .card:hover { border-color:#5a5e6c; }
@@ -221,6 +291,22 @@ PAGE = """<!doctype html>
            text-transform:uppercase; letter-spacing:.06em; }
   canvas.chart { background:#1d1f25; border:1px solid #2c2e36;
                  border-radius:8px; width:100%; max-width:820px; height:180px; }
+  #runbar { position:sticky; top:0; z-index:10; background:#17181c;
+            border-bottom:1px solid #2c2e36; padding:.5rem 0; margin:0 0 .6rem;
+            display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
+  .chip { cursor:pointer; border:1px solid #2c2e36; border-radius:999px;
+          padding:.05em .7em; font-size:.8em; color:#8b8e99; background:#1d1f25;
+          user-select:none; white-space:nowrap; }
+  .chip.on { color:#d8d9de; border-color:#3a5f8a; background:#26405f; }
+  .chip:hover { border-color:#5a5e6c; }
+  .chip .dot { display:inline-block; width:.55em; height:.55em;
+               border-radius:50%; margin-right:.35em; background:#8b8e99;
+               vertical-align:baseline; }
+  .dot.live { background:#7ec97e; box-shadow:0 0 5px #7ec97e; }
+  .dot.stale { background:#e6b450; }
+  .dot.idle { background:#8b8e99; }
+  .dot.off { background:#c96a6a; }
+  .chip .cnt { color:#8b8e99; font-size:.85em; margin-left:.3em; }
   #modal { position:fixed; inset:0; background:rgba(10,10,12,.88);
            overflow:auto; padding:2rem; display:none; }
   #modal .inner { background:#1d1f25; border:1px solid #3a3e4a;
@@ -241,16 +327,59 @@ PAGE = """<!doctype html>
   #lightbox .hint { position:absolute; bottom:.8rem; left:0; right:0;
                     text-align:center; color:#8b8e99; font-size:.85em; }
 </style>
-<h1>osrsify live <span class="muted" id="stamp"></span>
-  <label class="muted" style="float:right; font-size:.8rem; font-weight:normal;
-                              cursor:pointer">
-    <input type="checkbox" id="latest-only"> latest run only</label></h1>
+<h1>osrsify live <span class="muted" id="stamp"></span></h1>
+<div id="runbar"><span class="muted" style="font-size:.85em">runs</span>
+  <span id="runchips" style="display:contents"></span>
+  <label class="muted" style="font-size:.8rem; cursor:pointer;
+                              margin-left:auto; white-space:nowrap">
+    <input type="checkbox" id="latest-only"> latest run only</label></div>
 <div id="root" class="muted">loading…</div>
 <div id="modal" onclick="if(event.target===this)closeModal()"><div class="inner" id="modal-body"></div></div>
 <div id="lightbox"><img id="lb-img"><div class="hint">scroll to zoom &nbsp;·&nbsp; drag to pan &nbsp;·&nbsp; Esc / click to close</div></div>
 <script>
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 let DATA = {};
+let FAVS = [];
+
+// favorites: starred candidates copied server-side to ~/Documents/osrsify/saves
+const favKey = (run, tag) => run + '__' + tag;
+function isFav(run, tag) { return FAVS.some(f => f._key === favKey(run, tag)); }
+async function refreshFavs() {
+  try { FAVS = await (await fetch('/favs')).json(); } catch (e) {}
+}
+async function toggleFav(run, tag) {
+  const url = isFav(run, tag)
+    ? '/unfav/' + encodeURIComponent(favKey(run, tag))
+    : `/fav/${encodeURIComponent(run)}/${encodeURIComponent(tag)}`;
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) alert(await res.text());
+  await refreshFavs();
+  render();
+}
+async function modalFav(run, tag, el) {
+  await toggleFav(run, tag);
+  el.textContent = isFav(run, tag) ? '★' : '☆';
+  el.classList.toggle('fav', isFav(run, tag));
+}
+function favCard(f) {
+  const c = f.candidate || { id: f.tag, status: 'saved' };
+  const live = !!DATA[f.run];
+  const imgs = (f.imgs || []).filter(i => i.startsWith(f.tag + '_bind_')).slice(0, 4);
+  return `<div class="card">
+    <span class="star fav" title="remove favorite"
+      onclick="event.stopPropagation();toggleFav('${esc(f.run)}','${esc(f.tag)}')">★</span>
+    <span class="tag">${esc(f.tag)}</span>${scoreline(c)}
+    <div class="muted" style="font-size:.8em">${esc(f.run)} · saved ${fmtTime(f.saved)}</div>
+    <div class="tiles">` +
+    imgs.map(i => `<img loading="lazy" src="/savimg/${esc(f._key)}/${esc(i)}"
+                     onerror="this.remove()">`).join('') + `</div>` +
+    (live
+      ? `<a class="viewbtn" href="/view/${esc(f.run)}/${encodeURIComponent(f.tag)}"
+           target="_blank" onclick="event.stopPropagation()">viewer</a>`
+      : `<span class="muted" style="font-size:.75em">run offline — models kept in
+           saves/${esc(f._key)}</span>`) +
+    `</div>`;
+}
 
 // per-run fraction-range filter; survives the 5s refresh because render()
 // repaints the inputs from this map
@@ -305,7 +434,10 @@ function paramline(c) {
 function card(run, c, best) {
   const rej = c.fitness === null || c.fitness === undefined;
   const cls = 'card' + (c.id === best ? ' best' : '') + (rej ? ' rej' : '');
+  const fav = isFav(run, c.id);
   return `<div class="${cls}" onclick="openModal('${run}','${esc(c.id)}')">
+    <span class="star${fav ? ' fav' : ''}" title="save to favorites"
+      onclick="event.stopPropagation();toggleFav('${run}','${esc(c.id)}')">${fav ? '★' : '☆'}</span>
     <span class="tag">${esc(c.id)}</span>${scoreline(c)}
     <div class="muted" style="font-size:.8em">${paramline(c)}</div>
     ${tiles(run, c.id, 4)}</div>`;
@@ -506,15 +638,57 @@ latestBox.onchange = () => {
 };
 function visibleRuns() {
   const entries = Object.entries(DATA);
-  if (!latestBox.checked) return entries;
-  const live = entries.filter(([, doc]) => doc);
-  if (!live.length) return entries;
-  const t = ([, doc]) => (doc._meta || {}).started || (doc._meta || {}).updated || 0;
-  return [live.reduce((a, b) => t(b) > t(a) ? b : a)];
+  if (latestBox.checked) {
+    const live = entries.filter(([, doc]) => doc);
+    if (!live.length) return entries;
+    const t = ([, doc]) => (doc._meta || {}).started || (doc._meta || {}).updated || 0;
+    return [live.reduce((a, b) => t(b) > t(a) ? b : a)];
+  }
+  return entries.filter(([name]) => runShown(name));
+}
+
+// run filter chips in the sticky banner; null selection = everything visible.
+// New runs appearing later default to shown. Survives reloads.
+let RUNSEL = null;
+try { RUNSEL = JSON.parse(localStorage.getItem('osrsifyRunSel') || 'null'); }
+catch (e) {}
+function runShown(name) {
+  return RUNSEL === null || RUNSEL[name] !== false;
+}
+function toggleRun(name) {
+  if (RUNSEL === null) RUNSEL = {};
+  RUNSEL[name] = !runShown(name);
+  localStorage.setItem('osrsifyRunSel', JSON.stringify(RUNSEL));
+  render();
+}
+function renderRunBar() {
+  const names = Object.keys(DATA).sort();
+  document.getElementById('runchips').innerHTML = names.map(n => {
+    const doc = DATA[n];
+    const meta = (doc && doc._meta) || {};
+    const cands = ((doc && doc.candidates) || []).length;
+    const age = doc ? Date.now() / 1000 - (meta.updated || 0) : Infinity;
+    const st = !doc ? ['off', 'no results.json yet']
+      : age < 180 ? ['live', `live — updated ${Math.max(0, Math.round(age))}s ago`]
+      : age < 900 ? ['stale', `quiet — last update ${Math.round(age / 60)}m ago`]
+      : ['idle', `idle — last update ${fmtTime(meta.updated)}`];
+    const tip = st[1] +
+      (doc && doc.best && doc.best.id ? ` · best ${doc.best.id}` : '') +
+      (meta.started ? ` · started ${fmtTime(meta.started)}` : '');
+    return `<span class="chip${runShown(n) && !latestBox.checked ? ' on' : ''}"
+       title="${esc(tip)}" onclick="toggleRun('${esc(n)}')"><span
+       class="dot ${st[0]}"></span>${esc(n)}<span class="cnt">${cands}</span></span>`;
+  }).join('');
 }
 
 function render() {
+  renderRunBar();
   let h = '';
+  if (FAVS.length) {
+    h += `<h2>favorites <span class="muted" style="font-size:.75em">
+            ~/Documents/osrsify/saves</span></h2>
+          <div class="row">` + FAVS.map(favCard).join('') + `</div>`;
+  }
   for (const [run, doc] of visibleRuns()) {
     if (!doc) { h += `<h2>${esc(run)}</h2><p class="muted">no results.json yet</p>`; continue; }
     const all = doc.candidates || [], best = doc.best && doc.best.id;
@@ -583,7 +757,9 @@ async function openModal(run, tag) {
   let h = `<span class="close" onclick="closeModal()">✕</span>
     <h2><span class="tag">${esc(tag)}</span> ${scoreline(c)}
       <a class="viewbtn" href="/view/${run}/${encodeURIComponent(tag)}"
-         target="_blank" onclick="event.stopPropagation()">Open in viewer</a></h2>
+         target="_blank" onclick="event.stopPropagation()">Open in viewer</a>
+      <span class="star${isFav(run, tag) ? ' fav' : ''}" title="save to favorites"
+        onclick="modalFav('${run}','${esc(tag)}',this)">${isFav(run, tag) ? '★' : '☆'}</span></h2>
     <div class="muted">${paramline(c)}</div>
     <h3>bind render (style + identity judges)</h3><div>` +
     bind.map(f => `<img src="/img/${run}/work/${f}">`).join('') + `</div>`;
@@ -671,6 +847,7 @@ document.addEventListener('keydown', e => {
 async function tick() {
   try {
     DATA = await (await fetch('/data')).json();
+    await refreshFavs();
     // don't repaint under an open detail view or while a filter is being typed
     const ae = document.activeElement;
     if (document.getElementById('modal').style.display !== 'block' &&
@@ -999,6 +1176,15 @@ class Handler(BaseHTTPRequestHandler):
                     out[name]["_meta"] = run_meta(name, out[name])
                     stamp_candidates(name, out[name])
             return self.send(200, "application/json", json.dumps(out).encode())
+        if path == "/favs":
+            return self.send(200, "application/json",
+                             json.dumps(list_favs()).encode())
+        m = re.match(r"^/savimg/([^/]+)/([^/]+)$", path)
+        if m and safe_tag(m.group(1)) and safe_tag(m.group(2)):
+            full = os.path.join(SAVES, m.group(1), m.group(2))
+            if os.path.isfile(full) and full.lower().endswith(".png"):
+                with open(full, "rb") as f:
+                    return self.send(200, "image/png", f.read())
         m = re.match(r"^/files/([^/]+)$", path)
         if m and m.group(1) in RUNS:
             prefix = parse_qs(url.query).get("prefix", [""])[0]
@@ -1060,6 +1246,26 @@ class Handler(BaseHTTPRequestHandler):
                                  ("wire build failed: %s" % err).encode())
             with open(out, "rb") as f:
                 return self.send(200, "application/octet-stream", f.read())
+        self.send(404, "text/plain", b"not found")
+
+    def do_POST(self):
+        path = urlparse(unquote(self.path)).path
+        m = re.match(r"^/fav/([^/]+)/(.+)$", path)
+        if m and m.group(1) in RUNS and safe_tag(m.group(2)):
+            try:
+                meta = save_fav(m.group(1), m.group(2))
+            except (OSError, ValueError) as e:
+                return self.send(500, "text/plain; charset=utf-8",
+                                 ("save failed: %s" % e).encode())
+            return self.send(200, "application/json",
+                             json.dumps(meta).encode())
+        m = re.match(r"^/unfav/([^/]+)$", path)
+        if m and safe_tag(m.group(1)):
+            d = os.path.join(SAVES, m.group(1))
+            # only remove what save_fav wrote: a folder with its meta.json
+            if os.path.isfile(os.path.join(d, "meta.json")):
+                shutil.rmtree(d, ignore_errors=True)
+                return self.send(200, "application/json", b"{}")
         self.send(404, "text/plain", b"not found")
 
 
