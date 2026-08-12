@@ -603,8 +603,16 @@ mock230_combat_hit_npc(
      * Charging a full attackrate here left attacker and defender permanently
      * co-phased: PLAYER_INFO and NPC_INFO carried their damage masks on the
      * same tick, every attackrate ticks, for the whole fight. Halving it once
-     * on the opening hit is what staggers the two cadences apart. */
-    if( npc->combat_target < 0 )
+     * on the opening hit is what staggers the two cadences apart.
+     *
+     * `retaliate=no` opts out, and the opt-out belongs here rather than in a
+     * mode or a hunt setting: `combat_target` is what the npc phase reads to
+     * decide that combat owns this npc's movement, so a latch taken here is
+     * already the npc leaving whatever it was doing. Scenery with hitpoints —
+     * the Inferno's Ancestral Glyph, which walks a fixed row while the adds
+     * chew on it for the whole Zuk phase — needs the hit, the splat and the
+     * flinch below, and none of this. */
+    if( npc->combat_target < 0 && npc_def(npc)->retaliate )
     {
         npc->combat_target = srv->active_player ? srv->active_player->pid : 0;
         npc->attack_clock = npc_def(npc)->attackrate / 2;
@@ -618,6 +626,10 @@ mock230_combat_hit_npc(
      * turn to face *them*. The masks never needed to be per-observer — the id
      * already is absolute (32768 + pool slot, as in `setFaceEntity`), and
      * `combat_target` is that pid, set four lines up.
+     *
+     * Guarded on there being one: a `retaliate=no` npc has no target to face,
+     * and turning it toward pid -1 would be the same visible wrong as the
+     * latch it just declined.
      */
     mock230_npc_face_player(npc, npc->combat_target);
     /* Flinch. Overwritten below if this was the killing blow. */

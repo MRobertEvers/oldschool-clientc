@@ -13347,6 +13347,111 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: a talking npc holds still until you walk away\n");
+    {
+        /*
+         * The one behaviour that makes conversation work, and it is content's:
+         * `~chatnpc` hands the speaker a standing `playerfaceclose` mode, and
+         * that mode calls no mover. Without it a wanderer or a patroller keeps
+         * its route while you read, so every page after the first is delivered
+         * by somebody walking out of the conversation.
+         *
+         * Hans is the subject on purpose. He is `defaultmode=patrol` with a
+         * ten-point route round the castle, so "did not move for thirty ticks"
+         * is a claim only the hold can satisfy — a wanderer would have made it
+         * on a run of unlucky dice.
+         *
+         * Both halves are asserted because each fails on its own. A hold that
+         * never releases is not a fix, it is Hans frozen for the rest of the
+         * session; walking away is what ends it, and nothing else does — not
+         * closing the dialogue, not the script finishing.
+         */
+        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int hans_type = mock230_content_symbol(MOCK230_PACK_NPC, "hans");
+            int hans;
+
+            selftest_reset_world(&srv, player, 402, 402);
+            SELFTEST_CHECK(hans_type > 0, "npc hans should resolve by name");
+            hans = selftest_find_npc(&srv, hans_type);
+            SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
+            if( hans >= 0 )
+            {
+                struct Mock230Npc* npc = &srv.npcs[hans];
+                int held_x;
+                int held_z;
+                int moved = 0;
+
+                SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_PATROL,
+                               "Hans should start out patrolling, got mode %d", npc->mode);
+
+                /* Beside him, which is where a conversation happens. The
+                 * trigger is run directly rather than walked to: the approach
+                 * is a different test's subject and Hans is a moving target. */
+                selftest_park_player(&srv, npc->x + 1, npc->z);
+                SELFTEST_CHECK(
+                    mock230_scripts_run_trigger(
+                        &srv, SS_TRIGGER_OPNPC1, hans_type, -1, hans) == MOCK230_TRIGGER_RAN,
+                    "[opnpc1,hans] should run");
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "Hans's greeting should park on chatnpc");
+                SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_PLAYERFACECLOSE,
+                               "~chatnpc must hand the speaker playerfaceclose, got mode %d",
+                               npc->mode);
+                SELFTEST_CHECK(npc->mode_target_pid == player->pid &&
+                                   npc->mode_target_gen == player->login_generation,
+                               "and aim the mode at the player it is talking to, got pid %d",
+                               npc->mode_target_pid);
+
+                held_x = npc->x;
+                held_z = npc->z;
+                for( int i = 0; i < 30 && !moved; i++ )
+                {
+                    mock230_world_tick(&srv);
+                    if( npc->x != held_x || npc->z != held_z )
+                        moved = 1;
+                }
+                SELFTEST_CHECK(!moved,
+                               "a patrolling npc mid-conversation must hold its tile "
+                               "(walked %d,%d -> %d,%d)",
+                               held_x, held_z, npc->x, npc->z);
+                SELFTEST_CHECK(npc->turnspeed == 0 ||
+                                   npc->face_entity == MOCK230_FACE_PLAYER_BASE + player->pid,
+                               "and must latch its facing onto that player, got %d",
+                               npc->face_entity);
+
+                /* Walking away releases it — the reference's `resetDefaults()`
+                 * on the one-tile clause, and the only exit this mode has. */
+                selftest_park_player(&srv, held_x + 4, held_z + 4);
+                mock230_world_tick(&srv);
+                SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_PATROL,
+                               "leaving must release the hold back to patrol, got mode %d",
+                               npc->mode);
+                SELFTEST_CHECK(npc->mode_target_gen == 0,
+                               "and drop the target with the mode");
+
+                moved = 0;
+                for( int i = 0; i < 30 && !moved; i++ )
+                {
+                    mock230_world_tick(&srv);
+                    if( npc->x != held_x || npc->z != held_z )
+                        moved = 1;
+                }
+                SELFTEST_CHECK(moved, "and the released npc must resume its patrol");
+            }
+            mock230_scripts_free(&srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: joe prequest dialogue arms ACTIVE_NPC\n");
     {
         static struct Mock230Capture capture;
@@ -27883,19 +27988,17 @@ mock230_world_selftest(void)
              * And the Ancestral Glyph never leaves its row.
              *
              * `moverestrict=nomove` is not available to it — walking that row
-             * IS the glyph — so the thing that has to hold is that being hit
-             * never gives it a combat target. The adds chew on it for the whole
-             * Zuk phase, and `mock230_combat_hit_npc` retaliates for any npc
-             * that is hit whatever its hunt mode says, so without content
-             * clearing the latch the glyph stopped on the first hit and turned
-             * on whoever the engine had picked. The npc phase hands movement to
-             * combat while a target is live, so a live target is exactly the
-             * same thing as the glyph being off its track.
+             * IS the glyph — so what has to hold is that being hit never gives
+             * it a target. `combat_target` is the flag the npc phase reads to
+             * decide combat owns an npc's movement, so a latch is the same
+             * thing as the glyph being off its track, and `retaliate=no` on the
+             * record is what declines it.
              *
-             * Damage it the way the adds do — the queue its [ai_queue2] binds —
-             * rather than by writing `combat_target` directly, so this covers
-             * the path that actually broke and would go red if the
-             * `npc_setmode(none)` in that handler were removed.
+             * Driven through `mock230_combat_hit_npc`, which is the one place
+             * the latch is taken and the path every source of damage reaches —
+             * the adds' `npc_queue(2,...)`, the player's swing and a poison
+             * tick all land here. Removing `retaliate=no` from the record turns
+             * both checks below red.
              */
             {
                 int glyph_slot = selftest_find_npc(&srv, glyph_type);
@@ -27905,28 +28008,42 @@ mock230_world_selftest(void)
                 if( glyph_slot >= 0 )
                 {
                     struct Mock230Npc* glyph = &srv.npcs[glyph_slot];
+                    int const splat = mock230_content_symbol(MOCK230_PACK_HITSPLAT,
+                                                             "hitsplat_damage");
                     int row_z = glyph->z;
-                    int strayed = 0;
                     int targeted = 0;
+                    int strayed = 0;
+                    int hp_before = glyph->hitpoints;
+                    int splatted = 0;
 
                     for( int tick = 0; tick < 8; tick++ )
                     {
-                        mock230_combat_hit_npc(
-                            &srv, glyph_slot,
-                            mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage"),
-                            1);
+                        mock230_combat_hit_npc(&srv, glyph_slot, splat, 1);
+                        splatted |= (glyph->masks & MOCK230_NMASK_DAMAGE) != 0;
+                        targeted |= glyph->combat_target >= 0;
                         mock230_world_tick(&srv);
                         targeted |= glyph->combat_target >= 0;
                         strayed |= glyph->z != row_z;
                     }
                     SELFTEST_CHECK(!targeted,
-                                   "the glyph must never hold a combat target; being hit is "
-                                   "the only thing that happens to it");
+                                   "the glyph must never take a combat target from being "
+                                   "hit; got %d",
+                                   glyph->combat_target);
                     SELFTEST_CHECK(!strayed,
-                                   "the glyph must never leave its row; it left z=%d for %d",
-                                   row_z, glyph->z);
+                                   "the glyph must never leave its row; it left z=%d",
+                                   row_z);
+                    /* Declining to retaliate is not declining to be hurt: the
+                     * damage, the splat and the flinch all still have to land,
+                     * or `retaliate=no` would be indistinguishable from the
+                     * glyph being invulnerable. */
+                    SELFTEST_CHECK(splatted,
+                                   "the glyph must still show a hitsplat when it is hit");
+                    SELFTEST_CHECK(glyph->hitpoints == hp_before - 8,
+                                   "and still take the damage; %d -> %d over 8 hits",
+                                   hp_before, glyph->hitpoints);
                 }
             }
+
         }
         mock230_scripts_free(&srv);
     }

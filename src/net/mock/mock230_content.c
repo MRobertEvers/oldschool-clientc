@@ -1410,6 +1410,10 @@ npc_config_key(
      * anything else means yes. */
     else if( strcmp(key, "givechase") == 0 )
         def->givechase = strcmp(value, "no") != 0;
+    /* Same shape as givechase above, and for the same reason: the negative is
+     * the only case worth stating, so anything but `no` means yes. */
+    else if( strcmp(key, "retaliate") == 0 )
+        def->retaliate = strcmp(value, "no") != 0;
     else if( strcmp(key, "blockwalk") == 0 )
     {
         /* LostCity BlockWalk: none / npc / all / player (NpcConfig also accepts
@@ -3331,6 +3335,8 @@ init_defaults(void)
     g_npc_default.wanderrange = 5;
     g_npc_default.maxrange = 7;
     g_npc_default.givechase = 1;
+    /* Everything fights back unless it says otherwise. */
+    g_npc_default.retaliate = 1;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
     g_npc_default.blockwalk = 1;
     g_npc_default.blocksight = 0;

@@ -2073,6 +2073,12 @@ mock230_npc_face_player(
 {
     int id = MOCK230_FACE_PLAYER_BASE + pid;
 
+    /* No target, nothing to face. A `retaliate=no` npc reaches the combat
+     * facing site with `combat_target` still -1, and `BASE + -1` is a latch
+     * naming a player that does not exist. */
+    if( pid < 0 )
+        return;
+
     /* `turnspeed = 0` means the record never turns, so there is nothing for a
      * facing latch to do. Gated at the seam rather than at the five callers:
      * every one of them is some flavour of "a mode is holding this player as a
