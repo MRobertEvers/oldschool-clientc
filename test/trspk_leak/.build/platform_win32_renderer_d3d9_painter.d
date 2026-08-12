@@ -1,6 +1,7 @@
-.build/trspk_leak_test.o: trspk_leak_test.c \
+.build/platform_win32_renderer_d3d9_painter.o: \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/platform/platform_win32_renderer_d3d9_painter.c \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/test/trspk_leak/retained_alloc_tracker.h \
- retained_alloc_tracker.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/platform/platform_win32_renderer_d3d9_core.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/platform/platform_win32_renderer_d3d9.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/torirs_pick.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/torirs_render.h \
@@ -26,10 +27,30 @@
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_font.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_sprite.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_types.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_atlas.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_flags.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_batch16.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_triangles.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vbo.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_indices.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vertex.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/opengl3/opengl3_vertex.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/webgl1/webgl1_vertex.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/d3d9/d3d9_vertex.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_drawrangelist.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_ibo.h \
- C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_indices.h
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_modelarena.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vbochain16.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_pose.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_triangles.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vbo.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/torirs_frame.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/trspk_toridraw.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_uv_pnm.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_model.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_scene.h
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/test/trspk_leak/retained_alloc_tracker.h:
-retained_alloc_tracker.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/platform/platform_win32_renderer_d3d9_core.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/platform/platform_win32_renderer_d3d9.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/torirs_pick.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/torirs_render.h:
@@ -55,5 +76,25 @@ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_vec.h
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_font.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_sprite.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_types.h:
-C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_ibo.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_atlas.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_flags.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_batch16.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_triangles.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vbo.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_indices.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vertex.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/opengl3/opengl3_vertex.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/webgl1/webgl1_vertex.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/d3d9/d3d9_vertex.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_drawrangelist.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_ibo.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_modelarena.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vbochain16.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_pose.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_triangles.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_vbo.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/torirs_frame.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/src/render/trspk_toridraw.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/trspk/core/trspk_uv_pnm.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_model.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_scene.h:

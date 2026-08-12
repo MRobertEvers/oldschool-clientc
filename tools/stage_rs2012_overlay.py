@@ -396,6 +396,122 @@ def merge_base_placements(tree: Path, lane: Path, out: Path) -> int:
     return copied
 
 
+def split_index(path: Path) -> tuple[list[str], list[str]]:
+    """Split a pack index into its leading comment block and its data rows."""
+
+    preamble: list[str] = []
+    rows: list[str] = []
+    for raw in path.read_text().splitlines():
+        line = raw.split("//", 1)[0].split("#", 1)[0].split(";", 1)[0].strip()
+        if not line:
+            # Documentation only counts as a preamble until the first real row;
+            # blank lines between rows are formatting and are not preserved.
+            if not rows:
+                preamble.append(raw)
+            continue
+        rows.append(line)
+    return preamble, rows
+
+
+def merge_index_rows(label: str, base_rows: list[str], lane_rows: list[str]) -> list[str]:
+    """Union two pack indexes, refusing any row the two disagree about.
+
+    Both `id=name` indexes and bare name lists occur. The lane allocates from
+    reserved ranges (models 110000+, locs 63000+, sprites 8535+), so a genuine
+    id or name conflict is an allocation bug rather than something to resolve
+    here. What does legitimately repeat is a row the two state *identically* —
+    the three TD route squares that already exist in OSRS239, `texture_0`, and a
+    couple of ids the lane registered into base allocation tables — and those
+    de-duplicate to one row.
+    """
+
+    keyed = [row for row in (*base_rows, *lane_rows) if "=" in row]
+    if keyed and len(keyed) != len(base_rows) + len(lane_rows):
+        raise fail(f"{label}: index mixes id=name rows with bare names")
+
+    if not keyed:
+        merged: list[str] = []
+        for row in (*base_rows, *lane_rows):
+            if row not in merged:
+                merged.append(row)
+        return merged
+
+    names: dict[int, str] = {}
+    reverse: dict[str, int] = {}
+    for row in keyed:
+        ident_text, name = row.split("=", 1)
+        try:
+            ident = int(ident_text)
+        except ValueError as exc:
+            raise fail(f"{label}: non-numeric member id in {row!r}") from exc
+        name = name.strip()
+        if names.get(ident, name) != name:
+            raise fail(
+                f"{label}: id {ident} is '{names[ident]}' in the base tree and "
+                f"'{name}' in the lane"
+            )
+        if reverse.get(name, ident) != ident:
+            raise fail(
+                f"{label}: name '{name}' is id {reverse[name]} in the base tree "
+                f"and id {ident} in the lane"
+            )
+        names[ident] = name
+        reverse[name] = ident
+    return [f"{ident}={names[ident]}" for ident in sorted(names)]
+
+
+def merge_pack_indexes(tree: Path, out: Path) -> int:
+    """Union the base pack indexes into the staged lane ones, for a full stage.
+
+    Overlay staging leaves `out/pack` holding the lane's indexes alone, because
+    `cachepack pack --base` resolves every archive the lane does not name from
+    the base cache. A full stage has no base to fall back on, so each index has
+    to list the base tree's members too or the cache loses everything the lane
+    did not import.
+    """
+
+    base_pack = tree / "pack"
+    if not base_pack.is_dir():
+        raise fail(f"no base pack indexes under {base_pack}")
+    created = 0
+    for source in sorted(ensure_plain_tree(base_pack, "base pack index")):
+        destination = out / "pack" / source.relative_to(base_pack)
+        if not destination.exists():
+            copy_file(source, destination)
+            created += 1
+            continue
+        preamble, base_rows = split_index(source)
+        _, lane_rows = split_index(destination)
+        rows = merge_index_rows(source.name, base_rows, lane_rows)
+        destination.write_text("\n".join((*preamble, *rows)).rstrip("\n") + "\n")
+    return created
+
+
+def copy_base_content(tree: Path, out: Path) -> int:
+    """Add every base content path a full (no-base) stage must supply itself.
+
+    Runs after the lane pass, and never overwrites: whatever the lane staged --
+    including the merged texture archive, the retained map members and the
+    rewritten map pack -- stays authoritative, and this only fills in what the
+    base cache would otherwise have supplied.
+    """
+
+    copied = 0
+    for source in sorted(ensure_plain_tree(tree, "content tree")):
+        relative = source.relative_to(tree)
+        # `ported` is every marked lane, staged deliberately or not at all --
+        # this one by the pass above, the others because they are separate
+        # features. `pack` is unioned by merge_pack_indexes rather than copied.
+        if "ported" in relative.parts or relative.parts[0] == "pack":
+            continue
+        destination = out / relative
+        if destination.exists():
+            continue
+        copy_file(source, destination)
+        copied += 1
+    return copied
+
+
 def base_conflict_fingerprints(tree: Path, lane: Path) -> dict[Path, str]:
     """Hash base files whose staged destination has the same relative path."""
 
@@ -434,7 +550,7 @@ def reset_output(tree: Path, out: Path) -> None:
     out.mkdir(parents=True)
 
 
-def stage(tree: Path, out: Path) -> int:
+def stage(tree: Path, out: Path, full: bool = False) -> int:
     tree = tree.resolve()
     out = out.resolve()
     lane = tree / LANE
@@ -503,6 +619,12 @@ def stage(tree: Path, out: Path) -> int:
     # historical member generated above.
     copied += merge_base_placements(tree, lane, out)
 
+    # Everything above is the lane and is identical in both modes. A full stage
+    # then adds the base tree behind it, so the pack needs no --base cache.
+    if full:
+        copied += merge_pack_indexes(tree, out)
+        copied += copy_base_content(tree, out)
+
     # Staging is an overlay into a disposable output. Hold that safety property
     # to bytes for every base path shadowed by the lane, especially the three TD
     # route squares also present in OSRS239.
@@ -515,7 +637,8 @@ def stage(tree: Path, out: Path) -> int:
         raise fail(
             f"file accounting mismatch: counted {copied}, materialized {physical}"
         )
-    print(f"stage_rs2012_overlay: staged {copied} files in {out}")
+    mode = "full" if full else "overlay"
+    print(f"stage_rs2012_overlay: staged {copied} files in {out} ({mode})")
     return 0
 
 
@@ -523,10 +646,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tree", type=Path, default=DEFAULT_TREE)
     parser.add_argument("--out", type=Path, required=True,
-                        help="directory to replace with the sparse overlay")
+                        help="directory to replace with the staged tree")
+    parser.add_argument("--full", action="store_true",
+                        help="also stage the base tree behind the lane, so the "
+                             "result packs into a complete cache without a "
+                             "--base cache to fall back on")
     args = parser.parse_args()
     try:
-        return stage(args.tree, args.out)
+        return stage(args.tree, args.out, full=args.full)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 1

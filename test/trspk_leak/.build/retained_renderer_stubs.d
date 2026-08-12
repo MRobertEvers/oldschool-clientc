@@ -10,6 +10,8 @@
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_light_model.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_types.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/projection.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/shared_tables.h \
+ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/zdepth.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_intrusive_list.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_lighting.h \
  C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_map.h \
@@ -35,6 +37,8 @@ C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/share
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_light_model.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_types.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/projection.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/shared_tables.h:
+C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/graphics/zdepth.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_intrusive_list.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_lighting.h:
 C:/Users/mrobe/Documents/git_repos/oldschool-clientc/3rd/toridraw/toridraw_map.h:
