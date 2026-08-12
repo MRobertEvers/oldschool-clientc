@@ -687,7 +687,7 @@ mock230_combat_hit_npc(
          * because a mode left armed for the tick between the blow and the death
          * script is a tick of a corpse chasing somebody.
          */
-        npc->mode = mock230_world_npc_default_mode(npc);
+        mock230_npc_reset_defaults(npc);
         for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
@@ -1515,7 +1515,7 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
          * Content that wants any of it back gets it back: `spawn_pending` below
          * re-runs `[ai_spawn]`, which is where those overrides are set.
          */
-        npc->mode = mock230_world_npc_default_mode(npc);
+        mock230_npc_reset_defaults(npc);
         npc->huntmode = npc_def(npc)->huntmode;
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */

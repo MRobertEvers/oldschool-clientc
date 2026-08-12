@@ -4251,6 +4251,31 @@ mock230_script_command(
         }
         if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL )
             npc->step_dir = -1;
+        /*
+         * A targeted mode also NAMES ITS TARGET. `NpcOps.NPC_SETMODE` ends with
+         * `setInteraction(Interaction.SCRIPT, state._activePlayer, mode)` for
+         * every mode from `playerescape` up, and `resetDefaults()` when there
+         * is no active entity to target.
+         *
+         * Storing only the mode number left phase 4 to guess who the mode was
+         * about, and its guess was `srv->active_player` — which in a phase that
+         * belongs to no player is whoever was last served. `~chatnpc` sets
+         * `playerfaceclose` on the npc you are talking to; with a second player
+         * logged in, the npc measured that mode's one-tile leash against the
+         * wrong person, decided its partner had walked off, and went back to
+         * wandering away mid-sentence.
+         */
+        if( mode >= MOCK230_NPCMODE_PLAYERESCAPE )
+        {
+            if( player && player->active )
+                mock230_npc_set_mode_target(npc, player);
+            else
+                mock230_npc_reset_defaults(npc);
+        }
+        else
+        {
+            mock230_npc_set_mode_target(npc, NULL);
+        }
         return 1;
     }
 

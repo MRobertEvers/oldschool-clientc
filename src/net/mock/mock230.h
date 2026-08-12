@@ -1705,6 +1705,25 @@ struct Mock230Npc
      *  a familiar to whoever logged into the vacated slot. */
     int owner_pid;
     uint32_t owner_gen;
+    /**
+     * The player a player-facing `mode` is being held against — the reference's
+     * `PathingEntity.target`, narrowed to the only kind of target this mode
+     * field can carry.
+     *
+     * `mode_target_gen == 0` is unbound, same convention as `owner_gen` and for
+     * the same reason: pid 0 is a real player, so the generation is what makes
+     * a recycled slot fail closed rather than silently re-aiming a standing
+     * mode at whoever logged into it.
+     *
+     * Without this the mode machine asked `srv->active_player` whose turn it
+     * was, in a phase where it is nobody's. With one player that reads
+     * correctly by accident; with two, an npc mid-conversation with player A
+     * measures its range against player B, decides the conversation partner
+     * walked off, and resumes wandering away from the person reading its
+     * dialogue.
+     */
+    int mode_target_pid;
+    uint32_t mode_target_gen;
     /** Entity poison state. Source identity is generation-guarded so a
      * recycled player slot cannot receive credit for an old poison timer. */
     int poison_severity;
@@ -3746,6 +3765,43 @@ mock230_world_npc_died(
  */
 int
 mock230_world_npc_default_mode(const struct Mock230Npc* npc);
+
+/*
+ * `Npc.resetDefaults()` — stop whatever standing mode is running and go back to
+ * what this record does when nothing is being done to it.
+ *
+ * One function because the target has to be dropped with the mode. Leaving
+ * `mode_target_gen` set behind a `none`/`wander` mode is a dangling aim: the
+ * next `npc_setmode(playerface)` from a script with no active player would pick
+ * up the previous conversation's partner.
+ */
+static inline void
+mock230_npc_reset_defaults(struct Mock230Npc* npc)
+{
+    assert(npc);
+    npc->mode = mock230_world_npc_default_mode(npc);
+    npc->mode_target_pid = 0;
+    npc->mode_target_gen = 0;
+}
+
+/** Bind a player-facing mode to the player it is being held against. A NULL or
+ *  logged-out player unbinds, and the mode machine treats that as an invalid
+ *  target and resets. */
+static inline void
+mock230_npc_set_mode_target(
+    struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    assert(npc);
+    if( !player || !player->active )
+    {
+        npc->mode_target_pid = 0;
+        npc->mode_target_gen = 0;
+        return;
+    }
+    npc->mode_target_pid = player->pid;
+    npc->mode_target_gen = player->login_generation;
+}
 
 /** When a just-appeared npc may first consider roaming, staggered so a room
  *  spawned on one tick does not step in unison. Spawn and respawn both use it. */

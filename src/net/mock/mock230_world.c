@@ -2507,7 +2507,7 @@ npc_spawn(
         npc->follow_z = npc->last_step_z;
         npc->waypoint_index = -1;
         npc->stuck_counter = 0;
-        npc->mode = mock230_world_npc_default_mode(npc);
+        mock230_npc_reset_defaults(npc);
         npc->patrol_index = 0;
         npc->patrol_pause = 0;
         mock230_world_npc_roam_stagger(srv, npc);
@@ -2876,6 +2876,37 @@ npc_player_range(
 }
 
 /*
+ * Edge-to-edge Chebyshev, the reference's `CoordGrid.distanceTo` — the gap
+ * between the two FOOTPRINTS, not between their south-west corners.
+ *
+ * `npc_player_range` above measures corners, which for the size-1 npcs that
+ * dominate the roster is the same number. It is not the same number for
+ * anything bigger: a 3x3 npc standing shoulder to shoulder with the player is
+ * one tile away by this measure and three by the other. Modes that ask "is the
+ * player *beside* me" have to use this one or every large npc answers no while
+ * touching them.
+ */
+static int
+npc_player_distance(
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+    return dx > dz ? dx : dz;
+}
+
+/*
  * One step toward the player, for every player-facing npc mode including
  * `playerfollow`. Naive destination handles the perimeter, so the npc ends up
  * beside the player rather than on them.
@@ -2930,6 +2961,113 @@ mock230_world_npc_walk_to_approach(
 }
 
 /*
+ * The player a standing mode is being held against, or NULL.
+ *
+ * Three answers in priority order, and the order is the point:
+ *
+ *  1. An owned npc's owner. A familiar's modes are about its owner and nobody
+ *     else, and a stale owner fails closed rather than transferring.
+ *  2. The player `npc_setmode` named — the reference's `PathingEntity.target`.
+ *  3. `srv->active_player`, for a mode that arrived without a target: combat
+ *     sets `applayer2` directly, and the world spawner sets `playerface` on a
+ *     familiar before there is a script to name anybody.
+ *
+ * (3) was until now the *only* answer, which is how "the npc I am talking to
+ * wanders off" survived: phase 4 belongs to no player, so `active_player` is
+ * whoever happened to be served last, and every range test in the mode machine
+ * was measured against them.
+ */
+static struct Mock230Player*
+npc_mode_player(
+    struct Mock230Server* srv,
+    const struct Mock230Npc* npc)
+{
+    if( npc->owner_gen != 0 )
+        return mock230_world_npc_owner(srv, npc);
+    if( npc->mode_target_gen != 0 )
+    {
+        struct Mock230Player* player;
+
+        if( npc->mode_target_pid < 0 || npc->mode_target_pid >= MOCK230_PLAYER_MAX )
+            return NULL;
+        player = &srv->players[npc->mode_target_pid];
+        if( !player->active || player->login_generation != npc->mode_target_gen )
+            return NULL;
+        return player;
+    }
+    return srv->active_player;
+}
+
+/*
+ * `Npc.validateTarget()` — is the player this standing mode is about still a
+ * player this standing mode can be about?
+ *
+ * The reference runs it before every targeted mode and calls `resetDefaults()`
+ * when it fails, which is the whole of "except under certain conditions": a
+ * held npc goes back to wandering when the player changes floor, when they
+ * walk past the record's `maxrange` leash from where the npc spawned, or when
+ * they stop existing. Nothing else releases it — a conversation does not end
+ * the mode, walking away does.
+ *
+ * Scoped to the standing modes (`playerescape` .. `playerfaceclose`). The
+ * `opplayer<n>`/`applayer<n>` errand modes clear themselves the tick they fire
+ * and the pursuit that uses them is already leashed by
+ * `mock230_combat.c:target_within_maxrange`; putting a second, subtly different
+ * leash in front of them would be two rules for one thing.
+ */
+static int
+npc_mode_target_valid(
+    const struct Mock230Npc* npc,
+    const struct Mock230Player* player)
+{
+    const struct Mock230NpcDef* def;
+    int maxrange;
+    int dx;
+    int dz;
+    int from_spawn;
+
+    assert(npc && player);
+    if( npc->mode < MOCK230_NPCMODE_PLAYERESCAPE || npc->mode > MOCK230_NPCMODE_PLAYERFACECLOSE )
+        return 1;
+    if( npc->level != player->level )
+        return 0;
+    /* `targetWithinMaxRange` returns true for `playerfollow` before it looks at
+     * anything: a familiar has to be able to follow its owner off the map
+     * square it was summoned on. */
+    if( npc->mode == MOCK230_NPCMODE_PLAYERFOLLOW )
+        return 1;
+
+    def = npc->def ? npc->def : mock230_content_npc_default();
+    maxrange = def->maxrange;
+    dx = player->x - npc->spawn_x;
+    dz = player->z - npc->spawn_z;
+    if( dx < 0 )
+        dx = -dx;
+    if( dz < 0 )
+        dz = -dz;
+    from_spawn = dx > dz ? dx : dz;
+
+    /* Escape has its own clause in the reference and it is not the general one:
+     * an npc fleeing is *supposed* to end up far from its spawn, so the mode
+     * survives until BOTH it and the player it is fleeing are past the leash.
+     * Using the general test here would cancel the flight the moment it worked. */
+    if( npc->mode == MOCK230_NPCMODE_PLAYERESCAPE )
+    {
+        int npc_dx = npc->x - npc->spawn_x;
+        int npc_dz = npc->z - npc->spawn_z;
+        int npc_from_spawn;
+
+        if( npc_dx < 0 )
+            npc_dx = -npc_dx;
+        if( npc_dz < 0 )
+            npc_dz = -npc_dz;
+        npc_from_spawn = npc_dx > npc_dz ? npc_dx : npc_dz;
+        return !(from_spawn > maxrange && npc_from_spawn > maxrange);
+    }
+    return from_spawn <= maxrange + 1;
+}
+
+/*
  * `npc_setmode`, once per tick per npc.
  *
  * 253 of the LostCity tree's `npc_setmode` calls name eleven modes and 162 of
@@ -2948,21 +3086,38 @@ npc_run_mode(
     struct Mock230Npc* npc,
     int slot)
 {
-    struct Mock230Player* player = srv->active_player;
+    struct Mock230Player* player;
     int range;
 
-    /* Owned npcs narrow every player-facing mode to the player they belong to.
-     * A stale owner fails closed; falling back to the current phase's player
-     * would transfer the familiar after logout or pid reuse. */
-    if( npc->owner_gen != 0 )
-        player = mock230_world_npc_owner(srv, npc);
-
-    if( !player || npc->mode == MOCK230_NPCMODE_NONE || npc->mode == MOCK230_NPCMODE_NULL )
+    /* The three targetless modes first, in the reference's own order, and
+     * before any player is resolved — `processMovementInteraction` dispatches
+     * none/wander/patrol without ever looking at a target. Requiring a player
+     * up here is why patrol used to stop dead in a world nobody is logged into,
+     * and why an npc holding a stale standing mode fell through to the roam
+     * instead of being reset by the gate below. */
+    if( npc->mode == MOCK230_NPCMODE_NONE || npc->mode == MOCK230_NPCMODE_NULL )
         return 0;
     if( npc->mode == MOCK230_NPCMODE_WANDER )
         return 0; /* The roam below is what wander means. */
 
-    range = npc_player_range(npc, player);
+    player = npc->mode == MOCK230_NPCMODE_PATROL ? NULL : npc_mode_player(srv, npc);
+
+    if( npc->mode != MOCK230_NPCMODE_PATROL )
+    {
+        /* No target, or one that no longer qualifies: back to the default mode,
+         * and no movement this tick — `resetDefaults(); return;` is where the
+         * reference's targeted dispatch ends. */
+        if( !player || !npc_mode_target_valid(npc, player) )
+        {
+            mock230_npc_reset_defaults(npc);
+            return 0;
+        }
+        range = npc_player_range(npc, player);
+    }
+    else
+    {
+        range = 0;
+    }
 
     /* Every player-facing mode faces the player; only some of them move.
      *
@@ -2970,12 +3125,11 @@ npc_run_mode(
      * naming it in the face id too costs nothing and makes the id mean the same
      * person on every observer's stream.
      *
-     * Which player it is, though, is still `srv->active_player`: this mode
-     * machine asks "whose turn is it" in a phase where it is nobody's, unlike
-     * `maybe_aggress`, which picks the nearest eligible victim. That is a
-     * separate defect (osrs230_mockserver.md §6.1) and this change only makes
-     * the id honest about the answer, not the answer right. */
-    if( npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
+     * Which player it is is now `npc_mode_player` — the owner, else the player
+     * `npc_setmode` named, else the phase's leftover `active_player`. Only the
+     * last of those three is a guess, and it is only reached by a mode nobody
+     * named a target for. */
+    if( player && npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
         mock230_npc_face_player(npc, player->pid);
 
     /*
@@ -3003,7 +3157,7 @@ npc_run_mode(
         }
         if( npc->stuck_counter >= 5 )
         {
-            npc->mode = mock230_world_npc_default_mode(npc);
+            mock230_npc_reset_defaults(npc);
             npc->stuck_counter = 0;
         }
         return 1;
@@ -3045,13 +3199,39 @@ npc_run_mode(
         return 1;
 
     case MOCK230_NPCMODE_PLAYERFACECLOSE:
-        if( range > 1 )
-            npc_walk_to_player(npc, player);
+        /*
+         * Face, and HOLD STILL. This is the mode `~chatnpc` puts a speaking npc
+         * into, and holding still is its entire job: a wanderer you start a
+         * conversation with must not stroll off to the next tile of its radius
+         * while the player is reading, and the npc you asked to bank must not
+         * drift out of the bank booth mid-transaction.
+         *
+         * `Npc.playerFaceCloseMode` calls no mover at all. This walked toward
+         * the player instead, which is a *different* mode — `playerfollow` —
+         * and had the npc shouldering onto the player's tile whenever the
+         * conversation started at range.
+         *
+         * More than a tile away and the mode is over: `resetDefaults()`, back
+         * to wandering or patrolling. That is how you leave — walking away from
+         * an npc releases it, and nothing else does. The distance is
+         * footprint-to-footprint, so a 3x3 npc counts as beside the player when
+         * it is touching them rather than three tiles out and instantly free.
+         */
+        if( npc_player_distance(npc, player) > 1 )
+            mock230_npc_reset_defaults(npc);
         return 1;
 
     case MOCK230_NPCMODE_PLAYERFACE:
-        /* Face only. The reference's `playerface` does not move the npc, which
-         * is the whole difference from `playerfaceclose`. */
+        /*
+         * Face only, and no distance clause — the difference from
+         * `playerfaceclose`, and the reason `~chatnpcrange` uses it: a
+         * conversation held across a fence or a counter would end on its first
+         * line under the one-tile rule.
+         *
+         * What ends it is `npc_mode_target_valid` above — the record's
+         * `maxrange` leash measured from the npc's spawn tile, a floor change,
+         * or the player going away.
+         */
         return 1;
 
     default:
@@ -27473,36 +27653,34 @@ mock230_world_selftest(void)
                            "got left=%d right=%d",
                            total_left_seq, total_right_seq);
             /*
-             * One black bind tick, then `^inferno_seal_bind_ticks` (6) of held
-             * shot: the ramp starts it and the flanks giving way end it. The
-             * script spends `bind - 2` on `p_delay` (which resumes at
-             * tick + 1 + n) and then one more zero-delay yield for the Zuk
-             * handoff, so the flanks animate seven ticks after the swap.
+             * `^inferno_seal_bind_ticks` (6) of black between the state2 swap
+             * and the tick Zuk takes the seal, then one zero-delay yield to the
+             * flanks: seven ticks from the swap to the LOC_ANIM. The script
+             * spends `bind - 1` on `p_delay`, which resumes at tick + 1 + n.
              *
-             * This said `+ 5`, with the fade and the glyph pinned to Zuk's own
+             * This said `+ 5` at one point, with the glyph pinned to Zuk's own
              * tick. That was not a measurement of the cutscene — it was this
              * fixture being re-fitted to a content regression that had moved
-             * the fade-in to the far side of the collapse and the middle slab
-             * to the far side of the fade. Pinned to the design here so the
-             * fixture fails if that happens again.
+             * the middle slab five ticks early. Pinned to the design here so
+             * the fixture fails if that happens again.
              */
             SELFTEST_CHECK(change_tick >= 0 && anim_tick == change_tick + 7,
-                           "the flank collapse should end the bind tick plus the held shot; "
+                           "the flank collapse should follow the black hold plus the handoff; "
                            "got change=%d anim=%d",
                            change_tick, anim_tick);
             /*
-             * The gap is the whole point of it. The client parks
-             * LOC_ADD_CHANGE in a pending queue and applies it a cycle late, so
-             * starting the ramp on the swap tick means the substitution is
-             * drawn with the overlay already clearing — measured at 60% lit
-             * with a 50-cycle ramp and 25% with the 120 it uses now. Holding
-             * one fully-black tick first binds it where no brightness exists to
-             * show it at all.
+             * Three things share the handoff tick and this is one of them: the
+             * slab leaves, Zuk arrives holding its shape in the opening pose of
+             * `zuk_spawn`, and the ramp starts. So the first frame the player
+             * is shown is the complete seal with the substitution already made
+             * — everything that could give it away happened while the screen
+             * was black. `mid_removal_tick == zuk_tick` below is the other half
+             * of the same statement.
              */
-            SELFTEST_CHECK(fade_in_tick == change_tick + 1,
-                           "the swap must bind under one whole black tick before the ramp "
-                           "starts; got fade=%d change=%d",
-                           fade_in_tick, change_tick);
+            SELFTEST_CHECK(fade_in_tick >= 0 && fade_in_tick == zuk_tick,
+                           "the ramp must start on the tick Zuk takes the seal; "
+                           "got fade=%d zuk=%d",
+                           fade_in_tick, zuk_tick);
             /* The glyph is not on the cutscene's thread: it is added with
              * `npc_settimer(1)` and walks itself out of `[ai_timer]` once
              * `%inferno_glyph_stopped` passes `^inferno_glyph_drop_delay` (3),
@@ -27526,9 +27704,16 @@ mock230_world_selftest(void)
                            "state2 removal and state3 replacement must be atomic; "
                            "got removal=%d rocks=%d",
                            removal_tick, rocks_tick);
+            /* The camera returns to the player on the instant the fall ends —
+             * the same tick the 180-cycle sequences run out, which is also the
+             * tick the state3 rubble replaces them and the tick `zuk_spawn`
+             * finishes. One frame, four things landing together. */
+            SELFTEST_CHECK(anim_tick >= 0 && cam_reset_tick == anim_tick + 6,
+                           "the Zuk camera must cut back as the 180-cycle fall ends; "
+                           "got camera=%d anim=%d",
+                           cam_reset_tick, anim_tick);
             SELFTEST_CHECK(cam_reset_tick == rocks_tick,
-                           "the Zuk camera must cut back on the state3 replacement tick; "
-                           "got camera=%d rocks=%d",
+                           "and on the state3 replacement tick; got camera=%d rocks=%d",
                            cam_reset_tick, rocks_tick);
             {
                 int west_slot = mock230_scene_find_loc_id(
@@ -27693,6 +27878,55 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(!player->rebuild_scene_pending,
                            "a same-coordinate instance rebuild must not wait for an "
                            "acknowledgement the rev239 client does not send");
+
+            /*
+             * And the Ancestral Glyph never leaves its row.
+             *
+             * `moverestrict=nomove` is not available to it — walking that row
+             * IS the glyph — so the thing that has to hold is that being hit
+             * never gives it a combat target. The adds chew on it for the whole
+             * Zuk phase, and `mock230_combat_hit_npc` retaliates for any npc
+             * that is hit whatever its hunt mode says, so without content
+             * clearing the latch the glyph stopped on the first hit and turned
+             * on whoever the engine had picked. The npc phase hands movement to
+             * combat while a target is live, so a live target is exactly the
+             * same thing as the glyph being off its track.
+             *
+             * Damage it the way the adds do — the queue its [ai_queue2] binds —
+             * rather than by writing `combat_target` directly, so this covers
+             * the path that actually broke and would go red if the
+             * `npc_setmode(none)` in that handler were removed.
+             */
+            {
+                int glyph_slot = selftest_find_npc(&srv, glyph_type);
+
+                SELFTEST_CHECK(glyph_slot >= 0,
+                               "the fixture should leave an Ancestral Glyph walking");
+                if( glyph_slot >= 0 )
+                {
+                    struct Mock230Npc* glyph = &srv.npcs[glyph_slot];
+                    int row_z = glyph->z;
+                    int strayed = 0;
+                    int targeted = 0;
+
+                    for( int tick = 0; tick < 8; tick++ )
+                    {
+                        mock230_combat_hit_npc(
+                            &srv, glyph_slot,
+                            mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage"),
+                            1);
+                        mock230_world_tick(&srv);
+                        targeted |= glyph->combat_target >= 0;
+                        strayed |= glyph->z != row_z;
+                    }
+                    SELFTEST_CHECK(!targeted,
+                                   "the glyph must never hold a combat target; being hit is "
+                                   "the only thing that happens to it");
+                    SELFTEST_CHECK(!strayed,
+                                   "the glyph must never leave its row; it left z=%d for %d",
+                                   row_z, glyph->z);
+                }
+            }
         }
         mock230_scripts_free(&srv);
     }
