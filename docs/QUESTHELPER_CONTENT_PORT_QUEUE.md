@@ -165,14 +165,14 @@ been audited yet as of the rule change -- every row below is effectively
 | `eaglespeak` | quest_eaglepeak | IN-LC — CONTENT_PORT_QUEUE |
 | `eadgarsruse` | quest_eadgar | IN-LC — CONTENT_PORT_QUEUE |
 | `heroesquest` | quest_hero | IN-LC — CONTENT_PORT_QUEUE |
-| `holygrail` | quest_grail | IN-LC — CONTENT_PORT_QUEUE |
+| `holygrail` | quest_grail | audit-in_progress (2026-08-12): dialogue trees are thorough (king_arthur/merlin/brother_galahad/grail_crone/fisher_king/sir_percival/black_knight_titan/grail_realm_npcs all wired, journal complete) but the physical world layer has real quest-blocking holes vs the wiki quick guide + Transcript:Holy_Grail — no spawn (static or dynamic) for `sir_percival` anywhere in the tree (he should be found by searching/opening a sack in Goblin Village; no goblin-village sack loc/oploc exists either), no `opheldu`/blow trigger on `magic_whistle` to teleport into the Fisher Realm and gate the Black Knight Titan fight (wiki: blow near the tower NW of Brimhaven; re-blowing after the Titan's dead should skip the rematch), and no oploc/opobj "ring" trigger on the dynamically-spawned `grail_bell` for castle access. `magic_whistle`/`holy_grail` items themselves already have real static obj spawns in `m41_73.spawn` (cache-derived, confirmed reachable via generic pickup) so those two don't need new item plumbing — just the teleport-gate script. Follow-up: (1) find sir_percival's real cache spawn/sack coordinate or the Goblin Village sack loc name and wire an oploc search trigger + `npc_add`; (2) write the whistle-blow teleport proc (Titan-fight gate + no-rematch-after-defeat state) parallel to the `black_knight_titan.rs2` fight logic already present; (3) wire the grail_bell ring trigger for castle entry. Left `audit-in_progress`, not `audited-fixed` — too large to finish and verify in one tick. |
 | `druidicritual` | quest_druid / quest_druidspirit | IN-LC — CONTENT_PORT_QUEUE |
 | `icthlarinslittlehelper` | quest_icthlarin | IN-LC — CONTENT_PORT_QUEUE |
-| `impcatcher` | quest_imp | IN-LC — CONTENT_PORT_QUEUE |
+| `impcatcher` | quest_imp | audited-fixed 2026-08-12: matched wiki (Transcript:Imp_Catcher + Quick_guide) closely already; fixed two gaps — (1) `wizard_mizgog.rs2`'s quest-offer branch never let the player decline ("I've better things to do than chase imps."), always force-started the quest; added the accept/refuse `~p_choice2` + Mizgog's "That's great, thank you." accept line. (2) added the documented post-quest repeatable amulet trade ("Have you got another one of those fancy schmancy amulets?" -> trade 4 beads for another amulet of accuracy) that was entirely missing. Also added `wizard_grayzag.rs2`'s missing `[opnpc1,...]` talk-to dialogue (3 quest-state branches, Transcript:Wizard_Grayzag) — he had combat AI but no talk trigger at all. |
 | `legendsquest` | quest_legends | IN-LC — CONTENT_PORT_QUEUE |
 | `ragandboneman` | quest_ragandbone | IN-LC — CONTENT_PORT_QUEUE |
-| `runemysteries` | quest_runemysteries | IN-LC — CONTENT_PORT_QUEUE |
-| `seaslug` | quest_seaslug | IN-LC — CONTENT_PORT_QUEUE |
+| `runemysteries` | quest_runemysteries | audited-ok 2026-08-12: matches wiki (Quick_guide + Transcript:Rune_Mysteries) — Duke Horacio/Sedridor/Aubury chains all cover lost-item replacement, refuse branches, re-talks, and post-quest lines. One out-of-scope note: the wiki's reward list includes 5 Kudos claimable at the Varrock Museum, but the Kudos system isn't implemented anywhere in this tree (cross-cutting dozens of quests) — not this quest's gap to close alone. |
+| `seaslug` | quest_seaslug | audited-fixed 2026-08-12: very thorough LC port already (caroline/holgart/kennith/kent/bailey/quest_seaslug.rs2 cover every wiki-documented (Transcript:Sea_Slug) scene incl. refuse, lost-torch replacement, and post-quest dialogue). Fixed two real gaps: (1) `caroline.rs2`'s completion queue awarded QP via a bespoke `%qp = add(...)` instead of `~quest_complete(quest_seaslug)`, silently skipping `%quests_completed_count` — every other audited quest in this table uses the real proc, now this one does too. (2) the "possessed fisherman" flavour dialogue (`fisherman.rs2`) only had 2 of the wiki's 6 randomised cryptic lines; expanded to all 6 (paraphrased, non-gating). |
 | `sheepherder` | quest_sheep / quest_sheepherser | IN-LC — CONTENT_PORT_QUEUE |
 | `treegnomevillage` | quest_tree | IN-LC — CONTENT_PORT_QUEUE |
 | `trollromance` | quest_troll / quest_troll_love | IN-LC — CONTENT_PORT_QUEUE |
@@ -6241,3 +6241,54 @@ filed under `helpers/miniquests/` are at the end.
   queue depth-first, starting with the smallest/simplest entries, spot-
   checking each LC script against its current wiki quest + transcript
   pages for missing branches/rewards/chapters.
+- **IN-LC audit pass 1 (2026-08-12):** audited 4 rows from the IN-LC table,
+  smallest-first by script line count: `impcatcher`/quest_imp (97 lines),
+  `runemysteries`/quest_runemysteries (184), `seaslug`/quest_seaslug (414),
+  `holygrail`/quest_grail (637). Read each LC script tree fully + the wiki
+  quest page, `/Quick_guide`, and `Transcript:` pages (plus per-NPC
+  transcripts: Wizard_Mizgog, Wizard_Grayzag) before comparing.
+  - `impcatcher` -> **audited-fixed**: added the missing accept/refuse choice
+    on Wizard Mizgog's quest offer (previously always auto-started the quest,
+    no decline path existed), the documented post-quest repeatable "another
+    amulet for another bead set" trade, and Wizard Grayzag's entirely-missing
+    `[opnpc1,...]` talk-to trigger (3 quest-state branches — he had combat AI
+    only, never a name to a talk-to gameval before now that gap was closed).
+  - `runemysteries` -> **audited-ok**: Duke Horacio / Sedridor / Aubury
+    chains already cover every wiki branch including lost-talisman/
+    lost-package/lost-notes replacement dialogue, refuse options, and
+    re-talks. Noted (not fixed, out of scope for one quest) that the wiki's
+    Varrock Museum Kudos reward isn't implemented anywhere in this tree.
+  - `seaslug` -> **audited-fixed**: dialogue coverage across
+    caroline/holgart/kennith/kent/bailey already matched
+    Transcript:Sea_Slug scene-for-scene. Fixed a real bug: quest completion
+    (`caroline.rs2`) awarded questpoints via a bespoke `%qp = add(...)`
+    instead of calling `~quest_complete(quest_seaslug)`, which silently
+    skipped `%quests_completed_count` — brought in line with every other
+    quest's completion proc. Also expanded the possessed-fisherman flavour
+    dialogue from 2 to the wiki's full 6 randomised lines (non-gating, but
+    players do hit it).
+  - `holygrail` -> **audit-in_progress** (see table row for the full note):
+    dialogue is fully wired end to end (king_arthur/merlin/brother_galahad/
+    grail_crone/fisher_king/sir_percival/black_knight_titan/
+    grail_realm_npcs/journal) but three physical-world triggers that gate
+    real progress are missing outright — `sir_percival` has no spawn
+    anywhere (static or dynamic; should come from opening/searching a sack
+    in Goblin Village, which also doesn't exist as a loc/trigger in this
+    tree), `magic_whistle` has no blow/teleport trigger into the Fisher
+    Realm to start the Black Knight Titan fight, and the dynamically-spawned
+    `grail_bell` has no ring trigger for castle access. Confirmed
+    `magic_whistle`/`holy_grail` themselves are fine (real cache-derived
+    static spawns in `m41_73.spawn`, generic pickup works) so this is
+    scoped to three new trigger/proc additions, not new items. Left
+    in-progress rather than rushing an unverified fix — a follow-up tick can
+    pick this up directly from the table row's note.
+  - Build: `mingw32-make -C src sscompile` clean, `mingw32-make -C src
+    mock230-scripts` exit 0, 15079 scripts compiled (up from 15077 at tick
+    start — 2 new trigger/label blocks: `[opnpc1,wizard_grayzag]` +
+    `[label,mizgog_more_amulets]`), zero new errors/warnings. No duplicate
+    triggers (grepped `server/scripts` for every touched npc/trigger name
+    before adding). Files touched: `server/scripts/areas/wizard_tower/
+    scripts/wizard_mizgog.rs2`, `.../wizard_grayzag.rs2`,
+    `server/scripts/areas/area_fishing_platform/scripts/fisherman.rs2`,
+    `server/scripts/areas/ardougne_east/scripts/caroline.rs2`. 34 rows
+    remain unaudited in the IN-LC table (38 total minus the 4 above).
