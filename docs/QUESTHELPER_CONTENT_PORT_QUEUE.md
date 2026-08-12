@@ -334,7 +334,7 @@ filed under `helpers/miniquests/` are at the end.
 | 171 | thepathofglouphrie | `thepathofglouphrie` | 1,959 | done | 2026-08-12: full port, native `pog` varbit schema reused; see Log |
 | 172 | whileguthixsleeps | `whileguthixsleeps` | 2,288 | done | 2026-08-12: full port, native `wgs` varbit schema reused, trustworthy dbrow (unlike most slices); see Log |
 | 173 | monkeymadnessii | `monkeymadnessii` | 3,084 | done |  |
-| 174 | recipefordisaster | `recipefordisaster` | 3,370 | pending | npcs=cook,hundreddwar,hundreddwar |
+| 174 | recipefordisaster | `recipefordisaster` | 3,370 | in_progress | 2026-08-12: intro + Evil Dave + Lumbridge Guide + Goblin generals done; Dwarf/Pirate Pete/Uglogwee/Amik Varze/Awowogei/finale remain; see Log |
 | 175 | songoftheelves | `songoftheelves` | 4,285 | done |  |
 | 176 | deserttreasureii | `deserttreasureii` | 5,076 | done |  |
 
@@ -5944,3 +5944,67 @@ filed under `helpers/miniquests/` are at the end.
   merges into `player/login.rs2` and `interface_questjournal/scripts/
   quest_journal.rs2`. Next pending row: #174 Recipe for Disaster, 3,370
   lines -- the only row left in the entire table.
+- slice 174 Recipe for Disaster (2026-08-12): `in_progress` -- largest quest
+  in the queue (3,370 helper lines, ~triple the next-largest slice), a
+  meta-quest of an intro plus 8 independently-orderable sub-quests plus a
+  finale. Grep-first: no LC proc, no 2009scape implementation, not in either
+  Skip/IN-LC table -- genuinely unowned. The osrs239 cache has a FULL native
+  dbrow schema pre-declared for all 10 parts (`quest_recipefordisaster` id
+  106 + `subquest_rfd_intro`/`_dwarf`/`_goblins`/`_pirate`/
+  `_lumbridgeguide`/`_evildave`/`_ogre`/`_amikvarze`/`_monkey`/`_finale`,
+  ids 171-180, `configs/all.dbrow`), used as-is. Ported end-to-end in this
+  tick: the introduction ("Another Cook's Quest" -- gather eye of newt/
+  greenman's ale/rotten tomato/dirty blast, hand to the Cook, enter the
+  dining room, witness the Culinaromancer curse the banquet) plus three
+  sub-quests: Freeing Evil Dave, Freeing the Lumbridge Guide, and Freeing
+  the Goblin generals (Wartface & Bentnoze). All 8 sub-quest dbrows'
+  `requirement_quests` chain to quests that are pre-Sept-2004 LC content
+  already done (Fishing Contest, Goblin Diplomacy, Big Chompy Bird Hunting,
+  Gertrude's Cat, etc.) -- so "prioritise chapters with done prereqs" did
+  not narrow the field; the 4 ported chapters were chosen by helper file
+  size (RFDStart 6,324B, RFDEvilDave 9,279B, RFDLumbridgeGuide 10,231B,
+  RFDGoblins 12,080B -- the four smallest of nine). `%recipefordisaster`
+  gates all sub-quests (`>= ^rfd_intro_complete`, dbrow id 2307 in every
+  sub-quest's own `requirement_quests`); `%rfd_evildave`/
+  `%rfd_lumbridgeguide`/`%rfd_goblins` track each chapter. Per the
+  "one deterministic action per beat" rule: Evil Dave's real hell-rat
+  spice-dosing minigame (no `npc_find`/chase support, no `cat`/`wily_cat`
+  item in this cache -- checked) collapses to talk-Dave/talk-Doris/use-stew;
+  Lumbridge Guide's three interface quizzes (NPC portraits, trivia, hidden-
+  inventory memory test -- none of which exist as rev-230 panels, and
+  QuizSteps.java's question banks are randomised) collapse to Traiborn
+  enchanting the ingredients himself; the goblin cauldron-explosion cutscene
+  is narrated rather than staged, and the cook's charred/on-wall NPC swap is
+  skipped (`goblin_cook` used throughout). Goblins' own ingredient prep
+  (knife+orange, dye+orange slices, spice+bait, water+bread) is real
+  per-item `[opheldu,...]` content, not collapsed, since each is a genuine
+  one-shot combine with existing tree-wide precedent. Reused/merged rather
+  than duplicated: `[opnpc1,cook]` (quest_cook.rs2, branch added for
+  `%recipefordisaster < ^rfd_intro_complete`), `[opheldu,orange]`/knife
+  slicing (skill_cooking/cutting_fruit.rs2, untouched, already produces
+  `orange_slices`), `[opheldu,orange_slices]` (skill_cooking/gnome_cooking/
+  gnome_seasoning.rs2's 9-header shared block, dye branch merged in gated to
+  `last_item = orange_slices` only), `[opheldu,bread]`
+  (quest_belowicemountain/scripts/belowicemountain.rs2, bucket-of-water
+  branch merged in), and the goblin kitchen ladder / Evil Dave's basement
+  stairs (`100_goblin_ladder_down/up`, `100_dave_celler_stairs` -- already
+  generic `category=climb_down`/`climb_up` records in `ladders_stairs/
+  configs/ladders.loc`, no script needed). Genuinely new: Dave's basement
+  trapdoor (`100_dave_celler_trapdoor_closed`/`_open`, not one of the
+  shared generic `trapdoor`/`trapdoor_open` gamevals, so it gets its own
+  open/descend/close triggers). Journal wired for all 4 ported dbrows plus
+  the parent `quest_recipefordisaster` overview row (which also reports the
+  5 not-yet-portable sub-quests honestly rather than pretending). Wiki:
+  https://oldschool.runescape.wiki/w/Recipe_for_Disaster/Quick_guide +
+  Transcript:Recipe_for_Disaster/{Another_Cook's_Quest,Freeing_Evil_Dave,
+  Freeing_the_Lumbridge_Guide,Freeing_the_Goblin_generals}. `mingw32-make -C
+  src sscompile` clean, `mingw32-make -C src mock230-scripts` exit 0 (15,024
+  scripts, up from 15,001; zero warnings or errors anywhere naming
+  `recipefordisaster`/`rfd_*`). Remaining for a future tick: Mountain Dwarf,
+  Pirate Pete, Skrach Uglogwee, Sir Amik Varze, King Awowogei/Monkey
+  Ambassador, and the Culinaromancer finale (which also needs all 8
+  sub-quests done first, so it cannot start regardless). Row stays
+  `in_progress` per the depth-first rule. This was the last `pending` row in
+  the table -- the queue's `pending` backlog is now exhausted; two rows
+  remain `in_progress` (#43/P2 asoulsbane, dbrow-less from an earlier tick,
+  and this one).
