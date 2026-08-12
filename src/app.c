@@ -12317,16 +12317,26 @@ app_minimenu_open(
         /* The two Attack options ride this dump because a missing or
          * right-click-only Attack row is otherwise indistinguishable from a
          * pick that never happened — and Hidden is what both settings hold
-         * until the server transmits varp clientcode 18/22. */
-        fprintf(
-            stderr,
-            "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d\n",
-            click_x,
-            click_y,
-            click_in_world,
-            click_in_world ? app->world_pickset.count : 0,
-            app->player_attack_option,
-            app->npc_attack_option);
+         * until the server transmits varp clientcode 18/22. The local combat
+         * level rides it for the same reason: under "Depends on combat levels"
+         * the setting alone does not say whether a row was sunk, the
+         * comparison against THIS number does. */
+        {
+            struct WorldEntity_Player* lp =
+                app->world ? World_PlayerGetByServerPid(app->world, app->world->local_pid)
+                           : NULL;
+            fprintf(
+                stderr,
+                "minimenu: open at %d,%d in_world=%d picks=%d attackopt player=%d npc=%d "
+                "mylevel=%d\n",
+                click_x,
+                click_y,
+                click_in_world,
+                click_in_world ? app->world_pickset.count : 0,
+                app->player_attack_option,
+                app->npc_attack_option,
+                lp ? lp->combat_level : -1);
+        }
         if( click_in_world )
             for( int i = 0; i < app->world_pickset.count; i++ )
             {

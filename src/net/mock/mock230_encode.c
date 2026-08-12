@@ -2562,7 +2562,20 @@ put_appearance_v5(
     }
 
     rsab_pjstr(buf, player->display_name, RSAB_JSTR_NUL);
-    rsab_p1(buf, 3); /* combat level */
+    /*
+     * The player's own combat level, not a placeholder.
+     *
+     * This is the number `localPlayer.combatLevel` is read from, and the NPC
+     * minimenu compares every npc against it: under the default "Depends on
+     * combat levels" Attack option the reference deprioritizes ALL of a
+     * higher-level npc's operations (deob Statics.method7229, outside its
+     * attack-pass branch). A literal 3 therefore makes every npc in the world
+     * above level 3 right-click-only, and a left click on one falls through to
+     * "Walk here" — which is itself inert wherever no ground triangle sits
+     * under the cursor (a tall model against a wall, e.g. TzKal-Zuk). The
+     * symptom is a click that does nothing at all, not even a yellow cross.
+     */
+    rsab_p1(buf, (uint8_t)mock230_combat_level(player));
     rsab_p2(buf, 0); /* skill level, shown only in some minigames */
     rsab_p1(buf, 0); /* hidden */
     /*
@@ -2648,7 +2661,9 @@ put_appearance(
      * an empty one makes everybody in the world an anonymous body.
      */
     rsab_p8(buf, (int64_t)strtobase37(player->display_name));
-    rsab_p1(buf, 3); /* combat level */
+    /* The player's own combat level — see the v5 encoder above for what a
+     * placeholder costs (every npc above it goes right-click-only). */
+    rsab_p1(buf, (uint8_t)mock230_combat_level(player));
 }
 
 int
