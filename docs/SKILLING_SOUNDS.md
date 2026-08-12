@@ -478,6 +478,19 @@ be violated:
    the check when adding a name this document does not list, because names like
    `net`, `mine`, `pick`, `lever`, `oven` and `jump` are one content slice away
    from becoming ambiguous.
+
+   **`jump` is no longer hypothetical** — Phase 3 (§5.4) hit it for real. A
+   scripted pass mapped agility's `human_jump_hurdle` anim to `sound_synth(jump,
+   …)`, which failed the whole build: `'jump' takes 1 argument(s), 0 given` —
+   `jump` also names a callable script, and this collision produces a **hard
+   compile error**, not a silently-wrong id, because a bare-name lookup that
+   lands on a script expecting arguments cannot be satisfied at a zero-arg call
+   site. That is a better failure mode than the npc/obj/loc case (silent wrong
+   id) but it still cost a rebuild to find. Fixed to `jump_no_land`, which
+   doesn't collide. The lesson generalizes: **collision-check every new name
+   before using it, not just at the start of the project** — §4's original 123
+   were checked once, up front; each phase since has introduced names the
+   original sweep never saw.
 4. **One slice per skill, and each slice deletes its own `// sound_synth
    dropped` comments.** A stale deferral comment left next to a working sound
    call is the thing the next person reads and believes.
@@ -506,7 +519,7 @@ assert two `SYNTH_SOUND` packets with `mine_quick` then `mine`) so the whole
 sweep has a test that can fail. Per the "verify blocker" rule: mutate the script
 to drop one call and confirm the assertion goes red before trusting it.
 
-### 5.2 Phase 1 — the four loops everyone hears (1–2 days)
+### 5.2 Phase 1 — the four loops everyone hears — **done, 2026-08-12**
 
 Ordered by how much of a session they cover, not by table size. Each is a
 handful of one-line edits at an existing `anim(` call site.
@@ -521,7 +534,30 @@ handful of one-line edits at an existing `anim(` call site.
 These four are layer **L** throughout, so there is nothing to guess: the sound
 and the tick are both stated. Stop here and the game already sounds alive.
 
-### 5.3 Phase 2 — the production skills (2–3 days)
+**Landed** (done in a worktree off `v3`, branch `worktree-skilling-sounds`):
+mining (`mine_quick`/`mine`/`prospect`), woodcutting (`woodchop`/`tree_fall`),
+all 7 ported fishing spots — `freshfish`, `rarefish`, `saltfish`, `tbwt`,
+`slimeyfish`, `lavafish`, `memberfish` (the last also picked up the casket's
+`lever`/`found_gem`, which LC plays but this port had dropped alongside the
+skilling sounds) — and firemaking (`tinderbox_strike`/`fire_lit`, plus
+`achey.rs2` which reuses `firemaking.rs2`'s labels for free). `waterfall.rs2`
+from the doc's original source list does not exist in this content tree — 7
+spot files were ported, not 9; §4.3 undercounted.
+
+Verification: `make mock230-scripts` compiles the same **14,240 scripts** with
+**zero new errors or notes** (all 8 new synth names — `mine`, `mine_quick`,
+`prospect`, `woodchop`, `tree_fall`, `tinderbox_strike`, `fire_lit`, plus the
+already-used `fishing_cast`/`net`/`fire_lit`/`lever`/`found_gem` — resolve
+clean). `make test-sound` (the audio unit suite) is fully green. `make
+test-mock230` could not be exercised end-to-end: its `mock230-servpack`
+prerequisite fails on an unrelated, pre-existing gap in the checked-out
+OSRS-Content commit — several fishing npcs (`freshfish`, `saltfish`, …) state
+a server-band field `pack/npc.server` doesn't claim. `git status` in the
+worktree's OSRS-Content confirms this touches none of the 11 files edited
+here; it is a content-pack registration gap orthogonal to this work, not a
+sound regression.
+
+### 5.3 Phase 2 — the production skills — **done, 2026-08-12**
 
 | # | skill | edits | note |
 |---|---|---|---|
@@ -534,13 +570,26 @@ and the tick are both stated. Stop here and the game already sounds alive.
 | 11 | **Prayer** | 7 + 24 | see §5.4 — this one is a config change, not edits |
 | 12 | **Runecraft** | 4 | L throughout |
 
-### 5.4 Phase 3 — the data-driven and post-2004 skills (3–5 days)
+**Landed** (same worktree as Phase 1, `worktree-skilling-sounds`):
 
-**Prayer is different and should be done as data.** Add a `sound,synth` column
-to the prayers dbtable and 24 `data=sound,<name>` rows, then one
-`sound_synth(db_getfield($data, prayers:sound, 0), 0, 0)` in the activation
-proc — exactly LostCity's shape (`prayer.rs2:22`). One call site, 24 sounds.
-Note the reference passes **`0` loops**, not 1, at that site; keep it.
+- **Smithing**: `anvil_4` on every hammer strike (`smithing.rs2`, `dragon_sq.rs2`), `furnace` on smelting (`smelting.rs2`, `cannonballs.rs2`). Confirmed `anvil` (bare) collides with an obj category per §5.0 rule 3 — used `anvil_4` throughout, never bare `anvil`.
+- **Cooking**: `fry` in the single shared `[label,cook_item]`.
+- **Crafting**: `chisel` (gems, snelm), `spinning` (wool/flax), `furnace`+`glassblowing` (glass), `pottery`+`furnace` (pottery, sound *before* anim there — matches LC's own ordering), `furnace` (jewellery gold/silver), `stitching` (leather, W-layer — LC states none).
+- **Herblore**: `grind` on both brew_potion and grind_ingredient (LC uses `grind` for both, not `liquid`/`vial_mix` — kept faithful rather than "improving" on the reference); clean_herb pseudo-randomizes across the wiki's four `herblore_clean_herb_N` names.
+- **Fletching**: `fletch` on cutting logs; bolt-tip cutting gets a flat `chisel` rather than LC's per-row `skill_sound` column, which this port's `fletching.dbtable` dropped — restoring it is future work, noted inline.
+- **Thieving**: `pick` (pickpocket + stalls, including the "steal bread" easter-egg re-play), `stunned` on a failed pickpocket, `locked`/`chest_open`/`lever` across both trapped-chest scripts. The npc's own `attack_sound` is skipped, not silently dropped — `npc_param(attack_sound)` isn't a declared param name yet in this pack and would be a **compile error**, not a runtime no-op; caught before it broke the build.
+- **Prayer**: a `sound` **int** column on `prayer_table` (not `synth` — nothing else in this content tree uses that dbtable type yet, and the ids are native to this cache, not ported across eras, so a plain int carries no risk `PORTING_GUIDE §4.1 rule 4` warns about). All 29 rows carry a value; the 24 pre-2005 prayers get their real id, the 5 post-2004 additions (Preserve, Chivalry, Piety, Rigour, Augury) get an explicit `-1` — never omitted, because an omitted int column does not reliably read as "no value" here. One call site each for on (`db_getfield(…, sound, 0)`, 0 loops, matching LC exactly) and off (`prayer_off`); a third site (`cancel_prayer`) turned out to belong to *conflict auto-deactivation*, not "cancel all" as originally guessed — LC's `[proc,prayer_deactivate]` is the analogue of this port's `prayer_deactivate_specific`, not `prayer_deactivate_all`, which itself plays no sound in the reference. Also wired `bones_down` (`bury_bone.rs2`, the exact file whose comment stated the now-false "unnamed synth table" rationale in §1) and `prayer_boost`/`prayer_recharge` (`altar.rs2`, same stale rationale).
+- **Runecraft**: `teleport_all` (exit portal, both ruins-entry paths), `bind_runes` (crafting), plus `essence_mine.rs2` (`curse_all` on the Abyss curse-cast, `teleport_all` on the exit portal) — not itemized in §4.16 originally but the same pattern and fully LC-stated.
+
+Verification: `make mock230-scripts` — same **14,240 scripts**, zero new errors; `db columns` count went **367→368**, confirming the new `prayer_table.sound` column packed. `make test-sound` and `make test-db` both fully green (the latter specifically exercises `db_getfield` on omitted/declared-default columns, relevant to the `-1` sentinel choice above). `make mock230-servpack` still fails on the same pre-existing, unrelated npc.server field-registration gap from Phase 1 — confirmed by `0 unresolved names` in the dbtable/dbrow pack step, meaning this change's config edits themselves pack clean.
+
+### 5.4 Phase 3 — the data-driven and post-2004 skills — **done, 2026-08-12**
+
+Prayer's `sound` column landed in Phase 2 above, ahead of schedule — it turned
+out to gate the rest of prayer's sound cleanly, so it made more sense done with
+prayer than deferred. What's left here is the skills with no LostCity
+reference at all: agility (rooftops), farming, hunter, construction, slayer,
+summoning.
 
 The rest have no LostCity reference at all and are pure layer **W**, so they are
 slower per row and want a pass in the running game to confirm each sound is not
@@ -553,6 +602,19 @@ absurd:
 | 15 | **Hunter** | ~25 of 83 | the richest block; set/trigger/dismantle per trap type |
 | 16 | **Construction** | ~6 | smallest skill in the tree |
 | 17 | **Slayer / Summoning** | ~5 | lowest value; do last |
+
+**Landed** (same worktree, still `worktree-skilling-sounds`) — coverage came out
+higher than the estimates above once mechanical scripted passes turned out to
+work for two of the five skills:
+
+- **Agility**: essentially **113/113** anim sites, not the ~40 estimated. Rooftop courses (8 files) call `anim()` directly, so a Python pass matched each of the 28 distinct anim names to an obstacle-kind sound (`climb_wall`, `handholds_grab`, `squeeze_in/out/thru_crack`, `sidestep`, `jump_no_land`, `log_balance`, `ropeclimb`, `swing_across`, `jump_further`) and inserted `sound_synth` after every match; only generic walk-style/running/one quest-combi anim were deliberately left alone. Caught one real collision the hard way: `human_jump_hurdle` → bare `jump` **failed to compile** (`'jump' takes 1 argument(s), 0 given` — it's also a script name) even though `jump` wasn't in the original 123-name collision sweep from Phase 0, because it's a name this phase introduced. Fixed to `jump_no_land` everywhere. The gnome/shortcut courses route through three shared procs (`agility_climb_up`, `agility_exactmove`, `agility_delay_fail`) instead of calling `anim()` directly — sounded each proc once (`agility_exactmove` via a new `~agility_sound_for_seq` switch keyed on the seq it's given) rather than each call site, so any future course built the same way inherits sound for free.
+- **Farming**: **35/35** anim sites covered by the same scripted-mapping technique, keyed on 7 distinct anim names (`farming_raking`→`farming_raking`, `human_dig`→`digspade`, `farming_seed_dibbing`→`farming_dibbing`, `picking_low/mid`+`farming_pick_mushroom`→`farming_pick`, `human_pickuptable`→`farming_compost`).
+- **Hunter**: **32/32** initial anim sites, then 6 more found by hand where a shared `human_laytrap` anim meant different things per file (set a snare vs. lay a box trap vs. **smoke** a trap to remove scent vs. **collect loot** from a sprung pitfall) — the scripted pass can't tell those apart from the anim name alone, so `hunter_traps.rs2`'s smoke proc, and three sites in `pitfall.rs2` (set/dismantle/loot), got hand-placed sounds (`hunting_smokepuff_escape`, `hunting_placebranches`, `hunting_takebranches` ×2) after reading each call site's actual behavior.
+- **Construction**: 1 site. The only anim in this port's construction slice is planting a bagged garden plant (2009scape-derived, not wood/stone/metal), which has no wiki-named sound — used farming's own `farming_dibbing`, the same physical action in a different skill, with a comment explaining the borrow.
+- **Slayer**: 2 sites, both in `slayer_specials.rs2`'s task-monster finishers, neither of which carries a player anim to hang a sound off: `shatter` when a gargoyle cracks apart under a rock hammer, `sizzle` when a rockslug dissolves under a bag of salt. The desert-lizard icy-water finisher has no comparable name and was left silent rather than guessed. Confirmed slayer's statue/bucket/door content (§4.17's `slayer_statuemove`/`slayer_throwbucket`/`slayerdoors`) genuinely isn't ported in this tree — nothing to wire.
+- **Summoning**: 1 site. `summoning_infuse.rs2` had an explicit deferral comment — "the source craft sound is beyond the documented safe cross-revision audio boundary" — for the spirit wolf pouch infusion. That caution was about an *unverified cross-revision id*; `lore_craft_pouch` is a name native to *this* cache's own sound pack, not ported from anywhere, so it carries none of the risk the comment was guarding against. Wired it and rewrote the comment to say why.
+
+Verification: both `make mock230-scripts` (14,241 scripts — one more than Phase 2's 14,240, unrelated to this change) and `make mock230-scripts-summoning` compile clean with the same pre-existing notes and zero new errors. `make test-sound` green. The agility collision above is the concrete case for §5.0 rule 3's warning: a name not in an earlier collision sweep can still collide, because the sweep only covers names known at the time it ran — re-check any name this document doesn't already list.
 
 ### 5.5 Optional engine work, if the polish is wanted
 
