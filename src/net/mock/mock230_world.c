@@ -2780,7 +2780,23 @@ mock230_world_npc_walk_to(
         return 0;
 
     size = npc->size > 0 ? npc->size : 1;
-    if( npc->x == target_x && npc->z == target_z )
+    /*
+     * Standing on the destination is only "nowhere to go" for a 1x1 npc.
+     *
+     * `npc->x/npc->z` is the south-west anchor, so for anything bigger this
+     * compares one corner of the footprint against the target and answers for
+     * the whole square. A player walks through npcs (`player_travel_extra`
+     * reads no NPC_OCC), so ending up on a cow's anchor tile is ordinary — and
+     * this then refused to move the cow off, forever. The cow overlapped the
+     * player, an overlap is not attack range, and the fight it had been dragged
+     * into could not start: it stood on the player's head until one of them
+     * walked away.
+     *
+     * `collision_map_naive_path` already has the answer for the general case —
+     * intersecting footprints pick a random cardinal, `randomWalk` in the
+     * reference — so all this has to do is stop short-circuiting past it.
+     */
+    if( size == 1 && npc->x == target_x && npc->z == target_z )
         return 0;
 
     /* Prefer the world's RNG when we can reach it through a live player. */
