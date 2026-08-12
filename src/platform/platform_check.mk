@@ -122,7 +122,7 @@ lane-check-toolchain-win64:
 # Enforce the fixed-function/no-9Ex contract at the source boundary too.
 lane-check-fixed-function-win32:
 	@if grep -En 'Direct3DCreate9Ex[[:space:]]*\(|IDirect3D(9Ex|Device9Ex)|IDirect3DDevice9_Create(Vertex|Pixel)Shader[[:space:]]*\(|D3DX[A-Za-z0-9_]*[[:space:]]*\(|D3D(Compile|Disassemble)[A-Za-z0-9_]*[[:space:]]*\(' \
-		platform/platform_win32_renderer_d3d9.c; then \
+		platform/platform_win32_renderer_d3d9*.c; then \
 		echo "lane-check: Windows D3D9 renderer uses a forbidden 9Ex, shader, or D3DX API" >&2; exit 1; fi
 
 # Post-link probes read the ABI and imports back off each Windows artifact.

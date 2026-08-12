@@ -3,18 +3,19 @@
  * retained CPU/GPU buffer.
  *
  * What it deliberately does not know is how the world's triangles get ordered.
- * That belongs to a world backend -- painter's algorithm or hardware depth test
- * -- and each lives in its own translation unit behind struct D3D9WorldBackend:
+ * There are two implementations of that, they share nothing with each other,
+ * and each lives in its own translation unit:
  *
- *   platform_win32_renderer_d3d9_world_painter.c
- *   platform_win32_renderer_d3d9_world_zbuffer.c
+ *   platform_win32_renderer_d3d9_painter.c   painter's algorithm
+ *   platform_win32_renderer_d3d9_zbuffer.c   hardware depth test
  *
- * ToriRS_D3D9_Init picks one from its z_buffer_enabled argument, and from then
- * on this file reaches the world only through renderer->world.  See
- * platform_win32_renderer_d3d9_internal.h for that contract.
+ * ToriRS_D3D9_Init picks one by creating (or not creating) the depth
+ * implementation's state.  ::zbuffer is that state and doubles as the selector,
+ * so the handful of places below that care read as a plain test and a direct
+ * call.  See platform_win32_renderer_d3d9_core.h for the contract.
  */
 
-#include "platform/platform_win32_renderer_d3d9_internal.h"
+#include "platform/platform_win32_renderer_d3d9_core.h"
 
 #include "core/trspk_drawrangeex.h"
 #include "core/trspk_math.h"
@@ -369,7 +370,10 @@ d3d9_set_world_states(struct ToriRS_D3D9* renderer)
     IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_FOGENABLE, FALSE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_CULLMODE, D3DCULL_NONE);
-    renderer->world->apply_world_states(renderer);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_apply_world_states(renderer);
+    else
+        d3d9_painter_apply_world_states(renderer);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
     IDirect3DDevice9_SetRenderState(device, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
@@ -4570,7 +4574,7 @@ d3d9_bake_into_arena(
             anim_index,
             pose_id,
             model_slot->vertex_base);
-        renderer->world->pose_baked(
+        d3d9_zbuffer_pose_baked(
             renderer, element_id, anim_index, pose_id, model_handle);
     }
     return model_slot->vertex_base;
@@ -4588,7 +4592,7 @@ d3d9_model_unload(struct ToriRS_D3D9* renderer, int element_id)
     trspk_modelarena_unload_element(
         renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
-    renderer->world->element_dropped(renderer, element_id);
+    d3d9_zbuffer_element_dropped(renderer, element_id);
     d3d9_compact_static_group(renderer);
 }
 
@@ -4617,7 +4621,7 @@ d3d9_animation_track_unload(
             trspk_modelarena_unload(arena, slot_index);
     }
     trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
-    renderer->world->track_dropped(renderer, element_id, anim_index);
+    d3d9_zbuffer_track_dropped(renderer, element_id, anim_index);
     d3d9_compact_static_group(renderer);
 }
 
@@ -4806,7 +4810,8 @@ d3d9_begin_3d(
     d3d_viewport.MinZ = 0.0f;
     d3d_viewport.MaxZ = 1.0f;
     IDirect3DDevice9_SetViewport(renderer->device, &d3d_viewport);
-    renderer->world->begin_pass(renderer);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_begin_pass(renderer);
 
     trspk_compute_pass_matrices(
         renderer->view,
@@ -4824,7 +4829,10 @@ d3d9_begin_3d(
         command->camera.proj_scale,
         command->camera.fov_rpi2048,
         command->camera.parallel_zoom16);
-    renderer->world->setup_projection(renderer, command);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_setup_projection(renderer, command);
+    else
+        d3d9_painter_setup_projection(renderer);
     d3d9_float16_to_matrix(renderer->view, &view);
     d3d9_float16_to_matrix(renderer->proj, &projection);
     d3d9_identity(&world);
@@ -4901,7 +4909,11 @@ d3d9_draw_model(
 
     if( command->pick_only )
         return;
-    face_count = renderer->world->model_face_count(renderer, command, &sorted_face_count);
+    /* The depth path classifies per face during emission and needs no order
+     * up front; the painter path must sort before it can count. */
+    face_count = renderer->zbuffer
+                     ? trspk_toridraw_face_count(command->model)
+                     : d3d9_painter_sort_faces(renderer, command, &sorted_face_count);
     if( face_count <= 0 )
         return;
     dynamic = command->dynamic || command->element_id < 0;
@@ -5006,7 +5018,10 @@ d3d9_draw_model(
     placement.anim_index = anim_index;
     placement.pose_id = pose_id;
     placement.dynamic = dynamic;
-    renderer->world->model_emit(renderer, command, &placement);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_emit_model(renderer, command, &placement);
+    else
+        d3d9_painter_emit_model(renderer, &placement);
 }
 
 static void
@@ -5277,7 +5292,8 @@ d3d9_draw_retained(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_PAGE_SWITCHES, page_switches);
 
     d3d9_set_world_states(renderer);
-    renderer->world->apply_pass_states(renderer, blended_pass);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_apply_pass_states(renderer, blended_pass);
     IDirect3DDevice9_SetIndices(renderer->device, renderer->ibo);
     range = trspk_drawrangelist_head(renderer->draw_ranges);
     while( range )
@@ -5356,7 +5372,8 @@ d3d9_end_3d(struct ToriRS_D3D9* renderer)
         goto done;
     if( renderer->ibo_chain && renderer->ibo_chain->head )
         d3d9_draw_retained(renderer, renderer->ibo_chain, false);
-    renderer->world->end_pass(renderer);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_end_pass(renderer);
 
 done:
     for( page = 0u; page < renderer->static_page_count; page++ )
@@ -5368,7 +5385,8 @@ done:
     renderer->in3d = false;
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
-    renderer->world->reset_pass(renderer);
+    if( renderer->zbuffer )
+        d3d9_zbuffer_reset_pass(renderer);
     d3d9_set_full_viewport(renderer);
 }
 
@@ -5417,7 +5435,7 @@ d3d9_batch_begin(
     if( slot < 0 )
         return;
     batch = &renderer->static_batches[slot];
-    renderer->world->batch_dropped(renderer, batch->cpu);
+    d3d9_zbuffer_batch_dropped(renderer, batch->cpu);
     for( i = 0u; i < batch->page_id_capacity; i++ )
     {
         uint32_t page_id = batch->page_ids[i];
@@ -5474,7 +5492,7 @@ d3d9_batch_add(
             reservation.vertex_base,
             command->model,
             &command->world_position) )
-        renderer->world->batch_pose_baked(
+        d3d9_zbuffer_batch_pose_baked(
             renderer, command->element_id, anim_index, pose_id, command->model);
 }
 
@@ -5516,7 +5534,7 @@ d3d9_batch_clear(
         uint32_t page;
         if( !clear_all && batch->batch_id != batch_id )
             continue;
-        renderer->world->batch_dropped(renderer, batch->cpu);
+        d3d9_zbuffer_batch_dropped(renderer, batch->cpu);
         for( page = 0u; page < batch->page_id_capacity; page++ )
         {
             uint32_t page_id = batch->page_ids[page];
@@ -5733,13 +5751,11 @@ ToriRS_D3D9_New(int width, int height)
     renderer->draw_ranges = trspk_drawrangelist_create(D3D9_DRAWRANGE_CAP);
     renderer->ui_batch.vertices = (struct D3D9OverlayVertex*)malloc(
         D3D9_UI_BATCH_MAX_VERTS * sizeof(renderer->ui_batch.vertices[0]));
-    /* Install a world backend before anything can reach a hook.  The headless
-     * retained test API attaches a scene without ever calling Init, so ::world
-     * must be live the moment New returns; Init swaps in the depth backend when
-     * the caller asks for it. */
-    renderer->world = d3d9_world_backend_painter();
+    /* ::zbuffer stays NULL here, so a renderer that never reaches Init -- the
+     * headless retained test API attaches a scene without one -- runs the
+     * painter path, which needs no setup. */
     if( !renderer->ibo_chain || !renderer->draw_ranges ||
-        !renderer->ui_batch.vertices || !renderer->world->create(renderer) ||
+        !renderer->ui_batch.vertices ||
         !trspk_atlas_init_grid(
             &renderer->atlas,
             D3D9_ATLAS_DIM,
@@ -5919,10 +5935,7 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
         trspk_drawrangelist_free(renderer->draw_ranges);
     trspk_pose_table_free(&renderer->poses);
     trspk_pose_table_free(&renderer->batch_poses);
-    /* Guarded: New frees a half-built renderer if an allocation ahead of the
-     * backend install fails. */
-    if( renderer->world )
-        renderer->world->destroy(renderer);
+    d3d9_zbuffer_destroy(renderer);
     for( batch = 0u; batch < renderer->static_batch_count; batch++ )
     {
         trspk_batch16_destroy(renderer->static_batches[batch].cpu);
@@ -5950,7 +5963,6 @@ ToriRS_D3D9_Init(
     struct ToriDraw_Scene* scene,
     bool z_buffer_enabled)
 {
-    const struct D3D9WorldBackend* world;
     DWORD behavior;
     HRESULT hr;
     int width;
@@ -5958,21 +5970,11 @@ ToriRS_D3D9_Init(
     if( !renderer || !native_window || !scene || renderer->device )
         return false;
     /* This is the one place the two world implementations are chosen between.
-     * New left the painter installed, so only a switch to depth costs anything;
-     * tear the old backend's state down before the new one allocates its own. */
-    world = z_buffer_enabled ? d3d9_world_backend_zbuffer()
-                             : d3d9_world_backend_painter();
-    if( world != renderer->world )
-    {
-        renderer->world->destroy(renderer);
-        renderer->world = world;
-        if( !world->create(renderer) )
-        {
-            renderer->world = d3d9_world_backend_painter();
-            (void)renderer->world->create(renderer);
-            return false;
-        }
-    }
+     * Creating the depth state selects d3d9_zbuffer_*; leaving it NULL selects
+     * d3d9_painter_*, which has nothing to allocate. */
+    d3d9_zbuffer_destroy(renderer);
+    if( z_buffer_enabled && !d3d9_zbuffer_create(renderer) )
+        return false;
     renderer->hwnd = (HWND)native_window;
     renderer->scene = scene;
     if( !d3d9_read_client_size(renderer, &width, &height) || width <= 0 || height <= 0 )
@@ -6008,8 +6010,7 @@ ToriRS_D3D9_Init(
     renderer->present.SwapEffect = D3DSWAPEFFECT_DISCARD;
     renderer->present.hDeviceWindow = renderer->hwnd;
     renderer->present.Windowed = TRUE;
-    renderer->present.EnableAutoDepthStencil =
-        renderer->world->wants_depth_stencil ? TRUE : FALSE;
+    renderer->present.EnableAutoDepthStencil = z_buffer_enabled ? TRUE : FALSE;
     renderer->present.AutoDepthStencilFormat = D3DFMT_D16;
     /* The client loop owns the 50 Hz deadline.  A second 60 Hz D3D wait
      * quantizes capped frames onto alternating refreshes (visible judder) and

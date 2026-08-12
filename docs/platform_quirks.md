@@ -342,7 +342,7 @@ one lane only.
   also serving modern x86_64 Windows. A convenience added for Win64 can
   otherwise turn into an XP loader failure before fallback code can run.
 - **Sources:**
-  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
+  [`src/platform/platform_win32_renderer_d3d9_core.c`](../src/platform/platform_win32_renderer_d3d9_core.c),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
   [`3rd/trspk/`](../3rd/trspk/)
 
@@ -374,7 +374,7 @@ one lane only.
   the steady-state zero contract.
 - **Sources:**
   [`src/painters/painters_bucket.u.c`](../src/painters/painters_bucket.u.c),
-  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c)
+  [`src/platform/platform_win32_renderer_d3d9_zbuffer.c`](../src/platform/platform_win32_renderer_d3d9_zbuffer.c)
 
 ### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
 
@@ -420,7 +420,7 @@ one lane only.
   painter order. A static or texture upload in a steady unchanged window must be
   investigated rather than treated as normal traffic.
 - **Sources:**
-  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
+  [`src/platform/platform_win32_renderer_d3d9_core.c`](../src/platform/platform_win32_renderer_d3d9_core.c),
   [`3rd/trspk/core/trspk_atlas.c`](../3rd/trspk/core/trspk_atlas.c),
   [`3rd/trspk/core/trspk_atlas.h`](../3rd/trspk/core/trspk_atlas.h)
 
@@ -459,7 +459,7 @@ one lane only.
   masks, outline, shadow, flip, tile, rotation, font, fill, line, scissor, and
   widget-model output against Soft3D.
 - **Source:**
-  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c)
+  [`src/platform/platform_win32_renderer_d3d9_core.c`](../src/platform/platform_win32_renderer_d3d9_core.c)
 
 ### WINDOWS-D3D9-001 - Draw-range storage grows past its initial 4,096 entries
 
@@ -474,7 +474,7 @@ one lane only.
   fragmented retained draw list assert in `trspk_drawrangelist_push`; with
   assertions disabled it could write past the allocation.
 - **Sources:**
-  [`src/platform/platform_win32_renderer_d3d9.c`](../src/platform/platform_win32_renderer_d3d9.c),
+  [`src/platform/platform_win32_renderer_d3d9_core.c`](../src/platform/platform_win32_renderer_d3d9_core.c),
   [`3rd/trspk/core/trspk_drawrangelist.c`](../3rd/trspk/core/trspk_drawrangelist.c)
 
 ### WIN32-TIMER-001 - Native pacing uses XP-safe absolute deadlines

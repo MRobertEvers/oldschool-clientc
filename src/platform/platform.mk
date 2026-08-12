@@ -162,9 +162,9 @@ else ifeq ($(PLATFORM),win32)
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
-                       platform/platform_win32_renderer_d3d9.c \
-                       platform/platform_win32_renderer_d3d9_world_painter.c \
-                       platform/platform_win32_renderer_d3d9_world_zbuffer.c
+                       platform/platform_win32_renderer_d3d9_core.c \
+                       platform/platform_win32_renderer_d3d9_painter.c \
+                       platform/platform_win32_renderer_d3d9_zbuffer.c
   # Keep the executor-side JS5 producer native-only. The wildcard is
   # deliberately non-recursive so server and test mains cannot enter the client.
   JS5_SRCS          := $(wildcard js5/*.c)
@@ -248,9 +248,9 @@ else ifeq ($(PLATFORM),win64)
                        platform/platform_x_io_js5_cache.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
-                       platform/platform_win32_renderer_d3d9.c \
-                       platform/platform_win32_renderer_d3d9_world_painter.c \
-                       platform/platform_win32_renderer_d3d9_world_zbuffer.c
+                       platform/platform_win32_renderer_d3d9_core.c \
+                       platform/platform_win32_renderer_d3d9_painter.c \
+                       platform/platform_win32_renderer_d3d9_zbuffer.c
   # Keep the executor-side JS5 producer native-only. The wildcard is
   # deliberately non-recursive so server and test mains cannot enter the client.
   JS5_SRCS          := $(wildcard js5/*.c)

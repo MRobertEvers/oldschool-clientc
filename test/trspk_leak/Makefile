@@ -28,7 +28,9 @@ OBJECTS := \
 	$(BUILD_DIR)/trspk_leak_test.o \
 	$(BUILD_DIR)/retained_alloc_tracker.o \
 	$(BUILD_DIR)/retained_renderer_stubs.o \
-	$(BUILD_DIR)/platform_win32_renderer_d3d9.o \
+	$(BUILD_DIR)/platform_win32_renderer_d3d9_core.o \
+	$(BUILD_DIR)/platform_win32_renderer_d3d9_painter.o \
+	$(BUILD_DIR)/platform_win32_renderer_d3d9_zbuffer.o \
 	$(BUILD_DIR)/torirs_perf.o \
 	$(BUILD_DIR)/trspk_sprite.o \
 	$(BUILD_DIR)/trspk_toridraw.o \
@@ -57,8 +59,11 @@ $(BUILD_DIR)/retained_alloc_tracker.o: retained_alloc_tracker.c retained_alloc_t
 $(BUILD_DIR)/retained_renderer_stubs.o: retained_renderer_stubs.c | $(BUILD_DIR)
 	$(CC) $(TRACKED_CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/platform_win32_renderer_d3d9.o: \
-	$(ROOT)/src/platform/platform_win32_renderer_d3d9.c | $(BUILD_DIR)
+# The renderer is three translation units: the shared core, and the two world
+# implementations it picks between. The leak test drives the core's retained
+# buffers, but both peers have to link or the core's calls go unresolved.
+$(BUILD_DIR)/platform_win32_renderer_d3d9_%.o: \
+	$(ROOT)/src/platform/platform_win32_renderer_d3d9_%.c | $(BUILD_DIR)
 	$(CC) $(TRACKED_CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/torirs_perf.o: $(ROOT)/src/perf/torirs_perf.c | $(BUILD_DIR)

@@ -1,9 +1,9 @@
 /**
- * The hardware depth-test world backend for the D3D9 renderer.
+ * The hardware depth-test world path for the D3D9 renderer.
  *
- * Where the painter backend leans on submission order for correctness, this
- * one lets the depth buffer resolve occlusion and only sorts what genuinely
- * needs sorting:
+ * Where the painter path leans on submission order for correctness, this one
+ * lets the depth buffer resolve occlusion and only sorts what genuinely needs
+ * sorting:
  *
  *   1. Each pose is classified once into a material table -- per face, is it
  *      opaque, a binary cutout, or truly blended?  Opaque and cutout faces are
@@ -14,15 +14,16 @@
  *      priority sort, and their faces are queued into a separate chain drawn
  *      back-to-front afterwards with depth writes off.
  *
- * That split is why this backend keeps state the painter has none of: the
- * material tables, and the deferred blended-submission queue.  Both live in
- * struct D3D9ZWorld, reached through renderer->world_state.
+ * That split is why this path keeps state the painter has none of: the material
+ * tables, and the deferred blended-submission queue.  Both live in struct
+ * D3D9ZBufferWorld, which is private to this file -- the core only ever sees
+ * the pointer, and its being non-NULL is what selects this implementation.
  *
- * See platform_win32_renderer_d3d9_internal.h for the backend contract, and
- * platform_win32_renderer_d3d9_world_painter.c for the painter sibling.
+ * platform_win32_renderer_d3d9_painter.c is the order-dependent alternative.
+ * The two are peers and neither calls the other.
  */
 
-#include "platform/platform_win32_renderer_d3d9_internal.h"
+#include "platform/platform_win32_renderer_d3d9_core.h"
 
 #include "perf/torirs_perf.h"
 
@@ -76,7 +77,7 @@ struct D3D9AlphaSubmission
 };
 
 /** Everything depth mode owns that painter mode has no use for. */
-struct D3D9ZWorld
+struct D3D9ZBufferWorld
 {
     /* Face classification, mirroring the two retained pose tables the core
      * keeps, plus a scratch entry for geometry that is not retained at all. */
@@ -96,10 +97,10 @@ struct D3D9ZWorld
     uint32_t alpha_submission_capacity;
 };
 
-static struct D3D9ZWorld*
-zbuf_world(struct ToriRS_D3D9* renderer)
+static struct D3D9ZBufferWorld*
+d3d9_zbuffer_state(struct ToriRS_D3D9* renderer)
 {
-    return (struct D3D9ZWorld*)renderer->world_state;
+    return renderer->zbuffer;
 }
 
 static void
@@ -409,7 +410,7 @@ d3d9_world_face_front_facing(
 
 static bool
 d3d9_queue_alpha_submission(
-    struct D3D9ZWorld* world,
+    struct D3D9ZBufferWorld* world,
     uint32_t binding,
     uint32_t page_base,
     int depth,
@@ -494,7 +495,7 @@ d3d9_compare_alpha_submission(const void* lhs, const void* rhs)
 }
 
 static void
-d3d9_build_alpha_chain(struct D3D9ZWorld* world)
+d3d9_build_alpha_chain(struct D3D9ZBufferWorld* world)
 {
     uint32_t i;
     if( !world || !world->alpha_ibo_chain || world->alpha_submission_count == 0u )
@@ -517,11 +518,11 @@ d3d9_build_alpha_chain(struct D3D9ZWorld* world)
     }
 }
 
-static bool
-zbuf_create(struct ToriRS_D3D9* renderer)
+bool
+d3d9_zbuffer_create(struct ToriRS_D3D9* renderer)
 {
-    struct D3D9ZWorld* world =
-        (struct D3D9ZWorld*)calloc(1u, sizeof(struct D3D9ZWorld));
+    struct D3D9ZBufferWorld* world =
+        (struct D3D9ZBufferWorld*)calloc(1u, sizeof(struct D3D9ZBufferWorld));
     if( !world )
         return false;
     world->alpha_ibo_chain = trspk_ibochain_create(TRSPK_INDEX_FORMAT_U16);
@@ -530,14 +531,14 @@ zbuf_create(struct ToriRS_D3D9* renderer)
         free(world);
         return false;
     }
-    renderer->world_state = world;
+    renderer->zbuffer = world;
     return true;
 }
 
-static void
-zbuf_destroy(struct ToriRS_D3D9* renderer)
+void
+d3d9_zbuffer_destroy(struct ToriRS_D3D9* renderer)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     if( world->alpha_ibo_chain )
@@ -548,13 +549,13 @@ zbuf_destroy(struct ToriRS_D3D9* renderer)
     free(world->alpha_indices);
     free(world->alpha_submissions);
     free(world);
-    renderer->world_state = NULL;
+    renderer->zbuffer = NULL;
 }
 
-static void
-zbuf_reset_pass(struct ToriRS_D3D9* renderer)
+void
+d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     if( world->alpha_ibo_chain )
@@ -563,10 +564,10 @@ zbuf_reset_pass(struct ToriRS_D3D9* renderer)
     world->alpha_submission_count = 0u;
 }
 
-static void
-zbuf_begin_pass(struct ToriRS_D3D9* renderer)
+void
+d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer)
 {
-    zbuf_reset_pass(renderer);
+    d3d9_zbuffer_reset_pass(renderer);
     IDirect3DDevice9_Clear(
         renderer->device,
         0u,
@@ -577,8 +578,8 @@ zbuf_begin_pass(struct ToriRS_D3D9* renderer)
         0u);
 }
 
-static void
-zbuf_setup_projection(
+void
+d3d9_zbuffer_setup_projection(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command)
 {
@@ -588,10 +589,10 @@ zbuf_setup_projection(
         D3D9_WORLD_FAR);
 }
 
-static void
-zbuf_end_pass(struct ToriRS_D3D9* renderer)
+void
+d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     d3d9_build_alpha_chain(world);
@@ -599,15 +600,15 @@ zbuf_end_pass(struct ToriRS_D3D9* renderer)
         d3d9_draw_retained(renderer, world->alpha_ibo_chain, true);
 }
 
-static void
-zbuf_apply_world_states(struct ToriRS_D3D9* renderer)
+void
+d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer)
 {
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZENABLE, D3DZB_TRUE);
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZWRITEENABLE, TRUE);
 }
 
-static void
-zbuf_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass)
+void
+d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass)
 {
     /* The blended chain is already sorted back-to-front, so it blends against
      * the opaque result without contributing depth of its own. */
@@ -621,26 +622,13 @@ zbuf_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass)
         blended_pass ? TRUE : FALSE);
 }
 
-static int
-zbuf_model_face_count(
-    struct ToriRS_D3D9* renderer,
-    const struct ToriRS_RenderCommand_Model* command,
-    int* out_sorted_face_count)
-{
-    (void)renderer;
-    /* No up-front sort: the depth buffer orders the opaque pass, and only the
-     * models that turn out to carry blended faces sort later, in model_emit. */
-    *out_sorted_face_count = 0;
-    return trspk_toridraw_face_count(command->model);
-}
-
-static void
-zbuf_model_emit(
+void
+d3d9_zbuffer_emit_model(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct D3D9ModelPlacement* placement)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     const struct D3D9MaterialPose* material = NULL;
     const uint32_t local_base = placement->local_base;
     uint32_t written = 0u;
@@ -734,51 +722,51 @@ zbuf_model_emit(
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_BLENDED_TRIANGLES, written / 3u);
 }
 
-static void
-zbuf_pose_baked(
+void
+d3d9_zbuffer_pose_baked(
     struct ToriRS_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     (void)d3d9_material_table_set(
         &world->materials, renderer, element_id, anim_index, pose_id, handle);
 }
 
-static void
-zbuf_element_dropped(struct ToriRS_D3D9* renderer, int element_id)
+void
+d3d9_zbuffer_element_dropped(struct ToriRS_D3D9* renderer, int element_id)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     d3d9_material_table_remove_element(&world->materials, element_id);
 }
 
-static void
-zbuf_track_dropped(
+void
+d3d9_zbuffer_track_dropped(
     struct ToriRS_D3D9* renderer,
     int element_id,
     int anim_index)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     d3d9_material_table_remove_track(&world->materials, element_id, anim_index);
 }
 
-static void
-zbuf_batch_pose_baked(
+void
+d3d9_zbuffer_batch_pose_baked(
     struct ToriRS_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
         return;
     (void)d3d9_material_table_set(
@@ -790,10 +778,10 @@ zbuf_batch_pose_baked(
         handle);
 }
 
-static void
-zbuf_batch_dropped(struct ToriRS_D3D9* renderer, struct TRSPK_Batch16* cpu)
+void
+d3d9_zbuffer_batch_dropped(struct ToriRS_D3D9* renderer, struct TRSPK_Batch16* cpu)
 {
-    struct D3D9ZWorld* world = zbuf_world(renderer);
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     uint32_t entry_count;
     uint32_t entry_index;
     if( !world )
@@ -807,30 +795,4 @@ zbuf_batch_dropped(struct ToriRS_D3D9* renderer, struct TRSPK_Batch16* cpu)
             d3d9_material_table_remove_element(
                 &world->batch_materials, entry->element_id);
     }
-}
-
-static const struct D3D9WorldBackend g_zbuffer_backend = {
-    "zbuffer",
-    true,
-    zbuf_create,
-    zbuf_destroy,
-    zbuf_begin_pass,
-    zbuf_setup_projection,
-    zbuf_end_pass,
-    zbuf_reset_pass,
-    zbuf_apply_world_states,
-    zbuf_apply_pass_states,
-    zbuf_model_face_count,
-    zbuf_model_emit,
-    zbuf_pose_baked,
-    zbuf_element_dropped,
-    zbuf_track_dropped,
-    zbuf_batch_pose_baked,
-    zbuf_batch_dropped,
-};
-
-const struct D3D9WorldBackend*
-d3d9_world_backend_zbuffer(void)
-{
-    return &g_zbuffer_backend;
 }

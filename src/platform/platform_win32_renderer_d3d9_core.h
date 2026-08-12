@@ -1,24 +1,26 @@
-#ifndef SRC_PLATFORM_PLATFORM_WIN32_RENDERER_D3D9_INTERNAL_H
-#define SRC_PLATFORM_PLATFORM_WIN32_RENDERER_D3D9_INTERNAL_H
+#ifndef SRC_PLATFORM_PLATFORM_WIN32_RENDERER_D3D9_CORE_H
+#define SRC_PLATFORM_PLATFORM_WIN32_RENDERER_D3D9_CORE_H
 
 /**
- * Shared surface between the D3D9 renderer core and its two world backends.
+ * Shared surface between the D3D9 renderer core and its two world
+ * implementations.
  *
- * The core (platform_win32_renderer_d3d9.c) owns the device, the 2D/UI stack,
- * textures and every retained CPU/GPU buffer.  It knows nothing about how the
- * world's triangles get ordered.  That is a world backend's job, and there are
- * two of them in separate translation units:
+ * platform_win32_renderer_d3d9_core.c owns the device, the 2D/UI stack,
+ * textures and every retained CPU/GPU buffer.  None of that depends on how the
+ * world's triangles get ordered, so none of it is duplicated.  The ordering
+ * itself is not shared at all -- there are two implementations, and they are
+ * peers:
  *
- *   platform_win32_renderer_d3d9_world_painter.c   painter's algorithm; the
- *                                                  legacy RS ordering, no
- *                                                  depth buffer
- *   platform_win32_renderer_d3d9_world_zbuffer.c   hardware depth test, with a
- *                                                  material pre-pass and a
- *                                                  sorted blended pass
+ *   platform_win32_renderer_d3d9_painter.c   painter's algorithm; the legacy RS
+ *                                            ordering, no depth buffer
+ *   platform_win32_renderer_d3d9_zbuffer.c   hardware depth test, with a
+ *                                            material pre-pass and a sorted
+ *                                            blended pass
  *
- * ToriRS_D3D9_Init picks one from its z_buffer_enabled argument and the core
- * only ever reaches it through struct D3D9WorldBackend.  Nothing below the
- * vtable branches on the mode.
+ * ToriRS_D3D9_Init picks one from its z_buffer_enabled argument by creating (or
+ * not creating) the depth implementation's state; ::zbuffer is that state and
+ * doubles as the selector.  The core calls d3d9_painter_* or d3d9_zbuffer_*
+ * directly.
  */
 
 #include "platform/platform_win32_renderer_d3d9.h"
@@ -216,7 +218,7 @@ struct D3D9ModelGroup
     bool reset_each_frame;
 };
 
-struct D3D9WorldBackend;
+struct D3D9ZBufferWorld;
 
 struct ToriRS_D3D9
 {
@@ -229,11 +231,12 @@ struct ToriRS_D3D9
     bool reset_pending;
     bool scene_active;
 
-    /* The world ordering strategy and its private per-mode state.  ::world is
-     * never NULL once ToriRS_D3D9_New has returned; ::world_state belongs to
-     * the backend and is opaque here. */
-    const struct D3D9WorldBackend* world;
-    void* world_state;
+    /* The depth renderer's private state, and the mode selector: non-NULL means
+     * ToriRS_D3D9_Init was asked for hardware depth and the d3d9_zbuffer_*
+     * implementation owns the world path.  NULL means the painter one does, and
+     * it needs no state of its own.  The type is opaque outside
+     * platform_win32_renderer_d3d9_zbuffer.c. */
+    struct D3D9ZBufferWorld* zbuffer;
 
     int width;
     int height;
@@ -311,7 +314,7 @@ struct ToriRS_D3D9
 
 /**
  * Where the shared d3d9_draw_model preamble placed one model's baked vertices
- * before handing it to the world backend for index emission.
+ * before handing it to a world path for index emission.
  *
  * ::binding selects the vertex stream (a TRSPK_VBO group, or
  * D3D9_STATIC_PAGE_BINDING_BASE for Batch16's managed VBO) and ::page_base the
@@ -324,8 +327,8 @@ struct D3D9ModelPlacement
     uint32_t page_base;
     uint32_t local_base;
     int face_count;
-    /* Faces the backend's model_face_count left ordered in ToriDraw_FaceOrder.
-     * Zero when the backend did not sort. */
+    /* Faces left ordered in ToriDraw_FaceOrder by d3d9_painter_sort_faces.
+     * Zero on the depth path, which does not sort here. */
     int sorted_face_count;
     int anim_index;
     int pose_id;
@@ -333,98 +336,125 @@ struct D3D9ModelPlacement
 };
 
 /**
- * One world ordering strategy.  Every hook is mandatory -- a backend that has
- * nothing to do for one supplies an explicit no-op rather than leaving NULL,
- * so the core never has to null-check a call site.
+ * The two world implementations.
+ *
+ * They are peers, not a base and an override: each owns its whole world path
+ * and neither knows the other exists.  The core calls one or the other
+ * directly -- see the ::zbuffer selector above -- so there is no dispatch layer
+ * to keep in step, and a mode that has nothing to do at some point simply is
+ * not called there.
+ *
+ * platform_win32_renderer_d3d9_painter.c is the legacy RS ordering: no depth
+ * buffer, faces sorted back-to-front on the CPU, correctness carried entirely
+ * by submission order.  It is stateless.
+ *
+ * platform_win32_renderer_d3d9_zbuffer.c is the hardware depth-test ordering:
+ * a material pre-pass classifies faces, opaque and cutout draw in natural order
+ * with depth writes on, and only genuinely blended faces pay for a sort and a
+ * deferred back-to-front pass.  Its state hangs off ::zbuffer.
  */
-struct D3D9WorldBackend
-{
-    /* Names the mode in diagnostics. */
-    const char* name;
 
-    /* Whether ToriRS_D3D9_Init must ask D3D for an auto depth-stencil surface. */
-    bool wants_depth_stencil;
+/* Fix up the projection trspk_compute_pass_matrices just produced.  The two
+ * modes agree on X/Y scale and disagree only about clip Z. */
+void
+d3d9_painter_setup_projection(struct ToriRS_D3D9* renderer);
+void
+d3d9_zbuffer_setup_projection(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Begin3D* command);
 
-    /* Allocate and release renderer->world_state.  create returns false only
-     * on allocation failure. */
-    bool (*create)(struct ToriRS_D3D9* renderer);
-    void (*destroy)(struct ToriRS_D3D9* renderer);
+/* The depth-related render states, applied at the point in
+ * d3d9_set_world_states where they used to be spelled inline. */
+void
+d3d9_painter_apply_world_states(struct ToriRS_D3D9* renderer);
+void
+d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer);
 
-    /* Start of a 3D pass, called once the D3D viewport for the pass is set so
-     * that any Clear here is scissored to it. */
-    void (*begin_pass)(struct ToriRS_D3D9* renderer);
+/* Order one model's faces up front.  *out_sorted_face_count reports how many
+ * entries the call left in ToriDraw_FaceOrder.  Return <= 0 to skip the model.
+ * The depth path has no counterpart: it takes the raw face count and classifies
+ * per face inside d3d9_zbuffer_emit_model instead. */
+int
+d3d9_painter_sort_faces(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    int* out_sorted_face_count);
 
-    /* Fix up the projection trspk_compute_pass_matrices just produced.  The
-     * two modes agree on X/Y scale and disagree only about clip Z. */
-    void (*setup_projection)(
-        struct ToriRS_D3D9* renderer,
-        const struct ToriRS_RenderCommand_Begin3D* command);
-
-    /* Flush mode-owned draw passes the shared opaque chain did not cover.
-     * Runs after the core has drawn renderer->ibo_chain. */
-    void (*end_pass)(struct ToriRS_D3D9* renderer);
-
-    /* Drop pass-scoped queues.  Runs on every end-of-3D, including the early
-     * exits that never drew anything. */
-    void (*reset_pass)(struct ToriRS_D3D9* renderer);
-
-    /* The depth-related render states, applied at the point in
-     * d3d9_set_world_states where they used to be spelled inline. */
-    void (*apply_world_states)(struct ToriRS_D3D9* renderer);
-
-    /* Per-chain state for a single d3d9_draw_retained call. */
-    void (*apply_pass_states)(struct ToriRS_D3D9* renderer, bool blended_pass);
-
-    /* How many faces this model contributes.  A backend that orders faces up
-     * front does so here and reports the count through out_sorted_face_count;
-     * one that does not leaves it at zero.  Return <= 0 to skip the model. */
-    int (*model_face_count)(
-        struct ToriRS_D3D9* renderer,
-        const struct ToriRS_RenderCommand_Model* command,
-        int* out_sorted_face_count);
-
-    /* Append this model's indices to the frame's chains. */
-    void (*model_emit)(
-        struct ToriRS_D3D9* renderer,
-        const struct ToriRS_RenderCommand_Model* command,
-        const struct D3D9ModelPlacement* placement);
-
-    /* Retained-geometry notifications.  A mode that caches per-pose CPU data
-     * alongside TRSPK's pose tables uses these to stay in step with them; a
-     * mode that caches nothing supplies no-ops. */
-    void (*pose_baked)(
-        struct ToriRS_D3D9* renderer,
-        int element_id,
-        int anim_index,
-        int pose_id,
-        struct ToriDraw_ModelHandle handle);
-    void (*element_dropped)(struct ToriRS_D3D9* renderer, int element_id);
-    void (*track_dropped)(
-        struct ToriRS_D3D9* renderer,
-        int element_id,
-        int anim_index);
-    void (*batch_pose_baked)(
-        struct ToriRS_D3D9* renderer,
-        int element_id,
-        int anim_index,
-        int pose_id,
-        struct ToriDraw_ModelHandle handle);
-    void (*batch_dropped)(
-        struct ToriRS_D3D9* renderer,
-        struct TRSPK_Batch16* cpu);
-};
-
-/** The painter's-algorithm world backend. */
-const struct D3D9WorldBackend*
-d3d9_world_backend_painter(void);
-
-/** The hardware depth-test world backend. */
-const struct D3D9WorldBackend*
-d3d9_world_backend_zbuffer(void);
+/* Append one model's indices to the frame's chains. */
+void
+d3d9_painter_emit_model(
+    struct ToriRS_D3D9* renderer,
+    const struct D3D9ModelPlacement* placement);
+void
+d3d9_zbuffer_emit_model(
+    struct ToriRS_D3D9* renderer,
+    const struct ToriRS_RenderCommand_Model* command,
+    const struct D3D9ModelPlacement* placement);
 
 /*
- * Core services the world backends draw on.  These stay owned by the core file;
- * only the handful a backend genuinely needs is exported here.
+ * Depth-only entry points.  The painter has no counterpart for any of these --
+ * it clears nothing, queues nothing and caches nothing -- so the core calls
+ * them under a ::zbuffer test rather than pairing each with an empty function.
+ */
+
+/** Allocate ::zbuffer, or release it and reset it to NULL. */
+bool
+d3d9_zbuffer_create(struct ToriRS_D3D9* renderer);
+void
+d3d9_zbuffer_destroy(struct ToriRS_D3D9* renderer);
+
+/** Clear the depth buffer, once the pass viewport is set so the clear is
+ *  scissored to it. */
+void
+d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer);
+
+/** Per-chain depth/blend state for a single d3d9_draw_retained call. */
+void
+d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass);
+
+/** Draw the deferred blended pass, after the core has drawn the opaque chain. */
+void
+d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer);
+
+/** Drop pass-scoped queues.  Runs on every end-of-3D, including early exits. */
+void
+d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer);
+
+/*
+ * Retained-geometry notifications.  The depth path caches a per-pose material
+ * classification alongside TRSPK's pose tables and uses these to stay in step
+ * with them.
+ */
+void
+d3d9_zbuffer_pose_baked(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle handle);
+void
+d3d9_zbuffer_element_dropped(struct ToriRS_D3D9* renderer, int element_id);
+void
+d3d9_zbuffer_track_dropped(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index);
+void
+d3d9_zbuffer_batch_pose_baked(
+    struct ToriRS_D3D9* renderer,
+    int element_id,
+    int anim_index,
+    int pose_id,
+    struct ToriDraw_ModelHandle handle);
+void
+d3d9_zbuffer_batch_dropped(
+    struct ToriRS_D3D9* renderer,
+    struct TRSPK_Batch16* cpu);
+
+/*
+ * Core services both implementations draw on.  These stay owned by
+ * platform_win32_renderer_d3d9_core.c; only the handful the world paths
+ * genuinely need is exported here.
  */
 
 /** Grow renderer->model_indices to hold at least `needed` U16 indices. */
