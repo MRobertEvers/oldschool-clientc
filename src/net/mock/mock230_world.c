@@ -5658,6 +5658,31 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "god", 3) == 0 )
+    {
+        /* `::god [0|1]` — debug invulnerability, gated in the one player damage
+         * funnel (mock230_combat_hit_player) and against hitpoint drains from
+         * the stat opcodes (godmode_blocks_stat_write). Its reason for existing
+         * is measurement: profiling a live encounter means standing in it and
+         * moving around, and without this the death sequence teleports the
+         * player out and rebuilds the scene partway through every run, which
+         * shows up in a frame-time trace as work that has nothing to do with
+         * what was being measured. */
+        int want = !player->godmode;
+        (void)sscanf(text, "god %d", &want);
+        player->godmode = want != 0;
+        /* Top up on the way in, so a run does not start on a sliver of health
+         * left over from before the flag was set. */
+        if( player->godmode )
+        {
+            player->hitpoints = player->max_hitpoints;
+            mock230_combat_sync_hitpoints(player);
+            player->masks |= MOCK230_PMASK_DAMAGE;
+        }
+        say(srv, "God mode %s.", player->godmode ? "on" : "off");
+        return;
+    }
+
     if( strncmp(text, "bank", 4) == 0 )
     {
         /* `::bank` opens the bank without walking to a booth — the Lumbridge
@@ -17726,9 +17751,22 @@ mock230_world_selftest(void)
         int saved_hp = player->hitpoints;
         int saved_dying = player->dying;
         int saved_god = player->godmode;
+        int saved_max = player->max_hitpoints;
+        int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
 
+        /* A bar this stanza owns. Whatever ran before leaves the fixture on
+         * whatever hitpoints it happened to end on — one, at the time of
+         * writing — and a control hit has to be survivable to stay
+         * non-destructive, which it cannot be against a maximum of 1.
+         *
+         * The level, not `max_hitpoints`: mock230_combat_sync_hitpoints
+         * recomputes the maximum from `stat_level[hitpoints]` on every hit, so
+         * assigning the maximum alone is undone by the first swing. */
         player->dying = 0;
-        player->hitpoints = player->max_hitpoints;
+        player->stat_level[MOCK230_STAT_HITPOINTS] = 10;
+        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
+        player->hitpoints = 10;
+        mock230_combat_sync_hitpoints(player);
 
         player->godmode = 1;
         mock230_combat_hit_player(&srv, 0, player->max_hitpoints);
@@ -17743,13 +17781,23 @@ mock230_world_selftest(void)
                        "and should still send a block splat, got damage=%d mask=%d",
                        player->damage, (player->masks & MOCK230_PMASK_DAMAGE) ? 1 : 0);
 
+        /* The control, and deliberately a *survivable* hit rather than the
+         * lethal one: a real death here would stop combat, unlock the player
+         * and fire [queue,player_death], and none of that is restored by
+         * putting hitpoints back — later stanzas in this file measure
+         * retaliation and action locks against a player this one left for
+         * dead. One point of damage proves the gate is load-bearing just as
+         * well as forty do. */
         player->godmode = 0;
-        mock230_combat_hit_player(&srv, 0, player->max_hitpoints);
-        SELFTEST_CHECK(player->hitpoints == 0 && player->dying,
-                       "the same hit without ::god should still kill, got %d/%d dying=%d",
+        mock230_combat_hit_player(&srv, 0, 1);
+        SELFTEST_CHECK(player->hitpoints == player->max_hitpoints - 1 && !player->dying,
+                       "the same hit without ::god should land, got %d/%d dying=%d",
                        player->hitpoints, player->max_hitpoints, player->dying);
 
         player->godmode = saved_god;
+        player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+        player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_hp;
+        player->max_hitpoints = saved_max;
         player->hitpoints = saved_hp;
         player->dying = saved_dying;
         mock230_combat_sync_hitpoints(player);

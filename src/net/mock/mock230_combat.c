@@ -1041,6 +1041,28 @@ mock230_combat_player_tick(struct Mock230Server* srv)
     struct Mock230Player* player = srv->active_player;
     struct Mock230Npc* npc;
 
+    /* MOCK230_HP_TRACE=1: every hitpoints change, once per tick. Under `::god`
+     * a change is by definition a gate that was missed, and hitpoints are
+     * written from half a dozen places (the damage funnel, three stat opcodes,
+     * the level setter, the save loader) — sampling the value beats adding a
+     * print to each and still missing the one that mattered. */
+    static int hp_trace = -1;
+    if( hp_trace < 0 )
+        hp_trace = getenv("MOCK230_HP_TRACE") != NULL;
+    if( hp_trace )
+    {
+        static int last_hp = -1;
+        if( player->hitpoints != last_hp )
+        {
+            fprintf(stderr,
+                    "hp_trace: tick=%d hp=%d boosted=%d max=%d god=%d dying=%d\n",
+                    srv->tick, player->hitpoints,
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS],
+                    player->max_hitpoints, player->godmode, player->dying);
+            last_hp = player->hitpoints;
+        }
+    }
+
     /*
      * A corpse does not swing, and the script is what stops it being one.
      *

@@ -3314,6 +3314,26 @@ player_by_uid(struct Mock230Server* srv, int32_t uid)
 }
 
 /*
+ * Whether `::god` should refuse this stat write.
+ *
+ * The damage funnel is not the only way hitpoints go down. `stat_sub`,
+ * `stat_drain` and a negative `stat_add` assign `player->hitpoints` straight
+ * from the stat table, and content uses them — which is why an early version of
+ * this flag looked like it worked in a unit test and still let the player die
+ * in the Inferno. Only reductions are blocked: `stat_heal` and a normal boost
+ * must still land, or god mode would also freeze the health it is protecting.
+ */
+static int
+godmode_blocks_stat_write(
+    struct Mock230Player const* player,
+    int stat,
+    int target)
+{
+    return player->godmode && stat == MOCK230_STAT_HITPOINTS &&
+           target < player->stat_boosted[stat];
+}
+
+/*
  * The level the content block authored for this npc's stat — its *base*, before
  * anything a script has drained.
  *
@@ -7954,6 +7974,8 @@ mock230_script_command(
             target = current;
         if( target == current )
             return 1;
+        if( godmode_blocks_stat_write(player, values[0], target) )
+            return 1;
 
         player->stat_boosted[values[0]] = target;
         /* Hitpoints are two views of one number — the stat the skills tab
@@ -8011,6 +8033,8 @@ mock230_script_command(
         if( target < 0 )
             target = 0;
         if( target == player->stat_boosted[values[0]] )
+            return 1;
+        if( godmode_blocks_stat_write(player, values[0], target) )
             return 1;
 
         player->stat_boosted[values[0]] = target;

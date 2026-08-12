@@ -152,6 +152,30 @@ one lane only.
 - **Sources:** [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
   [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
 
+### DESKTOP-GL-002 - GPU buffer resets must reallocate in place, never delete+regen
+
+- **Status:** Resolved guardrail
+- **Applies to:** Desktop `--opengl3` / `--opengl3-zbuffer` (core profile)
+- **Behavior:** `gl3_release_gpu_mesh_buffers` (fired by `BATCH3D_CLEAR`, i.e.
+  every world load) resets the mesh VBOs and the shared EBO with
+  `glBufferData(NULL)` on the *same* buffer objects. It must never
+  `glDeleteBuffers` + `glGenBuffers` them: `GL_ELEMENT_ARRAY_BUFFER` binding is
+  VAO state, and deleting a buffer detaches it only from the VAO bound at that
+  moment. Every other group VAO keeps referencing the deleted zombie object
+  while `glGenBuffers` reuses the same name for a fresh one — from then on the
+  per-frame index upload writes the new object and `glDrawElements` reads the
+  zombie's never-written zeros. No GL error at any point, vertex data and every
+  queryable binding look correct (`GL_ELEMENT_ARRAY_BUFFER_BINDING` reports the
+  name, which matches), and the 2D pass is unaffected: the world just silently
+  stops drawing after the first map load.
+- **Verification:** `TORIRS_GL3_3D_DEBUG=1` error-checks the world index upload
+  and draws, and compares the drawn range read back through the VAO's element
+  attachment against the CPU staging — a stale attachment prints
+  `element attachment is stale`. `TORIRS_GL3_READBACK=path.ppm` dumps the GL
+  back buffer after the 3D pass; `TORIRS_EXIT_BMP` cannot show GL-only defects
+  because it re-renders through the software rasterizer.
+- **Sources:** [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
+
 ### DESKTOP-INPUT-001 - Text input is layout-aware but byte-limited
 
 - **Status:** Limitation
@@ -747,6 +771,31 @@ one lane only.
 - **Sources:** [`src/main.c`](../src/main.c),
   [`src/web/torirs_host.js`](../src/web/torirs_host.js),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
+
+### WEB-LOOP-002 - Client-cycle work must be gated on the cycle, not on elapsed ms
+
+- **Status:** Resolved guardrail
+- **Applies to:** Web build (any host whose frame period is not exactly 20 ms)
+- **Behavior:** Anything the reference does once per client cycle must be keyed
+  on the logic-tick counter. A wall-clock `elapsed >= 20ms` test evaluated once
+  per render frame is NOT the same thing: it quantizes to the frame period, so
+  it fires at `floor` of the real rate whenever frames are not exactly 20 ms.
+- **Failure mode:** `interact_hover` gated `onMouseRepeat` that way. The cache's
+  mouseover container (`interface_161:37`) is `cc_deleteall`ed and rebuilt by a
+  per-cycle timer — script 4725's `if_setontimer` → 4726 — and the tooltip is
+  only put back by the hovered component's `onmouserepeat`. At the browser's
+  ~120 fps the repeat fired every third frame (24.9 ms, ~41/s) against 50
+  teardowns a second, so roughly one frame in five drew no tooltip: hover
+  tooltips flickered in both the WebGL and Soft3D lanes. Native never showed it
+  because its loop sleeps to exactly 20 ms, making the two cadences 1:1 by
+  accident.
+- **Verification:** Park the pointer on a tooltip-bearing cell (prayer icon,
+  `interface_541:9`) in a live browser run and hash the same clipped region
+  across 16 captures — one distinct image, zero consecutive changes. Before the
+  fix the same run alternated between two.
+- **Sources:** [`src/ui/uitree_interact.c`](../src/ui/uitree_interact.c),
+  [`src/ui/uitree_interact.h`](../src/ui/uitree_interact.h),
+  [`src/app.c`](../src/app.c)
 
 ### WEB-ARGS-001 - The URL is argv and environment
 
