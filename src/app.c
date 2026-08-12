@@ -12353,8 +12353,25 @@ app_minimenu_open(
                 menu->options[i].text);
     }
 
+    /* The popup is sized from measured text, so a font the scene cannot hand
+     * back is not a cosmetic miss: PrepareShow falls back to a per-character
+     * estimate and the rows draw past the border. The boot-time resolve can
+     * land before the b12 load does, so re-resolve on a miss and carry the id
+     * to the node that draws the rows — measure and draw must share a font. */
     {
         struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, menu->font_id);
+        if( !font )
+        {
+            int const resolved = app_minimenu_font_scene_id(app);
+            if( resolved > 0 )
+            {
+                int32_t const idx = UITree_FindByComponentId(app->tree, APP_COM_ID_MINIMENU);
+                menu->font_id = resolved;
+                if( idx >= 0 )
+                    app->tree->components[idx].u.minimenu.font_id = resolved;
+                font = ToriDraw_SceneFontGet(app->scene, resolved);
+            }
+        }
         if( font )
             line_box = ToriDraw_FontLineBoxHeight(font);
     }
@@ -12363,23 +12380,17 @@ app_minimenu_open(
         UIMinimenu_ShowAt(
             menu, layout, content_w, click_x, click_y, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app->need_redraw = 1;
+        /* Geometry beside the rows: a popup too narrow for its own text is a
+         * measure that returned nothing, and this line is what says so. */
         if( getenv("TORIRS_MINIMENU_DEBUG") )
-        {
             fprintf(
                 stderr,
-                "minimenu: font=%d line_box=%d content_w=%d width=%d\n",
+                "minimenu: font=%d line_box=%d content_w=%d width=%d height=%d\n",
                 menu->font_id,
                 line_box,
                 content_w,
-                menu->width);
-            for( int i = 0; i < menu->option_count; i++ )
-                fprintf(
-                    stderr,
-                    "  measure[%d]=%d \"%s\"\n",
-                    i,
-                    app_measure_text_cb(app, menu->font_id, menu->options[i].text),
-                    menu->options[i].text);
-        }
+                menu->width,
+                menu->height);
     }
 }
 
@@ -15884,8 +15895,12 @@ App_WorldRebuildShift(
     for( int i = 0; i < 5; i++ )
         app->cam_script.shake[i] = 0;
 
-    /* Minimenu (deob field766 = 0). */
-    UIMinimenu_Reset(&app->interact.minimenu);
+    /* Minimenu (deob field766 = 0): the rebuild closes an open popup, it does
+     * not reconfigure it. Hide, never Reset — Reset also clears font_id, and
+     * the id is boot-time chrome state nothing re-derives, so a reset here left
+     * every later popup measuring against no font and sized by the character
+     * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
+    UIMinimenu_Hide(&app->interact.minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;

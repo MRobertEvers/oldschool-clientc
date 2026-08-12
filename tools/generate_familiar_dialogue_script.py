@@ -123,10 +123,27 @@ def emit_lines(conversation: dict, indent: str) -> list[str]:
     return out
 
 
+def _sum_terms(terms: list[tuple[str, str]]) -> str:
+    """`inv_total(a, x) + inv_total(b, y) + ...`, as nested `add()` calls."""
+    calls = [f"inv_total({container}, {obj})" for container, obj in terms]
+    expr = calls[0]
+    for call in calls[1:]:
+        expr = f"add({expr}, {call})"
+    return expr
+
+
 def guard_expression(guard: dict) -> str:
+    op = {"<=": "<=", ">=": ">=", "==": "="}[guard.get("op", "==")]
     if guard["kind"] == "bob_items":
-        op = "<=" if guard["op"] == "<=" else "="
         return f"~summoning_familiar_bob_items {op} {guard['count']}"
+    if guard["kind"] == "cat":
+        return f"inv_totalcat({guard['container']}, {guard['category']}) {op} {guard['count']}"
+    if guard["kind"] == "sum":
+        return f"{_sum_terms(guard['terms'])} {op} {guard['count']}"
+    if guard["kind"] == "hp_missing":
+        return "stat(hitpoints) < stat_base(hitpoints)"
+    if guard["kind"] == "run_energy_zero":
+        return "runenergy = 0"
     raise SystemExit(f"unknown guard kind {guard['kind']!r}")
 
 

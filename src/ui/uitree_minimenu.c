@@ -21,13 +21,12 @@ UIMinimenu_LayoutFromLineBox(int line_box)
     layout.chrome_h = box + 5;
     layout.hover_above = box - 3;
     layout.hover_below = 3;
-    /* The renderer adds a one-pixel shadow and the popup keeps a three-pixel
-     * text inset on each side.  The reference's eight-pixel allowance leaves
-     * only one spare pixel after those are accounted for, which is too tight
-     * once the bitmap font is scaled.  Keep a full five-pixel breathing room
-     * on both sides so long rows remain visibly inside the popup and their
-     * whole label stays in the clickable rectangle. */
-    layout.width_pad = 16;
+    /* Reference allowance: rows draw at x+3, so 8 leaves a three-pixel inset
+     * left and five (four after the one-pixel shadow) right. It was widened to
+     * 16 once to stop long rows spilling out of the popup; that spill was a
+     * measure returning nothing, not a pad too small, and the real fix is in
+     * app_minimenu_open — so this stays on the reference number. */
+    layout.width_pad = 8;
     layout.click_y_bias = box - 5;
     layout.border_inset = box + 3;
     return layout;
@@ -122,6 +121,12 @@ UIMinimenu_PrepareShow(
                 max_w = w;
         }
     }
+    /* No measure (or a font the caller could not resolve): guess from the
+     * character count. The reference never guesses, so this is only ever a
+     * degraded path — err wide. b12/p12 average close to seven pixels a glyph
+     * and colour tags in a row are free, so the old six-per-character estimate
+     * came out narrower than the text it was sizing and the rows drew past the
+     * border; eight keeps the popup around the text instead. */
     if( max_w <= 0 )
     {
         size_t max_len = strlen("Choose Option");
@@ -131,7 +136,7 @@ UIMinimenu_PrepareShow(
             if( len > max_len )
                 max_len = len;
         }
-        max_w = (int)max_len * 6;
+        max_w = (int)max_len * 8;
     }
 
     *out_content_width = max_w + out_layout->width_pad;
