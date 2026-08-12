@@ -373,9 +373,12 @@ OPTS = [
     dict(flag="defight-timeout", kind="float", default="600", group="defight",
          help="seconds before the defight tool is abandoned"),
     dict(flag="force-priorities", kind="choice",
-         choices=["off", "solve", "keep"], default="off", group="priorities",
+         choices=["off", "solve", "keep", "strip"], default="off",
+         group="priorities",
          help="painter's priority buckets instead of the z-buffer: 'solve' "
-              "re-derives the bands, 'keep' audits the inherited ones"),
+              "re-derives the bands, 'keep' audits the inherited ones, "
+              "'strip' removes them so every model depth-sorts as one flat "
+              "bucket (run without priorities)"),
     dict(flag="prio-views", kind="int", default="16", group="priorities",
          help="priority solve yaw sweep"),
     dict(flag="prio-pitches", kind="int", default="6", group="priorities",

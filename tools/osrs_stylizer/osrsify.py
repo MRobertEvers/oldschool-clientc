@@ -874,6 +874,35 @@ def run_priorities(o):
     o.base_models = solved
 
 
+def run_strip_priorities(o):
+    """Strip the per-face render priorities off the base models entirely
+    (rs2012_face_priorities --strip): every face lands in the header's one
+    flat bucket, so the painter depth-sorts the whole model instead of
+    layering it. Decimate and nudge then have no per-face bytes to carry,
+    and the z-violation audit measures pure depth-sort error."""
+    if not os.path.exists(o.prio_tool):
+        raise SystemExit("osrsify: --force-priorities needs %s — build with "
+                         "'mingw32-make -C src rs2012-face-priorities'"
+                         % o.prio_tool)
+    pdir = os.path.join(o.out_dir, "priorities")
+    os.makedirs(pdir, exist_ok=True)
+    stripped = [os.path.join(pdir, os.path.basename(m)) for m in o.base_models]
+    cmd = [o.prio_tool, "--strip"]
+    for m in o.base_models:
+        cmd += ["--in", m]
+    for m in stripped:
+        cmd += ["--out", m]
+    out, rc = run(cmd, timeout=o.prio_timeout)
+    with open(os.path.join(pdir, "report.txt"), "w", encoding="utf-8") as f:
+        f.write(out)
+    if rc != 0 or not all(os.path.exists(f) for f in stripped):
+        raise SystemExit("osrsify: priority strip failed (rc=%d):\n%s"
+                         % (rc, out.strip()))
+    log("priorities: stripped %d parts to one flat bucket -> %s"
+        % (len(stripped), pdir))
+    o.base_models = stripped
+
+
 def measure_zviol(o, models):
     """Audit how much the per-face priorities the models carry violate the
     z-buffer, via rs2012_face_priorities --measure: pixels where the painter
@@ -975,12 +1004,15 @@ def main():
     ap.add_argument("--defight-deltas", default=None,
                     help="defight displacement ladder CSV (tool default 3,6,9,12)")
     ap.add_argument("--defight-timeout", type=float, default=600)
-    ap.add_argument("--force-priorities", choices=("off", "solve", "keep"),
+    ap.add_argument("--force-priorities",
+                    choices=("off", "solve", "keep", "strip"),
                     default="off",
                     help="render every attempt through the painter's priority "
                          "buckets instead of the z-buffer: 'solve' re-derives "
                          "bands with rs2012_face_priorities first, 'keep' uses "
-                         "the per-face bands the models already carry (both "
+                         "the per-face bands the models already carry, 'strip' "
+                         "removes the per-face bands so the painter depth-"
+                         "sorts every model as one flat bucket (all three "
                          "disable --zbuffer)")
     ap.add_argument("--prio-tool", default=DEFAULT_PRIO)
     ap.add_argument("--prio-timeout", type=float, default=3600)
@@ -1061,6 +1093,8 @@ def main():
     if o.force_priorities != "off":
         if o.force_priorities == "solve":
             run_priorities(o)
+        elif o.force_priorities == "strip":
+            run_strip_priorities(o)
         if o.zbuffer:
             log("priorities: dropping --zbuffer so renders honour the "
                 "per-face bands (the z-buffer path ignores them)")

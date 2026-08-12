@@ -2138,6 +2138,11 @@ usage(const char* argv0)
         "       [--report] [--measure] [--views N] [--pitches N] [--res N]\n"
         "       [--min-pixels N] [--no-weld] [--elev MIN,MAX] [--bulk-flex]\n"
         "\n"
+        "  --strip         write each input with its per-face priority array\n"
+        "                  REMOVED: every face falls into one flat bucket (the\n"
+        "                  header's single model priority), so the painter\n"
+        "                  depth-sorts the whole model instead of layering it.\n"
+        "                  Skips all analysis; needs one --out per --in.\n"
         "  --measure       audit-only: score the priorities the inputs ALREADY\n"
         "                  carry against the z-buffer (occlusion-violation\n"
         "                  pixels, ghost faces, stock-engine visible diff) and\n"
@@ -2176,6 +2181,7 @@ main(int argc, char** argv)
     int out_count = 0;
     bool do_report = false;
     bool do_measure = false;
+    bool do_strip = false;
     bool weld = true;
     int yaw_steps = 12;
     int pitch_steps = 5;
@@ -2258,6 +2264,8 @@ main(int argc, char** argv)
             do_report = true;
         else if( strcmp(argv[i], "--measure") == 0 )
             do_measure = true;
+        else if( strcmp(argv[i], "--strip") == 0 )
+            do_strip = true;
         else if( strcmp(argv[i], "--no-weld") == 0 )
             weld = false;
         else if( strcmp(argv[i], "--repair") == 0 && i + 1 < argc )
@@ -2324,6 +2332,13 @@ main(int argc, char** argv)
         fprintf(stderr, "rs2012_face_priorities: --measure writes nothing; drop --out\n");
         return 2;
     }
+    if( do_strip && (do_measure || out_count != input_count) )
+    {
+        fprintf(
+            stderr,
+            "rs2012_face_priorities: --strip needs one --out per --in and no --measure\n");
+        return 2;
+    }
 
     /* ---- load and concatenate ---- */
     for( int i = 0; i < input_count; i++ )
@@ -2347,6 +2362,86 @@ main(int argc, char** argv)
         inputs[i].face_base = g.face_count;
         g.vertex_count += inputs[i].model->vertex_count;
         g.face_count += inputs[i].model->face_count;
+    }
+
+    /* ---- --strip branches off straight after decode: no geometry, poses or
+     * analysis. With the per-face array gone the encoder falls back to the
+     * header's single model priority, so the painter depth-sorts the whole
+     * model as one bucket. The flat value is arbitrary within the strict
+     * bands (a uniform model behaves identically at any of 0-10); 5 keeps it
+     * mid-ladder and away from the interleaved 11-12 semantics. */
+    if( do_strip )
+    {
+        enum
+        {
+            STRIP_PRIORITY = 5
+        };
+        for( int i = 0; i < input_count; i++ )
+        {
+            struct RSCache_Model* m = inputs[i].model;
+            struct RSCache_ModelProvenance* p = inputs[i].provenance;
+            uint8_t* encoded = NULL;
+            uint32_t bound, written;
+
+            free(m->face_priorities);
+            m->face_priorities = NULL;
+            m->model_priority = STRIP_PRIORITY;
+            /* The encoder prefers the provenance's recorded header, so its
+             * priority byte has to drop from 255 ("per face") to the flat
+             * value or the absent array is still advertised. */
+            if( p->header_flag_count > 1 )
+                p->header_flags[1] = STRIP_PRIORITY;
+
+            bound = RSCache_ModelEncodeBound(m, p);
+            encoded = bound ? (uint8_t*)malloc(bound) : NULL;
+            written =
+                encoded ? RSCache_ModelEncodeFormat(m, p, p->format, encoded, bound) : 0;
+            if( !written )
+            {
+                fprintf(
+                    stderr, "rs2012_face_priorities: cannot encode %s\n", inputs[i].out_path);
+                free(encoded);
+                goto done;
+            }
+
+            /* Prove the file that lands decodes back with no per-face array. */
+            {
+                struct RSCache_ModelProvenance* cp = NULL;
+                struct RSCache_Model* check =
+                    RSCache_ModelNewDecodeProvenance(encoded, (int)written, &cp);
+                bool ok = check && cp && check->face_count == m->face_count &&
+                          check->face_priorities == NULL &&
+                          check->model_priority == STRIP_PRIORITY;
+                RSCache_ModelFree(check);
+                RSCache_ModelProvenanceFree(cp);
+                if( !ok )
+                {
+                    fprintf(
+                        stderr,
+                        "rs2012_face_priorities: %s failed its strip decode check\n",
+                        inputs[i].out_path);
+                    free(encoded);
+                    goto done;
+                }
+            }
+
+            if( !write_file(inputs[i].out_path, encoded, written) )
+            {
+                fprintf(
+                    stderr, "rs2012_face_priorities: cannot write %s\n", inputs[i].out_path);
+                free(encoded);
+                goto done;
+            }
+            free(encoded);
+            printf(
+                "rs2012_face_priorities: %s -> %s stripped to flat priority %d (%u bytes)\n",
+                inputs[i].in_path,
+                inputs[i].out_path,
+                STRIP_PRIORITY,
+                written);
+        }
+        rc = 0;
+        goto done;
     }
 
     g.vx = (int*)malloc((size_t)g.vertex_count * sizeof(int));
