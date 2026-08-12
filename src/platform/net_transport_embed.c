@@ -111,6 +111,20 @@ embed_poll(
             /* One client: this host is the game itself, playing alone. */
             mock230_embed_write(self->embed, 0, payload, header.length);
         }
+        else if( header.type == TORIRS_NET_OUT_DISCONNECT && self->embed )
+        {
+            /*
+             * The embedded server dies with the session it served, exactly as
+             * the forked child of the socket host does — including the save it
+             * writes on the way out. A following CONNECT starts a fresh one,
+             * which is what makes a reconnect over this transport equivalent
+             * to one over a socket.
+             */
+            mock230_embed_stop(self->embed);
+            self->embed = NULL;
+            self->next_tick_ms = 0;
+            emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
+        }
     }
 
     if( !self->embed )
@@ -157,8 +171,19 @@ embed_poll(
         }
     }
 
-    /* 3. server -> client, in bus-sized pieces */
-    while( (got = mock230_embed_read(self->embed, 0, inbound, (int)sizeof(inbound))) > 0 )
+    /*
+     * 3. server -> client, in bus-sized pieces.
+     *
+     * Room first: mock230_embed_read consumes what it returns, so a read whose
+     * bytes the bus then refuses is a hole in the byte stream rather than a
+     * delay. Requiring space for a whole `inbound` (plus one header per chunk
+     * it could be split into) before reading keeps the remainder queued in the
+     * embedded server until the next poll.
+     */
+    while( CmdBus_FreeBytes(bus) >=
+               sizeof(inbound) + (sizeof(inbound) / TORIRS_CMD_MAX_PAYLOAD + 1) *
+                                     sizeof(struct ToriRS_CmdHeader) &&
+           (got = mock230_embed_read(self->embed, 0, inbound, (int)sizeof(inbound))) > 0 )
     {
         int off = 0;
 

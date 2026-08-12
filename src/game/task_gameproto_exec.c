@@ -160,13 +160,25 @@ Task_GameProtoExec_Run(
     {
         /* Client-TS / deob method3310: same-zone early-out when a world is
          * already active. No ack on skip (Client.ts:2289 acks from mapBuild).
-         * REBUILD_REGION forces past it — see App_WorldRebuildBegin. */
+         * REBUILD_REGION forces past it — see App_WorldRebuildBegin.
+         *
+         * So does the first rebuild of a re-established session, and for a
+         * reason the early-out cannot see: a reconnect usually lands on the
+         * same zone it left, which makes this look like a redundant rebuild
+         * when it is the opposite. Skipping it sends no MAP_BUILD_COMPLETE,
+         * and at this revision the server holds the entire login burst behind
+         * that acknowledgement — so the session re-establishes, receives one
+         * REBUILD_NORMAL, and then silence. */
         self->zone_x = self->packet._map_rebuild.zonex;
         self->zone_z = self->packet._map_rebuild.zonez;
-        if( !App_WorldRebuildBegin(
-                app, self->zone_x, self->zone_z,
-                self->packet.packet_type == PKT_NAME_REBUILD_REGION) )
-            PT_EXIT(&self->pt);
+        {
+            int force = self->packet.packet_type == PKT_NAME_REBUILD_REGION ||
+                        app->net_force_rebuild;
+
+            app->net_force_rebuild = 0;
+            if( !App_WorldRebuildBegin(app, self->zone_x, self->zone_z, force) )
+                PT_EXIT(&self->pt);
+        }
 
         if( self->packet._map_rebuild.zones )
             rebuild_region_compute_chunks(self);

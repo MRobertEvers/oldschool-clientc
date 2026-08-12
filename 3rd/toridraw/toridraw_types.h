@@ -41,16 +41,6 @@ struct ToriDraw_BoundsCylinder
     int max_y;
     int radius;
 
-    /* Axis-aligned XZ extent of the model as it will be drawn, in model-local
-     * units. `radius` is rotation-invariant and so cannot say which SIDE the
-     * geometry leaves the origin on; the painter needs that to tell a loc whose
-     * model laps over its tile footprint from one that fits inside it. Filled
-     * by the same vertex loop as everything above, so it costs nothing. */
-    int min_x;
-    int max_x;
-    int min_z;
-    int max_z;
-
     // TODO: Name?
     // - Max extent from model origin.
     // - Distance to farthest vertex?

@@ -96,3 +96,19 @@ CmdRing_IsEmpty(const struct ToriRS_CmdRing* ring)
 {
     return ring->head == ring->tail;
 }
+
+uint32_t
+CmdRing_FreeBytes(const struct ToriRS_CmdRing* ring)
+{
+    return free_space(ring);
+}
+
+int
+CmdRing_CanPush(
+    const struct ToriRS_CmdRing* ring,
+    uint16_t length)
+{
+    if( length > TORIRS_CMD_MAX_PAYLOAD )
+        return 0;
+    return free_space(ring) >= sizeof(struct ToriRS_CmdHeader) + (uint32_t)length;
+}

@@ -36,6 +36,18 @@ struct NetLoginVTable
      * it leaves this NULL and keeps using UPDATE_PID.
      */
     int (*local_index)(void* handle);
+    /**
+     * The player-info init block a reconnect response carried, or NULL.
+     *
+     * RECONNECT_OK is not a bare verdict: it carries the block that a fresh
+     * login receives inside REBUILD_LOGIN, because a re-established session
+     * gets no rebuild of its own (RSProt's ReconnectOkResponseEncoder writes
+     * the caller's buffer; the deob reads it at gameState 40 and hands it
+     * straight to the player-info reader). Applying it is the caller's job —
+     * it has to happen after the local index is restated, and the driver is
+     * freed before that. Revisions without a reconnect leave this NULL.
+     */
+    uint8_t const* (*reconnect_block)(void* handle, int* out_len);
     void (*free_)(void* handle);
 };
 

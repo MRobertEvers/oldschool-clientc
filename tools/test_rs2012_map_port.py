@@ -77,6 +77,42 @@ ROUTE_LINKS = {
     },
 }
 
+# The imported RS727 arena has both static foreclaws on plane 0.  In the
+# destination scene the hand-rock/platform geometry remains on plane 0, while
+# the two animated QBD hands need to share the presentation plane with the
+# Queen and player.  Keyed by the source placement identity so an import rerun
+# cannot quietly undo this intentional destination composition adjustment.
+PLACEMENT_LEVEL_OVERRIDES = {
+    ("22_99", 70818, 39, 35, 10, 0): 1,  # right foreclaw
+    ("22_99", 70822, 21, 35, 10, 0): 1,  # left foreclaw
+}
+
+# The two arena floor slabs draw half a tile west of the footprint they are
+# anchored on: loc 70836's faces span x[-814.5..704] about its origin against a
+# 12-tile (+/-768) footprint, and 70839's span x[-832..548].  A loc footprint
+# always starts at its map anchor, so no authored `width` can cover that lip,
+# and the painter -- which gives a loc one slot, at the ring of the footprint it
+# is registered on -- then emits the seam column's ground on top of the slab: a
+# one-tile strip of arena floor lying over the platform from any camera west of
+# the seam (LARGE_LOCS_PAINTER.md).
+#
+# The anchor moves one tile west and the loc's `offsetx`/`offsetz` move the
+# model back by the same amount, so the drawn geometry does not shift a single
+# unit -- only the footprint the painter orders it by.  Both slabs are
+# `blockwalk=0 blockrange=0` and both collision writers gate on
+# `blocks_walk != 0` (world_collision.u.c, mock230_scene.c), so neither the walk
+# map nor the collision map sees any of it.
+#
+# Keyed by the source placement identity, like the level overrides, so an import
+# rerun cannot quietly undo it -- and so the next person reads why before they
+# "restore" it to the source coordinate.
+PLACEMENT_ANCHOR_OVERRIDES = {
+    # source (x, z, width, length) -> new anchor (x, z); source size is what the
+    # offset has to compensate against, so the invariant below is checkable.
+    ("22_99", 70836, 22, 24, 10, 0): (21, 24, 12, 18),  # west 12x18 slab
+    ("22_99", 70839, 34, 24, 10, 0): (33, 24, 12, 18),  # east 12x18 slab
+}
+
 
 def read_inventory(
     path: Path,
@@ -168,6 +204,24 @@ def config_blocks(path: Path) -> list[str]:
     return re.findall(r"^\[([^]]+)]$", path.read_text(), re.MULTILINE)
 
 
+def config_fields(path: Path) -> dict[str, dict[str, str]]:
+    """Every `[name]` block's key=value pairs. Last value wins, as the packer reads it."""
+    blocks: dict[str, dict[str, str]] = {}
+    current: dict[str, str] | None = None
+    for raw in path.read_text().splitlines():
+        line = raw.split("//", 1)[0].strip()
+        if not line:
+            continue
+        header = re.match(r"^\[([^]]+)]$", line)
+        if header:
+            current = blocks.setdefault(header.group(1), {})
+            continue
+        if current is not None and "=" in line:
+            key, value = line.split("=", 1)
+            current[key.strip()] = value.strip()
+    return blocks
+
+
 def pack_rows(path: Path) -> dict[int, str]:
     rows: dict[int, str] = {}
     for raw in path.read_text().splitlines():
@@ -203,6 +257,8 @@ def main() -> int:
     map_pack = pack_rows(lane / "pack/5_maps.pack")
     actual_loc_lines = 0
     seen_destination_locs: set[int] = set()
+    seen_level_overrides: set[tuple[str, int, int, int, int, int]] = set()
+    seen_anchor_overrides: set[tuple[str, int, int, int, int, int]] = set()
     for square in SQUARES:
         x, z = map(int, square.split("_"))
         assert map_pack[(x << 8) | z] == f"m{square}"
@@ -228,10 +284,19 @@ def main() -> int:
             assert 0 <= shape <= 63 and 0 <= angle <= 3
             assert loc_id in destination_locs, f"unmapped loc {loc_id} in {square}"
             source_id, src_level, src_x, src_z, src_shape, src_angle = source_record
+            override_key = (square, source_id, src_x, src_z, src_shape, src_angle)
+            expected_level = PLACEMENT_LEVEL_OVERRIDES.get(override_key, src_level)
+            if override_key in PLACEMENT_LEVEL_OVERRIDES:
+                assert src_level == 0, f"unexpected source level for {override_key}"
+                seen_level_overrides.add(override_key)
+            expected_x, expected_z = src_x, src_z
+            if override_key in PLACEMENT_ANCHOR_OVERRIDES:
+                expected_x, expected_z = PLACEMENT_ANCHOR_OVERRIDES[override_key][:2]
+                seen_anchor_overrides.add(override_key)
             assert (level, local_x, local_z, shape, angle) == (
-                src_level,
-                src_x,
-                src_z,
+                expected_level,
+                expected_x,
+                expected_z,
                 src_shape,
                 src_angle,
             ), f"placement geometry drifted in {square}"
@@ -255,6 +320,36 @@ def main() -> int:
 
     assert actual_loc_lines == sum(square_counts.values()) == 55_187
     assert seen_destination_locs <= destination_locs
+    assert seen_level_overrides == set(PLACEMENT_LEVEL_OVERRIDES), "QBD hand level override missing"
+    assert seen_anchor_overrides == set(PLACEMENT_ANCHOR_OVERRIDES), "slab anchor override missing"
+
+    # The anchor override is only half of the correction: the loc's offset has
+    # to move the model back by exactly what the anchor moved, or the arena's
+    # art shifts and the interlocking floor pieces tear open at their seams.
+    # Placement centres a model at anchor*128 + 64*size, so the invariant is
+    # that the model ORIGIN is byte-identical to what the source placement gave
+    # it. Asserted here because nothing downstream would notice a half-tile
+    # slide -- it looks like content, not like a bug.
+    loc_cfg = config_fields(lane / "configs/rs2012.loc")
+    for (square, source_id, src_x, src_z, _shape, _angle), (
+        new_x,
+        new_z,
+        src_width,
+        src_length,
+    ) in PLACEMENT_ANCHOR_OVERRIDES.items():
+        block = loc_cfg[f"rs2012_loc_{source_id}"]
+        width = int(block.get("width", 1))
+        length = int(block.get("length", 1))
+        offset_x = int(block.get("offsetx", 0))
+        offset_z = int(block.get("offsetz", 0))
+        assert new_x * 128 + 64 * width + offset_x == src_x * 128 + 64 * src_width, (
+            f"{square} loc {source_id}: offsetx does not cancel the anchor move "
+            f"(model origin would shift {new_x * 128 + 64 * width + offset_x - (src_x * 128 + 64 * src_width)} units)"
+        )
+        assert new_z * 128 + 64 * length + offset_z == src_z * 128 + 64 * src_length, (
+            f"{square} loc {source_id}: offsetz does not cancel the anchor move "
+            f"(model origin would shift {new_z * 128 + 64 * length + offset_z - (src_z * 128 + 64 * src_length)} units)"
+        )
     assert len(config_blocks(lane / "configs/rs2012.underlay")) == len(underlays) == 12
     assert len(config_blocks(lane / "configs/rs2012.overlay")) == len(overlays) == 12
     assert len(pack_rows(lane / "pack/underlay.alloc")) == len(underlays)

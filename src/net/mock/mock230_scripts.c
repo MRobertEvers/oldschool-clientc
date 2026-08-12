@@ -5034,12 +5034,39 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `npc_range` — the gap between the active npc's FOOTPRINT and a coord.
+     *
+     * The reference is `CoordGrid.distanceTo(npc, {coord, width: 1, length: 1})`
+     * (NpcOps.ts), and `distanceTo` clamps each side to its own occupied square
+     * before taking the Chebyshev distance. This measured `npc->x/npc->z`
+     * instead — the south-west ANCHOR — which is the same number only for the
+     * 1x1 npcs that are most of the roster.
+     *
+     * It is not the same number for anything bigger, and it is wrong in one
+     * direction: a coord north or east of the npc reads (size - 1) tiles too
+     * far, while one south or west reads correctly. The asymmetry is what makes
+     * it hard to see. `[label,player_combat_start_ap]` (combat.rs2) gates the
+     * swing on `npc_range(coord) > $attackrange` and calls `p_aprange` when it
+     * fails, so a bow east of TzKal-Zuk — 7x7, so six tiles of error — was told
+     * "too far" at every tile it could actually shoot from and walked in until
+     * his west edge came inside its reach. That reads exactly like an
+     * unreachable target dragging the player toward it, and the same six-tile
+     * pull is there for every size>1 npc in the game: JalTok-Jad's melee test
+     * (`npc_range(coord) <= 1`) never fires from his north or east side either.
+     *
+     * `npc_player_distance` in mock230_world.c is this same measure for the
+     * mode machine, which got it right; the script op simply never followed.
+     */
     case SS_OP_NPC_RANGE:
     {
         int32_t coord;
         struct Mock230Npc* npc = active_npc(state);
-        int dx;
-        int dz;
+        int size;
+        int x;
+        int z;
+        int dx = 0;
+        int dz = 0;
 
         if( !SSVM_PopInt(state, &coord) )
             return 1;
@@ -5051,18 +5078,24 @@ mock230_script_command(
         if( npc->level != coord_level(coord) )
         {
             /* Different planes are not "far", they are unreachable. The
-             * reference returns a large number rather than a real distance and
-             * content tests `> n`, so anything big is correct; this is the
-             * scene's own diagonal, which cannot be a real range. */
+             * reference pushes -1 here, which every `> n` test in content reads
+             * as "in range" — the wrong direction for a plane the npc cannot
+             * act across. This is the scene's own diagonal instead: big enough
+             * that no real range reaches it, so the same tests answer "far". */
             SSVM_PushInt(state, 0x7fffffff);
             return 1;
         }
-        dx = npc->x - coord_x(coord);
-        dz = npc->z - coord_z(coord);
-        if( dx < 0 )
-            dx = -dx;
-        if( dz < 0 )
-            dz = -dz;
+        size = npc->size > 0 ? npc->size : 1;
+        x = coord_x(coord);
+        z = coord_z(coord);
+        if( npc->x > x )
+            dx = npc->x - x;
+        else if( x > npc->x + size - 1 )
+            dx = x - (npc->x + size - 1);
+        if( npc->z > z )
+            dz = npc->z - z;
+        else if( z > npc->z + size - 1 )
+            dz = z - (npc->z + size - 1);
         SSVM_PushInt(state, dx > dz ? dx : dz);
         return 1;
     }

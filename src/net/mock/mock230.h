@@ -4962,6 +4962,20 @@ mock230_send(
     int len,
     int var);
 
+/**
+ * LoginResponse.ReconnectOk — the answer to GAMERECONNECT.
+ *
+ * Sent raw (login responses are not ISAAC-framed) and carrying the
+ * player-info init block, because the rebuild that follows a reconnect is a
+ * REBUILD_NORMAL and states nothing about the player table. Marks the local
+ * slot tracked so that rebuild does not repeat the block.
+ *
+ * Returns 1 when it was sent; 0 on a revision whose player stream is not v5,
+ * or when the player has no session to send it to.
+ */
+int
+mock230_send_reconnect_ok(struct Mock230Player* player);
+
 void
 mock230_send_rebuild_normal(struct Mock230Player* player);
 /** REBUILD_REGION: the instanced scene, built from the map-instance descriptor

@@ -438,12 +438,20 @@ step_login(
 
     if( session->in_len < 3 )
         return 0;
-    if( session->in[0] != 16 )
+    /*
+     * GAMELOGIN or GAMERECONNECT. RSProt decodes both with the same
+     * LoginBlockDecoder and differs only in the authentication section inside
+     * the RSA block, so everything below is shared and the two places that
+     * care read `reconnect`.
+     */
+    if( session->in[0] != OSRS239_LOGIN_GAMELOGIN &&
+        session->in[0] != OSRS239_LOGIN_GAMERECONNECT )
     {
-        fprintf(stderr, "mock230: expected opcode 16, got %d\n", session->in[0]);
+        fprintf(stderr, "mock230: expected opcode 16 or 18, got %d\n", session->in[0]);
         session->state = MOCK230_SESSION_DEAD;
         return 1;
     }
+    session->reconnect = session->in[0] == OSRS239_LOGIN_GAMERECONNECT;
     payload_len = (session->in[1] << 8) | session->in[2];
     if( payload_len < 13 || payload_len > MOCK230_SESSION_IN_MAX - 3 )
     {
@@ -527,7 +535,21 @@ step_login(
     for( int i = 0; i < 4; i++ )
         seed[i] = rsab_g4(&in);
     claimed = (uint64_t)rsab_g8(&in);
-    if( login_is_239(srv) )
+    if( session->reconnect )
+    {
+        /*
+         * GameReconnectDecoder's authentication section: the four ints of the
+         * previous session's cipher seed, and nothing else — no OTP block, no
+         * auth type, no password. This server authenticates nobody, so the key
+         * is read and discarded; what matters is that it is read, because the
+         * XTEA body offset was computed from the RSA size and the username
+         * still has to come out of the body below.
+         */
+        for( int i = 0; i < 4; i++ )
+            (void)rsab_g4(&in);
+        pass[0] = '\0';
+    }
+    else if( login_is_239(srv) )
     {
         /*
          * The OTP discriminator, ahead of the auth type at this revision. Its
@@ -545,15 +567,20 @@ step_login(
             return 1;
         }
     }
-    (void)rsab_g1(&in); /* auth type: 0 password, 2 token */
+    if( !session->reconnect )
+        (void)rsab_g1(&in); /* auth type: 0 password, 2 token */
     if( login_is_239(srv) )
     {
         /*
          * At 239 the RSA block ends with the password; the USERNAME lives in
          * the XTEA body, which this server does not read (see below). The 230
          * block carries both here, in the other order.
+         *
+         * A reconnect's RSA block ended at the cipher key, so there is no
+         * password to read — but the body, and so the username, is unchanged.
          */
-        rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
+        if( !session->reconnect )
+            rsab_gjstr(&in, pass, sizeof(pass), RSAB_JSTR_NUL);
         /*
          * The username is the first field of the XTEA body, keyed on the seeds
          * we just recovered. Decrypting in place is safe: the block is fully
@@ -576,6 +603,14 @@ step_login(
                 snprintf(user, sizeof(user), "%s", "Player");
         }
     }
+    else if( session->reconnect )
+    {
+        /* Pre-239 blocks carry the name in the RSA section, which a reconnect
+         * replaces wholesale. Nothing else states it, so the session keeps the
+         * name it had — the caller re-applies it to the reloaded player. */
+        snprintf(user, sizeof(user), "%s",
+                 session->display_name[0] ? session->display_name : "Player");
+    }
     else
     {
         rsab_gjstr(&in, user, sizeof(user), RSAB_JSTR_NUL);
@@ -594,12 +629,27 @@ step_login(
     (void)srv;
     snprintf(session->display_name, sizeof(session->display_name), "%s",
              user[0] ? user : "Player");
-    fprintf(stderr, "mock230: login user='%s' session=%s\n", user,
+    fprintf(stderr, "mock230: %s user='%s' session=%s\n",
+            session->reconnect ? "reconnect" : "login", user,
             claimed == SESSION_ID ? "ok" : "MISMATCH");
 
     consume(session, 3 + payload_len);
 
-    if( login_is_239(srv) )
+    /*
+     * A reconnect's response is deferred, not skipped.
+     *
+     * RECONNECT_OK carries the player-info init block, and that block states
+     * where the player is — which is not known until the world is up and the
+     * save has been read. So the world's login path sends it (see
+     * mock230_world_login), and the only thing that happens here is arming the
+     * ciphers, exactly as a fresh login does. Nothing is sent in between, so
+     * the client still sees the response ahead of the first game packet.
+     */
+    if( session->reconnect )
+    {
+        /* fall through to the cipher arming below */
+    }
+    else if( login_is_239(srv) )
     {
         /*
          * LoginResponse.Ok — 34 bytes of body behind a var-byte length.

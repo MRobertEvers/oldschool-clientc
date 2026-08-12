@@ -13,7 +13,6 @@ main(void)
     test_minimap_push_down();
     test_builder_lifecycle();
     test_prerotate_placement();
-    test_draw_footprint_covers_model_overhang();
 
     printf("== world_builder cache render test ==\n");
     test_world_builder_cache_render();

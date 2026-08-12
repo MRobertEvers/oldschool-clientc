@@ -22,6 +22,7 @@
 #include "mock230_friends.h"
 #include "mock230_ids.h"
 #include "mock230_save.h"
+#include "mock230_session.h"
 #include "mock230_scene.h"
 #include "mock239_facing.h"
 #include "mock239_interface_inbound.h"
@@ -8689,6 +8690,22 @@ mock230_world_login(struct Mock230Player* player)
      * are not evidence that the new scene consumed them. Hold every dependent
      * packet until that acknowledgement reaches handle_map_build_complete.
      */
+    /*
+     * 0b. The deferred reconnect response, between the save and the rebuild.
+     *
+     * mock230_session.c holds RECONNECT_OK back precisely to reach this point:
+     * the response carries the player-info init block, and the block states
+     * where the player is, which the save above has only just decided. It also
+     * has to precede every game packet — a login response read out of the game
+     * stream is 3+ bytes of desync, not a late message — and the rebuild on
+     * the next line is the first of them.
+     */
+    if( player->session && player->session->reconnect )
+    {
+        mock230_send_reconnect_ok(player);
+        player->session->reconnect = 0;
+    }
+
     player->login_pending = 0;
     player->login_scene_pending = srv->wire && srv->wire->revision >= 239;
     mock230_send_rebuild(player);
@@ -29389,6 +29406,151 @@ mock230_world_selftest(void)
                                    "%d,%d,%d and %d,%d,%d",
                                    blind[0], blind[1], blind[2], blind[3], blind[4],
                                    blind[5]);
+                }
+
+                /*
+                 * And what a bow standing on each of those tiles actually does,
+                 * which is a second question and was a second answer.
+                 *
+                 * The map above says a tile can see Zuk. Whether the swing
+                 * happens there is decided further down:
+                 * `[label,player_combat_start_ap]` (combat.rs2) compares
+                 * `npc_range(coord)` against the weapon's reach and calls
+                 * `p_aprange` when it fails, which leaves the interaction's walk
+                 * standing and drags the player at the target. `npc_range`
+                 * measured Zuk's south-west ANCHOR, so every tile EAST of him
+                 * read six tiles too far — the whole east half of the row was
+                 * pulled in, from tiles with a clear line of sight, and it
+                 * looked exactly like the line-of-sight failure this block
+                 * already tests for. The map is symmetric; the pull was not.
+                 *
+                 * So the claim is the symmetry, not a tile list: the arena
+                 * mirrors about Zuk's centre column, so the set of tiles that
+                 * walks must mirror too. Eight of them do, and both halves are
+                 * derived rather than counted — the six blind tiles above (walk
+                 * until you can see him, which is what the wiki describes), plus
+                 * the one tile at each end of the row whose distance to Zuk's
+                 * near edge is 11 and so exceeds the reach of the bow
+                 * `::crystal_set` hands out. Anchor-measuring makes the east
+                 * half eight tiles and the west half four, which is what turns
+                 * this red.
+                 */
+                {
+                    int const centre = zuk_lx + 3;
+                    int zuk_slot = -1;
+                    int pulled[64];
+                    int pulled_count = 0;
+                    int mirrored = 1;
+                    int hp_full = 0;
+                    int hp_before = 0;
+
+                    for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+                    {
+                        if( srv.npcs[i].active && srv.npcs[i].x == zuk_x &&
+                            srv.npcs[i].z == zuk_z )
+                            zuk_slot = i;
+                    }
+                    SELFTEST_CHECK(zuk_slot >= 0, "::zukstill should have placed Zuk");
+                    if( zuk_slot >= 0 )
+                        hp_full = srv.npcs[zuk_slot].hitpoints;
+                    /* A ranged weapon, because melee has no ap range to get
+                     * wrong: `weapon_attackrange` 0 falls through to the op form
+                     * and walks to adjacency on every tile by design. */
+                    mock230_scripts_run_debugproc(&srv, "crystal_set");
+
+                    for( int lx = 0; zuk_slot >= 0 && lx < 64; lx++ )
+                    {
+                        int const x = base_x + lx;
+                        struct Mock230Npc* zuk = &srv.npcs[zuk_slot];
+                        const struct Mock230NpcInfo* info = mock230_npcinfo(zuk->type);
+                        struct CollisionApproach approach;
+
+                        if( mock230_scene_walk_blocked(player->level, x, row_z) )
+                            continue;
+
+                        /* Top him up between tiles: 1200 hitpoints is more than
+                         * a sweep of this row can chew through, but only just,
+                         * and a Zuk who dies half way turns the rest of the row
+                         * into "no target" rather than "no pull". */
+                        zuk->hitpoints = hp_full;
+                        mock230_world_clear_pending_action(&srv);
+                        selftest_park_player(&srv, x, row_z);
+                        player->level = zuk->level;
+
+                        /* The body of the OPNPC handler — latch the target,
+                         * route to it, try it once. */
+                        mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 2, zuk_slot,
+                                                      zuk->type, zuk->x, zuk->z, zuk->level,
+                                                      info->size, info->size);
+                        mock230_scene_npc_approach(info->size, &approach);
+                        mock230_world_walk_to_approach(&srv, zuk->x, zuk->z, &approach);
+                        mock230_world_process_interaction(&srv);
+                        for( int t = 0; t < 2; t++ )
+                            mock230_world_tick(&srv);
+
+                        if( player->x == x && player->z == row_z )
+                            continue;
+                        if( pulled_count < (int)(sizeof(pulled) / sizeof(pulled[0])) )
+                            pulled[pulled_count] = lx;
+                        pulled_count++;
+                    }
+
+                    SELFTEST_CHECK(pulled_count == 8,
+                                   "eight tiles on the fight row should walk when attacked "
+                                   "from — the six with no line of sight and the one at "
+                                   "each end out of the bow's reach — got %d",
+                                   pulled_count);
+                    if( pulled_count == 8 )
+                    {
+                        for( int i = 0; i < 8; i++ )
+                            mirrored &= (pulled[i] - centre) == -(pulled[7 - i] - centre);
+                        SELFTEST_CHECK(mirrored,
+                                       "and they should mirror about Zuk's centre column — "
+                                       "an east half bigger than the west one is a range "
+                                       "measured from his south-west corner; got "
+                                       "%d,%d,%d,%d and %d,%d,%d,%d",
+                                       pulled[0], pulled[1], pulled[2], pulled[3],
+                                       pulled[4], pulled[5], pulled[6], pulled[7]);
+                    }
+
+                    /*
+                     * And that standing still means shooting rather than doing
+                     * nothing at all. Cast from the east, because that is the
+                     * side that was broken; three tiles clear of the eastern
+                     * blind group, and inside the bow's reach of his east edge.
+                     */
+                    if( zuk_slot >= 0 )
+                    {
+                        struct Mock230Npc* zuk = &srv.npcs[zuk_slot];
+                        const struct Mock230NpcInfo* info = mock230_npcinfo(zuk->type);
+                        struct CollisionApproach approach;
+                        int const east_lx = zuk_lx + 13;
+
+                        zuk->hitpoints = hp_full;
+                        hp_before = zuk->hitpoints;
+                        mock230_world_clear_pending_action(&srv);
+                        selftest_park_player(&srv, base_x + east_lx, row_z);
+                        player->level = zuk->level;
+                        mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 2, zuk_slot,
+                                                      zuk->type, zuk->x, zuk->z, zuk->level,
+                                                      info->size, info->size);
+                        mock230_scene_npc_approach(info->size, &approach);
+                        mock230_world_walk_to_approach(&srv, zuk->x, zuk->z, &approach);
+                        mock230_world_process_interaction(&srv);
+                        for( int t = 0; t < 12; t++ )
+                            mock230_world_tick(&srv);
+
+                        SELFTEST_CHECK(player->x == base_x + east_lx && player->z == row_z,
+                                       "a bow east of Zuk should hold its tile, got "
+                                       "(%d,%d) from (%d,%d)",
+                                       player->x - base_x, player->z - base_z, east_lx,
+                                       fight_lz);
+                        SELFTEST_CHECK(zuk->hitpoints < hp_before,
+                                       "and land a shot from there — holding still and "
+                                       "never firing is the same picture as a pull that "
+                                       "has not started yet; %d -> %d",
+                                       hp_before, zuk->hitpoints);
+                    }
                 }
             }
             mock230_scripts_free(&srv);

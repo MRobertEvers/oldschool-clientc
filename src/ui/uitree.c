@@ -633,6 +633,21 @@ uitree_child_key(struct UITreeComponent const* child)
     return child->dynamic ? child->dynamic_child_index : (child->component_id & 0xFFFF);
 }
 
+/* Slot a key occupies in `child_key_index`: the dynamic half or the static one. */
+static inline int32_t
+uitree_child_key_slot(struct UITreeComponent const* child, int32_t key, int32_t cap)
+{
+    return child->dynamic ? key : cap + key;
+}
+
+static void
+uitree_child_index_drop(struct UITreeComponent* parent)
+{
+    free(parent->child_key_index);
+    parent->child_key_index = NULL;
+    parent->child_key_index_cap = 0;
+}
+
 /* Fold a newly appended child into its parent's key ceiling. Leaves an unknown
  * ceiling unknown — the next lookup recomputes it once. */
 static void
@@ -646,6 +661,32 @@ uitree_child_key_added(
 
     struct UITreeComponent* parent = &tree->components[parent_index];
     int32_t const key = uitree_child_key(&tree->components[child_index]);
+
+    if( parent->child_key_index )
+    {
+        int32_t const cap = parent->child_key_index_cap;
+        if( key < 0 || key >= cap )
+        {
+            /* Outside the built range: the next long walk sizes a new map. */
+            uitree_child_index_drop(parent);
+        }
+        else
+        {
+            int32_t const slot = uitree_child_key_slot(&tree->components[child_index], key, cap);
+            if( parent->child_key_index[slot] >= 0 )
+            {
+                /* A second live child on this key: only the walk can say which
+                 * one comes first in sibling order. */
+                parent->child_key_index_bad = 1;
+                uitree_child_index_drop(parent);
+            }
+            else
+            {
+                parent->child_key_index[slot] = child_index;
+            }
+        }
+    }
+
     if( parent->child_key_max == UITREE_CHILD_KEY_UNKNOWN )
         return;
     if( parent->child_key_max == UITREE_CHILD_KEY_NONE || key > parent->child_key_max )
@@ -665,10 +706,77 @@ uitree_child_key_removed(
         return;
 
     struct UITreeComponent* parent = &tree->components[parent_index];
+    int32_t const key = uitree_child_key(&tree->components[child_index]);
+
+    if( parent->child_key_index && key >= 0 && key < parent->child_key_index_cap )
+    {
+        int32_t const cap = parent->child_key_index_cap;
+        int32_t const slot = uitree_child_key_slot(&tree->components[child_index], key, cap);
+        /* Only clear the slot this child actually owns: a replace-in-slot
+         * rebuild reclaims the old row before pushing the new one, so leaving
+         * the map allocated (and merely emptied) is what keeps the rebuild
+         * linear instead of dropping the map 500 times. */
+        if( parent->child_key_index[slot] == child_index )
+            parent->child_key_index[slot] = -1;
+    }
+
     if( parent->child_key_max == UITREE_CHILD_KEY_UNKNOWN )
         return;
-    if( uitree_child_key(&tree->components[child_index]) >= parent->child_key_max )
+    if( key >= parent->child_key_max )
         parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
+}
+
+/* Build the key->child map for `parent_index` from one sibling walk. Called
+ * only after a lookup has already had to walk a long list, so short containers
+ * (the overwhelming majority) never pay for it. A parent whose children carry
+ * duplicate keys is marked bad and keeps walking: the map cannot express "first
+ * in sibling order wins" between two children on one key. */
+static void
+uitree_child_index_build(struct UITree* tree, int32_t parent_index)
+{
+    struct UITreeComponent* parent = &tree->components[parent_index];
+    if( parent->child_key_index_bad )
+        return;
+
+    int32_t max_key = -1;
+    for( int32_t child = parent->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        int32_t const key = uitree_child_key(&tree->components[child]);
+        if( key > max_key )
+            max_key = key;
+    }
+    /* Keys above the masked comparison's range are not addressable through the
+     * map (UITree_FindChildBySubid only takes the fast path for sub_id <= 0xFFFF). */
+    if( max_key < 0 || max_key > 0xFFFF )
+        return;
+
+    int32_t const cap = max_key + 1;
+    int32_t* index = malloc((size_t)cap * 2u * sizeof(int32_t));
+    if( !index )
+        return;
+    for( int32_t i = 0; i < cap * 2; i++ )
+        index[i] = -1;
+
+    for( int32_t child = parent->first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+    {
+        int32_t const key = uitree_child_key(&tree->components[child]);
+        if( key < 0 || key >= cap )
+            continue;
+        int32_t const slot = uitree_child_key_slot(&tree->components[child], key, cap);
+        if( index[slot] >= 0 )
+        {
+            parent->child_key_index_bad = 1;
+            free(index);
+            return;
+        }
+        index[slot] = child;
+    }
+
+    uitree_child_index_drop(parent);
+    parent->child_key_index = index;
+    parent->child_key_index_cap = cap;
 }
 
 /* Ceiling for `parent_index`, walking the sibling list once if it is unknown.
@@ -1156,6 +1264,10 @@ uitree_component_free_owned(struct UITreeComponent* c)
         free((void*)c->u.rs_text.text_active);
         c->u.rs_text.text_active = NULL;
     }
+    free(c->child_key_index);
+    c->child_key_index = NULL;
+    c->child_key_index_cap = 0;
+    c->child_key_index_bad = 0;
     free(c->data_text);
     c->data_text = NULL;
     for( int i = 0; i < c->params_count; i++ )
@@ -1182,6 +1294,8 @@ uitree_component_free_owned(struct UITreeComponent* c)
     UITree_MenuSubmenuFree(&c->menu_options);
     UITree_HooksFree(c);
 }
+
+static void uitree_id_index_note_removed(struct UITree* tree, int32_t idx);
 
 /* Reclaim an already-unlinked component and its entire subtree: free owned
  * resources, clear the slot (component_id=-1 removes it from id lookups and
@@ -1216,6 +1330,8 @@ uitree_reclaim_subtree(
     UITree_SetComponentDragActive(tree, idx, 0);
     /* Drop live-set membership before clearing type/id/hooks. */
     uitree_live_unregister(tree, idx);
+    /* Must read the id, so before the memset clears it. */
+    uitree_id_index_note_removed(tree, idx);
     uitree_component_free_owned(c);
     memset(c, 0, sizeof(*c));
     c->parent = -1;
@@ -1227,7 +1343,8 @@ uitree_reclaim_subtree(
     c->freed = 1;
     c->free_next = tree->free_head;
     tree->free_head = idx;
-    tree->id_generation++;
+    /* The id_generation bump lives in uitree_id_index_note_removed above, which
+     * needs the id this memset has now cleared. */
 }
 
 void
@@ -1384,6 +1501,14 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
         if( k == component_id )
         {
             int32_t const cur = tree->id_index_vals[h];
+            if( cur < 0 )
+            {
+                /* Reclaimed slot: this id has no incumbent to beat. */
+                tree->id_index_vals[h] = idx;
+                if( tree->id_index_tombs )
+                    tree->id_index_tombs--;
+                return;
+            }
             int const new_dyn = tree->components[idx].dynamic ? 1 : 0;
             int const cur_dyn = tree->components[cur].dynamic ? 1 : 0;
             if( new_dyn != cur_dyn ? new_dyn : idx < cur )
@@ -1429,8 +1554,53 @@ UITree_RebuildIdIndex(struct UITree* tree)
     }
 
     tree->id_index_gen = tree->id_generation;
+    tree->id_index_tombs = 0;
     tree->id_index_valid = 1;
     return true;
+}
+
+/* Record that `idx` is about to lose its component_id (reclaim). Must be called
+ * while the component still holds it. Tombstones only the slot this component
+ * won, so a rebuild is not needed per reclaim — which is what a container
+ * rebuild does once per row it replaces. */
+static void
+uitree_id_index_note_removed(struct UITree* tree, int32_t idx)
+{
+    bool const in_step = tree->id_index_valid && tree->id_index_gen == tree->id_generation;
+    int const id = tree->components[idx].component_id;
+    tree->id_generation++;
+    if( !in_step || id < 0 )
+        return;
+
+    uint32_t const mask = tree->id_index_cap - 1;
+    uint32_t h = uitree_id_hash(id) & mask;
+    for( ;; )
+    {
+        int32_t const k = tree->id_index_keys[h];
+        if( k < 0 )
+            break; /* never inserted — nothing to undo */
+        if( k == id )
+        {
+            /* Only the winner's departure changes an answer; a duplicate that
+             * lost the tie-break leaves the map correct as it stands. */
+            if( tree->id_index_vals[h] == idx )
+            {
+                tree->id_index_vals[h] = -1;
+                tree->id_index_tombs++;
+            }
+            break;
+        }
+        h = (h + 1) & mask;
+    }
+
+    /* Markers hold their slot, so a table that filled with them could probe
+     * forever. Hand it back for a rebuild well before that. */
+    if( (tree->component_count + tree->id_index_tombs) * 2u > tree->id_index_cap )
+    {
+        tree->id_index_valid = 0;
+        return;
+    }
+    tree->id_index_gen = tree->id_generation;
 }
 
 /* Record that `idx` just had its component_id assigned (UITree_Push). Bumps
@@ -1490,6 +1660,21 @@ UITree_FindByComponentId(
         if( k == component_id )
         {
             result = t->id_index_vals[h];
+            if( result == -1 )
+            {
+                /* The winner was reclaimed and the replacement — a duplicate id
+                 * that lost the original tie-break — can only be found by a
+                 * scan. Do it once and cache the answer (including "none", as
+                 * -2) so repeated lookups for a dead id stay O(1). */
+                result = UITree_FindByComponentId_Linear(tree, component_id);
+                t->id_index_vals[h] = result >= 0 ? result : -2;
+                if( result >= 0 && t->id_index_tombs )
+                    t->id_index_tombs--;
+            }
+            else if( result == -2 )
+            {
+                result = -1;
+            }
             break;
         }
         h = (h + 1) & mask;
@@ -1991,9 +2176,14 @@ UITree_ClearChildren(
     c->first_child = -1;
     c->last_child_hint = -1;
     c->child_key_max = UITREE_CHILD_KEY_NONE; /* no children left to match */
+    uitree_child_index_drop(c);               /* ... and none left to index */
     c->is_dirty = 1;
     tree->generation++;
 }
+
+/* Sibling steps beyond which a lookup pays for the parent's key->child map.
+ * Below it the walk is already cheaper than building and holding the index. */
+#define UITREE_CHILD_INDEX_MIN_STEPS 32
 
 int32_t
 UITree_FindChildBySubid(
@@ -2026,6 +2216,24 @@ UITree_FindChildBySubid(
         }
     }
 
+    /* A hit is what the ceiling cannot make cheap, and a container rebuild is a
+     * run of hits. Answer those from the parent's key->child map when one has
+     * been built; it reproduces the walk below exactly (dynamic first, static
+     * as the fallback), and is only ever built for a duplicate-free child list. */
+    {
+        struct UITreeComponent* parent = &((struct UITree*)tree)->components[parent_index];
+        if( parent->child_key_index && sub_id >= 0 && sub_id < parent->child_key_index_cap )
+        {
+            int32_t const cap = parent->child_key_index_cap;
+            int32_t hit = parent->child_key_index[sub_id];
+            if( hit < 0 )
+                hit = parent->child_key_index[cap + sub_id];
+            if( hit >= 0 )
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
+            return hit;
+        }
+    }
+
     /* Dynamic children win over cache-baked ones. The reference's cc_find only
      * ever sees the dynamic array (`component.children[sub]`, filled by
      * cc_create) — a static subcomponent is addressed as group<<16|index by the
@@ -2036,21 +2244,34 @@ UITree_FindChildBySubid(
      * the grip sizing that followed collapsed it to 6x6, leaving a grey screen.
      * The static match stays as a fallback for the trees that rely on it. */
     int32_t static_match = -1;
+    int32_t found = -1;
+    int32_t steps = 0;
     for( int32_t child = tree->components[parent_index].first_child; child >= 0;
          child = tree->components[child].next_sibling )
     {
+        steps++;
         struct UITreeComponent const* c = &tree->components[child];
         if( c->dynamic && c->dynamic_child_index == sub_id )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
-            return child;
+            found = child;
+            break;
         }
         if( !c->dynamic && static_match < 0 && (c->component_id & 0xFFFF) == (sub_id & 0xFFFF) )
             static_match = child;
     }
-    if( static_match >= 0 )
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
-    return static_match;
+    if( found < 0 )
+    {
+        found = static_match;
+        if( found >= 0 )
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_CHILD_HIT, 1);
+    }
+
+    /* This list is long enough that walking it per lookup is the cost; index it
+     * so the rest of the rebuild is O(1) per row. */
+    if( steps > UITREE_CHILD_INDEX_MIN_STEPS )
+        uitree_child_index_build((struct UITree*)tree, parent_index);
+    return found;
 }
 
 int32_t
@@ -2295,6 +2516,10 @@ UITree_CcDelete(
 
     parent->last_child_hint = -1;
     parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
+    /* Clearing `parent` above means the reclaim's per-child hook could not find
+     * this parent, so the key->child map still points at the freed slot. It goes
+     * with the ceiling, and the next long lookup rebuilds both. */
+    uitree_child_index_drop(parent);
     parent->is_dirty = 1;
     tree->generation++;
 }
@@ -2335,11 +2560,14 @@ UITree_CcDeleteAll(
         }
         child = next;
     }
-    /* The splicing above bypasses UITree_UnlinkChild, so the key ceiling is
-     * dropped once for the whole batch rather than per row; the next by-sub-id
-     * lookup recomputes it over the static children that survived. */
+    /* The splicing above bypasses UITree_UnlinkChild, so the key ceiling and the
+     * key->child map are dropped once for the whole batch rather than per row;
+     * the next by-sub-id lookup recomputes them over the static children that
+     * survived. Both must go: the reclaim's per-child hook ran with an already
+     * cleared `parent` and so could not retire either one. */
     parent->last_child_hint = -1;
     parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
+    uitree_child_index_drop(parent);
     parent->is_dirty = 1;
     tree->generation++;
 }

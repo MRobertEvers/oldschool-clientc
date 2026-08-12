@@ -146,6 +146,10 @@ enum
     OSRS239_LOGINRES_INVALID_USER_OR_PASS = 3,
     OSRS239_LOGINRES_CLIENT_OUT_OF_DATE = 6,
     OSRS239_LOGINRES_BAD_SESSION_ID = 10,
+    /* Var-short framed, and the payload is the player-info init block — the
+     * one thing a re-established session cannot rebuild for itself, because
+     * no REBUILD_LOGIN follows it (RSProt LoginServerProt.RECONNECT_OK). */
+    OSRS239_LOGINRES_RECONNECT_OK = 15,
     OSRS239_LOGINRES_INVALID_LOGIN_PACKET = 22,
     OSRS239_LOGINRES_LOGIN_FAIL_1 = 65,
     OSRS239_LOGINRES_PROOF_OF_WORK = 69,

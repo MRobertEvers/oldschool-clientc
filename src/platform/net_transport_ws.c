@@ -54,6 +54,11 @@ struct NetTransportWs
     struct ByteBuf in; /* raw received bytes awaiting handshake/frame parse */
 };
 
+/* How much un-de-framed inbound the transport will hold before it stops
+ * reading. Comfortably above one large frame, far below a minutes-long
+ * backlog. */
+#define WS_IN_MAX (512 * 1024)
+
 /* Fixed masking key: correctness only needs *a* key (the server unmasks with
  * whatever we send); a constant keeps record/replay deterministic. */
 static uint8_t const k_mask[4] = { 0x37, 0x9a, 0xc2, 0x51 };
@@ -248,6 +253,11 @@ ws_drain_out(struct NetTransportWs* self, struct ToriRS_Network* net, struct Tor
                 ws_emit_status(self, bus, TORIRS_NET_STATUS_FAILED);
             }
         }
+        else if( header.type == TORIRS_NET_OUT_DISCONNECT )
+        {
+            ws_close(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
+            self->app_msg_count = 0;
+        }
         else if( header.type == TORIRS_NET_OUT_SEND_DATA )
         {
             if( self->state == WS_STATE_OPEN )
@@ -277,7 +287,14 @@ ws_read_socket(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
     uint8_t chunk[TORIRS_CMD_MAX_PAYLOAD];
     for( ;; )
     {
-        int n = sockstream_recv(self->stream, chunk, (int)sizeof(chunk));
+        int n;
+
+        /* Paired with the bus back-pressure in ws_parse_frames: once frames
+         * stop being handed over, reading more only grows `in`. Stop at a
+         * bound and let the socket hold the rest. */
+        if( self->in.len >= WS_IN_MAX )
+            break;
+        n = sockstream_recv(self->stream, chunk, (int)sizeof(chunk));
         if( n > 0 )
         {
             buf_append(&self->in, chunk, n);
@@ -352,6 +369,23 @@ ws_try_finish_handshake(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
     return 1;
 }
 
+/* Can the bus take every chunk this payload will be split into?
+ *
+ * Summed, not asked chunk by chunk: each chunk costs a header too, and asking
+ * per chunk against an unchanging free count would admit a payload whose
+ * chunks collectively do not fit. */
+static int
+ws_bus_has_room(struct ToriRS_CmdBus const* bus, int payload_len)
+{
+    uint32_t header = (uint32_t)sizeof(struct ToriRS_CmdHeader);
+    uint32_t chunks =
+        payload_len <= 0 ? 1u
+                         : (uint32_t)((payload_len + TORIRS_CMD_MAX_PAYLOAD - 1) /
+                                      TORIRS_CMD_MAX_PAYLOAD);
+
+    return CmdBus_FreeBytes(bus) >= chunks * header + (uint32_t)(payload_len > 0 ? payload_len : 0);
+}
+
 /* Parse complete frames out of the inbound buffer. */
 static void
 ws_parse_frames(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
@@ -369,6 +403,16 @@ ws_parse_frames(struct NetTransportWs* self, struct ToriRS_CmdBus* bus)
             ws_close(self, bus, TORIRS_NET_STATUS_FAILED);
             return;
         }
+
+        /* Back-pressure: a frame is only consumed when all of its chunks can
+         * reach the bus. CmdBus_Push refuses silently when the ring is full,
+         * and a half-pushed frame is a hole in the byte stream — see
+         * platform_socket.c's read loop for what that looks like downstream.
+         * Leaving the bytes in `in` retries them on the next poll. */
+        if( (frame.opcode == WS_OP_BINARY || frame.opcode == WS_OP_CONT ||
+             frame.opcode == WS_OP_TEXT) &&
+            !ws_bus_has_room(bus, frame.payload_len) )
+            break;
 
         switch( frame.opcode )
         {

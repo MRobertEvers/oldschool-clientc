@@ -1269,14 +1269,9 @@ RS_GameProto_Exec(
         if( ctx->app )
         {
             struct App* app = ctx->app;
-            RS_EntitySync_Clear(&app->esync, app->world);
-            /* The reference's game-state reset puts both Attack options back to
-             * Hidden rather than recomputing them from the varp table it is
-             * about to clear (rs_attack_option.h). Without this a re-login onto
-             * an account whose setting is the default 0 would keep the previous
-             * account's choice until its own VARP arrived. */
-            app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
-            app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+            /* Shared with the connection-lost path in app.c: a session that
+             * ends is a session that ends, however it was told to. */
+            App_NetSessionReset(app);
             if( ctx->chat )
                 RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, "You have been logged out.");
             if( app->net )

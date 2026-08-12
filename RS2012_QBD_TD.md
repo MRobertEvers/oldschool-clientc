@@ -308,11 +308,14 @@ Artefact order and arena-local coordinates:
 - Player: local `(33,28,p1)` / source `(1441,6364,p1)`.
 
 Static source placements include the four dormant artefacts on plane 1 and the
-claws/platform machinery on plane 0. Significant plane-0 placements are right
-claw 70818 at local `(39,35)` / source `(1447,6371)`, left claw 70822 at local
-`(21,35)` / source `(1429,6371)`, central scenery 70788 at `(1439,6365)`, and
-platform locs 70830/32/34/36/39/42. The whole square is ported rather than
-reconstructing only these visible records.
+claws/platform machinery on plane 0. In the destination, the hand-rock/platform
+geometry remains on plane 0, while the right claw 70818 at local `(39,35)` /
+source `(1447,6371)` and left claw 70822 at `(21,35)` / source `(1429,6371)`
+are deliberately placed on presentation plane 1 with QBD and the player.
+Central scenery 70788 at `(1439,6365)` and platform locs
+70830/32/34/36/39/42 remain on plane 0. The map-port test records this narrow
+destination composition override; the whole square is otherwise ported rather
+than reconstructing only these visible records.
 
 Dynamic platform stages used by the controller:
 

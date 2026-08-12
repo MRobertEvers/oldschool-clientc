@@ -437,6 +437,19 @@ struct UITreeComponent
      *  what made a container rebuild quadratic in row count. Only ever too high,
      *  never too low: a stale-high value costs a scan, it cannot miss a child. */
     int32_t child_key_max;
+    /** Lazily built key->child map for this node's children, so a by-sub-id
+     *  lookup that *hits* is O(1) too. The ceiling above only makes misses
+     *  cheap; a container rebuild that re-finds each existing row still walked
+     *  the sibling list once per row, which is quadratic in row count (the
+     *  chatbox's 500 message rows made every chat line ~1300 steps x 500).
+     *  Two halves of `child_key_index_cap` entries each: [0,cap) holds the
+     *  dynamic child for a key, [cap,2*cap) the cache-baked one, matching the
+     *  walk's "dynamic wins, static is the fallback" precedence. NULL when not
+     *  built; `child_key_index_bad` marks a parent whose children carry
+     *  duplicate keys, where only the walk can reproduce sibling order. */
+    int32_t* child_key_index;
+    int32_t child_key_index_cap;
+    uint8_t child_key_index_bad;
     int component_id;
     uint8_t dynamic;
     int dynamic_child_index;
@@ -798,15 +811,25 @@ struct UITree
      *
      *  A full rebuild is O(component_count), so it must not run per mutation:
      *  UITree_Push inserts the new id incrementally (keeping `id_index_gen` in
-     *  step with `id_generation`) and only a reclaim — which cannot be undone in
-     *  an open-addressed table without rescanning for a replacement winner —
-     *  leaves the map stale for the next lookup to rebuild. Without that,
-     *  cc_create's uid allocation rebuilt the whole map on every widget it made,
-     *  which is quadratic in the tree size (~45% of frame time on rev230). */
+     *  step with `id_generation`) and a reclaim tombstones just its own slot.
+     *  Without either, cc_create's uid allocation rebuilt the whole map on every
+     *  widget it made, which is quadratic in the tree size (~45% of frame time
+     *  on rev230; the reclaim half of it stalled the QBD fight, where each chat
+     *  line replaces 500 rows and so reclaims 500 ids).
+     *
+     *  A reclaim cannot name the replacement winner without rescanning, so it
+     *  does not try: the slot keeps its key (probe chains must survive) and the
+     *  value becomes a marker, resolved at most once by the next lookup for that
+     *  id. See the `id_index_vals` encoding below. */
     int32_t* id_index_keys; /* component_id per slot, -1 = empty */
-    int32_t* id_index_vals; /* winning component index for that id */
+    /** >= 0 winning component index; -1 "winner reclaimed, rescan once";
+     *  -2 "rescanned, no live component holds this id". */
+    int32_t* id_index_vals;
     uint32_t id_index_cap;  /* slot count (power of two, 0 = unallocated) */
     uint32_t id_index_gen;  /* generation the map was last built for */
+    /** Slots holding a key whose value is a marker. They never free a slot, so
+     *  they count against the load factor or probing could never terminate. */
+    uint32_t id_index_tombs;
     uint8_t id_index_valid; /* 0 until first successful build */
     /** Cached layout scratch (see UITree_LayoutResolve). `order`/`depth` depend
      *  only on tree topology and are recomputed only when `generation` changes;

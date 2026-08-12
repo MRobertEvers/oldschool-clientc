@@ -111,6 +111,20 @@ struct Mock230Session
      *  so the caller runs the world's login burst exactly once. */
     int login_raised;
 
+    /**
+     * The handshake was GAMERECONNECT (18), not GAMELOGIN (16).
+     *
+     * A client whose connection died — a browser tab the OS stopped
+     * scheduling, a dropped socket — asks for its session back rather than
+     * logging in again. The block is the same one either way; what differs is
+     * the answer. A reconnect is owed RECONNECT_OK carrying the player-info
+     * init block, because no REBUILD_LOGIN follows it, and that block cannot
+     * be written until the player exists and its save has been read. So the
+     * response is deferred to the world's login path, and this is how it knows
+     * (see mock230_world_login).
+     */
+    int reconnect;
+
     /** Advances for every successfully queued server->client frame. The
      * online decoder uses it to put an explicit SERVER_TICK_END after an
      * immediate input-response burst, rather than leaving the client waiting

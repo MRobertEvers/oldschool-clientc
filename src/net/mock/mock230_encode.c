@@ -26,6 +26,7 @@
 #include "mock239_playerinfo.h"
 
 #include "net/isaac.h"
+#include "net/rev/osrs239/loginblock.h"
 #include "net/jbase37.h"
 #include "net/wordpack.h"
 
@@ -583,6 +584,74 @@ flush(
         return;
     }
     mock230_send(player, opcode, buf->data, (int)rsab_len(buf), var);
+}
+
+/* ------------------------------------------------------------------ */
+/* Login                                                               */
+/* ------------------------------------------------------------------ */
+
+int
+mock230_send_reconnect_ok(struct Mock230Player* player)
+{
+    struct RSAreaBuf buf;
+    struct RSAreaBuf out;
+    uint8_t header[3];
+    int32_t coord;
+
+    if( !player->session )
+        return 0;
+
+    /*
+     * LoginResponse.ReconnectOk: opcode, a var-SHORT length, and the
+     * player-info init block as the payload.
+     *
+     * It is the one login response with a body the client has to decode
+     * rather than skip, and the reason is what a reconnect *doesn't* get: no
+     * REBUILD_LOGIN follows, so this is the only statement of where the 2048
+     * player slots are. The deob reads it at gameState 40 and hands it
+     * straight to the player-info reader (client.java:1795); RSProt frames it
+     * as VAR_SHORT and writes the caller's buffer verbatim.
+     *
+     * Raw, not through flush(): login responses are not ISAAC-scrambled game
+     * packets. The ciphers are already armed at this point and stepping one
+     * here would desync the whole session.
+     */
+    if( !wire_is_v5(player) )
+        return 0;
+
+    open_packet(&buf, 8192);
+    coord = (int32_t)(((player->level & 0x3) << 28) | ((player->x & 0x3fff) << 14) |
+                      (player->z & 0x3fff));
+    mock239_playerinfo_write_init(&buf, mock230_wire_player_index(player->pid), coord);
+    if( !rsab_ok(&buf) )
+    {
+        fprintf(stderr, "mock230: reconnect init block overflowed\n");
+        return 0;
+    }
+
+    /*
+     * The client is now tracking itself, exactly as it would be after a login
+     * rebuild — so the REBUILD_NORMAL that follows must NOT repeat the block.
+     * That is the same `player_tracked` gate mock230_send_rebuild_normal
+     * reads, set from the other side of it.
+     */
+    player->player_tracked[player->pid] = 1;
+    player->v5_playerinfo_sent = 0;
+    player->v5_last_x = player->x;
+    player->v5_last_z = player->z;
+    player->v5_last_level = player->level;
+
+    rsab_wrap(&out, header, sizeof(header));
+    rsab_p1(&out, OSRS239_LOGINRES_RECONNECT_OK);
+    rsab_p2(&out, (int)rsab_len(&buf));
+    if( mock230_session_send(player->session, header, (int)sizeof(header)) < 0 )
+        return 0;
+    if( mock230_session_send(player->session, buf.data, (int)rsab_len(&buf)) < 0 )
+        return 0;
+    if( player->world && player->world->verbose )
+        fprintf(stderr, "mock230: RECONNECT_OK, %d byte player-info init at %d,%d\n",
+                (int)rsab_len(&buf), player->x, player->z);
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */

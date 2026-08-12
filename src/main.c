@@ -588,6 +588,14 @@ interactive_present_retained(
  * verbatim; it returns 0 when the loop should stop. Native spins it; the
  * browser hands it to requestAnimationFrame.
  */
+#if defined(TORIRS_PLATFORM_WEB)
+/* Is the page hidden? EM_JS rather than EM_ASM: the latter is rejected in
+ * `-std=c*` modes, and this file is built as C11. */
+EM_JS(int, web_document_hidden, (void), {
+    return (typeof document !== 'undefined' && document.hidden) ? 1 : 0;
+});
+#endif
+
 static struct App app;
 static struct ToriRS_ExecutorConfig executor_cfg;
 static struct AppConfig cfg = {
@@ -667,13 +675,41 @@ frame_loop_step(void)
      * nothing is outstanding, so a settled client renders on frame boundaries
      * like any other page. */
     {
-        static int io_paced = -1;
+        /*
+         * -1 unset; otherwise the (mode, value) pair currently installed.
+         *
+         * Three regimes share one setting, so they are decided together:
+         *
+         *   IO backlog   settimeout(0)  — drain as fast as the event loop will
+         *   hidden tab   settimeout(50) — keep the socket drained, don't draw
+         *   settled      raf(1)         — a normal page on frame boundaries
+         *
+         * The hidden case is the one worth explaining. A browser stops calling
+         * requestAnimationFrame for a hidden tab, so the client stops draining
+         * a socket the server keeps writing to; minutes later the tab comes
+         * back to a backlog it can only fast-forward through. Timers keep
+         * firing where animation frames do not — clamped to about 1Hz in the
+         * background, which is still several times the 600ms server tick, so
+         * a hidden tab keeps up instead of falling behind. Asking for 50ms
+         * costs nothing when the clamp is the thing that decides.
+         *
+         * This is not a guarantee: a browser that freezes the page entirely,
+         * or an OS that suspends it, stops timers too. That case is what
+         * app_net_link_watch is for — it notices the gap and drops the
+         * session rather than replaying it.
+         */
+        static int paced_mode = -1;
+        static int paced_value = -1;
         int waiting = PlatformXIO_Web_PendingTotal() > 0;
-        if( waiting != io_paced )
+        int hidden = !waiting && web_document_hidden();
+        int mode = (waiting || hidden) ? EM_TIMING_SETTIMEOUT : EM_TIMING_RAF;
+        int value = waiting ? 0 : (hidden ? 50 : 1);
+
+        if( mode != paced_mode || value != paced_value )
         {
-            io_paced = waiting;
-            emscripten_set_main_loop_timing(
-                waiting ? EM_TIMING_SETTIMEOUT : EM_TIMING_RAF, waiting ? 0 : 1);
+            paced_mode = mode;
+            paced_value = value;
+            emscripten_set_main_loop_timing(mode, value);
         }
     }
 #endif

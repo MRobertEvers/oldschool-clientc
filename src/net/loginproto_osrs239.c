@@ -69,10 +69,24 @@ struct Osrs239Login
      * PLAYER_INFO v5 is keyed on it. -1 until the response arrives. */
     int local_index;
 
-    /* Inbound accumulator. The two shapes it has to hold are the 9-byte seed
-     * reply and a var-short proof-of-work challenge. */
-    uint8_t in[1024];
+    /* Inbound accumulator. The shapes it has to hold are the 9-byte seed
+     * reply, a var-short proof-of-work challenge, and RECONNECT_OK's
+     * var-short GPI init block — which is the largest of the three by far
+     * (2047 low-resolution positions at 18 bits each). */
+    uint8_t in[8192];
     int in_len;
+
+    /* This handshake announces itself as GAMERECONNECT, presenting
+     * `prev_seed` in place of the password. Both are copied off the network
+     * struct at construction so the block builder reads one thing. */
+    int reconnect;
+    int32_t prev_seed[4];
+
+    /* RECONNECT_OK's payload, held for the caller (see
+     * NetLoginVTable.reconnect_block). Offset into `in`, since nothing else
+     * uses the accumulator once the response is complete. */
+    int reconnect_block_off;
+    int reconnect_block_len;
 };
 
 static void
@@ -174,11 +188,30 @@ build_login_block(struct Osrs239Login* h)
     for( int i = 0; i < 4; i++ )
         p4(&rbuf, h->seed[i]);
     p8(&rbuf, (int64_t)h->session_id);
-    /* OTP_NONE, whose four payload bytes the decoder skips without reading. */
-    p1(&rbuf, OSRS239_OTP_NONE);
-    p4(&rbuf, 0);
-    p1(&rbuf, OSRS239_AUTH_PASSWORD);
-    pjstr(&rbuf, h->password, 0);
+    if( h->reconnect )
+    {
+        /*
+         * GAMERECONNECT's authentication section: the seed the previous
+         * session's ciphers ran on, and nothing else.
+         *
+         * RSProt splits the two decoders exactly here (GameReconnectDecoder's
+         * decodeAuthentication reads four ints where GameLoginDecoder reads
+         * the OTP discriminator, the auth type and the password) — everything
+         * around it, header and XTEA body alike, is byte-identical between the
+         * two. Presenting the old key is what lets a server hand the character
+         * back without a password round trip.
+         */
+        for( int i = 0; i < 4; i++ )
+            p4(&rbuf, h->prev_seed[i]);
+    }
+    else
+    {
+        /* OTP_NONE, whose four payload bytes the decoder skips without reading. */
+        p1(&rbuf, OSRS239_OTP_NONE);
+        p4(&rbuf, 0);
+        p1(&rbuf, OSRS239_AUTH_PASSWORD);
+        pjstr(&rbuf, h->password, 0);
+    }
 
     int enclen = rsa_crypt(&h->net->rsa, rsabuf, rbuf.position, enc, sizeof(enc));
     if( enclen <= 0 )
@@ -214,7 +247,7 @@ build_login_block(struct Osrs239Login* h)
 
     /* --- outer packet -------------------------------------------------- */
     RSCache_BufferInit(&obuf, h->out, sizeof(h->out));
-    p1(&obuf, OSRS239_LOGIN_GAMELOGIN);
+    p1(&obuf, h->reconnect ? OSRS239_LOGIN_GAMERECONNECT : OSRS239_LOGIN_GAMELOGIN);
     int header_len = 4 + 4 + 4 + 1 + 1 + 1;
     p2(&obuf, header_len + 2 + enclen + (int)bbuf.position);
     p4(&obuf, h->net->rev->client_version);
@@ -298,6 +331,23 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
     snprintf(h->password, sizeof(h->password), "%s", password ? password : "");
     h->state = OSRS239_SEND_CONNECT;
     h->local_index = -1;
+    /*
+     * A reconnect keeps the index it already had: RECONNECT_OK carries no
+     * index field (the server is handing back a session, not opening one), so
+     * losing it here would leave PLAYER_INFO v5 keyed on -1.
+     */
+    h->reconnect = net->reconnect && net->has_prev_seed;
+    if( h->reconnect )
+    {
+        memcpy(h->prev_seed, net->prev_seed, sizeof(h->prev_seed));
+        h->local_index = net->local_index;
+    }
+    else if( net->reconnect )
+    {
+        /* Asked to reconnect with no prior session to present. Fall back to a
+         * fresh GAMELOGIN rather than sending an unauthenticable block. */
+        fprintf(stderr, "osrs239 login: no previous seed; reconnecting as a fresh login\n");
+    }
     if( net->seed_fn )
         net->seed_fn(net->seed_user, h->seed);
     else
@@ -308,6 +358,23 @@ osrs239_new(struct ToriRS_Network* net, char const* username, char const* passwo
     h->seed[2] = rand();
     h->seed[3] = rand();
     return h;
+}
+
+/*
+ * Hand what a future reconnect will need back to the network struct.
+ *
+ * The seed, because GAMERECONNECT presents the previous session's key in
+ * place of a password, and the index, because RECONNECT_OK does not restate
+ * it. Both are published on success only: a refused handshake has no session
+ * worth reclaiming, and overwriting a good seed with its seed would make the
+ * next reconnect unauthenticable.
+ */
+static void
+publish_seed(struct Osrs239Login* h)
+{
+    memcpy(h->net->prev_seed, h->seed, sizeof(h->net->prev_seed));
+    h->net->has_prev_seed = 1;
+    h->net->local_index = h->local_index;
 }
 
 static int
@@ -394,9 +461,52 @@ osrs239_recv(void* handle, uint8_t const* data, int size)
                 h->local_index = index;
                 fprintf(stderr, "osrs239 login: OK, local player index %d\n", index);
                 h->state = OSRS239_DONE;
+                publish_seed(h);
                 {
                     int extra = h->in_len - ok_size;
                     h->in_len = 0;
+                    return off - extra;
+                }
+            }
+            if( reply == OSRS239_LOGINRES_RECONNECT_OK )
+            {
+                /*
+                 * The session handed back. Var-short framed, and unlike OK the
+                 * stated length is the real one: it has to be, because the
+                 * payload is a variable-length bit block.
+                 *
+                 * No index, no staff level, no account fields — a reconnect
+                 * restates none of it, which is why `local_index` was carried
+                 * over at construction. What it does carry is the player-info
+                 * init block, held here and applied by the caller once the
+                 * index has been restated (see reconnect_block).
+                 */
+                int len;
+
+                if( h->in_len < 3 )
+                    break;
+                len = (h->in[1] << 8) | h->in[2];
+                if( len < 0 || 3 + len > (int)sizeof(h->in) )
+                {
+                    fprintf(stderr, "osrs239 login: RECONNECT_OK payload too large (%d)\n", len);
+                    h->state = OSRS239_ERR;
+                    return off;
+                }
+                if( h->in_len < 3 + len )
+                    break;
+                h->reconnect_block_off = 3;
+                h->reconnect_block_len = len;
+                fprintf(stderr,
+                        "osrs239 login: RECONNECT_OK, %d byte player-info init, index %d\n",
+                        len, h->local_index);
+                h->state = OSRS239_DONE;
+                publish_seed(h);
+                {
+                    /* Same rule as OK: bytes of the burst that arrived behind
+                     * the response are not ours to consume. `in` is kept (the
+                     * block lives in it) and freed with the handle. */
+                    int extra = h->in_len - (3 + len);
+                    h->in_len = 3 + len;
                     return off - extra;
                 }
             }
@@ -473,9 +583,22 @@ osrs239_local_index(void* handle)
     return h ? h->local_index : -1;
 }
 
+static uint8_t const*
+osrs239_reconnect_block(void* handle, int* out_len)
+{
+    struct Osrs239Login* h = handle;
+
+    if( !h || h->reconnect_block_len <= 0 )
+        return NULL;
+    if( out_len )
+        *out_len = h->reconnect_block_len;
+    return h->in + h->reconnect_block_off;
+}
+
 struct NetLoginVTable const g_osrs239_login_vtable = {
     .new_ = osrs239_new,
     .local_index = osrs239_local_index,
+    .reconnect_block = osrs239_reconnect_block,
     .recv = osrs239_recv,
     .send = osrs239_send,
     .poll = osrs239_poll,

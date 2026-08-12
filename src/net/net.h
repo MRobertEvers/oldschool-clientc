@@ -46,6 +46,16 @@ enum ToriRS_NetOutType
 {
     TORIRS_NET_OUT_CONNECT = 1,   /* payload "host:port" */
     TORIRS_NET_OUT_SEND_DATA = 2, /* raw bytes to the socket */
+    /*
+     * Close the connection now, without waiting for the next CONNECT to do it
+     * as a side effect.
+     *
+     * Which matters on a reconnect: the peer learns the old session is over
+     * from the FIN, and a server that saves a character on disconnect needs
+     * that to happen *before* the re-established session asks for it back. A
+     * close folded into the re-dial makes the two simultaneous.
+     */
+    TORIRS_NET_OUT_DISCONNECT = 3,
 };
 
 struct ToriRS_Network
@@ -77,6 +87,26 @@ struct ToriRS_Network
 
     loginproto_seed_fn seed_fn;
     void* seed_user;
+
+    /**
+     * This handshake is a reconnect, not a fresh login.
+     *
+     * Read by the login drivers when they build their block: it selects
+     * GAMERECONNECT (18) over GAMELOGIN (16) and, at revisions that separate
+     * them, swaps the credential section for the previous session's cipher
+     * seed. Set by ToriRS_Network_Reconnect and cleared once the handshake
+     * either succeeds or fails, so a later fresh login is not mislabelled.
+     */
+    int reconnect;
+
+    /** The cipher seed the previous session authenticated with; what a
+     * reconnect presents in place of a password. Valid when `has_prev_seed`. */
+    int32_t prev_seed[4];
+    int has_prev_seed;
+
+    /** The local player's slot as last stated by a login response, or -1.
+     * A reconnect keeps it: RECONNECT_OK restates nothing. */
+    int local_index;
 };
 
 /** Initialize with a revision table and RSA key (hex exponent/modulus). */
@@ -104,6 +134,20 @@ ToriRS_Network_ConnectLogin(
     char const* host,
     char const* username,
     char const* password);
+
+/**
+ * Re-establish a session that was lost, reusing the stored host/credentials.
+ *
+ * This is the wire half of the reference client's `lostCon` (Client-TS
+ * Client.ts:2734, deob gameState 40): the same handshake as ConnectLogin, but
+ * announced as GAMERECONNECT so a server that kept the character can hand the
+ * session back instead of logging it in again. Callers own the client-side
+ * reset; this touches only the connection.
+ *
+ * Returns 0 when there is nothing to reconnect to (no prior ConnectLogin).
+ */
+int
+ToriRS_Network_Reconnect(struct ToriRS_Network* net);
 
 /**
  * Handle one TORIRS_CMD_NET_* command (raw-byte semantics):

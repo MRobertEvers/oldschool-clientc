@@ -1630,170 +1630,6 @@ scenery_add_wall_diagonal(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 }
 
-/*
- * The DRAW footprint of a multi-tile loc: its declared tile footprint grown to
- * cover the tiles its model actually lands on, by at most one tile per side.
- *
- * The painter gives a loc exactly one slot in the command stream, chosen as the
- * ring of the NEAREST tile of the footprint it is registered on (a loc is
- * released only once every tile it covers has its ground down, and the last of
- * those is always the one closest to the eye). Everything nearer than that ring
- * is drawn afterwards. So any tile the MODEL covers but the FOOTPRINT does not,
- * and which is nearer than the footprint's nearest tile, has its ground painted
- * on top of the loc — a strip of terrain lying over a floor.
- *
- * The rs2012 QBD arena is that case at its worst: two 12x18 plane-0 slabs whose
- * models interlock across the seam, each reaching about six tiles past its own
- * footprint (loc 63043 is registered on x[50,61] and draws on x[44,66]). The
- * seam column is inside the west slab's footprint, drawn under the east slab's
- * geometry, and emitted one ring after it — a one-tile strip of arena floor
- * running over the platform, from any camera angle that puts the eye west of
- * the seam. LARGE_LOCS_PAINTER.md covers the ordering side of the same arena.
- *
- * Why ONE tile and not the whole model extent: growing the footprint moves the
- * loc's slot NEARER, and past the point where it covers its own overhang it
- * starts covering things that STAND on it — an entity is emitted at its own
- * tile's ring, so a slab released six rings in would be drawn over the player
- * standing on it. One tile is the smallest correction that covers the ordinary
- * authoring case (a model that laps over its footprint edge), and it keeps the
- * slot within one ring of the reference client's. Inside a single tile nothing
- * is displaced at all: that tile's scenery pass already emits its chain
- * farthest-corner first, which puts the big loc ahead of anything on it.
- *
- * Locs whose model fits inside their footprint are left exactly as they were.
- * TORIRS_LOC_DRAW_MARGIN overrides the cap (0 restores reference footprints).
- */
-/** Fine units of overhang past the footprint edge below which a side is treated
- *  as fitting. A quarter tile; see scenery_grow_draw_footprint. */
-#define SCENERY_DRAW_OVERHANG_MIN 32
-
-static int
-scenery_draw_margin_tiles(void)
-{
-    static int margin = -1;
-    if( margin < 0 )
-    {
-        char const* env = getenv("TORIRS_LOC_DRAW_MARGIN");
-        margin = env && env[0] ? (int)strtol(env, NULL, 0) : 1;
-        if( margin < 0 )
-            margin = 0;
-    }
-    return margin;
-}
-
-void
-world_builder_draw_footprint(
-    int sx,
-    int sz,
-    int size_x,
-    int size_z,
-    int model_min_x,
-    int model_max_x,
-    int model_min_z,
-    int model_max_z,
-    int margin,
-    int scene_size,
-    int* out_sx,
-    int* out_sz,
-    int* out_size_x,
-    int* out_size_z)
-{
-    int lo_x = sx;
-    int hi_x = sx + size_x - 1;
-    int lo_z = sz;
-    int hi_z = sz + size_z - 1;
-
-    *out_sx = sx;
-    *out_sz = sz;
-    *out_size_x = size_x;
-    *out_size_z = size_z;
-    if( margin <= 0 )
-        return;
-
-    if( model_min_x < lo_x )
-        lo_x -= (lo_x - model_min_x) < margin ? (lo_x - model_min_x) : margin;
-    if( model_max_x > hi_x )
-        hi_x += (model_max_x - hi_x) < margin ? (model_max_x - hi_x) : margin;
-    if( model_min_z < lo_z )
-        lo_z -= (lo_z - model_min_z) < margin ? (lo_z - model_min_z) : margin;
-    if( model_max_z > hi_z )
-        hi_z += (model_max_z - hi_z) < margin ? (model_max_z - hi_z) : margin;
-
-    /* compute_normal_scenery_spans clamps the far edge to the grid but not the
-     * near one, so the origin has to be in range before it is handed over. */
-    if( lo_x < 0 )
-        lo_x = 0;
-    if( lo_z < 0 )
-        lo_z = 0;
-    if( hi_x > scene_size - 1 )
-        hi_x = scene_size - 1;
-    if( hi_z > scene_size - 1 )
-        hi_z = scene_size - 1;
-    if( hi_x < lo_x || hi_z < lo_z )
-        return; /* the declared footprint is already off-grid: leave it alone */
-
-    *out_sx = lo_x;
-    *out_sz = lo_z;
-    *out_size_x = hi_x - lo_x + 1;
-    *out_size_z = hi_z - lo_z + 1;
-}
-
-static void
-scenery_grow_draw_footprint(
-    struct WorldBuilder* builder,
-    int element_id,
-    int scene_size,
-    int* io_sx,
-    int* io_sz,
-    int* io_size_x,
-    int* io_size_z)
-{
-    int margin = scenery_draw_margin_tiles();
-    int world_min_x, world_max_x, world_min_z, world_max_z;
-
-    if( margin <= 0 )
-        return;
-    /* Single-tile locs keep the reference footprint. Their models overhang far
-     * more often than a multi-tile loc's (every tree canopy does), the error is
-     * a tile wide on screen rather than a slab, and there are orders of
-     * magnitude more of them — this is not the place to re-order the world. */
-    if( *io_size_x * *io_size_z <= 1 )
-        return;
-    if( !ToriDraw_SceneElementDrawExtentXZ(
-            builder->scene, element_id, &world_min_x, &world_max_x, &world_min_z, &world_max_z) )
-        return;
-
-    /*
-     * Fine -> tile, with the extent pulled in by a quarter tile first.
-     *
-     * Plenty of models lap a handful of units past their footprint edge — a
-     * rounded corner, a resize, a bevel — and that cannot produce a visible
-     * strip, but claiming the neighbouring tile for it is not free: every tile
-     * a loc is registered on is another scenery-chain node the drain walks and
-     * another footprint push when it is drawn. Ignoring an overhang thinner
-     * than SCENERY_DRAW_OVERHANG_MIN keeps the growth on the locs that need it
-     * (the QBD slabs overhang by six tiles) and the paint cost with it.
-     *
-     * Arithmetic shift floors, which is what a negative coordinate just off the
-     * scene edge needs.
-     */
-    world_builder_draw_footprint(
-        *io_sx,
-        *io_sz,
-        *io_size_x,
-        *io_size_z,
-        (world_min_x + SCENERY_DRAW_OVERHANG_MIN) >> 7,
-        (world_max_x - SCENERY_DRAW_OVERHANG_MIN) >> 7,
-        (world_min_z + SCENERY_DRAW_OVERHANG_MIN) >> 7,
-        (world_max_z - SCENERY_DRAW_OVERHANG_MIN) >> 7,
-        margin,
-        scene_size,
-        io_sx,
-        io_sz,
-        io_size_x,
-        io_size_z);
-}
-
 static void
 scenery_add_normal(
     struct WorldBuilder* builder,
@@ -1838,23 +1674,14 @@ scenery_add_normal(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
 
-    /* Draw footprint only: the shade, sharelight and route footprints below all
-     * stay on the loc's declared tiles, which is what they mean. */
-    int draw_sx = scene_x;
-    int draw_sz = scene_z;
-    int draw_size_x = size_x;
-    int draw_size_z = size_z;
-    scenery_grow_draw_footprint(
-        builder, element_id, world->_scene_size, &draw_sx, &draw_sz, &draw_size_x, &draw_size_z);
-
     painter_add_normal_scenery_ex(
         world->painter,
-        draw_sx,
-        draw_sz,
+        scene_x,
+        scene_z,
         map_loc->chunk_pos_level,
         element_id,
-        draw_size_x,
-        draw_size_z,
+        size_x,
+        size_z,
         ToriDraw_SceneElementOcclusionHeight(builder->scene, element_id),
         (size_x * size_z > 1) ? (uint8_t)PNTR_SCENERY_STACK_BASE : 0);
     int shade = size_x * size_z * 11;

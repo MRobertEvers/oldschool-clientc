@@ -125,6 +125,24 @@ CmdBus_Push(
     const void* payload,
     uint16_t length);
 
+/* Room for a `length`-byte payload right now? See CmdRing_CanPush: a socket
+ * producer must ask before it consumes bytes it cannot hand over. */
+static inline int
+CmdBus_CanPush(
+    const struct ToriRS_CmdBus* bus,
+    uint16_t length)
+{
+    return CmdRing_CanPush(&bus->ring, length);
+}
+
+/* Bytes still free, headers included — for producers sizing a multi-message
+ * batch that has to be admitted or refused as a whole. */
+static inline uint32_t
+CmdBus_FreeBytes(const struct ToriRS_CmdBus* bus)
+{
+    return CmdRing_FreeBytes(&bus->ring);
+}
+
 /* out_payload must hold TORIRS_CMD_MAX_PAYLOAD bytes. */
 int
 CmdBus_Pop(

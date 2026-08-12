@@ -70,6 +70,7 @@ ToriRS_Network_Init(
     net->random_in = isaac_new(NULL, 0);
     net->random_out = isaac_new(NULL, 0);
     net->conn_status = TORIRS_NET_STATUS_DISCONNECTED;
+    net->local_index = -1;
     CmdRing_Init(&net->out);
 
     if( rsa_exp_hex && rsa_mod_hex )
@@ -134,15 +135,17 @@ push_out(
     CmdRing_Push(&net->out, type, data, (uint16_t)len);
 }
 
-void
-ToriRS_Network_ConnectLogin(
+static void
+connect_login(
     struct ToriRS_Network* net,
     char const* host,
     char const* username,
-    char const* password)
+    char const* password,
+    int reconnect)
 {
     assert(net);
 
+    net->reconnect = reconnect;
     strncpy(net->host, host ? host : "", sizeof(net->host) - 1);
     strncpy(net->username, username ? username : "", sizeof(net->username) - 1);
     strncpy(net->password, password ? password : "", sizeof(net->password) - 1);
@@ -173,10 +176,55 @@ ToriRS_Network_ConnectLogin(
     loginproto_drive(net);
 }
 
+int
+ToriRS_Network_Reconnect(struct ToriRS_Network* net)
+{
+    assert(net);
+    if( !net->host[0] )
+        return 0;
+
+    /* Drop whatever is left of the dead session first: a half-read frame in
+     * the packet buffer would otherwise be prefixed onto the new stream, and
+     * the parsed FIFO holds packets addressed to a world that is about to be
+     * rebuilt. */
+    login_free(net);
+    if( net->packet_buffer.data )
+        packetbuffer_reset(&net->packet_buffer);
+    free_packet_list(net);
+
+    /* Copies, because ConnectLogin writes these same fields — strncpy onto
+     * its own source is not a thing to rely on. */
+    {
+        char host[sizeof(net->host)];
+        char user[sizeof(net->username)];
+        char pass[sizeof(net->password)];
+
+        memcpy(host, net->host, sizeof(host));
+        memcpy(user, net->username, sizeof(user));
+        memcpy(pass, net->password, sizeof(pass));
+        connect_login(net, host, user, pass, /* reconnect */ 1);
+    }
+    return 1;
+}
+
+void
+ToriRS_Network_ConnectLogin(
+    struct ToriRS_Network* net,
+    char const* host,
+    char const* username,
+    char const* password)
+{
+    connect_login(net, host, username, password, /* reconnect */ 0);
+}
+
 void
 ToriRS_Network_Logout(struct ToriRS_Network* net)
 {
     assert(net);
+    /* Tell the transport the connection is over. The peer's FIN-driven
+     * bookkeeping (a server that persists a character on disconnect) has to
+     * run before anything re-establishes the session. */
+    push_out(net, TORIRS_NET_OUT_DISCONNECT, NULL, 0);
     login_free(net);
     if( net->packet_buffer.data )
         packetbuffer_reset(&net->packet_buffer);
@@ -207,6 +255,8 @@ push_parsed_packet(
 /* osrs239_entity_info.c -- see the local-index note in loginproto_drive. */
 void
 osrs239_playerinfo_set_local(int local_index);
+void
+osrs239_playerinfo_init(uint8_t const* data, int len);
 
 /* Flush login outbound bytes, then act on the poll result (port of v0
  * loginproto_drive): on success free the login machine and arm the packet
@@ -262,12 +312,32 @@ loginproto_drive(struct ToriRS_Network* net)
                 push_parsed_packet(net, &packet);
             }
         }
+        /*
+         * A reconnect's player table, after the index and before the handle
+         * that holds the block is freed.
+         *
+         * Order is the whole of it: osrs239_playerinfo_set_local wipes the
+         * table to install the index, so seeding first would seed nothing.
+         * On a fresh login there is no block here — REBUILD_LOGIN carries it
+         * instead — and the hook returns NULL.
+         */
+        if( net->rev->login && net->rev->login->reconnect_block )
+        {
+            int block_len = 0;
+            uint8_t const* block = net->rev->login->reconnect_block(net->login_generic,
+                                                                    &block_len);
+
+            if( block && block_len > 0 && net->rev->player_info_read )
+                osrs239_playerinfo_init(block, block_len);
+        }
+        net->reconnect = 0;
         login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
         net->state = TORIRS_NET_GAME;
     }
     else if( poll_result == LOGINPROTO_ERROR )
     {
+        net->reconnect = 0;
         net->state = TORIRS_NET_DISCONNECTED;
     }
 }

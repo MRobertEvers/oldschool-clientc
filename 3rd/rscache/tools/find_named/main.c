@@ -610,6 +610,18 @@ dump_loc(
             printf(" %d", loc->models[i][j]);
         printf("\n");
     }
+    /* The placement transform. A loc's model is drawn centred on its footprint
+     * and then resized and offset, so these are what decide whether the drawn
+     * geometry stays inside `width x length` — a footprint that reads as wrong
+     * is usually a resize that was dropped in a port, not a bad size byte. */
+    printf(
+        "  %-22s%d, %d, %d  (128 = identity)\n",
+        "resize x,height,z",
+        loc->resize_x,
+        loc->resize_height,
+        loc->resize_z);
+    printf(
+        "  %-22s%d, %d, %d\n", "offset x,y,z", loc->offset_x, loc->offset_y, loc->offset_z);
     printf("  %-22s%d\n", "transform_varbit", loc->transform_varbit);
     printf("  %-22s%d\n", "transform_varp", loc->transform_varp);
     if( loc->transform_count > 0 )
@@ -864,6 +876,98 @@ dump_model_stats(
         printf("  %-22sx[%d..%d] y[%d..%d] z[%d..%d]  extent %dx%dx%d\n",
                "bounds", minx, maxx, miny, maxy, minz, maxz,
                maxx - minx, maxy - miny, maxz - minz);
+
+        /*
+         * Where the geometry actually IS, per tile column, as a share of the
+         * model's faces.
+         *
+         * The bounding box cannot tell a loc whose footprint is authored too
+         * small from one whose model merely has a decorative overhang — a
+         * tree canopy and a floor slab that really is twice its declared width
+         * both report an extent past the footprint. Face centroids binned per
+         * tile answer it: a wrong footprint puts real face mass out there, an
+         * overhang puts a percent or two.
+         *
+         * A tile is 128 units, and a format >= 13 model stores vertices at 4x,
+         * so the cell is 512 raw units there.
+         */
+        int const cell = model->format_version >= 13 ? 512 : 128;
+        int const tiles_x = (maxx - minx) / cell + 1;
+        int const tiles_z = (maxz - minz) / cell + 1;
+        if( model->face_count > 0 && tiles_x > 1 && tiles_x <= 64 && tiles_z > 1 &&
+            tiles_z <= 64 )
+        {
+            int* per_x = calloc((size_t)tiles_x, sizeof(*per_x));
+            int* per_z = calloc((size_t)tiles_z, sizeof(*per_z));
+            if( per_x && per_z )
+            {
+                for( int f = 0; f < model->face_count; f++ )
+                {
+                    int a = model->face_indices_a[f];
+                    int b = model->face_indices_b[f];
+                    int c = model->face_indices_c[f];
+                    int cx = (model->vertices_x[a] + model->vertices_x[b] +
+                              model->vertices_x[c]) / 3;
+                    int cz = (model->vertices_z[a] + model->vertices_z[b] +
+                              model->vertices_z[c]) / 3;
+                    int ix = (cx - minx) / cell;
+                    int iz = (cz - minz) / cell;
+                    if( ix >= 0 && ix < tiles_x ) per_x[ix]++;
+                    if( iz >= 0 && iz < tiles_z ) per_z[iz]++;
+                }
+                /* Bounds of the vertices a face actually references. The plain
+                 * `bounds` above is every vertex, and an unreferenced one
+                 * inflates it without drawing anything — which is the whole
+                 * difference between a footprint that is authored wrong and a
+                 * model that merely carries dead vertices. */
+                int fminx = 0, fmaxx = 0, fminz = 0, fmaxz = 0, seen = 0;
+                for( int f = 0; f < model->face_count; f++ )
+                {
+                    int idx[3] = { model->face_indices_a[f], model->face_indices_b[f],
+                                   model->face_indices_c[f] };
+                    for( int k = 0; k < 3; k++ )
+                    {
+                        int vx = model->vertices_x[idx[k]];
+                        int vz = model->vertices_z[idx[k]];
+                        if( !seen )
+                        {
+                            fminx = fmaxx = vx;
+                            fminz = fmaxz = vz;
+                            seen = 1;
+                            continue;
+                        }
+                        if( vx < fminx ) fminx = vx;
+                        if( vx > fmaxx ) fmaxx = vx;
+                        if( vz < fminz ) fminz = vz;
+                        if( vz > fmaxz ) fmaxz = vz;
+                    }
+                }
+                if( seen )
+                    printf(
+                        "  %-22sx[%d..%d] z[%d..%d]  %.1f x %.1f tiles\n",
+                        "drawn bounds",
+                        fminx,
+                        fmaxx,
+                        fminz,
+                        fmaxz,
+                        (double)(fmaxx - fminx) / cell,
+                        (double)(fmaxz - fminz) / cell);
+                printf("  %-22s%d x %d tiles of face centroids\n", "coverage", tiles_x,
+                       tiles_z);
+                for( int axis = 0; axis < 2; axis++ )
+                {
+                    int n = axis ? tiles_z : tiles_x;
+                    int* v = axis ? per_z : per_x;
+                    printf("    %s ", axis ? "z" : "x");
+                    for( int i = 0; i < n; i++ )
+                        printf("%s%d%%", i ? " " : "",
+                               100 * v[i] / model->face_count);
+                    printf("\n");
+                }
+            }
+            free(per_x);
+            free(per_z);
+        }
     }
     printf("  %-22s%d\n", "textured triangles", model->textured_face_count);
     printf(

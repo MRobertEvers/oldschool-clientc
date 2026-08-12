@@ -51,4 +51,21 @@ CmdRing_Pop(
 int
 CmdRing_IsEmpty(const struct ToriRS_CmdRing* ring);
 
+/* Bytes the ring can still accept, headers included. */
+uint32_t
+CmdRing_FreeBytes(const struct ToriRS_CmdRing* ring);
+
+/* Would a message of `length` bytes fit right now?
+ *
+ * A producer that cannot ask this can only discover a full ring by having its
+ * push refused, and a socket producer refused mid-stream has already consumed
+ * the bytes from the kernel: the drop is silent and the byte stream behind it
+ * is truncated mid-packet. Asking first turns "drop" into "leave it in the
+ * socket until the next drain", which is the only form back-pressure can take
+ * when the ring is fixed. */
+int
+CmdRing_CanPush(
+    const struct ToriRS_CmdRing* ring,
+    uint16_t length);
+
 #endif

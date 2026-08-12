@@ -28,11 +28,12 @@ column.
   (the two painters and the gate), [docs/qbd_toridraw_streaks_debug.md](docs/qbd_toridraw_streaks_debug.md)
   (the raster-side investigation this closes out).
 
-> **A second strip, same arena** — the sweep this fixed is clean, and a strip
+> **A second strip, same arena.** The sweep this fixed is clean, and a strip
 > still appeared from some camera angles. That one is not an ordering fault at
-> all: the slabs' *models* reach about six tiles past the footprints they are
-> registered on, and the painter can only place a loc at the ring of the
-> footprint it knows about. See [§16](#16-the-other-strip-when-the-model-is-bigger-than-the-footprint).
+> all: the two floor slabs are anchored a half tile off the geometry they draw,
+> so their footprints never cover their own western lip. Fixed in the rs2012
+> lane's map and config, not in the painter —
+> [§16](#16-the-second-strip-which-is-not-a-painter-bug).
 
 ---
 
@@ -53,7 +54,7 @@ column.
 13. [Reproducing it yourself](#13-reproducing-it-yourself)
 14. [The toolbox](#14-the-toolbox)
 15. [Where this can bite again](#15-where-this-can-bite-again)
-16. [The other strip: when the model is bigger than the footprint](#16-the-other-strip-when-the-model-is-bigger-than-the-footprint)
+16. [The second strip, which is not a painter bug](#16-the-second-strip-which-is-not-a-painter-bug)
 
 ---
 
@@ -645,6 +646,8 @@ Everything used here already existed except the last row.
 | `TORIRS_PAINTER_DUMP`, `_DUMP_TILE` | per-tile emission sequence with element slots |
 | `TORIRS_PAINT_DEBUG` | per-frame command counts by kind |
 | `TORIRS_PAINTER_W3D=1` | **new** — run the reference cascade in the live client instead of the bucket drain |
+| `find_named --model ID` | **new** — `drawn bounds` (vertices a face references) and per-tile face coverage, next to the plain vertex bbox. The pair is what tells a footprint authored wrong from a model carrying dead vertices; see §16 |
+| `find_named --loc ID` | **new** — `resize` and `offset` alongside width/length: a footprint that reads as wrong is usually a placement transform, not a bad size byte |
 
 Rule of thumb that this bug reinforces: **go pixel → command → tile → traversal,
 in that order.** Every step narrows the search by a category, and three
@@ -681,166 +684,170 @@ from the eye never increases across a frame's command stream.**
 
 ---
 
-## 16. The other strip: when the model is bigger than the footprint
+## 16. The second strip, which is not a painter bug
 
-A second strip of arena floor kept appearing over the platform from some camera
-angles after everything above shipped. It is worth writing down because the
-symptom is identical and the cause is not — the first instinct, "the sweep went
-wrong again", is measurably false here.
+A strip kept appearing over the platform from some camera angles after the fix
+above shipped. It has the same symptom and a different cause: the arena floor
+locs are anchored a half tile off the geometry they draw. **Fixed in content, no
+engine change** — `maps/m22_99.jl2` + `configs/rs2012.loc` in the rs2012 lane.
 
-### The measurement that separates them
+### The sweep is clean; the footprint is a lie
 
-Same toolbox, same order: pixel → command → tile → traversal.
-
-```sh
-TORIRS_SIM_DRAG='600,700,250,828,378,1,2'   # middle-drag: pitch to 383, yaw to 1536
-TORIRS_PIXOWNER='900,1000,535,555' TORIRS_PIXOWNER_OUT=/tmp/pixowner.txt ...
-```
-
-```
-cmd=1035  px=7023   loc  elem=4562  wpos=7168,-240,7296      <- the east slab
-cmd=1108  px=3248   TERRAIN tile=49,51 L0
-cmd=1126  px=1940   TERRAIN tile=49,52 L0                    <- painted over it
-cmd=1256  px=8477   loc  elem=4575  wpos=5632,-240,7296      <- the west slab
-```
-
-The wedgelog for that frame then says the thing that rules §1–§10 out:
+Reproduce at pitch 383 / yaw 1536 (middle-drag `TORIRS_SIM_DRAG='600,700,250,828,378,1,2'`).
+`TORIRS_PIXOWNER` names `TERRAIN tile=49,52 L0` painting over the east slab, and
+`TORIRS_WEDGELOG` on the same frame says the ordering is *right*:
 
 ```
 #path bucket:painter_paint_bucket camTile=42,52 drawCenter=42,52 drawDist=32 ...
 plane-0 floors: 1052   monotone runs: 1   inversions: 0
 ```
 
-**The sweep is perfect.** One monotone run, zero inversions — the fix above is
-holding. The floor tile at `(49,52)` is at ring 7 and the east slab was released
-at ring 8, so the painter drew the nearer thing later, exactly as designed.
+One monotone run, zero inversions — §1–§10 is holding. The floor tile is at
+ring 7 and the slab was released at ring 8, so the painter drew the nearer thing
+later, exactly as designed. The slab's geometry simply is not where its
+footprint says.
+
+### Bounding box is the wrong measurement
+
+`TORIRS_EMIT_LOC` reports a 22×20-tile extent for a loc registered on 12×18,
+which is what makes "the model overhangs, widen the footprint" look like the
+answer. It is not: those outer tiles hold **vertices no face references**.
+`find_named --model` reports both, and the difference is the whole story:
+
+```
+source model 110142
+  bounds                x[-5985..5175] z[-5170..4797]   (every vertex)
+  drawn bounds          x[-3328..2192] z[-3421..4689]  10.8 x 15.8 tiles
+  coverage              22 x 20 tiles of face centroids
+    x 0% 0% 0% 0% 0% 7% 9% 11% 13% 10% 11% 11% 7% 10% 6% 0% 0% 0% 0% 0% 0% 0%
+```
+
+Five tile columns of nothing on each side. Widening a footprint from the plain
+bbox would have re-ordered the world against dead vertices.
 
 ### What is actually wrong
 
-`TORIRS_EMIT_LOC` prints the model extent next to the footprint, and that is the
-whole answer:
+Every floor piece in the arena, measured against its own declared footprint:
+
+| loc | model | authored | drawn geometry lands past the footprint |
+|---|---|---|---|
+| 70836/70837 | 110139 | 12×18 | **46.5 west** |
+| 70838 | 110141 | 12×18 | **95.2 west**, 36 north |
+| 70839/70840 | 110142 | 12×18 | **64.0 west**, 20 north |
+| 70841 | 110144 | 12×18 | **64.0 west**, 65 north |
+| 70843–70849 | 110146–9 | 20×7 | **62.8 west**, 45 south |
+| 71758 | 110444 | 7×7 | fits |
+
+**West and south, never east or north** — a systematic half-tile offset, not
+oversized models. The two slabs' geometry meets at world x 6336, the *middle* of
+tile 49, while the footprint boundary is at 49/50. That half-tile lip on tile 49
+is the strip, and a loc's footprint always starts at its map anchor, so no
+authored `width` can ever cover it.
+
+The port is faithful, so this is stock authoring, not a backport fault: source
+loc 70836 in `cache.rs727_preeoc` is `12 x 18`, resize `128,128,128`, offset
+`0,0,0`, and ported model 110139's bounds are identical to source model 70204's.
+
+### The dead end: offsets alone
+
+`offsetx`/`offsetz` alone can push the geometry back inside the footprint, and
+the minimum shift every piece can agree on is **+96 x, +48 z** (forced by 70838,
+whose geometry is genuinely 31 units wider than its declared 12 tiles). Applied
+and baked, it does remove the strip. It also **tears the arena open**: the floor
+is one interlocking assembly, and any piece left unmoved opens a teal gap
+against its neighbours — the ring around the seal hexagon did exactly that.
+Moving *everything* is not a safe answer either, because `offsetx`/`offsetz` are
+applied after the rotation (`world_scenery.u.c` — `ToriDraw_ModelOrient` then
+`ToriDraw_ModelTranslate`), so one offset moves a 180°-placed instance the wrong
+way, and most of the lane's overhanging locs are placed at mixed angles.
+
+The lesson: **any correction that moves art is wrong here.** The art is right;
+the footprint under it is not.
+
+### The fix: move the anchor, hold the art
+
+Move the *anchor* one tile west so the footprint starts west of the lip, and put
+that tile straight back with an offset, so the model origin — `anchor*128 +
+64*size + offset` — is byte-identical to what it was. Nothing drawn moves; only
+the rectangle the painter orders it by.
+
+`OSRS-Content/.../ported/rs2012_qbd_td/maps/m22_99.jl2` (plain text, `level x
+z: loc shape angle`):
 
 ```
-emit_loc 63043 el=4562: world=(7168,-240,7296) tile=(50,48) slot=(50,48)
-          extent x[-1497..1293] z[-1293..1199] -> tiles x[44..66] z[46..66]
-emit_loc 63040 el=4575: world=(5632,-240,7296) tile=(38,48) slot=(38,48)
-          extent x[-1422..1368] z[-1293..1188] -> tiles x[32..54] z[46..66]
+0 22 24: 63040 10 0     ->   0 21 24: 63040 10 0
+0 34 24: 63043 10 0     ->   0 33 24: 63043 10 0
 ```
 
-| | registered footprint | model draws on |
-|---|---|---|
-| loc 63043 | x[50,61] z[48,65] | **x[44,66] z[46,66]** |
-| loc 63040 | x[38,49] z[48,65] | **x[32,54] z[46,66]** |
+`.../configs/rs2012.loc`:
 
-The two slabs' geometry interlocks across the seam: the column at `x=49` is
-inside the *west* slab's footprint but is covered by the *east* slab's polygons.
-The painter releases a loc at the ring of the footprint it was registered on, so
-the east slab lands at ring 8 and the seam column's ground — one ring nearer,
-and correctly ordered — goes down on top of it.
-
-A painter's algorithm gives a loc exactly **one** slot. A loc whose geometry
-leaves its footprint can only be right on one side of that: too early, and the
-ground it covers paints over it; too late, and it covers the things standing on
-it. The reference client picks the footprint, which is "too early" by however
-far the model overhangs. Nothing in the traversal can recover it, because the
-traversal is never told where the polygons are.
-
-### The fix
-
-Tell it. [`src/engine/world_builder/world_scenery.u.c`](src/engine/world_builder/world_scenery.u.c)
-now registers a multi-tile loc on its declared footprint **grown to cover the
-tiles its model lands on, by at most one tile per side**:
-
-```c
-world_builder_draw_footprint(
-    scene_x, scene_z, size_x, size_z,
-    (world_min_x + SCENERY_DRAW_OVERHANG_MIN) >> 7, (world_max_x - ...) >> 7,
-    (world_min_z + SCENERY_DRAW_OVERHANG_MIN) >> 7, (world_max_z - ...) >> 7,
-    margin, scene_size, &draw_sx, &draw_sz, &draw_size_x, &draw_size_z);
+```
+[rs2012_loc_70836]  width  12 -> 13   offsetx=64
+[rs2012_loc_70839]  length 18 -> 19   offsetx=128  offsetz=-64
 ```
 
-The extent is exact and free: `ToriDraw_ModelSetBoundsCylinder` already walks
-every vertex for `min_y` / `radius`, so `min_x/max_x/min_z/max_z` were added to
-the same loop and read back through `ToriDraw_SceneElementDrawExtentXZ`.
+Worked through for the east slab: anchor 34→33, `64*12 + 128 = 896`, and
+`33*128 + 896 = 5120` — exactly the origin `34*128 + 64*12` gave it. Its
+footprint is now `[4224, 5760)` and its geometry `[4288, 5668]` sits inside.
+70839 also pokes 20 units *north*, which needs no anchor move at all: growing
+`length` to 19 with `offsetz=-64` covers it, because the far side of a footprint
+is the side an authored size can always reach.
 
-Three decisions are load-bearing:
-
-| Decision | Why |
-|---|---|
-| **Cap of one tile**, not the whole extent | growing the footprint moves the loc's slot *nearer*; past its own overhang it starts covering what stands on it. Released six rings in, the slab would be drawn over the player standing on it. One tile keeps the slot within one ring of the reference's, and inside a single shared tile nothing moves at all — that tile's scenery pass already emits its chain farthest-corner first, which puts the big loc ahead of anything on it. |
-| **Multi-tile locs only** | a 1x1 model overhangs far more often (every tree canopy), the error is a tile wide rather than a slab, and there are orders of magnitude more of them. |
-| **Ignore overhang under a quarter tile** (`SCENERY_DRAW_OVERHANG_MIN`) | a rounded corner or a resize laps a few units past the edge and cannot draw a visible strip, but claiming the neighbour tile for it costs a scenery-chain node on every pop. Dropping those took Lumbridge's paint cost from +2.6% to +0.7%. |
-
-Only the **draw** footprint moves. Shade, sharelight and route footprints stay
-on the loc's declared tiles, which is what they mean.
-`TORIRS_LOC_DRAW_MARGIN=0` restores the reference footprint exactly, and is what
-the A/B below is measured against.
+Both slabs are `blockwalk=0 blockrange=0`, and both collision writers gate on
+`blocks_walk != 0` (`world_collision.u.c:109`, `mock230_scene.c:353`), so
+neither the anchor nor the size nor the offset reaches the walk map or the
+collision map.
 
 ### Results
 
-Screen-space, same binary, `TORIRS_LOC_DRAW_MARGIN=0` vs `1`, eight camera yaws
-at pitch 383 (the runs are bit-deterministic — two runs of one binary differ by
-zero pixels, so every number here is signal):
+Eight camera yaws at pitch 383, stock lane vs fixed lane, same binary:
 
-| yaw | changed px | floor-over-platform removed | introduced |
-|---|---|---|---|
-| 0 / 1024 | 0 | 0 | 0 |
-| 256 / 512 / 768 | 929 / 200 / 281 | 0 | 0 |
-| 1280 | 4027 | 1282 | 0 |
-| 1536 | 39656 | **1938** | 0 |
-| 1792 | 27133 | 0 | 0 |
-| **total** | 72226 | **3220** | **0** |
+| | |
+|---|---|
+| Floor-over-platform pixels removed | **3220** |
+| Introduced | **0** |
+| Art moved | **0 units** — the origin invariant is asserted, not assumed |
 
-Command-stream, counting terrain that a slab's *model* covers and its footprint
-does not, emitted after the slab (`docs/` has no home for the script; it is a
-dozen lines over a `TORIRS_DRAW_ORDER` dump):
-
-```
-before  yaw 0..1792:  41 32 30 27  3 37 42 50   total 262
-after   yaw 0..1792:   6 14 20 18  0 26 30 20   total 134
-```
-
-The residue is the deeper overhang (x=44..45, 51..53) that the *neighbouring*
-slab covers, which is why only the seam column was ever visible.
-
-### Cost
-
-Median of three 900-frame runs each, 1920x1080, `TORIRS_PERF=1`:
-
-| | paint p50 | paint mean | painter_pops/paint |
-|---|---|---|---|
-| QBD lair, margin 0 | 130 µs | 128.5 µs | 8700 |
-| QBD lair, margin 1 | 135 µs (**+3.8%**) | 133.3 µs | 9035 (+3.8%) |
-| Lumbridge, margin 0 | 269 µs | 257.0 µs | 6958 |
-| Lumbridge, margin 1 | 271 µs (**+0.7%**) | 257.3 µs | 6998 (+0.6%) |
-
-Frame p50 in the QBD lair is unchanged at 5.57 ms — paint is 2.4% of the frame
-there, so the delta is under 0.1% of frame time. Build-side, the extra four
-min/max double that vertex loop in isolation (95 → 192 ns per 1000-vertex model,
-min-of-7) and it runs **once per model at scene build**: about 1050 models for a
-Lumbridge scene, so tens of microseconds against a build measured in hundreds of
-milliseconds.
+3220/0 is the identical figure the rejected engine-side footprint expansion
+produced, which is the point: the content now states what the engine was being
+asked to guess.
 
 ### Pinned by
 
-`test_draw_footprint_covers_model_overhang` in
-[`src/engine/world_builder/test/world_builder_test_unit.c`](src/engine/world_builder/test/world_builder_test_unit.c)
-— the growth is a pure function of tile coordinates, so the cap, the "stops at
-the model not at the cap" case, the `margin 0` kill switch and the grid clamp
-are all testable without a cache. Negative control: an early `return` in
-`world_builder_draw_footprint` fails three of the five assertions.
+`tools/test_rs2012_map_port.py` already asserted that every `.jl2` placement
+matches the source 727 cache exactly — it caught the anchor move immediately,
+which is what it is for. The deviation is now declared rather than drifting:
+`PLACEMENT_ANCHOR_OVERRIDES` keys the two moves by source placement identity
+(the same shape as the existing `PLACEMENT_LEVEL_OVERRIDES`), and a second
+assertion checks the half that a map diff cannot see —
 
-```sh
-make -C src test-world-builder
+```
+new_anchor*128 + 64*size + offset  ==  src_anchor*128 + 64*src_size
 ```
 
-### What this does not fix
+— so removing or rounding an offset fails the suite instead of quietly sliding
+the arena half a tile. Nothing downstream would have noticed: a shifted arena
+looks like content, not like a bug.
 
-**A mover's footprint has the same mismatch, and much worse.** The Queen Black
-Dragon is npc size **1**, so `world_dyn_register_mover` gives her a 60-unit
-padded span — one or two tiles — while her model fills a ~4791-unit bounding
-sphere, roughly 37 tiles across. Every terrain tile nearer than her own tile is
-drawn after her. The one-tile margin here is deliberately not applied to movers:
-a floor slab drawn a ring later is safe, and a 37-tile dragon drawn at the ring
-of her *geometry* would be emitted almost at the eye and cover the whole arena.
-That trade-off needs its own decision, not this one's.
+```sh
+python3 tools/test_rs2012_map_port.py
+make -C src mock230-cache-rs2012
+```
+
+### The rest of the lane
+
+The same measurement across every placed loc finds **22 more** with geometry
+outside their footprint, 20 of them left alone here because they are placed at
+mixed or non-zero angles, where a post-rotation offset cannot compensate a
+per-loc anchor move. None of them is the reported artifact. The scan is a dozen
+lines over `find_named --model` and `pack/loc.alloc`; re-run it before assuming
+a new strip somewhere else in this arena is a painter bug.
+
+### Do not "fix" this in the painter
+
+Registering multi-tile locs on a grown footprint does remove the strip (3220
+floor-over-platform pixels across eight yaws, none introduced) at +3.8% paint in
+this arena and +0.7% in Lumbridge. It was tried and rejected on purpose:
+footprints are authored data, the engine reinterpreting them hides content
+faults everywhere else, and the signal it keys off — the bounding box — is the
+one measurement that does not mean what it looks like.

@@ -141,6 +141,7 @@ different way, so a web run is configured exactly like a native one.
 | `?args=--manifest,manifest_osrs230.ini,--offline` | the same, comma-joined; easier to type |
 | `?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1` | environment `getenv` will see (`;`-joined also accepted) |
 | `?io=http://host:8088/io` | IO endpoint, when the page is served from somewhere else |
+| `?fullcanvas=1` | start with the log panels hidden — page chrome, not argv; see [View controls](#view-controls) |
 
 Prefer repeated `arg=`: each value is percent-encoded on its own, so an argument
 may contain a comma, a space or an `&` — a password, a `TORIRS_NET_CHEAT`
@@ -448,6 +449,32 @@ browser cannot get for free:
 It is loaded before `torirs.js` — it defines the `Module` object the runtime
 reads on load. The page shows wasm heap size, IO counters and a per-round-trip
 IO log beside the canvas.
+
+### View controls
+
+Two toggles in the page header, both of which only scale the canvas *element*:
+
+- **full canvas** — hides the IO log and client log panels and grows the canvas
+  to the window. The header shrinks to a faded strip in the top-right corner so
+  the toggles stay reachable; point at it to bring it back. The choice is kept
+  in `localStorage`, and `?fullcanvas=0` / `?fullcanvas=1` overrides it for one
+  load.
+- **fullscreen** — the browser Fullscreen API on the page (not on the canvas
+  element, which would take the header off screen and hand sizing to the
+  browser). Independent of full canvas: fullscreen alone keeps the logs beside
+  a scaled canvas, and the two combine.
+
+The backbuffer is untouched by either — the canvas keeps the size the client
+gave it (765x503 fixed, or whatever it chose in resizable window mode) and the
+element is stretched to the largest rectangle of that aspect which fits, the
+same letterbox the native window does. Input needs no adjustment: the runtime
+converts a page coordinate with `canvas.width / boundingRect.width`, so a
+scaled canvas still reports backbuffer pixels. When the client reallocs the
+backbuffer, a `MutationObserver` on the canvas's `width`/`height` attributes
+re-fits.
+
+These are page chrome, defined inline in `index.html` and independent of
+`Module`, so they still work on a page whose wasm never loaded.
 
 ## Memory
 

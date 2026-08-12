@@ -46,6 +46,20 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/* Resolved once: getenv locks and scans the whole environment, and this gate sits
+ * on cc_create, which a container rebuild issues once per row. */
+static int
+torirs_cc_debug(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* e = getenv("TORIRS_CC_DEBUG");
+        cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
 /** UIZOOM_RESET / UIZOOM_GETDEFAULT constant (1000 = 100%, reference scheme). */
 #define RS_CS2_UIZOOM_DEFAULT 1000
 
@@ -779,7 +793,7 @@ RS_CS2Host_NotifyVarChanged(
      * processed once per cycle rather than synchronously mid-script). */
     host->var_change_serial++;
     host->var_transmit_dirty = 1;
-    if( getenv("TORIRS_CC_DEBUG") )
+    if( torirs_cc_debug() )
         fprintf(stderr, "VAR_CHANGED id=%d serial=%u\n", var_id, host->var_change_serial);
 
     /* Remember which id changed so the dispatch can skip hooks that do not list
@@ -846,7 +860,7 @@ RS_CS2Host_NotifyInvChanged(
         return;
     host->inv_change_serial++;
     host->inv_transmit_dirty = 1;
-    if( getenv("TORIRS_CC_DEBUG") )
+    if( torirs_cc_debug() )
         fprintf(
             stderr,
             "INV_CHANGED container=%d serial=%u\n",
@@ -3157,7 +3171,7 @@ exec_cc_create(
      * sprite size when layout w/h are 0 — do not stretch 32x32 icons to the
      * parent slot (that thickens obj-icon outlines). */
 
-    if( getenv("TORIRS_CC_DEBUG") )
+    if( torirs_cc_debug() )
         fprintf(
             stderr,
             "CC_CREATE parent=%d|%d sub=%d -> com=0x%08x script=%d\n",

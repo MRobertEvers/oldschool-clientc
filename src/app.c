@@ -105,6 +105,29 @@ enum
 {
     APP_LOGIC_TICK_MS = 20,
     APP_MAX_CATCHUP_TICKS = 5,
+    /*
+     * Connection-loss thresholds. See the `net_lost` block in app.h.
+     *
+     * APP_NET_TIMEOUT_MS is the reference's own: Client-TS gives up 15s after
+     * the last packet (Client.ts:2443), and the server sends often enough that
+     * a healthy link never comes close.
+     *
+     * APP_NET_STALL_MS answers a different question — not "has the server gone
+     * quiet" but "was this client running". A frame gap that large means the
+     * process was not scheduled (a hidden or frozen browser tab, a suspended
+     * machine), so whatever is queued behind the socket is a backlog to
+     * abandon, not a stream to replay. It has to sit above any legitimate
+     * hitch: a slow map load or a GC pause is hundreds of milliseconds, not
+     * seconds.
+     */
+    APP_NET_TIMEOUT_MS = 15000,
+    APP_NET_STALL_MS = 4000,
+    /* Wait between re-establish attempts, and how many to make before giving
+     * up and saying so. The reference retries once and falls back to the login
+     * screen; a browser client that a phone backgrounded deserves more than
+     * one try, but not an unbounded loop against a server that is gone. */
+    APP_NET_RECONNECT_DELAY_MS = 2000,
+    APP_NET_RECONNECT_MAX_ATTEMPTS = 5,
     /* Mouseover text origin inside the viewport. The reference container puts
      * its text child at (0,0); the classic client drew the same line at
      * (4, 15) — one padded cell in, with the baseline a line down. Ours is a
@@ -6003,6 +6026,185 @@ app_packet_may_mutate_ui(enum GameProtoPktName packet_type)
     }
 }
 
+/* --- connection loss and re-establishment -------------------------------
+ *
+ * The reference shape, from Client-TS `lostCon`/`logout` (Client.ts:2699,
+ * 2734) and the deob's gameState 40: forget the world, say so over the
+ * viewport, and ask for the session back. Nothing here returns to a login
+ * screen — this client has none — so an exhausted retry budget leaves the
+ * message up instead.
+ */
+
+void
+App_NetSessionReset(struct App* app)
+{
+    assert(app);
+    RS_EntitySync_Clear(&app->esync, app->world);
+    /* The reference's game-state reset puts both Attack options back to
+     * Hidden rather than recomputing them from the varp table it is about to
+     * clear (rs_attack_option.h): a re-established session onto an account
+     * whose setting is the default 0 would otherwise keep the previous
+     * session's choice until its own VARP arrived. */
+    app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    app->need_redraw = 1;
+}
+
+/*
+ * Declare the session dead and start trying to get it back.
+ *
+ * Idempotent: every detector below can fire in the same frame as another (a
+ * stalled tab both misses packets and reports a huge frame gap), and the
+ * first one to arrive owns the transition.
+ */
+static void
+app_net_lost(
+    struct App* app,
+    char const* why)
+{
+    if( !app->net || app->net_lost )
+        return;
+
+    fprintf(stderr, "net: connection lost (%s) — attempting to reestablish\n", why);
+    app->net_lost = 1;
+    app->net_reconnect_attempts = 0;
+    app->net_reconnect_failed = 0;
+    /* Immediately: the first attempt is the one most likely to work, and the
+     * delay below exists to space out *retries*. */
+    app->net_reconnect_at_ms = 0;
+    app->net_force_rebuild = 1;
+    /* Pushes NET_OUT_DISCONNECT, so the peer sees the FIN before the
+     * re-established session asks for the character back. */
+    ToriRS_Network_Logout(app->net);
+    App_NetSessionReset(app);
+}
+
+/*
+ * Watch a live session, and drive the re-establishment of a dead one.
+ *
+ * Called once per App_RunOnce with the wall clock, ahead of the logic ticks:
+ * a frame that decides the backlog is stale must not first spend five ticks
+ * draining it.
+ */
+static void
+app_net_link_watch(
+    struct App* app,
+    uint64_t now_ms)
+{
+    uint64_t gap;
+
+    if( !app->net || !app->net_enabled )
+        return;
+
+    gap = app->last_frame_ms && now_ms > app->last_frame_ms ? now_ms - app->last_frame_ms : 0;
+
+    if( !app->net_lost )
+    {
+        /*
+         * TORIRS_NET_DROP_MS=<ms>: sever the connection this long after the
+         * first packet. The headless equivalent of the reference's
+         * `::clientdrop` — a harness has no chat box to type into, and the
+         * whole point of this path is that it is otherwise reached only by
+         * genuinely losing a socket.
+         */
+        {
+            static long drop_ms = -2;
+            if( drop_ms == -2 )
+            {
+                char const* env = getenv("TORIRS_NET_DROP_MS");
+                drop_ms = env && *env ? strtol(env, NULL, 0) : -1;
+            }
+            if( drop_ms > 0 && app->net_last_recv_ms &&
+                now_ms - app->net_first_recv_ms >= (uint64_t)drop_ms )
+            {
+                drop_ms = -1; /* once */
+                app_net_lost(app, "TORIRS_NET_DROP_MS");
+                return;
+            }
+        }
+        /*
+         * 1. This process stopped running.
+         *
+         * The browser stops calling a hidden tab's animation frame, so the
+         * client stops draining a socket the server keeps writing to. Coming
+         * back and replaying that backlog is what made a returning tab spend
+         * seconds fast-forwarding with input ignored — and, before the
+         * transports learned back-pressure, silently truncated the stream.
+         * Neither is worth having: the session is stale, so drop it.
+         *
+         * Gated on having heard from the server at least once: a boot frame
+         * can legitimately run long (a cold cache, a browser IO round trip),
+         * and there is no session to lose yet.
+         */
+        if( app->net_last_recv_ms && gap >= (uint64_t)APP_NET_STALL_MS )
+        {
+            app_net_lost(app, "client was not running");
+            return;
+        }
+        /*
+         * 2. The server stopped speaking. The reference's own 15s bound; only
+         * armed once in the game world, since the login handshake legitimately
+         * sits quiet while a proof-of-work is solved.
+         */
+        if( app->net->state == TORIRS_NET_GAME && app->net_last_recv_ms &&
+            now_ms - app->net_last_recv_ms >= (uint64_t)APP_NET_TIMEOUT_MS )
+        {
+            app_net_lost(app, "no packets for 15s");
+            return;
+        }
+        /*
+         * 3. The transport says the socket is gone. Only meaningful once the
+         * session was up: before that, DISCONNECTED is just the initial state.
+         */
+        if( app->net_last_recv_ms &&
+            (app->net->conn_status == TORIRS_NET_STATUS_DISCONNECTED ||
+             app->net->conn_status == TORIRS_NET_STATUS_FAILED) &&
+            app->net->state == TORIRS_NET_DISCONNECTED )
+        {
+            app_net_lost(app, "socket closed");
+        }
+        return;
+    }
+
+    /* Re-established: the handshake reached the game stream again. */
+    if( app->net->state == TORIRS_NET_GAME )
+    {
+        fprintf(stderr, "net: session re-established after %d attempt(s)\n",
+                app->net_reconnect_attempts);
+        app->net_lost = 0;
+        app->net_reconnect_attempts = 0;
+        app->net_last_recv_ms = now_ms;
+        app->need_redraw = 1;
+        return;
+    }
+
+    /* An attempt is still in flight while the login machine runs; only a
+     * machine that fell back to DISCONNECTED has failed. */
+    if( app->net->state == TORIRS_NET_LOGIN )
+        return;
+    if( app->net_reconnect_failed )
+        return;
+    if( now_ms < app->net_reconnect_at_ms )
+        return;
+    if( app->net_reconnect_attempts >= APP_NET_RECONNECT_MAX_ATTEMPTS )
+    {
+        fprintf(stderr, "net: giving up after %d reconnect attempts\n",
+                app->net_reconnect_attempts);
+        app->net_reconnect_failed = 1;
+        app->need_redraw = 1;
+        return;
+    }
+
+    app->net_reconnect_attempts++;
+    app->net_reconnect_at_ms = now_ms + APP_NET_RECONNECT_DELAY_MS;
+    fprintf(stderr, "net: reconnect attempt %d\n", app->net_reconnect_attempts);
+    if( !ToriRS_Network_Reconnect(app->net) )
+    {
+        app->net_reconnect_failed = 1;
+        app->need_redraw = 1;
+    }
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -6059,6 +6261,12 @@ app_logic_tick(struct App* app)
                     drained = 1;
                     break;
                 }
+                /* Liveness, for app_net_link_watch's 15s bound. Stamped on the
+                 * packet rather than on the byte read: a socket that delivers
+                 * bytes the framer never completes is not a live session. */
+                app->net_last_recv_ms = app->last_frame_ms;
+                if( !app->net_first_recv_ms )
+                    app->net_first_recv_ms = app->last_frame_ms;
                 /* Once a revision has demonstrated explicit tick fences,
                  * retain only packets that participate in an atomic UI/CS2
                  * transaction. World feedback is valid between those ticks.
@@ -7087,11 +7295,14 @@ app_world_drawable(struct App* app)
 /* deob method5761 / Client-TS REBUILD_NORMAL: black fill of the game area plus
  * centred "Loading - please wait." while maps rebuild. */
 static void
-app_draw_rebuild_loading_overlay(
+app_draw_viewport_message(
     struct App* app,
     int* pixels,
     int width,
-    int height)
+    int height,
+    char const* line1,
+    char const* line2_nullable,
+    int fill_black)
 {
     struct ToriDraw_Font* font;
     struct ToriDraw_ViewPort vp;
@@ -7099,11 +7310,10 @@ app_draw_rebuild_loading_overlay(
     int scene_id;
     int vx, vy, vw, vh;
     int cx, cy;
-    static char const* const k_msg = "Loading - please wait.";
 
     assert(app);
     assert(pixels);
-    if( width <= 0 || height <= 0 )
+    if( width <= 0 || height <= 0 || !line1 )
         return;
 
     if( app->world_view_valid )
@@ -7123,15 +7333,26 @@ app_draw_rebuild_loading_overlay(
     if( vw <= 0 || vh <= 0 )
         return;
 
-    for( int y = vy; y < vy + vh; y++ )
+    /*
+     * Whether the world underneath survives is the caller's call, and the two
+     * callers differ. A scene rebuild blacks it out because the scene it was
+     * drawn from is gone (deob method5761). A lost connection does not: the
+     * reference paints its two lines straight onto the retained viewport, and
+     * the last frame the session produced is exactly what a player wants to
+     * still be looking at while it comes back.
+     */
+    if( fill_black )
     {
-        if( y < 0 || y >= height )
-            continue;
-        for( int x = vx; x < vx + vw; x++ )
+        for( int y = vy; y < vy + vh; y++ )
         {
-            if( x < 0 || x >= width )
+            if( y < 0 || y >= height )
                 continue;
-            pixels[y * width + x] = 0x000000;
+            for( int x = vx; x < vx + vw; x++ )
+            {
+                if( x < 0 || x >= width )
+                    continue;
+                pixels[y * width + x] = 0x000000;
+            }
         }
     }
 
@@ -7163,11 +7384,61 @@ app_draw_rebuild_loading_overlay(
 
     cx = vx + vw / 2;
     cy = vy + vh / 2;
+    /* Two lines straddle the centre by the reference's own 15px step
+     * (143/158 against a 503-tall viewport); one line sits on it. */
+    if( line2_nullable )
+        cy -= 8;
     /* Shadow then white — matches deob black+white centreString pair. */
     (void)ToriDraw2D_DrawString(
-        font, &vp, cx + 1, cy + 1, k_msg, 0x000000, true, false, pixels);
+        font, &vp, cx + 1, cy + 1, line1, 0x000000, true, false, pixels);
     (void)ToriDraw2D_DrawString(
-        font, &vp, cx, cy, k_msg, 0xffffff, true, false, pixels);
+        font, &vp, cx, cy, line1, 0xffffff, true, false, pixels);
+    if( line2_nullable )
+    {
+        (void)ToriDraw2D_DrawString(
+            font, &vp, cx + 1, cy + 16, line2_nullable, 0x000000, true, false, pixels);
+        (void)ToriDraw2D_DrawString(
+            font, &vp, cx, cy + 15, line2_nullable, 0xffffff, true, false, pixels);
+    }
+}
+
+/* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds, the
+ * game area shows "Loading - please wait." instead of the world. */
+static void
+app_draw_rebuild_loading_overlay(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height)
+{
+    app_draw_viewport_message(
+        app, pixels, width, height, "Loading - please wait.", NULL, /* fill_black */ 1);
+}
+
+/*
+ * The reference's lost-connection notice (Client-TS `lostCon`, Client.ts:2739;
+ * deob gameState 40, client.java:8542), over the retained viewport.
+ *
+ * Two lines, because they answer two different questions: what happened, and
+ * whether the player has to do anything about it. Once the attempts are spent
+ * the second line stops promising a reconnect that is no longer coming.
+ */
+static void
+app_draw_connection_lost_overlay(
+    struct App* app,
+    int* pixels,
+    int width,
+    int height)
+{
+    app_draw_viewport_message(
+        app,
+        pixels,
+        width,
+        height,
+        "Connection lost",
+        app->net_reconnect_failed ? "Unable to reestablish - please reload"
+                                  : "Please wait - attempting to reestablish",
+        /* fill_black */ 0);
 }
 
 /* Reference roofCheck (Client.ts 4713): walk the camera->player tile line;
@@ -14334,6 +14605,17 @@ App_RunOnce(
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
 
+    /*
+     * Is the link still worth talking to?
+     *
+     * Ahead of everything else, and ahead of the BOOTING early-out, because
+     * one of the things it measures is the gap since the last frame — a frame
+     * that concludes the client was asleep must reach that conclusion before
+     * it spends the frame draining what arrived while it was.
+     */
+    app_net_link_watch(app, now_ms);
+    app->last_frame_ms = now_ms;
+
     /* Pump ordinary async work with a frame budget.  A CS2 transaction is the
      * exception: cooperative yields are drained to completion, and a genuine
      * external wait retains the last settled frame until it can resume. */
@@ -15002,7 +15284,16 @@ App_RunOnce(
                  * a client-cheat command (reference), not a public message. */
                 else if( had_input && app->chat.input[0] == '\0' && input_copy[0] )
                 {
-                    if( input_copy[0] == ':' && input_copy[1] == ':' )
+                    /*
+                     * The reference keeps one cheat for itself: `::clientdrop`
+                     * severs the connection locally so the lost-connection
+                     * path can be exercised on demand (Client-TS
+                     * Client.ts:3312). Without it the only way to reach that
+                     * code is to genuinely lose a socket.
+                     */
+                    if( strcmp(input_copy, "::clientdrop") == 0 )
+                        app_net_lost(app, "::clientdrop");
+                    else if( input_copy[0] == ':' && input_copy[1] == ':' )
                         APP_NET_SEND(
                             app,
                             net_out_client_cheat(
@@ -16594,6 +16885,12 @@ App_Render(
      * the game area shows "Loading - please wait." instead of the world. */
     if( app->world_load_server_driven && app->world_load_inflight )
         app_draw_rebuild_loading_overlay(app, pixels, width, height);
+
+    /* And over the top of either: the session is gone. Last, so it is not the
+     * thing a rebuild overlay covers — a reconnect drives a rebuild, and the
+     * two would otherwise overlap with the wrong one winning. */
+    if( app->net_lost )
+        app_draw_connection_lost_overlay(app, pixels, width, height);
 
     if( getenv("TORIRS_FRAME_DEBUG") )
         fprintf(

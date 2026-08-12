@@ -172,6 +172,18 @@ PlatformSocket_Poll(
             out_pending_append(sock, payload, header.length);
             out_pending_flush(sock);
         }
+        else if( header.type == TORIRS_NET_OUT_DISCONNECT )
+        {
+            /* Anything still queued belongs to the session being abandoned. */
+            sock->out_pending_len = 0;
+            if( sock->stream )
+            {
+                sockstream_close(sock->stream);
+                sock->stream = NULL;
+            }
+            sock->connecting = 0;
+            emit_status(sock, bus, TORIRS_NET_STATUS_DISCONNECTED);
+        }
     }
 
     if( !sock->stream )
@@ -204,10 +216,28 @@ PlatformSocket_Poll(
     /* Retry any bytes a previous poll could not push (would-block). */
     out_pending_flush(sock);
 
-    /* 3. Read available bytes -> NET_RECV (chunked to the command cap). */
+    /*
+     * 3. Read available bytes -> NET_RECV (chunked to the command cap).
+     *
+     * Bounded by what the ring can take, not by what the socket holds. The
+     * loop used to read until would-block and push regardless, and CmdBus_Push
+     * refuses silently when the ring is full — so a backlog larger than the
+     * ring (a browser tab that was hidden for minutes, a resumed laptop) was
+     * read out of the socket and then dropped on the floor mid-packet. The
+     * framer above sees a stream with a hole in it and decodes noise from
+     * there on, which presents as a client that "went weird after being
+     * backgrounded" rather than as anything network-shaped.
+     *
+     * Stopping instead leaves the remainder in the socket for the next poll,
+     * which is the only back-pressure available with a fixed ring.
+     */
     for( ;; )
     {
-        int n = sockstream_recv(sock->stream, payload, TORIRS_CMD_MAX_PAYLOAD);
+        int n;
+
+        if( !CmdBus_CanPush(bus, TORIRS_CMD_MAX_PAYLOAD) )
+            break;
+        n = sockstream_recv(sock->stream, payload, TORIRS_CMD_MAX_PAYLOAD);
         if( n > 0 )
         {
             CmdBus_Push(bus, TORIRS_CMD_NET_RECV, payload, (uint16_t)n);

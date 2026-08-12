@@ -680,6 +680,43 @@ struct App
      *  pointer so app.h need not include the net headers. */
     struct ToriRS_Network* net;
     int net_enabled;
+
+    /*
+     * Connection loss and re-establishment (reference `lostCon`, Client-TS
+     * Client.ts:2734; deob gameState 40).
+     *
+     * A session dies in three ways and they need the same handling: the
+     * transport reports the socket gone, the server stops speaking for long
+     * enough that the reference client gives up (15s), or *this process*
+     * stopped running for long enough that the backlog waiting for it is no
+     * longer worth draining — a browser tab that was hidden or frozen, a
+     * suspended laptop. The third is the one a native client never sees and
+     * the one that made a returning tab replay minutes of packets at once.
+     *
+     * In every case the answer is the reference's: drop the socket, say so on
+     * screen, and hand the session back with GAMERECONNECT rather than
+     * fast-forwarding through a stale stream.
+     */
+    /** Wall clock at the last completed App_RunOnce; 0 before the first. */
+    uint64_t last_frame_ms;
+    /** Wall clock when a server packet last arrived. */
+    uint64_t net_last_recv_ms;
+    /** Wall clock when the first packet of the current session arrived; the
+     * origin the TORIRS_NET_DROP_MS test hook measures from. */
+    uint64_t net_first_recv_ms;
+    /** Non-zero while the connection is gone and being re-established. */
+    int net_lost;
+    /** Re-establish attempts made since the connection was lost. */
+    int net_reconnect_attempts;
+    /** Wall clock at which the next attempt may be made. */
+    uint64_t net_reconnect_at_ms;
+    /** Set once the attempts are exhausted: lost, and not coming back. */
+    int net_reconnect_failed;
+    /** One-shot: the next REBUILD must run even if it names the zone the
+     * client is already standing in. Raised when a session is re-established,
+     * because that rebuild is the server's whole world state arriving again
+     * and its acknowledgement is what releases the rest of the burst. */
+    int net_force_rebuild;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
      *  App_Init — unlike `net`, it is resolved on every boot because an
      *  offline click still has to pick an approach model. Points at
@@ -1134,6 +1171,13 @@ App_Init(
 /** Tear down in strict reverse of App_Init. */
 void
 App_Shutdown(struct App* app);
+
+/** Forget everything that belonged to the session that just ended: tracked
+ * entities and the per-account UI state the reference resets alongside them.
+ * Shared by the server's LOGOUT and by the connection-lost path, which differ
+ * only in what happens next. */
+void
+App_NetSessionReset(struct App* app);
 
 /** Select world submission after renderer initialization. A software fallback
  * must always restore TORIRS_WORLD_PAINTER. */
