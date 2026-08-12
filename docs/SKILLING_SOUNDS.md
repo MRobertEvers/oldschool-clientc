@@ -506,7 +506,7 @@ assert two `SYNTH_SOUND` packets with `mine_quick` then `mine`) so the whole
 sweep has a test that can fail. Per the "verify blocker" rule: mutate the script
 to drop one call and confirm the assertion goes red before trusting it.
 
-### 5.2 Phase 1 — the four loops everyone hears (1–2 days)
+### 5.2 Phase 1 — the four loops everyone hears — **done, 2026-08-12**
 
 Ordered by how much of a session they cover, not by table size. Each is a
 handful of one-line edits at an existing `anim(` call site.
@@ -520,6 +520,29 @@ handful of one-line edits at an existing `anim(` call site.
 
 These four are layer **L** throughout, so there is nothing to guess: the sound
 and the tick are both stated. Stop here and the game already sounds alive.
+
+**Landed** (done in a worktree off `v3`, branch `worktree-skilling-sounds`):
+mining (`mine_quick`/`mine`/`prospect`), woodcutting (`woodchop`/`tree_fall`),
+all 7 ported fishing spots — `freshfish`, `rarefish`, `saltfish`, `tbwt`,
+`slimeyfish`, `lavafish`, `memberfish` (the last also picked up the casket's
+`lever`/`found_gem`, which LC plays but this port had dropped alongside the
+skilling sounds) — and firemaking (`tinderbox_strike`/`fire_lit`, plus
+`achey.rs2` which reuses `firemaking.rs2`'s labels for free). `waterfall.rs2`
+from the doc's original source list does not exist in this content tree — 7
+spot files were ported, not 9; §4.3 undercounted.
+
+Verification: `make mock230-scripts` compiles the same **14,240 scripts** with
+**zero new errors or notes** (all 8 new synth names — `mine`, `mine_quick`,
+`prospect`, `woodchop`, `tree_fall`, `tinderbox_strike`, `fire_lit`, plus the
+already-used `fishing_cast`/`net`/`fire_lit`/`lever`/`found_gem` — resolve
+clean). `make test-sound` (the audio unit suite) is fully green. `make
+test-mock230` could not be exercised end-to-end: its `mock230-servpack`
+prerequisite fails on an unrelated, pre-existing gap in the checked-out
+OSRS-Content commit — several fishing npcs (`freshfish`, `saltfish`, …) state
+a server-band field `pack/npc.server` doesn't claim. `git status` in the
+worktree's OSRS-Content confirms this touches none of the 11 files edited
+here; it is a content-pack registration gap orthogonal to this work, not a
+sound regression.
 
 ### 5.3 Phase 2 — the production skills (2–3 days)
 
