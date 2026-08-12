@@ -2161,11 +2161,16 @@ RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012
 
 mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack audioprobe
-	@test -f "$(RS2012_CACHE_BASE)/main_file_cache.dat2" || { \
-		echo "mock230-cache-rs2012: no base cache at $(RS2012_CACHE_BASE)" >&2; exit 1; }
+	@# --base is optional, exactly as in mock230-cache. With a base cache the
+	@# stager emits the sparse lane overlay and the pack resolves everything
+	@# else from the base -- much less to copy and to write. Without one it
+	@# stages the base tree behind the lane (--full) and unions the pack
+	@# indexes, so the content repo alone produces a complete cache. The two
+	@# routes must agree on the lane; `mock230-cache-rs2012-check` proves it.
 	@cd $(REPO_ROOT) && python3 tools/test_stage_rs2012_overlay.py
 	@cd $(REPO_ROOT) && python3 tools/stage_rs2012_overlay.py \
-		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR)
+		--tree $(MOCK230_CONTENT_DIR) --out $(RS2012_OVERLAY_DIR) \
+		$(if $(wildcard $(RS2012_CACHE_BASE)),,--full)
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
 		--content $(MOCK230_CONTENT_DIR) --staged $(RS2012_OVERLAY_DIR)
 	@test "$(abspath $(RS2012_CACHE_DIR))" != "$(REPO_ROOT)" -a \
@@ -2174,7 +2179,8 @@ mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 		echo "mock230-cache-rs2012: unsafe output $(RS2012_CACHE_DIR)" >&2; exit 1; }
 	rm -rf "$(RS2012_CACHE_DIR)"
 	@cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
-		--src $(RS2012_OVERLAY_DIR) --base $(RS2012_CACHE_BASE) \
+		--src $(RS2012_OVERLAY_DIR) \
+		$(if $(wildcard $(RS2012_CACHE_BASE)),--base $(RS2012_CACHE_BASE),) \
 		--out $(RS2012_CACHE_DIR) --rev osrs239 --assets --binary --gamevals
 	@$(MAKE) --no-print-directory mock230-cache-check MOCK230_CACHE_DIR=$(RS2012_CACHE_DIR)
 	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
