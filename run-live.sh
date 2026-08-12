@@ -11,12 +11,16 @@
 # env vars: TORIRS_NET_DEBUG=1, TORIRS_NET_CHEAT="tele 0,50,50,21,21",
 # TORIRS_MAX_FRAMES/TORIRS_EXIT_BMP.
 #
-# For osrs230 / osrs239 (not --offline), this script always runs the in-process
-# server: it builds with EMBED_SERVER=1, sets TORIRS_TRANSPORT=embed, and exports
-# MOCK230_REV from the manifest so the embed world writes the same wire the
-# client speaks. Hand-start `src/build/mock230 --rev …` + a TCP manifest
-# yourself when you need a socket server (debugger, multiplayer, MOCK230_VERBOSE
-# against a live listener).
+# A manifest naming a marked-lane cache (cache.osrs239.rs2012,
+# cache.osrs239.summoning) gets that cache baked here when the content tree has
+# moved under it, because nothing else bakes those. TORIRS_FORCE_CACHE_BAKE=1
+# bakes without asking.
+#
+# Native osrs230 / osrs239 live runs use the in-process server: they build with
+# EMBED_SERVER=1 and set TORIRS_TRANSPORT=embed. Web live runs deliberately do
+# not: a browser has no host filesystem for the embedded server's cache, content
+# tree, or script pack. They start a native mock230 child instead; the browser
+# reaches it over WebSocket while its cache reads still go to io_server.
 #
 # `web` runs the emscripten build instead. The client is the same program with
 # the same command line — it just arrives through the URL rather than argv, and
@@ -31,10 +35,18 @@
 #
 # For lc254 against a live LostCity server, login checks the cache CRCs against
 # the server; this script fetches them from http://<host>/crc (port 80) unless
-# TORIRS_JAG_CRC is already set. Other revisions (e.g. the osrs230 embed) skip it.
+# TORIRS_JAG_CRC is already set. Other revisions (e.g. native osrs230 embed)
+# skip it.
 set -eu
 
 cd "$(dirname "$0")"
+
+# MOCK230_CONTENT_DIR selects the tree used by the build rules. The native mock
+# reads MOCK230_CONTENT, so keep the two sides on the same checkout whenever a
+# caller selects a non-default content tree.
+if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
+    export MOCK230_CONTENT="$MOCK230_CONTENT_DIR"
+fi
 
 USAGE='usage: run-live.sh [web] <manifest.ini> [user] [pass] [client args...]'
 
@@ -64,33 +76,163 @@ fi
 
 # rev + host come from the manifest [net:boot] section.
 REV=$(sed -n 's/^[[:space:]]*rev[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+MANIFEST_TRANSPORT=$(sed -n 's/^[[:space:]]*transport[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 HOST=$(sed -n 's/^[[:space:]]*host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 GAME_PORT=$(sed -n 's/^[[:space:]]*port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
-SERVER_SCRIPTS=$(sed -n 's/^[[:space:]]*scripts[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
-CACHE_DIR=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+RAW_SERVER_SCRIPTS=$(sed -n 's/^[[:space:]]*scripts[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+RAW_CACHE_DIR=$(sed -n 's/^[[:space:]]*dir[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+
+# BootManifest_LoadFile resolves cache and script paths against the manifest's
+# directory. The standalone mock must receive the same resolved paths as the
+# browser client and io_server, including for `subdir/boot.ini` invocations.
+MANIFEST_DIR=${MANIFEST%/*}
+[ "$MANIFEST_DIR" = "$MANIFEST" ] && MANIFEST_DIR=''
+manifest_path() {
+    case "$1" in
+        '' | /*) printf '%s\n' "$1" ;;
+        *)
+            if [ -n "$MANIFEST_DIR" ]; then
+                printf '%s/%s\n' "$MANIFEST_DIR" "$1"
+            else
+                printf '%s\n' "$1"
+            fi
+            ;;
+    esac
+}
+SERVER_SCRIPTS=$(manifest_path "$RAW_SERVER_SCRIPTS")
+CACHE_DIR=$(manifest_path "$RAW_CACHE_DIR")
 
 # ws_host/ws_port: where a browser reaches the same server (the web build's
 # sockets are WebSockets). For LostCity that is also where /crc lives, which is
 # why the CRC fetch below uses it rather than assuming port 80. TORIRS_WS_* wins
 # — the same override the client itself honours, so the two cannot disagree.
-WS_HOST=$(sed -n 's/^[[:space:]]*ws_host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
-WS_PORT=$(sed -n 's/^[[:space:]]*ws_port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
-WS_HOST="${TORIRS_WS_HOST:-${WS_HOST:-${HOST:-localhost}}}"
-WS_PORT="${TORIRS_WS_PORT:-${WS_PORT:-80}}"
+MANIFEST_WS_HOST=$(sed -n 's/^[[:space:]]*ws_host[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+MANIFEST_WS_PORT=$(sed -n 's/^[[:space:]]*ws_port[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
+WS_HOST="${TORIRS_WS_HOST:-${MANIFEST_WS_HOST:-${HOST:-localhost}}}"
+WS_PORT="${TORIRS_WS_PORT:-${MANIFEST_WS_PORT:-80}}"
+
+valid_port() {
+    case "$1" in
+        '' | *[!0-9]*) return 1 ;;
+    esac
+    [ "$1" -ge 1 ] 2>/dev/null && [ "$1" -le 65535 ] 2>/dev/null
+}
+
+# This is the endpoint the web client will actually dial. Unlike WS_PORT above,
+# it falls back to the game port: 80 is only the historic LostCity CRC default,
+# not the endpoint a manifest without ws_port tells the browser to use. Match
+# BootManifest_ApplyWebEndpoint's treatment of a zero/unset ws_port.
+WEB_GAME_HOST="${TORIRS_WS_HOST:-${MANIFEST_WS_HOST:-${HOST:-localhost}}}"
+WEB_GAME_PORT="${GAME_PORT:-}"
+if [ -n "${TORIRS_WS_PORT:-}" ]; then
+    WEB_GAME_PORT="$TORIRS_WS_PORT"
+elif valid_port "$MANIFEST_WS_PORT"; then
+    WEB_GAME_PORT="$MANIFEST_WS_PORT"
+fi
+
+# The client command line takes precedence over the manifest and web endpoint
+# overrides. Track its networking-relevant flags so the mock we own cannot
+# boot on a different port or protocol revision than the page will use.
+CLI_CONNECT=''
+CLI_CONNECT_SET=0
+CLI_PORT=''
+CLI_PORT_SET=0
+CLI_REV=''
+CLI_VALUE=''
+CLI_OFFLINE=0
+for CLI_ARG in "$@"; do
+    if [ -n "$CLI_VALUE" ]; then
+        case "$CLI_VALUE" in
+            connect)
+                CLI_CONNECT=$CLI_ARG
+                CLI_CONNECT_SET=1
+                ;;
+            port)
+                CLI_PORT=$CLI_ARG
+                CLI_PORT_SET=1
+                ;;
+            rev) CLI_REV=$CLI_ARG ;;
+        esac
+        CLI_VALUE=''
+        continue
+    fi
+    case "$CLI_ARG" in
+        --connect) CLI_VALUE=connect ;;
+        --port) CLI_VALUE=port ;;
+        --rev) CLI_VALUE=rev ;;
+        --offline) CLI_OFFLINE=1 ;;
+    esac
+done
+
+WEB_GAME_INLINE_PORT=0
+if [ "$CLI_CONNECT_SET" = 1 ]; then
+    WEB_GAME_HOST=$CLI_CONNECT
+    case "$CLI_CONNECT" in
+        *:*)
+            WEB_GAME_HOST=${CLI_CONNECT%%:*}
+            CLI_CONNECT_PORT=${CLI_CONNECT#*:}
+            if [ -n "$CLI_CONNECT_PORT" ]; then
+                WEB_GAME_PORT=$CLI_CONNECT_PORT
+                WEB_GAME_INLINE_PORT=1
+            fi
+            ;;
+    esac
+fi
+if [ "$CLI_PORT_SET" = 1 ] && [ "$WEB_GAME_INLINE_PORT" = 0 ]; then
+    WEB_GAME_PORT=$CLI_PORT
+fi
+
+# NetTransport defaults an unset/zero port to 43594. A malformed explicit
+# host:port is left invalid below so this launcher does not start a mock the
+# client could never reach.
+if [ "$WEB_GAME_INLINE_PORT" = 0 ] && { [ -z "$WEB_GAME_PORT" ] || [ "$WEB_GAME_PORT" = 0 ]; }; then
+    WEB_GAME_PORT=43594
+fi
+CLIENT_REV=${CLI_REV:-$REV}
 
 # --offline never logs in, so the CRC handshake below does not apply to it.
 OFFLINE=0
-case " $* " in
-    *" --offline "*) OFFLINE=1 ;;
-esac
+if [ "$CLI_OFFLINE" = 1 ] && [ "$CLI_CONNECT_SET" = 0 ]; then
+    OFFLINE=1
+fi
 
-# osrs230 / osrs239 live runs use the in-process server (no socket, no mock230 child).
+# Native osrs230 / osrs239 live runs use the in-process server. The browser
+# cannot: the wire web build intentionally has no local cache/content files for
+# that server to open. It instead talks to a native mock230 child over the
+# browser's WebSocket-backed socket API.
 USE_EMBED=0
-if { [ "$REV" = "osrs230" ] || [ "$REV" = "osrs239" ]; } && [ "$OFFLINE" = 0 ]; then
-    USE_EMBED=1
-    export TORIRS_TRANSPORT=embed
-    # Embed defaults to osrs230 unless told otherwise; keep server wire = client rev.
-    export MOCK230_REV="${MOCK230_REV:-$REV}"
+USE_MOCK230=0
+if [ "$MODE" = web ] && { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ] || \
+                           [ "$MANIFEST_TRANSPORT" = "embed" ] || [ "${TORIRS_TRANSPORT:-}" = "embed" ]; }; then
+    # An Emscripten TCP socket is an RFC 6455 WebSocket. Never leave an embed
+    # selection in place for a web run: the browser module is intentionally
+    # plain and its world belongs in a native process.
+    export TORIRS_TRANSPORT=tcp
+fi
+
+if [ "$MODE" = native ]; then
+    if { [ "$REV" = "osrs230" ] || [ "$REV" = "osrs239" ]; } && [ "$OFFLINE" = 0 ]; then
+        USE_EMBED=1
+        export TORIRS_TRANSPORT=embed
+        # Embed defaults to osrs230 unless told otherwise; keep server wire = client rev.
+        export MOCK230_REV="${MOCK230_REV:-$REV}"
+    fi
+elif [ "$OFFLINE" = 0 ]; then
+    # Own only a reachable IPv4 loopback endpoint. mock230 intentionally binds
+    # 127.0.0.1 (not IPv6); a remote or explicit IPv6 endpoint belongs to the
+    # caller and must not get an unused local process.
+    if { [ "$CLIENT_REV" = "osrs230" ] || [ "$CLIENT_REV" = "osrs239" ]; } && valid_port "$WEB_GAME_PORT"; then
+        case "$WEB_GAME_HOST" in
+            localhost | 127.0.0.1) USE_MOCK230=1 ;;
+        esac
+    fi
+fi
+
+# mock230 binds IPv4 loopback. Keep the standard manifest's `localhost` URL
+# from depending on the browser's IPv6 fallback; an explicit --connect still
+# wins later in the client's normal command-line parsing.
+if [ "$USE_MOCK230" = 1 ] && [ "$CLI_CONNECT_SET" = 0 ]; then
+    export TORIRS_WS_HOST=127.0.0.1
 fi
 
 # lc254 live login checks cache CRCs; fetch the 9 big-endian int32s from the
@@ -113,15 +255,14 @@ print(','.join(str(x) for x in struct.unpack('>%di' % (len(d) // 4), d)))
     export TORIRS_JAG_CRC
 fi
 
-# The script pack is a SEPARATE build from the binary, and an embedded server
-# loads whatever `script.dat` was last compiled — not whatever the tree says
-# today. Building the binary and not the pack is how a session ends up running
-# content nobody has written for weeks: the C is current, the scripts are
-# stale, and nothing anywhere reports the mismatch. A `[debugproc]` added an
-# hour ago simply does not exist, which reads as "the cheat is broken".
+# The script pack is a SEPARATE build from the binary, and a live server loads
+# whatever `script.dat` was last compiled — not whatever the tree says today.
+# Building the binary and not the pack is how a session ends up running content
+# nobody has written for weeks: the C is current, the scripts are stale, and
+# nothing anywhere reports the mismatch. A `[debugproc]` added an hour ago
+# simply does not exist, which reads as "the cheat is broken".
 #
-# So the pack is built here, next to the binary that will load it, for every
-# embedded run.
+# So the pack is built here for every embedded/native or mock/web live run.
 build_scripts() {
     echo "run-live.sh: building the server script pack..." >&2
     case "$SERVER_SCRIPTS" in
@@ -134,13 +275,120 @@ build_scripts() {
     esac
 }
 
+# The same argument, one layer down, for the marked lanes.
+#
+# `ported/` is excluded from the ordinary content walk on purpose, so a lane's
+# records reach a client through exactly one route: its own bake. Nothing else
+# writes cache.osrs239.rs2012 or cache.osrs239.summoning — not `mock230-cache`,
+# which walks the tree without the lanes, and certainly not the pristine
+# cache.osrs239 the other manifests boot. A launcher that skips this step runs
+# today's client against whichever bake happened to be on disk, which is how six
+# freshly imported QBD models can be committed, staged, and still not in game.
+#
+# Those targets are .PHONY, though: asking unconditionally spends a full copy of
+# a 440 MB base cache plus a repack and a verify on every single launch. So ask
+# the predicate `make` would apply if the target were a real file — see
+# tools/cache_overlay_stale.py, which owns the input set for both lanes and is
+# the only implementation of it (run-live.bat calls the same script).
+#
+# Anything other than exit 1 bakes. A predicate that could not answer must never
+# be read as "up to date": a needless bake costs two minutes, and a wrongly
+# skipped one costs a session spent debugging content that was never packed.
+cache_overlay() {
+    _label=$1
+    _lane=$2
+    _base=$3
+    _stager=$4
+    _target=$5
+    if python3 tools/cache_overlay_stale.py \
+            --cache "$CACHE_DIR" --lane "$_lane" --base "$_base" \
+            --input "$_stager" --input src/makefile \
+            --input 3rd/rscache/tools/cachepack >&2; then
+        _stale=0
+    else
+        _stale=$?
+    fi
+    if [ "$_stale" = 1 ]; then
+        echo "run-live.sh: $_label cache overlay is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" >&2
+        return 0
+    fi
+    echo "run-live.sh: building the $_label cache overlay..." >&2
+    make -C src "$_target" || exit 1
+}
+
+# The bases match the Makefile's `?=` defaults, and honour the same overrides:
+# a caller that moves SUMMONING_CACHE_BASE must not leave the freshness check
+# watching a cache the bake no longer reads.
 build_cache_overlay() {
     case "$CACHE_DIR" in
         *cache.osrs239.summoning)
-            echo "run-live.sh: building the Summoning cache overlay..." >&2
-            make -C src mock230-cache-summoning || exit 1
+            cache_overlay "Summoning" scape2009_summoning \
+                "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}" \
+                tools/stage_summoning_overlay.py mock230-cache-summoning
+            ;;
+        *cache.osrs239.rs2012)
+            cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
+                "${RS2012_CACHE_BASE:-cache.osrs239}" \
+                tools/stage_rs2012_overlay.py mock230-cache-rs2012
             ;;
     esac
+}
+
+# Web OSRS runs put the world in a native process. mock230 accepts both raw TCP
+# and RFC 6455 on one port, so Emscripten's WebSocket-backed TCP implementation
+# needs no proxy. Keep it a child of this script: a Ctrl-C must release both the
+# page server and the game port.
+MOCK_PID=''
+start_mock230() {
+    [ "$USE_MOCK230" = 1 ] || return 0
+    [ "${TORIRS_NO_MOCK:-0}" != 1 ] || return 0
+
+    # Build a deterministic, non-embedded native lane. The outer environment
+    # may carry OPT/MEMTRACE/sanitizer variables for a client experiment; it
+    # must not make the launcher look for build_opt/mock230 after building a
+    # different lane. A custom binary is already the caller's responsibility.
+    MOCK_BIN="${TORIRS_MOCK_BIN:-src/build_opt/mock230}"
+    MOCK_PORT="$WEB_GAME_PORT"
+    if [ -z "${TORIRS_MOCK_BIN:-}" ]; then
+        echo "run-live.sh: building the native mock server..." >&2
+        make -C src PLATFORM=native OPT=1 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
+            TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 mock230 || return 1
+    fi
+    if [ ! -x "$MOCK_BIN" ]; then
+        echo "run-live.sh: mock binary '$MOCK_BIN' is not executable" >&2
+        return 1
+    fi
+
+    (
+        if [ -z "${MOCK230_CACHE:-}" ] && [ -n "$CACHE_DIR" ]; then
+            export MOCK230_CACHE="$CACHE_DIR"
+        fi
+        if [ -z "${MOCK230_SCRIPTS:-}" ] && [ -n "$SERVER_SCRIPTS" ]; then
+            export MOCK230_SCRIPTS="$SERVER_SCRIPTS"
+        fi
+        export MOCK230_REV="$CLIENT_REV"
+        exec "$MOCK_BIN" "$MOCK_PORT" --rev "$CLIENT_REV"
+    ) &
+    MOCK_PID=$!
+
+    # A stale listener is worse than an early failure: it can make this run
+    # appear to work against yesterday's world. Fail and let cleanup release
+    # io_server instead of silently attaching to it.
+    sleep 1
+    if ! kill -0 "$MOCK_PID" 2>/dev/null; then
+        wait "$MOCK_PID" 2>/dev/null || true
+        MOCK_PID=''
+        echo "run-live.sh: mock230 exited during startup (game port $MOCK_PORT unavailable or mock failed to boot; see output above)" >&2
+        return 1
+    fi
+}
+
+stop_mock230() {
+    if [ -n "$MOCK_PID" ]; then
+        kill "$MOCK_PID" 2>/dev/null || true
+        wait "$MOCK_PID" 2>/dev/null || true
+        MOCK_PID=''
+    fi
 }
 
 if [ "$MODE" = native ]; then
@@ -165,14 +413,16 @@ WEB_TARGET=web
 
 # The module contains no manifests: the page fetches whichever one its query
 # string names from the server, so a build never has to be redone for a new
-# manifest, and nothing here depends on which one this run uses.
-if [ "$USE_EMBED" = 1 ]; then
-    echo "run-live.sh: $REV — building web with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
+# manifest, and nothing here depends on which one this run uses. In particular,
+# never link EMBED_SERVER into the web module: the native mock below owns that
+# world and can open the host cache/content filesystem.
+if [ "$USE_MOCK230" = 1 ] && [ "${TORIRS_NO_MOCK:-0}" != 1 ]; then
+    build_cache_overlay
     build_scripts
-    make -C src EMBED_SERVER=1 "$WEB_TARGET"
-else
-    make -C src "$WEB_TARGET"
 fi
+# Command-line assignment is deliberate: even an inherited EMBED_SERVER=1
+# must not turn a `run-live.sh web` build into an embedded-world module.
+make -C src EMBED_SERVER=0 "$WEB_TARGET"
 
 if [ ! -x src/build/io_server ]; then
     echo "run-live.sh: building the IO server..." >&2
@@ -182,13 +432,24 @@ fi
 # The client's argv, and every TORIRS_* variable, become the page's query
 # string. Each value is percent-encoded on its own, so a password or a
 # TORIRS_NET_CHEAT string may contain commas and spaces.
-URL=$(MANIFEST="$MANIFEST" TORIRS_USER="$USER_NAME" TORIRS_PASS="$PASS" PORT="$PORT" \
+URL=$(MANIFEST="$MANIFEST" REPO_ROOT="$(pwd)" TORIRS_USER="$USER_NAME" TORIRS_PASS="$PASS" PORT="$PORT" \
       python3 - "$@" <<'PY'
 import os, sys, urllib.parse
 
-# The manifest lives at the root of the virtual filesystem (see PRELOAD above),
-# so the client is told its basename, not the host path.
-args = ['--manifest', os.path.basename(os.environ['MANIFEST']),
+# Boot files are served beneath io_server's repo-rooted `/boot/` route and
+# placed in MEMFS at the same relative name. Preserve a nested manifest path so
+# its cache/scripts/revconfig relatives resolve exactly like a native run.
+root = os.path.abspath(os.environ['REPO_ROOT'])
+manifest = os.path.abspath(os.environ['MANIFEST'])
+try:
+    manifest_arg = os.path.relpath(manifest, root)
+except ValueError:
+    manifest_arg = '..'
+if manifest_arg == '..' or manifest_arg.startswith('..' + os.sep):
+    raise SystemExit('run-live.sh: web manifests must be under the repository root')
+manifest_arg = manifest_arg.replace(os.sep, '/')
+
+args = ['--manifest', manifest_arg,
         '--user', os.environ['TORIRS_USER'],
         '--pass', os.environ['TORIRS_PASS']] + sys.argv[1:]
 
@@ -209,6 +470,7 @@ PY
 # the next run fails to bind.
 IO_PID=''
 cleanup() {
+    stop_mock230
     if [ -n "$IO_PID" ]; then
         kill "$IO_PID" 2>/dev/null || true
         wait "$IO_PID" 2>/dev/null || true
@@ -230,14 +492,19 @@ if ! kill -0 "$IO_PID" 2>/dev/null; then
     exit 1
 fi
 
+if ! start_mock230; then
+    exit 1
+fi
+
 # A browser tab has no TCP. emscripten implements the client's sockets over
 # WebSockets, so whatever the page dials must speak RFC 6455 — the manifest's
 # transport=tcp describes what the *native* client dials, and says nothing
-# about what the page ends up doing. osrs230 uses the in-process embed (no
-# socket). For other revs, ws_port names where `/` upgrades (LostCity).
+# about what the page ends up doing. The local mock accepts that upgrade on the
+# game port; other servers name their WebSocket endpoint with ws_port.
 WS_ENDPOINT_KNOWN=0
 [ -n "$(sed -n 's/^[[:space:]]*ws_port[[:space:]]*=.*/x/p' "$MANIFEST" | head -1)" ] && WS_ENDPOINT_KNOWN=1
-[ "$USE_EMBED" = 1 ] && WS_ENDPOINT_KNOWN=1
+[ -n "${TORIRS_WS_PORT:-}" ] && WS_ENDPOINT_KNOWN=1
+[ "$USE_MOCK230" = 1 ] && WS_ENDPOINT_KNOWN=1
 if [ "$OFFLINE" = 0 ] && [ "$WS_ENDPOINT_KNOWN" = 0 ]; then
     echo "run-live.sh: note — a browser reaches this server over a WebSocket, and" >&2
     echo "  this manifest names no ws_port, so the page will dial ${HOST:-localhost}:${GAME_PORT}." >&2
@@ -254,6 +521,22 @@ if [ "${TORIRS_WEB_NO_OPEN:-0}" != "1" ]; then
         xdg-open "$URL"
     fi
 fi
-echo "run-live.sh: serving on port $PORT — Ctrl-C to stop (the IO server stops with it)" >&2
+echo "run-live.sh: serving on port $PORT — Ctrl-C to stop (child services stop with it)" >&2
 
-wait "$IO_PID"
+# io_server and mock230 are one live run. Do not leave a page server advertising
+# a dead game endpoint if the mock crashes after its startup check.
+while kill -0 "$IO_PID" 2>/dev/null; do
+    if [ -n "$MOCK_PID" ] && ! kill -0 "$MOCK_PID" 2>/dev/null; then
+        wait "$MOCK_PID" 2>/dev/null || true
+        MOCK_PID=''
+        echo "run-live.sh: mock230 stopped unexpectedly; stopping the web run" >&2
+        exit 1
+    fi
+    sleep 1
+done
+
+if wait "$IO_PID"; then
+    exit 0
+else
+    exit $?
+fi

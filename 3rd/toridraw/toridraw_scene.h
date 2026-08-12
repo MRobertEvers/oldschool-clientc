@@ -345,6 +345,59 @@ ToriDraw_SceneElementOcclusionHeight(
     return h > 0 ? h : 0;
 }
 
+/**
+ * World-space XZ extent of a scene element's drawn geometry, in fine units.
+ *
+ * The element's own world position plus the model's axis-aligned XZ bounds —
+ * i.e. where the polygons actually land, which is not the same rectangle as
+ * the loc footprint the painter orders it by. A model carrying a draw-time yaw
+ * (`world_position.yaw`, animated locs) is not axis-aligned in model space, so
+ * the rotation-invariant `radius` is used on both axes instead: an
+ * over-estimate, never an under-estimate.
+ *
+ * Returns false (and touches nothing) when the element is dead, is not a full
+ * model, or has no bounds.
+ */
+static inline bool
+ToriDraw_SceneElementDrawExtentXZ(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int* out_min_x,
+    int* out_max_x,
+    int* out_min_z,
+    int* out_max_z)
+{
+    struct ToriDraw_SceneElement* el;
+    struct ToriDraw_Model* model;
+    struct ToriDraw_BoundsCylinder* bc;
+
+    if( !scene || element_id < 0 )
+        return false;
+    if( !ToriDraw_SceneElementIsLive(scene, element_id) )
+        return false;
+    el = ToriDraw_SceneElementGet(scene, element_id);
+    if( !el || el->model.kind != TORIDRAWMK_MODEL )
+        return false;
+    model = el->model.u.model.model;
+    if( !model || !model->bounds_cylinder || model->vertex_count <= 0 )
+        return false;
+
+    bc = model->bounds_cylinder;
+    if( el->world_position.yaw != 0 )
+    {
+        *out_min_x = el->world_position.x - bc->radius;
+        *out_max_x = el->world_position.x + bc->radius;
+        *out_min_z = el->world_position.z - bc->radius;
+        *out_max_z = el->world_position.z + bc->radius;
+        return true;
+    }
+    *out_min_x = el->world_position.x + bc->min_x;
+    *out_max_x = el->world_position.x + bc->max_x;
+    *out_min_z = el->world_position.z + bc->min_z;
+    *out_max_z = el->world_position.z + bc->max_z;
+    return true;
+}
+
 int
 ToriDraw_SceneElementSlotCount(struct ToriDraw_Scene* scene);
 

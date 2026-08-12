@@ -731,6 +731,10 @@ ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
 
     int min_y = INT_MAX;
     int max_y = INT_MIN;
+    int min_x = INT_MAX;
+    int max_x = INT_MIN;
+    int min_z = INT_MAX;
+    int max_z = INT_MIN;
     int radius_squared = 0;
 
     for( int i = 0; i < model->vertex_count; i++ )
@@ -742,6 +746,14 @@ ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
             min_y = y;
         if( y > max_y )
             max_y = y;
+        if( x < min_x )
+            min_x = x;
+        if( x > max_x )
+            max_x = x;
+        if( z < min_z )
+            min_z = z;
+        if( z > max_z )
+            max_z = z;
         int rs = x * x + z * z;
         if( rs > radius_squared )
             radius_squared = rs;
@@ -753,6 +765,10 @@ ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
     model->bounds_cylinder->center_to_top_edge = center_to_top_edge;
     model->bounds_cylinder->min_y = min_y;
     model->bounds_cylinder->max_y = max_y;
+    model->bounds_cylinder->min_x = min_x;
+    model->bounds_cylinder->max_x = max_x;
+    model->bounds_cylinder->min_z = min_z;
+    model->bounds_cylinder->max_z = max_z;
     model->bounds_cylinder->radius = (int)sqrt((double)radius_squared);
     model->bounds_cylinder->min_z_depth_any_rotation =
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;

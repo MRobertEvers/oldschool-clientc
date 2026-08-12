@@ -204,9 +204,10 @@ make -C src web
 ./src/build/io_server --manifest manifest_osrs239.ini    # http://localhost:8088/
 ```
 
-`run-live.sh web <manifest> …` still drives the wire lane end to end, starting
+`run-live.sh web <manifest> …` drives the wire lane end to end, starting
 `io_server` as its own child so a stopped script does not leave a process
-holding the port.
+holding the port. For a local live `osrs230`/`osrs239` manifest it also starts
+native `mock230` on the game port; the browser reaches it over WebSocket.
 
 ## Ports
 

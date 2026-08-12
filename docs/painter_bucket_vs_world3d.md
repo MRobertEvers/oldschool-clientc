@@ -83,6 +83,23 @@ corner). It is the reference cascade and the fuzz harness's comparison target, n
 production painter; promoting it means porting both fixes. Full measurements in
 [LARGE_LOCS_PAINTER.md](../LARGE_LOCS_PAINTER.md).
 
+### The draw footprint is not the loc footprint (world builder)
+
+Both painters release a loc at the ring of the footprint it was **registered**
+on, which the reference takes straight from the loc config. When a model draws
+past that rectangle, the ground it covers but does not own is emitted after it —
+a strip of terrain lying on a floor, with a perfectly monotone sweep. No
+traversal change can fix that: the traversal is never told where the polygons
+are.
+
+`scenery_add_normal` (`src/engine/world_builder/world_scenery.u.c`) therefore
+registers a multi-tile loc on its declared footprint grown to cover the tiles
+its model lands on, capped at **one tile per side** and ignoring overhang under
+a quarter tile. Only the draw footprint moves — shade, sharelight and route
+footprints stay on the declared tiles. `TORIRS_LOC_DRAW_MARGIN=0` restores the
+reference footprint. Rationale, measurements and the cost are in
+[LARGE_LOCS_PAINTER.md §16](../LARGE_LOCS_PAINTER.md#16-the-other-strip-when-the-model-is-bigger-than-the-footprint).
+
 ### Loc stacking and draw order
 
 Both Client-TS (`World.fill` / `setSprite`) and the modern deob (`Scene.drawTile`) use the

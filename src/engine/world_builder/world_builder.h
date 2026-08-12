@@ -93,6 +93,39 @@ world_builder_prerotate_placement(
     int* offset_x,
     int* offset_z);
 
+/**
+ * The DRAW footprint of a loc: its declared tile footprint grown to cover the
+ * tiles its model actually lands on, by at most `margin` tiles per side.
+ *
+ * The painter gives a loc one slot in the command stream, at the ring of the
+ * NEAREST tile of the footprint it is registered on — everything nearer is
+ * drawn afterwards. A tile the MODEL covers but the FOOTPRINT does not, and
+ * which is nearer than that, therefore has its ground painted on top of the
+ * loc: a strip of terrain lying over a floor. See scenery_grow_draw_footprint
+ * in world_scenery.u.c for why the margin is capped rather than taking the
+ * whole model extent, and LARGE_LOCS_PAINTER.md for the scene that forced it.
+ *
+ * Pure geometry, so the cap and the clamping are unit-testable without a cache:
+ * inputs are tile coordinates, `model_*` is the model's own tile span, and the
+ * result is clamped into [0, scene_size). Exposed for that reason only.
+ */
+void
+world_builder_draw_footprint(
+    int sx,
+    int sz,
+    int size_x,
+    int size_z,
+    int model_min_x,
+    int model_max_x,
+    int model_min_z,
+    int model_max_z,
+    int margin,
+    int scene_size,
+    int* out_sx,
+    int* out_sz,
+    int* out_size_x,
+    int* out_size_z);
+
 /** Apply a zone LOC change at runtime (Client-TS locChangeUnchecked): remove the
  * existing loc in the shape's layer on the tile (scene element + collision) and,
  * when loc_id >= 0, spawn the replacement (scene + collision, re-registered with

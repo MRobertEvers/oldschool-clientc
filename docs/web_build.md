@@ -101,9 +101,11 @@ What the web block swaps:
 ```
 
 Same script, same arguments as a native run — `web` is the only difference. It
-builds what is missing, starts the IO server, and opens the page. The IO server
-is the script's child, so Ctrl-C (or any signal that stops the script) stops it
-too; without that a stale server keeps the port and the next run cannot bind.
+builds what is missing, starts the IO server, and opens the page. For a local
+live `osrs230`/`osrs239` manifest it also starts a native `mock230` child: the
+browser reaches that server over WebSocket while cache reads still use
+`io_server`. Ctrl-C (or any signal that stops the script) stops both children,
+so no stale listener holds either port.
 
 Nothing about the build depends on which manifest you name — the page fetches
 it from the server (see below), so one module opens any of them. Web-only
@@ -119,12 +121,14 @@ make -C src io-server
 ./src/build/io_server --manifest manifest_rs254.ini      # http://localhost:8088/
 ```
 
-The server serves `build-web/` over `GET` and answers cache reads on `POST /io`,
-so it is the only process you need. `io_server` options: `--manifest <boot.ini>`
-(recommended — it is the same file the native client reads, so the two cannot
-disagree about cache identity), or `--rev <name> <cache_dir>`; plus `--port`,
-`--root`, `--boot-root`, `--config`, `--script`, `-v`. `GET /stats` reports what
-it has served, and which cache it has open.
+The server serves `build-web/` over `GET` and answers cache reads on `POST /io`.
+It is the only process needed for an offline run; a local live
+`osrs230`/`osrs239` run also needs `mock230` on the game port. `io_server`
+options: `--manifest <boot.ini>` (recommended — it is the same file the native
+client reads, so the two cannot disagree about cache identity), or `--rev
+<name> <cache_dir>`; plus `--port`, `--root`, `--boot-root`, `--config`,
+`--script`, `-v`. `GET /stats` reports what it has served, and which cache it
+has open.
 
 ### The query string is the command line
 
@@ -518,8 +522,9 @@ So a browser run against either is one command:
 ./run-live.sh web manifest_rs254.ini   matt5 zuk    # a real LostCity server
 ```
 
-each of which builds what is missing, starts the IO server (and, for osrs230,
-the mock) as children, and opens the page. `run-live.sh` reads `ws_port` for the
+each of which builds what is missing, starts the IO server (and, for local live
+osrs230/osrs239, the native mock) as children, and opens the page.
+`run-live.sh` reads `ws_port` for the
 lc254 CRC fetch too, so the client and the script cannot disagree about where
 the server is.
 

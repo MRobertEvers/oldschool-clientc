@@ -22,21 +22,23 @@ offline, because offline the client has nothing to obey.
 
 ```
 ./run-live.sh     manifest_osrs230.ini testc test   # native  — in-process server
-./run-live.sh web manifest_osrs230.ini testc test   # browser — embed + IO server
+./run-live.sh web manifest_osrs230.ini testc test   # browser — mock230 + IO server
 
 make -C src test-mock230     # game logic, no socket
 make -C src test-rsareabuf   # the wire buffer
 make -C src test-ws-frame    # the WebSocket frame codec
 ```
 
-`run-live.sh` always uses the **in-process** server for osrs230 (builds with
-`EMBED_SERVER=1`, sets `TORIRS_TRANSPORT=embed`). There is no separate
-`mock230` child and no port to leave stale. Hand-start `src/build/mock230` + a
-TCP manifest yourself when you need a socket listener (debugger, multiplayer,
-`MOCK230_VERBOSE` against a live port). By hand:
+Native `run-live.sh` uses the **in-process** server for osrs230 (builds with
+`EMBED_SERVER=1`, sets `TORIRS_TRANSPORT=embed`). Web `run-live.sh` instead
+builds a plain module, forces TCP/WebSocket transport, and starts native
+`mock230` plus `io_server`; Ctrl-C releases both ports. Hand-start
+`src/build_opt/mock230` plus a TCP manifest yourself when you need a separate
+socket listener (debugger, multiplayer, `MOCK230_VERBOSE` against a live port).
+By hand:
 
 ```
-make -C src mock230 && src/build/mock230 &
+make -C src mock230 && src/build_opt/mock230 &
 src/torirs --manifest manifest_osrs230.ini --user test --pass test
 ```
 

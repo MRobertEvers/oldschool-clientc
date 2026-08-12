@@ -20,8 +20,16 @@ rem today. Building the binary and not the pack is how a session ends up running
 rem content nobody has written for weeks, with nothing anywhere reporting the
 rem mismatch, so the pack is rebuilt here for every embedded run.
 rem
+rem The same argument one layer down: when the manifest names a marked-lane
+rem cache (cache.osrs239.rs2012, cache.osrs239.summoning), that cache is the ONLY
+rem place those records exist -- `ported/` is excluded from the ordinary content
+rem walk, so no other bake writes them. It is rebuilt here when the content tree
+rem has moved under it. tools\cache_overlay_stale.py owns that decision and is
+rem shared with run-live.sh, so the two launchers cannot drift.
+rem
 rem Knobs:
 rem   TORIRS_NO_BUILD=1   run the existing exe, skip both builds
+rem   TORIRS_FORCE_CACHE_BAKE=1  rebake the lane cache without asking
 rem   TORIRS_PRINT_ONLY=1 print what would run (rev, embed decision, argv) and
 rem                       exit -- how you check a manifest resolves as expected
 rem                       without booting a client
@@ -76,6 +84,14 @@ if not defined REV (
     echo run-live.bat: no rev= in [net:boot] of "%MANIFEST%" 1>&2
     popd & exit /b 1
 )
+
+rem The cache the manifest boots, from [cache:boot] dir=. Only used to recognise
+rem a marked lane below; the client resolves its own path from the manifest.
+set "CACHE_DIR="
+for /f "usebackq tokens=2 delims==" %%C in (`findstr /r /c:"^[ 	]*dir[ 	]*=" "%MANIFEST%"`) do (
+    if not defined CACHE_DIR set "CACHE_DIR=%%C"
+)
+for /f "tokens=* delims= " %%T in ("!CACHE_DIR!") do set "CACHE_DIR=%%T"
 
 rem --offline never logs in, so it never wants the embedded server.
 set "OFFLINE=0"
@@ -143,6 +159,14 @@ if not defined JOBS set "JOBS=4"
 
 rem --- build ---------------------------------------------------------------
 if "!EMBED!"=="1" (
+    call :cache_overlay
+    if errorlevel 1 (
+        popd
+        exit /b 1
+    )
+)
+
+if "!EMBED!"=="1" (
     echo run-live.bat: !REV! -- building with EMBED_SERVER=1 ^(in-process server, MOCK230_REV=!MOCK230_REV!^) 1>&2
     echo run-live.bat: building the server script pack... 1>&2
     mingw32-make -C src PLATFORM=win64 CC=gcc mock230-scripts
@@ -179,6 +203,53 @@ if not exist "%EXE%" (
 set "RC=%ERRORLEVEL%"
 popd
 exit /b %RC%
+
+rem --- marked-lane cache overlay --------------------------------------------
+rem Returns 1 only when a bake was needed and failed. A manifest naming an
+rem ordinary cache returns immediately, so this costs nothing for those.
+rem
+rem `echo(` and no space before the pipe: `echo x | findstr` feeds findstr a
+rem trailing space, which /e would then refuse to match.
+:cache_overlay
+if not defined CACHE_DIR exit /b 0
+set "LANE="
+echo(!CACHE_DIR!|findstr /e /c:"cache.osrs239.rs2012" >nul 2>&1 && (
+    set "LANE=rs2012_qbd_td"
+    set "LANE_LABEL=RS2012 QBD/TD"
+    set "LANE_BASE=cache.osrs239"
+    set "LANE_STAGER=tools\stage_rs2012_overlay.py"
+    set "LANE_TARGET=mock230-cache-rs2012"
+)
+echo(!CACHE_DIR!|findstr /e /c:"cache.osrs239.summoning" >nul 2>&1 && (
+    set "LANE=scape2009_summoning"
+    set "LANE_LABEL=Summoning"
+    set "LANE_BASE=cache.osrs239.baked"
+    set "LANE_STAGER=tools\stage_summoning_overlay.py"
+    set "LANE_TARGET=mock230-cache-summoning"
+)
+if not defined LANE exit /b 0
+
+rem Only exit code 1 means "skip". Everything else bakes, including a missing
+rem python3 (9009): a predicate that could not answer must never be read as up
+rem to date -- a needless bake costs minutes, a wrongly skipped one costs a
+rem session spent debugging content that was never packed.
+python3 tools\cache_overlay_stale.py --cache "!CACHE_DIR!" --lane "!LANE!" ^
+    --base "!LANE_BASE!" --input "!LANE_STAGER!" --input src\makefile ^
+    --input 3rd\rscache\tools\cachepack 1>&2
+if errorlevel 2 goto :cache_overlay_bake
+if errorlevel 1 (
+    echo run-live.bat: !LANE_LABEL! cache overlay is up to date ^(set TORIRS_FORCE_CACHE_BAKE=1 to rebake^) 1>&2
+    exit /b 0
+)
+
+:cache_overlay_bake
+echo run-live.bat: building the !LANE_LABEL! cache overlay... 1>&2
+mingw32-make -C src PLATFORM=win64 CC=gcc !LANE_TARGET!
+if errorlevel 1 (
+    echo run-live.bat: !LANE_LABEL! cache overlay build failed 1>&2
+    exit /b 1
+)
+exit /b 0
 
 :web_note
 echo run-live.bat: the web lane needs emscripten and a POSIX shell throughout. 1>&2

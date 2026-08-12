@@ -28,6 +28,12 @@ column.
   (the two painters and the gate), [docs/qbd_toridraw_streaks_debug.md](docs/qbd_toridraw_streaks_debug.md)
   (the raster-side investigation this closes out).
 
+> **A second strip, same arena** — the sweep this fixed is clean, and a strip
+> still appeared from some camera angles. That one is not an ordering fault at
+> all: the slabs' *models* reach about six tiles past the footprints they are
+> registered on, and the painter can only place a loc at the ring of the
+> footprint it knows about. See [§16](#16-the-other-strip-when-the-model-is-bigger-than-the-footprint).
+
 ---
 
 ## Contents
@@ -47,6 +53,7 @@ column.
 13. [Reproducing it yourself](#13-reproducing-it-yourself)
 14. [The toolbox](#14-the-toolbox)
 15. [Where this can bite again](#15-where-this-can-bite-again)
+16. [The other strip: when the model is bigger than the footprint](#16-the-other-strip-when-the-model-is-bigger-than-the-footprint)
 
 ---
 
@@ -671,3 +678,169 @@ made the arena vulnerable are worth recognising elsewhere:
 
 The invariant to hold onto, and the one both tests assert: **terrain distance
 from the eye never increases across a frame's command stream.**
+
+---
+
+## 16. The other strip: when the model is bigger than the footprint
+
+A second strip of arena floor kept appearing over the platform from some camera
+angles after everything above shipped. It is worth writing down because the
+symptom is identical and the cause is not — the first instinct, "the sweep went
+wrong again", is measurably false here.
+
+### The measurement that separates them
+
+Same toolbox, same order: pixel → command → tile → traversal.
+
+```sh
+TORIRS_SIM_DRAG='600,700,250,828,378,1,2'   # middle-drag: pitch to 383, yaw to 1536
+TORIRS_PIXOWNER='900,1000,535,555' TORIRS_PIXOWNER_OUT=/tmp/pixowner.txt ...
+```
+
+```
+cmd=1035  px=7023   loc  elem=4562  wpos=7168,-240,7296      <- the east slab
+cmd=1108  px=3248   TERRAIN tile=49,51 L0
+cmd=1126  px=1940   TERRAIN tile=49,52 L0                    <- painted over it
+cmd=1256  px=8477   loc  elem=4575  wpos=5632,-240,7296      <- the west slab
+```
+
+The wedgelog for that frame then says the thing that rules §1–§10 out:
+
+```
+#path bucket:painter_paint_bucket camTile=42,52 drawCenter=42,52 drawDist=32 ...
+plane-0 floors: 1052   monotone runs: 1   inversions: 0
+```
+
+**The sweep is perfect.** One monotone run, zero inversions — the fix above is
+holding. The floor tile at `(49,52)` is at ring 7 and the east slab was released
+at ring 8, so the painter drew the nearer thing later, exactly as designed.
+
+### What is actually wrong
+
+`TORIRS_EMIT_LOC` prints the model extent next to the footprint, and that is the
+whole answer:
+
+```
+emit_loc 63043 el=4562: world=(7168,-240,7296) tile=(50,48) slot=(50,48)
+          extent x[-1497..1293] z[-1293..1199] -> tiles x[44..66] z[46..66]
+emit_loc 63040 el=4575: world=(5632,-240,7296) tile=(38,48) slot=(38,48)
+          extent x[-1422..1368] z[-1293..1188] -> tiles x[32..54] z[46..66]
+```
+
+| | registered footprint | model draws on |
+|---|---|---|
+| loc 63043 | x[50,61] z[48,65] | **x[44,66] z[46,66]** |
+| loc 63040 | x[38,49] z[48,65] | **x[32,54] z[46,66]** |
+
+The two slabs' geometry interlocks across the seam: the column at `x=49` is
+inside the *west* slab's footprint but is covered by the *east* slab's polygons.
+The painter releases a loc at the ring of the footprint it was registered on, so
+the east slab lands at ring 8 and the seam column's ground — one ring nearer,
+and correctly ordered — goes down on top of it.
+
+A painter's algorithm gives a loc exactly **one** slot. A loc whose geometry
+leaves its footprint can only be right on one side of that: too early, and the
+ground it covers paints over it; too late, and it covers the things standing on
+it. The reference client picks the footprint, which is "too early" by however
+far the model overhangs. Nothing in the traversal can recover it, because the
+traversal is never told where the polygons are.
+
+### The fix
+
+Tell it. [`src/engine/world_builder/world_scenery.u.c`](src/engine/world_builder/world_scenery.u.c)
+now registers a multi-tile loc on its declared footprint **grown to cover the
+tiles its model lands on, by at most one tile per side**:
+
+```c
+world_builder_draw_footprint(
+    scene_x, scene_z, size_x, size_z,
+    (world_min_x + SCENERY_DRAW_OVERHANG_MIN) >> 7, (world_max_x - ...) >> 7,
+    (world_min_z + SCENERY_DRAW_OVERHANG_MIN) >> 7, (world_max_z - ...) >> 7,
+    margin, scene_size, &draw_sx, &draw_sz, &draw_size_x, &draw_size_z);
+```
+
+The extent is exact and free: `ToriDraw_ModelSetBoundsCylinder` already walks
+every vertex for `min_y` / `radius`, so `min_x/max_x/min_z/max_z` were added to
+the same loop and read back through `ToriDraw_SceneElementDrawExtentXZ`.
+
+Three decisions are load-bearing:
+
+| Decision | Why |
+|---|---|
+| **Cap of one tile**, not the whole extent | growing the footprint moves the loc's slot *nearer*; past its own overhang it starts covering what stands on it. Released six rings in, the slab would be drawn over the player standing on it. One tile keeps the slot within one ring of the reference's, and inside a single shared tile nothing moves at all — that tile's scenery pass already emits its chain farthest-corner first, which puts the big loc ahead of anything on it. |
+| **Multi-tile locs only** | a 1x1 model overhangs far more often (every tree canopy), the error is a tile wide rather than a slab, and there are orders of magnitude more of them. |
+| **Ignore overhang under a quarter tile** (`SCENERY_DRAW_OVERHANG_MIN`) | a rounded corner or a resize laps a few units past the edge and cannot draw a visible strip, but claiming the neighbour tile for it costs a scenery-chain node on every pop. Dropping those took Lumbridge's paint cost from +2.6% to +0.7%. |
+
+Only the **draw** footprint moves. Shade, sharelight and route footprints stay
+on the loc's declared tiles, which is what they mean.
+`TORIRS_LOC_DRAW_MARGIN=0` restores the reference footprint exactly, and is what
+the A/B below is measured against.
+
+### Results
+
+Screen-space, same binary, `TORIRS_LOC_DRAW_MARGIN=0` vs `1`, eight camera yaws
+at pitch 383 (the runs are bit-deterministic — two runs of one binary differ by
+zero pixels, so every number here is signal):
+
+| yaw | changed px | floor-over-platform removed | introduced |
+|---|---|---|---|
+| 0 / 1024 | 0 | 0 | 0 |
+| 256 / 512 / 768 | 929 / 200 / 281 | 0 | 0 |
+| 1280 | 4027 | 1282 | 0 |
+| 1536 | 39656 | **1938** | 0 |
+| 1792 | 27133 | 0 | 0 |
+| **total** | 72226 | **3220** | **0** |
+
+Command-stream, counting terrain that a slab's *model* covers and its footprint
+does not, emitted after the slab (`docs/` has no home for the script; it is a
+dozen lines over a `TORIRS_DRAW_ORDER` dump):
+
+```
+before  yaw 0..1792:  41 32 30 27  3 37 42 50   total 262
+after   yaw 0..1792:   6 14 20 18  0 26 30 20   total 134
+```
+
+The residue is the deeper overhang (x=44..45, 51..53) that the *neighbouring*
+slab covers, which is why only the seam column was ever visible.
+
+### Cost
+
+Median of three 900-frame runs each, 1920x1080, `TORIRS_PERF=1`:
+
+| | paint p50 | paint mean | painter_pops/paint |
+|---|---|---|---|
+| QBD lair, margin 0 | 130 µs | 128.5 µs | 8700 |
+| QBD lair, margin 1 | 135 µs (**+3.8%**) | 133.3 µs | 9035 (+3.8%) |
+| Lumbridge, margin 0 | 269 µs | 257.0 µs | 6958 |
+| Lumbridge, margin 1 | 271 µs (**+0.7%**) | 257.3 µs | 6998 (+0.6%) |
+
+Frame p50 in the QBD lair is unchanged at 5.57 ms — paint is 2.4% of the frame
+there, so the delta is under 0.1% of frame time. Build-side, the extra four
+min/max double that vertex loop in isolation (95 → 192 ns per 1000-vertex model,
+min-of-7) and it runs **once per model at scene build**: about 1050 models for a
+Lumbridge scene, so tens of microseconds against a build measured in hundreds of
+milliseconds.
+
+### Pinned by
+
+`test_draw_footprint_covers_model_overhang` in
+[`src/engine/world_builder/test/world_builder_test_unit.c`](src/engine/world_builder/test/world_builder_test_unit.c)
+— the growth is a pure function of tile coordinates, so the cap, the "stops at
+the model not at the cap" case, the `margin 0` kill switch and the grid clamp
+are all testable without a cache. Negative control: an early `return` in
+`world_builder_draw_footprint` fails three of the five assertions.
+
+```sh
+make -C src test-world-builder
+```
+
+### What this does not fix
+
+**A mover's footprint has the same mismatch, and much worse.** The Queen Black
+Dragon is npc size **1**, so `world_dyn_register_mover` gives her a 60-unit
+padded span — one or two tiles — while her model fills a ~4791-unit bounding
+sphere, roughly 37 tiles across. Every terrain tile nearer than her own tile is
+drawn after her. The one-tile margin here is deliberately not applied to movers:
+a floor slab drawn a ring later is safe, and a 37-tile dragon drawn at the ring
+of her *geometry* would be emitted almost at the eye and cover the whole arena.
+That trade-off needs its own decision, not this one's.

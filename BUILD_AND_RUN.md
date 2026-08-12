@@ -367,8 +367,9 @@ command line arrives through the page's query string.
 ```
 
 Same script, same arguments as a native run — `web` is the only difference. It
-builds what is missing, starts the IO server as its own child (so Ctrl-C stops
-both), and opens the page.
+builds what is missing, starts the IO server as its own child, and opens the
+page. For a local live `osrs230`/`osrs239` manifest it also starts a native
+`mock230` child; Ctrl-C stops both services.
 
 By hand:
 
@@ -536,21 +537,23 @@ arg=Jane Doe
 
 What it does for you, and why each part exists:
 
-- For `osrs230`/`osrs239` **without** `--offline`, it always runs the in-process
-  server: builds with `EMBED_SERVER=1`, sets `TORIRS_TRANSPORT=embed`, and
-  exports `MOCK230_REV` from the manifest so the server writes the same wire
-  the client speaks.
-- **It rebuilds the server script pack every run.** The pack is a separate build
-  from the binary, and an embedded server loads whatever `script.dat` was last
-  compiled — not what the tree says today. Building the binary and not the pack
-  is how a session ends up running weeks-old content with nothing reporting the
-  mismatch.
+- For native `osrs230`/`osrs239` runs **without** `--offline`, it runs the
+  in-process server: builds with `EMBED_SERVER=1`, sets
+  `TORIRS_TRANSPORT=embed`, and exports `MOCK230_REV` from the manifest so the
+  server writes the same wire the client speaks. Web runs deliberately build a
+  plain module, force TCP/WebSocket transport, and start a native `mock230`
+  child with the manifest's cache, content, and script-pack settings.
+- **It rebuilds the server script pack for every local live server run.** The
+  pack is a separate build from the binary, and the server loads whatever
+  `script.dat` was last compiled — not what the tree says today. Building the
+  binary and not the pack is how a session ends up running weeks-old content
+  with nothing reporting the mismatch.
 - For `lc254` against a live LostCity server it fetches the nine cache CRCs from
   `http://<host>/crc` unless `TORIRS_JAG_CRC` is already set.
 
-Hand-start `src/build/mock230` plus a TCP manifest yourself when you need a
-socket server — a debugger, multiplayer, or `MOCK230_VERBOSE` against a live
-listener.
+Web local live runs start `mock230` for you. For a separate socket server — a
+debugger, multiplayer, or `MOCK230_VERBOSE` against a live listener — hand-start
+`src/build_opt/mock230` plus a TCP manifest yourself.
 
 ### Headless runs and harness environment variables
 
@@ -608,16 +611,18 @@ doing.
 
 | | Process | Speaks | Platforms | Use it when |
 |---|---|---|---|---|
-| **Embedded** | none (in the client) | osrs230 / osrs239 | all, including Windows and web | the normal case |
-| **mock230** | `src/build/mock230` | osrs230 / osrs239 over TCP + WebSocket | **POSIX only** (macOS/Linux) | a debugger, two clients, `MOCK230_VERBOSE` |
+| **Embedded** | none (in the client) | osrs230 / osrs239 | native clients, including Windows | normal native live runs |
+| **mock230** | `src/build_opt/mock230` | osrs230 / osrs239 over TCP + WebSocket | **POSIX only** (macOS/Linux) | local live web runs, debugger, two clients, `MOCK230_VERBOSE` |
 | **js5_server** | `src/build/js5_server` | JS5 cache download, rev 239 | all (Windows links `ws2_32`) | a vanilla client that must download a cache |
 | **io_server** | `src/build/io_server` | HTTP cache reads + static files | native only | the web build |
 
 ### 6.1 Embedded server (the default for a live run)
 
-`EMBED_SERVER=1` links the server into the client. There is no socket, no port,
-no second process — the two ends share an in-process queue pair. This is what
-both Windows wrappers build, and what `run-live.sh` uses.
+`EMBED_SERVER=1` links the server into a native client. There is no socket, no
+port, no second process — the two ends share an in-process queue pair. This is
+what both Windows wrappers build, and what native `run-live.sh` uses. Web
+`run-live.sh` instead starts standalone `mock230`, because the browser module
+does not have the host cache/content filesystem.
 
 ```sh
 make -C src EMBED_SERVER=1 torirs
@@ -633,8 +638,8 @@ on a different wire than the client speaks.
 ### 6.2 mock230 standalone socket server
 
 ```sh
-make -C src mock230                 # -> src/build/mock230   (default port 43595)
-src/build/mock230 [port]
+make -C src mock230                 # -> src/build_opt/mock230   (default port 43595)
+src/build_opt/mock230 [port]
 ```
 
 Then point a TCP manifest at it:
@@ -648,7 +653,7 @@ live session without fighting over the port or the output file:
 
 | Target | Binary | Port | Manifest |
 |---|---|---|---|
-| `mock230` | `src/build/mock230` | 43595 | `manifest_osrs230.ini` |
+| `mock230` | `src/build_opt/mock230` | 43595 | `manifest_osrs230.ini` |
 | `mock230-dev` | `src/build/dev_mock230` | 43597 | `manifest_osrs230_dev.ini` |
 | `mock230-alt` | `src/build/alt_mock230` | 43599 | `manifest_osrs230_alt.ini` |
 | `mock230-bank` | `src/build/bank_mock230` | 43601 | `manifest_osrs230_bank.ini` |
@@ -674,7 +679,7 @@ roaming, combat, pathing — with no client at all:
 
 ```sh
 make -C src test-mock230            # builds server + scripts + bands, then --selftest
-src/build/mock230 --selftest
+src/build_opt/mock230 --selftest
 ```
 
 Full protocol/architecture record: [`docs/osrs230_mockserver.md`](docs/osrs230_mockserver.md).

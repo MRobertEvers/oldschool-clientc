@@ -1923,7 +1923,15 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # this the boot warns and falls back to the text parse — which is still a real
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
-.PHONY: test-rs2012-server-overlay mock230-cache-rs2012
+.PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale
+
+# The freshness predicate the launchers (run-live.sh, run-live.bat) apply before
+# asking for a marked-lane bake at all. It decides whether a lane's records are
+# in the cache the client is about to boot, so its failure mode is a session run
+# against content that was never packed. Hermetic and sub-second, and a
+# prerequisite of both bakes so it cannot rot alongside a lane's layout.
+test-cache-overlay-stale:
+	@cd $(REPO_ROOT) && python3 tools/test_cache_overlay_stale.py
 
 test-rs2012-server-overlay:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
@@ -2028,7 +2036,7 @@ RS2012_OVERLAY_DIR = $(REPO_ROOT)/build/rs2012-overlay
 RS2012_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
 RS2012_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012
 
-mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
+mock230-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack audioprobe
 	@test -f "$(RS2012_CACHE_BASE)/main_file_cache.dat2" || { \
 		echo "mock230-cache-rs2012: no base cache at $(RS2012_CACHE_BASE)" >&2; exit 1; }
@@ -2184,7 +2192,7 @@ test-summoning-byte-identity:
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
 		--compare-cache "$(SUMMONING_CACHE_BEFORE)" "$(SUMMONING_CACHE_AFTER)"
 
-mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2
+mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation test-summoning-phase5a test-summoning-phase5b test-summoning-phase6 test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-cs2 test-cache-overlay-stale
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack cs2
 	@test -f "$(SUMMONING_CACHE_BASE)/main_file_cache.dat2" || { \
 		echo "mock230-cache-summoning: no base cache at $(SUMMONING_CACHE_BASE)" >&2; exit 1; }
