@@ -28224,7 +28224,7 @@ mock230_world_selftest(void)
              */
             int const zuk_lx = 28;  /* ^inferno_zuk_lx */
             int const zuk_lz = 52;  /* ^inferno_zuk_lz */
-            int const fight_lz = 45; /* MUTATION */
+            int const fight_lz = 46; /* ^inferno_fight_row_lz */
             int handle;
             int base_x = 0;
             int base_z = 0;
