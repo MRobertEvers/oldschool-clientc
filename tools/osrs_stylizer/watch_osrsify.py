@@ -294,6 +294,12 @@ PAGE = """<!doctype html>
   #runbar { position:sticky; top:0; z-index:10; background:#17181c;
             border-bottom:1px solid #2c2e36; padding:.5rem 0; margin:0 0 .6rem;
             display:flex; gap:.4rem; align-items:center; flex-wrap:wrap; }
+  /* Each run's own header sticks just below the run bar; sections scope the
+     stickiness so the next run's header replaces the previous one. */
+  .runhead { position:sticky; top:var(--runbar-h, 2.6rem); z-index:9;
+             background:#17181c; border-bottom:1px solid #2c2e36;
+             padding:.15rem 0 .5rem; }
+  .runhead h2 { margin:.4rem 0 .4rem; }
   .chip { cursor:pointer; border:1px solid #2c2e36; border-radius:999px;
           padding:.05em .7em; font-size:.8em; color:#8b8e99; background:#1d1f25;
           user-select:none; white-space:nowrap; }
@@ -709,7 +715,8 @@ function render() {
           <div class="row">` + FAVS.map(favCard).join('') + `</div>`;
   }
   for (const [run, doc] of visibleRuns()) {
-    if (!doc) { h += `<h2>${esc(run)}</h2><p class="muted">no results.json yet</p>`; continue; }
+    if (!doc) { h += `<section><div class="runhead"><h2>${esc(run)}</h2></div>
+                      <p class="muted">no results.json yet</p></section>`; continue; }
     const all = doc.candidates || [], best = doc.best && doc.best.id;
     const cands = all.filter(c => inRange(run, c));
     const pass = cands.filter(c => c.fitness !== null && c.fitness !== undefined);
@@ -721,7 +728,7 @@ function render() {
     const badge = meta.defight
       ? `<span class="badge" title="${esc(meta.defight_summary || 'z-fighting repaired before the search')}">Defight</span>`
       : '';
-    h += `<h2>${esc(run)}${badge}</h2>
+    h += `<section><div class="runhead"><h2>${esc(run)}${badge}</h2>
       <div class="strip">
         <span>candidates <b>${cands.length}</b>${shown}</span>
         <span>passed gates <b>${pass.length}</b></span>
@@ -740,7 +747,7 @@ function render() {
           <input class="flt" type="number" step="0.05" min="0" max="1"
                  placeholder="max" value="${f.max}"
                  onchange="setFilter('${esc(run)}','max',this.value)"></span>
-      </div>
+      </div></div>
       <h3>fitness map</h3><canvas class="chart" id="chart-${esc(run)}"></canvas>
       <h3>content preserver</h3>
       ${preserverSummary(cands)}
@@ -754,9 +761,13 @@ function render() {
     }
     h += `<h3>recent</h3><div class="row">` +
          cands.slice(-8).reverse().map(c => card(run, c, best)).join('') +
-         `</div>`;
+         `</div></section>`;
   }
   document.getElementById('root').innerHTML = h;
+  // Run headers stick immediately below the run bar, whose height depends on
+  // how many chips wrapped; measure it rather than guessing.
+  document.documentElement.style.setProperty(
+    '--runbar-h', document.getElementById('runbar').offsetHeight + 'px');
   for (const [run, doc] of visibleRuns())
     if (doc) {
       const cands = (doc.candidates || []).filter(c => inRange(run, c));
