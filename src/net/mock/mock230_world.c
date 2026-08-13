@@ -19595,6 +19595,46 @@ mock230_world_selftest(void)
                        "the hitpoints stat should track the player's hitpoints (%d vs %d)",
                        player->stat_boosted[MOCK230_STAT_HITPOINTS], player->hitpoints);
         SELFTEST_CHECK(player->hitpoints == before_hp, "and xp should not heal");
+
+        /*
+         * The ceiling, and the reason it is a clamp rather than a limit nobody
+         * reaches: the total is an `int` and 200,000,000 xp is 2,000,000,000
+         * tenths of one, so an unclamped grant at the cap wraps negative and
+         * reads back as *level 1*. A maxed skill silently becoming an unskilled
+         * one is not a difference anyone would attribute to experience code.
+         */
+        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, MOCK230_XP_MAX_TENTHS);
+        SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_ATTACK] == MOCK230_XP_MAX_TENTHS,
+                       "xp should stop at 200m (%d tenths), got %d", MOCK230_XP_MAX_TENTHS,
+                       player->stat_xp_tenths[MOCK230_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_level[MOCK230_STAT_ATTACK] == 99,
+                       "200m xp is level 99, got %d", player->stat_level[MOCK230_STAT_ATTACK]);
+        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, 1000000);
+        SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_ATTACK] == MOCK230_XP_MAX_TENTHS,
+                       "a grant at the cap should saturate, got %d",
+                       player->stat_xp_tenths[MOCK230_STAT_ATTACK]);
+
+        /* And the floor: taking away more than the player holds empties the
+         * skill instead of owing it. */
+        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, -MOCK230_XP_MAX_TENTHS);
+        SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_ATTACK] == 0,
+                       "xp should stop at 0, got %d",
+                       player->stat_xp_tenths[MOCK230_STAT_ATTACK]);
+        SELFTEST_CHECK(player->stat_level[MOCK230_STAT_ATTACK] == 1 &&
+                           player->stat_boosted[MOCK230_STAT_ATTACK] == 1,
+                       "losing every point should drop the level with it, got %d/%d",
+                       player->stat_level[MOCK230_STAT_ATTACK],
+                       player->stat_boosted[MOCK230_STAT_ATTACK]);
+        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, -10);
+        SELFTEST_CHECK(player->stat_xp_tenths[MOCK230_STAT_ATTACK] == 0,
+                       "a removal at 0 should stay at 0, got %d",
+                       player->stat_xp_tenths[MOCK230_STAT_ATTACK]);
+
+        /* Put attack back where the checks above left it — 83 xp, level 2 — so
+         * this stanza costs the ones after it nothing. */
+        player->stat_xp_tenths[MOCK230_STAT_ATTACK] = 830;
+        player->stat_level[MOCK230_STAT_ATTACK] = 2;
+        player->stat_boosted[MOCK230_STAT_ATTACK] = 2;
     }
 
     fprintf(stderr, "mock230 selftest: collision and routing\n");
