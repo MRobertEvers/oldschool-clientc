@@ -1720,7 +1720,7 @@ scanline-compare: $(OBJ_DIR) $(OBJS)
 # Angle-unit guard for the compass/minimap rotated blit (camera yaw, 2048/turn).
 test-rotate-blit: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rotate_blit_test \
-		render/test/rotate_blit_test.c $(OBJ_DIR)/toridraw_unity.o
+		render/test/rotate_blit_test.c render/trspk_sprite.c $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/rotate_blit_test
 
 # Packet exec seam against bare managers (no cache/disk). Links the app

@@ -715,6 +715,10 @@ struct App
     uint64_t last_frame_ms;
     /** Wall clock when a server packet last arrived. */
     uint64_t net_last_recv_ms;
+    /** Wall clock when we last put bytes on the wire. Drives the NO_TIMEOUT
+     * keepalive, which the reference sends only after a full second of
+     * outbound silence -- any real packet resets the wait. */
+    uint64_t net_last_send_ms;
     /** Wall clock when the first packet of the current session arrived; the
      * origin the TORIRS_NET_DROP_MS test hook measures from. */
     uint64_t net_first_recv_ms;

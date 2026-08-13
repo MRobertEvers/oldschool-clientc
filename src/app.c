@@ -123,6 +123,10 @@ enum
      */
     APP_NET_TIMEOUT_MS = 15000,
     APP_NET_STALL_MS = 4000,
+    /* Outbound silence that has to pass before the NO_TIMEOUT keepalive goes
+     * out. The reference's own figure (Client.ts:2181), and far below the
+     * server's idle cutoff, so one late tick cannot cost the session. */
+    APP_NET_KEEPALIVE_MS = 1000,
     /* Wait between re-establish attempts, and how many to make before giving
      * up and saying so. The reference retries once and falls back to the login
      * screen; a browser client that a phone backgrounded deserves more than
@@ -561,7 +565,10 @@ app_entity_spotanim_drop(struct App* app, int body_element_id);
             uint8_t _nsbuf[512];                                                                 \
             int _nslen = builder_call;                                                           \
             if( _nslen > 0 )                                                                     \
+            {                                                                                    \
                 ToriRS_Network_SendRaw((app)->net, _nsbuf, _nslen);                              \
+                (app)->net_last_send_ms = (app)->last_frame_ms;                                  \
+            }                                                                                    \
         }                                                                                        \
     } while( 0 )
 
@@ -6369,9 +6376,15 @@ app_logic_tick(struct App* app)
 
     if( app->net )
     {
-        /* Keepalive once per tick while in the game world (reference sends
-         * NO_TIMEOUT to keep the connection from idling out). */
-        if( app->net->state == TORIRS_NET_GAME )
+        /* Keepalive while in the game world, to stop the connection idling
+         * out. This is an idle timer, not a heartbeat: the reference only
+         * sends NO_TIMEOUT when nothing has gone out for a full second, and
+         * any real packet resets the wait, so during normal play it never
+         * fires at all. Sending it every logic tick instead put a 1-byte
+         * WebSocket frame on the wire 50 times a second -- 487 of the 502
+         * sends in a 10s trace of the web client, for 586 bytes total. */
+        if( app->net->state == TORIRS_NET_GAME &&
+            app->last_frame_ms - app->net_last_send_ms >= APP_NET_KEEPALIVE_MS )
             APP_NET_SEND(app, net_out_no_timeout(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
 
         /* TORIRS_NET_CHEAT="tele 0,50,50,21,21;give bronze_sword": send ::

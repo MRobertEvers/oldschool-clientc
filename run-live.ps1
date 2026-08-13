@@ -15,7 +15,9 @@
         the manifest so the embedded world writes the wire the client speaks.
       * a manifest naming a composed cache (cache.osrs239.rs2012,
         cache.osrs239.summoning) is a manifest asking for that bake, so the
-        overlay is built before the client runs.
+        overlay is built before the client runs -- but only when it is stale.
+        tools\cache_overlay_stale.py owns that decision and is shared with
+        run-live.sh, so the two launchers cannot drift.
       * scripts=...build_summoning selects the Summoning script pack.
       * the OSRS-Content tree is discovered, not demanded: the first checkout
         carrying both ported\ lanes wins, build\ checkouts before the submodule
@@ -30,6 +32,7 @@
     Knobs (all also honoured by run-live.sh):
       TORIRS_NO_BUILD=1        run the existing exe, skip every build
       TORIRS_NO_CACHE_BAKE=1   keep the composed cache as it stands
+      TORIRS_FORCE_CACHE_BAKE=1  rebake the composed cache without asking
       TORIRS_PRINT_ONLY=1      print what would run and exit
       TORIRS_TOOLCHAIN         MinGW bin directory
       plus every TORIRS_* the client itself reads (TORIRS_NET_DEBUG=1,
@@ -272,28 +275,126 @@ function Invoke-Make {
     }
 }
 
+# Build-CacheOverlay runs before the Push-Location further down, so the cwd is
+# still the caller's. Every path handed to the predicate is absolutised here
+# rather than relying on one.
+function Resolve-RepoPath([string]$Path) {
+    if ([IO.Path]::IsPathRooted($Path)) { return $Path }
+    return (Join-Path $repo $Path)
+}
+
+# BootManifest_LoadFile resolves a manifest's cache path against the MANIFEST's
+# directory, not the repo root -- the same rule run-live.sh's manifest_path()
+# applies. The predicate has to stat the cache the client will actually boot.
+function Resolve-CachePath([string]$Path) {
+    if ([IO.Path]::IsPathRooted($Path)) { return $Path }
+    return (Join-Path (Split-Path -Parent $manifestPath) $Path)
+}
+
+# tools\cache_overlay_stale.py is the only implementation of this predicate and
+# is shared with run-live.sh, so the two launchers cannot drift.
+#
+# Anything other than exit 1 bakes. A predicate that could not answer -- no
+# interpreter on PATH, an exception inside it -- must never be read as "up to
+# date": the failure mode of a needless bake is two minutes, and the failure
+# mode of a skipped one is a session spent debugging content that was never in
+# the cache. TORIRS_FORCE_CACHE_BAKE=1 is read by the script itself, so there is
+# no branch for it here.
+function Test-CacheOverlayFresh {
+    param([string]$Lane, [string]$Base, [string]$Stager)
+
+    # Function-scoped, and deliberate: a non-zero exit is this predicate's
+    # ANSWER, not a failure, and PowerShell 7.4+ raises native non-zero exits as
+    # terminating errors under $ErrorActionPreference = 'Stop'.
+    $ErrorActionPreference = 'Continue'
+
+    $py = Get-Command python3 -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if (-not $py) {
+        $py = Get-Command python -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    }
+    if (-not $py) {
+        Write-Host 'run-live.ps1: no python3 on PATH -- baking rather than assuming the cache is fresh' -ForegroundColor Yellow
+        return $false
+    }
+
+    # --tree, which run-live.sh also passes: the script's own default is the
+    # OSRS-Content submodule, and the whole point of the discovery above is that
+    # the tree in use is often a build\ checkout instead. Left to the default the
+    # predicate watches a tree nobody is building from and answers "fresh" for a
+    # lane that moved.
+    $treeArgs = @()
+    if ($env:MOCK230_CONTENT_DIR) { $treeArgs = @('--tree', $env:MOCK230_CONTENT_DIR) }
+
+    $global:LASTEXITCODE = 0
+    & $py.Source (Join-Path $repo 'tools\cache_overlay_stale.py') `
+        --cache (Resolve-CachePath $cacheDir) --lane $Lane `
+        --base (Resolve-RepoPath $Base) @treeArgs `
+        --input (Resolve-RepoPath $Stager) `
+        --input (Resolve-RepoPath 'src\makefile') `
+        --input (Resolve-RepoPath '3rd\rscache\tools\cachepack')
+    return ($LASTEXITCODE -eq 1)
+}
+
 # A composed cache is deleted and repacked from scratch, which takes minutes and
 # tears the cache out from under anything else reading it (a second client, an
 # osrsify search wave). TORIRS_NO_CACHE_BAKE=1 runs against the cache as it
 # already stands -- the right choice while iterating on C or on scripts, and the
 # wrong one the moment the content tree changed.
+#
+# Those targets are .PHONY, though, so asking unconditionally spends the full
+# copy-repack-verify on every single launch. Ask the predicate `make` would
+# apply if the target were a real file instead.
+#
+# The bases match the makefile's `?=` defaults and honour the same overrides: a
+# caller that moves SUMMONING_CACHE_BASE must not leave the freshness check
+# watching a cache the bake no longer reads.
 function Build-CacheOverlay {
-    $targets = switch -Wildcard ($cacheDir) {
-        '*cache.osrs239.summoning' { @('mock230-cache-summoning'); break }
+    $summoningBase = if ($env:SUMMONING_CACHE_BASE) { $env:SUMMONING_CACHE_BASE } else { 'cache.osrs239.baked' }
+    $rs2012Base = if ($env:RS2012_CACHE_BASE) { $env:RS2012_CACHE_BASE } else { 'cache.osrs239' }
+
+    $lane = switch -Wildcard ($cacheDir) {
+        '*cache.osrs239.summoning' {
+            @{
+                Label   = 'Summoning'
+                Lane    = 'scape2009_summoning'
+                Base    = $summoningBase
+                Stager  = 'tools\stage_summoning_overlay.py'
+                Targets = @('mock230-cache-summoning')
+            }
+            break
+        }
         # The QBD/TD lane. mock230-servpack is the server half of the same tree
         # (the npc/loc server fields the boot reads out of <content>/server/pack);
         # without it the world falls back to a text parse of content the bake has
         # already moved.
-        '*cache.osrs239.rs2012' { @('mock230-cache-rs2012', 'mock230-servpack'); break }
-        default { @() }
+        '*cache.osrs239.rs2012' {
+            @{
+                Label   = 'RS2012 QBD/TD'
+                Lane    = 'rs2012_qbd_td'
+                Base    = $rs2012Base
+                Stager  = 'tools\stage_rs2012_overlay.py'
+                Targets = @('mock230-cache-rs2012', 'mock230-servpack')
+            }
+            break
+        }
+        default { $null }
     }
-    if (-not $targets) { return }
+    if (-not $lane) { return }
+
     if ($env:TORIRS_NO_CACHE_BAKE -eq '1') {
         Write-Host "run-live.ps1: TORIRS_NO_CACHE_BAKE=1 -- using $cacheDir as it stands" -ForegroundColor Yellow
         return
     }
-    Write-Host "run-live.ps1: baking $cacheDir ($($targets -join ' '))..." -ForegroundColor Cyan
-    Invoke-Make -Targets $targets
+
+    if (Test-CacheOverlayFresh -Lane $lane.Lane -Base $lane.Base -Stager $lane.Stager) {
+        Write-Host "run-live.ps1: $($lane.Label) cache overlay is up to date (TORIRS_FORCE_CACHE_BAKE=1 to rebake)" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "run-live.ps1: baking $cacheDir ($($lane.Targets -join ' '))..." -ForegroundColor Cyan
+    Invoke-Make -Targets $lane.Targets
 }
 
 function Build-Scripts {

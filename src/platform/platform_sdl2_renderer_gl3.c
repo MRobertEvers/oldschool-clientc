@@ -247,6 +247,7 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
             glDeleteTextures(1, &renderer->rotmask_slots[i].texture);
         memset(&renderer->rotmask_slots[i], 0, sizeof(renderer->rotmask_slots[i]));
     }
+    trspk_sprite_rotmask_bake_release(&renderer->rotmask_bake);
     renderer->rotmask_last_texture = 0u;
     if( renderer->white_texture )
         glDeleteTextures(1, &renderer->white_texture);
@@ -1047,23 +1048,6 @@ gl3_scale_pixel_alpha(
  *
  * Safe in place (src == dst).
  */
-static void
-gl3_argb_to_rgba(
-    uint32_t const* src,
-    uint32_t* dst,
-    size_t count)
-{
-    for( size_t i = 0; i < count; i++ )
-    {
-        uint32_t const pix = src[i];
-        uint8_t const a_hi = (uint8_t)((pix >> 24) & 0xFFu);
-        uint32_t const rgb = pix & 0x00FFFFFFu;
-        uint8_t const a = (a_hi != 0u) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
-        dst[i] = (uint32_t)((pix >> 16) & 0xFFu) | ((uint32_t)((pix >> 8) & 0xFFu) << 8) |
-                 ((uint32_t)(pix & 0xFFu) << 16) | ((uint32_t)a << 24);
-    }
-}
-
 static uint32_t*
 gl3_clamp_to_nominal(
     uint32_t const* src,
@@ -1254,7 +1238,7 @@ gl3_sprite_ensure_base(
         float uv[4];
         if( !rgba )
             return false;
-        gl3_argb_to_rgba(
+        trspk_sprite_argb_to_rgba(
             (uint32_t const*)sp->pixels_argb, rgba, (size_t)sp->width * (size_t)sp->height);
         if( sp->crop_width > 0 &&
             (sp->crop_width < sp->width || sp->crop_height < sp->height) )
@@ -1414,7 +1398,7 @@ gl3_sprite_ensure_variant(
     {
         float uv[4];
         /* Transforms leave ToriDraw ARGB in spr_px; GL_RGBA wants R,G,B,A. */
-        gl3_argb_to_rgba(spr_px, spr_px, (size_t)sw * (size_t)sh);
+        trspk_sprite_argb_to_rgba(spr_px, spr_px, (size_t)sw * (size_t)sh);
         if( !gl3_sprite_upload_rgba(
                 renderer, (uint8_t const*)spr_px, (uint32_t)sw * 4u, sw, sh, uv) )
         {
@@ -1529,8 +1513,7 @@ gl3_sprite_ensure_rotated_masked(
     struct GL3RotmaskDedicated* slot;
     int dst_w;
     int dst_h;
-    uint32_t* scratch = NULL;
-    struct ToriDraw_ViewPort vp = { 0 };
+    uint32_t const* baked;
     if( !out_texture || cmd->scene_id <= 0 || cmd->mask_scene_id <= 0 || !renderer->scene || !sp )
         return false;
     dst_w = cmd->w > 0 ? cmd->w : sp->width;
@@ -1551,41 +1534,11 @@ gl3_sprite_ensure_rotated_masked(
         renderer, cmd->scene_id, cmd->mask_scene_id, dst_w, dst_h);
     if( !slot )
         return false;
-    scratch = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
-    if( !scratch )
+    baked = trspk_sprite_rotmask_bake(&renderer->rotmask_bake, cmd, sp, mask_sp, dst_w, dst_h);
+    if( !baked )
         return false;
-    vp.width = dst_w;
-    vp.height = dst_h;
-    vp.clip_left = 0;
-    vp.clip_top = 0;
-    vp.clip_right = dst_w;
-    vp.clip_bottom = dst_h;
-    vp.stride = dst_w;
-    ToriDraw2D_BlitSpriteRotatedMaskedEx(
-        sp,
-        mask_sp,
-        cmd->mask_keep_opaque,
-        &vp,
-        0,
-        0,
-        dst_w,
-        dst_h,
-        cmd->dst_anchor_x,
-        cmd->dst_anchor_y,
-        cmd->src_anchor_x,
-        cmd->src_anchor_y,
-        cmd->rotation_r2pi2048,
-        (int*)scratch);
-    /* The blit leaves ToriDraw ARGB in the scratch, so it needs the same
-     * conversion every other upload gets. Without it the minimap's ground is
-     * transparent and its colours are channel-swapped. */
-    gl3_argb_to_rgba(scratch, scratch, (size_t)dst_w * (size_t)dst_h);
-    if( !gl3_rotmask_upload_to_slot(slot, (uint8_t const*)scratch, dst_w, dst_h) )
-    {
-        free(scratch);
+    if( !gl3_rotmask_upload_to_slot(slot, (uint8_t const*)baked, dst_w, dst_h) )
         return false;
-    }
-    free(scratch);
     out_uv[0] = 0.0f;
     out_uv[1] = 0.0f;
     out_uv[2] = 1.0f;

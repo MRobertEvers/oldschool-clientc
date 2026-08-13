@@ -189,6 +189,25 @@ struct ToriRS_RenderCommand_Sprite
     int mask_atlas_index;
     /** 1 = the mask's opaque pixels are the window, 0 = its transparent ones. */
     int mask_keep_opaque;
+    /**
+     * 1 = the staging buffer must be wiped before this rotated blit.
+     *
+     * Only backends that bake the rotated mask into a CPU rectangle first read
+     * this -- GL3 and WebGL1, which have to hand GL a finished texture. Soft3D
+     * rotates into the live framebuffer and D3D9 rotates on the GPU, so neither
+     * stages anything to wipe.
+     *
+     * The blit writes only the destination pixels the mask admits and the
+     * rotated source reaches; everything else keeps whatever was in the buffer.
+     * A round window in a square box therefore leaves its corners untouched, and
+     * a staging buffer reused across frames would show the previous bake there.
+     * Say so here rather than making the backend wipe unconditionally: the wipe
+     * is a memset of the whole pixmap, and a caller whose mask admits the entire
+     * box does not need to pay it.
+     *
+     * Only read when `rotated` and `mask_scene_id` are both set.
+     */
+    uint8_t mask_needs_clear;
     /** IF3 component spriteAngle (65536 = full turn); ignored when `rotated`. */
     int sprite_angle_r2pi65536;
     int outline;
