@@ -608,11 +608,16 @@ FAMILY_DATA = {
         storage="item_var", depletion="none", max_charges=60000,
         charge_source="Guardian boots + echo crystal (Fortis Colosseum drop); each extra crystal adds 6,000 charges",
         drain_event="1 charge per recoil proc (1 damage back to any attacker in a 3x3), toggleable",
-        status="charges_only",
-        note="No implementation found. Real 'player takes damage' hook exists to plug into: "
-             "combat_stats.rs2:814 already calls ~ring_of_recoil_check($damage) for the same class of effect "
-             "-- the boots need the same shape minus the single-target/AoE difference. Stays equipped with "
-             "no effect at 0 charges (a genuine 'none' depletion case, not revert).",
+        status="implemented",
+        note="Wired into combat_stats.rs2 right after ~ring_of_recoil_check ($damage), the real 'player "
+             "takes damage' funnel. NOT implemented: the AoE part of the effect (recoiling every target in "
+             "a 3x3, not just the one attacker) -- ring_of_recoil_check's own %aggressive_npc single-target "
+             "model is the only precedent for a reactive-damage effect in this tree; there is no "
+             "multi-target 'who else is near and hostile' query to extend. Wires the single-target case "
+             "(recoil the one attacker for 1 damage) so the charge count is not permanently unusable, the "
+             "same tradeoff Venator bow's note makes for its own missing bounce passive. Stays equipped "
+             "with no effect at 0 charges (a genuine 'none' depletion, confirmed by a later changelog note); "
+             "only the manual Revert (to guardian boots, losing the crystal) converts it.",
     ),
     "Infernal axe": dict(
         storage="item_var", depletion="revert", max_charges=5000,
