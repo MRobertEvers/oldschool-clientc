@@ -31827,6 +31827,69 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::chargesrun\n");
+    {
+        /*
+         * The item-charges slice, asserted through its own content
+         * (general/scripts/charges/charges_selftest.rs2), the same shape
+         * `::gearrun` uses just above — asserting on the OK line rather than
+         * counting FAILs, because `::chargesrun` stops at the first broken
+         * assertion, so "no FAIL was printed" is also what a script that
+         * aborted on line one produces.
+         *
+         * Run unconditionally, unlike `::gearrun` (opt-in behind
+         * MOCK230_GEARRUN because it mutates skills and worn gear broadly):
+         * `::chargesrun` only ever touches `inv`/`worn` slot 0 and one
+         * player_varp, and its own first and last lines
+         * (`~chargesrun_clear`) leave both containers empty and the varp at
+         * 0 — the same "empty" state every section after `~gear_selftest_
+         * clear_worn` already assumes, not a special restore this stanza
+         * has to do for itself.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture chargesrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &chargesrun_capture);
+            mock230_scripts_run_debugproc(srv, "chargesrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&chargesrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&chargesrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &chargesrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "chargesrun OK", 13) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "chargesrun FAIL", 15) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::chargesrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::chargesrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
     /*
      * The Queen, her tortured souls, and the intermission worms all store
      * revision-727 life points, but only the Queen owns a phase cap and a
