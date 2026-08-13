@@ -453,17 +453,17 @@ FAMILY_DATA = {
              "need touching ~15 separate files to wire.",
     ),
     "Iban's staff": dict(
-        storage="item_var", depletion="revert", max_charges=120,
-        charge_source="Underground Pass quest reward; free recharge at the Underground Pass blood well; paid recharge from the Dark Mage (not implemented)",
-        drain_event="1 charge per Iban Blast cast on a monster, 2 on a player",
-        status="charges_only",
-        note="HIGH VALUE FINDING, same shape as pre-migration Scythe of vitur: a REAL, working drain already "
-             "exists at skill_combat/scripts/player/spells/god_iban.rs2 [proc,pvm_iban_blast] -- gates the "
-             "cast on %iban_staff_charges<1 and decrements it after every cast. But it is a single "
-             "account-wide varp (quest_upass.varp, wrong storage layer per the wiki), and BOTH places that "
-             "should grant charges are stubbed: upass_tomb.rs2:201 and upass_bloodwell.rs2:60 each carry a "
-             "\"%iban_staff_charges unresolved -- charge deferred\" comment with the flavour text still "
-             "printing as if it worked. Net effect today: the var is only ever decremented, never granted.",
+        storage="item_var", depletion="none", max_charges=120,
+        charge_source="Underground Pass quest reward (starts full); free full recharge at the Underground Pass blood well; paid recharge from the Dark Mage (not implemented)",
+        drain_event="1 charge per Iban Blast cast on a monster (2 on a player -- not modelled, always drains 1; this codebase's combat magic has no npc/player branch to hang that on)",
+        status="implemented",
+        note="Fixed 2026-08-13: migrated off the single account-wide %iban_staff_charges varp onto item_var "
+             "(same real drain already wired at skill_combat/scripts/player/spells/god_iban.rs2's "
+             "~pvm_iban_blast -- it gates the cast and decrements per swing, just needed the right storage). "
+             "Fixed both stubbed grant sites too: quests/quest_upass/scripts/upass_tomb.rs2 (quest reward, "
+             "was 0 charges despite the flavour text) and upass_bloodwell.rs2 (free recharge, same). Added "
+             "[opheld4,ibanstaff] Check (the record's own ifop4=Check was unbound). depletion=none, not "
+             "revert -- the wiki names no uncharged/broken obj form, the spell just refuses to fire at 0.",
     ),
     "Iban's upgraded staff": dict(
         storage="item_var", depletion="revert", max_charges=2500,
