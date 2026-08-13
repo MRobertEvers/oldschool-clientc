@@ -1207,7 +1207,8 @@ apply_param(
      * not engine fields: ranged and magic swing code reads them through
      * npc_param, and keeping them here preserves the normal overlay precedence
      * over cache defaults. */
-    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "magicdamage") == 0 )
+    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "magicdamage") == 0 ||
+             strcmp(text, "magic_maxhit") == 0 )
         resolved = atoi(value);
     else if( strcmp(text, "damagetype") == 0 )
         resolved = def->damagetype = atoi(value);
@@ -3115,31 +3116,50 @@ has_suffix(
            strcmp(name + name_length - suffix_length, suffix) == 0;
 }
 
-/** Recursively load every `.npc` then every `.loc`; the two passes keep a door
- *  config free to name a loc declared in another file. */
+/**
+ * Recursively load every `.npc` then every `.loc`; the two passes keep a door
+ * config free to name a loc declared in another file.
+ *
+ * `scandir` + `alphasort`, not `readdir` walked as it comes: `readdir` makes no
+ * ordering promise at all, it hands back entries in whatever order the
+ * filesystem's directory storage happens to hold them, and two files that
+ * declare a block for the same npc are not merged (`mock230_content_npc`
+ * returns the *first* match in load order — see the comment above
+ * `g_npc_defs`). "areas/ sorts before general/, which is precisely the order
+ * that happens" a few hundred lines up is an assumption this function was not
+ * actually keeping: it read correctly on whatever filesystem order that
+ * comment was measured against, and broke the moment a second generated
+ * `.npc` file landed beside an existing one in the same directory and readdir
+ * happened to hand it back first — the npcs both blocks name then silently
+ * lost every field only the *other* block set. Sorting makes the order the
+ * comment already promises actually true, rather than true by filesystem
+ * coincidence.
+ */
 static void
 walk_configs(
     const char* dir,
     const char* suffix,
     void (*load)(const char*))
 {
-    DIR* handle = opendir(dir);
-    struct dirent* entry;
+    struct dirent** entries;
     char path[1024];
+    int count = scandir(dir, &entries, NULL, alphasort);
 
-    if( !handle )
+    if( count < 0 )
         return;
-    while( (entry = readdir(handle)) != NULL )
+    for( int i = 0; i < count; i++ )
     {
-        if( entry->d_name[0] == '.' )
-            continue;
-        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( mock230_path_is_dir(path) )
-            walk_configs(path, suffix, load);
-        else if( has_suffix(entry->d_name, suffix) )
-            load(path);
+        if( entries[i]->d_name[0] != '.' )
+        {
+            snprintf(path, sizeof(path), "%s/%s", dir, entries[i]->d_name);
+            if( mock230_path_is_dir(path) )
+                walk_configs(path, suffix, load);
+            else if( has_suffix(entries[i]->d_name, suffix) )
+                load(path);
+        }
+        free(entries[i]);
     }
-    closedir(handle);
+    free(entries);
 }
 
 /*

@@ -2441,7 +2441,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
-	net/mock/mock230_zone_index.c \
+	net/mock/mock230_zone_index.c net/mock/mock230_varbit.c \
 	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
