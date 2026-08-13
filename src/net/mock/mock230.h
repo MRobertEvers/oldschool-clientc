@@ -3927,6 +3927,19 @@ mock230_seq_by_name(const char* name);
 int
 mock230_seq_priority(int seq_id);
 
+/**
+ * Whether the LOADED cache's sequence archive actually carries this id.
+ *
+ * `mock230_seq_priority` cannot say: an id past the end of the table answers
+ * with the default, which is indistinguishable from a record that really states
+ * 5. That matters for content living in a lane cache — a check about a lane
+ * animation run against the pristine cache would compare two defaults and read
+ * as a genuine result. Callers that mean "skip unless this lane is loaded" ask
+ * here first.
+ */
+int
+mock230_seq_priority_known(int seq_id);
+
 /* ------------------------------------------------------------------ */
 /* Animation (mock230_combat.c)                                        */
 /* ------------------------------------------------------------------ */

@@ -11701,7 +11701,22 @@ mock230_world_selftest(void)
      * payload and still reaches the capture hook, then writes nothing — which
      * is what makes every encoder assertable without a socket. */
     player = mock230_world_add_player(srv, NULL);
-    mock230_seqinfo_load(MOCK230_CACHE_DIR_DEFAULT);
+    /*
+     * The cache the run was pointed at, not the default one.
+     *
+     * Boot loads this table from `config->cache_dir`, which honours
+     * `MOCK230_CACHE`; hardcoding the default here meant a selftest run against
+     * a lane cache reloaded the table from the pristine one and threw the lane's
+     * sequence records away. Nothing said so — ids outside the pristine
+     * archive's range simply answer with the default priority — so every lane
+     * animation silently flattened to 5 and no assertion about one could fail
+     * for the right reason.
+     */
+    {
+        const char* cache_env = getenv("MOCK230_CACHE");
+        mock230_seqinfo_load(cache_env && cache_env[0] ? cache_env
+                                                       : MOCK230_CACHE_DIR_DEFAULT);
+    }
     mock230_world_init(srv, 426, 408);
     mock230_world_player_init(player);
 
@@ -17425,7 +17440,6 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: combat\n");
-    fprintf(stderr, "DIAG before-combat: dying=%d hp=%d/%d lvl=%d xp=%d target=%d\n", player->dying, player->hitpoints, player->max_hitpoints, player->stat_level[MOCK230_STAT_HITPOINTS], player->stat_xp_tenths[MOCK230_STAT_HITPOINTS], player->combat_target);
     {
         static struct Mock230Capture capture;
         int goblin = -1;
@@ -17629,6 +17643,100 @@ mock230_world_selftest(void)
                 player->varps[action_delay], srv->tick);
             mock230_combat_stop_player(srv);
             mock230_world_steps_clear(player); /* and the route it walked */
+
+            /*
+             * And the other half of the switch: retaliation must not take a
+             * player who is already committed. `busy2` in the queue's guard is
+             * `hasInteraction() || hasWaypoints()` (auto_retaliate.rs2:7), and
+             * both terms are checked here because they fail apart:
+             *
+             *   - fighting something else. Two monsters on one player made the
+             *     player's target whichever of them swung last: `p_opnpc(2)`
+             *     opens with a stopAction, so every incoming hit tore down the
+             *     interaction and the route and rebuilt them onto the attacker.
+             *   - walking. A route to anywhere — the npc that was clicked, a
+             *     bank door — is a commitment too, and the same stopAction
+             *     threw it away, so a player crossing open ground stopped dead
+             *     at the first hit.
+             *
+             * `action_delay` is the second reading in each leg, and it is the
+             * one that fails if the guard is written around `p_opnpc` alone:
+             * the flinch is inside the guard because `[label,player_melee_attack]`
+             * has just written a full attackrate into that varp, and halving it
+             * on every incoming hit is a damage bug, not a flinch.
+             */
+            {
+                int other = -1;
+                int32_t parked = srv->tick + 50;
+
+                for( int i = 0; i < MOCK230_NPC_MAX && other < 0; i++ )
+                {
+                    if( i != goblin && srv->npcs[i].active &&
+                        srv->npcs[i].death_tick < 0 &&
+                        mock230_combat_attackable(srv->npcs[i].type) )
+                        other = i;
+                }
+                SELFTEST_CHECK(other >= 0,
+                               "the fixture needs a second attackable npc to be "
+                               "busy with");
+                if( other >= 0 )
+                {
+                    const struct Mock230NpcInfo* info =
+                        mock230_npcinfo(srv->npcs[other].type);
+
+                    /* Committed to `other` — latched and walking, which is what
+                     * `p_opnpc(2)` leaves behind. */
+                    mock230_world_interaction_set(
+                        srv, MOCK230_INTERACT_NPC, 2, other, srv->npcs[other].type,
+                        srv->npcs[other].x, srv->npcs[other].z,
+                        srv->npcs[other].level, info->size, info->size);
+                    player->combat_target = other;
+                    player->varps[action_delay] = parked;
+                    SELFTEST_CHECK(
+                        mock230_scripts_queue_named(
+                            srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                        "the busy fixture should queue");
+                    mock230_scripts_process_queues(srv);
+                    SELFTEST_CHECK(player->combat_target == other,
+                                   "a player already fighting npc %d must not be "
+                                   "handed to the one that hit them, got %d",
+                                   other, player->combat_target);
+                    SELFTEST_CHECK(player->interaction.npc_slot == other,
+                                   "and keeps the interaction it had, got slot %d",
+                                   player->interaction.npc_slot);
+                    SELFTEST_CHECK(player->varps[action_delay] == parked,
+                                   "and keeps the swing clock its own attack set "
+                                   "(wanted %d, got %d)",
+                                   parked, player->varps[action_delay]);
+
+                    /* Walking, with nothing latched: the route alone is the
+                     * commitment. */
+                    mock230_combat_stop_player(srv);
+                    mock230_world_steps_clear(player);
+                    mock230_world_walk_to(srv, player->x + 5, player->z);
+                    SELFTEST_CHECK(player->waypoint_index >= 0,
+                                   "the walking fixture needs a route to defend");
+                    player->varps[action_delay] = parked;
+                    SELFTEST_CHECK(
+                        mock230_scripts_queue_named(
+                            srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                        "the walking fixture should queue");
+                    mock230_scripts_process_queues(srv);
+                    SELFTEST_CHECK(player->combat_target == -1,
+                                   "a player mid-route must not be pulled into a "
+                                   "fight, target %d",
+                                   player->combat_target);
+                    SELFTEST_CHECK(player->waypoint_index >= 0,
+                                   "and must keep walking where they were going");
+                    SELFTEST_CHECK(player->varps[action_delay] == parked,
+                                   "and no flinch lands on a player who is not "
+                                   "fighting (wanted %d, got %d)",
+                                   parked, player->varps[action_delay]);
+                }
+                mock230_combat_stop_player(srv);
+                mock230_world_steps_clear(player);
+                player->varps[action_delay] = 0;
+            }
 
             /*
              * The flinch, against the wiki rather than against the reference
@@ -18629,7 +18737,6 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: several hits in one tick are several hitsplats\n");
-    fprintf(stderr, "DIAG before-hitsplats: dying=%d hp=%d/%d lvl=%d xp=%d target=%d\n", player->dying, player->hitpoints, player->max_hitpoints, player->stat_level[MOCK230_STAT_HITPOINTS], player->stat_xp_tenths[MOCK230_STAT_HITPOINTS], player->combat_target);
     {
         /*
          * Two attackers landing on the same entity on the same tick are two
@@ -18707,7 +18814,6 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: the player dies and the script revives them\n");
-    fprintf(stderr, "DIAG before-death-revive: dying=%d hp=%d/%d lvl=%d xp=%d target=%d\n", player->dying, player->hitpoints, player->max_hitpoints, player->stat_level[MOCK230_STAT_HITPOINTS], player->stat_xp_tenths[MOCK230_STAT_HITPOINTS], player->combat_target);
     {
         /*
          * The whole of a death, and the last check is the one that matters.
@@ -18885,18 +18991,6 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: facing clears\n");
     {
-        fprintf(stderr, "DIAG entering facing-clears: dying=%d hp=%d/%d target=%d\n",
-                player->dying, player->hitpoints, player->max_hitpoints,
-                player->combat_target);
-        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-        {
-            if( srv->npcs[i].active && srv->npcs[i].combat_target == player->pid )
-                fprintf(stderr, "DIAG   npc slot %d type %d (%s) still fighting us\n",
-                        i, srv->npcs[i].type,
-                        mock230_npcinfo(srv->npcs[i].type)->name);
-        }
-    }
-    {
         /*
          * FACE_ENTITY is a latch. LostCity PathingEntity.setFaceEntity drives it
          * every turn from the interaction / combat target — including during
@@ -18913,6 +19007,28 @@ mock230_world_selftest(void)
             struct Mock230Npc* npc = &srv->npcs[goblin];
             const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
             uint8_t move[7];
+            int saved_god = player->godmode;
+
+            /*
+             * This stanza is about the latch, not about surviving.
+             *
+             * The fixture player is a bare pool entry — every stat 1, so one
+             * hitpoint — and the checks below deliberately stand it next to a
+             * goblin and tick. Whether that goblin's first swing rolls a 1 or a
+             * 0 decides whether the player is *dead* by the second check, and
+             * `combat_stop_player` clears both face latches on the way out. It
+             * survived on the roll rather than by construction: any change
+             * upstream that consumes a different number of RNG draws — a fight
+             * that now ends in twenty ticks where it used to run out the
+             * two-hundred-tick cap — flips it, and the failure reads as "facing
+             * never sets" three stanzas from anything to do with facing.
+             *
+             * `godmode` is the same flag `::god` sets: damage is zeroed in
+             * `mock230_combat_hit_player` and everything else about the hit —
+             * the splat, the retaliation queue, the animations — still runs. So
+             * the fight this measures is the real one, minus the death.
+             */
+            player->godmode = 1;
 
             /* Approach-before-engage: face from the pending interaction alone. */
             selftest_park_player(srv, npc->x + 8, npc->z);
@@ -18975,6 +19091,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
                            "and says so on the wire — a clear nobody sends is a "
                            "clear that never happens");
+            player->godmode = saved_god;
         }
     }
 
@@ -22127,6 +22244,67 @@ mock230_world_selftest(void)
                                "OP fires once adjacent after chasing a mover");
                 player->run_toggle = 0;
                 steps_clear(player);
+
+                /*
+                 * Approaching a BIG npc — the Queen Black Dragon case.
+                 *
+                 * She is 5x5 and `nomove`, and attacking her was sending the
+                 * player to a tile that has nothing to do with her: the symptom
+                 * is a long pause and then a run to somewhere off to one side,
+                 * never a swing.
+                 *
+                 * The geometry is the whole question, so it is asserted
+                 * directly rather than through a live fight: the destination a
+                 * size-5 approach produces must sit ON the ring of her
+                 * footprint, one tile out. `distance_to_rect` measures from the
+                 * rect, so orthogonal adjacency is exactly 1 — a destination
+                 * inside the rect reads 0 and one that ignored her size reads
+                 * larger, which is the "random spot" being pinned here.
+                 *
+                 * The npc's own tile is the SW ANCHOR, so the rect spans
+                 * (nx..nx+4, nz..nz+4). Passing her anchor while describing a
+                 * 1x1 shape is the specific mistake this guards: it aims the
+                 * route at a tile four squares inside her.
+                 */
+                {
+                    int const big = 5;
+                    int bx = 3232;
+                    int bz = 3222;
+                    int dist;
+                    /* Everything below the enclosing stanza reads the player
+                     * where it left them, so this borrows the position and puts
+                     * it back — a park left standing here fails a kit check a
+                     * thousand lines away and reads as an unrelated regression. */
+                    int const save_x = player->x;
+                    int const save_z = player->z;
+
+                    /*
+                     * From the NORTH, and that is the whole point.
+                     *
+                     * Approaching a big npc from the south or west, the anchor
+                     * tile and the footprint give the same answer, so a test
+                     * that walks up from below passes whether the size is
+                     * honoured or not — it cannot go red and so proves nothing.
+                     * The two disagree only on the north and east faces, where
+                     * the anchor is `size - 1` tiles further away: aiming at the
+                     * anchor from up here lands four squares INSIDE her.
+                     */
+                    selftest_park_player(srv, bx, bz + big + 5);
+                    steps_clear(player);
+                    mock230_scene_npc_approach(big, &approach);
+                    mock230_world_walk_to_approach(srv, bx, bz, &approach);
+                    SELFTEST_CHECK(player->waypoint_index >= 0,
+                                   "a size-%d npc approach queues a route", big);
+                    dist = distance_to_rect(player->dest_x, player->dest_z, bx, bz, big, big);
+                    SELFTEST_CHECK(dist == 1,
+                                   "size-%d approach from the north lands one tile off the "
+                                   "footprint, got dist=%d at %d,%d for rect %d,%d %dx%d",
+                                   big, dist, player->dest_x, player->dest_z, bx, bz, big,
+                                   big);
+                    steps_clear(player);
+                    selftest_park_player(srv, save_x, save_z);
+                    steps_clear(player);
+                }
             }
         }
 
@@ -22881,6 +23059,24 @@ mock230_world_selftest(void)
             player->stat_level[MOCK230_STAT_ATTACK] = 1;
             player->stat_boosted[MOCK230_STAT_ATTACK] = 99;
             rune_slot = inv_first_free(player);
+            if( rune_slot < 0 )
+            {
+                /*
+                 * One cell, taken rather than asked for.
+                 *
+                 * This stanza is about the wield refusal and its wording; a
+                 * full backpack is not a fact about either. It fills honestly —
+                 * the opening kit is dealt twice (once at `player_init`, once by
+                 * `[login,_]` after the login-burst stanza reloads a save that
+                 * predates the seed varp) and the fight stanzas leave bones and
+                 * coins in it — so the cell count here is a running total of
+                 * every earlier section rather than anything this one arranged.
+                 * Emptying the last cell is what "make room for the fixture"
+                 * means; it is restored with `rune_slot` below.
+                 */
+                rune_slot = MOCK230_INV_SLOTS - 1;
+                inv_set(player, rune_slot, -1, 0);
+            }
             SELFTEST_CHECK(rune_slot >= 0, "a free backpack cell to put the scimitar in");
             inv_set(player, rune_slot, rune, 1);
             mock230_capture_begin(srv, &capture);
@@ -32022,6 +32218,50 @@ mock230_world_selftest(void)
                     fprintf(stderr,
                             "  SKIP  runtime QBD coffer claim requires "
                             "cache.osrs239.rs2012\n");
+                }
+
+                /*
+                 * Her attacks must out-prioritise her flinch.
+                 *
+                 * `mock230_combat_hit_npc` plays `block_seq` on every hit that
+                 * lands, and the animation gate is `wanted >= incumbent` — so an
+                 * attack and a flinch on the SAME priority means the flinch wins
+                 * and a player attacking fast enough erases the attack animation
+                 * frame by frame. The reported symptom is the dragonfire breath
+                 * never being seen: she rears back, the next hit lands, and she
+                 * drops straight into the defend pose.
+                 *
+                 * The lane's records already say the right thing (the attacks
+                 * carry `forcedpriority=6`, the defend carries none and so takes
+                 * the reference default of 5). What this pins is that the
+                 * numbers actually REACH the server: the priority table is built
+                 * from the sequence archive of whichever cache is loaded, and a
+                 * lane seq missing from it reads as the default — which silently
+                 * flattens 6 and 5 to 5 and 5, restoring the tie.
+                 */
+                {
+                    int const breath = mock230_content_symbol(MOCK230_PACK_SEQ,
+                                                              "rs2012_seq_16721");
+                    int const defend = mock230_content_symbol(MOCK230_PACK_SEQ,
+                                                              "rs2012_seq_16715");
+
+                    if( breath >= 0 && defend >= 0 && mock230_seq_priority_known(breath) &&
+                        mock230_seq_priority_known(defend) )
+                    {
+                        int const pb = mock230_seq_priority(breath);
+                        int const pd = mock230_seq_priority(defend);
+
+                        SELFTEST_CHECK(pb > pd,
+                                       "QBD dragonfire (seq %d, priority %d) must outrank her "
+                                       "defend flinch (seq %d, priority %d) or every hit "
+                                       "cancels the breath animation",
+                                       breath, pb, defend, pd);
+                    }
+                    else
+                    {
+                        fprintf(stderr,
+                                "  SKIP  QBD animation priority requires the rs2012 lane\n");
+                    }
                 }
 
                 /* The ordinary production-shaped debug command remains gated.
