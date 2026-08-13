@@ -430,11 +430,16 @@ FAMILY_DATA = {
         storage="player_varp", depletion="destroy", max_charges=62,
         charge_source="2 dark kebbit fur + 600gp; repaired at 64 Crafting",
         drain_event="1 charge per FAILED pickpocket attempt while worn",
-        status="charges_only",
-        note="Wiki explicit: \"connected to the player and not the gloves themselves... similarly to ring of "
-             "recoil and ring of forging\" -- player_varp confirmed. Real drain hook exists: "
-             "skill_thieving/scripts/pickpocket.rs2's fail path (~fail_pick_pocket), the same hook dodgy "
-             "necklace's own real implementation already uses.",
+        status="implemented",
+        note="player_varp, same shape as ring of recoil/dodgy necklace. CORRECTED research note: the real "
+             "effect is a +5% success-chance boost on the pickpocket ROLL itself (widens the stat_random "
+             "low/high bounds by 13/256, the boost's percentage-point value on that scale), not a "
+             "dodgy-necklace-style fail-consequence override -- wired into "
+             "skill_thieving/scripts/thieving.rs2's check_if_success_pick_pocket (the roll) and pick_pocket's "
+             "fail branch (the drain, same site dodgy_necklace.rs2 hooks). NOT implemented: repairing via "
+             "dark kebbit fur + thread/knife/needle (a from-scratch use-item interaction, not a charges gap) "
+             "and the Ardougne diary interaction (medium/hard diary completion is tracked for real in "
+             "interface_diaries/scripts/diaries.rs2, but nothing resolves \"is the player in Ardougne\").",
     ),
     "Gnomish firelighter": dict(
         storage="item_var", depletion="none", max_charges=1000,
