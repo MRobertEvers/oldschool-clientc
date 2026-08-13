@@ -33,7 +33,25 @@ struct UIInteraction
     int sb_arrow_held;
     int hover_com_id;
     int prev_hover_com_id;
-    uint64_t last_repeat_ms;
+    /*
+     * onMouseRepeat is a CLIENT-CYCLE event, not a frame event: the reference
+     * dispatches it from the same 20ms cycle loop that runs processWidgetTimers.
+     * That pairing is load-bearing. The cache's mouseover container (script
+     * 4725's timer -> 4726) does `cc_deleteall` on interface_161:37 and rebuilds
+     * the hover line AND the tooltip from scratch every cycle; the tooltip is
+     * only put back by the hovered component's onmouserepeat. Gate the repeat on
+     * wall-clock milliseconds instead and it quantizes to the frame period —
+     * 3 frames at 120fps is 24.9ms, so it fires ~41 times a second against 50
+     * teardowns, and the tooltip is missing from ~1 frame in 5. Native never
+     * showed it because the loop is capped at exactly 20ms per frame; the
+     * browser (rAF / zero-delay timeout) is not.
+     *
+     * client_cycle is the app's logic-tick counter, written before each
+     * InteractFrame. last_repeat_cycle starts at UINT64_MAX so the first hover
+     * repeats immediately.
+     */
+    uint64_t client_cycle;
+    uint64_t last_repeat_cycle;
     /* Right-click popup: while visible it owns the mouse (all other
      * interaction is suppressed; select on mousedown; click-away closes). */
     struct UIMinimenu minimenu;

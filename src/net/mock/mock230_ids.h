@@ -73,6 +73,20 @@ struct Mock230Ids
     int inv_worn;
     int inv_bank;
 
+    /*
+     * The two containers that stack an obj the obj record says never stacks —
+     * LostCity's `InvType.stackType = ALWAYS_STACK`, which this cache's inv
+     * config cannot carry (`fields/inv.ini`: size and params, nothing else).
+     * `mock230_container_add` reads them by id, so they are named once here
+     * rather than at the add.
+     *
+     * A bank holds one cell per obj id by definition. The collection log is the
+     * same claim about a display: `[proc,collection_earn]` says "duplicates
+     * raise the stack count", and five sets of dragon boots is one row reading
+     * "5" rather than five rows.
+     */
+    int inv_collection_log;
+
     /** Default overhead bar, resolved from the cache's healthbar namespace. */
     int healthbar_standard;
 

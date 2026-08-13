@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                       */
@@ -3301,8 +3302,18 @@ npc_run_mode(
     {
         int op = npc->mode - MOCK230_NPCMODE_APPLAYER1;
         int size = npc->size > 0 ? npc->size : 1;
+        /* The npc's own `param=attackrange` widens (or narrows) the AP reach.
+         * The default is the reference's flat 10 (`PathingEntity.apRange`),
+         * which is wrong in both directions for anything that states a reach:
+         * Jal-MejRah's four tiles fired from ten, and the Inferno's rangers —
+         * whose reach the wiki puts past the player's own maximum of ten —
+         * walked to ten before firing. `> 1` and not `> 0` because 1 is the
+         * unauthored default and means melee, which AP modes are not for. */
+        int ap_range = MOCK230_AP_RANGE_DEFAULT;
 
-        if( range > MOCK230_AP_RANGE_DEFAULT )
+        if( npc->def && npc->def->attackrange > 1 )
+            ap_range = npc->def->attackrange;
+        if( range > ap_range )
         {
             npc_walk_to_player(npc, player);
             return 1;
@@ -5658,6 +5669,31 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "god", 3) == 0 )
+    {
+        /* `::god [0|1]` — debug invulnerability, gated in the one player damage
+         * funnel (mock230_combat_hit_player) and against hitpoint drains from
+         * the stat opcodes (godmode_blocks_stat_write). Its reason for existing
+         * is measurement: profiling a live encounter means standing in it and
+         * moving around, and without this the death sequence teleports the
+         * player out and rebuilds the scene partway through every run, which
+         * shows up in a frame-time trace as work that has nothing to do with
+         * what was being measured. */
+        int want = !player->godmode;
+        (void)sscanf(text, "god %d", &want);
+        player->godmode = want != 0;
+        /* Top up on the way in, so a run does not start on a sliver of health
+         * left over from before the flag was set. */
+        if( player->godmode )
+        {
+            player->hitpoints = player->max_hitpoints;
+            mock230_combat_sync_hitpoints(player);
+            player->masks |= MOCK230_PMASK_DAMAGE;
+        }
+        say(srv, "God mode %s.", player->godmode ? "on" : "off");
+        return;
+    }
+
     if( strncmp(text, "bank", 4) == 0 )
     {
         /* `::bank` opens the bank without walking to a booth — the Lumbridge
@@ -5731,11 +5767,10 @@ handle_cheat(
          *
          * The add goes through `mock230_container_add` — the same
          * `Inventory.add` the `inv_add` opcode uses — so a stackable merges
-         * onto the stack already held and the backpack's listener sends an
-         * UPDATE_INV without this branch knowing a packet exists. Unstackables
-         * are added one at a time on purpose: the shared add puts a whole count
-         * in one slot (its `stackType` gap, see mock230_container.c), which
-         * would render five platebodies as one slot reading "5".
+         * onto the stack already held, an unstackable takes one slot per unit,
+         * and the backpack's listener sends an UPDATE_INV without this branch
+         * knowing a packet exists. The one-at-a-time loop this used to need (the
+         * shared add put a whole count in one slot) went with that gap.
          */
         char arg[64] = { 0 };
         char suggest[256] = { 0 };
@@ -5774,15 +5809,7 @@ handle_cheat(
             say(srv, "No backpack container.");
             return;
         }
-        if( info->stackable )
-        {
-            given = mock230_container_add(row, obj_id, want, 0);
-        }
-        else
-        {
-            while( given < want && mock230_container_add(row, obj_id, 1, 0) == 1 )
-                given++;
-        }
+        given = mock230_container_add(row, obj_id, want, 0);
         if( given <= 0 )
             say(srv, "No room for %s.", info->name);
         else if( given < want )
@@ -7712,6 +7739,19 @@ mock230_world_mark_varp(
  */
 static int g_carrier_writes;
 static int g_carrier_write_last = -1;
+/*
+ * Which varps have already been reported, so each is named once.
+ *
+ * Every one of these writes is a content bug and the counter below still sees
+ * all of them. The *report* is the problem: one unbuffered stderr write costs
+ * about 6 ms on Windows (see `app_world_spawn_npc_now`), the embedded server
+ * runs on the host's frame thread, and a varp written wholesale is written
+ * wholesale on every tick that runs the script — `~player_combat_stat` writes
+ * about thirty of them per swing. That turned one content bug into a 300 ms
+ * tick, which is six dropped frames per attack. Reporting each varp once says
+ * exactly as much and costs nothing after the first.
+ */
+static uint8_t g_carrier_reported[MOCK230_VARP_COUNT];
 
 int
 mock230_world_carrier_writes(int* out_last_varp)
@@ -7726,6 +7766,9 @@ mock230_world_carrier_writes_reset(void)
 {
     g_carrier_writes = 0;
     g_carrier_write_last = -1;
+    /* A fresh observation window wants to hear about the varps again — this is
+     * what the selftest calls between scenarios. */
+    memset(g_carrier_reported, 0, sizeof(g_carrier_reported));
 }
 
 /*
@@ -7761,6 +7804,12 @@ check_carrier_write(
         return;
     g_carrier_writes++;
     g_carrier_write_last = varp;
+    if( varp >= 0 && varp < MOCK230_VARP_COUNT )
+    {
+        if( g_carrier_reported[varp] )
+            return;
+        g_carrier_reported[varp] = 1;
+    }
     fprintf(stderr,
             "mock230: whole-varp write to varp %d (%s) = %d — %d varbit(s) are packed into "
             "it and this write destroys them; write the varbit, or declare "
@@ -8971,6 +9020,105 @@ mock230_world_login_finish(struct Mock230Player* player)
  * one invites putting it in whichever phase happens to be nearby.
  */
 
+/*
+ * TORIRS_SERVER_BREAKDOWN=<ms>: split one world tick by phase, and phase 5 by
+ * the step inside it, printing the split when the tick exceeds <ms>.
+ *
+ * The embedded server shares the client's frame thread, so a slow tick is a
+ * dropped frame -- and the tick is a 600 ms heartbeat that lands on one frame
+ * in thirty, which is exactly the shape of a spike that disappears into the
+ * averages. Off unless the variable is set: an unconditional write on a path
+ * this hot costs more than what it measures (see app_world_spawn_npc_now).
+ */
+enum
+{
+    TICK_BD_PHASES = 12
+};
+
+enum
+{
+    PP_SCRIPTS,
+    PP_LOCKED,
+    PP_FACE,
+    PP_INTERACT_PRE,
+    PP_APPROACH,
+    PP_ADVANCE,
+    PP_INTERACT_POST,
+    PP_TAIL,
+    PP_COUNT
+};
+
+static int g_tick_bd_init;
+static int g_tick_bd_on;
+static int g_tick_bd_ms;
+static FILE* g_tick_bd_out;
+static uint64_t g_pp[PP_COUNT];
+
+/* Two costs that cut across the phases rather than sitting inside one: script
+ * dispatch (mock230_scripts.c) and the collision flood every route runs
+ * (collision_map.c). Both are accumulated at their own source and zeroed here
+ * per tick, so they overlap the phase columns instead of adding to them. */
+extern uint64_t g_mock230_script_us;
+extern int g_mock230_script_runs;
+extern uint64_t g_mock230_script_slow_us;
+extern char g_mock230_script_slow_name[96];
+extern uint64_t g_collision_route_us;
+extern int g_collision_route_calls;
+extern int g_collision_route_tiles;
+/* g_ssvm_ops / g_ssvm_op_us / g_ssvm_op_hits are declared by ssvm.h. */
+
+/*
+ * TORIRS_SERVER_BREAKDOWN_LOG=<path> sends the split to a buffered file instead
+ * of stderr, which is what makes a threshold of 0 usable: on Windows stderr is
+ * unbuffered and one write costs about 6 ms, so logging every tick to it would
+ * cost more than the tick measures and would land that cost on exactly the
+ * frames under study. To a file it is free, and a whole run's ticks can be
+ * ranked afterwards rather than fished for one spike at a time.
+ */
+static int
+tick_bd_on(void)
+{
+    if( !g_tick_bd_init )
+    {
+        char const* v = getenv("TORIRS_SERVER_BREAKDOWN");
+        char const* path = getenv("TORIRS_SERVER_BREAKDOWN_LOG");
+
+        g_tick_bd_init = 1;
+        if( path && path[0] )
+            g_tick_bd_out = fopen(path, "w");
+        g_tick_bd_ms = (v && v[0]) ? atoi(v) : 0;
+        /* A log path on its own means every tick; a threshold on its own means
+         * stderr and only the slow ones. Neither set is off. */
+        g_tick_bd_on = g_tick_bd_out != NULL || g_tick_bd_ms > 0;
+        if( !g_tick_bd_out )
+            g_tick_bd_out = stderr;
+    }
+    return g_tick_bd_on;
+}
+
+static uint64_t
+tick_bd_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+/* Accumulate into g_pp[slot] and restamp the cursor. `on` is hoisted by the
+ * caller so the getenv-backed gate is read once per player, not once per step. */
+#define PP_MARK(on, cursor, slot)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        if( on )                                                                                   \
+        {                                                                                          \
+            uint64_t pp_now = tick_bd_now_us();                                                    \
+            g_pp[slot] += pp_now - (cursor);                                                       \
+            (cursor) = pp_now;                                                                     \
+        }                                                                                          \
+    } while( 0 )
+
 /** 1. World script queue (world_delay), delayed obj spawns, npc hunt. */
 static void
 phase_world(struct Mock230Server* srv)
@@ -9106,6 +9254,8 @@ static void
 phase_player(struct Mock230Player* player)
 {
     struct Mock230Server* srv = player->world;
+    int bd_on = tick_bd_on();
+    uint64_t bd_t = bd_on ? tick_bd_now_us() : 0;
 
     mock230_world_set_active(srv, player);
 
@@ -9120,6 +9270,7 @@ phase_player(struct Mock230Player* player)
      * one tick after the crossing, before this tick's movement rather than
      * after it. */
     mock230_scripts_process_engine_queue(srv);
+    PP_MARK(bd_on, bd_t, PP_SCRIPTS);
 
     /*
      * An action lock is deliberately below every script/queue/timer phase.
@@ -9139,6 +9290,7 @@ phase_player(struct Mock230Player* player)
         advance_player(srv);
         run_energy_tick(srv, 0);
         mock230_combat_player_tick(srv);
+        PP_MARK(bd_on, bd_t, PP_LOCKED);
         return;
     }
 
@@ -9148,6 +9300,7 @@ phase_player(struct Mock230Player* player)
      * in processPlayers, before processInteraction.
      */
     mock230_player_set_face_entity(player);
+    PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*
      * LostCity Player.processInteraction: tryInteract → pathToPathingTarget →
@@ -9160,20 +9313,24 @@ phase_player(struct Mock230Player* player)
         if( !interaction_try(srv, 0) )
             interaction_path_to_pathing_target(srv);
     }
+    PP_MARK(bd_on, bd_t, PP_INTERACT_PRE);
 
     /* Combat's every-tick pathToTarget — same pre-move slot as above, for the
      * engaged fight that no longer holds a latched interaction. */
     mock230_combat_player_approach(srv);
+    PP_MARK(bd_on, bd_t, PP_APPROACH);
     /* advance_player fires an armed walktrigger immediately before each
      * concrete tile. That preserves the ordinary freeze/stun veto and also
      * gives controller-style content both tiles of a running tick. */
     advance_player(srv);
+    PP_MARK(bd_on, bd_t, PP_ADVANCE);
 
     if( player->interaction.kind != MOCK230_INTERACT_NONE )
     {
         if( !interaction_try(srv, player->steps_taken == 0) )
             interaction_continue_or_give_up(srv);
     }
+    PP_MARK(bd_on, bd_t, PP_INTERACT_POST);
     /* After movement: face a loc/obj target if we walked over and held still
      * (LostCity reorient(); needs this-tick steps_taken). The face_target
      * stash survives interaction_clear, so FACE_COORD ships on the same tick
@@ -9185,6 +9342,7 @@ phase_player(struct Mock230Player* player)
     /* Before the swing: a prayer that ran out this tick must not protect the
      * hit that lands on it. */
     mock230_combat_player_tick(srv);
+    PP_MARK(bd_on, bd_t, PP_TAIL);
 }
 
 static void
@@ -10108,10 +10266,58 @@ phase_cleanup(struct Mock230Server* srv)
     mock230_zone_reset(srv);
 }
 
+static char const* const g_tick_bd_names[TICK_BD_PHASES] = {
+    "world", "clients_in", "npc_events", "npcs",  "players",     "logouts",
+    "logins", "zones",     "worldmap",   "info",  "clients_out", "cleanup"
+};
+
+static char const* const g_pp_names[PP_COUNT] = {
+    "scripts", "locked", "face",          "interact_pre",
+    "approach", "advance", "interact_post", "tail"
+};
+
 void
 mock230_world_tick(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
+    uint64_t bd[TICK_BD_PHASES];
+    uint64_t bd_t;
+    uint64_t bd_t0;
+    int bd_on = tick_bd_on();
+    int bd_i = 0;
+
+#define BD_MARK()                                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        if( bd_on )                                                                                \
+        {                                                                                          \
+            uint64_t bd_now = tick_bd_now_us();                                                    \
+            bd[bd_i++] = bd_now - bd_t;                                                            \
+            bd_t = bd_now;                                                                         \
+        }                                                                                          \
+    } while( 0 )
+
+    memset(bd, 0, sizeof(bd));
+    memset(g_pp, 0, sizeof(g_pp));
+    g_mock230_script_us = 0;
+    g_mock230_script_runs = 0;
+    g_mock230_script_slow_us = 0;
+    g_mock230_script_slow_name[0] = '\0';
+    g_collision_route_us = 0;
+    g_collision_route_calls = 0;
+    g_collision_route_tiles = 0;
+    g_ssvm_ops = 0;
+    /* 150 KB of counters, cleared only for a run that is going to read them. The
+     * VM fills them under its own switch; this one keeps the clear off a tick
+     * that has no breakdown to print. */
+    if( bd_on )
+    {
+        memset(g_ssvm_op_us, 0, sizeof(g_ssvm_op_us));
+        memset(g_ssvm_op_hits, 0, sizeof(g_ssvm_op_hits));
+    }
+    bd_t = bd_on ? tick_bd_now_us() : 0;
+    bd_t0 = bd_t;
+
     /*
      * The tick borrows `active_player` and gives it back.
      *
@@ -10126,13 +10332,21 @@ mock230_world_tick(struct Mock230Server* srv)
     srv->tick++;
 
     phase_world(srv);
+    BD_MARK();
     phase_clients_in(srv);
+    BD_MARK();
     phase_npc_events(srv);
+    BD_MARK();
     phase_npcs(srv);
+    BD_MARK();
     phase_players(srv);
+    BD_MARK();
     phase_logouts(srv);
+    BD_MARK();
     phase_logins(srv);
+    BD_MARK();
     phase_zones(srv);
+    BD_MARK();
     /* After movement, before the info streams: the world map marker is derived
      * state, and this is the only place it can be refreshed with the tile the
      * player will actually be reported on. */
@@ -10143,11 +10357,78 @@ mock230_world_tick(struct Mock230Server* srv)
         mock230_world_set_active(srv, player);
         mock230_worldmap_tick(srv);
     }
+    BD_MARK();
     phase_info(srv);
+    BD_MARK();
     phase_clients_out(srv);
+    BD_MARK();
     phase_cleanup(srv);
+    BD_MARK();
 
     mock230_world_set_active(srv, caller_active);
+
+    if( bd_on )
+    {
+        uint64_t total = tick_bd_now_us() - bd_t0;
+
+        if( total >= (uint64_t)g_tick_bd_ms * 1000u )
+        {
+            FILE* out = g_tick_bd_out;
+
+            fprintf(out, "server_bd: tick %d total %.2f ms |", srv->tick, total / 1000.0);
+            for( int i = 0; i < TICK_BD_PHASES; i++ )
+                if( bd[i] >= 100 )
+                    fprintf(out, " %s %.2f", g_tick_bd_names[i], bd[i] / 1000.0);
+            fprintf(out, " || players:");
+            for( int i = 0; i < PP_COUNT; i++ )
+                if( g_pp[i] >= 100 )
+                    fprintf(out, " %s %.2f", g_pp_names[i], g_pp[i] / 1000.0);
+            fprintf(out, " || script %.2f x%d ops %llu route %.2f x%d tiles %d",
+                    g_mock230_script_us / 1000.0, g_mock230_script_runs,
+                    (unsigned long long)g_ssvm_ops, g_collision_route_us / 1000.0,
+                    g_collision_route_calls, g_collision_route_tiles);
+            if( g_mock230_script_slow_name[0] )
+                fprintf(out, " slowest %s %.2f", g_mock230_script_slow_name,
+                        g_mock230_script_slow_us / 1000.0);
+
+            /* The tick's four costliest engine ops, by name. Empty unless
+             * TORIRS_SSVM_OPS=1 armed the VM's per-instruction clock. Selection
+             * is a scan per rank with the ones already printed struck out; four
+             * passes over the opcode space is nothing against a tick already
+             * slow enough to be printed. */
+            {
+                int taken[4];
+                int n_taken = 0;
+
+                for( int rank = 0; rank < 4; rank++ )
+                {
+                    int best = -1;
+
+                    for( int i = 0; i < SSVM_OP_TIMING_MAX; i++ )
+                    {
+                        int skip = 0;
+
+                        if( g_ssvm_op_us[i] == 0 )
+                            continue;
+                        for( int t = 0; t < n_taken; t++ )
+                            skip |= taken[t] == i;
+                        if( skip )
+                            continue;
+                        if( best < 0 || g_ssvm_op_us[i] > g_ssvm_op_us[best] )
+                            best = i;
+                    }
+                    if( best < 0 )
+                        break;
+                    taken[n_taken++] = best;
+                    fprintf(out, " | op %s %.2f x%d", SSVM_OpcodeName(best),
+                            g_ssvm_op_us[best] / 1000.0, g_ssvm_op_hits[best]);
+                }
+            }
+            fprintf(out, "\n");
+        }
+    }
+
+#undef BD_MARK
 }
 
 /* ------------------------------------------------------------------ */
@@ -11108,7 +11389,16 @@ selftest_prayer_toggle(
 int
 mock230_world_selftest(void)
 {
-    struct Mock230Server srv;
+    /*
+     * Static, not a stack local: the server carries MOCK230_NPC_MAX npcs and
+     * each npc's script_vars is MOCK230_NPC_VAR_MAX words, so this frame grows
+     * with content's npc-var appetite. At VAR_MAX 64 it overflows the default
+     * 8 MB stack and the suite segfaults before its first check — a failure
+     * that looks nothing like the change that caused it. The selftest runs
+     * once per process, so static costs nothing and takes the growth off the
+     * stack entirely.
+     */
+    static struct Mock230Server srv;
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
 
@@ -17738,6 +18028,71 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::god absorbs damage at the funnel\n");
+    {
+        /*
+         * The two halves that matter are "a lethal hit does nothing" and "the
+         * flag is what did it" — so the same hit runs twice, once each way,
+         * and the god-mode half is asserted against the *not* god-mode half
+         * rather than against a constant. A gate that was never reached would
+         * pass a one-sided test here: the second stanza is what fails if the
+         * `if( player->godmode )` line is deleted.
+         */
+        int saved_hp = player->hitpoints;
+        int saved_dying = player->dying;
+        int saved_god = player->godmode;
+        int saved_max = player->max_hitpoints;
+        int saved_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+
+        /* A bar this stanza owns. Whatever ran before leaves the fixture on
+         * whatever hitpoints it happened to end on — one, at the time of
+         * writing — and a control hit has to be survivable to stay
+         * non-destructive, which it cannot be against a maximum of 1.
+         *
+         * The level, not `max_hitpoints`: mock230_combat_sync_hitpoints
+         * recomputes the maximum from `stat_level[hitpoints]` on every hit, so
+         * assigning the maximum alone is undone by the first swing. */
+        player->dying = 0;
+        player->stat_level[MOCK230_STAT_HITPOINTS] = 10;
+        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
+        player->hitpoints = 10;
+        mock230_combat_sync_hitpoints(player);
+
+        player->godmode = 1;
+        mock230_combat_hit_player(&srv, 0, player->max_hitpoints);
+        SELFTEST_CHECK(player->hitpoints == player->max_hitpoints,
+                       "a lethal hit under ::god should not move the bar, got %d/%d",
+                       player->hitpoints, player->max_hitpoints);
+        SELFTEST_CHECK(!player->dying, "and should not enter the death state");
+        /* The splat still goes out — content's defend animation and the npc's
+         * retaliation both hang off it, so absorbing damage must not also
+         * silence the hit. */
+        SELFTEST_CHECK(player->damage == 0 && (player->masks & MOCK230_PMASK_DAMAGE),
+                       "and should still send a block splat, got damage=%d mask=%d",
+                       player->damage, (player->masks & MOCK230_PMASK_DAMAGE) ? 1 : 0);
+
+        /* The control, and deliberately a *survivable* hit rather than the
+         * lethal one: a real death here would stop combat, unlock the player
+         * and fire [queue,player_death], and none of that is restored by
+         * putting hitpoints back — later stanzas in this file measure
+         * retaliation and action locks against a player this one left for
+         * dead. One point of damage proves the gate is load-bearing just as
+         * well as forty do. */
+        player->godmode = 0;
+        mock230_combat_hit_player(&srv, 0, 1);
+        SELFTEST_CHECK(player->hitpoints == player->max_hitpoints - 1 && !player->dying,
+                       "the same hit without ::god should land, got %d/%d dying=%d",
+                       player->hitpoints, player->max_hitpoints, player->dying);
+
+        player->godmode = saved_god;
+        player->stat_level[MOCK230_STAT_HITPOINTS] = saved_level;
+        player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_hp;
+        player->max_hitpoints = saved_max;
+        player->hitpoints = saved_hp;
+        player->dying = saved_dying;
+        mock230_combat_sync_hitpoints(player);
+    }
+
     fprintf(stderr, "mock230 selftest: the player dies and the script revives them\n");
     {
         /*
@@ -17764,9 +18119,43 @@ mock230_world_selftest(void)
         if( goblin >= 0 )
         {
             struct Mock230Npc* npc = &srv.npcs[goblin];
+            /*
+             * The kept items, and the reason this stanza carries an inventory
+             * fixture at all.
+             *
+             * `[proc,player_death_lose_items]` keeps the three priciest by
+             * moving them one at a time into `deathkeep`, and `[proc,moveallinv]`
+             * brings them back with `inv_moveitem(deathkeep, inv, $obj,
+             * inv_total(deathkeep, $obj))` — one move of three. So the whole
+             * retention path lands on `Inventory.add`'s count, and while that
+             * put a whole count in one slot, three logs died as three slots and
+             * respawned as one cell reading "3". Nothing else in this file adds
+             * an unstackable obj more than one at a time, which is why the bug
+             * lived in the one place a player meets it.
+             *
+             * Three of one obj on purpose: the retention rule keeps exactly
+             * three when unskulled and not protecting, so all of them come back
+             * and there is no price ordering to reason about. Saved and restored
+             * around the death — later stanzas read the starting kit, and a
+             * destructive fixture here is six failures further down.
+             */
+            struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
+            struct Mock230Item saved_worn[MOCK230_WORN_SLOTS];
+            const int kept_obj = 1511; /* logs — unstackable, no destroy_death */
+            int kept_slots = 0;
+            int kept_units = 0;
             int died_x;
             int died_z;
             int ticks = 0;
+
+            memcpy(saved_inv, player->inv, sizeof(saved_inv));
+            memcpy(saved_worn, player->worn, sizeof(saved_worn));
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, -1, 0);
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+                worn_set(player, i, -1, 0);
+            for( int i = 0; i < 3; i++ )
+                inv_set(player, i, kept_obj, 1);
 
             selftest_park_player(&srv, npc->x + 1, npc->z);
             player->level = npc->level;
@@ -17829,6 +18218,26 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX,
                            "and its healenergy refilled the run bar, got %d of %d",
                            player->run_energy, MOCK230_RUN_ENERGY_MAX);
+
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+            {
+                if( player->inv[i].obj_id != kept_obj )
+                    continue;
+                kept_slots++;
+                kept_units += player->inv[i].count;
+            }
+            SELFTEST_CHECK(kept_units == 3,
+                           "the three kept items should all come back, got %d", kept_units);
+            SELFTEST_CHECK(kept_slots == 3,
+                           "and an unstackable obj comes back one per slot — a death that "
+                           "returns them as one cell reading \"3\" is the retention path "
+                           "stacking what the obj record says never stacks, got %d slot(s) "
+                           "for %d item(s)",
+                           kept_slots, kept_units);
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(player, i, saved_inv[i].obj_id, saved_inv[i].count);
+            for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
+                worn_set(player, i, saved_worn[i].obj_id, saved_worn[i].count);
 
             /* The regression: engaging is gated on `dying`, so a gate that never
              * clears reads exactly like a click that did nothing. */
@@ -19585,11 +19994,10 @@ mock230_world_selftest(void)
          * three bones over two free slots is refused by content and taken by
          * the C. Unbind `[opobj3,_]` and this check goes red on its own.
          *
-         * Worth stating because it is a real inconsistency and not just a
-         * probe: content's guard is stricter than `obj_takeitem`'s add, which
-         * still puts unstackables in one slot pending `InvType.stackType` (see
-         * mock230_container.c). Conservative in the safe direction — it never
-         * loses items — and it closes when that field lands.
+         * The two now agree on the arithmetic — `mock230_container_add` takes
+         * one slot per unit for an unstackable obj, so `obj_takeitem`'s
+         * `assure_full` add refuses the same pile content's guard refuses — but
+         * only content produces the *message*, which is what this leg measures.
          */
         {
             struct Mock230Item saved[MOCK230_INV_SLOTS];
@@ -21341,9 +21749,10 @@ mock230_world_selftest(void)
          * Four things this asserts that a "did it add something" check cannot:
          * that a gameval spelling reaches the id the pack holds, that a
          * stackable merges rather than taking a second slot, that an
-         * unstackable takes one slot *per unit* (the shared `Inventory.add`
-         * would put all three in one, which is why the branch loops), and that
-         * an ambiguous or unknown name adds nothing at all. The last is the one
+         * unstackable takes one slot *per unit* (this is the shared
+         * `Inventory.add` doing it — the branch used to loop because the add put
+         * a whole count in one slot), and that an ambiguous or unknown name adds
+         * nothing at all. The last is the one
          * worth having: a cheat that silently gives the wrong item is worse
          * than one that refuses.
          */
@@ -29274,6 +29683,16 @@ mock230_world_selftest(void)
                                    "Jal-Xil's [ai_timer] should hold it on npc_delay between "
                                    "swings — without that this stanza tests nothing");
 
+                    /* The hit below starts a real fight, and Jal-Xil's answer
+                     * (max hit 46) kills a default selftest player before the
+                     * retaliation stanza can watch it — a dying target clears
+                     * `combat_target`, which reads as the leash bug this
+                     * stanza exists to catch. Tank it: `player->hitpoints` is
+                     * the pool `mock230_combat_hit_player` drains; the stat
+                     * level only feeds `stat()` reads. */
+                    player->stat_level[MOCK230_STAT_HITPOINTS] = 200;
+                    player->hitpoints = 200;
+
                     hp_before = xil->hitpoints;
                     for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
                     {
@@ -29301,6 +29720,60 @@ mock230_world_selftest(void)
                                    "and take the queued damage — [ai_queue2] is where every "
                                    "hit on an add lands; %d -> %d",
                                    hp_before, xil->hitpoints);
+
+                    /*
+                     * And the hit must be answered from where the add stands.
+                     *
+                     * Retaliation used to fail twice over, and both halves were
+                     * invisible from the assertions above. The record's default
+                     * `maxrange` leash is 7 measured from the SPAWN tile, so
+                     * the tick after `combat_target` latched,
+                     * `target_within_maxrange` read a player across the arena
+                     * as escaped and cleared it — a one-tick fight. And with
+                     * the default `attackrange` of 1, an add that did keep its
+                     * target walked the whole floor to melee before the combat
+                     * clock let it swing. `param=attackrange,40` + `maxrange=40`
+                     * (configs/inferno.npc, the wiki's ">10 tiles" bound) plus
+                     * the [ai_opplayer2] redirect are the fix; this holds all
+                     * three.
+                     *
+                     * The player is parked 19 tiles west on the ranger's own
+                     * row — outside the old leash and the old AP walk gate,
+                     * inside the new reach.
+                     */
+                    {
+                        int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
+                        int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
+                        int xil_home_x = xil->x;
+                        int xil_home_z = xil->z;
+                        int hp_level_before;
+                        int held = 1;
+
+                        player->x = base_x + 16;
+                        player->z = base_z + 38; /* ^inferno_ranger_lz */
+                        hp_level_before = player->hitpoints;
+
+                        for( int tick = 0; tick < 12; tick++ )
+                        {
+                            mock230_world_tick(&srv);
+                            held &= xil->combat_target == player->pid;
+                        }
+                        SELFTEST_CHECK(held,
+                                       "a provoked Jal-Xil must hold its target across the "
+                                       "arena — the default 7-tile maxrange leash cleared it "
+                                       "on the first combat tick (target %d)",
+                                       xil->combat_target);
+                        SELFTEST_CHECK(abs(xil->x - xil_home_x) +
+                                               abs(xil->z - xil_home_z) <=
+                                           2,
+                                       "and shoot from where it stands, not march to melee — "
+                                       "moved (%d,%d) -> (%d,%d)",
+                                       xil_home_x, xil_home_z, xil->x, xil->z);
+                        SELFTEST_CHECK(player->hitpoints < hp_level_before,
+                                       "and its ranged answer must land on the player (hp "
+                                       "still %d of %d)",
+                                       player->hitpoints, hp_level_before);
+                    }
                 }
             }
         }

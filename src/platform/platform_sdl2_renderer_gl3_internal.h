@@ -133,6 +133,16 @@ typedef struct TRSPK_UboWorld
 #define TRSPK_GL3_FONT_CAP 32
 #define TRSPK_GL3_2D_ATLAS_DIM 2048u
 #define GL3_2D_BATCH_MAX_VERTS 32768u
+/*
+ * Vertices in the streaming 2D ring, which must hold at least one maximal
+ * batch and wants to hold a whole frame's worth of them.
+ *
+ * The UI breaks its batch on every texture, scissor and uv-bounds change, so a
+ * frame is on the order of 150 flushes; at 32 bytes a vertex this is 8 MiB and
+ * spans many frames, which is the point — the buffer is only orphaned when the
+ * head wraps, and by then the draws that read the far end are long retired.
+ */
+#define GL3_2D_RING_VERTS (GL3_2D_BATCH_MAX_VERTS * 8u)
 
 /*
  * How a world face is drawn under the depth-buffered pass.
@@ -413,6 +423,12 @@ struct ToriRS_GL3
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
     GLuint quad_vao;
     GLuint quad_vbo;
+    /** Next free vertex in `quad_vbo`, treated as a ring. Every 2D flush
+     *  appends at this offset instead of rewriting offset 0, so the driver
+     *  never has to synchronise a write against the draw that is still
+     *  reading. Wraps by orphaning the whole buffer — see
+     *  gl3_quad_ring_upload. */
+    uint32_t quad_ring_head;
     GLint u2d_projection;
     GLint u2d_texture;
     GLint u2d_text_mode;

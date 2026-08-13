@@ -254,9 +254,7 @@ LibToriRS_Input_PushMouseUp(
     input->curr.mouse_y = y;
     input->curr.mouse_button_up[button] = 1;
 
-    if( input->drag_active[button] )
-        input->drag_end[button] = 1;
-    else if( input->mouse_button_held[button] )
+    if( input->mouse_button_held[button] )
     {
         uint64_t prev_t = input->last_press_time[button];
         int prox_sq = deadzone_squared(input);
@@ -267,12 +265,30 @@ LibToriRS_Input_PushMouseUp(
             dist_prev_sq <= prox_sq )
             is_double = 1;
 
-        /* Every non-drag release is a click, exactly like the reference
+        if( input->drag_active[button] )
+            input->drag_end[button] = 1;
+
+        /* EVERY release of a held button is a click, exactly like the reference
          * (GameShell sets nextMouseClickButton on every press and the mainloop
-         * consumes it unconditionally — there is no double-click suppression).
-         * is_double_click stays informational for anyone who wants it, but it
-         * must NOT gate is_click: zeroing is_click on a rapid second press
-         * debounced legitimate clicks (walk/interact) that the reference honors. */
+         * consumes it unconditionally — no debounce, and nothing between press
+         * and release can cancel it).
+         *
+         * Two things used to suppress is_click here and both were torirs-only
+         * divergences that read to a player as "the click did nothing":
+         *
+         *  - is_double_click. Removed earlier (§29a): it ate every other click
+         *    of a rapid double-click. Still computed, still informational, still
+         *    must NOT gate is_click.
+         *  - drag_active, i.e. this layer's 5px pointer deadzone. A release that
+         *    had drifted more than 5px from the press became drag_end *instead
+         *    of* a click, and left_click_miss (walk-here / world default op) is
+         *    gated on is_click — so a click made while the hand was still moving
+         *    silently did nothing, and only clicking from a dead stop worked.
+         *    The deadzone is not a click policy: its only consumer is
+         *    bridge_input_to_uitree's fallback UP delivery, and the UI drag
+         *    machine runs on its own thresholds (see interact_drag). So report
+         *    both — drag_end for the gesture, is_click for the click — and let
+         *    UITree_InteractFrame decide whether a real drag consumed it. */
         input->is_click[button] = 1;
         input->is_double_click[button] = is_double;
         input->last_press_time[button] = input->curr.time;

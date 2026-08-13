@@ -29,6 +29,7 @@
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
+#include "game/task_exec_entity_info.h"
 #include "game/task_gameproto_exec.h"
 #include "net/net.h"
 #include "net/net_out.h"
@@ -3976,6 +3977,10 @@ App_Shutdown(struct App* app)
     ToriRS_IO_Free(app->runner.io);
     /* After the queues: freeing a task releases its VM back into the pool. */
     CS2VM2_PoolDrain();
+    /* Also after the queues. A parked entity-info task borrows the scratch and
+     * hands it back from its _Free, so releasing it any earlier would leave that
+     * _Free freeing a pointer this call already returned to the allocator. */
+    Task_EntityInfoScratchFree(app);
     free(app->if_heads);
     free(app->if_player_models);
     free(app->if_hides);
@@ -6218,9 +6223,11 @@ app_logic_tick(struct App* app)
      * awaits finish before its successor starts.  Ready cooperative yields
      * are not spread over visual frames; only real external IO can pause the
      * transaction, and that pause is covered by exec_runner_had_work below. */
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
     {
         int drained = 0;
         int fence_queued = 0;
+        int last_exec_packet_type = -1;
 
         for( ;; )
         {
@@ -6239,7 +6246,33 @@ app_logic_tick(struct App* app)
                 break;
             }
 
-            stat = TaskRunner_SettleFrame(&app->exec_runner);
+            {
+                /* TORIRS_PKT_SLOW_MS=<n>: name the packet whose handler blew a
+                 * frame. The pipeline is serial, so this settle is the packet
+                 * queued by the previous iteration and nothing else. */
+                static int slow_ms = -1;
+                uint64_t t0;
+                extern uint64_t PlatformSDL2_TicksUs(void);
+
+                if( slow_ms < 0 )
+                {
+                    char const* v = getenv("TORIRS_PKT_SLOW_MS");
+                    slow_ms = (v && v[0]) ? atoi(v) : 0;
+                }
+                t0 = slow_ms > 0 ? PlatformSDL2_TicksUs() : 0;
+                stat = TaskRunner_SettleFrame(&app->exec_runner);
+                if( slow_ms > 0 && last_exec_packet_type >= 0 )
+                {
+                    uint64_t dt = PlatformSDL2_TicksUs() - t0;
+                    if( dt >= (uint64_t)slow_ms * 1000u )
+                        fprintf(
+                            stderr,
+                            "pkt_slow: type=%d %.2f ms cycle=%llu\n",
+                            last_exec_packet_type,
+                            dt / 1000.0,
+                            (unsigned long long)app->logic_cycle);
+                }
+            }
 
             if( stat != TASK_RUNNER_IDLE )
             {
@@ -6281,6 +6314,8 @@ app_logic_tick(struct App* app)
                 }
                 if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
                     fence_queued = 1;
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PROTO_PACKETS, 1);
+                last_exec_packet_type = packet.packet_type;
                 ToriRS_TaskQueue_Add(
                     app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
                 redraw = 1;
@@ -9715,6 +9750,75 @@ app_world_build_model(
     return model;
 }
 
+/*
+ * The lit/transformed base for an npc type, cached like the spotanim path
+ * (Client-TS NpcType model cache, 30 entries).
+ *
+ * Every input app_world_build_model consumes here -- part models, recolours,
+ * retextures, the two scales, ambient/contrast -- is read off the npctype, and
+ * app->npc_light_uses_type_ambient_contrast is resolved once during feature
+ * setup and never rewritten, so the npc id alone identifies the result. Without
+ * this an npc walking into view paid a full merge + recolour + scale +
+ * DropNonSdTextures + per-vertex light + bounds + vertex capture EVERY time,
+ * even though the source models were already resident: one server tick's worth
+ * of arrivals was ~13ms of a 20ms frame.
+ *
+ * Returns an owned mutable instance -- the scene animates it in place, so the
+ * cache keeps its own copy and never hands out the base. Render flags are
+ * deliberately left off the cached base; the callers set TORIDRAW_MODEL_FLAG_
+ * ZBUFFER per npc id after this returns.
+ */
+static struct ToriDraw_Model*
+app_world_build_npc_model(
+    struct App* app,
+    int npc_id,
+    struct ToriRS_Npctype* npctype)
+{
+    struct ToriDraw_Model* model;
+
+    assert(app && npctype);
+
+    model = TorirsModelInstCache_CopyGet(
+        &app->model_inst_cache, TORIRS_MODEL_INST_NPC, (int64_t)npc_id);
+    if( model )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_NPC_MODEL_CACHE_HIT, 1);
+        return model;
+    }
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_NPC_MODEL_CACHE_MISS, 1);
+
+    {
+        struct AppModelRecolorSpec recolors = {
+            .recolors_from = npctype->recolors_from,
+            .recolors_to = npctype->recolors_to,
+            .recolor_count = npctype->recolor_count,
+            .retextures_from = npctype->retextures_from,
+            .retextures_to = npctype->retextures_to,
+            .retexture_count = npctype->retexture_count,
+        };
+        model = app_world_build_model(
+            app,
+            npctype->models,
+            npctype->models_count,
+            &recolors,
+            npctype->width_scale,
+            npctype->height_scale,
+            APP_LIGHT_ACTOR,
+            app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
+            app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
+    }
+    if( !model )
+        return NULL;
+
+    {
+        struct ToriDraw_Model* base_copy = ToriDraw_ModelCopy(model);
+        if( base_copy )
+            TorirsModelInstCache_Put(
+                &app->model_inst_cache, TORIRS_MODEL_INST_NPC, (int64_t)npc_id, base_copy);
+    }
+    return model;
+}
+
 /* Build the drawable model for a spotanim (reference SpotType.getTempModel2 +
  * MapSpotAnim.getTempModel static transforms): a single model, recoloured/
  * retextured, resized, angle-rotated and lit with the config ambient/contrast.
@@ -9869,6 +9973,27 @@ app_world_spawn_player_now(
     return idx;
 }
 
+/* Has this npc id already been reported as unavailable?  16384 bits is 2KB and
+ * covers the whole npc id space of every revision here (osrs239 tops out near
+ * 13000); an id past the end warns every time rather than being dropped. */
+enum
+{
+    APP_NPC_WARN_BITS = 16384
+};
+
+static int
+app_warn_once_npc(int npc_id)
+{
+    static uint32_t seen[APP_NPC_WARN_BITS / 32];
+
+    if( npc_id < 0 || npc_id >= APP_NPC_WARN_BITS )
+        return 0;
+    if( seen[npc_id / 32] & (1u << (npc_id % 32)) )
+        return 1;
+    seen[npc_id / 32] |= (1u << (npc_id % 32));
+    return 0;
+}
+
 /* Hotkey 8 body: npc on the hovered tile. SYNCHRONOUS — the npc config and
  * its models must be resident (Task_AppSpawn awaits them first).
  * Returns the world npc-pool index, or -1. */
@@ -9886,34 +10011,38 @@ app_world_spawn_npc_now(
     int world_x, world_z, world_y;
     int element_id;
     int idx;
+    /* TORIRS_SPAWN_BREAKDOWN=<us>: split one npc spawn when it exceeds <us>.
+     * TORIRS_SPAWN_LOG=1: restore the old per-spawn narration line. */
+    static int bd_us = -1;
+    static int spawn_log = -1;
+    uint64_t bd_t0, bd_t;
+    uint64_t bd_model = 0, bd_elem = 0, bd_world = 0, bd_seq = 0, bd_tex = 0, bd_log = 0;
+    extern uint64_t PlatformSDL2_TicksUs(void);
+
+    if( bd_us < 0 )
+    {
+        char const* v = getenv("TORIRS_SPAWN_BREAKDOWN");
+        bd_us = (v && v[0]) ? atoi(v) : 0;
+        spawn_log = getenv("TORIRS_SPAWN_LOG") ? 1 : 0;
+    }
+    bd_t0 = bd_us ? PlatformSDL2_TicksUs() : 0;
 
     npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
     if( !npctype || npctype->models_count <= 0 )
     {
-        fprintf(stderr, "spawn_npc: npc %d unavailable\n", npc_id);
+        /* Once per id. The server re-sends the same missing npc every time the
+         * player walks back into its zone, and on Windows an unbuffered stderr
+         * write costs milliseconds -- see the spawn narration below. Which ids
+         * are unavailable is the whole diagnostic; the repeat count is not. */
+        if( !app_warn_once_npc(npc_id) )
+            fprintf(stderr, "spawn_npc: npc %d unavailable\n", npc_id);
         return -1;
     }
 
-    {
-        struct AppModelRecolorSpec recolors = {
-            .recolors_from = npctype->recolors_from,
-            .recolors_to = npctype->recolors_to,
-            .recolor_count = npctype->recolor_count,
-            .retextures_from = npctype->retextures_from,
-            .retextures_to = npctype->retextures_to,
-            .retexture_count = npctype->retexture_count,
-        };
-        model = app_world_build_model(
-            app,
-            npctype->models,
-            npctype->models_count,
-            &recolors,
-            npctype->width_scale,
-            npctype->height_scale,
-            APP_LIGHT_ACTOR,
-            app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
-            app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
-    }
+    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    model = app_world_build_npc_model(app, npc_id, npctype);
+    if( bd_us )
+        bd_model = PlatformSDL2_TicksUs() - bd_t;
     if( !model )
     {
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
@@ -9932,6 +10061,7 @@ app_world_spawn_npc_now(
     world_x = tile_x * 128 + size * 64;
     world_z = tile_z * 128 + size * 64;
     world_y = app_world_height(app, world_x, world_z, level);
+    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
     element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
@@ -9941,7 +10071,10 @@ app_world_spawn_npc_now(
             el->anim_external = true;
         ToriDraw_SceneAnimListInvalidate(app->scene);
     }
+    if( bd_us )
+        bd_elem = PlatformSDL2_TicksUs() - bd_t;
 
+    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
     {
         /* Config movement anims (dat1 has no turn/run for npcs; the reference
          * walkanim_l/r swap applies here at spawn like at CHANGE_TYPE). */
@@ -9961,7 +10094,13 @@ app_world_spawn_npc_now(
         if( npc )
             npc->server_slot = -1;
     }
+    if( bd_us )
+        bd_world = PlatformSDL2_TicksUs() - bd_t;
+
+    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
     app_world_apply_seq(app, element_id, npctype->readyanim);
+    if( bd_us )
+        bd_seq = PlatformSDL2_TicksUs() - bd_t;
     /* Spawn does not carry menu data; the minimenu rows read it off the
      * entity, so copy name/actions/level from the config here. */
     {
@@ -9978,18 +10117,49 @@ app_world_spawn_npc_now(
                     npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
         }
     }
-    fprintf(
-        stderr,
-        "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d retextures=%d\n",
-        npc_id,
-        element_id,
-        tile_x,
-        tile_z,
-        level,
-        size,
-        npctype->recolor_count,
-        npctype->retexture_count);
+    /* Was unconditional. stderr is unbuffered, so this is a synchronous write
+     * per npc arrival on the packet-apply path -- and npcs arrive in bursts of
+     * 20+ when the player crosses into a populated zone. Gated behind its own
+     * switch so the cost stays measurable (spawn_bd's `log` column). */
+    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
+    if( spawn_log )
+        fprintf(
+            stderr,
+            "spawn_npc: npc=%d element=%d tile=%d,%d level=%d size=%d recolors=%d "
+            "retextures=%d\n",
+            npc_id,
+            element_id,
+            tile_x,
+            tile_z,
+            level,
+            size,
+            npctype->recolor_count,
+            npctype->retexture_count);
+    if( bd_us )
+        bd_log = PlatformSDL2_TicksUs() - bd_t;
+
+    bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
     app_sync_textures(app);
+    if( bd_us )
+    {
+        uint64_t total;
+
+        bd_tex = PlatformSDL2_TicksUs() - bd_t;
+        total = PlatformSDL2_TicksUs() - bd_t0;
+        if( total >= (uint64_t)bd_us )
+            fprintf(
+                stderr,
+                "spawn_bd: npc=%d total %llu model %llu elem %llu world %llu seq %llu "
+                "log %llu tex %llu (us)\n",
+                npc_id,
+                (unsigned long long)total,
+                (unsigned long long)bd_model,
+                (unsigned long long)bd_elem,
+                (unsigned long long)bd_world,
+                (unsigned long long)bd_seq,
+                (unsigned long long)bd_log,
+                (unsigned long long)bd_tex);
+    }
     app->need_redraw = 1;
     return idx;
 }
@@ -14690,12 +14860,33 @@ App_RunOnce(
         app->last_logic_ms = now_ms;
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LOGIC)
     {
-        int ticks = (int)((now_ms - app->last_logic_ms) / APP_LOGIC_TICK_MS);
+        /*
+         * Snapping, not truncating.
+         *
+         * The frame pacer aims at 20ms and the logic tick is 20ms, so the two
+         * beat against each other: a frame that lands at 19.6ms elapsed
+         * divides to 0 ticks, the next lands at 39.2ms and divides to 2. The
+         * world then advances twice in one frame and not at all in the other,
+         * and since the renderer does not interpolate between ticks that reads
+         * as a visible hitch even though no frame was late. Round to the
+         * nearest tick instead of flooring: anything within half a tick of the
+         * boundary counts as one tick, and genuine stalls still divide out to
+         * the real count and take the bounded catch-up path below.
+         *
+         * Rounding up pushes last_logic_ms past now_ms, so the next frame's
+         * subtraction must not be done in unsigned -- it would wrap to ~2^64
+         * and clamp straight to APP_MAX_CATCHUP_TICKS every frame.
+         */
+        uint64_t elapsed_ms =
+            now_ms > app->last_logic_ms ? now_ms - app->last_logic_ms : 0;
+        int ticks =
+            (int)((elapsed_ms + APP_LOGIC_TICK_MS / 2) / APP_LOGIC_TICK_MS);
         if( ticks > 0 )
         {
             app->last_logic_ms += (uint64_t)ticks * APP_LOGIC_TICK_MS;
             if( ticks > APP_MAX_CATCHUP_TICKS )
                 ticks = APP_MAX_CATCHUP_TICKS;
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_LOGIC_TICKS, ticks);
             for( int t = 0; t < ticks; t++ )
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
@@ -14713,6 +14904,7 @@ App_RunOnce(
                     enum TaskRunnerStat stat;
 
                     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SETTLE)
                     {
                         stat = app_settle_cs2_frame(app);
                     }
@@ -14747,6 +14939,7 @@ App_RunOnce(
         enum TaskRunnerStat stat;
 
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SETTLE)
         {
             stat = app_settle_cs2_frame(app);
         }
@@ -14782,6 +14975,11 @@ App_RunOnce(
      * minimap AND interaction clicks. Latched here because the minimenu action
      * path that runs the last two has no input handle. */
     app->ctrl_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) ? 1 : 0;
+
+    /* The cycle the widget timers just ran on. onMouseRepeat has to be paired
+     * with them: the cache's mouseover container is torn down and rebuilt by a
+     * per-cycle timer, and the repeat is what puts the tooltip back. */
+    app->interact.client_cycle = app->logic_cycle;
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
@@ -16516,26 +16714,7 @@ App_WorldApplyNpcType(
             element_id,
             npc_type);
 
-    {
-        struct AppModelRecolorSpec recolors = {
-            .recolors_from = npctype->recolors_from,
-            .recolors_to = npctype->recolors_to,
-            .recolor_count = npctype->recolor_count,
-            .retextures_from = npctype->retextures_from,
-            .retextures_to = npctype->retextures_to,
-            .retexture_count = npctype->retexture_count,
-        };
-        model = app_world_build_model(
-            app,
-            npctype->models,
-            npctype->models_count,
-            &recolors,
-            npctype->width_scale,
-            npctype->height_scale,
-            APP_LIGHT_ACTOR,
-            app->npc_light_uses_type_ambient_contrast ? npctype->contrast : 0,
-            app->npc_light_uses_type_ambient_contrast ? npctype->ambient : 0);
-    }
+    model = app_world_build_npc_model(app, npc_type, npctype);
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
     if( model && app_npc_wants_zbuffer(npc_type, npctype) )

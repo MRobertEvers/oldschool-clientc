@@ -839,6 +839,17 @@ mock230_combat_hit_player(
 {
     struct Mock230Player* player = srv->active_player;
 
+    /*
+     * `::god` absorbs the hit here rather than at any call site, because this
+     * is the only place player hitpoints go down — content's damage() opcode
+     * and every engine path both land here. Zeroing `amount` keeps the rest of
+     * the function honest: a block splat is still sent, retaliation and the
+     * defend animation still run, so the encounter behaves exactly as it does
+     * without the flag apart from the subtraction.
+     */
+    if( player->godmode )
+        amount = 0;
+
     if( amount > player->hitpoints )
         amount = player->hitpoints;
     player->hitpoints -= amount;
@@ -1029,6 +1040,28 @@ mock230_combat_player_tick(struct Mock230Server* srv)
 {
     struct Mock230Player* player = srv->active_player;
     struct Mock230Npc* npc;
+
+    /* MOCK230_HP_TRACE=1: every hitpoints change, once per tick. Under `::god`
+     * a change is by definition a gate that was missed, and hitpoints are
+     * written from half a dozen places (the damage funnel, three stat opcodes,
+     * the level setter, the save loader) — sampling the value beats adding a
+     * print to each and still missing the one that mattered. */
+    static int hp_trace = -1;
+    if( hp_trace < 0 )
+        hp_trace = getenv("MOCK230_HP_TRACE") != NULL;
+    if( hp_trace )
+    {
+        static int last_hp = -1;
+        if( player->hitpoints != last_hp )
+        {
+            fprintf(stderr,
+                    "hp_trace: tick=%d hp=%d boosted=%d max=%d god=%d dying=%d\n",
+                    srv->tick, player->hitpoints,
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS],
+                    player->max_hitpoints, player->godmode, player->dying);
+            last_hp = player->hitpoints;
+        }
+    }
 
     /*
      * A corpse does not swing, and the script is what stops it being one.
@@ -1491,7 +1524,23 @@ mock230_combat_npc_tick(
      */
     mock230_npc_face_player(npc, npc->combat_target);
 
-    if( !in_npc_attack_range(player, npc) )
+    /* A ranged or magic attacker also needs *approached* line of sight before
+     * its reach counts — the same cast `npc_run_mode`'s AP dispatch makes
+     * (player → npc, backwards, because that is the direction the reference
+     * asks it in). Without this, giving the Inferno's rangers their
+     * wiki-stated arena-wide `attackrange` let a retaliating Jal-Xil shoot
+     * through the pillars, and hiding behind one is the fight's whole
+     * mechanic. Melee (`attackrange <= 1`) keeps the plain adjacency test:
+     * the shared-edge wall check in the approach already answers fences. */
+    int npc_size = npc->size > 0 ? npc->size : 1;
+    int in_reach = in_npc_attack_range(player, npc);
+
+    if( in_reach && npc_def(npc)->attackrange > 1 &&
+        !mock230_scene_approached(
+            npc->level, player->x, player->z, npc->x, npc->z, 1, 1, npc_size, npc_size) )
+        in_reach = 0;
+
+    if( !in_reach )
     {
         /*
          * Pursue — the reference's `aiMode()`: path to the target, take one

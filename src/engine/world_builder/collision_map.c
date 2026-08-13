@@ -6,8 +6,10 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* Collision map logic must match Client-TS:
  *   Client-TS/src/dash3d/CollisionMap.ts (addLoc, addWall, blockGround/unblockGround)
@@ -1477,8 +1479,31 @@ collision_map_reached(
     return collision_flood_arrived(cm, x, z, dst_x, dst_z, approach) ? 1 : 0;
 }
 
-int
-collision_map_route_tiles(
+/*
+ * Route cost, read by the embedded server's tick breakdown (mock230_world.c).
+ *
+ * A flood is the one unbounded thing a game tick does -- it scales with the
+ * whole collision map, not with the distance walked -- so when a tick runs long
+ * the first question is how many of these it ran and how wide they were. Two
+ * clock reads per flood are far below the flood itself, so this is always on
+ * rather than gated; nothing reads it unless the breakdown is.
+ */
+uint64_t g_collision_route_us;
+int g_collision_route_calls;
+int g_collision_route_tiles;
+
+static uint64_t
+route_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+static int
+route_tiles_impl(
     struct CollisionMap* cm,
     int src_x,
     int src_z,
@@ -1565,6 +1590,33 @@ collision_map_route_tiles(
     free(dist_map);
     free(queue_x);
     free(queue_z);
+    return n;
+}
+
+int
+collision_map_route_tiles(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach,
+    struct CollisionNearestOpts const* nearest,
+    int* path_x,
+    int* path_z,
+    int max_path,
+    int* out_used_nearest,
+    int* out_arrive_x,
+    int* out_arrive_z)
+{
+    uint64_t t0 = route_now_us();
+    int n = route_tiles_impl(cm, src_x, src_z, dst_x, dst_z, approach, nearest, path_x, path_z,
+                             max_path, out_used_nearest, out_arrive_x, out_arrive_z);
+
+    g_collision_route_us += route_now_us() - t0;
+    g_collision_route_calls++;
+    if( cm )
+        g_collision_route_tiles += cm->size_x * cm->size_z;
     return n;
 }
 

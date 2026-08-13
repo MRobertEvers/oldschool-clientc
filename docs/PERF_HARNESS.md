@@ -178,6 +178,42 @@ the residual, for attribution. The historical sections below describe the
 2026-08-03 Soft3D effort; the current Windows renderer architecture is recorded
 above and must be measured as its own A/B.
 
+Note that `cs2` spans the whole of `app_logic_tick`, not script execution
+alone. Its two nested stages split it: `tick_packets` is the serial packet
+pipeline (`TaskRunner_SettleFrame` plus every `GameProtoExec` task it drives)
+and `cs2_settle` is `app_settle_cs2_frame`. `ui_icon` covers one obj inventory
+icon rasterization wherever it is asked for.
+
+## Measuring stutter rather than frame rate (2026-08-12)
+
+A mean frame time cannot show a hitch, and `frame` stops at the pacing wait.
+Three additions close that gap:
+
+* `period` — wall time between consecutive frame starts. Work plus pace plus
+  the loop overhead in neither, so it is the only stage that answers "what does
+  the player actually see". Measured before `FRAME_BEGIN` and carried into the
+  frame it opens.
+* `pace` — the 50 fps wait itself, carried the same way (frame N's wait is
+  reported with frame N+1). Both use `TORIRS_PERF_CARRY`, which survives the
+  `FrameBegin` memset that would otherwise wipe a post-`FrameEnd` sample.
+* `logic_ticks` — ticks run in one frame. The scene advances once per tick and
+  the renderer does not interpolate, so a 0-tick or 2-tick frame stutters at a
+  perfectly steady frame rate. Read the histogram, never the mean.
+
+`TORIRS_PERF_WINDOW=1` writes one row per stage per frame — a per-frame trace,
+which is what hitch hunting needs. Two diagnostic env knobs go with it:
+
+```
+TORIRS_PACE_SPIN=1     burn the pacing wait instead of sleeping it. Pins a core;
+                       isolates render cost from the cost of resuming a CPU that
+                       Windows parked during the sleep (worth 12-20% here).
+TORIRS_PKT_SLOW_MS=<n> print `pkt_slow: type=<id> <ms> cycle=<n>` for any server
+                       packet whose handler ran longer than n ms. The exec
+                       pipeline is serial, so the settle timed is that packet
+                       and nothing else. Ids are the PKT_NAME_* enum ordinals in
+                       src/net/rev/pktnames.h.
+```
+
 ## Historical Soft3D baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,

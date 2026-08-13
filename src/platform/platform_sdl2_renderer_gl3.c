@@ -556,6 +556,40 @@ gl3_batch2d_flush_if_needed(
         (b->uv_bounds[0] != uv_bounds[0] || b->uv_bounds[1] != uv_bounds[1] ||
          b->uv_bounds[2] != uv_bounds[2] || b->uv_bounds[3] != uv_bounds[3]);
 
+    /* TORIRS_GL3_BATCH_DEBUG=1: which of the four state changes is actually
+     * breaking the 2D batch. The flush count alone says the UI costs 150 GPU
+     * synchronisation points a frame but not which one to merge away, and the
+     * four have completely different fixes — a texture split wants atlasing, a
+     * scissor split wants the clip stack flattened. */
+    /* Cached: this runs once per quad appended, which is thousands of times a
+     * frame — a getenv there would cost more than the thing it measures. */
+    static int batch_debug = -1;
+    if( batch_debug < 0 )
+        batch_debug = getenv("TORIRS_GL3_BATCH_DEBUG") != NULL;
+    if( batch_debug )
+    {
+        static long tex, mode, clamp, scissor, bounds, full, total;
+        if( b->texture != texture )
+            tex++;
+        else if( b->text_mode != text_mode )
+            mode++;
+        else if( b->uv_clamp != uv_clamp )
+            clamp++;
+        else if( !gl3_batch2d_scissor_matches(b, scissor_x, scissor_y, scissor_w, scissor_h) )
+            scissor++;
+        else if( uv_bounds_changed )
+            bounds++;
+        else if( b->vert_count + extra_verts > GL3_2D_BATCH_MAX_VERTS )
+            full++;
+        if( (state_changed || uv_bounds_changed ||
+             b->vert_count + extra_verts > GL3_2D_BATCH_MAX_VERTS) &&
+            ++total % 20000 == 0 )
+            fprintf(stderr,
+                    "gl3_batch_break: total=%ld texture=%ld scissor=%ld text_mode=%ld "
+                    "uv_clamp=%ld uv_bounds=%ld batch_full=%ld\n",
+                    total, tex, scissor, mode, clamp, bounds, full);
+    }
+
     if( state_changed || uv_bounds_changed || b->vert_count + extra_verts > GL3_2D_BATCH_MAX_VERTS )
         gl3_flush_2d_batch(renderer);
 }
@@ -623,12 +657,94 @@ gl3_batch2d_append_quad(
     b->vert_count += 6u;
 }
 
+/*
+ * Stream `count` vertices into the 2D ring and return the vertex they start at,
+ * for glDrawArrays' `first`.
+ *
+ * The reason this is not a glBufferSubData at offset 0 is the whole cost of the
+ * 2D pass. Rewriting the same range the previous glDrawArrays is still reading
+ * forces the driver to reconcile the two, and Apple's GL-over-Metal driver does
+ * that by flushing the context and blocking on a semaphore until the GPU
+ * drains: profiling the Inferno showed ~150 flushes a frame and 39% of the main
+ * thread parked in semaphore_wait_trap underneath gl3_flush_2d_batch.
+ *
+ * Appending instead means each draw reads bytes nothing is about to overwrite.
+ * That alone is not enough, though, and the measurement is why this uses a
+ * mapped write rather than the obvious glBufferSubData at the new offset:
+ * Apple's driver tracks pending references per *buffer*, not per range, so a
+ * SubData anywhere in a buffer some queued draw still references flushes the
+ * whole context regardless of how far the write is from what is being read.
+ * Appending with SubData measured exactly as slow as rewriting offset zero.
+ *
+ * GL_MAP_UNSYNCHRONIZED_BIT is the way to say "I have already proved this
+ * range is dead, do not wait for anything" — which the ring is what proves.
+ * The buffer is only recycled when the head wraps, and that is done with a
+ * NULL glBufferData: orphaning tells the driver the old contents are dead, so
+ * it hands back fresh storage instead of waiting for the draws still reading.
+ */
+static uint32_t
+gl3_quad_ring_upload(
+    struct ToriRS_GL3* renderer,
+    struct GL3Vertex2D const* verts,
+    uint32_t count)
+{
+    size_t const stride = sizeof(struct GL3Vertex2D);
+    uint32_t first;
+    void* mapped;
+
+    if( count > GL3_2D_RING_VERTS )
+        count = GL3_2D_RING_VERTS;
+    if( renderer->quad_ring_head + count > GL3_2D_RING_VERTS )
+    {
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            (GLsizeiptr)((size_t)GL3_2D_RING_VERTS * stride),
+            NULL,
+            GL_STREAM_DRAW);
+        renderer->quad_ring_head = 0u;
+    }
+    first = renderer->quad_ring_head;
+
+    mapped = glMapBufferRange(
+        GL_ARRAY_BUFFER,
+        (GLintptr)((size_t)first * stride),
+        (GLsizeiptr)((size_t)count * stride),
+        GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT | GL_MAP_INVALIDATE_RANGE_BIT);
+    if( mapped )
+    {
+        memcpy(mapped, verts, (size_t)count * stride);
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+    }
+    else
+    {
+        /* A driver that refuses the map still has to draw something correct;
+         * the stall is a performance defect, not a correctness one. */
+        glBufferSubData(
+            GL_ARRAY_BUFFER,
+            (GLintptr)((size_t)first * stride),
+            (GLsizeiptr)((size_t)count * stride),
+            verts);
+    }
+    renderer->quad_ring_head = first + count;
+    return first;
+}
+
 static void
 gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
 {
     struct GL3Batch2DState* b = &renderer->batch2d;
+    uint32_t first;
     if( b->vert_count == 0u )
         return;
+
+    /* Counted here rather than at the call sites because most flushes are not
+     * calls at all: gl3_batch2d_flush_if_needed breaks the batch whenever the
+     * texture, scissor, text mode or uv bounds change, so the per-frame count
+     * is a property of the UI's draw order and nothing else reports it. It
+     * matters because each flush ends in a glBufferSubData over the *same*
+     * quad_vbo range this function is about to draw from, which is a GPU
+     * synchronisation point on drivers that will not orphan the buffer. */
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_2D_BATCH_FLUSHES, 1);
 
     if( b->scissor_set )
     {
@@ -695,9 +811,8 @@ gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
             renderer->u2d_uv_bounds, b->uv_bounds[0], b->uv_bounds[1], b->uv_bounds[2], b->uv_bounds[3]);
 
     glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
-    glBufferSubData(
-        GL_ARRAY_BUFFER, 0, (GLsizeiptr)(b->vert_count * sizeof(struct GL3Vertex2D)), b->verts);
-    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)b->vert_count);
+    first = gl3_quad_ring_upload(renderer, b->verts, b->vert_count);
+    glDrawArrays(GL_TRIANGLES, (GLint)first, (GLsizei)b->vert_count);
 
     if( gl3_text_debug_enabled() && b->text_mode )
         gl3_check_error("2d flush text");
@@ -727,8 +842,7 @@ gl3_draw_textured_quad_immediate(
         { { x0, y1 }, { u0, v1 }, { rgba[0], rgba[1], rgba[2], rgba[3] } },
     };
     glBindBuffer(GL_ARRAY_BUFFER, renderer->quad_vbo);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(verts), verts);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawArrays(GL_TRIANGLES, (GLint)gl3_quad_ring_upload(renderer, verts, 6u), 6);
 }
 
 static void
@@ -2866,40 +2980,49 @@ gl3_bind_world_draw_state(struct ToriRS_GL3* renderer)
 static void
 gl3_release_gpu_mesh_buffers(struct ToriRS_GL3* renderer)
 {
+    /*
+     * Shrink by reallocating storage in place — never glDeleteBuffers +
+     * glGenBuffers here. GL_ELEMENT_ARRAY_BUFFER binding is VAO state, and
+     * deleting a buffer detaches it only from the VAO bound at that moment:
+     * every other group VAO keeps referencing the doomed object while
+     * glGenBuffers hands the same *name* to a fresh one. From then on the
+     * frame's index upload writes the new object and glDrawElements reads the
+     * zombie — no GL error anywhere, the world just stops drawing (this is
+     * exactly what happened on the Mac core profile: BATCH3D_CLEAR fires on
+     * world load, and every frame after drew 147k indices of zero).
+     * glBufferData(NULL) on the same object returns the memory just as well
+     * and every attachment stays valid.
+     *
+     * The EBO's storage is sized through the ARRAY target on purpose: storage
+     * belongs to the object, not the binding point, and the ARRAY binding is
+     * context state — no VAO's element attachment is disturbed by it.
+     */
     for( uint32_t gi = 0u; gi < TRSPK_VBO_GROUP_COUNT; ++gi )
     {
         struct GL3ModelGroup* g = &renderer->groups[gi];
         if( g->vbo_gpu )
         {
-            glDeleteBuffers(1, &g->vbo_gpu);
-            glGenBuffers(1, &g->vbo_gpu);
-            gl3_bind_group_attribs(renderer, g, 0u);
             glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
             glBufferData(
                 GL_ARRAY_BUFFER,
                 TRSPK_GL3_GPU_VBO_INIT * sizeof(struct TRSPK_VertexOpenGl3),
                 NULL,
                 GL_DYNAMIC_DRAW);
-            bind_vbo_attribs(renderer, g->vbo_gpu, 0u);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
-            gl3_unbind_attribs(renderer);
             g->gpu_capacity = TRSPK_GL3_GPU_VBO_INIT;
         }
     }
 
     if( renderer->ebo )
     {
-        glDeleteBuffers(1, &renderer->ebo);
-        glGenBuffers(1, &renderer->ebo);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
+        glBindBuffer(GL_ARRAY_BUFFER, renderer->ebo);
         glBufferData(
-            GL_ELEMENT_ARRAY_BUFFER,
+            GL_ARRAY_BUFFER,
             TRSPK_GL3_GPU_IBO_INIT * TORIRS_GL_INDEX_SIZE,
             NULL,
             GL_DYNAMIC_DRAW);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         renderer->gpu_ibo_capacity = TRSPK_GL3_GPU_IBO_INIT;
     }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 static void
@@ -2934,11 +3057,23 @@ gl3_upload_group(struct GL3ModelGroup* g)
         g->gpu_capacity = cap;
 
         glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
+        while( glGetError() != GL_NO_ERROR )
+            ; /* drain, so the next check is about this allocation */
         glBufferData(
             GL_ARRAY_BUFFER,
-            (GLsizeiptr)(cap * sizeof(struct TRSPK_VertexOpenGl3)),
+            (GLsizeiptr)((size_t)cap * sizeof(struct TRSPK_VertexOpenGl3)),
             NULL,
             GL_DYNAMIC_DRAW);
+        {
+            GLenum e = glGetError();
+            if( e != GL_NO_ERROR || getenv("TORIRS_GL3_VBO_DEBUG") )
+                fprintf(stderr,
+                        "gl3_upload_group: group %s grow to %u verts (%.1f MiB) err=0x%x%s\n",
+                        g->reset_each_frame ? "dynamic" : "static", cap,
+                        (double)((size_t)cap * sizeof(struct TRSPK_VertexOpenGl3)) / 1048576.0,
+                        (unsigned)e,
+                        e != GL_NO_ERROR ? "  <== ALLOCATION FAILED" : "");
+        }
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, g->vbo_gpu);
@@ -3784,9 +3919,23 @@ gl3_ev_end_3d(
     assert(built == total_indices);
     (void)built;
 
+    /* TORIRS_GL3_3D_DEBUG=1: error-check the index upload and each world draw,
+     * and verify the drawn range against the CPU staging. The failure this
+     * exists for is silent: a VAO whose element-buffer attachment went stale
+     * draws stale indices with no GL error — see gl3_release_gpu_mesh_buffers. */
+    static int dbg3d = -1;
+    if( dbg3d < 0 )
+        dbg3d = getenv("TORIRS_GL3_3D_DEBUG") != NULL;
+    if( dbg3d )
+    {
+        while( glGetError() != GL_NO_ERROR )
+            ;
+    }
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, renderer->ebo);
     glBufferSubData(
         GL_ELEMENT_ARRAY_BUFFER, 0, (GLsizeiptr)(total_indices * sizeof(uint32_t)), staging);
+    if( dbg3d )
+        gl3_check_error("3d ebo upload");
     TORIRS_PERF_COUNT(
         TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)(total_indices * sizeof(uint32_t)));
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
@@ -3808,11 +3957,32 @@ gl3_ev_end_3d(
                 TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_ATTRIB_REBINDS, 1);
             }
 
+            if( dbg3d )
+            {
+                /* The drawn range must be the staging just uploaded. Reading
+                 * through the VAO's element attachment (not the generic
+                 * binding) is the point: a stale attachment is the one state
+                 * mismatch nothing else reports. */
+                uint32_t fi[3] = { 0 };
+                glGetBufferSubData(
+                    GL_ELEMENT_ARRAY_BUFFER,
+                    (GLintptr)(range->start * sizeof(uint32_t)),
+                    sizeof(fi),
+                    fi);
+                if( memcmp(fi, staging + range->start, sizeof(fi)) != 0 )
+                    fprintf(stderr,
+                            "gl3_3d_draw: vao %u draws %u,%u,%u where staging has "
+                            "%u,%u,%u — element attachment is stale\n",
+                            group_vao, fi[0], fi[1], fi[2], staging[range->start],
+                            staging[range->start + 1], staging[range->start + 2]);
+            }
             glDrawElements(
                 GL_TRIANGLES,
                 (GLsizei)index_count,
                 GL_UNSIGNED_INT,
                 (const void*)(uintptr_t)(range->start * sizeof(uint32_t)));
+            if( dbg3d )
+                gl3_check_error("3d draw");
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, 1);
         }
 
@@ -3823,6 +3993,36 @@ gl3_ev_end_3d(
     GL3ZB_DrawAlphaPass(renderer);
 
     gl3_unbind_attribs(renderer);
+
+    /* TORIRS_GL3_READBACK=path.ppm: dump the GL back buffer right after the 3D
+     * pass. TORIRS_EXIT_BMP re-renders through the software path, so it cannot
+     * show a GL-only defect. */
+    {
+        static int readback = -1;
+        static long rb_frame;
+        if( readback < 0 )
+            readback = getenv("TORIRS_GL3_READBACK") != NULL;
+        if( readback && ++rb_frame % 64 == 0 )
+        {
+            int w = renderer->width, h = renderer->height;
+            unsigned char* px = malloc((size_t)w * h * 3);
+            if( px )
+            {
+                FILE* f;
+                glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
+                f = fopen(getenv("TORIRS_GL3_READBACK"), "wb");
+                if( f )
+                {
+                    fprintf(f, "P6\n%d %d\n255\n", w, h);
+                    for( int y = h - 1; y >= 0; y-- )
+                        fwrite(px + (size_t)y * w * 3, 1, (size_t)w * 3, f);
+                    fclose(f);
+                }
+                free(px);
+            }
+        }
+    }
 
 done:
     renderer->has_3d = false;
@@ -4837,9 +5037,10 @@ ToriRS_GL3_Init(
         glBindBuffer(GL_ARRAY_BUFFER, gl3->quad_vbo);
         glBufferData(
             GL_ARRAY_BUFFER,
-            (GLsizeiptr)(GL3_2D_BATCH_MAX_VERTS * sizeof(struct GL3Vertex2D)),
+            (GLsizeiptr)((size_t)GL3_2D_RING_VERTS * sizeof(struct GL3Vertex2D)),
             NULL,
-            GL_DYNAMIC_DRAW);
+            GL_STREAM_DRAW);
+        gl3->quad_ring_head = 0u;
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(struct GL3Vertex2D), (void*)0);
         glEnableVertexAttribArray(1);

@@ -56,6 +56,8 @@ struct Dat1BuildCache;
 struct Dat2BuildCache;
 struct ToriRS_CmdBus;
 struct ToriRS_Network;
+struct PktNpcInfoOp;
+struct PktPlayerInfoOp;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -374,6 +376,18 @@ struct App
     struct CacheProvider* provider;
     /** Lit model-instance LRU (spot/npc/loc/obj/player). Cleared at map build. */
     struct TorirsModelInstCache model_inst_cache;
+    /**
+     * Entity-info decode scratch: one 2048-entry op array per decoder, reused
+     * across packets rather than allocated and freed for each. PLAYER_INFO and
+     * NPC_INFO both arrive every server tick and each was calloc'ing ~80KB.
+     * Borrowed by the running exec task and handed back on its free; NULL until
+     * first use. Owned here so teardown reclaims them -- see
+     * task_exec_entity_info.c for the borrow/release pair.
+     */
+    struct PktNpcInfoOp* npc_info_ops_scratch;
+    struct PktPlayerInfoOp* player_info_ops_scratch;
+    int npc_info_ops_scratch_busy;
+    int player_info_ops_scratch_busy;
 
     /* Phase 3: scene + bridge. */
     struct ToriDraw_Scene* scene;

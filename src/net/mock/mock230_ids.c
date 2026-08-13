@@ -45,6 +45,7 @@ static const struct Mock230SymbolRef k_refs[] = {
         { MOCK230_PACK_INV, "inv", &g_ids.inv_backpack },
         { MOCK230_PACK_INV, "worn", &g_ids.inv_worn },
         { MOCK230_PACK_INV, "bank", &g_ids.inv_bank },
+        { MOCK230_PACK_INV, "collection_transmit", &g_ids.inv_collection_log },
         { MOCK230_PACK_HEALTHBAR, "healthbar_0", &g_ids.healthbar_standard },
 
         { MOCK230_PACK_ENUM, "worn_slots", &g_ids.enum_worn_slots },

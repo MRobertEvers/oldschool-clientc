@@ -390,7 +390,18 @@ enum
      *
      * Still a flat per-player array (docs/osrs230_mockserver.md §6.1 wants it
      * sparse); this makes it correct before it makes it small. */
-    MOCK230_VARP_CACHE_MAX = 5705,
+    /*
+     * How far the cache's own varps reach — 5725, meaning ids 0..5724.
+     *
+     * Not the varp group's file count, which is 5705. A varbit names a varp id
+     * whether or not the varp group carries a record for it, and this cache has
+     * varbits based as high as 5724. Sizing this off the group put twenty
+     * server varps (`%com_*`, `%damagestyle`, `%prayer_drain_*`,
+     * `%newplayer_seeded`, `%mock_mapzone_log`) directly on top of packed
+     * varbits. `mock230_varbit_load` reports the real ceiling at boot and
+     * complains if a cache ever reaches past this.
+     */
+    MOCK230_VARP_CACHE_MAX = 5725,
     /*
      * Room above the cache for the tree's own varps, and it is a MEASUREMENT.
      *
@@ -435,24 +446,25 @@ enum
     MOCK230_NPC_QUEUE_MAX = 8,
     /** Script-owned integer state slots carried by each live npc instance. */
     /* Slots 0..15 are established runtime state; slot 16 is the
-     * GiantChinchompa post-special dismissal latch and slot 17 retains the
-     * Spirit Graahk's generation-safe normal-combat target.
+     * GiantChinchompa post-special dismissal latch, slot 17 retains the Spirit
+     * Graahk's generation-safe normal-combat target, and 62 is npc-side poison
+     * severity (`^npc_poison_var_slot`, skill_combat/configs/combat.constant).
      *
-     * Slot 18 is npc poison (`^npc_poison_var_slot`, combat.constant).
+     * 64 rather than one past the highest slot in use, because content picks
+     * these numbers and nothing checks them at compile time: `npc_var_get`
+     * aborts the running script past the end, and content reasonably assumes a
+     * slot chosen far from the crowded low range is free. Poison did exactly
+     * that at 62, and since `[ai_opplayer2,_]` — the shared default melee AI —
+     * ticks poison one line above auto-retaliate, the abort took retaliation
+     * with it and every default-AI npc stopped hitting back. Headroom here is
+     * 46 words × MOCK230_NPC_MAX, under a megabyte, and it buys back a class of
      *
-     * That constant used to say 62, and `npc_poison_tick` is spliced into the
-     * shared melee AI's attack cadence — so with an 18-slot array EVERY npc
-     * melee swing aborted `[ai_opplayer2,_]` mid-script with "npc_var_get
-     * slot 62 outside 0..17", losing the rest of that trigger's work. It was
-     * near-silent in play (the swing had already landed) and showed up only
-     * as a log line.
-     *
-     * Grow this by ONE slot per genuinely new use, never in bulk: `struct
-     * Mock230Server` is a stack local in the selftest (mock230_world.c), so
-     * every slot costs MOCK230_NPC_MAX * 4 bytes of stack frame. Widening
-     * straight to 64 added 753 KB and segfaulted the suite before its first
+     * Note on cost: `struct Mock230Server` is a stack local in the selftest
+     * (mock230_world.c), so each slot is MOCK230_NPC_MAX * 4 bytes of frame.
+     * At 64 that frame needs a raised stack or a static/heap `srv`; growing
+     * this further without checking segfaults the suite before its first
      * check. */
-    MOCK230_NPC_VAR_MAX = 19,
+    MOCK230_NPC_VAR_MAX = 64,
 
     /**
      * Where an npc is in the death sequence — `Mock230Npc.death_stage`.
@@ -2340,6 +2352,19 @@ struct Mock230Player
      *  happens during it, is `[queue,player_death]`. There was a `death_tick`
      *  here, which meant the engine owned the length of a death. */
     int dying;
+    /** Debug invulnerability (`::god`). Gates the one player damage funnel,
+     *  `mock230_combat_hit_player`, so every source — npc melee, the Inferno's
+     *  queued projectile damage, poison, content's own `damage()` — lands as a
+     *  block splat instead of a subtraction.
+     *
+     *  This is engine rather than content on purpose. A cheat here is normally
+     *  a `[debugproc]` (see handle_cheat), but "absorb all damage" is not
+     *  something a script can express: content reaches hitpoints only *through*
+     *  this funnel, so a content-side flag would still need this same gate and
+     *  would only add a second copy of the state. It exists so a profiling run
+     *  can move around a live encounter without the death sequence rewriting
+     *  the scene mid-measurement. */
+    int godmode;
     /** Reject the player's own movement/action packets while leaving the
      *  simulation live. Unlike busy/canAccess this does not pause scripts,
      *  queues, timers, or damage; content owns the duration through
@@ -3195,6 +3220,18 @@ mock230_varbit_set(
  */
 int
 mock230_varbit_carrier_bits(int varp);
+
+/**
+ * The highest varp id any cache varbit is based on, or -1 if none is loaded.
+ *
+ * This, not the varp config group's last file id, is how far the cache's varp
+ * namespace actually reaches: a varbit names a varp whether or not the group
+ * carries a record for it, and this cache's varbits run twenty ids past the
+ * group's end. Anything allocating server varps has to clear this or it lands
+ * on packed bits — see `validate_id_bases` and MOCK230_VARP_CACHE_MAX.
+ */
+int
+mock230_varbit_max_basevar(void);
 
 /** Non-zero while a varbit write is patching its base varp. That write is the
  *  correct way to touch a carrier, so the backstop must not count it. */

@@ -45,6 +45,9 @@ static int g_varbit_count;
 static uint16_t* g_carrier_bits;
 static int g_carrier_count;
 
+/** The highest varp any loaded varbit is based on; -1 until one is. */
+static int g_max_basevar = -1;
+
 /** Non-zero while mock230_varbit_set is patching a base varp — a varbit write
  *  reaching mock230_world_set_varp is the correct path, not a violation. */
 static int g_patching;
@@ -151,9 +154,16 @@ mock230_varbit_load(const char* cache_dir)
      * read off the array. */
     g_carrier_count = MOCK230_VARP_COUNT;
     g_carrier_bits = calloc((size_t)g_carrier_count, sizeof(*g_carrier_bits));
+    /* The ceiling is measured over every basevar, including any past the end of
+     * the reverse index — that case is exactly the one worth hearing about. */
+    for( int i = 0; i < g_varbit_count; i++ )
+        if( g_varbits[i].basevar > g_max_basevar )
+            g_max_basevar = g_varbits[i].basevar;
+
     if( g_carrier_bits )
     {
         int carriers = 0;
+        int max_base = g_max_basevar;
 
         for( int i = 0; i < g_varbit_count; i++ )
         {
@@ -164,7 +174,36 @@ mock230_varbit_load(const char* cache_dir)
             if( g_carrier_bits[base]++ == 0 )
                 carriers++;
         }
-        fprintf(stderr, "mock230: %d varp(s) carry varbits\n", carriers);
+        fprintf(stderr, "mock230: %d varp(s) carry varbits (highest basevar %d)\n", carriers,
+                max_base);
+        /*
+         * The cache's varps and the tree's must not overlap, and this is the
+         * only place that can tell.
+         *
+         * `tools/ss_allocate.py` hands out server varp ids from one past the
+         * largest the *content tree* knows about, which it reads from
+         * `configs/all.varp` — an export, and only as current as whenever it
+         * was taken. MOCK230_VARP_CACHE_MAX is the engine's copy of the same
+         * number. If the cache actually running carries varbits above that
+         * line, then every one of them shares a slot with a server varp, and
+         * the two corrupt each other in both directions: `~player_combat_stat`
+         * writing `%com_slashattack` looks like a whole-varp write over
+         * somebody's packed bits, and the packed bits' owner overwrites the
+         * combat stat right back.
+         *
+         * It is not a fatal, because the collision only bites the varps that
+         * actually overlap and the world is still worth booting -- but it is
+         * the root cause of any whole-varp complaint about a varp at or above
+         * the line, so say it once, here, rather than leaving each write to be
+         * misdiagnosed as content writing the wrong thing.
+         */
+        if( max_base >= MOCK230_VARP_CACHE_MAX )
+            fprintf(stderr,
+                    "mock230: this cache carries varbits up to varp %d, past the %d the "
+                    "engine assumes — server varps %d..%d collide with cache varbits; "
+                    "re-export configs/all.varp, re-run tools/ss_allocate.py and raise "
+                    "MOCK230_VARP_CACHE_MAX\n",
+                    max_base, MOCK230_VARP_CACHE_MAX - 1, MOCK230_VARP_CACHE_MAX, max_base);
     }
     else
         g_carrier_count = 0;
@@ -185,7 +224,14 @@ mock230_varbit_free(void)
     free(g_carrier_bits);
     g_carrier_bits = NULL;
     g_carrier_count = 0;
+    g_max_basevar = -1;
     g_patching = 0;
+}
+
+int
+mock230_varbit_max_basevar(void)
+{
+    return g_max_basevar;
 }
 
 int
