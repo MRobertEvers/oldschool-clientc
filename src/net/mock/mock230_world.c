@@ -12395,31 +12395,60 @@ mock230_world_selftest(void)
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             }
 
-            fprintf(stderr, "mock230 selftest: coordinate projectile host opcode\n");
+            /*
+             * The two coordinate-addressed graphics ops, in one script and one
+             * tick.
+             *
+             * `projanim_map` and `spotanim_map` are the tree's only graphics
+             * that travel as ZONE events — `spotanim_npc` / `spotanim_pl` set a
+             * bit on an entity and ride NPC_INFO/PLAYER_INFO instead — so they
+             * share a failure mode nothing else has and neither has anything
+             * else to show for itself when it breaks.
+             *
+             * They are checked TOGETHER, in one hook and one `world_tick`,
+             * rather than as two stanzas, and that is not tidiness: this
+             * section runs on the shared server clock and a shared RNG stream,
+             * and a second tick here re-rolls every fight in the sections after
+             * it. Splitting them cost 10 failures five thousand lines away —
+             * `mock230 selftest: combat`'s goblin stopped dying inside its
+             * 200-tick cap because its damage rolls had all moved.
+             */
+            fprintf(stderr, "mock230 selftest: coordinate projectile and spotanim host opcodes\n");
             {
                 static struct Mock230Capture projectile_capture;
                 const struct Mock230Wire* saved_wire = srv->wire;
                 const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                 const int spotanim = 32760;
+                /* A second id, so the two assertions below cannot be satisfied
+                 * by the same packet. */
+                const int map_spotanim = 32762;
                 uint16_t ops[] = {
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
-                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PROJANIM_MAP, SS_OP_RETURN,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PROJANIM_MAP,
+                    /* `spotanim_map(spotanim, coord, height, delay)`, pushed in
+                     * the order the op pops them. */
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                    SS_OP_SPOTANIM_MAP,      SS_OP_RETURN,
                 };
                 int32_t operands[] = {
                     mock230_coord_pack(player->level, player->x, player->z),
                     mock230_coord_pack(player->level, player->x + 2, player->z + 1),
-                    spotanim, 40, 0, 1, 5, 16, 64, 0, 0,
+                    spotanim, 40, 0, 1, 5, 16, 64, 0,
+                    map_spotanim,
+                    mock230_coord_pack(player->level, player->x, player->z),
+                    0, 0, 0, 0,
                 };
-                char* strings[11] = { NULL };
+                char* strings[16] = { NULL };
                 struct SSVM_Script script = {
                     .id = -1,
-                    .name = "[selftest,projanim_map]",
+                    .name = "[selftest,map_graphics]",
                     .source_path = "<selftest>",
                     .lookup_key = -1,
-                    .op_count = 11,
+                    .op_count = 16,
                     .opcodes = ops,
                     .int_operands = operands,
                     .string_operands = strings,
@@ -12433,7 +12462,7 @@ mock230_world_selftest(void)
                     srv->wire = wire239;
                     mock230_capture_begin(srv, &projectile_capture);
                     SELFTEST_CHECK(mock230_scripts_run_hook(srv, &script, NULL, 0),
-                                   "PROJANIM_MAP executes through the host VM");
+                                   "PROJANIM_MAP and SPOTANIM_MAP execute through the host VM");
                     mock230_world_tick(srv);
                     mock230_capture_end(srv);
                     srv->wire = saved_wire;
@@ -12443,6 +12472,24 @@ mock230_world_selftest(void)
                                    "projanim_map emits one coordinate-targeted "
                                    "MAP_PROJANIM carrying spotanim %d",
                                    spotanim);
+                    /*
+                     * And the sibling, which had no check at all.
+                     *
+                     * Its two callers that matter are JalTok-Jad's ranged
+                     * attack — the rock that falls on the player's tile,
+                     * spotanim 451, which is Kronos's own
+                     * `sendGraphics(451, 0, 0, target.getPosition())` — and
+                     * Jal-MejJak's lava. Neither has anything else to show for
+                     * itself, so "the rock does not appear" and "the packet was
+                     * never sent" read identically from the arena floor. This
+                     * is what tells them apart.
+                     */
+                    SELFTEST_CHECK(selftest_rev239_zone_count(&projectile_capture,
+                                                              PKT_NAME_MAP_ANIM,
+                                                              map_spotanim) == 1,
+                                   "spotanim_map emits one MAP_ANIM carrying spotanim %d — "
+                                   "the packet JalTok-Jad's falling rock is",
+                                   map_spotanim);
                 }
             }
 
