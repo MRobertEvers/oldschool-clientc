@@ -572,7 +572,12 @@ FAMILY_DATA = {
         storage="item_var", depletion="none", max_charges=1000,
         charge_source="The Ides of Milk quest reward, charged 1:1 with air runes",
         drain_event="1 charge per teleport to Lumbridge cow field",
-        status="charges_only", note="Quest script only grants/removes the whole item -- no charge mechanic wired.",
+        status="implemented",
+        note="Teleports to a real, verified cow spawn coordinate (areas/world/configs/m50_51.spawn: 'cow "
+             "3254 3267 0') rather than a guessed tile, the same reasoning Chronicle's own destination uses. "
+             "Gated at Wilderness level 20 per the wiki. NOT implemented: the milking-speed passive (6 vs 7 "
+             "ticks while worn), the separate 'Ring' option (calls nearby cows, unrelated to charges), and "
+             "re-obtaining a lost amulet from Gillie Groats (an NPC dialogue grant, not a charges gap).",
     ),
     "Crystal axe": dict(
         storage="item_var", depletion="revert", max_charges=20000,
