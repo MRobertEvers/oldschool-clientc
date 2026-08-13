@@ -458,7 +458,12 @@ enum
      * ticks poison one line above auto-retaliate, the abort took retaliation
      * with it and every default-AI npc stopped hitting back. Headroom here is
      * 46 words × MOCK230_NPC_MAX, under a megabyte, and it buys back a class of
-     * silent gameplay failure. */
+     *
+     * Note on cost: `struct Mock230Server` is a stack local in the selftest
+     * (mock230_world.c), so each slot is MOCK230_NPC_MAX * 4 bytes of frame.
+     * At 64 that frame needs a raised stack or a static/heap `srv`; growing
+     * this further without checking segfaults the suite before its first
+     * check. */
     MOCK230_NPC_VAR_MAX = 64,
 
     /**
@@ -505,7 +510,13 @@ enum
      * `mock230_ids()->lootdrop_duration`. */
 
     /* Parked script bookkeeping. */
-    MOCK230_QUEUE_MAX = 16,
+    /* 32, up from 16: the reference's queue is an uncapped linked list, and
+     * the QBD encounter's documented worst case (three wall waves + their
+     * steppers, four soul shadows, Royal-crossbow bleed splats, the platform
+     * hazard, siphon and worm chains, plus transient damage entries) can
+     * exceed 16 concurrent entries — a full queue is an SSVM abort content
+     * cannot see coming. */
+    MOCK230_QUEUE_MAX = 32,
     /** Arguments one queued script can carry. The reference's list is
      *  unbounded; four covers every `queue*` in the tree and keeps the entry a
      *  fixed size. Overflow is reported, never truncated silently. */

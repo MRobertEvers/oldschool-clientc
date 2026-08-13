@@ -152,22 +152,40 @@ time-stop accumulator; they are no longer unconditional random damage.
 
 ### 3.4 Moving fire wall
 
-Warning: `The Queen Black Dragon takes a huge breath.`
+Warning: `The Queen Black Dragon takes a huge breath.` (orange)
 
-The 19-tile-wide orange wall travels north to south. Contact deals rapid
-low-200s on each game tick. A stationary player typically receives two hits;
-running through a gap normally receives one and may avoid it completely (B).
+The wall spans the full 19-square platform and travels north to south at one
+tile per game tick. A stationary player typically receives two hits; running
+through a gap normally receives one and may avoid it completely (B). Contact
+"is the same as being hit by her Dragonfire attack" (B, Tip.It): the
+implementation rolls the dragonfire-protection ladder per contact tick —
+low-200s LP with a shield or antifire, up to mid-700s unprotected.
 
-The three release patterns have their safe column at arena-local x 28, 37, or
-32. In period prose these were described as tile 5, tile 9 (one west of the
-middle artefact), and tile 15 from the platform edge. Revision-727 GFX 3158,
-3159, and 3160 correspond to those patterns (B/C). Consecutive waves are seven
-server ticks apart in open727; this is retained as a cache-era approximation
-rather than claimed retail proof (D).
+The three wall types have their safe gap at squares **5, 9 (one west of the
+centre artefact), and 15** of the 19-square platform — arena-local columns
+28, 32, and **38** (B; open727's x 37 for the east gap contradicts the
+period text and is rejected). **"She will cycle between these waves so a
+player may predict where the next gap will be"** (B) — the gap types cycle
+deterministically; the cycle position persists across casts and phases.
+Consecutive waves are seven server ticks apart in open727; retained as a
+cache-era approximation rather than claimed retail proof (D).
 
-The implementation models a two-tile-deep damage front and advances it one tile
-per tick. Wave count is 1/2/3/3, not the early, subsequently corrected claim of
-four waves in phase 4.
+The visual is the authentic wall spot-animation family delivered exactly as
+retail delivered it: the **official MAP_PROJANIM packet** with flat-glide
+parameters (heights 0, peak 0, arc 0, duration 570 cycles = one row per
+tick), so the projectile math degenerates to a ground-hugging, unrotated
+glide in lockstep with the two-tile-deep damage front. Vertex measurement of
+the rev-727 wall models (76.25 tiles of face geometry, gap holes at
+model-local −20/+16/−4 tiles for 3158/3159/3160) fixes each pattern's spawn
+anchor at columns 48/22/36 respectively; a shared anchor puts every visual
+gap in the wrong column (C). Wave count is 1/2/3/3, not the early,
+subsequently corrected claim of four waves in phase 4.
+
+The full tick-level contract lives in
+`docs/rs2012_qbd_encounter/ENCOUNTER.md` §6, with its research provenance in
+`docs/rs2012_qbd_encounter/RESEARCH.md`; the mock230 selftest byte-decodes
+the waves off the wire (count, cycle order, 7-tick spacing, duration, zero
+arc).
 
 ### 3.5 Tortured souls and shadow projectiles
 
@@ -215,15 +233,21 @@ damage transform on top of the sourced accuracy change (D/E).
 Warning: `The Queen Black Dragon starts to siphon the energy of her mages.`
 
 QBD drains living tortured souls and heals. Its launch existence is certain:
-Jagex added an approximately 30-second cooldown on 7 August (A). Exact healing
-was not established in the June snapshots. The implementation starts the move
-in phase 3 and uses open727's approximation of 20 LP taken from each soul and
-40 LP healed to QBD, behind named constants/cooldowns (D).
+Jagex added an approximately 30-second cooldown on 7 August (A). The period
+Tortured-soul page and Tip.It describe a **continuous** drain — "continuous
+40s"/"continuous 20s", "this attack continues until all Tortured souls have
+been killed", a full 500-LP soul worth 1,000 LP to her (B). The
+implementation is therefore a channel: every 2 ticks each living idle soul
+loses 20 LP and heals her 40, until no soul remains or a full soul has been
+drained (25 drains), behind named constants/cooldowns. It starts in phase 3.
 
 ### 3.8 Time stop
 
-Phase 4 only. A soul teleports to an east or west corner and channels for about
-ten seconds. The following revision-727 strings are retained (B/C):
+Phase 4 only. A soul teleports to an east or west corner and channels for
+about ten seconds — the implementation speaks the four lines at 3-tick
+intervals from the teleport and completes the spell 15 ticks (9 s) after it,
+matching the period "10 seconds" within a tick. The following revision-727
+strings are retained (B/C):
 
 - `Kill me, mortal... quickly! HURRY! BEFORE THE SPELL IS COMPLETE!`
 - `Time is short!`
@@ -270,8 +294,14 @@ Contemporary prose says worms become larger in later phases, while the supplied
 open727 encounter always uses NPC 15464. The current port retains 15464 and
 marks later-size variants for visual QA.
 
-open727 coughs one worm every ten ticks while an artefact remains unactivated;
-that cadence is retained as D. Killed souls and worms yield once after their
+Era sources conflict on the eruption cadence — RuneHQ "every second" (B),
+Tip.It "every three seconds" (B), open727 every ten ticks (D); the
+implementation adopts the era-guide midpoint of one worm per five ticks and
+delivers it as the period visual: the queen coughs (16747) and **lobs the
+worm projectile (GFX 3141) to a random mid-field tile**, where the landing
+splash (3142) plays and the worm hatches three ticks after the cough,
+already aggressive (B/C for the visuals, the exact interval remains a
+labelled reconstruction). Killed souls and worms yield once after their
 drop/state trigger so generic post-kill credit still sees the dead NPC, then
 explicitly call `npc_del`; mock230 therefore cannot re-arm an ordinary NPC
 respawn clock. Final-restoration cleanup removes surviving adds without rolling
