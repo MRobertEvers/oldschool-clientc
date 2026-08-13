@@ -577,6 +577,20 @@ interactive_present_retained(
 EM_JS(int, web_document_hidden, (void), {
     return (typeof document !== 'undefined' && document.hidden) ? 1 : 0;
 });
+
+/* TORIRS_PERF=1 only (see torirs_perf.h): drops a User Timing mark plus a
+ * console.warn at `label`, so a captured DevTools trace shows *why* a frame
+ * ran long without the manual cross-referencing (WebSocketReceive bursts
+ * against AnimationFrame durations, sample by sample) that a periodic
+ * camera stutter took to trace back to frame_loop_step's own raf<->
+ * settimeout(0) pacing flip, tripped by the 600ms server tick's burst of
+ * small packets. All formatting happens in C; this just posts the string. */
+EM_JS(void, web_mark_frame_event, (const char* label), {
+    var s = UTF8ToString(label);
+    if( typeof performance !== 'undefined' && performance.mark )
+        performance.mark(s);
+    console.warn('[torirs] ' + s);
+});
 #endif
 
 static struct App app;
@@ -635,6 +649,21 @@ static int uncapped;
 static int pace_spin;
 /* Frame start of the previous loop iteration, for the `period` stage. */
 static uint64_t prev_frame_start_us;
+#if defined(TORIRS_PLATFORM_WEB)
+/* Shortest raf-paced `period` seen -- a self-calibrating stand-in for "one
+ * vsync" on web, where Emscripten never tells C the display's actual
+ * refresh rate. See the TORIRS_PERF raf-miss check in frame_loop_step.
+ * Only raf-mode periods may feed it: a settimeout(0) boot iteration runs
+ * ~1ms after its predecessor, and one such sample as the baseline would
+ * flag every normal 8ms frame after boot as a miss. */
+static uint64_t raf_baseline_us;
+/* The (mode, value) pair currently installed via
+ * emscripten_set_main_loop_timing; -1 until the first install. File scope
+ * so the period instrumentation above can tell raf frames from timer
+ * frames -- there is exactly one frame loop per process. */
+static int paced_mode = -1;
+static int paced_value = -1;
+#endif
 /* Retain gesture/key one-shots while App_RunOnce is holding the last committed
  * visual frame. They are cleared only after a stable tree reaches interaction. */
 static int input_frame_pending;
@@ -678,37 +707,68 @@ frame_loop_step(void)
      * like any other page. */
     {
         /*
-         * -1 unset; otherwise the (mode, value) pair currently installed.
-         *
          * Three regimes share one setting, so they are decided together:
          *
-         *   IO backlog   settimeout(0)  — drain as fast as the event loop will
+         *   boot backlog settimeout(0)  — drain as fast as the event loop will
          *   hidden tab   settimeout(50) — keep the socket drained, don't draw
-         *   settled      raf(1)         — a normal page on frame boundaries
+         *   visible play raf(1)         — a normal page on frame boundaries
          *
-         * The hidden case is the one worth explaining. A browser stops calling
-         * requestAnimationFrame for a hidden tab, so the client stops draining
-         * a socket the server keeps writing to; minutes later the tab comes
-         * back to a backlog it can only fast-forward through. Timers keep
-         * firing where animation frames do not — clamped to about 1Hz in the
-         * background, which is still several times the 600ms server tick, so
-         * a hidden tab keeps up instead of falling behind. Asking for 50ms
-         * costs nothing when the clamp is the thing that decides.
+         * The backlog arm is gated to pre-READY on purpose, and the gate is a
+         * jank fix, not thrift. Past READY the reads that remain are one or
+         * two chain links deep — a server tick reveals an npc whose model is
+         * not resident — and an async response only needs the event loop to
+         * turn, which every animation-frame boundary already does; the read
+         * resolves a frame later either way. Leaving raf for it cost two
+         * callbacks run off vsync plus a raf re-registration that landed
+         * mid-cycle: a 13-16ms presentation interval against an 8ms cadence,
+         * once per 600ms server tick, visible as a periodic stutter whenever
+         * the camera was moving. The backlog this arm exists for — hundreds
+         * of serially-discovered boot archives — cannot recur once READY:
+         * app_state regresses only on a full gameframe re-root, which gets
+         * the fast drain back along with its loading screen, and world/region
+         * streaming (Task_WorldLoad) stays READY and rides raf. If a region
+         * load's settle rate ever matters, drain it from the IO response
+         * callback instead of re-pacing the frame loop.
+         *
+         * The hidden case is the other one worth explaining. A browser stops
+         * calling requestAnimationFrame for a hidden tab, so the client stops
+         * draining a socket the server keeps writing to; minutes later the
+         * tab comes back to a backlog it can only fast-forward through.
+         * Timers keep firing where animation frames do not — clamped to
+         * about 1Hz in the background, which is still several times the
+         * 600ms server tick, so a hidden tab keeps up instead of falling
+         * behind. Asking for 50ms costs nothing when the clamp is the thing
+         * that decides.
          *
          * This is not a guarantee: a browser that freezes the page entirely,
          * or an OS that suspends it, stops timers too. That case is what
          * app_net_link_watch is for — it notices the gap and drops the
          * session rather than replaying it.
          */
-        static int paced_mode = -1;
-        static int paced_value = -1;
-        int waiting = PlatformXIO_Web_PendingTotal() > 0;
+        int waiting = app.app_state != APP_STATE_READY
+                      && PlatformXIO_Web_PendingTotal() > 0;
         int hidden = !waiting && web_document_hidden();
         int mode = (waiting || hidden) ? EM_TIMING_SETTIMEOUT : EM_TIMING_RAF;
         int value = waiting ? 0 : (hidden ? 50 : 1);
 
         if( mode != paced_mode || value != paced_value )
         {
+            if( g_torirs_perf_enabled )
+            {
+                char label[96];
+                snprintf(
+                    label,
+                    sizeof label,
+                    "torirs-pace %s(%d)->%s(%d) frame=%ld",
+                    paced_mode < 0 ? "init"
+                    : paced_mode == EM_TIMING_RAF ? "raf"
+                                                   : "settimeout",
+                    paced_value,
+                    mode == EM_TIMING_RAF ? "raf" : "settimeout",
+                    value,
+                    frame_count);
+                web_mark_frame_event(label);
+            }
             paced_mode = mode;
             paced_value = value;
             emscripten_set_main_loop_timing(mode, value);
@@ -744,8 +804,41 @@ frame_loop_step(void)
      * FRAME_BEGIN moves the carry into this frame's bucket. Work and pace each
      * miss part of the loop, so only this is the period the player sees. */
     if( prev_frame_start_us != 0 && frame_start_us > prev_frame_start_us )
-        TORIRS_PERF_CARRY(
-            TORIRS_PERF_STAGE_PERIOD, (frame_start_us - prev_frame_start_us) * 1000u);
+    {
+        uint64_t period_us = frame_start_us - prev_frame_start_us;
+        TORIRS_PERF_CARRY(TORIRS_PERF_STAGE_PERIOD, period_us * 1000u);
+#if defined(TORIRS_PLATFORM_WEB)
+        /* raf_baseline_us tracks the shortest raf-paced period seen as a
+         * proxy for "one vsync". A period 50% past that baseline means at
+         * least one requestAnimationFrame callback was skipped -- mark it
+         * rather than leaving the next investigation to reconstruct it from
+         * a raw trace. Timer-paced frames (boot drain, hidden tab) are
+         * excluded from both sides of the check, and the 4ms floor (240Hz)
+         * keeps a scheduling fluke on a raf frame from becoming a baseline
+         * every honest frame would then appear to miss. A period spanning a
+         * mode flip is judged by the mode just installed above -- close
+         * enough for instrumentation, and the flip logs its own marker. */
+        if( g_torirs_perf_enabled && paced_mode == EM_TIMING_RAF )
+        {
+            if( period_us >= 4000
+                && (raf_baseline_us == 0 || period_us < raf_baseline_us) )
+                raf_baseline_us = period_us;
+            else if( raf_baseline_us != 0
+                     && period_us > raf_baseline_us + raf_baseline_us / 2 )
+            {
+                char label[96];
+                snprintf(
+                    label,
+                    sizeof label,
+                    "torirs-raf-miss period=%.1fms baseline=%.1fms frame=%ld",
+                    (double)period_us / 1000.0,
+                    (double)raf_baseline_us / 1000.0,
+                    frame_count);
+                web_mark_frame_event(label);
+            }
+        }
+#endif
+    }
     prev_frame_start_us = frame_start_us;
     TORIRS_PERF_FRAME_BEGIN();
 
