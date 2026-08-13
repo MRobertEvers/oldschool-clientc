@@ -248,7 +248,7 @@ test_menu_submenus(void)
     int32_t row = UITree_CcCreate(tree, parent, parent_id, UIELEM_RS_RECT, 0);
     TEST_ASSERT(parent >= 0 && row >= 0, "push parent + row");
 
-    struct UITreeMenuOptions* opts = &tree->components[row].menu_options;
+    struct UITreeMenuOptions* opts = UITree_MenuOptionsMut(&tree->components[row]);
     TEST_ASSERT(opts->submenus == NULL, "no block until a submenu is set");
     TEST_ASSERT(UITree_MenuSubmenuEntry(opts, 1, 1)[0] == '\0', "unset entry reads empty");
 
@@ -265,13 +265,13 @@ test_menu_submenus(void)
     int32_t copy = UITree_CcCopy(tree, parent, parent_id, 0, 1);
     TEST_ASSERT(copy >= 0, "cc_copy row");
     {
-        struct UITreeMenuOptions* dst = &tree->components[copy].menu_options;
+        struct UITreeMenuOptions* dst = UITree_MenuOptionsMut(&tree->components[copy]);
         TEST_ASSERT(dst->submenus != NULL, "copy carries the submenus");
-        TEST_ASSERT(dst->submenus != tree->components[row].menu_options.submenus, "copy is not an alias");
+        TEST_ASSERT(dst->submenus != UITree_MenuOptionsMut(&tree->components[row])->submenus, "copy is not an alias");
         TEST_ASSERT(strcmp(UITree_MenuSubmenuEntry(dst, 2, 3), "Withdraw-10") == 0, "copied entry");
         TEST_ASSERT(UITree_MenuSubmenuSetEntry(dst, 2, 3, "Withdraw-X"), "write to the copy");
         TEST_ASSERT(
-            strcmp(UITree_MenuSubmenuEntry(&tree->components[row].menu_options, 2, 3),
+            strcmp(UITree_MenuSubmenuEntry(UITree_MenuOptions(&tree->components[row]), 2, 3),
                    "Withdraw-10") == 0,
             "source unchanged by the copy's write");
     }

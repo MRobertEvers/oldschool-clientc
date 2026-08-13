@@ -3413,11 +3413,11 @@ main(
         for( uint32_t ki = 0; ki < app.tree->component_count; ki++ )
         {
             struct UITreeComponent const* c = &app.tree->components[ki];
-            if( c->freed || !c->op_keys.has_bindings )
+            if( c->freed || !UITree_OpKeys(c)->has_bindings )
                 continue;
             for( int slot = 0; slot < UITREE_OPKEY_SLOTS; slot++ )
             {
-                struct UITreeOpKeyBinding const* b = &c->op_keys.slots[slot];
+                struct UITreeOpKeyBinding const* b = &UITree_OpKeys(c)->slots[slot];
                 if( !b->bound )
                     continue;
                 fprintf(
@@ -3444,7 +3444,7 @@ main(
         for( uint32_t oi = 0; oi < app.tree->component_count; oi++ )
         {
             struct UITreeComponent const* c = &app.tree->components[oi];
-            struct UITreeMenuOptions const* mo = &c->menu_options;
+            struct UITreeMenuOptions const* mo = UITree_MenuOptions(c);
             int has_ops = mo->option[0] != '\0';
             for( int s = 0; s < UITREE_MENU_OPTION_SLOTS; s++ )
                 if( mo->ops[s][0] != '\0' )

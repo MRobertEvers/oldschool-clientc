@@ -13105,10 +13105,15 @@ app_inv_cell_op_flash(
     hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
     if( !hook || hook->script_id <= 0 )
         return;
-    hook_copy = *hook;
+    /* A SNAPSHOT, and it has to be a deep one: the dispatch below can run
+     * scripts that rewrite this very hook, and a slot's arguments are owned
+     * allocations now, so the old `hook_copy = *hook` aliased tails the
+     * dispatch could free underneath it. */
+    UITree_HookInitCopy(&hook_copy, hook);
     RS_CS2_SetEventOp(&app->host, op_index > 0 ? op_index : 1, 0);
     RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
     RS_CS2_SetEventOp(&app->host, 1, 0);
+    UITree_HookClear(&hook_copy);
 }
 
 /* Target-mode visuals are script-owned. The spellbook registers
@@ -13593,7 +13598,7 @@ app_inv_drag_drop(
 
         if( hook && hook->script_id > 0 )
         {
-            struct UITreeRuntimeScriptHook hook_copy = *hook;
+            struct UITreeRuntimeScriptHook hook_copy;
             struct ToriRS_TaskQueue* drag_queue = ToriRS_TaskQueue_New();
             struct TaskRunner drag_runner = {
                 .queue = drag_queue,
@@ -13601,6 +13606,7 @@ app_inv_drag_drop(
                 .px = app->runner.px,
             };
             int target_id = dst_com;
+            UITree_HookInitCopy(&hook_copy, hook);
             if( dst_node >= 0 )
                 target_id = app->tree->components[dst_node].component_id;
             RS_CS2_SetEventOp(&app->host, 1, 0);
@@ -13610,6 +13616,7 @@ app_inv_drag_drop(
             RS_CS2_DispatchHook(&app->host, &drag_runner, hook_com, &hook_copy);
             TaskRunner_Drain(&drag_runner);
             ToriRS_TaskQueue_Free(drag_queue);
+            UITree_HookClear(&hook_copy);
             app->need_redraw = 1;
         }
     }
@@ -13923,8 +13930,8 @@ app_minimenu_run_option(
             {
                 /* Classic targetOp = "<verb-prefix> <base> <verb-suffix>", the
                  * verb split on its first space (Client-TS TGT_BUTTON). */
-                char const* verb = node->menu_options.target_verb;
-                char const* base = node->menu_options.target_base;
+                char const* verb = UITree_MenuOptions(node)->target_verb;
+                char const* base = UITree_MenuOptions(node)->target_base;
                 char const* space = strchr(verb, ' ');
                 if( space )
                     snprintf(
@@ -13945,7 +13952,7 @@ app_minimenu_run_option(
                  * row builders append the target's name to. */
                 snprintf(
                     app->targetsel.op, sizeof(app->targetsel.op), "%s %s ->",
-                    node->menu_options.target_verb, node->menu_options.option);
+                    UITree_MenuOptions(node)->target_verb, UITree_MenuOptions(node)->option);
             }
         }
         app_targetsel_dispatch_hook(app, 1);
@@ -14201,12 +14208,13 @@ app_minimenu_run_option(
                 return 0;
             }
         }
-        hook_copy = *hook;
+        UITree_HookInitCopy(&hook_copy, hook);
         RS_CS2_SetEventOp(&app->host, opt.action_index >= 0 ? opt.action_index + 1 : 1, 0);
         RS_CS2_SetEventMouse(&app->host, click_x, click_y);
         RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
         RS_CS2_SetEventOp(&app->host, 1, 0);
         RS_CS2_PumpTransmits(&app->host, &app->runner);
+        UITree_HookClear(&hook_copy);
         return 1;
     }
     case UI_MINIMENU_PICK_TERRAIN:

@@ -186,6 +186,18 @@ UITree_HookSet(
 }
 
 void
+UITree_HookInitCopy(
+    struct UITreeRuntimeScriptHook* dst,
+    struct UITreeRuntimeScriptHook const* src)
+{
+    assert(dst);
+    assert(src);
+    assert(dst != src);
+    memset(dst, 0, sizeof(*dst));
+    UITree_HookCopy(dst, src);
+}
+
+void
 UITree_HookCopy(
     struct UITreeRuntimeScriptHook* dst,
     struct UITreeRuntimeScriptHook const* src)

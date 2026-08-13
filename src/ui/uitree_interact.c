@@ -1187,7 +1187,7 @@ interact_op_keys(
         struct UITreeComponent const* node;
         assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         node = &tree->components[idx];
-        if( node->freed || node->component_id < 0 || !node->op_keys.has_bindings )
+        if( node->freed || node->component_id < 0 || !UITree_HasOpKeys(node) )
             continue;
         if( UITree_Hooks(node)->on_op.script_id <= 0 )
             continue;
@@ -1198,7 +1198,7 @@ interact_op_keys(
         {
             for( int slot = 0; slot < UITREE_OPKEY_SLOTS; slot++ )
             {
-                if( !opkey_slot_matches(&node->op_keys.slots[slot], &input->key_events[ev]) )
+                if( !opkey_slot_matches(&UITree_OpKeys(node)->slots[slot], &input->key_events[ev]) )
                     continue;
                 {
                     struct UIIntent intent = {

@@ -2457,21 +2457,32 @@ npc_spawn(
     for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
-        if( npc->active )
+        if( npc->active || npc->pending_free )
             continue;
         /*
          * Unfile the previous occupant before taking its slot — mock230_zone.h
          * asks the pool allocators to do exactly this, and this is the pool
          * allocator.
          *
-         * Every path that frees an npc clears `active`, and not all of them
-         * refile; the tick's reconcile normally papers over that because it
-         * only ever sees the end state. It cannot paper over a slot freed and
-         * handed out again inside one tick: the map would still hold the slot
-         * number under the old zone, and a client subscribed to that zone would
-         * be holding the *new* npc under the old one's position. Doing it here,
-         * with `active` still 0, covers every free site at once rather than
-         * asking each of them to remember.
+         * A slot freed and handed out again inside one tick used to be a live
+         * hazard here: the ZoneMap would still hold the slot number under the
+         * old zone, and a client subscribed to that zone would be holding the
+         * *new* npc under the old one's position — and separately, NPC_INFO
+         * could splice the new npc's data (including a same-tick hit) onto a
+         * client's already-tracked entity for that slot, since nothing on the
+         * wire lets a client tell "different npc now" from "same npc,
+         * continuing" (confirmed against the real client's own NPC_INFO
+         * decoder — see docs/mock230_npc_slot_reap.md).
+         *
+         * The loop's `npc->pending_free` check above is what actually closes
+         * that: a slot freed via `mock230_world_npc_free` cannot reach this
+         * point until `mock230_world_npc_reap` has run, which happens once
+         * per tick, after every player's NPC_INFO already went out — so by
+         * the time a slot is reused, no client can still be resolving it as
+         * the old npc. The refile call below is now defense in depth rather
+         * than the fix, kept because it is cheap and because every other free
+         * site not routed through `mock230_world_npc_free` (there should be
+         * none — see the doc) would otherwise leave the ZoneMap stale too.
          */
         mock230_zone_npc_refile(srv, slot);
         uint16_t generation = (uint16_t)(npc->generation + 1u);
@@ -2609,6 +2620,71 @@ npc_spawn(
                 type, x, z, active, MOCK230_NPC_MAX, srv->npc_slot_max);
     }
     return -1;
+}
+
+/*
+ * The despawn choke point. See docs/mock230_npc_slot_reap.md and the note
+ * ahead of the `pending_free` check in `npc_spawn` above for why this exists
+ * rather than every despawn site just writing `npc->active = 0` itself.
+ *
+ * `active` still clears immediately — deliberately. Same-tick game logic
+ * (`npc_find`, `huntall`, `npc_hastarget`, combat target resolution, ...)
+ * has to keep seeing this npc as gone the instant it dies; that half of the
+ * contract is unchanged. What's deferred is only the slot's ELIGIBILITY for
+ * `npc_spawn`'s free-slot scan: freeing it is recorded as a queued command
+ * instead, and the slot cannot be handed to a new npc until
+ * `mock230_world_npc_reap` drains that queue — once per tick, after every
+ * player's NPC_INFO for this tick has already gone out.
+ */
+void
+mock230_world_npc_free(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Npc* npc;
+
+    assert(srv);
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return;
+    npc = &srv->npcs[slot];
+    if( !npc->active )
+        return; /* already dead (or already queued) — do not double-queue */
+
+    npc->active = 0;
+    npc->pending_free = 1;
+
+    if( srv->npc_free_queue_count < MOCK230_NPC_MAX )
+    {
+        struct Mock230NpcFreeCmd* cmd = &srv->npc_free_queue[srv->npc_free_queue_count++];
+        cmd->slot = slot;
+        cmd->generation = npc->generation;
+    }
+    /* No overflow branch: the queue is sized to MOCK230_NPC_MAX and at most
+     * one command per currently-active npc can ever be pending between
+     * reaps, so `npc_free_queue_count` can never reach it. */
+}
+
+/*
+ * Once per tick, from phase_cleanup, after every player's NPC_INFO for this
+ * tick has already gone out (see mock230_world_tick's phase order). This is
+ * the only place a slot becomes eligible for `npc_spawn`'s scan again.
+ */
+void
+mock230_world_npc_reap(struct Mock230Server* srv)
+{
+    assert(srv);
+    for( int i = 0; i < srv->npc_free_queue_count; i++ )
+    {
+        struct Mock230NpcFreeCmd* cmd = &srv->npc_free_queue[i];
+        struct Mock230Npc* npc = &srv->npcs[cmd->slot];
+
+        /* Generation guard: defensive only (see the field's comment) — a
+         * queued slot cannot legitimately be reused before this runs, since
+         * `pending_free` is what blocks npc_spawn's scan from touching it. */
+        if( npc->generation == cmd->generation )
+            npc->pending_free = 0;
+    }
+    srv->npc_free_queue_count = 0;
 }
 
 /*
@@ -3420,14 +3496,16 @@ advance_npcs(struct Mock230Server* srv)
 
         /*
          * An `npc_add` with a duration expires here, before anything else in
-         * the phase looks at it. Clearing `active` is the ordinary NPC_INFO
-         * remove path — the same one a death uses — so the client is told the
-         * way it is told about everything else.
+         * the phase looks at it. `mock230_world_npc_free` is the ordinary
+         * NPC_INFO remove path — the same one a death uses — so the client
+         * is told the way it is told about everything else, and the slot
+         * cannot be reused before that telling has happened (see
+         * docs/mock230_npc_slot_reap.md).
          */
         if( npc->active && npc->despawn_tick >= 0 && srv->tick >= npc->despawn_tick )
         {
             npc_set_occupancy(npc, 0);
-            npc->active = 0;
+            mock230_world_npc_free(srv, slot);
             continue;
         }
 
@@ -10297,6 +10375,11 @@ phase_cleanup(struct Mock230Server* srv)
         srv->npcs[i].anim_id = -1;
         srv->npcs[i].anim_delay = 0;
     }
+
+    /* Every player's NPC_INFO for this tick is behind us (phase_clients_out
+     * already ran) — slots freed this tick can now actually be reused. See
+     * docs/mock230_npc_slot_reap.md. */
+    mock230_world_npc_reap(srv);
 
     /* The zones' event buffers, now that every client has been given them. The
      * state they hold — loc records, obj and npc membership — is not touched. */

@@ -9,6 +9,7 @@
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/torirs_db.h"
+#include "engine/torirs_component_hook.h"
 #include "engine/torirs_types.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 #include "engine/uitree_scene_bridge.h"
@@ -341,10 +342,11 @@ rs_cs2_apply_op(
     if( idx < 0 )
         return;
     strncpy(
-        tree->components[idx].menu_options.ops[index - 1],
+        UITree_MenuOptionsMut(&tree->components[idx])->ops[index - 1],
         text ? text : "",
         UITREE_MENU_OPTION_LEN - 1);
-    tree->components[idx].menu_options.ops[index - 1][UITREE_MENU_OPTION_LEN - 1] = '\0';
+    UITree_MenuOptionsMut(&tree->components[idx])->ops[index - 1][UITREE_MENU_OPTION_LEN - 1] =
+        '\0';
     /* TORIRS_OPS_DEBUG=1: which script wrote which verb onto which component.
      * The rev-230 inventory's rows are entirely script-assigned, so a wrong or
      * missing verb there is invisible until the menu is opened. */
@@ -372,9 +374,9 @@ rs_cs2_clear_ops(
     if( idx < 0 )
         return;
     for( i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
-        tree->components[idx].menu_options.ops[i][0] = '\0';
-    tree->components[idx].menu_options.option[0] = '\0';
-    UITree_MenuSubmenuClear(&tree->components[idx].menu_options, 0);
+        UITree_MenuOptionsMut(&tree->components[idx])->ops[i][0] = '\0';
+    UITree_MenuOptionsMut(&tree->components[idx])->option[0] = '\0';
+    UITree_MenuSubmenuClear(UITree_MenuOptionsMut(&tree->components[idx]), 0);
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -397,7 +399,7 @@ rs_cs2_apply_op_submenu(
     if( idx < 0 )
         return;
     UITree_MenuSubmenuSetEntry(
-        &tree->components[idx].menu_options, op_index, sub_index, text ? text : "");
+        UITree_MenuOptionsMut(&tree->components[idx]), op_index, sub_index, text ? text : "");
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -3790,76 +3792,97 @@ RS_CS2_RegisterCacheTransmitHooks(
     struct RS_CS2Host* host,
     struct ToriRS_Component const* src)
 {
+    /* The three channels are one shape, so they are one loop: which cache hook
+     * feeds which host table, and which trigger list goes with it. */
+    static struct
+    {
+        enum ToriRS_ComponentHookKind kind;
+        int channel; /* 0 varp, 1 inv, 2 stat */
+    } const k_channels[] = {
+        { TORIRS_COMPONENT_HOOK_VARP_TRANSMIT, 0 },
+        { TORIRS_COMPONENT_HOOK_INV_TRANSMIT, 1 },
+        { TORIRS_COMPONENT_HOOK_STAT_TRANSMIT, 2 },
+    };
+
     assert(host);
     assert(src);
 
-    if( src->on_varp_transmit.argc > 0 && src->on_varp_transmit.argv[0] > 0 )
+    for( size_t i = 0; i < sizeof(k_channels) / sizeof(k_channels[0]); i++ )
     {
-        struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id);
-        if( hook )
-        {
-            hook->component_id = src->id;
-            hook->script_id = src->on_varp_transmit.argv[0];
-            rs_cs2_cache_hook_args(
-                hook->int_args,
-                &hook->int_arg_count,
-                &hook->str_arg_mask,
-                &hook->str_arg_count,
-                hook->str_args,
-                &src->on_varp_transmit);
-            rs_cs2_cache_hook_triggers(
-                hook->trigger_ids,
-                &hook->trigger_count,
-                src->varp_triggers,
-                src->varp_triggers_count);
-        }
-    }
+        struct ToriRS_ScriptHook const* cache_hook =
+            ToriRS_ComponentHookPeek(src, k_channels[i].kind);
+        int* trigger_ids;
+        int* trigger_count;
+        int const* src_triggers;
+        int src_trigger_count;
+        int* int_args;
+        int* int_arg_count;
+        uint64_t* str_arg_mask;
+        int* str_arg_count;
+        char (*str_args)[CS2VM_SETON_STR_ARG_LEN];
+        int* component_id;
+        int* script_id;
 
-    if( src->on_inv_transmit.argc > 0 && src->on_inv_transmit.argv[0] > 0 )
-    {
-        struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id);
-        if( hook )
-        {
-            hook->component_id = src->id;
-            hook->script_id = src->on_inv_transmit.argv[0];
-            rs_cs2_cache_hook_args(
-                hook->int_args,
-                &hook->int_arg_count,
-                &hook->str_arg_mask,
-                &hook->str_arg_count,
-                hook->str_args,
-                &src->on_inv_transmit);
-            rs_cs2_cache_hook_triggers(
-                hook->trigger_ids,
-                &hook->trigger_count,
-                src->inventory_triggers,
-                src->inventory_triggers_count);
-        }
-    }
+        if( !cache_hook || cache_hook->argc <= 0 || cache_hook->argv[0] <= 0 )
+            continue;
 
-    /* The third channel of the same reactive loop. Left out of the first pass
-     * of this function purely because the bug that prompted it was a varp; a
-     * skill panel whose repaint is cache-authored fails exactly the same way. */
-    if( src->on_stat_transmit.argc > 0 && src->on_stat_transmit.argv[0] > 0 )
-    {
-        struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id);
-        if( hook )
+        if( k_channels[i].channel == 0 )
         {
-            hook->component_id = src->id;
-            hook->script_id = src->on_stat_transmit.argv[0];
-            rs_cs2_cache_hook_args(
-                hook->int_args,
-                &hook->int_arg_count,
-                &hook->str_arg_mask,
-                &hook->str_arg_count,
-                hook->str_args,
-                &src->on_stat_transmit);
-            rs_cs2_cache_hook_triggers(
-                hook->trigger_ids,
-                &hook->trigger_count,
-                src->stat_triggers,
-                src->stat_triggers_count);
+            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id);
+            if( !hook )
+                continue;
+            component_id = &hook->component_id;
+            script_id = &hook->script_id;
+            int_args = hook->int_args;
+            int_arg_count = &hook->int_arg_count;
+            str_arg_mask = &hook->str_arg_mask;
+            str_arg_count = &hook->str_arg_count;
+            str_args = hook->str_args;
+            trigger_ids = hook->trigger_ids;
+            trigger_count = &hook->trigger_count;
+            src_triggers = src->varp_triggers;
+            src_trigger_count = src->varp_triggers_count;
         }
+        else if( k_channels[i].channel == 1 )
+        {
+            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id);
+            if( !hook )
+                continue;
+            component_id = &hook->component_id;
+            script_id = &hook->script_id;
+            int_args = hook->int_args;
+            int_arg_count = &hook->int_arg_count;
+            str_arg_mask = &hook->str_arg_mask;
+            str_arg_count = &hook->str_arg_count;
+            str_args = hook->str_args;
+            trigger_ids = hook->trigger_ids;
+            trigger_count = &hook->trigger_count;
+            src_triggers = src->inventory_triggers;
+            src_trigger_count = src->inventory_triggers_count;
+        }
+        else
+        {
+            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id);
+            if( !hook )
+                continue;
+            component_id = &hook->component_id;
+            script_id = &hook->script_id;
+            int_args = hook->int_args;
+            int_arg_count = &hook->int_arg_count;
+            str_arg_mask = &hook->str_arg_mask;
+            str_arg_count = &hook->str_arg_count;
+            str_args = hook->str_args;
+            trigger_ids = hook->trigger_ids;
+            trigger_count = &hook->trigger_count;
+            src_triggers = src->stat_triggers;
+            src_trigger_count = src->stat_triggers_count;
+        }
+
+        *component_id = src->id;
+        *script_id = cache_hook->argv[0];
+        rs_cs2_cache_hook_args(
+            int_args, int_arg_count, str_arg_mask, str_arg_count, str_args, cache_hook);
+        rs_cs2_cache_hook_triggers(trigger_ids, trigger_count, src_triggers, src_trigger_count);
     }
 }
 
@@ -6189,7 +6212,7 @@ rs_cs2_host_exec_dispatch(
         int const op_index = request->u.widget_get_op.op_index - 1;
         node = rs_cs2_node(host, request->u.widget_get_op.component_id);
         if( node && op_index >= 0 && op_index < UITREE_MENU_OPTION_SLOTS )
-            op = node->menu_options.ops[op_index];
+            op = UITree_MenuOptions(node)->ops[op_index];
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, op));
     }
 

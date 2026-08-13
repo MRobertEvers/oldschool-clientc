@@ -623,3 +623,98 @@ and it is **not** in the way of resizable mode: `toplevel_osrs_stretch:popout`
 is a real slot of 161, the strip draws correctly at both sizes (see the frames
 in §5A), and the collapsed panel is what 161 is supposed to show. Faking the
 enum would mount an OSM-frame layout inside a non-OSM frame.
+
+### 8.5 `gameframe.enum` mounts are already the explicit-open path — a stray skull icon was one row too many, not a client bug
+
+Investigated as a client-side "the tree eagerly auto-mounts nested if3
+sub-panels" bug (`pvp_icons`/interface 90 rendering a skull icon on every
+ordinary, non-PVP login). It is not that — the general finding below matters
+more than the one row that got removed.
+
+**The general rule (verified against the rev-239 RuneLite deob at
+`Deobfuscator/src_osrs239_rl1_12_33`, `client.java:1938-1948` and
+`class415.method9495/9507/9530`):** a nested IF3 sub-interface only mounts,
+and only fires its root component's `onload`, when something sends an
+explicit open call for it — never from a passive walk of a parent interface's
+static nested-panel layout data. `toplevel_osrs_stretch.if`'s `[pvp_icons]`
+block (161:3) is a bare, empty `type=0` layer in the cache pack — verified
+with `tools/dump_interface cache.osrs239.baked --iface 161 --child 3`, which
+shows no scroll, no onload, no children — and interface 90 (`pvp_icons.if`,
+`tools/dump_interface cache.osrs239.baked --iface 90`) is a wholly separate
+55-component group. Nothing in the cache links the two; the client's own
+`ToriRS_Component` struct (`src/engine/torirs_types.h`) has no name field to
+match them by even if it wanted to.
+
+**This client already obeys that rule end to end.** Every panel
+`toplevel_osrs_stretch` shows — `chat_container`, `buff_bar`,
+`stat_boosts_hud`, `pm_container`, `hpbar_hud`, `orbs`, `popout`,
+`tli_listener`, `side0..13`, `mainmodal`, `sidemodal` — reaches the client as
+a real, observable `IF_OPENSUB` packet:
+
+- The HUD/tab set is driven by `mock230_gameframe_opentop`
+  (`src/net/mock/mock230_encode.c:1047`), called once from the login burst
+  (`mock230_world_login_finish`, `src/net/mock/mock230_world.c:8859`). It
+  reads the content enum named after the toplevel (§8 above —
+  `player/configs/gameframe.enum`, `[toplevel_osrs_stretch]` /
+  `[toplevel]` / `[toplevel_pre_eoc]`) and calls
+  `mock230_send_if_opensub` once per row, in file order.
+- `mainmodal`/`sidemodal` are bound the same way but opened later, per
+  destination, by content `[login,_]` procs (`orbs_login`,
+  `combat_tab_login`, …) via the same `mock230_send_if_opensub` — see the
+  many `toplevel_osrs_stretch:mainmodal` call sites in `mock230_world.c`.
+- On the client, every one of those packets runs the same explicit path:
+  `PKT_NAME_IF_OPENSUB` (`rs_gameproto_exec.c:831`) →
+  `App_OpenSubInterface`/`Task_OpenSubRefresh` (`app.c:5648`) →
+  `CreateTask_InterfaceOpenSub` (`task_interface_open.c`), which is where a
+  mounted pack's `onload` hooks actually get collected and run. There is no
+  separate "bake walks nested if3 slots automatically" mechanism anywhere in
+  `uitree_builder_bake.c` to remove — the recursive walk that mounts a pack's
+  *own* components under its owner (`uitree_builder_bake_pack_under_owner`)
+  only ever runs against the ONE pack `IF_OPENSUB`/the boot manifest named;
+  it does not discover or fetch any other group.
+
+Traced live with `TORIRS_NET_DEBUG=1 TORIRS_CS2_MOUNT_DEBUG=1
+TORIRS_SPILLOVER_DEBUG=1` against the embed transport
+(`manifest_osrs230_embed.ini`, `make -C src torirs EMBED_SERVER=1`): every
+mount at login is an `if-opensub: iface=N target=0x00a1xxxx` line, `pvp_icons`
+included — group 90 into `161:3`, from the enum row, same as every other
+panel.
+
+**The actual bug was one enum row.** `gameframe.enum`'s `pvp_icons` row
+mirrored OpenRune's reference `GameframeLoader` table verbatim (§8 header),
+which mounts interface 90 unconditionally on every login regardless of world
+type — matching real client/server traffic. On the real game the mounted
+widget's own onload chain (script 865 → `~pvp_icons_layout`, script 386,
+`OSRS-Content/osrs239-content/scripts/script_386.cs2`) then reads
+`deadman_world` / `wildwars_world` / `kots_world` / `clanwars_ffa_arena(coord)`
+/ `wilderness_level` to pick a branch, and a normal world presumably resolves
+to something that stays visually inert. mock230 implements none of those
+world-type signals — it has no PVP worlds, wilderness, deadman mode, FFA
+arenas or KOTS — so every one of those reads always answers false/zero and
+execution always falls into script 386's shared "plain world" `else`
+(lines 194–283), whose only hide/show gate is `%varbit542` (cutscene status).
+Outside a cutscene that branch unconditionally shows the icon container
+(`interface_90:44`), so an ordinary mock230 login always drew a stray PVP/skull
+icon — not because the client mounted something it should not have, but
+because the *server* opened a widget whose correct rendering depends entirely
+on state this server doesn't model.
+
+**Fix:** removed the `pvp_icons` row from all three `gameframe.enum` sections
+(`OSRS-Content/osrs239-content/server/scripts/player/configs/gameframe.enum`).
+Interface 90 is now never opened, exactly like a real non-PVP-world server
+apparently leaves some login-time widget unopened rather than shipping a
+script that cannot answer its own preconditions — its `onload` never fires,
+`~pvp_icons_layout` never runs, nothing renders. This is a content-only
+change (`.enum` files are read directly at mock230 boot,
+`mock230_content.c`'s generic `walk_configs(path, ".enum", …)`; no
+`mock230-cache`/`cachepack` rebuild needed) and it is scoped to exactly one
+row per toplevel — every other `gameframe.enum` row, and the explicit-open
+mechanism itself, is untouched. Verified with `mock230 --selftest` (both the
+default and `MOCK230_REV=osrs239` lanes) byte-identical before/after aside
+from one heap-pointer debug print, and with the embed-transport trace above
+showing the other 20 `161:xx` mounts land in the same order with the same
+ids as before the row was removed.
+
+If PVP worlds are ever implemented here, the row (and the varp/varbit
+plumbing script 386 needs) can come back together; until then this is the
+"leave the slot unopened" side of the rule above, not a workaround for it.

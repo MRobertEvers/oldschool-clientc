@@ -250,8 +250,8 @@ test_key_dispatch(void)
             UITree_ApplyOpKey(tree, 12, 3, chars, codes, 1),
             "negative first keychar is accepted");
         TEST_ASSERT(
-            !tree->components[right].op_keys.slots[2].bound &&
-                !tree->components[right].op_keys.has_bindings,
+            !UITree_OpKeysMut(&tree->components[right])->slots[2].bound &&
+                !UITree_OpKeysMut(&tree->components[right])->has_bindings,
             "negative first keychar clears the slot rather than binding it");
 
         {
@@ -260,7 +260,7 @@ test_key_dispatch(void)
             TEST_ASSERT(
                 UITree_ApplyOpKey(tree, 12, 3, bind_chars, bind_codes, 1), "bind F1 to op 3");
         }
-        TEST_ASSERT(tree->components[right].op_keys.has_bindings, "has_bindings set after bind");
+        TEST_ASSERT(UITree_OpKeysMut(&tree->components[right])->has_bindings, "has_bindings set after bind");
         TEST_ASSERT(
             UITree_ApplyOpKey(tree, 12, 0, NULL, NULL, 1) == false, "op_index 0 is out of range");
         TEST_ASSERT(
@@ -299,8 +299,8 @@ test_key_dispatch(void)
         /* Rate config round-trips. */
         TEST_ASSERT(UITree_ApplyOpKeyRate(tree, 12, 3, 5, 1), "set op key rate");
         TEST_ASSERT(
-            tree->components[right].op_keys.slots[2].rate == 5 &&
-                tree->components[right].op_keys.slots[2].rate_enabled == 1,
+            UITree_OpKeysMut(&tree->components[right])->slots[2].rate == 5 &&
+                UITree_OpKeysMut(&tree->components[right])->slots[2].rate_enabled == 1,
             "rate and enabled stored");
     }
 
@@ -331,9 +331,9 @@ test_key_dispatch(void)
             memset(&dst, 0, sizeof(dst));
             dst.op_keys = src.op_keys;
             TEST_ASSERT(
-                dst.op_keys.has_bindings && dst.op_keys.slots[1].bound &&
-                    dst.op_keys.slots[1].key_chars[0] == 'q' &&
-                    dst.op_keys.slots[1].key_codes[0] == 7,
+                UITree_OpKeysMut(&dst)->has_bindings && UITree_OpKeysMut(&dst)->slots[1].bound &&
+                    UITree_OpKeysMut(&dst)->slots[1].key_chars[0] == 'q' &&
+                    UITree_OpKeysMut(&dst)->slots[1].key_codes[0] == 7,
                 "op keys survive a component copy");
         }
         UITree_Free(copy_tree);

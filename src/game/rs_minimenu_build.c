@@ -306,7 +306,7 @@ add_obj_cell_rows(
     struct UIMinimenu* menu)
 {
     struct UITreeMenuOptions component_ops =
-        ctx->tree->components[cell->ops_node_index].menu_options;
+        *UITree_MenuOptions(&ctx->tree->components[cell->ops_node_index]);
     int const before = menu->option_count;
     struct ToriRS_Objtype const* obj = ensure_objtype(ctx, obj_id);
     struct UIMinimenuPick pick = pick_inv_slot(cell->component_id, cell->slot, obj_id, obj_count);
@@ -351,7 +351,7 @@ add_obj_cell_rows(
         {
             struct UITreeComponent const* ancestor =
                 &ctx->tree->components[target_ancestor];
-            target_verb = ancestor->menu_options.target_verb;
+            target_verb = UITree_MenuOptions(ancestor)->target_verb;
             target_priority = ancestor->target_priority;
             target_ancestor = ancestor->parent;
         }
@@ -635,7 +635,7 @@ add_target_button_row(
     struct UITreeComponent const* node,
     struct UIMinimenu* menu)
 {
-    struct UITreeMenuOptions const* opts = &node->menu_options;
+    struct UITreeMenuOptions const* opts = UITree_MenuOptions(node);
     struct UIMinimenuPick pick = pick_ui(node->component_id);
     char text[UITREE_MINIMENU_OPTION_LEN];
     char verb[UITREE_MENU_OPTION_LEN];
@@ -670,7 +670,8 @@ static bool
 component_offers_if3_target(struct UITreeComponent const* node)
 {
     return node->behavior.button_type != REVCONFIG_BUTTON_TYPE_TARGET &&
-           node->behavior.target_mask != 0 && node->menu_options.target_verb[0] != '\0';
+           node->behavior.target_mask != 0 &&
+            UITree_MenuOptions(node)->target_verb[0] != '\0';
 }
 
 /*
@@ -693,7 +694,7 @@ add_if3_target_op_rows(
     struct UITreeMenuOptions const* rows,
     struct UIMinimenuPick pick)
 {
-    struct UITreeMenuOptions const* opts = &node->menu_options;
+    struct UITreeMenuOptions const* opts = UITree_MenuOptions(node);
     int const before = menu->option_count;
     /* IF3 has no targetText: the row's target is the component's opBase, which
      * is the same string its op rows are suffixed with and which the spellbook
@@ -750,7 +751,7 @@ add_component_rows(
     struct UIMinimenu* menu)
 {
     int const before = menu->option_count;
-    struct UITreeMenuOptions const* opts = &node->menu_options;
+    struct UITreeMenuOptions const* opts = UITree_MenuOptions(node);
     struct UIMinimenuPick const pick = pick_ui(node->component_id);
     int ops_added;
     char const* label = NULL;

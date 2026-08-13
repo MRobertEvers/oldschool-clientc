@@ -50,8 +50,19 @@ enum
     /* LostCity's own content is 9,334 scripts, so this is not a theoretical
      * bound. It was 4096, and the declare pass silently dropped every name past
      * it — which surfaced as "no proc named update_all" for a proc that plainly
-     * exists, in a file the compiler had already read. */
-    SSC_MAX_SCRIPTS = 16384,
+     * exists, in a file the compiler had already read.
+     *
+     * Raised again 2026-08-13: 16384 was hit organically (a concurrent
+     * session's 147-file drop-table merge landed on top of an
+     * already-16,018-script tree) and the overflow path
+     * (ssc_compile.c "more than %d scripts; raise SSC_MAX_SCRIPTS") failed
+     * silently — `fail()` no-ops once `compiler->failed` is already set from
+     * an earlier call in the same pass, so the real message never reached
+     * `diag`. Content growing past a compiler ceiling is expected here, not
+     * exceptional (same shape as the 4096->16384 raise); the number is
+     * raised with headroom rather than to the exact count observed, for the
+     * same reason 4096->16384 wasn't a tight fit either. */
+    SSC_MAX_SCRIPTS = 32768,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,
     SSC_MAX_SWITCH_TABLES = 32,

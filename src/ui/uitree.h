@@ -1,6 +1,7 @@
 #ifndef SRC_UITREE_H
 #define SRC_UITREE_H
 
+#include "ui/uitree_component_options.h"
 #include "ui/uitree_hook.h"
 
 #include <assert.h>
@@ -473,8 +474,11 @@ struct UITreeComponent
     int scroll_x;
     int scroll_y;
     struct UITreeElemPosition position;
-    struct UITreeMenuOptions menu_options;
-    struct UITreeOpKeys op_keys;
+    /* Lazily allocated — see ui/uitree_component_options.h. Read through
+     * UITree_MenuOptions / UITree_OpKeys (never NULL), write through the Mut
+     * accessors, test with the Has ones. */
+    struct UITreeMenuOptions* menu_options;
+    struct UITreeOpKeys* op_keys;
     union
     {
         struct

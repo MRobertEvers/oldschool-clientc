@@ -1845,6 +1845,13 @@ enum
 struct Mock230Npc
 {
     int active;
+    /** Set the instant this npc is despawned (`mock230_world_npc_free`);
+     *  cleared by `mock230_world_npc_reap` once every player's NPC_INFO for
+     *  this tick has already reported it gone. `npc_spawn`'s free-slot scan
+     *  treats this exactly like `active` — a slot cannot be handed to a new
+     *  npc while a client might still resolve it as the old one. See
+     *  docs/mock230_npc_slot_reap.md. */
+    uint8_t pending_free;
     /** Bumped whenever this pool slot becomes a different NPC. */
     uint16_t generation;
     int type;
@@ -3105,6 +3112,27 @@ mock230_player_floater(struct Mock230Player const* player)
     return mock230_ids()->com_gameframe_floater;
 }
 
+/**
+ * One queued "this slot's occupant is gone" command — the emitted half of
+ * the despawn/reap split (mock230_world_npc_free / mock230_world_npc_reap).
+ * Mirrors PktNpcInfoOp's reader-emits-commands shape, and the real client's
+ * own `field956` removal queue (Statics.method13029 in the rev-239 deob):
+ * a despawn site doesn't free a slot directly, it emits a command here, and
+ * a single reap call later in the tick is what actually acts on it. See
+ * docs/mock230_npc_slot_reap.md.
+ */
+struct Mock230NpcFreeCmd
+{
+    int slot;
+    /** npc->generation at the moment this was queued — defensive: lets the
+     *  reap refuse to touch a slot that was somehow reused before its own
+     *  queued command drained (should be structurally impossible, since
+     *  `pending_free` blocks npc_spawn's scan until reap runs, but this
+     *  costs nothing and matches every other generation guard in this
+     *  file). */
+    uint16_t generation;
+};
+
 struct Mock230Server
 {
     /*
@@ -3179,6 +3207,14 @@ struct Mock230Server
      *  roster, and iterating 2048 slots to find 63 npcs would make it read like
      *  one. */
     int npc_slot_max;
+
+    /** Slots freed this tick via `mock230_world_npc_free`, awaiting
+     *  `mock230_world_npc_reap` (called once, from phase_cleanup, after
+     *  every player's NPC_INFO for this tick has already gone out). Sized to
+     *  the whole pool: at most one command per currently-active npc can ever
+     *  be pending between reaps, so this can never overflow. */
+    struct Mock230NpcFreeCmd npc_free_queue[MOCK230_NPC_MAX];
+    int npc_free_queue_count;
 
     /**
      * The world cut into 8x8 zones — entity lists, loc records and this tick's
@@ -4020,6 +4056,30 @@ mock230_world_npc_spawn(
     int x,
     int z,
     int level);
+
+/**
+ * The despawn choke point. Every real despawn site calls this instead of
+ * writing `npc->active = 0` directly: it still clears `active` immediately
+ * (same-tick game logic — `npc_find`, `huntall`, `npc_hastarget` — must keep
+ * seeing the npc as gone right away), but defers the slot's eligibility for
+ * `npc_spawn`'s free-slot scan by queuing a free command instead of letting
+ * it be reused same-tick. See docs/mock230_npc_slot_reap.md. Safe to call on
+ * an already-inactive slot (no-op).
+ */
+void
+mock230_world_npc_free(
+    struct Mock230Server* srv,
+    int slot);
+
+/**
+ * Once per tick, from phase_cleanup, after every player's NPC_INFO for this
+ * tick has already gone out: drains `npc_free_queue`, clearing `pending_free`
+ * on each entry. This is the only place a slot becomes eligible for
+ * `npc_spawn`'s scan again.
+ */
+void
+mock230_world_npc_reap(
+    struct Mock230Server* srv);
 
 /** Resolve an npc's owner, rejecting a logged-out or reused player slot. */
 struct Mock230Player*

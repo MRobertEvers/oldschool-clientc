@@ -102,9 +102,9 @@ test_mounted_world_resize(void)
     tree->components[modal_rect].behavior.click_mask |= UITREE_FLAG_DRAG_ON;
     tree->components[modal_rect].behavior.over_color = 0xFFFFFF;
     strncpy(
-        tree->components[modal_rect].menu_options.ops[0],
+        UITree_MenuOptionsMut(&tree->components[modal_rect])->ops[0],
         "Mounted action",
-        sizeof(tree->components[modal_rect].menu_options.ops[0]) - 1);
+        sizeof(UITree_MenuOptionsMut(&tree->components[modal_rect])->ops[0]) - 1);
     int32_t modal_scroll =
         UITree_TestPushXy(tree, modal_root, UIELEM_RS_LAYER, modal_scroll_uid, 82, 8, 30, 64);
     tree->components[modal_scroll].u.rs_layer.scroll_height = 160;

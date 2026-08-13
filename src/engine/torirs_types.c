@@ -809,7 +809,14 @@ ToriRS_ComponentSizeOf(const struct ToriRS_Component* component)
 static void
 torirs_component_release_owned(struct ToriRS_Component* component)
 {
-    if( !component || !component->scripts_lengths )
+    if( !component )
+        return;
+
+    /* Before the CS1 early-out below: the hooks are owned whether or not this
+     * component also carries CS1 scripts, and most that have hooks have none. */
+    ToriRS_ComponentHooksFree(component);
+
+    if( !component->scripts_lengths )
         return;
 
     if( component->scripts )

@@ -392,7 +392,7 @@ uitree_live_register(
         UITreeNodeSet_Add(&tree->scroll_layers, idx);
     if( c->behavior.client_code > 0 )
         UITreeNodeSet_Add(&tree->client_code, idx);
-    if( c->op_keys.has_bindings )
+    if( UITree_OpKeys(c)->has_bindings )
         UITreeNodeSet_Add(&tree->opkeys, idx);
     if( c->component_id >= 0 )
         uitree_group_add(tree, (c->component_id >> 16) & 0xffff, idx);
@@ -599,29 +599,6 @@ UITree_HooksFree(struct UITreeComponent* c)
     assert(c);
     UITree_HooksBlockFree(c->runtime_hooks);
     c->runtime_hooks = NULL;
-}
-
-/* Copy menu options between components: everything is by value except the
- * submenu block, which is owned per component and must not be aliased. Whatever
- * dst held is released, and dst == src (or a shared block) is safe. */
-static void
-uitree_menu_options_copy(
-    struct UITreeMenuOptions* dst,
-    struct UITreeMenuOptions const* src)
-{
-    struct UITreeMenuSubmenuOptions* const dst_owned = dst->submenus;
-    struct UITreeMenuSubmenuOptions* copy = NULL;
-
-    if( src->submenus )
-    {
-        copy = calloc(1, sizeof(*copy));
-        if( copy )
-            memcpy(copy, src->submenus, sizeof(*copy));
-    }
-    *dst = *src;
-    dst->submenus = copy;
-    if( dst_owned != copy )
-        free(dst_owned);
 }
 
 /* The key UITree_FindChildBySubid matches a child on: its dynamic slot for
@@ -1291,7 +1268,10 @@ uitree_component_free_owned(struct UITreeComponent* c)
     free(b->script_operand);
     b->script_operand = NULL;
     b->scripts_count = 0;
-    UITree_MenuSubmenuFree(&c->menu_options);
+    /* Both lazy blocks, and the submenus the options block owns — see
+     * ui/uitree_component_options.h. */
+    UITree_MenuOptionsFree(c);
+    UITree_OpKeysFree(c);
     UITree_HooksFree(c);
 }
 
@@ -1894,7 +1874,7 @@ UITree_Push(
     /* Specs carry labels and ops by value but never a submenu block (those only
      * arrive later, via CC/IF_SETOPSUBMENU) — copy through so a spec that ever
      * grows one is duplicated instead of aliased into the node. */
-    uitree_menu_options_copy(&component->menu_options, &spec->menu_options);
+    UITree_MenuOptionsSet(component, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
     component->no_click_through = spec->no_click_through;
     component->hotkey_effects = spec->hotkey_effects;
@@ -2434,7 +2414,7 @@ UITree_CcCopy(
     dst->position.layout_resolved = 0;
     /* Deep: the submenu block is owned per component, so the copy must not alias
      * the source's (both are reclaimed independently). */
-    uitree_menu_options_copy(&dst->menu_options, &src.menu_options);
+    UITree_MenuOptionsSet(dst, src.menu_options);
     /* Deep for the same reason as the submenu block above: the hook block is
      * owned per component. A template row with no hooks copies as none. */
     if( src.runtime_hooks )
@@ -2446,9 +2426,9 @@ UITree_CcCopy(
     /* Plain data, but it must be listed explicitly: this function copies field
      * by field rather than by struct assignment, so a template row that binds
      * op keys would silently lose them on copy. */
-    dst->op_keys = src.op_keys;
+    UITree_OpKeysSet(dst, src.op_keys);
     uitree_sync_hook_sets(tree, idx);
-    if( dst->op_keys.has_bindings )
+    if( UITree_OpKeys(dst)->has_bindings )
         UITreeNodeSet_Add(&tree->opkeys, idx);
     else
         UITreeNodeSet_Remove(&tree->opkeys, idx);
@@ -3389,7 +3369,7 @@ UITree_ClearOpSubmenu(
     idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    UITree_MenuSubmenuClear(&tree->components[idx].menu_options, op_index);
+    UITree_MenuSubmenuClear(UITree_MenuOptionsMut(&tree->components[idx]), op_index);
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3433,8 +3413,10 @@ UITree_ApplyOpBase(
     if( idx < 0 )
         return false;
     strncpy(
-        tree->components[idx].menu_options.option, text ? text : "", UITREE_MENU_OPTION_LEN - 1);
-    tree->components[idx].menu_options.option[UITREE_MENU_OPTION_LEN - 1] = '\0';
+        UITree_MenuOptionsMut(&tree->components[idx])->option,
+        text ? text : "",
+        UITREE_MENU_OPTION_LEN - 1);
+    UITree_MenuOptionsMut(&tree->components[idx])->option[UITREE_MENU_OPTION_LEN - 1] = '\0';
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3450,9 +3432,11 @@ UITree_ApplyTargetVerb(
     if( idx < 0 )
         return false;
     strncpy(
-        tree->components[idx].menu_options.target_verb, text ? text : "",
+        UITree_MenuOptionsMut(&tree->components[idx])->target_verb,
+        text ? text : "",
         UITREE_MENU_OPTION_LEN - 1);
-    tree->components[idx].menu_options.target_verb[UITREE_MENU_OPTION_LEN - 1] = '\0';
+    UITree_MenuOptionsMut(&tree->components[idx])->target_verb[UITREE_MENU_OPTION_LEN - 1] =
+        '\0';
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3475,17 +3459,20 @@ uitree_opkey_slot(
         return NULL;
     if( out_node )
         *out_node = &tree->components[idx];
-    return &tree->components[idx].op_keys.slots[op_index - 1];
+    {
+        struct UITreeOpKeys* keys = UITree_OpKeysMut(&tree->components[idx]);
+        return keys ? &keys->slots[op_index - 1] : NULL;
+    }
 }
 
 static void
 uitree_opkey_refresh_has_bindings(struct UITreeComponent* node)
 {
-    node->op_keys.has_bindings = 0;
+    UITree_OpKeysMut(node)->has_bindings = 0;
     for( int i = 0; i < UITREE_OPKEY_SLOTS; i++ )
-        if( node->op_keys.slots[i].bound )
+        if( UITree_OpKeys(node)->slots[i].bound )
         {
-            node->op_keys.has_bindings = 1;
+            UITree_OpKeysMut(node)->has_bindings = 1;
             return;
         }
 }
@@ -3514,7 +3501,7 @@ UITree_ApplyOpKey(
     {
         memset(slot, 0, sizeof(*slot));
         uitree_opkey_refresh_has_bindings(node);
-        if( node->op_keys.has_bindings )
+        if( UITree_OpKeys(node)->has_bindings )
             UITreeNodeSet_Add(&tree->opkeys, (int32_t)(node - tree->components));
         else
             UITreeNodeSet_Remove(&tree->opkeys, (int32_t)(node - tree->components));
@@ -3529,7 +3516,7 @@ UITree_ApplyOpKey(
         slot->key_chars[i] = key_chars[i];
         slot->key_codes[i] = key_codes[i];
     }
-    node->op_keys.has_bindings = 1;
+    UITree_OpKeysMut(node)->has_bindings = 1;
     UITreeNodeSet_Add(&tree->opkeys, (int32_t)(node - tree->components));
     return true;
 }
@@ -3691,7 +3678,7 @@ UITree_ComponentHasMenuOptions(struct UITreeComponent const* component)
     assert(component);
     for( int i = 0; i < UITREE_MENU_OPTION_SLOTS; i++ )
     {
-        if( component->menu_options.ops[i][0] != '\0' )
+        if( UITree_MenuOptions(component)->ops[i][0] != '\0' )
             return true;
     }
     return false;

@@ -987,7 +987,7 @@ Task_CS2Run_Run(
                         int32_t opb = UITree_FindByComponentId(
                             self->host->tree, self->active_component_id);
                         if( opb >= 0 )
-                            s = self->host->tree->components[opb].menu_options.option;
+                            s = UITree_MenuOptions(&self->host->tree->components[opb])->option;
                     }
                     (void)CS2VM2_SetStringCurrentFrameLocal(thread, str_i, s);
                     str_i++;
@@ -1919,13 +1919,14 @@ Task_CS2SubChangeDispatch_Run(
          * this same pass. */
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
             continue;
-            UITree_HookStrArgv(hook, strp, UITREE_HOOK_STR_ARG_MAX);
+        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+            strp[si] = hook->strv[si];
         TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
             hook->component_id,
-            UITree_HookArgs(hook),
+            hook->argc > 0 ? hook->argv : NULL,
             hook->argc,
             hook->str_mask,
             strp,
@@ -2033,13 +2034,14 @@ Task_CS2MiscTransmitDispatch_Run(
 
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
             continue;
-            UITree_HookStrArgv(hook, strp, UITREE_HOOK_STR_ARG_MAX);
+        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+            strp[si] = hook->strv[si];
         TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
             hook->component_id,
-            UITree_HookArgs(hook),
+            hook->argc > 0 ? hook->argv : NULL,
             hook->argc,
             hook->str_mask,
             strp,
