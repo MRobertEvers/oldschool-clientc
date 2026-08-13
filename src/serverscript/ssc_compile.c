@@ -118,6 +118,23 @@ struct SSC_Compiler
      *  counted at all (their meta carries arity and the VM pops it). */
     int8_t* name_int_returns;
     int8_t* name_str_returns;
+    /**
+     * Script id -> the symbol kind each declared parameter asks a bare argument
+     * to resolve as, in order; SSC_SYM_UNKNOWN for a parameter whose type names
+     * no namespace (`int`, `coord`, `boolean`, …).
+     *
+     * A `~proc` call is the other half of the collision the `arg_kind_hint`
+     * table in parse_command covers, and it was the half with nothing guarding
+     * it: `~cheat_maxstat(attack)` compiled to `~cheat_maxstat(259)` — varp
+     * `attack`, which sorts before the stat — and `::jas` aborted on
+     * "stat_advance 259 is not a skill" from inside the callee, naming a line
+     * that is correct. The declared parameter type is exactly what the
+     * reference resolves these from, and the declare pass already reads it.
+     *
+     * Positional, so a script with more than SS_MAX_PARAM_TYPES parameters
+     * simply stops hinting past that point — the same bound `param_types` has.
+     */
+    uint8_t (*name_param_kinds)[SS_MAX_PARAM_TYPES];
     /** The return arity of the call `parse_call` most recently finished, so an
      *  argument that *is* a call can be scored by what it actually pushed.
      *  -1 when that callee declared no header. */
@@ -496,6 +513,36 @@ script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name, int* ou
     return -1;
 }
 
+/**
+ * The symbol kind a declared parameter type wants a bare argument resolved as,
+ * or SSC_SYM_UNKNOWN when the type names no namespace (`int`, `coord`,
+ * `boolean`, `npc_uid`, …).
+ *
+ * A ScriptVarType and the pack namespace it names are the same word for
+ * everything that has a pack, so the content register's own mapping answers
+ * almost all of it. Three spellings it cannot: `locshape` and `npc_mode` are
+ * enumerations with no pack (SSC_SymbolsSeedBuiltins puts them in the table),
+ * and `namedobj` is an obj whose name the client shows — the OBJ namespace
+ * under a second type name.
+ *
+ * Deliberately not covered: the script-typed parameters (`queue`, `timer`).
+ * Those want `arg_is_script_name` rather than a symbol kind, and no header in
+ * this tree declares one — the commands that take a script are covered by
+ * k_script_arg_ops in parse_command. A proc that grows such a parameter needs
+ * the script path threaded through here as well, not a kind.
+ */
+static enum SSC_SymbolKind
+param_type_kind(const char* type)
+{
+    if( strcmp(type, "namedobj") == 0 )
+        return SSC_SYM_OBJ;
+    if( strcmp(type, "locshape") == 0 )
+        return SSC_SYM_LOCSHAPE;
+    if( strcmp(type, "npc_mode") == 0 )
+        return SSC_SYM_NPC_MODE;
+    return SSC_SymbolKindForNamespace(type);
+}
+
 /** Emit a call to `[proc,name]` or `[label,name]`. */
 static int
 parse_call(
@@ -522,6 +569,20 @@ parse_call(
          * in — `settimer(~pick(poison), 5)` must not read `poison` as a script. */
         int saved_script_arg = compiler->arg_is_script_name;
         const char* saved_script_trigger = compiler->arg_script_trigger;
+        /* Same reasoning for the kind hint: the enclosing command's hint is
+         * about the enclosing command's argument list, and this one has its own
+         * types. `stat_advance(~lowest(fishing), 1)` must read `fishing` as
+         * whatever `[proc,lowest]` declared, not as a stat. */
+        enum SSC_SymbolKind saved_hint = compiler->arg_kind_hint;
+        /* Which declared parameter the next argument fills. An argument that is
+         * itself a call can push more than one value, and only its declared
+         * return arity says how many — once that is unknown, so is every
+         * position after it, and hinting stops rather than guesses. */
+        int param_index = 0;
+        int param_index_known = 1;
+        int saved_saw_command = compiler->saw_command_call;
+        const uint8_t* param_kinds =
+            script_id < compiler->name_count ? compiler->name_param_kinds[script_id] : NULL;
 
         compiler->arg_is_script_name = 0;
         compiler->arg_script_trigger = NULL;
@@ -549,21 +610,39 @@ parse_call(
 
                 compiler->last_call_int_returns = -1;
                 compiler->last_call_str_returns = -1;
+                compiler->saw_command_call = 0;
+                compiler->arg_kind_hint =
+                    (param_kinds && param_index_known && param_index < SS_MAX_PARAM_TYPES)
+                        ? (enum SSC_SymbolKind)param_kinds[param_index]
+                        : SSC_SYM_UNKNOWN;
                 if( !parse_expression(compiler, &arg_is_string) )
                     return 0;
                 if( arg_is_call && compiler->last_call_int_returns >= 0 )
                 {
+                    param_index += compiler->last_call_int_returns +
+                                   compiler->last_call_str_returns;
                     pushed_ints += compiler->last_call_int_returns;
                     pushed_strs += compiler->last_call_str_returns;
                 }
                 else if( arg_is_string )
                 {
+                    param_index++;
                     pushed_strs++;
                 }
                 else
                 {
+                    param_index++;
                     pushed_ints++;
                 }
+                /* A call whose arity nothing here knows — a callee with no
+                 * header, or a command, whose meta carries counts rather than
+                 * a signature — leaves the next parameter's index a guess. The
+                 * arity check below already treats those as approximate; the
+                 * hint has to as well, because a wrong hint resolves silently
+                 * where a wrong count is at worst reported. */
+                if( (arg_is_call && compiler->last_call_int_returns < 0) ||
+                    compiler->saw_command_call )
+                    param_index_known = 0;
                 if( SSC_LexIsPunct(&compiler->lexer, "," ) )
                 {
                     SSC_LexNext(&compiler->lexer);
@@ -577,6 +656,8 @@ parse_call(
         SSC_LexNext(&compiler->lexer);
         compiler->arg_is_script_name = saved_script_arg;
         compiler->arg_script_trigger = saved_script_trigger;
+        compiler->arg_kind_hint = saved_hint;
+        compiler->saw_command_call = saved_saw_command;
     }
 
     /*
@@ -2487,6 +2568,10 @@ SSC_New(struct SSC_Symbols* symbols)
     compiler->name_str_return = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_int_returns = (int8_t*)malloc(SSC_MAX_SCRIPTS);
     compiler->name_str_returns = (int8_t*)malloc(SSC_MAX_SCRIPTS);
+    /* Zeroed, i.e. SSC_SYM_UNKNOWN: a script whose header the declare pass
+     * never sees hints nothing, which is how every call site behaved before. */
+    compiler->name_param_kinds = (uint8_t(*)[SS_MAX_PARAM_TYPES])calloc(
+        SSC_MAX_SCRIPTS, SS_MAX_PARAM_TYPES);
     compiler->name_capacity = SSC_MAX_SCRIPTS;
     if( compiler->name_int_args && compiler->name_str_args && compiler->name_str_return &&
         compiler->name_int_returns && compiler->name_str_returns )
@@ -2499,7 +2584,8 @@ SSC_New(struct SSC_Symbols* symbols)
     }
     if( !compiler->scripts || !compiler->names || !compiler->name_int_args ||
         !compiler->name_str_args || !compiler->name_str_return ||
-        !compiler->name_int_returns || !compiler->name_str_returns )
+        !compiler->name_int_returns || !compiler->name_str_returns ||
+        !compiler->name_param_kinds )
     {
         SSC_Free(compiler);
         return NULL;
@@ -2523,6 +2609,7 @@ SSC_Free(struct SSC_Compiler* compiler)
     free(compiler->name_str_return);
     free(compiler->name_int_returns);
     free(compiler->name_str_returns);
+    free(compiler->name_param_kinds);
     free(compiler);
 }
 
@@ -2693,6 +2780,7 @@ SSC_Declare(
                     {
                         int ints = 0;
                         int strs = 0;
+                        int params = 0;
 
                         SSC_LexNext(&lexer);
                         while( !SSC_LexIsPunct(&lexer, ")") &&
@@ -2704,6 +2792,14 @@ SSC_Declare(
                                     strs++;
                                 else
                                     ints++;
+                                /* The type is also what a bare argument at that
+                                 * position should resolve as — see
+                                 * name_param_kinds. Read here rather than in
+                                 * parse_header_lists because a call site can be
+                                 * compiled before its callee's body. */
+                                if( params < SS_MAX_PARAM_TYPES )
+                                    compiler->name_param_kinds[slot][params++] =
+                                        (uint8_t)param_type_kind(lexer.current.text);
                             }
                             SSC_LexNext(&lexer); /* the type */
                             if( lexer.current.kind == SSC_TOK_LOCAL )

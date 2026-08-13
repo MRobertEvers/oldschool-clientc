@@ -32239,6 +32239,87 @@ mock230_world_selftest(void)
                 }
 
                 /*
+                 * The three fire-wall gaps must differ, and match the art.
+                 *
+                 * Asserted here and not beside the other wall checks in
+                 * `rs2012_qbd_selftest.rs2`, because those sit in
+                 * `[debugproc,rs2012qbdtest]`, which `--selftest` never calls —
+                 * an invariant left there is documentation, not a gate.
+                 *
+                 * RuneScape Wiki (QBD/Strategies): "the Queen Black Dragon will
+                 * not repeat a fire wall with the same gap until the other two
+                 * options have been exhausted", with the gaps on the 5th, 9th
+                 * and 15th squares. Square N is column 23 + N here, so the wiki
+                 * reads 28/32/38; rendering the three wall models gives
+                 * 28/32/36. The first two match exactly — including the 9th
+                 * being "one square to the left of the centre artefact", which
+                 * is the artefact at 33. The drawn hole wins on the third,
+                 * because a safe column that disagrees with the art burns a
+                 * player standing in the gap they can see.
+                 */
+                {
+                    int const gaps[3] = {
+                        mock230_content_constant_int("rs2012_qbd_wall_gap_lx_1", -1),
+                        mock230_content_constant_int("rs2012_qbd_wall_gap_lx_2", -1),
+                        mock230_content_constant_int("rs2012_qbd_wall_gap_lx_3", -1),
+                    };
+                    int const anchor_lx =
+                        mock230_content_constant_int("rs2012_qbd_wall_anchor_lx", -1);
+
+                    SELFTEST_CHECK(anchor_lx == 33,
+                                   "the wall anchor should be the platform centre, got %d",
+                                   anchor_lx);
+                    SELFTEST_CHECK(gaps[0] == 28 && gaps[1] == 32 && gaps[2] == 36,
+                                   "wall gaps should be the measured 28/32/36, got %d/%d/%d",
+                                   gaps[0], gaps[1], gaps[2]);
+                    SELFTEST_CHECK(gaps[0] != gaps[1] && gaps[1] != gaps[2] &&
+                                       gaps[0] != gaps[2],
+                                   "the three wall gaps must all differ or the wave cycle "
+                                   "puts every gap in the same place (%d/%d/%d)",
+                                   gaps[0], gaps[1], gaps[2]);
+                }
+
+                /*
+                 * She must OWN her swing trigger on every form.
+                 *
+                 * Naming no `[ai_opplayer2,<npc>]` does not mean "she does not
+                 * swing": the engine's attack clock falls through to
+                 * `[ai_opplayer2,_]`, the default melee swing, which plays
+                 * `npc_param(attack_anim)` and runs `~npc_meleeattack`. An
+                 * unstated handler therefore gives her a second attack system
+                 * beside the one `[ai_timer]` owns — her bite animation cutting
+                 * whatever she is mid-way through (the dragonfire, and only ever
+                 * with a player in reach, since the engine's swing needs to be),
+                 * two interleaved clocks, and damage she never meant to deal.
+                 *
+                 * `GetByTriggerSpecific` is the whole point: the ordinary lookup
+                 * would answer with the wildcard and this check would pass on
+                 * exactly the records it is meant to catch.
+                 */
+                {
+                    static const char* const k_swing_forms[] = {
+                        "rs2012_qbd_sleeping",
+                        "rs2012_qbd_default",
+                        "rs2012_qbd_crystal",
+                        "rs2012_qbd_hardened",
+                    };
+
+                    for( int f = 0;
+                         f < (int)(sizeof(k_swing_forms) / sizeof(k_swing_forms[0])); f++ )
+                    {
+                        int const id = mock230_content_symbol(MOCK230_PACK_NPC, k_swing_forms[f]);
+
+                        if( id < 0 || !srv->scripts_ok )
+                            continue;
+                        SELFTEST_CHECK(SSVM_ProviderGetByTriggerSpecific(
+                                           srv->scripts, SS_TRIGGER_AI_OPPLAYER2, id, -1) != NULL,
+                                       "%s must state its own [ai_opplayer2] or the engine "
+                                       "falls through to the default melee swing",
+                                       k_swing_forms[f]);
+                    }
+                }
+
+                /*
                  * Her flinch and her death must be STATED as absent.
                  *
                  * Omitting them does not mean "none": `[default]` in
@@ -32853,7 +32934,11 @@ mock230_world_selftest(void)
             {
                 int wall_spot =
                     mock230_content_symbol(MOCK230_PACK_SPOTANIM, "rs2012_qbd_spot_3160");
-                int wall_fixture_ok = wall_spot > 0;
+                int wall_spot2 =
+                    mock230_content_symbol(MOCK230_PACK_SPOTANIM, "rs2012_qbd_spot_3159");
+                int wall_spot3 =
+                    mock230_content_symbol(MOCK230_PACK_SPOTANIM, "rs2012_qbd_spot_3158");
+                int wall_fixture_ok = wall_spot > 0 && wall_spot2 > 0 && wall_spot3 > 0;
 
                 SELFTEST_CHECK(wall_fixture_ok,
                                "the QBD wall fixture should resolve the wall spotanim");
@@ -32918,8 +33003,15 @@ mock230_world_selftest(void)
                         mock230_world_tick(srv);
                         mock230_capture_end(srv);
                         {
+                            /* Any of the three walls: the waves cycle the
+                             * MODEL to move the gap, so counting one spot id
+                             * would see a third of the cast. */
                             int n = selftest_rev239_zone_count(
-                                &wall_capture, PKT_NAME_MAP_PROJANIM, wall_spot);
+                                        &wall_capture, PKT_NAME_MAP_PROJANIM, wall_spot) +
+                                    selftest_rev239_zone_count(
+                                        &wall_capture, PKT_NAME_MAP_PROJANIM, wall_spot2) +
+                                    selftest_rev239_zone_count(
+                                        &wall_capture, PKT_NAME_MAP_PROJANIM, wall_spot3);
 
                             total += n;
                             if( tick == 3 )

@@ -975,6 +975,29 @@ Things worth knowing:
   The general form, worth carrying to the next bare-name enumeration
   (`locshape`, `npc_stat`): **the compiler can only disambiguate a name it sees
   as an argument.** Everywhere else, put the name in data.
+- **A `~proc` argument is resolved as the parameter it fills** — the other half
+  of the hint above, and the half that had nothing guarding it until
+  2026-08-13. The tables in `parse_command` cover *commands*; a call to content's
+  own proc took whatever the packs sorted first, so `~cheat_maxstat(attack)`
+  compiled to `~cheat_maxstat(259)` (varp `attack`) and `::jas` aborted on
+  "stat_advance 259 is not a skill" — pointing at a callee whose own source is
+  correct, which is what makes this class expensive to read.
+
+  Nothing new had to be parsed: the declare pass already reads every header's
+  types for the arity check, so it now also records, per parameter, the symbol
+  kind that type asks for (`name_param_kinds`, mapped by `param_type_kind` —
+  the content register's namespace table plus `namedobj`/`locshape`/`npc_mode`,
+  which have no pack). `parse_call` sets the hint positionally and **stops
+  hinting** after an argument whose pushed count it cannot know (a callee with
+  no header, or a command, whose meta carries counts rather than a signature) —
+  a wrong hint resolves silently, where a wrong count is at worst reported.
+
+  Twelve instructions in this tree changed when it landed, and every one was a
+  real defect: the `::jas` stats, two `spotanim $proj` arguments in the God Wars
+  bosses and one in Inferno's `~npc_projectile` (a **seq** that shares the
+  spotanim's name — the collision `SPOTANIM_*` already hinted for at the command
+  level, so the projectile was computed and nothing was drawn), and a
+  `dbrow $row` quest id that was resolving to the varp of the same name.
 - **A queue/timer argument names a script, and the script namespace is not in
   the symbol table** — so it has to be consulted *before* the packs, not after.
   It was after until 2026-08-04, and that is the same collision as the stat hint

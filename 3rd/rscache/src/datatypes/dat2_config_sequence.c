@@ -478,10 +478,24 @@ decode_sequence_rs2(
                 if( sound.id >= 1 && sound.loops >= 1 )
                     add_frame_sound(&def->frame_sounds, frame, sound);
 
-                /* The public structure stores one sound per frame. Preserve the
-                 * first and consume the remaining ids to keep exact alignment. */
+                /*
+                 * The ids after the packed one are the frame's *alternatives*:
+                 * the client rolls one of the frame's entries and plays it with
+                 * the packed entry's loops and radius, which is how a bite or a
+                 * footstep varies between plays. They are kept as further
+                 * entries on the same frame -- the same shape the 226+ record
+                 * writes for its weighted runs, so nothing is invented to carry
+                 * them. Discarding them here (which this used to do) silently
+                 * flattened every such frame to one fixed sample and left the
+                 * alternative payloads out of every dependency closure.
+                 */
                 for( int i = 1; i < sound_count; i++ )
-                    g2(buffer);
+                {
+                    struct RSCache_Dat2ConfigFrameSound alternative = sound;
+                    alternative.id = g2(buffer);
+                    if( alternative.id >= 1 && alternative.loops >= 1 )
+                        add_frame_sound(&def->frame_sounds, frame, alternative);
+                }
             }
             break;
         }
@@ -989,6 +1003,22 @@ frame_sound_highest_frame(const struct RSCache_Dat2ConfigFrameSoundMap* map)
     return highest;
 }
 
+/* How many entries a frame carries. More than one means the frame declares
+ * alternatives and the client picks between them. */
+static int
+frame_sound_count_for_frame(
+    const struct RSCache_Dat2ConfigFrameSoundMap* map,
+    int frame)
+{
+    int count = 0;
+    for( int i = 0; i < map->count; i++ )
+    {
+        if( map->frames[i] == frame )
+            count++;
+    }
+    return count;
+}
+
 static const struct RSCache_Dat2ConfigFrameSound*
 frame_sound_for_frame(
     const struct RSCache_Dat2ConfigFrameSoundMap* map,
@@ -1130,22 +1160,31 @@ RSCache_Dat2ConfigSequenceEncodeCodec(
 
         if( is_rs2_sequence )
         {
-            /* Rev 530 uses a u16 outer count and a u8 count per frame. The
-             * structure retains one sound per frame, so emit that canonical
-             * representable subset. */
+            /* Rev 530 uses a u16 outer count and a u8 count per frame: the
+             * frame's first entry packed into 24 bits, then its alternatives as
+             * bare u16 ids. Entries sharing a frame index are that frame's
+             * alternative list, so the whole run is written rather than only
+             * the first -- writing one would re-drop what the decoder keeps. */
             int highest = frame_sound_highest_frame(&def->frame_sounds);
             int count = highest + 1;
             p2(&buffer, count);
             for( int frame = 0; frame < count; frame++ )
             {
-                const struct RSCache_Dat2ConfigFrameSound* sound =
-                    frame_sound_for_frame(&def->frame_sounds, frame);
-                p1(&buffer, sound ? 1 : 0);
-                if( sound )
+                int written = 0;
+                p1(&buffer, frame_sound_count_for_frame(&def->frame_sounds, frame));
+                for( int i = 0; i < def->frame_sounds.count; i++ )
                 {
-                    int bits = (sound->id << 8) | ((sound->loops & 7) << 4) |
-                               (sound->location & 15);
-                    p3(&buffer, bits);
+                    const struct RSCache_Dat2ConfigFrameSound* sound;
+                    if( def->frame_sounds.frames[i] != frame )
+                        continue;
+                    sound = &def->frame_sounds.sounds[i];
+                    if( written == 0 )
+                        p3(&buffer,
+                           (sound->id << 8) | ((sound->loops & 7) << 4) |
+                               (sound->location & 15));
+                    else
+                        p2(&buffer, sound->id);
+                    written++;
                 }
             }
         }
@@ -1694,6 +1733,10 @@ RSCache_Dat2ConfigSequenceEncodeBound(const struct RSCache_Dat2ConfigSequence* d
     need += (uint32_t)def->frame_count * 12u + 8u;
     need += (uint32_t)(def->frame_count + 1) * 4u + 4u;
     need += (uint32_t)def->chat_frame_id_count * 4u + 4u;
+    /* Frame sounds are not bounded by the frame count: one frame may carry a
+     * whole alternative list (14 footsteps on the rev-727 human walk cycles),
+     * so measure the map itself at its widest per-entry shape. */
+    need += (uint32_t)def->frame_sounds.count * 8u + 4u;
     if( def->debug_name )
         need += (uint32_t)strlen(def->debug_name) + 2u;
     return need;
