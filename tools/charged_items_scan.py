@@ -396,10 +396,12 @@ FAMILY_DATA = {
         storage="player_varp", depletion="destroy", max_charges=30,
         charge_source="Opal bracelet + Lvl-1 Enchant",
         drain_event="25% chance per Slayer-task-matching kill to count as 2 kills; consumes 1 shared charge on proc",
-        status="charges_only",
-        note="Wiki explicit: \"All expeditious bracelets share the same pool of 30 charges\" -- player_varp, "
-             "same shape as Dodgy necklace. Real drain hook exists: skill_slayer/scripts/slayer_kill.rs2's "
-             "[proc,slayer_on_npc_kill] already decrements a task counter per matching kill.",
+        status="implemented",
+        note="player_varp, same shape as bracelet_of_slaughter/dodgy_necklace. Wired into "
+             "skill_slayer/scripts/slayer_kill.rs2's slayer_on_npc_kill, doubling the real %if1 task-count "
+             "decrement instead of a synthetic hook. Crumbles at 0 charges; can never be worn alongside "
+             "bracelet of slaughter (same ^wearpos_hands slot). NOT implemented: elite Combat Achievements' "
+             "10-percent regen-instead-of-crumble reward -- no Combat Achievements system exists in this tree.",
     ),
     "Eye of ayak": dict(
         storage="item_var", depletion="revert", max_charges=50000,
@@ -912,10 +914,14 @@ FAMILY_DATA = {
         storage="player_varp", depletion="destroy", max_charges=30,
         charge_source="Topaz bracelet + Lvl-3 Enchant; no separate refill -- only reset via Break or hitting 0",
         drain_event="25% chance per Slayer-task kill to not decrement the task's remaining kill count (full XP still granted), 1 charge per proc",
-        status="charges_only",
-        note="Wiki confirms explicitly: \"All bracelets of slaughter share the same pool of 30 charges\" -- "
-             "player_varp. Real hook: skill_slayer/scripts/slayer_kill.rs2:50 (slayer_on_npc_kill) "
-             "`%if1 = sub(%if1, 1);` is exactly the site a probabilistic skip needs to wrap.",
+        status="implemented",
+        note="player_varp, same shape as expeditious_bracelet/dodgy_necklace. Wired into "
+             "skill_slayer/scripts/slayer_kill.rs2's slayer_on_npc_kill, skipping the real %if1 task-count "
+             "decrement instead of a synthetic hook (XP is awarded separately in the same proc, unaffected). "
+             "The Jad/Zuk exclusion needs no special-casing: both are boss tasks (%if1=-1) that already "
+             "return before reaching the decrement, so the effect is never even asked. Crumbles at 0 "
+             "charges; can never be worn alongside expeditious bracelet (same ^wearpos_hands slot). NOT "
+             "implemented: elite Combat Achievements' regen reward -- see Expeditious bracelet's own note.",
     ),
     "Sanguinesti staff": dict(
         storage="item_var", depletion="revert", max_charges=20000,
