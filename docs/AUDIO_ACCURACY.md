@@ -341,15 +341,26 @@ Nothing in any cache has one, so it is built from two sources and committed:
 | file | what it gives | from |
 |---|---|---|
 | [docs/audio/music_tracks_osrs239.tsv](audio/music_tracks_osrs239.tsv) | 876 tracks: name, unlock-hint prose, song archive id, unlock (varp, bit) | DBTable 44 of `cache.osrs239` |
-| [docs/audio/music_regions.tsv](audio/music_regions.tsv) | 440 region → track-name entries over 435 map squares | Kronos's `MusicPlayer.java` (OSRS 184) |
+| [docs/audio/music_regions.tsv](audio/music_regions.tsv) | 440 region → track-name entries over 435 map squares (2016, OSRS 184) | Kronos's `MusicPlayer.java` |
+| [docs/audio/music_regions.tsv](audio/music_regions.tsv) (2026-08-13 addition) | 552 more region → track-name entries, sourced live against current content | OSRS Wiki Bucket API (`Module:Music map`'s data store — `action=bucket` against `oldschool.runescape.wiki`), exact GeoJSON polygons in world-tile coordinates, point-sampled per 64×64 square |
 
 `tools/gen_music_regions.py` joins them into
-`src/net/mock/mock230_music_regions.gen.h` — **433 map squares** with a song
-archive id and an unlock bit each. The join matches names case-insensitively
-against both the display and sort forms, because the two sources disagree on the
-capitalisation of small words and on where the article goes; two names
-(`Castlewars`, `Duel Arena`) still do not match and five squares are claimed by
-two tracks upstream, all reported by the generator rather than silently dropped.
+`src/net/mock/mock230_music_regions.gen.h` — **988 map squares** with a song
+archive id and an unlock bit each (575 of the cache's 876 tracks now have at
+least one, up from 363). The join matches names case-insensitively against both
+the display and sort forms, because the two sources disagree on the
+capitalisation of small words and on where the article goes. `Castlewars` and
+`Duel Arena` — the two names that used to not match anything — were corrected in
+place to `Castle Wars` and `Emir's Arena, The`, their real names in the osrs239
+track list. Five squares are still claimed by two tracks upstream in the
+original Kronos data (`Courage`/`Long Way Home` at 11826, and four more), all
+reported by the generator rather than silently dropped; the 2026 wiki addition
+introduced none of its own — every new row's region id was independently
+verified absent from the pre-existing table before being appended, and the
+generator keeps the first (older, already spot-validated) row whenever the two
+sources disagree on a *pre-existing* square rather than overwriting it — 24
+such disagreements exist and are logged as comments in `music_regions.tsv`
+where the new block starts, for the record rather than acted on.
 
 Spot-validated against the OSRS Wiki and the cache's own hint text:
 
@@ -360,16 +371,33 @@ Spot-validated against the OSRS Wiki and the cache's own hint text:
 | Al Kharid | 13105 | (3264, 3136) | *in Al Kharid.* | Al Kharid ✓ |
 | Harmony | 12850 | (3200, 3200) | *in Lumbridge.* | Lumbridge ✓ |
 | Barbarianism | 12341 + 12441 | (3072, 3392), (3072, 9792) | *in Barbarian Village.* | village + its dungeon ✓ |
+| Mor Ul Rek | 9807, 10063, 10064 | (2432, 5056), (2496, 5056), (2496, 5120) | *in Mor Ul Rek.* | TzHaar City interior, 100/100 polygon-sample confirmation each ✓ |
 
 The dual-square Barbarianism entry is the shape to expect: an overworld square
 plus the `+6400` underground square.
 
-**Coverage is the honest limit.** Kronos maps 364 of its own 535 tracks; the
-osrs239 cache has 876. So roughly half the modern track list has no square, and
-the unmapped half of the world is silent rather than wrong. To extend it, in
-order of usefulness: the wiki's `Map:Music_tracks` data page (not the rendered
-map), its `/Classic` one-square-per-track variant, the cache's own 876 hint
-strings as the checklist, and the 634-era coordinate dump on Rune-Server.
+**Coverage is the honest limit.** The 2026-08-13 wiki addition took coverage
+from 363 to 575 of the cache's 876 tracks (988 map squares). What's left, in
+order of usefulness for anyone extending it further:
+
+- **Ambient-rotation areas**, deliberately not attempted: the Wilderness (27
+  tracks), the Kharidian Desert (8 tracks), and sailing routes (10 tracks) each
+  play a random pick from several tracks per square rather than one fixed
+  track, which doesn't fit this table's one-track-per-square model.
+- **~100 two-track pairs**, mostly Theatre of Blood / Chambers of Xeric
+  boss-phase alternates (e.g. Verzik's phases), left out rather than picking an
+  arbitrary winner.
+- **`Watch Your Step`** (Hallowed Sepulchre): the wiki's polygon for it was
+  drawn at a coarse zoom level and spans a landmass-scale area for what is
+  actually one building — excluded rather than imported wrong. Redo with a
+  tighter, hand-verified boundary.
+- Two Mor Ul Rek squares (9806, 10062) are filled in by elimination, not
+  geometric confirmation — see the comment above them in `music_regions.tsv`.
+- Beyond that: the cache's own 876 hint strings (`music_tracks_osrs239.tsv`,
+  `unlock_hint` column) as a checklist for what's still unmapped, and the
+  634-era coordinate dump reportedly on Rune-Server forums (`music-areas.546788`,
+  `634-all-music-track-map-coordinates.698625`) — both returned HTTP 403 to
+  automated fetches when tried; may be reachable manually.
 
 ### 2.4 The server side
 
