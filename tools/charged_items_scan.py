@@ -517,7 +517,15 @@ FAMILY_DATA = {
         storage="item_var", depletion="none", max_charges=10000,
         charge_source="Ring + elven signet + 100 crystal shards + 1000 stardust at a singing bowl; recharged with stardust only",
         drain_event="Same mining drain as celestial ring, plus a 10% chance to save a crystal-equipment charge",
-        status="charges_only", note="No implementation found.",
+        status="implemented",
+        note="Same wiring as Celestial ring (same mining hook, same op-number verification, same "
+             "not-implemented ore-tier-cap/quantity-Charge-UX notes) plus the elven signet half: a 10% "
+             "chance to skip a crystal item's own charge spend, wired into "
+             "minigame_gauntlet/scripts/crystal_equipment.rs2's crystal_drain_one -- the one shared drain "
+             "primitive every crystal item (armour, tools, and per the wiki's own explicit exclusion, all "
+             "weapons except blade of Saeldor/bow of Faerdhinen) already calls. NOT implemented: creating "
+             "the signet (ring + elven signet + shards + stardust at a singing bowl) -- a crafting recipe, "
+             "not a charges gap, same as this session's other missing creation paths.",
     ),
     "Chronicle": dict(
         storage="item_var", depletion="none", max_charges=1000,
