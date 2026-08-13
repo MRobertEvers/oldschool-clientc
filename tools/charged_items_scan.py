@@ -201,6 +201,20 @@ FAMILY_DATA = {
         status="implemented",
         note="Migrated off its own %scythe_of_vitur_charges varp (Phase 6); see skill_combat/scripts/player/gear/scythe_of_vitur.rs2.",
     ),
+    "Holy scythe of vitur": dict(
+        storage="item_var", depletion="revert", max_charges=20000,
+        charge_source="Cosmetic recolour (Saradomin) — identical mechanic to the base scythe",
+        drain_event="1 charge per swing that lands a hit",
+        status="implemented",
+        note="scythe_of_vitur_or — same file, same swing hook and charge storage as the base scythe, already bound.",
+    ),
+    "Sanguine scythe of vitur": dict(
+        storage="item_var", depletion="revert", max_charges=20000,
+        charge_source="Cosmetic recolour (blood) — identical mechanic to the base scythe",
+        drain_event="1 charge per swing that lands a hit",
+        status="implemented",
+        note="scythe_of_vitur_bl — same file, same swing hook and charge storage as the base scythe, already bound.",
+    ),
     "Toxic blowpipe": dict(
         storage="item_var", depletion="none", max_charges=None,
         charge_source="Filled with any tradeable dart + 1 zulrah scale per dart via 'Fill'",
@@ -335,10 +349,17 @@ FAMILY_DATA = {
              "here despite most enchanted jewellery being item_var.",
     ),
     "Amulet of glory": dict(
-        storage="id_ladder", depletion="degrade_step", max_charges=6,
+        storage="id_ladder", depletion="degrade_step", max_charges=4,
         charge_source="Enchanted from Dragonstone amulet; recharged at Fountain of Rune / Font of All",
-        drain_event="1 charge per teleport",
-        status="charges_only", note="Ladder + teleport logic pre-exist (enchanted_jewellry/amulet_of_glory.rs2); not yet on the shared library.",
+        drain_event="1 charge per teleport (general/scripts/enchanted_jewellry/amulet_of_glory.rs2)",
+        status="implemented",
+        note="Fully working, verified 2026-08-13: ~amulet_of_glory_teleport degrades "
+             "the ladder on every use exactly like ring_of_dueling.rs2. Real OSRS has "
+             "no Check op on this family (configs/all.obj: no ifop3 anywhere on the "
+             "ladder) -- the remaining count is legible from the item's own name, "
+             "'Amulet of glory(4)'..'Amulet of glory(1)', so there is nothing left to "
+             "bind. Corrected max from an earlier wrong guess of 6 -- the ladder is "
+             "4/3/2/1/0(base), confirmed against the obj records directly.",
     ),
     # -- player_varp / daily, implemented ---------------------------------
     "Explorer's ring": dict(
