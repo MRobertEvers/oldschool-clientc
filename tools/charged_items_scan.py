@@ -250,14 +250,16 @@ FAMILY_DATA = {
     "Saradomin's blessed sword": dict(
         storage="item_var", depletion="revert", max_charges=10000,
         charge_source="Saradomin sword + Saradomin's tear",
-        drain_event="1 charge per HIT (not swing) — up to 3x/swing on multi-hit weapons matters for this one",
-        status="charges_only",
-        note="ifop4=Revert (not Uncharge) reverts immediately to Saradomin's tear, "
-             "a different obj entirely, not an 'uncharged' variant of the sword. "
-             "Real melee swing hook exists (combat_stats.rs2) but per-HIT (not "
-             "per-swing) drain needs a call site inside ~player_hit_npc_prepare "
-             "or equivalent, not yet wired — same shape as scythe's per-swing "
-             "hook, one layer deeper.",
+        drain_event="1 charge per swing (regardless of hit success)",
+        status="implemented",
+        note="Wired into player_hit_npc_prepare (skill_combat/scripts/player/gear/saradomins_blessed_sword.rs2), "
+             "the same global funnel blood_fury.rs2 uses. Two cache obj ids for one charge pool ('Sara's "
+             "blessed sword (full)' at max, 'Saradomin's blessed sword' the instant any charge is spent, not "
+             "two separate tiers) -- swapping between them preserves the count via a read-swap-restore, since "
+             "charges_item_revert deliberately does NOT carry vars across an obj_id change. Manual Revert and "
+             "auto-degrade-at-zero both go to Saradomin's tear. NOT implemented: creating the sword at all "
+             "(combining Saradomin sword + Saradomin's tear) -- zero combine logic exists anywhere in this "
+             "tree, the same gap blood_fury.rs2 states for its own family.",
     ),
     # -- item_var, implemented: wilderness weapons + bracelet -------------
     # All six share one mechanic (minigame_revcaves/scripts/wildy_weapons.rs2
