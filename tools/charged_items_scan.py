@@ -764,9 +764,16 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=30000,
         charge_source="Amulet of fury (cache id enchanted_onyx_amulet) + Blood shard; starts at 10,000, +10,000 per additional shard",
         drain_event="1 charge per successful melee hit (multi-hit weapons drain multiple)",
-        status="charges_only",
-        note="Real melee successful-hit funnel exists at player_hit_npc_prepare "
-             "(areas/area_rs2012_tormented_demons/scripts/rs2012_td_player_hit.rs2:36) -- not yet called for this item.",
+        status="implemented",
+        note="Wired into player_hit_npc_prepare (general/scripts/enchanted_jewellry/blood_fury.rs2), "
+             "the same global melee/ranged/magic damage funnel crystal_weapon_drain uses, gated on "
+             "melee style since the wiki is explicit this amulet only drains there. Auto-reverts to "
+             "enchanted_onyx_amulet at 0 charges (blood shard lost); the Revert option does the same "
+             "on demand. NOT implemented: creating a blood_amulet at all -- combining Amulet of fury + "
+             "Blood shard, and topping up with further shards, plus the bank Configure-Charges QoL "
+             "option. Zero combine logic exists anywhere in this tree for this whole family (also "
+             "true of Ring of suffering (r), Necklace of anguish, Tormented bracelet, Amulet of "
+             "avarice) -- a from-scratch crafting feature, not a charges gap. Spawn to test.",
     ),
     "Amulet of bounty": dict(
         storage="player_varp", depletion="destroy", max_charges=10,
@@ -806,8 +813,9 @@ FAMILY_DATA = {
         charge_source="Enhanced crystal weapon seed + 100 crystal shards at a singing bowl; starts at 10,000, recharged 100/shard",
         drain_event="1 charge per hit taken/dealt regardless of success",
         status="implemented",
-        note="Wired the same way as Crystal helm/body/legs: gauntlet_hunllef.rs2's crystal_weapon_drain "
-             "(includes blade_of_saeldor) is called from the GLOBAL player_hit_npc_prepare funnel "
+        note="Wired the same way as Crystal bow/halberd/shield (NOT Crystal helm/body/legs, which use the "
+             "separate, genuinely Gauntlet-only crystal_armour_drain): gauntlet_hunllef.rs2's "
+             "crystal_weapon_drain (includes blade_of_saeldor) is called from the GLOBAL player_hit_npc_prepare "
              "(rs2012_td_player_hit.rs2:64), not gauntlet-gated. Reverts to blade_of_saeldor_inactive. FLAG: "
              "^crystal_weapon_start_charges (gauntlet.constant) is 2500, but the wiki says this weapon starts "
              "at 10,000/caps at 20,000 (2,500/6,000 are the older crystal bow/halberd numbers) -- the shared "
