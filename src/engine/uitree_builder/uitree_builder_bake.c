@@ -8,6 +8,7 @@
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
+#include "game/rs_cs2_host.h"
 #include "input/torirs_keymap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
@@ -305,6 +306,11 @@ uitree_builder_bake_pack_under_owner(
         }
 
         collect_onload(builder, src);
+        /* The record's own transmit hooks, armed here rather than by a script.
+         * They must exist before the builder's initial var/inv dispatch or the
+         * mount paints from the onload and then goes deaf. */
+        if( builder->host )
+            RS_CS2_RegisterCacheTransmitHooks(builder->host, src);
     }
 
     /* Pass 2: reparent using full pack id scan (forward layer refs). */

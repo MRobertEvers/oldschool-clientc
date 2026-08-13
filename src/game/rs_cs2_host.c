@@ -3708,6 +3708,130 @@ rs_cs2_acquire_var_transmit_hook(
         memcpy((hook)->str_args, (request)->str_args, sizeof((hook)->str_args));                   \
     } while( 0 )
 
+/*
+ * A cache-authored hook's arguments, in the shape the transmit tables want.
+ *
+ * `ToriRS_ScriptHook::argv[0]` is the script id and the rest are the script's
+ * arguments — the same split the onload dispatch makes (task_uitree_build.c
+ * step 4), including `str_mask >> 1`: position 0 is the script id and is always
+ * an int, so the mask that describes the *arguments* is the record's mask with
+ * that position shifted off. Getting this wrong does not fail loudly; it feeds
+ * a string into an int local.
+ */
+static void
+rs_cs2_cache_hook_args(
+    int* int_args,
+    int* int_arg_count,
+    uint64_t* str_arg_mask,
+    int* str_arg_count,
+    char str_args[][CS2VM_SETON_STR_ARG_LEN],
+    struct ToriRS_ScriptHook const* src)
+{
+    int argc = src->argc > 0 ? src->argc - 1 : 0;
+
+    if( argc > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
+        argc = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
+    if( argc > 0 )
+        memcpy(int_args, src->argv + 1, (size_t)argc * sizeof(int));
+    *int_arg_count = argc;
+
+    *str_arg_mask = src->str_mask >> 1;
+    *str_arg_count =
+        src->str_argc > CS2VM_SETON_STR_ARG_MAX ? CS2VM_SETON_STR_ARG_MAX : src->str_argc;
+    for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
+    {
+        snprintf(str_args[i], CS2VM_SETON_STR_ARG_LEN, "%s", src->strv[i]);
+    }
+}
+
+static void
+rs_cs2_cache_hook_triggers(
+    int* dst,
+    int* dst_count,
+    int const* src,
+    int count)
+{
+    if( count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+        count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+    if( count > 0 )
+        memcpy(dst, src, (size_t)count * sizeof(int));
+    *dst_count = count;
+}
+
+/*
+ * Register the transmit hooks a component record declares in the CACHE.
+ *
+ * `onVarpTransmit` + `varpTriggers` (and the inv pair) are the record's own
+ * form of `if_setonvartransmit` — the same script, the same captured arguments,
+ * the same trigger list — and the decoder has always copied both onto
+ * `ToriRS_Component`. Nothing read them, so only a CS2 script could arm a
+ * transmit hook: a widget whose handler lives in the cache painted once from
+ * its onload and then never again, however many times its varp changed.
+ *
+ * The combat tab's auto-retaliate button is the visible case. 593:32 declares
+ * `onload=i:325`, `onvarptransmit=i:325`, `varptriggers=172`; clicking it sent
+ * IF_BUTTON1 593:32, the server flipped `option_nodef` and transmitted varp 172
+ * — and the button went on saying "Auto Retaliate (On)", because script 325 had
+ * run exactly once, at mount. Every end of that chain was working and the
+ * feature still read as broken.
+ *
+ * Called from both bake paths (boot builder and IF_OPENSUB) before their
+ * initial transmit dispatch, so a mount paints from the cache hook on the same
+ * pass a CS2-registered one would.
+ */
+void
+RS_CS2_RegisterCacheTransmitHooks(
+    struct RS_CS2Host* host,
+    struct ToriRS_Component const* src)
+{
+    assert(host);
+    assert(src);
+
+    if( src->on_varp_transmit.argc > 0 && src->on_varp_transmit.argv[0] > 0 )
+    {
+        struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id);
+        if( hook )
+        {
+            hook->component_id = src->id;
+            hook->script_id = src->on_varp_transmit.argv[0];
+            rs_cs2_cache_hook_args(
+                hook->int_args,
+                &hook->int_arg_count,
+                &hook->str_arg_mask,
+                &hook->str_arg_count,
+                hook->str_args,
+                &src->on_varp_transmit);
+            rs_cs2_cache_hook_triggers(
+                hook->trigger_ids,
+                &hook->trigger_count,
+                src->varp_triggers,
+                src->varp_triggers_count);
+        }
+    }
+
+    if( src->on_inv_transmit.argc > 0 && src->on_inv_transmit.argv[0] > 0 )
+    {
+        struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id);
+        if( hook )
+        {
+            hook->component_id = src->id;
+            hook->script_id = src->on_inv_transmit.argv[0];
+            rs_cs2_cache_hook_args(
+                hook->int_args,
+                &hook->int_arg_count,
+                &hook->str_arg_mask,
+                &hook->str_arg_count,
+                hook->str_args,
+                &src->on_inv_transmit);
+            rs_cs2_cache_hook_triggers(
+                hook->trigger_ids,
+                &hook->trigger_count,
+                src->inventory_triggers,
+                src->inventory_triggers_count);
+        }
+    }
+}
+
 static int
 exec_set_on_inv_transmit(
     struct RS_CS2Host* host,

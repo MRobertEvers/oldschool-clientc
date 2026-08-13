@@ -760,6 +760,22 @@ enum
 #define MOCK230_NPC_STAT_MAX 255
 
 /*
+ * How long a player keeps fighting with no input of their own.
+ *
+ * OldSchool's anti-AFK rule, stated on the wiki's Auto Retaliate page: the
+ * character retaliates "for 20 minutes if no player input is given, after which
+ * players stop attacking all together even if they are attacked by monsters".
+ * 20 minutes is 1200 seconds and a tick is 600 ms, so 2000 ticks.
+ *
+ * Engine and not content, because the thing being measured is the *connection*:
+ * `Mock230Player::last_input_tick` is set by the inbound packet router and
+ * nothing else can see it. A real click is unaffected — the packet that carries
+ * it resets the clock before its own handler runs — so this only ever bites
+ * combat that continues without the player, which is the whole point.
+ */
+#define MOCK230_AFK_COMBAT_TICKS 2000
+
+/*
  * Attack styles, in the order the combat interface lists them. OldSchool folds
  * the style into the effective level before the roll: accurate is +3 attack,
  * aggressive +3 strength, defensive +3 defence, controlled +1 to all three.
@@ -2524,6 +2540,27 @@ struct Mock230Player
      *  queues, timers, or damage; content owns the duration through
      *  player_lock()/player_unlock(). */
     int action_locked;
+    /**
+     * The tick an inbound packet last carried a player INPUT, or -1 when this
+     * slot has no client to hear from.
+     *
+     * Not liveness: the client's own keepalives (NO_TIMEOUT, IDLE_TIMER) and
+     * its bookkeeping (window status, scene acks) are exactly what this must
+     * not count, or it would say "the player is here" about a client left
+     * running in an empty room. `mock230_world_handle` sets it for everything
+     * else — a click, a walk, a key, a button, a chat line.
+     *
+     * What reads it is the anti-AFK rule the wiki states on Auto Retaliate:
+     * retaliation follows a player for 20 minutes of no input, "after which
+     * players stop attacking all together even if they are attacked by
+     * monsters". See MOCK230_AFK_COMBAT_TICKS and mock230_combat_engage.
+     *
+     * -1 is for the session-less player an in-process fixture stands up: there
+     * is no keyboard for it to fall silent at, and a clock that ran anyway
+     * would stop every fixture fight the moment the suite passed 2000 ticks.
+     * A test that wants the rule writes a tick here and gets the real clock.
+     */
+    int32_t last_input_tick;
     /** The overhead-icon bits for the appearance block. Content's, through
      *  HEADICONS_GET/SET — the engine neither knows nor asks which prayer put a
      *  bit here, which is exactly the reference's arrangement
@@ -3897,6 +3934,11 @@ void
 mock230_combat_engage(
     struct Mock230Server* srv,
     int slot);
+
+/** True once MOCK230_AFK_COMBAT_TICKS have passed with no player input, which
+ *  is when OldSchool stops the character fighting. See its definition. */
+int
+mock230_combat_player_afk(const struct Mock230Player* player);
 
 /** Apply damage and the hitsplat that carries it. A zero amount is a block
  *  splat, not nothing — otherwise a miss looks like a dropped swing. */

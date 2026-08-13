@@ -7490,6 +7490,22 @@ mock230_world_handle(
         return;
     }
 
+    /*
+     * Somebody is at the keyboard.
+     *
+     * Everything the client sends is either an input (a click, a walk, a key, a
+     * button, a chat line) or one of the four packets it sends BECAUSE nobody
+     * is: two keepalives, the scene ack, and the canvas report. Only the first
+     * class may reset the AFK clock — counting the keepalives would make the
+     * clock unreachable and MOCK230_AFK_COMBAT_TICKS dead code.
+     *
+     * Set before the handler runs, not after: an OPNPC's own handler engages
+     * combat, and it must see a clock this packet has already reset.
+     */
+    if( name != PKTOUT_NAME_NO_TIMEOUT && name != PKTOUT_NAME_IDLE_TIMER &&
+        name != PKTOUT_NAME_MAP_BUILD_COMPLETE && name != PKTOUT_NAME_WINDOW_STATUS )
+        player->last_input_tick = (int32_t)srv->tick;
+
     for( size_t i = 0; i < sizeof(k_packet_routes) / sizeof(k_packet_routes[0]); i++ )
     {
         if( k_packet_routes[i].name != name )
@@ -7938,6 +7954,11 @@ mock230_world_add_player(
         player->pid = i;
         player->login_generation = generation;
         player->session = session;
+        /* Logging in is input, and it has to be stated: the memset's 0 reads as
+         * "idle since tick 0", so anyone joining a world older than
+         * MOCK230_AFK_COMBAT_TICKS would arrive unable to fight. A slot with no
+         * session has no client to time out — see `last_input_tick`. */
+        player->last_input_tick = session ? (int32_t)srv->tick : -1;
         mock230_ifstate_init(&player->interfaces);
         if( i >= srv->player_count )
             srv->player_count = i + 1;
@@ -30441,14 +30462,31 @@ mock230_world_selftest(void)
                             h->combat_target_npc = jad;
                             h->combat_target_npc_gen = j->generation;
                             h->attack_clock = 0;
+                            {
+                                /* The two measurements, side by side, so the
+                                 * claim is proved here rather than asserted in
+                                 * prose: the corner one is what content had and
+                                 * it must NOT read as melee range, or a heal
+                                 * below would prove nothing about which rule
+                                 * fired. */
+                                int corner = abs(h->x - j->x) > abs(h->z - j->z)
+                                                 ? abs(h->x - j->x)
+                                                 : abs(h->z - j->z);
+
+                                SELFTEST_CHECK(corner > 1,
+                                               "this tile has to be one the corner-to-corner "
+                                               "rule rejects, or the heal below says nothing "
+                                               "about the footprint; it reads %d",
+                                               corner);
+                            }
                             for( int tick = 0; tick < 8; tick++ )
                                 mock230_world_tick(srv);
                             SELFTEST_CHECK(j->hitpoints > hp_before,
                                            "a healer standing against Jad's north-east corner "
-                                           "must heal it — %d -> %d of %d. Corner-to-corner "
-                                           "that tile reads %d tiles away; edge to edge it is "
-                                           "1, and the engine is the one that knows",
-                                           hp_before, j->hitpoints, j->base_hitpoints, jsize);
+                                           "must heal it — %d -> %d of %d. Corner to corner "
+                                           "that tile is several tiles away; edge to edge it "
+                                           "is 1, and the engine is the one that knows",
+                                           hp_before, j->hitpoints, j->base_hitpoints);
 
                             /*
                              * 4. And not from outside it. Same healer, same
@@ -30535,6 +30573,85 @@ mock230_world_selftest(void)
                             }
                             h->active = 0;
                         }
+                        j->active = 0;
+                    }
+                }
+
+                /*
+                 * And the final-wave Jad arrives already fighting the shield.
+                 *
+                 * The same claim as part 1 of the add stanza above, about the
+                 * one monster it did not cover. `::zukstill 4` is variant 3's
+                 * arena plus the Jad, spawned and armed exactly the way
+                 * `[ai_queue2,inferno_tzkalzuk_placeholder]` spawns it in the
+                 * real fight, so what this pins is the live spawn site.
+                 *
+                 * Wave 69 is the only wave where there is a shield to take:
+                 * the Ancestral Glyph belongs to the Zuk phase, so the waves
+                 * 67/68 Jads run the same `~inferno_add_start` and always fall
+                 * through its second branch onto the player.
+                 *
+                 * `^inferno_jad_open_delay` (Kronos's 9) going back on the
+                 * spawner turns this red, which is the point: the wait is still
+                 * named in the constants file and is deliberately not spent.
+                 */
+                {
+                    int jad_final =
+                        mock230_content_symbol(MOCK230_PACK_NPC, "inferno_jad_finalwave");
+                    int jad = -1;
+                    int shield = -1;
+
+                    selftest_reset_world(srv, player, 402, 402);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill 4"),
+                                   "::zukstill 4 should stage the final-wave Jad against a "
+                                   "walking glyph");
+                    for( int tick = 0; tick < 24 && jad < 0; tick++ )
+                    {
+                        /* Same scene barrier the add stanza answers, and for
+                         * the same reason — the fixture's own queue is what
+                         * adds the npcs. */
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL,
+                                                 0);
+                        mock230_world_tick(srv);
+                        jad = selftest_find_npc(srv, jad_final);
+                    }
+                    shield = selftest_find_npc(srv, glyph_type);
+                    SELFTEST_CHECK(jad >= 0, "the fixture should leave a JalTok-Jad standing");
+                    SELFTEST_CHECK(shield >= 0, "and a shield for it to shoot at");
+                    if( jad >= 0 && shield >= 0 )
+                    {
+                        struct Mock230Npc* j = &srv->npcs[jad];
+
+                        SELFTEST_CHECK(j->combat_target_npc == shield,
+                                       "Jad must take the shield on the tick it lands (tick "
+                                       "%d), got npc target %d (glyph is %d) — an opening "
+                                       "wait leaves it idle in the arena while the player is "
+                                       "already shooting it",
+                                       (int)srv->tick, j->combat_target_npc, shield);
+                        SELFTEST_CHECK(j->face_entity == shield,
+                                       "and face it — FACE_ENTITY should be the glyph's npc "
+                                       "slot %d, got %d",
+                                       shield, j->face_entity);
+
+                        /*
+                         * And when the shield dies under it, it takes the
+                         * player — on the next tick, because the re-target
+                         * check runs every tick rather than every ninth.
+                         */
+                        srv->npcs[shield].hitpoints = 0;
+                        srv->npcs[shield].active = 0;
+                        mock230_world_set_active(srv, player);
+                        player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                        player->hitpoints = 900;
+                        mock230_combat_sync_hitpoints(player);
+                        mock230_world_tick(srv);
+                        mock230_world_tick(srv);
+                        SELFTEST_CHECK(j->combat_target == player->pid,
+                                       "and must turn on the player the tick after its shield "
+                                       "goes, not whenever a nine-tick timer next fires (got "
+                                       "target %d, npc target %d)",
+                                       j->combat_target, j->combat_target_npc);
                         j->active = 0;
                     }
                 }

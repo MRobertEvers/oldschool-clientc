@@ -1081,6 +1081,31 @@ mock230_combat_attackable(int npc_type)
     return 0;
 }
 
+/*
+ * Has this player gone quiet long enough to stop fighting?
+ *
+ * The wiki's Auto Retaliate rule: retaliation follows the attacker "for 20
+ * minutes if no player input is given, after which players stop attacking all
+ * together even if they are attacked by monsters".
+ *
+ * It reads as a rule about retaliation and it is really a rule about *combat*,
+ * which is why the test lives on engage rather than in the retaliation queue.
+ * Every swing re-arms the OPNPC2 interaction through `p_opnpc(2)` — the
+ * retaliation queue, the melee label, the ranged loop and the special all end
+ * that way — so one gate here stops the fight at its next swing instead of
+ * stopping only the fights that started by being hit.
+ *
+ * A player who is actually playing never reaches it: the packet carrying their
+ * click resets `last_input_tick` before its own handler engages.
+ */
+int
+mock230_combat_player_afk(const struct Mock230Player* player)
+{
+    if( !player || !player->world || player->last_input_tick < 0 )
+        return 0;
+    return player->world->tick - player->last_input_tick >= MOCK230_AFK_COMBAT_TICKS;
+}
+
 void
 mock230_combat_engage(
     struct Mock230Server* srv,
@@ -1096,6 +1121,14 @@ mock230_combat_engage(
         return;
     if( player->dying )
         return;
+    if( mock230_combat_player_afk(player) )
+    {
+        /* Drop whatever fight was running rather than only declining the new
+         * one: leaving `combat_target` set would keep the approach walking the
+         * player after a monster it has stopped swinging at. */
+        mock230_combat_stop_player(srv);
+        return;
+    }
 
     player->combat_target = slot;
     /* Swing on the tick the player arrives rather than after a full interval:
