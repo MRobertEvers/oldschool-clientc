@@ -779,10 +779,12 @@ FAMILY_DATA = {
         storage="player_varp", depletion="destroy", max_charges=10,
         charge_source="Opal amulet + Lvl-1 Enchant; no separate refill -- only reset via Break or hitting 0",
         drain_event="25% chance to use 1 seed instead of 3 when planting an allotment, 1 charge per proc",
-        status="charges_only",
-        note="Wiki, checked directly: \"accounted per player, not per amulet\" -- same shape as ring of "
-             "recoil / dodgy necklace. Real hook exists: skill_farming/scripts/farming_plant.rs2:126 "
-             "(farming_plant_allot) reads a seed-count field this could override probabilistically.",
+        status="implemented",
+        note="player_varp, same shape as ring of recoil / dodgy necklace. Wired into "
+             "skill_farming/scripts/farming_plant.rs2's farming_plant_allot, which overrides the real "
+             "seed_count db field it reads right before spending it. Break (opheld4) destroys the worn "
+             "amulet and resets the account-wide counter, distinct from the amulet simply leaving play "
+             "with charges still on it.",
     ),
     "Arclight": dict(
         storage="item_var", depletion="revert", max_charges=10000,
