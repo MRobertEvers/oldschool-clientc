@@ -208,6 +208,26 @@ collect_onloads(
     }
 }
 
+/*
+ * Arm the transmit hooks the cache records declare, for the group being opened.
+ *
+ * The twin of collect_onloads: an onload paints the panel once, and these are
+ * what repaint it afterwards. Run for a reused group too — the registration is
+ * keyed by component id and rewrites in place, so re-opening a panel re-arms it
+ * rather than accumulating entries.
+ */
+static void
+arm_cache_transmit_hooks(
+    struct Task_InterfaceOpen* self,
+    struct ToriRS_ComponentPack const* pack)
+{
+    assert(self && pack);
+    if( !self->host )
+        return;
+    for( int i = 0; i < pack->component_count; i++ )
+        RS_CS2_RegisterCacheTransmitHooks(self->host, &pack->components[i]);
+}
+
 static void
 collect_seed_objs(struct Task_InterfaceOpen* self)
 {
@@ -455,6 +475,7 @@ Task_InterfaceOpen_Run(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_OPEN, 1);
         UITreeIfaceStats_NoteOpen(self->interface_id);
         collect_onloads(self, pack);
+        arm_cache_transmit_hooks(self, pack);
         if( interface_group_in_tree(self->tree, self->interface_id) )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);

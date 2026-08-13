@@ -16,9 +16,12 @@
  *
  * This is the distinction the whole file turns on, and the tree already contains
  * the counter-example. `SS_OP_P_OPNPC` (`mock230_scripts.c`) reads the op number
- * and calls `mock230_combat_engage` directly, so a script saying `p_opnpc(2)`
- * does not re-enter the dispatch — it *is* the combat engine, reached by another
- * name. That makes `[opnpc2,_] p_opnpc(2)` look like an eviction of the `opnpc`
+ * and, for Attack, latches `combat_target` itself — the same conclusion
+ * `mock230_combat_engage` reaches, written out a second time rather than called.
+ * So a script saying `p_opnpc(2)` does not re-enter the dispatch: it *is* the
+ * combat engine, reached by another name. (Anything that must hold for both
+ * spellings therefore has to be written twice; MOCK230_AFK_COMBAT_TICKS is the
+ * live example.) That makes `[opnpc2,_] p_opnpc(2)` look like an eviction of the `opnpc`
  * fallback row while moving nothing, which is the trap `PORTING_GUIDE` §6 names
  * explicitly and the reason that row's `blocked_on` says what it says.
  *

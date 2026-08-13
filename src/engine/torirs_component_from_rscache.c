@@ -244,8 +244,13 @@ torirs_component_copy_dat2_hooks(
     torirs_copy_script_hook(&dst->on_mouse_repeat, src->onMouseRepeat, src->onMouseRepeatLen);
     torirs_copy_script_hook(&dst->on_scroll_wheel, src->onScrollWheel, src->onScrollWheelLen);
     torirs_copy_script_hook(&dst->on_timer, src->onTimer, src->onTimerLen);
+    torirs_copy_script_hook(&dst->on_click_repeat, src->onClickRepeat, src->onClickRepeatLen);
+    torirs_copy_script_hook(&dst->on_release, src->onRelease, src->onReleaseLen);
+    torirs_copy_script_hook(&dst->on_target_enter, src->onTargetEnter, src->onTargetEnterLen);
+    torirs_copy_script_hook(&dst->on_target_leave, src->onTargetLeave, src->onTargetLeaveLen);
     torirs_copy_script_hook(&dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
     torirs_copy_script_hook(&dst->on_inv_transmit, src->onInvTransmit, src->onInvTransmitLen);
+    torirs_copy_script_hook(&dst->on_stat_transmit, src->onStatTransmit, src->onStatTransmitLen);
 
     if( src->inventoryTriggers && src->inventoryTriggersLen > 0 )
     {
@@ -267,10 +272,23 @@ torirs_component_copy_dat2_hooks(
             dst->varp_triggers[i] = src->varpTriggers[i];
     }
 
+    if( src->statTriggers && src->statTriggersLen > 0 )
+    {
+        int n = src->statTriggersLen;
+        if( n > TORIRS_VARP_TRIGGER_MAX )
+            n = TORIRS_VARP_TRIGGER_MAX;
+        dst->stat_triggers_count = n;
+        for( int i = 0; i < n; i++ )
+            dst->stat_triggers[i] = src->statTriggers[i];
+    }
+
     if( dst->scripts_count <= 0 &&
         (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_op.argc > 0 ||
          dst->on_mouse_over.argc > 0 || dst->on_mouse_leave.argc > 0 ||
-         dst->on_varp_transmit.argc > 0 || dst->on_inv_transmit.argc > 0) )
+         dst->on_click_repeat.argc > 0 || dst->on_release.argc > 0 ||
+         dst->on_target_enter.argc > 0 || dst->on_target_leave.argc > 0 ||
+         dst->on_varp_transmit.argc > 0 || dst->on_inv_transmit.argc > 0 ||
+         dst->on_stat_transmit.argc > 0) )
         dst->script_kind = 1;
 }
 

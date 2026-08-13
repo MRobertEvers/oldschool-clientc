@@ -505,6 +505,10 @@ mock230_load_player(
             }
             else
                 break;
+            /* Clamped on the way in as well as at every grant: the file is
+             * hand-editable text, and a total outside the range would put the
+             * player somewhere `mock230_combat_add_xp` can never take them. */
+            xp = mock230_combat_clamp_xp(xp);
             player->stat_xp_tenths[stat] = xp;
             player->stat_level[stat] = mock230_combat_level_for_xp(xp / 10);
             player->stat_boosted[stat] = boosted;

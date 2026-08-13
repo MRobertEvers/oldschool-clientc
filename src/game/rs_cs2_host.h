@@ -18,6 +18,7 @@ struct UITreeSceneBridge;
 struct RS_WorldMapState;
 struct RS_Social;
 struct LootStore;
+struct ToriRS_Component;
 
 /*
  * Outbound social requests a CS2 script made.
@@ -640,6 +641,16 @@ RS_CS2Host_Init(
     struct InvManager* invs,
     struct VarPManager* varps,
     struct VarCManager* varcs);
+
+/** Arm the var- and inv-transmit hooks a component record declares in the
+ *  cache (`onVarpTransmit`/`varpTriggers`, `onInvTransmit`/`inventoryTriggers`).
+ *  The runtime `if_seton*transmit` opcodes write the same two tables; this is
+ *  the same registration for the half a script never runs. Call it while baking
+ *  a pack, before the mount's initial transmit dispatch. */
+void
+RS_CS2_RegisterCacheTransmitHooks(
+    struct RS_CS2Host* host,
+    struct ToriRS_Component const* src);
 
 /** Give the host the player's skill table. Separate from Init because the
  *  stats outlive a host re-init and Init has enough parameters already. */

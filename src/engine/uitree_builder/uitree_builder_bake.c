@@ -8,6 +8,7 @@
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
+#include "game/rs_cs2_host.h"
 #include "input/torirs_keymap.h"
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
@@ -305,6 +306,11 @@ uitree_builder_bake_pack_under_owner(
         }
 
         collect_onload(builder, src);
+        /* The record's own transmit hooks, armed here rather than by a script.
+         * They must exist before the builder's initial var/inv dispatch or the
+         * mount paints from the onload and then goes deaf. */
+        if( builder->host )
+            RS_CS2_RegisterCacheTransmitHooks(builder->host, src);
     }
 
     /* Pass 2: reparent using full pack id scan (forward layer refs). */
@@ -388,6 +394,22 @@ uitree_builder_bake_pack_under_owner(
                     cache_id);
         }
     }
+
+    /*
+     * The pack's own handlers, which this path used to drop on the floor.
+     *
+     * `UITree_BuildFromComponentPack` bakes them and this function does not,
+     * and the two are not interchangeable: every *sidebar tab* mounts through
+     * here (`task_slot_mount.c`), so interface 182's "Click here to logout" and
+     * "World Switcher" carried `onmouseover`/`onmouseleave` in the cache,
+     * decoded them correctly, and arrived in the tree with no hooks at all —
+     * the text never changed colour under the pointer. The combat tab's
+     * buttons lost their `onmouserepeat` tooltips the same way.
+     *
+     * Last, not with the insert pass: hooks are resolved by component id, so
+     * every node has to be in the tree first.
+     */
+    UITree_BakePackRuntimeHooks(tree, pack);
 
     free(index_map);
 }

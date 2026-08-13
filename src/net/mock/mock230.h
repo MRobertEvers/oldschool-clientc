@@ -736,6 +736,19 @@ enum
 };
 
 /*
+ * The experience a single skill may hold, in tenths — OldSchool's 200,000,000.
+ *
+ * A ceiling rather than an assumption: `stat_xp_tenths` is an `int`, and
+ * 200,000,000 xp is 2,000,000,000 tenths, which sits within seven percent of
+ * INT_MAX. An uncapped total therefore does not merely grow past the game's
+ * limit, it wraps negative, and a negative total reads back through
+ * `mock230_combat_level_for_xp` as level 1 — a maxed skill would silently
+ * become an unskilled one. Clamped at every mutation, and at 0 on the way down
+ * for the same reason from the other side.
+ */
+#define MOCK230_XP_MAX_TENTHS 2000000000
+
+/*
  * The ceiling a script may raise an npc stat to.
  *
  * The reference's own, and engine rather than content: `NpcOps.ts:507`
@@ -745,6 +758,27 @@ enum
  * cannot be mistaken for a balance number.
  */
 #define MOCK230_NPC_STAT_MAX 255
+
+/*
+ * How long a player keeps fighting with no input of their own.
+ *
+ * OldSchool's anti-AFK rule, stated on the wiki's Auto Retaliate page: the
+ * character retaliates "for 20 minutes if no player input is given, after which
+ * players stop attacking all together even if they are attacked by monsters".
+ * 20 minutes is 1200 seconds and a tick is 600 ms, so 2000 ticks.
+ *
+ * Engine and not content, because the thing being measured is the *connection*:
+ * `Mock230Player::last_input_tick` is set by the inbound packet router and
+ * nothing else can see it. A real click is unaffected — the packet that carries
+ * it resets the clock before its own handler runs — so this only ever bites
+ * combat that continues without the player, which is the whole point.
+ */
+#define MOCK230_AFK_COMBAT_TICKS 2000
+
+/** `Mock230Player::last_input_tick` for a slot with no client behind it. Not a
+ *  time, so it is outside every time: an armed clock may legitimately be a
+ *  negative tick early in a world's life. */
+#define MOCK230_INPUT_TICK_NEVER INT32_MIN
 
 /*
  * Attack styles, in the order the combat interface lists them. OldSchool folds
@@ -1352,6 +1386,21 @@ enum
 struct Mock230CapturedPacket
 {
     int opcode;
+    /**
+     * The packet's CANONICAL name (`PKT_NAME_*`), beside the revision's number
+     * for it.
+     *
+     * `opcode` is what went on the wire and is therefore a different number in
+     * every revision this server can speak. The selftest's assertions are
+     * written in rev-230 numbers — that is the contract the wire adapter's own
+     * note states — so matching on them directly makes every one of them a
+     * rev-230-only assertion, and running the suite at revision 239 turned ~190
+     * of them red against a server that was behaving correctly.
+     *
+     * `mock230_capture_find` translates its rev-230 argument through this, so
+     * the assertions keep their numbers and stop being about one revision.
+     */
+    int name;
     int len;
     uint8_t data[MOCK230_CAPTURE_BYTES];
 };
@@ -1379,6 +1428,14 @@ int
 mock230_capture_find(
     const struct Mock230Capture* capture,
     int opcode,
+    int from);
+
+/** The same search by canonical `PKT_NAME_*`, for an assertion that should mean
+ *  the packet rather than one revision's number for it. */
+int
+mock230_capture_find_named(
+    const struct Mock230Capture* capture,
+    int pkt_name,
     int from);
 
 /** True when `opcodes` all appear in order. Other packets may interleave. */
@@ -2488,6 +2545,30 @@ struct Mock230Player
      *  queues, timers, or damage; content owns the duration through
      *  player_lock()/player_unlock(). */
     int action_locked;
+    /**
+     * The tick an inbound packet last carried a player INPUT, or
+     * MOCK230_INPUT_TICK_NEVER when this slot has no client to hear from.
+     *
+     * Not liveness: the client's own keepalives (NO_TIMEOUT, IDLE_TIMER) and
+     * its bookkeeping (window status, scene acks) are exactly what this must
+     * not count, or it would say "the player is here" about a client left
+     * running in an empty room. `mock230_world_handle` sets it for everything
+     * else — a click, a walk, a key, a button, a chat line.
+     *
+     * What reads it is the anti-AFK rule the wiki states on Auto Retaliate:
+     * retaliation follows a player for 20 minutes of no input, "after which
+     * players stop attacking all together even if they are attacked by
+     * monsters". See MOCK230_AFK_COMBAT_TICKS and mock230_combat_engage.
+     *
+     * The sentinel is for the session-less player an in-process fixture stands
+     * up: there is no keyboard for it to fall silent at, and a clock that ran
+     * anyway would stop every fixture fight the moment the suite passed 2000
+     * ticks. A test that wants the rule writes a tick here and gets the real
+     * clock — which is why the sentinel is INT32_MIN and not -1: a fixture
+     * arming the clock 2000 ticks back on tick 300 writes a negative number,
+     * and that must be a time rather than an opt-out.
+     */
+    int32_t last_input_tick;
     /** The overhead-icon bits for the appearance block. Content's, through
      *  HEADICONS_GET/SET — the engine neither knows nor asks which prayer put a
      *  bit here, which is exactly the reference's arrangement
@@ -2673,6 +2754,14 @@ struct Mock230Player
      *  "in what order" and the flags answer "at all" in O(1). The list is sized
      *  by the wire (an 8-bit count), the flags by the world. */
     int tracked[MOCK230_TRACKED_NPC_MAX];
+    /** `srv->npcs[tracked[i]].generation` as of the tick that npc was last
+     *  written into this list. `npc_spawn` can hand the same slot to a
+     *  different npc inside one tick (see its own comment on
+     *  `mock230_zone_npc_refile`) — the "already tracked" loop below has to
+     *  notice that before it treats the new occupant's data as this slot's
+     *  continuation, or the new npc's masks (including a same-tick hit) get
+     *  spliced onto whatever this client still thinks the slot is. */
+    int tracked_generation[MOCK230_TRACKED_NPC_MAX];
     int tracked_count;
     uint8_t npc_tracked[MOCK230_NPC_MAX];
 
@@ -3843,7 +3932,13 @@ mock230_combat_set_level(
     int stat,
     int level);
 
-/** Award experience, in tenths of a point. Levels up and marks the stat. */
+/** Clamp an experience total, in tenths, into [0, MOCK230_XP_MAX_TENTHS]. Takes
+ *  64 bits so a caller can hand it a sum that has already left `int` range. */
+int
+mock230_combat_clamp_xp(long long tenths);
+
+/** Move experience, in tenths of a point. A negative amount takes it away; the
+ *  total is clamped either way. Re-levels and marks the stat. */
 void
 mock230_combat_add_xp(
     struct Mock230Server* srv,
@@ -3855,6 +3950,11 @@ void
 mock230_combat_engage(
     struct Mock230Server* srv,
     int slot);
+
+/** True once MOCK230_AFK_COMBAT_TICKS have passed with no player input, which
+ *  is when OldSchool stops the character fighting. See its definition. */
+int
+mock230_combat_player_afk(const struct Mock230Player* player);
 
 /** Apply damage and the hitsplat that carries it. A zero amount is a block
  *  splat, not nothing — otherwise a miss looks like a dropped swing. */
