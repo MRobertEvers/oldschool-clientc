@@ -63,6 +63,25 @@ enum TorirsPerfStage
     TORIRS_PERF_STAGE_DISPLAY,
     /** Fixed/resizable mode reconciliation after presentation. */
     TORIRS_PERF_STAGE_WINDOW_SYNC,
+    /** The 50 fps pacing wait itself. Sampled after the frame timer closes, so
+     * frame N's wait is flushed with frame N+1 — the distribution is what
+     * matters, and it is the only way to see the cap overshoot its deadline. */
+    TORIRS_PERF_STAGE_PACE,
+    /** Wall time between consecutive frame starts — work plus pace plus the
+     * loop overhead that sits in neither. This is the only stage that answers
+     * "what frame rate does the player actually see". */
+    TORIRS_PERF_STAGE_PERIOD,
+    /** The app_settle_cs2_frame portion of `cs2`, nested inside it. `cs2` minus
+     * this is the logic tick's own script execution. */
+    TORIRS_PERF_STAGE_CS2_SETTLE,
+    /** Software rasterization of one obj inventory icon: model copy, scale,
+     * recolour, lighting and a 36x32 3D render. Nested under whatever asked for
+     * the icon, which in practice is a CS2 interface script. */
+    TORIRS_PERF_STAGE_UI_ICON,
+    /** The serial packet pipeline inside one logic tick: TaskRunner_SettleFrame
+     * plus every GameProtoExec task it runs. Nested inside `cs2`, which spans
+     * the whole tick body rather than script execution alone. */
+    TORIRS_PERF_STAGE_TICK_PACKETS,
     TORIRS_PERF_STAGE_COUNT
 };
 
@@ -265,6 +284,24 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_GL_Z_BLENDED_TRIANGLES,
     TORIRS_PERF_CTR_GL_Z_SORTED_MODELS,
 
+    /** Logic ticks run in one frame. The scene advances once per tick, so a
+     * frame running 0 or 2 of them stutters even when the frame rate is
+     * steady; the distribution matters far more than the mean. */
+    TORIRS_PERF_CTR_LOGIC_TICKS,
+
+    /** Server packets handed to the serial exec pipeline in one tick. */
+    TORIRS_PERF_CTR_PROTO_PACKETS,
+    /** Obj inventory icons rasterized from scratch (cache misses only). */
+    TORIRS_PERF_CTR_UI_ICON_RASTER,
+    /** Interface component models built from scratch (cache misses only). */
+    TORIRS_PERF_CTR_UI_MODEL_BUILD,
+
+    /** Npc spawns/retypes served from the lit-model instance cache. */
+    TORIRS_PERF_CTR_NPC_MODEL_CACHE_HIT,
+    /** Npc spawns/retypes that had to merge, recolour and light from scratch.
+     * A steady stream of these on a walk means the LRU is thrashing. */
+    TORIRS_PERF_CTR_NPC_MODEL_CACHE_MISS,
+
     TORIRS_PERF_CTR_COUNT
 };
 
@@ -280,6 +317,10 @@ void TorirsPerf_Report(void);
 
 void TorirsPerf_StageBegin(enum TorirsPerfStage stage);
 void TorirsPerf_StageEnd(enum TorirsPerfStage stage);
+/** Record a duration measured after TorirsPerf_FrameEnd closed the frame timer.
+ * The sample is carried into the next frame's bucket — FrameBegin would
+ * otherwise clear it — so frame N's pacing wait is reported with frame N+1. */
+void TorirsPerf_StageCarry(enum TorirsPerfStage stage, uint64_t ns);
 void TorirsPerf_Count(enum TorirsPerfCounter counter, int64_t n);
 void TorirsPerf_CountSet(enum TorirsPerfCounter counter, int64_t n);
 
@@ -293,6 +334,29 @@ void TorirsPerf_CountSet(enum TorirsPerfCounter counter, int64_t n);
          !_tps_done;                                                           \
          _tps_done = 1,                                                        \
          (_tps_once ? TorirsPerf_StageEnd(stage) : (void)0) )
+
+/* Explicit form of TORIRS_PERF_SCOPE, for functions whose measured region has
+ * several exits. Every path taken after BEGIN must reach END. */
+#define TORIRS_PERF_STAGE_BEGIN(stage)                                         \
+    do                                                                         \
+    {                                                                          \
+        if( g_torirs_perf_enabled )                                            \
+            TorirsPerf_StageBegin((stage));                                    \
+    } while( 0 )
+
+#define TORIRS_PERF_STAGE_END(stage)                                           \
+    do                                                                         \
+    {                                                                          \
+        if( g_torirs_perf_enabled )                                            \
+            TorirsPerf_StageEnd((stage));                                      \
+    } while( 0 )
+
+#define TORIRS_PERF_CARRY(stage, ns)                                           \
+    do                                                                         \
+    {                                                                          \
+        if( g_torirs_perf_enabled )                                            \
+            TorirsPerf_StageCarry((stage), (ns));                              \
+    } while( 0 )
 
 #define TORIRS_PERF_COUNT(ctr, n)                                              \
     do                                                                         \
@@ -325,6 +389,9 @@ void TorirsPerf_CountSet(enum TorirsPerfCounter counter, int64_t n);
 #else /* TORIRS_PERF_DISABLE */
 
 #define TORIRS_PERF_SCOPE(stage) for( int _tps_done = 0; !_tps_done; _tps_done = 1 )
+#define TORIRS_PERF_STAGE_BEGIN(stage) ((void)0)
+#define TORIRS_PERF_STAGE_END(stage) ((void)0)
+#define TORIRS_PERF_CARRY(stage, ns) ((void)0)
 #define TORIRS_PERF_COUNT(ctr, n) ((void)0)
 #define TORIRS_PERF_COUNT_SET(ctr, n) ((void)0)
 #define TORIRS_PERF_FRAME_BEGIN() ((void)0)

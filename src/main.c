@@ -647,6 +647,11 @@ static char const* sim_setvarp;
 static char const* sim_settab;
 static int sim_settab_done;
 static int uncapped;
+/* TORIRS_PACE_SPIN=1: burn the pacing wait instead of sleeping it. Profiling
+ * aid for isolating wake-up cost from render cost; see docs/PERF_HARNESS.md. */
+static int pace_spin;
+/* Frame start of the previous loop iteration, for the `period` stage. */
+static uint64_t prev_frame_start_us;
 /* Retain gesture/key one-shots while App_RunOnce is holding the last committed
  * visual frame. They are cleared only after a stable tree reaches interaction. */
 static int input_frame_pending;
@@ -738,6 +743,13 @@ frame_loop_step(void)
      * on every platform: the browser lane has no sleep to exclude but has the
      * same question to answer. */
     frame_start_us = PlatformSDL2_TicksUs();
+    /* Carry the wall gap since the previous frame start, then open the frame:
+     * FRAME_BEGIN moves the carry into this frame's bucket. Work and pace each
+     * miss part of the loop, so only this is the period the player sees. */
+    if( prev_frame_start_us != 0 && frame_start_us > prev_frame_start_us )
+        TORIRS_PERF_CARRY(
+            TORIRS_PERF_STAGE_PERIOD, (frame_start_us - prev_frame_start_us) * 1000u);
+    prev_frame_start_us = frame_start_us;
     TORIRS_PERF_FRAME_BEGIN();
 
     /* TORIRS_BMP_SERIES=dir,start,step,count: write a numbered App_Render frame
@@ -1795,6 +1807,11 @@ frame_loop_step(void)
      * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
      * flat 1 ms that hides real drift. */
     TORIRS_PERF_FRAME_END();
+    /* Whatever this frame had to say leaves as one write, after the work timer
+     * closed and before the pacing wait absorbs it. Free on a frame that logged
+     * nothing: fflush on an empty buffer writes nothing. See the setvbuf in
+     * main(). */
+    fflush(stderr);
     App_NoteFrameTime(&app, PlatformSDL2_TicksUs() - frame_start_us);
     /* The browser paces us: emscripten_set_main_loop is backed by
      * requestAnimationFrame, and a blocking sleep here would stall the page's
@@ -1804,7 +1821,24 @@ frame_loop_step(void)
      * and the frame's complete workload counts against its 20 ms budget.
      * --uncapped is a true profiling mode and performs no artificial wait. */
     if( !replay && !uncapped )
-        PlatformSDL2_SleepUntil(frame_start_ms + 20);
+    {
+        uint64_t pace_begin_us = PlatformSDL2_TicksUs();
+
+        if( pace_spin )
+        {
+            /* TORIRS_PACE_SPIN=1 holds the core busy across the wait instead of
+             * sleeping. Diagnostic only — it pins a core at 100% — but it is the
+             * only way to separate the cap's own cost from the cost of resuming
+             * a CPU that Windows parked during the sleep. */
+            while( PlatformSDL2_Ticks64() < frame_start_ms + 20 )
+                ;
+        }
+        else
+            PlatformSDL2_SleepUntil(frame_start_ms + 20);
+
+        TORIRS_PERF_CARRY(
+            TORIRS_PERF_STAGE_PACE, (PlatformSDL2_TicksUs() - pace_begin_us) * 1000u);
+    }
 #endif
     return 1;
 }
@@ -2735,6 +2769,34 @@ main(
     };
     int argi;
     int i;
+
+    /*
+     * Buffer the diagnostic stream, and flush it once per frame (see
+     * frame_loop_step).
+     *
+     * stderr is unbuffered by definition, and on Windows one write costs about
+     * 6 ms whether it goes to a console or to a redirected file — the cost is
+     * per write, not per byte. That is not a logging annoyance, it is the
+     * single largest source of frame stutter this client has: the embedded
+     * server runs on this thread, and one first-time content complaint per
+     * varp turned a swing that touches thirty of them into a 117 ms tick. Each
+     * of those reports is worth printing exactly once; none is worth a dropped
+     * frame.
+     *
+     * Buffering turns nine writes in a tick into one, and the flush is parked
+     * after the frame's work timer closes, so on a capped run it is paid out of
+     * the pacing slack rather than the 20 ms budget. The exposure is the same
+     * one every buffered log has — a hard crash can lose up to a frame of
+     * output — which is why the flush is per frame rather than per exit.
+     * TORIRS_STDERR_UNBUFFERED=1 restores the old behaviour when debugging a
+     * crash is worth more than the frame time.
+     */
+    {
+        char const* raw = getenv("TORIRS_STDERR_UNBUFFERED");
+
+        if( !(raw && raw[0] && raw[0] != '0') )
+            setvbuf(stderr, NULL, _IOFBF, 65536);
+    }
 
     ToriRS_ExecutorConfig_Init(&executor_cfg);
 
@@ -3837,6 +3899,9 @@ main(
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */
         max_frames = getenv("TORIRS_MAX_FRAMES") ? atol(getenv("TORIRS_MAX_FRAMES")) : 0;
         frame_count = 0;
+
+        /* TORIRS_PACE_SPIN=1: spin the 50 fps wait rather than sleeping it. */
+        pace_spin = getenv("TORIRS_PACE_SPIN") && atoi(getenv("TORIRS_PACE_SPIN")) != 0;
 
         /* Socket transport is created only when --connect enabled networking;
          * it bridges the net subsystem's out ring to a TCP socket and pushes

@@ -1,3 +1,4 @@
+#include "../perf/torirs_perf.h"
 #include "uitree_scene_bridge.h"
 
 #include "engine/cache_provider.h"
@@ -449,6 +450,7 @@ UITreeSceneBridge_EnsureModel(
     if( !rs )
         return -1;
 
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UI_MODEL_BUILD, 1);
     model = ToriDraw_ModelFromToriRS(rs);
     if( !model )
         return -1;
@@ -849,6 +851,9 @@ bridge_rasterize_obj_icon(
     rs_model = CacheProvider_ModelGet(bridge->provider, obj->inventory_model_id);
     assert(rs_model != NULL && "ModelGet failed");
 
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UI_ICON_RASTER, 1);
+    TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_UI_ICON);
+
     bridge_publish_model_textures(bridge, rs_model);
 
     model = ToriDraw_ModelFromToriRS(rs_model);
@@ -910,15 +915,20 @@ bridge_rasterize_obj_icon(
         ToriDraw_SpriteFree(sprite);
         sprite = NULL;
         if( !outlined )
+        {
+            TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_UI_ICON);
             return NULL;
+        }
         sprite = ToriDraw_SpriteNewFromArgbOwned(outlined, ow, oh);
         if( !sprite )
         {
             free(outlined);
+            TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_UI_ICON);
             return NULL;
         }
     }
 
+    TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_UI_ICON);
     return sprite;
 }
 

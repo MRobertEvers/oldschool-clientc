@@ -26,6 +26,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 /*
  * The server's identity. Fixed, and matching manifest_osrs230.ini: the client
@@ -762,6 +763,41 @@ step_login(
 /* ------------------------------------------------------------------ */
 
 /*
+ * TORIRS_SERVER_BREAKDOWN=<ms>: name the inbound packet whose handler ran
+ * longer than that.
+ *
+ * The pump's own breakdown (mock230_embed.c) splits "draining client input"
+ * from "running the world tick", and the tick splits itself by phase — but the
+ * input half was one number with nothing under it. That hid a real stall: a
+ * click is a packet, and the trigger script it fires runs *here*, in the decode
+ * loop, not in any tick phase. A 300 ms input half therefore pointed at
+ * everything and nothing. This names the opcode.
+ */
+static int g_pkt_bd_ms = -1;
+
+static int
+pkt_bd_on(void)
+{
+    if( g_pkt_bd_ms < 0 )
+    {
+        char const* v = getenv("TORIRS_SERVER_BREAKDOWN");
+
+        g_pkt_bd_ms = (v && v[0]) ? atoi(v) : 0;
+    }
+    return g_pkt_bd_ms > 0;
+}
+
+static uint64_t
+pkt_bd_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+/*
  * Decode whole packets and hand them to the world.
  *
  * Two rules carry the whole function.
@@ -794,6 +830,8 @@ step_online(
         int payload_len;
         int name;
         uint64_t response_generation;
+        int bd_on = pkt_bd_on();
+        uint64_t bd_t0;
 
         if( session->pending_opcode < 0 )
         {
@@ -862,6 +900,8 @@ step_online(
          * splits into twenty -- so the name is re-read from its return value
          * rather than kept from the table. See mock230_wire.h.
          */
+        bd_t0 = bd_on ? pkt_bd_now_us() : 0;
+
         if( wire->translate_in )
         {
             uint8_t xlat[MOCK230_SESSION_IN_MAX];
@@ -906,6 +946,21 @@ step_online(
             session->output_generation != response_generation &&
             session->last_output_packet_name != PKT_NAME_SERVER_TICK_END )
             mock230_send_tick_end(session->player);
+
+        if( bd_on )
+        {
+            uint64_t us = pkt_bd_now_us() - bd_t0;
+
+            if( us >= (uint64_t)g_pkt_bd_ms * 1000u )
+            {
+                char const* prot = wire->packetout_prot_name
+                                       ? wire->packetout_prot_name(session->pending_opcode)
+                                       : NULL;
+
+                fprintf(stderr, "server_pkt: op %d %s took %.2f ms (%d byte(s))\n",
+                        session->pending_opcode, prot ? prot : "?", us / 1000.0, payload_len);
+            }
+        }
 
         consume(session, len_bytes + payload_len);
         session->pending_opcode = -1;

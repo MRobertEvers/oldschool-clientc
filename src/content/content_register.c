@@ -166,8 +166,23 @@ static const struct ContentNamespace k_defaults[] = {
      * in this table was advisory and the high-water mark did all the work. Making
      * the allocator read this table is what turned an inert number into a live one,
      * and this row is what that surfaced.
+     *
+     * 5725, not 5705, and the twenty ids between are the reason. A varp namespace
+     * is not bounded by the varp group: the cache's *varbits* name varp ids too,
+     * and this cache carries varbits based as high as 5724 while its varp group
+     * stops at 5704. Records the group has no file for are still spoken for.
+     *
+     * So `%com_attackanim`..`%mock_mapzone_log` were handed 5705..5724 — every one
+     * of them on top of somebody's packed bits, in a region `configs/all.varp`
+     * cannot show because it is an export of the varp group alone. Both directions
+     * corrupt: `~player_combat_stat` writing a whole 32-bit stat destroys fifteen
+     * varbits under `%com_slashattack`, and their owner writes the stat back. It
+     * surfaced as the whole-varp complaints out of `mock230_world.c`, which read
+     * as content writing the wrong thing when content was writing the wrong *id*.
+     * The twenty moved to 6280..6299; `validate_id_bases` now takes the varbit
+     * basevars into account so a cache that reaches further says so at boot.
      */
-    { "varp",                  CONTENT_NAMES_CACHE,    1,   3,   5705,  -1 },
+    { "varp",                  CONTENT_NAMES_CACHE,    1,   3,   5725,  -1 },
     { "varbit",                CONTENT_NAMES_CACHE,    1,   4,  25000,  -1 },
     { "varc",                  CONTENT_NAMES_CACHE,    0,  15,   2000,  -1 },
     /* ---- asset tables ------------------------------------------------ */

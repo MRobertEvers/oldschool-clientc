@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* ------------------------------------------------------------------ */
 /* java.util.Random                                                    */
@@ -1286,6 +1287,38 @@ run_op(struct SSVM_State* state, int opcode, int32_t operand, const char* str_op
 /* Execute                                                             */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Instructions retired, read by the embedded server's tick breakdown
+ * (mock230_world.c). A tick that runs long is either executing a great many
+ * instructions or sitting inside one engine op, and nothing short of this
+ * counter tells those two apart -- the wall clock alone looks identical.
+ */
+uint64_t g_ssvm_ops;
+
+/*
+ * TORIRS_SSVM_OPS=1: charge each instruction's wall time to its opcode, so the
+ * breakdown can name the engine op a slow tick sat in.
+ *
+ * Instructions retired already separates "ran a lot of bytecode" from "sat in
+ * one op", but it stops there -- 16 instructions and 16 ms says an op is slow
+ * without saying which. Off by default and deliberately so: two clock reads
+ * bracket work that is often a single array store, which is a large multiple of
+ * a cheap op even though it is nothing next to the slow one being hunted.
+ */
+uint64_t g_ssvm_op_us[SSVM_OP_TIMING_MAX];
+int g_ssvm_op_hits[SSVM_OP_TIMING_MAX];
+static int g_ssvm_op_timing = -1;
+
+static uint64_t
+ssvm_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
 enum SSVM_Exec
 SSVM_Execute(struct SSVM_State* state)
 {
@@ -1297,6 +1330,13 @@ SSVM_Execute(struct SSVM_State* state)
      * already finished. */
     if( state->execution == SSVM_FINISHED || state->execution == SSVM_ABORTED )
         return state->execution;
+
+    if( g_ssvm_op_timing < 0 )
+    {
+        char const* v = getenv("TORIRS_SSVM_OPS");
+
+        g_ssvm_op_timing = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
 
     state->execution = SSVM_RUNNING;
 
@@ -1322,6 +1362,7 @@ SSVM_Execute(struct SSVM_State* state)
             break;
         }
         state->opcount++;
+        g_ssvm_ops++;
 
         state->pc++;
         if( state->pc >= state->script->op_count )
@@ -1343,7 +1384,22 @@ SSVM_Execute(struct SSVM_State* state)
          * pc. */
         state->dot = (opcode > 100) ? (operand != 0) : 0;
 
-        if( !run_op(state, opcode, operand, str_operand) )
+        if( g_ssvm_op_timing )
+        {
+            uint64_t op_t0 = ssvm_now_us();
+            int op_ok = run_op(state, opcode, operand, str_operand);
+            unsigned slot = (unsigned)opcode < SSVM_OP_TIMING_MAX ? (unsigned)opcode : 0;
+
+            g_ssvm_op_us[slot] += ssvm_now_us() - op_t0;
+            g_ssvm_op_hits[slot]++;
+            if( !op_ok )
+            {
+                if( state->execution == SSVM_RUNNING )
+                    SSVM_Abort(state, "%s failed", SSVM_OpcodeName(opcode));
+                break;
+            }
+        }
+        else if( !run_op(state, opcode, operand, str_operand) )
         {
             if( state->execution == SSVM_RUNNING )
                 SSVM_Abort(state, "%s failed", SSVM_OpcodeName(opcode));

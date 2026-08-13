@@ -50,6 +50,8 @@ static uint64_t g_cpu_pending_cycle_begin;
 static int g_cpu_pending_cycle_begin_valid;
 static uint64_t g_stage_begin_ns[TORIRS_PERF_STAGE_COUNT];
 static int g_stage_depth[TORIRS_PERF_STAGE_COUNT];
+/* Samples taken between one frame's end and the next frame's begin. */
+static uint64_t g_stage_carry_ns[TORIRS_PERF_STAGE_COUNT];
 static uint64_t g_total_frames;
 static uint64_t g_frames_over_budget;
 static char g_csv_path[512];
@@ -68,7 +70,7 @@ static char const* const g_stage_names[TORIRS_PERF_STAGE_COUNT] = {
     "frame",    "async",  "logic",  "cs2",     "layout", "interact",
     "emit",     "paint",  "build",  "render",  "pick_finish", "present", "server",
     "platform_poll", "command_drain", "app_run", "frame_post",
-    "input_prep", "surface_sync", "display", "window_sync",
+    "input_prep", "surface_sync", "display", "window_sync", "pace", "period", "cs2_settle", "ui_icon", "tick_packets",
 };
 
 static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
@@ -224,6 +226,12 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "gl_z_opaque_triangles",
     "gl_z_blended_triangles",
     "gl_z_sorted_models",
+    "logic_ticks",
+    "proto_packets",
+    "ui_icon_raster",
+    "ui_model_build",
+    "npc_model_cache_hit",
+    "npc_model_cache_miss",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
@@ -892,6 +900,10 @@ TorirsPerf_FrameBegin(void)
 
     memset(&g_cur, 0, sizeof(g_cur));
     memset(g_stage_depth, 0, sizeof(g_stage_depth));
+    /* Durations measured after the previous frame's timer closed (the pacing
+     * wait) land in this frame's bucket rather than being memset away. */
+    memcpy(g_cur.stage_ns, g_stage_carry_ns, sizeof(g_stage_carry_ns));
+    memset(g_stage_carry_ns, 0, sizeof(g_stage_carry_ns));
     g_frame_cpu_begin_ns = cpu_now_ns;
     g_frame_cpu_begin_valid = cpu_now_valid;
     g_frame_cpu_cycle_begin = cpu_cycle_now;
@@ -982,6 +994,15 @@ TorirsPerf_StageBegin(enum TorirsPerfStage stage)
     g_stage_depth[stage]++;
     if( g_stage_depth[stage] == 1 )
         g_stage_begin_ns[stage] = torirs_perf_now_ns();
+}
+
+void
+TorirsPerf_StageCarry(enum TorirsPerfStage stage, uint64_t ns)
+{
+    assert(stage >= 0 && stage < TORIRS_PERF_STAGE_COUNT);
+    if( !g_torirs_perf_enabled )
+        return;
+    g_stage_carry_ns[stage] += ns;
 }
 
 void

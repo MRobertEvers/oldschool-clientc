@@ -26,4 +26,11 @@ CreateTask_ExecNpcInfo(
     uint8_t const* data,
     int length);
 
+/*
+ * Releases the op-array scratch both decoders borrow from App. Call once at
+ * teardown; safe on an App that never ran a packet.
+ */
+void
+Task_EntityInfoScratchFree(struct App* app);
+
 #endif

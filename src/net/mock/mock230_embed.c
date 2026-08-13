@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 struct Mock230EmbedClient
 {
@@ -314,6 +315,51 @@ pump_client(
     return mock230_session_alive(&client->session);
 }
 
+/*
+ * TORIRS_SERVER_BREAKDOWN=<ms>: when one pump exceeds <ms>, say how much of it
+ * was draining client input versus running the world tick. mock230_world_tick
+ * splits its own half by phase under the same switch. A host that shares its
+ * frame thread with this pump -- the client does -- drops a frame for every
+ * millisecond spent here, and the two halves have nothing in common, so
+ * knowing which one ran long is the first question.
+ */
+static int g_pump_bd_ms = -1;
+
+/*
+ * Script cost inside the *client* half, from mock230_scripts.c.
+ *
+ * mock230_world_tick zeroes these at its own start, so anything a packet
+ * handler ran before the tick was overwritten before the tick reported. That
+ * mattered: a click arrives as a packet, its `[opnpc]`/`[oploc]` trigger runs
+ * here rather than in a phase, and a pump that spent 300 ms decoding input
+ * looked like it spent it on nothing at all.
+ */
+extern uint64_t g_mock230_script_us;
+extern int g_mock230_script_runs;
+extern uint64_t g_mock230_script_slow_us;
+extern char g_mock230_script_slow_name[96];
+
+static int
+pump_bd_on(void)
+{
+    if( g_pump_bd_ms < 0 )
+    {
+        char const* v = getenv("TORIRS_SERVER_BREAKDOWN");
+        g_pump_bd_ms = (v && v[0]) ? atoi(v) : 0;
+    }
+    return g_pump_bd_ms > 0;
+}
+
+static uint64_t
+pump_bd_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
 int
 mock230_embed_pump(
     struct Mock230Embed* embed,
@@ -321,6 +367,23 @@ mock230_embed_pump(
 {
     int any_alive = 0;
     int any_online = 0;
+    int bd_on = pump_bd_on();
+    uint64_t bd_t0 = bd_on ? pump_bd_now_us() : 0;
+    uint64_t bd_clients = 0;
+    uint64_t bd_tick = 0;
+    uint64_t bd_script_us = 0;
+    int bd_script_runs = 0;
+    uint64_t bd_script_slow_us = 0;
+    char bd_script_slow[96];
+
+    bd_script_slow[0] = '\0';
+    if( bd_on )
+    {
+        g_mock230_script_us = 0;
+        g_mock230_script_runs = 0;
+        g_mock230_script_slow_us = 0;
+        g_mock230_script_slow_name[0] = '\0';
+    }
 
     /*
      * Every client's input first, then *one* tick. The tick is the world's, not
@@ -339,8 +402,37 @@ mock230_embed_pump(
             any_online = 1;
     }
 
+    if( bd_on )
+    {
+        bd_clients = pump_bd_now_us() - bd_t0;
+        /* Snapshot before the tick, which zeroes these for its own accounting. */
+        bd_script_us = g_mock230_script_us;
+        bd_script_runs = g_mock230_script_runs;
+        bd_script_slow_us = g_mock230_script_slow_us;
+        snprintf(bd_script_slow, sizeof(bd_script_slow), "%s", g_mock230_script_slow_name);
+    }
+
     if( run_tick && any_online )
         mock230_world_tick(&embed->srv);
+
+    if( bd_on )
+    {
+        uint64_t total = pump_bd_now_us() - bd_t0;
+
+        bd_tick = total - bd_clients;
+        if( total >= (uint64_t)g_pump_bd_ms * 1000u )
+        {
+            fprintf(stderr,
+                    "server_pump: total %.2f ms clients %.2f tick %.2f (tick_ran %d)"
+                    " | client scripts %.2f x%d",
+                    total / 1000.0, bd_clients / 1000.0, bd_tick / 1000.0,
+                    run_tick && any_online, bd_script_us / 1000.0, bd_script_runs);
+            if( bd_script_slow[0] )
+                fprintf(stderr, " slowest %s %.2f", bd_script_slow,
+                        bd_script_slow_us / 1000.0);
+            fprintf(stderr, "\n");
+        }
+    }
 
     return any_alive;
 }
