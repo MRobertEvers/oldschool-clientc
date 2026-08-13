@@ -6890,6 +6890,24 @@ mock230_script_command(
          */
         if( !info->ops[op_num - 1] )
             return 1;
+        /*
+         * The 20-minute anti-AFK rule (MOCK230_AFK_COMBAT_TICKS).
+         *
+         * Here as well as in `mock230_combat_engage` because the two are not
+         * one path: a click arrives as OPNPC and engages, while every *script*
+         * re-issue — the retaliation queue, the melee label, the ranged loop —
+         * arrives here and latches `combat_target` itself. Gating only engage
+         * left the queue free to keep a silent player swinging forever.
+         *
+         * Attack only: a player who has stopped fighting has not stopped
+         * talking, and `p_opnpc(1)` on a shopkeeper is not combat.
+         */
+        if( strcmp(info->ops[op_num - 1], "Attack") == 0 &&
+            mock230_combat_player_afk(player) )
+        {
+            mock230_combat_stop_player(srv);
+            return 1;
+        }
         mock230_world_interaction_clear(srv);
         mock230_world_steps_clear(player);
         mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, (int)op_num, slot,

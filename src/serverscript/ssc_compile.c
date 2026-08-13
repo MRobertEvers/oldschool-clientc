@@ -815,6 +815,26 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
          */
         else if( op_name && strncmp(op_name, "IF_OPEN", 7) == 0 )
             base_hint = SSC_SYM_INTERFACE;
+        /*
+         * The spotanim family's leading argument names a spotanim, and a bare
+         * spotanim name is ambiguous for exactly the reason a bare stat or
+         * interface name is: a spotanim's `anim=` field commonly reuses the
+         * spotanim's own name for its seq, so the same word is defined in both
+         * the SEQ pack and the SPOTANIM pack.
+         *
+         * `spotanim_map(tzhaar_rock_smash, coord, 0, 0)` compiled to
+         * `spotanim_map(2660, coord, 0, 0)` — 2660 is the seq
+         * `tzhaar_rock_smash` (SEQ sorts before SPOTANIM in SSC_SymbolKind),
+         * not spotanim 451, which is what the name actually names in the
+         * SPOTANIM pack. The client spawned the wrong graphic at the target's
+         * tile; JalTok-Jad's ranged "falling rock" effect silently never
+         * appeared, while the un-collided `spotanim_pl(firewave_impact, ...)`
+         * on the same line rendered fine.
+         */
+        else if( op_name && (strcmp(op_name, "SPOTANIM_MAP") == 0 ||
+                              strcmp(op_name, "SPOTANIM_PL") == 0 ||
+                              strcmp(op_name, "SPOTANIM_NPC") == 0) )
+            base_hint = SSC_SYM_SPOTANIM;
         compiler->arg_kind_hint = base_hint;
 
         /* A command may be written bare when it takes nothing — `p_pausebutton;`. */

@@ -412,7 +412,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
 	engine/uitree_anim.c engine/entity_model_build.c \
-	ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+	ui/uitree.c ui/uitree_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
@@ -1395,7 +1395,7 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 		game/rs_cs1_host.c game/rs_player_stats.c \
 		inv/inv_manager.c varp/varp_manager.c \
-		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
 		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
 		perf/torirs_perf.c \
@@ -1560,7 +1560,7 @@ test-painters-terrain-levels: $(OBJ_DIR)
 test-uitree: $(OBJ_DIR)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
-		ui/uitree.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
@@ -1614,7 +1614,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 test-chat-widgets: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -o $(OBJ_DIR)/chat_widgets_test \
 		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c net/jbase37.c \
-		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		perf/torirs_perf.c \
 		game/test/rs_chat_widgets_test.c -lm
 	./$(OBJ_DIR)/chat_widgets_test
@@ -1631,7 +1631,7 @@ bench-uitree: $(OBJ_DIR)
 		-DBENCH_ROWS=$(BENCH_ROWS) -DBENCH_ITERS=$(BENCH_ITERS) \
 		-DBENCH_STATIC_CHILDREN=$(BENCH_STATIC_CHILDREN) \
 		-o $(OBJ_DIR)/uitree_bench \
-		ui/uitree.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		perf/torirs_perf.c \
 		ui/test/uitree_bench.c -lm
 	./$(OBJ_DIR)/uitree_bench

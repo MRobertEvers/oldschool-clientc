@@ -3708,6 +3708,161 @@ rs_cs2_acquire_var_transmit_hook(
         memcpy((hook)->str_args, (request)->str_args, sizeof((hook)->str_args));                   \
     } while( 0 )
 
+/*
+ * A cache-authored hook's arguments, in the shape the transmit tables want.
+ *
+ * `ToriRS_ScriptHook::argv[0]` is the script id and the rest are the script's
+ * arguments — the same split the onload dispatch makes (task_uitree_build.c
+ * step 4), including `str_mask >> 1`: position 0 is the script id and is always
+ * an int, so the mask that describes the *arguments* is the record's mask with
+ * that position shifted off. Getting this wrong does not fail loudly; it feeds
+ * a string into an int local.
+ */
+static void
+rs_cs2_cache_hook_args(
+    int* int_args,
+    int* int_arg_count,
+    uint64_t* str_arg_mask,
+    int* str_arg_count,
+    char str_args[][CS2VM_SETON_STR_ARG_LEN],
+    struct ToriRS_ScriptHook const* src)
+{
+    int argc = src->argc > 0 ? src->argc - 1 : 0;
+
+    if( argc > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
+        argc = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
+    if( argc > 0 )
+        memcpy(int_args, src->argv + 1, (size_t)argc * sizeof(int));
+    *int_arg_count = argc;
+
+    *str_arg_mask = src->str_mask >> 1;
+    *str_arg_count =
+        src->str_argc > CS2VM_SETON_STR_ARG_MAX ? CS2VM_SETON_STR_ARG_MAX : src->str_argc;
+    for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
+    {
+        snprintf(str_args[i], CS2VM_SETON_STR_ARG_LEN, "%s", src->strv[i]);
+    }
+}
+
+static void
+rs_cs2_cache_hook_triggers(
+    int* dst,
+    int* dst_count,
+    int const* src,
+    int count)
+{
+    if( count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+        count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+    if( count > 0 )
+        memcpy(dst, src, (size_t)count * sizeof(int));
+    *dst_count = count;
+}
+
+/* Defined below, beside the var and inv twins it is a copy of. */
+static struct RS_CS2StatTransmitHook*
+rs_cs2_acquire_stat_transmit_hook(
+    struct RS_CS2Host* host,
+    int component_id);
+
+/*
+ * Register the transmit hooks a component record declares in the CACHE.
+ *
+ * `onVarpTransmit` + `varpTriggers` (and the inv and stat pairs) are the record's own
+ * form of `if_setonvartransmit` — the same script, the same captured arguments,
+ * the same trigger list — and the decoder has always copied both onto
+ * `ToriRS_Component`. Nothing read them, so only a CS2 script could arm a
+ * transmit hook: a widget whose handler lives in the cache painted once from
+ * its onload and then never again, however many times its varp changed.
+ *
+ * The combat tab's auto-retaliate button is the visible case. 593:32 declares
+ * `onload=i:325`, `onvarptransmit=i:325`, `varptriggers=172`; clicking it sent
+ * IF_BUTTON1 593:32, the server flipped `option_nodef` and transmitted varp 172
+ * — and the button went on saying "Auto Retaliate (On)", because script 325 had
+ * run exactly once, at mount. Every end of that chain was working and the
+ * feature still read as broken.
+ *
+ * Called from both bake paths (boot builder and IF_OPENSUB) before their
+ * initial transmit dispatch, so a mount paints from the cache hook on the same
+ * pass a CS2-registered one would.
+ */
+void
+RS_CS2_RegisterCacheTransmitHooks(
+    struct RS_CS2Host* host,
+    struct ToriRS_Component const* src)
+{
+    assert(host);
+    assert(src);
+
+    if( src->on_varp_transmit.argc > 0 && src->on_varp_transmit.argv[0] > 0 )
+    {
+        struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id);
+        if( hook )
+        {
+            hook->component_id = src->id;
+            hook->script_id = src->on_varp_transmit.argv[0];
+            rs_cs2_cache_hook_args(
+                hook->int_args,
+                &hook->int_arg_count,
+                &hook->str_arg_mask,
+                &hook->str_arg_count,
+                hook->str_args,
+                &src->on_varp_transmit);
+            rs_cs2_cache_hook_triggers(
+                hook->trigger_ids,
+                &hook->trigger_count,
+                src->varp_triggers,
+                src->varp_triggers_count);
+        }
+    }
+
+    if( src->on_inv_transmit.argc > 0 && src->on_inv_transmit.argv[0] > 0 )
+    {
+        struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id);
+        if( hook )
+        {
+            hook->component_id = src->id;
+            hook->script_id = src->on_inv_transmit.argv[0];
+            rs_cs2_cache_hook_args(
+                hook->int_args,
+                &hook->int_arg_count,
+                &hook->str_arg_mask,
+                &hook->str_arg_count,
+                hook->str_args,
+                &src->on_inv_transmit);
+            rs_cs2_cache_hook_triggers(
+                hook->trigger_ids,
+                &hook->trigger_count,
+                src->inventory_triggers,
+                src->inventory_triggers_count);
+        }
+    }
+
+    /* The third channel of the same reactive loop. Left out of the first pass
+     * of this function purely because the bug that prompted it was a varp; a
+     * skill panel whose repaint is cache-authored fails exactly the same way. */
+    if( src->on_stat_transmit.argc > 0 && src->on_stat_transmit.argv[0] > 0 )
+    {
+        struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id);
+        if( hook )
+        {
+            hook->component_id = src->id;
+            hook->script_id = src->on_stat_transmit.argv[0];
+            rs_cs2_cache_hook_args(
+                hook->int_args,
+                &hook->int_arg_count,
+                &hook->str_arg_mask,
+                &hook->str_arg_count,
+                hook->str_args,
+                &src->on_stat_transmit);
+            rs_cs2_cache_hook_triggers(
+                hook->trigger_ids,
+                &hook->trigger_count,
+                src->stat_triggers,
+                src->stat_triggers_count);
+        }
+    }
+}
+
 static int
 exec_set_on_inv_transmit(
     struct RS_CS2Host* host,
@@ -3845,18 +4000,35 @@ rs_cs2_component_in_interface_group(
     return 0;
 }
 
-/* True when any click/op/drag slot is still live — those must survive IF_CLOSE
- * on a reused bake (compass on_op is installed once by gameframe onload and is
- * not re-registered when a sidebar pack remounts). */
-static int
-rs_cs2_hooks_have_interaction(struct UITreeRuntimeHooks const* hooks)
+/*
+ * Is anything left in this block that the clear below deliberately kept?
+ *
+ * These must survive IF_CLOSE on a reused bake — the compass `on_op` is
+ * installed once by the gameframe onload and is not re-registered when a
+ * sidebar pack remounts.
+ *
+ * It has to name *every* surviving hook, not just the click-shaped ones, and
+ * that is the whole of a bug this cost: the clear carefully preserves
+ * mouse-over/leave/repeat and scroll-wheel — there is a comment saying so — and
+ * then handed the block to `UITree_FreeHooksAt` because none of them counted
+ * here. A node whose only hooks are hover hooks is exactly the case, and
+ * interface 182's two labels are exactly that node: "Click here to logout" and
+ * "World Switcher" carry `onmouseover`/`onmouseleave` and nothing else, so the
+ * text stopped changing colour under the pointer the first time the sidebar
+ * group was cleared. The preserved set and the retention test are one decision
+ * written twice; keep them together.
+ */
+static bool
+rs_cs2_hooks_survive_clear(struct UITreeRuntimeHooks const* hooks)
 {
     assert(hooks);
     return hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0 ||
            hooks->on_hold.script_id > 0 || hooks->on_click_repeat.script_id > 0 ||
            hooks->on_release.script_id > 0 || hooks->on_target_enter.script_id > 0 ||
            hooks->on_target_leave.script_id > 0 || hooks->on_drag.script_id > 0 ||
-           hooks->on_drag_complete.script_id > 0;
+           hooks->on_drag_complete.script_id > 0 ||
+           hooks->on_mouse_over.script_id > 0 || hooks->on_mouse_leave.script_id > 0 ||
+           hooks->on_mouse_repeat.script_id > 0 || hooks->on_scroll_wheel.script_id > 0;
 }
 
 /* Drop reactive listeners on one node. Interaction hooks stay; if nothing
@@ -3877,20 +4049,24 @@ rs_cs2_clear_reactive_hooks_at(
     if( !hooks )
         return;
 
-    memset(&hooks->on_timer, 0, sizeof(hooks->on_timer));
-    memset(&hooks->on_key, 0, sizeof(hooks->on_key));
-    memset(&hooks->on_var_transmit, 0, sizeof(hooks->on_var_transmit));
-    memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
-    memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
-    memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
-    memset(&hooks->on_dialog_abort, 0, sizeof(hooks->on_dialog_abort));
-    memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
-    memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
+    /* UITree_HookClear, not memset: a slot owns its argument tails now. */
+    UITree_HookClear(&hooks->on_timer);
+    UITree_HookClear(&hooks->on_key);
+    UITree_HookClear(&hooks->on_var_transmit);
+    UITree_HookClear(&hooks->on_inv_transmit);
+    UITree_HookClear(&hooks->on_misc_transmit);
+    UITree_HookClear(&hooks->on_friend_transmit);
+    UITree_HookClear(&hooks->on_dialog_abort);
+    UITree_HookClear(&hooks->on_resize);
+    UITree_HookClear(&hooks->on_sub_change);
     /* Mouse-over/leave/repeat and scroll-wheel are not interaction clicks but
      * are also not the transmit/timer/resize set ClearHooks is for; leave them.
-     * Remount onLoad rewrites them when the pack owns them. */
+     * They are cache-authored as often as script-authored, and a remount does
+     * NOT put them back — `task_interface_open` reuses an already-baked group
+     * rather than re-baking it — so dropping one here loses it for the session.
+     * `rs_cs2_hooks_survive_clear` counts them for that reason. */
 
-    if( !rs_cs2_hooks_have_interaction(hooks) )
+    if( !rs_cs2_hooks_survive_clear(hooks) )
         UITree_FreeHooksAt(tree, idx);
     else
         UITree_SyncHookMembership(tree, idx);
@@ -5619,8 +5795,30 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
     {
         int id = request->u.vars_write_varc_int.varc_id;
-        /* The manager fires its change callback (RS_CS2Host_NotifyVarChanged) on a
-         * real change, which flags a var-transmit re-dispatch for the tick. */
+        /*
+         * A varc write notifies nothing, and that is the reference's design
+         * rather than a gap here.
+         *
+         * This used to claim the manager fires `RS_CS2Host_NotifyVarChanged` on
+         * a real change. It does not — nothing calls
+         * `VarCManager_SetChangeCallback` outside its own unit test — and the
+         * claim is worth correcting rather than deleting, because it reads as a
+         * varc-driven transmit channel that a reader will then go looking for.
+         *
+         * There is no such channel at this revision. A rev-239 widget record
+         * carries exactly three transmit hooks and three trigger arrays — varp,
+         * inv, stat (deob `class308`: 18 `method7268` hook reads then
+         * `field4024`/`field4041`/`field4137`) — and the CS2 setters stop at
+         * 1407/1414/1415 with no varc opcode between them. The client's
+         * changed-id ring (`class414`) is fed only from the VARP_SMALL /
+         * VARP_LARGE handlers, so a varc never reaches a widget hook at all: a
+         * script that writes a varc repaints whatever depends on it itself.
+         *
+         * `onVarcTransmit` exists only in the older IF3 layout — rscache reads
+         * it in `decode_if3_rs2`, gated on `rev_is_643` — so it is a rev-643
+         * question, not a 239 one. See app.c's `app_varp_server_update` header
+         * for why feeding script-side writes into the ring is also wrong.
+         */
         if( host->varcs )
             VarCManager_SetInt(host->varcs, id, request->u.vars_write_varc_int.value);
         return CS2VM_EXECNO_OK;

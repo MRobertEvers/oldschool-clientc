@@ -995,6 +995,159 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   went 12 → 11; tree-wide went 145 → 147 because the concurrent actor added new
   marked files elsewhere mid-run.
 
+- **2026-08-13** — slice 12, first wave. Answering the "audit all objects"
+  request: `docs/OBJ_STATS_AUDIT.md` proves tradeable/members/alch/weapon
+  attack-speed/weapon combat-bonuses are already cache-native and wired —
+  nothing to scrape there. Special attack *behaviour* was the one real gap
+  (135 weapons in `special_attack.obj` had `specwep`/`sa_energy`; only the 10
+  from the prior session's slice 11 had FX-only stubs, none reachable from
+  dispatch). This wave: **27 of 121 resolved**, every one wiki-sourced with
+  the URL cited in its own file, FX ids re-verified against rsmod
+  `seq.sym`/`spotanim.sym`/RuneLite `AnimationID`/`SpotanimID`, each its own
+  `.rs2` file. `tools/resolve_special_fx.py` (new) mechanises the Kronos →
+  this-tree name translation the way `port_weapon_fx.py` already does for
+  swing overlays.
+
+  **A tool bug found and fixed before it shipped wrong content.** The
+  resolver's synth lookup checked only rsmod's `synth.sym`, which is sparse;
+  this tree's own `pack/4_soundeffects.pack` names a real minority of ids
+  (`2537=puncture`, `2715=quicksmash`, `2541=shatter`, `2529=cleave`,
+  `3869=godwars_godsword_special_attack`, `2713=energydrain`), and missing
+  that produced six wrong `synth_N` substitutions into the ten slice-11 FX
+  stubs before `sscompile` was even run. Caught because `sscompile` rejected
+  `synth_2537` as an unknown symbol (the tree's own name, `puncture`, was
+  never invalid) — fixed in the tool (§ local-pack-first) and in all six
+  files. **Lesson for the next agent touching sound ids here: check
+  `pack/4_soundeffects.pack` by grep before trusting any external symbol
+  table's silence as "no name exists."**
+
+  **sa_kind 10-23 allocated** (9 was already the rs2012 Tormented Demons
+  lane's, confirmed by grepping `sa_kind` tree-wide before allocating, not
+  just this file — `rs2012_dragon_claws.rs2` binds it to a *different* obj,
+  `rs2012_obj_14484`, and its own header already says not to reuse it for the
+  modern `dragon_claws`, which correctly stayed unbound until this pass gave
+  it 10, its own file, and its own wiki-sourced cascade).
+
+  | sa_kind | weapon | source | notes |
+  |---|---|---|---|
+  | 10 | dragon_claws | wiki (mechanism) + Kronos (exact cascade shape, both agree) | 4-hit cascade, own `pvm_dragon_claws_roll`/`_fixed` helpers |
+  | 11 | dragon_warhammer | wiki + Kronos | 30% *current*-defence drain via computed constant, not the `percent` arg (that's base-relative) |
+  | 12 | ags | wiki (corrects nothing vs Kronos) | double acc, +37.5% dmg |
+  | 13 | bgs | wiki corrects Kronos (accuracy 50%→double; drain order Attack/Prayer swapped) | flat-amount cascade drain, wiki's stat order |
+  | 14 | zgs | wiki + Kronos | double acc, +10% dmg, 32-tick freeze via `npc_freeze` |
+  | 15 | granite_maul (+ `granite_maul_plus` alias) | wiki + Kronos | no accuracy change; "instant re-fire" half NOT modelled (dispatcher's shared `%action_delay` gate — noted, not a per-weapon fix) |
+  | 16 | abyssal_dagger (+ `_p`/`_p+`/`_p++` alias) | wiki + Kronos, exact match | one roll gates both hits |
+  | 17 | abyssal_whip (+ `_ice`/`_lava` alias) | wiki + Kronos | PvP run-energy transfer out of scope (PvM-only dispatch); own 10% restore via `healenergy(1000)` |
+  | 18 | dragon_scimitar | wiki + Kronos | PvP prayer-block out of scope; PvM is a plain +25%-accuracy hit |
+  | 19 | dragon_halberd | wiki (mechanism) + Kronos (shape) | large-target 2nd hit / small-target AoE cleave **NOT modelled — no `npc_size` opcode and no adjacent-npc query exist**; single-hit +10% dmg implemented as the always-correct fallback |
+  | 20 | darklight | Kronos (`accept` on item id, not name) | demon-only 10% drain tier not modelled (no demon-attribute read) |
+  | 21 | dragon_2h_sword | Kronos | plain roll; multi-combat AoE not modelled, same missing-primitive reason as 19 |
+  | 22 | arclight | wiki only (postdates Kronos 184) | additive-of-base drain maps exactly onto `npc_statsub`'s own formula, no workaround needed; FX ids inferred (reuses darklight's — stated as inference) |
+  | 23 | elder_maul | wiki only (postdates Kronos 184) | same current-value-drain technique as 11, at 35% |
+
+  **Aliased, no new file** (identical mechanic, `oc_param(...,sa_energy)` is
+  read off the actually-worn obj so one script serves the whole family):
+  `abyssal_dagger_p`/`_p+`/`_p++` → 16; `abyssal_whip_ice`/`_lava` → 17;
+  `granite_maul_plus` → 15.
+
+  **A structural finding, not a per-weapon one: skilling specials don't
+  belong in the `sa_kind` combat dispatch at all.** `dragon_harpoon`'s Kronos
+  class has no `handle(Player, Entity, ...)` override, only
+  `handleActivation(Player)` — same shape as the pre-existing
+  `dragon_battleaxe`/`excalibur` instant-fire cases already in
+  `specwep.rs2`. Checked `DragonAxeSpecial`/`DragonPickaxeSpecial` too: same
+  shape, and `InfernalAxeSpecial`/`InfernalPickaxeSpecial` are byte-for-byte
+  the same ids/effect under a different name (only the message and an
+  internal swing-counter field differ). All three (+ 3 infernal aliases)
+  added to `specwep.rs2`'s `specbar_pressed`, **not** given a `sa_kind` —
+  that absence is correct, not a gap. The `+3 level` boost is implemented;
+  Kronos's 200-swing "next N actions guaranteed" counter is not (a
+  skill_woodcutting/mining/fishing integration, out of this file's reach,
+  stated rather than half-built).
+
+  **Also already correctly done and not re-touched**: `dragon_battleaxe` and
+  `excalibur` were already fully implemented via the same instant-fire path
+  before this pass (confirmed against Kronos `DragonBattleaxe.java` — the
+  ids match exactly). Both still show up in a naive "no `sa_kind`" grep;
+  that's expected, not a gap — don't re-implement them.
+
+  **Two engine primitive gaps found, named rather than routed around:**
+  1. **No `npc_size` opcode.** Blocks dragon halberd's large/small branch,
+     dragon 2h sword's AoE-vs-single branch, and will block several more of
+     the 94 remaining (dinh's bulwark, dual macuahuitl-family AoE weapons).
+  2. **No adjacent-npc / multi-combat-zone query a script can call.** Blocks
+     every AoE special (halberd cleave, 2h sword's 14-target burst, dinh's
+     bulwark's 10-target bash). This is the same shape of gap
+     `NPC_WIKI_STATS_PLAN.md` closed for ranged/magic npc attacks by adding a
+     generic proc — a generic `npc_special_aoe` proc over the zone's npc list
+     would close all of these at once rather than one at a time.
+
+  Neither is fixed here — per PORTING_GUIDE §2.4, a missing surface is a
+  named bug for whoever owns engine work next, not something a content pass
+  routes around by guessing which branch to apply.
+
+  **Standing bar**: `sscompile` clean at **15,968 scripts, 0 errors**
+  (`PLATFORM_OBJ_BASE=build_specials_batch1`, so no other lane's objdir was
+  touched). **`mock230_pack --check-only` could not be run** — the pack
+  target fails to *link*, `_mock230_world_set_varp` undefined, from an
+  unrelated concurrent uncommitted change to `mock230.h`/`mock230_varbit.c`
+  (confirmed via `git diff` before writing this: the reference was added by
+  another session mid-run, same shared-tree hazard this file's own log has
+  hit before). Not this slice's regression — re-run
+  `make -C src mock230-pack PLATFORM_OBJ_BASE=<private>` once that resolves,
+  before trusting pack-level green on anything in this entry.
+
+  **Not yet runtime-verified on pixels** — the standing bar's headless
+  per-weapon proof (§0.6, `SIM_OPNPC`/`embed_test`/lldb breakpoint) was not
+  run for this wave, same honesty rule slice 11's log applied to itself.
+  Compiles and resolves cleanly; behaviour is unobserved in a live fight.
+  Do the runtime pass before marking any of the 27 fully done.
+
+  **94 remain**, next-tier priority (most-requested first, per this queue's
+  own rule): `osmumtens_fang`, `voidwaker`, `ancient_godsword`,
+  `staff_of_light`, `dinhs_bulwark`, `noxious_halberd` (all wiki-researched
+  this session, not yet implemented — quotes are in this log entry's prose
+  above the table, re-fetch before writing to avoid re-spending the network
+  round trip), then `saradomin_sword`/`blessed_saradomin_sword`,
+  `statius_warhammer`, `darkbow` (+4 colour aliases), `heavy_ballista`/
+  `light_ballista`, `dragon_knife` (+3 variants), `morrigans_javelin`/
+  `morrigans_thrownaxe`, `acb`, `toxic_blowpipe` (**different shape than
+  every other entry here** — Kronos's own `handle()` is a no-op comment
+  "Handled in player combat", meaning the real server modifies the normal
+  ranged-attack roll conditionally rather than firing a discrete special hit;
+  needs a read of `player_ranged.rs2`'s swing path before writing anything,
+  not a `pvm_*.rs2` file), then the full remaining list: `3a_axe`,
+  `3a_axe_2h`, `3a_druidic_staff`, `3a_pickaxe`, `abyssal_bludgeon`,
+  `abyssal_tentacle`, `arkan_blade`, `blisterwood_flail`, `crystal_axe`,
+  `crystal_axe_2h`, `crystal_halberd`, `crystal_harpoon`, `crystal_pickaxe`,
+  `crimson_kisten`, `dragon_thrownaxe`, `dual_macuahuitl`, `eclipse_atlatl`,
+  `emberlight`, `eye_of_ayak`, `granite_hammer`, `hallowed_flail`,
+  `ivandis_flail`, `keris_partisan` (+2 variants), `magic_shortbow_i`,
+  `purging_staff`, `rosewood_blowpipe`, `rune_thrownaxe`, `saradomin_staff`,
+  `scorching_bow`, `soulflame_horn`, `soulreaper`, `sotd`/`toxic_sotd` (+
+  `_charged` alias), `sunspear`, `ancient_goblin_mace`, `bh_vestas_longsword`,
+  `blessed_saradomin_sword_degraded`, `bone_claws`, `brain_anchor` (Kronos
+  `BarrelchestAnchor.java` has this exact id — resolvable now),
+  `daganoth_cave_magic_shortbow`, `dragon_shortsword`, `dttd_bone_crossbow`,
+  `dttd_bone_dagger` (+3 variants), `frostmoon_spear`,
+  `nightmare_staff_eldritch`, `nightmare_staff_volatile`, `olaf2_brine_sabre`,
+  `tbwt_dragon_spear_kp`, `tonalztics_of_ralos_charged`,
+  `trail_composite_bow_magic`, `verzik_special_weapon`, `vestas_longsword`,
+  `vestas_spear_bh` (both **contradict** the prior session's slice-10 log,
+  which said Vesta's items have "no distinct obj" — they do exist here under
+  BH-prefixed names; re-verify against the wiki before assuming Deadman-only
+  scope applies), `wild_cave_accursed_charged`, `wild_cave_ursine_charged`,
+  `wild_cave_webweaver_charged`, `xbows_crossbow_dragon`, `zamorak_hasta`,
+  `zamorak_spear`, `zaryte_xbow`.
+
+  Every name above already has `specwep`/`sa_energy` declared (the orb arms
+  and drains correctly for all of them today) — what's missing is only the
+  `sa_kind` + behaviour file, exactly the shape of the 27 above. Continue the
+  same way: wiki for behaviour, Kronos where it exists for shape,
+  `tools/resolve_special_fx.py --kronos <path>` for FX ids when it does, a
+  direct RuneLite/rsmod name search when it doesn't (the pattern this
+  entry's `elder_maul`/`arclight` rows used).
+
   **Four restorations stopped rather than decided** — each needs a call this
   queue has not made:
   - `npc_combat_magic.rs2`, `player_magic.rs2`, `crumble_undead.rs2`,

@@ -233,6 +233,11 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * See test_stat_argument_hint. */
     SSC_SymbolsAdd(&fixture->symbols, "hitpoints", 2100, SSC_SYM_PARAM, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "hitpoints", 3, SSC_SYM_STAT, NULL);
+    /* The seq/spotanim-name collision the SPOTANIM_* arg_kind_hint exists for,
+     * as the real cache has it: `tzhaar_rock_smash` is seq 2660 *and* spotanim
+     * 451, and SEQ sorts before SPOTANIM. See test_spotanim_argument_hint. */
+    SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 2660, SSC_SYM_SEQ, NULL);
+    SSC_SymbolsAdd(&fixture->symbols, "tzhaar_rock_smash", 451, SSC_SYM_SPOTANIM, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "max_coins", 0, SSC_SYM_CONSTANT, "2147000000");
     SSC_SymbolsAdd(&fixture->symbols, "greeting", 0, SSC_SYM_CONSTANT, "\"Well met!\"");
     /*
@@ -954,6 +959,87 @@ test_stat_argument_hint(void)
     fixture_close(&fixture);
 }
 
+/*
+ * The spotanim family's leading argument names a spotanim, even when a seq
+ * shares the name — routine, since a spotanim's `anim=` field is commonly
+ * just the spotanim's own name again.
+ *
+ * This is the same collision class `test_stat_argument_hint` covers, and it
+ * is the one that got out: `spotanim_map(tzhaar_rock_smash, coord, 0, 0)`
+ * compiled to `spotanim_map(2660, coord, 0, 0)` — 2660 is the SEQ
+ * `tzhaar_rock_smash`, not the SPOTANIM (451), because SEQ sorts before
+ * SPOTANIM in SSC_SymbolKind and the argument was resolved unhinted. The
+ * client spawned whatever spotanim happens to be numbered 2660 instead of
+ * the falling-rock graphic, so JalTok-Jad's ranged attack rendered nothing a
+ * player could see land.
+ */
+static void
+test_spotanim_argument_hint(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+
+    printf("bare spotanim names in spotanim-command arguments\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]\n"
+                         "spotanim_map(tzhaar_rock_smash, 0_50_50, 0, 0);\n"
+                         "\n"
+                         "[proc,s1]\n"
+                         "spotanim_pl(tzhaar_rock_smash, 0, 0);\n"
+                         "\n"
+                         "[proc,s2]\n"
+                         "spotanim_npc(tzhaar_rock_smash, 0, 0);\n",
+                         "spotanim argument hint") )
+        return;
+
+    static const struct
+    {
+        const char* script_name;
+        int opcode;
+        int argc;
+    } k_cases[] = {
+        { "[proc,s0]", SS_OP_SPOTANIM_MAP, 4 },
+        { "[proc,s1]", SS_OP_SPOTANIM_PL, 3 },
+        { "[proc,s2]", SS_OP_SPOTANIM_NPC, 3 },
+    };
+
+    for( size_t i = 0; i < sizeof(k_cases) / sizeof(k_cases[0]); i++ )
+    {
+        int found = 0;
+
+        script = SSVM_ProviderGetByName(&fixture.provider, k_cases[i].script_name);
+        if( !script )
+        {
+            printf("  FAIL spotanim argument hint: no %s\n", k_cases[i].script_name);
+            g_fail++;
+            continue;
+        }
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            if( script->opcodes[op] != k_cases[i].opcode )
+                continue;
+            found = 1;
+            /* Arguments push left to right then the call, so the leading
+             * (spotanim) argument sits argc instructions back. */
+            CHECK(op >= k_cases[i].argc &&
+                      script->opcodes[op - k_cases[i].argc] == SS_OP_PUSH_CONSTANT_INT,
+                  "the spotanim argument is a constant push");
+            if( op >= k_cases[i].argc &&
+                script->opcodes[op - k_cases[i].argc] == SS_OP_PUSH_CONSTANT_INT )
+            {
+                CHECK_EQ(script->int_operands[op - k_cases[i].argc], 451,
+                         "the spotanim argument resolves to spotanim 451");
+                CHECK(script->int_operands[op - k_cases[i].argc] != 2660,
+                      "and not the seq that shares the name");
+            }
+        }
+        CHECK(found, "the command compiled to its host opcode");
+    }
+
+    fixture_close(&fixture);
+}
+
 static void
 test_param_type_shadowing(void)
 {
@@ -1327,6 +1413,7 @@ main(void)
     test_duplicate_debugproc();
     test_duplicate_login();
     test_stat_argument_hint();
+    test_spotanim_argument_hint();
     test_param_type_shadowing();
     test_script_name_argument();
     test_errors();
