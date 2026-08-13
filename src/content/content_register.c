@@ -492,7 +492,15 @@ ContentRegister_Load(
                 current = &reg->entries[reg->count++];
                 memset(current, 0, sizeof(*current));
                 current->cache_index = -1; /* member-level unless the file says otherwise */
-                snprintf(current->name, sizeof(current->name), "%s", name);
+                if( strlen(name) >= sizeof(current->name) )
+                    fprintf(stderr,
+                            "content.ini: namespace \"%s\" is %zu bytes, truncating to "
+                            "%zu\n",
+                            name, strlen(name), sizeof(current->name) - 1);
+                /* Precision caps the copy at sizeof(name)-1 so this is provably
+                 * in-bounds regardless of the section header's declared size. */
+                snprintf(current->name, sizeof(current->name), "%.*s",
+                         (int)sizeof(current->name) - 1, name);
                 /* Zero would mean "gameval archive 0", which is obj. A namespace
                  * the defaults never had is unnamed by the cache until it says
                  * otherwise. */

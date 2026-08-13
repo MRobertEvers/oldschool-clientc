@@ -13252,7 +13252,11 @@ app_minimenu_inv_action(
         app->objsel.obj_id = obj_id;
         app->objsel.slot = slot;
         app->objsel.component_id = com_id;
-        snprintf(app->objsel.name, sizeof(app->objsel.name), "%s",
+        /* Precision caps the copy at sizeof(objsel.name)-1 so this is
+         * provably in-bounds regardless of obj->name's declared size, rather
+         * than relying on snprintf's implicit (GCC-unprovable) truncation. */
+        snprintf(app->objsel.name, sizeof(app->objsel.name), "%.*s",
+                 (int)sizeof(app->objsel.name) - 1,
                  obj && obj->name[0] ? obj->name : "item");
         app->need_redraw = 1;
         return 1;
@@ -13919,6 +13923,10 @@ app_minimenu_run_option(
         {
             struct UITreeComponent const* node = &app->tree->components[idx];
             app->targetsel.mask = node->behavior.target_mask;
+            /* targetsel.op only feeds the "Cast <spell> on ..." prompt text
+             * built below. Each %s below is precision-capped so the sum of
+             * parts is provably within sizeof(targetsel.op), rather than
+             * relying on snprintf's implicit (GCC-unprovable) truncation. */
             if( node->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
             {
                 /* Classic targetOp = "<verb-prefix> <base> <verb-suffix>", the
@@ -13927,12 +13935,18 @@ app_minimenu_run_option(
                 char const* base = node->menu_options.target_base;
                 char const* space = strchr(verb, ' ');
                 if( space )
+                {
+                    int prefix_len = (int)(space - verb);
+                    if( prefix_len > 20 )
+                        prefix_len = 20;
                     snprintf(
-                        app->targetsel.op, sizeof(app->targetsel.op), "%.*s %s%s",
-                        (int)(space - verb), verb, base, space);
+                        app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s%.*s",
+                        prefix_len, verb, 20, base, 20, space);
+                }
                 else
                     snprintf(
-                        app->targetsel.op, sizeof(app->targetsel.op), "%s %s", verb, base);
+                        app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s",
+                        31, verb, 31, base);
             }
             else
             {
@@ -13944,8 +13958,8 @@ app_minimenu_run_option(
                  * one string here because that is the shape the world/inventory
                  * row builders append the target's name to. */
                 snprintf(
-                    app->targetsel.op, sizeof(app->targetsel.op), "%s %s ->",
-                    node->menu_options.target_verb, node->menu_options.option);
+                    app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s ->",
+                    29, node->menu_options.target_verb, 29, node->menu_options.option);
             }
         }
         app_targetsel_dispatch_hook(app, 1);

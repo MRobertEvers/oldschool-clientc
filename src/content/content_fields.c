@@ -196,7 +196,15 @@ parse_client(
         return CONTENT_CLIENT_ERROR;
     if( strncmp(value, "param:", 6) == 0 && value[6] )
     {
-        snprintf(out_param, out_param_size, "%s", value + 6);
+        const char* param = value + 6;
+
+        if( strlen(param) >= out_param_size )
+            fprintf(stderr,
+                    "fields: client param \"%s\" is %zu bytes, truncating to %zu\n",
+                    param, strlen(param), out_param_size - 1);
+        /* Precision caps the copy at out_param_size-1 so this is provably
+         * in-bounds regardless of value's declared size. */
+        snprintf(out_param, out_param_size, "%.*s", (int)out_param_size - 1, param);
         return CONTENT_CLIENT_PARAM;
     }
     return fallback;
@@ -278,7 +286,15 @@ ContentFields_Load(
             {
                 current = &fields->entries[fields->count++];
                 memset(current, 0, sizeof(*current));
-                snprintf(current->name, sizeof(current->name), "%s", name);
+                if( strlen(name) >= sizeof(current->name) )
+                    fprintf(stderr,
+                            "fields/%s.ini: field \"%s\" is %zu bytes, truncating to "
+                            "%zu\n",
+                            type, name, strlen(name), sizeof(current->name) - 1);
+                /* Precision caps the copy at sizeof(name)-1 so this is provably
+                 * in-bounds regardless of the section header's declared size. */
+                snprintf(current->name, sizeof(current->name), "%.*s",
+                         (int)sizeof(current->name) - 1, name);
             }
             continue;
         }
@@ -348,8 +364,18 @@ ContentFields_Load(
          * design and never sees this one.
          */
         else if( strcmp(element._keyval.name, "param") == 0 )
-            snprintf(current->param_name, sizeof(current->param_name), "%s",
-                     element._keyval.value);
+        {
+            if( strlen(element._keyval.value) >= sizeof(current->param_name) )
+                fprintf(stderr,
+                        "fields/%s.ini: [%s.%s] param \"%s\" is %zu bytes, "
+                        "truncating to %zu\n",
+                        type, type, current->name, element._keyval.value,
+                        strlen(element._keyval.value), sizeof(current->param_name) - 1);
+            /* Precision caps the copy at sizeof(param_name)-1 so this is
+             * provably in-bounds regardless of the ini value's length. */
+            snprintf(current->param_name, sizeof(current->param_name), "%.*s",
+                     (int)sizeof(current->param_name) - 1, element._keyval.value);
+        }
     }
 
     free(data);
