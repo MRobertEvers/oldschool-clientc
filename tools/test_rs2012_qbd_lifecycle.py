@@ -74,7 +74,7 @@ def main() -> None:
         session, "oploc2,rs2012_loc_70812"
     )
     assert "~rs2012_qbd_enter(^rs2012_qbd_release_profile);" in block(
-        session, "debugproc,rs2012qbd"
+        session, "debugproc,qbd"
     )
     manifest_entry = block(session, "debugproc,rs2012qbdmanifest")
     assert (

@@ -486,4 +486,4 @@ position and wave bookkeeping live in player varps (session-scoped).
 - Timing: server queue tracing (`TORIRS_ANIM_DEBUG`) across one phase-4
   rotation; every §5/§6 timeline lands on its tick.
 - Visual: headless client screenshot of a wall mid-travel; live
-  `::rs2012qbd` run through all four phases.
+  `::qbd` run through all four phases.

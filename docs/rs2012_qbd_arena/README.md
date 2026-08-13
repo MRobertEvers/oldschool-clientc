@@ -212,7 +212,7 @@ make -C src mock230-cache-rs2012
 ```
 
 The QBD manifest invokes `::rs2012qbdmanifest`; this is deliberately separate
-from the production portal and `::rs2012qbd` gates and bypasses only the 60
+from the production portal and `::qbd` gates and bypasses only the 60
 Summoning requirement. The TD manifest invokes `::rs2012tdbypass`; production
 `::rs2012td` remains gated by While Guthix Sleeps. Neither QA command changes
 skills or quest state.
