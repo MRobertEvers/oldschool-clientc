@@ -358,7 +358,11 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=50000,
         charge_source="Ancient essence, 1 charge each (inherits the base Venator bow's mechanic)",
         drain_event="1 charge per attack, deducted once regardless of ricochet bounce count",
-        status="charges_only", note="Cosmetic ornament-kit recolour of Venator bow. No implementation found.",
+        status="implemented",
+        note="Cosmetic ornament-kit recolour of Venator bow, sharing its exact mechanic -- both wired "
+             "together in skill_combat/scripts/player/gear/venator_bow.rs2, the same shape "
+             "blade_of_saeldor/bow_of_faerdhinen share crystal_weapon_drain. See Venator bow's own note "
+             "for the bounce-passive gap this does not depend on.",
     ),
     "Eclipse moon chestplate": dict(
         storage="item_var", depletion="degrade_step", max_charges=3000,
@@ -935,16 +939,23 @@ FAMILY_DATA = {
         charge_source="Charged with blood runes (2 per charge) via bank Configure-Charges or direct use",
         drain_event="1 charge per cast of the staff's built-in spell",
         status="charges_only",
-        note="[proc,pvm_spell_cast] (player_magic.rs2:279) already branches on oc_category(weapon)=weapon_staff "
-             "for staffanim -- a plausible drain call site, not wired.",
+        note="CORRECTED research error: [proc,pvm_spell_cast] (player_magic.rs2:279) is NOT a usable drain "
+             "site as originally claimed -- it only branches on oc_category(weapon)=weapon_staff to pick the "
+             "staffanim for a spell the player explicitly SELECTED (spellbook click or the autocast grid in "
+             "auto_cast.rs2, whose own spell list has no entry for this staff's built-in effect). Checked "
+             "directly: attacking an npc while wielding a powered staff has no auto-attack dispatch anywhere "
+             "in this tree -- the whole 'wield this weapon, click Attack, it casts its own baked-in spell' "
+             "combat mode powered staves need does not exist, not just the charge wiring on top of it. A "
+             "from-scratch combat feature, the same distinction Blazing/Ironwood/Rosewood blowpipe's own "
+             "notes draw for the missing dart-loading subsystem.",
     ),
     "Holy sanguinesti staff": dict(
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Cosmetic recolour (Saradomin) -- identical mechanic to the base Sanguinesti staff",
         drain_event="1 charge per cast of the built-in spell",
         status="charges_only",
-        note="sanguinesti_staff_or -- same file/mechanic as the base staff, not yet wired either (piggybacks "
-             "on that entry per the researching agent's note; not duplicating the drain-hook research).",
+        note="sanguinesti_staff_or -- same file/mechanic as the base staff. Same corrected gap: see "
+             "Sanguinesti staff's own note -- no powered-staff auto-attack dispatch exists to hook.",
     ),
     "Slayer's staff": dict(
         storage="item_var", depletion="revert", max_charges=2500,
@@ -996,23 +1007,29 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Soul + chaos runes (2 soul + 5 chaos per charge; aether substitutes for soul, not refunded on uncharge)",
         drain_event="1 charge per cast of the built-in spell",
-        status="charges_only", note="Same pvm_spell_cast hook candidate as Sanguinesti staff; not wired.",
+        status="charges_only",
+        note="Same corrected gap as Sanguinesti staff: no powered-staff auto-attack dispatch exists in "
+             "this tree to hook a drain into.",
     ),
     "Venator bow": dict(
         storage="item_var", depletion="revert", max_charges=50000,
         charge_source="Ancient essence, 1 essence = 1 charge",
         drain_event="1 charge per attack, regardless of how many targets the arrow bounces to",
-        status="charges_only",
-        note="player_ranged.rs2:65 already calls ~wildy_weapon_consume at the right site (the wilderness-"
-             "weapon precedent) but nothing calls a venator_bow drain there. The bow's bounce/ricochet "
-             "gameplay is ALSO unimplemented (player_ranged.rs2 is single-target only) -- a bigger gap than "
-             "just charges.",
+        status="implemented",
+        note="Wired into player_ranged.rs2 right next to ~wildy_weapon_consume (the wilderness-weapon "
+             "precedent), but NOT wilderness-gated -- the venator bow works anywhere. Uncharge returns all "
+             "remaining charges as ancient essence (wiki explicit), unlike a plain Revert. Also covers Echo "
+             "venator bow (same file, see its own note). The bow's bounce/ricochet gameplay is NOT "
+             "implemented (player_ranged.rs2 is single-target only) -- a combat-mechanics gap this charge "
+             "wiring is independent of: the bow still correctly drains 1 charge per shot either way.",
     ),
     "Warped sceptre": dict(
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Chaos + earth runes (2 chaos + 5 earth per charge; combination runes accepted since 14 May 2025)",
         drain_event="1 charge per cast of the built-in spell",
-        status="charges_only", note="Same pvm_spell_cast candidate hook as Sanguinesti/Tumeken's; not wired.",
+        status="charges_only",
+        note="Same corrected gap as Sanguinesti staff/Tumeken's shadow: no powered-staff auto-attack "
+             "dispatch exists in this tree to hook a drain into.",
     ),
     "Xeric's talisman": dict(
         storage="item_var", depletion="revert", max_charges=1000,
