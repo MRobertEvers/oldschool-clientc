@@ -327,6 +327,7 @@ mock230_send(
             struct Mock230CapturedPacket* packet = &capture->packets[capture->count++];
 
             packet->opcode = opcode;
+            packet->name = pkt_name;
             packet->len = len;
             if( len > 0 )
                 memcpy(packet->data, payload, (size_t)len);
@@ -4812,6 +4813,7 @@ mock230_capture_reset(struct Mock230Capture* capture)
     capture->overflow = 0;
 }
 
+
 int
 mock230_capture_find(
     const struct Mock230Capture* capture,
@@ -4821,6 +4823,37 @@ mock230_capture_find(
     for( int i = from < 0 ? 0 : from; i < capture->count; i++ )
     {
         if( capture->packets[i].opcode == opcode )
+            return i;
+    }
+    return -1;
+}
+
+/*
+ * The same search by CANONICAL name, which is what a revision-independent
+ * assertion wants.
+ *
+ * `mock230_capture_find` matches the number that went on the wire, and that
+ * number is different in every revision this server speaks. Most of the
+ * selftest is written in rev-230 numbers — the wire adapter's own note says so
+ * — so those stanzas assert nothing at revision 239: `IF_SETEVENTS` goes out as
+ * 108 while the assertion looks for 47. The skill guide's 102 failures were 24
+ * cells x 4 assertions all missing that way, against a server that had sent
+ * exactly the right packets.
+ *
+ * Not done by translating inside `mock230_capture_find`, which is the obvious
+ * shape and is wrong: a handful of stanzas (`rev239 interface writer bytes`)
+ * stand up a revision-239 player on purpose and their numbers really are 239
+ * numbers. Callers say which they mean.
+ */
+int
+mock230_capture_find_named(
+    const struct Mock230Capture* capture,
+    int pkt_name,
+    int from)
+{
+    for( int i = from < 0 ? 0 : from; i < capture->count; i++ )
+    {
+        if( capture->packets[i].name == pkt_name )
             return i;
     }
     return -1;

@@ -736,6 +736,19 @@ enum
 };
 
 /*
+ * The experience a single skill may hold, in tenths — OldSchool's 200,000,000.
+ *
+ * A ceiling rather than an assumption: `stat_xp_tenths` is an `int`, and
+ * 200,000,000 xp is 2,000,000,000 tenths, which sits within seven percent of
+ * INT_MAX. An uncapped total therefore does not merely grow past the game's
+ * limit, it wraps negative, and a negative total reads back through
+ * `mock230_combat_level_for_xp` as level 1 — a maxed skill would silently
+ * become an unskilled one. Clamped at every mutation, and at 0 on the way down
+ * for the same reason from the other side.
+ */
+#define MOCK230_XP_MAX_TENTHS 2000000000
+
+/*
  * The ceiling a script may raise an npc stat to.
  *
  * The reference's own, and engine rather than content: `NpcOps.ts:507`
@@ -1352,6 +1365,21 @@ enum
 struct Mock230CapturedPacket
 {
     int opcode;
+    /**
+     * The packet's CANONICAL name (`PKT_NAME_*`), beside the revision's number
+     * for it.
+     *
+     * `opcode` is what went on the wire and is therefore a different number in
+     * every revision this server can speak. The selftest's assertions are
+     * written in rev-230 numbers — that is the contract the wire adapter's own
+     * note states — so matching on them directly makes every one of them a
+     * rev-230-only assertion, and running the suite at revision 239 turned ~190
+     * of them red against a server that was behaving correctly.
+     *
+     * `mock230_capture_find` translates its rev-230 argument through this, so
+     * the assertions keep their numbers and stop being about one revision.
+     */
+    int name;
     int len;
     uint8_t data[MOCK230_CAPTURE_BYTES];
 };
@@ -1379,6 +1407,14 @@ int
 mock230_capture_find(
     const struct Mock230Capture* capture,
     int opcode,
+    int from);
+
+/** The same search by canonical `PKT_NAME_*`, for an assertion that should mean
+ *  the packet rather than one revision's number for it. */
+int
+mock230_capture_find_named(
+    const struct Mock230Capture* capture,
+    int pkt_name,
     int from);
 
 /** True when `opcodes` all appear in order. Other packets may interleave. */
@@ -3843,7 +3879,13 @@ mock230_combat_set_level(
     int stat,
     int level);
 
-/** Award experience, in tenths of a point. Levels up and marks the stat. */
+/** Clamp an experience total, in tenths, into [0, MOCK230_XP_MAX_TENTHS]. Takes
+ *  64 bits so a caller can hand it a sum that has already left `int` range. */
+int
+mock230_combat_clamp_xp(long long tenths);
+
+/** Move experience, in tenths of a point. A negative amount takes it away; the
+ *  total is clamped either way. Re-levels and marks the stat. */
 void
 mock230_combat_add_xp(
     struct Mock230Server* srv,

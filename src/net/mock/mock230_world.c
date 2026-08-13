@@ -30017,7 +30017,6 @@ mock230_world_selftest(void)
                     int rate = xil->def ? xil->def->attackrate : 0;
                     int mager = selftest_find_npc(&srv, mager_type);
                     int parked = 0;
-                    int early = 0;
                     int hp_before;
                     int armed = -1;
 
@@ -30025,38 +30024,32 @@ mock230_world_selftest(void)
                                    rate);
 
                     /*
-                     * 1. It waits. `npc_settimer(npc_param(attackrate))` at the
-                     *    spawn site is the whole of the opening pause, so the
-                     *    add stands there for a cycle before it takes a target
-                     *    — it used to fire on the tick it landed.
+                     * 1. It does NOT wait, and this is the tick that says so:
+                     *    `spawn_tick` is the first tick the ranger exists on,
+                     *    and nothing has been ticked since.
+                     *
+                     *    The opening pause used to be an `[ai_timer]` armed at
+                     *    the spawn site — `^inferno_add_open_delay` (10), from
+                     *    Kronos's `updateLastAttack(10)` — whose one firing
+                     *    handed out the target. The spawner calls
+                     *    `~inferno_add_start` on the add it has just made
+                     *    instead, so the add arrives already fighting.
+                     *
+                     *    Restoring the wait turns this red, and so does losing
+                     *    the call: an add with no target is the same reading
+                     *    either way, which is why the check names the tick.
                      */
-                    for( int tick = 0; tick + 1 < rate; tick++ )
-                    {
-                        mock230_world_tick(&srv);
-                        early |= xil->combat_target_npc >= 0;
-                        parked |= xil->delayed_until > srv.tick;
-                    }
-                    SELFTEST_CHECK(!early,
-                                   "a fresh add must wait its attack cycle before it takes "
-                                   "the shield as a target (it took one %d tick(s) in)",
-                                   (int)srv.tick - spawn_tick);
+                    SELFTEST_CHECK(xil->combat_target_npc == glyph_slot,
+                                   "an add must take the shield as its combat target on the "
+                                   "tick it lands (tick %d), got %d (glyph is %d)",
+                                   spawn_tick, xil->combat_target_npc, glyph_slot);
 
                     /*
-                     * 2. Then it fights the glyph — a real engine combat target,
-                     *    not a script pointing at a coordinate — and faces it.
-                     *    `face_entity` below `MOCK230_FACE_PLAYER_BASE` is an
-                     *    npc slot, the half of that id space nothing in this
-                     *    server wrote until npcs could fight each other.
+                     * 2. And it faces what it is fighting. `face_entity` below
+                     *    `MOCK230_FACE_PLAYER_BASE` is an npc slot, the half of
+                     *    that id space nothing in this server wrote until npcs
+                     *    could fight each other.
                      */
-                    for( int tick = 0; tick < 8 && xil->combat_target_npc < 0; tick++ )
-                    {
-                        mock230_world_tick(&srv);
-                        parked |= xil->delayed_until > srv.tick;
-                    }
-                    SELFTEST_CHECK(xil->combat_target_npc == glyph_slot,
-                                   "then it should take the glyph as its combat target, got "
-                                   "%d (glyph is %d)",
-                                   xil->combat_target_npc, glyph_slot);
                     SELFTEST_CHECK(xil->face_entity == glyph_slot,
                                    "and face it — FACE_ENTITY should be the glyph's npc slot "
                                    "%d, got %d",

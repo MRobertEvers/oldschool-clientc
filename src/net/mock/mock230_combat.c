@@ -587,6 +587,16 @@ mock230_combat_set_level(
     mock230_combat_stat_mark(player, stat);
 }
 
+int
+mock230_combat_clamp_xp(long long tenths)
+{
+    if( tenths < 0 )
+        return 0;
+    if( tenths > MOCK230_XP_MAX_TENTHS )
+        return MOCK230_XP_MAX_TENTHS;
+    return (int)tenths;
+}
+
 void
 mock230_combat_add_xp(
     struct Mock230Server* srv,
@@ -596,7 +606,7 @@ mock230_combat_add_xp(
     struct Mock230Player* player = srv->active_player;
     int before;
 
-    if( stat < 0 || stat >= MOCK230_STAT_COUNT || tenths <= 0 )
+    if( stat < 0 || stat >= MOCK230_STAT_COUNT || tenths == 0 )
         return;
     before = player->stat_level[stat];
     /* Traced because an xp *rate* bug is otherwise unobservable: the on-screen
@@ -604,26 +614,47 @@ mock230_combat_add_xp(
      * log prints only its payload length, and a wrong rate never changes a
      * level often enough to notice. Tenths, so 200 reads as 20.0 xp. */
     if( srv->verbose )
-        printf("mock230: xp stat=%d +%d.%d (tenths=%d)\n",
+        printf("mock230: xp stat=%d %c%d.%d (tenths=%d)\n",
                stat,
-               tenths / 10,
-               tenths % 10,
+               tenths < 0 ? '-' : '+',
+               abs(tenths) / 10,
+               abs(tenths) % 10,
                tenths);
-    player->stat_xp_tenths[stat] += tenths;
+    /* Summed in 64 bits and clamped, never accumulated in place: the total is
+     * an `int` and MOCK230_XP_MAX_TENTHS is most of its range, so `+=` at the
+     * ceiling overflows rather than saturating. */
+    player->stat_xp_tenths[stat] =
+        mock230_combat_clamp_xp((long long)player->stat_xp_tenths[stat] + tenths);
     player->stat_level[stat] =
         mock230_combat_level_for_xp(player->stat_xp_tenths[stat] / 10);
     if( player->stat_level[stat] != before )
     {
         /* A hitpoints level-up raises the ceiling but does not heal, which is
          * what OldSchool does and is also the only behaviour that cannot
-         * surprise someone mid-fight. */
+         * surprise someone mid-fight. A level *loss* does the same work in
+         * reverse, and `sync_hitpoints` clamps current hitpoints to the new
+         * ceiling itself. */
         if( stat == MOCK230_STAT_HITPOINTS )
             mock230_combat_sync_hitpoints(player);
-        mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
+        /* Only upward: `advancestat` is the level-up trigger, and content hangs
+         * the fanfare interface off it. Losing a level is not an advance. */
+        if( player->stat_level[stat] > before )
+            mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
     }
-    if( player->stat_boosted[stat] < player->stat_level[stat] &&
-        stat != MOCK230_STAT_HITPOINTS )
-        player->stat_boosted[stat] = player->stat_level[stat];
+    if( stat != MOCK230_STAT_HITPOINTS )
+    {
+        /* Boosted follows base upward so a level-up is usable at once, and back
+         * down only when the base actually fell beneath it — a boost above a
+         * base the player no longer has is power the experience no longer pays
+         * for, but clamping unconditionally would cancel a potion on every xp
+         * drop. Hitpoints is exempt because its boosted slot is current
+         * hitpoints, which `sync_hitpoints` owns. */
+        if( player->stat_boosted[stat] < player->stat_level[stat] )
+            player->stat_boosted[stat] = player->stat_level[stat];
+        else if( player->stat_level[stat] < before &&
+                 player->stat_boosted[stat] > player->stat_level[stat] )
+            player->stat_boosted[stat] = player->stat_level[stat];
+    }
     mock230_combat_stat_mark(player, stat);
 }
 
@@ -751,8 +782,24 @@ mock230_combat_hit_npc(
      * flinch below, and none of this. */
     if( npc->combat_target < 0 && npc_def(npc)->retaliate )
     {
+        /*
+         * Switching a fight from an npc to a person is not a new fight, and the
+         * flinch below is only for one that is.
+         *
+         * `attack_clock` is ONE counter and both combat branches spend it, so
+         * an npc that has been shooting another npc arrives here mid-cycle —
+         * part way through a cooldown it has already paid for. Reseeding it
+         * shortened that cooldown, and a shortened cooldown is a whole extra
+         * swing: the Inferno's adds shot the shield, took a hit, and hit the
+         * player before the shot they had just made was due to repeat. The
+         * running clock carries over instead, so the first swing at the person
+         * lands where the next swing at the npc would have.
+         */
+        int was_fighting_npc = npc->combat_target_npc >= 0;
+
         npc->combat_target = srv->active_player ? srv->active_player->pid : 0;
-        npc->attack_clock = npc_def(npc)->attackrate / 2;
+        if( !was_fighting_npc )
+            npc->attack_clock = npc_def(npc)->attackrate / 2;
         /*
          * A person outranks whatever npc it was fighting.
          *
