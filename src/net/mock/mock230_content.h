@@ -316,6 +316,10 @@ enum Mock230HuntMode
 /** Waypoints one patrol route may carry. The reference's longest is ten. */
 #define MOCK230_NPC_PATROL_MAX 16
 
+/** `healthbar` unstated: the encoder substitutes the standard bar. Distinct
+ *  from -1, which is `healthbar=null` — a record saying it has no bar. */
+#define MOCK230_NPC_HEALTHBAR_UNSET (-2)
+
 struct Mock230NpcDef
 {
     int npc_id;
@@ -387,6 +391,23 @@ struct Mock230NpcDef
      * so every other npc keeps fighting back.
      */
     int retaliate;
+    /**
+     * Which healthbar config this npc's hits raise, `-1` for none.
+     *
+     * The reference's headbar update mask carries a healthbar id, and a bar
+     * exists on an actor only while the server has sent that mask for it — the
+     * hitsplat mask is unrelated and carries no health at all. So "this npc has
+     * no bar" is not a flag there, it is simply an id the server never sends,
+     * and the id it does send selects the sprites, the fade and the health
+     * scale the fill is expressed in.
+     *
+     * `healthbar=null` is that absence, spelled. Ours defaults to
+     * `MOCK230_NPC_HEALTHBAR_UNSET` rather than to the standard bar's id
+     * because the id is a symbol resolved after this default is seeded; the
+     * encoder substitutes `healthbar_0` for the sentinel, so an npc that says
+     * nothing keeps exactly the bar it has today.
+     */
+    int healthbar;
 
     /* Seeded from the cache's params, overridable with `param=`. */
     int bonus[MOCK230_PARAM_BONUS_COUNT];

@@ -1415,6 +1415,18 @@ npc_config_key(
      * the only case worth stating, so anything but `no` means yes. */
     else if( strcmp(key, "retaliate") == 0 )
         def->retaliate = strcmp(value, "no") != 0;
+    /* A healthbar config name, or `null` for an npc that raises no bar at all.
+     * Through the checked lookup because an unresolved name here would
+     * otherwise read as -1 — i.e. exactly as `null` — and silently delete the
+     * bar it was meant to select. */
+    else if( strcmp(key, "healthbar") == 0 )
+    {
+        int id = -1;
+        if( !mock230_content_symbol_checked(MOCK230_PACK_HEALTHBAR, value, &id) )
+            CONTENT_ERROR("%s: `healthbar=%s` names no healthbar\n", where, value);
+        else
+            def->healthbar = id;
+    }
     else if( strcmp(key, "blockwalk") == 0 )
     {
         /* LostCity BlockWalk: none / npc / all / player (NpcConfig also accepts
@@ -3426,6 +3438,8 @@ init_defaults(void)
     g_npc_default.givechase = 1;
     /* Everything fights back unless it says otherwise. */
     g_npc_default.retaliate = 1;
+    /* Unstated, so the encoder uses the standard bar — see the field's note. */
+    g_npc_default.healthbar = MOCK230_NPC_HEALTHBAR_UNSET;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
     g_npc_default.blockwalk = 1;
     g_npc_default.blocksight = 0;

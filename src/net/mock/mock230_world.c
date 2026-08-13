@@ -17425,6 +17425,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: combat\n");
+    fprintf(stderr, "DIAG before-combat: dying=%d hp=%d/%d lvl=%d xp=%d target=%d\n", player->dying, player->hitpoints, player->max_hitpoints, player->stat_level[MOCK230_STAT_HITPOINTS], player->stat_xp_tenths[MOCK230_STAT_HITPOINTS], player->combat_target);
     {
         static struct Mock230Capture capture;
         int goblin = -1;
@@ -17582,7 +17583,16 @@ mock230_world_selftest(void)
                     0) >= 0,
                 "turning auto-retaliate off must transmit varp 172 for CS2 325");
 
+            /*
+             * "Idle player is attacked" is the case every drain below means,
+             * and it now takes two lines to say. The queue guards on `busy2`
+             * (hasInteraction || hasWaypoints), and `combat_stop_player` only
+             * clears the first of those — `p_opnpc(2)` walks as well as
+             * latches, so the previous drain leaves a route behind and a
+             * fixture that stops at the latch is testing a *walking* player.
+             */
             mock230_combat_stop_player(srv);
+            mock230_world_steps_clear(player);
             SELFTEST_CHECK(
                 mock230_scripts_queue_named(
                     srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
@@ -17618,6 +17628,7 @@ mock230_world_selftest(void)
                 "unarmed auto-retaliate must wait half its 4-tick attack rate (got %d at tick %d)",
                 player->varps[action_delay], srv->tick);
             mock230_combat_stop_player(srv);
+            mock230_world_steps_clear(player); /* and the route it walked */
 
             /*
              * The flinch, against the wiki rather than against the reference
@@ -17671,6 +17682,7 @@ mock230_world_selftest(void)
                         "longer wait: wanted %d, got %d",
                         srv->tick + 3, player->varps[action_delay]);
                     mock230_combat_stop_player(srv);
+                    mock230_world_steps_clear(player); /* and the route it walked */
 
                     player->varps[damagestyle] = rapid;
                     player->varps[action_delay] = srv->tick + 50;
@@ -17685,6 +17697,7 @@ mock230_world_selftest(void)
                         "crossbow must flinch to ceil(4/2)=2, wanted %d, got %d",
                         srv->tick + 2, player->varps[action_delay]);
                     mock230_combat_stop_player(srv);
+                    mock230_world_steps_clear(player); /* and the route it walked */
                 }
 
                 /*
@@ -17727,6 +17740,7 @@ mock230_world_selftest(void)
                                player->combat_target);
 
                 mock230_combat_stop_player(srv);
+                mock230_world_steps_clear(player); /* and the route it walked */
                 worn_set(player, rhand, -1, 0);
                 player->varps[damagestyle] = 0;
                 player->varps[action_delay] = 0;
@@ -18615,6 +18629,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: several hits in one tick are several hitsplats\n");
+    fprintf(stderr, "DIAG before-hitsplats: dying=%d hp=%d/%d lvl=%d xp=%d target=%d\n", player->dying, player->hitpoints, player->max_hitpoints, player->stat_level[MOCK230_STAT_HITPOINTS], player->stat_xp_tenths[MOCK230_STAT_HITPOINTS], player->combat_target);
     {
         /*
          * Two attackers landing on the same entity on the same tick are two
@@ -18692,6 +18707,7 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: the player dies and the script revives them\n");
+    fprintf(stderr, "DIAG before-death-revive: dying=%d hp=%d/%d lvl=%d xp=%d target=%d\n", player->dying, player->hitpoints, player->max_hitpoints, player->stat_level[MOCK230_STAT_HITPOINTS], player->stat_xp_tenths[MOCK230_STAT_HITPOINTS], player->combat_target);
     {
         /*
          * The whole of a death, and the last check is the one that matters.
@@ -18868,6 +18884,18 @@ mock230_world_selftest(void)
     }
 
     fprintf(stderr, "mock230 selftest: facing clears\n");
+    {
+        fprintf(stderr, "DIAG entering facing-clears: dying=%d hp=%d/%d target=%d\n",
+                player->dying, player->hitpoints, player->max_hitpoints,
+                player->combat_target);
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            if( srv->npcs[i].active && srv->npcs[i].combat_target == player->pid )
+                fprintf(stderr, "DIAG   npc slot %d type %d (%s) still fighting us\n",
+                        i, srv->npcs[i].type,
+                        mock230_npcinfo(srv->npcs[i].type)->name);
+        }
+    }
     {
         /*
          * FACE_ENTITY is a latch. LostCity PathingEntity.setFaceEntity drives it
@@ -32002,9 +32030,9 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(saved_summoning < 60,
                                "the QBD gate fixture needs a sub-60 account, got %d",
                                saved_summoning);
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbd") ==
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "qbd") ==
                                    MOCK230_TRIGGER_RAN,
-                               "the ordinary ::rs2012qbd command should resolve");
+                               "the ordinary ::qbd command should resolve");
                 SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
                                    player->varps[qbd_active] == 0,
                                "ordinary QBD debug entry must retain the 60 Summoning gate");

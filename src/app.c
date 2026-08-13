@@ -1866,6 +1866,32 @@ app_entity_model_height(
     return bounds ? -bounds->min_y : 0;
 }
 
+/* The height OVERHEADS hang off, which is not always the model's height.
+ *
+ * Reference `Actor.getLogicalHeight` and the NPC override of it: an npc whose
+ * type states `height` (opcode 124) anchors its bar and splats at that instead
+ * of at the model, and the model is unaffected either way. Otherwise the anchor
+ * is `logicalHeight`, which the reference refreshes from each model it builds
+ * and initialises to 200 -- so an actor that never builds a model keeps 200
+ * rather than collapsing to the floor. That default is the whole reason a
+ * model-less marker npc reads as floating slightly above its tile there, and
+ * `height` is how a record moves it deliberately. */
+#define APP_OVERLAY_DEFAULT_LOGICAL_HEIGHT 200
+
+static int
+app_entity_overlay_height(
+    struct App* app,
+    int element_id,
+    int type_height)
+{
+    int height;
+
+    if( type_height >= 0 )
+        return type_height;
+    height = app_entity_model_height(app, element_id);
+    return height > 0 ? height : APP_OVERLAY_DEFAULT_LOGICAL_HEIGHT;
+}
+
 static void
 app_overlay_push(
     struct App* app,
@@ -2153,10 +2179,11 @@ app_overlay_build_entity(
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     int font_id,
-    int hitmarks_scene)
+    int hitmarks_scene,
+    int type_height)
 {
     int cycle = app->world->cycle;
-    int height = app_entity_model_height(app, element_id);
+    int height = app_entity_overlay_height(app, element_id, type_height);
     int screen_x, screen_y;
 
     /* Health bar: 30px wide, green/red split, 15px above the model top.
@@ -2323,10 +2350,16 @@ app_build_entity_overlays(
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        struct ToriRS_Npctype* npctype;
         if( !npc || npc->element_id < 0 )
             continue;
+        /* Only the npc branch can carry an overhead-height override; the
+         * reference reads it off the NpcComposition, which players have no
+         * equivalent of (Actor.getLogicalHeight is unconditional there). */
+        npctype = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
         app_overlay_build_entity(
-            app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene);
+            app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene,
+            npctype ? npctype->height : -1);
     }
 
     pool = &world->entities.player;
@@ -2338,7 +2371,7 @@ app_build_entity_overlays(
             continue;
         app_overlay_build_entity(
             app, player->element_id, &player->combat, &player->draw_position, font_id,
-            hitmarks_scene);
+            hitmarks_scene, -1);
         app_overlay_build_player_headicons(
             app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
     }

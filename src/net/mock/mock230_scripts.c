@@ -6841,6 +6841,37 @@ mock230_script_command(
         return 1;
 
     /*
+     * `[command,busy2]()(boolean)` — `PlayerOps.ts` BUSY2:
+     * `activePlayer.hasInteraction() || activePlayer.hasWaypoints()`.
+     *
+     * A *different* question from `busy` above, and the difference is the whole
+     * point: `busy` is "can a script be handed to this player" (delayed, or a
+     * modal is up), while this one is "is this player already committed to
+     * something" — a latched target, or a route still being walked.
+     *
+     * The only caller is auto-retaliation, and it is the reason the command
+     * exists at all: `p_opnpc(2)` clears the interaction and the step queue
+     * before it latches, so an ungated retaliation queue *takes* a player who
+     * is mid-fight with another monster, or half way to the one they clicked,
+     * and points them at whatever hit them last. Reading the two fields is the
+     * reference's own test, and both terms are needed — a player walking to a
+     * target they have already committed to has waypoints and an interaction,
+     * one running for a bank door has waypoints and none.
+     *
+     * `interaction.kind` is `hasInteraction()`: the field is cleared to
+     * MOCK230_INTERACT_NONE by `interaction_clear`, which is what
+     * `clearInteraction` is here. `waypoint_index >= 0` is `hasWaypoints()`:
+     * -1 is the idle sentinel (see the queue's comment in mock230.h).
+     */
+    case SS_OP_BUSY2:
+        SSVM_PushInt(state,
+                     player->interaction.kind != MOCK230_INTERACT_NONE ||
+                             player->waypoint_index >= 0
+                         ? 1
+                         : 0);
+        return 1;
+
+    /*
      * QBD-style time stop. This is intentionally not busy()/canAccess(): the
      * latter is the queue gate, while delayed damage and encounter queues must
      * keep running during the stop. World input dispatch and phase-5 pathing

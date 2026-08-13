@@ -363,6 +363,16 @@ struct ToriRS_Npctype
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */
     int ambient;
     int contrast;
+    /** NpcType.height (OldSchool opcode 124), -1 when absent.
+     *
+     *  The height OVERHEADS are anchored to — health bars and hitsplats — not
+     *  the model's own height and no effect on the drawn model. The reference
+     *  resolves the anchor as `height == -1 ? logicalHeight : height` (NPC's
+     *  override of Actor.getLogicalHeight), where logicalHeight is refreshed
+     *  from the built model and defaults to 200. This field is the only way a
+     *  record can move its own overheads, and it exists precisely because a
+     *  model-less npc never refreshes logicalHeight from anything. */
+    int height;
     /** Client render hint from the npc's params: draw this npc's model through
      *  the depth-tested kernels rather than the painter's sort. Param
      *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does

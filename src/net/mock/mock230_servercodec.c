@@ -64,6 +64,10 @@ static const struct ServerField k_npc_fields[] = {
     /* Ours (150..199). LostCity has no opcode for this because its engine does
      * not retaliate on the npc's behalf at all. */
     { 161, WIRE_U1, offsetof(struct Mock230NpcDef, retaliate),   "retaliate"   },
+    /* Ours (150..199), and u4 for the same reason as death_drop at 151: it is
+     * an id whose stated absence is negative, and only u4 round-trips a
+     * negative through a zero-extending decode. */
+    { 162, WIRE_U4, offsetof(struct Mock230NpcDef, healthbar),   "healthbar"   },
     { 158, WIRE_U4, offsetof(struct Mock230NpcDef, attack_sound), "attack_sound" },
     { 159, WIRE_U4, offsetof(struct Mock230NpcDef, defend_sound), "defend_sound" },
     { 160, WIRE_U4, offsetof(struct Mock230NpcDef, death_sound),  "death_sound"  },

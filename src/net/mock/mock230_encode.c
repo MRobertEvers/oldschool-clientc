@@ -4026,6 +4026,23 @@ npc_queue_push(
     (*count)++;
 }
 
+/*
+ * The healthbar config an npc's hits raise, or -1 for none.
+ *
+ * The record's own choice wins; `MOCK230_NPC_HEALTHBAR_UNSET` means it made
+ * none, and the standard bar stands in — that substitution is here rather than
+ * in the default because the id is a symbol and the defaults are seeded before
+ * the pack files are resolved.
+ */
+static int
+npc_headbar_id(const struct Mock230Npc* npc)
+{
+    const struct Mock230NpcDef* def = npc->def ? npc->def : mock230_content_npc_default();
+    int id = def ? def->healthbar : MOCK230_NPC_HEALTHBAR_UNSET;
+
+    return id == MOCK230_NPC_HEALTHBAR_UNSET ? mock230_ids()->healthbar_standard : id;
+}
+
 static void
 put_npc_extended_v5(
     struct RSAreaBuf* buf,
@@ -4047,7 +4064,18 @@ put_npc_extended_v5(
     if( getenv("MOCK230_SPLAT_DEBUG") && hit )
         fprintf(stderr, "  SPLAT npc type=%d dmg=%d type=%d hp=%d/%d\n", npc->type,
                 npc->damage, npc->damage_type, npc->hitpoints, npc->max_hitpoints);
-    if( hit && npc->max_hitpoints > 0 && mock230_ids()->healthbar_standard >= 0 &&
+    /*
+     * A headbar is the server's choice, not a side effect of the hit.
+     *
+     * The reference sends the headbar mask when it wants a bar and simply does
+     * not when it does not — the two masks are unrelated and its hitsplat block
+     * carries no health at all. Emitting one on every hit was this encoder's
+     * own addition, and it is why an npc whose pool is not an overhead bar (a
+     * boss with its own HUD, a marker that exists only to be drawn on) had one
+     * anyway. `healthbar=null` on the record is that choice, spelled.
+     */
+    int const headbar = npc_headbar_id(npc);
+    if( hit && headbar >= 0 && npc->max_hitpoints > 0 &&
         mock230_ids()->healthbar_standard_width > 0 )
         flag |= V5_NPC_HEADBARS;
     if( classic & MOCK230_NMASK_ANIM )
@@ -4120,7 +4148,7 @@ put_npc_extended_v5(
         /* NpcHeadbarEncoder differs from the player only in the count and
          * target-fill byte transform. See the matching decoder's V5 block. */
         rsab_p1_alt2(buf, 1);
-        v5_psmart1or2(buf, mock230_ids()->healthbar_standard);
+        v5_psmart1or2(buf, headbar);
         v5_psmart1or2(buf, 1);
         v5_psmart1or2(buf, 0);
         rsab_p1_alt1(buf, width);
