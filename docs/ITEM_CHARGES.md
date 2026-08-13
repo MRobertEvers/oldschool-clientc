@@ -12,7 +12,7 @@ Total families found: **212**
 | Crystal body | item_var | revert | 10000 | Gauntlet drain, pre-existing |
 | Crystal helm | item_var | revert | 10000 | Gauntlet-specific drain already implemented (gauntlet_hunllef.rs2) |
 | Crystal legs | item_var | revert | 10000 | Gauntlet drain, pre-existing |
-| Dodgy necklace | item_var | destroy | 10 | Consumed on any failed Thieving stealing roll it protects against (~11% chance per use, per wiki) |
+| Dodgy necklace | player_varp | destroy | 10 | 25% chance to prevent a pickpocket stun+damage; 1 charge consumed per successful prevention |
 | Ring of suffering | item_var | none | 2200 | Recoil damage consumes 1 charge per proc (shares ring_of_recoil.rs2's mechanic) |
 | Scythe of vitur | item_var | revert | 20000 | 1 charge per swing that lands a hit (any of the up to 3 sub-hits) |
 | Toxic blowpipe | item_var | none | None | 1 dart (and its charge) consumed per shot; refuses to fire empty |

@@ -243,10 +243,16 @@ FAMILY_DATA = {
         status="charges_only", note="Ladder exists; slayer-task-boost drain not wired.",
     ),
     "Dodgy necklace": dict(
-        storage="item_var", depletion="destroy", max_charges=10,
-        charge_source="Bought from the Thieving shop / made via Crafting",
-        drain_event="Consumed on any failed Thieving stealing roll it protects against (~11% chance per use, per wiki)",
-        status="implemented", note="Crumbles to dust at 0.",
+        storage="player_varp", depletion="destroy", max_charges=10,
+        charge_source="Opal necklace + Lvl-1 Enchant",
+        drain_event="25% chance to prevent a pickpocket stun+damage; 1 charge consumed per successful prevention",
+        status="implemented",
+        note="Wiki, checked directly (2026-08-13): \"the charges stored on "
+             "this necklace are specific to the player, not the item itself\" "
+             "-- like ring of forging. Every dodgy necklace the account owns "
+             "shows the same count and losing the last charge destroys ONE "
+             "necklace (the one worn), not the count. item_var would be wrong "
+             "here despite most enchanted jewellery being item_var.",
     ),
     "Amulet of glory": dict(
         storage="id_ladder", depletion="degrade_step", max_charges=6,
