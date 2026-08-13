@@ -8644,6 +8644,51 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `ambientsound(int $soundscape)` — the region's background bed.
+     *
+     * The id names a config group-15 soundscape (a set of continuous loops
+     * plus independently timed random sets), not a sound effect, so this is
+     * not a spelling of `sound_synth`; and negative means stop, the same rule
+     * `midi_song` and `sound_synth` state.
+     *
+     * Calling it claims the bed for the map square the caller is standing on,
+     * which is how the claim survives `mock230_ambient_enter_region` running
+     * later in the same tick as the teleport that got the player here. The
+     * claim is released by leaving that square, so a script that silences a
+     * place does not also have to remember to restore the world's bed on every
+     * exit path it has — including the ones it does not control, like a death
+     * or a logout.
+     */
+    case SS_OP_AMBIENTSOUND:
+    {
+        int32_t id;
+
+        if( !SSVM_PopInt(state, &id) )
+            return 1;
+        if( srv->verbose )
+            fprintf(stderr, "mock230: ambientsound(%d)\n", id);
+        if( player != NULL )
+        {
+            int map_x;
+            int map_z;
+
+            mock230_region_square_for(player, &map_x, &map_z);
+            player->ambient_script_map_x = map_x;
+            player->ambient_script_map_z = map_z;
+
+            if( player->ambient_scape != id )
+            {
+                player->ambient_scape = id < 0 ? -1 : id;
+                if( id < 0 )
+                    mock230_send_ambientsound_stop(player, 1);
+                else
+                    mock230_send_ambientsound_start(player, id, 1);
+            }
+        }
+        return 1;
+    }
+
     /* ---- containers ------------------------------------------------ */
 
     /*

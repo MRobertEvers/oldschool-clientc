@@ -8506,6 +8506,9 @@ mock230_world_player_init(struct Mock230Player* player)
     player->last_zone_z = -1;
     player->last_map_x = -1;
     player->music_track = -1;
+    player->ambient_scape = -1;
+    player->ambient_script_map_x = -1;
+    player->ambient_script_map_z = -1;
     player->last_map_z = -1;
     /* A memset leaves `zone_index` at 0, which is a real zone. This is what
      * makes the first flush compute an active window rather than believe the
@@ -9179,22 +9182,20 @@ mock230_world_login_finish(struct Mock230Player* player)
     }
 
     /*
-     * 7b. The ambient bed.
+     * 7b. The ambient bed is NOT sent here.
      *
-     * Same argument as the song above: until something sends
-     * AMBIENTSOUND_START, the whole bed path -- the group-15 soundscape
-     * decoder, the multi-loop bed, the timed random sets -- is unreachable from
-     * a running client. Soundscape 1 is the one whose four random sets are
-     * transcribed in `test_soundscape`; override with MOCK230_AMBIENT=<id>, or
-     * -1 for none. A cache without group 15 (anything before OldSchool 231)
-     * treats the id as a sound effect, which is that revision's own reading.
+     * It used to be, unconditionally, on the same reachability argument as the
+     * song above -- and that made it a property of the *session* rather than of
+     * the place, which is wrong in a way a login-time send cannot express: the
+     * bed then played under every square the player ever stood on, including a
+     * foreign rev-727 region whose ambience is carried entirely by its own loc
+     * emitters. Two soundscapes, one of them from the wrong game.
+     *
+     * So it hangs off the map-square latch instead, beside the music that is
+     * keyed the same way -- see `mock230_ambient_enter_region`. The latch fires
+     * for the first time on the login tick (both `last_map_*` are -1), so the
+     * path stays exactly as reachable as it was.
      */
-    {
-        const char* override = getenv("MOCK230_AMBIENT");
-        int scape = override ? atoi(override) : 1;
-        if( scape >= 0 )
-            mock230_send_ambientsound_start(player, scape, 1);
-    }
 
     mock230_send_tick_end(player);
 }
@@ -10062,8 +10063,8 @@ mock230_music_for_region(int region)
  * re-asks too and gets the same source, which the `music_track` compare below
  * already turns into a no-op.
  */
-static void
-mock230_music_square_for(
+void
+mock230_region_square_for(
     struct Mock230Player* player,
     int* out_map_x,
     int* out_map_z)
@@ -10081,6 +10082,54 @@ mock230_music_square_for(
         return; /* inside the reservation but on a zone nothing was copied to */
     *out_map_x = src_x >> 6;
     *out_map_z = src_z >> 6;
+}
+
+/**
+ * The world's ambient bed for a map square.
+ *
+ * There is no region->soundscape table in any cache — the mapping is server
+ * data and no copy of it survives, exactly as `gen_music_regions.py` says of
+ * the music one — so this is not a lookup. It is one placeholder bed for the
+ * whole world, kept because otherwise nothing reaches the group-15 decoder,
+ * the multi-loop path or the timed random sets, and a subsystem nothing
+ * reaches is one nobody notices is broken. Soundscape 1 is the record whose
+ * four random sets `test_soundscape` transcribes; `MOCK230_AMBIENT=<id>`
+ * picks another and `-1` silences it.
+ *
+ * What *is* keyed per square is the exception: a script may own its square's
+ * ambience (`ambientsound`), and this must not talk over it. The QBD arena is
+ * the case that motivated the split — a foreign rev-727 region whose cave
+ * noise is authored as loc ambient emitters on its own scenery, so the
+ * placeholder underneath it is a second soundscape from the wrong game.
+ *
+ * `ambient_script_map_*` is the square that claim was made for. While the
+ * player is still on it, the world bed stays out of the way; stepping off it
+ * releases the claim and the bed comes back. That comparison, rather than a
+ * "has a script spoken" flag, is what makes this independent of whether the
+ * latch runs before or after the script inside the entering tick.
+ */
+static void
+mock230_ambient_enter_region(
+    struct Mock230Player* player,
+    int map_x,
+    int map_z)
+{
+    const char* override;
+    int scape;
+
+    if( player->ambient_script_map_x == map_x && player->ambient_script_map_z == map_z )
+        return;
+
+    player->ambient_script_map_x = -1;
+    player->ambient_script_map_z = -1;
+
+    override = getenv("MOCK230_AMBIENT");
+    scape = override ? atoi(override) : 1;
+    if( scape < 0 || player->ambient_scape == scape )
+        return;
+
+    player->ambient_scape = scape;
+    mock230_send_ambientsound_start(player, scape, 1);
 }
 
 static void
@@ -10190,13 +10239,16 @@ mock230_world_update_map(struct Mock230Player* player)
          * inside an instance the player's own square is out past the edge of
          * the real map and describes nothing, so the track is resolved through
          * the square the instance was copied from. See
-         * `mock230_music_square_for`. */
+         * `mock230_region_square_for`. */
         {
             int music_x;
             int music_z;
 
-            mock230_music_square_for(player, &music_x, &music_z);
+            mock230_region_square_for(player, &music_x, &music_z);
             mock230_music_enter_region(player, music_x, music_z);
+            /* The bed is keyed at the same granularity, through the same
+             * instance-aware square, for the same reason. */
+            mock230_ambient_enter_region(player, music_x, music_z);
         }
     }
 
@@ -12140,7 +12192,7 @@ mock230_world_selftest(void)
              * last instance was pointed at. */
             player->x = 3222;
             player->z = 3222;
-            mock230_music_square_for(player, &music_x, &music_z);
+            mock230_region_square_for(player, &music_x, &music_z);
             SELFTEST_CHECK(music_x == 3222 >> 6 && music_z == 3222 >> 6,
                            "outside an instance the music square is the player's own, got %d,%d",
                            music_x, music_z);
@@ -12153,7 +12205,7 @@ mock230_world_selftest(void)
                            "the pool should have handed out a square that is NOT the template's, "
                            "or this test proves nothing (got %d)",
                            player->x >> 6);
-            mock230_music_square_for(player, &music_x, &music_z);
+            mock230_region_square_for(player, &music_x, &music_z);
             SELFTEST_CHECK(music_x == 35 && music_z == 83,
                            "an instanced player's music square should be the source's (35,83), "
                            "got %d,%d",
@@ -12190,6 +12242,79 @@ mock230_world_selftest(void)
                        "region 9520 (Castle Wars) should carry a music track");
         SELFTEST_CHECK(mock230_music_for_region(13362) != NULL,
                        "region 13362 (Emir's Arena) should carry a music track");
+
+        /*
+         * The ambient bed, which is keyed at the same granularity and used to
+         * be keyed at none: one AMBIENTSOUND_START on the login tick and never
+         * revised, so it played under every square including the QBD arena's
+         * authored loc ambience.
+         *
+         * `ambientsound` claims the square the caller stands on, and the claim
+         * has to beat `mock230_ambient_enter_region` running LATER in the same
+         * tick as the teleport that arrived there — which is the order the two
+         * actually run in. Asserting the claim rather than a packet: a packet
+         * assertion passes on the entering tick and says nothing about the
+         * latch that undoes it a few phases later.
+         */
+        {
+            uint16_t ambient_ops[] = {
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_AMBIENTSOUND, SS_OP_RETURN,
+            };
+            int32_t ambient_operands[] = { -1, 0, 0 };
+            char* ambient_strings[3] = { NULL };
+            struct SSVM_Script ambient_script = {
+                .id = -1,
+                .name = "[selftest,ambientsound]",
+                .source_path = "<selftest>",
+                .lookup_key = -1,
+                .op_count = 3,
+                .opcodes = ambient_ops,
+                .int_operands = ambient_operands,
+                .string_operands = ambient_strings,
+            };
+            int old_x = player->x;
+            int old_z = player->z;
+            int old_scape = player->ambient_scape;
+
+            player->x = 3222;
+            player->z = 3222;
+            player->ambient_scape = 1;
+            player->ambient_script_map_x = -1;
+            player->ambient_script_map_z = -1;
+
+            SELFTEST_CHECK(mock230_scripts_run_hook(srv, &ambient_script, NULL, 0),
+                           "ambientsound executes through the host VM");
+            SELFTEST_CHECK(player->ambient_scape == -1,
+                           "ambientsound(-1) should stop the bed, got scape %d",
+                           player->ambient_scape);
+            SELFTEST_CHECK(player->ambient_script_map_x == (3222 >> 6) &&
+                               player->ambient_script_map_z == (3222 >> 6),
+                           "ambientsound should claim the caller's square, got %d,%d",
+                           player->ambient_script_map_x, player->ambient_script_map_z);
+
+            /* Same square: the world bed must stay out of the way. */
+            mock230_ambient_enter_region(player, 3222 >> 6, 3222 >> 6);
+            SELFTEST_CHECK(player->ambient_scape == -1,
+                           "the world bed must not talk over a script's claim on the same "
+                           "square, got scape %d",
+                           player->ambient_scape);
+
+            /* A different square releases it, and the bed comes back with no
+             * exit path having had to restore it by hand. */
+            mock230_ambient_enter_region(player, 40, 40);
+            SELFTEST_CHECK(player->ambient_scape == 1,
+                           "leaving the claimed square should restore the world bed, got "
+                           "scape %d",
+                           player->ambient_scape);
+            SELFTEST_CHECK(player->ambient_script_map_x < 0,
+                           "and should release the claim");
+
+            player->x = old_x;
+            player->z = old_z;
+            player->ambient_scape = old_scape;
+            player->ambient_script_map_x = -1;
+            player->ambient_script_map_z = -1;
+        }
     }
 
     fprintf(stderr, "mock230 selftest: rev239 interface writer bytes\n");
@@ -32236,6 +32361,39 @@ mock230_world_selftest(void)
                     fprintf(stderr,
                             "  SKIP  runtime QBD coffer claim requires "
                             "cache.osrs239.rs2012\n");
+                }
+
+                /*
+                 * The grotworm's three stages must not overlap.
+                 *
+                 * `rs2012_qbd_spot_3141` (flying) and `3142` (landing) are both
+                 * model 110005 — the grotworm — and so is the npc that follows,
+                 * so all three stages are worm-shaped and any overlap is a
+                 * visible duplicate. 16800, the landing, runs a full 60 cycles;
+                 * emitting it alongside `npc_add` put a worm animation and a
+                 * worm npc on one tile for two ticks.
+                 *
+                 * They are consecutive when the hatch delay equals the flight
+                 * plus the landing. Three numbers that must agree, in two files,
+                 * with nothing connecting them but this.
+                 */
+                {
+                    int const flight =
+                        mock230_content_constant_int("rs2012_qbd_worm_flight_cycles", -1);
+                    int const landing =
+                        mock230_content_constant_int("rs2012_qbd_worm_landing_cycles", -1);
+                    int const hatch =
+                        mock230_content_constant_int("rs2012_qbd_worm_hatch_delay", -1);
+
+                    SELFTEST_CHECK(flight > 0 && landing > 0 && hatch > 0,
+                                   "the worm stage constants should all be stated, got "
+                                   "flight=%d landing=%d hatch=%d",
+                                   flight, landing, hatch);
+                    SELFTEST_CHECK(hatch * 30 == flight + landing,
+                                   "the worm hatch (%d ticks = %d cycles) must land exactly "
+                                   "when the landing animation ends (flight %d + landing %d "
+                                   "= %d), or the animation and the npc are two worms",
+                                   hatch, hatch * 30, flight, landing, flight + landing);
                 }
 
                 /*
