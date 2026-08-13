@@ -768,6 +768,28 @@ validate_id_bases(
         RSCache_Dat2DiskArchiveFree(archive);
         checked++;
 
+        /*
+         * A varp is claimed by any varbit based on it, record or no record.
+         *
+         * The group's last file id is not the namespace's ceiling. This cache's
+         * varp group ends at 5704 and its varbits reach 5724, so twenty ids
+         * looked free to every reader that asked the group — `configs/all.varp`
+         * is an export of that same group, so `tools/ss_allocate.py` handed all
+         * twenty out and `%com_*` landed on packed combat varbits. The check
+         * passed because it was asking the same incomplete question.
+         */
+        if( k_config_groups[g].kind == MOCK230_PACK_VARP )
+        {
+            int basevar_max = mock230_varbit_max_basevar();
+
+            if( basevar_max < 0 )
+                report_warning("varp: no varbit table loaded — its base is checked against "
+                               "the varp group alone, which does not see varbits based "
+                               "past the group's end");
+            else if( basevar_max > cache_max )
+                cache_max = basevar_max;
+        }
+
         if( row->server_base <= cache_max )
         {
             report_error("%s: the allocation base is %d, but the cache defines ids up to "

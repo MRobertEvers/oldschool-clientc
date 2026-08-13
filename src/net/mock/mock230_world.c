@@ -45,6 +45,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                       */
@@ -7738,6 +7739,19 @@ mock230_world_mark_varp(
  */
 static int g_carrier_writes;
 static int g_carrier_write_last = -1;
+/*
+ * Which varps have already been reported, so each is named once.
+ *
+ * Every one of these writes is a content bug and the counter below still sees
+ * all of them. The *report* is the problem: one unbuffered stderr write costs
+ * about 6 ms on Windows (see `app_world_spawn_npc_now`), the embedded server
+ * runs on the host's frame thread, and a varp written wholesale is written
+ * wholesale on every tick that runs the script — `~player_combat_stat` writes
+ * about thirty of them per swing. That turned one content bug into a 300 ms
+ * tick, which is six dropped frames per attack. Reporting each varp once says
+ * exactly as much and costs nothing after the first.
+ */
+static uint8_t g_carrier_reported[MOCK230_VARP_COUNT];
 
 int
 mock230_world_carrier_writes(int* out_last_varp)
@@ -7752,6 +7766,9 @@ mock230_world_carrier_writes_reset(void)
 {
     g_carrier_writes = 0;
     g_carrier_write_last = -1;
+    /* A fresh observation window wants to hear about the varps again — this is
+     * what the selftest calls between scenarios. */
+    memset(g_carrier_reported, 0, sizeof(g_carrier_reported));
 }
 
 /*
@@ -7787,6 +7804,12 @@ check_carrier_write(
         return;
     g_carrier_writes++;
     g_carrier_write_last = varp;
+    if( varp >= 0 && varp < MOCK230_VARP_COUNT )
+    {
+        if( g_carrier_reported[varp] )
+            return;
+        g_carrier_reported[varp] = 1;
+    }
     fprintf(stderr,
             "mock230: whole-varp write to varp %d (%s) = %d — %d varbit(s) are packed into "
             "it and this write destroys them; write the varbit, or declare "
@@ -8997,6 +9020,105 @@ mock230_world_login_finish(struct Mock230Player* player)
  * one invites putting it in whichever phase happens to be nearby.
  */
 
+/*
+ * TORIRS_SERVER_BREAKDOWN=<ms>: split one world tick by phase, and phase 5 by
+ * the step inside it, printing the split when the tick exceeds <ms>.
+ *
+ * The embedded server shares the client's frame thread, so a slow tick is a
+ * dropped frame -- and the tick is a 600 ms heartbeat that lands on one frame
+ * in thirty, which is exactly the shape of a spike that disappears into the
+ * averages. Off unless the variable is set: an unconditional write on a path
+ * this hot costs more than what it measures (see app_world_spawn_npc_now).
+ */
+enum
+{
+    TICK_BD_PHASES = 12
+};
+
+enum
+{
+    PP_SCRIPTS,
+    PP_LOCKED,
+    PP_FACE,
+    PP_INTERACT_PRE,
+    PP_APPROACH,
+    PP_ADVANCE,
+    PP_INTERACT_POST,
+    PP_TAIL,
+    PP_COUNT
+};
+
+static int g_tick_bd_init;
+static int g_tick_bd_on;
+static int g_tick_bd_ms;
+static FILE* g_tick_bd_out;
+static uint64_t g_pp[PP_COUNT];
+
+/* Two costs that cut across the phases rather than sitting inside one: script
+ * dispatch (mock230_scripts.c) and the collision flood every route runs
+ * (collision_map.c). Both are accumulated at their own source and zeroed here
+ * per tick, so they overlap the phase columns instead of adding to them. */
+extern uint64_t g_mock230_script_us;
+extern int g_mock230_script_runs;
+extern uint64_t g_mock230_script_slow_us;
+extern char g_mock230_script_slow_name[96];
+extern uint64_t g_collision_route_us;
+extern int g_collision_route_calls;
+extern int g_collision_route_tiles;
+/* g_ssvm_ops / g_ssvm_op_us / g_ssvm_op_hits are declared by ssvm.h. */
+
+/*
+ * TORIRS_SERVER_BREAKDOWN_LOG=<path> sends the split to a buffered file instead
+ * of stderr, which is what makes a threshold of 0 usable: on Windows stderr is
+ * unbuffered and one write costs about 6 ms, so logging every tick to it would
+ * cost more than the tick measures and would land that cost on exactly the
+ * frames under study. To a file it is free, and a whole run's ticks can be
+ * ranked afterwards rather than fished for one spike at a time.
+ */
+static int
+tick_bd_on(void)
+{
+    if( !g_tick_bd_init )
+    {
+        char const* v = getenv("TORIRS_SERVER_BREAKDOWN");
+        char const* path = getenv("TORIRS_SERVER_BREAKDOWN_LOG");
+
+        g_tick_bd_init = 1;
+        if( path && path[0] )
+            g_tick_bd_out = fopen(path, "w");
+        g_tick_bd_ms = (v && v[0]) ? atoi(v) : 0;
+        /* A log path on its own means every tick; a threshold on its own means
+         * stderr and only the slow ones. Neither set is off. */
+        g_tick_bd_on = g_tick_bd_out != NULL || g_tick_bd_ms > 0;
+        if( !g_tick_bd_out )
+            g_tick_bd_out = stderr;
+    }
+    return g_tick_bd_on;
+}
+
+static uint64_t
+tick_bd_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+/* Accumulate into g_pp[slot] and restamp the cursor. `on` is hoisted by the
+ * caller so the getenv-backed gate is read once per player, not once per step. */
+#define PP_MARK(on, cursor, slot)                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        if( on )                                                                                   \
+        {                                                                                          \
+            uint64_t pp_now = tick_bd_now_us();                                                    \
+            g_pp[slot] += pp_now - (cursor);                                                       \
+            (cursor) = pp_now;                                                                     \
+        }                                                                                          \
+    } while( 0 )
+
 /** 1. World script queue (world_delay), delayed obj spawns, npc hunt. */
 static void
 phase_world(struct Mock230Server* srv)
@@ -9132,6 +9254,8 @@ static void
 phase_player(struct Mock230Player* player)
 {
     struct Mock230Server* srv = player->world;
+    int bd_on = tick_bd_on();
+    uint64_t bd_t = bd_on ? tick_bd_now_us() : 0;
 
     mock230_world_set_active(srv, player);
 
@@ -9146,6 +9270,7 @@ phase_player(struct Mock230Player* player)
      * one tick after the crossing, before this tick's movement rather than
      * after it. */
     mock230_scripts_process_engine_queue(srv);
+    PP_MARK(bd_on, bd_t, PP_SCRIPTS);
 
     /*
      * An action lock is deliberately below every script/queue/timer phase.
@@ -9165,6 +9290,7 @@ phase_player(struct Mock230Player* player)
         advance_player(srv);
         run_energy_tick(srv, 0);
         mock230_combat_player_tick(srv);
+        PP_MARK(bd_on, bd_t, PP_LOCKED);
         return;
     }
 
@@ -9174,6 +9300,7 @@ phase_player(struct Mock230Player* player)
      * in processPlayers, before processInteraction.
      */
     mock230_player_set_face_entity(player);
+    PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*
      * LostCity Player.processInteraction: tryInteract → pathToPathingTarget →
@@ -9186,20 +9313,24 @@ phase_player(struct Mock230Player* player)
         if( !interaction_try(srv, 0) )
             interaction_path_to_pathing_target(srv);
     }
+    PP_MARK(bd_on, bd_t, PP_INTERACT_PRE);
 
     /* Combat's every-tick pathToTarget — same pre-move slot as above, for the
      * engaged fight that no longer holds a latched interaction. */
     mock230_combat_player_approach(srv);
+    PP_MARK(bd_on, bd_t, PP_APPROACH);
     /* advance_player fires an armed walktrigger immediately before each
      * concrete tile. That preserves the ordinary freeze/stun veto and also
      * gives controller-style content both tiles of a running tick. */
     advance_player(srv);
+    PP_MARK(bd_on, bd_t, PP_ADVANCE);
 
     if( player->interaction.kind != MOCK230_INTERACT_NONE )
     {
         if( !interaction_try(srv, player->steps_taken == 0) )
             interaction_continue_or_give_up(srv);
     }
+    PP_MARK(bd_on, bd_t, PP_INTERACT_POST);
     /* After movement: face a loc/obj target if we walked over and held still
      * (LostCity reorient(); needs this-tick steps_taken). The face_target
      * stash survives interaction_clear, so FACE_COORD ships on the same tick
@@ -9211,6 +9342,7 @@ phase_player(struct Mock230Player* player)
     /* Before the swing: a prayer that ran out this tick must not protect the
      * hit that lands on it. */
     mock230_combat_player_tick(srv);
+    PP_MARK(bd_on, bd_t, PP_TAIL);
 }
 
 static void
@@ -10141,10 +10273,58 @@ phase_cleanup(struct Mock230Server* srv)
     mock230_zone_reset(srv);
 }
 
+static char const* const g_tick_bd_names[TICK_BD_PHASES] = {
+    "world", "clients_in", "npc_events", "npcs",  "players",     "logouts",
+    "logins", "zones",     "worldmap",   "info",  "clients_out", "cleanup"
+};
+
+static char const* const g_pp_names[PP_COUNT] = {
+    "scripts", "locked", "face",          "interact_pre",
+    "approach", "advance", "interact_post", "tail"
+};
+
 void
 mock230_world_tick(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
+    uint64_t bd[TICK_BD_PHASES];
+    uint64_t bd_t;
+    uint64_t bd_t0;
+    int bd_on = tick_bd_on();
+    int bd_i = 0;
+
+#define BD_MARK()                                                                                  \
+    do                                                                                             \
+    {                                                                                              \
+        if( bd_on )                                                                                \
+        {                                                                                          \
+            uint64_t bd_now = tick_bd_now_us();                                                    \
+            bd[bd_i++] = bd_now - bd_t;                                                            \
+            bd_t = bd_now;                                                                         \
+        }                                                                                          \
+    } while( 0 )
+
+    memset(bd, 0, sizeof(bd));
+    memset(g_pp, 0, sizeof(g_pp));
+    g_mock230_script_us = 0;
+    g_mock230_script_runs = 0;
+    g_mock230_script_slow_us = 0;
+    g_mock230_script_slow_name[0] = '\0';
+    g_collision_route_us = 0;
+    g_collision_route_calls = 0;
+    g_collision_route_tiles = 0;
+    g_ssvm_ops = 0;
+    /* 150 KB of counters, cleared only for a run that is going to read them. The
+     * VM fills them under its own switch; this one keeps the clear off a tick
+     * that has no breakdown to print. */
+    if( bd_on )
+    {
+        memset(g_ssvm_op_us, 0, sizeof(g_ssvm_op_us));
+        memset(g_ssvm_op_hits, 0, sizeof(g_ssvm_op_hits));
+    }
+    bd_t = bd_on ? tick_bd_now_us() : 0;
+    bd_t0 = bd_t;
+
     /*
      * The tick borrows `active_player` and gives it back.
      *
@@ -10159,13 +10339,21 @@ mock230_world_tick(struct Mock230Server* srv)
     srv->tick++;
 
     phase_world(srv);
+    BD_MARK();
     phase_clients_in(srv);
+    BD_MARK();
     phase_npc_events(srv);
+    BD_MARK();
     phase_npcs(srv);
+    BD_MARK();
     phase_players(srv);
+    BD_MARK();
     phase_logouts(srv);
+    BD_MARK();
     phase_logins(srv);
+    BD_MARK();
     phase_zones(srv);
+    BD_MARK();
     /* After movement, before the info streams: the world map marker is derived
      * state, and this is the only place it can be refreshed with the tile the
      * player will actually be reported on. */
@@ -10176,11 +10364,78 @@ mock230_world_tick(struct Mock230Server* srv)
         mock230_world_set_active(srv, player);
         mock230_worldmap_tick(srv);
     }
+    BD_MARK();
     phase_info(srv);
+    BD_MARK();
     phase_clients_out(srv);
+    BD_MARK();
     phase_cleanup(srv);
+    BD_MARK();
 
     mock230_world_set_active(srv, caller_active);
+
+    if( bd_on )
+    {
+        uint64_t total = tick_bd_now_us() - bd_t0;
+
+        if( total >= (uint64_t)g_tick_bd_ms * 1000u )
+        {
+            FILE* out = g_tick_bd_out;
+
+            fprintf(out, "server_bd: tick %d total %.2f ms |", srv->tick, total / 1000.0);
+            for( int i = 0; i < TICK_BD_PHASES; i++ )
+                if( bd[i] >= 100 )
+                    fprintf(out, " %s %.2f", g_tick_bd_names[i], bd[i] / 1000.0);
+            fprintf(out, " || players:");
+            for( int i = 0; i < PP_COUNT; i++ )
+                if( g_pp[i] >= 100 )
+                    fprintf(out, " %s %.2f", g_pp_names[i], g_pp[i] / 1000.0);
+            fprintf(out, " || script %.2f x%d ops %llu route %.2f x%d tiles %d",
+                    g_mock230_script_us / 1000.0, g_mock230_script_runs,
+                    (unsigned long long)g_ssvm_ops, g_collision_route_us / 1000.0,
+                    g_collision_route_calls, g_collision_route_tiles);
+            if( g_mock230_script_slow_name[0] )
+                fprintf(out, " slowest %s %.2f", g_mock230_script_slow_name,
+                        g_mock230_script_slow_us / 1000.0);
+
+            /* The tick's four costliest engine ops, by name. Empty unless
+             * TORIRS_SSVM_OPS=1 armed the VM's per-instruction clock. Selection
+             * is a scan per rank with the ones already printed struck out; four
+             * passes over the opcode space is nothing against a tick already
+             * slow enough to be printed. */
+            {
+                int taken[4];
+                int n_taken = 0;
+
+                for( int rank = 0; rank < 4; rank++ )
+                {
+                    int best = -1;
+
+                    for( int i = 0; i < SSVM_OP_TIMING_MAX; i++ )
+                    {
+                        int skip = 0;
+
+                        if( g_ssvm_op_us[i] == 0 )
+                            continue;
+                        for( int t = 0; t < n_taken; t++ )
+                            skip |= taken[t] == i;
+                        if( skip )
+                            continue;
+                        if( best < 0 || g_ssvm_op_us[i] > g_ssvm_op_us[best] )
+                            best = i;
+                    }
+                    if( best < 0 )
+                        break;
+                    taken[n_taken++] = best;
+                    fprintf(out, " | op %s %.2f x%d", SSVM_OpcodeName(best),
+                            g_ssvm_op_us[best] / 1000.0, g_ssvm_op_hits[best]);
+                }
+            }
+            fprintf(out, "\n");
+        }
+    }
+
+#undef BD_MARK
 }
 
 /* ------------------------------------------------------------------ */

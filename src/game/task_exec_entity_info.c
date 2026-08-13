@@ -38,6 +38,145 @@ entity_debug_log(char const* fmt, int a, int b)
         fprintf(stderr, fmt, a, b);
 }
 
+/*
+ * Op-array scratch.
+ *
+ * Both decoders below write into an ENTITY_INFO_OPS_MAX array and drop it when
+ * the packet finishes. At 2048 entries that is tens of KB calloc'd, zeroed and
+ * freed for every PLAYER_INFO and every NPC_INFO -- and the server sends both
+ * on every tick. Nothing outlives the task, so keep one array per decoder on
+ * App and hand it back instead.
+ *
+ * App_LogicTick settles each packet task before queueing the next, so a second
+ * borrow cannot overlap the first; the busy flag with a plain calloc fallback
+ * keeps that a performance assumption rather than a correctness one.
+ *
+ * Release frees the say strings either way, then zeroes only the ops the decode
+ * actually wrote -- the array is handed out zeroed and op_count is assigned in
+ * the same protothread segment as the read, with no yield in between, so no
+ * entry past op_count can be dirty.
+ */
+static struct PktNpcInfoOp*
+npc_ops_borrow(struct App* app)
+{
+    if( app->npc_info_ops_scratch_busy )
+        return calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktNpcInfoOp));
+    if( !app->npc_info_ops_scratch )
+    {
+        app->npc_info_ops_scratch =
+            calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktNpcInfoOp));
+        if( !app->npc_info_ops_scratch )
+            return NULL;
+    }
+    app->npc_info_ops_scratch_busy = 1;
+    return app->npc_info_ops_scratch;
+}
+
+static void
+npc_ops_release(struct App* app, struct PktNpcInfoOp* ops, int op_count)
+{
+    if( !ops )
+        return;
+    if( op_count < 0 )
+        op_count = 0;
+    if( op_count > ENTITY_INFO_OPS_MAX )
+        op_count = ENTITY_INFO_OPS_MAX;
+    pkt_npc_info_ops_free(ops, op_count);
+    if( ops != app->npc_info_ops_scratch )
+    {
+        free(ops);
+        return;
+    }
+    if( op_count > 0 )
+        memset(ops, 0, (size_t)op_count * sizeof(*ops));
+    app->npc_info_ops_scratch_busy = 0;
+}
+
+static struct PktPlayerInfoOp*
+player_ops_borrow(struct App* app)
+{
+    if( app->player_info_ops_scratch_busy )
+        return calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktPlayerInfoOp));
+    if( !app->player_info_ops_scratch )
+    {
+        app->player_info_ops_scratch =
+            calloc(ENTITY_INFO_OPS_MAX, sizeof(struct PktPlayerInfoOp));
+        if( !app->player_info_ops_scratch )
+            return NULL;
+    }
+    app->player_info_ops_scratch_busy = 1;
+    return app->player_info_ops_scratch;
+}
+
+static void
+player_ops_release(struct App* app, struct PktPlayerInfoOp* ops, int op_count)
+{
+    if( !ops )
+        return;
+    if( op_count < 0 )
+        op_count = 0;
+    if( op_count > ENTITY_INFO_OPS_MAX )
+        op_count = ENTITY_INFO_OPS_MAX;
+    pkt_player_info_ops_free(ops, op_count);
+    if( ops != app->player_info_ops_scratch )
+    {
+        free(ops);
+        return;
+    }
+    if( op_count > 0 )
+        memset(ops, 0, (size_t)op_count * sizeof(*ops));
+    app->player_info_ops_scratch_busy = 0;
+}
+
+/*
+ * TORIRS_NPCINFO_BREAKDOWN=<ms>: split one NPC_INFO apply into decode / await /
+ * spawn / retype / move and print the split when it exceeds <ms>. The exec
+ * pipeline runs one packet at a time, so file statics are safe accumulators;
+ * they are reset at the top of each run.
+ */
+uint64_t
+PlatformSDL2_TicksUs(void);
+
+static int g_npcinfo_bd_ms = -1;
+static uint64_t g_bd_decode;
+static uint64_t g_bd_await;
+static uint64_t g_bd_spawn;
+static uint64_t g_bd_retype;
+static uint64_t g_bd_apply;
+static int g_bd_ops;
+static int g_bd_spawns;
+
+static int
+npcinfo_bd_on(void)
+{
+    if( g_npcinfo_bd_ms < 0 )
+    {
+        char const* v = getenv("TORIRS_NPCINFO_BREAKDOWN");
+        g_npcinfo_bd_ms = (v && v[0]) ? atoi(v) : 0;
+    }
+    return g_npcinfo_bd_ms > 0;
+}
+
+#define BD_T0() (npcinfo_bd_on() ? PlatformSDL2_TicksUs() : 0)
+#define BD_ADD(acc, t0)                                                                            \
+    do                                                                                             \
+    {                                                                                              \
+        if( npcinfo_bd_on() )                                                                      \
+            (acc) += PlatformSDL2_TicksUs() - (t0);                                                 \
+    } while( 0 )
+
+void
+Task_EntityInfoScratchFree(struct App* app)
+{
+    assert(app);
+    free(app->npc_info_ops_scratch);
+    free(app->player_info_ops_scratch);
+    app->npc_info_ops_scratch = NULL;
+    app->player_info_ops_scratch = NULL;
+    app->npc_info_ops_scratch_busy = 0;
+    app->player_info_ops_scratch_busy = 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* PLAYER_INFO                                                         */
 /* ------------------------------------------------------------------ */
@@ -550,7 +689,7 @@ Task_ExecPlayerInfo_Run(
 
     PT_BEGIN(&self->pt);
 
-    self->ops = calloc(ENTITY_INFO_OPS_MAX, sizeof(*self->ops));
+    self->ops = player_ops_borrow(app);
     assert(self->ops);
     /* A revision whose stream is a different CODEC states its own reader
      * (GameProtoRevTable.player_info_read); NULL means the classic bitstream.
@@ -700,11 +839,7 @@ static void
 Task_ExecPlayerInfo_Free(struct ToriRS_Task* base)
 {
     struct Task_ExecPlayerInfo* self = (struct Task_ExecPlayerInfo*)base;
-    if( self->ops )
-    {
-        pkt_player_info_ops_free(self->ops, self->op_count);
-        free(self->ops);
-    }
+    player_ops_release(self->app, self->ops, self->op_count);
     free(self);
 }
 
@@ -772,6 +907,8 @@ struct Task_ExecNpcInfo
     int seq_i;
     int pending_seq;
     int pending_delay;
+
+    uint64_t bd_start; /* TORIRS_NPCINFO_BREAKDOWN only */
 };
 
 /* Reads npctype->models[model_i] fresh each call (config already loaded). */
@@ -1155,7 +1292,11 @@ Task_ExecNpcInfo_Run(
 
     PT_BEGIN(&self->pt);
 
-    self->ops = calloc(ENTITY_INFO_OPS_MAX, sizeof(*self->ops));
+    g_bd_decode = g_bd_await = g_bd_spawn = g_bd_retype = g_bd_apply = 0;
+    g_bd_ops = g_bd_spawns = 0;
+    self->bd_start = BD_T0();
+
+    self->ops = npc_ops_borrow(app);
     assert(self->ops);
     /* The new-npc record's slot and type widths are revision state, not
      * constants — see GameProtoRevTable.npc_type_bits. Zero widths (no net
@@ -1166,12 +1307,14 @@ Task_ExecNpcInfo_Run(
         app->net && app->net->rev ? app->net->rev->npc_type_bits : 0);
     {
         struct GameProtoRevTable const* rev = app->net ? app->net->rev : NULL;
+        uint64_t t0 = BD_T0();
 
         self->op_count =
             rev && rev->npc_info_read
                 ? rev->npc_info_read(self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX)
                 : pkt_npc_info_reader_read(
                       &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+        BD_ADD(g_bd_decode, t0);
     }
 
     self->old_count = app->esync.active_npc_count;
@@ -1186,11 +1329,21 @@ Task_ExecNpcInfo_Run(
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
     {
-        if( !npc_target_op(self, &self->ops[self->op_i]) )
+        uint64_t bd_t = BD_T0();
+        int targeted = npc_target_op(self, &self->ops[self->op_i]);
+
+        BD_ADD(g_bd_apply, bd_t);
+        g_bd_ops++;
+        if( !targeted )
         {
-            int need = npc_apply_op(self, &self->ops[self->op_i]);
+            int need;
+
+            bd_t = BD_T0();
+            need = npc_apply_op(self, &self->ops[self->op_i]);
+            BD_ADD(g_bd_apply, bd_t);
             if( need == NPC_NEED_SPAWN || need == NPC_NEED_CHANGE_TYPE )
             {
+                g_bd_spawns++;
                 TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->pending_npc_type));
                 for( self->model_i = 0; self->model_i < npc_model_count(self); self->model_i++ )
                 {
@@ -1200,11 +1353,18 @@ Task_ExecNpcInfo_Run(
                 {
                     TASK_AWAITSELF_IF(npc_idle_seq_task(self));
                 }
+                bd_t = BD_T0();
                 if( self->cur_world_idx < 0 )
+                {
                     npc_spawn_now(self);
+                    BD_ADD(g_bd_spawn, bd_t);
+                }
                 else
+                {
                     App_WorldApplyNpcType(
                         app, self->cur_world_idx, self->cur_element_id, self->pending_npc_type);
+                    BD_ADD(g_bd_retype, bd_t);
+                }
             }
             else if( need == NPC_NEED_SEQ )
             {
@@ -1221,6 +1381,24 @@ Task_ExecNpcInfo_Run(
 
     app->need_redraw = 1;
 
+    if( npcinfo_bd_on() )
+    {
+        uint64_t total = PlatformSDL2_TicksUs() - self->bd_start;
+        if( total >= (uint64_t)g_npcinfo_bd_ms * 1000u )
+            fprintf(
+                stderr,
+                "npcinfo_bd: total %.2f decode %.2f apply %.2f spawn %.2f retype %.2f "
+                "rest %.2f | ops %d spawns %d\n",
+                total / 1000.0,
+                g_bd_decode / 1000.0,
+                g_bd_apply / 1000.0,
+                g_bd_spawn / 1000.0,
+                g_bd_retype / 1000.0,
+                (total - g_bd_decode - g_bd_apply - g_bd_spawn - g_bd_retype) / 1000.0,
+                g_bd_ops,
+                g_bd_spawns);
+    }
+
     PT_END(&self->pt);
 }
 
@@ -1228,11 +1406,7 @@ static void
 Task_ExecNpcInfo_Free(struct ToriRS_Task* base)
 {
     struct Task_ExecNpcInfo* self = (struct Task_ExecNpcInfo*)base;
-    if( self->ops )
-    {
-        pkt_npc_info_ops_free(self->ops, self->op_count);
-        free(self->ops);
-    }
+    npc_ops_release(self->app, self->ops, self->op_count);
     free(self);
 }
 

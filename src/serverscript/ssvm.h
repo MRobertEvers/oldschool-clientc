@@ -373,4 +373,20 @@ SSVM_Random(
     struct SSVM_Env* env,
     int32_t bound);
 
+/*
+ * Profiling counters, read by the embedded server's tick breakdown
+ * (mock230_world.c). `g_ssvm_ops` is always live; the per-opcode pair only fills
+ * in under TORIRS_SSVM_OPS=1. Both are reset by the reader, not by the VM --
+ * the VM has no notion of a tick.
+ *
+ * The array is indexed by raw opcode, which is sparse (commands start at 11000),
+ * so it is bounded by the largest opcode rather than by their count. Anything at
+ * or above the bound lands in slot 0, which no real opcode uses.
+ */
+#define SSVM_OP_TIMING_MAX 12288
+
+extern uint64_t g_ssvm_ops;
+extern uint64_t g_ssvm_op_us[SSVM_OP_TIMING_MAX];
+extern int g_ssvm_op_hits[SSVM_OP_TIMING_MAX];
+
 #endif

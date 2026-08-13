@@ -714,6 +714,69 @@ player_can_access(struct Mock230Server* srv)
     return 1;
 }
 
+/*
+ * Report a script abort, once per site.
+ *
+ * Two `fprintf(stderr)` calls stood here, and that was the single most expensive
+ * thing the embedded server did. It runs on the host's frame thread, where one
+ * unbuffered stderr write costs about 6 ms on Windows (see
+ * `app_world_spawn_npc_now`) — and a script that aborts aborts *every* time it
+ * is dispatched, because nothing about the dispatch changed. A stale db table id
+ * in `~player_combat_stat` therefore cost ~20 ms of report on every swing, which
+ * is a dropped frame per attack. The abort was a content bug; the stutter was
+ * this.
+ *
+ * So: one buffer, one write, and only the first time a given script dies at a
+ * given instruction. The same script aborting at a different pc is a different
+ * bug and still prints. The cap bounds the tracking itself — a server with that
+ * many distinct dying scripts has already said everything it has to say.
+ */
+enum
+{
+    ABORT_SITE_MAX = 128
+};
+
+static struct
+{
+    const struct SSVM_Script* script;
+    int pc;
+} g_abort_sites[ABORT_SITE_MAX];
+static int g_abort_site_count;
+static int g_abort_sites_full;
+
+static void
+report_abort(struct SSVM_State* state)
+{
+    /* SSVM_Backtrace's own buffer is 1 KB and already ends in a newline, so the
+     * context line appends to it and the pair leaves as one write. */
+    char report[1400];
+
+    for( int i = 0; i < g_abort_site_count; i++ )
+        if( g_abort_sites[i].script == state->script &&
+            g_abort_sites[i].pc == state->err.offset )
+            return;
+
+    if( g_abort_site_count >= ABORT_SITE_MAX )
+    {
+        if( g_abort_sites_full )
+            return;
+        g_abort_sites_full = 1;
+        fprintf(stderr, "mock230: %d scripts have aborted at distinct sites; the rest "
+                        "are silent\n",
+                ABORT_SITE_MAX);
+        return;
+    }
+    g_abort_sites[g_abort_site_count].script = state->script;
+    g_abort_sites[g_abort_site_count].pc = state->err.offset;
+    g_abort_site_count++;
+
+    snprintf(report, sizeof(report),
+             "mock230: %smock230: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
+             SSVM_Backtrace(state), (int)state->host_tag, (unsigned)state->pointers,
+             (state->pointers & SSVM_PTR_ACTIVE_NPC) != 0);
+    fputs(report, stderr);
+}
+
 /**
  * Run a state, and park it wherever its suspend status says it belongs.
  *
@@ -744,15 +807,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         struct Mock230Player* owner = srv->active_player;
 
         if( status == SSVM_ABORTED )
-        {
-            fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
-            fprintf(
-                stderr,
-                "mock230: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
-                (int)state->host_tag,
-                (unsigned)state->pointers,
-                (state->pointers & SSVM_PTR_ACTIVE_NPC) != 0);
-        }
+            report_abort(state);
         release_parked(srv, state);
         owner->resume_button_count = 0;
         if( owner->mainmodal_group <= 0 )
@@ -767,13 +822,7 @@ run_or_park(struct Mock230Server* srv, struct SSVM_State* state)
         return 1;
 
     case SSVM_ABORTED:
-        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
-        fprintf(
-            stderr,
-            "mock230: abort context host_tag=%d pointers=0x%x active_npc=%d\n",
-            (int)state->host_tag,
-            (unsigned)state->pointers,
-            (state->pointers & SSVM_PTR_ACTIVE_NPC) != 0);
+        report_abort(state);
         release_parked(srv, state);
         return 0;
 
@@ -1661,8 +1710,75 @@ trigger_label(
  * to disagree about what a trigger's execution context is — which they did in
  * one respect already, the npc, and `[if_button,...]` never had one.
  */
+/*
+ * Trigger-dispatch cost, read by the embedded server's tick breakdown
+ * (mock230_world.c).
+ *
+ * Counted at the OUTERMOST dispatch only: a script is free to fire another
+ * trigger, and adding the nested run in again would report more script time
+ * than the tick took. A parked script's later resumption is not counted here at
+ * all -- it re-enters through mock230_scripts_resume_*, which the breakdown
+ * already attributes to phase 5's `scripts` slot.
+ */
+uint64_t g_mock230_script_us;
+int g_mock230_script_runs;
+/* The tick's worst single dispatch, by name -- a total is enough to say "a
+ * script did this" and never enough to say which one. */
+uint64_t g_mock230_script_slow_us;
+char g_mock230_script_slow_name[96];
+static int g_script_depth;
+
+static uint64_t
+script_now_us(void)
+{
+    struct timespec ts;
+
+    if( clock_gettime(CLOCK_MONOTONIC, &ts) != 0 )
+        return 0;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+static int
+run_trigger_script_inner(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    int npc_slot,
+    int loc_slot,
+    int player_slot);
+
 static int
 run_trigger_script(
+    struct Mock230Server* srv,
+    const struct SSVM_Script* script,
+    int npc_slot,
+    int loc_slot,
+    int player_slot)
+{
+    int outer = g_script_depth++ == 0;
+    uint64_t t0 = outer ? script_now_us() : 0;
+    int result;
+
+    result = run_trigger_script_inner(srv, script, npc_slot, loc_slot, player_slot);
+
+    g_script_depth--;
+    if( outer )
+    {
+        uint64_t us = script_now_us() - t0;
+
+        g_mock230_script_us += us;
+        g_mock230_script_runs++;
+        if( us > g_mock230_script_slow_us )
+        {
+            g_mock230_script_slow_us = us;
+            snprintf(g_mock230_script_slow_name, sizeof(g_mock230_script_slow_name), "%s",
+                     script && script->name ? script->name : "?");
+        }
+    }
+    return result;
+}
+
+static int
+run_trigger_script_inner(
     struct Mock230Server* srv,
     const struct SSVM_Script* script,
     int npc_slot,
