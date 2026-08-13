@@ -537,9 +537,14 @@ FAMILY_DATA = {
         drain_event="1 charge per shot fired",
         status="implemented",
         note="crystal_bow_2500 is the SAME item as crystal_bow, not a separate tier (crystal_set.rs2:53's own "
-             "comment confirms). Charge/Check/Dismantle fully wired. Gap: combat-swing drain "
-             "(~crystal_drain_one) is only called from gauntlet_hunllef.rs2:78 (the Hunllef fight) -- firing "
-             "at a normal monster consumes zero charges today.",
+             "comment confirms) -- but it had NO Check/Charge/Dismantle binding at all until fixed 2026-08-13 "
+             "(clicking Check hit the engine's unbound-trigger fallback; even crystal_bow's own Check would "
+             "have looked up the wrong obj's charges had a _2500 variant reached it). CORRECTED research "
+             "error: the combat-swing drain (~crystal_weapon_drain, gauntlet_hunllef.rs2) is NOT Gauntlet-only "
+             "-- it is called unconditionally from rs2012_td_player_hit.rs2's player_hit_npc_prepare, the one "
+             "global player-to-npc damage funnel every melee/ranged/magic hit goes through (confirmed by "
+             "reading that proc directly, not trusting the file it lives in). It only special-cases behaviour "
+             "*inside* an active Hunllef fight; outside one it drains on every ordinary hit, and always did.",
     ),
     "Crystal felling axe": dict(
         storage="item_var", depletion="revert", max_charges=20000,
@@ -555,9 +560,10 @@ FAMILY_DATA = {
         charge_source="Bought from Islwyn (750k, 2,500 charges) or sung/re-enchanted; recharged 100/shard",
         drain_event="1 charge per attack",
         status="implemented",
-        note="crystal_halberd_2500 (the Islwyn-bought id) has ZERO references anywhere in server/scripts, "
-             "unlike crystal_bow_2500 -- needs adding to crystal_equipment.rs2's case lists before it can "
-             "Check/Charge/Revert at all. Same Gauntlet-only combat-drain gap as crystal bow.",
+        note="Fixed 2026-08-13: crystal_halberd_2500 (the Islwyn-bought id) had ZERO bindings anywhere -- "
+             "added to crystal_equipment.rs2's Charge/Check/Dismantle case lists and gauntlet_hunllef.rs2's "
+             "combat-drain equality check. Combat-swing drain is NOT Gauntlet-only (same correction as "
+             "Crystal bow) -- ~crystal_weapon_drain fires from the one global player-to-npc damage funnel.",
     ),
     "Crystal harpoon": dict(
         storage="item_var", depletion="revert", max_charges=20000,
@@ -580,9 +586,10 @@ FAMILY_DATA = {
         charge_source="Bought from Islwyn (750k, 2,500 charges), sung, or re-enchanted; recharged 100/shard",
         drain_event="1 charge per non-zero hit taken while equipped",
         status="implemented",
-        note="crystal_shield_2500 has ZERO references anywhere, same gap as crystal_halberd_2500. Drain "
-             "(~crystal_drain_one) only called from gauntlet_hunllef.rs2:84 -- no general-combat "
-             "damage-taken hook drains it outside the Hunllef fight.",
+        note="Fixed 2026-08-13: crystal_shield_2500 had ZERO bindings, same gap as crystal_halberd_2500, same "
+             "fix (case lists + drain equality check, and the drain now checks either hand -- the original "
+             "code always drained the literal crystal_shield obj regardless of which hand actually held it). "
+             "Combat-drain scope corrected the same way as Crystal bow -- not Gauntlet-only.",
     ),
     "Echo boots": dict(
         storage="item_var", depletion="none", max_charges=60000,
