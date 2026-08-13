@@ -8162,9 +8162,11 @@ mock230_world_remove_player(
                     if( srv->npcs[i].active &&
                         mock230_mapinstance_find(srv->npcs[i].x, srv->npcs[i].z) == handle )
                     {
-                        /* Clearing `active` is the ordinary NPC_INFO remove —
-                         * the same thing `npc_del` and a death do. */
-                        srv->npcs[i].active = 0;
+                        /* The ordinary NPC_INFO remove — the same thing
+                         * `npc_del` and a death do. See
+                         * docs/mock230_npc_slot_reap.md for why this queues
+                         * rather than clearing `active` directly. */
+                        mock230_world_npc_free(srv, i);
                         cleared++;
                     }
                 }
@@ -8586,10 +8588,20 @@ world_static_npcs_sync(struct Mock230Server* srv)
     if( !g_static_realised )
         return;
 
-    /* Retire first, so the slots the outgoing npcs held are available to the
-     * incoming ones in the same pass. A player crossing a boundary gains and
-     * loses roughly the same number, and doing it the other way round would
-     * make the pool briefly need to hold both sides at once. */
+    /*
+     * Retire first. This used to also make the freed slots available to the
+     * incoming npcs below in the same pass — it no longer does, on purpose:
+     * `mock230_world_npc_free` defers a slot's reuse eligibility until
+     * `mock230_world_npc_reap` runs at the end of the tick, after every
+     * player's NPC_INFO has already gone out (docs/mock230_npc_slot_reap.md).
+     * An incoming spawn below that would have landed on one of these exact
+     * slots instead gets declined and picked up on the next rebuild pass —
+     * a one-pass lag, not a capacity problem against a 4096-slot pool. Still
+     * retiring first, rather than after the incoming loop: a player crossing
+     * a boundary gains and loses roughly the same number, and doing it the
+     * other way round would make the pool briefly need to hold both sides at
+     * once regardless of the reap timing.
+     */
     for( int slot = 0; slot < srv->npc_slot_max; slot++ )
     {
         struct Mock230Npc* npc = &srv->npcs[slot];
@@ -8608,16 +8620,18 @@ world_static_npcs_sync(struct Mock230Server* srv)
          * is a death, so no drop is rolled and no `[ai_death]` runs — this npc
          * is not dying, the world is looking away from it. */
         npc_set_occupancy(npc, 0);
-        npc->active = 0;
+        mock230_world_npc_free(srv, slot);
         /*
          * And out of the ZoneMap, now rather than at the next sync.
          *
          * mock230_zone.h says the pool allocators must refile before they
-         * recycle a slot, and this is one: the slot is free the moment `active`
-         * clears. Leaving it to phase 8 was invisible while a client's area was
-         * rebuilt from the map every tick, and is not now — the area is pushed
-         * to, so an entity that leaves the map without saying so stays in
-         * whichever areas had already taken it.
+         * recycle a slot, and this is one — orthogonal to `pending_free`,
+         * which only gates *pool* reuse: the ZoneMap's own membership is a
+         * separate concern, and waiting for phase 8 to reconcile it was
+         * invisible while a client's area was rebuilt from the map every
+         * tick, and is not now — the area is pushed to, so an entity that
+         * leaves the map without saying so stays in whichever areas had
+         * already taken it.
          */
         mock230_zone_npc_refile(srv, slot);
         g_static_realised[index] = 0;

@@ -270,6 +270,21 @@ defensively, now essentially never needed, still worth keeping.
 
 ## Status
 
-Plan only. Nothing in "Proposed design" has been implemented. The
-generation-tag band-aid in `mock230_encode.c` (see "Current state") is the
-only part of this that currently exists in the tree.
+**Implemented.** `pending_free`, `struct Mock230NpcFreeCmd`, the
+`npc_free_queue`/`npc_free_queue_count` pair, `mock230_world_npc_free`, and
+`mock230_world_npc_reap` all exist as described above; `npc_spawn`'s
+free-slot scan checks `pending_free`; `mock230_world_npc_reap` is called
+from `phase_cleanup`; all five real despawn sites route through
+`mock230_world_npc_free`. `mock230-dev` builds clean and `--selftest` shows
+the same pre-existing 10 failures as before this change (a stale/missing
+script-pack artifact unrelated to npc lifecycle), no new ones.
+
+Not yet done, from "Open items": no dedicated selftest was added exercising
+same-tick despawn+respawn-attempt directly (the existing full-suite
+regression run is the only current evidence of correctness beyond manual
+reasoning about the tick-phase ordering above).
+
+The `player->tracked_generation[]` band-aid in `mock230_encode.c` (see
+"Current state") was kept, per "What this makes redundant" above — it can
+no longer actually fire now that reuse is deferred, but costs nothing and
+matches the codebase's habit of layered generation guards.

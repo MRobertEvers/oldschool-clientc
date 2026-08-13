@@ -5327,9 +5327,10 @@ mock230_script_command(
             SSVM_Abort(state, "npc_del with no active npc");
             return 1;
         }
-        /* The ordinary NPC_INFO remove path: clearing `active` is what the
-         * encoder reads, exactly as a death does. */
-        npc->active = 0;
+        /* The ordinary NPC_INFO remove path, exactly as a death does — see
+         * docs/mock230_npc_slot_reap.md for why this is a queued free rather
+         * than a direct `active = 0`. */
+        mock230_world_npc_free(srv, active_npc_slot(state));
         return 1;
     }
 

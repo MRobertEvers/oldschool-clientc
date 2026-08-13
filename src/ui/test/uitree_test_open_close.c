@@ -332,7 +332,7 @@ test_clear_hooks_preserves_sibling_on_op(void)
             tree->components[compass].runtime_hooks->on_op.script_id == 1050,
         "compass on_op survives sibling pack clear");
     TEST_ASSERT(
-        UITree_MenuOptionsMut(&tree->components[compass])->ops[0][0] != '\0',
+        UITree_MenuOptions(&tree->components[compass])->ops[0][0] != '\0',
         "compass Look North op text still present");
     TEST_ASSERT(
         tree->components[leaf].runtime_hooks != NULL &&

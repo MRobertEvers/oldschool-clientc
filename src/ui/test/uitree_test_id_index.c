@@ -267,7 +267,7 @@ test_menu_submenus(void)
     {
         struct UITreeMenuOptions* dst = UITree_MenuOptionsMut(&tree->components[copy]);
         TEST_ASSERT(dst->submenus != NULL, "copy carries the submenus");
-        TEST_ASSERT(dst->submenus != UITree_MenuOptionsMut(&tree->components[row])->submenus, "copy is not an alias");
+        TEST_ASSERT(dst->submenus != UITree_MenuOptions(&tree->components[row])->submenus, "copy is not an alias");
         TEST_ASSERT(strcmp(UITree_MenuSubmenuEntry(dst, 2, 3), "Withdraw-10") == 0, "copied entry");
         TEST_ASSERT(UITree_MenuSubmenuSetEntry(dst, 2, 3, "Withdraw-X"), "write to the copy");
         TEST_ASSERT(

@@ -177,7 +177,17 @@ BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
 
-CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra -g -MMD -MP \
+# -Werror=incompatible-pointer-types: passing a `T**` where a `T*` is wanted is
+# not a style question, it is a wrong pointer that compiles. It bit twice while
+# the widget structs were being changed from inline members to lazily-allocated
+# ones — every `&c->field` site silently became one type deeper. One of them,
+# `menu_has_ops(&node->menu_options)`, dropped 107 components out of the UI tree
+# and said nothing; it was found by diffing `torirs_stats` against the previous
+# binary, which is not a thing anyone should have to do to catch a type error.
+# Scoped rather than a blanket -Werror: the tree still carries unused-variable
+# and sign-compare warnings that are not worth failing a build over.
+CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra \
+	-Werror=incompatible-pointer-types -g -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \

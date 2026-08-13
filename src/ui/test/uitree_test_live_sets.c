@@ -88,7 +88,7 @@ oracle_verify(struct UITree const* tree)
                 (c->runtime_hooks && c->runtime_hooks->on_resize.script_id > 0),
             "resize_hooks set");
         TEST_ASSERT(
-            set_has(&tree->opkeys, (int32_t)i) == (UITree_OpKeysMut(c)->has_bindings != 0),
+            set_has(&tree->opkeys, (int32_t)i) == (UITree_OpKeys(c)->has_bindings != 0),
             "opkeys set");
         if( c->component_id >= 0 )
         {
