@@ -10089,7 +10089,7 @@ app_world_spawn_npc_now(
     bd_t0 = bd_us ? PlatformSDL2_TicksUs() : 0;
 
     npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
-    if( !npctype || npctype->models_count <= 0 )
+    if( !npctype )
     {
         /* Once per id. The server re-sends the same missing npc every time the
          * player walks back into its zone, and on Windows an unbuffered stderr
@@ -10101,7 +10101,34 @@ app_world_spawn_npc_now(
     }
 
     bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
-    model = app_world_build_npc_model(app, npc_id, npctype);
+    if( npctype->models_count <= 0 )
+    {
+        /*
+         * A model-less npc is legal content, not a broken record.
+         *
+         * The reference client builds the entity straight off the wire and only
+         * resolves a model at draw time, where a null model skips the body and
+         * leaves the entity otherwise intact (rev239 deob: the npc add path
+         * constructs and registers unconditionally; Renderable.draw returns
+         * early on a null model). OldSchool ships such npcs deliberately --
+         * `invisible_npc_softblocking`, `hw22_trick_ghost_invis` -- as pure
+         * server-side markers that still carry hitsplats, overhead text and
+         * collision.
+         *
+         * Rejecting them here dropped the entity entirely: no element, so no
+         * entry in the npc pool, so every later NPC_INFO mask for that slot
+         * resolved to -1 and was discarded. An empty model keeps the entity in
+         * the world and draws nothing; its zeroed bounds cylinder gives
+         * height 0, which anchors overlays at the marker's own tile.
+         */
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+    }
+    else
+    {
+        model = app_world_build_npc_model(app, npc_id, npctype);
+    }
     if( bd_us )
         bd_model = PlatformSDL2_TicksUs() - bd_t;
     if( !model )
@@ -16783,7 +16810,20 @@ App_WorldApplyNpcType(
             element_id,
             npc_type);
 
-    model = app_world_build_npc_model(app, npc_type, npctype);
+    /* Retyping TO a model-less type must actually hide the npc. Building
+     * nothing here would leave the old model mounted and the entity would keep
+     * rendering as its previous form; an empty model is the retype's honest
+     * result, and matches the spawn path's handling of the same content. */
+    if( npctype->models_count <= 0 )
+    {
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+    }
+    else
+    {
+        model = app_world_build_npc_model(app, npc_type, npctype);
+    }
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
     if( model && app_npc_wants_zbuffer(npc_type, npctype) )
