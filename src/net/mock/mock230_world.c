@@ -12006,6 +12006,24 @@ mock230_world_selftest(void)
                        mock230_equipment_worn_slot(MOCK230_COM(387, 21)));
         SELFTEST_CHECK(mock230_equipment_worn_slot(MOCK230_COM(387, 26)) < 0,
                        "and 387:26 is not a slot at all");
+        /* The equipment-stats modal (84) draws the same eleven cells under its
+         * own component uids. Without matching worn_slots entries, a Remove
+         * click there fails this lookup and silently falls through to the
+         * generic backpack path instead of unequipping anything. */
+        SELFTEST_CHECK(
+            mock230_equipment_worn_slot(
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "equipment:slot0")) ==
+                MOCK230_WEAR_HEAD,
+            "equipment:slot0 should be the helmet slot too, got %d",
+            mock230_equipment_worn_slot(
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "equipment:slot0")));
+        SELFTEST_CHECK(
+            mock230_equipment_worn_slot(
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "equipment:slot13")) ==
+                MOCK230_WEAR_AMMO,
+            "equipment:slot13 should be the ammo slot too, got %d",
+            mock230_equipment_worn_slot(
+                mock230_content_symbol(MOCK230_PACK_COMPONENT, "equipment:slot13")));
 
         {
             const struct Mock230EnumDef* tabs = mock230_content_enum("bank_tabs");
