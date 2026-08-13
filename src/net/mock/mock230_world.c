@@ -30308,6 +30308,236 @@ mock230_world_selftest(void)
                                        glyph_hp, glyph->hitpoints, xil->combat_target_npc);
                     }
                 }
+
+                /*
+                 * And Yt-HurKot, which is the same claim about a different
+                 * verb: a healer follows Jad, heals it only from melee range,
+                 * and stops for good the first time the player hits it.
+                 *
+                 * All three are the engine's, through `npc_attacknpc` — see
+                 * `[proc,inferno_healer_start]` in inferno_adds.rs2 for why
+                 * that op and not a mode. What each part below fails against:
+                 *
+                 *  1. Losing the `npc_attacknpc` (or putting the walk back in
+                 *     content) leaves `combat_target_npc` at -1 and every check
+                 *     after it reads "no heal".
+                 *  2. `param=attackrange,<n>` appearing on the healer's record,
+                 *     or the melee gate moving back into content as
+                 *     `npc_range(npc_coord) > 1`, turns part 3 red — that
+                 *     spelling measures south-west corner to south-west corner,
+                 *     and Jad is size 5.
+                 *  3. Removing the `combat_target_npc = -1` from
+                 *     `mock230_combat_hit_npc`'s takeover turns part 5 red: the
+                 *     healer would keep the npc branch, which runs first, and
+                 *     go on healing through the fight.
+                 *
+                 * Positions are set rather than walked wherever the claim is
+                 * about the RANGE test, so a blocked tile cannot be mistaken
+                 * for a gate that did not fire. Part 2 is the one place a step
+                 * is actually asked for.
+                 */
+                {
+                    int jad_type =
+                        mock230_content_symbol(MOCK230_PACK_NPC, "inferno_jad_finalwave");
+                    int healer_type = mock230_content_symbol(
+                        MOCK230_PACK_NPC, "inferno_jad_healer_finalwave");
+                    int jad;
+                    int healer;
+                    int floor_x;
+                    int floor_z;
+
+                    /* The ranger has the fixture player in a fight by now, and
+                     * a Jal-Xil landing 46s on the player it is standing next
+                     * to would kill the fixture out from under this. Its tile
+                     * is kept: the wave spawner has already proved that one is
+                     * arena floor, which is what the Jad below needs. */
+                    SELFTEST_CHECK(ranger >= 0, "the healer stanza needs the ranger's tile");
+                    floor_x = ranger >= 0 ? srv->npcs[ranger].x : 0;
+                    floor_z = ranger >= 0 ? srv->npcs[ranger].z : 0;
+                    if( ranger >= 0 )
+                    {
+                        int other = selftest_find_npc(srv, mager_type);
+
+                        srv->npcs[ranger].active = 0;
+                        if( other >= 0 )
+                            srv->npcs[other].active = 0;
+                    }
+
+                    jad = ranger < 0 ? -1
+                                     : mock230_world_npc_spawn(srv, jad_type, floor_x,
+                                                               floor_z, player->level);
+                    SELFTEST_CHECK(ranger < 0 || jad >= 0,
+                                   "the fixture should be able to stand a Jad up");
+                    if( jad >= 0 )
+                    {
+                        struct Mock230Npc* j = &srv->npcs[jad];
+                        int jsize = j->size > 0 ? j->size : 1;
+                        int hp_before;
+                        int healed_far = 0;
+                        int closed;
+                        int gap_before;
+
+                        SELFTEST_CHECK(jsize == 5,
+                                       "this stanza is about a big footprint — JalTok-Jad "
+                                       "should be size 5, got %d",
+                                       jsize);
+
+                        /*
+                         * 1. The healer takes Jad as its combat target on its
+                         *    timer's one firing, and that is the whole of the
+                         *    content side.
+                         */
+                        healer = mock230_world_npc_spawn(srv, healer_type,
+                                                         j->x + jsize + 3, j->z,
+                                                         player->level);
+                        SELFTEST_CHECK(healer >= 0, "and a healer beside it");
+                        if( healer >= 0 )
+                        {
+                            struct Mock230Npc* h = &srv->npcs[healer];
+
+                            h->timer_interval = 1;
+                            mock230_world_set_active(srv, player);
+                            mock230_world_tick(srv);
+                            SELFTEST_CHECK(h->combat_target_npc == jad,
+                                           "a healer must latch onto Jad on its timer's one "
+                                           "firing, got npc target %d (Jad is %d)",
+                                           h->combat_target_npc, jad);
+                            SELFTEST_CHECK(h->timer_interval == 0,
+                                           "and stop its own timer — a healer that is handed "
+                                           "back to Jad every tick can never stay provoked");
+
+                            /*
+                             * 2. Out of reach, it walks. This is the half that
+                             *    is actually "following": `npc_vs_npc_tick`
+                             *    re-paths every tick, so the gap closes without
+                             *    content owning a step.
+                             */
+                            gap_before = h->x - (j->x + jsize - 1);
+                            for( int tick = 0; tick < 6; tick++ )
+                                mock230_world_tick(srv);
+                            closed = h->x - (j->x + jsize - 1);
+                            SELFTEST_CHECK(closed < gap_before,
+                                           "and walk after it — the gap to Jad's east edge "
+                                           "stayed at %d over six ticks",
+                                           gap_before);
+
+                            /*
+                             * 3. It heals from melee range, and melee range is
+                             *    measured against the FOOTPRINT.
+                             *
+                             * The tile is Jad's north-east corner plus one:
+                             * edge to edge that is 1, and south-west corner to
+                             * south-west corner — which is what `npc_range` and
+                             * the hand-rolled version this replaced measure —
+                             * it is 5. So a healer that heals here is one the
+                             * engine is gating, and a healer that does not is
+                             * the bug: on the real Jad every healer that walked
+                             * to a north or east face stood there doing nothing.
+                             */
+                            j->hitpoints = j->base_hitpoints / 2;
+                            hp_before = j->hitpoints;
+                            h->x = j->x + jsize;
+                            h->z = j->z + jsize - 1;
+                            h->combat_target_npc = jad;
+                            h->combat_target_npc_gen = j->generation;
+                            h->attack_clock = 0;
+                            for( int tick = 0; tick < 8; tick++ )
+                                mock230_world_tick(srv);
+                            SELFTEST_CHECK(j->hitpoints > hp_before,
+                                           "a healer standing against Jad's north-east corner "
+                                           "must heal it — %d -> %d of %d. Corner-to-corner "
+                                           "that tile reads %d tiles away; edge to edge it is "
+                                           "1, and the engine is the one that knows",
+                                           hp_before, j->hitpoints, j->base_hitpoints, jsize);
+
+                            /*
+                             * 4. And not from outside it. Same healer, same
+                             *    target, moved two tiles clear of the
+                             *    footprint — `attackrange` is 1 because neither
+                             *    healer record states one, so nothing should
+                             *    fire.
+                             */
+                            j->hitpoints = j->base_hitpoints / 2;
+                            hp_before = j->hitpoints;
+                            h->x = j->x + jsize + 2;
+                            h->z = j->z;
+                            /* `nomove` for this part only: the follow proved in
+                             * part 2 would otherwise close the gap and heal,
+                             * which is correct behaviour and the wrong question
+                             * — this asks whether the gate holds while the
+                             * healer is out of reach. */
+                            h->waypoint_index = -1;
+                            for( int tick = 0; tick < 8; tick++ )
+                            {
+                                h->x = j->x + jsize + 2;
+                                h->z = j->z;
+                                mock230_world_tick(srv);
+                                healed_far |= j->hitpoints > hp_before;
+                            }
+                            SELFTEST_CHECK(!healed_far,
+                                           "and must not heal from two tiles clear of the "
+                                           "footprint — %d -> %d",
+                                           hp_before, j->hitpoints);
+
+                            /*
+                             * 5. The player hits it, and the healing is over.
+                             *
+                             * Not paused for a swing and resumed: nothing in
+                             * content ever points a healer at Jad twice, and
+                             * the engine's takeover is what makes that stick.
+                             */
+                            h->x = j->x + jsize;
+                            h->z = j->z;
+                            h->combat_target_npc = jad;
+                            h->combat_target_npc_gen = j->generation;
+                            j->hitpoints = j->base_hitpoints / 2;
+                            hp_before = j->hitpoints;
+                            player->x = h->x + 1;
+                            player->z = h->z;
+                            player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                            player->hitpoints = 900;
+                            mock230_combat_sync_hitpoints(player);
+                            mock230_world_set_active(srv, player);
+                            mock230_combat_hit_npc(srv, healer,
+                                                   mock230_content_symbol(
+                                                       MOCK230_PACK_HITSPLAT, "hitsplat_damage"),
+                                                   3);
+                            SELFTEST_CHECK(h->combat_target == player->pid &&
+                                               h->combat_target_npc < 0,
+                                           "the player's hit must take a healer off Jad and "
+                                           "onto them (target %d, npc target %d)",
+                                           h->combat_target, h->combat_target_npc);
+                            {
+                                int returned_to_jad = 0;
+                                int took = 0;
+
+                                for( int tick = 0; tick < 16; tick++ )
+                                {
+                                    int before = player->hitpoints;
+
+                                    mock230_world_tick(srv);
+                                    if( player->hitpoints < before )
+                                        took += before - player->hitpoints;
+                                    player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                                    player->hitpoints = 900;
+                                    mock230_combat_sync_hitpoints(player);
+                                    returned_to_jad |= h->combat_target_npc >= 0;
+                                }
+                                SELFTEST_CHECK(!returned_to_jad &&
+                                                   j->hitpoints == hp_before,
+                                               "and it must never go back to healing: Jad %d "
+                                               "-> %d, npc target %d",
+                                               hp_before, j->hitpoints, h->combat_target_npc);
+                                SELFTEST_CHECK(took > 0,
+                                               "a provoked healer must fight back — the "
+                                               "player stood beside one for 16 ticks and took "
+                                               "nothing");
+                            }
+                            h->active = 0;
+                        }
+                        j->active = 0;
+                    }
+                }
             }
         }
         mock230_scripts_free(srv);

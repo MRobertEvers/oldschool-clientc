@@ -614,12 +614,19 @@ mock230_combat_add_xp(
      * log prints only its payload length, and a wrong rate never changes a
      * level often enough to notice. Tenths, so 200 reads as 20.0 xp. */
     if( srv->verbose )
-        printf("mock230: xp stat=%d %c%d.%d (tenths=%d)\n",
+    {
+        /* Widened before the sign is taken: `abs(INT_MIN)` has no answer in an
+         * `int`, and the trace must not be the one thing in here that a hostile
+         * amount can break. */
+        long long magnitude = llabs((long long)tenths);
+
+        printf("mock230: xp stat=%d %c%lld.%lld (tenths=%d)\n",
                stat,
                tenths < 0 ? '-' : '+',
-               abs(tenths) / 10,
-               abs(tenths) % 10,
+               magnitude / 10,
+               magnitude % 10,
                tenths);
+    }
     /* Summed in 64 bits and clamped, never accumulated in place: the total is
      * an `int` and MOCK230_XP_MAX_TENTHS is most of its range, so `+=` at the
      * ceiling overflows rather than saturating. */
