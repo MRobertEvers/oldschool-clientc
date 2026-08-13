@@ -4,12 +4,24 @@
 
 .DESCRIPTION
     The PowerShell twin of run-live.sh: same arguments, same environment
-    variables, same result. The manifest (manifest_osrs239_rs2012.ini,
-    manifest_osrs230.ini, ...) names the cache, rev, transport, host/port and
-    RSA keys, and everything this script decides it reads from there:
+    variables, same result. Every argument is positional, exactly as
+    run-live.sh takes them with $1/shift -- there is no -User/-Pass/-Manifest
+    parameter to bind against, on purpose. An earlier version of this script
+    declared $User/$Pass as named parameters without an explicit -Position,
+    which PowerShell still binds positionally in declaration order; in `web`
+    mode that silently ate the real manifest argument (it landed on $User
+    instead), which is why run-live.bat has always converted its own
+    positional user/pass into `-User`/`-Pass` before calling this script.
+    Parsing one raw argument array by hand, the same way the shell script
+    shifts $1, removes that whole class of surprise.
+
+    The manifest (manifest_osrs239_rs2012.ini, manifest_osrs230.ini, ...)
+    names the cache, rev, transport, host/port and RSA keys, and everything
+    this script decides it reads from there:
 
       * user/pass come from the manifest's [net:boot] when it carries them,
-        falling back to asdf/a. Explicit -User/-Pass arguments win over both.
+        falling back to asdf/a. An explicit positional user/pass argument
+        wins over both.
       * osrs230 / osrs239 without --offline run the in-process server in
         native mode: built with EMBED_SERVER=1, TORIRS_TRANSPORT=embed, and
         MOCK230_REV set from the manifest so the embedded world writes the
@@ -26,28 +38,33 @@
       * the OSRS-Content tree is discovered, not demanded: the first checkout
         carrying both ported\ lanes wins, build\ checkouts before the submodule
         (the submodule tracks main, which has the lanes but not their facebake).
+        Override it with $env:MOCK230_CONTENT_DIR, the same variable
+        run-live.sh honours -- there is no -ContentDir flag here either, for
+        the same reason there is no -User/-Pass.
 
     The server script pack is a SEPARATE build from the binary, and an embedded
     or mock server loads whatever script.dat was compiled last -- not what the
     tree says today. Building the binary and not the pack is how a session ends
     up running content nobody has written for weeks, with nothing anywhere
-    reporting the mismatch, so the pack is rebuilt here for every native-embed
-    or web-mock230 run.
+    reporting the mismatch, so the pack is checked here for every native-embed
+    or web-mock230 run and rebuilt when anything sscompile reads is newer than
+    it (tools/server_scripts_stale.py).
 
-    `run-live.ps1 web <manifest.ini> [client args...]` runs the emscripten
-    build instead of the native exe. The client is the same program with the
-    same command line -- it just arrives through the URL rather than argv, and
-    its cache reads are answered by the IO server this script starts. Every
-    TORIRS_* variable in the environment is forwarded the same way, so a run
-    differs from the native one only in where the pixels land. See
-    docs/web_build.md. Unlike run-live.sh, user/pass in web mode are still
-    -User/-Pass only (not positional) -- consistent with how native mode has
-    always worked here.
+    `run-live.ps1 web <manifest.ini> [user] [pass] [client args...]` runs the
+    emscripten build instead of the native exe, matching
+    `run-live.sh web <manifest.ini> [user] [pass] [client args...]` exactly
+    now -- including that user/pass are positional in web mode too. The
+    client is the same program with the same command line -- it just arrives
+    through the URL rather than argv, and its cache reads are answered by the
+    IO server this script starts. Every TORIRS_* variable in the environment
+    is forwarded the same way, so a run differs from the native one only in
+    where the pixels land. See docs/web_build.md.
 
     Knobs (all also honoured by run-live.sh unless noted):
       TORIRS_NO_BUILD=1        run the existing exe/lane, skip every build
       TORIRS_NO_CACHE_BAKE=1   keep the composed cache as it stands
       TORIRS_FORCE_CACHE_BAKE=1  rebake the composed cache without asking
+      TORIRS_FORCE_SCRIPT_BUILD=1  recompile the server script pack without asking
       TORIRS_PRINT_ONLY=1      print what would run and exit (native mode only;
                                 ps1-only, not in run-live.sh)
       TORIRS_TOOLCHAIN         MinGW bin directory (ps1-only)
@@ -60,56 +77,27 @@
       plus every TORIRS_* the client itself reads (TORIRS_NET_DEBUG=1,
       TORIRS_NET_CHEAT, TORIRS_MAX_FRAMES, TORIRS_EXIT_BMP, ...)
 
-.PARAMETER Manifest
-    Path to the boot manifest. The literal value `web` switches this script
-    into web mode; the actual manifest is then the first ClientArgs entry
-    (`.\run-live.ps1 web manifest.ini --opengl3` etc.), matching
-    `run-live.sh web <manifest.ini> ...`.
-
-.PARAMETER User
-    Login name. Defaults to the manifest's user=, then asdf.
-
-.PARAMETER Pass
-    Password. Defaults to the manifest's pass=, then a.
-
-.PARAMETER ContentDir
-    The OSRS-Content tree the bakes read. Not normally needed -- when it is
-    omitted the tree is discovered: the submodule at OSRS-Content\osrs239-content
-    is preferred, then each build\*\osrs239-content clone, and the first one
-    carrying both ported\ lanes is taken. Supply this only to override that,
-    which is obeyed even when the tree looks wrong (warned about, not
-    second-guessed -- mid-port, the caller knows better).
-
-    Why the lanes are the test: mock230-scripts feeds both
-    ported\scape2009_summoning and ported\rs2012_qbd_td to sscompile
-    unconditionally, so a checkout without them fails on a missing
-    all.varbit.compack -- which names nothing about the real problem.
-
-    Sets MOCK230_CONTENT_DIR for the build steps; $env:MOCK230_CONTENT_DIR does
-    the same thing and this wins over it.
-
-.PARAMETER ClientArgs
-    Everything else, handed to the client verbatim (--soft3d, --opengl3,
-    --offline, --connect host:port, ...). Just trail them; do NOT separate
-    them with a bare `--`, which PowerShell rejects as an ambiguous parameter
-    name before this script is ever entered. In web mode the manifest itself
-    is the first entry here (see -Manifest above).
+.PARAMETER RawArgs
+    `[web] <manifest.ini> [user] [pass] [client args...]`, exactly as
+    run-live.sh takes $@. The literal first value `web` switches this script
+    into web mode. Next comes the manifest path (required), then an optional
+    user, then an optional pass -- each omitted one falls back to the
+    manifest's own user=/pass=, then asdf/a. Everything left over is handed to
+    the client verbatim (--soft3d, --opengl3, --offline, --connect host:port,
+    ...). Do NOT separate client args with a bare `--`, which PowerShell
+    rejects as an ambiguous parameter name before this script is ever
+    entered.
 
 .EXAMPLE
     .\run-live.ps1 manifest_osrs239_rs2012.ini
     .\run-live.ps1 manifest_osrs239_rs2012.ini --opengl3
-    .\run-live.ps1 manifest_osrs230.ini -User qbdrepro -Pass test --soft3d
-    .\run-live.ps1 manifest_osrs239_rs2012.ini -ContentDir some\other\osrs239-content
+    .\run-live.ps1 manifest_osrs230.ini qbdrepro test --soft3d
     .\run-live.ps1 web manifest_osrs239_rs2012.ini
-    .\run-live.ps1 web manifest_osrs230.ini -User qbdrepro -Pass test --offline
+    .\run-live.ps1 web manifest_osrs230.ini qbdrepro test --offline
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true, Position = 0)][string]$Manifest,
-    [string]$User = '',
-    [string]$Pass = '',
-    [string]$ContentDir = '',
-    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ClientArgs
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$RawArgs
 )
 
 Set-StrictMode -Version Latest
@@ -119,19 +107,46 @@ $repo = $PSScriptRoot
 $exe = Join-Path $repo 'src\torirs_win64.exe'
 $make = Join-Path $repo 'make.ps1'
 
-# MODE=web, shift: the literal first value 'web' switches lanes and hands the
-# real manifest off to ClientArgs[0], mirroring run-live.sh's `shift`.
-$mode = 'native'
-if (-not $ClientArgs) { $ClientArgs = @() }
-if ($Manifest -eq 'web') {
-    $mode = 'web'
-    if ($ClientArgs.Count -lt 1) {
-        Write-Error 'run-live.ps1: usage: run-live.ps1 web <manifest.ini> [client args...]'
-        exit 1
-    }
-    $Manifest = $ClientArgs[0]
-    $ClientArgs = @($ClientArgs | Select-Object -Skip 1)
+$Usage = 'usage: run-live.ps1 [web] <manifest.ini> [user] [pass] [client args...]'
+
+# One raw argument list, shifted by hand -- the direct equivalent of
+# run-live.sh's `MANIFEST="${1:?}"; shift`. See the -Description note above
+# for why this replaced named -Manifest/-User/-Pass parameters: PowerShell
+# binds unpositioned parameters positionally too, which made `web` mode eat
+# the real manifest argument into $User.
+$argQueue = New-Object System.Collections.Generic.List[string]
+if ($RawArgs) { foreach ($a in $RawArgs) { $argQueue.Add($a) } }
+
+function Take-Arg {
+    if ($argQueue.Count -eq 0) { return $null }
+    $v = $argQueue[0]
+    $argQueue.RemoveAt(0)
+    return $v
 }
+
+$mode = 'native'
+if ($argQueue.Count -gt 0 -and $argQueue[0] -eq 'web') {
+    $mode = 'web'
+    [void](Take-Arg)
+}
+
+$Manifest = Take-Arg
+if (-not $Manifest) {
+    Write-Error "run-live.ps1: $Usage"
+    exit 1
+}
+
+# user/pass are positional, but only when actually present -- a client flag
+# (--d3d9-zbuffer, --soft3d, ...) must never be swallowed into either slot.
+# Every client arg is long-form (--xxx; see the client's own usage string), so
+# that prefix is the one thing user/pass can never legitimately start with:
+# stop taking positionally the moment the next token looks like a flag, and
+# let $ClientArgs (and the manifest/asdf-a fallback below) pick it up instead.
+$User = $null
+$Pass = $null
+if ($argQueue.Count -gt 0 -and $argQueue[0] -notlike '--*') { $User = Take-Arg }
+if ($argQueue.Count -gt 0 -and $argQueue[0] -notlike '--*') { $Pass = Take-Arg }
+$ClientArgs = @($argQueue)
 
 $manifestPath = if ([IO.Path]::IsPathRooted($Manifest)) { $Manifest } else { Join-Path $repo $Manifest }
 if (-not (Test-Path -LiteralPath $manifestPath)) {
@@ -184,29 +199,37 @@ function Test-ContentTree([string]$Dir) {
     return $true
 }
 
-# Checkouts under build\ first, the submodule last.
+# The submodule first, then checkouts under build\.
 #
-# Carrying the lane DIRECTORIES is not the same as carrying the lane's current
-# bake, and this is the order that tells them apart. A tree under build\ is a
-# deliberately provisioned lane checkout -- typically a worktree parked on a
-# facebake branch (build\osrs-content-rs2012 sits on rs2012-facebake-v10-m60).
-# The submodule tracks main, which receives the ported/ lane directories but not
-# the rebaked models: on 2026-08-12 upstream main gained ported/rs2012_qbd_td
-# while the 596 rebaked .ob3 stayed on the facebake branch. Preferring the
-# submodule there picked lane-shaped content with pre-facebake models and said
-# nothing, which is the one failure this discovery must not produce.
+# This used to be the other way around: build\osrs-content-rs2012, a worktree
+# parked on branch rs2012-facebake-v10-m60, carried 596 rebaked .ob3 the
+# submodule's main didn't have, so main having the ported/ lane DIRECTORIES
+# wasn't proof it had the current bake, and build\ was preferred to avoid
+# silently picking pre-facebake models.
 #
-# build\ is gitignored, so these never collide with the tree git tracks, and the
-# submodule remains the fallback for anyone who has no build\ checkout at all.
+# That is no longer true. main gained its own rebake (2026-08-13,
+# e53b0fd476 "QBD: re-bake the RS2012 lane") and has since moved past
+# build\osrs-content-rs2012's merge point on every front that has been
+# checked, not just rs2012_qbd_td -- server\scripts\minigames\minigame_inferno
+# on the submodule is newer than the same files on the worktree too. A worktree
+# frozen on an old branch is exactly the tree this discovery must not pick
+# silently: a launch would compile whatever content nobody has written for
+# weeks, with nothing reporting the mismatch. So the submodule -- the tree
+# everyone actually commits to -- wins by default again, and build\ is the
+# fallback for anyone who has no submodule checkout with the lanes at all.
+#
+# build\ is gitignored, so these never collide with the tree git tracks.
+# Reaching for a build\ checkout on purpose (e.g. a fresh facebake worktree
+# that hasn't been merged yet) still works via $env:MOCK230_CONTENT_DIR, which
+# is obeyed as given, in front of this whole function.
 function Get-ContentCandidates {
-    $candidates = @()
+    $candidates = @(Join-Path $repo 'OSRS-Content\osrs239-content')
     $buildRoot = Join-Path $repo 'build'
     if (Test-Path -LiteralPath $buildRoot) {
         $candidates += Get-ChildItem -LiteralPath $buildRoot -Directory |
             Sort-Object Name |
             ForEach-Object { Join-Path $_.FullName 'osrs239-content' }
     }
-    $candidates += Join-Path $repo 'OSRS-Content\osrs239-content'
     return $candidates
 }
 
@@ -238,16 +261,10 @@ function Set-ContentTree([string]$Dir) {
 
 # An explicit choice is obeyed even when it looks wrong -- warned about, not
 # overridden, because the caller may be mid-port and know better than this check.
+# No -ContentDir flag: matching run-live.sh exactly, the only override is
+# $env:MOCK230_CONTENT_DIR (set it before invoking this script).
 $contentChoice = ''
-if ($ContentDir) {
-    $resolved = if ([IO.Path]::IsPathRooted($ContentDir)) { $ContentDir } else { Join-Path $repo $ContentDir }
-    if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
-        Write-Error "run-live.ps1: -ContentDir '$ContentDir' does not exist"
-        exit 1
-    }
-    Set-ContentTree $resolved
-    $contentChoice = '-ContentDir'
-} elseif ($env:MOCK230_CONTENT_DIR) {
+if ($env:MOCK230_CONTENT_DIR) {
     Set-ContentTree $env:MOCK230_CONTENT_DIR
     $contentChoice = 'MOCK230_CONTENT_DIR'
 } else {
@@ -275,7 +292,7 @@ function Assert-ContentTree {
         Write-Host "run-live.ps1: no OSRS-Content tree carrying $($ContentLanes -join ' and ')." -ForegroundColor Red
         Write-Host '  Looked at:' -ForegroundColor Red
         foreach ($candidate in Get-ContentCandidates) { Write-Host "    $candidate" -ForegroundColor Red }
-        Write-Host '  Point -ContentDir (or MOCK230_CONTENT_DIR) at the checkout that has them.' -ForegroundColor Red
+        Write-Host '  Set $env:MOCK230_CONTENT_DIR to the checkout that has them.' -ForegroundColor Red
         exit 1
     }
 }
@@ -531,13 +548,21 @@ function Test-CacheOverlayFresh {
     $treeArgs = @()
     if ($env:MOCK230_CONTENT_DIR) { $treeArgs = @('--tree', $env:MOCK230_CONTENT_DIR) }
 
+    # Captured, not left to flow straight to the pipeline: an uncaptured native
+    # call's stdout becomes part of THIS FUNCTION's own return value, and
+    # `if (Test-CacheOverlayFresh ...)` was coercing that [print-line, $bool]
+    # 2-element array to $true unconditionally -- PowerShell treats any array
+    # of more than one element as truthy regardless of what it contains, so the
+    # $false case never reached the caller. Assignment is what stops the
+    # python process's stdout from leaking into the function's output stream.
     $global:LASTEXITCODE = 0
-    & $py.Source (Join-Path $repo 'tools\cache_overlay_stale.py') `
+    $stdout = & $py.Source (Join-Path $repo 'tools\cache_overlay_stale.py') `
         --cache (Resolve-CachePath $cacheDir) --lane $Lane `
         --base (Resolve-RepoPath $Base) @treeArgs `
         --input (Resolve-RepoPath $Stager) `
         --input (Resolve-RepoPath 'src\makefile') `
         --input (Resolve-RepoPath '3rd\rscache\tools\cachepack')
+    if ($stdout) { $stdout | ForEach-Object { Write-Host $_ } }
     return ($LASTEXITCODE -eq 1)
 }
 
@@ -601,8 +626,70 @@ function Build-CacheOverlay {
     Invoke-Make -Targets $lane.Targets
 }
 
+# tools\server_scripts_stale.py is the only implementation of this predicate
+# and is shared with run-live.sh, so the two launchers cannot drift.
+#
+# Anything other than exit 1 rebuilds, for the same reason Test-CacheOverlayFresh
+# treats a python-less PATH or a thrown exception as "bake": the failure mode of
+# a needless sscompile pass is a few seconds, and the failure mode of a skipped
+# one is a live session quietly running scripts nobody wrote.
+function Test-ServerScriptsFresh {
+    param([string]$OutDir)
+
+    # Function-scoped, and deliberate: a non-zero exit is this predicate's
+    # ANSWER, not a failure, and PowerShell 7.4+ raises native non-zero exits as
+    # terminating errors under $ErrorActionPreference = 'Stop'.
+    $ErrorActionPreference = 'Continue'
+
+    $py = Get-Command python3 -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if (-not $py) {
+        $py = Get-Command python -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    }
+    if (-not $py) {
+        Write-Host 'run-live.ps1: no python3 on PATH -- rebuilding rather than assuming the script pack is fresh' -ForegroundColor Yellow
+        return $false
+    }
+
+    $treeArgs = @()
+    if ($env:MOCK230_CONTENT_DIR) { $treeArgs = @('--tree', $env:MOCK230_CONTENT_DIR) }
+
+    # Captured, not left to flow straight to the pipeline: see the matching
+    # comment on Test-CacheOverlayFresh -- an uncaptured native call's stdout
+    # becomes part of THIS FUNCTION's own return value, and the caller's
+    # `if (Test-ServerScriptsFresh ...)` was coercing that [print-line, $bool]
+    # 2-element array to $true unconditionally regardless of what $bool was.
+    $global:LASTEXITCODE = 0
+    $stdout = & $py.Source (Join-Path $repo 'tools\server_scripts_stale.py') `
+        --out $OutDir @treeArgs `
+        --input (Resolve-RepoPath 'src\serverscript') `
+        --input (Resolve-RepoPath 'src\makefile') `
+        --input (Resolve-RepoPath 'tools\ss_allocate.py') `
+        --input (Resolve-RepoPath 'tools\stage_summoning_server_constants.py')
+    if ($stdout) { $stdout | ForEach-Object { Write-Host $_ } }
+    return ($LASTEXITCODE -eq 1)
+}
+
 function Build-Scripts {
     $target = if ($serverScripts -like '*build_summoning') { 'mock230-scripts-summoning' } else { 'mock230-scripts' }
+
+    # Most manifests carry no scripts= at all -- it only needs stating when
+    # build_summoning applies instead of mock230-scripts' own default output,
+    # which is $(MOCK230_CONTENT_DIR)/server/scripts/build (src/makefile). Assert-
+    # ContentTree has already run by every call site, so $env:MOCK230_CONTENT_DIR
+    # is set.
+    $outDir = if ($serverScripts) {
+        Resolve-CachePath $serverScripts
+    } else {
+        Join-Path $env:MOCK230_CONTENT_DIR 'server\scripts\build'
+    }
+
+    if (Test-ServerScriptsFresh -OutDir $outDir) {
+        Write-Host "run-live.ps1: server script pack is up to date (TORIRS_FORCE_SCRIPT_BUILD=1 to rebuild)" -ForegroundColor Yellow
+        return
+    }
+
     Write-Host "run-live.ps1: building the server script pack ($target)..." -ForegroundColor Cyan
     Invoke-Make -Targets @($target)
 }

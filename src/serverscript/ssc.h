@@ -50,8 +50,11 @@ enum
     /* LostCity's own content is 9,334 scripts, so this is not a theoretical
      * bound. It was 4096, and the declare pass silently dropped every name past
      * it — which surfaced as "no proc named update_all" for a proc that plainly
-     * exists, in a file the compiler had already read. */
-    SSC_MAX_SCRIPTS = 16384,
+     * exists, in a file the compiler had already read. It was 16384 until this
+     * mock's own content (region music coverage, drop tables) grew past that
+     * too — SSC_Declare now refuses to compile rather than repeat the same
+     * silent-drop failure. */
+    SSC_MAX_SCRIPTS = 32768,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,
     SSC_MAX_SWITCH_TABLES = 32,

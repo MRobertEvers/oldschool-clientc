@@ -14,8 +14,10 @@ struct WorldEntity_ObjStack
     int count;
     /* ObjType name + ground ops, snapshotted at add time so the right-click
      * builder never needs the cache provider (world/ stays a leaf module —
-     * same arrangement as WorldEntity_Scenery). */
-    char name[32];
+     * same arrangement as WorldEntity_Scenery).
+     * 64, matching ToriRS_Objtype.name (TORIRS_NAME_MAX) -- col-tagged names
+     * don't fit in 32. */
+    char name[64];
     struct WorldEntityFacet_Action actions[5];
 };
 

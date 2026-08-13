@@ -41,8 +41,7 @@ from gen_osrs_corpus import render_one, list_models
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 DEFAULT_VIEWER = os.path.join(REPO, "src", "build_win64_opt", "rs2012_model_view.exe")
-DEFAULT_MODELS = os.path.join(REPO, "build", "osrs-content-rs2012",
-                              "osrs239-content", "models")
+DEFAULT_MODELS = os.path.join(REPO, "OSRS-Content", "osrs239-content", "models")
 DEFAULT_LANE = os.path.join(DEFAULT_MODELS, "ported", "rs2012_qbd_td")
 DEFAULT_OUT = os.path.join(HERE, "data_engine")
 

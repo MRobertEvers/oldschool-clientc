@@ -32,7 +32,6 @@ Underneath, the targets are just:
 # dry run — writes OB3s to a scratch dir, never touches the lane
 src/build_win64_opt/rs2012_material_bake.exe \
     --cache cache.rs727_preeoc \
-    --tree build/osrs-content-rs2012/osrs239-content \
     --matte 60 --models-out /tmp/models
 
 # the same thing, written into the lane
