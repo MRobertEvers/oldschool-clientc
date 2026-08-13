@@ -173,6 +173,18 @@ struct SSC_VarpCarrier
     int bits;
     /** Content declared `wholewrite=allow` on this varp (see `fields/varp.ini`). */
     int exempt;
+    /**
+     * Content declared `wholeread=allow` — the read half, and only the read half.
+     *
+     * The two are separate keys because they excuse different things. A whole
+     * *write* destroys somebody else's variable, so its exemption is rare and
+     * loud. A whole *read* is recoverable and there are honest uses: a hand-packed
+     * flag in a bit no varbit on the carrier claims, which is what
+     * `%morttonmulti` bits 0 and 2 are. Making those say so through `wholewrite`
+     * would have opened the destructive direction to buy silence on the harmless
+     * one.
+     */
+    int read_exempt;
     int sample_count;
     char sample[SSC_CARRIER_SAMPLES][SSC_MAX_NAME];
     int sample_start[SSC_CARRIER_SAMPLES];
@@ -198,6 +210,10 @@ struct SSC_Symbols
     int32_t* exempt;
     int exempt_count;
     int exempt_capacity;
+    /** The same, for `wholeread=allow`. Kept apart for the same reason. */
+    int32_t* read_exempt;
+    int read_exempt_count;
+    int read_exempt_capacity;
 };
 
 void
@@ -351,6 +367,18 @@ SSC_SymbolsFind(
     struct SSC_Symbols* symbols,
     const char* name,
     enum SSC_SymbolKind kind);
+
+/**
+ * The same lookup a *bare* name gets: any kind except SSC_SYM_CONSTANT.
+ *
+ * A constant is written `^name` and expands to source text, so its `value` is
+ * always 0 (SSC_SymbolsLoadConstants keeps the text, not a number). A bare
+ * identifier that matched one therefore compiled to 0 and said nothing —
+ * excluding the kind here is what lets the caller tell "no such name" from
+ * "you meant `^name`".
+ */
+const struct SSC_Symbol*
+SSC_SymbolsFindValue(struct SSC_Symbols* symbols, const char* name);
 
 /* ------------------------------------------------------------------ */
 /* Compiler                                                            */

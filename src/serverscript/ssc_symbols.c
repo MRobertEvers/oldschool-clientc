@@ -48,6 +48,7 @@ SSC_SymbolsFree(struct SSC_Symbols* symbols)
     free(symbols->order);
     free(symbols->carriers);
     free(symbols->exempt);
+    free(symbols->read_exempt);
     memset(symbols, 0, sizeof(*symbols));
 }
 
@@ -218,6 +219,16 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
                 symbols->exempt[i]);
         problems++;
     }
+    for( int i = 0; i < symbols->read_exempt_count; i++ )
+    {
+        if( SSC_SymbolsCarrier(symbols, symbols->read_exempt[i]) )
+            continue;
+        fprintf(stderr,
+                "sscompile: varp %d declares `wholeread=allow` but no varbit is based on "
+                "it — there is nothing to exempt\n",
+                symbols->read_exempt[i]);
+        problems++;
+    }
 
     ensure_sorted(symbols);
     if( !symbols->order )
@@ -274,11 +285,16 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
     return problems;
 }
 
-const struct SSC_Symbol*
-SSC_SymbolsFind(
+/*
+ * The shared lookup. `allow_constant` is what separates the two entry points
+ * below; everything else is one binary search over the name-sorted order.
+ */
+static const struct SSC_Symbol*
+find_symbol(
     struct SSC_Symbols* symbols,
     const char* name,
-    enum SSC_SymbolKind kind)
+    enum SSC_SymbolKind kind,
+    int allow_constant)
 {
     int lo;
     int hi;
@@ -319,6 +335,8 @@ SSC_SymbolsFind(
 
                 if( strcmp(candidate->name, name) != 0 )
                     break;
+                if( !allow_constant && candidate->kind == SSC_SYM_CONSTANT )
+                    continue;
                 if( kind == SSC_SYM_UNKNOWN || candidate->kind == kind )
                     return candidate;
             }
@@ -326,6 +344,21 @@ SSC_SymbolsFind(
         }
     }
     return NULL;
+}
+
+const struct SSC_Symbol*
+SSC_SymbolsFind(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    enum SSC_SymbolKind kind)
+{
+    return find_symbol(symbols, name, kind, 1);
+}
+
+const struct SSC_Symbol*
+SSC_SymbolsFindValue(struct SSC_Symbols* symbols, const char* name)
+{
+    return find_symbol(symbols, name, SSC_SYM_UNKNOWN, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1073,34 +1106,52 @@ SSC_SymbolsLoadVarbitBases(
     return symbols->carrier_count;
 }
 
-/* `wholewrite=allow` on a `[varp]` block. Returns 1 when it was recorded. */
+/*
+ * `wholewrite=allow` / `wholeread=allow` on a `[varp]` block. Returns 1 when it
+ * was recorded.
+ *
+ * `reads_only` picks which of the two lists it lands in. They are separate all
+ * the way down rather than one flag with a level, because the question each
+ * answers is different: a whole write destroys a neighbour's variable, a whole
+ * read merely gives back the packed word. A single key would have meant buying
+ * silence on the second by opening the first.
+ */
 static int
 exempt_varp(
     struct SSC_Symbols* symbols,
-    int32_t varp)
+    int32_t varp,
+    int reads_only)
 {
-    for( int i = 0; i < symbols->exempt_count; i++ )
+    int32_t** list = reads_only ? &symbols->read_exempt : &symbols->exempt;
+    int* count = reads_only ? &symbols->read_exempt_count : &symbols->exempt_count;
+    int* capacity = reads_only ? &symbols->read_exempt_capacity : &symbols->exempt_capacity;
+
+    for( int i = 0; i < *count; i++ )
     {
-        if( symbols->exempt[i] == varp )
+        if( (*list)[i] == varp )
             return 0;
     }
-    if( symbols->exempt_count == symbols->exempt_capacity )
+    if( *count == *capacity )
     {
-        int next = symbols->exempt_capacity ? symbols->exempt_capacity * 2 : 16;
-        int32_t* grown = (int32_t*)realloc(symbols->exempt, (size_t)next * sizeof(*grown));
+        int next = *capacity ? *capacity * 2 : 16;
+        int32_t* grown = (int32_t*)realloc(*list, (size_t)next * sizeof(*grown));
 
         if( !grown )
             return 0;
-        symbols->exempt = grown;
-        symbols->exempt_capacity = next;
+        *list = grown;
+        *capacity = next;
     }
-    symbols->exempt[symbols->exempt_count++] = varp;
+    (*list)[(*count)++] = varp;
     /* Only a varp that *is* a carrier gets the flag — an exemption on a varp
-     * nothing is based on has nothing to exempt, and `exempt[]` keeps it so that
-     * can be said out loud rather than accepted in silence. */
+     * nothing is based on has nothing to exempt, and the list above keeps it so
+     * that can be said out loud rather than accepted in silence. */
     for( int i = 0; i < symbols->carrier_count; i++ )
     {
-        if( symbols->carriers[i].varp == varp )
+        if( symbols->carriers[i].varp != varp )
+            continue;
+        if( reads_only )
+            symbols->carriers[i].read_exempt = 1;
+        else
             symbols->carriers[i].exempt = 1;
     }
     return 1;
@@ -1145,7 +1196,10 @@ load_varp_decl_file(
         }
         if( varp >= 0 && strncmp(cursor, "wholewrite=", 11) == 0 &&
             strcmp(cursor + 11, "allow") == 0 )
-            loaded += exempt_varp(symbols, varp);
+            loaded += exempt_varp(symbols, varp, 0);
+        else if( varp >= 0 && strncmp(cursor, "wholeread=", 10) == 0 &&
+                 strcmp(cursor + 10, "allow") == 0 )
+            loaded += exempt_varp(symbols, varp, 1);
     }
     fclose(file);
     return loaded;

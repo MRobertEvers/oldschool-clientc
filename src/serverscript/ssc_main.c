@@ -53,7 +53,6 @@ main(int argc, char** argv)
     int component_count = 0;
     int constant_count = 0;
     int dbcolumn_count = 0;
-    int exempt_count = 0;
     int i;
     int status = 0;
 
@@ -173,12 +172,17 @@ main(int argc, char** argv)
      */
     for( i = 0; i < pack_count; i++ )
         SSC_SymbolsLoadVarbitBases(&symbols, packs[i]);
-    exempt_count = SSC_SymbolsLoadVarpDecls(&symbols, src);
+    SSC_SymbolsLoadVarpDecls(&symbols, src);
 
+    /* The two exemptions are counted apart because they are not the same claim:
+     * `wholewrite` licenses destroying a neighbour's variable, `wholeread` only
+     * licenses reading the packed word. One number would have hidden a rise in
+     * the first behind a rise in the second. */
     printf("symbols: %d from packs, %d components, %d constants, %d db columns, "
-           "%d carrier varp(s), %d whole-write exemption(s)\n",
+           "%d carrier varp(s), %d whole-write exemption(s), %d whole-read\n",
            symbol_count, component_count, constant_count < 0 ? 0 : constant_count,
-           dbcolumn_count < 0 ? 0 : dbcolumn_count, symbols.carrier_count, exempt_count);
+           dbcolumn_count < 0 ? 0 : dbcolumn_count, symbols.carrier_count,
+           symbols.exempt_count, symbols.read_exempt_count);
 
     /*
      * Before a single line is compiled, and fatal.
