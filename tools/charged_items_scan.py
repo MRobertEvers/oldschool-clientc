@@ -358,20 +358,27 @@ FAMILY_DATA = {
         storage="item_var", depletion="degrade_step", max_charges=3000,
         charge_source="Full charge on drop from the Lunar Chest (Neypotzli); repaired by Bob/Dunstan or self-repaired at an armour stand",
         drain_event="1 charge lost per 54 seconds spent in combat while worn (time-based, not per-hit)",
-        status="charges_only",
-        note="Three obj states: new (no Check) / degraded (eclipse_moon_chestplate_degraded, has Check) / "
-             "broken (repairable). No time-based combat-degrade ticker exists anywhere in this codebase — "
-             "not even a partial mechanism, unlike the per-hit/per-swing families.",
+        status="implemented",
+        note="CORRECTED: 'no time-based combat-degrade ticker exists' is no longer true after this session's "
+             "Barrows work built exactly that (skill_combat/scripts/player/gear/barrows_degrade.rs2) and "
+             "confirmed the mechanism (settimer/cleartimer, 90-tick repeating, self-stopping when combat "
+             "activity stops). moon_degrade.rs2 reuses the identical shape for all 3 moon sets x 3 pieces "
+             "at once: a fresh(no Check)->degraded(has Check) free/instant transition on first combat entry, "
+             "then a flat 3000-point item_var countdown (1 per 90 ticks) to broken -- simpler than Barrows' "
+             "4-quarter ladder since moon armour has no intermediate named tiers, just the two states the "
+             "cache's own ifop3 presence already distinguishes. Wired into the same two funnels "
+             "(player_hit_npc_prepare, combat_stats.rs2's playerhit_n_melee) barrows_degrade_enter uses. NOT "
+             "implemented: repairing (Bob/Dunstan/armour stand), same scope note as Barrows.",
     ),
     "Eclipse moon helm": dict(
         storage="item_var", depletion="degrade_step", max_charges=3000,
         charge_source="Same as Eclipse moon chestplate", drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only", note="Same missing-mechanism note as Eclipse moon chestplate.",
+        status="implemented", note="Same shared library as Eclipse moon chestplate; see its note.",
     ),
     "Eclipse moon tassets": dict(
         storage="item_var", depletion="degrade_step", max_charges=3000,
         charge_source="Same as Eclipse moon chestplate", drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only", note="Same missing-mechanism note as Eclipse moon chestplate.",
+        status="implemented", note="Same shared library as Eclipse moon chestplate; see its note.",
     ),
     "Efaritay's aid": dict(
         storage="item_var", depletion="destroy", max_charges=200,
@@ -853,40 +860,40 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=3000,
         charge_source="Lunar Chest (Neypotzli) drop; the pristine 'new' id converts to the charged 'degraded' id on first wear, starting full",
         drain_event="1 charge per 54 seconds spent in combat while worn",
-        status="charges_only",
-        note="Three-id ladder confirmed in configs/all.obj: new (no Check) -> degraded (item_var storage, "
-             "has Check) -> broken (repaired via Bob/Dunstan or an armour stand). The drain is TIME-based "
-             "(elapsed seconds in combat), not per-hit -- no in-combat timer subsystem exists anywhere in "
-             "this codebase; this needs genuinely new infrastructure, unlike every per-swing drain already wired.",
+        status="implemented",
+        note="CORRECTED: the in-combat timer subsystem this note said didn't exist was built this session "
+             "(skill_combat/scripts/player/gear/barrows_degrade.rs2, generalized to moon_degrade.rs2). Same "
+             "shared library as Eclipse moon chestplate's own note describes -- all 9 moon-armour pieces "
+             "(Eclipse/Blood/Blue x chestplate/helm/tassets) wired together.",
     ),
     "Blood moon helm": dict(
         storage="item_var", depletion="revert", max_charges=3000,
         charge_source="Same as Blood moon chestplate", drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only", note="Ladder: blood_moon_helm -> _degraded -> _broken. Same time-based-drain gap.",
+        status="implemented", note="Same shared library as Eclipse moon chestplate; see its note.",
     ),
     "Blood moon tassets": dict(
         storage="item_var", depletion="revert", max_charges=3000,
         charge_source="Same as Blood moon chestplate", drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only", note="Ladder: blood_moon_tassets -> _degraded -> _broken. Same time-based-drain gap.",
+        status="implemented", note="Same shared library as Eclipse moon chestplate; see its note.",
     ),
     "Blue moon chestplate": dict(
         storage="item_var", depletion="revert", max_charges=3000,
         charge_source="Lunar Chest drop; activates to the charged/degraded id on first wear, full at 3,000",
         drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only",
+        status="implemented",
         note="Wiki title 'Blue moon' but the cache's internal family name is 'frost_moon' (pre-rename "
-             "datamined name) -- ladder is frost_moon_chestplate -> _degraded -> _broken. Same "
-             "no-timer-subsystem gap as Blood moon.",
+             "datamined name) -- ladder is frost_moon_chestplate -> _degraded -> _broken, wired the same as "
+             "Eclipse moon chestplate; see its note.",
     ),
     "Blue moon helm": dict(
         storage="item_var", depletion="revert", max_charges=3000,
         charge_source="Same as Blue moon chestplate", drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only", note="Ladder: frost_moon_helm -> _degraded -> _broken. Same gap.",
+        status="implemented", note="Same shared library as Eclipse moon chestplate; see its note.",
     ),
     "Blue moon tassets": dict(
         storage="item_var", depletion="revert", max_charges=3000,
         charge_source="Same as Blue moon chestplate", drain_event="1 charge per 54 seconds in combat while worn",
-        status="charges_only", note="Ladder: frost_moon_tassets -> _degraded -> _broken. Same gap.",
+        status="implemented", note="Same shared library as Eclipse moon chestplate; see its note.",
     ),
     "Bone staff": dict(
         storage="item_var", depletion="none", max_charges=20000,
