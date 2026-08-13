@@ -216,11 +216,27 @@ FAMILY_DATA = {
         note="scythe_of_vitur_bl — same file, same swing hook and charge storage as the base scythe, already bound.",
     ),
     "Toxic blowpipe": dict(
-        storage="item_var", depletion="none", max_charges=None,
-        charge_source="Filled with any tradeable dart + 1 zulrah scale per dart via 'Fill'",
-        drain_event="1 dart (and its charge) consumed per shot; refuses to fire empty",
+        storage="item_var", depletion="none", max_charges=16383,
+        charge_source="Filled with darts + Zulrah's scales (1 scale per dart, up to 16,383 of each)",
+        drain_event="1 dart per shot; 1 scale per shot at a 2/3 chance (1/3 chance to skip)",
         status="implemented",
-        note="Charge count here is dart count, already a container-ish item; darts are its own inv, no revert/break.",
+        note="CORRECTED: this status was wrong -- checked directly (grepped player_ranged.rs2, zero hits) "
+             "rather than trusting the prior claim, and confirmed by pvm_toxic_blowpipe.rs2's own header, "
+             "which already stated the gap: no blowpipe-specific ammo model existed anywhere, the weapon "
+             "silently fell through the generic 'thrown: rhand is the ammo' branch and never ran out. Built "
+             "a full shared dual-resource library, gear/blowpipe_ammo.rs2, covering all 5 blowpipes "
+             "(Toxic/Blazing/Camphor/Ironwood/Rosewood) at once: two independent item_var counters (dart "
+             "count keyed by whichever dart obj is loaded; scale count keyed by the scale obj itself), Fill "
+             "(opheldu, dispatched on last_useitem), Check, Uncharge/Unload, and real per-shot consumption "
+             "wired into player_ranged.rs2's check_ammo/use_weapon plus both blowpipe specials (which "
+             "already checked ammo existed but never spent any). Found and fixed a real bug along the way: "
+             "this language has no statement-level discard, and a bare ~charges_item_drain(...) call leaks "
+             "its return value on the VM's int stack -- caught by a 200-shot test loop overflowing the "
+             "256-entry stack, then found and fixed the same pattern in 5 other files (celestial_ring.rs2, "
+             "celestial_signet.rs2 x2, echo_boots.rs2, god_iban.rs2 -- the last one pre-existing from an "
+             "earlier session, not introduced by this pass). NOT implemented: the loaded dart's own Ranged "
+             "Strength bonus (it isn't in the quiver, so the existing equipment-bonus summing never sees "
+             "it), Unload-vs-Uncharge as distinct ops, and the empty-pipe Dismantle-for-scales option.",
     ),
     "Abyssal tentacle": dict(
         storage="item_var", depletion="revert", max_charges=10000,
@@ -493,12 +509,14 @@ FAMILY_DATA = {
              "extend for this staff.",
     ),
     "Camphor blowpipe": dict(
-        storage="item_var", depletion="none", max_charges=None,
+        storage="item_var", depletion="none", max_charges=16383,
         charge_source="Fletched from 2 camphor logs + squid beak; loaded with up to mithril darts (no scales needed)",
         drain_event="1 dart consumed per shot",
-        status="charges_only",
-        note="No dart-loading implementation exists for ANY blowpipe in this tree, including the toxic "
-             "blowpipe's own claimed 'implemented' status -- worth a follow-up check on that entry.",
+        status="implemented",
+        note="Same shared library as Toxic blowpipe (gear/blowpipe_ammo.rs2); see its note. Wiki confirmed "
+             "directly (not assumed): 'unlike the toxic blowpipe, it does NOT need to be charged with "
+             "Zulrah's scales to use it' -- ~blowpipe_needs_scales gates the scale check/drain/fill so this "
+             "fires on darts alone.",
     ),
     "Celestial ring": dict(
         storage="item_var", depletion="none", max_charges=10000,
@@ -659,23 +677,23 @@ FAMILY_DATA = {
              "not-Leagues-locked reasoning. Unimplemented (specwep.rs2 only gates the special attack).",
     ),
     "Ironwood blowpipe": dict(
-        storage="item_var", depletion="revert", max_charges=None,
+        storage="item_var", depletion="none", max_charges=16383,
         charge_source="Darts used directly on the blowpipe (up to adamant); no scales needed",
         drain_event="1 dart consumed per shot",
-        status="charges_only",
-        note="Max not stated on this item's own wiki page. player_ranged_check_ammo "
-             "(player_ranged.rs2:145-189) treats every blowpipe as a self-ammo'd thrown weapon with NO "
-             "ammo/charge check at all today -- the whole normal-attack drain mechanism is absent, not just "
-             "unbound.",
+        status="implemented",
+        note="Same shared library as Toxic blowpipe (gear/blowpipe_ammo.rs2); see its note. Confirmed no "
+             "scales needed directly against this item's own wiki page.",
     ),
     "Rosewood blowpipe": dict(
-        storage="item_var", depletion="revert", max_charges=16383,
+        storage="item_var", depletion="none", max_charges=16383,
         charge_source="Darts used directly on the blowpipe (up to rune); no scales needed",
         drain_event="1 dart consumed per shot; special attack fires two shots for 25% special energy",
-        status="charges_only",
-        note="14-bit dart count, matching the toxic blowpipe's own field. Special attack IS wired "
-             "(specs/pvm_rosewood_blowpipe.rs2, player_special_attack.rs2 case 63) but calls the same "
-             "no-charge-check ammo path as Ironwood blowpipe -- even the bound mechanic doesn't drain darts.",
+        status="implemented",
+        note="Same shared library as Toxic blowpipe (gear/blowpipe_ammo.rs2); see its note. Its special "
+             "attack (specs/pvm_rosewood_blowpipe.rs2, player_special_attack.rs2 case 63) already called "
+             "the ammo check but never drained anything for either of its two shots -- fixed alongside the "
+             "rest of the ammo model, calling ~blowpipe_consume once per shot rather than left as a second "
+             "gap.",
     ),
     "Kharedst's memoirs": dict(
         storage="player_varp", depletion="none", max_charges=100,
@@ -864,13 +882,16 @@ FAMILY_DATA = {
              "Same start-charge constant mismatch noted under Blade of saeldor applies here too.",
     ),
     "Blazing blowpipe": dict(
-        storage="item_var", depletion="none", max_charges=None,
+        storage="item_var", depletion="none", max_charges=16383,
         charge_source="Toxic blowpipe (empty) + Trailblazer reloaded blowpipe ornament kit, filled like a toxic blowpipe",
         drain_event="1 dart (and its charge) consumed per shot; refuses to fire empty",
-        status="charges_only",
-        note="Toxic blowpipe's own special attack (pvm_toxic_blowpipe.rs2) pattern-matches literally on "
-             "toxic_blowpipe_loaded and does NOT include this ornament id -- not plugged in anywhere, unlike "
-             "the base toxic blowpipe.",
+        status="implemented",
+        note="Same shared library as Toxic blowpipe (gear/blowpipe_ammo.rs2), needs scales the same way. "
+             "NOT verified: whether Toxic blowpipe's own special attack (pvm_toxic_blowpipe.rs2, sa_kind "
+             "case 56) actually dispatches for this ornament id -- that is player_special_attack.rs2's own "
+             "param-based routing table, a pre-existing concern this pass did not need to touch since "
+             "pvm_toxic_blowpipe_sa reads $rhand generically rather than hardcoding an obj id; unconfirmed "
+             "whether the ornament's own sa_kind param maps to the same case.",
     ),
     "Blood moon chestplate": dict(
         storage="item_var", depletion="revert", max_charges=3000,
