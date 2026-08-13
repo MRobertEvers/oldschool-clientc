@@ -245,6 +245,60 @@ FAMILY_DATA = {
              "or equivalent, not yet wired — same shape as scythe's per-swing "
              "hook, one layer deeper.",
     ),
+    # -- item_var, implemented: wilderness weapons + bracelet -------------
+    # All six share one mechanic (minigame_revcaves/scripts/wildy_weapons.rs2
+    # + wildy_passives.rs2 + wildy_upgrades.rs2) and one wiki-confirmed cap:
+    # 17,000 raw ether (1,000 activation reserve + 16,000 usable) — checked
+    # against Thammaron's, Viggora's, Ursine, and Accursed's own wikitext
+    # directly, not assumed from Craw's bow alone. Charging (inv), the
+    # obj-id swap on first activation, top-ups, and the boss-trophy upgrade/
+    # dismantle transfers are all real and item_var-backed; the 50%
+    # accuracy+damage combat passive and its 1-charge-per-attack drain
+    # (wildy_passives.rs2's ~wildy_weapon_consume) are real and wired, gated
+    # on `~wilderness_level(coord) >= 1` — this server has real Wilderness
+    # zone data (areas/area_wilderness/) to gate against.
+    "Thammaron's sceptre": dict(
+        storage="item_var", depletion="revert", max_charges=17000,
+        charge_source="Revenant ether (revenant_drops.rs2 + ethereum.rs2), used on the sceptre",
+        drain_event="1 charge per attack while worn in the Wilderness (wildy_passives.rs2)",
+        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+    ),
+    "Craw's bow": dict(
+        storage="item_var", depletion="revert", max_charges=17000,
+        charge_source="Revenant ether, used on the bow",
+        drain_event="1 charge per attack while worn in the Wilderness",
+        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+    ),
+    "Viggora's chainmace": dict(
+        storage="item_var", depletion="revert", max_charges=17000,
+        charge_source="Revenant ether, used on the chainmace",
+        drain_event="1 charge per attack while worn in the Wilderness",
+        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+    ),
+    "Accursed sceptre": dict(
+        storage="item_var", depletion="revert", max_charges=17000,
+        charge_source="Revenant ether, used on the sceptre (Thammaron's + Vet'ion skull upgrade)",
+        drain_event="1 charge per attack while worn in the Wilderness",
+        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+    ),
+    "Webweaver bow": dict(
+        storage="item_var", depletion="revert", max_charges=17000,
+        charge_source="Revenant ether, used on the bow (Craw's + Venenatis fang upgrade)",
+        drain_event="1 charge per attack while worn in the Wilderness",
+        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+    ),
+    "Ursine chainmace": dict(
+        storage="item_var", depletion="revert", max_charges=17000,
+        charge_source="Revenant ether, used on the chainmace (Viggora's + Callisto claws upgrade)",
+        drain_event="1 charge per attack while worn in the Wilderness",
+        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+    ),
+    "Bracelet of ethereum": dict(
+        storage="item_var", depletion="none", max_charges=16000,
+        charge_source="Revenant ether, used on the bracelet",
+        drain_event="1 charge per revenant attack while worn (75% damage reduction; ethereum.rs2)",
+        status="implemented", note="Migrated from a single account varp 2026-08-13.",
+    ),
     # -- id_ladder, implemented -------------------------------------------
     "Ring of dueling": dict(
         storage="id_ladder", depletion="degrade_step", max_charges=8,
