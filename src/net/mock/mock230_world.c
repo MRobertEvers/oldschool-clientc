@@ -3301,8 +3301,18 @@ npc_run_mode(
     {
         int op = npc->mode - MOCK230_NPCMODE_APPLAYER1;
         int size = npc->size > 0 ? npc->size : 1;
+        /* The npc's own `param=attackrange` widens (or narrows) the AP reach.
+         * The default is the reference's flat 10 (`PathingEntity.apRange`),
+         * which is wrong in both directions for anything that states a reach:
+         * Jal-MejRah's four tiles fired from ten, and the Inferno's rangers —
+         * whose reach the wiki puts past the player's own maximum of ten —
+         * walked to ten before firing. `> 1` and not `> 0` because 1 is the
+         * unauthored default and means melee, which AP modes are not for. */
+        int ap_range = MOCK230_AP_RANGE_DEFAULT;
 
-        if( range > MOCK230_AP_RANGE_DEFAULT )
+        if( npc->def && npc->def->attackrange > 1 )
+            ap_range = npc->def->attackrange;
+        if( range > ap_range )
         {
             npc_walk_to_player(npc, player);
             return 1;
@@ -29393,6 +29403,16 @@ mock230_world_selftest(void)
                                    "Jal-Xil's [ai_timer] should hold it on npc_delay between "
                                    "swings — without that this stanza tests nothing");
 
+                    /* The hit below starts a real fight, and Jal-Xil's answer
+                     * (max hit 46) kills a default selftest player before the
+                     * retaliation stanza can watch it — a dying target clears
+                     * `combat_target`, which reads as the leash bug this
+                     * stanza exists to catch. Tank it: `player->hitpoints` is
+                     * the pool `mock230_combat_hit_player` drains; the stat
+                     * level only feeds `stat()` reads. */
+                    player->stat_level[MOCK230_STAT_HITPOINTS] = 200;
+                    player->hitpoints = 200;
+
                     hp_before = xil->hitpoints;
                     for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
                     {
@@ -29420,6 +29440,60 @@ mock230_world_selftest(void)
                                    "and take the queued damage — [ai_queue2] is where every "
                                    "hit on an add lands; %d -> %d",
                                    hp_before, xil->hitpoints);
+
+                    /*
+                     * And the hit must be answered from where the add stands.
+                     *
+                     * Retaliation used to fail twice over, and both halves were
+                     * invisible from the assertions above. The record's default
+                     * `maxrange` leash is 7 measured from the SPAWN tile, so
+                     * the tick after `combat_target` latched,
+                     * `target_within_maxrange` read a player across the arena
+                     * as escaped and cleared it — a one-tick fight. And with
+                     * the default `attackrange` of 1, an add that did keep its
+                     * target walked the whole floor to melee before the combat
+                     * clock let it swing. `param=attackrange,40` + `maxrange=40`
+                     * (configs/inferno.npc, the wiki's ">10 tiles" bound) plus
+                     * the [ai_opplayer2] redirect are the fix; this holds all
+                     * three.
+                     *
+                     * The player is parked 19 tiles west on the ranger's own
+                     * row — outside the old leash and the old AP walk gate,
+                     * inside the new reach.
+                     */
+                    {
+                        int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
+                        int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
+                        int xil_home_x = xil->x;
+                        int xil_home_z = xil->z;
+                        int hp_level_before;
+                        int held = 1;
+
+                        player->x = base_x + 16;
+                        player->z = base_z + 38; /* ^inferno_ranger_lz */
+                        hp_level_before = player->hitpoints;
+
+                        for( int tick = 0; tick < 12; tick++ )
+                        {
+                            mock230_world_tick(&srv);
+                            held &= xil->combat_target == player->pid;
+                        }
+                        SELFTEST_CHECK(held,
+                                       "a provoked Jal-Xil must hold its target across the "
+                                       "arena — the default 7-tile maxrange leash cleared it "
+                                       "on the first combat tick (target %d)",
+                                       xil->combat_target);
+                        SELFTEST_CHECK(abs(xil->x - xil_home_x) +
+                                               abs(xil->z - xil_home_z) <=
+                                           2,
+                                       "and shoot from where it stands, not march to melee — "
+                                       "moved (%d,%d) -> (%d,%d)",
+                                       xil_home_x, xil_home_z, xil->x, xil->z);
+                        SELFTEST_CHECK(player->hitpoints < hp_level_before,
+                                       "and its ranged answer must land on the player (hp "
+                                       "still %d of %d)",
+                                       player->hitpoints, hp_level_before);
+                    }
                 }
             }
         }

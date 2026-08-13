@@ -1524,7 +1524,23 @@ mock230_combat_npc_tick(
      */
     mock230_npc_face_player(npc, npc->combat_target);
 
-    if( !in_npc_attack_range(player, npc) )
+    /* A ranged or magic attacker also needs *approached* line of sight before
+     * its reach counts — the same cast `npc_run_mode`'s AP dispatch makes
+     * (player → npc, backwards, because that is the direction the reference
+     * asks it in). Without this, giving the Inferno's rangers their
+     * wiki-stated arena-wide `attackrange` let a retaliating Jal-Xil shoot
+     * through the pillars, and hiding behind one is the fight's whole
+     * mechanic. Melee (`attackrange <= 1`) keeps the plain adjacency test:
+     * the shared-edge wall check in the approach already answers fences. */
+    int npc_size = npc->size > 0 ? npc->size : 1;
+    int in_reach = in_npc_attack_range(player, npc);
+
+    if( in_reach && npc_def(npc)->attackrange > 1 &&
+        !mock230_scene_approached(
+            npc->level, player->x, player->z, npc->x, npc->z, 1, 1, npc_size, npc_size) )
+        in_reach = 0;
+
+    if( !in_reach )
     {
         /*
          * Pursue — the reference's `aiMode()`: path to the target, take one
