@@ -629,6 +629,40 @@ enum
     MOCK230_PMASK_DAMAGE2 = 0x400,
 };
 
+/*
+ * Every hitsplat one entity takes in one tick.
+ *
+ * This used to be a single `damage`/`damage_type` pair, and a second hit on the
+ * same entity in the same tick simply overwrote the first — one splat reached
+ * the client where two were dealt. It is not a rare corner: anything with more
+ * than one attacker coalesces (measured in the Inferno's Zuk phase, where the
+ * ranger and the mager land on the Ancestral Glyph together: 38 hits produced
+ * 27 splats, and all 11 that vanished were same-tick pairs). From in front of
+ * the game it reads as hitsplats rendering "only sometimes", which is how it
+ * was reported.
+ *
+ * Neither the wire nor the client was ever the limit. Both hitmark encoders are
+ * LISTS — a count followed by that many (type, value, delay, slot-limit)
+ * quadruples — and the rev-239 actor keeps four concurrent hitmark slots, which
+ * is what the fourth field of each quadruple states and what
+ * `WORLD_ENTITY_DAMAGE_SLOTS` is on the client. Only the mock's own per-tick
+ * state was scalar, so it could never say more than one.
+ *
+ * Four, to match the client's slot count: a fifth splat in one tick has nowhere
+ * to be drawn, so dropping it here and dropping it there are the same thing.
+ */
+enum
+{
+    MOCK230_HITMARK_MAX = 4
+};
+
+struct Mock230Hitmark
+{
+    int damage;
+    /** A hitsplat *config* id (group 32) — 28 damage, 26 block. Not a style. */
+    int type;
+};
+
 /* The npc mask is a single byte — there is no widening bit. */
 enum
 {
@@ -1852,6 +1886,11 @@ struct Mock230Npc
     int change_type;
     int face_x;
     int face_z;
+    /** Every splat this npc takes this tick; see struct Mock230Hitmark. */
+    struct Mock230Hitmark hitmarks[MOCK230_HITMARK_MAX];
+    int hitmark_count;
+    /** The first of them, mirrored for the single-slot classic writer and for
+     *  the selftests that assert on one hit. Meaningless when count is 0. */
     int damage;
     int damage_type;
     int hitpoints;
@@ -2487,6 +2526,12 @@ struct Mock230Player
     int exact_start_cycle;
     int exact_end_cycle;
     int exact_direction;
+    /** Every splat this player takes this tick; see struct Mock230Hitmark.
+     *  The player is the entity that most often takes several at once — in the
+     *  Inferno a whole wave lands on them together. */
+    struct Mock230Hitmark hitmarks[MOCK230_HITMARK_MAX];
+    int hitmark_count;
+    /** The first of them, mirrored — see the npc's copy of this field. */
     int damage;
     int damage_type;
     int hitpoints;

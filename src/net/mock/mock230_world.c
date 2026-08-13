@@ -10083,6 +10083,11 @@ phase_cleanup_player(struct Mock230Player* player)
      * animations forever — a goblin that lands one attack would never flinch
      * again. The reference clears it in the same reset, for the same reason. */
     player->masks = 0;
+    /* With the masks, and for exactly the same reason: the hitmark list
+     * describes one tick, and every recipient's PLAYER_INFO has to have been
+     * written before it is dropped. Clearing it anywhere earlier — inside the
+     * encoder, say — is what would make a second observer see no splats. */
+    player->hitmark_count = 0;
     player->anim_id = -1;
     player->anim_delay = 0;
     /* With the masks, and for the same reason: an absolute placement describes
@@ -10114,6 +10119,8 @@ phase_cleanup(struct Mock230Server* srv)
     for( int i = 0; i < srv->npc_slot_max; i++ )
     {
         srv->npcs[i].masks = 0;
+        /* With the masks — see the player's copy of this line. */
+        srv->npcs[i].hitmark_count = 0;
         /* LostCity `Npc.processMovement`: `lastMovement = currentTick + 1`
          * whenever the tile changed. Recorded here, off the tick's final
          * `step_dir`, so every mover feeds it. Read by `npc_arrivedelay`. */
@@ -10797,6 +10804,20 @@ selftest_replay_obj_adds(
  * the full 4-byte uid, so a loop hard-coding one of them silently stalls on
  * every page spoken by the other. Which is exactly what it did.
  *
+ * A page is not always a pause button any more. `~p_choiceN` parks on
+ * `chatmenu:options` and resumes on an IF_BUTTON1 carrying the chosen *row*,
+ * not on RESUME_PAUSEBUTTON — so a loop that only knows how to click continue
+ * stalls there forever and returns `max_pages`, which reads as "the script
+ * never ended" rather than as "nobody answered the question". That is what the
+ * Cook's Assistant section reported for all nine of its checks the day the
+ * quest's accept/decline offer became a real `~p_choice2`.
+ *
+ * Row 1, always: the first option. A generic click-through has to pick
+ * *something*, and the first option is the one the reference's transcripts lead
+ * with and the one every conversation here uses for "yes, go on". A test that
+ * needs a different row answers the menu itself, the way the sanfew section
+ * does — this helper is for draining pages, not for choosing between branches.
+ *
  * Returns the number of clicks it took; the caller decides whether the script
  * finishing matters.
  */
@@ -10806,11 +10827,12 @@ selftest_click_through(
     int max_pages)
 {
     int clicks = 0;
+    int chatmenu = mock230_content_symbol(MOCK230_PACK_COMPONENT, "chatmenu:options");
 
     while( clicks < max_pages && srv->active_player->active_script )
     {
         int uid;
-        uint8_t resume[4];
+        uint8_t resume[6];
 
         if( srv->active_player->resume_button_count <= 0 )
             break;
@@ -10819,7 +10841,17 @@ selftest_click_through(
         resume[1] = (uint8_t)(uid >> 16);
         resume[2] = (uint8_t)(uid >> 8);
         resume[3] = (uint8_t)uid;
-        mock230_world_handle(srv->active_player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        if( chatmenu > 0 && uid == chatmenu )
+        {
+            resume[4] = 0;
+            resume[5] = 1; /* the first option, not the title row */
+            mock230_world_handle(srv->active_player, PKTOUT_NAME_IF_BUTTON1, resume,
+                                 sizeof(resume));
+        }
+        else
+        {
+            mock230_world_handle(srv->active_player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        }
         clicks++;
     }
     return clicks;
@@ -11118,7 +11150,26 @@ selftest_prayer_toggle(
 int
 mock230_world_selftest(void)
 {
-    struct Mock230Server srv;
+    /*
+     * `static`, and not as an optimisation: `struct Mock230Server` is 4 MB
+     * (4096 npc slots at ~830 bytes each) against this platform's 8 MB stack,
+     * so the fixture was living within a couple of hundred kilobytes of the
+     * limit and every local this function adds ate into that margin. Adding a
+     * four-entry hitmark list to `Mock230Npc` — 36 bytes, 147 KB across the
+     * pool — was enough to push it over, and a blown stack does not fail like a
+     * test: the whole binary SIGSEGVs during boot, before the first stanza, and
+     * `grep -c FAIL` reads that as *zero failures*.
+     *
+     * `mock230_main.c` already declares its server this way, with the same
+     * reasoning in one line. This is the second of the three declarations to
+     * learn it; the third (`Mock230Embed.srv`) is a member of a heap object and
+     * was never at risk.
+     *
+     * Safe as a single-instance static: this is an entry point `main` calls
+     * once, it is not reentrant, and the memset below still gives every run a
+     * zeroed world.
+     */
+    static struct Mock230Server srv;
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
 
@@ -12396,6 +12447,14 @@ mock230_world_selftest(void)
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_DAMAGE, SS_OP_RETURN,
                 };
+                /* operand 0 is the player uid `damage` resolves through
+                 * `player_by_uid`, and a uid is `pid + 1` — it is filled in
+                 * below, once `player` is known to be the live one. It used to
+                 * be a literal 0 and that was fine while the op ignored the
+                 * argument; since the summoning work made `damage` take a real
+                 * target, uid 0 is pid -1 and the script aborts before it hits
+                 * anything, which reads here as "the queue does not run while
+                 * locked" — the opposite of what is being measured. */
                 int32_t damage_operands[] = { 0, 0, 1, 0, 0 };
                 char* damage_strings[] = { NULL, NULL, NULL, NULL, NULL };
                 struct SSVM_Script damage_script = {
@@ -12488,6 +12547,7 @@ mock230_world_selftest(void)
                                    player_action_packet(PKTOUT_NAME_IF_BUTTON1),
                                "item and interface interactions share the action-lock gate");
 
+                damage_operands[0] = player->pid + 1;
                 srv.scripts = &damage_provider;
                 srv.script_env->provider = &damage_provider;
                 for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
@@ -16834,6 +16894,19 @@ mock230_world_selftest(void)
             int retaliate = mock230_content_symbol(
                 MOCK230_PACK_COMPONENT, "combat_interface:retaliate");
             int armed = 0;
+            /*
+             * `[queue,playerhit_n_retaliate]`'s parameter is an `npc_uid`, and
+             * a uid is `generation:slot` — the encoding `npc_uid` pushes and
+             * `npc_finduid` takes apart. Every content caller passes `npc_uid`;
+             * this fixture is the only C one and it passed the bare slot, whose
+             * high half is generation 0. `npc_finduid` rejects generation 0 by
+             * design (that is what makes a stale handle fail closed), so the
+             * whole guard went false and the retaliation never ran — which
+             * shows up as the two checks below, neither of which mentions uids.
+             */
+            int32_t goblin_uid =
+                (int32_t)(((uint32_t)srv.npcs[goblin].generation << 16) |
+                          (uint32_t)(goblin & 0xffff));
             uint8_t button[9];
 
             SELFTEST_CHECK(option_nodef == 172,
@@ -16898,7 +16971,7 @@ mock230_world_selftest(void)
             mock230_combat_stop_player(&srv);
             SELFTEST_CHECK(
                 mock230_scripts_queue_named(
-                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin),
+                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                 "the retaliation fixture should queue while the option is off");
             mock230_scripts_process_queues(&srv);
             SELFTEST_CHECK(player->combat_target == -1,
@@ -16919,7 +16992,7 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(
                 mock230_scripts_queue_named(
-                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin),
+                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                 "the retaliation fixture should queue while the option is on");
             player->varps[action_delay] = srv.tick - 1;
             player->varps[damagestyle] = 0; /* melee, never ranged rapid */
@@ -17811,6 +17884,83 @@ mock230_world_selftest(void)
         player->hitpoints = saved_hp;
         player->dying = saved_dying;
         mock230_combat_sync_hitpoints(player);
+    }
+
+    fprintf(stderr, "mock230 selftest: several hits in one tick are several hitsplats\n");
+    {
+        /*
+         * Two attackers landing on the same entity on the same tick are two
+         * hitsplats, and this used to be one.
+         *
+         * `damage`/`damage_type` were a single scalar pair per entity, so the
+         * second hit of a tick overwrote the first and the client was told about
+         * one of them. Measured in the Inferno's Zuk phase — where the ranger
+         * and the mager chew on the Ancestral Glyph together — 38 hits produced
+         * 27 splats, and every one of the 11 that vanished was a same-tick pair.
+         * The report was "hitsplats only sometimes render", which is exactly
+         * what a rule like this looks like from in front of the game: it is not
+         * flaky, it is deterministic on a condition nobody thinks to describe.
+         *
+         * Neither the wire nor the client was ever the limit — both hitmark
+         * blocks are lists and the rev-239 actor keeps four slots — so the fix
+         * is per-tick state, and this stanza is about that state rather than
+         * about bytes. What it must catch is a return to overwrite semantics,
+         * so the assertion is on the COUNT and on both VALUES: keeping only the
+         * last would leave the count at 1, and keeping only the first would put
+         * 7 in slot 1.
+         */
+        int slot = selftest_find_npc(&srv, mock230_content_symbol(MOCK230_PACK_NPC, "man"));
+
+        if( slot < 0 )
+        {
+            fprintf(stderr, "  SKIP  no `man` npc on the map to hit\n");
+        }
+        else
+        {
+            struct Mock230Npc* npc = &srv.npcs[slot];
+            int saved_hp = npc->hitpoints;
+            int splat_type = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage");
+
+            npc->hitpoints = 100;
+            npc->hitmark_count = 0;
+            npc->masks = 0;
+
+            mock230_combat_hit_npc(&srv, slot, splat_type, 7);
+            mock230_combat_hit_npc(&srv, slot, splat_type, 3);
+
+            SELFTEST_CHECK(npc->hitmark_count == 2,
+                           "two hits on one tick should queue two hitmarks, got %d",
+                           npc->hitmark_count);
+            SELFTEST_CHECK(npc->hitmarks[0].damage == 7 && npc->hitmarks[1].damage == 3,
+                           "and keep both values in order, got %d then %d",
+                           npc->hitmarks[0].damage, npc->hitmarks[1].damage);
+            /* Both are dealt whatever the splats do — the coalescing was only
+             * ever about what the client was told, never about the damage. */
+            SELFTEST_CHECK(npc->hitpoints == 90, "both hits should land; 100 -> %d",
+                           npc->hitpoints);
+            /* The classic (rev-230) mask carries two splats and the second bit
+             * is what spends its second slot. Nothing set it before, and the
+             * branch that reads it wrote the first hit's value twice. */
+            SELFTEST_CHECK((npc->masks & MOCK230_NMASK_DAMAGE) &&
+                               (npc->masks & MOCK230_NMASK_DAMAGE2),
+                           "and set both classic damage masks, got 0x%x", npc->masks);
+
+            /* The cap, stated so it is a decision rather than an accident: the
+             * client holds four slots (WORLD_ENTITY_DAMAGE_SLOTS), so a fifth
+             * simultaneous splat has nowhere to be drawn at either end. */
+            mock230_combat_hit_npc(&srv, slot, splat_type, 1);
+            mock230_combat_hit_npc(&srv, slot, splat_type, 1);
+            mock230_combat_hit_npc(&srv, slot, splat_type, 1);
+            SELFTEST_CHECK(npc->hitmark_count == MOCK230_HITMARK_MAX,
+                           "a fifth splat in one tick should be dropped, not overflow; got %d",
+                           npc->hitmark_count);
+            SELFTEST_CHECK(npc->hitpoints == 87,
+                           "but its damage still lands; expected 87, got %d", npc->hitpoints);
+
+            npc->hitmark_count = 0;
+            npc->masks = 0;
+            npc->hitpoints = saved_hp;
+        }
     }
 
     fprintf(stderr, "mock230 selftest: the player dies and the script revives them\n");
@@ -20576,11 +20726,19 @@ mock230_world_selftest(void)
                        mock230_loc_category(1536));
         /* Both halves of `doors.loc`, counted the way `mock230_pack` counts them.
          * Fencegate / farming / rustic pairs moved to gate_main_* / gate_outer_*
-         * (6 closed + 6 open); door_closed/opened now 386 each. An overlay that
-         * stopped being read would answer 0 here and `validate_categories`
-         * would then call the name uncarried. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 382,
-                       "and doors.loc states door_closed 382 times, got %d",
+         * (6 closed + 6 open), which is what the two gate counts below pin.
+         *
+         * The number tracks the overlay and has to be re-read from it when doors
+         * are authored — `grep -c '^category=door_closed$' doors.loc`. It was
+         * 382 when this was written and is 422 now; what it is defending is not
+         * the total but the *floor*, because an overlay that stopped being read
+         * answers 0 here and `validate_categories` would then call the name
+         * uncarried. Left as an equality rather than `> 0` so a half-loaded
+         * overlay — the failure that actually happens, a merge dropping one
+         * source file — is also caught, at the price of this line moving with
+         * the content. */
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 422,
+                       "and doors.loc states door_closed 422 times, got %d",
                        mock230_loc_category_members(door_closed));
         {
             int gate_main_closed =
@@ -28011,20 +28169,70 @@ mock230_world_selftest(void)
                                player->stat_xp_tenths[cooking] - cooking_xp_before);
 
                 /*
-                 * The queued script is now parked on its own message box —
-                 * `~mesbox` ends in `p_pausebutton` like every other page in
-                 * the toolkit. It has to be clicked away before anything else
-                 * can talk, because there is one parking slot per player and a
-                 * second script suspending while one waits is *dropped*, not
-                 * queued (docs/osrs230_mockserver.md §3.10). Without this the
-                 * post-quest check below passes while doing nothing at all.
+                 * How the reward ends, and why this is not a `~mesbox` any more.
+                 *
+                 * It used to be: `[queue,cooks_quest_complete]` finished on a
+                 * message box, so it *parked*, and the check here was that the
+                 * parking slot was taken and then given back. Completion is the
+                 * quest scroll now (`~quest_complete_rewards` ->
+                 * `~quest_scroll_paint`, interface `questscroll`), and the
+                 * scroll deliberately does not mount from the completion script
+                 * — questscroll.rs2's header spells out why: mounting a main
+                 * modal while the script is parked on a dialogue suppresses the
+                 * finish path's chatbox close and wedges the player. So the
+                 * completion script paints and *books* the mount through a
+                 * second queue, and ends without suspending.
+                 *
+                 * Which means the modern shape is the opposite of the old
+                 * assertion at every step, and each step is still worth pinning
+                 * because each is a way the deferral could be wrong:
+                 *
+                 *   - the completion script does NOT hold the parking slot. If
+                 *     it did, the booked mount could never fire — a queue is
+                 *     held exactly as long as the player is busy;
+                 *   - the scroll arrives on the tick after, not this one;
+                 *   - `questscroll:close_button` takes it down. It is a static
+                 *     op1 widget whose events have to be re-armed on every
+                 *     mount (`~quest_scroll_arm`), so an unarmed button is a
+                 *     scroll the player cannot dismiss — and the post-quest
+                 *     conversation below would then be talking behind a modal.
                  */
-                SELFTEST_CHECK(player->active_script != NULL,
-                               "the reward should park on its completion message");
-                pages = selftest_click_through(&srv, 8);
                 SELFTEST_CHECK(player->active_script == NULL,
-                               "and release the parking slot once dismissed (clicked %d)",
-                               pages);
+                               "the completion queue ends without parking, so its "
+                               "booked scroll mount can fire");
+                {
+                    int scroll =
+                        mock230_content_symbol(MOCK230_PACK_INTERFACE, "questscroll");
+                    int close_button = mock230_content_symbol(
+                        MOCK230_PACK_COMPONENT, "questscroll:close_button");
+                    uint8_t close_click[6];
+
+                    SELFTEST_CHECK(scroll > 0 && close_button > 0,
+                                   "questscroll and its close button resolve by name "
+                                   "(%d / %d)",
+                                   scroll, close_button);
+                    SELFTEST_CHECK(player->mainmodal_group != scroll,
+                                   "the scroll is booked, not mounted, on the "
+                                   "completion tick");
+
+                    mock230_world_tick(&srv);
+                    SELFTEST_CHECK(player->mainmodal_group == scroll,
+                                   "[queue,quest_scroll_show] mounts the scroll on the "
+                                   "next tick, got group %d",
+                                   player->mainmodal_group);
+
+                    close_click[0] = (uint8_t)(close_button >> 24);
+                    close_click[1] = (uint8_t)(close_button >> 16);
+                    close_click[2] = (uint8_t)(close_button >> 8);
+                    close_click[3] = (uint8_t)close_button;
+                    close_click[4] = 0;
+                    close_click[5] = 0;
+                    mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, close_click,
+                                         sizeof(close_click));
+                    SELFTEST_CHECK(player->mainmodal_group != scroll,
+                                   "and the close button takes it down, got group %d",
+                                   player->mainmodal_group);
+                }
 
                 /* The post-quest branch exists and does not undo anything. */
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);

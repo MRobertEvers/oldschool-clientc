@@ -613,6 +613,33 @@ mock230_combat_add_xp(
 /* Applying damage                                                     */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Append one splat to an entity's per-tick list.
+ *
+ * Append rather than assign, which is the whole fix: two attackers landing on
+ * the same tick are two hitsplats, and the scalar pair this replaces could only
+ * remember the last of them. See `struct Mock230Hitmark`.
+ *
+ * Past the client's four slots the splat is dropped, and dropped *silently* on
+ * purpose — `World_EntityAddHitmark` does exactly the same thing at the other
+ * end when every slot is still live, so a fifth simultaneous hit has nowhere to
+ * be drawn whatever this does. The damage itself has already been applied by
+ * the caller; only the number over the head is lost.
+ */
+static void
+mock230_hitmark_add(
+    struct Mock230Hitmark* hitmarks,
+    int* count,
+    int damage,
+    int type)
+{
+    if( *count >= MOCK230_HITMARK_MAX )
+        return;
+    hitmarks[*count].damage = damage;
+    hitmarks[*count].type = type;
+    (*count)++;
+}
+
 void
 mock230_combat_hit_npc(
     struct Mock230Server* srv,
@@ -635,11 +662,18 @@ mock230_combat_hit_npc(
     /* One mask carries the splat and the bar. A zero-damage hit is a *block*
      * splat rather than nothing — the reference shows those, and without them a
      * miss is indistinguishable from the server having ignored the swing. */
-    npc->damage = amount;
-    npc->damage_type = amount > 0 ? type : hitsplat_block();
+    mock230_hitmark_add(npc->hitmarks, &npc->hitmark_count, amount,
+                        amount > 0 ? type : hitsplat_block());
+    npc->damage = npc->hitmarks[0].damage;
+    npc->damage_type = npc->hitmarks[0].type;
     npc->hitpoints = npc->hitpoints < 0 ? 0 : npc->hitpoints;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
     npc->masks |= MOCK230_NMASK_DAMAGE;
+    /* The classic (rev-230) mask has room for exactly two splats and the v5
+     * block has room for four; this bit is what spends the classic second slot.
+     * The v5 writer reads `hitmark_count` directly and ignores it. */
+    if( npc->hitmark_count >= 2 )
+        npc->masks |= MOCK230_NMASK_DAMAGE2;
 
     /* Retaliate. An npc that is hit fights back whatever its hunt mode says —
      * aggression decides who *starts* a fight, not who finishes one.
@@ -854,10 +888,15 @@ mock230_combat_hit_player(
         amount = player->hitpoints;
     player->hitpoints -= amount;
 
-    player->damage = amount;
-    player->damage_type = amount > 0 ? type : hitsplat_block();
+    mock230_hitmark_add(player->hitmarks, &player->hitmark_count, amount,
+                        amount > 0 ? type : hitsplat_block());
+    player->damage = player->hitmarks[0].damage;
+    player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
     player->masks |= MOCK230_PMASK_DAMAGE;
+    /* The classic second slot — see the npc twin of this line. */
+    if( player->hitmark_count >= 2 )
+        player->masks |= MOCK230_PMASK_DAMAGE2;
     mock230_combat_sync_hitpoints(player);
 
     /*

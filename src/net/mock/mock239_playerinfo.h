@@ -129,12 +129,25 @@ struct Mock239PlayerExt
     int has_face;
     struct Mock239Face face;
     /** A hitsplat landing this tick: the hitmark TYPE from content, and the
-     *  damage. Zero `has_hit` when nothing was hit. */
+     *  damage. Zero `has_hit` when nothing was hit.
+     *
+     *  These name the FIRST splat of the tick. A player can take several at
+     *  once — in the Inferno a whole wave lands together — and the block is a
+     *  list, so `hit_extra` carries the rest. A caller that fills only these
+     *  four (`hit_extra_count` left at zero) sends exactly one hitmark, which
+     *  is what every caller did before the list existed. */
     int has_hit;
     int hit_type;
     int hit_value;
     int hit_delay;
     int hit_slots;
+    /** Splats two and onward, same fields, same tick. */
+    struct
+    {
+        int type;
+        int value;
+    } hit_extra[3];
+    int hit_extra_count;
     /** The actor HEADBARS block is independent from a hitmark. */
     int has_headbar;
     int headbar_type;
