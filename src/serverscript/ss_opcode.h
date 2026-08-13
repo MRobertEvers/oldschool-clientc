@@ -463,10 +463,11 @@
 #define SS_OP_NPC_ATTACKNPC 11034
 #define SS_OP_NPC_ATTACKPLAYER 11035
 #define SS_OP_NPC_HASTARGET 11036
+#define SS_OP_NPC_ATTACKDELAY 11037
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11037
+#define SS_OPCODE_MAX 11038
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 441
+#define SS_OPCODE_COUNT 442
 
 #endif

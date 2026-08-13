@@ -2051,6 +2051,33 @@ struct Mock230Npc
     int despawn_tick;
 
     /**
+     * Whether this npc's death is the end of it — the reference's
+     * `EntityLifeCycle`, as a boolean because there are exactly two.
+     *
+     * 0 is `RESPAWN`: the npc is the *world's*, and the world stands it back up
+     * at its spawn tile `respawnrate` ticks after it dies (`Npc.turn` ->
+     * `World.addNpc`). Every map-square roster spawn is this, and so is every
+     * fixture the engine itself creates, because a fixture stands in for one.
+     *
+     * 1 is `DESPAWN`: the npc belongs to the script that called `npc_add`, and
+     * `World.removeNpc` retires it outright. Set at that one opcode and nowhere
+     * else, which is the whole of the distinction — a memset slot is the world's
+     * by default and a script has to say otherwise.
+     *
+     * The engine used to respawn both. That is invisible for the ordinary case
+     * (content npc_adds a monster, you kill it, nothing looks at that tile
+     * again) and wrong for every encounter that spawns its own roster: in the
+     * Inferno each killed add stood back up 25 ticks later — "the waves are
+     * spawning too fast" — and stood back up inert, because what points an add
+     * at the Ancestral Glyph is the timer armed at the `npc_add` site, and a
+     * respawn re-runs `[ai_spawn]`, not the spawner.
+     *
+     * `npc_setrespawn` outranks it either way: content asking for a respawn is
+     * content asking for a respawn.
+     */
+    int despawns_on_death;
+
+    /**
      * `npc_queue`: an `[ai_queue<n>]` waiting to fire on this npc.
      *
      * Four, not sixteen like the player's: the player's queue absorbs a whole

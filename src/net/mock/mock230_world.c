@@ -12566,6 +12566,53 @@ mock230_world_selftest(void)
                     .string_operands = change_get_strings,
                 };
 
+                /*
+                 * `npc_attackdelay` — the swing cooldown, and the thing 38
+                 * content sites now say instead of `npc_delay`.
+                 *
+                 * Pinned here because the difference between the two is
+                 * invisible from a boss fight: both make the next swing land N
+                 * ticks later, and only one of them also stops the npc draining
+                 * the queue the player's damage arrives on. What this asserts is
+                 * that the command reaches `attack_clock` at all — if it did
+                 * not, every one of those 38 monsters would swing on the
+                 * record's rate instead of its own and nothing would say so.
+                 */
+                {
+                    uint16_t delay_ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_NPC_ATTACKDELAY, SS_OP_RETURN,
+                    };
+                    int32_t delay_operands[] = { 7, 0, 0 };
+                    char* delay_strings[3] = { NULL };
+                    struct SSVM_Script delay_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_attackdelay]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 3,
+                        .opcodes = delay_ops,
+                        .int_operands = delay_operands,
+                        .string_operands = delay_strings,
+                    };
+
+                    if( first >= 0 )
+                    {
+                        srv.npcs[first].attack_clock = 0;
+                        srv.npcs[first].delayed_until = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_hook_on_npc(&srv, &delay_script, first),
+                            "npc_attackdelay executes through the host VM");
+                        SELFTEST_CHECK(srv.npcs[first].attack_clock == 7,
+                                       "npc_attackdelay(7) should set the combat attack "
+                                       "clock, got %d",
+                                       srv.npcs[first].attack_clock);
+                        SELFTEST_CHECK(srv.npcs[first].delayed_until <= srv.tick,
+                                       "and must NOT park the npc — a parked npc drains no "
+                                       "queue, which is the whole reason this command "
+                                       "exists beside npc_delay");
+                    }
+                }
+
                 SELFTEST_CHECK(first >= 0 && second >= 0,
                                "two NPC instances should be available for isolation");
                 SELFTEST_CHECK(changed_type > 0 && changed_def != NULL,
@@ -14669,8 +14716,14 @@ mock230_world_selftest(void)
                 int armed = 0;
 
                 mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_proc(&srv, "[proc,skill_guide_login]", NULL, 0);
+                {
+                    int ran = mock230_scripts_run_proc(&srv, "[proc,skill_guide_login]", NULL, 0);
+                    fprintf(stderr, "PROBE skill_guide_login ran=%d active=%p packets=%d\n",
+                            ran, (void*)srv.active_player, capture.count);
+                }
                 mock230_capture_end(&srv);
+                fprintf(stderr, "PROBE after end packets=%d first_op=%d\n", capture.count,
+                        capture.count > 0 ? capture.packets[0].opcode : -1);
 
                 for( int i = 0; i < CELL_COUNT; i++ )
                 {
@@ -18097,6 +18150,64 @@ mock230_world_selftest(void)
             for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
                 mock230_world_tick(&srv);
             SELFTEST_CHECK(npc->active, "and the goblin respawns afterwards");
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: a script-spawned npc does not come back\n");
+    {
+        /*
+         * `npc_add` and a map-square spawn are two different lifetimes, and the
+         * death is where they part: `EntityLifeCycle.RESPAWN` vs `DESPAWN` in
+         * the reference (Npc.turn, World.removeNpc). The goblin stanzas above
+         * are the RESPAWN half — the world stands its own spawns back up after
+         * `respawnrate`. This is the other half: an npc a script created belongs
+         * to that script, and its death is the end of it.
+         *
+         * The engine used to respawn both, which is invisible for the ordinary
+         * case (content npc_adds a monster, you kill it, nobody looks at that
+         * tile again) and wrong for every encounter that spawns its own roster.
+         * The Inferno reads it as two separate bugs: every add is `npc_add`ed,
+         * so every add the player killed stood back up 25 ticks later — "the
+         * waves are spawning too fast" — and stood back up inert, because what
+         * points an add at the Ancestral Glyph is the timer armed at the
+         * `npc_add` site, and a respawn re-runs `[ai_spawn]`, not the spawner.
+         *
+         * The pair is the test. This stanza on its own would also pass if
+         * respawning were removed altogether; the goblin above is what says it
+         * was not.
+         */
+        int slot = npc_spawn(&srv, 3028, g_home_x + 9, g_home_z + 9, 0);
+
+        SELFTEST_CHECK(slot >= 0, "the fixture npc should spawn");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[slot];
+            int rate = npc->def->respawnrate;
+            int generation = npc->generation;
+            int waited = rate + 8;
+
+            SELFTEST_CHECK(!npc->despawns_on_death,
+                           "a fresh slot should be the world's, not a script's");
+            SELFTEST_CHECK(rate > 0, "and its record should state a respawn rate to outlive");
+            /* What `SS_OP_NPC_ADD` does on the line after it spawns, and the
+             * only thing separating this npc from the goblin above. */
+            npc->despawns_on_death = 1;
+            mock230_combat_hit_npc(&srv, slot, 0, npc->hitpoints);
+            for( int i = 0; i < waited; i++ )
+                mock230_world_tick(&srv);
+            /*
+             * The generation is in the assertion rather than beside it: a freed
+             * slot is the pool's lowest free one and the roster sync can take it
+             * for an unrelated spawn, which would show up here as `active` for
+             * reasons that have nothing to do with respawning. Failing on the
+             * generation says that happened instead of blaming the rule.
+             */
+            SELFTEST_CHECK(npc->generation == (uint16_t)generation && !npc->active &&
+                               npc->respawn_tick < 0,
+                           "a killed npc_add npc stays dead: active=%d respawn_tick=%d "
+                           "gen %d->%d, %d ticks after death (respawnrate %d)",
+                           npc->active, npc->respawn_tick, generation, npc->generation,
+                           waited, rate);
         }
     }
 

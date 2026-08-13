@@ -4779,6 +4779,44 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `npc_attackdelay(int $ticks)` — the combat attack clock, which content
+     * could not reach.
+     *
+     * The only word content had for "wait before swinging again" was
+     * `npc_delay`, and that means something else: it makes the npc invalid for
+     * the whole of its turn (`Npc.isValid()`), so it runs no timers, no modes
+     * and no QUEUE. In this tree an npc's queue is where every hit the player
+     * lands arrives — `npc_queue(2, $damage, 0)` — so a monster pacing itself on
+     * `npc_delay(4)` took one turn in five and the hitsplat for a hit could sit
+     * unshown for four ticks, or be dropped outright when a window's worth
+     * landed together past the client's four-hitmark ceiling.
+     *
+     * Two commands because there are two claims: `npc_delay` is "I am running a
+     * scripted sequence, leave me alone" and `npc_attackdelay` is "my weapon is
+     * on cooldown". Only the first should stop damage landing.
+     *
+     * Written straight to `attack_clock`, which is the field
+     * `mock230_combat_npc_tick` counts down before firing the swing trigger —
+     * the same one it seeds from `attackrate`, so a handler that states its own
+     * cadence overrides the record's for that swing and nothing else changes.
+     */
+    case SS_OP_NPC_ATTACKDELAY:
+    {
+        int32_t ticks;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &ticks) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_attackdelay with no active npc");
+            return 1;
+        }
+        npc->attack_clock = ticks > 0 ? ticks : 0;
+        return 1;
+    }
+
     case SS_OP_NPC_HASTARGET:
     {
         struct Mock230Npc* npc = active_npc(state);
@@ -5269,6 +5307,10 @@ mock230_script_command(
         /* 0 is "stays until something removes it", matching the reference and
          * matching every npc the map squares spawn. */
         srv->npcs[slot].despawn_tick = duration > 0 ? srv->tick + duration : -1;
+        /* And this npc is the script's, not the world's: killing it is the end
+         * of it. `EntityLifeCycle.DESPAWN` is set at exactly this call in the
+         * reference too — see the field. */
+        srv->npcs[slot].despawns_on_death = 1;
         /* Left active, so the script can act on what it just made. */
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
         state->host_tag = slot + 1;

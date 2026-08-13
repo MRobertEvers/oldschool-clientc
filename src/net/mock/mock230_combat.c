@@ -224,19 +224,21 @@ npc_npc_gap(
     int* out_dx,
     int* out_dz)
 {
-    int aw = a->size > 0 ? a->size : 1;
-    int bw = b->size > 0 ? b->size : 1;
+    /* One extent each: an npc's footprint is `size` x `size`, so the same
+     * number bounds both axes. */
+    int a_size = a->size > 0 ? a->size : 1;
+    int b_size = b->size > 0 ? b->size : 1;
     int dx = 0;
     int dz = 0;
 
-    if( b->x > a->x + aw - 1 )
-        dx = b->x - (a->x + aw - 1);
-    else if( a->x > b->x + bw - 1 )
-        dx = a->x - (b->x + bw - 1);
-    if( b->z > a->z + aw - 1 )
-        dz = b->z - (a->z + aw - 1);
-    else if( a->z > b->z + bw - 1 )
-        dz = a->z - (b->z + bw - 1);
+    if( b->x > a->x + a_size - 1 )
+        dx = b->x - (a->x + a_size - 1);
+    else if( a->x > b->x + b_size - 1 )
+        dx = a->x - (b->x + b_size - 1);
+    if( b->z > a->z + a_size - 1 )
+        dz = b->z - (a->z + a_size - 1);
+    else if( a->z > b->z + b_size - 1 )
+        dz = a->z - (b->z + b_size - 1);
     *out_dx = dx;
     *out_dz = dz;
 }
@@ -1513,9 +1515,15 @@ npc_death_step(
         npc->active = 0;
         npc->death_tick = -1;
         npc->death_stage = MOCK230_DEATH_NONE;
-        /* A script may have armed `npc_setrespawn` during [ai_queue3] (GWD
-         * minion sync). Keep that clock; otherwise use the def rate. */
-        if( npc->respawn_tick < 0 )
+        /*
+         * Only a *world* npc comes back on its own — see `despawns_on_death`
+         * for the two lifecycles and for what respawning both cost the Inferno.
+         *
+         * A script may still arm `npc_setrespawn` during [ai_queue3] (GWD
+         * minion sync) and that clock is kept for either lifecycle: content
+         * asking for a respawn outranks the default.
+         */
+        if( npc->respawn_tick < 0 && !npc->despawns_on_death )
             npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
         return;
     }
