@@ -81,12 +81,24 @@ struct RS_Soundscapes;
 
 /**
  * Reference default (Client.waveVolume = 128 on its 0..128 scale), on the
- * 0..255 scale used here.
- *
- * That is *full*, not half. Starting at 128 here made everything 6dB quieter
- * than the game plays it, on every bus, before any setting was touched.
+ * 0..255 scale used here, is *full* -- not half. Starting at 128 made
+ * everything 6dB quieter than the game plays it, on every bus, before any
+ * setting was touched. RS_AUDIO_REFERENCE_VOLUME keeps that number, because
+ * it is the one to scale against when anything asks "how loud is full?".
  */
-#define RS_AUDIO_DEFAULT_VOLUME 255
+#define RS_AUDIO_REFERENCE_VOLUME 255
+
+/**
+ * What a fresh install actually starts at: muted.
+ *
+ * A deliberate product default, not an audio-fidelity claim. This client is
+ * launched constantly from harnesses, capture runs and dev loops where sound
+ * is noise, and the reference's own full-volume start is the wrong first
+ * impression for that. Only the *initial* device state is affected: the
+ * volume settings persist (RS_Settings writes them through the IO queue), so
+ * a player who turns sound up keeps it up across sessions.
+ */
+#define RS_AUDIO_DEFAULT_VOLUME 0
 
 /** Concurrent area-sound emitters. Beyond this the nearest win. */
 #define RS_AUDIO_MAX_AREA_VOICES 12

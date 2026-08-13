@@ -91,6 +91,29 @@ offset, which is why each wall type needs its own spawn anchor (§6.1).
   | Z-buffer draw path | A/B with `TORIRS_ZBUFFER_NPCS=` — still invisible |
   | `alwaysontop` draw tier | A/B forcing it off client-side — still invisible |
 
+  | Face render state | fixed, and ruled out — see below |
+
+  The bake was leaving the record self-contradictory. `rs2012_material_bake`
+  kept a texture id on every face whose material was renderable, but only
+  wrote `face_infos` when that array already existed. The soul has no
+  `face_infos` array and a single PMN entry for 1,931 faces, so it came out
+  of the bake carrying texture 420 on faces the format reads as all-gouraud:
+  the raster drew them untextured while `lighting_clamp_textured_vertex_colors`
+  still clamped their vertex colours to a texture's 0..127 lightness ramp.
+  The bake now refuses to keep a texture a model cannot express and sends
+  those faces down the erase path instead, which is what the source client's
+  SD fallback does. The soul's record is consistent again — 1,931 gouraud
+  faces, `face_textures` all -1, colours intact at HSL 36..50372 — and 22,710
+  faces across the lane changed with it.
+
+  It did not make the soul appear. A/B capture, `::rs2012qbdsoul` against an
+  identical run with the spawn removed: the two viewports differ by 2,564
+  pixels, all inside x 0..131 / y 0..119, which is the Queen's idle animation
+  landing on a different frame. Not one pixel differs near the player. The
+  soul is emitted by the painter and rasterises nothing — the same signature
+  as the coord-targeted projectiles above, and now the strongest reason to
+  think the two share a cause in the draw path rather than in the data.
+
   What remains untested is the only link never exercised: the model as it
   exists **in the composed cache** (archive 110004 of `cache.osrs239.rs2012`)
   rather than as the lane `.ob3`. Every check above that "proved the model"
