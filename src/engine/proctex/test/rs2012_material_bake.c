@@ -2347,7 +2347,32 @@ prepare_model_outputs(
                 if( g_textures[source].blend_layer )
                     renderable = false;
 
-                if( g_ground_mesh_fallback && !renderable )
+                /*
+                 * A texture may only be KEPT if the model can still say the
+                 * face is textured. The face's render kind lives in the bottom
+                 * two bits of face_infos and its UV mapping in the PMN entry
+                 * face_texture_coords indexes -- so a model with no face_infos
+                 * array, or with a coord index outside its own textured-face
+                 * list, has nowhere to record the decision. Assigning a
+                 * texture id anyway leaves the record self-contradictory: the
+                 * format reads an absent face_infos as all-gouraud, so the
+                 * raster draws the face untextured while the lighting pass
+                 * still clamps its vertex colours to a texture's lightness
+                 * ramp (0..127) and the face comes out near-black.
+                 *
+                 * That is exactly what happened to the RS2012 tortured soul --
+                 * 1,931 faces carrying material 420, one PMN entry between
+                 * them, no face_infos -- and it shipped as an npc that was
+                 * invisible in the arena. Such a face takes the erase path
+                 * instead, keeping its own HSL, which is what the source
+                 * client's SD fallback does with a material it cannot sample.
+                 */
+                bool can_express_texture =
+                    model->face_infos != NULL && model->face_texture_coords != NULL &&
+                    model->face_texture_coords[face] >= 0 &&
+                    model->face_texture_coords[face] < model->textured_face_count;
+
+                if( g_ground_mesh_fallback && (!renderable || !can_express_texture) )
                 {
                     /* Recover the frame's DC term into the face colour and
                      * its alpha coverage into face translucency before the
