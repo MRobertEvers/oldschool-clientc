@@ -2547,6 +2547,9 @@ npc_spawn(
          * passive. See the field. */
         npc->huntmode = def->huntmode;
         npc->combat_target = -1;
+        /* Explicit for the same reason as `combat_target` beside it: the memset
+         * above makes it 0, and 0 is npc slot zero. */
+        npc->combat_target_npc = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
@@ -3524,8 +3527,13 @@ advance_npcs(struct Mock230Server* srv)
 
         /* Combat and death own the npc's movement. Roaming used to clear
          * step_dir here, which also wiped the step the combat mover had just
-         * produced — phase 11 does that clear, once, at the right time. */
-        if( npc->combat_target >= 0 || npc->death_tick >= 0 )
+         * produced — phase 11 does that clear, once, at the right time.
+         *
+         * Either kind of combat target: a fight with another npc closes and
+         * paces exactly like a fight with a player, so the mode machine and the
+         * roam must keep out of it the same way. */
+        if( npc->combat_target >= 0 || npc->combat_target_npc >= 0 ||
+            npc->death_tick >= 0 )
             continue;
         if( npc_run_mode(srv, npc, slot) )
             continue;
@@ -10739,7 +10747,7 @@ selftest_park_player(
  * Sweep every drop off the floor, leaving the map's own spawns alone.
  *
  * A section that counts what a kill left behind has to start from a known
- * floor, and `srv.ground[]` is world state that outlives the section that made
+ * floor, and `srv->ground[]` is world state that outlives the section that made
  * it. `is_spawn` is the line between "the map states this obj" and "something
  * dropped it": clearing the spawns as well would make the next section's first
  * question ("is the knife at 3205,3212 still there") depend on running order.
@@ -11422,29 +11430,43 @@ int
 mock230_world_selftest(void)
 {
     /*
-     * `static`, and not as an optimisation: `struct Mock230Server` is 4 MB
-     * (4096 npc slots at ~830 bytes each) against this platform's 8 MB stack,
-     * so the fixture was living within a couple of hundred kilobytes of the
-     * limit and every local this function adds ate into that margin. Adding a
-     * four-entry hitmark list to `Mock230Npc` — 36 bytes, 147 KB across the
-     * pool — was enough to push it over, and a blown stack does not fail like a
-     * test: the whole binary SIGSEGVs during boot, before the first stanza, and
-     * `grep -c FAIL` reads that as *zero failures*.
+     * Heap, via a one-shot static pointer -- neither a stack local nor a
+     * static object, and both of those were tried.
      *
-     * `mock230_main.c` already declares its server this way, with the same
-     * reasoning in one line. This is the second of the three declarations to
-     * learn it; the third (`Mock230Embed.srv`) is a member of a heap object and
-     * was never at risk.
+     * `struct Mock230Server` is ~5 MB (4096 npc slots, and each npc's
+     * script_vars grows with MOCK230_NPC_VAR_MAX). As a stack local it sat a
+     * couple of hundred kilobytes under this platform's 8 MB limit, so
+     * unrelated growth tipped it over: v3 adding a four-entry hitmark list to
+     * `Mock230Npc` (36 bytes, 147 KB across the pool) and this branch raising
+     * VAR_MAX to 64 each did it independently. A blown stack does not fail
+     * like a test -- the binary SIGSEGVs during boot, before the first stanza,
+     * and `grep -c FAIL` reads that as *zero failures*.
      *
-     * Safe as a single-instance static: this is an entry point `main` calls
-     * once, it is not reentrant, and the memset below still gives every run a
-     * zeroed world.
+     * Making it `static` fixed the crash but moved ~5 MB into BSS, and this
+     * file is in MOCK230_CORE_SRCS: an EMBED_SERVER=1 client links the
+     * selftest and would carry that zerofill for a routine it never calls.
+     * The heap block is only paid for by a process that actually runs the
+     * suite. (`mock230_main.c` declares its server static for the same
+     * stack reason and could take the same treatment; `Mock230Embed.srv` is
+     * already a member of a heap object.)
+     *
+     * Never freed on purpose: this is an entry point `main` calls once and is
+     * not reentrant, and the memset below still gives every run a zeroed
+     * world.
      */
-    static struct Mock230Server srv;
+    static struct Mock230Server* srv;
+
+    if( !srv )
+        srv = calloc(1, sizeof(*srv));
+    if( !srv )
+    {
+        fprintf(stderr, "mock230 selftest: cannot allocate the server\n");
+        return 1;
+    }
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
 
-    memset(&srv, 0, sizeof(srv));
+    memset(srv, 0, sizeof(*srv));
     /*
      * The revision under test, from the same selector the server uses.
      *
@@ -11459,14 +11481,14 @@ mock230_world_selftest(void)
      */
     {
         char const* rev_name = getenv("MOCK230_REV");
-        srv.wire = rev_name ? mock230_wire_by_name(rev_name) : mock230_wire_default();
-        if( !srv.wire )
+        srv->wire = rev_name ? mock230_wire_by_name(rev_name) : mock230_wire_default();
+        if( !srv->wire )
         {
             fprintf(stderr, "mock230 selftest: unknown MOCK230_REV '%s'\n", rev_name);
             return 1;
         }
         if( rev_name )
-            fprintf(stderr, "mock230 selftest: wire %s\n", srv.wire->name);
+            fprintf(stderr, "mock230 selftest: wire %s\n", srv->wire->name);
     }
     /*
      * Its own save directory, before anything can read one.
@@ -11482,9 +11504,9 @@ mock230_world_selftest(void)
     /* No session: a world with no client. Every mock230_send still builds its
      * payload and still reaches the capture hook, then writes nothing — which
      * is what makes every encoder assertable without a socket. */
-    player = mock230_world_add_player(&srv, NULL);
+    player = mock230_world_add_player(srv, NULL);
     mock230_seqinfo_load(MOCK230_CACHE_DIR_DEFAULT);
-    mock230_world_init(&srv, 426, 408);
+    mock230_world_init(srv, 426, 408);
     mock230_world_player_init(player);
 
     fprintf(stderr, "mock230 selftest: ids resolve out of the content tree\n");
@@ -11513,11 +11535,11 @@ mock230_world_selftest(void)
          * Neither is a compile error, and the second only crashes once a packet
          * is actually sent.
          */
-        SELFTEST_CHECK(player == &srv.players[0],
+        SELFTEST_CHECK(player == &srv->players[0],
                        "the first player takes the pool's first slot");
-        SELFTEST_CHECK(srv.player_count == 1, "and the world holds one player, got %d",
-                       srv.player_count);
-        SELFTEST_CHECK(player->world == &srv,
+        SELFTEST_CHECK(srv->player_count == 1, "and the world holds one player, got %d",
+                       srv->player_count);
+        SELFTEST_CHECK(player->world == srv,
                        "the player points back at its world after player_init");
         SELFTEST_CHECK(player->pid == 0, "with pid 0, got %d", player->pid);
         SELFTEST_CHECK(player->active, "and is marked live in the pool");
@@ -11794,9 +11816,9 @@ mock230_world_selftest(void)
                                           108 /* SERVER_TICK_END */ };
         int tick_end;
 
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
 
         SELFTEST_CHECK(capture.count > 0, "a tick should produce packets, got %d",
                        capture.count);
@@ -11826,28 +11848,28 @@ mock230_world_selftest(void)
          * varp/persistence cases. */
         player->varps[track->varp] |= (int)(1u << track->bit);
         player->music_track = -1;
-        mock230_capture_begin(&srv, &capture);
+        mock230_capture_begin(srv, &capture);
         mock230_music_enter_region(player, track->region >> 8, track->region & 0xff);
-        mock230_capture_end(&srv);
+        mock230_capture_end(srv);
         player->music_track = old_song;
         player->varps[track->varp] = old_unlock;
 
         text_at = mock230_capture_find(
-            &capture, mock230_wire_opcode(srv.wire, PKT_NAME_IF_SETTEXT), 0);
+            &capture, mock230_wire_opcode(srv->wire, PKT_NAME_IF_SETTEXT), 0);
         midi_at =
-            mock230_capture_find(&capture, mock230_wire_opcode(srv.wire, PKT_NAME_MIDI_SONG), 0);
+            mock230_capture_find(&capture, mock230_wire_opcode(srv->wire, PKT_NAME_MIDI_SONG), 0);
         SELFTEST_CHECK(!capture.overflow, "the region-music capture must not overflow");
         SELFTEST_CHECK(text_at >= 0 && midi_at >= 0 && text_at < midi_at,
                        "a region track should name itself before MIDI_SONG (text=%d midi=%d)",
                        text_at, midi_at);
-        SELFTEST_CHECK(selftest_capture_has_if_settext(&capture, srv.wire,
+        SELFTEST_CHECK(selftest_capture_has_if_settext(&capture, srv->wire,
                                                         ids->com_music_now_playing_text,
                                                         track->name),
                        "the region track should update music:now_playing_text to %s",
                        track->name);
-        if( strcmp(srv.wire->name, "osrs239") == 0 )
+        if( strcmp(srv->wire->name, "osrs239") == 0 )
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
-                               &capture, srv.wire, track->song, 0, 30, 0, 30),
+                               &capture, srv->wire, track->song, 0, 30, 0, 30),
                            "the region track should carry the 30-cycle in/out fade profile");
     }
 
@@ -12007,14 +12029,14 @@ mock230_world_selftest(void)
               invpartial, sizeof(invpartial) },
         };
         static struct Mock230Capture capture;
-        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* saved_wire = srv->wire;
         const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
 
         SELFTEST_CHECK(wire239 != NULL, "the osrs239 wire adapter should exist");
         if( wire239 )
         {
-            srv.wire = wire239;
-            mock230_capture_begin(&srv, &capture);
+            srv->wire = wire239;
+            mock230_capture_begin(srv, &capture);
             mock230_send_if_movesub(player, 0x11223344, 0x55667788);
             mock230_send_if_setcolour(player, 0x11223344, 0x5566);
             mock230_send_if_sethide(player, 0x11223344, 1);
@@ -12041,8 +12063,8 @@ mock230_world_selftest(void)
 
                 mock230_send_inv_partial(player, -1, 0x1234, slots, 2, 0x3);
             }
-            mock230_capture_end(&srv);
-            srv.wire = saved_wire;
+            mock230_capture_end(srv);
+            srv->wire = saved_wire;
 
             SELFTEST_CHECK(!capture.overflow, "rev239 writer capture did not overflow");
             SELFTEST_CHECK(capture.count == (int)(sizeof(expected) / sizeof(expected[0])),
@@ -12070,7 +12092,7 @@ mock230_world_selftest(void)
             }
         }
         else
-            srv.wire = saved_wire;
+            srv->wire = saved_wire;
 
         /* The two pre-existing interface encoders and stoptransmit keep their
          * classic bodies when the server is selected back to revision 230. */
@@ -12091,8 +12113,8 @@ mock230_world_selftest(void)
             {
                 int at;
 
-                srv.wire = wire230;
-                mock230_capture_begin(&srv, &capture);
+                srv->wire = wire230;
+                mock230_capture_begin(srv, &capture);
                 mock230_send_if_movesub(player, 0x11223344, 0x55667788);
                 mock230_send_if_sethide(player, 0x11223344, 1);
                 mock230_send_inv_stop_transmit(player, 0x11223344, 0x1234);
@@ -12107,8 +12129,8 @@ mock230_world_selftest(void)
                 mock230_send_if_setplayermodel_obj(
                     player, 0x11223344, 0x55667788);
                 mock230_send_if_setplayermodel_self(player, 0x11223344, 1);
-                mock230_capture_end(&srv);
-                srv.wire = saved_wire;
+                mock230_capture_end(srv);
+                srv->wire = saved_wire;
 
                 SELFTEST_CHECK(capture.count == 3,
                                "rev230 ignores rev239-only setter APIs (got %d packets)",
@@ -12139,7 +12161,7 @@ mock230_world_selftest(void)
                                "rev230 UPDATE_INV_STOPTRANSMIT names the component");
             }
             else
-                srv.wire = saved_wire;
+                srv->wire = saved_wire;
         }
     }
 
@@ -12158,13 +12180,13 @@ mock230_world_selftest(void)
             (uint8_t)close_uid,
         };
 
-        mock230_worldmap_open(&srv);
+        mock230_worldmap_open(srv);
         SELFTEST_CHECK(player->worldmap_open,
                        "world map should be open before its close-X resume");
-        mock230_capture_begin(&srv, &capture);
+        mock230_capture_begin(srv, &capture);
         mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
                              sizeof(resume));
-        mock230_capture_end(&srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(!player->worldmap_open,
                        "an unresolved RESUME_PAUSEBUTTON on worldmap:close must close it");
         SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
@@ -12174,10 +12196,10 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: script-driven triggers\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -12196,7 +12218,7 @@ mock230_world_selftest(void)
              * player triggers that script, possibly never during a test run.
              * The report names each one and the first script wanting it.
              */
-            SELFTEST_CHECK(mock230_scripts_report_gaps(&srv) == 0,
+            SELFTEST_CHECK(mock230_scripts_report_gaps(srv) == 0,
                            "the content tree should not use unimplemented opcodes");
             /*
              * And the same argument for a different failure: a `settimer`/`queue`
@@ -12207,7 +12229,7 @@ mock230_world_selftest(void)
              * so no test run would have reached them. See
              * docs/serverscript.md, "a queue/timer argument names a script".
              */
-            SELFTEST_CHECK(mock230_scripts_report_script_id_args(&srv) == 0,
+            SELFTEST_CHECK(mock230_scripts_report_script_id_args(srv) == 0,
                            "every script-id argument should name a script of that kind");
 
             /* Drive the ai_* dispatch through a real VM state. The script
@@ -12247,10 +12269,10 @@ mock230_world_selftest(void)
                     .by_key = &by_key,
                     .by_key_count = 1,
                 };
-                struct SSVM_Provider* saved_provider = srv.scripts;
-                struct Mock230Player* other = mock230_world_add_player(&srv, NULL);
-                struct Mock230Npc* familiar = &srv.npcs[srv.npc_slot_max];
-                int slot = srv.npc_slot_max++;
+                struct SSVM_Provider* saved_provider = srv->scripts;
+                struct Mock230Player* other = mock230_world_add_player(srv, NULL);
+                struct Mock230Npc* familiar = &srv->npcs[srv->npc_slot_max];
+                int slot = srv->npc_slot_max++;
 
                 memset(familiar, 0, sizeof(*familiar));
                 familiar->active = 1;
@@ -12308,53 +12330,53 @@ mock230_world_selftest(void)
                         .string_operands = find_strings,
                     };
 
-                    mock230_world_set_active(&srv, player);
+                    mock230_world_set_active(srv, player);
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
-                                       &srv, &set_script, slot),
+                                       srv, &set_script, slot),
                                    "NPC_SETOWNER executes through the VM");
-                    SELFTEST_CHECK(mock230_world_npc_owner(&srv, familiar) == player,
+                    SELFTEST_CHECK(mock230_world_npc_owner(srv, familiar) == player,
                                    "NPC_SETOWNER binds the active player login");
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
-                                       &srv, &owner_script, slot) &&
+                                       srv, &owner_script, slot) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
                                            player->pid,
                                    "NPC_OWNER returns the bound pid");
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(mock230_scripts_run_hook(
-                                       &srv, &find_script, NULL, 0) &&
+                                       srv, &find_script, NULL, 0) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
                                            player->pid,
                                    "NPC_FINDOWNED finds and activates the familiar");
                 }
 
-                mock230_world_set_active(&srv, other);
-                srv.scripts = &provider;
-                srv.script_env->provider = &provider;
+                mock230_world_set_active(srv, other);
+                srv->scripts = &provider;
+                srv->script_env->provider = &provider;
 
                 SELFTEST_CHECK(mock230_scripts_run_trigger(
-                                   &srv, SS_TRIGGER_AI_TIMER, 1, -1, slot) ==
+                                   srv, SS_TRIGGER_AI_TIMER, 1, -1, slot) ==
                                    MOCK230_TRIGGER_RAN,
                                "an owned npc's ai_timer executes");
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 77 &&
                                    other->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                                "ai_timer uses the owner, not active_player");
-                SELFTEST_CHECK(srv.active_player == other,
+                SELFTEST_CHECK(srv->active_player == other,
                                "ai dispatch restores the phase's active player");
 
-                srv.scripts = saved_provider;
-                srv.script_env->provider = saved_provider;
+                srv->scripts = saved_provider;
+                srv->script_env->provider = saved_provider;
                 familiar->active = 0;
-                srv.npc_slot_max = slot;
+                srv->npc_slot_max = slot;
                 other->active = 0;
-                srv.player_count = player->pid + 1;
-                mock230_world_set_active(&srv, player);
+                srv->player_count = player->pid + 1;
+                mock230_world_set_active(srv, player);
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             }
 
             fprintf(stderr, "mock230 selftest: coordinate projectile host opcode\n");
             {
                 static struct Mock230Capture projectile_capture;
-                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* saved_wire = srv->wire;
                 const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                 const int spotanim = 32760;
                 uint16_t ops[] = {
@@ -12385,14 +12407,14 @@ mock230_world_selftest(void)
                                "the osrs239 wire adapter should exist for projanim_map");
                 if( wire239 )
                 {
-                    selftest_park_player(&srv, player->x, player->z);
-                    srv.wire = wire239;
-                    mock230_capture_begin(&srv, &projectile_capture);
-                    SELFTEST_CHECK(mock230_scripts_run_hook(&srv, &script, NULL, 0),
+                    selftest_park_player(srv, player->x, player->z);
+                    srv->wire = wire239;
+                    mock230_capture_begin(srv, &projectile_capture);
+                    SELFTEST_CHECK(mock230_scripts_run_hook(srv, &script, NULL, 0),
                                    "PROJANIM_MAP executes through the host VM");
-                    mock230_world_tick(&srv);
-                    mock230_capture_end(&srv);
-                    srv.wire = saved_wire;
+                    mock230_world_tick(srv);
+                    mock230_capture_end(srv);
+                    srv->wire = saved_wire;
                     SELFTEST_CHECK(selftest_rev239_zone_count(
                                        &projectile_capture, PKT_NAME_MAP_PROJANIM,
                                        spotanim) == 1,
@@ -12422,19 +12444,19 @@ mock230_world_selftest(void)
             fprintf(stderr, "mock230 selftest: npc-targeted projectile homing index\n");
             {
                 static struct Mock230Capture npc_proj_capture;
-                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* saved_wire = srv->wire;
                 const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                 const int spotanim = 32761;
                 struct Mock230PlayerSlotMap saved_slots = player->npc_slots;
                 int target_slot =
-                    mock230_world_npc_spawn(&srv, 1, player->x + 1, player->z + 1, player->level);
+                    mock230_world_npc_spawn(srv, 1, player->x + 1, player->z + 1, player->level);
 
                 if( wire239 && target_slot >= 0 )
                 {
                     int client_slot;
                     int encoded_target = INT_MIN;
 
-                    selftest_park_player(&srv, player->x, player->z);
+                    selftest_park_player(srv, player->x, player->z);
                     /*
                      * Force the two numbering spaces apart, so the check below
                      * cannot pass by coincidence: from a cleared map this npc's
@@ -12450,8 +12472,8 @@ mock230_world_selftest(void)
                                    "world slot (%d)",
                                    client_slot, target_slot);
 
-                    srv.wire = wire239;
-                    mock230_capture_begin(&srv, &npc_proj_capture);
+                    srv->wire = wire239;
+                    mock230_capture_begin(srv, &npc_proj_capture);
                     /*
                      * Straight at the zone layer rather than through
                      * `projanim_npc`: that opcode wants an active-npc pointer
@@ -12460,12 +12482,12 @@ mock230_world_selftest(void)
                      * already does (`slot + 1`). What is under test is
                      * everything downstream of that number.
                      */
-                    mock230_zone_projanim(&srv, player->x, player->z, player->level,
-                                          srv.npcs[target_slot].x, srv.npcs[target_slot].z,
+                    mock230_zone_projanim(srv, player->x, player->z, player->level,
+                                          srv->npcs[target_slot].x, srv->npcs[target_slot].z,
                                           target_slot + 1, spotanim, 40, 0, 1, 5, 16, 64);
-                    mock230_world_tick(&srv);
-                    mock230_capture_end(&srv);
-                    srv.wire = saved_wire;
+                    mock230_world_tick(srv);
+                    mock230_capture_end(srv);
+                    srv->wire = saved_wire;
 
                     SELFTEST_CHECK(selftest_rev239_zone_scan(&npc_proj_capture,
                                                              PKT_NAME_MAP_PROJANIM, spotanim,
@@ -12482,7 +12504,7 @@ mock230_world_selftest(void)
                                    "the index the client is given resolves back to the npc "
                                    "the projectile was aimed at");
 
-                    srv.npcs[target_slot].active = 0;
+                    srv->npcs[target_slot].active = 0;
                     player->npc_slots = saved_slots;
                 }
             }
@@ -12496,9 +12518,9 @@ mock230_world_selftest(void)
                 const struct Mock230NpcDef* changed_def =
                     changed_type > 0 ? mock230_content_npc(changed_type) : NULL;
                 int first = mock230_world_npc_spawn(
-                    &srv, 1, player->x + 8, player->z + 8, player->level);
+                    srv, 1, player->x + 8, player->z + 8, player->level);
                 int second = mock230_world_npc_spawn(
-                    &srv, 1, player->x + 10, player->z + 8, player->level);
+                    srv, 1, player->x + 10, player->z + 8, player->level);
                 uint16_t set_get_ops[] = {
                     SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
                     SS_OP_NPC_VAR_SET, SS_OP_PUSH_CONSTANT_INT,
@@ -12558,13 +12580,60 @@ mock230_world_selftest(void)
                     .string_operands = change_get_strings,
                 };
 
+                /*
+                 * `npc_attackdelay` — the swing cooldown, and the thing 38
+                 * content sites now say instead of `npc_delay`.
+                 *
+                 * Pinned here because the difference between the two is
+                 * invisible from a boss fight: both make the next swing land N
+                 * ticks later, and only one of them also stops the npc draining
+                 * the queue the player's damage arrives on. What this asserts is
+                 * that the command reaches `attack_clock` at all — if it did
+                 * not, every one of those 38 monsters would swing on the
+                 * record's rate instead of its own and nothing would say so.
+                 */
+                {
+                    uint16_t delay_ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_NPC_ATTACKDELAY, SS_OP_RETURN,
+                    };
+                    int32_t delay_operands[] = { 7, 0, 0 };
+                    char* delay_strings[3] = { NULL };
+                    struct SSVM_Script delay_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_attackdelay]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 3,
+                        .opcodes = delay_ops,
+                        .int_operands = delay_operands,
+                        .string_operands = delay_strings,
+                    };
+
+                    if( first >= 0 )
+                    {
+                        srv->npcs[first].attack_clock = 0;
+                        srv->npcs[first].delayed_until = 0;
+                        SELFTEST_CHECK(
+                            mock230_scripts_run_hook_on_npc(srv, &delay_script, first),
+                            "npc_attackdelay executes through the host VM");
+                        SELFTEST_CHECK(srv->npcs[first].attack_clock == 7,
+                                       "npc_attackdelay(7) should set the combat attack "
+                                       "clock, got %d",
+                                       srv->npcs[first].attack_clock);
+                        SELFTEST_CHECK(srv->npcs[first].delayed_until <= srv->tick,
+                                       "and must NOT park the npc — a parked npc drains no "
+                                       "queue, which is the whole reason this command "
+                                       "exists beside npc_delay");
+                    }
+                }
+
                 SELFTEST_CHECK(first >= 0 && second >= 0,
                                "two NPC instances should be available for isolation");
                 SELFTEST_CHECK(changed_type > 0 && changed_def != NULL,
                                "shade_level1 should be available for changetype rehydration");
                 if( first >= 0 && second >= 0 )
                 {
-                    struct Mock230Npc* changed = &srv.npcs[first];
+                    struct Mock230Npc* changed = &srv->npcs[first];
                     int old_damage;
                     int old_x;
                     int old_z;
@@ -12576,19 +12645,19 @@ mock230_world_selftest(void)
 
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
-                                       &srv, &set_get_script, first),
+                                       srv, &set_get_script, first),
                                    "npc_var_set/get execute through the host VM");
                     SELFTEST_CHECK(
-                        srv.npcs[first].script_vars[var_slot] == var_value &&
+                        srv->npcs[first].script_vars[var_slot] == var_value &&
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
                         "npc_var_get returns the value npc_var_set stored");
 
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
-                                       &srv, &get_script, second),
+                                       srv, &get_script, second),
                                    "npc_var_get executes on a second NPC");
                     SELFTEST_CHECK(
-                        srv.npcs[second].script_vars[var_slot] == 0 &&
+                        srv->npcs[second].script_vars[var_slot] == 0 &&
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                         "new NPC variables are zero and isolated per instance");
 
@@ -12612,7 +12681,7 @@ mock230_world_selftest(void)
                     changed->huntmode = MOCK230_HUNT_AGGRESSIVE;
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
-                                       &srv, &change_get_script, first),
+                                       srv, &change_get_script, first),
                                    "npc_changetype and npc_var_get execute together");
                     SELFTEST_CHECK(
                         changed_def && changed->type == changed_type &&
@@ -12648,40 +12717,40 @@ mock230_world_selftest(void)
                     change_get_ops[2] = SS_OP_NPC_CHANGETYPE_KEEPALL;
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(
-                        mock230_scripts_run_hook_on_npc(&srv, &change_get_script, second) &&
-                            changed_def && srv.npcs[second].type == changed_type &&
-                            srv.npcs[second].def == changed_def,
+                        mock230_scripts_run_hook_on_npc(srv, &change_get_script, second) &&
+                            changed_def && srv->npcs[second].type == changed_type &&
+                            srv->npcs[second].def == changed_def,
                         "npc_changetype_keepall shares the changetype rehydration path");
 
-                    mock230_world_npc_occupancy(&srv.npcs[first], 0);
-                    srv.npcs[first].active = 0;
-                    srv.npcs[first].respawn_tick = srv.tick;
-                    mock230_combat_respawn_tick(&srv);
+                    mock230_world_npc_occupancy(&srv->npcs[first], 0);
+                    srv->npcs[first].active = 0;
+                    srv->npcs[first].respawn_tick = srv->tick;
+                    mock230_combat_respawn_tick(srv);
                     SELFTEST_CHECK(
-                        srv.npcs[first].active &&
-                            srv.npcs[first].script_vars[var_slot] == 0,
+                        srv->npcs[first].active &&
+                            srv->npcs[first].script_vars[var_slot] == 0,
                         "respawn clears per-life NPC runtime variables");
 
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
-                                       &srv, &get_script, first) &&
+                                       srv, &get_script, first) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                                    "npc_var_get observes the respawn reset");
                 }
 
-                if( first >= 0 && srv.npcs[first].active )
+                if( first >= 0 && srv->npcs[first].active )
                 {
-                    mock230_world_npc_occupancy(&srv.npcs[first], 0);
-                    srv.npcs[first].active = 0;
-                    srv.npcs[first].respawn_tick = -1;
-                    mock230_zone_npc_refile(&srv, first);
+                    mock230_world_npc_occupancy(&srv->npcs[first], 0);
+                    srv->npcs[first].active = 0;
+                    srv->npcs[first].respawn_tick = -1;
+                    mock230_zone_npc_refile(srv, first);
                 }
-                if( second >= 0 && srv.npcs[second].active )
+                if( second >= 0 && srv->npcs[second].active )
                 {
-                    mock230_world_npc_occupancy(&srv.npcs[second], 0);
-                    srv.npcs[second].active = 0;
-                    srv.npcs[second].respawn_tick = -1;
-                    mock230_zone_npc_refile(&srv, second);
+                    mock230_world_npc_occupancy(&srv->npcs[second], 0);
+                    srv->npcs[second].active = 0;
+                    srv->npcs[second].respawn_tick = -1;
+                    mock230_zone_npc_refile(srv, second);
                 }
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             }
@@ -12744,7 +12813,7 @@ mock230_world_selftest(void)
                     .count = 1,
                     .loaded = 1,
                 };
-                struct SSVM_Provider* saved_provider = srv.scripts;
+                struct SSVM_Provider* saved_provider = srv->scripts;
                 int npc_slot;
                 int queue_slot = -1;
                 int hp_before;
@@ -12759,7 +12828,7 @@ mock230_world_selftest(void)
                 uint8_t opnpc[2];
                 struct RSAreaBuf walk;
 
-                selftest_park_player(&srv, player->x, player->z);
+                selftest_park_player(srv, player->x, player->z);
                 /* The pre-login fixture starts at the engine floor of one HP;
                  * make the queued hit observably non-lethal so death cleanup
                  * is not what releases the lock in this half of the test. */
@@ -12767,25 +12836,25 @@ mock230_world_selftest(void)
                 player->login_scene_pending = 0;
                 player->rebuild_scene_pending = 0;
                 npc_slot = mock230_world_npc_spawn(
-                    &srv, 1, player->x + 8, player->z, player->level);
+                    srv, 1, player->x + 8, player->z, player->level);
                 SELFTEST_CHECK(npc_slot >= 0,
                                "the action-lock fixture should spawn an interaction target");
 
                 target_x = player->x + 2;
-                mock230_world_walk_to(&srv, target_x, player->z);
+                mock230_world_walk_to(srv, target_x, player->z);
                 if( npc_slot >= 0 )
                 {
-                    struct Mock230Npc* npc = &srv.npcs[npc_slot];
+                    struct Mock230Npc* npc = &srv->npcs[npc_slot];
                     const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
                     int size = info ? info->size : 1;
 
                     player->combat_target = npc_slot;
                     mock230_world_interaction_set(
-                        &srv, MOCK230_INTERACT_NPC, 2, npc_slot, npc->type,
+                        srv, MOCK230_INTERACT_NPC, 2, npc_slot, npc->type,
                         npc->x, npc->z, npc->level, size, size);
                 }
                 SELFTEST_CHECK(mock230_scripts_run_hook(
-                                   &srv, &lock_script, NULL, 0),
+                                   srv, &lock_script, NULL, 0),
                                "PLAYER_LOCK executes through the host VM");
                 SELFTEST_CHECK(player->action_locked,
                                "player_lock marks the player action-locked");
@@ -12819,8 +12888,8 @@ mock230_world_selftest(void)
                                "item and interface interactions share the action-lock gate");
 
                 damage_operands[0] = player->pid + 1;
-                srv.scripts = &damage_provider;
-                srv.script_env->provider = &damage_provider;
+                srv->scripts = &damage_provider;
+                srv->script_env->provider = &damage_provider;
                 for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
                 {
                     struct Mock230Queued* queued = &player->queue[i];
@@ -12839,17 +12908,17 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(queue_slot >= 0,
                                "the locked-damage fixture should obtain a queue slot");
                 if( queue_slot >= 0 )
-                    mock230_scripts_process_queues(&srv);
+                    mock230_scripts_process_queues(srv);
                 SELFTEST_CHECK(queue_slot >= 0 && !player->queue[queue_slot].active &&
                                    player->hitpoints == hp_before - 1,
                                "queued damage executes while the player is action-locked");
                 SELFTEST_CHECK(player->action_locked,
                                "non-lethal queued damage does not release the lock");
-                srv.scripts = saved_provider;
-                srv.script_env->provider = saved_provider;
+                srv->scripts = saved_provider;
+                srv->script_env->provider = saved_provider;
 
                 SELFTEST_CHECK(mock230_scripts_run_hook(
-                                   &srv, &unlock_script, NULL, 0),
+                                   srv, &unlock_script, NULL, 0),
                                "PLAYER_UNLOCK executes through the host VM");
                 SELFTEST_CHECK(!player->action_locked,
                                "player_unlock restores player action input");
@@ -12866,32 +12935,32 @@ mock230_world_selftest(void)
                                          sizeof(opnpc));
                     SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC,
                                    "interaction input is accepted again after player_unlock");
-                    mock230_world_interaction_clear(&srv);
+                    mock230_world_interaction_clear(srv);
                 }
 
                 /* Death is a terminal encounter transition and must never
                  * carry a time-stop lock into the death/respawn queue. Use the
                  * synthetic provider so no content death sequence is armed. */
-                srv.scripts = &damage_provider;
-                srv.script_env->provider = &damage_provider;
+                srv->scripts = &damage_provider;
+                srv->script_env->provider = &damage_provider;
                 SELFTEST_CHECK(mock230_scripts_run_hook(
-                                   &srv, &lock_script, NULL, 0),
+                                   srv, &lock_script, NULL, 0),
                                "the death cleanup fixture re-locks the player");
-                mock230_combat_hit_player(&srv, 0, player->hitpoints);
+                mock230_combat_hit_player(srv, 0, player->hitpoints);
                 SELFTEST_CHECK(player->dying && !player->action_locked,
                                "death clears the player action lock");
                 player->hitpoints = player->max_hitpoints;
                 mock230_combat_sync_hitpoints(player);
                 player->dying = 0;
-                srv.scripts = saved_provider;
-                srv.script_env->provider = saved_provider;
+                srv->scripts = saved_provider;
+                srv->script_env->provider = saved_provider;
 
                 if( npc_slot >= 0 )
                 {
-                    mock230_world_npc_occupancy(&srv.npcs[npc_slot], 0);
-                    srv.npcs[npc_slot].active = 0;
-                    srv.npcs[npc_slot].respawn_tick = -1;
-                    mock230_zone_npc_refile(&srv, npc_slot);
+                    mock230_world_npc_occupancy(&srv->npcs[npc_slot], 0);
+                    srv->npcs[npc_slot].active = 0;
+                    srv->npcs[npc_slot].respawn_tick = -1;
+                    mock230_zone_npc_refile(srv, npc_slot);
                 }
                 player->stat_level[MOCK230_STAT_HITPOINTS] = saved_hp_level;
                 player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_hp_boosted;
@@ -12899,7 +12968,7 @@ mock230_world_selftest(void)
                 player->hitpoints = saved_hp;
                 player->max_hitpoints = saved_max_hp;
                 player->stat_dirty = saved_stat_dirty;
-                selftest_park_player(&srv, player->x, player->z);
+                selftest_park_player(srv, player->x, player->z);
             }
 
             fprintf(stderr, "mock230 selftest: rev239 interface host VM/content\n");
@@ -12921,7 +12990,7 @@ mock230_world_selftest(void)
                     "pest_status_overlay:red_shield",
                 };
                 static struct Mock230Capture iface_capture;
-                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* saved_wire = srv->wire;
                 const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                 const struct Mock230Wire* wire230 = mock230_wire_by_name("osrs230");
                 int32_t model_args[] = { 101, 202, 303, 404, 505, 606 };
@@ -12935,17 +13004,17 @@ mock230_world_selftest(void)
                 {
                     int at;
 
-                    srv.wire = wire239;
+                    srv->wire = wire239;
                     model_opcode = mock230_wire_opcode(wire239, PKT_NAME_IF_SETMODEL);
                     hide_opcode = mock230_wire_opcode(wire239, PKT_NAME_IF_SETHIDE);
                     opensub_opcode = mock230_wire_opcode(wire239, PKT_NAME_IF_OPENSUB);
 
-                    mock230_capture_begin(&srv, &iface_capture);
+                    mock230_capture_begin(srv, &iface_capture);
                     SELFTEST_CHECK(mock230_scripts_run_proc(
-                                       &srv, "[proc,barrows_puzzle_set_models]",
+                                       srv, "[proc,barrows_puzzle_set_models]",
                                        model_args, 6),
                                    "barrows model proc executes through IF_SETMODEL");
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
                     at = 0;
                     for( int model_i = 0; model_i < 6; model_i++ )
                     {
@@ -12987,11 +13056,11 @@ mock230_world_selftest(void)
                                        &iface_capture, model_opcode, at) < 0,
                                    "barrows proc emits exactly six model packets");
 
-                    mock230_capture_begin(&srv, &iface_capture);
+                    mock230_capture_begin(srv, &iface_capture);
                     SELFTEST_CHECK(mock230_scripts_run_proc(
-                                       &srv, "[proc,pest_overlay_open]", NULL, 0),
+                                       srv, "[proc,pest_overlay_open]", NULL, 0),
                                    "pest overlay proc executes through IF_SETHIDE");
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
                     at = 0;
                     for( int shield_i = 0; shield_i < 4; shield_i++ )
                     {
@@ -13054,11 +13123,11 @@ mock230_world_selftest(void)
 
                         SELFTEST_CHECK(overlay_operands[0] >= 0,
                                        "darkness_medium resolves for overlay fixture");
-                        mock230_capture_begin(&srv, &iface_capture);
+                        mock230_capture_begin(srv, &iface_capture);
                         SELFTEST_CHECK(mock230_scripts_run_hook(
-                                           &srv, &overlay_script, NULL, 0),
+                                           srv, &overlay_script, NULL, 0),
                                        "VM executes IF_OPENOVERLAY host opcode");
-                        mock230_capture_end(&srv);
+                        mock230_capture_end(srv);
                     }
                     at = mock230_capture_find(&iface_capture, opensub_opcode, 0);
                     SELFTEST_CHECK(at >= 0, "IF_OPENOVERLAY emits IF_OPENSUB");
@@ -13099,7 +13168,7 @@ mock230_world_selftest(void)
                             MOCK230_PACK_COMPONENT, "equipment:universe");
                         int wornitems = MOCK230_COM(mock230_ids()->iface_wornitems, 0);
                         struct Mock230Container* worn = mock230_container_resolve(
-                            &srv, player, mock230_ids()->inv_worn);
+                            srv, player, mock230_ids()->inv_worn);
                         int stop_opcode = mock230_wire_opcode(
                             wire239, PKT_NAME_UPDATE_INV_STOP_TRANSMIT);
                         int clear_opcode = mock230_wire_opcode(
@@ -13112,16 +13181,16 @@ mock230_world_selftest(void)
                             mock230_container_unbind(player, universe);
                             mock230_container_unbind(player, wornitems);
                             SELFTEST_CHECK(mock230_container_bind(
-                                               &srv, player, mock230_ids()->inv_worn,
+                                               srv, player, mock230_ids()->inv_worn,
                                                universe),
                                            "equipment universe listens to worn");
 
-                            mock230_capture_begin(&srv, &iface_capture);
+                            mock230_capture_begin(srv, &iface_capture);
                             SELFTEST_CHECK(mock230_scripts_run_trigger(
-                                               &srv, SS_TRIGGER_IF_CLOSE, equipment,
+                                               srv, SS_TRIGGER_IF_CLOSE, equipment,
                                                -1, -1) != MOCK230_TRIGGER_NONE,
                                            "[if_close,equipment] runs");
-                            mock230_capture_end(&srv);
+                            mock230_capture_end(srv);
                             at = mock230_capture_find(
                                 &iface_capture, stop_opcode, 0);
                             {
@@ -13158,17 +13227,17 @@ mock230_world_selftest(void)
                              * one must not erase it from the rev239 client while
                              * the other still listens. */
                             SELFTEST_CHECK(mock230_container_bind(
-                                               &srv, player, mock230_ids()->inv_worn,
+                                               srv, player, mock230_ids()->inv_worn,
                                                wornitems),
                                            "worn tab remains a listener");
                             SELFTEST_CHECK(mock230_container_bind(
-                                               &srv, player, mock230_ids()->inv_worn,
+                                               srv, player, mock230_ids()->inv_worn,
                                                universe),
                                            "equipment becomes the second listener");
-                            mock230_capture_begin(&srv, &iface_capture);
+                            mock230_capture_begin(srv, &iface_capture);
                             mock230_scripts_run_trigger(
-                                &srv, SS_TRIGGER_IF_CLOSE, equipment, -1, -1);
-                            mock230_capture_end(&srv);
+                                srv, SS_TRIGGER_IF_CLOSE, equipment, -1, -1);
+                            mock230_capture_end(srv);
                             SELFTEST_CHECK(worn->listener_count == 1 &&
                                                worn->listeners[0].component == wornitems,
                                            "closing equipment keeps the worn-tab listener");
@@ -13190,16 +13259,16 @@ mock230_world_selftest(void)
                                 int stop230 = mock230_wire_opcode(
                                     wire230, PKT_NAME_UPDATE_INV_STOP_TRANSMIT);
 
-                                srv.wire = wire230;
+                                srv->wire = wire230;
                                 SELFTEST_CHECK(mock230_container_bind(
-                                                   &srv, player,
+                                                   srv, player,
                                                    mock230_ids()->inv_worn,
                                                    universe),
                                                "rev230 equipment becomes second listener");
-                                mock230_capture_begin(&srv, &iface_capture);
+                                mock230_capture_begin(srv, &iface_capture);
                                 mock230_scripts_run_trigger(
-                                    &srv, SS_TRIGGER_IF_CLOSE, equipment, -1, -1);
-                                mock230_capture_end(&srv);
+                                    srv, SS_TRIGGER_IF_CLOSE, equipment, -1, -1);
+                                mock230_capture_end(srv);
                                 at = mock230_capture_find(
                                     &iface_capture, stop230, 0);
                                 SELFTEST_CHECK(at >= 0,
@@ -13220,7 +13289,7 @@ mock230_world_selftest(void)
                                                        decoded_component == universe,
                                                    "rev230 stoptransmit carries equipment:universe");
                                 }
-                                srv.wire = wire239;
+                                srv->wire = wire239;
                             }
                             mock230_container_unbind(player, wornitems);
                         }
@@ -13235,12 +13304,12 @@ mock230_world_selftest(void)
                         int bankmain = mock230_ids()->iface_bankmain;
 
                         player->bank.open = 1;
-                        mock230_capture_begin(&srv, &iface_capture);
+                        mock230_capture_begin(srv, &iface_capture);
                         SELFTEST_CHECK(mock230_scripts_run_trigger(
-                                           &srv, SS_TRIGGER_IF_CLOSE, bankmain,
+                                           srv, SS_TRIGGER_IF_CLOSE, bankmain,
                                            -1, -1) != MOCK230_TRIGGER_NONE,
                                        "[if_close,bankmain] runs");
-                        mock230_capture_end(&srv);
+                        mock230_capture_end(srv);
                         at = mock230_capture_find(&iface_capture, stop_opcode, 0);
                         SELFTEST_CHECK(!player->bank.open,
                                        "bank stoptransmit clears the open flag");
@@ -13264,10 +13333,10 @@ mock230_world_selftest(void)
                         }
                     }
 
-                    srv.wire = saved_wire;
+                    srv->wire = saved_wire;
                 }
                 else
-                    srv.wire = saved_wire;
+                    srv->wire = saved_wire;
             }
             fprintf(stderr, "mock230 selftest: script-driven trigger basics\n");
             uint8_t payload[2];
@@ -13276,9 +13345,9 @@ mock230_world_selftest(void)
 
             /* [login,_] should run in phase 7, not during the login burst. */
             player->login_pending = 1;
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0) >= 0,
                            "[login] should produce a game message");
             SELFTEST_CHECK(player->login_pending == 0, "the login latch should be drained");
@@ -13299,9 +13368,9 @@ mock230_world_selftest(void)
                         kit++;
                 SELFTEST_CHECK(kit == 14,
                                "[login] should deal the 14-item opening kit, got %d", kit);
-                SELFTEST_CHECK(mock230_bank_count(&srv, 995) == 250000,
+                SELFTEST_CHECK(mock230_bank_count(srv, 995) == 250000,
                                "and stock the bank with 250000 coins, got %d",
-                               mock230_bank_count(&srv, 995));
+                               mock230_bank_count(srv, 995));
                 SELFTEST_CHECK(player->stat_level[MOCK230_STAT_HITPOINTS] == 10 &&
                                    hitpoints_xp == 11540,
                                "and put hitpoints at level 10 / 1154 xp, got %d / %d",
@@ -13310,7 +13379,7 @@ mock230_world_selftest(void)
                 /* Idempotent: the varp gate is what will keep a returning
                  * player's save from being re-seeded once mock230_save.c is
                  * finally called by something. */
-                mock230_scripts_run_proc(&srv, "[proc,newplayer_setup]", NULL, 0);
+                mock230_scripts_run_proc(srv, "[proc,newplayer_setup]", NULL, 0);
                 kit = 0;
                 for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                     if( player->inv[i].obj_id >= 0 )
@@ -13322,15 +13391,15 @@ mock230_world_selftest(void)
 
             /* [opnpc1,hans] replaces the hardcoded greeting and bumps a varp,
              * so both the script's effect and the varp flush are observable. */
-            hans = selftest_find_npc(&srv, 3105);
+            hans = selftest_find_npc(srv, 3105);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
             before = player->varps[SELFTEST_VARP_GREETING_COUNT];
             selftest_npc_payload(player, hans, payload);
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
             /* The click starts a walk; the script runs when the player gets
              * there. Hans is across the courtyard, so that is several ticks. */
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                            "the walk to Hans should complete");
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_GREETING_COUNT] == before + 1,
                            "the script should bump %%mock_greeting_count, got %d",
@@ -13342,8 +13411,8 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->active_script != NULL,
                            "[opnpc1,hans] should park on its first dialogue page");
 
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
             /*
              * `mock_greeting_count` is server bookkeeping: no .varp config
              * declares it, so it must NOT reach the client. That is the point
@@ -13361,19 +13430,19 @@ mock230_world_selftest(void)
             /* A trigger with no script must fall through to the C behaviour,
              * which is what keeps the mock usable without content. */
             SELFTEST_CHECK(
-                mock230_scripts_run_trigger(&srv, SS_TRIGGER_OPNPC5, 3105, -1, 0) == 0,
+                mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC5, 3105, -1, 0) == 0,
                 "an unbound trigger should report that nothing ran");
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: clicking away ends a conversation\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -13386,12 +13455,12 @@ mock230_world_selftest(void)
             uint8_t move[5];
             int hans;
 
-            hans = selftest_find_npc(&srv, 3105);
+            hans = selftest_find_npc(srv, 3105);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
 
             selftest_npc_payload(player, hans, payload);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to Hans should complete");
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk to Hans should complete");
 
             /* The precondition. Both halves are asserted because the fix has to
              * undo both: the parked script is the conversation, `chatmodal_group`
@@ -13409,7 +13478,7 @@ mock230_world_selftest(void)
             move[3] = (uint8_t)(player->z >> 8);
             move[4] = (uint8_t)player->z;
             {
-                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* saved_wire = srv->wire;
                 const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                 int abort_at;
                 int close_at;
@@ -13417,11 +13486,11 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(wire239 != NULL,
                                "dialog-abort test has the osrs239 adapter");
                 if( wire239 )
-                    srv.wire = wire239;
-                mock230_capture_begin(&srv, &capture);
+                    srv->wire = wire239;
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_MOVE_GAMECLICK, move, 5);
-                mock230_capture_end(&srv);
-                srv.wire = saved_wire;
+                mock230_capture_end(srv);
+                srv->wire = saved_wire;
 
                 abort_at = wire239
                                ? mock230_capture_find(
@@ -13463,7 +13532,7 @@ mock230_world_selftest(void)
              * one. Talking to Hans again has to work.
              */
             mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk back should complete");
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk back should complete");
             SELFTEST_CHECK(player->active_script != NULL,
                            "and a second conversation should still be able to park");
             /*
@@ -13480,16 +13549,16 @@ mock230_world_selftest(void)
                            "on a continue button armed from an empty list, got %d",
                            player->resume_button_count);
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: script suspension\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -13504,13 +13573,13 @@ mock230_world_selftest(void)
              * delayedUntil = tick + 1 + n, so a delay of n costs the rest of
              * this tick plus n more. Getting the +1 wrong is a one-tick error
              * that nothing else in the system would notice. */
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_delay]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_delay]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_delay] should be in the pack");
             if( script )
             {
-                start_tick = srv.tick;
+                start_tick = srv->tick;
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
 
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1, "the script ran up to the delay");
                 SELFTEST_CHECK(player->active_script != NULL,
@@ -13518,50 +13587,50 @@ mock230_world_selftest(void)
 
                 for( int i = 0; i < 3; i++ )
                 {
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                    "still delayed at tick +%d, varp is %d", i + 1,
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 }
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                                "p_delay(3) should resume on tick +4, varp is %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 SELFTEST_CHECK(player->active_script == NULL,
                                "a finished script should release its parking slot");
-                SELFTEST_CHECK(srv.tick == start_tick + 4, "four ticks elapsed");
+                SELFTEST_CHECK(srv->tick == start_tick + 4, "four ticks elapsed");
             }
 
             /* queue(script, 3, 0) runs on tick +4 for the same reason. */
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_enqueue]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_enqueue]");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "queueing should not run the script");
 
                 for( int i = 0; i < 3; i++ )
                 {
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "queue not due at tick +%d", i + 1);
                 }
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 7,
                                "the queued script should run on tick +4, varp is %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: npc chat dialogue\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -13574,17 +13643,17 @@ mock230_world_selftest(void)
              * the client's own script908 reacting to the mount — see
              * Mock230Ids.com_chatbox_modal. */
             static const int k_dialogue[] = { 95, 97, 94, 6 };
-            int hans = selftest_find_npc(&srv, 3105);
+            int hans = selftest_find_npc(srv, 3105);
             int continue_uid = (231 << 16) | 5;
             uint8_t payload[2];
             selftest_npc_payload(player, hans, payload);
             uint8_t resume[4];
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC3, payload, 2);
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                            "the walk to Hans should complete");
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 4),
                            "a dialogue should set the head, anim and text, then mount");
@@ -13658,9 +13727,9 @@ mock230_world_selftest(void)
             resume[2] = (uint8_t)(continue_uid >> 8);
             resume[3] = (uint8_t)continue_uid;
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
                            "clicking continue should draw the next page");
             SELFTEST_CHECK(player->active_script != NULL, "and park again on page 2");
@@ -13669,9 +13738,9 @@ mock230_world_selftest(void)
 
             /* Page 2 is the last one Hans's "Age" reply has, so the next click
              * runs off the end of the script and into its if_close. */
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the script should finish after the last page");
             SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
@@ -13705,7 +13774,7 @@ mock230_world_selftest(void)
              * tick crosses the v5 NPC_INFO traversal/extended-info boundary.
              */
             {
-                int hans_slot = selftest_find_npc(&srv, 3105);
+                int hans_slot = selftest_find_npc(srv, 3105);
                 uint8_t opnpc[2];
                 selftest_npc_payload(player, hans_slot, opnpc);
                 int rows_uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "chatmenu:options");
@@ -13713,16 +13782,16 @@ mock230_world_selftest(void)
 
                 SELFTEST_CHECK(rows_uid > 0, "the content pack should name chatmenu:options");
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
-                SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to Hans should complete");
-                mock230_capture_end(&srv);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk to Hans should complete");
+                mock230_capture_end(srv);
 
                 /* chatnpc facesquare/npc_facesquare must ship absolute half-tiles
                  * (LostCity CoordGrid.fine). Tile coords made atan2 land on yaw
                  * 256 (southwest) for every dialogue. */
                 {
-                    struct Mock230Npc* hans = &srv.npcs[hans_slot];
+                    struct Mock230Npc* hans = &srv->npcs[hans_slot];
                     int want_player_face_x = mock230_coord_fine(hans->x, 1);
                     int want_player_face_z = mock230_coord_fine(hans->z, 1);
                     int want_npc_face_x = mock230_coord_fine(player->x, 1);
@@ -13749,9 +13818,9 @@ mock230_world_selftest(void)
                  * runs `~p_choice5`, so the capture has to wrap the RESUME —
                  * the RUNCLIENTSCRIPT goes out inside that call, not on the
                  * next tick. */
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
                 SELFTEST_CHECK(player->active_script != NULL,
                                "p_choice5 should park on p_pausebutton");
                 SELFTEST_CHECK(player->last_slot == -1,
@@ -13823,18 +13892,18 @@ mock230_world_selftest(void)
                         0x73, 0xff, 0x00, 0x01, 0x00, 0xdb, 0x80, 0x00,
                     };
                     int opensub_opcode =
-                        mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENSUB);
+                        mock230_wire_opcode(srv->wire, PKT_NAME_IF_OPENSUB);
                     int position_opcode =
-                        mock230_wire_opcode(srv.wire, PKT_NAME_IF_SETPOSITION);
+                        mock230_wire_opcode(srv->wire, PKT_NAME_IF_SETPOSITION);
                     int run_opcode =
-                        mock230_wire_opcode(srv.wire, PKT_NAME_RUNCLIENTSCRIPT);
+                        mock230_wire_opcode(srv->wire, PKT_NAME_RUNCLIENTSCRIPT);
                     int opensub_at = mock230_capture_find(&capture, opensub_opcode, 0);
                     int position_at =
                         mock230_capture_find(&capture, position_opcode, 0);
                     int idx = mock230_capture_find(&capture, run_opcode, 0);
 
                     SELFTEST_CHECK(idx >= 0, "the choice should send RUNCLIENTSCRIPT");
-                    if( strcmp(srv.wire->name, "osrs239") == 0 )
+                    if( strcmp(srv->wire->name, "osrs239") == 0 )
                     {
                         SELFTEST_CHECK(
                             opensub_at >= 0 && position_at > opensub_at &&
@@ -13850,7 +13919,7 @@ mock230_world_selftest(void)
                         rows_uid == 0x00db0001,
                         "chatmenu:options must retain literal rev-239 uid 219:1, got 0x%x",
                         rows_uid);
-                    if( position_at >= 0 && strcmp(srv.wire->name, "osrs239") == 0 )
+                    if( position_at >= 0 && strcmp(srv->wire->name, "osrs239") == 0 )
                     {
                         const struct Mock230CapturedPacket* position =
                             &capture.packets[position_at];
@@ -13923,10 +13992,10 @@ mock230_world_selftest(void)
                     button[4] = 0;
                     button[5] = 3; /* the third option */
 
-                    mock230_capture_begin(&srv, &capture);
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button,
                                          sizeof(button));
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
                     /* last_slot is latched for ~p_choice* then cleared when the
                      * branch's chatplayer arms its continue — do not assert the
                      * row id after that park. The branch is proven by leaving
@@ -13961,10 +14030,10 @@ mock230_world_selftest(void)
                         resume[1] = (uint8_t)(uid >> 16);
                         resume[2] = (uint8_t)(uid >> 8);
                         resume[3] = (uint8_t)uid;
-                        mock230_capture_begin(&srv, &capture);
+                        mock230_capture_begin(srv, &capture);
                         mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
                                              4);
-                        mock230_capture_end(&srv);
+                        mock230_capture_end(srv);
                         SELFTEST_CHECK(player->active_script != NULL,
                                        "chatnpc after the choice should park, not abort");
                         SELFTEST_CHECK(
@@ -13974,7 +14043,7 @@ mock230_world_selftest(void)
                 }
                 /* Drain via whichever continue is registered — branch 3 arms
                  * chat_right:continue, not the chat_left uid in `resume`. */
-                selftest_click_through(&srv, 12);
+                selftest_click_through(srv, 12);
                 player->resume_button_count = 0;
 
                 /* Exercise the choice whose next tick is NPC movement plus a
@@ -13983,7 +14052,7 @@ mock230_world_selftest(void)
                  * its own. */
                 if( rows_uid > 0 )
                 {
-                    const struct Mock230Wire* saved_wire = srv.wire;
+                    const struct Mock230Wire* saved_wire = srv->wire;
                     const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                     int uid;
                     int start_x;
@@ -13992,7 +14061,7 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(wire239 != NULL,
                                    "the fleeing-choice test has the osrs239 adapter");
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
-                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                    SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                                    "the walk to Hans should complete for the fleeing choice");
                     if( player->resume_button_count == 1 )
                     {
@@ -14022,49 +14091,49 @@ mock230_world_selftest(void)
                                    "the fleeing choice should park on its player reply");
 
                     uid = player->resume_buttons[0];
-                    start_x = srv.npcs[hans_slot].x;
-                    start_z = srv.npcs[hans_slot].z;
+                    start_x = srv->npcs[hans_slot].x;
+                    start_z = srv->npcs[hans_slot].z;
                     /* Patrol's previous retry is not this escape attempt's
                      * retry window. */
-                    srv.npcs[hans_slot].stuck_counter = 0;
+                    srv->npcs[hans_slot].stuck_counter = 0;
                     resume[0] = (uint8_t)(uid >> 24);
                     resume[1] = (uint8_t)(uid >> 16);
                     resume[2] = (uint8_t)(uid >> 8);
                     resume[3] = (uint8_t)uid;
                     if( wire239 )
-                        srv.wire = wire239;
-                    mock230_capture_begin(&srv, &capture);
+                        srv->wire = wire239;
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
-                    mock230_world_tick(&srv);
-                    mock230_world_tick(&srv);
-                    mock230_capture_end(&srv);
+                    mock230_world_tick(srv);
+                    mock230_world_tick(srv);
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(player->active_script == NULL,
                                    "the delayed fleeing branch should finish, not abort");
-                    SELFTEST_CHECK(srv.npcs[hans_slot].mode == MOCK230_NPCMODE_PLAYERESCAPE,
+                    SELFTEST_CHECK(srv->npcs[hans_slot].mode == MOCK230_NPCMODE_PLAYERESCAPE,
                                    "the selected branch should put its npc in playerescape mode");
-                    SELFTEST_CHECK(srv.npcs[hans_slot].x != start_x ||
-                                       srv.npcs[hans_slot].z != start_z,
+                    SELFTEST_CHECK(srv->npcs[hans_slot].x != start_x ||
+                                       srv->npcs[hans_slot].z != start_z,
                                    "the escaping npc should take a movement step");
                     SELFTEST_CHECK(
                         mock230_capture_find(
                             &capture,
-                            mock230_wire_opcode(srv.wire, PKT_NAME_NPC_INFO), 0) >= 0,
+                            mock230_wire_opcode(srv->wire, PKT_NAME_NPC_INFO), 0) >= 0,
                         "the fleeing tick must emit revision-239 NPC_INFO");
                     player->resume_button_count = 0;
-                    srv.wire = saved_wire;
+                    srv->wire = saved_wire;
                 }
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: sanfew p_choice junk does not refuse\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -14079,17 +14148,17 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(sanfew_type > 0, "npc sanfew should resolve by name");
             SELFTEST_CHECK(rows_uid > 0, "chatmenu:options should resolve");
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             for( int i = 0; i < MOCK230_NPC_MAX; i++ )
             {
-                struct Mock230Npc* n = &srv.npcs[i];
+                struct Mock230Npc* n = &srv->npcs[i];
                 int dx;
                 int dz;
 
                 if( !n->active )
                 {
                     sanfew = mock230_world_npc_spawn(
-                        &srv, sanfew_type, player->x + 1, player->z, player->level);
+                        srv, sanfew_type, player->x + 1, player->z, player->level);
                     break;
                 }
                 dx = n->x - player->x;
@@ -14099,19 +14168,19 @@ mock230_world_selftest(void)
                     mock230_world_npc_occupancy(n, 0);
                     n->active = 0;
                     sanfew = mock230_world_npc_spawn(
-                        &srv, sanfew_type, player->x + 1, player->z, player->level);
+                        srv, sanfew_type, player->x + 1, player->z, player->level);
                     break;
                 }
             }
             SELFTEST_CHECK(sanfew >= 0, "sanfew should be spawnable");
             SELFTEST_CHECK(
                 mock230_scripts_run_trigger(
-                    &srv, SS_TRIGGER_OPNPC1, sanfew_type, -1, sanfew) == MOCK230_TRIGGER_RAN,
+                    srv, SS_TRIGGER_OPNPC1, sanfew_type, -1, sanfew) == MOCK230_TRIGGER_RAN,
                 "[opnpc1,sanfew] should run");
             SELFTEST_CHECK(player->active_script != NULL,
                            "sanfew greeting should park on chatnpc");
             /* Continue past "What can I do for you young 'un?" into ~p_choice2. */
-            selftest_click_through(&srv, 1);
+            selftest_click_through(srv, 1);
             SELFTEST_CHECK(player->active_script != NULL,
                            "sanfew should park on p_choice2");
             SELFTEST_CHECK(
@@ -14137,8 +14206,8 @@ mock230_world_selftest(void)
                 player->resume_button_count == 1 && player->resume_buttons[0] != rows_uid,
                 "sanfew row 1 must leave chatmenu:options (not refuse fallthrough)");
 
-            selftest_click_through(&srv, 8);
-            mock230_scripts_free(&srv);
+            selftest_click_through(srv, 8);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -14161,10 +14230,10 @@ mock230_world_selftest(void)
          * session; walking away is what ends it, and nothing else does — not
          * closing the dialogue, not the script finishing.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -14183,11 +14252,11 @@ mock230_world_selftest(void)
             int return_z = player->z;
 
             SELFTEST_CHECK(hans_type > 0, "npc hans should resolve by name");
-            hans = selftest_find_npc(&srv, hans_type);
+            hans = selftest_find_npc(srv, hans_type);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
             if( hans >= 0 )
             {
-                struct Mock230Npc* npc = &srv.npcs[hans];
+                struct Mock230Npc* npc = &srv->npcs[hans];
                 int held_x;
                 int held_z;
                 int moved = 0;
@@ -14198,10 +14267,10 @@ mock230_world_selftest(void)
                 /* Beside him, which is where a conversation happens. The
                  * trigger is run directly rather than walked to: the approach
                  * is a different test's subject and Hans is a moving target. */
-                selftest_park_player(&srv, npc->x + 1, npc->z);
+                selftest_park_player(srv, npc->x + 1, npc->z);
                 SELFTEST_CHECK(
                     mock230_scripts_run_trigger(
-                        &srv, SS_TRIGGER_OPNPC1, hans_type, -1, hans) == MOCK230_TRIGGER_RAN,
+                        srv, SS_TRIGGER_OPNPC1, hans_type, -1, hans) == MOCK230_TRIGGER_RAN,
                     "[opnpc1,hans] should run");
                 SELFTEST_CHECK(player->active_script != NULL,
                                "Hans's greeting should park on chatnpc");
@@ -14222,7 +14291,7 @@ mock230_world_selftest(void)
                 held_z = npc->z;
                 for( int i = 0; i < 30 && !moved; i++ )
                 {
-                    advance_npcs(&srv);
+                    advance_npcs(srv);
                     if( npc->x != held_x || npc->z != held_z )
                         moved = 1;
                 }
@@ -14237,8 +14306,8 @@ mock230_world_selftest(void)
 
                 /* Walking away releases it — the reference's `resetDefaults()`
                  * on the one-tile clause, and the only exit this mode has. */
-                selftest_park_player(&srv, held_x + 4, held_z + 4);
-                advance_npcs(&srv);
+                selftest_park_player(srv, held_x + 4, held_z + 4);
+                advance_npcs(srv);
                 SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_PATROL,
                                "leaving must release the hold back to patrol, got mode %d",
                                npc->mode);
@@ -14248,24 +14317,24 @@ mock230_world_selftest(void)
                 moved = 0;
                 for( int i = 0; i < 30 && !moved; i++ )
                 {
-                    advance_npcs(&srv);
+                    advance_npcs(srv);
                     if( npc->x != held_x || npc->z != held_z )
                         moved = 1;
                 }
                 SELFTEST_CHECK(moved, "and the released npc must resume its patrol");
             }
-            selftest_park_player(&srv, return_x, return_z);
-            mock230_scripts_free(&srv);
+            selftest_park_player(srv, return_x, return_z);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: joe prequest dialogue arms ACTIVE_NPC\n");
     {
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -14278,7 +14347,7 @@ mock230_world_selftest(void)
             static const int k_dialogue[] = { 95, 97, 94, 6 };
 
             SELFTEST_CHECK(joe_type > 0, "npc joe should resolve by name");
-            joe = selftest_find_npc(&srv, joe_type);
+            joe = selftest_find_npc(srv, joe_type);
             if( joe < 0 )
             {
                 /* Selftest worlds fill every npc slot from map spawns. Free one
@@ -14286,14 +14355,14 @@ mock230_world_selftest(void)
                  * a despawn uses. */
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                 {
-                    struct Mock230Npc* n = &srv.npcs[i];
+                    struct Mock230Npc* n = &srv->npcs[i];
                     int dx;
                     int dz;
 
                     if( !n->active )
                     {
                         joe = mock230_world_npc_spawn(
-                            &srv, joe_type, player->x + 1, player->z, player->level);
+                            srv, joe_type, player->x + 1, player->z, player->level);
                         break;
                     }
                     dx = n->x - player->x;
@@ -14303,7 +14372,7 @@ mock230_world_selftest(void)
                         mock230_world_npc_occupancy(n, 0);
                         n->active = 0;
                         joe = mock230_world_npc_spawn(
-                            &srv, joe_type, player->x + 1, player->z, player->level);
+                            srv, joe_type, player->x + 1, player->z, player->level);
                         break;
                     }
                 }
@@ -14314,7 +14383,7 @@ mock230_world_selftest(void)
              * abort spam happened: the script ran without ACTIVE_NPC. */
             SELFTEST_CHECK(
                 mock230_scripts_run_trigger(
-                    &srv, SS_TRIGGER_OPNPC1, joe_type, -1, -1) == MOCK230_TRIGGER_FAILED,
+                    srv, SS_TRIGGER_OPNPC1, joe_type, -1, -1) == MOCK230_TRIGGER_FAILED,
                 "opnpc1 without a live npc must refuse, not abort mid-chatnpc");
             SELFTEST_CHECK(player->active_script == NULL,
                            "refused opnpc leaves no parked script");
@@ -14322,13 +14391,13 @@ mock230_world_selftest(void)
             /* Direct trigger with the live slot — proves arming without depending
              * on walk-to-approach (Joe may sit outside the default Lumbridge
              * scene the selftest player starts in). */
-            mock230_world_close_modal(&srv);
-            mock230_capture_begin(&srv, &capture);
+            mock230_world_close_modal(srv);
+            mock230_capture_begin(srv, &capture);
             SELFTEST_CHECK(
                 mock230_scripts_run_trigger(
-                    &srv, SS_TRIGGER_OPNPC1, joe_type, -1, joe) == MOCK230_TRIGGER_RAN,
+                    srv, SS_TRIGGER_OPNPC1, joe_type, -1, joe) == MOCK230_TRIGGER_RAN,
                 "[opnpc1,joe] with a live slot should run");
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(player->active_script != NULL,
                            "[opnpc1,joe] → joe_prequest should park on chatnpc");
@@ -14342,17 +14411,17 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 4),
                            "joe_prequest should set head, anim, text, then mount");
 
-            selftest_click_through(&srv, 8);
-            mock230_scripts_free(&srv);
+            selftest_click_through(srv, 8);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: emotes\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -14425,16 +14494,16 @@ mock230_world_selftest(void)
                            "an unmodelled emote should play nothing, got %d", player->anim_id);
 
             player->anim_id = -1;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: skill guide\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -14519,9 +14588,9 @@ mock230_world_selftest(void)
                 button[4] = 0xff; /* sub = -1: a static cell has no dynamic child */
                 button[5] = 0xff;
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
                 run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
@@ -14660,9 +14729,15 @@ mock230_world_selftest(void)
                 static struct Mock230Capture capture;
                 int armed = 0;
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_proc(&srv, "[proc,skill_guide_login]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                {
+                    int ran = mock230_scripts_run_proc(srv, "[proc,skill_guide_login]", NULL, 0);
+                    fprintf(stderr, "PROBE skill_guide_login ran=%d active=%p packets=%d\n",
+                            ran, (void*)srv->active_player, capture.count);
+                }
+                mock230_capture_end(srv);
+                fprintf(stderr, "PROBE after end packets=%d first_op=%d\n", capture.count,
+                        capture.count > 0 ? capture.packets[0].opcode : -1);
 
                 for( int i = 0; i < CELL_COUNT; i++ )
                 {
@@ -14755,9 +14830,9 @@ mock230_world_selftest(void)
                 button[4] = 0xff;
                 button[5] = 0xff;
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 SELFTEST_CHECK(mock230_capture_find(&capture, 84, 0) < 0,
                                "op 1 on stats:attack is unbound and must run nothing");
@@ -14790,9 +14865,9 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(journal > 0, "the content pack should name questjournal");
                 SELFTEST_CHECK(cook_row >= 0, "the pack should name quest_cooksassistant");
 
-                mock230_capture_begin(&srv, &arm);
-                mock230_scripts_run_proc(&srv, "[proc,skill_guide_login]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &arm);
+                mock230_scripts_run_proc(srv, "[proc,skill_guide_login]", NULL, 0);
+                mock230_capture_end(srv);
 
                 for( int p = 0; p < arm.count; p++ )
                 {
@@ -14827,9 +14902,9 @@ mock230_world_selftest(void)
                 if( latest > 0 )
                     player->varps[latest] = -1;
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 SELFTEST_CHECK(player->last_slot == 1,
                                "View-journal should arrive as last_slot 1, got %d",
@@ -14867,7 +14942,7 @@ mock230_world_selftest(void)
                 }
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -14940,10 +15015,10 @@ mock230_world_selftest(void)
             }
         }
 
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -14988,9 +15063,9 @@ mock230_world_selftest(void)
                 int from = -1;
                 int to = -1;
 
-                mock230_capture_begin(&srv, &arm);
-                mock230_scripts_run_proc(&srv, "[proc,quest_journal_login]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &arm);
+                mock230_scripts_run_proc(srv, "[proc,quest_journal_login]", NULL, 0);
+                mock230_capture_end(srv);
 
                 for( int p = 0; p < arm.count; p++ )
                 {
@@ -15031,9 +15106,9 @@ mock230_world_selftest(void)
             if( cookquest > 0 )
                 player->varps[cookquest] = 1;
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(player->last_slot == 1,
                            "Cook's Assistant click should arrive as last_slot 1, got %d",
@@ -15157,10 +15232,10 @@ mock230_world_selftest(void)
                 switch_button[3] = (uint8_t)journal_switch;
                 switch_button[4] = 0xff;
                 switch_button[5] = 0xff; /* static component, sub=-1 */
-                mock230_capture_begin(&srv, &to_overview);
+                mock230_capture_begin(srv, &to_overview);
                 mock230_world_handle(
                     player, PKTOUT_NAME_IF_BUTTON1, switch_button, sizeof(switch_button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 overview_open = mock230_capture_find(&to_overview, 6 /* IF_OPENSUB */, 0);
                 SELFTEST_CHECK(overview_open >= 0,
@@ -15188,10 +15263,10 @@ mock230_world_selftest(void)
                 switch_button[3] = (uint8_t)overview_switch;
                 switch_button[4] = 0xff;
                 switch_button[5] = 0xff;
-                mock230_capture_begin(&srv, &to_journal);
+                mock230_capture_begin(srv, &to_journal);
                 mock230_world_handle(
                     player, PKTOUT_NAME_IF_BUTTON1, switch_button, sizeof(switch_button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 journal_open = mock230_capture_find(&to_journal, 6 /* IF_OPENSUB */, 0);
                 SELFTEST_CHECK(journal_open >= 0,
@@ -15221,23 +15296,23 @@ mock230_world_selftest(void)
 
                 button[4] = 0;
                 button[5] = (uint8_t)other_id;
-                mock230_capture_begin(&srv, &other);
+                mock230_capture_begin(srv, &other);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
                 SELFTEST_CHECK(mock230_capture_find(&other, 6 /* IF_OPENSUB */, 0) >= 0,
                                "an unwritten quest should still mount questjournal");
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: character summary\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -15285,9 +15360,9 @@ mock230_world_selftest(void)
                 int to = -1;
                 int run_at;
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_proc(&srv, "[if_open,account_summary_sidepanel]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_scripts_run_proc(srv, "[if_open,account_summary_sidepanel]", NULL, 0);
+                mock230_capture_end(srv);
 
                 for( int p = 0; p < capture.count; p++ )
                 {
@@ -15376,9 +15451,9 @@ mock230_world_selftest(void)
                 button[4] = (uint8_t)(cases[i].sub >> 8);
                 button[5] = (uint8_t)cases[i].sub;
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, cases[i].op_name, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 SELFTEST_CHECK(player->last_slot == cases[i].sub,
                                "%s: last_slot should be %d, got %d", cases[i].label,
@@ -15425,9 +15500,9 @@ mock230_world_selftest(void)
                 if( playtime > 0 )
                     player->varps[playtime] = 42;
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
                 SELFTEST_CHECK(run_at >= 0,
@@ -15496,9 +15571,9 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(taskbox > 0, "area_task:taskbox should resolve by name");
                 SELFTEST_CHECK(journalscroll > 0, "journalscroll should resolve by name");
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_proc(&srv, "[if_open,area_task]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_scripts_run_proc(srv, "[if_open,area_task]", NULL, 0);
+                mock230_capture_end(srv);
 
                 for( int p = 0; p < capture.count; p++ )
                 {
@@ -15527,9 +15602,9 @@ mock230_world_selftest(void)
                 button[4] = 0;
                 button[5] = 0; /* Karamja */
 
-                mock230_capture_begin(&srv, &capture);
+                mock230_capture_begin(srv, &capture);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
                 SELFTEST_CHECK(player->last_slot == 0,
                                "diary row click: last_slot should be 0, got %d",
@@ -15585,9 +15660,9 @@ mock230_world_selftest(void)
                 int items_mask = -1;
                 uint8_t button[6];
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_proc(&srv, "[proc,collection_open]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_scripts_run_proc(srv, "[proc,collection_open]", NULL, 0);
+                mock230_capture_end(srv);
 
                 for( size_t i = 0; i < sizeof(k_tabs) / sizeof(k_tabs[0]); i++ )
                 {
@@ -15691,9 +15766,9 @@ mock230_world_selftest(void)
                     button[4] = 0xff;
                     button[5] = 0xff;
 
-                    mock230_capture_begin(&srv, &capture);
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
 
                     run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
                     SELFTEST_CHECK(run_at >= 0,
@@ -15731,16 +15806,16 @@ mock230_world_selftest(void)
                 }
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: the tool leprechaun's store\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -15823,7 +15898,7 @@ mock230_world_selftest(void)
             if( ok )
             {
                 static struct Mock230Capture capture;
-                int slot_npc = selftest_require_npc(&srv, leprechaun, g_home_x + 2, g_home_z - 2, 0);
+                int slot_npc = selftest_require_npc(srv, leprechaun, g_home_x + 2, g_home_z - 2, 0);
                 uint8_t payload[6];
                 uint8_t button[6];
 
@@ -15835,11 +15910,11 @@ mock230_world_selftest(void)
                     int open_b;
 
                     selftest_npc_payload(player, slot_npc, payload);
-                    mock230_capture_begin(&srv, &capture);
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC3, payload, 2);
-                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                    SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                                    "the walk to the Tool Leprechaun should complete");
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
 
                     open_a = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
                     open_b = open_a >= 0 ? mock230_capture_find(&capture, 6, open_a + 1) : -1;
@@ -15967,9 +16042,9 @@ mock230_world_selftest(void)
                         int stored;
 
                         selftest_clear_inv(player);
-                        mock230_varbit_set(&srv, vb_rake, 0);
-                        mock230_varbit_set(&srv, vb_extra, 0);
-                        mock230_varbit_set(&srv, vb_qty, k_cases[c].mode);
+                        mock230_varbit_set(srv, vb_rake, 0);
+                        mock230_varbit_set(srv, vb_extra, 0);
+                        mock230_varbit_set(srv, vb_qty, k_cases[c].mode);
                         for( int n = 0; n < k_cases[c].carried; n++ )
                             selftest_give(player, rake, 1);
 
@@ -16038,12 +16113,12 @@ mock230_world_selftest(void)
                         radio[5] = 0xff;
 
                         selftest_clear_inv(player);
-                        mock230_varbit_set(&srv, vb_rake, 0);
-                        mock230_varbit_set(&srv, vb_extra, 0);
+                        mock230_varbit_set(srv, vb_rake, 0);
+                        mock230_varbit_set(srv, vb_extra, 0);
                         /* Park on a mode none of the three wants, so a radio
                          * whose body never ran is distinguishable from one that
                          * wrote the value that was already there. */
-                        mock230_varbit_set(&srv, vb_qty, 3);
+                        mock230_varbit_set(srv, vb_qty, 3);
                         for( int n = 0; n < 5; n++ )
                             selftest_give(player, rake, 1);
 
@@ -16074,9 +16149,9 @@ mock230_world_selftest(void)
                  * 5/3/2-bit split of one ten-bit number.
                  */
                 selftest_clear_inv(player);
-                mock230_varbit_set(&srv, vb_rake, 0);
-                mock230_varbit_set(&srv, vb_extra, 0);
-                mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                mock230_varbit_set(srv, vb_rake, 0);
+                mock230_varbit_set(srv, vb_extra, 0);
+                mock230_varbit_set(srv, vb_qty, 2 /* All */);
                 for( int n = 0; n < 5; n++ )
                     selftest_give(player, rake, 1);
                 mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
@@ -16091,10 +16166,10 @@ mock230_world_selftest(void)
                     uint8_t b[6];
 
                     selftest_clear_inv(player);
-                    mock230_varbit_set(&srv, vb_b0, 0);
-                    mock230_varbit_set(&srv, vb_b1, 0);
-                    mock230_varbit_set(&srv, vb_b2, 0);
-                    mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                    mock230_varbit_set(srv, vb_b0, 0);
+                    mock230_varbit_set(srv, vb_b1, 0);
+                    mock230_varbit_set(srv, vb_b2, 0);
+                    mock230_varbit_set(srv, vb_qty, 2 /* All */);
                     for( int n = 0; n < 20; n++ )
                         selftest_give(player, bucket, 1);
 
@@ -16117,7 +16192,7 @@ mock230_world_selftest(void)
                     /* 300 = 256*1 + 32*1 + 12, which is the whole point of the
                      * three: neither the 5-bit nor the 3-bit varbit can hold it
                      * and the carry has to land in the right one. */
-                    mock230_scripts_run_proc(&srv, "[proc,farming_setstored]",
+                    mock230_scripts_run_proc(srv, "[proc,farming_setstored]",
                                              (const int32_t[]){ bucket, 300 }, 2);
                     SELFTEST_CHECK(mock230_varbit_get(player, vb_b0) == 12 &&
                                        mock230_varbit_get(player, vb_b1) == 1 &&
@@ -16133,9 +16208,9 @@ mock230_world_selftest(void)
                     uint8_t b[6];
 
                     selftest_clear_inv(player);
-                    mock230_varbit_set(&srv, vb_rake, 1);
-                    mock230_varbit_set(&srv, vb_extra, 2); /* 5 */
-                    mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                    mock230_varbit_set(srv, vb_rake, 1);
+                    mock230_varbit_set(srv, vb_extra, 2); /* 5 */
+                    mock230_varbit_set(srv, vb_qty, 2 /* All */);
 
                     b[0] = (uint8_t)(sym[4].id >> 24);
                     b[1] = (uint8_t)(sym[4].id >> 16);
@@ -16179,9 +16254,9 @@ mock230_world_selftest(void)
                     int cap = 100; /* enum_2193's value for a rake */
 
                     selftest_clear_inv(player);
-                    mock230_scripts_run_proc(&srv, "[proc,farming_setstored]",
+                    mock230_scripts_run_proc(srv, "[proc,farming_setstored]",
                                              (const int32_t[]){ rake, cap }, 2);
-                    mock230_varbit_set(&srv, vb_qty, 2 /* All */);
+                    mock230_varbit_set(srv, vb_qty, 2 /* All */);
                     selftest_give(player, rake, 1);
 
                     b[0] = (uint8_t)(sym[5].id >> 24);
@@ -16219,16 +16294,16 @@ mock230_world_selftest(void)
                     int saved;
 
                     selftest_clear_inv(player);
-                    mock230_varbit_set(&srv, vb_rake, 1);
-                    mock230_varbit_set(&srv, vb_extra, 2); /* 5 rakes */
-                    mock230_varbit_set(&srv, vb_qty, 3 /* X */);
+                    mock230_varbit_set(srv, vb_rake, 1);
+                    mock230_varbit_set(srv, vb_extra, 2); /* 5 rakes */
+                    mock230_varbit_set(srv, vb_qty, 3 /* X */);
                     remove(path);
                     saved = mock230_save_player(player, path);
                     SELFTEST_CHECK(saved, "the save should be written to %s", path);
 
-                    mock230_varbit_set(&srv, vb_rake, 0);
-                    mock230_varbit_set(&srv, vb_extra, 0);
-                    mock230_varbit_set(&srv, vb_qty, 0);
+                    mock230_varbit_set(srv, vb_rake, 0);
+                    mock230_varbit_set(srv, vb_extra, 0);
+                    mock230_varbit_set(srv, vb_qty, 0);
                     SELFTEST_CHECK(mock230_load_player(player, path), "and read back");
 
                     SELFTEST_CHECK(2 * mock230_varbit_get(player, vb_extra) +
@@ -16253,25 +16328,25 @@ mock230_world_selftest(void)
                  * idempotent, so the deal has to be asked for explicitly.
                  */
                 selftest_clear_inv(player);
-                mock230_varbit_set(&srv, vb_rake, 0);
-                mock230_varbit_set(&srv, vb_extra, 0);
-                mock230_varbit_set(&srv, vb_qty, 0);
-                mock230_varbit_set(&srv, vb_b0, 0);
-                mock230_varbit_set(&srv, vb_b1, 0);
-                mock230_varbit_set(&srv, vb_b2, 0);
-                mock230_scripts_run_proc(&srv, "[proc,newplayer_inv]", NULL, 0);
+                mock230_varbit_set(srv, vb_rake, 0);
+                mock230_varbit_set(srv, vb_extra, 0);
+                mock230_varbit_set(srv, vb_qty, 0);
+                mock230_varbit_set(srv, vb_b0, 0);
+                mock230_varbit_set(srv, vb_b1, 0);
+                mock230_varbit_set(srv, vb_b2, 0);
+                mock230_scripts_run_proc(srv, "[proc,newplayer_inv]", NULL, 0);
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: slayer rewards\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -16392,7 +16467,7 @@ mock230_world_selftest(void)
             if( ok )
             {
                 static struct Mock230Capture capture;
-                int slot_npc = selftest_require_npc(&srv, turael, g_home_x + 4, g_home_z - 2, 0);
+                int slot_npc = selftest_require_npc(srv, turael, g_home_x + 4, g_home_z - 2, 0);
                 uint8_t payload[6];
                 uint8_t button[6];
                 int owned_before[3];
@@ -16419,7 +16494,7 @@ mock230_world_selftest(void)
     do                                                                                             \
     {                                                                                              \
         for( int w = 0; w < 3; w++ )                                                               \
-            mock230_world_set_varp(&srv, vp_own[w], 0);                                            \
+            mock230_world_set_varp(srv, vp_own[w], 0);                                            \
     } while( 0 )
 
                 /* ---- the open, and the order of its two packets ---------- */
@@ -16429,13 +16504,13 @@ mock230_world_selftest(void)
                     int open_at;
                     int varp_at = -1;
 
-                    mock230_varbit_set(&srv, vb_master, 0);
+                    mock230_varbit_set(srv, vb_master, 0);
                     selftest_npc_payload(player, slot_npc, payload);
-                    mock230_capture_begin(&srv, &capture);
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC5, payload, 2);
-                    SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+                    SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                                    "the walk to Turael should complete");
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
 
                     open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
                     SELFTEST_CHECK(open_at >= 0,
@@ -16516,9 +16591,9 @@ mock230_world_selftest(void)
                     int mask[2] = { -1, -1 };
                     int to[2] = { -1, -1 };
 
-                    mock230_capture_begin(&srv, &capture);
-                    mock230_scripts_run_proc(&srv, "[proc,slayer_rewards_login]", NULL, 0);
-                    mock230_capture_end(&srv);
+                    mock230_capture_begin(srv, &capture);
+                    mock230_scripts_run_proc(srv, "[proc,slayer_rewards_login]", NULL, 0);
+                    mock230_capture_end(srv);
 
                     for( int p = 0; p < capture.count; p++ )
                     {
@@ -16555,7 +16630,7 @@ mock230_world_selftest(void)
 
                 /* ---- buying ---------------------------------------------- */
                 SLAYER_RESET();
-                mock230_varbit_set(&srv, vb_points, 1000);
+                mock230_varbit_set(srv, vb_points, 1000);
                 SLAYER_CONFIRM(BIT_SLUG);
                 SELFTEST_CHECK(SLAYER_OWNED(BIT_SLUG),
                                "confirming sub %d should unlock Slug Salter", (int)BIT_SLUG);
@@ -16575,7 +16650,7 @@ mock230_world_selftest(void)
 
                 /* Too poor. The client draws the price in red either way. */
                 SLAYER_RESET();
-                mock230_varbit_set(&srv, vb_points, COST_GARGOYLE - 1);
+                mock230_varbit_set(srv, vb_points, COST_GARGOYLE - 1);
                 SLAYER_CONFIRM(BIT_GARGOYLE);
                 SELFTEST_CHECK(!SLAYER_OWNED(BIT_GARGOYLE),
                                "%d points should not buy a %d-point unlock",
@@ -16586,7 +16661,7 @@ mock230_world_selftest(void)
 
                 /* ---- which word the bit lands in ------------------------- */
                 SLAYER_RESET();
-                mock230_varbit_set(&srv, vb_points, 5000);
+                mock230_varbit_set(srv, vb_points, 5000);
                 SLAYER_CONFIRM(BIT_STORAGE);
                 SLAYER_CONFIRM(BIT_FROST);
                 SELFTEST_CHECK(player->varps[vp_own[1]] == (1 << (BIT_STORAGE % 32)),
@@ -16608,7 +16683,7 @@ mock230_world_selftest(void)
 
                 /* ---- disabling a refundable one -------------------------- */
                 SLAYER_RESET();
-                mock230_varbit_set(&srv, vb_points, 1000);
+                mock230_varbit_set(srv, vb_points, 1000);
                 SLAYER_CONFIRM(BIT_DARKBEASTS);
                 SELFTEST_CHECK(SLAYER_OWNED(BIT_DARKBEASTS),
                                "Need More Darkness should unlock");
@@ -16622,7 +16697,7 @@ mock230_world_selftest(void)
 
                 /* ---- extend everything ----------------------------------- */
                 SLAYER_RESET();
-                mock230_varbit_set(&srv, vb_points, 5000);
+                mock230_varbit_set(srv, vb_points, 5000);
                 SLAYER_CONFIRM(ACTION_EXTEND_ALL);
                 SELFTEST_CHECK(mock230_varbit_get(player, vb_points) == 5000 - EXTEND_PRICE,
                                "\"Extend remaining %d tasks\" costs %d points at this "
@@ -16686,9 +16761,9 @@ mock230_world_selftest(void)
                     button[3] = (uint8_t)sym[4].id;
                     button[4] = 0;
                     button[5] = 0;
-                    mock230_capture_begin(&srv, &capture);
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
 
                     open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
                     run_at = mock230_capture_find(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
@@ -16764,7 +16839,7 @@ mock230_world_selftest(void)
                     int saved;
 
                     SLAYER_RESET();
-                    mock230_varbit_set(&srv, vb_points, 4321);
+                    mock230_varbit_set(srv, vb_points, 4321);
                     SLAYER_CONFIRM(BIT_SLUG);    /* word 0 */
                     SLAYER_CONFIRM(BIT_STORAGE); /* word 1 */
                     SLAYER_CONFIRM(BIT_FROST);   /* word 2 */
@@ -16773,7 +16848,7 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK(saved, "the save should be written to %s", path);
 
                     SLAYER_RESET();
-                    mock230_varbit_set(&srv, vb_points, 0);
+                    mock230_varbit_set(srv, vb_points, 0);
                     SELFTEST_CHECK(mock230_load_player(player, path), "and read back");
                     SELFTEST_CHECK(SLAYER_OWNED(BIT_SLUG) && SLAYER_OWNED(BIT_STORAGE) &&
                                        SLAYER_OWNED(BIT_FROST),
@@ -16790,24 +16865,24 @@ mock230_world_selftest(void)
 
                 /* Put the world back. */
                 for( int w = 0; w < 3; w++ )
-                    mock230_world_set_varp(&srv, vp_own[w], owned_before[w]);
-                mock230_varbit_set(&srv, vb_points, points_before);
-                mock230_varbit_set(&srv, vb_master, 0);
+                    mock230_world_set_varp(srv, vp_own[w], owned_before[w]);
+                mock230_varbit_set(srv, vb_points, points_before);
+                mock230_varbit_set(srv, vb_master, 0);
 #undef SLAYER_CONFIRM
 #undef SLAYER_OWNED
 #undef SLAYER_RESET
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: held-item content\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -16954,7 +17029,7 @@ mock230_world_selftest(void)
             /* p_delay(0) parks the script for the rest of this tick, which is
              * why the effects land on the next one rather than immediately. */
             SELFTEST_CHECK(player->active_script != NULL, "bury should park on its p_delay");
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->inv[0].obj_id == -1,
                            "inv_delslot should empty the bones slot, got %d",
                            player->inv[0].obj_id);
@@ -16989,7 +17064,7 @@ mock230_world_selftest(void)
              * eaten item is the evidence the heal was the clamped one.
              */
             for( int i = 0; i < 4 && player->active_script; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the eat delay should have run out before the next bite");
             inv_set(player, 0, meat, 1);
@@ -17028,7 +17103,7 @@ mock230_world_selftest(void)
              * always takes the refusal branch and parks on its ~mesbox.
              */
             {
-                int guard = selftest_require_npc(&srv, 3254, g_home_x + 6, g_home_z - 2, 0);
+                int guard = selftest_require_npc(srv, 3254, g_home_x + 6, g_home_z - 2, 0);
                 int thieving = mock230_content_symbol(MOCK230_PACK_STAT, "thieving");
                 uint8_t npc_payload[2];
 
@@ -17043,9 +17118,9 @@ mock230_world_selftest(void)
                     /* Stand next to the guard: this section is about the level
                      * gate, not about the walk, and settling would also run the
                      * pickpocket script's own delay. */
-                    player->x = srv.npcs[guard].x + 1;
-                    player->z = srv.npcs[guard].z;
-                    player->level = srv.npcs[guard].level;
+                    player->x = srv->npcs[guard].x + 1;
+                    player->z = srv->npcs[guard].z;
+                    player->level = srv->npcs[guard].level;
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC3, npc_payload, 2);
                     SELFTEST_CHECK(player->active_script != NULL,
                                    "pickpocketing under the level requirement should "
@@ -17066,8 +17141,8 @@ mock230_world_selftest(void)
                      * checks — none of which mention Thieving.
                      */
                     player->active_script = NULL;
-                    selftest_park_player(&srv, 3222, 3218);
-                    mock230_scripts_free(&srv);
+                    selftest_park_player(srv, 3222, 3218);
+                    mock230_scripts_free(srv);
                 }
             }
 
@@ -17077,7 +17152,7 @@ mock230_world_selftest(void)
             player->hitpoints = saved_hp;
             mock230_combat_sync_hitpoints(player);
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -17103,10 +17178,10 @@ mock230_world_selftest(void)
          * that the mock ran *at all* with no pack. It still does: it logs in,
          * walks and renders. It just cannot fight.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
             fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src mock230-scripts)\n");
 
@@ -17135,7 +17210,7 @@ mock230_world_selftest(void)
          * used 655, which cache.osrs230 also names "Goblin" but which OpenRune
          * calls `goblin_red_soldier_2`: two different monsters with the same
          * display name, and the reason ids get validated rather than trusted. */
-        goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
         SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
 
         /*
@@ -17176,7 +17251,7 @@ mock230_world_selftest(void)
              * shows up as the two checks below, neither of which mentions uids.
              */
             int32_t goblin_uid =
-                (int32_t)(((uint32_t)srv.npcs[goblin].generation << 16) |
+                (int32_t)(((uint32_t)srv->npcs[goblin].generation << 16) |
                           (uint32_t)(goblin & 0xffff));
             uint8_t button[9];
 
@@ -17191,7 +17266,7 @@ mock230_world_selftest(void)
                            retaliate >> 16, retaliate & 0xffff);
 
             mock230_scripts_run_proc(
-                &srv, "[proc,combat_tab_login]", NULL, 0);
+                srv, "[proc,combat_tab_login]", NULL, 0);
             for( int i = 0; i < player->interfaces.event_count; i++ )
             {
                 const struct Mock230IfEventRange* range =
@@ -17222,64 +17297,64 @@ mock230_world_selftest(void)
              * p_delay behind.  A normal player queue deliberately waits for
              * both; clear that unrelated state so the two drains below test
              * option_nodef rather than Player.canAccess(). */
-            mock230_world_close_modal(&srv);
-            player->delayed_until = srv.tick;
+            mock230_world_close_modal(srv);
+            player->delayed_until = srv->tick;
 
             player->varps[option_nodef] = 0; /* CS2: Auto Retaliate (On). */
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(
                 player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(player->varps[option_nodef] == 1,
                            "the combat-tab click should turn auto-retaliate off");
             SELFTEST_CHECK(
                 mock230_capture_find(
                     &capture,
-                    mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL),
+                    mock230_wire_opcode(srv->wire, PKT_NAME_VARP_SMALL),
                     0) >= 0,
                 "turning auto-retaliate off must transmit varp 172 for CS2 325");
 
-            mock230_combat_stop_player(&srv);
+            mock230_combat_stop_player(srv);
             SELFTEST_CHECK(
                 mock230_scripts_queue_named(
-                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                    srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                 "the retaliation fixture should queue while the option is off");
-            mock230_scripts_process_queues(&srv);
+            mock230_scripts_process_queues(srv);
             SELFTEST_CHECK(player->combat_target == -1,
                            "auto-retaliate Off must leave the player idle");
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(
                 player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(player->varps[option_nodef] == 0,
                            "a second combat-tab click should turn auto-retaliate on");
             SELFTEST_CHECK(
                 mock230_capture_find(
                     &capture,
-                    mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL),
+                    mock230_wire_opcode(srv->wire, PKT_NAME_VARP_SMALL),
                     0) >= 0,
                 "turning auto-retaliate on must transmit varp 172 for CS2 325");
 
             SELFTEST_CHECK(
                 mock230_scripts_queue_named(
-                    &srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                    srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                 "the retaliation fixture should queue while the option is on");
-            player->varps[action_delay] = srv.tick - 1;
+            player->varps[action_delay] = srv->tick - 1;
             player->varps[damagestyle] = 0; /* melee, never ranged rapid */
-            mock230_scripts_process_queues(&srv);
+            mock230_scripts_process_queues(srv);
             SELFTEST_CHECK(player->combat_target == goblin,
                            "auto-retaliate On must engage the attacking npc");
             SELFTEST_CHECK(
-                player->varps[action_delay] == srv.tick + 2,
+                player->varps[action_delay] == srv->tick + 2,
                 "unarmed auto-retaliate must wait half its 4-tick attack rate (got %d at tick %d)",
-                player->varps[action_delay], srv.tick);
-            mock230_combat_stop_player(&srv);
+                player->varps[action_delay], srv->tick);
+            mock230_combat_stop_player(srv);
         }
 
         if( goblin >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             int start_hp = npc->hitpoints;
             int ticks = 0;
             long transformations_before;
@@ -17540,7 +17615,7 @@ mock230_world_selftest(void)
 
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                 {
-                    struct Mock230Npc* other = &srv.npcs[i];
+                    struct Mock230Npc* other = &srv->npcs[i];
 
                     if( !other->active || !mock230_combat_attackable(other->type) )
                         continue;
@@ -17581,12 +17656,12 @@ mock230_world_selftest(void)
             xp_before[MOCK230_STAT_DEFENCE] = player->stat_xp_tenths[MOCK230_STAT_DEFENCE];
             xp_before[MOCK230_STAT_HITPOINTS] = player->stat_xp_tenths[MOCK230_STAT_HITPOINTS];
 
-            mock230_combat_engage(&srv, goblin);
+            mock230_combat_engage(srv, goblin);
             SELFTEST_CHECK(player->combat_target == goblin, "engaging sets the target");
 
             /* Fight to the death. The cap is generous but finite: a combat loop
              * that never resolves is the failure worth catching here. */
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             /* Goblin maxhit is 1; randominc(1) is 0 or 1, so a fixed RNG seed can
              * land only 0-damage hitsplats and leave HP unchanged. Retaliation is
              * still real — content's damage() wrote a splat. Track that. */
@@ -17594,10 +17669,10 @@ mock230_world_selftest(void)
             transformations_before = mock230_encode_npc_transformation_writes();
             while( npc->hitpoints > 0 && ticks < 200 )
             {
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 ticks++;
             }
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
 
             /*
              * Nothing in this fight transforms, so nothing may say it did.
@@ -17690,7 +17765,7 @@ mock230_world_selftest(void)
              * `npc_arrivedelay` for a goblin that was still mid-step when it
              * died. See `npc_death_step`. */
             for( int i = 0; i < npc->def->death_delay + 4 && npc->active; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(!npc->active, "the corpse should despawn");
 
             /*
@@ -17709,7 +17784,7 @@ mock230_world_selftest(void)
             steps_clear(player);
 
             for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(npc->active, "the goblin should respawn");
             SELFTEST_CHECK(npc->hitpoints == start_hp,
                            "at full health, got %d of %d", npc->hitpoints, start_hp);
@@ -17752,12 +17827,12 @@ mock230_world_selftest(void)
          * to test this would have shipped the bug.
          */
         int cow_type = mock230_content_symbol(MOCK230_PACK_NPC, "cow");
-        int cow = cow_type >= 0 ? npc_spawn(&srv, cow_type, g_home_x + 8, g_home_z + 8, 0) : -1;
+        int cow = cow_type >= 0 ? npc_spawn(srv, cow_type, g_home_x + 8, g_home_z + 8, 0) : -1;
 
         SELFTEST_CHECK(cow >= 0, "the fixture cow should spawn (type %d)", cow_type);
         if( cow >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[cow];
+            struct Mock230Npc* npc = &srv->npcs[cow];
             int size = npc->size > 0 ? npc->size : 1;
             int hp_level_before;
             int hp_boost_before;
@@ -17791,7 +17866,7 @@ mock230_world_selftest(void)
                 int start_z = npc->z;
                 int retaliated = 0;
 
-                selftest_park_player(&srv, start_x + k_stand[face][0],
+                selftest_park_player(srv, start_x + k_stand[face][0],
                                      start_z + k_stand[face][1]);
                 /*
                  * The park has to be a real one, occupancy and all.
@@ -17816,7 +17891,7 @@ mock230_world_selftest(void)
 
                 /* One point of damage: enough to be hit, nowhere near enough
                  * to die, so nothing below is racing a death animation. */
-                mock230_combat_hit_npc(&srv, cow, 0, 1);
+                mock230_combat_hit_npc(srv, cow, 0, 1);
                 SELFTEST_CHECK(npc->combat_target == player->pid,
                                "being hit on its %s face gives the cow a target, got %d "
                                "want %d",
@@ -17826,7 +17901,7 @@ mock230_world_selftest(void)
                  * engages, so anything landing on them came from the cow. */
                 for( int i = 0; i < 20 && !retaliated; i++ )
                 {
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     retaliated = player->hitpoints < player->max_hitpoints ||
                                  player->damage_type >= 0;
                 }
@@ -17875,17 +17950,17 @@ mock230_world_selftest(void)
                 int start_z = npc->z;
                 int retaliated = 0;
 
-                selftest_park_player(&srv, start_x + 1, start_z);
+                selftest_park_player(srv, start_x + 1, start_z);
                 player_set_occupancy(player, 1);
                 player->level = npc->level;
                 player->hitpoints = player->max_hitpoints;
                 player->damage_type = -1;
                 npc->hitpoints = npc->max_hitpoints;
 
-                mock230_combat_hit_npc(&srv, cow, 0, 1);
+                mock230_combat_hit_npc(srv, cow, 0, 1);
                 for( int i = 0; i < 20 && !retaliated; i++ )
                 {
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     retaliated = player->hitpoints < player->max_hitpoints ||
                                  player->damage_type >= 0;
                 }
@@ -17910,7 +17985,7 @@ mock230_world_selftest(void)
             player->stat_xp_tenths[MOCK230_STAT_HITPOINTS] = hp_xp_before;
             mock230_combat_sync_hitpoints(player);
             player->hitpoints = player->max_hitpoints;
-            selftest_park_player(&srv, g_home_x, g_home_z);
+            selftest_park_player(srv, g_home_x, g_home_z);
         }
     }
 
@@ -17934,12 +18009,12 @@ mock230_world_selftest(void)
          * leaves it and the respawn restores it: a `npc_sethuntmode` made for
          * one phase of one fight used to outlive the npc it was made for.
          */
-        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
         SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             int want_mode;
             int want_hunt;
 
@@ -17953,7 +18028,7 @@ mock230_world_selftest(void)
                            "the fixture's mode has to differ from the default one "
                            "or the check below cannot fail");
 
-            selftest_park_player(&srv, npc->x + 1, npc->z);
+            selftest_park_player(srv, npc->x + 1, npc->z);
             player->level = npc->level;
             npc->death_tick = -1;
             npc->hitpoints = npc->max_hitpoints;
@@ -17964,7 +18039,7 @@ mock230_world_selftest(void)
             npc->huntmode = want_hunt == MOCK230_HUNT_AGGRESSIVE ? MOCK230_HUNT_NONE
                                                                  : MOCK230_HUNT_AGGRESSIVE;
 
-            mock230_combat_hit_npc(&srv, goblin, 0, npc->hitpoints);
+            mock230_combat_hit_npc(srv, goblin, 0, npc->hitpoints);
             SELFTEST_CHECK(npc->death_tick >= 0, "the killing blow starts the death");
             SELFTEST_CHECK(npc->combat_target == -1, "which releases the target");
             SELFTEST_CHECK(npc->mode == want_mode,
@@ -17977,14 +18052,14 @@ mock230_world_selftest(void)
              * beside the player takes a target on the tick it appears, which is
              * correct behaviour and would make these checks measure two things.
              */
-            selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            selftest_park_player(srv, npc->spawn_x + 12, npc->spawn_z + 12);
             /* `+ 4` for the three ticks that now precede `death_delay` — see the
              * matching loop in the fight section above. */
             for( int i = 0; i < npc->def->death_delay + 4 && npc->active; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(!npc->active, "the corpse despawns");
             for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(npc->active, "and the goblin respawns");
             SELFTEST_CHECK(npc->mode == want_mode,
                            "a respawn is a fresh npc: mode want %d got %d", want_mode,
@@ -18009,7 +18084,7 @@ mock230_world_selftest(void)
              */
             npc->mode = want_mode;
             npc->huntmode = want_hunt;
-            selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            selftest_park_player(srv, npc->spawn_x + 12, npc->spawn_z + 12);
         }
     }
 
@@ -18033,25 +18108,25 @@ mock230_world_selftest(void)
          * has-not-moved-for-two-ticks arm applies and the wait is zero. The two
          * moving arms are `SS_OP_NPC_ARRIVEDELAY`'s own, tested in embed_test.
          */
-        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
         SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             int delay = npc->def->death_delay;
             int blow;
 
-            selftest_park_player(&srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            selftest_park_player(srv, npc->spawn_x + 12, npc->spawn_z + 12);
             npc->death_tick = -1;
             npc->hitpoints = npc->max_hitpoints;
             /* Fixture, not an assertion: `last_movement` is the moving tick plus
              * one, so this is "has not moved for a while". */
-            npc->last_movement = srv.tick - 5;
+            npc->last_movement = srv->tick - 5;
             npc->anim_id = -1;
 
-            blow = srv.tick;
-            mock230_combat_hit_npc(&srv, goblin, 0, npc->hitpoints);
+            blow = srv->tick;
+            mock230_combat_hit_npc(srv, goblin, 0, npc->hitpoints);
 
             SELFTEST_CHECK(npc->hitpoints == 0, "the blow empties the hitpoints");
             SELFTEST_CHECK(npc->death_stage == MOCK230_DEATH_QUEUED,
@@ -18065,7 +18140,7 @@ mock230_world_selftest(void)
 
             /* +1: `[ai_queue3]`, and with no arrivedelay to serve, the animation
              * in the same tick. */
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(npc->active, "the corpse is still there a tick later");
             SELFTEST_CHECK(npc->death_stage == MOCK230_DEATH_CORPSE,
                            "the death script has reached its animation, stage %d",
@@ -18077,17 +18152,17 @@ mock230_world_selftest(void)
             /* The corpse lies there for `death_delay` ticks and not one fewer —
              * the half of the ledger a shortened death would break. */
             for( int i = 0; i < delay - 1 && npc->active; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(npc->active, "the corpse outlives death_delay - 1 ticks");
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(!npc->active, "and is reaped on the tick death_delay names");
-            SELFTEST_CHECK(srv.tick >= blow + 1 + delay,
+            SELFTEST_CHECK(srv->tick >= blow + 1 + delay,
                            "which is never sooner than the blow plus %d", 1 + delay);
 
             /* Put the goblin back for whatever measures it next, the same way the
              * section above does. */
             for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(npc->active, "and the goblin respawns afterwards");
         }
     }
@@ -18123,7 +18198,7 @@ mock230_world_selftest(void)
         mock230_combat_sync_hitpoints(player);
 
         player->godmode = 1;
-        mock230_combat_hit_player(&srv, 0, player->max_hitpoints);
+        mock230_combat_hit_player(srv, 0, player->max_hitpoints);
         SELFTEST_CHECK(player->hitpoints == player->max_hitpoints,
                        "a lethal hit under ::god should not move the bar, got %d/%d",
                        player->hitpoints, player->max_hitpoints);
@@ -18143,7 +18218,7 @@ mock230_world_selftest(void)
          * dead. One point of damage proves the gate is load-bearing just as
          * well as forty do. */
         player->godmode = 0;
-        mock230_combat_hit_player(&srv, 0, 1);
+        mock230_combat_hit_player(srv, 0, 1);
         SELFTEST_CHECK(player->hitpoints == player->max_hitpoints - 1 && !player->dying,
                        "the same hit without ::god should land, got %d/%d dying=%d",
                        player->hitpoints, player->max_hitpoints, player->dying);
@@ -18180,7 +18255,7 @@ mock230_world_selftest(void)
          * last would leave the count at 1, and keeping only the first would put
          * 7 in slot 1.
          */
-        int slot = selftest_find_npc(&srv, mock230_content_symbol(MOCK230_PACK_NPC, "man"));
+        int slot = selftest_find_npc(srv, mock230_content_symbol(MOCK230_PACK_NPC, "man"));
 
         if( slot < 0 )
         {
@@ -18188,7 +18263,7 @@ mock230_world_selftest(void)
         }
         else
         {
-            struct Mock230Npc* npc = &srv.npcs[slot];
+            struct Mock230Npc* npc = &srv->npcs[slot];
             int saved_hp = npc->hitpoints;
             int splat_type = mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage");
 
@@ -18196,8 +18271,8 @@ mock230_world_selftest(void)
             npc->hitmark_count = 0;
             npc->masks = 0;
 
-            mock230_combat_hit_npc(&srv, slot, splat_type, 7);
-            mock230_combat_hit_npc(&srv, slot, splat_type, 3);
+            mock230_combat_hit_npc(srv, slot, splat_type, 7);
+            mock230_combat_hit_npc(srv, slot, splat_type, 3);
 
             SELFTEST_CHECK(npc->hitmark_count == 2,
                            "two hits on one tick should queue two hitmarks, got %d",
@@ -18219,9 +18294,9 @@ mock230_world_selftest(void)
             /* The cap, stated so it is a decision rather than an accident: the
              * client holds four slots (WORLD_ENTITY_DAMAGE_SLOTS), so a fifth
              * simultaneous splat has nowhere to be drawn at either end. */
-            mock230_combat_hit_npc(&srv, slot, splat_type, 1);
-            mock230_combat_hit_npc(&srv, slot, splat_type, 1);
-            mock230_combat_hit_npc(&srv, slot, splat_type, 1);
+            mock230_combat_hit_npc(srv, slot, splat_type, 1);
+            mock230_combat_hit_npc(srv, slot, splat_type, 1);
+            mock230_combat_hit_npc(srv, slot, splat_type, 1);
             SELFTEST_CHECK(npc->hitmark_count == MOCK230_HITMARK_MAX,
                            "a fifth splat in one tick should be dropped, not overflow; got %d",
                            npc->hitmark_count);
@@ -18254,12 +18329,12 @@ mock230_world_selftest(void)
          * protocol itself, so pin its parked deadline before measuring the
          * rest of the sequence loosely.
          */
-        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
         SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             /*
              * The kept items, and the reason this stanza carries an inventory
              * fixture at all.
@@ -18298,7 +18373,7 @@ mock230_world_selftest(void)
             for( int i = 0; i < 3; i++ )
                 inv_set(player, i, kept_obj, 1);
 
-            selftest_park_player(&srv, npc->x + 1, npc->z);
+            selftest_park_player(srv, npc->x + 1, npc->z);
             player->level = npc->level;
             died_x = player->x;
             died_z = player->z;
@@ -18311,12 +18386,12 @@ mock230_world_selftest(void)
             /* Install both halves of a real fight.  The interaction is the
              * important half: p_opnpc(2) keeps it armed between swings, and a
              * death that clears only combat_target can be re-engaged by it. */
-            mock230_combat_engage(&srv, goblin);
+            mock230_combat_engage(srv, goblin);
             npc->combat_target = player->pid;
             mock230_npc_face_player(npc, player->pid);
             mock230_player_set_face_entity(player);
 
-            mock230_combat_hit_player(&srv, 0, player->hitpoints);
+            mock230_combat_hit_player(srv, 0, player->hitpoints);
             SELFTEST_CHECK(player->hitpoints == 0, "the killing blow empties the bar");
             SELFTEST_CHECK(player->dying, "and puts the player in the dying state");
             SELFTEST_CHECK(player->combat_target == -1, "which ends the fight");
@@ -18332,20 +18407,20 @@ mock230_world_selftest(void)
              * tick T parks until T+2. Without this check a port that plays the
              * animation immediately and only waits for ^death_delay still
              * reaches every eventual-respawn assertion below. */
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             ticks++;
             SELFTEST_CHECK(player->dying && player->active_script != NULL,
                            "the first death turn should still be a parked corpse");
-            SELFTEST_CHECK(player->delayed_until == srv.tick + 2,
+            SELFTEST_CHECK(player->delayed_until == srv->tick + 2,
                            "LostCity's initial p_delay(1) should wait through one quiet "
                            "turn, due %d got %d",
-                           srv.tick + 2, player->delayed_until);
+                           srv->tick + 2, player->delayed_until);
 
             /* Generous but finite: the script's delay plus the ticks its own
              * commands cost. Never reviving is the failure being tested for. */
             while( player->dying && ticks < 20 )
             {
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 ticks++;
             }
             SELFTEST_CHECK(!player->dying,
@@ -18382,13 +18457,31 @@ mock230_world_selftest(void)
 
             /* The regression: engaging is gated on `dying`, so a gate that never
              * clears reads exactly like a click that did nothing. */
-            selftest_park_player(&srv, npc->x + 1, npc->z);
+            selftest_park_player(srv, npc->x + 1, npc->z);
             player->level = npc->level;
-            mock230_combat_engage(&srv, goblin);
+            mock230_combat_engage(srv, goblin);
             SELFTEST_CHECK(player->combat_target == goblin,
                            "and the player can start a fight again, got %d",
                            player->combat_target);
-            selftest_park_player(&srv, died_x, died_z);
+            selftest_park_player(srv, died_x, died_z);
+            /*
+             * And put the fight down again before leaving.
+             *
+             * The check above deliberately ends with a live engagement on both
+             * sides, and this stanza used to walk away from it. That was
+             * survivable only while a provoked npc gave its target up on its own
+             * — once combat held one, this goblin kept swinging through every
+             * later stanza, and the next one along picks *its* goblin by
+             * scanning the pool for the first live one of the type
+             * (`selftest_find_npc`), so it took a different npc and left this
+             * one hitting the player behind its back. What it looked like was
+             * six unrelated failures: a face latch that would not set, a bow
+             * that walked into melee, a starting kit with no coins — all of them
+             * a player who was `dying` again by the time those stanzas ran.
+             */
+            mock230_combat_stop_npc(srv, goblin);
+            mock230_world_set_active(srv, player);
+            mock230_combat_stop_player(srv);
         }
     }
 
@@ -18402,34 +18495,34 @@ mock230_world_selftest(void)
          * — it is the one that produced "facing never clears", because the other
          * three end a fight and this one just leaves.
          */
-        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
         SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
             uint8_t move[7];
 
             /* Approach-before-engage: face from the pending interaction alone. */
-            selftest_park_player(&srv, npc->x + 8, npc->z);
+            selftest_park_player(srv, npc->x + 8, npc->z);
             player->level = npc->level;
-            mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 2, goblin, npc->type,
+            mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, goblin, npc->type,
                                           npc->x, npc->z, npc->level, info->size, info->size);
             SELFTEST_CHECK(player->combat_target < 0,
                            "approach starts without a combat target");
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->combat_target < 0,
                            "still approaching after one tick (not yet engaged)");
             SELFTEST_CHECK(player->face_entity == goblin,
                            "approach faces the npc before engage, got %d",
                            player->face_entity);
 
-            mock230_world_clear_pending_action(&srv);
-            selftest_park_player(&srv, npc->x + 1, npc->z);
+            mock230_world_clear_pending_action(srv);
+            selftest_park_player(srv, npc->x + 1, npc->z);
             player->level = npc->level;
-            mock230_combat_engage(&srv, goblin);
-            mock230_world_tick(&srv);
+            mock230_combat_engage(srv, goblin);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->face_entity == goblin,
                            "engaging faces the target, got %d", player->face_entity);
 
@@ -18482,13 +18575,13 @@ mock230_world_selftest(void)
         int old_z = player->z;
         int login_x = 2495;
         int login_z = 5112;
-        int waits_for_scene = srv.wire->revision >= 239;
-        int rebuild = mock230_wire_opcode(srv.wire, PKT_NAME_REBUILD_NORMAL);
-        int player_info = mock230_wire_opcode(srv.wire, PKT_NAME_PLAYER_INFO);
-        int opentop = mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENTOP);
-        int stat = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_STAT);
-        int inv_full = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_INV_FULL);
-        int tick_end = mock230_wire_opcode(srv.wire, PKT_NAME_SERVER_TICK_END);
+        int waits_for_scene = srv->wire->revision >= 239;
+        int rebuild = mock230_wire_opcode(srv->wire, PKT_NAME_REBUILD_NORMAL);
+        int player_info = mock230_wire_opcode(srv->wire, PKT_NAME_PLAYER_INFO);
+        int opentop = mock230_wire_opcode(srv->wire, PKT_NAME_IF_OPENTOP);
+        int stat = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_STAT);
+        int inv_full = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_INV_FULL);
+        int tick_end = mock230_wire_opcode(srv->wire, PKT_NAME_SERVER_TICK_END);
         int date_varp = mock230_content_symbol(MOCK230_PACK_VARP, "date_minutes");
         int clock_at = -1;
         int clock_opentop_at = -1;
@@ -18503,7 +18596,7 @@ mock230_world_selftest(void)
 
         k_burst[burst_count++] = rebuild;
         {
-            int update_pid = mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_PID);
+            int update_pid = mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_PID);
             if( update_pid >= 0 )
                 k_burst[burst_count++] = update_pid;
         }
@@ -18523,9 +18616,9 @@ mock230_world_selftest(void)
         player->x = login_x;
         player->z = login_z;
         player->place_dirty = 1;
-        mock230_capture_begin(&srv, &capture);
+        mock230_capture_begin(srv, &capture);
         mock230_world_login(player);
-        mock230_capture_end(&srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(mock230_capture_find(&capture, rebuild, 0) >= 0,
                        "login must start with a scene rebuild");
         if( !waits_for_scene )
@@ -18534,7 +18627,7 @@ mock230_world_selftest(void)
                            "the classic login burst should identify/place before UI state");
             SELFTEST_CHECK(!player->login_scene_pending,
                            "the classic wire must not arm the asynchronous scene barrier");
-            clock_at = selftest_capture_find_varp_large(&capture, srv.wire, date_varp);
+            clock_at = selftest_capture_find_varp_large(&capture, srv->wire, date_varp);
             clock_opentop_at = mock230_capture_find(&capture, opentop, 0);
         }
         else
@@ -18562,9 +18655,9 @@ mock230_world_selftest(void)
             status[2] = 0; /* 768 */
             status[3] = 1;
             status[4] = 247; /* 503 */
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_WINDOW_STATUS, status, 5);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(player->client_layout_mode == expected_layout,
                            "pre-ack WINDOW_STATUS window %d should latch layout %d, got %d",
                            window_mode, expected_layout, player->client_layout_mode);
@@ -18587,9 +18680,9 @@ mock230_world_selftest(void)
             player->place_dirty = 1;
             player->stat_dirty |= 1u;
             player->inv_dirty |= 1u;
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, player_info, 0) < 0 &&
                                mock230_capture_find(&capture, opentop, 0) < 0 &&
                                mock230_capture_find(&capture, stat, 0) < 0 &&
@@ -18606,9 +18699,9 @@ mock230_world_selftest(void)
             /* If the shared scene moved while loading, the first acknowledgement
              * starts a replacement rebuild and deliberately retains the barrier. */
             player->rebuild_pending = 1;
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, rebuild, 0) >= 0 &&
                                mock230_capture_find(&capture, player_info, 0) < 0 &&
                                mock230_capture_find(&capture, opentop, 0) < 0 &&
@@ -18617,29 +18710,29 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->login_scene_pending && !player->rebuild_pending,
                            "replacement rebuild should retain the barrier and consume its debt");
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(
                 mock230_capture_has_sequence(
                     &capture, k_finish, (int)(sizeof(k_finish) / sizeof(k_finish[0]))),
                 "the acknowledged rev-239 scene should place before UI/stats and tick end");
             SELFTEST_CHECK(!player->login_scene_pending && player->login_pending,
                            "scene acknowledgement should release exactly one [login] latch");
-            clock_at = selftest_capture_find_varp_large(&capture, srv.wire, date_varp);
+            clock_at = selftest_capture_find_varp_large(&capture, srv->wire, date_varp);
             clock_opentop_at = mock230_capture_find(&capture, opentop, 0);
 
             /* A duplicate completion is normal client noise, not a second login. */
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, player_info, 0) < 0 &&
                                mock230_capture_find(&capture, opentop, 0) < 0 &&
                                mock230_capture_find(&capture, stat, 0) < 0 &&
                                mock230_capture_find(&capture, tick_end, 0) < 0,
                            "duplicate MAP_BUILD_COMPLETE must not replay the login burst");
         }
-        if( srv.scripts_ok )
+        if( srv->scripts_ok )
         {
             SELFTEST_CHECK(date_varp == 3078,
                            "date_minutes must retain client varp 3078, got %d", date_varp);
@@ -18656,12 +18749,12 @@ mock230_world_selftest(void)
                            clock_at, clock_opentop_at);
         }
         {
-            int origin_x = mock230_scene_origin(srv.zone_x);
-            int origin_z = mock230_scene_origin(srv.zone_z);
+            int origin_x = mock230_scene_origin(srv->zone_x);
+            int origin_z = mock230_scene_origin(srv->zone_z);
 
-            SELFTEST_CHECK(srv.zone_x == (login_x >> 3) && srv.zone_z == (login_z >> 3),
+            SELFTEST_CHECK(srv->zone_x == (login_x >> 3) && srv->zone_z == (login_z >> 3),
                            "login rebuild must centre saved coord %d,%d; got zone %d,%d",
-                           login_x, login_z, srv.zone_x, srv.zone_z);
+                           login_x, login_z, srv->zone_x, srv->zone_z);
             SELFTEST_CHECK(login_x > origin_x && login_z > origin_z &&
                                login_x < origin_x + MOCK230_SCENE_TILES &&
                                login_z < origin_z + MOCK230_SCENE_TILES,
@@ -18674,7 +18767,7 @@ mock230_world_selftest(void)
         player->x = old_x;
         player->z = old_z;
         player->place_dirty = 1;
-        maybe_rebuild(&srv);
+        maybe_rebuild(srv);
         player->rebuild_pending = 0;
         /* The generic selftest player is intentionally unnamed, so the login
          * above cannot exercise the name-keyed social service. Give it a
@@ -18687,18 +18780,18 @@ mock230_world_selftest(void)
 
             player->name37 = empty_name37;
             mock230_friends_login(empty_name37, 0, MOCK230_CHAT_PRIVATE_ON, 0, 0);
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_social_login(player);
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
             player->name37 = old_name37;
 
             empty_friends = mock230_capture_find(
                 &capture,
-                mock230_wire_opcode(srv.wire, PKT_NAME_UPDATE_FRIENDLIST),
+                mock230_wire_opcode(srv->wire, PKT_NAME_UPDATE_FRIENDLIST),
                 0);
             loaded = mock230_capture_find(
                 &capture,
-                mock230_wire_opcode(srv.wire, PKT_NAME_FRIENDLIST_LOADED),
+                mock230_wire_opcode(srv->wire, PKT_NAME_FRIENDLIST_LOADED),
                 0);
             SELFTEST_CHECK(loaded >= 0 && empty_friends > loaded,
                            "FRIENDLIST_LOADED must precede empty UPDATE_FRIENDLIST so "
@@ -18719,12 +18812,12 @@ mock230_world_selftest(void)
          * of a percent, so a full bar is 1000, and VARP_SMALL's signed byte
          * would put it on the wire as -24.
          */
-        if( !srv.scripts_ok )
+        if( !srv->scripts_ok )
         {
-            if( !mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build") )
-                mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            if( !mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build") )
+                mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         }
-        if( srv.scripts_ok )
+        if( srv->scripts_ok )
         {
             int com_mode = mock230_content_symbol(MOCK230_PACK_VARP, "com_mode");
             int sa_energy = mock230_content_symbol(MOCK230_PACK_VARP, "sa_energy");
@@ -18734,28 +18827,28 @@ mock230_world_selftest(void)
                 mock230_content_symbol(MOCK230_PACK_VARP, "option_attackpriority_npc");
 
             player->login_pending = 1;
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(com_mode >= 0 && sa_energy >= 0,
                            "com_mode and sa_energy should be in pack/varp.pack");
             SELFTEST_CHECK(mock230_capture_find(
                                &capture,
-                               mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL),
+                               mock230_wire_opcode(srv->wire, PKT_NAME_VARP_SMALL),
                                0) >= 0,
                            "[login] should transmit the small varps");
             SELFTEST_CHECK(mock230_capture_find(
                                &capture,
-                               mock230_wire_opcode(srv.wire, PKT_NAME_VARP_LARGE),
+                               mock230_wire_opcode(srv->wire, PKT_NAME_VARP_LARGE),
                                0) >= 0,
                            "and the spec bar through the wide form");
             SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 1000,
                            "^sa_max_energy should be 1000, got %d",
                            sa_energy >= 0 ? player->varps[sa_energy] : -1);
-            SELFTEST_CHECK(mock230_world_attack_style(&srv) == MOCK230_STYLE_ACCURATE,
+            SELFTEST_CHECK(mock230_world_attack_style(srv) == MOCK230_STYLE_ACCURATE,
                            "the opening attack style should be accurate, got %d",
-                           mock230_world_attack_style(&srv));
+                           mock230_world_attack_style(srv));
 
             /*
              * The golden rev-239 client resets both derived AttackOption
@@ -18764,12 +18857,12 @@ mock230_world_selftest(void)
              * login must send even the default value zero.  Assert the literal
              * VarpSmallEncoder bodies: p1Alt1(0), p2Alt3(varp).
              */
-            if( strcmp(srv.wire->name, "osrs239") == 0 )
+            if( strcmp(srv->wire->name, "osrs239") == 0 )
             {
                 static const uint8_t player_depends[] = { 0x80, 0xd3, 0x04 };
                 static const uint8_t npc_depends[] = { 0x80, 0x9a, 0x05 };
                 int varp_small =
-                    mock230_wire_opcode(srv.wire, PKT_NAME_VARP_SMALL);
+                    mock230_wire_opcode(srv->wire, PKT_NAME_VARP_SMALL);
                 int found_player = 0;
                 int found_npc = 0;
 
@@ -18841,7 +18934,7 @@ mock230_world_selftest(void)
          * op=1. WINDOW_STATUS cannot distinguish the two resizable choices;
          * this callback must latch Modern, synchronize varbit 4607 and remount
          * root 164 after the local onOp has had time to finish. */
-        if( srv.scripts_ok )
+        if( srv->scripts_ok )
         {
             static struct Mock230Capture capture;
             uint8_t button[6];
@@ -18859,13 +18952,13 @@ mock230_world_selftest(void)
             rsab_wrap(&out, button, sizeof(button));
             rsab_p4(&out, layout_buttons);
             rsab_p2(&out, 3);
-            mock230_capture_begin(&srv, &capture);
-            handle_if_button_op(&srv, PKTOUT_NAME_IF_BUTTON1,
+            mock230_capture_begin(srv, &capture);
+            handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1,
                                 button, (int)rsab_len(&out));
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(player->client_layout_mode == 2,
                            "layout row sub 3 should latch Modern, got %d",
@@ -18877,7 +18970,7 @@ mock230_world_selftest(void)
                            ids->iface_toplevel_pre_eoc, player->gameframe_iface);
             SELFTEST_CHECK(mock230_capture_find(
                                &capture,
-                               mock230_wire_opcode(srv.wire, PKT_NAME_IF_OPENTOP),
+                               mock230_wire_opcode(srv->wire, PKT_NAME_IF_OPENTOP),
                                0) >= 0,
                            "layout selection should emit IF_OPENTOP");
         }
@@ -18917,14 +19010,14 @@ mock230_world_selftest(void)
                        "fixture needs Fixed top (%d), got %d",
                        ids->iface_toplevel, player->gameframe_iface);
 
-        mock230_capture_begin(&srv, &capture);
+        mock230_capture_begin(srv, &capture);
         mock230_send_if_opensub(
             player,
             MOCK230_COM_GROUP(stretch_xp),
             MOCK230_COM_CHILD(stretch_xp),
             xp_drops_iface,
             1);
-        mock230_capture_end(&srv);
+        mock230_capture_end(srv);
 
         open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
         SELFTEST_CHECK(open_at >= 0, "stretch:xp_drops opensub should encode");
@@ -18945,14 +19038,14 @@ mock230_world_selftest(void)
                            fixed_xp, target, stretch_xp);
         }
 
-        mock230_capture_begin(&srv, &capture);
+        mock230_capture_begin(srv, &capture);
         mock230_send_if_opensub(
             player,
             MOCK230_COM_GROUP(orbs_xp),
             MOCK230_COM_CHILD(orbs_xp),
             xp_drops_iface,
             1);
-        mock230_capture_end(&srv);
+        mock230_capture_end(srv);
 
         open_at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, 0);
         SELFTEST_CHECK(open_at >= 0, "orbs:xp_drops opensub should encode");
@@ -18981,9 +19074,9 @@ mock230_world_selftest(void)
             button[4] = 0xff;
             button[5] = 0xff;
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
 
             for( int at = 0; (at = mock230_capture_find(&capture, 6 /* IF_OPENSUB */, at)) >= 0;
                  at++ )
@@ -19048,13 +19141,13 @@ mock230_world_selftest(void)
     fprintf(stderr, "mock230 selftest: ranged reach and the shot across it\n");
     {
         static struct Mock230Capture capture;
-        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* saved_wire = srv->wire;
         const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
         int bow = mock230_content_symbol(MOCK230_PACK_OBJ, "bow_of_faerdhinen_infinite");
         int travel = mock230_content_symbol(MOCK230_PACK_SPOTANIM,
                                             "sp_attack_arrow_travel_faerdhinen_infinite");
         int reach = mock230_content_symbol(MOCK230_PACK_PARAM, "weapon_attackrange");
-        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
         const struct Mock230ObjParam* range_param =
             (bow > 0 && reach >= 0) ? mock230_obj_param(bow, reach) : NULL;
 
@@ -19070,7 +19163,7 @@ mock230_world_selftest(void)
 
         if( bow > 0 && travel > 0 && goblin >= 0 && wire239 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             uint8_t payload[2];
             /* Put the goblin back where it was found. It walks during the four
              * ticks below, and the aggression/hunt stanzas further down assert on
@@ -19097,7 +19190,7 @@ mock230_world_selftest(void)
             int engaged_tick = -1;
             int flinched_tick = -1;
 
-            selftest_park_player(&srv, npc->x - 6, npc->z);
+            selftest_park_player(srv, npc->x - 6, npc->z);
             player->level = npc->level;
             /*
              * A goblin with a goblin's hitpoints does not survive a level-99
@@ -19115,7 +19208,7 @@ mock230_world_selftest(void)
             player->stat_boosted[MOCK230_STAT_RANGED] = 99;
             worn_set(player, MOCK230_WEAR_WEAPON, bow, 1);
             worn_set(player, MOCK230_WEAR_AMMO, -1, 0);
-            mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
 
             /* Content decided this, and the shot below depends on it: a bow that
              * left the player in a melee style would swing instead. */
@@ -19125,20 +19218,20 @@ mock230_world_selftest(void)
 
             selftest_npc_payload(player, goblin, payload);
 
-            srv.wire = wire239;
-            mock230_capture_begin(&srv, &capture);
+            srv->wire = wire239;
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC2, payload, 2);
             for( int i = 0; i < 4; i++ )
             {
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 if( engaged_tick < 0 && npc->mode >= MOCK230_NPCMODE_OPPLAYER1 &&
                     npc->mode <= MOCK230_NPCMODE_APPLAYER5 )
                     engaged_tick = i;
                 if( flinched_tick < 0 && npc->combat_target >= 0 )
                     flinched_tick = i;
             }
-            mock230_capture_end(&srv);
-            srv.wire = saved_wire;
+            mock230_capture_end(srv);
+            srv->wire = saved_wire;
 
             {
                 int dx = player->x > npc->x ? player->x - npc->x : npc->x - player->x;
@@ -19185,7 +19278,7 @@ mock230_world_selftest(void)
                            engaged_tick, flinched_tick);
 
             worn_set(player, MOCK230_WEAR_WEAPON, -1, 0);
-            mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
             /*
              * Put the fight down, not just the fighters.
              *
@@ -19198,7 +19291,7 @@ mock230_world_selftest(void)
              * interaction has to go too, or `p_opnpc(2)` simply starts the fight
              * again on the next tick.
              */
-            mock230_combat_stop_player(&srv);
+            mock230_combat_stop_player(srv);
             for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
                 npc->queue[q].active = 0;
             npc->attack_clock = 0;
@@ -19211,7 +19304,7 @@ mock230_world_selftest(void)
             npc->combat_target = -1;
             npc->last_step_x = npc_x - 1;
             npc->last_step_z = npc_z;
-            selftest_park_player(&srv, npc_x - 6, npc_z);
+            selftest_park_player(srv, npc_x - 6, npc_z);
         }
     }
 
@@ -19262,17 +19355,17 @@ mock230_world_selftest(void)
             int32_t weapon = 1321;
 
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_get_weapon_style_data]", &weapon, 1, &row),
+                               srv, "[proc,combat_get_weapon_style_data]", &weapon, 1, &row),
                            "content should resolve a weapon's style row");
             args[0] = row;
             args[1] = 0;
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
                                type == MOCK230_DAMAGE_SLASH,
                            "a scimitar's accurate style is slash, got %d", type);
             args[1] = 2;
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
                                type == MOCK230_DAMAGE_STAB,
                            "and its controlled style is stab, got %d", type);
 
@@ -19281,17 +19374,17 @@ mock230_world_selftest(void)
              * the bronze spear. */
             weapon = 1237;
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_get_weapon_style_data]", &weapon, 1, &row),
+                               srv, "[proc,combat_get_weapon_style_data]", &weapon, 1, &row),
                            "a spear should resolve a style row");
             args[0] = row;
             args[1] = 1;
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
                                type == MOCK230_DAMAGE_SLASH,
                            "a spear's second style is slash, got %d", type);
             args[1] = 2;
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
+                               srv, "[proc,combat_get_damagetype]", args, 2, &type) &&
                                type == MOCK230_DAMAGE_CRUSH,
                            "and its third is crush, got %d", type);
         }
@@ -19364,9 +19457,9 @@ mock230_world_selftest(void)
         player->stat_boosted[MOCK230_STAT_STRENGTH] = 60;
         player->stat_level[MOCK230_STAT_PRAYER] = 60;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 60;
-        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
 
-        mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+        mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
         strength_before = player->varps[mock230_world_varp("com_maxhit")];
         SELFTEST_CHECK(strength_before > 0,
                        "the block should be populated, com_maxhit was %d",
@@ -19380,15 +19473,15 @@ mock230_world_selftest(void)
          * prayer is inserted. */
         SELFTEST_CHECK(selftest_prayer("prayer_ultimatestrength") >= 0,
                        "prayers.constant should name ultimatestrength");
-        selftest_prayer_toggle(&srv, "prayer_ultimatestrength");
-        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_ultimatestrength"),
+        selftest_prayer_toggle(srv, "prayer_ultimatestrength");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_ultimatestrength"),
                        "a level 60 prayer stat can switch Ultimate Strength on");
-        mock230_scripts_run_proc(&srv, "[proc,player_combat_stat]", NULL, 0);
+        mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
         strength_after = player->varps[mock230_world_varp("com_maxhit")];
         SELFTEST_CHECK(strength_after > strength_before,
                        "Ultimate Strength should raise the max hit: %d -> %d",
                        strength_before, strength_after);
-        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
 
         /*
          * The weapon-type mapping, now that it is a `switch_category` in
@@ -19406,7 +19499,7 @@ mock230_world_selftest(void)
             int32_t type = -1;
 
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_weapon_type]", &weapon, 1, &type),
+                               srv, "[proc,combat_weapon_type]", &weapon, 1, &type),
                            "content should answer combat_weapon_type");
             SELFTEST_CHECK(type == 9,
                            "a bronze scimitar is weapon type 9 (slash sword), got %d",
@@ -19414,7 +19507,7 @@ mock230_world_selftest(void)
 
             weapon = 995; /* coins: no category, so unarmed */
             SELFTEST_CHECK(mock230_scripts_run_proc_int(
-                               &srv, "[proc,combat_weapon_type]", &weapon, 1, &type) &&
+                               srv, "[proc,combat_weapon_type]", &weapon, 1, &type) &&
                                type == 0,
                            "an obj with no weapon category is unarmed, got %d", type);
         }
@@ -19467,7 +19560,7 @@ mock230_world_selftest(void)
                 for( int s = 0; s < MOCK230_STAT_COUNT; s++ )
                     before[s] = player->stat_xp_tenths[s];
                 SELFTEST_CHECK(
-                    mock230_scripts_run_proc(&srv, "[proc,give_combat_experience]", args, 2),
+                    mock230_scripts_run_proc(srv, "[proc,give_combat_experience]", args, 2),
                     "content should answer give_combat_experience");
                 for( int s = 0; s < MOCK230_STAT_COUNT; s++ )
                     moved[s] = player->stat_xp_tenths[s] > before[s];
@@ -19500,11 +19593,11 @@ mock230_world_selftest(void)
         /* 83 points is level 2 exactly — the first entry of the OldSchool
          * table, and the one worth pinning because the table is built rather
          * than transcribed. */
-        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, 820);
+        mock230_combat_add_xp(srv, MOCK230_STAT_ATTACK, 820);
         SELFTEST_CHECK(player->stat_level[MOCK230_STAT_ATTACK] == 1,
                        "82 xp is still level 1, got %d",
                        player->stat_level[MOCK230_STAT_ATTACK]);
-        mock230_combat_add_xp(&srv, MOCK230_STAT_ATTACK, 10);
+        mock230_combat_add_xp(srv, MOCK230_STAT_ATTACK, 10);
         SELFTEST_CHECK(player->stat_level[MOCK230_STAT_ATTACK] == 2,
                        "83 xp is level 2, got %d",
                        player->stat_level[MOCK230_STAT_ATTACK]);
@@ -19573,7 +19666,7 @@ mock230_world_selftest(void)
             int target_x = -1;
             int target_z = -1;
 
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             cm = mock230_scene_collision(0);
             for( int x = 3208; x <= 3238 && target_x < 0; x++ )
             {
@@ -19611,7 +19704,7 @@ mock230_world_selftest(void)
                     cm, target_x - mock230_scene_base_x(),
                     target_z - mock230_scene_base_z());
 
-                mock230_world_walk_to(&srv, target_x, target_z);
+                mock230_world_walk_to(srv, target_x, target_z);
                 routed_x = player->dest_x;
                 routed_z = player->dest_z;
                 edge_dx = routed_x - target_x;
@@ -19744,7 +19837,7 @@ mock230_world_selftest(void)
          * A target the flood cannot reach is what clears.
          */
         {
-            int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+            int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
             /*
              * Park first, then resolve the door — not the other way round.
              *
@@ -19766,49 +19859,49 @@ mock230_world_selftest(void)
              */
             int door;
 
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             door = mock230_scene_find_loc(3226, 3223, 0, -1);
             if( door >= 0 )
             {
                 struct Mock230SceneLoc* loc = mock230_scene_loc(door);
 
-                mock230_world_interaction_set(&srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id, loc->x,
+                mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id, loc->x,
                                               loc->z, 0, loc->size_x, loc->size_z);
                 player->interaction.ap_tried = 1; /* skip the at-range arm */
                 steps_clear(player);
                 player->steps_taken = 0;
-                mock230_world_process_interaction(&srv);
+                mock230_world_process_interaction(srv);
                 SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_LOC,
                                "a reachable interaction with an empty queue re-floods");
                 SELFTEST_CHECK(player->waypoint_index >= 0,
                                "and queues an approach path, idx=%d", player->waypoint_index);
-                mock230_world_interaction_clear(&srv);
+                mock230_world_interaction_clear(srv);
                 steps_clear(player);
             }
 
             SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
             if( goblin >= 0 )
             {
-                struct Mock230Npc* npc = &srv.npcs[goblin];
+                struct Mock230Npc* npc = &srv->npcs[goblin];
                 const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
                 int keep_x = npc->x;
                 int keep_z = npc->z;
                 int keep_level = npc->level;
 
-                selftest_park_player(&srv, 3222, 3218);
-                mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 1, goblin, npc->type,
+                selftest_park_player(srv, 3222, 3218);
+                mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 1, goblin, npc->type,
                                               npc->x, npc->z, npc->level, info->size, info->size);
                 player->interaction.ap_tried = 1;
                 steps_clear(player);
                 player->steps_taken = 0;
                 /* Outside the scene window — route_op refuses and give-up clears. */
                 mock230_world_npc_teleport(npc, 0, 0, 0);
-                npc->next_roam_tick = srv.tick + 1000;
-                mock230_world_process_interaction(&srv);
+                npc->next_roam_tick = srv->tick + 1000;
+                mock230_world_process_interaction(srv);
                 SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                                "an unreachable interaction clears rather than latching");
                 mock230_world_npc_teleport(npc, keep_x, keep_z, keep_level);
-                npc->next_roam_tick = srv.tick + 1000;
+                npc->next_roam_tick = srv->tick + 1000;
             }
         }
     }
@@ -19824,12 +19917,12 @@ mock230_world_selftest(void)
         slot = -1;
         for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
         {
-            if( srv.ground[i].active && srv.ground[i].obj_id == 946 &&
-                srv.ground[i].x == 3205 && srv.ground[i].z == 3212 )
+            if( srv->ground[i].active && srv->ground[i].obj_id == 946 &&
+                srv->ground[i].x == 3205 && srv->ground[i].z == 3212 )
                 slot = i;
         }
         SELFTEST_CHECK(slot >= 0, "the knife spawn from m50_50.jm2 should exist");
-        SELFTEST_CHECK(slot < 0 || srv.ground[slot].is_spawn,
+        SELFTEST_CHECK(slot < 0 || srv->ground[slot].is_spawn,
                        "and be marked a spawn rather than a drop");
 
         /*
@@ -19841,41 +19934,41 @@ mock230_world_selftest(void)
          * and encoded once for everyone standing in it — which is also why the
          * tick below is load-bearing: nothing goes out until phase 10.
          */
-        selftest_park_player(&srv, 3222, 3218);
+        selftest_park_player(srv, 3222, 3218);
         /* One quiet tick first, and it is load-bearing: a client that has just
          * arrived in a zone is caught up with that zone's whole state instead,
          * which is a different (and separately checked, below) shape. The
          * enclosed stream is what a change produces for a client already
          * standing there. */
-        mock230_world_tick(&srv);
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_obj_add(&srv, 526 /* bones */, 1, 3222, 3218, 0,
+        mock230_world_tick(srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_obj_add(srv, 526 /* bones */, 1, 3222, 3218, 0,
                               mock230_ids()->lootdrop_duration);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(selftest_enclosed_has(&capture, 120 /* OBJ_ADD */),
                        "a drop should reach the client as an enclosed OBJ_ADD");
 
         /* A familiar forager's drop begins owner-private. It must not be
          * discoverable by a forged target from another player, and its expiry
          * turns it into a normal public pile rather than deleting it. */
-        slot = mock230_world_obj_add_private(&srv, 1511 /* logs */, 1, 3223, 3218, 0,
+        slot = mock230_world_obj_add_private(srv, 1511 /* logs */, 1, 3223, 3218, 0,
                                              mock230_ids()->lootdrop_duration, 2);
         SELFTEST_CHECK(slot >= 0, "a private drop gets a ground slot");
-        SELFTEST_CHECK(slot < 0 || mock230_world_ground_visible_to(&srv, slot, player->pid),
+        SELFTEST_CHECK(slot < 0 || mock230_world_ground_visible_to(srv, slot, player->pid),
                        "the owner can see a private drop");
-        SELFTEST_CHECK(slot < 0 || !mock230_world_ground_visible_to(&srv, slot,
+        SELFTEST_CHECK(slot < 0 || !mock230_world_ground_visible_to(srv, slot,
                                                                       player->pid + 1),
                        "another player cannot see or take a private drop");
         if( slot >= 0 )
         {
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
-            SELFTEST_CHECK(srv.ground[slot].active && srv.ground[slot].receiver_pid < 0,
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(srv->ground[slot].active && srv->ground[slot].receiver_pid < 0,
                            "the private window promotes the surviving drop to public");
-            SELFTEST_CHECK(mock230_world_ground_visible_to(&srv, slot, player->pid + 1),
+            SELFTEST_CHECK(mock230_world_ground_visible_to(srv, slot, player->pid + 1),
                            "the promoted drop is visible to other players");
-            mock230_world_ground_take(&srv, slot);
+            mock230_world_ground_take(srv, slot);
         }
 
         /*
@@ -19886,9 +19979,9 @@ mock230_world_selftest(void)
          * door someone else opened open for whoever logs in next.
          */
         mock230_zone_player_reset(player);
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(mock230_capture_find(&capture, 41 /* UPDATE_ZONE_FULL_FOLLOWS */, 0) >= 0,
                        "a client that holds no zones should be sent FULL_FOLLOWS");
         SELFTEST_CHECK(mock230_capture_find(&capture, 120 /* OBJ_ADD */, 0) >= 0,
@@ -19906,19 +19999,19 @@ mock230_world_selftest(void)
          * called the verb. Mutation: delete the `[opobj3,_]` line from
          * pickup.rs2 and both checks below go red.
          */
-        selftest_park_player(&srv, 3222, 3218);
+        selftest_park_player(srv, 3222, 3218);
         free_before = inv_first_free(player);
         {
             uint8_t payload[6] = { (uint8_t)(3222 >> 8), (uint8_t)3222,
                                    (uint8_t)(3218 >> 8), (uint8_t)3218,
                                    (uint8_t)(526 >> 8),  (uint8_t)526 };
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
             /* The take happens on the packet; the OBJ_DEL is a zone event and
              * goes out with the tick's flush. */
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
         }
         SELFTEST_CHECK(free_before >= 0 && player->inv[free_before].obj_id == 526,
                        "taking an obj puts it in the backpack");
@@ -19950,8 +20043,8 @@ mock230_world_selftest(void)
             mock230_world_handle(player, PKTOUT_NAME_OPHELD5, payload, (int)rsab_len(&drop));
             for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
             {
-                if( srv.ground[i].active && srv.ground[i].obj_id == 526 &&
-                    srv.ground[i].x == player->x && srv.ground[i].z == player->z )
+                if( srv->ground[i].active && srv->ground[i].obj_id == 526 &&
+                    srv->ground[i].x == player->x && srv->ground[i].z == player->z )
                     on_floor = 1;
             }
             SELFTEST_CHECK(on_floor, "dropping an obj leaves it on the floor");
@@ -19999,31 +20092,31 @@ mock230_world_selftest(void)
 
         /* Said out loud, because everything below is a behaviour test and a
          * behaviour test cannot see which implementation produced it. */
-        SELFTEST_CHECK(srv.scripts && SSVM_ProviderGetByTrigger(srv.scripts,
+        SELFTEST_CHECK(srv->scripts && SSVM_ProviderGetByTrigger(srv->scripts,
                                                                 SS_TRIGGER_OPOBJ3, -1,
                                                                 -1) != NULL,
                        "content binds [opobj3,_] (player/scripts/pickup.rs2)");
 
-        selftest_park_player(&srv, obj_x, obj_z);
-        mock230_world_tick(&srv);
+        selftest_park_player(srv, obj_x, obj_z);
+        mock230_world_tick(srv);
 
         /* How many objs a client that holds no zones is caught up with, with
          * nothing of ours on the floor. Everything below is measured against
          * this number, so a Lumbridge spawn wandering into the window cannot be
          * mistaken for our pile. */
-        adds_empty = selftest_replay_obj_adds(&srv, &capture);
+        adds_empty = selftest_replay_obj_adds(srv, &capture);
 
-        slot = mock230_world_obj_add(&srv, 526 /* bones */, 1, obj_x, obj_z, 0,
+        slot = mock230_world_obj_add(srv, 526 /* bones */, 1, obj_x, obj_z, 0,
                                      mock230_ids()->lootdrop_duration);
         SELFTEST_CHECK(slot >= 0, "the drop went onto the floor");
         if( slot < 0 )
             goto obj_content_done;
-        handle = mock230_world_obj_handle(&srv, slot);
+        handle = mock230_world_obj_handle(srv, slot);
         SELFTEST_CHECK(handle != 0, "a live ground obj has a non-zero handle");
-        SELFTEST_CHECK(mock230_world_ground_slot(&srv, handle) == slot,
+        SELFTEST_CHECK(mock230_world_ground_slot(srv, handle) == slot,
                        "and the handle resolves back to its slot");
 
-        adds_held = selftest_replay_obj_adds(&srv, &capture);
+        adds_held = selftest_replay_obj_adds(srv, &capture);
         SELFTEST_CHECK(adds_held == adds_empty + 1,
                        "a client loading the zone is sent the pile (%d -> %d)", adds_empty,
                        adds_held);
@@ -20034,14 +20127,14 @@ mock230_world_selftest(void)
                                    (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
                                    (uint8_t)(526 >> 8),   (uint8_t)526 };
 
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
         }
         SELFTEST_CHECK(free_slot >= 0 && player->inv[free_slot].obj_id == 526,
                        "[opobj3,_] takes the obj into the backpack");
-        SELFTEST_CHECK(!srv.ground[slot].active, "and it leaves the floor");
+        SELFTEST_CHECK(!srv->ground[slot].active, "and it leaves the floor");
         SELFTEST_CHECK(selftest_enclosed_has(&capture, 121 /* OBJ_DEL */),
                        "and every client already in the zone is told");
 
@@ -20061,7 +20154,7 @@ mock230_world_selftest(void)
          * loop turns the `adds_held` check above red, so this is a live
          * end-to-end assertion about the ZoneMap and not a tautology.
          */
-        adds_taken = selftest_replay_obj_adds(&srv, &capture);
+        adds_taken = selftest_replay_obj_adds(srv, &capture);
         SELFTEST_CHECK(adds_taken == adds_empty,
                        "and a client loading the zone afterwards is not (%d -> %d)",
                        adds_held, adds_taken);
@@ -20073,14 +20166,14 @@ mock230_world_selftest(void)
          * service is the shortest way to produce that state; a spawn coming
          * back does it on its own.
          */
-        SELFTEST_CHECK(mock230_world_ground_slot(&srv, handle) < 0,
+        SELFTEST_CHECK(mock230_world_ground_slot(srv, handle) < 0,
                        "a taken obj's handle stops resolving");
-        srv.ground[slot].respawn_tick = srv.tick;
-        mock230_world_tick(&srv);
-        SELFTEST_CHECK(srv.ground[slot].active, "the slot goes back into service");
-        SELFTEST_CHECK(mock230_world_ground_slot(&srv, handle) < 0,
+        srv->ground[slot].respawn_tick = srv->tick;
+        mock230_world_tick(srv);
+        SELFTEST_CHECK(srv->ground[slot].active, "the slot goes back into service");
+        SELFTEST_CHECK(mock230_world_ground_slot(srv, handle) < 0,
                        "and the old handle still refuses it — the generation moved");
-        mock230_world_ground_take(&srv, slot);
+        mock230_world_ground_take(srv, slot);
 
         /*
          * The stacking half, which is a container fix rather than an obj one.
@@ -20104,7 +20197,7 @@ mock230_world_selftest(void)
                                        (uint8_t)(995 >> 8),   (uint8_t)995 };
 
                 coins_before = player->inv[coins_slot].count;
-                mock230_world_obj_add(&srv, 995, 7, obj_x, obj_z, 0,
+                mock230_world_obj_add(srv, 995, 7, obj_x, obj_z, 0,
                                       mock230_ids()->lootdrop_duration);
                 mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
                 for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
@@ -20160,7 +20253,7 @@ mock230_world_selftest(void)
             /* Logs, not bones: the successful take at the top of this stanza
              * left bones in the backpack, and a subject the player already
              * holds cannot answer "did anything arrive". */
-            refused_slot = mock230_world_obj_add(&srv, 1511 /* logs */, 3, obj_x, obj_z, 0,
+            refused_slot = mock230_world_obj_add(srv, 1511 /* logs */, 3, obj_x, obj_z, 0,
                                                  mock230_ids()->lootdrop_duration);
             if( refused_slot >= 0 )
             {
@@ -20169,12 +20262,12 @@ mock230_world_selftest(void)
                                        (uint8_t)(1511 >> 8),  (uint8_t)1511 };
 
                 mock230_world_handle(player, PKTOUT_NAME_OPOBJ3, payload, 6);
-                SELFTEST_CHECK(srv.ground[refused_slot].active,
+                SELFTEST_CHECK(srv->ground[refused_slot].active,
                                "three unstackables over two free slots is refused — which "
                                "the engine fallback would have taken");
                 SELFTEST_CHECK(selftest_find(player, 1511) < 0,
                                "and nothing reached the backpack");
-                mock230_world_ground_take(&srv, refused_slot);
+                mock230_world_ground_take(srv, refused_slot);
             }
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 inv_set(player, i, saved[i].obj_id, saved[i].count);
@@ -20206,7 +20299,7 @@ mock230_world_selftest(void)
          */
         {
             static struct Mock230Capture unbound_capture;
-            int stray = mock230_world_obj_add(&srv, 526 /* bones */, 1, obj_x, obj_z, 0,
+            int stray = mock230_world_obj_add(srv, 526 /* bones */, 1, obj_x, obj_z, 0,
                                               mock230_ids()->lootdrop_duration);
 
             if( stray >= 0 )
@@ -20216,14 +20309,14 @@ mock230_world_selftest(void)
                                        (uint8_t)(526 >> 8),   (uint8_t)526 };
                 int said_nothing_interesting = 0;
 
-                selftest_park_player(&srv, obj_x, obj_z);
-                mock230_capture_begin(&srv, &unbound_capture);
+                selftest_park_player(srv, obj_x, obj_z);
+                mock230_capture_begin(srv, &unbound_capture);
                 /* OPOBJ1: no `[opobj1,*]` anywhere in the tree, and `_` does
                  * not cross op numbers. */
                 mock230_world_handle(player, PKTOUT_NAME_OPOBJ1, payload, 6);
-                mock230_capture_end(&srv);
+                mock230_capture_end(srv);
 
-                SELFTEST_CHECK(srv.ground[stray].active,
+                SELFTEST_CHECK(srv->ground[stray].active,
                                "an obj op nothing binds leaves the pile on the floor — "
                                "the engine take is gone, not renamed");
 
@@ -20241,7 +20334,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(said_nothing_interesting,
                                "and answers it the way Player.defaultOp does, in content's "
                                "words ([proc,nothing_interesting_message])");
-                mock230_world_ground_take(&srv, stray);
+                mock230_world_ground_take(srv, stray);
             }
         }
 
@@ -20298,14 +20391,14 @@ mock230_world_selftest(void)
                            npc_chicken >= 0 && npc_duck >= 0,
                        "the death-drop test's names should all resolve through the pack");
 
-        if( srv.scripts_ok && npc_chicken >= 0 && npc_duck >= 0 )
+        if( srv->scripts_ok && npc_chicken >= 0 && npc_duck >= 0 )
         {
             /* The roster's own chicken and duck, killed where they stand.
              * `mock230_world_npc_spawn` is not usable here: world init fills
              * the pool, so a fresh spawn fails with "no free npc slot" — and
              * moving an npc would need a zone refile for the drop to be filed
              * where the count looks for it. */
-            int slot = selftest_find_npc(&srv, npc_chicken);
+            int slot = selftest_find_npc(srv, npc_chicken);
             int bones_here = 0;
             int chicken_here = 0;
 
@@ -20316,17 +20409,17 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(slot >= 0, "the roster should include a chicken");
             if( slot >= 0 )
             {
-                tile_x = srv.npcs[slot].x;
-                tile_z = srv.npcs[slot].z;
-                mock230_world_npc_died(&srv, slot);
+                tile_x = srv->npcs[slot].x;
+                tile_z = srv->npcs[slot].z;
+                mock230_world_npc_died(srv, slot);
                 for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
                 {
-                    if( !srv.ground[i].active || srv.ground[i].x != tile_x ||
-                        srv.ground[i].z != tile_z )
+                    if( !srv->ground[i].active || srv->ground[i].x != tile_x ||
+                        srv->ground[i].z != tile_z )
                         continue;
-                    if( srv.ground[i].obj_id == obj_bones )
+                    if( srv->ground[i].obj_id == obj_bones )
                         bones_here++;
-                    if( srv.ground[i].obj_id == obj_raw_chicken )
+                    if( srv->ground[i].obj_id == obj_raw_chicken )
                         chicken_here++;
                 }
                 SELFTEST_CHECK(chicken_here == 1,
@@ -20337,23 +20430,23 @@ mock230_world_selftest(void)
                                "also fire, got %d bones",
                                bones_here);
             }
-            selftest_clear_ground(&srv);
+            selftest_clear_ground(srv);
 
             /* B. The case the deleted C answered: nothing binds `duck`, and
              * nothing binds its category, so the `_` script is the only thing
              * between a kill and a silent one. */
-            slot = selftest_find_npc(&srv, npc_duck);
+            slot = selftest_find_npc(srv, npc_duck);
             SELFTEST_CHECK(slot >= 0, "the roster should include a duck");
             if( slot >= 0 )
             {
                 int drops = 0;
-                tile_x = srv.npcs[slot].x;
-                tile_z = srv.npcs[slot].z;
-                mock230_world_npc_died(&srv, slot);
+                tile_x = srv->npcs[slot].x;
+                tile_z = srv->npcs[slot].z;
+                mock230_world_npc_died(srv, slot);
                 for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
                 {
-                    if( srv.ground[i].active && srv.ground[i].x == tile_x &&
-                        srv.ground[i].z == tile_z && srv.ground[i].obj_id == obj_bones )
+                    if( srv->ground[i].active && srv->ground[i].x == tile_x &&
+                        srv->ground[i].z == tile_z && srv->ground[i].obj_id == obj_bones )
                         drops++;
                 }
                 SELFTEST_CHECK(drops == 1,
@@ -20361,7 +20454,7 @@ mock230_world_selftest(void)
                                "death_drop, got %d",
                                drops);
             }
-            selftest_clear_ground(&srv);
+            selftest_clear_ground(srv);
 
             /*
              * C. `param=death_drop,null`.
@@ -20376,33 +20469,33 @@ mock230_world_selftest(void)
             if( slot >= 0 )
             {
                 static struct Mock230NpcDef silent;
-                const struct Mock230NpcDef* restore = srv.npcs[slot].def;
+                const struct Mock230NpcDef* restore = srv->npcs[slot].def;
                 int drops = 0;
 
-                silent = *srv.npcs[slot].def;
+                silent = *srv->npcs[slot].def;
                 silent.death_drop = -1;
                 for( int i = 0; i < silent.param_count; i++ )
                 {
                     if( silent.params[i].key == param_death_drop )
                         silent.params[i].value = -1;
                 }
-                srv.npcs[slot].def = &silent;
+                srv->npcs[slot].def = &silent;
 
-                mock230_world_npc_died(&srv, slot);
+                mock230_world_npc_died(srv, slot);
                 for( int i = 0; i < MOCK230_GROUND_MAX; i++ )
                 {
-                    if( srv.ground[i].active && srv.ground[i].x == tile_x &&
-                        srv.ground[i].z == tile_z )
+                    if( srv->ground[i].active && srv->ground[i].x == tile_x &&
+                        srv->ground[i].z == tile_z )
                         drops++;
                 }
                 SELFTEST_CHECK(drops == 0,
                                "`param=death_drop,null` should leave nothing, got %d objs",
                                drops);
-                srv.npcs[slot].def = restore;
+                srv->npcs[slot].def = restore;
             }
-            selftest_clear_ground(&srv);
+            selftest_clear_ground(srv);
         }
-        else if( !srv.scripts_ok )
+        else if( !srv->scripts_ok )
         {
             fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src mock230-scripts)\n");
         }
@@ -20423,9 +20516,9 @@ mock230_world_selftest(void)
         int free_slot;
         int settled;
 
-        selftest_park_player(&srv, 3222, 3218);
+        selftest_park_player(srv, 3222, 3218);
         free_slot = inv_first_free(player);
-        mock230_world_obj_add(&srv, 526 /* bones */, 1, obj_x, obj_z, 0, mock230_ids()->lootdrop_duration);
+        mock230_world_obj_add(srv, 526 /* bones */, 1, obj_x, obj_z, 0, mock230_ids()->lootdrop_duration);
 
         {
             uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
@@ -20454,7 +20547,7 @@ mock230_world_selftest(void)
                         mock230_scene_reached(0, player->x, player->z, obj_x, obj_z, &exact),
                         mock230_scene_reached(0, player->x, player->z, obj_x, obj_z, &adj));
                 if( player->interaction.kind == MOCK230_INTERACT_NONE ) { settled = i; break; }
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 if( i == 39 ) settled = -1;
             }
         }
@@ -20471,7 +20564,7 @@ mock230_world_selftest(void)
          * still pending. face_x/z survive phase_cleanup; the mask does not.
          */
         if( player->face_target_x != -1 )
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
         SELFTEST_CHECK(player->face_x == mock230_coord_fine(obj_x, 1) &&
                            player->face_z == mock230_coord_fine(obj_z, 1),
                        "FACE_COORD is the obj's fine centre, got %d,%d want %d,%d",
@@ -20490,8 +20583,8 @@ mock230_world_selftest(void)
             int want_x = mock230_coord_fine(obj_x, 1);
             int want_z = mock230_coord_fine(obj_z, 1);
 
-            selftest_park_player(&srv, obj_x, obj_z);
-            mock230_world_obj_add(&srv, 526, 1, obj_x, obj_z, 0,
+            selftest_park_player(srv, obj_x, obj_z);
+            mock230_world_obj_add(srv, 526, 1, obj_x, obj_z, 0,
                                   mock230_ids()->lootdrop_duration);
             player->face_x = 0;
             player->face_z = 0;
@@ -20507,7 +20600,7 @@ mock230_world_selftest(void)
                            "interaction_set stashes fine face target across clear, "
                            "got %d,%d",
                            player->face_target_x, player->face_target_z);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->face_x == want_x && player->face_z == want_z,
                            "still-tick reorient faces the obj, got %d,%d", player->face_x,
                            player->face_z);
@@ -20528,8 +20621,8 @@ mock230_world_selftest(void)
          * an unbound op is what pins that after the engine take was deleted;
          * moving it to OPOBJ3 would make the whole stanza depend on a binding.
          */
-        selftest_park_player(&srv, 3222, 3218);
-        mock230_world_obj_add(&srv, 526, 1, obj_x, obj_z, 0, mock230_ids()->lootdrop_duration);
+        selftest_park_player(srv, 3222, 3218);
+        mock230_world_obj_add(srv, 526, 1, obj_x, obj_z, 0, mock230_ids()->lootdrop_duration);
         {
             uint8_t payload[6] = { (uint8_t)(obj_x >> 8), (uint8_t)obj_x,
                                    (uint8_t)(obj_z >> 8), (uint8_t)obj_z,
@@ -20633,14 +20726,14 @@ mock230_world_selftest(void)
                            shape, angle);
 
             player->level = 0;
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* The door is across the courtyard: the click routes there and the
              * swap happens on arrival. That the walk is now part of opening a
              * door is the interaction model working. */
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                            "the walk to the door should complete");
-            mock230_capture_end(&srv);
+            mock230_capture_end(srv);
 
             /*
              * `~door_open(^loc_east, wall_straight)` is (+1, 0) and the angle
@@ -20671,9 +20764,9 @@ mock230_world_selftest(void)
             }
             {
                 struct Mock230ZoneLoc* gone =
-                    mock230_zone_loc_find(&srv, 3226, 3223, 0, shape);
+                    mock230_zone_loc_find(srv, 3226, 3223, 0, shape);
                 struct Mock230ZoneLoc* arrived =
-                    mock230_zone_loc_find(&srv, 3227, 3223, 0, shape);
+                    mock230_zone_loc_find(srv, 3227, 3223, 0, shape);
 
                 /* Two records now, not one — and the ZoneMap's job is unchanged:
                  * remember what the map square says so a third player arriving
@@ -20705,7 +20798,7 @@ mock230_world_selftest(void)
             payload[5] = (uint8_t)open;
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* Standing beside it now, so this one resolves on the click. */
-            SELFTEST_CHECK(selftest_settle(&srv, 10) >= 0,
+            SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
                            "closing the door should complete");
             {
                 int back = mock230_scene_find_loc_exact(3226, 3223, 0, shape);
@@ -20787,7 +20880,7 @@ mock230_world_selftest(void)
             player->tracked_count = 1;
             player->tracked_player_count = 1;
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0,
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                            "the walk to the ladder should complete");
             SELFTEST_CHECK(player->level == 1, "climbing it goes up a plane, got %d",
                            player->level);
@@ -20826,7 +20919,7 @@ mock230_world_selftest(void)
                     payload[4] = (uint8_t)(top >> 8);
                     payload[5] = (uint8_t)top;
                     mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
-                    SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
+                    SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                    "the walk to the ladder top should complete");
                     SELFTEST_CHECK(player->level == 0,
                                    "and climbing down comes back, got %d", player->level);
@@ -20897,16 +20990,16 @@ mock230_world_selftest(void)
              * `duel_chestopen`, and `tools/bank_import.py` binds the slot the
              * record states rather than a fixed one. Asserting both slots is
              * what makes that more than a coincidence. */
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
             SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
-                               &srv, SS_TRIGGER_OPLOC2, booth, mock230_loc_category(booth),
+                               srv, SS_TRIGGER_OPLOC2, booth, mock230_loc_category(booth),
                                -1) == MOCK230_TRIGGER_RAN,
                            "a bank booth's op 2 should resolve to a script");
             SELFTEST_CHECK(player->bank.open, "and the script should have opened the bank");
 
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
             SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
-                               &srv, SS_TRIGGER_OPLOC1, chest, mock230_loc_category(chest),
+                               srv, SS_TRIGGER_OPLOC1, chest, mock230_loc_category(chest),
                                -1) == MOCK230_TRIGGER_RAN,
                            "and so should a booth nothing bound by hand — the 77 the engine's "
                            "\"Bank\" strcmp used to reach on its own");
@@ -20918,9 +21011,9 @@ mock230_world_selftest(void)
              * click in the world open the bank — which is a fair description of
              * what the deleted C did to the *verb* namespace.
              */
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
             SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
-                               &srv, SS_TRIGGER_OPLOC3, chest, mock230_loc_category(chest),
+                               srv, SS_TRIGGER_OPLOC3, chest, mock230_loc_category(chest),
                                -1) == MOCK230_TRIGGER_NONE,
                            "a slot the cache puts no Bank op on should bind nothing");
             SELFTEST_CHECK(!player->bank.open, "and leave the bank shut");
@@ -20939,8 +21032,8 @@ mock230_world_selftest(void)
              * lookup itself is engine and is covered by the door and ladder
              * sections above, both of which drive a placed loc.
              */
-            mock230_bank_close(&srv);
-            selftest_park_player(&srv, 3222, 3218);
+            mock230_bank_close(srv);
+            selftest_park_player(srv, 3222, 3218);
             {
                 int bx = player->x + 1;
                 uint8_t payload[6] = { (uint8_t)(bx >> 8),    (uint8_t)bx,
@@ -20948,13 +21041,13 @@ mock230_world_selftest(void)
                                        (uint8_t)(booth >> 8), (uint8_t)booth };
 
                 mock230_world_handle(player, PKTOUT_NAME_OPLOC2, payload, 6);
-                SELFTEST_CHECK(selftest_settle(&srv, 10) >= 0,
+                SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
                                "the click on the booth should settle");
                 SELFTEST_CHECK(player->bank.open,
                                "an OPLOC2 packet naming a bank booth should open the bank");
             }
-            mock230_bank_close(&srv);
-            selftest_park_player(&srv, 3222, 3218);
+            mock230_bank_close(srv);
+            selftest_park_player(srv, 3222, 3218);
         }
     }
 
@@ -21114,7 +21207,7 @@ mock230_world_selftest(void)
         /* The byte offsets below assume an idle, unengaged player: a queued
          * step or a fight in progress lengthens the bit section and moves the
          * mask. Earlier sections leave both behind. */
-        selftest_park_player(&srv, player->x, player->z);
+        selftest_park_player(srv, player->x, player->z);
         player->place_dirty = 0;
         player->move_count = 0;
         player->masks = MOCK230_PMASK_SEQUENCE | MOCK230_PMASK_SPOTANIM;
@@ -21123,9 +21216,9 @@ mock230_world_selftest(void)
         player->spotanim_id = 74;
         player->spotanim_height_delay = 0;
 
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
 
         index = mock230_capture_find(&capture, 23 /* PLAYER_INFO */, 0);
         SELFTEST_CHECK(index >= 0, "PLAYER_INFO should have been sent");
@@ -21149,9 +21242,9 @@ mock230_world_selftest(void)
         /* A single-byte mask must NOT set BIG_UPDATE, or the client eats the
          * first field as a second mask byte. */
         player->masks = MOCK230_PMASK_SEQUENCE;
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
         index = mock230_capture_find(&capture, 23, 0);
         if( index >= 0 )
         {
@@ -21162,9 +21255,9 @@ mock230_world_selftest(void)
         /* Masks describe one tick, so a tick with nothing set must not emit an
          * extended block at all. */
         player->masks = 0;
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
         index = mock230_capture_find(&capture, 23, 0);
         SELFTEST_CHECK(index >= 0 && capture.packets[index].len == 3,
                        "an idle player should send only the bit section");
@@ -21228,7 +21321,7 @@ mock230_world_selftest(void)
             start_x = player->x;
             start_z = player->z;
         }
-        selftest_park_player(&srv, start_x, start_z);
+        selftest_park_player(srv, start_x, start_z);
 
         /* QBD's controller gate is stricter than an ordinary destination
          * check: checkWalkStep sees both candidate tiles of a running tick.
@@ -21239,7 +21332,7 @@ mock230_world_selftest(void)
         fprintf(stderr, "mock230 selftest: QBD per-step movement gate\n");
         {
             const struct SSVM_Script* probe = SSVM_ProviderGetByName(
-                srv.scripts, "[walktrigger,rs2012_qbd_walkstep_probe]");
+                srv->scripts, "[walktrigger,rs2012_qbd_walkstep_probe]");
             int phase_varp = mock230_world_varp("rs2012_qbd_phase");
             int count_varp = mock230_world_varp("rs2012_qbd_platform_ticks");
             int candidate_varp = mock230_world_varp("rs2012_qbd_soul_separation");
@@ -21252,7 +21345,7 @@ mock230_world_selftest(void)
             {
                 /* Zero permitted tiles: the first candidate is observed and
                  * rejected before occupancy changes. */
-                selftest_park_player(&srv, start_x, start_z);
+                selftest_park_player(srv, start_x, start_z);
                 player->run_toggle = 1;
                 player->run_energy = MOCK230_RUN_ENERGY_MAX;
                 player->delayed_until = 0;
@@ -21260,8 +21353,8 @@ mock230_world_selftest(void)
                 player->varps[count_varp] = 0;
                 player->varps[candidate_varp] = 0;
                 player->walktrigger = probe->id;
-                mock230_world_walk_to(&srv, start_x + 2, start_z + 2);
-                advance_player(&srv);
+                mock230_world_walk_to(srv, start_x + 2, start_z + 2);
+                advance_player(srv);
                 SELFTEST_CHECK(player->x == start_x && player->z == start_z &&
                                    player->move_count == 0,
                                "a gate on running tile one prevents all movement");
@@ -21274,15 +21367,15 @@ mock230_world_selftest(void)
 
                 /* One permitted tile: running consumes the first, invokes the
                  * re-armed hook for the second, and stops there. */
-                selftest_park_player(&srv, start_x, start_z);
+                selftest_park_player(srv, start_x, start_z);
                 player->run_toggle = 1;
                 player->run_energy = MOCK230_RUN_ENERGY_MAX;
                 player->varps[phase_varp] = 1;
                 player->varps[count_varp] = 0;
                 player->varps[candidate_varp] = 0;
                 player->walktrigger = probe->id;
-                mock230_world_walk_to(&srv, start_x + 2, start_z + 2);
-                advance_player(&srv);
+                mock230_world_walk_to(srv, start_x + 2, start_z + 2);
+                advance_player(srv);
                 SELFTEST_CHECK(player->x == start_x + 1 && player->z == start_z + 1 &&
                                    player->move_count == 1,
                                "a gate on running tile two cannot be skipped, moved=%d",
@@ -21296,15 +21389,15 @@ mock230_world_selftest(void)
 
                 /* Two permitted tiles: both hooks run and the ordinary run
                  * reaches its destination. */
-                selftest_park_player(&srv, start_x, start_z);
+                selftest_park_player(srv, start_x, start_z);
                 player->run_toggle = 1;
                 player->run_energy = MOCK230_RUN_ENERGY_MAX;
                 player->varps[phase_varp] = 2;
                 player->varps[count_varp] = 0;
                 player->varps[candidate_varp] = 0;
                 player->walktrigger = probe->id;
-                mock230_world_walk_to(&srv, start_x + 2, start_z + 2);
-                advance_player(&srv);
+                mock230_world_walk_to(srv, start_x + 2, start_z + 2);
+                advance_player(srv);
                 SELFTEST_CHECK(player->x == start_x + 2 && player->z == start_z + 2 &&
                                    player->move_count == 2,
                                "two allowed candidates preserve ordinary running");
@@ -21318,17 +21411,17 @@ mock230_world_selftest(void)
                 player->varps[count_varp] = 0;
                 player->varps[candidate_varp] = 0;
                 player->run_toggle = 0;
-                selftest_park_player(&srv, start_x, start_z);
+                selftest_park_player(srv, start_x, start_z);
             }
         }
 
         steps_clear(player);
         player->running = 0;
-        mock230_world_walk_to(&srv, start_x + 4, start_z + 4);
+        mock230_world_walk_to(srv, start_x + 4, start_z + 4);
         SELFTEST_CHECK(player->waypoint_index >= 0, "diagonal walk queues a waypoint, idx=%d",
                        player->waypoint_index);
 
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->move_count == 1, "walking covers one tile per tick, got %d",
                        player->move_count);
         SELFTEST_CHECK(player->move_dirs[0] == 2, "north-east is direction 2, got %d",
@@ -21339,7 +21432,7 @@ mock230_world_selftest(void)
         /* The toggle, not `running` — the tick derives the latter from it and
          * from the energy, so setting `running` directly is overwritten. */
         player->run_toggle = 1;
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->move_count == 2, "running covers two tiles per tick, got %d",
                        player->move_count);
         SELFTEST_CHECK(player->x == start_x + 3, "ran two tiles, x=%d", player->x);
@@ -21355,8 +21448,8 @@ mock230_world_selftest(void)
             int middle_z = -1;
             int end_x = -1;
             int end_z = -1;
-            int scene_x = mock230_scene_origin(srv.zone_x);
-            int scene_z = mock230_scene_origin(srv.zone_z);
+            int scene_x = mock230_scene_origin(srv->zone_x);
+            int scene_z = mock230_scene_origin(srv->zone_z);
             for( int x = scene_x + 1; x < scene_x + MOCK230_SCENE_TILES - 1 && corner_x < 0;
                  x++ )
             {
@@ -21405,7 +21498,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(corner_x >= 0, "scene contains a legal route around a corner");
             if( corner_x >= 0 )
             {
-                selftest_park_player(&srv, corner_x, corner_z);
+                selftest_park_player(srv, corner_x, corner_z);
                 player->run_energy = MOCK230_RUN_ENERGY_MAX;
                 player->run_toggle = 1;
                 player->waypoints[1].x = (int16_t)middle_x;
@@ -21416,7 +21509,7 @@ mock230_world_selftest(void)
                 player->dest_x = end_x;
                 player->dest_z = end_z;
 
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->move_count == 2,
                                "corner run consumes both cardinal legs, got %d",
                                player->move_count);
@@ -21438,13 +21531,13 @@ mock230_world_selftest(void)
          * well as parking there means the next stanza to be written does not
          * have to know that this one moves global state.
          */
-        selftest_park_player(&srv, 3222, 3218);
+        selftest_park_player(srv, 3222, 3218);
 
         /* Waypoints more than a tile apart are walked greedily, not teleported:
          * the client only sends the turning points of its route, and the
          * server stores the same. */
         steps_clear(player);
-        mock230_world_walk_to(&srv, player->x, player->z + 7);
+        mock230_world_walk_to(srv, player->x, player->z + 7);
         SELFTEST_CHECK(player->waypoint_index >= 0, "7-tile leg queues a waypoint, idx=%d",
                        player->waypoint_index);
         SELFTEST_CHECK(player->waypoints[0].z == player->z + 7,
@@ -21476,7 +21569,7 @@ mock230_world_selftest(void)
              * park tile — a nearer door inside the old window would not
              * exercise the truncate-to-one-tile path at all.
              */
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             door = mock230_scene_find_loc(3226, 3223, 0, -1);
 
             SELFTEST_CHECK(door >= 0, "castle door for op-approach run check");
@@ -21486,12 +21579,12 @@ mock230_world_selftest(void)
                 struct CollisionApproach approach;
 
                 mock230_scene_loc_approach(door, &approach);
-                mock230_world_interaction_set(&srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id,
+                mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, 1, -1, loc->loc_id,
                                               loc->x, loc->z, 0, loc->size_x > 0 ? loc->size_x : 1,
                                               loc->size_z > 0 ? loc->size_z : 1);
                 player->interaction.ap_tried = 1;
-                mock230_world_walk_to_approach(&srv, loc->x, loc->z, &approach);
-                mock230_world_process_interaction(&srv);
+                mock230_world_walk_to_approach(srv, loc->x, loc->z, &approach);
+                mock230_world_process_interaction(srv);
                 SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_LOC,
                                "distant door stays latched while approaching");
                 /* One-tile truncate left index 0. Multi-tile corners let run
@@ -21499,7 +21592,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(player->waypoint_index > 0,
                                "approach route was not truncated to one adjacent tile, idx=%d",
                                player->waypoint_index);
-                mock230_world_interaction_clear(&srv);
+                mock230_world_interaction_clear(srv);
                 steps_clear(player);
             }
         }
@@ -21511,12 +21604,12 @@ mock230_world_selftest(void)
          * the live approach tile; mid-path must not repath (Test 30).
          */
         {
-            int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+            int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
             SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
             if( goblin >= 0 )
             {
-                struct Mock230Npc* npc = &srv.npcs[goblin];
+                struct Mock230Npc* npc = &srv->npcs[goblin];
                 const struct Mock230NpcInfo* info = mock230_npcinfo(npc->type);
                 struct CollisionApproach approach;
                 int px = 3222;
@@ -21528,23 +21621,23 @@ mock230_world_selftest(void)
                 int dist_to_dest;
                 int t;
 
-                selftest_park_player(&srv, px, pz);
+                selftest_park_player(srv, px, pz);
                 mock230_world_npc_teleport(npc, nx, nz, 0);
-                npc->next_roam_tick = srv.tick + 1000;
+                npc->next_roam_tick = srv->tick + 1000;
 
                 mock230_scene_npc_approach(info->size, &approach);
-                mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 1, goblin, npc->type,
+                mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 1, goblin, npc->type,
                                               npc->x, npc->z, npc->level, info->size,
                                               info->size);
                 player->interaction.ap_tried = 1;
-                mock230_world_walk_to_approach(&srv, npc->x, npc->z, &approach);
+                mock230_world_walk_to_approach(srv, npc->x, npc->z, &approach);
                 SELFTEST_CHECK(player->waypoint_index >= 0, "initial npc approach queued");
 
                 /* On the last waypoint (or none): the chase-repath gate. */
                 player->waypoint_index = 0;
                 mock230_world_npc_teleport(npc, nx + 6, nz, 0);
-                npc->next_roam_tick = srv.tick + 1000;
-                interaction_path_to_pathing_target(&srv);
+                npc->next_roam_tick = srv->tick + 1000;
+                interaction_path_to_pathing_target(srv);
 
                 SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC,
                                "mover stays latched across last-waypoint repath");
@@ -21564,21 +21657,21 @@ mock230_world_selftest(void)
                 keep_dest_x = player->dest_x;
                 keep_idx = player->waypoint_index;
                 mock230_world_npc_teleport(npc, nx + 10, nz, 0);
-                npc->next_roam_tick = srv.tick + 1000;
-                interaction_path_to_pathing_target(&srv);
+                npc->next_roam_tick = srv->tick + 1000;
+                interaction_path_to_pathing_target(srv);
                 SELFTEST_CHECK(player->waypoint_index == keep_idx &&
                                    player->dest_x == keep_dest_x,
                                "mid-path does not repath when the npc moves");
 
                 /* Collapse to last waypoint, repath to live tile, run in. */
                 player->waypoint_index = 0;
-                interaction_path_to_pathing_target(&srv);
+                interaction_path_to_pathing_target(srv);
                 player->run_toggle = 1;
                 player->run_energy = 10000;
                 for( t = 0; t < 24 && player->interaction.kind != MOCK230_INTERACT_NONE; t++ )
                 {
-                    npc->next_roam_tick = srv.tick + 1000;
-                    mock230_world_tick(&srv);
+                    npc->next_roam_tick = srv->tick + 1000;
+                    mock230_world_tick(srv);
                 }
                 SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                                "OP fires once adjacent after chasing a mover");
@@ -21660,7 +21753,7 @@ mock230_world_selftest(void)
                     { sx + 2, sz + 3 },
                 };
 
-                selftest_park_player(&srv, sx, sz);
+                selftest_park_player(srv, sx, sz);
                 /* Park may rebuild the scene; re-read the origin and map. */
                 cm = mock230_scene_collision(0);
                 base_x = mock230_scene_base_x();
@@ -21679,7 +21772,7 @@ mock230_world_selftest(void)
 
                 steps_clear(player);
                 player->run_toggle = 0;
-                mock230_world_walk_to(&srv, sx + 3, sz + 3);
+                mock230_world_walk_to(srv, sx + 3, sz + 3);
                 SELFTEST_CHECK(player->waypoint_index >= 0,
                                "L-corridor walk queues waypoints, idx=%d",
                                player->waypoint_index);
@@ -21707,7 +21800,7 @@ mock230_world_selftest(void)
 
                     for( int t = 0; t < 20; t++ )
                     {
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                         if( player->x == sx + 3 && player->z == sz + 3 )
                         {
                             arrived = 1;
@@ -21749,19 +21842,19 @@ mock230_world_selftest(void)
                            selftest_prayer("prayer_steelskin") >= 0 && overhead_melee >= 0,
                        "the prayer content should declare the three this asserts on");
 
-        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
         player->stat_level[MOCK230_STAT_PRAYER] = 1;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
 
         /* The level gate reads the base level, so a level-1 character is
          * refused Protect from Melee no matter how many points they have. */
-        selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
-        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_protectfrommelee"),
+        selftest_prayer_toggle(srv, "prayer_protectfrommelee");
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_protectfrommelee"),
                        "a level-1 character cannot protect");
 
         player->stat_level[MOCK230_STAT_PRAYER] = 99;
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
-        selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
+        selftest_prayer_toggle(srv, "prayer_protectfrommelee");
         SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "protect from melee is up");
         SELFTEST_CHECK(player->headicons == (1 << overhead_melee),
@@ -21772,11 +21865,11 @@ mock230_world_selftest(void)
         /* Same group: the second defence prayer replaces the first rather than
          * stacking with it. Both claim `^prayer_group_defence` in prayers.dbrow
          * and nothing else says they conflict. */
-        selftest_prayer_toggle(&srv, "prayer_rockskin");
-        selftest_prayer_toggle(&srv, "prayer_steelskin");
-        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_rockskin"),
+        selftest_prayer_toggle(srv, "prayer_rockskin");
+        selftest_prayer_toggle(srv, "prayer_steelskin");
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_rockskin"),
                        "steel skin replaces rock skin");
-        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_steelskin"), "steel skin is up");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_steelskin"), "steel skin is up");
         SELFTEST_CHECK((player->headicons & (1 << overhead_melee)) != 0,
                        "and left the overhead alone — a different group");
 
@@ -21787,14 +21880,14 @@ mock230_world_selftest(void)
          * each handler called one of them, so Piety and Ultimate Strength were
          * up together.
          */
-        selftest_prayer_toggle(&srv, "prayer_ultimatestrength");
-        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_ultimatestrength") &&
-                           selftest_prayer_on(&srv, "prayer_steelskin"),
+        selftest_prayer_toggle(srv, "prayer_ultimatestrength");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_ultimatestrength") &&
+                           selftest_prayer_on(srv, "prayer_steelskin"),
                        "strength and defence prayers stack with each other");
-        selftest_prayer_toggle(&srv, "prayer_piety");
-        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_piety"), "piety is up");
-        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_ultimatestrength") &&
-                           !selftest_prayer_on(&srv, "prayer_steelskin"),
+        selftest_prayer_toggle(srv, "prayer_piety");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_piety"), "piety is up");
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_ultimatestrength") &&
+                           !selftest_prayer_on(srv, "prayer_steelskin"),
                        "and dropped both of the groups it claims");
 
         /*
@@ -21803,12 +21896,12 @@ mock230_world_selftest(void)
          * Asserting it here is what keeps the headless harness honest — the
          * cheat is the only way a scripted session reaches the prayer book.
          */
-        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
-        SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "pray 18"),
+        mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "pray 18"),
                        "::pray should reach [debugproc,pray]");
-        SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_protectfrommelee"),
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_protectfrommelee"),
                        "::pray 18 is protect from melee");
-        SELFTEST_CHECK(!mock230_scripts_run_debugproc(&srv, "nosuchcheat 1"),
+        SELFTEST_CHECK(!mock230_scripts_run_debugproc(srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
 
         /*
@@ -21830,7 +21923,7 @@ mock230_world_selftest(void)
          * partially-executed debugproc cannot pass.
          */
         {
-            struct Mock230Player* who = &srv.players[0];
+            struct Mock230Player* who = &srv->players[0];
             static const uint8_t command[] = "~crystal_set\n";
             int helmet = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_helmet");
             int body = mock230_content_symbol(MOCK230_PACK_OBJ, "crystal_chestplate");
@@ -21869,7 +21962,7 @@ mock230_world_selftest(void)
             memcpy(level_before, who->stat_level, sizeof(level_before));
             memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
 
-            handle_cheat(&srv, command, (int)sizeof(command) - 1);
+            handle_cheat(srv, command, (int)sizeof(command) - 1);
             SELFTEST_CHECK(helmet > 0 && body > 0 && legs > 0 && bow > 0,
                            "the equipped crystal set must resolve through the pack");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == helmet,
@@ -21906,7 +21999,7 @@ mock230_world_selftest(void)
          * than one that refuses.
          */
         {
-            struct Mock230Player* who = srv.active_player;
+            struct Mock230Player* who = srv->active_player;
             struct Mock230Item inv_before[MOCK230_INV_SLOTS];
             static const uint8_t give_scythe[] = "~give scythe_of_vitur\n";
             static const uint8_t give_coins[] = "~give coins 100\n";
@@ -21929,12 +22022,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(scythe > 0 && coins > 0 && sword > 0,
                            "the three names ::give is asserted on must be in the obj pack");
 
-            handle_cheat(&srv, give_scythe, (int)sizeof(give_scythe) - 1);
+            handle_cheat(srv, give_scythe, (int)sizeof(give_scythe) - 1);
             SELFTEST_CHECK(selftest_find(who, scythe) >= 0,
                            "::~give scythe_of_vitur puts obj %d in the backpack", scythe);
 
-            handle_cheat(&srv, give_coins, (int)sizeof(give_coins) - 1);
-            handle_cheat(&srv, give_coins_more, (int)sizeof(give_coins_more) - 1);
+            handle_cheat(srv, give_coins, (int)sizeof(give_coins) - 1);
+            handle_cheat(srv, give_coins_more, (int)sizeof(give_coins_more) - 1);
             slots_used = 0;
             total = 0;
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
@@ -21949,7 +22042,7 @@ mock230_world_selftest(void)
                            "got %d slots totalling %d",
                            slots_used, total);
 
-            handle_cheat(&srv, give_swords, (int)sizeof(give_swords) - 1);
+            handle_cheat(srv, give_swords, (int)sizeof(give_swords) - 1);
             slots_used = 0;
             total = 0;
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
@@ -21965,7 +22058,7 @@ mock230_world_selftest(void)
                            slots_used, total);
 
             /* A bare id still works — `::item`'s argument, through `::give`. */
-            handle_cheat(&srv, give_numeric, (int)sizeof(give_numeric) - 1);
+            handle_cheat(srv, give_numeric, (int)sizeof(give_numeric) - 1);
             total = 0;
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 if( who->inv[i].obj_id == 995 )
@@ -21979,8 +22072,8 @@ mock230_world_selftest(void)
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 if( who->inv[i].obj_id >= 0 )
                     slots_used++;
-            handle_cheat(&srv, give_unknown, (int)sizeof(give_unknown) - 1);
-            handle_cheat(&srv, give_ambiguous, (int)sizeof(give_ambiguous) - 1);
+            handle_cheat(srv, give_unknown, (int)sizeof(give_unknown) - 1);
+            handle_cheat(srv, give_ambiguous, (int)sizeof(give_ambiguous) - 1);
             total = 0;
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 if( who->inv[i].obj_id >= 0 )
@@ -22004,7 +22097,7 @@ mock230_world_selftest(void)
 
             memcpy(who->inv, inv_before, sizeof(inv_before));
             mock230_container_mark_all(
-                mock230_container_resolve(&srv, who, mock230_ids()->inv_backpack));
+                mock230_container_resolve(srv, who, mock230_ids()->inv_backpack));
         }
 
         /*
@@ -22019,7 +22112,7 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(uid == MOCK230_COM(541, 12),
                            "prayer4 must be 541:12 for the binding click, got %d", uid);
-            mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
             player->stat_level[MOCK230_STAT_PRAYER] = 99;
             player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
             button[0] = (uint8_t)(uid >> 24);
@@ -22029,9 +22122,9 @@ mock230_world_selftest(void)
             button[4] = 0xff;
             button[5] = 0xff;
             mock230_world_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-            SELFTEST_CHECK(selftest_prayer_on(&srv, "prayer_rockskin"),
+            SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_rockskin"),
                            "clicking 541:12 should toggle Rock Skin");
-            SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_sharpeye"),
+            SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_sharpeye"),
                            "and must not light Sharp Eye (the naive map's answer)");
         }
 
@@ -22039,27 +22132,27 @@ mock230_world_selftest(void)
          * Drain: protect from melee is 12 a tick against a resistance of 60, so
          * a point goes every fifth tick.
          *
-         * `srv.tick` is advanced between the calls rather than left alone. A
+         * `srv->tick` is advanced between the calls rather than left alone. A
          * timer's clock is the **absolute** tick it last fired at, not a
          * countdown, so five calls on one tick fire it once — this loop used to
          * advance the counter *by calling the drain*, which was the countdown
          * implementation showing through the test.
          */
-        mock230_scripts_run_proc(&srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        mock230_scripts_run_proc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
         player->stat_level[MOCK230_STAT_PRAYER] = 99;
-        selftest_prayer_toggle(&srv, "prayer_protectfrommelee");
+        selftest_prayer_toggle(srv, "prayer_protectfrommelee");
         player->stat_boosted[MOCK230_STAT_PRAYER] = 99;
-        srv.tick++;
-        mock230_scripts_process_timers(&srv);
+        srv->tick++;
+        mock230_scripts_process_timers(srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99,
                        "12 units is not yet a point");
-        srv.tick++;
-        mock230_scripts_process_timers(&srv);
+        srv->tick++;
+        mock230_scripts_process_timers(srv);
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 99, "nor is 24");
         for( int i = 0; i < 3; i++ )
         {
-            srv.tick++;
-            mock230_scripts_process_timers(&srv);
+            srv->tick++;
+            mock230_scripts_process_timers(srv);
         }
         SELFTEST_CHECK(player->stat_boosted[MOCK230_STAT_PRAYER] == 98,
                        "60 units is one prayer point, got %d",
@@ -22069,10 +22162,10 @@ mock230_world_selftest(void)
         player->stat_boosted[MOCK230_STAT_PRAYER] = 1;
         for( int i = 0; i < 10; i++ )
         {
-            srv.tick++;
-            mock230_scripts_process_timers(&srv);
+            srv->tick++;
+            mock230_scripts_process_timers(srv);
         }
-        SELFTEST_CHECK(!selftest_prayer_on(&srv, "prayer_protectfrommelee"),
+        SELFTEST_CHECK(!selftest_prayer_on(srv, "prayer_protectfrommelee"),
                        "running out clears every prayer");
         SELFTEST_CHECK(player->headicons == 0, "and the overhead icon");
 
@@ -22102,20 +22195,20 @@ mock230_world_selftest(void)
         {
             int option_run = mock230_world_varp("option_run");
             int loaded =
-                mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+                mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
             if( !loaded )
                 loaded = mock230_scripts_load(
-                    &srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+                    srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
             SELFTEST_CHECK(option_run >= 0, "content should declare option_run");
             player->run_toggle = 0;
             player->varps[option_run] = 1;
-            mock230_world_varp_written(&srv, option_run, 1);
+            mock230_world_varp_written(srv, option_run, 1);
             SELFTEST_CHECK(player->run_toggle == 1,
                            "a script write of option_run should arm run_toggle");
             player->varps[option_run] = 0;
-            mock230_world_varp_written(&srv, option_run, 0);
+            mock230_world_varp_written(srv, option_run, 0);
             SELFTEST_CHECK(player->run_toggle == 0,
                            "and clearing it should disarm, got %d", player->run_toggle);
 
@@ -22196,7 +22289,7 @@ mock230_world_selftest(void)
                                        "clicking settings_side:runmode again should clear run");
                     }
                 }
-                mock230_scripts_free(&srv);
+                mock230_scripts_free(srv);
             }
         }
 
@@ -22211,9 +22304,9 @@ mock230_world_selftest(void)
         weight = player_weight_grams(player);
         SELFTEST_CHECK(weight > 0, "the starting kit weighs something (%d g)", weight);
 
-        mock230_world_walk_to(&srv, player->x + 6, player->z);
+        mock230_world_walk_to(srv, player->x + 6, player->z);
         energy_before = player->run_energy;
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->move_count == 2, "running covers two tiles");
         {
             int spent = energy_before - player->run_energy;
@@ -22229,22 +22322,22 @@ mock230_world_selftest(void)
         /* Standing still refills, and never past full. */
         steps_clear(player);
         energy_before = player->run_energy;
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->run_energy > energy_before, "standing still regenerates");
         player->run_energy = MOCK230_RUN_ENERGY_MAX;
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX, "regen clamps at full");
 
         /* Empty means walk, and the toggle goes with it — otherwise the orb
          * stays lit over a player who is plainly walking. */
         player->run_energy = 1;
-        mock230_world_walk_to(&srv, player->x + 6, player->z);
-        mock230_world_tick(&srv);
+        mock230_world_walk_to(srv, player->x + 6, player->z);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
         SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
         SELFTEST_CHECK(player->varps[mock230_world_varp("option_run")] == 0,
                        "and the varp the orb reads");
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(player->move_count == 1, "out of energy is one tile a tick");
 
         steps_clear(player);
@@ -22254,17 +22347,17 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: rebuild on scene edge\n");
     {
-        int zone_before = srv.zone_x;
+        int zone_before = srv->zone_x;
         steps_clear(player);
-        player->x = mock230_scene_origin(srv.zone_x) + 4; /* inside the 16-tile margin */
-        mock230_world_tick(&srv);
-        SELFTEST_CHECK(srv.zone_x != zone_before, "walking to the scene edge re-centres the scene");
+        player->x = mock230_scene_origin(srv->zone_x) + 4; /* inside the 16-tile margin */
+        mock230_world_tick(srv);
+        SELFTEST_CHECK(srv->zone_x != zone_before, "walking to the scene edge re-centres the scene");
         SELFTEST_CHECK(player->place_dirty == 0,
                        "edge rebuild is not a teleport (LostCity BuildArea.rebuildNormal)");
         SELFTEST_CHECK(player->rebuild_pending == 0,
                        "rebuild was sent this tick");
         {
-            int local_x = player->x - mock230_scene_origin(srv.zone_x);
+            int local_x = player->x - mock230_scene_origin(srv->zone_x);
             SELFTEST_CHECK(local_x >= 0 && local_x < MOCK230_SCENE_TILES,
                            "player sits inside the new scene, local_x=%d", local_x);
         }
@@ -22319,13 +22412,13 @@ mock230_world_selftest(void)
          * compiles, runs, and says `<~stat_name($stat)>` to the player.
          */
         static struct Mock230Capture capture;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
         int rune = mock230_content_symbol(MOCK230_PACK_OBJ, "rune_scimitar");
         int saved_attack = player->stat_level[MOCK230_STAT_ATTACK];
         int rune_slot = -1;
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
@@ -22340,9 +22433,9 @@ mock230_world_selftest(void)
             rune_slot = inv_first_free(player);
             SELFTEST_CHECK(rune_slot >= 0, "a free backpack cell to put the scimitar in");
             inv_set(player, rune_slot, rune, 1);
-            mock230_capture_begin(&srv, &capture);
-            selftest_opheld(&srv, 2, rune_slot);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            selftest_opheld(srv, 2, rune_slot);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id != rune,
                            "Attack 1 may not wield a rune scimitar");
             SELFTEST_CHECK(player->inv[rune_slot].obj_id == rune,
@@ -22379,7 +22472,7 @@ mock230_world_selftest(void)
         if( rune_slot >= 0 )
             inv_set(player, rune_slot, -1, 0);
         if( loaded )
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
     }
 
 
@@ -22423,10 +22516,10 @@ mock230_world_selftest(void)
         int helm_slot;
         int shield_slot;
         int bow_slot;
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
@@ -22436,7 +22529,7 @@ mock230_world_selftest(void)
         /* Start from a bare body: the stanzas above leave a bow on. */
         for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
             if( player->worn[i].obj_id >= 0 )
-                unequip_slot(&srv, i);
+                unequip_slot(srv, i);
 
         /*
          * ::gearrun — the Inferno gear slice, asserted through its own content.
@@ -22505,9 +22598,9 @@ mock230_world_selftest(void)
             }
             else
             {
-                mock230_capture_begin(&srv, &gearrun_capture);
-                mock230_scripts_run_debugproc(&srv, "gearrun");
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &gearrun_capture);
+                mock230_scripts_run_debugproc(srv, "gearrun");
+                mock230_capture_end(srv);
             }
             for( int i = mock230_capture_find(&gearrun_capture, 90 /* MESSAGE_GAME */, 0);
                  i >= 0;
@@ -22622,9 +22715,9 @@ mock230_world_selftest(void)
                         player->stat_boosted[i] = 1;
                     }
                     snprintf(line, sizeof(line), "levelrequire %d", obj_id);
-                    mock230_capture_begin(&srv, &capture);
-                    mock230_scripts_run_debugproc(&srv, line);
-                    mock230_capture_end(&srv);
+                    mock230_capture_begin(srv, &capture);
+                    mock230_scripts_run_debugproc(srv, line);
+                    mock230_capture_end(srv);
                     for( int i = mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
                          i = mock230_capture_find(&capture, 90, i + 1) )
                     {
@@ -22724,9 +22817,9 @@ mock230_world_selftest(void)
                 snprintf(line, sizeof(line), "wearpos %d", obj_id);
                 snprintf(expect, sizeof(expect), "wearpos %d %d %d", info->wearpos,
                          info->wearpos_2, info->wearpos_3);
-                mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_debugproc(&srv, line);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_scripts_run_debugproc(srv, line);
+                mock230_capture_end(srv);
                 for( int i = mock230_capture_find(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
                      i = mock230_capture_find(&capture, 90, i + 1) )
                 {
@@ -22771,7 +22864,7 @@ mock230_world_selftest(void)
             /* The real click. A full helm claims head + hair + jaw, so it also
              * has to blank the body kit in all three appearance slots — the
              * claim the deleted `equip / unequip` stanza was written for. */
-            selftest_opheld(&srv, 2, helm_slot);
+            selftest_opheld(srv, 2, helm_slot);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == helm,
                            "an OPHELD2 packet reaches [opheld2,_] and content's ~equip "
                            "puts the helm on the head");
@@ -22815,7 +22908,7 @@ mock230_world_selftest(void)
             helm_slot = selftest_find(player, helm);
             if( helm_slot >= 0 )
             {
-                selftest_opheld(&srv, 2, helm_slot);
+                selftest_opheld(srv, 2, helm_slot);
                 if( worn_head_com >= 0 )
                 {
                     button[0] = (uint8_t)(worn_head_com >> 24);
@@ -22844,11 +22937,11 @@ mock230_world_selftest(void)
 
                 helm_slot = selftest_find(player, helm);
                 snprintf(line, sizeof(line), "equip %d", helm_slot);
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, line),
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, line),
                                "::equip reaches [debugproc,equip]");
                 SELFTEST_CHECK(player->worn[MOCK230_WEAR_HEAD].obj_id == helm,
                                "and puts the helm back on");
-                unequip_slot(&srv, MOCK230_WEAR_HEAD);
+                unequip_slot(srv, MOCK230_WEAR_HEAD);
             }
         }
 
@@ -22923,7 +23016,7 @@ mock230_world_selftest(void)
                     player->stat_level[st] = k_ladder[i].level ? k_ladder[i].level - 1 : 1;
                     player->stat_boosted[st] = 99;
                 }
-                selftest_opheld(&srv, 2, free_slot);
+                selftest_opheld(srv, 2, free_slot);
                 SELFTEST_CHECK((player->worn[MOCK230_WEAR_WEAPON].obj_id == ids[i]) ==
                                    (k_ladder[i].level == 0),
                                "one level short: %s is %s", k_ladder[i].what,
@@ -22934,10 +23027,10 @@ mock230_world_selftest(void)
                     player->stat_level[st] = 99;
                 free_slot = selftest_find(player, ids[i]);
                 if( free_slot >= 0 )
-                    selftest_opheld(&srv, 2, free_slot);
+                    selftest_opheld(srv, 2, free_slot);
                 SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == ids[i],
                                "at the requirement: %s is wielded", k_ladder[i].what);
-                unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+                unequip_slot(srv, MOCK230_WEAR_WEAPON);
                 for( int j = 0; j < MOCK230_INV_SLOTS; j++ )
                     if( player->inv[j].obj_id == ids[i] )
                         inv_set(player, j, -1, 0);
@@ -22984,11 +23077,11 @@ mock230_world_selftest(void)
             /* Direction 1: two-hander over shield. This is the direction the
              * deleted `two-handed weapon evicts the shield` stanza covered and
              * the only one `equip_from_slot` ever got right. */
-            selftest_opheld(&srv, 2, shield_slot);
+            selftest_opheld(srv, 2, shield_slot);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == shield,
                            "the kiteshield is worn");
             bow_slot = selftest_find(player, bow);
-            selftest_opheld(&srv, 2, bow_slot);
+            selftest_opheld(srv, 2, bow_slot);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == bow,
                            "the two-handed bow is wielded over it");
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
@@ -22998,7 +23091,7 @@ mock230_world_selftest(void)
 
             /* Direction 2: shield over two-hander. The bow is still on. */
             shield_slot = selftest_find(player, shield);
-            selftest_opheld(&srv, 2, shield_slot);
+            selftest_opheld(srv, 2, shield_slot);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_SHIELD].obj_id == shield,
                            "the kiteshield goes on over the two-hander");
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == -1,
@@ -23009,7 +23102,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(selftest_find(player, bow) >= 0,
                            "the bow went back to the backpack, through inv_moveitem's "
                            "worn->inv arm (it used to print `is not modelled` and do nothing)");
-            unequip_slot(&srv, MOCK230_WEAR_SHIELD);
+            unequip_slot(srv, MOCK230_WEAR_SHIELD);
         }
 
         /*
@@ -23040,13 +23133,13 @@ mock230_world_selftest(void)
             }
             spear_slot = selftest_find(player, spear);
             SELFTEST_CHECK(spear_slot >= 0, "bronze spear is in the backpack");
-            selftest_opheld(&srv, 2, spear_slot);
+            selftest_opheld(srv, 2, spear_slot);
             SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == spear,
                            "bronze spear is wielded");
             SELFTEST_CHECK(player->readyanim == staffready,
                            "wielded spear sets readyanim to human_staffready (got %d want %d)",
                            player->readyanim, staffready);
-            unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+            unequip_slot(srv, MOCK230_WEAR_WEAPON);
             SELFTEST_CHECK(player->readyanim == human_ready,
                            "unequip restores human_ready (got %d want %d)",
                            player->readyanim, human_ready);
@@ -23116,7 +23209,7 @@ mock230_world_selftest(void)
                            whip_slot);
             if( scim_slot >= 0 && whip_slot >= 0 )
             {
-                selftest_opheld(&srv, 2, scim_slot);
+                selftest_opheld(srv, 2, scim_slot);
                 SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == scimitar,
                                "the scimitar is wielded");
                 /* The leg only means anything if a *lower* free cell exists for
@@ -23127,7 +23220,7 @@ mock230_world_selftest(void)
                                "cell` are distinguishable (%d < %d)",
                                inv_first_free(player), whip_slot);
                 whip_slot = selftest_find(player, whip);
-                selftest_opheld(&srv, 2, whip_slot);
+                selftest_opheld(srv, 2, whip_slot);
                 SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == whip,
                                "the whip replaces it");
                 SELFTEST_CHECK(player->inv[whip_slot].obj_id == -1,
@@ -23136,7 +23229,7 @@ mock230_world_selftest(void)
                                whip_slot, player->inv[whip_slot].obj_id);
                 SELFTEST_CHECK(selftest_find(player, scimitar) >= 0,
                                "the scimitar is still in the backpack, elsewhere");
-                unequip_slot(&srv, MOCK230_WEAR_WEAPON);
+                unequip_slot(srv, MOCK230_WEAR_WEAPON);
             }
         }
 
@@ -23164,19 +23257,19 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(mock230_objinfo(helm)->if_ops[4] == NULL,
                                "the helm's record states no op-5 verb — the Drop row is "
                                "the client's, so the binding has to be on the index");
-                selftest_opheld(&srv, 5, drop_slot);
+                selftest_opheld(srv, 5, drop_slot);
                 SELFTEST_CHECK(player->inv[drop_slot].obj_id == -1,
                                "content's ~dropslot empties the slot");
-                ground = mock230_world_ground_find(&srv, player->x, player->z, player->level, helm);
+                ground = mock230_world_ground_find(srv, player->x, player->z, player->level, helm);
                 SELFTEST_CHECK(ground >= 0, "and the helm is on the tile under the player");
                 if( ground >= 0 )
                 {
-                    SELFTEST_CHECK(srv.ground[ground].despawn_tick - srv.tick >
+                    SELFTEST_CHECK(srv->ground[ground].despawn_tick - srv->tick >
                                        mock230_ids()->lootdrop_duration,
                                    "and lingers longer than a loot drop (%d ticks vs %d)",
-                                   srv.ground[ground].despawn_tick - srv.tick,
+                                   srv->ground[ground].despawn_tick - srv->tick,
                                    mock230_ids()->lootdrop_duration);
-                    mock230_world_ground_take(&srv, ground);
+                    mock230_world_ground_take(srv, ground);
                 }
             }
         }
@@ -23188,14 +23281,14 @@ mock230_world_selftest(void)
          * body, the helm back in the pack. */
         for( int i = 0; i < MOCK230_WORN_SLOTS; i++ )
             if( player->worn[i].obj_id >= 0 )
-                unequip_slot(&srv, i);
+                unequip_slot(srv, i);
         if( selftest_find(player, helm) < 0 )
         {
             int free_slot = inv_first_free(player);
             if( free_slot >= 0 )
                 inv_set(player, free_slot, helm, 1);
         }
-        mock230_scripts_free(&srv);
+        mock230_scripts_free(srv);
     equip_content_done:;
     }
 
@@ -23338,7 +23431,7 @@ mock230_world_selftest(void)
 
         /* 1. Resolve-or-create. Nothing registered this container: no inv id
          *    for it exists anywhere in C, which is the whole point. */
-        row = mock230_container_resolve(&srv, player, inv_collection);
+        row = mock230_container_resolve(srv, player, inv_collection);
         SELFTEST_CHECK(row != NULL, "a fourth container resolves at all (it did not before)");
         SELFTEST_CHECK(row->slots == mock230_bank_inv_size(inv_collection),
                        "sized from the cache, not from C: %d vs %d", row ? row->slots : -1,
@@ -23348,7 +23441,7 @@ mock230_world_selftest(void)
                        row->slots);
         SELFTEST_CHECK(!row->per_slot,
                        "a container larger than 32 slots must be whole-container dirty");
-        SELFTEST_CHECK(mock230_container_resolve(&srv, player, inv_collection) == row,
+        SELFTEST_CHECK(mock230_container_resolve(srv, player, inv_collection) == row,
                        "resolving twice returns the same row rather than a second one");
 
         /* 2. `inv_size` answers for it. It returned 0 for 1,023 of the cache's
@@ -23369,13 +23462,13 @@ mock230_world_selftest(void)
 
         /* 4. Bound, it flushes as ONE whole-container update. The slot is kept
          *    small enough that the full update fits the capture buffer. */
-        SELFTEST_CHECK(mock230_container_bind(&srv, player, inv_collection, component),
+        SELFTEST_CHECK(mock230_container_bind(srv, player, inv_collection, component),
                        "bind to a component");
         mock230_container_set(row, 40, obj_test, 7);
 
-        mock230_capture_begin(&srv, &capture);
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_capture_begin(srv, &capture);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
 
         full_idx = -1;
@@ -23419,7 +23512,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_load_player(player, path), "and read back");
             /* The row is looked up again rather than reused: on a real login it
              * does not exist until the save recreates it. */
-            row = mock230_container_resolve(&srv, player, inv_collection);
+            row = mock230_container_resolve(srv, player, inv_collection);
             SELFTEST_CHECK(row && row->items[40].obj_id == slot_obj,
                            "slot 40 came back (%d)", row ? row->items[40].obj_id : -1);
             SELFTEST_CHECK(row && row->items[40].count == 7, "with its count");
@@ -23432,7 +23525,7 @@ mock230_world_selftest(void)
          *    that never re-transmitted. */
         {
             struct Mock230Container* bank_row =
-                mock230_container_resolve(&srv, player, mock230_ids()->inv_bank);
+                mock230_container_resolve(srv, player, mock230_ids()->inv_bank);
             uint32_t worn_before;
 
             SELFTEST_CHECK(bank_row != NULL, "the bank is a registry row");
@@ -23473,9 +23566,9 @@ mock230_world_selftest(void)
             mock230_container_clean(row);
             SELFTEST_CHECK(row->listener_count == 0, "unbound before dual bind");
 
-            SELFTEST_CHECK(mock230_container_bind(&srv, player, inv_collection, component),
+            SELFTEST_CHECK(mock230_container_bind(srv, player, inv_collection, component),
                            "first listener binds");
-            SELFTEST_CHECK(mock230_container_bind(&srv, player, inv_collection, component2),
+            SELFTEST_CHECK(mock230_container_bind(srv, player, inv_collection, component2),
                            "second listener binds without replacing the first");
             SELFTEST_CHECK(row->listener_count == 2,
                            "both listeners present (got %d)", row->listener_count);
@@ -23484,9 +23577,9 @@ mock230_world_selftest(void)
                            "listeners keep both components");
 
             mock230_container_set(row, 40, obj_test, 3);
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(!capture.overflow, "dual-flush capture buffer overflowed");
 
             for( int i = 0; i < capture.count; i++ )
@@ -23521,9 +23614,9 @@ mock230_world_selftest(void)
                            "first listener survives the unbind");
 
             mock230_container_set(row, 40, obj_test, 4);
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
             for( int i = 0; i < capture.count; i++ )
             {
                 int32_t pkt_com;
@@ -23554,14 +23647,14 @@ mock230_world_selftest(void)
              * second listener is added and removed — the unequip stale-icon bug. */
             {
                 struct Mock230Container* worn =
-                    mock230_container_resolve(&srv, player, mock230_ids()->inv_worn);
+                    mock230_container_resolve(srv, player, mock230_ids()->inv_worn);
                 const int wornitems = MOCK230_COM(mock230_ids()->iface_wornitems, 0);
                 const int stats_com = mock230_ids()->com_equipment_stats_container;
                 int worn_partials = 0;
 
                 SELFTEST_CHECK(worn != NULL && stats_com >= 0, "worn + equipment:universe resolve");
-                mock230_container_bind(&srv, player, mock230_ids()->inv_worn, wornitems);
-                mock230_container_bind(&srv, player, mock230_ids()->inv_worn, stats_com);
+                mock230_container_bind(srv, player, mock230_ids()->inv_worn, wornitems);
+                mock230_container_bind(srv, player, mock230_ids()->inv_worn, stats_com);
                 SELFTEST_CHECK(worn->listener_count == 2, "worn has dual listeners");
                 mock230_container_unbind(player, stats_com);
                 SELFTEST_CHECK(worn->listener_count == 1 &&
@@ -23573,9 +23666,9 @@ mock230_world_selftest(void)
                 worn_set(player, MOCK230_WEAR_HEAD, -1, 0);
                 /* worn_set marks dirty even when already empty; force a real dirty bit. */
                 player->worn_dirty |= 1u << MOCK230_WEAR_HEAD;
-                mock230_capture_begin(&srv, &capture);
-                mock230_world_tick(&srv);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
                 for( int i = 0; i < capture.count; i++ )
                 {
                     int32_t pkt_com;
@@ -23607,10 +23700,10 @@ mock230_world_selftest(void)
         int moved = 0;
         for( int tick = 0; tick < 200; tick++ )
         {
-            advance_npcs(&srv);
+            advance_npcs(srv);
             for( int i = 0; i < MOCK230_NPC_MAX; i++ )
             {
-                struct Mock230Npc* npc = &srv.npcs[i];
+                struct Mock230Npc* npc = &srv->npcs[i];
                 if( !npc->active )
                     continue;
                 if( npc->step_dir >= 0 )
@@ -23628,7 +23721,7 @@ mock230_world_selftest(void)
                                i, npc->type, npc->wander_radius, npc->x, npc->z, npc->spawn_x,
                                npc->spawn_z);
             }
-            srv.tick++;
+            srv->tick++;
         }
         SELFTEST_CHECK(moved > 0, "at least one npc roamed over 200 ticks");
 
@@ -23647,12 +23740,12 @@ mock230_world_selftest(void)
          * near the castle.
          */
         {
-            int hans = selftest_find_npc(&srv, 3105);
+            int hans = selftest_find_npc(srv, 3105);
 
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
             if( hans >= 0 )
             {
-                struct Mock230Npc* npc = &srv.npcs[hans];
+                struct Mock230Npc* npc = &srv->npcs[hans];
                 const struct Mock230NpcDef* def = npc->def;
                 int start_index = npc->patrol_index;
                 int advanced = 0;
@@ -23695,8 +23788,8 @@ mock230_world_selftest(void)
                      * point falsely claims he never occupied it. */
                     if( prev_x == dest_x && prev_z == dest_z )
                         stood_on = 1;
-                    advance_npcs(&srv);
-                    srv.tick++;
+                    advance_npcs(srv);
+                    srv->tick++;
                     if( npc->x == dest_x && npc->z == dest_z )
                         stood_on = 1;
                     dx = npc->x - prev_x;
@@ -23731,12 +23824,12 @@ mock230_world_selftest(void)
              * grounds — LostCity gives him `moverestrict=outdoors` — so pinning
              * him here was asserting a content bug rather than an engine rule.
              * Bob stands behind an axe counter and genuinely does not move. */
-            int bob = selftest_find_npc(&srv, 10619);
+            int bob = selftest_find_npc(srv, 10619);
 
             SELFTEST_CHECK(bob >= 0, "the roster should include Bob");
             if( bob >= 0 )
-                SELFTEST_CHECK(srv.npcs[bob].wander_radius == 0 &&
-                                   srv.npcs[bob].x == srv.npcs[bob].spawn_x,
+                SELFTEST_CHECK(srv->npcs[bob].wander_radius == 0 &&
+                                   srv->npcs[bob].x == srv->npcs[bob].spawn_x,
                                "a nomove npc never moves");
         }
     }
@@ -23757,29 +23850,29 @@ mock230_world_selftest(void)
          * that the npc which was *first* is no longer first, which no amount of
          * other npcs walking in or out of view on the same tick can fake.
          */
-        int hans = selftest_find_npc(&srv, 3105);
+        int hans = selftest_find_npc(srv, 3105);
 
         SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
         if( hans >= 0 )
         {
-            selftest_park_player(&srv, srv.npcs[hans].x + 1, srv.npcs[hans].z);
-            player->level = srv.npcs[hans].level;
+            selftest_park_player(srv, srv->npcs[hans].x + 1, srv->npcs[hans].z);
+            player->level = srv->npcs[hans].level;
         }
-        mock230_world_tick(&srv); /* one tick to establish a tracked list */
+        mock230_world_tick(srv); /* one tick to establish a tracked list */
         SELFTEST_CHECK(player->tracked_count >= 2,
                        "the courtyard should have the client tracking several npcs, got %d",
                        player->tracked_count);
         if( player->tracked_count >= 2 )
         {
             int slot = player->tracked[0];
-            struct Mock230Npc* npc = &srv.npcs[slot];
+            struct Mock230Npc* npc = &srv->npcs[slot];
 
             mock230_world_npc_teleport(npc, player->x + 2, player->z + 2, player->level);
             SELFTEST_CHECK(npc->tele == 1, "the chokepoint raises the flag the encoder reads");
             SELFTEST_CHECK(npc->step_dir == -1,
                            "and a teleport is not a step, or the client glides him there");
 
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->npc_tracked[slot],
                            "the same packet re-adds him, so the client still holds him");
             SELFTEST_CHECK(player->tracked_count >= 1 && player->tracked[0] != slot,
@@ -23820,12 +23913,12 @@ mock230_world_selftest(void)
      */
     fprintf(stderr, "mock230 selftest: an ordinary npc does not block a player\n");
     {
-        int slot = selftest_find_npc(&srv, 3105 /* Hans */);
+        int slot = selftest_find_npc(srv, 3105 /* Hans */);
 
         SELFTEST_CHECK(slot >= 0, "the roster should include Hans");
         if( slot >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[slot];
+            struct Mock230Npc* npc = &srv->npcs[slot];
             int const dxs[4] = { 1, -1, 0, 0 };
             int const dzs[4] = { 0, 0, 1, -1 };
             int keep_x = npc->x;
@@ -23836,7 +23929,7 @@ mock230_world_selftest(void)
             int pz;
             int pick = -1;
 
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             px = player->x;
             pz = player->z;
             /* Found, not named: which way is open off the home tile is a fact
@@ -23884,12 +23977,12 @@ mock230_world_selftest(void)
 
     fprintf(stderr, "mock230 selftest: an npc pursues the player\n");
     {
-        int goblin = selftest_require_npc(&srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
 
         SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
         if( goblin >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[goblin];
+            struct Mock230Npc* npc = &srv->npcs[goblin];
             int home_x = npc->spawn_x;
             int home_z = npc->spawn_z;
             int maxrange = npc->def ? npc->def->maxrange : 7;
@@ -23992,7 +24085,7 @@ mock230_world_selftest(void)
             {
                 /* Scene must cover the goblin: route no longer straight-lines
                  * through tiles outside the built window. */
-                selftest_park_player(&srv, home_x, home_z);
+                selftest_park_player(srv, home_x, home_z);
                 for( int ox = -12; ox <= 12 && flee_steps < 6; ox++ )
                 {
                     for( int oz = -12; oz <= 12 && flee_steps < 6; oz++ )
@@ -24025,7 +24118,7 @@ mock230_world_selftest(void)
                 npc->z = home_z;
                 npc->hitpoints = npc->max_hitpoints;
                 npc->death_tick = -1;
-                selftest_park_player(&srv, flee_x[0], flee_z[0]);
+                selftest_park_player(srv, flee_x[0], flee_z[0]);
                 player->hitpoints = player->max_hitpoints;
 
                 /*
@@ -24054,7 +24147,7 @@ mock230_world_selftest(void)
                 player->stat_boosted[MOCK230_STAT_HITPOINTS] = 10;
                 player->hitpoints = player->max_hitpoints;
 
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(npc->combat_target == 0,
                                "an aggressive npc takes the player as a target");
 
@@ -24075,11 +24168,11 @@ mock230_world_selftest(void)
                 {
                     int gap;
 
-                    mock230_combat_stop_player(&srv);
+                    mock230_combat_stop_player(srv);
                     mock230_world_steps_clear(player);
                     player->x = flee_x[step];
                     player->z = flee_z[step];
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
 
                     gap = distance_to_rect(npc->x, npc->z, player->x, player->z, 1, 1);
                     if( gap > worst )
@@ -24101,7 +24194,7 @@ mock230_world_selftest(void)
                 for( int i = 0; i < 10; i++ )
                 {
                     player->hitpoints = player->max_hitpoints;
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                 }
                 SELFTEST_CHECK(distance_to_rect(npc->x, npc->z, player->x, player->z, 1, 1) <= 1,
                                "and catches a player who stops, at %d,%d vs %d,%d", npc->x, npc->z,
@@ -24114,11 +24207,11 @@ mock230_world_selftest(void)
                  * it a goblin follows you to the next county, which is the
                  * behaviour pursuit would otherwise have introduced.
                  */
-                mock230_combat_stop_player(&srv);
+                mock230_combat_stop_player(srv);
                 mock230_world_steps_clear(player);
                 player->x = home_x + maxrange + 4;
                 player->z = home_z;
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(npc->combat_target == -1,
                                "and drops a target dragged past maxrange %d", maxrange);
 
@@ -24129,7 +24222,7 @@ mock230_world_selftest(void)
                  * no legal roll to make.
                  */
                 for( int i = 0; i < 60; i++ )
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                 SELFTEST_CHECK(distance_to_rect(npc->x, npc->z, home_x, home_z, 1, 1) <=
                                    npc->wander_radius,
                                "and wanders home to within its radius %d, at %d,%d from %d,%d",
@@ -24148,13 +24241,83 @@ mock230_world_selftest(void)
      * a shared varp, and writing one as a whole varp destroys the others in it
      * without any symptom until the interface is looked at.
      */
+    fprintf(stderr, "mock230 selftest: a script-spawned npc does not come back\n");
+    {
+        /*
+         * `npc_add` and a map-square spawn are two different lifetimes, and the
+         * death is where they part: `EntityLifeCycle.RESPAWN` vs `DESPAWN` in
+         * the reference (Npc.turn, World.removeNpc). The "combat" section's
+         * goblin is the RESPAWN half and asserts three times that the world
+         * stands its own spawns back up after `respawnrate`. This is the other
+         * half: an npc a script created belongs to that script, and its death is
+         * the end of it.
+         *
+         * The engine used to respawn both, which is invisible for the ordinary
+         * case (content npc_adds a monster, you kill it, nobody looks at that
+         * tile again) and wrong for every encounter that spawns its own roster.
+         * The Inferno reads it as two separate bugs: every add is `npc_add`ed,
+         * so every add the player killed stood back up 25 ticks later — "the
+         * waves are spawning too fast" — and stood back up inert, because what
+         * points an add at the Ancestral Glyph is the timer armed at the
+         * `npc_add` site, and a respawn re-runs `[ai_spawn]`, not the spawner.
+         *
+         * Those goblin checks are the other half of this test and they are not
+         * in this stanza on purpose: this one alone would also pass if
+         * respawning were deleted outright.
+         *
+         * **Placed immediately before a `selftest_reset_world`, deliberately.**
+         * It spawns an npc and runs thirty-odd world ticks, and both of those
+         * are visible to every section that comes after: the spawn shifts which
+         * pool slot the next `npc_spawn` takes, and the ticks move every
+         * wandering npc in the roster and advance the roam RNG. Run in the
+         * middle of the file it turned two unrelated sections a thousand lines
+         * away red — a ranged-reach check that suddenly measured a *different*
+         * goblin two tiles off, and a patrol check — with nothing on either to
+         * point back here. The reset below is what makes the cost end at this
+         * closing brace.
+         */
+        int slot = npc_spawn(srv, 3028, g_home_x + 9, g_home_z + 9, 0);
+
+        SELFTEST_CHECK(slot >= 0, "the fixture npc should spawn");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+            int rate = npc->def->respawnrate;
+            int generation = npc->generation;
+            int waited = rate + 8;
+
+            SELFTEST_CHECK(!npc->despawns_on_death,
+                           "a fresh slot should be the world's, not a script's");
+            SELFTEST_CHECK(rate > 0, "and its record should state a respawn rate to outlive");
+            /* What `SS_OP_NPC_ADD` does on the line after it spawns, and the
+             * only thing separating this npc from the goblin above. */
+            npc->despawns_on_death = 1;
+            mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+            for( int i = 0; i < waited; i++ )
+                mock230_world_tick(srv);
+            /*
+             * The generation is in the assertion rather than beside it: a freed
+             * slot is the pool's lowest free one and the roster sync can take it
+             * for an unrelated spawn, which would show up here as `active` for
+             * reasons that have nothing to do with respawning. Failing on the
+             * generation says that happened instead of blaming the rule.
+             */
+            SELFTEST_CHECK(npc->generation == (uint16_t)generation && !npc->active &&
+                               npc->respawn_tick < 0,
+                           "a killed npc_add npc stays dead: active=%d respawn_tick=%d "
+                           "gen %d->%d, %d ticks after death (respawnrate %d)",
+                           npc->active, npc->respawn_tick, generation, npc->generation,
+                           waited, rate);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: bank varbit packing\n");
     {
         int basevar = 0;
         int lsb = 0;
         int msb = 0;
 
-        selftest_reset_world(&srv, player, 402, 402);
+        selftest_reset_world(srv, player, 402, 402);
         /* 1,410 in rev 239; the bank grows with almost every OldSchool update, so
          * this is a claim about cache.osrs239 and not about banks in general. */
         SELFTEST_CHECK(mock230_bank_inv_size(ids->inv_bank) == 1410,
@@ -24175,20 +24338,20 @@ mock230_world_selftest(void)
             "current-tab should resolve to varp 115 bits 4..7, got varp %d bits %d..%d",
             basevar, lsb, msb);
 
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_currenttab, 9);
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_withdrawnotes, 1);
-        SELFTEST_CHECK(mock230_bank_get_varbit(&srv, ids->varbit_bank_currenttab) == 9,
+        mock230_bank_set_varbit(srv, ids->varbit_bank_currenttab, 9);
+        mock230_bank_set_varbit(srv, ids->varbit_bank_withdrawnotes, 1);
+        SELFTEST_CHECK(mock230_bank_get_varbit(srv, ids->varbit_bank_currenttab) == 9,
                        "setting the neighbouring bit must not disturb the tab");
         SELFTEST_CHECK(player->varps[115] == ((9 << 4) | 1),
                        "both varbits should share varp 115, got %d", player->varps[115]);
 
         /* The widest one. 3960 is bits 1..31, which is where a naive
          * `1 << (msb - lsb + 1)` shifts by 32 and is undefined. */
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_requestedquantity, 100000);
+        mock230_bank_set_varbit(srv, ids->varbit_bank_requestedquantity, 100000);
         SELFTEST_CHECK(
-            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 100000,
+            mock230_bank_get_varbit(srv, ids->varbit_bank_requestedquantity) == 100000,
             "a 31-bit varbit should round-trip, got %d",
-            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity));
+            mock230_bank_get_varbit(srv, ids->varbit_bank_requestedquantity));
     }
 
     /*
@@ -24204,26 +24367,26 @@ mock230_world_selftest(void)
         static const uint8_t k_base_body[] = { 0x06, 0xa7, 0x00, 0x80, 0x25, 0x00 };
         static const uint8_t k_both_body[] = { 0x06, 0xa7, 0xb0, 0x84, 0x25, 0x00 };
         static struct Mock230Capture capture;
-        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* saved_wire = srv->wire;
         const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
         int hp = mock230_content_symbol(MOCK230_PACK_VARBIT, "inferno_zuk_hp");
         int base =
             mock230_content_symbol(MOCK230_PACK_VARBIT, "inferno_zuk_base_hp");
         int opcode = wire239 ? mock230_wire_opcode(wire239, PKT_NAME_VARP_LARGE) : -1;
 
-        selftest_reset_world(&srv, player, 402, 402);
+        selftest_reset_world(srv, player, 402, 402);
         SELFTEST_CHECK(hp == 5653 && base == 5654,
                        "Zuk HP varbits should be 5653/5654, got %d/%d", hp, base);
         SELFTEST_CHECK(wire239 != NULL && opcode == 12,
                        "revision 239 VARP_LARGE should be opcode 12, got %d", opcode);
         if( wire239 && hp >= 0 && base >= 0 )
         {
-            srv.wire = wire239;
-            mock230_capture_begin(&srv, &capture);
-            mock230_varbit_set(&srv, base, 1200);
-            mock230_varbit_set(&srv, hp, 1200);
-            mock230_capture_end(&srv);
-            srv.wire = saved_wire;
+            srv->wire = wire239;
+            mock230_capture_begin(srv, &capture);
+            mock230_varbit_set(srv, base, 1200);
+            mock230_varbit_set(srv, hp, 1200);
+            mock230_capture_end(srv);
+            srv->wire = saved_wire;
 
             SELFTEST_CHECK(player->varps[1575] == 2458800,
                            "Zuk HP siblings should pack as 2458800, got %d",
@@ -24251,7 +24414,7 @@ mock230_world_selftest(void)
             }
         }
         else
-            srv.wire = saved_wire;
+            srv->wire = saved_wire;
     }
 
     /*
@@ -24289,15 +24452,15 @@ mock230_world_selftest(void)
         struct Mock230Bank* bank = &player->bank;
         int coins_before;
 
-        selftest_reset_world(&srv, player, 402, 402);
+        selftest_reset_world(srv, player, 402, 402);
         /* The fixture this whole section deposits and withdraws is content's
          * now — see selftest_seed_new_player. */
-        if( !selftest_seed_new_player(&srv) )
+        if( !selftest_seed_new_player(srv) )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
             goto bank_seeded_done;
         }
-        coins_before = mock230_bank_count(&srv, 995);
+        coins_before = mock230_bank_count(srv, 995);
         SELFTEST_CHECK(coins_before > 0, "the starting bank should hold coins");
         /*
          * And that the seeding went through the bank rather than past it.
@@ -24321,8 +24484,8 @@ mock230_world_selftest(void)
                     slot = i;
             SELFTEST_CHECK(slot >= 0, "the starting kit should include coins");
             held = slot >= 0 ? player->inv[slot].count : 0;
-            mock230_bank_deposit(&srv, slot, held);
-            SELFTEST_CHECK(mock230_bank_count(&srv, 995) == coins_before + held,
+            mock230_bank_deposit(srv, slot, held);
+            SELFTEST_CHECK(mock230_bank_count(srv, 995) == coins_before + held,
                            "a deposit should land on the existing stack");
             SELFTEST_CHECK(slot >= 0 && player->inv[slot].obj_id < 0,
                            "and empty the backpack slot it came from");
@@ -24343,7 +24506,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(slot >= 0, "the starting bank should hold logs");
             if( slot >= 0 )
             {
-                int moved = mock230_bank_withdraw(&srv, slot, 3);
+                int moved = mock230_bank_withdraw(srv, slot, 3);
                 int free_after = 0;
 
                 for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
@@ -24382,7 +24545,7 @@ mock230_world_selftest(void)
                     slot = i;
             bank->note_mode = 1;
             if( slot >= 0 )
-                mock230_bank_withdraw(&srv, slot, 20);
+                mock230_bank_withdraw(srv, slot, 20);
             bank->note_mode = 0;
             {
                 int found = 0;
@@ -24400,12 +24563,12 @@ mock230_world_selftest(void)
                 for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                     if( player->inv[i].obj_id == 374 )
                         slot_of_note = i;
-                mock230_bank_deposit(&srv, slot_of_note, 20);
-                SELFTEST_CHECK(mock230_bank_count(&srv, 374) == 0,
+                mock230_bank_deposit(srv, slot_of_note, 20);
+                SELFTEST_CHECK(mock230_bank_count(srv, 374) == 0,
                                "a deposited note must not make a second bank stack");
-                SELFTEST_CHECK(mock230_bank_count(&srv, 373) == 60,
+                SELFTEST_CHECK(mock230_bank_count(srv, 373) == 60,
                                "it should merge back onto the un-noted stack, got %d",
-                               mock230_bank_count(&srv, 373));
+                               mock230_bank_count(srv, 373));
             }
         }
     bank_seeded_done:;
@@ -24425,8 +24588,8 @@ mock230_world_selftest(void)
         int held;
         int full_idx;
 
-        selftest_reset_world(&srv, player, 402, 402);
-        if( !selftest_seed_new_player(&srv) )
+        selftest_reset_world(srv, player, 402, 402);
+        if( !selftest_seed_new_player(srv) )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
             goto bank_open_flush_done;
@@ -24438,17 +24601,17 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(slot >= 0, "the starting kit should include coins");
         held = slot >= 0 ? player->inv[slot].count : 0;
 
-        mock230_bank_open(&srv);
+        mock230_bank_open(srv);
         SELFTEST_CHECK(bank->open, "bank must be open for the flush path");
         /* Open already transmitted; drain dirty so the deposit's flush is the
          * one under test. */
         bank->dirty = 0;
 
-        mock230_capture_begin(&srv, &capture);
-        mock230_bank_deposit(&srv, slot, held);
+        mock230_capture_begin(srv, &capture);
+        mock230_bank_deposit(srv, slot, held);
         SELFTEST_CHECK(bank->dirty, "a deposit with the bank open marks dirty");
-        mock230_world_tick(&srv);
-        mock230_capture_end(&srv);
+        mock230_world_tick(srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
         SELFTEST_CHECK(!bank->dirty, "bank_flush clears dirty after transmit");
 
@@ -24477,11 +24640,11 @@ mock230_world_selftest(void)
                     bank_slot = i;
             SELFTEST_CHECK(bank_slot >= 0, "coins should be in the bank after deposit");
             bank->dirty = 0;
-            mock230_capture_begin(&srv, &capture);
-            mock230_bank_withdraw(&srv, bank_slot, 1);
+            mock230_capture_begin(srv, &capture);
+            mock230_bank_withdraw(srv, bank_slot, 1);
             SELFTEST_CHECK(bank->dirty, "a withdraw with the bank open marks dirty");
-            mock230_world_tick(&srv);
-            mock230_capture_end(&srv);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(!capture.overflow, "the capture buffer overflowed");
 
             full_idx = -1;
@@ -24502,7 +24665,7 @@ mock230_world_selftest(void)
                            "open-bank withdraw must UPDATE_INV_FULL inv_bank");
         }
 
-        mock230_bank_close(&srv);
+        mock230_bank_close(srv);
     bank_open_flush_done:;
     }
 
@@ -24511,9 +24674,9 @@ mock230_world_selftest(void)
         struct Mock230Bank* bank = &player->bank;
         int loaded;
 
-        selftest_reset_world(&srv, player, 402, 402);
+        selftest_reset_world(srv, player, 402, 402);
         loaded = mock230_scripts_load(
-            &srv, "OSRS-Content/osrs239-content/server/scripts/build");
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
@@ -24522,13 +24685,13 @@ mock230_world_selftest(void)
 
         bank->slots[0].obj_id = 995;
         bank->slots[0].count = 500;
-        mock230_bank_open(&srv);
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_quantity_type, ids->bank_qty_1);
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_requestedquantity, 0);
+        mock230_bank_open(srv);
+        mock230_bank_set_varbit(srv, ids->varbit_bank_quantity_type, ids->bank_qty_1);
+        mock230_bank_set_varbit(srv, ids->varbit_bank_requestedquantity, 0);
 
         player->last_slot = 0;
         SELFTEST_CHECK(
-            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 3) ==
+            mock230_scripts_run_if_button(srv, ids->com_bankmain_items, 3) ==
                 MOCK230_TRIGGER_RAN,
             "if_button3 Withdraw-5 should bind");
         SELFTEST_CHECK(bank->slots[0].count == 495, "Withdraw-5 should leave 495, got %d",
@@ -24536,7 +24699,7 @@ mock230_world_selftest(void)
 
         player->last_slot = 0;
         SELFTEST_CHECK(
-            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 7) ==
+            mock230_scripts_run_if_button(srv, ids->com_bankmain_items, 7) ==
                 MOCK230_TRIGGER_RAN,
             "if_button7 Withdraw-All should bind");
         SELFTEST_CHECK(bank->slots[0].obj_id < 0 || bank->slots[0].count == 0,
@@ -24547,13 +24710,13 @@ mock230_world_selftest(void)
         bank->dirty = 1;
         player->last_slot = 0;
         SELFTEST_CHECK(
-            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 6) ==
+            mock230_scripts_run_if_button(srv, ids->com_bankmain_items, 6) ==
                 MOCK230_TRIGGER_RAN,
             "if_button6 Withdraw-X should bind and park");
-        SELFTEST_CHECK(mock230_scripts_resume_countdialog(&srv, 40) == 1,
+        SELFTEST_CHECK(mock230_scripts_resume_countdialog(srv, 40) == 1,
                        "resume Withdraw-X amount");
         SELFTEST_CHECK(
-            mock230_bank_get_varbit(&srv, ids->varbit_bank_requestedquantity) == 40,
+            mock230_bank_get_varbit(srv, ids->varbit_bank_requestedquantity) == 40,
             "last-X varbit written by content");
         SELFTEST_CHECK(bank->slots[0].count == 60, "Withdraw-X 40 should leave 60, got %d",
                        bank->slots[0].count);
@@ -24603,7 +24766,7 @@ mock230_world_selftest(void)
             }
         }
 
-        mock230_bank_close(&srv);
+        mock230_bank_close(srv);
     bank_ladder_done:;
     }
 
@@ -24621,9 +24784,9 @@ mock230_world_selftest(void)
         int if2;
         int sword_slot = 2;
 
-        selftest_reset_world(&srv, player, 402, 402);
+        selftest_reset_world(srv, player, 402, 402);
         loaded = mock230_scripts_load(
-            &srv, "OSRS-Content/osrs239-content/server/scripts/build");
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
@@ -24643,7 +24806,7 @@ mock230_world_selftest(void)
         player->inv[sword_slot].count = 1;
         player->inv[5].obj_id = 995; /* coins */
         player->inv[5].count = 100;
-        mock230_bank_open(&srv);
+        mock230_bank_open(srv);
 
         /*
          * The mask. Bit 2 set (the sword), bit 5 clear (coins) — and the whole
@@ -24661,7 +24824,7 @@ mock230_world_selftest(void)
          * in — `[if_open,bankmain]` zeroes %bank_wornview. */
         player->last_slot = sword_slot;
         SELFTEST_CHECK(
-            mock230_scripts_run_if_button(&srv, ids->com_bankside_items, 9) ==
+            mock230_scripts_run_if_button(srv, ids->com_bankside_items, 9) ==
                 MOCK230_TRIGGER_RAN,
             "if_button9 on the bank side panel should bind (Wear)");
         SELFTEST_CHECK(player->worn[3].obj_id == 1277,
@@ -24678,7 +24841,7 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(wornslot3 > 0, "bankmain:wornslot3 must name a component");
             SELFTEST_CHECK(
-                mock230_scripts_run_if_button(&srv, wornslot3, 1) == MOCK230_TRIGGER_RAN,
+                mock230_scripts_run_if_button(srv, wornslot3, 1) == MOCK230_TRIGGER_RAN,
                 "if_button1 on bankmain:wornslot3 should bind (Remove)");
             SELFTEST_CHECK(player->worn[3].obj_id < 0,
                            "and take the sword off, got %d", player->worn[3].obj_id);
@@ -24689,7 +24852,7 @@ mock230_world_selftest(void)
              * not `~unequip` followed by a deposit and must work with a full
              * backpack. */
             player->last_slot = 0;
-            mock230_scripts_run_if_button(&srv, ids->com_bankside_items, 9);
+            mock230_scripts_run_if_button(srv, ids->com_bankside_items, 9);
             SELFTEST_CHECK(player->worn[3].obj_id == 1277, "re-equip for the Bank op");
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
             {
@@ -24697,12 +24860,12 @@ mock230_world_selftest(void)
                 player->inv[i].count = 1;
             }
             SELFTEST_CHECK(
-                mock230_scripts_run_if_button(&srv, wornslot3, 2) == MOCK230_TRIGGER_RAN,
+                mock230_scripts_run_if_button(srv, wornslot3, 2) == MOCK230_TRIGGER_RAN,
                 "if_button2 on bankmain:wornslot3 should bind (Bank)");
             SELFTEST_CHECK(player->worn[3].obj_id < 0,
                            "Bank should work with no backpack space, got %d",
                            player->worn[3].obj_id);
-            SELFTEST_CHECK(mock230_bank_count(&srv, 1277) == 1,
+            SELFTEST_CHECK(mock230_bank_count(srv, 1277) == 1,
                            "and the sword should be in the bank");
         }
 
@@ -24710,9 +24873,9 @@ mock230_world_selftest(void)
          * scratch space, not the bank's, so a mask left in it is a bug in
          * whatever opens next. The trigger is content's `[if_close,bankmain]`,
          * driven here by its subject rather than by a real client close. */
-        mock230_bank_close(&srv);
+        mock230_bank_close(srv);
         mock230_scripts_run_trigger_specific(
-            &srv, SS_TRIGGER_IF_CLOSE, ids->iface_bankmain, -1, -1);
+            srv, SS_TRIGGER_IF_CLOSE, ids->iface_bankmain, -1, -1);
         SELFTEST_CHECK(player->varps[262] == 0,
                        "closing the bank must clear if2 (it is shared), got 0x%x",
                        player->varps[262]);
@@ -24730,9 +24893,9 @@ mock230_world_selftest(void)
         int placeholder;
         int com_placeholder;
 
-        selftest_reset_world(&srv, player, 402, 402);
+        selftest_reset_world(srv, player, 402, 402);
         loaded = mock230_scripts_load(
-            &srv, "OSRS-Content/osrs239-content/server/scripts/build");
+            srv, "OSRS-Content/osrs239-content/server/scripts/build");
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
@@ -24760,13 +24923,13 @@ mock230_world_selftest(void)
         }
         bank->slots[0].obj_id = 1277;
         bank->slots[0].count = 1;
-        mock230_bank_open(&srv);
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_quantity_type, ids->bank_qty_1);
+        mock230_bank_open(srv);
+        mock230_bank_set_varbit(srv, ids->varbit_bank_quantity_type, ids->bank_qty_1);
 
         /* Off by default: the withdraw empties the slot outright. */
-        mock230_bank_set_varbit(&srv, ids->varbit_bank_leaveplaceholders, 0);
+        mock230_bank_set_varbit(srv, ids->varbit_bank_leaveplaceholders, 0);
         player->last_slot = 0;
-        mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 1);
+        mock230_scripts_run_if_button(srv, ids->com_bankmain_items, 1);
         SELFTEST_CHECK(bank->slots[0].obj_id < 0,
                        "with placeholders off a withdraw should leave a gap, got %d",
                        bank->slots[0].obj_id);
@@ -24776,10 +24939,10 @@ mock230_world_selftest(void)
         com_placeholder = mock230_content_symbol(MOCK230_PACK_COMPONENT, "bankmain:placeholder");
         SELFTEST_CHECK(com_placeholder > 0, "bankmain:placeholder must name a component");
         SELFTEST_CHECK(
-            mock230_scripts_run_if_button(&srv, com_placeholder, 1) == MOCK230_TRIGGER_RAN,
+            mock230_scripts_run_if_button(srv, com_placeholder, 1) == MOCK230_TRIGGER_RAN,
             "if_button1 on the placeholder button should bind");
         SELFTEST_CHECK(
-            mock230_bank_get_varbit(&srv, ids->varbit_bank_leaveplaceholders) == 1,
+            mock230_bank_get_varbit(srv, ids->varbit_bank_leaveplaceholders) == 1,
             "and turn the setting on");
 
         /* On: the slot keeps its place, as the placeholder obj with a count of
@@ -24787,7 +24950,7 @@ mock230_world_selftest(void)
         bank->slots[0].obj_id = 1277;
         bank->slots[0].count = 1;
         player->last_slot = 0;
-        mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 1);
+        mock230_scripts_run_if_button(srv, ids->com_bankmain_items, 1);
         SELFTEST_CHECK(bank->slots[0].obj_id == placeholder,
                        "a withdraw should leave the placeholder, got %d", bank->slots[0].obj_id);
         SELFTEST_CHECK(bank->slots[0].count == 0,
@@ -24799,7 +24962,7 @@ mock230_world_selftest(void)
         bank->slots[1].obj_id = 995;
         bank->slots[1].count = 10;
         player->last_slot = 0;
-        mock230_scripts_run_if_button(&srv, ids->com_bankside_items, 2);
+        mock230_scripts_run_if_button(srv, ids->com_bankside_items, 2);
         SELFTEST_CHECK(bank->slots[0].obj_id == 1277 && bank->slots[0].count == 1,
                        "a deposit should reclaim its placeholder slot, got %d x%d",
                        bank->slots[0].obj_id, bank->slots[0].count);
@@ -24810,13 +24973,13 @@ mock230_world_selftest(void)
         bank->slots[0].count = 0;
         player->last_slot = 0;
         SELFTEST_CHECK(
-            mock230_scripts_run_if_button(&srv, ids->com_bankmain_items, 8) ==
+            mock230_scripts_run_if_button(srv, ids->com_bankmain_items, 8) ==
                 MOCK230_TRIGGER_RAN,
             "if_button8 should bind for Release");
         SELFTEST_CHECK(bank->slots[0].obj_id < 0,
                        "Release should empty the slot, got %d", bank->slots[0].obj_id);
 
-        mock230_bank_close(&srv);
+        mock230_bank_close(srv);
     bank_placeholder_done:;
     }
 
@@ -24830,10 +24993,10 @@ mock230_world_selftest(void)
             10 /* UPDATE_INV_FULL */,
         };
 
-        selftest_reset_world(&srv, player, 402, 402);
-        mock230_capture_begin(&srv, &capture);
-        mock230_bank_open(&srv);
-        mock230_capture_end(&srv);
+        selftest_reset_world(srv, player, 402, 402);
+        mock230_capture_begin(srv, &capture);
+        mock230_bank_open(srv);
+        mock230_capture_end(srv);
         SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_open, 4),
                        "opening the bank should mount, unlock, then fill");
         SELFTEST_CHECK(player->bank.open, "and leave the bank marked open");
@@ -24844,20 +25007,20 @@ mock230_world_selftest(void)
             int second = player->bank.slots[1].obj_id;
             int third = player->bank.slots[2].obj_id;
 
-            mock230_bank_set_varbit(&srv, ids->varbit_bank_insertmode, 1);
-            mock230_bank_move_slot(&srv, 0, 2);
+            mock230_bank_set_varbit(srv, ids->varbit_bank_insertmode, 1);
+            mock230_bank_move_slot(srv, 0, 2);
             SELFTEST_CHECK(player->bank.slots[0].obj_id == second &&
                                player->bank.slots[1].obj_id == third &&
                                player->bank.slots[2].obj_id == first,
                            "insert should shuffle, not swap");
-            mock230_bank_set_varbit(&srv, ids->varbit_bank_insertmode, 0);
-            mock230_bank_move_slot(&srv, 2, 0);
+            mock230_bank_set_varbit(srv, ids->varbit_bank_insertmode, 0);
+            mock230_bank_move_slot(srv, 2, 0);
             SELFTEST_CHECK(player->bank.slots[0].obj_id == first &&
                                player->bank.slots[2].obj_id == second,
                            "swap should exchange the two slots");
         }
 
-        mock230_bank_close(&srv);
+        mock230_bank_close(srv);
         SELFTEST_CHECK(!player->bank.open, "closing should clear the open flag");
     }
 
@@ -24872,12 +25035,12 @@ mock230_world_selftest(void)
          * the point, since two of them are allocated by tools/ss_allocate.py
          * and will move the moment the tree grows another varp.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
-        if( !loaded || !SSVM_ProviderGetByName(srv.scripts, "[proc,bankpin_gate]") )
+        if( !loaded || !SSVM_ProviderGetByName(srv->scripts, "[proc,bankpin_gate]") )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
         }
@@ -24916,30 +25079,30 @@ mock230_world_selftest(void)
                            "would destroy whatever else is in it");
 
             /* ---- no PIN: the bank opens straight away ------------------- */
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             player->varps[varp_set] = 0;
             player->varps[varp_code] = 0;
             player->varps[varp_verified] = 0;
-            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,openbank]", NULL, 0);
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
                            "with no PIN set the bank opens directly, group is %d",
                            player->mainmodal_group);
             SELFTEST_CHECK(player->active_script == NULL,
                            "and nothing parks waiting for a number");
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
 
             /* ---- with a PIN: the keypad comes first, and NO chat prompt -- */
             {
                 static struct Mock230Capture capture;
 
-                selftest_reset_world(&srv, player, 402, 402);
+                selftest_reset_world(srv, player, 402, 402);
                 player->varps[varp_set] = 1;
                 player->varps[varp_code] = k_pin;
                 player->varps[varp_verified] = 0;
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_scripts_run_proc(srv, "[proc,openbank]", NULL, 0);
+                mock230_capture_end(srv);
 
                 SELFTEST_CHECK(player->mainmodal_group == keypad,
                                "a PIN gates the bank behind the keypad, group is %d",
@@ -24964,7 +25127,7 @@ mock230_world_selftest(void)
             }
 
             /* ---- a wrong guess is refused and the keypad comes back ----- */
-            mock230_scripts_resume_countdialog(&srv, k_pin + 1);
+            mock230_scripts_resume_countdialog(srv, k_pin + 1);
             SELFTEST_CHECK(player->varps[varp_verified] == 0,
                            "a wrong PIN does not verify the session");
             SELFTEST_CHECK(player->mainmodal_group == keypad,
@@ -24973,21 +25136,21 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->active_script != NULL, "still parked for the retry");
 
             /* ---- the right guess opens the bank ------------------------- */
-            mock230_scripts_resume_countdialog(&srv, k_pin);
+            mock230_scripts_resume_countdialog(srv, k_pin);
             SELFTEST_CHECK(player->varps[varp_verified] == 1,
                            "the right PIN verifies the session");
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
                            "and the bank finally opens, group is %d",
                            player->mainmodal_group);
             SELFTEST_CHECK(player->active_script == NULL, "the gate script has finished");
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
 
             /* ---- once verified, the session is not asked again ---------- */
-            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,openbank]", NULL, 0);
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
                            "a verified session goes straight in, group is %d",
                            player->mainmodal_group);
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
 
             /*
              * ---- what survives a logout, and what must not ---------------
@@ -25018,14 +25181,14 @@ mock230_world_selftest(void)
             }
 
             /* ---- the two sentinels are not guesses ---------------------- */
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             player->varps[varp_set] = 1;
             player->varps[varp_code] = k_pin;
             player->varps[varp_verified] = 0;
-            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,openbank]", NULL, 0);
             SELFTEST_CHECK(player->mainmodal_group == keypad, "keypad up for the sentinel case");
             /* 12345 is the keypad's "Exit" row (script 653 arms it literally). */
-            mock230_scripts_resume_countdialog(&srv, 12345);
+            mock230_scripts_resume_countdialog(srv, 12345);
             SELFTEST_CHECK(player->varps[varp_verified] == 0,
                            "Exit does not verify");
             SELFTEST_CHECK(player->mainmodal_group != ids->iface_bankmain,
@@ -25034,16 +25197,16 @@ mock230_world_selftest(void)
                            "Exit ends the gate rather than costing an attempt");
 
             /* ---- three wrong guesses end the visit ---------------------- */
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             player->varps[varp_set] = 1;
             player->varps[varp_code] = k_pin;
             player->varps[varp_verified] = 0;
-            mock230_scripts_run_proc(&srv, "[proc,openbank]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,openbank]", NULL, 0);
             for( int i = 0; i < 3; i++ )
             {
                 SELFTEST_CHECK(player->active_script != NULL,
                                "parked for attempt %d", i + 1);
-                mock230_scripts_resume_countdialog(&srv, k_pin + 1 + i);
+                mock230_scripts_resume_countdialog(srv, k_pin + 1 + i);
             }
             SELFTEST_CHECK(player->active_script == NULL,
                            "three wrong guesses end the gate");
@@ -25054,7 +25217,7 @@ mock230_world_selftest(void)
             player->varps[varp_set] = 0;
             player->varps[varp_code] = 0;
             player->varps[varp_verified] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -25132,7 +25295,7 @@ mock230_world_selftest(void)
             int follower;
 
             player_set_occupancy(player, 0);
-            selftest_park_player(&srv, origin_x, origin_z);
+            selftest_park_player(srv, origin_x, origin_z);
             player->last_step_x = origin_x - dir_x;
             player->last_step_z = origin_z - dir_z;
             player->follow_x = player->last_step_x;
@@ -25140,7 +25303,7 @@ mock230_world_selftest(void)
             player_set_occupancy(player, 1);
 
             follower =
-                mock230_world_npc_spawn(&srv, chicken, origin_x - dir_x, origin_z - dir_z, 0);
+                mock230_world_npc_spawn(srv, chicken, origin_x - dir_x, origin_z - dir_z, 0);
             SELFTEST_CHECK(follower >= 0, "the follower should spawn behind the player");
             if( follower >= 0 )
             {
@@ -25149,17 +25312,17 @@ mock230_world_selftest(void)
                 int prev_x;
                 int prev_z;
 
-                mock230_world_npc_set_owner(&srv.npcs[follower], player);
-                srv.npcs[follower].mode = MOCK230_NPCMODE_PLAYERFOLLOW;
+                mock230_world_npc_set_owner(&srv->npcs[follower], player);
+                srv->npcs[follower].mode = MOCK230_NPCMODE_PLAYERFOLLOW;
 
                 /* ---- walking -------------------------------------------- */
-                mock230_world_walk_to(&srv, origin_x + dir_x * run, origin_z + dir_z * run);
+                mock230_world_walk_to(srv, origin_x + dir_x * run, origin_z + dir_z * run);
                 for( int i = 0; i < run; i++ )
                 {
                     int gap;
 
-                    mock230_world_tick(&srv);
-                    gap = npc_player_range(&srv.npcs[follower], player);
+                    mock230_world_tick(srv);
+                    gap = npc_player_range(&srv->npcs[follower], player);
                     /* Skip the first tick: the follower starts on the player's
                      * own previous tile, and the player takes a step before
                      * anyone has had a turn to react to it. */
@@ -25175,16 +25338,16 @@ mock230_world_selftest(void)
                 player->run_toggle = 1;
                 player->run_energy = 10000;
                 worst = 0;
-                mock230_world_walk_to(&srv, origin_x, origin_z);
+                mock230_world_walk_to(srv, origin_x, origin_z);
                 for( int i = 0; i < run; i++ )
                 {
                     int gap;
                     int covered;
 
-                    prev_x = srv.npcs[follower].x;
-                    prev_z = srv.npcs[follower].z;
-                    mock230_world_tick(&srv);
-                    gap = npc_player_range(&srv.npcs[follower], player);
+                    prev_x = srv->npcs[follower].x;
+                    prev_z = srv->npcs[follower].z;
+                    mock230_world_tick(srv);
+                    gap = npc_player_range(&srv->npcs[follower], player);
                     if( i > 0 && gap > worst )
                         worst = gap;
                     /*
@@ -25193,13 +25356,13 @@ mock230_world_selftest(void)
                      * NPC_INFO has been written, so nothing outside the tick
                      * can ever read it. Ground covered is what it encodes.
                      */
-                    covered = srv.npcs[follower].x - prev_x;
+                    covered = srv->npcs[follower].x - prev_x;
                     if( covered < 0 )
                         covered = -covered;
-                    if( srv.npcs[follower].z - prev_z > covered ||
-                        prev_z - srv.npcs[follower].z > covered )
-                        covered = srv.npcs[follower].z > prev_z ? srv.npcs[follower].z - prev_z
-                                                                : prev_z - srv.npcs[follower].z;
+                    if( srv->npcs[follower].z - prev_z > covered ||
+                        prev_z - srv->npcs[follower].z > covered )
+                        covered = srv->npcs[follower].z > prev_z ? srv->npcs[follower].z - prev_z
+                                                                : prev_z - srv->npcs[follower].z;
                     if( covered >= 2 )
                         ran = 1;
                 }
@@ -25235,30 +25398,30 @@ mock230_world_selftest(void)
                  * Three tiles back so the mode has two steps to take, and
                  * ahead along the run because that is the ground checked clear.
                  */
-                mock230_world_npc_teleport(&srv.npcs[follower], player->x + dir_x * 3,
+                mock230_world_npc_teleport(&srv->npcs[follower], player->x + dir_x * 3,
                                            player->z + dir_z * 3, 0);
-                srv.npcs[follower].step_dir = -1;
-                srv.npcs[follower].run_dir = -1;
-                srv.npcs[follower].mode = MOCK230_NPCMODE_PLAYERFOLLOW;
-                mock230_world_set_active(&srv, player);
-                npc_run_mode(&srv, &srv.npcs[follower], follower);
-                SELFTEST_CHECK(srv.npcs[follower].run_dir >= 0,
+                srv->npcs[follower].step_dir = -1;
+                srv->npcs[follower].run_dir = -1;
+                srv->npcs[follower].mode = MOCK230_NPCMODE_PLAYERFOLLOW;
+                mock230_world_set_active(srv, player);
+                npc_run_mode(srv, &srv->npcs[follower], follower);
+                SELFTEST_CHECK(srv->npcs[follower].run_dir >= 0,
                                "a two-tile follow turn must file its second direction in "
                                "run_dir for NPC_INFO's update type 2, got %d",
-                               srv.npcs[follower].run_dir);
+                               srv->npcs[follower].run_dir);
 
                 /* ---- and settle beside them once they stop --------------- */
                 for( int i = 0; i < 8; i++ )
-                    mock230_world_tick(&srv);
-                SELFTEST_CHECK(npc_player_range(&srv.npcs[follower], player) <= 1,
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(npc_player_range(&srv->npcs[follower], player) <= 1,
                                "and be adjacent again once the player stops, got %d",
-                               npc_player_range(&srv.npcs[follower], player));
+                               npc_player_range(&srv->npcs[follower], player));
 
-                mock230_world_npc_occupancy(&srv.npcs[follower], 0);
-                srv.npcs[follower].active = 0;
+                mock230_world_npc_occupancy(&srv->npcs[follower], 0);
+                srv->npcs[follower].active = 0;
             }
         }
-        selftest_park_player(&srv, 3222, 3218);
+        selftest_park_player(srv, 3222, 3218);
     }
 
     fprintf(stderr, "mock230 selftest: npc modes\n");
@@ -25273,10 +25436,10 @@ mock230_world_selftest(void)
          * stopping condition: a mover that merely walks toward the player looks
          * right for several ticks and then stands on top of them.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -25288,7 +25451,7 @@ mock230_world_selftest(void)
             int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
             int follower = -1;
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_mode_follow]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_mode_follow]");
             if( !script )
             {
                 fprintf(stderr, "  SKIP  mode scripts not in this pack\n");
@@ -25298,7 +25461,7 @@ mock230_world_selftest(void)
                 int start_range;
                 int end_range;
 
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 /*
                  * The chicken the script just added, and only that one.
                  *
@@ -25313,8 +25476,8 @@ mock230_world_selftest(void)
                  * what "the script added it" is.
                  */
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                    if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
-                        srv.npcs[i].static_spawn < 0 && srv.npcs[i].x == 3230 )
+                    if( srv->npcs[i].active && srv->npcs[i].type == chicken &&
+                        srv->npcs[i].static_spawn < 0 && srv->npcs[i].x == 3230 )
                         follower = i;
                 SELFTEST_CHECK(follower >= 0, "the follower should be spawned");
 
@@ -25340,8 +25503,8 @@ mock230_world_selftest(void)
                     {
                         static const int dxs[4] = { -1, 1, 0, 0 };
                         static const int dzs[4] = { 0, 0, -1, 1 };
-                        int base_x = srv.npcs[follower].x;
-                        int base_z = srv.npcs[follower].z;
+                        int base_x = srv->npcs[follower].x;
+                        int base_z = srv->npcs[follower].z;
                         int placed = 0;
 
                         for( int dir = 0; dir < 4 && !placed; dir++ )
@@ -25359,8 +25522,8 @@ mock230_world_selftest(void)
                              * Longest-first keeps the walk long enough to be a
                              * real follow.
                              */
-                            int reach = srv.npcs[follower].def
-                                            ? srv.npcs[follower].def->maxrange - 1
+                            int reach = srv->npcs[follower].def
+                                            ? srv->npcs[follower].def->maxrange - 1
                                             : 4;
 
                             if( reach > 6 )
@@ -25381,7 +25544,7 @@ mock230_world_selftest(void)
                                 }
                                 if( clear )
                                 {
-                                    selftest_park_player(&srv, base_x + dxs[dir] * gap,
+                                    selftest_park_player(srv, base_x + dxs[dir] * gap,
                                                          base_z + dzs[dir] * gap);
                                     placed = 1;
                                 }
@@ -25391,19 +25554,19 @@ mock230_world_selftest(void)
                                        "a clear run from the follower to be followed along");
                     }
 
-                    start_range = srv.npcs[follower].x - player->x;
+                    start_range = srv->npcs[follower].x - player->x;
                     if( start_range < 0 )
                         start_range = -start_range;
-                    SELFTEST_CHECK(srv.npcs[follower].mode == MOCK230_NPCMODE_PLAYERFOLLOW,
+                    SELFTEST_CHECK(srv->npcs[follower].mode == MOCK230_NPCMODE_PLAYERFOLLOW,
                                    "npc_setmode should store the mode, got %d",
-                                   srv.npcs[follower].mode);
+                                   srv->npcs[follower].mode);
 
                     /* 60, not 30: an npc steps one tile a tick and the run
                      * found above can be six long, so thirty ticks was only
                      * ever enough for a follower that started close. */
                     for( int i = 0; i < 60; i++ )
-                        mock230_world_tick(&srv);
-                    end_range = srv.npcs[follower].x - player->x;
+                        mock230_world_tick(srv);
+                    end_range = srv->npcs[follower].x - player->x;
                     if( end_range < 0 )
                         end_range = -end_range;
                     SELFTEST_CHECK(end_range < start_range,
@@ -25434,16 +25597,16 @@ mock230_world_selftest(void)
 
                     /* And stop there rather than walking onto them. */
                     for( int i = 0; i < 5; i++ )
-                        mock230_world_tick(&srv);
-                    SELFTEST_CHECK(srv.npcs[follower].x != player->x ||
-                                       srv.npcs[follower].z != player->z,
+                        mock230_world_tick(srv);
+                    SELFTEST_CHECK(srv->npcs[follower].x != player->x ||
+                                       srv->npcs[follower].z != player->z,
                                    "playerfollow should stop beside the player, not on them");
 
                     /* `none` has to actually stop it: park the npc, set none,
                      * and assert it does not move. Without the wander default
                      * this would be indistinguishable from never having set a
                      * mode. */
-                    srv.npcs[follower].mode = MOCK230_NPCMODE_NONE;
+                    srv->npcs[follower].mode = MOCK230_NPCMODE_NONE;
                     /*
                      * And drop the route the follow laid down, which is what
                      * makes the check below about the *mode* rather than about
@@ -25464,20 +25627,20 @@ mock230_world_selftest(void)
                      * fixture chicken started. This clear is what the test
                      * always meant.
                      */
-                    npc_clear_waypoints(&srv.npcs[follower]);
+                    npc_clear_waypoints(&srv->npcs[follower]);
                     {
-                        int px = srv.npcs[follower].x;
-                        int pz = srv.npcs[follower].z;
+                        int px = srv->npcs[follower].x;
+                        int pz = srv->npcs[follower].z;
 
                         for( int i = 0; i < 10; i++ )
-                            mock230_world_tick(&srv);
-                        SELFTEST_CHECK(srv.npcs[follower].x == px && srv.npcs[follower].z == pz,
+                            mock230_world_tick(srv);
+                        SELFTEST_CHECK(srv->npcs[follower].x == px && srv->npcs[follower].z == pz,
                                        "mode none should hold the npc still");
                     }
-                    srv.npcs[follower].active = 0;
+                    srv->npcs[follower].active = 0;
                 }
 
-                script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_mode_op]");
+                script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_mode_op]");
                 if( script )
                 {
                     int runner = -1;
@@ -25502,33 +25665,33 @@ mock230_world_selftest(void)
                      * Three tiles north-west: far enough to need the walk, off
                      * both axes so there is a step to take.
                      */
-                    selftest_park_player(&srv, 3224, 3221);
+                    selftest_park_player(srv, 3224, 3221);
 
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                    mock230_scripts_run_script(&srv, script->id);
+                    mock230_scripts_run_script(srv, script->id);
                     /* `static_spawn < 0` for the same reason the follower
                      * above needs it: a coordinate is not an identity once the
                      * world roster has its own chickens on the same ground. */
                     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                        if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
-                            srv.npcs[i].static_spawn < 0 && srv.npcs[i].x == 3226 )
+                        if( srv->npcs[i].active && srv->npcs[i].type == chicken &&
+                            srv->npcs[i].static_spawn < 0 && srv->npcs[i].x == 3226 )
                             runner = i;
                     SELFTEST_CHECK(runner >= 0, "the opplayer2 npc should be spawned");
 
                     for( int i = 0; i < 30; i++ )
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                    "opplayer2 should fire [ai_opplayer2] once on arrival, got %d",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                     /* The errand is over, so it must not re-fire. An npc left
                      * in the mode would trigger every tick from then on. */
                     for( int i = 0; i < 10; i++ )
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                    "and drop back to none rather than firing again, got %d",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                     if( runner >= 0 )
-                        srv.npcs[runner].active = 0;
+                        srv->npcs[runner].active = 0;
                 }
 
                 /* Combat has its own movement/attack pass, so it intentionally
@@ -25546,15 +25709,15 @@ mock230_world_selftest(void)
                                    "test_combat should be available for the AP handoff fixture");
                     if( test_combat >= 0 )
                     {
-                        mock230_world_set_active(&srv, player);
+                        mock230_world_set_active(srv, player);
                         handoff = mock230_world_npc_spawn(
-                            &srv, test_combat, player->x + 1, player->z, player->level);
+                            srv, test_combat, player->x + 1, player->z, player->level);
                     }
                     SELFTEST_CHECK(handoff >= 0,
                                    "the OP-to-AP combat handoff fixture should spawn");
                     if( handoff >= 0 )
                     {
-                        struct Mock230Npc* npc = &srv.npcs[handoff];
+                        struct Mock230Npc* npc = &srv->npcs[handoff];
 
                         npc->spawn_pending = 0;
                         npc->combat_target = player->pid;
@@ -25564,13 +25727,13 @@ mock230_world_selftest(void)
 
                         /* The clock invokes OP first; its test handler selects
                          * AP but does not perform the AP action yet. */
-                        mock230_combat_npc_tick(&srv, handoff);
+                        mock230_combat_npc_tick(srv, handoff);
                         SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_APPLAYER1 + 1 &&
                                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                                        "a combat OP handler should leave AP pending until next turn");
 
-                        srv.tick++;
-                        mock230_combat_npc_tick(&srv, handoff);
+                        srv->tick++;
+                        mock230_combat_npc_tick(srv, handoff);
                         SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_NONE &&
                                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                        "the next combat turn should dispatch [ai_applayer2] once");
@@ -25578,7 +25741,7 @@ mock230_world_selftest(void)
                         mock230_world_npc_occupancy(npc, 0);
                         npc->active = 0;
                         npc->respawn_tick = -1;
-                        mock230_zone_npc_refile(&srv, handoff);
+                        mock230_zone_npc_refile(srv, handoff);
                     }
                 }
 
@@ -25590,19 +25753,19 @@ mock230_world_selftest(void)
                  * asserting the queue arguments. */
                 {
                     const struct SSVM_Script* damage =
-                        SSVM_ProviderGetByName(srv.scripts, "[queue,combat_damage_player]");
+                        SSVM_ProviderGetByName(srv->scripts, "[queue,combat_damage_player]");
                     int wizard = mock230_content_symbol(MOCK230_PACK_NPC, "wizard");
                     int wizard_slot = -1;
                     int queued = 0;
                     int start_hitpoints = 0;
-                    uint64_t saved_rng = srv.script_env->rng;
+                    uint64_t saved_rng = srv->script_env->rng;
 
                     SELFTEST_CHECK(wizard >= 0 && damage != NULL,
                                    "wizard magic fixture needs the NPC type and damage queue");
                     if( wizard >= 0 && damage )
                     {
-                        selftest_reset_world(&srv, player, 402, 402);
-                        mock230_world_set_active(&srv, player);
+                        selftest_reset_world(srv, player, 402, 402);
+                        mock230_world_set_active(srv, player);
                         /* Keep the fixture alive through several shots while
                          * leaving its magic defence at the level-one baseline.
                          * The action lock suppresses its auto-retaliation but
@@ -25615,13 +25778,13 @@ mock230_world_selftest(void)
                         player->damage_type = -1;
                         start_hitpoints = player->hitpoints;
                         wizard_slot = mock230_world_npc_spawn(
-                            &srv, wizard, player->x + 2, player->z, player->level);
+                            srv, wizard, player->x + 2, player->z, player->level);
                     }
                     SELFTEST_CHECK(wizard_slot >= 0,
                                    "wizard magic fixture should spawn a wizard");
                     if( wizard_slot >= 0 )
                     {
-                        struct Mock230Npc* npc = &srv.npcs[wizard_slot];
+                        struct Mock230Npc* npc = &srv->npcs[wizard_slot];
 
                         npc->spawn_pending = 0;
                         npc->combat_target = player->pid;
@@ -25630,8 +25793,8 @@ mock230_world_selftest(void)
                          * make the low-defence fixture hit and draw a positive
                          * value from randominc(4). The normal game sequence
                          * remains random; restore it below. */
-                        SSVM_EnvSeed(srv.script_env, 0);
-                        mock230_combat_npc_tick(&srv, wizard_slot);
+                        SSVM_EnvSeed(srv->script_env, 0);
+                        mock230_combat_npc_tick(srv, wizard_slot);
 
                         for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
                         {
@@ -25661,7 +25824,7 @@ mock230_world_selftest(void)
                                        "wizard Fire Strike should enqueue combat_damage_player");
 
                         for( int tick = 0; tick < 8 && player->damage_type < 0; tick++ )
-                            mock230_world_tick(&srv);
+                            mock230_world_tick(srv);
                         SELFTEST_CHECK(player->damage_type >= 0,
                                        "the queued Fire Strike must drain into a player hitsplat");
                         SELFTEST_CHECK(player->hitpoints < start_hitpoints,
@@ -25671,15 +25834,15 @@ mock230_world_selftest(void)
                         mock230_world_npc_occupancy(npc, 0);
                         npc->active = 0;
                         npc->respawn_tick = -1;
-                        mock230_zone_npc_refile(&srv, wizard_slot);
-                        mock230_world_player_unlock(&srv);
+                        mock230_zone_npc_refile(srv, wizard_slot);
+                        mock230_world_player_unlock(srv);
                     }
-                    srv.script_env->rng = saved_rng;
+                    srv->script_env->rng = saved_rng;
                 }
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -25716,11 +25879,11 @@ mock230_world_selftest(void)
             static uint8_t seen[1 << 16];
 
             memset(seen, 0, sizeof(seen));
-            for( int slot = 0; slot < srv.npc_slot_max; slot++ )
+            for( int slot = 0; slot < srv->npc_slot_max; slot++ )
             {
-                if( srv.npcs[slot].active && srv.npcs[slot].static_spawn >= 0 )
+                if( srv->npcs[slot].active && srv->npcs[slot].static_spawn >= 0 )
                 {
-                    int index = srv.npcs[slot].static_spawn;
+                    int index = srv->npcs[slot].static_spawn;
 
                     lumbridge++;
                     if( index < (int)sizeof(seen) )
@@ -25742,15 +25905,15 @@ mock230_world_selftest(void)
              * npcs are still legitimately standing there and the check below
              * would read as a bug in the sync.
              */
-            srv.zone_x = 2662 >> 3;
-            srv.zone_z = 3305 >> 3;
-            mock230_world_scene_rebuild(&srv);
+            srv->zone_x = 2662 >> 3;
+            srv->zone_z = 3305 >> 3;
+            mock230_world_scene_rebuild(srv);
 
-            for( int slot = 0; slot < srv.npc_slot_max; slot++ )
+            for( int slot = 0; slot < srv->npc_slot_max; slot++ )
             {
-                if( srv.npcs[slot].active && srv.npcs[slot].static_spawn >= 0 )
+                if( srv->npcs[slot].active && srv->npcs[slot].static_spawn >= 0 )
                 {
-                    int index = srv.npcs[slot].static_spawn;
+                    int index = srv->npcs[slot].static_spawn;
 
                     varrock++;
                     if( index < (int)sizeof(seen) && seen[index] )
@@ -25765,9 +25928,9 @@ mock230_world_selftest(void)
                            "which has to fit the pool, %d vs %d", varrock, MOCK230_NPC_MAX);
 
             /* Put the world back where the rest of the suite expects it. */
-            srv.zone_x = 3222 >> 3;
-            srv.zone_z = 3218 >> 3;
-            mock230_world_scene_rebuild(&srv);
+            srv->zone_x = 3222 >> 3;
+            srv->zone_z = 3218 >> 3;
+            mock230_world_scene_rebuild(srv);
             (void)spawns;
         }
     }
@@ -25799,8 +25962,8 @@ mock230_world_selftest(void)
          * Dropping the build-area clip in `window_holds` fails this with a
          * dozen npcs named.
          */
-        int saved_zone_x = srv.zone_x;
-        int saved_zone_z = srv.zone_z;
+        int saved_zone_x = srv->zone_x;
+        int saved_zone_z = srv->zone_z;
         int checked = 0;
         int outside = 0;
         int off_area = 0;
@@ -25810,15 +25973,15 @@ mock230_world_selftest(void)
         int base_x;
         int base_z;
 
-        selftest_park_player(&srv, 3222, 3218);
+        selftest_park_player(srv, 3222, 3218);
         /* Put the player in the south-west CORNER zone of the build area: its
          * origin becomes (player_zone + 6 - 6) * 8, so everything south or west
          * of the player's own zone is outside the region entirely. */
-        srv.zone_x = (3222 >> 3) + MOCK230_ZONE_BUILD_RADIUS;
-        srv.zone_z = (3218 >> 3) + MOCK230_ZONE_BUILD_RADIUS;
-        mock230_world_scene_rebuild(&srv);
-        base_x = mock230_scene_origin(srv.zone_x);
-        base_z = mock230_scene_origin(srv.zone_z);
+        srv->zone_x = (3222 >> 3) + MOCK230_ZONE_BUILD_RADIUS;
+        srv->zone_z = (3218 >> 3) + MOCK230_ZONE_BUILD_RADIUS;
+        mock230_world_scene_rebuild(srv);
+        base_x = mock230_scene_origin(srv->zone_x);
+        base_z = mock230_scene_origin(srv->zone_z);
         SELFTEST_CHECK(player->x - base_x < MOCK230_NPC_VIEW_TILES ||
                            player->z - base_z < MOCK230_NPC_VIEW_TILES,
                        "the fixture has to put the view box over the build edge, "
@@ -25840,9 +26003,9 @@ mock230_world_selftest(void)
          * area collects nothing", which is a true statement about a world whose
          * map has not been synced and says nothing about the area.
          */
-        mock230_zone_sync_npcs(&srv);
-        mock230_zone_sync_objs(&srv);
-        mock230_zone_sync_players(&srv);
+        mock230_zone_sync_npcs(srv);
+        mock230_zone_sync_objs(srv);
+        mock230_zone_sync_players(srv);
         mock230_playerzonemap_move(player);
         mock230_send_npc_info(player);
 
@@ -25865,7 +26028,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(seen_count > 0, "the area should yield some npcs to check");
             for( int i = 0; i < seen_count; i++ )
             {
-                struct Mock230Npc* npc = &srv.npcs[seen[i]];
+                struct Mock230Npc* npc = &srv->npcs[seen[i]];
                 int index = mock230_zone_index(npc->x, npc->z, npc->level);
                 int held = 0;
 
@@ -25913,7 +26076,7 @@ mock230_world_selftest(void)
         for( int i = 0; i < player->tracked_count; i++ )
         {
             int slot = player->tracked[i];
-            struct Mock230Npc* npc = &srv.npcs[slot];
+            struct Mock230Npc* npc = &srv->npcs[slot];
             int index;
             int held = 0;
 
@@ -26038,7 +26201,7 @@ mock230_world_selftest(void)
 
                 /* Somewhere with nothing in sight, so every tracked npc leaves
                  * view and the removal path runs for all of them. */
-                selftest_park_player(&srv, base_x + 3, base_z + 3);
+                selftest_park_player(srv, base_x + 3, base_z + 3);
                 mock230_playerzonemap_move(player);
                 mock230_send_npc_info(player);
 
@@ -26061,14 +26224,14 @@ mock230_world_selftest(void)
         }
 
         /* Put the world back under the player for the suites below. */
-        srv.zone_x = saved_zone_x;
-        srv.zone_z = saved_zone_z;
-        mock230_world_scene_rebuild(&srv);
-        selftest_park_player(&srv, g_home_x, g_home_z);
+        srv->zone_x = saved_zone_x;
+        srv->zone_z = saved_zone_z;
+        mock230_world_scene_rebuild(srv);
+        selftest_park_player(srv, g_home_x, g_home_z);
         mock230_zone_player_reset(player);
         player->tracked_count = 0;
         memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
     }
 
     fprintf(stderr, "mock230 selftest: NPC_INFO measures view range to the footprint\n");
@@ -26093,7 +26256,7 @@ mock230_world_selftest(void)
          */
         int type = mock230_content_symbol(MOCK230_PACK_NPC, "test_combat");
         int slot = -1;
-        const struct Mock230Wire* saved_wire = srv.wire;
+        const struct Mock230Wire* saved_wire = srv->wire;
         const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
         const struct Mock230Wire* wire230 = mock230_wire_by_name("osrs230");
         int const size = 7;
@@ -26108,15 +26271,15 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(wire239 && wire230, "both npc-stream wires should exist");
         if( type >= 0 && wire239 && wire230 )
         {
-            selftest_park_player(&srv, g_home_x, g_home_z);
-            mock230_world_set_active(&srv, player);
-            slot = mock230_world_npc_spawn(&srv, type, player->x + near_origin_dx, player->z,
+            selftest_park_player(srv, g_home_x, g_home_z);
+            mock230_world_set_active(srv, player);
+            slot = mock230_world_npc_spawn(srv, type, player->x + near_origin_dx, player->z,
                                            player->level);
         }
         SELFTEST_CHECK(slot >= 0, "the sized-npc fixture should spawn");
         if( slot >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[slot];
+            struct Mock230Npc* npc = &srv->npcs[slot];
             int origin_dx;
 
             npc->spawn_pending = 0;
@@ -26126,14 +26289,14 @@ mock230_world_selftest(void)
             /* The footprint measure is the modern stream's — the classic add
              * cannot express the origin delta it implies, which the third case
              * below states outright. */
-            srv.wire = wire239;
+            srv->wire = wire239;
 
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
             /* Phase 8's order by hand — this section does not run a tick, and
              * the map files an npc only when the reconcile runs. */
-            mock230_zone_sync_npcs(&srv);
+            mock230_zone_sync_npcs(srv);
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);
 
@@ -26154,7 +26317,7 @@ mock230_world_selftest(void)
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
-            mock230_zone_sync_npcs(&srv);
+            mock230_zone_sync_npcs(srv);
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);
 
@@ -26175,11 +26338,11 @@ mock230_world_selftest(void)
              * does not hold.
              */
             npc->x = player->x + near_origin_dx;
-            srv.wire = wire230;
+            srv->wire = wire230;
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
-            mock230_zone_sync_npcs(&srv);
+            mock230_zone_sync_npcs(srv);
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);
 
@@ -26187,14 +26350,14 @@ mock230_world_selftest(void)
                            "the classic stream should keep the origin box, its add reaches "
                            "-16..15 and this origin is %d out", -near_origin_dx);
 
-            srv.wire = saved_wire;
+            srv->wire = saved_wire;
             npc->active = 0;
-            mock230_zone_sync_npcs(&srv);
+            mock230_zone_sync_npcs(srv);
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
-            selftest_park_player(&srv, g_home_x, g_home_z);
-            mock230_world_tick(&srv);
+            selftest_park_player(srv, g_home_x, g_home_z);
+            mock230_world_tick(srv);
         }
     }
 
@@ -26221,18 +26384,18 @@ mock230_world_selftest(void)
                        "and a leash at least as long as it, %d vs %d",
                        def ? def->maxrange : -1, def ? def->wanderrange : -1);
         {
-            int subject = selftest_require_npc(&srv, 3028, 3262, 3266, 0);
+            int subject = selftest_require_npc(srv, 3028, 3262, 3266, 0);
 
             if( subject >= 0 )
             {
-                SELFTEST_CHECK(srv.npcs[subject].wander_radius > 0,
+                SELFTEST_CHECK(srv->npcs[subject].wander_radius > 0,
                                "and an npc spawned from it should be able to roam, got %d",
-                               srv.npcs[subject].wander_radius);
-                SELFTEST_CHECK(mock230_world_npc_default_mode(&srv.npcs[subject]) ==
+                               srv->npcs[subject].wander_radius);
+                SELFTEST_CHECK(mock230_world_npc_default_mode(&srv->npcs[subject]) ==
                                    MOCK230_NPCMODE_WANDER,
                                "which is what makes its default mode wander");
-                srv.npcs[subject].active = 0;
-                mock230_zone_npc_refile(&srv, subject);
+                srv->npcs[subject].active = 0;
+                mock230_zone_npc_refile(srv, subject);
             }
         }
     }
@@ -26258,17 +26421,17 @@ mock230_world_selftest(void)
          * negative case — so a fixture goblin three tiles from home silently
          * turns that assertion into a failure about the wrong thing.
          */
-        int subject = selftest_require_npc(&srv, 3028, 3262, 3262, 0);
+        int subject = selftest_require_npc(srv, 3028, 3262, 3262, 0);
 
         SELFTEST_CHECK(subject >= 0, "the fixture npc should exist");
         if( subject >= 0 )
         {
-            struct Mock230Npc* npc = &srv.npcs[subject];
+            struct Mock230Npc* npc = &srv->npcs[subject];
             int forced_name;
             int name;
             uint8_t payload[2];
 
-            selftest_park_player(&srv, npc->x + 3, npc->z + 3);
+            selftest_park_player(srv, npc->x + 3, npc->z + 3);
             player->tracked_count = 0;
             memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
             mock230_slotmap_reset(player);
@@ -26289,10 +26452,10 @@ mock230_world_selftest(void)
              * all of it — the client shifts its kept entities by the base delta
              * rather than re-learning them.
              */
-            srv.zone_x = npc->x >> 3;
-            srv.zone_z = npc->z >> 3;
-            mock230_world_scene_rebuild(&srv);
-            mock230_zone_sync_npcs(&srv);
+            srv->zone_x = npc->x >> 3;
+            srv->zone_z = npc->z >> 3;
+            mock230_world_scene_rebuild(srv);
+            mock230_zone_sync_npcs(srv);
             mock230_playerzonemap_move(player);
             mock230_send_npc_info(player);
 
@@ -26305,7 +26468,7 @@ mock230_world_selftest(void)
 
             payload[0] = (uint8_t)((name >> 8) & 0xff);
             payload[1] = (uint8_t)(name & 0xff);
-            mock230_world_clear_pending_action(&srv);
+            mock230_world_clear_pending_action(srv);
             mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
 
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NPC &&
@@ -26328,7 +26491,7 @@ mock230_world_selftest(void)
              */
             {
                 static struct Mock230Capture face_capture;
-                const struct Mock230Wire* saved_wire = srv.wire;
+                const struct Mock230Wire* saved_wire = srv->wire;
                 const struct Mock230Wire* wires[2] = {
                     mock230_wire_by_name("osrs230"),
                     mock230_wire_by_name("osrs239"),
@@ -26363,7 +26526,7 @@ mock230_world_selftest(void)
                     if( !wire )
                         continue;
 
-                    srv.wire = wire;
+                    srv->wire = wire;
                     player->place_dirty = 0;
                     player->move_count = 0;
                     player->tracked_player_count = 0;
@@ -26380,9 +26543,9 @@ mock230_world_selftest(void)
                                    "facing state should retain canonical world npc %d",
                                    subject);
 
-                    mock230_capture_begin(&srv, &face_capture);
+                    mock230_capture_begin(srv, &face_capture);
                     mock230_send_player_info(player);
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
 
                     opcode = mock230_wire_opcode(wire, PKT_NAME_PLAYER_INFO);
                     at = mock230_capture_find(&face_capture, opcode, 0);
@@ -26424,7 +26587,7 @@ mock230_world_selftest(void)
                     }
                 }
 
-                srv.wire = saved_wire;
+                srv->wire = saved_wire;
                 player->face_entity = saved_face_entity;
                 player->masks = saved_masks;
                 player->place_dirty = saved_place_dirty;
@@ -26442,7 +26605,7 @@ mock230_world_selftest(void)
 
             /* And the walk actually goes there. "The player does not path
              * toward the npc" is the same bug seen from the other end. */
-            selftest_settle(&srv, 40);
+            selftest_settle(srv, 40);
             {
                 int dx = player->x - npc->x;
                 int dz = player->z - npc->z;
@@ -26462,7 +26625,7 @@ mock230_world_selftest(void)
              */
             if( name != subject )
             {
-                mock230_world_clear_pending_action(&srv);
+                mock230_world_clear_pending_action(srv);
                 player->interaction.kind = MOCK230_INTERACT_NONE;
                 payload[0] = (uint8_t)((subject >> 8) & 0xff);
                 payload[1] = (uint8_t)(subject & 0xff);
@@ -26475,21 +26638,21 @@ mock230_world_selftest(void)
 
             /* Put the world back where the suites below expect it: this block
              * walked the player across the map and left an interaction open. */
-            mock230_world_clear_pending_action(&srv);
+            mock230_world_clear_pending_action(srv);
             player->interaction.kind = MOCK230_INTERACT_NONE;
-            srv.npcs[subject].active = 0;
-            mock230_zone_npc_refile(&srv, subject);
-            selftest_park_player(&srv, g_home_x, g_home_z);
+            srv->npcs[subject].active = 0;
+            mock230_zone_npc_refile(srv, subject);
+            selftest_park_player(srv, g_home_x, g_home_z);
             mock230_playerzonemap_move(player);
         }
     }
 
     fprintf(stderr, "mock230 selftest: npc queues and timers\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -26501,15 +26664,15 @@ mock230_world_selftest(void)
             int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
             int added = -1;
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_queue]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_queue]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_queue] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                    if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
-                        srv.npcs[i].x == 3234 && srv.npcs[i].z == 3234 )
+                    if( srv->npcs[i].active && srv->npcs[i].type == chicken &&
+                        srv->npcs[i].x == 3234 && srv->npcs[i].z == 3234 )
                         added = i;
                 SELFTEST_CHECK(added >= 0, "the test chicken should be spawned");
 
@@ -26525,13 +26688,13 @@ mock230_world_selftest(void)
                  * be green and still encode the wrong convention.
                  */
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the queue should not fire immediately");
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                                "[ai_queue1,chicken] should fire on tick +1, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_timer]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_timer]");
             if( script && added >= 0 )
             {
                 /*
@@ -26541,17 +26704,17 @@ mock230_world_selftest(void)
                  * did not exist: these three fields were on every npc already
                  * and nothing read them.
                  */
-                srv.npcs[added].timer_interval = 2;
-                srv.npcs[added].timer_clock = 0;
+                srv->npcs[added].timer_interval = 2;
+                srv->npcs[added].timer_clock = 0;
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the timer should not fire early");
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
                                "[ai_timer,chicken] should fire on the interval, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-                mock230_world_tick(&srv);
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
                                "and again one interval later, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
@@ -26562,17 +26725,17 @@ mock230_world_selftest(void)
                  * four-tick delay as their attack rate; firing through the
                  * delay floods the glyph with queued projectile hits. */
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                srv.npcs[added].timer_interval = 1;
-                srv.npcs[added].timer_clock = 0;
-                srv.npcs[added].delayed_until = srv.tick + 3;
-                mock230_world_tick(&srv);
-                mock230_world_tick(&srv);
+                srv->npcs[added].timer_interval = 1;
+                srv->npcs[added].timer_clock = 0;
+                srv->npcs[added].delayed_until = srv->tick + 3;
+                mock230_world_tick(srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0 &&
-                                   srv.npcs[added].timer_clock == 0,
+                                   srv->npcs[added].timer_clock == 0,
                                "npc_delay must freeze an npc's AI timer, got value=%d clock=%d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS],
-                               srv.npcs[added].timer_clock);
-                mock230_world_tick(&srv);
+                               srv->npcs[added].timer_clock);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
                                "the timer should fire once when npc_delay expires, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26590,17 +26753,17 @@ mock230_world_selftest(void)
                  * nothing to do with npc_settimer. "Unchanged" is what this is
                  * actually asserting, and it survives the next insertion —
                  * with a live interval-1 timer these six ticks would add 60. */
-                srv.npcs[added].timer_interval = 0;
+                srv->npcs[added].timer_interval = 0;
                 {
                     int before = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
 
                     for( int i = 0; i < 6; i++ )
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == before,
                                    "a zero interval should stop the timer, got %d (was %d)",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS], before);
                 }
-                srv.npcs[added].active = 0;
+                srv->npcs[added].active = 0;
             }
 
             /*
@@ -26622,12 +26785,12 @@ mock230_world_selftest(void)
              */
             {
                 int imp_type = mock230_content_symbol(MOCK230_PACK_NPC, "imp");
-                int imp = npc_spawn(&srv, imp_type, player->x + 6, player->z + 6, player->level);
+                int imp = npc_spawn(srv, imp_type, player->x + 6, player->z + 6, player->level);
 
                 SELFTEST_CHECK(imp >= 0, "an imp should spawn");
                 if( imp >= 0 )
                 {
-                    struct Mock230Npc* npc = &srv.npcs[imp];
+                    struct Mock230Npc* npc = &srv->npcs[imp];
                     int start_x = npc->x;
                     int start_z = npc->z;
                     int moved = 0;
@@ -26635,7 +26798,7 @@ mock230_world_selftest(void)
 
                     SELFTEST_CHECK(npc->spawn_pending,
                                    "a fresh npc owes its [ai_spawn]");
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(!npc->spawn_pending,
                                    "which phase 3 runs on the next tick");
                     SELFTEST_CHECK(npc->timer_interval > 0,
@@ -26644,7 +26807,7 @@ mock230_world_selftest(void)
 
                     for( ticks = 0; ticks < 3000 && !moved; ticks++ )
                     {
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                         /* A teleport, not a walk: an imp has no wanderrange
                          * that could carry it this far a step at a time, and
                          * `npc_tele` clears step_dir so nothing is animated. */
@@ -26667,16 +26830,16 @@ mock230_world_selftest(void)
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: player queues, timers, name-keyed dispatch\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -26720,7 +26883,7 @@ mock230_world_selftest(void)
                            "the zone-log varps should resolve, got %d/%d", varp_zone_log,
                            varp_mapzone_log);
             player->varps[varp_zone_log] = 0;
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 0, 3222, 3218) ==
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_ZONE, 0, 3222, 3218) ==
                                MOCK230_TRIGGER_RAN,
                            "[zone,0_50_50_16_16] should be reachable by name");
             SELFTEST_CHECK(player->varps[varp_zone_log] == 1,
@@ -26730,10 +26893,10 @@ mock230_world_selftest(void)
             /* The last two components are tile offsets truncated to the 8-tile
              * zone, not the raw tile: a neighbour inside the same zone resolves
              * to the same script, and the next zone east does not. */
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 0, 3223, 3221) ==
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_ZONE, 0, 3223, 3221) ==
                                MOCK230_TRIGGER_RAN,
                            "a tile inside the same zone resolves to the same script");
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 0, 3230, 3218) ==
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_ZONE, 0, 3230, 3218) ==
                                MOCK230_TRIGGER_NONE,
                            "the zone 8 tiles east has none bound");
             SELFTEST_CHECK(player->varps[varp_zone_log] == 11,
@@ -26745,17 +26908,17 @@ mock230_world_selftest(void)
              * tile one level up is a *different name*, and a different script is
              * bound to it, so this fails as a wrong digit rather than as a
              * missing one. */
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONE, 1, 3222, 3218) ==
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_ZONE, 1, 3222, 3218) ==
                                MOCK230_TRIGGER_RAN &&
                                player->varps[varp_zone_log] == 114,
                            "the same tile on level 1 names a different zone, got %d",
                            player->varps[varp_zone_log]);
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONEEXIT, 0, 3222,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_ZONEEXIT, 0, 3222,
                                                           3218) == MOCK230_TRIGGER_RAN &&
                                player->varps[varp_zone_log] == 1142,
                            "and the exit half is a separate name, got %d",
                            player->varps[varp_zone_log]);
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_ZONEEXIT, 1, 3222,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_ZONEEXIT, 1, 3222,
                                                           3218) == MOCK230_TRIGGER_NONE,
                            "which carries the level too — nothing is bound at level 1");
 
@@ -26766,24 +26929,24 @@ mock230_world_selftest(void)
              * So the *same tile on level 3* resolves to the same `[mapzone]`.
              */
             player->varps[varp_mapzone_log] = 0;
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 0, 3222,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_MAPZONE, 0, 3222,
                                                           3218) == MOCK230_TRIGGER_RAN,
                            "[mapzone,0_50_50] should be reachable by name");
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 3, 3222,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_MAPZONE, 3, 3222,
                                                           3218) == MOCK230_TRIGGER_RAN,
                            "and the level is a literal 0 in its name, not the player's");
             SELFTEST_CHECK(player->varps[varp_mapzone_log] == 11,
                            "both of those ran the one script, got %d",
                            player->varps[varp_mapzone_log]);
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 0, 3222 + 64,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_MAPZONE, 0, 3222 + 64,
                                                           3218) == MOCK230_TRIGGER_RAN &&
                                player->varps[varp_mapzone_log] == 113,
                            "the next map square east is its own name, got %d",
                            player->varps[varp_mapzone_log]);
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONE, 0, 3222 + 128,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_MAPZONE, 0, 3222 + 128,
                                                           3218) == MOCK230_TRIGGER_NONE,
                            "and two squares east has none bound");
-            SELFTEST_CHECK(mock230_scripts_run_trigger_at(&srv, SS_TRIGGER_MAPZONEEXIT, 0,
+            SELFTEST_CHECK(mock230_scripts_run_trigger_at(srv, SS_TRIGGER_MAPZONEEXIT, 0,
                                                           3222 + 64, 3218) ==
                                MOCK230_TRIGGER_NONE,
                            "mapzoneexit is again a separate name");
@@ -26797,16 +26960,16 @@ mock230_world_selftest(void)
              * only asked "did a timer fire" would have stayed green for either.
              */
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_run_proc(&srv, "[proc,selftest_timers_arm]", NULL, 0);
-            player->delayed_until = srv.tick + 10;
+            mock230_scripts_run_proc(srv, "[proc,selftest_timers_arm]", NULL, 0);
+            player->delayed_until = srv->tick + 10;
             for( int i = 0; i < 4; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 200,
                            "a busy player runs soft timers twice and normal ones not at all, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
             player->delayed_until = 0;
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 201,
                            "and the normal one fires the moment access returns, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26814,10 +26977,10 @@ mock230_world_selftest(void)
             /* `cleartimer` and `clearsofttimer` both stop their timer. Asserting
              * the absence of a fire is the only way to tell "stopped" from "not
              * due yet". */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_timers_clear]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_timers_clear]", NULL, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             for( int i = 0; i < 8; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "cleared timers stay cleared, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26838,20 +27001,20 @@ mock230_world_selftest(void)
              * sub(%agilityarena_next_pillar_time, map_clock))`, which is 0 or
              * negative once that deadline has passed.
              */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_timer_zero_arm]", NULL, 0);
-            mock230_world_tick(&srv);
+            mock230_scripts_run_proc(srv, "[proc,selftest_timer_zero_arm]", NULL, 0);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                            "an interval-0 timer fires on the next tick, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
                            "and on every tick after it — once per tick, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            mock230_scripts_run_proc(&srv, "[proc,selftest_timers_clear]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_timers_clear]", NULL, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             for( int i = 0; i < 4; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "and cleartimer is what stops it, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26864,12 +27027,12 @@ mock230_world_selftest(void)
              * makes the assertion worth having: the +1000 is only so an unset
              * timer's -1 stays a positive varp.
              */
-            armed_at = srv.tick;
-            mock230_scripts_run_proc(&srv, "[proc,selftest_gettimer]", NULL, 0);
+            armed_at = srv->tick;
+            mock230_scripts_run_proc(srv, "[proc,selftest_gettimer]", NULL, 0);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1000 + armed_at,
                            "gettimer is the tick it was armed at (%d), got %d", armed_at,
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            mock230_scripts_run_proc(&srv, "[proc,selftest_gettimer_unset]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_gettimer_unset]", NULL, 0);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 999,
                            "and -1 for a timer that is not set, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26881,10 +27044,10 @@ mock230_world_selftest(void)
              * of them landed. `queue`, `weakqueue` and `longqueue` at delay 0 all
              * fire on the next tick and none of them fires on this one.
              */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_kinds]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_queue_kinds]", NULL, 0);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "a queued script does not run in the tick that queued it");
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1101,
                            "queue + weakqueue + longqueue all fire on tick +1, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26898,15 +27061,15 @@ mock230_world_selftest(void)
              * A delay of 0 could not tell those two apart, which is why the
              * script uses 2.
              */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_normal_soon]", NULL, 0);
-            player->delayed_until = srv.tick + 20;
+            mock230_scripts_run_proc(srv, "[proc,selftest_queue_normal_soon]", NULL, 0);
+            player->delayed_until = srv->tick + 20;
             for( int i = 0; i < 5; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "a busy player does not run a due queue entry, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             player->delayed_until = 0;
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
                            "and runs it on the very next tick, not one delay later, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -26919,12 +27082,12 @@ mock230_world_selftest(void)
              * tick it is due. The mount goes through the same function every
              * IF_OPENSUB does, so this is the state a real interface leaves.
              */
-            mock230_note_modal_mount(&srv, ids->com_gameframe_mainmodal,
+            mock230_note_modal_mount(srv, ids->com_gameframe_mainmodal,
                                      ids->iface_equipment_stats);
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_equipment_stats,
                            "a modal is up");
-            mock230_scripts_run_proc(&srv, "[proc,selftest_strongqueue_arm]", NULL, 0);
-            mock230_world_tick(&srv);
+            mock230_scripts_run_proc(srv, "[proc,selftest_strongqueue_arm]", NULL, 0);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->mainmodal_group == 0,
                            "a strong entry closes the modal before the drain");
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
@@ -26934,26 +27097,26 @@ mock230_world_selftest(void)
             /*
              * ---- clearqueue and getqueue ----------------------------------
              */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_pending]", NULL, 0);
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_scripts_run_proc(srv, "[proc,selftest_queue_pending]", NULL, 0);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "a delay-3 entry has not fired after two ticks, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            mock230_scripts_run_proc(&srv, "[proc,selftest_clearqueue]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_clearqueue]", NULL, 0);
             for( int i = 0; i < 6; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "and clearqueue cancels it rather than delaying it, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
             /* `getqueue` counts and does not clear; two copies of one script are
              * two entries. */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_getqueue]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_getqueue]", NULL, 0);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                            "getqueue counts every copy, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            mock230_scripts_run_proc(&srv, "[proc,selftest_clearqueue]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_clearqueue]", NULL, 0);
 
             /*
              * ---- the weak queue -------------------------------------------
@@ -26963,36 +27126,36 @@ mock230_world_selftest(void)
              * `weakqueue` would be a synonym the content could not tell apart.
              */
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_weak_only]", NULL, 0);
-            mock230_note_modal_mount(&srv, ids->com_gameframe_mainmodal,
+            mock230_scripts_run_proc(srv, "[proc,selftest_queue_weak_only]", NULL, 0);
+            mock230_note_modal_mount(srv, ids->com_gameframe_mainmodal,
                                      ids->iface_equipment_stats);
-            mock230_world_close_modal(&srv);
+            mock230_world_close_modal(srv);
             for( int i = 0; i < 6; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
                            "closing a modal discards the weak queue, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
             /* And the same entry survives when nothing closes. */
-            mock230_scripts_run_proc(&srv, "[proc,selftest_queue_weak_only]", NULL, 0);
+            mock230_scripts_run_proc(srv, "[proc,selftest_queue_weak_only]", NULL, 0);
             for( int i = 0; i < 6; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 100,
                            "and survives when nothing closes, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             player->delayed_until = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: use-on, the *u family\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -27038,7 +27201,7 @@ mock230_world_selftest(void)
                            "last_useitem/last_useslot start at -1, got %d/%d",
                            player->last_useitem, player->last_useslot);
 
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             inv_set(player, SLOT_KNIFE, knife, 1);
             inv_set(player, SLOT_BUCKET, bucket, 1);
             inv_set(player, SLOT_BONES, bones, 1);
@@ -27170,7 +27333,7 @@ mock230_world_selftest(void)
              * Nothing binds `[aplocu,cooksquestrange]`, so it is only reachable
              * by closing the distance — which is what makes this the op rung.
              */
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3212);
@@ -27180,7 +27343,7 @@ mock230_world_selftest(void)
             rsab_p2(&out, SLOT_BUCKET);
             rsab_p2(&out, 0);
             mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(selftest_settle(&srv, 40) > 0,
+            SELFTEST_CHECK(selftest_settle(srv, 40) > 0,
                            "a use-on out of reach walks first, like every other interaction");
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
                            "[oplocu,cooksquestrange] runs on arrival, with the bucket in "
@@ -27193,7 +27356,7 @@ mock230_world_selftest(void)
              * That is the positive half of the transposition test: the subject
              * does not move when the item does.
              */
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3212);
@@ -27203,7 +27366,7 @@ mock230_world_selftest(void)
             rsab_p2(&out, SLOT_KNIFE);
             rsab_p2(&out, 0);
             mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk should complete");
+            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk should complete");
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 19,
                            "a different item on the same loc runs the same script, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -27227,7 +27390,7 @@ mock230_world_selftest(void)
 
                 SELFTEST_CHECK(door_slot >= 0 && before == door,
                                "the castle door should be in the scene and shut, got %d", before);
-                selftest_park_player(&srv, 3222, 3218);
+                selftest_park_player(srv, 3222, 3218);
                 /* The park can rebuild the scene, and a rebuild reallocates the
                  * loc array — so the slot taken above names a different loc (or
                  * freed memory) from here on. Re-resolve by coordinate, same
@@ -27242,7 +27405,7 @@ mock230_world_selftest(void)
                 rsab_p2(&out, SLOT_BUCKET);
                 rsab_p2(&out, 0);
                 mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
-                SELFTEST_CHECK(selftest_settle(&srv, 40) >= 0, "the walk to the door completes");
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk to the door completes");
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 78,
                                "a loc with no *u binding runs nothing, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -27264,8 +27427,8 @@ mock230_world_selftest(void)
              * APLOCU is 64 and OPLOCU is 71; an implementation using +1 would
              * resolve the op form to APLOCT and never fire either.
              */
-            selftest_park_player(&srv, 3222, 3218);
-            mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addloc]", NULL, 0);
+            selftest_park_player(srv, 3222, 3218);
+            mock230_scripts_run_proc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3220);
@@ -27294,17 +27457,17 @@ mock230_world_selftest(void)
              * patroller in 80 ticks.
              */
             {
-                int hans = selftest_find_npc(&srv, hans_type);
+                int hans = selftest_find_npc(srv, hans_type);
 
                 SELFTEST_CHECK(hans >= 0, "hans should be on the roster");
                 if( hans >= 0 )
                 {
-                    struct Mock230Npc* hnpc = &srv.npcs[hans];
+                    struct Mock230Npc* hnpc = &srv->npcs[hans];
                     int keep_mode = hnpc->mode;
 
                     hnpc->mode = MOCK230_NPCMODE_NONE;
                     hnpc->waypoint_index = -1;
-                    selftest_park_player(&srv, hnpc->x + 1, hnpc->z);
+                    selftest_park_player(srv, hnpc->x + 1, hnpc->z);
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     rsab_wrap(&out, payload, sizeof(payload));
                     /* The client's name for him, same as every other packet
@@ -27314,7 +27477,7 @@ mock230_world_selftest(void)
                     rsab_p2(&out, SLOT_BUCKET);
                     rsab_p2(&out, 0);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPCU, payload, (int)rsab_len(&out));
-                    SELFTEST_CHECK(selftest_settle(&srv, 80) >= 0,
+                    SELFTEST_CHECK(selftest_settle(srv, 80) >= 0,
                                    "the walk to the npc should complete");
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 30,
                                    "[opnpcu,hans] runs with the npc as its subject, got %d",
@@ -27331,8 +27494,8 @@ mock230_world_selftest(void)
              * pile must also still be there afterwards: picking it up is the
              * engine's answer to `[opobj<n>]`, and a use-on must not reach it.
              */
-            selftest_park_player(&srv, 3222, 3218);
-            mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addobj]", NULL, 0);
+            selftest_park_player(srv, 3222, 3218);
+            mock230_scripts_run_proc(srv, "[proc,selftest_useon_addobj]", NULL, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3224);
@@ -27342,7 +27505,7 @@ mock230_world_selftest(void)
             rsab_p2(&out, SLOT_BUCKET);
             rsab_p2(&out, 0);
             mock230_world_handle(player, PKTOUT_NAME_OPOBJU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0, "the walk onto the pile completes");
+            SELFTEST_CHECK(selftest_settle(srv, 20) >= 0, "the walk onto the pile completes");
             SELFTEST_CHECK(player->x == 3224 && player->z == 3218,
                            "standing on the tile, not beside it, at %d,%d", player->x, player->z);
             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 40,
@@ -27383,7 +27546,7 @@ mock230_world_selftest(void)
                 {
                     /* opheldt: no walk, and the item has to arrive in
                      * `last_item` — the alchemy scripts read it from there. */
-                    selftest_park_player(&srv, 3222, 3218);
+                    selftest_park_player(srv, 3222, 3218);
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, bucket);
@@ -27401,8 +27564,8 @@ mock230_world_selftest(void)
                      * binds `[aplocu]` (20), so a cast that fell through to the
                      * use-on family would be visible as the wrong number rather
                      * than as silence. */
-                    selftest_park_player(&srv, 3222, 3218);
-                    mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addloc]", NULL, 0);
+                    selftest_park_player(srv, 3222, 3218);
+                    mock230_scripts_run_proc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, 3220);
@@ -27418,8 +27581,8 @@ mock230_world_selftest(void)
                     /* apobjt: the ground-obj form. Telekinetic Grab is the only
                      * live user of it, and it is the one shape where the target
                      * is reached by standing on the tile. */
-                    selftest_park_player(&srv, 3222, 3218);
-                    mock230_scripts_run_proc(&srv, "[proc,selftest_useon_addobj]", NULL, 0);
+                    selftest_park_player(srv, 3222, 3218);
+                    mock230_scripts_run_proc(srv, "[proc,selftest_useon_addobj]", NULL, 0);
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, 3224);
@@ -27427,7 +27590,7 @@ mock230_world_selftest(void)
                     rsab_p2(&out, bones);
                     rsab_p4(&out, spell);
                     mock230_world_handle(player, PKTOUT_NAME_OPOBJT, payload, (int)rsab_len(&out));
-                    SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
+                    SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                    "the walk onto the pile completes");
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 70,
                                    "[apobjt,<spell>] runs keyed by the spell, got %d",
@@ -27437,24 +27600,24 @@ mock230_world_selftest(void)
                      * park beside him and hold him still — the assertion is the
                      * cast bind, not that a patroller can be caught. */
                     {
-                        int hans = selftest_find_npc(&srv, hans_type);
+                        int hans = selftest_find_npc(srv, hans_type);
 
                         SELFTEST_CHECK(hans >= 0, "hans should be on the roster");
                         if( hans >= 0 )
                         {
-                            struct Mock230Npc* hnpc = &srv.npcs[hans];
+                            struct Mock230Npc* hnpc = &srv->npcs[hans];
                             int keep_mode = hnpc->mode;
 
                             hnpc->mode = MOCK230_NPCMODE_NONE;
                             hnpc->waypoint_index = -1;
-                            selftest_park_player(&srv, hnpc->x + 1, hnpc->z);
+                            selftest_park_player(srv, hnpc->x + 1, hnpc->z);
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                             rsab_wrap(&out, payload, sizeof(payload));
                             rsab_p2(&out, mock230_slotmap_acquire(player, hans));
                             rsab_p4(&out, spell);
                             mock230_world_handle(player, PKTOUT_NAME_OPNPCT, payload,
                                                  (int)rsab_len(&out));
-                            SELFTEST_CHECK(selftest_settle(&srv, 80) >= 0,
+                            SELFTEST_CHECK(selftest_settle(srv, 80) >= 0,
                                            "the approach to the npc should complete");
                             SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
                                            "[apnpct,<spell>] runs keyed by the spell and matches "
@@ -27470,7 +27633,7 @@ mock230_world_selftest(void)
                     {
                         int unbound = mock230_content_symbol(MOCK230_PACK_COMPONENT,
                                                              "magic_spellbook:back_button");
-                        selftest_park_player(&srv, 3222, 3218);
+                        selftest_park_player(srv, 3222, 3218);
                         player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 78;
                         rsab_wrap(&out, payload, sizeof(payload));
                         rsab_p2(&out, bucket);
@@ -27489,17 +27652,17 @@ mock230_world_selftest(void)
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
                 inv_set(player, i, -1, 0);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            selftest_park_player(&srv, 3222, 3218);
-            mock230_scripts_free(&srv);
+            selftest_park_player(srv, 3222, 3218);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: the zone family, and its two latches\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -27526,7 +27689,7 @@ mock230_world_selftest(void)
              * suppressed on the first transition" a statement rather than an
              * accident of ordering.
              */
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             player->last_zone_level = -1;
             player->last_zone_x = -1;
             player->last_zone_z = -1;
@@ -27548,13 +27711,13 @@ mock230_world_selftest(void)
              * mid-dialogue player's zone script to `run_or_park`, whose
              * one-parked-script rule refuses it outright rather than holding it.
              */
-            mock230_world_tick(&srv);
-            detected_at = srv.tick;
+            mock230_world_tick(srv);
+            detected_at = srv->tick;
             SELFTEST_CHECK(player->varps[zone_log] == 0 && player->varps[mapzone_log] == 0,
                            "phase 10 detects the crossing and dispatches nothing, got %d/%d",
                            player->varps[zone_log], player->varps[mapzone_log]);
 
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             /* 1 and not 91: `[zoneexit,0_0_0_0_0]` and `[mapzoneexit,0_0_0]`
              * are bound, and they are what a latch starting at a memset's 0
              * would fire — a login claiming the player just left the map's
@@ -27572,8 +27735,8 @@ mock230_world_selftest(void)
 
             /* Standing still is not a crossing. The latch is a comparison
              * against a stored value, not a recomputation. */
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 1,
                            "standing still fires nothing, got %d/%d", player->varps[zone_log],
                            player->varps[mapzone_log]);
@@ -27591,8 +27754,8 @@ mock230_world_selftest(void)
              */
             mock230_zone_player_reset(player);
             player->rebuild_pending = 1;
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 1,
                            "a REBUILD_NORMAL fires nothing, got %d/%d", player->varps[zone_log],
                            player->varps[mapzone_log]);
@@ -27607,8 +27770,8 @@ mock230_world_selftest(void)
             player->varps[zone_log] = 0;
             player->x = 3238;
             player->place_dirty = 1;
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 23,
                            "moving zone fires [zoneexit] then [zone], got %d",
                            player->varps[zone_log]);
@@ -27629,8 +27792,8 @@ mock230_world_selftest(void)
             player->x = 3222;
             player->level = 1;
             player->place_dirty = 1;
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 4,
                            "level 1 at the home tile is its own [zone], got %d",
                            player->varps[zone_log]);
@@ -27650,16 +27813,16 @@ mock230_world_selftest(void)
             player->varps[mapzone_log] = 0;
             player->level = 0;
             player->place_dirty = 1;
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 0,
                            "coming back down re-enters the zone only, got %d/%d",
                            player->varps[zone_log], player->varps[mapzone_log]);
 
             player->x = 3270;
             player->place_dirty = 1;
-            mock230_world_tick(&srv);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[mapzone_log] == 23,
                            "crossing x=3264 fires [mapzoneexit] then [mapzone], got %d",
                            player->varps[mapzone_log]);
@@ -27677,16 +27840,16 @@ mock230_world_selftest(void)
              * alternative — firing it anyway, or dropping it — is the difference
              * between a zone script that is late and one that never ran.
              */
-            selftest_park_player(&srv, 3222, 3218);
+            selftest_park_player(srv, 3222, 3218);
             player->varps[zone_log] = 0;
-            player->delayed_until = srv.tick + 20;
+            player->delayed_until = srv->tick + 20;
             for( int i = 0; i < 4; i++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 0,
                            "a busy player does not run a queued zone script, got %d",
                            player->varps[zone_log]);
             player->delayed_until = 0;
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->varps[zone_log] == 1,
                            "and runs it on the first tick after access returns, got %d",
                            player->varps[zone_log]);
@@ -27694,16 +27857,16 @@ mock230_world_selftest(void)
             player->varps[zone_log] = 0;
             player->varps[mapzone_log] = 0;
             player->varps[zone_clock] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: uid, gender, session_log\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -27712,13 +27875,13 @@ mock230_world_selftest(void)
         else
         {
             const struct SSVM_Script* script =
-                SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_uid]");
+                SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_uid]");
 
             SELFTEST_CHECK(script != NULL, "[proc,selftest_uid] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 /*
                  * Five, not four: the run has to get *past* `session_log`. That
                  * opcode returns nothing and changes nothing, so the only way to
@@ -27730,7 +27893,7 @@ mock230_world_selftest(void)
                                "should all clear, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -27747,10 +27910,10 @@ mock230_world_selftest(void)
          * than against a number written down, so changing the Lumbridge roster
          * cannot fail this for the wrong reason.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -27762,11 +27925,11 @@ mock230_world_selftest(void)
             int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
             int expected = 0;
 
-            selftest_require_goblins(&srv);
+            selftest_require_goblins(srv);
 
             for( int i = 0; i < MOCK230_NPC_MAX; i++ )
             {
-                struct Mock230Npc* npc = &srv.npcs[i];
+                struct Mock230Npc* npc = &srv->npcs[i];
                 int dx;
                 int dz;
 
@@ -27784,12 +27947,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(expected > 0,
                            "the roster should have goblins within 64 tiles to count");
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_iterators]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_iterators]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_iterators] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == expected,
                                "~npc_findcount should agree with a direct walk, "
                                "script says %d and the roster has %d",
@@ -27812,13 +27975,13 @@ mock230_world_selftest(void)
             }
             SELFTEST_CHECK(expected > 0, "the kitchen's zone should hold some locs");
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_loc_iterator]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_loc_iterator]");
             SELFTEST_CHECK(script != NULL,
                            "[proc,selftest_loc_iterator] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == expected,
                                "loc_findallzone should agree with a direct walk, "
                                "script says %d and the zone has %d",
@@ -27826,7 +27989,7 @@ mock230_world_selftest(void)
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -27842,10 +28005,10 @@ mock230_world_selftest(void)
          * positive test in this block and is wrong in exactly the way that
          * matters — content uses the radius to mean "beside me".
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -27857,14 +28020,14 @@ mock230_world_selftest(void)
             int chicken = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
             int before;
 
-            selftest_require_goblins(&srv);
+            selftest_require_goblins(srv);
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_find]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_find]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_find] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
                                "npc_find/stat/range should all clear, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -27872,21 +28035,21 @@ mock230_world_selftest(void)
 
             before = 0;
             for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                if( srv.npcs[i].active )
+                if( srv->npcs[i].active )
                     before++;
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_add]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_add]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_add] should be in the pack");
             if( script )
             {
                 int after = 0;
 
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
                                "add/tele/del should all clear, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                    if( srv.npcs[i].active )
+                    if( srv->npcs[i].active )
                         after++;
                 SELFTEST_CHECK(after == before,
                                "npc_del should leave the roster as it found it, %d -> %d",
@@ -27898,31 +28061,31 @@ mock230_world_selftest(void)
              * `npc_del`; this one has to go on its own, and the negative first
              * tick is what separates "expires" from "was never added".
              */
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_npc_add_timed]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_add_timed]");
             SELFTEST_CHECK(script != NULL,
                            "[proc,selftest_npc_add_timed] should be in the pack");
             if( script && chicken > 0 )
             {
                 int found = -1;
 
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 for( int i = 0; i < MOCK230_NPC_MAX; i++ )
-                    if( srv.npcs[i].active && srv.npcs[i].type == chicken &&
-                        srv.npcs[i].x == 3232 && srv.npcs[i].z == 3232 )
+                    if( srv->npcs[i].active && srv->npcs[i].type == chicken &&
+                        srv->npcs[i].x == 3232 && srv->npcs[i].z == 3232 )
                         found = i;
                 SELFTEST_CHECK(found >= 0, "a timed npc_add should spawn the npc");
 
-                mock230_world_tick(&srv);
-                SELFTEST_CHECK(found < 0 || srv.npcs[found].active,
+                mock230_world_tick(srv);
+                SELFTEST_CHECK(found < 0 || srv->npcs[found].active,
                                "and it should still be there a tick later");
                 for( int i = 0; i < 4; i++ )
-                    mock230_world_tick(&srv);
-                SELFTEST_CHECK(found < 0 || !srv.npcs[found].active,
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(found < 0 || !srv->npcs[found].active,
                                "and be gone once the duration expires");
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -27936,10 +28099,10 @@ mock230_world_selftest(void)
          * it is a one-way ratchet in play: the first player to mine a rock
          * removes it for the rest of the session.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -27958,12 +28121,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(slot >= 0,
                            "the Lumbridge cooking range should be in the scene at 3212,3215");
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_loc]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_loc]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_loc] should be in the pack");
             if( script && slot >= 0 )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
                                "find/type/coord/change should all clear, got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
@@ -27980,7 +28143,7 @@ mock230_world_selftest(void)
                      * existed for was the one thing it could not do.
                      */
                     struct Mock230ZoneLoc* record =
-                        mock230_zone_loc_find(&srv, loc->x, loc->z, loc->level, loc->shape);
+                        mock230_zone_loc_find(srv, loc->x, loc->z, loc->level, loc->shape);
 
                     SELFTEST_CHECK(record && record->loc_id == remains,
                                    "and record it in the zone, got %d",
@@ -27989,26 +28152,26 @@ mock230_world_selftest(void)
 
                 /* duration 2 means the tick after next, for the same +1 reason
                  * p_delay(n) resumes on tick n+1. */
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 loc = mock230_scene_loc(slot);
                 SELFTEST_CHECK(loc && loc->loc_id == remains,
                                "still changed one tick later");
-                mock230_world_tick(&srv);
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
+                mock230_world_tick(srv);
                 loc = mock230_scene_loc(slot);
                 SELFTEST_CHECK(loc && loc->loc_id == range,
                                "and back to the cooking range once the duration expires, got %d",
                                loc ? loc->loc_id : -1);
             }
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_loc_add]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_loc_add]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_loc_add] should be in the pack");
             if( script )
             {
                 int added;
 
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 /* 4, not 1: the proc reads `loc_angle` and `loc_shape` back off
                  * the loc it just added and then checks `movecoord`, stopping at
                  * the first disagreement. Both opcodes had two of their
@@ -28058,13 +28221,13 @@ mock230_world_selftest(void)
                 /* An added loc expires by being removed again, not by turning
                  * into something else. */
                 for( int i = 0; i < 5; i++ )
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                 SELFTEST_CHECK(added >= 0 && mock230_scene_loc(added) &&
                                    !mock230_scene_loc(added)->active,
                                "a loc_add with a duration should expire away again");
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -28085,10 +28248,10 @@ mock230_world_selftest(void)
          * string*, because an int-stack assertion would pass even with the value
          * on the wrong stack, which is the exact failure `runtime_typed` names.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -28143,12 +28306,12 @@ mock230_world_selftest(void)
                                mock230_content_param_default(rangeattack));
             }
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_oc_param]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_oc_param]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_oc_param] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
                                "oc_param should clear all five int cases (two carried "
                                "rows, then absent with no default, default=-1, and "
@@ -28156,20 +28319,20 @@ mock230_world_selftest(void)
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_oc_param_string]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_oc_param_string]");
             SELFTEST_CHECK(script != NULL,
                            "[proc,selftest_oc_param_string] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                                "a string param should reach the string stack and read "
                                "back as \"Rub\", got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -28191,10 +28354,10 @@ mock230_world_selftest(void)
          * bonuses are all -15, so a table that read the field unsigned would
          * still answer something.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -28240,32 +28403,32 @@ mock230_world_selftest(void)
                     goblin, mock230_content_symbol(MOCK230_PACK_PARAM, "rangeattack")) == NULL,
                 "a param the npc does not carry is absent, not zero-valued");
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_nc_param]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_nc_param]");
             SELFTEST_CHECK(script != NULL, "[proc,selftest_nc_param] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
                                "nc_param should clear all five int cases (the last is "
                                "absent-with-declared-default: param_46 -> 526), got %d",
                                player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
-            script = SSVM_ProviderGetByName(srv.scripts, "[proc,selftest_nc_param_string]");
+            script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_nc_param_string]");
             SELFTEST_CHECK(script != NULL,
                            "[proc,selftest_nc_param_string] should be in the pack");
             if( script )
             {
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
-                mock230_scripts_run_script(&srv, script->id);
+                mock230_scripts_run_script(srv, script->id);
                 SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
                                "a string param should reach the string stack and read back "
                                "as \"Dagannoth Kings (Echo)\", got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             }
 
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -28306,10 +28469,10 @@ mock230_world_selftest(void)
          *     the reference does and the one piece of its timing that ports
          *     verbatim.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -28334,7 +28497,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(cook_type == 4626, "cook is npc 4626, got %d", cook_type);
             SELFTEST_CHECK(cookquest == 29, "cookquest is varp 29, got %d", cookquest);
 
-            cook_slot = selftest_find_npc(&srv, cook_type);
+            cook_slot = selftest_find_npc(srv, cook_type);
             SELFTEST_CHECK(cook_slot >= 0, "the Cook should be spawned in Lumbridge Castle");
 
             if( cook_slot >= 0 && cookquest > 0 )
@@ -28359,12 +28522,12 @@ mock230_world_selftest(void)
                 saved_x = player->x;
                 saved_z = player->z;
                 saved_level = player->level;
-                mock230_world_teleport(&srv, srv.npcs[cook_slot].level,
-                                       srv.npcs[cook_slot].x + 1, srv.npcs[cook_slot].z);
+                mock230_world_teleport(srv, srv->npcs[cook_slot].level,
+                                       srv->npcs[cook_slot].x + 1, srv->npcs[cook_slot].z);
                 player->varps[cookquest] = 0;
 
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-                SELFTEST_CHECK(selftest_settle(&srv, 20) >= 0,
+                SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                "talking to the Cook should resolve the interaction");
                 SELFTEST_CHECK(player->active_script != NULL,
                                "[opnpc1,cook] should park on its first dialogue page");
@@ -28373,7 +28536,7 @@ mock230_world_selftest(void)
                  * the conversation should not fail a test about the quest —
                  * but the cap is, because a script that never finishes would
                  * otherwise hang the suite rather than fail it. */
-                pages = selftest_click_through(&srv, 24);
+                pages = selftest_click_through(srv, 24);
                 SELFTEST_CHECK(player->active_script == NULL,
                                "the opening conversation should finish within 24 pages "
                                "(clicked %d)", pages);
@@ -28385,7 +28548,7 @@ mock230_world_selftest(void)
                  * in-progress branch. It must not restart the quest, and it
                  * must not complete it either. */
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-                pages = selftest_click_through(&srv, 24);
+                pages = selftest_click_through(srv, 24);
                 SELFTEST_CHECK(player->varps[cookquest] == 1,
                                "talking again empty-handed should leave it in progress, got %d",
                                player->varps[cookquest]);
@@ -28416,7 +28579,7 @@ mock230_world_selftest(void)
                 cooking_xp_before = player->stat_xp_tenths[cooking];
 
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-                pages = selftest_click_through(&srv, 24);
+                pages = selftest_click_through(srv, 24);
 
                 SELFTEST_CHECK(selftest_find(player, milk) < 0 &&
                                    selftest_find(player, egg) < 0 &&
@@ -28431,7 +28594,7 @@ mock230_world_selftest(void)
                                "the reward should still be queued, got %d",
                                player->varps[cookquest]);
 
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->varps[cookquest] == 2,
                                "the queue should complete the quest on the next tick, got %d",
                                player->varps[cookquest]);
@@ -28486,7 +28649,7 @@ mock230_world_selftest(void)
                                    "the scroll is booked, not mounted, on the "
                                    "completion tick");
 
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(player->mainmodal_group == scroll,
                                    "[queue,quest_scroll_show] mounts the scroll on the "
                                    "next tick, got group %d",
@@ -28507,16 +28670,16 @@ mock230_world_selftest(void)
 
                 /* The post-quest branch exists and does not undo anything. */
                 mock230_world_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
-                pages = selftest_click_through(&srv, 24);
+                pages = selftest_click_through(srv, 24);
                 SELFTEST_CHECK(player->varps[cookquest] == 2,
                                "talking after completion should leave it complete, got %d",
                                player->varps[cookquest]);
 
                 player->varps[cookquest] = 0;
-                mock230_world_teleport(&srv, saved_level, saved_x, saved_z);
+                mock230_world_teleport(srv, saved_level, saved_x, saved_z);
             }
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -28542,10 +28705,10 @@ mock230_world_selftest(void)
          * Placed after the cook's assistant deliberately — see the note there
          * about anything inserted above it that ticks the world.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -28562,9 +28725,9 @@ mock230_world_selftest(void)
             int settext = 0;
             int stab_at = -1;
 
-            mock230_capture_begin(&srv, &capture);
-            mock230_equipment_open_stats(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_equipment_open_stats(srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_open, 3),
                            "opening should mount, fill the worn container, then paint");
@@ -28616,14 +28779,14 @@ mock230_world_selftest(void)
             /* Down again: the gate is the mount, so a repaint with nothing
              * mounted must send nothing at all. */
             mock230_capture_reset(&capture);
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             mock230_send_if_closesub(player, ids->com_gameframe_mainmodal);
-            mock230_equipment_refresh_stats(&srv);
-            mock230_capture_end(&srv);
+            mock230_equipment_refresh_stats(srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94, 0) < 0,
                            "a closed screen should paint nothing");
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -28635,10 +28798,10 @@ mock230_world_selftest(void)
          * bankmain) must fill them on open. Without scripts the open still
          * mounts; with scripts the IF_SETTEXTs follow.
          */
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -28656,10 +28819,10 @@ mock230_world_selftest(void)
             int stab_at = -1;
             int speed_at = -1;
 
-            selftest_reset_world(&srv, player, 402, 402);
-            mock230_capture_begin(&srv, &capture);
-            mock230_bank_open(&srv);
-            mock230_capture_end(&srv);
+            selftest_reset_world(srv, player, 402, 402);
+            mock230_capture_begin(srv, &capture);
+            mock230_bank_open(srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
                            "bank open should leave bankmain mounted, got %d",
@@ -28749,10 +28912,10 @@ mock230_world_selftest(void)
             /* Worn dirty while bank is up: content refreshes on equip/unequip
              * directly now, so mock230_equipment_refresh_stats is a no-op. */
             mock230_capture_reset(&capture);
-            mock230_capture_begin(&srv, &capture);
+            mock230_capture_begin(srv, &capture);
             player->worn_dirty = 1u;
-            mock230_equipment_refresh_stats(&srv);
-            mock230_capture_end(&srv);
+            mock230_equipment_refresh_stats(srv);
+            mock230_capture_end(srv);
             settext = 0;
             for( int i = 0; i < capture.count; i++ )
                 if( capture.packets[i].opcode == 94 )
@@ -28761,15 +28924,15 @@ mock230_world_selftest(void)
                            "equipment_refresh_stats is a no-op now (content drives it), got %d",
                            settext);
 
-            mock230_bank_close(&srv);
+            mock230_bank_close(srv);
             mock230_capture_reset(&capture);
-            mock230_capture_begin(&srv, &capture);
-            mock230_equipment_refresh_stats(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_equipment_refresh_stats(srv);
+            mock230_capture_end(srv);
             SELFTEST_CHECK(mock230_capture_find(&capture, 94, 0) < 0,
                            "closed bank should paint no bonus texts");
 
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -28794,10 +28957,10 @@ mock230_world_selftest(void)
      */
     fprintf(stderr, "mock230 selftest: the inverted fallback\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         /* Not a skip: claim 3 is *about* the no-pack case, so it is the half
          * that runs either way. */
@@ -28812,7 +28975,7 @@ mock230_world_selftest(void)
                        "the engine fallback list should still be 3 long, not %d — it may "
                        "shrink as content grows, never grow",
                        (int)MOCK230_FALLBACK_COUNT);
-        SELFTEST_CHECK(mock230_scripts_report_fallbacks(&srv) == MOCK230_FALLBACK_COUNT,
+        SELFTEST_CHECK(mock230_scripts_report_fallbacks(srv) == MOCK230_FALLBACK_COUNT,
                        "the boot report should name every one of them");
 
         /*
@@ -28858,19 +29021,19 @@ mock230_world_selftest(void)
              * surviving row rather than going with the behaviour. OPNPC rather
              * than OPLOC deliberately: `oploc` is the next one expected to go. */
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_NONE) == 1,
+                mock230_scripts_fallback(srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_NONE) == 1,
                 "an unbound trigger should let its engine fallback run");
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_RAN) == 0,
+                mock230_scripts_fallback(srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_RAN) == 0,
                 "a trigger content handled should not also run the fallback");
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_FAILED) == 0,
+                mock230_scripts_fallback(srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_FAILED) == 0,
                 "a script that FAILED should not hand its click to C");
 
             /* And the tri-state that feeds it. `[opnpc5]` is bound on nothing in
              * the tree, so goblin 3105 answers NONE rather than the RAN/aborted
              * 0 the old two-valued return could not tell apart. */
-            SELFTEST_CHECK(mock230_scripts_run_trigger(&srv, SS_TRIGGER_OPNPC5, 3105, -1, -1) ==
+            SELFTEST_CHECK(mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC5, 3105, -1, -1) ==
                                MOCK230_TRIGGER_NONE,
                            "an unbound trigger should answer NONE");
 
@@ -28964,7 +29127,7 @@ mock230_world_selftest(void)
                  * which is the real close, and would delete the npc half of
                  * `k_engine_npc_verbs` with it.
                  */
-                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(&srv) == 1,
+                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(srv) == 1,
                                "only [opnpc1,doti_backupactor] should shadow an engine verb "
                                "— if this moved, read the new list and say why each entry "
                                "is right");
@@ -29012,10 +29175,10 @@ mock230_world_selftest(void)
                            "player/scripts/equip.rs2, which is the only thing that answers "
                            "it now");
 
-            mock230_scripts_free(&srv);
-            SELFTEST_CHECK(!srv.scripts_ok, "and now there is no pack");
+            mock230_scripts_free(srv);
+            SELFTEST_CHECK(!srv->scripts_ok, "and now there is no pack");
             SELFTEST_CHECK(
-                mock230_scripts_fallback(&srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_NONE) == 0,
+                mock230_scripts_fallback(srv, MOCK230_FALLBACK_OPNPC, MOCK230_TRIGGER_NONE) == 0,
                 "with no pack, no fallback may run — nothing is a gap when "
                 "everything is");
 
@@ -29032,7 +29195,7 @@ mock230_world_selftest(void)
             memcpy(player->inv, saved_inv, sizeof(saved_inv));
             memcpy(player->worn, saved_worn, sizeof(saved_worn));
         }
-        mock230_scripts_free(&srv);
+        mock230_scripts_free(srv);
     }
 
     /*
@@ -29047,10 +29210,10 @@ mock230_world_selftest(void)
      */
     fprintf(stderr, "mock230 selftest: [if_close] does not suppress the unmount\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -29060,8 +29223,8 @@ mock230_world_selftest(void)
         {
             static struct Mock230Capture capture;
 
-            selftest_reset_world(&srv, player, 402, 402);
-            SELFTEST_CHECK(SSVM_ProviderGetByName(srv.scripts, "[if_close,bankmain]") != NULL,
+            selftest_reset_world(srv, player, 402, 402);
+            SELFTEST_CHECK(SSVM_ProviderGetByName(srv->scripts, "[if_close,bankmain]") != NULL,
                            "the tree should bind [if_close,bankmain] — without it this "
                            "stanza proves nothing");
             /*
@@ -29079,21 +29242,21 @@ mock230_world_selftest(void)
              * honest amount of coverage available, and it fails if the
              * compiler's subject encoding moves.
              */
-            SELFTEST_CHECK(SSVM_ProviderGetByTrigger(srv.scripts, SS_TRIGGER_IF_CLOSE,
+            SELFTEST_CHECK(SSVM_ProviderGetByTrigger(srv->scripts, SS_TRIGGER_IF_CLOSE,
                                                      mock230_ids()->iface_bankmain,
                                                      -1) != NULL,
                            "and [if_close] should key on the interface id, not a com uid");
-            SELFTEST_CHECK(SSVM_ProviderGetByTrigger(srv.scripts, SS_TRIGGER_IF_CLOSE,
+            SELFTEST_CHECK(SSVM_ProviderGetByTrigger(srv->scripts, SS_TRIGGER_IF_CLOSE,
                                                      MOCK230_COM(mock230_ids()->iface_bankmain, 0),
                                                      -1) == NULL,
                            "and a com uid should find nothing — that was the bug");
 
-            mock230_bank_open(&srv);
+            mock230_bank_open(srv);
             SELFTEST_CHECK(player->bank.open, "the bank should be open");
 
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_close_modal(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_close_modal(srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(!player->bank.open,
                            "closing should clear the open flag even with a script bound");
@@ -29110,33 +29273,33 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->sidemodal_group > 0,
                            "poh_options should resolve for the side-only close fixture");
 
-            mock230_capture_begin(&srv, &capture);
-            mock230_world_close_modal(&srv);
-            mock230_capture_end(&srv);
+            mock230_capture_begin(srv, &capture);
+            mock230_world_close_modal(srv);
+            mock230_capture_end(srv);
 
             SELFTEST_CHECK(player->sidemodal_group == 0,
                            "CLOSE_MODAL must clear a side-only house-options mount");
             SELFTEST_CHECK(mock230_capture_find(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
                            "and side-only CLOSE_MODAL must send IF_CLOSESUB");
         }
-        mock230_scripts_free(&srv);
+        mock230_scripts_free(srv);
     }
 
     fprintf(stderr,
             "mock230 selftest: revision-239 Zuk seal hands off to delayed flank collapse\n");
     {
-        int loaded = mock230_scripts_load(&srv,
+        int loaded = mock230_scripts_load(srv,
                                           "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv,
+            loaded = mock230_scripts_load(srv,
                                           "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
             fprintf(stderr, "  SKIP  no compiled script pack\n");
         }
-        else if( strcmp(srv.wire->name, "osrs239") != 0 )
+        else if( strcmp(srv->wire->name, "osrs239") != 0 )
         {
             /* The decoder below intentionally pins revision 239's literal
              * packet table and transforms, not the selected mock revision. */
@@ -29208,8 +29371,8 @@ mock230_world_selftest(void)
                            "got %d/%d/%d",
                            collapse, long_left, long_right);
 
-            selftest_reset_world(&srv, player, 402, 402);
-            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zuk 1200"),
+            selftest_reset_world(srv, player, 402, 402);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zuk 1200"),
                            "::zuk should start the real seal script");
 
             for( int tick = 0; tick < 24; tick++ )
@@ -29221,9 +29384,9 @@ mock230_world_selftest(void)
                 int tick_pillar_seq;
                 int tick_cam_reset;
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_world_tick(&srv);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
 
                 tick_left = selftest_rev239_zone_count(
                     &capture, PKT_NAME_LOC_ADD_CHANGE, left);
@@ -29237,7 +29400,7 @@ mock230_world_selftest(void)
                     &capture, PKT_NAME_LOC_ANIM, collapse);
                 tick_cam_reset = mock230_capture_find(
                                      &capture,
-                                     mock230_wire_opcode(srv.wire, PKT_NAME_CAM_RESET),
+                                     mock230_wire_opcode(srv->wire, PKT_NAME_CAM_RESET),
                                      0) >= 0;
 
                 total_left += tick_left;
@@ -29258,25 +29421,25 @@ mock230_world_selftest(void)
                  * "never sent".
                  */
                 {
-                    int tick_collapse = selftest_capture_synth_count(&capture, srv.wire, 2039);
+                    int tick_collapse = selftest_capture_synth_count(&capture, srv->wire, 2039);
 
                     total_collapse_sound += tick_collapse;
                     if( rumble_tick < 0 &&
-                        selftest_capture_synth_count(&capture, srv.wire, 2045) )
+                        selftest_capture_synth_count(&capture, srv->wire, 2045) )
                         rumble_tick = tick;
                     if( collapse_sound_tick < 0 && tick_collapse )
                         collapse_sound_tick = tick;
                     if( settle_sound_tick < 0 &&
-                        selftest_capture_synth_count(&capture, srv.wire, 2294) )
+                        selftest_capture_synth_count(&capture, srv->wire, 2294) )
                         settle_sound_tick = tick;
                     if( music_stop_tick < 0 &&
                         mock230_capture_find(
-                            &capture, mock230_wire_opcode(srv.wire, PKT_NAME_MIDI_SONG_STOP),
+                            &capture, mock230_wire_opcode(srv->wire, PKT_NAME_MIDI_SONG_STOP),
                             0) >= 0 )
                         music_stop_tick = tick;
                     if( music_stop_tick >= 0 && music_resume_tick < 0 &&
                         mock230_capture_find(
-                            &capture, mock230_wire_opcode(srv.wire, PKT_NAME_MIDI_SONG), 0) >= 0 )
+                            &capture, mock230_wire_opcode(srv->wire, PKT_NAME_MIDI_SONG), 0) >= 0 )
                         music_resume_tick = tick;
                 }
 
@@ -29299,7 +29462,7 @@ mock230_world_selftest(void)
                 if( tick_left_seq && tick_right_seq && anim_tick < 0 )
                     anim_tick = tick;
                 if( fade_in_tick < 0 &&
-                    selftest_capture_has_clientscript(&capture, srv.wire, 948) )
+                    selftest_capture_has_clientscript(&capture, srv->wire, 948) )
                     fade_in_tick = tick;
                 if( tick_cam_reset && anim_tick >= 0 && cam_reset_tick < 0 )
                     cam_reset_tick = tick;
@@ -29311,13 +29474,13 @@ mock230_world_selftest(void)
                     mid_seen = 1;
                 else if( mid_seen && mid_removal_tick < 0 )
                     mid_removal_tick = tick;
-                if( zuk_tick < 0 && selftest_find_npc(&srv, zuk_type) >= 0 )
+                if( zuk_tick < 0 && selftest_find_npc(srv, zuk_type) >= 0 )
                     zuk_tick = tick;
                 {
-                    int glyph_slot = selftest_find_npc(&srv, glyph_type);
+                    int glyph_slot = selftest_find_npc(srv, glyph_type);
                     if( glyph_slot >= 0 )
                     {
-                        struct Mock230Npc* glyph = &srv.npcs[glyph_slot];
+                        struct Mock230Npc* glyph = &srv->npcs[glyph_slot];
                         if( !glyph_seen )
                         {
                             glyph_seen = 1;
@@ -29527,11 +29690,11 @@ mock230_world_selftest(void)
              * mode the engine would rather than trusting the hook that only
              * fires on arrival. Only `moverestrict=nomove` stops the step.
              */
-            zuk_slot = selftest_find_npc(&srv, zuk_type);
+            zuk_slot = selftest_find_npc(srv, zuk_type);
             SELFTEST_CHECK(zuk_slot >= 0, "the fixture should leave a TzKal-Zuk standing");
             if( zuk_slot >= 0 )
             {
-                struct Mock230Npc* zuk = &srv.npcs[zuk_slot];
+                struct Mock230Npc* zuk = &srv->npcs[zuk_slot];
                 int home_x = zuk->x;
                 int home_z = zuk->z;
                 int moved = 0;
@@ -29544,7 +29707,7 @@ mock230_world_selftest(void)
                 for( int tick = 0; tick < 12; tick++ )
                 {
                     zuk->mode = MOCK230_NPCMODE_APPLAYER1 + 1 /* applayer2 */;
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                     moved |= zuk->x != home_x || zuk->z != home_z;
                     faced |= zuk->face_entity != home_face;
                     faced |= zuk->face_x != home_fx || zuk->face_z != home_fz;
@@ -29580,7 +29743,7 @@ mock230_world_selftest(void)
              * MAP_BUILD_COMPLETE. Waiting for one deadlocks the cutscene; the
              * rebuild/GPI/zone stream must remain ordered without arming the
              * moved-scene barrier. */
-            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zuk 1200"),
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zuk 1200"),
                            "a repeated ::zuk should regenerate the instance");
             total_left = 0;
             total_right = 0;
@@ -29597,9 +29760,9 @@ mock230_world_selftest(void)
                 int tick_left_seq;
                 int tick_right_seq;
 
-                mock230_capture_begin(&srv, &capture);
-                mock230_world_tick(&srv);
-                mock230_capture_end(&srv);
+                mock230_capture_begin(srv, &capture);
+                mock230_world_tick(srv);
+                mock230_capture_end(srv);
                 repeat_rebuild |=
                     mock230_capture_find(&capture, 125 /* REBUILD_REGION */, 0) >= 0;
                 tick_left = selftest_rev239_zone_count(
@@ -29713,10 +29876,10 @@ mock230_world_selftest(void)
                 for( size_t i = 0; i < sizeof(k_adds) / sizeof(k_adds[0]); i++ )
                 {
                     int type = mock230_content_symbol(MOCK230_PACK_NPC, k_adds[i].name);
-                    int slot = mock230_world_npc_spawn(&srv, type, player->x + 1,
+                    int slot = mock230_world_npc_spawn(srv, type, player->x + 1,
                                                        player->z, player->level);
                     const struct Mock230NpcDef* def =
-                        slot >= 0 ? srv.npcs[slot].def : NULL;
+                        slot >= 0 ? srv->npcs[slot].def : NULL;
 
                     SELFTEST_CHECK(def != NULL, "%s should spawn with a record",
                                    k_adds[i].name);
@@ -29753,7 +29916,7 @@ mock230_world_selftest(void)
                                    "%s attack speed should be %d ticks, got %d",
                                    k_adds[i].name, k_adds[i].rate, def->attackrate);
                     /* Leave nothing standing for the glyph stanza below. */
-                    srv.npcs[slot].active = 0;
+                    srv->npcs[slot].active = 0;
                 }
             }
 
@@ -29774,13 +29937,13 @@ mock230_world_selftest(void)
              * both checks below red.
              */
             {
-                int glyph_slot = selftest_find_npc(&srv, glyph_type);
+                int glyph_slot = selftest_find_npc(srv, glyph_type);
 
                 SELFTEST_CHECK(glyph_slot >= 0,
                                "the fixture should leave an Ancestral Glyph walking");
                 if( glyph_slot >= 0 )
                 {
-                    struct Mock230Npc* glyph = &srv.npcs[glyph_slot];
+                    struct Mock230Npc* glyph = &srv->npcs[glyph_slot];
                     int const splat = mock230_content_symbol(MOCK230_PACK_HITSPLAT,
                                                              "hitsplat_damage");
                     int row_z = glyph->z;
@@ -29791,10 +29954,10 @@ mock230_world_selftest(void)
 
                     for( int tick = 0; tick < 8; tick++ )
                     {
-                        mock230_combat_hit_npc(&srv, glyph_slot, splat, 1);
+                        mock230_combat_hit_npc(srv, glyph_slot, splat, 1);
                         splatted |= (glyph->masks & MOCK230_NMASK_DAMAGE) != 0;
                         targeted |= glyph->combat_target >= 0;
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                         targeted |= glyph->combat_target >= 0;
                         strayed |= glyph->z != row_z;
                     }
@@ -29818,36 +29981,31 @@ mock230_world_selftest(void)
             }
 
             /*
-             * And an add that is mid-`npc_delay` still drains its queue.
+             * And the whole life of an add, from landing to the player's first
+             * hit, against the fixture that actually runs it.
              *
-             * The player's melee swing ends in `npc_queue(2, $damage, 0)`
-             * (skill_combat/combat_stats.rs2 `[proc,player_melee_swing]`), so
-             * for anything the player attacks, the npc's queue *is* the damage
-             * path — ranged, magic and every special already went that way and
-             * melee joined them. Jal-Xil, meanwhile, attacks on `npc_delay(4)`.
+             * `::zukstill 3` rather than `::zuk`, because the adds do not reach
+             * the real fight until tick ~92 and Zuk kills the fixture player
+             * first. What this stanza pins is one claim in five parts: an add
+             * fights the shield and then the player using the ENGINE's combat
+             * machine, and nothing in content paces either half.
              *
-             * Those two facts used to cancel each other out. The queue drain
-             * re-read `delayed_until` after `[ai_timer]` had run, and the add's
-             * timer ends in the delay that the drain then refused to look past
-             * — so the tick the delay expired was also the tick a fresh one was
-             * armed, and the entries piled up four-per-swing and never fired.
-             * Reported as "the Inferno adds show no hitsplats"; measured as
-             * Jal-Xil sitting at 125/125 with eleven queue entries on it.
-             *
-             * `::zukstill 3` rather than `::zuk`, because the fixture has to be
-             * an add that is *actually* running its attack loop: the adds do not
-             * reach the real fight until tick ~92, and a hand-spawned one with
-             * no timer never delays itself, which is the whole condition under
-             * test. Six ticks is more than the four an add's delay can hold the
-             * drain for, so a queue that fires at all fires inside the window.
+             * Every part of it fails if the npc-versus-npc target is taken out
+             * of the engine: without it the only way to shoot the glyph is a
+             * script clock, and a script clock means `npc_delay`, and a delayed
+             * npc does not drain the queue the player's hits arrive on.
              */
             {
                 int ranger_type =
                     mock230_content_symbol(MOCK230_PACK_NPC, "inferno_ranger_finalwave");
+                int mager_type =
+                    mock230_content_symbol(MOCK230_PACK_NPC, "inferno_mager_finalwave");
                 int ranger = -1;
+                int glyph_slot = -1;
+                int spawn_tick = 0;
 
-                selftest_reset_world(&srv, player, 402, 402);
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zukstill 3"),
+                selftest_reset_world(srv, player, 402, 402);
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill 3"),
                                "::zukstill 3 should stage the adds against a walking glyph");
                 for( int tick = 0; tick < 24 && ranger < 0; tick++ )
                 {
@@ -29858,40 +30016,92 @@ mock230_world_selftest(void)
                      * every check below reads "no add spawned". */
                     if( player->rebuild_scene_pending )
                         mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-                    mock230_world_tick(&srv);
-                    ranger = selftest_find_npc(&srv, ranger_type);
+                    mock230_world_tick(srv);
+                    ranger = selftest_find_npc(srv, ranger_type);
                 }
+                glyph_slot = selftest_find_npc(srv, glyph_type);
+                spawn_tick = (int)srv->tick;
                 SELFTEST_CHECK(ranger >= 0, "the fixture should leave a Jal-Xil standing");
-                if( ranger >= 0 )
+                SELFTEST_CHECK(glyph_slot >= 0,
+                               "and an Ancestral Glyph for it to shoot at");
+                if( ranger >= 0 && glyph_slot >= 0 )
                 {
-                    struct Mock230Npc* xil = &srv.npcs[ranger];
-                    int delayed = 0;
+                    struct Mock230Npc* xil = &srv->npcs[ranger];
+                    struct Mock230Npc* glyph = &srv->npcs[glyph_slot];
+                    int rate = xil->def ? xil->def->attackrate : 0;
+                    int mager = selftest_find_npc(srv, mager_type);
+                    int parked = 0;
+                    int early = 0;
                     int hp_before;
                     int armed = -1;
 
-                    /* Wait for the add to be inside its own attack delay — the
-                     * state the drain used to refuse to run in. Asserted rather
-                     * than assumed: an add that never delays would make every
-                     * check below pass for the wrong reason. */
-                    for( int tick = 0; tick < 12 && !delayed; tick++ )
+                    SELFTEST_CHECK(rate > 1, "Jal-Xil should state an attack speed, got %d",
+                                   rate);
+
+                    /*
+                     * 1. It waits. `npc_settimer(npc_param(attackrate))` at the
+                     *    spawn site is the whole of the opening pause, so the
+                     *    add stands there for a cycle before it takes a target
+                     *    — it used to fire on the tick it landed.
+                     */
+                    for( int tick = 0; tick + 1 < rate; tick++ )
                     {
-                        mock230_world_tick(&srv);
-                        delayed = xil->delayed_until > srv.tick;
+                        mock230_world_tick(srv);
+                        early |= xil->combat_target_npc >= 0;
+                        parked |= xil->delayed_until > srv->tick;
                     }
-                    SELFTEST_CHECK(delayed,
-                                   "Jal-Xil's [ai_timer] should hold it on npc_delay between "
-                                   "swings — without that this stanza tests nothing");
+                    SELFTEST_CHECK(!early,
+                                   "a fresh add must wait its attack cycle before it takes "
+                                   "the shield as a target (it took one %d tick(s) in)",
+                                   (int)srv->tick - spawn_tick);
 
-                    /* The hit below starts a real fight, and Jal-Xil's answer
-                     * (max hit 46) kills a default selftest player before the
-                     * retaliation stanza can watch it — a dying target clears
-                     * `combat_target`, which reads as the leash bug this
-                     * stanza exists to catch. Tank it: `player->hitpoints` is
-                     * the pool `mock230_combat_hit_player` drains; the stat
-                     * level only feeds `stat()` reads. */
-                    player->stat_level[MOCK230_STAT_HITPOINTS] = 200;
-                    player->hitpoints = 200;
+                    /*
+                     * 2. Then it fights the glyph — a real engine combat target,
+                     *    not a script pointing at a coordinate — and faces it.
+                     *    `face_entity` below `MOCK230_FACE_PLAYER_BASE` is an
+                     *    npc slot, the half of that id space nothing in this
+                     *    server wrote until npcs could fight each other.
+                     */
+                    for( int tick = 0; tick < 8 && xil->combat_target_npc < 0; tick++ )
+                    {
+                        mock230_world_tick(srv);
+                        parked |= xil->delayed_until > srv->tick;
+                    }
+                    SELFTEST_CHECK(xil->combat_target_npc == glyph_slot,
+                                   "then it should take the glyph as its combat target, got "
+                                   "%d (glyph is %d)",
+                                   xil->combat_target_npc, glyph_slot);
+                    SELFTEST_CHECK(xil->face_entity == glyph_slot,
+                                   "and face it — FACE_ENTITY should be the glyph's npc slot "
+                                   "%d, got %d",
+                                   glyph_slot, xil->face_entity);
 
+                    hp_before = glyph->hitpoints;
+                    for( int tick = 0; tick < 4 * rate; tick++ )
+                    {
+                        mock230_world_tick(srv);
+                        parked |= xil->delayed_until > srv->tick;
+                    }
+                    SELFTEST_CHECK(glyph->hitpoints < hp_before,
+                                   "and the shots must land on it; glyph still %d of %d",
+                                   glyph->hitpoints, hp_before);
+
+                    /*
+                     * 3. And it is never parked, on any tick of any of that.
+                     *
+                     * `npc_delay` makes an npc invalid for its whole turn, and
+                     * a turn an npc does not take is a turn it does not drain
+                     * its queue on — which is where every hit the player lands
+                     * arrives (`npc_queue(2, $damage, 0)`). The adds used to
+                     * pace themselves on `npc_delay(4)`, so they took one turn
+                     * in five and a hitsplat could sit unshown for four ticks.
+                     */
+                    SELFTEST_CHECK(!parked,
+                                   "an add must never hold itself on npc_delay — its queue "
+                                   "is where the player's hits land, and a delayed npc does "
+                                   "not drain one");
+
+                    /* 4. So a hit on it shows up on the very next tick. */
                     hp_before = xil->hitpoints;
                     for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
                     {
@@ -29908,83 +30118,174 @@ mock230_world_selftest(void)
                         break;
                     }
                     SELFTEST_CHECK(armed >= 0, "the add should have a free queue slot");
-
-                    for( int tick = 0; tick < 6; tick++ )
-                        mock230_world_tick(&srv);
-
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(armed < 0 || !xil->queue[armed].active,
-                                   "a delayed add must still drain its queue within its own "
-                                   "attack delay");
+                                   "a hit on an add must land on the next tick, not whenever "
+                                   "it next takes a turn");
                     SELFTEST_CHECK(xil->hitpoints == hp_before - 7,
                                    "and take the queued damage — [ai_queue2] is where every "
                                    "hit on an add lands; %d -> %d",
                                    hp_before, xil->hitpoints);
 
                     /*
-                     * And the hit must be answered from where the add stands.
+                     * 5. The player attacks it, and that is the end of the
+                     *    shield for this add — forever, and from anywhere.
                      *
-                     * Retaliation used to fail twice over, and both halves were
-                     * invisible from the assertions above. The record's default
-                     * `maxrange` leash is 7 measured from the SPAWN tile, so
-                     * the tick after `combat_target` latched,
-                     * `target_within_maxrange` read a player across the arena
-                     * as escaped and cleared it — a one-tick fight. And with
-                     * the default `attackrange` of 1, an add that did keep its
-                     * target walked the whole floor to melee before the combat
-                     * clock let it swing. `param=attackrange,40` + `maxrange=40`
-                     * (configs/inferno.npc, the wiki's ">10 tiles" bound) plus
-                     * the [ai_opplayer2] redirect are the fix; this holds all
-                     * three.
-                     *
-                     * The player is parked 19 tiles west on the ranger's own
-                     * row — outside the old leash and the old AP walk gate,
-                     * inside the new reach.
+                     * The player is parked at the far south-west corner of the
+                     * arena, on the far side of the floor from the ranger's
+                     * spawn: outside the record's default 7-tile `maxrange`
+                     * leash and outside the engine's flat 10-tile AP walk gate,
+                     * inside the `param=attackrange,40` / `maxrange=40` the
+                     * wiki's ">10 tiles" bound put on these records. Jal-Xil
+                     * (max hit 46) kills a default fixture player before any of
+                     * this can be watched, and `player->hitpoints` is the pool
+                     * `mock230_combat_hit_player` drains — the stat level only
+                     * feeds `stat()` reads — so raise both.
                      */
                     {
+                        /*
+                         * The four corner combat-spawn tiles of the arena
+                         * (`^inferno_spawn_*` in inferno.constant), as local
+                         * offsets from the instance base. Known-good floor —
+                         * the wave spawner stands monsters on them — so a miss
+                         * here is about reach, not about the player being off
+                         * the map.
+                         */
+                        static const struct
+                        {
+                            const char* name;
+                            int lx;
+                            int lz;
+                        } k_corners[] = {
+                            { "south-west", 20, 20 },
+                            { "south-east", 39, 20 },
+                            { "north-west", 19, 41 },
+                            { "north-east", 39, 40 },
+                        };
                         int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
                         int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
-                        int xil_home_x = xil->x;
-                        int xil_home_z = xil->z;
-                        int hp_level_before;
+                        int home_x = xil->x;
+                        int home_z = xil->z;
+                        int glyph_hp;
                         int held = 1;
+                        int returned = 0;
 
-                        player->x = base_x + 16;
-                        player->z = base_z + 38; /* ^inferno_ranger_lz */
-                        hp_level_before = player->hitpoints;
+                        /* Leave the ranger as the glyph's only attacker, so any
+                         * glyph damage below is attributable to it. */
+                        if( mager >= 0 )
+                            srv->npcs[mager].active = 0;
 
-                        for( int tick = 0; tick < 12; tick++ )
+                        /* Jal-Xil (max hit 46) kills a default fixture player
+                         * long before any of this can be watched; the per-tick
+                         * top-up below says why both fields have to move. */
+                        player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                        player->hitpoints = 900;
+                        mock230_combat_sync_hitpoints(player);
+                        player->x = base_x + k_corners[0].lx;
+                        player->z = base_z + k_corners[0].lz;
+
+                        mock230_world_set_active(srv, player);
+                        mock230_combat_hit_npc(
+                            srv, ranger,
+                            mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage"),
+                            3);
+                        SELFTEST_CHECK(xil->combat_target == player->pid &&
+                                           xil->combat_target_npc < 0,
+                                       "the player's hit must take the add off the shield and "
+                                       "onto them (target %d, npc target %d)",
+                                       xil->combat_target, xil->combat_target_npc);
+
+                        /* One flight's worth of ticks for the arrow already in
+                         * the air, then the glyph must be untouched for good. */
+                        for( int tick = 0; tick < 2 * rate; tick++ )
+                            mock230_world_tick(srv);
+                        glyph_hp = glyph->hitpoints;
+
+                        /*
+                         * From every corner of the floor, and without taking a
+                         * step out of it.
+                         *
+                         * Two engine numbers have to be right for this and they
+                         * fail differently: `param=attackrange,40` is how far
+                         * the add may shoot (unstated it is 1, melee, and the
+                         * add marches across the arena), and `maxrange=40` is
+                         * how far from its SPAWN tile the fight may travel
+                         * before `target_within_maxrange` calls it off
+                         * (unstated it is 7, and retaliation lasts one tick).
+                         * The wiki puts these monsters' reach past the player's
+                         * own maximum of ten and states no figure, so both are
+                         * the arena — see configs/inferno.npc.
+                         */
+                        for( size_t c = 0; c < sizeof(k_corners) / sizeof(k_corners[0]); c++ )
                         {
-                            mock230_world_tick(&srv);
-                            held &= xil->combat_target == player->pid;
+                            int took = 0;
+                            int gap;
+
+                            player->x = base_x + k_corners[c].lx;
+                            player->z = base_z + k_corners[c].lz;
+                            gap = abs(player->x - xil->x) > abs(player->z - xil->z)
+                                      ? abs(player->x - xil->x)
+                                      : abs(player->z - xil->z);
+
+                            for( int tick = 0; tick < 3 * rate; tick++ )
+                            {
+                                int before = player->hitpoints;
+
+                                mock230_world_tick(srv);
+                                if( player->hitpoints < before )
+                                    took += before - player->hitpoints;
+                                /*
+                                 * Topped up every tick, not once per corner.
+                                 * Jal-Xil's max hit is 46 and this stanza
+                                 * stands in front of one for four corners'
+                                 * worth of ticks; a fixture player who is
+                                 * allowed to die takes the fight down with them
+                                 * — `mock230_combat_npc_tick` drops the target
+                                 * of a `dying` player — and the leash check
+                                 * below then reads as exactly the bug it is
+                                 * looking for. Both fields: `player->hitpoints`
+                                 * is the pool damage drains and the stat level
+                                 * is the ceiling `sync_hitpoints` clamps it to.
+                                 */
+                                player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                                player->hitpoints = 900;
+                                mock230_combat_sync_hitpoints(player);
+                                held &= xil->combat_target == player->pid;
+                                returned |= xil->combat_target_npc >= 0;
+                            }
+                            SELFTEST_CHECK(took > 0,
+                                           "an add must reach the player anywhere in the "
+                                           "arena — %s corner, %d tiles, took no damage in "
+                                           "%d ticks",
+                                           k_corners[c].name, gap, 3 * rate);
+                            SELFTEST_CHECK(abs(xil->x - home_x) + abs(xil->z - home_z) <= 1,
+                                           "and shoot from where it stands rather than close "
+                                           "the distance — %s corner moved it (%d,%d) -> "
+                                           "(%d,%d)",
+                                           k_corners[c].name, home_x, home_z, xil->x, xil->z);
                         }
                         SELFTEST_CHECK(held,
-                                       "a provoked Jal-Xil must hold its target across the "
+                                       "a provoked add must hold its target across the whole "
                                        "arena — the default 7-tile maxrange leash cleared it "
                                        "on the first combat tick (target %d)",
                                        xil->combat_target);
-                        SELFTEST_CHECK(abs(xil->x - xil_home_x) +
-                                               abs(xil->z - xil_home_z) <=
-                                           2,
-                                       "and shoot from where it stands, not march to melee — "
-                                       "moved (%d,%d) -> (%d,%d)",
-                                       xil_home_x, xil_home_z, xil->x, xil->z);
-                        SELFTEST_CHECK(player->hitpoints < hp_level_before,
-                                       "and its ranged answer must land on the player (hp "
-                                       "still %d of %d)",
-                                       player->hitpoints, hp_level_before);
+                        SELFTEST_CHECK(!returned && glyph->hitpoints == glyph_hp,
+                                       "and must never go back to the shield: glyph %d -> %d, "
+                                       "npc target %d",
+                                       glyph_hp, glyph->hitpoints, xil->combat_target_npc);
                     }
                 }
             }
         }
-        mock230_scripts_free(&srv);
+        mock230_scripts_free(srv);
     }
 
     fprintf(stderr, "mock230 selftest: the Zuk fight row has six tiles blind to Zuk\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv,
+            loaded = mock230_scripts_load(srv,
                                           "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
@@ -30031,13 +30332,13 @@ mock230_world_selftest(void)
             int blind_count = 0;
             int groups = 0;
 
-            selftest_reset_world(&srv, player, 402, 402);
-            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zukstill"),
+            selftest_reset_world(srv, player, 402, 402);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill"),
                            "::zukstill should allocate the settled Zuk arena");
             /* The arena is queued behind ^inferno_reset_delay, and the locs it
              * adds only reach the collision map once that queue has run. */
             for( int tick = 0; tick < 6; tick++ )
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
             handle = mock230_mapinstance_find(player->x, player->z);
             SELFTEST_CHECK(handle != 0, "::zukstill should leave the player in its instance");
             if( handle != 0 && mock230_mapinstance_base(handle, &base_x, &base_z) )
@@ -30134,22 +30435,22 @@ mock230_world_selftest(void)
 
                     for( int i = 0; i < MOCK230_NPC_MAX; i++ )
                     {
-                        if( srv.npcs[i].active && srv.npcs[i].x == zuk_x &&
-                            srv.npcs[i].z == zuk_z )
+                        if( srv->npcs[i].active && srv->npcs[i].x == zuk_x &&
+                            srv->npcs[i].z == zuk_z )
                             zuk_slot = i;
                     }
                     SELFTEST_CHECK(zuk_slot >= 0, "::zukstill should have placed Zuk");
                     if( zuk_slot >= 0 )
-                        hp_full = srv.npcs[zuk_slot].hitpoints;
+                        hp_full = srv->npcs[zuk_slot].hitpoints;
                     /* A ranged weapon, because melee has no ap range to get
                      * wrong: `weapon_attackrange` 0 falls through to the op form
                      * and walks to adjacency on every tile by design. */
-                    mock230_scripts_run_debugproc(&srv, "crystal_set");
+                    mock230_scripts_run_debugproc(srv, "crystal_set");
 
                     for( int lx = 0; zuk_slot >= 0 && lx < 64; lx++ )
                     {
                         int const x = base_x + lx;
-                        struct Mock230Npc* zuk = &srv.npcs[zuk_slot];
+                        struct Mock230Npc* zuk = &srv->npcs[zuk_slot];
                         const struct Mock230NpcInfo* info = mock230_npcinfo(zuk->type);
                         struct CollisionApproach approach;
 
@@ -30161,20 +30462,20 @@ mock230_world_selftest(void)
                          * and a Zuk who dies half way turns the rest of the row
                          * into "no target" rather than "no pull". */
                         zuk->hitpoints = hp_full;
-                        mock230_world_clear_pending_action(&srv);
-                        selftest_park_player(&srv, x, row_z);
+                        mock230_world_clear_pending_action(srv);
+                        selftest_park_player(srv, x, row_z);
                         player->level = zuk->level;
 
                         /* The body of the OPNPC handler — latch the target,
                          * route to it, try it once. */
-                        mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 2, zuk_slot,
+                        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, zuk_slot,
                                                       zuk->type, zuk->x, zuk->z, zuk->level,
                                                       info->size, info->size);
                         mock230_scene_npc_approach(info->size, &approach);
-                        mock230_world_walk_to_approach(&srv, zuk->x, zuk->z, &approach);
-                        mock230_world_process_interaction(&srv);
+                        mock230_world_walk_to_approach(srv, zuk->x, zuk->z, &approach);
+                        mock230_world_process_interaction(srv);
                         for( int t = 0; t < 2; t++ )
-                            mock230_world_tick(&srv);
+                            mock230_world_tick(srv);
 
                         if( player->x == x && player->z == row_z )
                             continue;
@@ -30209,24 +30510,24 @@ mock230_world_selftest(void)
                      */
                     if( zuk_slot >= 0 )
                     {
-                        struct Mock230Npc* zuk = &srv.npcs[zuk_slot];
+                        struct Mock230Npc* zuk = &srv->npcs[zuk_slot];
                         const struct Mock230NpcInfo* info = mock230_npcinfo(zuk->type);
                         struct CollisionApproach approach;
                         int const east_lx = zuk_lx + 13;
 
                         zuk->hitpoints = hp_full;
                         hp_before = zuk->hitpoints;
-                        mock230_world_clear_pending_action(&srv);
-                        selftest_park_player(&srv, base_x + east_lx, row_z);
+                        mock230_world_clear_pending_action(srv);
+                        selftest_park_player(srv, base_x + east_lx, row_z);
                         player->level = zuk->level;
-                        mock230_world_interaction_set(&srv, MOCK230_INTERACT_NPC, 2, zuk_slot,
+                        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 2, zuk_slot,
                                                       zuk->type, zuk->x, zuk->z, zuk->level,
                                                       info->size, info->size);
                         mock230_scene_npc_approach(info->size, &approach);
-                        mock230_world_walk_to_approach(&srv, zuk->x, zuk->z, &approach);
-                        mock230_world_process_interaction(&srv);
+                        mock230_world_walk_to_approach(srv, zuk->x, zuk->z, &approach);
+                        mock230_world_process_interaction(srv);
                         for( int t = 0; t < 12; t++ )
-                            mock230_world_tick(&srv);
+                            mock230_world_tick(srv);
 
                         SELFTEST_CHECK(player->x == base_x + east_lx && player->z == row_z,
                                        "a bow east of Zuk should hold its tile, got "
@@ -30241,16 +30542,16 @@ mock230_world_selftest(void)
                     }
                 }
             }
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
     fprintf(stderr, "mock230 selftest: Inferno death drains Zuk and releases its instance\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv,
+            loaded = mock230_scripts_load(srv,
                                           "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
@@ -30260,11 +30561,11 @@ mock230_world_selftest(void)
         else
         {
             const struct SSVM_Script* damage =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,combat_damage_player]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,combat_damage_player]");
             const struct SSVM_Script* death =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,player_death]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,player_death]");
             const struct SSVM_Script* zuk_start =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,inferno_zuk_start]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,inferno_zuk_start]");
             int inferno_active =
                 mock230_content_symbol(MOCK230_PACK_VARP, "inferno_active");
             int inferno_death_pending =
@@ -30282,7 +30583,7 @@ mock230_world_selftest(void)
             int sentinel = -1;
             int death_ticks = 1;
 
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             SELFTEST_CHECK(damage && death && zuk_start,
                            "the Inferno death fixture requires its three real queue scripts");
             SELFTEST_CHECK(inferno_active >= 0 && inferno_death_pending >= 0 &&
@@ -30294,7 +30595,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(overlay_hud >= 0 && inferno_hud >= 0,
                            "the Inferno HUD mount should resolve, got %d/%d", overlay_hud,
                            inferno_hud);
-            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zuk 1200"),
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zuk 1200"),
                            "::zuk should allocate the real Inferno session");
             handle = mock230_mapinstance_find(player->x, player->z);
             SELFTEST_CHECK(handle != 0 && mock230_mapinstance_live_count() == 1,
@@ -30308,21 +30609,21 @@ mock230_world_selftest(void)
             if( zuk_type > 0 )
             {
                 sentinel = mock230_world_npc_spawn(
-                    &srv, zuk_type, player->x + 1, player->z, player->level);
+                    srv, zuk_type, player->x + 1, player->z, player->level);
                 if( sentinel >= 0 )
                 {
-                    srv.npcs[sentinel].spawn_pending = 0;
+                    srv->npcs[sentinel].spawn_pending = 0;
                     /* Zuk's timer intentionally does not trust the generic
                      * active flag. Death must freeze it while still retaining
                      * the NPC, otherwise a pre-armed actor can overwrite the
                      * corpse animation before post-respawn cleanup. */
-                    srv.npcs[sentinel].timer_interval = 1;
-                    srv.npcs[sentinel].mode = MOCK230_NPCMODE_NONE;
+                    srv->npcs[sentinel].timer_interval = 1;
+                    srv->npcs[sentinel].mode = MOCK230_NPCMODE_NONE;
                 }
             }
-            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active &&
+            SELFTEST_CHECK(sentinel >= 0 && srv->npcs[sentinel].active &&
                                mock230_mapinstance_find(
-                                   srv.npcs[sentinel].x, srv.npcs[sentinel].z) == handle,
+                                   srv->npcs[sentinel].x, srv->npcs[sentinel].z) == handle,
                            "the Inferno corpse fixture should have one arena actor");
             if( overlay_hud >= 0 && inferno_hud >= 0 )
                 mock230_send_if_opensub(player, MOCK230_COM_GROUP(overlay_hud),
@@ -30355,12 +30656,12 @@ mock230_world_selftest(void)
             /* The real damage funnel fires [playerdeath,_]. A second copy is
              * what combat_damage_player itself queues after the engine notices
              * zero HP, so pin its removal too. */
-            mock230_combat_hit_player(&srv, 0, player->hitpoints);
+            mock230_combat_hit_player(srv, 0, player->hitpoints);
             SELFTEST_CHECK(player->dying, "the lethal hit should enter death state");
-            SELFTEST_CHECK(mock230_scripts_queue_named(&srv, "[queue,player_death]", 2, 0),
+            SELFTEST_CHECK(mock230_scripts_queue_named(srv, "[queue,player_death]", 2, 0),
                            "the duplicate player-death queue should arm");
 
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(inferno_active >= 0 && player->varps[inferno_active] == 0,
                            "the first death turn should stop Zuk before p_delay");
             SELFTEST_CHECK(inferno_death_pending >= 0 &&
@@ -30369,10 +30670,10 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_mapinstance_live_count() == 1 &&
                                mock230_mapinstance_find(player->x, player->z) == handle,
                            "the corpse animation should retain its reservation");
-            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
+            SELFTEST_CHECK(sentinel >= 0 && srv->npcs[sentinel].active,
                            "the corpse animation should retain Inferno actors");
-            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].timer_interval == 0 &&
-                               srv.npcs[sentinel].mode == MOCK230_NPCMODE_NONE,
+            SELFTEST_CHECK(sentinel >= 0 && srv->npcs[sentinel].timer_interval == 0 &&
+                               srv->npcs[sentinel].mode == MOCK230_NPCMODE_NONE,
                            "early death handling should freeze retained Inferno actors");
             if( damage && death && zuk_start )
             {
@@ -30418,7 +30719,7 @@ mock230_world_selftest(void)
              * queue, while inferno_death_cleanup is a following queue turn. */
             while( player->dying && death_ticks < 20 )
             {
-                mock230_world_tick(&srv);
+                mock230_world_tick(srv);
                 death_ticks++;
                 if( player->dying )
                 {
@@ -30426,7 +30727,7 @@ mock230_world_selftest(void)
                                        mock230_mapinstance_find(player->x, player->z) == handle,
                                    "Inferno must remain live throughout death tick %d",
                                    death_ticks);
-                    SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
+                    SELFTEST_CHECK(sentinel >= 0 && srv->npcs[sentinel].active,
                                    "Inferno actors must survive death tick %d", death_ticks);
                     if( player->rebuild_scene_pending )
                         mock230_world_handle(
@@ -30444,7 +30745,7 @@ mock230_world_selftest(void)
                            mock230_mapinstance_live_count(),
                            mock230_mapinstance_find(player->x, player->z),
                            instance_handle >= 0 ? player->varps[instance_handle] : -1);
-            SELFTEST_CHECK(sentinel >= 0 && srv.npcs[sentinel].active,
+            SELFTEST_CHECK(sentinel >= 0 && srv->npcs[sentinel].active,
                            "Inferno actors should outlive the corpse and respawn turn");
             if( overlay_hud >= 0 )
             {
@@ -30463,7 +30764,7 @@ mock230_world_selftest(void)
             if( player->rebuild_scene_pending )
                 mock230_world_handle(
                     player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-            mock230_world_tick(&srv);
+            mock230_world_tick(srv);
             SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
                            "post-respawn cleanup should release the Inferno instance");
             SELFTEST_CHECK(instance_handle >= 0 && player->varps[instance_handle] == 0,
@@ -30472,7 +30773,7 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_mapinstance_find(player->x, player->z) == 0,
                            "the respawn should be outside the released instance at %d,%d",
                            player->x, player->z);
-            SELFTEST_CHECK(sentinel >= 0 && !srv.npcs[sentinel].active,
+            SELFTEST_CHECK(sentinel >= 0 && !srv->npcs[sentinel].active,
                            "deferred cleanup should despawn retained Inferno actors");
             if( overlay_hud >= 0 )
             {
@@ -30488,12 +30789,12 @@ mock230_world_selftest(void)
                 int hp = player->hitpoints;
 
                 for( int i = 0; i < 4; i++ )
-                    mock230_world_tick(&srv);
+                    mock230_world_tick(srv);
                 SELFTEST_CHECK(player->hitpoints == hp && !player->dying,
                                "no stale Zuk hit should kill the respawn, hp %d -> %d",
                                hp, player->hitpoints);
             }
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -30647,7 +30948,7 @@ mock230_world_selftest(void)
                        "the first social packet of a tick should be allowed");
         SELFTEST_CHECK(!mock230_friends_social_gate(player),
                        "the second should not");
-        mock230_world_tick(&srv);
+        mock230_world_tick(srv);
         SELFTEST_CHECK(mock230_friends_social_gate(player),
                        "the tick should have released the latch");
 
@@ -30674,10 +30975,10 @@ mock230_world_selftest(void)
      */
     fprintf(stderr, "mock230 selftest: QBD adds share LP scaling but die normally\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -30686,7 +30987,7 @@ mock230_world_selftest(void)
         else
         {
             const struct SSVM_Script* probe =
-                SSVM_ProviderGetByName(srv.scripts, "[proc,rs2012_qbd_add_hit_host_probe]");
+                SSVM_ProviderGetByName(srv->scripts, "[proc,rs2012_qbd_add_hit_host_probe]");
             int caster_alive =
                 mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_time_caster_alive");
             int soul_type =
@@ -30696,7 +30997,7 @@ mock230_world_selftest(void)
             int soul = -1;
             int worm = -1;
 
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             SELFTEST_CHECK(probe && caster_alive >= 0 && soul_type > 0 && worm_type > 0,
                            "the QBD-add hit fixture should resolve probe/varp/types: "
                            "%p/%d/%d/%d",
@@ -30705,13 +31006,13 @@ mock230_world_selftest(void)
             if( probe && caster_alive >= 0 && soul_type > 0 && worm_type > 0 )
             {
                 soul = mock230_world_npc_spawn(
-                    &srv, soul_type, player->x + 1, player->z, player->level);
-                SELFTEST_CHECK(soul >= 0 && srv.npcs[soul].hitpoints == 500,
+                    srv, soul_type, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(soul >= 0 && srv->npcs[soul].hitpoints == 500,
                                "the time-stop soul should spawn with 500 LP, slot=%d hp=%d",
-                               soul, soul >= 0 ? srv.npcs[soul].hitpoints : -1);
+                               soul, soul >= 0 ? srv->npcs[soul].hitpoints : -1);
                 if( soul >= 0 )
                 {
-                    struct Mock230Npc* npc = &srv.npcs[soul];
+                    struct Mock230Npc* npc = &srv->npcs[soul];
 
                     npc->spawn_pending = 0;
                     npc->timer_interval = 0;
@@ -30719,7 +31020,7 @@ mock230_world_selftest(void)
                     player->varps[caster_alive] = 1;
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(mock230_scripts_run_proc_on_npc(
-                                       &srv, "[proc,rs2012_qbd_add_hit_host_probe]", soul),
+                                       srv, "[proc,rs2012_qbd_add_hit_host_probe]", soul),
                                    "the shared QBD-add hit probe should run on a soul");
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 500050 &&
                                        npc->hitpoints == 500,
@@ -30728,7 +31029,7 @@ mock230_world_selftest(void)
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS],
                                    npc->hitpoints);
                     for( int tick = 0; tick < 8 && npc->active; tick++ )
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     SELFTEST_CHECK(!npc->active && player->varps[caster_alive] == 0,
                                    "the lethal scaled hit should retire the time-stop caster "
                                    "and clear its latch, active=%d caster=%d hp=%d",
@@ -30736,20 +31037,20 @@ mock230_world_selftest(void)
                 }
 
                 worm = mock230_world_npc_spawn(
-                    &srv, worm_type, player->x + 1, player->z, player->level);
-                SELFTEST_CHECK(worm >= 0 && srv.npcs[worm].hitpoints == 650,
+                    srv, worm_type, player->x + 1, player->z, player->level);
+                SELFTEST_CHECK(worm >= 0 && srv->npcs[worm].hitpoints == 650,
                                "the QBD intermission worm should spawn with 650 LP, "
                                "slot=%d hp=%d",
-                               worm, worm >= 0 ? srv.npcs[worm].hitpoints : -1);
+                               worm, worm >= 0 ? srv->npcs[worm].hitpoints : -1);
                 if( worm >= 0 )
                 {
-                    struct Mock230Npc* npc = &srv.npcs[worm];
+                    struct Mock230Npc* npc = &srv->npcs[worm];
 
                     npc->spawn_pending = 0;
                     npc->timer_interval = 0;
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(mock230_scripts_run_proc_on_npc(
-                                       &srv, "[proc,rs2012_qbd_add_hit_host_probe]", worm),
+                                       srv, "[proc,rs2012_qbd_add_hit_host_probe]", worm),
                                    "the shared QBD-add hit probe should run on a worm");
                     SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 650065 &&
                                        npc->hitpoints == 650,
@@ -30758,7 +31059,7 @@ mock230_world_selftest(void)
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS],
                                    npc->hitpoints);
                     for( int tick = 0; tick < 8 && npc->active; tick++ )
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     SELFTEST_CHECK(!npc->active,
                                    "the lethal scaled hit should use the worm's ordinary "
                                    "one-life death path, active=%d hp=%d",
@@ -30768,24 +31069,24 @@ mock230_world_selftest(void)
 
             /* A failing death assertion must not poison the lifecycle fixture
              * below with a live add or a borrowed time-caster flag. */
-            if( soul >= 0 && srv.npcs[soul].active )
+            if( soul >= 0 && srv->npcs[soul].active )
             {
-                mock230_world_npc_occupancy(&srv.npcs[soul], 0);
-                srv.npcs[soul].active = 0;
-                srv.npcs[soul].respawn_tick = -1;
-                mock230_zone_npc_refile(&srv, soul);
+                mock230_world_npc_occupancy(&srv->npcs[soul], 0);
+                srv->npcs[soul].active = 0;
+                srv->npcs[soul].respawn_tick = -1;
+                mock230_zone_npc_refile(srv, soul);
             }
-            if( worm >= 0 && srv.npcs[worm].active )
+            if( worm >= 0 && srv->npcs[worm].active )
             {
-                mock230_world_npc_occupancy(&srv.npcs[worm], 0);
-                srv.npcs[worm].active = 0;
-                srv.npcs[worm].respawn_tick = -1;
-                mock230_zone_npc_refile(&srv, worm);
+                mock230_world_npc_occupancy(&srv->npcs[worm], 0);
+                srv->npcs[worm].active = 0;
+                srv->npcs[worm].respawn_tick = -1;
+                mock230_zone_npc_refile(srv, worm);
             }
             if( caster_alive >= 0 )
                 player->varps[caster_alive] = 0;
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -30801,10 +31102,10 @@ mock230_world_selftest(void)
     fprintf(stderr,
             "mock230 selftest: QBD departure preserves reward and reuses its instance\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -30813,13 +31114,13 @@ mock230_world_selftest(void)
         else
         {
             const struct SSVM_Script* lifecycle =
-                SSVM_ProviderGetByName(srv.scripts, "[softtimer,rs2012_qbd_lifecycle]");
+                SSVM_ProviderGetByName(srv->scripts, "[softtimer,rs2012_qbd_lifecycle]");
             const struct SSVM_Script* wake =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,rs2012_qbd_wake]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_wake]");
             const struct SSVM_Script* hazard =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,rs2012_qbd_platform_hazard]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_platform_hazard]");
             const struct SSVM_Script* coffer_arrive =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,rs2012_qbd_coffer_arrive]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_coffer_arrive]");
             int qbd_active = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_active");
             int qbd_handle = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_qbd_handle");
             int reward_ready =
@@ -30860,7 +31161,7 @@ mock230_world_selftest(void)
             int coffer_baked;
             int fixture_ok;
 
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             coffer_baked = qbd_coffer_loc > 0 && mock230_loc_known(qbd_coffer_loc);
             fixture_ok = lifecycle && wake && hazard && coffer_arrive && qbd_active >= 0 &&
                          qbd_handle >= 0 && reward_ready >= 0 && time_stopped >= 0 &&
@@ -30898,7 +31199,7 @@ mock230_world_selftest(void)
                 {
                     static struct Mock230Capture claim_capture;
                     struct Mock230Container* reward_container =
-                        mock230_container_resolve(&srv, player, qbd_reward_inv);
+                        mock230_container_resolve(srv, player, qbd_reward_inv);
                     struct Mock230Item saved_backpack[MOCK230_INV_SLOTS];
                     struct Mock230Item saved_coffer[10];
                     int ran = MOCK230_TRIGGER_NONE;
@@ -30911,9 +31212,9 @@ mock230_world_selftest(void)
                     {
                         memcpy(saved_backpack, player->inv, sizeof(saved_backpack));
                         memcpy(saved_coffer, reward_container->items, sizeof(saved_coffer));
-                        mock230_capture_begin(&srv, &claim_capture);
-                        ran = mock230_scripts_run_debugproc(&srv, "rs2012qbdclaimtest");
-                        mock230_capture_end(&srv);
+                        mock230_capture_begin(srv, &claim_capture);
+                        ran = mock230_scripts_run_debugproc(srv, "rs2012qbdclaimtest");
+                        mock230_capture_end(srv);
 
                         for( int i = mock230_capture_find(
                                  &claim_capture, 90 /* MESSAGE_GAME */, 0);
@@ -30960,13 +31261,13 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(saved_summoning < 60,
                                "the QBD gate fixture needs a sub-60 account, got %d",
                                saved_summoning);
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbd") ==
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbd") ==
                                    MOCK230_TRIGGER_RAN,
                                "the ordinary ::rs2012qbd command should resolve");
                 SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
                                    player->varps[qbd_active] == 0,
                                "ordinary QBD debug entry must retain the 60 Summoning gate");
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdmanifest") ==
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbdmanifest") ==
                                    MOCK230_TRIGGER_RAN,
                                "the manifest-only QBD entry should resolve");
                 SELFTEST_CHECK(player->stat_level[MOCK230_STAT_SUMMONING] == saved_summoning &&
@@ -30988,7 +31289,7 @@ mock230_world_selftest(void)
                                    player->varps[instance_handle] == handle,
                                "QBD entry should record dedicated and generic ownership");
                 SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
-                                   &srv, base_x, base_z, width, height, qbd_types, 6) == 1,
+                                   srv, base_x, base_z, width, height, qbd_types, 6) == 1,
                                "a fresh QBD arena should contain exactly its sleeping queen");
                 SELFTEST_CHECK(player->music_track == 1119,
                                "QBD arena entry should start Awoken (1119), got %d",
@@ -31015,8 +31316,8 @@ mock230_world_selftest(void)
                 player->varps[reward_ready] = 1;
                 player->varps[time_stopped] = 1;
                 player->action_locked = 1;
-                mock230_world_teleport(&srv, 0, 3222, 3218);
-                mock230_world_tick(&srv);
+                mock230_world_teleport(srv, 0, 3222, 3218);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->x == 3222 && player->z == 3218 &&
                                    player->level == 0,
                                "QBD departure must preserve external teleport 3222,3218,0; "
@@ -31035,7 +31336,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(player->varps[reward_ready] == 1,
                                "QBD departure must preserve an unclaimed permanent coffer");
                 SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
-                                   &srv, base_x, base_z, width, height, qbd_types, 6) == 0,
+                                   srv, base_x, base_z, width, height, qbd_types, 6) == 0,
                                "QBD departure should despawn all arena-owned npcs");
 
                 timer_count = 0;
@@ -31057,7 +31358,7 @@ mock230_world_selftest(void)
                 /* The permanent bit routes the next entry into the coffer room,
                  * using the just-released allocator slot. Its own lifecycle is
                  * then tested by a second arbitrary departure. */
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdmanifest") ==
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbdmanifest") ==
                                    MOCK230_TRIGGER_RAN,
                                "unclaimed reward should permit QBD coffer re-entry");
                 reused = mock230_mapinstance_find(player->x, player->z);
@@ -31075,13 +31376,13 @@ mock230_world_selftest(void)
                     /* Debugprocs run between host ticks in this fixture. In a
                      * live interaction phase 10 performs this rebuild before
                      * the delay-one arrival queue is next eligible. */
-                    maybe_rebuild(&srv);
+                    maybe_rebuild(srv);
                     for( int tick = 0; tick < 3; tick++ )
                     {
                         if( player->rebuild_scene_pending )
                             mock230_world_handle(
                                 player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     }
                     for( int i = 0; i < player->interfaces.mount_count; i++ )
                         coffer_mounts +=
@@ -31095,7 +31396,7 @@ mock230_world_selftest(void)
                                    "got %d",
                                    qbd_reward_inv, mock230_bank_inv_size(qbd_reward_inv));
                     reward_container = mock230_container_resolve(
-                        &srv, player, qbd_reward_inv);
+                        srv, player, qbd_reward_inv);
                     if( reward_container )
                     {
                         for( int i = 0; i < reward_container->listener_count; i++ )
@@ -31131,8 +31432,8 @@ mock230_world_selftest(void)
                             "exercising reward-room lifecycle\n");
                 }
 
-                mock230_world_teleport(&srv, 0, 3200, 3200);
-                mock230_world_tick(&srv);
+                mock230_world_teleport(srv, 0, 3200, 3200);
+                mock230_world_tick(srv);
                 SELFTEST_CHECK(player->x == 3200 && player->z == 3200 &&
                                    mock230_mapinstance_live_count() == 0 &&
                                    player->varps[reward_ready] == 1,
@@ -31143,7 +31444,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(coffer_mounts == 0,
                                "reward-room departure should close its main modal");
 
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdmanifest") ==
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbdmanifest") ==
                                    MOCK230_TRIGGER_RAN,
                                "cleaned reward room should remain re-enterable");
                 reused = mock230_mapinstance_find(player->x, player->z);
@@ -31154,7 +31455,7 @@ mock230_world_selftest(void)
                 /* Finish through the real logout path so this block leaves no
                  * reservation or modal for TD's following fixture. */
                 SELFTEST_CHECK(mock230_scripts_run_trigger_specific(
-                                   &srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
+                                   srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
                                    MOCK230_TRIGGER_RAN,
                                "QBD cleanup should remain race-safe through [logout,_]");
                 SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
@@ -31162,7 +31463,7 @@ mock230_world_selftest(void)
                                    player->varps[reward_ready] == 1,
                                "QBD logout should release the room without consuming reward");
             }
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 
@@ -31185,10 +31486,10 @@ mock230_world_selftest(void)
     fprintf(stderr,
             "mock230 selftest: TD exit, departure, death and logout release its instance\n");
     {
-        int loaded = mock230_scripts_load(&srv, "OSRS-Content/osrs239-content/server/scripts/build");
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
-            loaded = mock230_scripts_load(&srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
         {
@@ -31197,11 +31498,11 @@ mock230_world_selftest(void)
         else
         {
             const struct SSVM_Script* lifecycle =
-                SSVM_ProviderGetByName(srv.scripts, "[softtimer,rs2012_td_lifecycle]");
+                SSVM_ProviderGetByName(srv->scripts, "[softtimer,rs2012_td_lifecycle]");
             const struct SSVM_Script* install_exit =
-                SSVM_ProviderGetByName(srv.scripts, "[softtimer,rs2012_td_install_exit]");
+                SSVM_ProviderGetByName(srv->scripts, "[softtimer,rs2012_td_install_exit]");
             const struct SSVM_Script* death =
-                SSVM_ProviderGetByName(srv.scripts, "[queue,player_death]");
+                SSVM_ProviderGetByName(srv->scripts, "[queue,player_death]");
             int td_active = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_td_active");
             int td_handle = mock230_content_symbol(MOCK230_PACK_VARP, "rs2012_td_handle");
             int instance_handle =
@@ -31220,8 +31521,8 @@ mock230_world_selftest(void)
             int cave_baked;
             int fixture_ok;
 
-            selftest_reset_world(&srv, player, 402, 402);
-            SELFTEST_CHECK(SSVM_ProviderGetByName(srv.scripts, "[logout,_]") != NULL,
+            selftest_reset_world(srv, player, 402, 402);
+            SELFTEST_CHECK(SSVM_ProviderGetByName(srv->scripts, "[logout,_]") != NULL,
                            "the tree should bind [logout,_] — without it this stanza "
                            "proves nothing");
             SELFTEST_CHECK(lifecycle && install_exit && death,
@@ -31241,7 +31542,7 @@ mock230_world_selftest(void)
                 int cave_slot;
                 int reused;
 
-                SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012tdbypass") ==
                                    MOCK230_TRIGGER_RAN,
                                "::rs2012tdbypass should enter the production TD session");
                 handle = mock230_mapinstance_find(player->x, player->z);
@@ -31262,7 +31563,7 @@ mock230_world_selftest(void)
                                    player->varps[td_active], player->varps[td_handle],
                                    player->varps[instance_handle], handle);
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
-                                       &srv, base_x, base_z, width, height, td_types, 3) == 6,
+                                       srv, base_x, base_z, width, height, td_types, 3) == 6,
                                    "a fresh TD run should contain exactly six demons");
 
                     /* An unrelated teleport knows nothing about TD. Its chosen
@@ -31270,8 +31571,8 @@ mock230_world_selftest(void)
                      * notices departure and deletes encounter-owned state. It
                      * happens before the cave installer deliberately: release
                      * must cancel that one-shot or it can mutate a reused slot. */
-                    selftest_park_player(&srv, 3222, 3218);
-                    mock230_world_tick(&srv);
+                    selftest_park_player(srv, 3222, 3218);
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(player->x == 3222 && player->z == 3218 &&
                                        player->level == 0,
                                    "departure cleanup must preserve the external teleport, "
@@ -31287,10 +31588,10 @@ mock230_world_selftest(void)
                                    player->varps[td_active], player->varps[td_handle],
                                    player->varps[instance_handle]);
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
-                                       &srv, base_x, base_z, width, height, td_types, 3) == 0,
+                                       srv, base_x, base_z, width, height, td_types, 3) == 0,
                                    "departure cleanup should delete all six demons");
 
-                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012tdbypass") ==
                                        MOCK230_TRIGGER_RAN,
                                    "the player should be able to re-enter after teleporting out");
                     reused = mock230_mapinstance_find(player->x, player->z);
@@ -31299,15 +31600,15 @@ mock230_world_selftest(void)
                                    "after %d",
                                    reused, handle);
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
-                                       &srv, base_x, base_z, width, height, td_types, 3) == 6,
+                                       srv, base_x, base_z, width, height, td_types, 3) == 6,
                                    "slot reuse should spawn six, not retain or accumulate demons");
 
                     /* Reproduce a socket disappearing after some other content
                      * already moved the player. Coordinate-derived ownership
                      * cannot find the arena now; the dedicated handle must. */
-                    selftest_park_player(&srv, 3200, 3200);
+                    selftest_park_player(srv, 3200, 3200);
                     SELFTEST_CHECK(mock230_scripts_run_trigger_specific(
-                                       &srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
+                                       srv, SS_TRIGGER_LOGOUT, -1, -1, -1) ==
                                        MOCK230_TRIGGER_RAN,
                                    "the real [logout,_] dispatcher should run");
                     SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
@@ -31316,7 +31617,7 @@ mock230_world_selftest(void)
                                        player->varps[instance_handle] == 0,
                                    "logout after external movement should release TD ownership");
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
-                                       &srv, base_x, base_z, width, height, td_types, 3) == 0,
+                                       srv, base_x, base_z, width, height, td_types, 3) == 0,
                                    "logout should leave no TD npcs in the reusable square");
                     SELFTEST_CHECK(player->x == 2527 && player->z == 5827 &&
                                        player->level == 2,
@@ -31324,18 +31625,18 @@ mock230_world_selftest(void)
                                    "%d,%d,%d",
                                    player->x, player->z, player->level);
 
-                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012tdbypass") ==
                                        MOCK230_TRIGGER_RAN,
                                    "logout cleanup should permit another TD entry");
                     reused = mock230_mapinstance_find(player->x, player->z);
                     SELFTEST_CHECK(reused == handle &&
                                        selftest_count_npcs_in_rect_types(
-                                           &srv, base_x, base_z, width, height, td_types, 3) == 6,
+                                           srv, base_x, base_z, width, height, td_types, 3) == 6,
                                    "logout/re-entry should reuse one clean slot, handle=%d "
                                    "demons=%d",
                                    reused,
                                    selftest_count_npcs_in_rect_types(
-                                       &srv, base_x, base_z, width, height, td_types, 3));
+                                       srv, base_x, base_z, width, height, td_types, 3));
                     if( cave_baked )
                     {
                         /* The composed RS2012 cache contains 40260 and 40_89.
@@ -31344,12 +31645,12 @@ mock230_world_selftest(void)
                         fprintf(stderr,
                                 "  TD live cave: composed cache record %d is present\n",
                                 cave);
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                         cave_slot = mock230_scene_find_loc_id(
                             base_x + 23, base_z + 29, 0, cave);
                         SELFTEST_CHECK(cave_slot >= 0 &&
                                            mock230_scripts_run_trigger_on_loc(
-                                               &srv, SS_TRIGGER_OPLOC1, cave,
+                                               srv, SS_TRIGGER_OPLOC1, cave,
                                                mock230_loc_category(cave), cave_slot) ==
                                                MOCK230_TRIGGER_RAN,
                                        "climbing through the live cave should run TD's "
@@ -31367,14 +31668,14 @@ mock230_world_selftest(void)
                                 "  SKIP  live TD cave requires cache.osrs239.rs2012; "
                                 "exercising its content binding\n");
                         SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
-                                           &srv, SS_TRIGGER_OPLOC1, cave,
+                                           srv, SS_TRIGGER_OPLOC1, cave,
                                            mock230_loc_category(cave), -1) ==
                                            MOCK230_TRIGGER_RAN,
                                        "the imported cave type should still bind TD's exit");
                     }
                     SELFTEST_CHECK(mock230_mapinstance_live_count() == 0 &&
                                        selftest_count_npcs_in_rect_types(
-                                           &srv, base_x, base_z, width, height, td_types, 3) == 0 &&
+                                           srv, base_x, base_z, width, height, td_types, 3) == 0 &&
                                        player->x == 2527 && player->z == 5827 &&
                                        player->level == 2,
                                    "the cave exit should move outside and release all TD state");
@@ -31382,14 +31683,14 @@ mock230_world_selftest(void)
                     /* Death holds the square for the visible corpse delay, but
                      * deletes combatants immediately. Its grave/bones target is
                      * redirected before the held handle is finally released. */
-                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012tdbypass") ==
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012tdbypass") ==
                                        MOCK230_TRIGGER_RAN,
                                    "the death fixture should enter a fresh TD run");
                     reused = mock230_mapinstance_find(player->x, player->z);
                     SELFTEST_CHECK(reused == handle,
                                    "the death fixture should reuse the same instance slot");
-                    mock230_combat_hit_player(&srv, 0, player->hitpoints);
-                    mock230_world_tick(&srv);
+                    mock230_combat_hit_player(srv, 0, player->hitpoints);
+                    mock230_world_tick(srv);
                     SELFTEST_CHECK(player->dying &&
                                        mock230_mapinstance_live_count() == 1 &&
                                        mock230_mapinstance_find(player->x, player->z) == handle,
@@ -31398,13 +31699,13 @@ mock230_world_selftest(void)
                                        player->varps[td_handle] == 0 &&
                                        player->varps[instance_handle] == handle &&
                                        selftest_count_npcs_in_rect_types(
-                                           &srv, base_x, base_z, width, height, td_types, 3) == 0,
+                                           srv, base_x, base_z, width, height, td_types, 3) == 0,
                                    "TD death should stop and despawn demons before p_delay");
                     if( player->rebuild_scene_pending )
                         mock230_world_handle(
                             player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
                     for( int tick = 0; tick < 8; tick++ )
-                        mock230_world_tick(&srv);
+                        mock230_world_tick(srv);
                     SELFTEST_CHECK(!player->dying &&
                                        mock230_mapinstance_live_count() == 0 &&
                                        player->varps[instance_handle] == 0,
@@ -31415,7 +31716,7 @@ mock230_world_selftest(void)
 
                         for( int slot = 0; slot < MOCK230_GROUND_MAX; slot++ )
                         {
-                            const struct Mock230GroundObj* obj = &srv.ground[slot];
+                            const struct Mock230GroundObj* obj = &srv->ground[slot];
 
                             if( !obj->active || obj->obj_id != 526 /* bones */ )
                                 continue;
@@ -31453,7 +31754,7 @@ mock230_world_selftest(void)
                 if( wall_fixture_ok )
                 {
                     static struct Mock230Capture wall_capture;
-                    const struct Mock230Wire* saved_wire = srv.wire;
+                    const struct Mock230Wire* saved_wire = srv->wire;
                     const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
                     int at_tick3 = -1;
                     int at_tick10 = -1;
@@ -31464,7 +31765,7 @@ mock230_world_selftest(void)
                     int saved_hp_level;
                     int saved_hp_boost;
 
-                    selftest_reset_world(&srv, player, 402, 402);
+                    selftest_reset_world(srv, player, 402, 402);
                     /* The fixture parks in wave 1's gap column; waves 2 and 3
                      * still burn it, and a stock 10-HP account dies mid-cast,
                      * tearing the session (and every remaining wall row) down
@@ -31479,11 +31780,11 @@ mock230_world_selftest(void)
                     player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
                     player->max_hitpoints = 990;
                     player->hitpoints = 990;
-                    mock230_capture_begin(&srv, &wall_capture);
-                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdwall 3") ==
+                    mock230_capture_begin(srv, &wall_capture);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbdwall 3") ==
                                        MOCK230_TRIGGER_RAN,
                                    "::rs2012qbdwall should reach content");
-                    mock230_capture_end(&srv);
+                    mock230_capture_end(srv);
                     for( int i = mock230_capture_find(&wall_capture, 90 /* MESSAGE_GAME */, 0);
                          i >= 0;
                          i = mock230_capture_find(&wall_capture, 90, i + 1) )
@@ -31495,7 +31796,7 @@ mock230_world_selftest(void)
                         if( strstr((const char*)packet->data + 1, "rs2012qbdwall FAIL") )
                             fprintf(stderr, "  %s\n", (const char*)packet->data + 1);
                     }
-                    srv.wire = wire239;
+                    srv->wire = wire239;
                     for( int tick = 1; tick <= 40; tick++ )
                     {
                         /* The teleport's rebuild flag is raised by the zone
@@ -31507,9 +31808,9 @@ mock230_world_selftest(void)
                         if( player->rebuild_scene_pending )
                             mock230_world_handle(
                                 player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
-                        mock230_capture_begin(&srv, &wall_capture);
-                        mock230_world_tick(&srv);
-                        mock230_capture_end(&srv);
+                        mock230_capture_begin(srv, &wall_capture);
+                        mock230_world_tick(srv);
+                        mock230_capture_end(srv);
                         {
                             int n = selftest_rev239_zone_count(
                                 &wall_capture, PKT_NAME_MAP_ANIM, wall_spot);
@@ -31523,7 +31824,7 @@ mock230_world_selftest(void)
                                 at_tick17 = n;
                         }
                     }
-                    srv.wire = saved_wire;
+                    srv->wire = saved_wire;
 
                     SELFTEST_CHECK(at_tick3 == 1 && at_tick10 == 2 && at_tick17 == 3,
                                    "wave cadence should show 1/2/3 wall rows on ticks "
@@ -31533,7 +31834,7 @@ mock230_world_selftest(void)
                                    "three waves over 20 rows should spawn 60 wall rows, "
                                    "got %d",
                                    total);
-                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdwallend") ==
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbdwallend") ==
                                        MOCK230_TRIGGER_RAN,
                                    "::rs2012qbdwallend should release the wall fixture");
                     SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
@@ -31549,14 +31850,14 @@ mock230_world_selftest(void)
             /* Generic control: content with no activity-specific teardown must
              * still be covered by [logout,_]'s map-instance backstop and by the
              * host fallback in world_remove_player. */
-            selftest_reset_world(&srv, player, 402, 402);
+            selftest_reset_world(srv, player, 402, 402);
             /* `::mapinstance` and not the Inferno, deliberately. The subject is
              * the *reservation*, and the generic debugproc is the smallest thing
              * that holds one — an Inferno run would drag a fire cape, 68 waves of
              * spawn policy and a cutscene through a check about a pool slot. What
              * the Inferno adds on top (`~inferno_on_logout`, a destination better
              * than ^respawn_coord) is content, and content's own business. */
-            SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "mapinstance"),
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "mapinstance"),
                            "::mapinstance should reach [debugproc,mapinstance]");
             handle = (int32_t)mock230_mapinstance_find(player->x, player->z);
             SELFTEST_CHECK(handle != 0,
@@ -31567,7 +31868,7 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(mock230_mapinstance_live_count() == 1,
                                "one reservation should be live, got %d",
                                mock230_mapinstance_live_count());
-                mock230_world_remove_player(&srv, player);
+                mock230_world_remove_player(srv, player);
                 SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
                                "the logout should have released it, %d still live",
                                mock230_mapinstance_live_count());
@@ -31576,7 +31877,7 @@ mock230_world_selftest(void)
                                "pool before the save, still at %d,%d",
                                player->x, player->z);
             }
-            mock230_scripts_free(&srv);
+            mock230_scripts_free(srv);
         }
     }
 

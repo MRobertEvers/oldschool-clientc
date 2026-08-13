@@ -208,6 +208,59 @@ in_npc_attack_range(
 }
 
 /*
+ * The same two tests for a target that is another npc.
+ *
+ * Split out rather than generalised over a union type: `npc_player_gap` reads a
+ * player as a 1x1 footprint and there is nowhere in it to put the second size,
+ * so a shared version would have to take four rectangle arguments and every
+ * player caller would pass two constants. The rule is identical — the gap
+ * between the two footprints, orthogonal for melee and Chebyshev for anything
+ * with reach.
+ */
+static void
+npc_npc_gap(
+    const struct Mock230Npc* a,
+    const struct Mock230Npc* b,
+    int* out_dx,
+    int* out_dz)
+{
+    /* One extent each: an npc's footprint is `size` x `size`, so the same
+     * number bounds both axes. */
+    int a_size = a->size > 0 ? a->size : 1;
+    int b_size = b->size > 0 ? b->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    if( b->x > a->x + a_size - 1 )
+        dx = b->x - (a->x + a_size - 1);
+    else if( a->x > b->x + b_size - 1 )
+        dx = a->x - (b->x + b_size - 1);
+    if( b->z > a->z + a_size - 1 )
+        dz = b->z - (a->z + a_size - 1);
+    else if( a->z > b->z + b_size - 1 )
+        dz = a->z - (b->z + b_size - 1);
+    *out_dx = dx;
+    *out_dz = dz;
+}
+
+static int
+in_npc_attack_range_npc(
+    const struct Mock230Npc* attacker,
+    const struct Mock230Npc* target)
+{
+    int range = npc_def(attacker)->attackrange;
+    int dx;
+    int dz;
+
+    if( attacker->level != target->level )
+        return 0;
+    npc_npc_gap(attacker, target, &dx, &dz);
+    if( range <= 1 )
+        return (dx + dz) == 1;
+    return (dx > dz ? dx : dz) <= range;
+}
+
+/*
  * The priority gate — the reference's `PathingEntity.playAnimation`.
  *
  * `incumbent` is whatever has already been queued for this tick (-1 if
@@ -401,6 +454,8 @@ mock230_combat_stop_npc(
         return;
     npc = &srv->npcs[slot];
     npc->combat_target = -1;
+    npc->combat_target_npc = -1;
+    npc->combat_target_npc_gen = 0;
     if( npc->face_entity != -1 )
     {
         npc->face_entity = -1;
@@ -698,6 +753,18 @@ mock230_combat_hit_npc(
     {
         npc->combat_target = srv->active_player ? srv->active_player->pid : 0;
         npc->attack_clock = npc_def(npc)->attackrate / 2;
+        /*
+         * A person outranks whatever npc it was fighting.
+         *
+         * The two targets are exclusive, and this is the direction that has to
+         * be stated: an npc mid-fight with another npc has `combat_target < 0`,
+         * so without the clear here it would take the player as well and the
+         * npc-versus-npc branch — which runs first — would keep winning the
+         * turn. The Inferno's adds are the case: hit one while it is shooting
+         * the shield and it must turn on you, and stay turned.
+         */
+        npc->combat_target_npc = -1;
+        npc->combat_target_npc_gen = 0;
     }
     /*
      * Face whoever it is now fighting, by pid.
@@ -1177,19 +1244,28 @@ mock230_combat_level(const struct Mock230Player* player)
  * an npc could barely leave its own tile, so nothing was holding the leash.
  */
 static int
-target_within_maxrange(
-    const struct Mock230Player* player,
+tile_within_maxrange(
+    int x,
+    int z,
     const struct Mock230Npc* npc)
 {
     int range = npc_def(npc)->maxrange;
-    int dx = abs_of(player->x - npc->spawn_x);
-    int dz = abs_of(player->z - npc->spawn_z);
+    int dx = abs_of(x - npc->spawn_x);
+    int dz = abs_of(z - npc->spawn_z);
 
     if( dx > range + 1 || dz > range + 1 )
         return 0;
     if( dx == range + 1 && dz == range + 1 )
         return 0;
     return 1;
+}
+
+static int
+target_within_maxrange(
+    const struct Mock230Player* player,
+    const struct Mock230Npc* npc)
+{
+    return tile_within_maxrange(player->x, player->z, npc);
 }
 
 /*
@@ -1439,9 +1515,15 @@ npc_death_step(
         npc->active = 0;
         npc->death_tick = -1;
         npc->death_stage = MOCK230_DEATH_NONE;
-        /* A script may have armed `npc_setrespawn` during [ai_queue3] (GWD
-         * minion sync). Keep that clock; otherwise use the def rate. */
-        if( npc->respawn_tick < 0 )
+        /*
+         * Only a *world* npc comes back on its own — see `despawns_on_death`
+         * for the two lifecycles and for what respawning both cost the Inferno.
+         *
+         * A script may still arm `npc_setrespawn` during [ai_queue3] (GWD
+         * minion sync) and that clock is kept for either lifecycle: content
+         * asking for a respawn outranks the default.
+         */
+        if( npc->respawn_tick < 0 && !npc->despawns_on_death )
             npc->respawn_tick = srv->tick + npc_def(npc)->respawnrate;
         return;
     }
@@ -1491,6 +1573,93 @@ npc_dispatch_combat_applayer_mode(
     return 1;
 }
 
+/*
+ * One turn of a fight between two npcs.
+ *
+ * The same machine as the player fight below it — validate, face, reach, close,
+ * clock, swing — with `[ai_opnpc2,<attacker>]` where that one fires
+ * `[ai_opplayer2]`. An npc's target used to be a *pid* and nothing else, so the
+ * only thing a monster could be made to fight was a person: an encounter whose
+ * monsters attack a piece of scenery (the Inferno's adds and the Ancestral
+ * Glyph) had to drive the whole thing from `[ai_timer]` and carry its own
+ * attack clock, facing and range beside the engine's.
+ *
+ * The trigger runs with the target armed as the SECONDARY npc, which is what
+ * `.npc_` addresses — the reference's `activeNpc2`, and the only way the script
+ * can say anything about the thing it is hitting.
+ *
+ * Returns 1 when the fight is still on and has claimed this npc's turn, 0 when
+ * it has ended and the ordinary player-combat path below should run instead.
+ */
+static int
+npc_vs_npc_tick(
+    struct Mock230Server* srv,
+    int slot)
+{
+    struct Mock230Npc* npc = &srv->npcs[slot];
+    int target_slot = npc->combat_target_npc;
+    struct Mock230Npc* target;
+    int in_reach;
+
+    if( target_slot < 0 || target_slot >= MOCK230_NPC_MAX )
+    {
+        npc->combat_target_npc = -1;
+        return 0;
+    }
+    target = &srv->npcs[target_slot];
+    /*
+     * The generation is what makes a stale slot safe. A target that died and
+     * whose slot was reused is a *different* npc, and continuing to shoot it
+     * would be an attack nobody asked for on whatever spawned there next.
+     */
+    if( !target->active || target->death_tick >= 0 || target == npc ||
+        target->generation != npc->combat_target_npc_gen ||
+        target->level != npc->level ||
+        !tile_within_maxrange(target->x, target->z, npc) )
+    {
+        mock230_combat_stop_npc(srv, slot);
+        return 0;
+    }
+
+    /* Face for the whole engagement, not only once in reach — the same rule and
+     * the same reason as the player path. */
+    mock230_npc_face_npc(npc, target_slot);
+
+    in_reach = in_npc_attack_range_npc(npc, target);
+    if( in_reach && npc_def(npc)->attackrange > 1 &&
+        !mock230_scene_approached(npc->level, target->x, target->z, npc->x, npc->z,
+                                  target->size > 0 ? target->size : 1,
+                                  target->size > 0 ? target->size : 1,
+                                  npc->size > 0 ? npc->size : 1,
+                                  npc->size > 0 ? npc->size : 1) )
+        in_reach = 0;
+
+    if( !in_reach )
+    {
+        struct CollisionApproach approach = {
+            .kind = COLL_APPROACH_RECT_ADJACENT,
+            .loc_width = target->size > 0 ? target->size : 1,
+            .loc_length = target->size > 0 ? target->size : 1,
+            .mover_size = npc->size > 0 ? npc->size : 1,
+        };
+
+        if( mock230_world_npc_walk_to_approach(npc, target->x, target->z, &approach) &&
+            !npc_def(npc)->givechase )
+            mock230_combat_stop_npc(srv, slot);
+        return 1;
+    }
+
+    if( npc->attack_clock > 0 )
+    {
+        npc->attack_clock--;
+        return 1;
+    }
+    npc->attack_clock = npc_def(npc)->attackrate;
+    mock230_scripts_run_trigger_npc2(srv, SS_TRIGGER_AI_OPNPC2, npc->type, -1, slot,
+                                     target_slot);
+    return 1;
+}
+
 void
 mock230_combat_npc_tick(
     struct Mock230Server* srv,
@@ -1507,6 +1676,9 @@ mock230_combat_npc_tick(
             npc_death_step(srv, slot);
         return;
     }
+
+    if( npc->combat_target_npc >= 0 && npc_vs_npc_tick(srv, slot) )
+        return;
 
     maybe_aggress(srv, slot);
     if( npc->combat_target < 0 )

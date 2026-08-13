@@ -38,15 +38,25 @@
 // hundred archives then takes several hundred frames, while the client's 20ms
 // logic ticks keep queueing more work behind them.
 //
-// So the default pump is synchronous, and runs from inside the client's
+// So the boot's pump is synchronous, and runs from inside the client's
 // PlatformX_IO_Process: requests go out and data comes back before Process
 // returns, exactly as the native backend behaves. A boot then costs a handful
 // of frames rather than hundreds. The cost is a blocked main thread while it
 // happens, which is why the IO log below reports what each frame spent.
 //
-// ?io_sync=0 falls back to fetch(), which does not block but is frame-gated.
-// The client supports both: PlatformX_IO_Pending is what tells its scheduler
-// whether a read is still outstanding.
+// A live client pays that cost for nothing. A synchronous XMLHttpRequest
+// freezes the main thread for much longer than the request takes (measured on
+// localhost: 4.4ms average, 17ms worst, against a 3.55ms round trip), and the
+// reads a live client still issues are the ones that coincide with something
+// new on screen — the first play of an npc's hit sound is a fetch on the frame
+// its hitsplat is drawn. So the client stops asking for the blocking pump once
+// it reaches APP_STATE_READY (PlatformXIO_Web_SetBlockingReads) and this file's
+// frame-gated fetch carries the batch instead. Both paths run in one session;
+// pump() must therefore always be willing to deliver.
+//
+// ?io_sync=0 declines the blocking pump outright, boot included: everything is
+// frame-gated fetch. The client supports both — PlatformX_IO_Pending is what
+// tells its scheduler whether a read is still outstanding.
 
 (function () {
   'use strict';
@@ -697,7 +707,13 @@
     // when the batch was delivered, false to let the client fall back to
     // waiting for the asynchronous path.
     pumpSync: function () {
-      if (!this.ready) { return false; }
+      // `?io_sync=0` answers no here rather than by hiding this method, which
+      // is what the wasm side's "the page decides whether it can do that" means
+      // — false leaves the batch queued for the frame-gated path instead of
+      // consuming it. Without this the flag disabled only the asynchronous
+      // pump and left the blocking one running, which is the opposite of what
+      // it reads like.
+      if (!this.ready || !useSync) { return false; }
       var batch = this.take();
       if (!batch) { return true; }
 
@@ -741,10 +757,18 @@
       }
     },
 
-    // Frame-gated fallback: does not block, but a frame satisfies one read.
+    // Frame-gated delivery: does not block, but a frame satisfies one read.
+    //
+    // Runs whether or not the synchronous path is enabled. `useSync` is no
+    // longer "which of the two carries the batch" — the wasm side decides that
+    // per frame (PlatformXIO_Web_SetBlockingReads: yes while booting, no once
+    // the client is live), so a batch it declined to pump has nobody else to
+    // carry it and the task queue parks forever. There is no double delivery to
+    // guard against: pumpSync already called _torirs_io_request_taken, so
+    // take() sees a zero-length request and this returns.
     pump: function () {
       this.endFrame();
-      if (!this.ready || useSync) { return; }
+      if (!this.ready) { return; }
 
       var batch = this.take();
       if (!batch) { return; }
@@ -1136,7 +1160,7 @@
     if (stats) {
       setStatus(
         'heap ' + heapMb() + 'MB' +
-        '  ·  io ' + (useSync ? 'sync' : 'async') +
+        '  ·  io ' + (useSync ? 'sync-boot' : 'async') +
         '  req ' + stats.requests +
         '  hit ' + stats.cacheHits +
         '  done ' + stats.completed +
@@ -1194,7 +1218,8 @@
       log('torirs: runtime up, cache in IndexedDB, js5 ws://' + js5Host + ':' + js5Port);
     } else {
       log('torirs: runtime up, io endpoint ' + io.endpoint +
-          ' (' + (useSync ? 'synchronous' : 'frame-gated') + ')');
+          ' (' + (useSync ? 'synchronous while booting, frame-gated once live'
+                          : 'frame-gated') + ')');
     }
     log('torirs: argv ' + JSON.stringify(args));
     // Which cache the server has open. Changing the manifest in the URL

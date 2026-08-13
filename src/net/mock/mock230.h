@@ -2051,6 +2051,33 @@ struct Mock230Npc
     int despawn_tick;
 
     /**
+     * Whether this npc's death is the end of it — the reference's
+     * `EntityLifeCycle`, as a boolean because there are exactly two.
+     *
+     * 0 is `RESPAWN`: the npc is the *world's*, and the world stands it back up
+     * at its spawn tile `respawnrate` ticks after it dies (`Npc.turn` ->
+     * `World.addNpc`). Every map-square roster spawn is this, and so is every
+     * fixture the engine itself creates, because a fixture stands in for one.
+     *
+     * 1 is `DESPAWN`: the npc belongs to the script that called `npc_add`, and
+     * `World.removeNpc` retires it outright. Set at that one opcode and nowhere
+     * else, which is the whole of the distinction — a memset slot is the world's
+     * by default and a script has to say otherwise.
+     *
+     * The engine used to respawn both. That is invisible for the ordinary case
+     * (content npc_adds a monster, you kill it, nothing looks at that tile
+     * again) and wrong for every encounter that spawns its own roster: in the
+     * Inferno each killed add stood back up 25 ticks later — "the waves are
+     * spawning too fast" — and stood back up inert, because what points an add
+     * at the Ancestral Glyph is the timer armed at the `npc_add` site, and a
+     * respawn re-runs `[ai_spawn]`, not the spawner.
+     *
+     * `npc_setrespawn` outranks it either way: content asking for a respawn is
+     * content asking for a respawn.
+     */
+    int despawns_on_death;
+
+    /**
      * `npc_queue`: an `[ai_queue<n>]` waiting to fire on this npc.
      *
      * Four, not sixteen like the player's: the player's queue absorbs a whole
@@ -2098,6 +2125,24 @@ struct Mock230Npc
      *  and a different meaning — read `mock230_combat_npc_tick` for how a
      *  logged-out target is answered. */
     int combat_target;
+    /**
+     * The npc this npc is fighting, as a pool slot; -1 when it is not.
+     *
+     * The other half of a combat target, and the reason it is a second field
+     * rather than a tagged one: a player pid and an npc slot are both small
+     * non-negative integers, so one field carrying either would read correctly
+     * in every expression and mean the wrong entity in half of them. At most one
+     * of the two is ever set — `mock230_combat_stop_npc` clears both, and a
+     * player's hit takes the target over from an npc
+     * (`mock230_combat_hit_npc`).
+     *
+     * `combat_target_npc_gen` is the target's `generation` at the moment it was
+     * taken. Slots are recycled, so without it a target that dies and is
+     * replaced by an unrelated spawn keeps being attacked by whatever was
+     * fighting the first one.
+     */
+    int combat_target_npc;
+    uint16_t combat_target_npc_gen;
     int attack_clock;
     /**
      * When the next step of the death sequence is due; -1 while alive.
@@ -2193,6 +2238,37 @@ mock230_npc_face_player(
 }
 
 /*
+ * Point an npc's FACE_ENTITY latch at another NPC, by slot — or drop it.
+ *
+ * The other half of the id space `mock230_npc_face_player` writes: below
+ * `MOCK230_FACE_PLAYER_BASE` the id is an npc's own pool slot, which is how
+ * `PathingEntity.setFaceEntity` has always encoded it and what the client
+ * already decodes. Nothing here wrote it until npc-versus-npc combat existed,
+ * because until then every facing decision in this server named a player.
+ *
+ * A monster whose target is another monster is the case it exists for — the
+ * Inferno's adds and the Ancestral Glyph, which walks its row while they shoot
+ * at it. A tile-facing (`npc_facesquare`) can only name where the glyph was
+ * when the script ran, so shooter and shot disagreed by however far it had
+ * moved since; the latch tracks it for free.
+ */
+static inline void
+mock230_npc_face_npc(
+    struct Mock230Npc* npc,
+    int slot)
+{
+    assert(npc);
+    if( npc->turnspeed == 0 ) /* see mock230_npc_face_player */
+        return;
+    if( slot < 0 )
+        slot = -1;
+    if( npc->face_entity == slot )
+        return;
+    npc->face_entity = slot;
+    npc->masks |= MOCK230_NMASK_FACE_ENTITY;
+}
+
+/*
  * LostCity setFaceEntity else-branch for npcs: drop the latch when neither
  * combat nor a player-facing mode is holding a target. Talk-to and similar
  * one-shot faces then clear on the next npc turn instead of sticking forever.
@@ -2201,7 +2277,10 @@ static inline void
 mock230_npc_face_clear_if_idle(struct Mock230Npc* npc)
 {
     assert(npc);
-    if( npc->combat_target >= 0 )
+    /* Either kind of combat target holds the latch — the npc one for the same
+     * reason as the player one, and `mock230_combat_stop_npc` is what drops it
+     * when the fight ends. */
+    if( npc->combat_target >= 0 || npc->combat_target_npc >= 0 )
         return;
     if( npc->mode >= MOCK230_NPCMODE_PLAYERESCAPE )
         return;
@@ -3078,6 +3157,17 @@ struct Mock230Server
      * predates this.
      */
     intptr_t pending_active_obj;
+
+    /**
+     * The npc the *next* trigger dispatch should make the SECONDARY active npc,
+     * as `slot + 1`; 0 means none.
+     *
+     * Same one-shot shape and the same reason as `pending_active_obj` above:
+     * `[ai_opnpc<n>]` is the only trigger whose script is about two npcs, so the
+     * shared `run_trigger` signature stays as it is and this carries the second
+     * one. `run_trigger_script` consumes and clears it.
+     */
+    int pending_active_npc2;
 
     /**
      * The `find-all then iterate` cursor.
@@ -4376,6 +4466,19 @@ mock230_scripts_run_trigger_lastint(
     int category,
     int npc_slot,
     int32_t last_int);
+
+/** Trigger dispatch that also arms a SECONDARY active npc — the thing the
+ *  subject npc is acting on. `[ai_opnpc<n>,<attacker>]` is the only caller:
+ *  npc-versus-npc combat is the one engine event whose script needs to name two
+ *  npcs, and `.npc_` is how a script addresses the second one. */
+int
+mock230_scripts_run_trigger_npc2(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    int npc2_slot);
 
 /** Trigger dispatch with string arguments (friend login/logout display name). */
 int

@@ -125,6 +125,61 @@ test_audio_settings_snapshot(void)
 }
 
 /*
+ * A fresh client boots muted.
+ *
+ * One value does it, and three subsystems read it: RS_CS2Host_Init seeds its
+ * option tables from RS_CS2Host_OptionDefault, App_Init pushes the master at
+ * the mixer from that same table, and the boot task seeds interface 116's
+ * varps from it. Restate the default anywhere else and the client is audibly
+ * one thing while the panel draws the other.
+ *
+ * Only the master is silenced. The three per-bus volumes keep the reference's
+ * full default, which is what makes unmuting one click rather than four drags.
+ */
+static void
+test_boot_muted(void)
+{
+    struct RS_CS2Host host;
+    struct RS_Prefs prefs;
+    struct RS_Prefs reloaded;
+    void* data = NULL;
+    int size = 0;
+
+    printf("a fresh client boots muted\n");
+
+    CHECK(
+        RS_CS2Host_OptionDefault(RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) == 0,
+        "the master gain defaults to silence");
+    CHECK(
+        RS_CS2Host_OptionDefault(RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME) == 100 &&
+            RS_CS2Host_OptionDefault(RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME) == 100 &&
+            RS_CS2Host_OptionDefault(RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME) == 100,
+        "the per-bus volumes keep their full default, so one unmute restores the mix");
+
+    /* The boot path with no file to read: defaults into the option store, which
+     * is what the App pushes at the mixer and what the panel's varps copy. */
+    memset(&host, 0, sizeof(host));
+    RS_Prefs_Defaults(&prefs);
+    RS_Prefs_ApplyToHost(&prefs, &host);
+    CHECK(
+        RS_CS2Host_GetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) == 0,
+        "a first launch reaches the option store muted");
+    CHECK(host.audio_settings_dirty, "the boot state is a snapshot the App will push");
+    CHECK(host.volume_music == 100, "GETVOLUMEMUSIC still reports the full per-bus volume");
+
+    /* Unmuting has to outlive the launch, or this is not a default but a
+     * setting the client re-imposes every time it starts. */
+    RS_CS2Host_SetOption(&host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME, 100);
+    CHECK(RS_Prefs_CaptureFromHost(&prefs, &host), "unmuting is a change worth saving");
+    CHECK(RS_Prefs_Encode(&prefs, &data, &size), "preferences encoded");
+    CHECK(RS_Prefs_Decode(&reloaded, data, size), "preferences decoded");
+    CHECK(
+        reloaded.options[RS_CS2_OPTION_DEVICE][RS_CS2_DEVICEOPTION_MASTER_VOLUME] == 100,
+        "an unmuted client stays unmuted across a relaunch");
+    free(data);
+}
+
+/*
  * Settings that outlive the process.
  *
  * The bug this covers is not subtle in effect and was invisible in code: the
@@ -878,6 +933,7 @@ main(void)
     g_scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
 
     test_audio_settings_snapshot();
+    test_boot_muted();
     test_prefs_persistence();
     test_queue_without_cache();
 

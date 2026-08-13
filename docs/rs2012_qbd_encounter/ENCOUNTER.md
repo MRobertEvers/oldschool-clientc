@@ -409,20 +409,28 @@ speed 4" is the floor of every recovery range: at her fastest she acts every
 she is doing (decrementing them only on selection made the documented
 10/30-second separations several times too long).
 
-Selection each attack tick — eligible specials first, first match wins,
-ordinary attacks as the fallback:
+Selection is **random among the attacks the phase has unlocked**, not a
+priority ladder. One `random(100)` per attack tick picks a band; a band whose
+attack is phase-locked or still cooling falls through to the ordinary
+rotation, which is what keeps melee/ranged/dragonfire the bulk of the fight.
 
-1. **Fire wall** if off cooldown (uniform (7×waves+5)..60 ticks).
-2. **Time stop** (phase 4, an idle soul alive, no active channel, 40–90-tick
-   cooldown from last resolution).
-3. **Extreme fire** (phase 4, 25% of eligible ticks).
-4. **Armour form** (phase 3+, 41–100-tick cooldown, 40-tick duration).
-5. **Soul summon** (phase 2+, population below target, 41–100-tick cooldown,
-   7-Aug separation rule).
-6. **Siphon** (phase 3+, souls alive, channel not already running; free in
-   release, 50-tick cooldown in 7-Aug).
-7. **Ordinary rotation**: dragonfire ~30% (7-Aug: 17-tick separation), else
-   melee when the player is in the melee zone (z ≥ 33), else ranged sweep.
+| Roll | Attack | Gate |
+|---|---|---|
+| 0–21 | **Fire wall** | cooldown (7×waves+5)..60 ticks |
+| 22–33 | **Time stop** | phase 4, an idle soul alive, no live channel, 40–90-tick cooldown |
+| 34–51 | **Extreme fire** | phase 4 |
+| 52–63 | **Armour form** | phase 3+, 41–100-tick cooldown |
+| 64–78 | **Soul summon** | phase 2+, population below target, 41–100-tick cooldown |
+| 79–88 | **Siphon** | phase 3+, souls alive, no channel running |
+| 89–99, or any band that fell through | **Ordinary** | dragonfire ~30%, else melee in her zone (z ≥ 33), else the ranged sweep |
+
+In phase 1 only the wall band is live, so roughly four attack ticks in five
+are ordinary ones. A measured phase-1 opening: ranged, ranged, ranged,
+dragonfire, ranged, ranged, wall, ranged, wall.
+
+Her cooldowns all read zero on a fresh NPC, so the wall is armed with a short
+opening cooldown when she wakes and again after each restoration — otherwise
+the very first attack of every phase was a fire wall.
 
 Attack-selection randomness is a design fact of the 2012 fight ("she uses
 more of them as the battle progresses… some of these attacks have cooldowns

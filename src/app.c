@@ -3631,14 +3631,6 @@ App_Init(
     RS_EntitySync_Init(&app->esync);
     RS_Audio_Init(&app->audio);
     ToriRS_AudioQueue_Reset(&app->audio_out);
-    /* State the starting volume once, so a backend is never left guessing at a
-     * gain the game already has an opinion about (reference Client.waveVolume). */
-    RS_Audio_SetBusVolume(
-        &app->audio, TORIRS_AUDIO_BUS_EFFECTS, app->audio.effect_volume, &app->audio_out);
-    RS_Audio_SetBusVolume(
-        &app->audio, TORIRS_AUDIO_BUS_AREA, app->audio.area_volume, &app->audio_out);
-    RS_Audio_SetBusVolume(
-        &app->audio, TORIRS_AUDIO_BUS_MUSIC, app->audio.music_volume, &app->audio_out);
     app->inv_drag_com_id = -1;
     app->reboot_ticks = 0;
     RS_Social_Init(&app->social);
@@ -3656,6 +3648,29 @@ App_Init(
     app->host.loot = &app->loot;
     app->host.events_override_for_component = app_cs2_events_override_for_component;
     app->host.events_user = app;
+    /*
+     * State the starting gain once, so a backend is never left guessing at a
+     * volume the game already has an opinion about -- the mixer's own buses
+     * come up wide open, which is not what the client wants said on its behalf.
+     *
+     * Read from the option store rather than restating a default here: that is
+     * what interface 116 shows, what the preferences file is diffed against,
+     * and (RS_CS2Host_OptionDefault) what makes a fresh client boot muted. A
+     * second opinion in this file is a client that is audibly one thing while
+     * its settings panel says another.
+     *
+     * Setting the master pushes all three buses, each scaled by it, so this is
+     * the whole boot state in one call. A saved volume lands a tick later, when
+     * the boot task's preferences restore reaches the tick's snapshot.
+     */
+    RS_Audio_SetMasterVolume(
+        &app->audio,
+        (RS_CS2Host_GetOption(
+             &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME) *
+             TORIRS_AUDIO_VOLUME_MAX +
+         50) /
+            100,
+        &app->audio_out);
     /* Publish the boot canvas through the one setter so the host's viewport
      * copy starts out agreeing with the layout root. main.c may already have
      * moved the root (TORIRS_ROOT_SIZE, which must be applied before App_Init
@@ -5146,13 +5161,18 @@ Task_AppBoot_Run(
     /*
      * Seed the four audio volumes.
      *
-     * The mixer starts at full gain and RS_CS2Host's option snapshot says 100,
-     * but the varps those sliders actually read are whatever SetVarpTypes left
-     * behind, which is zero. Interface 116 believes the varps: script 7101
-     * greys every bobble while %var3796 <= 0 and script 9254 shows the mute
-     * cross on all four icons, so a client that is audibly playing at full
-     * volume comes up looking muted. Worse, the first click on "Mute" reads the
-     * zero, takes script 9255's unmute branch and turns the volume *up*.
+     * The option store holds the real volumes -- the restore above, or the
+     * defaults -- but the varps those sliders actually read are whatever
+     * SetVarpTypes left behind, which is zero. Interface 116 believes the
+     * varps: script 7101 greys every bobble while %var3796 <= 0 and script 9254
+     * shows the mute cross on all four icons, so a client playing at the
+     * restored volume would come up looking muted, and the first click on
+     * "Mute" would read the zero, take script 9255's unmute branch and turn the
+     * volume *up*.
+     *
+     * A client that boots muted (RS_CS2Host_OptionDefault) is not that bug: the
+     * master option really is zero, so the cross the panel draws is the truth
+     * and the first click on it is a genuine unmute.
      *
      * These are ordinary player varps, so a server that sends VARP_SMALL/LARGE
      * for them overwrites this — which is the right precedence. It matters only
