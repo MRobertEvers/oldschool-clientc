@@ -381,10 +381,24 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
         if( dst->argc > 32 )
             dst->argc = 32;
         if( dst->argc > 0 )
-            memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+            memcpy(dst->argv, UITree_HookArgs(slot), (size_t)dst->argc * sizeof(int));
         dst->str_mask = slot->str_mask;
-        dst->str_argc = slot->str_argc;
-        memcpy(dst->strv, slot->strv, sizeof(dst->strv));
+        dst->str_argc = slot->str_argc > UITREE_HOOK_STR_ARG_MAX ? UITREE_HOOK_STR_ARG_MAX
+                                                                 : slot->str_argc;
+        /* `slot->strv` is the hook's heap tail — an array of `str_argc` char*,
+         * NULL when there are none — while `dst->strv` is a flat snapshot this
+         * task carries across its yields. Copying `sizeof(dst->strv)` raw bytes
+         * out of it read off the end of the tail, and off address zero for the
+         * (common) hook that carries no strings at all. Copy string by string.
+         *
+         * The memset is not tidiness: `runtime_hook_count` resets to 0 on every
+         * collect, so a slot reused by a later pass would otherwise still hold
+         * the previous hook's strings past `str_argc`, and step 8 hands all
+         * UITREE_HOOK_STR_ARG_MAX of them to the script. */
+        memset(dst->strv, 0, sizeof(dst->strv));
+        for( int sj = 0; sj < dst->str_argc; sj++ )
+            snprintf(
+                dst->strv[sj], UITREE_HOOK_STR_ARG_LEN, "%s", UITree_HookStr(slot, sj));
     }
 }
 

@@ -440,7 +440,15 @@ Two regimes over one judge:
 
 - **reduce**: a ladder of vertex fractions × random seeds through the
   decimator, then seed/fraction refinement around the best candidate for the
-  rest of the time budget.
+  rest of the time budget. `--max-verts N` / `--max-faces N` impose a hard
+  poly budget on the **merged** totals across all parts — the count that
+  actually matters, since an NPC's parts are merged into one model before
+  they reach the scene's scratch tier. A candidate over budget is rejected
+  with its counts recorded, and because the search is monotone in the
+  fraction, one bust also lowers the ladder's ceiling so neither the ladder
+  nor a refinement draw pays for that fraction twice. Every passing
+  candidate's merged `verts`/`faces` land in `results.json` and in the
+  progress line.
 - **sculpt**: simulated annealing over nudge move lists (per-group inflate
   amounts + a global quantize step).
 
@@ -497,6 +505,49 @@ the page renders it with toridraw compiled to WebAssembly
 (`make -C tools/entity_viewer wasm`, needs emcc). Drag to orbit, wheel to
 zoom, pick a sequence to play it client-accurately in the browser; no server
 round-trip per frame. Wire files are cached under `<run>/wire/`.
+
+### Authoring the pick: `--mode author`
+
+The search only ever writes inside its own run directory. Once you have picked
+a candidate, `--mode author` is the deliberate second step that turns it into a
+real asset:
+
+```bash
+python osrsify.py --mode author --preset qbd \
+    --author-from tools/osrs_stylizer/runs/<study>/best \
+    --author-out OSRS-Content/osrs239-content/models/ported/rs2012_qbd_td \
+    --author-suffix _lowpoly \
+    --pack OSRS-Content/osrs239-content/ported/rs2012_qbd_td/pack/7_models.pack \
+    --pack-id 110662 --pack-id 110663 \
+    --max-verts 6000 --max-faces 6000
+```
+
+- **which models** — `--author-from <dir>` takes each `--model`/`--preset`
+  part out of a run's `best/` (or `cand/<tag>/`) *by filename*, so the parts
+  keep the preset's order instead of a directory listing's; `--author-model`
+  (repeatable) names them outright instead.
+- **where they land** — `--author-out` is a directory under the content
+  tree's `models/` (or a single `.ob3` path when authoring one part), and
+  `--author-suffix` keeps the original file in place beside the new one.
+- **how the packer finds them** — `--pack` plus one `--pack-id` per model,
+  paired in order. The pack entry is derived from the destination path
+  relative to `models/`, so the two can't disagree. Rewriting is idempotent:
+  an id already in the file is replaced where it stands, a new one is
+  appended, and a path already registered under a *different* id is called
+  out rather than silently duplicated.
+- **the cache** — `--cache` (or the preset's) is what the result is verified
+  against: the authored models are rendered merged in bind pose, then every
+  sequence is decoded and posed straight out of that cache. A failure leaves
+  the files on disk and exits non-zero rather than pretending. `--dry-run`
+  prints every path, id, and count and touches nothing;
+  `--no-author-verify` skips the render.
+- `--max-verts`/`--max-faces` are honoured here too, so a budget you searched
+  under can't be lost between picking and authoring.
+
+Two things this deliberately does **not** do: it leaves the npc record alone
+(repointing a form's `model1=`/`model2=` at a new id is an editorial decision,
+not a mechanical one), and it does not re-pack the cache. It prints both as
+the next steps — the second is `make -C src mock230-cache-rs2012`.
 
 ---
 

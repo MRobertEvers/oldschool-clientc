@@ -266,8 +266,10 @@ def wire_priorities(path):
     """Face-priority census of a wire .model file (ev_wire.h layout: every
     scalar a little-endian int32; priorities packed two 4-bit values per
     byte, even face in the low nibble). Returns {face_count, model_priority,
-    counts} where counts is None when the model carries no per-face array,
-    or None outright when the file does not parse."""
+    counts, flat} where counts is None when the model carries no per-face
+    array and flat is the single priority every face draws at (None when the
+    model really is banded). Returns None outright when the file does not
+    parse."""
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -291,8 +293,15 @@ def wire_priorities(path):
                 b = packed[i >> 1] & 0xFF
                 p = (b >> 4) if (i & 1) else (b & 0x0F)
                 counts[p] = counts.get(p, 0) + 1
+        # Merging parts into one wire always materialises a per-face array,
+        # filling it from each part's header priority -- so a *stripped* model
+        # arrives here as a uniform array rather than as no array at all.
+        # Both mean one flat bucket to the renderer, so report them alike;
+        # otherwise a strip reads as a 100%-of-one-band table.
+        flat = mprio if counts is None else (
+            next(iter(counts)) if len(counts) == 1 else None)
         return {"face_count": fcount, "model_priority": mprio,
-                "counts": counts}
+                "counts": counts, "flat": flat}
     except (OSError, IndexError, struct.error):
         return None
 
@@ -305,6 +314,10 @@ def wire_priorities(path):
 # default '' means "leave the flag out and let osrsify.py pick its own
 # default" (tool paths, optional overrides).
 OPTS = [
+    dict(flag="mode", kind="choice", choices=["search", "author"],
+         default="search", group="inputs",
+         help="search for a variant, or author a chosen one into the content "
+              "tree and a pack file"),
     dict(flag="preset", kind="str", default="", group="inputs",
          help="name from rs2012_backport_audit/presets.json"),
     dict(flag="model", kind="list", default="", group="inputs",
@@ -317,6 +330,37 @@ OPTS = [
          help="packed dat2 cache dir"),
     dict(flag="out-dir", kind="str", default="", group="inputs",
          help="run directory (blank = runs/osrsify_web_<timestamp>)"),
+    dict(flag="backport", kind="flag", default="", group="backport",
+         help="re-run the material backport on the lane before the search "
+              "sees the parts; the baked OB3s land in <run>/backport and the "
+              "content tree is never touched"),
+    dict(flag="matte", kind="int", default="", group="backport",
+         help="compress each baked face's lightness toward its material's "
+              "mean by N% (0-100); 60 is the recipe the current lane carries"),
+    dict(flag="face-color-bake", kind="choice",
+         choices=["", "modulate", "tint", "off"], default="", group="backport",
+         help="how an erased material's frame reaches the face colours it "
+              "falls back to (tool default modulate; 'off' is the bare "
+              "erase-only fallback)"),
+    dict(flag="face-color-strength", kind="int", default="", group="backport",
+         help="face-colour bake strength 0-100 (tool default 100)"),
+    dict(flag="no-face-alpha-bake", kind="flag", default="", group="backport",
+         help="keep erased faces opaque instead of turning the frame's alpha "
+              "coverage into face translucency"),
+    dict(flag="wisp-alpha", kind="choice", choices=["", "off", "capped", "screen"],
+         default="", group="backport",
+         help="bound the wisp alpha inference that overrides a material row's "
+              "own alpha_mode 0 (tool default off)"),
+    dict(flag="backport-cache", kind="str", default="cache.rs727_preeoc",
+         group="backport",
+         help="HD source cache the bake reads materials out of — NOT --cache, "
+              "which is the dat2 cache the sequences decode from"),
+    dict(flag="backport-tree", kind="str", default="OSRS-Content/osrs239-content",
+         group="backport", help="content tree whose ported lane gets baked"),
+    dict(flag="bake-tool", kind="str", default="", group="backport",
+         help="material bake binary (blank = default)"),
+    dict(flag="bake-timeout", kind="float", default="600", group="backport",
+         help="seconds before the bake is abandoned"),
     dict(flag="regime", kind="choice", choices=["reduce", "sculpt", "both"],
          default="reduce", group="search", help="search regime"),
     dict(flag="time-budget", kind="float", default="3600", group="search",
@@ -335,6 +379,13 @@ OPTS = [
          help="sculpt anneal temperature"),
     dict(flag="sa-seed", kind="int", default="1", group="search",
          help="sculpt anneal seed"),
+    dict(flag="max-verts", kind="int", default="", group="budget",
+         help="reject candidates whose MERGED vertex count across all parts "
+              "exceeds this (blank/0 = no budget). Merged, because the parts "
+              "are merged before they reach the scene's scratch tier"),
+    dict(flag="max-faces", kind="int", default="", group="budget",
+         help="reject candidates whose MERGED face count across all parts "
+              "exceeds this (blank/0 = no budget)"),
     dict(flag="zbuffer", kind="flag", default="", group="render",
          help="render depth-tested instead of painter's order "
               "(content authored against the z-buffer, e.g. QBD)"),
@@ -430,15 +481,41 @@ OPTS = [
          help="seconds per viewer render"),
     dict(flag="decimate-timeout", kind="float", default="600", group="tools",
          help="seconds per decimator call"),
+    dict(flag="author-from", kind="str", default="", group="author",
+         help="directory holding the chosen candidate, e.g. "
+              "runs/<study>/cand/<tag>; each part is taken from it by "
+              "filename so the parts keep their order"),
+    dict(flag="author-model", kind="list", default="", group="author",
+         help=".ob3 paths to author, one per line (pairs with --pack-id in "
+              "order); leave blank to author the --model/--preset parts"),
+    dict(flag="author-out", kind="str", default="", group="author",
+         help="where the authored model lands: a directory under the content "
+              "tree's models/, or a single .ob3 path when authoring one part"),
+    dict(flag="author-suffix", kind="str", default="", group="author",
+         help="inserted before .ob3 in the authored filename (e.g. _lowpoly) "
+              "so the original stays in place"),
+    dict(flag="pack", kind="str", default="", group="author",
+         help="pack file to register in, e.g. <lane>/pack/7_models.pack"),
+    dict(flag="pack-id", kind="list", default="", group="author",
+         help="pack id for each authored model, one per line, paired with "
+              "the models in order"),
+    dict(flag="no-author-verify", kind="flag", default="", group="author",
+         help="skip the post-author render + sequence decode check "
+              "(verification is on by default)"),
+    dict(flag="dry-run", kind="flag", default="", group="author",
+         help="print what authoring would do and touch nothing"),
 ]
 GROUPS = [
     ["inputs", "inputs"],
+    ["backport", "material backport"],
     ["search", "search"],
+    ["budget", "poly budget"],
     ["render", "render"],
     ["gates", "identity gates"],
     ["regions", "region close-ups"],
     ["defight", "defight pre-pass"],
     ["priorities", "priority solve & z-violation audit"],
+    ["author", "author into the content tree"],
     ["tools", "tools & timeouts"],
 ]
 
@@ -1845,10 +1922,10 @@ async function loadPriorities() {
     const note = `<div class="note">0&ndash;10 draw as strict layers,` +
       ` depth-sorted within each; 11&ndash;12 interleave with neighbours by` +
       ` average depth.${zbNote}</div>`;
-    if (!d.counts) {
-      el.innerHTML = `no per-face priorities &mdash; model priority` +
-        ` <b>${d.model_priority}</b> applies to all ${d.face_count}` +
-        ` faces${note}`;
+    if (d.flat !== null && d.flat !== undefined) {
+      el.innerHTML = `one flat bucket &mdash; every one of ${d.face_count}` +
+        ` faces draws at priority <b>${d.flat}</b>, so nothing is banded` +
+        `${note}`;
       return;
     }
     const prios = Object.keys(d.counts).map(Number).sort((a, b) => a - b);
