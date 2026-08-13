@@ -32303,6 +32303,15 @@ mock230_world_selftest(void)
                         "rs2012_qbd_crystal",
                         "rs2012_qbd_hardened",
                     };
+                    /* The adds fall through on the OTHER combat wildcard.
+                     * `[ai_queue2,_]` draws the damage it is handed, and
+                     * everything in this encounter is dealt in era LP — ten
+                     * times the number a player should read, and past 25 it
+                     * wraps in the wire's one-byte damage field. */
+                    static const char* const k_lp_adds[] = {
+                        "rs2012_qbd_tortured_soul",
+                        "rs2012_qbd_giant_worm",
+                    };
 
                     for( int f = 0;
                          f < (int)(sizeof(k_swing_forms) / sizeof(k_swing_forms[0])); f++ )
@@ -32316,6 +32325,18 @@ mock230_world_selftest(void)
                                        "%s must state its own [ai_opplayer2] or the engine "
                                        "falls through to the default melee swing",
                                        k_swing_forms[f]);
+                    }
+                    for( int f = 0; f < (int)(sizeof(k_lp_adds) / sizeof(k_lp_adds[0])); f++ )
+                    {
+                        int const id = mock230_content_symbol(MOCK230_PACK_NPC, k_lp_adds[f]);
+
+                        if( id < 0 || !srv->scripts_ok )
+                            continue;
+                        SELFTEST_CHECK(SSVM_ProviderGetByTriggerSpecific(
+                                           srv->scripts, SS_TRIGGER_AI_QUEUE2, id, -1) != NULL,
+                                       "%s must state its own [ai_queue2] or its hitsplat "
+                                       "draws the raw 10x life-point figure",
+                                       k_lp_adds[f]);
                     }
                 }
 

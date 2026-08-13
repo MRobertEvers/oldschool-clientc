@@ -13,6 +13,11 @@ Companion documents:
 - `docs/rs2012_qbd_encounter/RESEARCH.md` — the 2012 wiki-revision, fansite,
   open727 and OSRS moving-wall research this guide's timings come from, with
   source labels for every number.
+- `docs/rs2012_qbd_encounter/AUDIO.md` — what the encounter sounds like: the
+  two music tracks, the per-attack frame-sound table, the arena's loc ambient
+  bed, and the three audio layers that are still incomplete. Every attack
+  below fires its sound off the animation it already plays, so an animation
+  the server never binds is also an effect nobody hears.
 
 Timing conventions used throughout:
 
@@ -468,6 +473,7 @@ and her first post-restoration attack waits 20 ticks.
 | fire-wall waves, souls, shadows, time stop, worm eruption | `rs2012_qbd_adds.rs2` |
 | moving wall visual | official `projanim_map` with flat-glide parameters (§6.4) — no engine change |
 | HUD pool bar / time overlay | `rs2012_qbd_ui.rs2`, cs2 13000/13001 |
+| music, sound effects, area sounds | `AUDIO.md` — music is dispatched from `rs2012_qbd_session.rs2`; every effect rides a sequence frame |
 | assets (all present in the composed cache; ids per port ledger) | `RS2012_QBD_TD.md` §5, RESEARCH.md §4 |
 
 NPC var-slot allotment on the queen: 0 attack recovery, 2 soul-summon cd,
