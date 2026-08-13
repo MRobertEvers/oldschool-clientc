@@ -1101,7 +1101,8 @@ mock230_combat_attackable(int npc_type)
 int
 mock230_combat_player_afk(const struct Mock230Player* player)
 {
-    if( !player || !player->world || player->last_input_tick < 0 )
+    if( !player || !player->world ||
+        player->last_input_tick == MOCK230_INPUT_TICK_NEVER )
         return 0;
     return player->world->tick - player->last_input_tick >= MOCK230_AFK_COMBAT_TICKS;
 }

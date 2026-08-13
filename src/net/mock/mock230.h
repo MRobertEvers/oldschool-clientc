@@ -775,6 +775,11 @@ enum
  */
 #define MOCK230_AFK_COMBAT_TICKS 2000
 
+/** `Mock230Player::last_input_tick` for a slot with no client behind it. Not a
+ *  time, so it is outside every time: an armed clock may legitimately be a
+ *  negative tick early in a world's life. */
+#define MOCK230_INPUT_TICK_NEVER INT32_MIN
+
 /*
  * Attack styles, in the order the combat interface lists them. OldSchool folds
  * the style into the effective level before the roll: accurate is +3 attack,
@@ -2541,8 +2546,8 @@ struct Mock230Player
      *  player_lock()/player_unlock(). */
     int action_locked;
     /**
-     * The tick an inbound packet last carried a player INPUT, or -1 when this
-     * slot has no client to hear from.
+     * The tick an inbound packet last carried a player INPUT, or
+     * MOCK230_INPUT_TICK_NEVER when this slot has no client to hear from.
      *
      * Not liveness: the client's own keepalives (NO_TIMEOUT, IDLE_TIMER) and
      * its bookkeeping (window status, scene acks) are exactly what this must
@@ -2555,10 +2560,13 @@ struct Mock230Player
      * players stop attacking all together even if they are attacked by
      * monsters". See MOCK230_AFK_COMBAT_TICKS and mock230_combat_engage.
      *
-     * -1 is for the session-less player an in-process fixture stands up: there
-     * is no keyboard for it to fall silent at, and a clock that ran anyway
-     * would stop every fixture fight the moment the suite passed 2000 ticks.
-     * A test that wants the rule writes a tick here and gets the real clock.
+     * The sentinel is for the session-less player an in-process fixture stands
+     * up: there is no keyboard for it to fall silent at, and a clock that ran
+     * anyway would stop every fixture fight the moment the suite passed 2000
+     * ticks. A test that wants the rule writes a tick here and gets the real
+     * clock — which is why the sentinel is INT32_MIN and not -1: a fixture
+     * arming the clock 2000 ticks back on tick 300 writes a negative number,
+     * and that must be a time rather than an opt-out.
      */
     int32_t last_input_tick;
     /** The overhead-icon bits for the appearance block. Content's, through

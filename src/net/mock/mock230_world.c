@@ -7958,7 +7958,8 @@ mock230_world_add_player(
          * "idle since tick 0", so anyone joining a world older than
          * MOCK230_AFK_COMBAT_TICKS would arrive unable to fight. A slot with no
          * session has no client to time out — see `last_input_tick`. */
-        player->last_input_tick = session ? (int32_t)srv->tick : -1;
+        player->last_input_tick =
+            session ? (int32_t)srv->tick : MOCK230_INPUT_TICK_NEVER;
         mock230_ifstate_init(&player->interfaces);
         if( i >= srv->player_count )
             srv->player_count = i + 1;
@@ -17371,6 +17372,120 @@ mock230_world_selftest(void)
                 "unarmed auto-retaliate must wait half its 4-tick attack rate (got %d at tick %d)",
                 player->varps[action_delay], srv->tick);
             mock230_combat_stop_player(srv);
+
+            /*
+             * The flinch, against the wiki rather than against the reference
+             * this was ported from.
+             *
+             * "When a player is attacked, their attack delay is set to their
+             * current weapon's attack speed divided by two, rounded up,
+             * regardless of what it was prior" (Auto Retaliate). LostCity
+             * truncates, wraps the write in `if (%action_delay < map_clock)`,
+             * and subtracts the Rapid tick *after* halving — three deviations
+             * that unarmed cannot see, because ceil(4/2) and floor(4/2) are the
+             * same 2 and the check above is unarmed.
+             *
+             * So this one holds a weapon. `rs2012_obj_24338` is the Royal
+             * crossbow, and it is here for one property: `param=attackrate,5`
+             * makes it the odd-speed case, and being a crossbow it is also the
+             * Rapid case. Both readings differ from the old arithmetic:
+             *
+             *   melee style   ceil(5/2)     = 3   (was floor(5/2)     = 2)
+             *   ranged rapid  ceil((5-1)/2) = 2   (was floor(5/2) - 1 = 1)
+             *
+             * `action_delay` is parked far in the future first. That is the
+             * "regardless of what it was prior" half, and it is the half a
+             * fixture that starts from an expired clock cannot fail against.
+             */
+            {
+                int crossbow =
+                    mock230_content_symbol(MOCK230_PACK_OBJ, "rs2012_obj_24338");
+                int rhand = mock230_content_constant_int("wearpos_rhand", 3);
+                int rapid = mock230_content_constant_int("style_ranged_rapid", 5);
+                int32_t saved_input = player->last_input_tick;
+
+                SELFTEST_CHECK(crossbow >= 0 && rapid >= 0,
+                               "the flinch fixture needs a 5-tick weapon and the rapid "
+                               "style constant (obj=%d rapid=%d)",
+                               crossbow, rapid);
+                if( crossbow >= 0 )
+                {
+                    worn_set(player, rhand, crossbow, 1);
+
+                    player->varps[damagestyle] = 0; /* melee */
+                    player->varps[action_delay] = srv->tick + 50;
+                    SELFTEST_CHECK(
+                        mock230_scripts_queue_named(
+                            srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                        "the flinch fixture should queue");
+                    mock230_scripts_process_queues(srv);
+                    SELFTEST_CHECK(
+                        player->varps[action_delay] == srv->tick + 3,
+                        "a 5-tick weapon must flinch to ceil(5/2)=3 and must overwrite a "
+                        "longer wait: wanted %d, got %d",
+                        srv->tick + 3, player->varps[action_delay]);
+                    mock230_combat_stop_player(srv);
+
+                    player->varps[damagestyle] = rapid;
+                    player->varps[action_delay] = srv->tick + 50;
+                    SELFTEST_CHECK(
+                        mock230_scripts_queue_named(
+                            srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                        "the rapid flinch fixture should queue");
+                    mock230_scripts_process_queues(srv);
+                    SELFTEST_CHECK(
+                        player->varps[action_delay] == srv->tick + 2,
+                        "Rapid takes a tick off the WEAPON before the halving: a 5-tick "
+                        "crossbow must flinch to ceil(4/2)=2, wanted %d, got %d",
+                        srv->tick + 2, player->varps[action_delay]);
+                    mock230_combat_stop_player(srv);
+                }
+
+                /*
+                 * And the 20-minute rule from the same page: retaliation
+                 * follows the attacker "for 20 minutes if no player input is
+                 * given, after which players stop attacking all together".
+                 *
+                 * `last_input_tick` is -1 on a fixture — there is no client
+                 * here to fall silent — so the clock has to be armed by hand,
+                 * which is also what makes the two halves below a pair rather
+                 * than one check and an assumption. Restored afterwards: a
+                 * fixture left with an armed clock stops fighting 2000 ticks
+                 * later, in whichever unrelated section the suite has reached
+                 * by then.
+                 */
+                player->varps[damagestyle] = 0;
+                player->varps[action_delay] = srv->tick - 1;
+                player->last_input_tick = srv->tick - MOCK230_AFK_COMBAT_TICKS;
+                SELFTEST_CHECK(mock230_combat_player_afk(player),
+                               "2000 ticks of silence must read as AFK");
+                SELFTEST_CHECK(
+                    mock230_scripts_queue_named(
+                        srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                    "the AFK fixture should queue");
+                mock230_scripts_process_queues(srv);
+                SELFTEST_CHECK(player->combat_target == -1,
+                               "20 minutes without input must stop the character fighting "
+                               "back, target %d",
+                               player->combat_target);
+
+                /* One packet is all it takes to be back at the keyboard. */
+                player->last_input_tick = srv->tick;
+                SELFTEST_CHECK(
+                    mock230_scripts_queue_named(
+                        srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
+                    "the post-input fixture should queue");
+                mock230_scripts_process_queues(srv);
+                SELFTEST_CHECK(player->combat_target == goblin,
+                               "and any input must put it straight back, target %d",
+                               player->combat_target);
+
+                mock230_combat_stop_player(srv);
+                worn_set(player, rhand, -1, 0);
+                player->varps[damagestyle] = 0;
+                player->varps[action_delay] = 0;
+                player->last_input_tick = saved_input;
+            }
         }
 
         if( goblin >= 0 )

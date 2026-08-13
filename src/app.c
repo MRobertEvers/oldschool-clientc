@@ -553,6 +553,8 @@ static void
 app_world_sync_entity_spotanims(struct App* app);
 static void
 app_entity_spotanim_drop(struct App* app, int body_element_id);
+static struct AppEntitySpotanim*
+app_entity_spotanim_find(struct App* app, int body_element_id);
 
 /* Send an outbound packet built by a net_out_* builder, gated on networking.
  * The builder writes into a scratch buffer using the game out-cipher; the
@@ -1820,7 +1822,24 @@ app_world_project(
  * `max(-vertexY)` — a POSITIVE magnitude measuring up from the model origin.
  * ToriDraw's bounds cylinder stores the true minimum instead (negative, since
  * up is -y), so it has to be negated here. Getting this wrong collapses the
- * health bar onto the entity's feet. */
+ * health bar onto the entity's feet.
+ *
+ * ClientNpc/ClientPlayer.getTempModel() sets `this.height = model.minY` from
+ * the entity's OWN model, then — only after that assignment — combines in the
+ * attached graphic for rendering (ClientNpc.ts:34 runs before the spotanim
+ * branch below it). `height` never sees the combined mesh.
+ *
+ * A live attached graphic (`app_entity_spotanim_find` non-NULL) means this
+ * element's current model is that combined mesh: `app_world_sync_one_entity_
+ * spotanim` merges the spot graphic's posed geometry into it every frame the
+ * spot animation advances and calls `ToriDraw_ModelMerge`, which recomputes
+ * the bounds cylinder over every vertex in the merge. Reading that live bounds
+ * here pulled the spot graphic's own (frequently rescaled, always moving)
+ * geometry into the entity's reported height, so the health bar / hitsplat /
+ * chat / headicon position — everything anchored on this — tracked the spot
+ * animation's pose instead of standing still on the entity. `entry->body` is
+ * the pristine pre-combine snapshot (`ToriDraw_ModelCopy` sets its own bounds
+ * cylinder), the port's equivalent of the reference's separate `height` field. */
 static int
 app_entity_model_height(
     struct App* app,
@@ -1828,6 +1847,15 @@ app_entity_model_height(
 {
     struct ToriDraw_SceneElement* el;
     struct ToriDraw_BoundsCylinder* bounds;
+    struct AppEntitySpotanim* spot_entry = app_entity_spotanim_find(app, element_id);
+
+    if( spot_entry && spot_entry->body )
+    {
+        struct ToriDraw_ModelHandle body_hnd = { .kind = TORIDRAWMK_MODEL };
+        body_hnd.u.model.model = spot_entry->body;
+        bounds = ToriDraw_ModelGetBoundsCylinder(body_hnd);
+        return bounds ? -bounds->min_y : 0;
+    }
 
     if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return 0;
