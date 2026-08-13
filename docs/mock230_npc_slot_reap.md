@@ -1,8 +1,8 @@
 # mock230 npc slot reap — deferred index recycling
 
-Status: **plan, not yet implemented.** This document is the design for a follow-up
-fix; the code described in "Proposed design" below does not exist yet. What
-*is* already in the tree is the band-aid described in "Current state".
+Status: **implemented**, for both npcs and players. See "Status" at the
+bottom for npcs and "Players have the same issue" below for the player-side
+extension.
 
 ## Background
 
@@ -252,21 +252,57 @@ defensively, now essentially never needed, still worth keeping.
 
 ## Open items / things to verify while implementing
 
-- `npc_death_step` (`mock230_combat.c`) needs a path to `srv` to call
-  `mock230_world_npc_free` — confirm its call chain already threads that
-  through, or add it.
-- Update the stale "same pass" comment at `mock230_world.c:8511` once
-  `world_static_npcs_sync`'s backfill becomes one-pass-lagged.
-- Update `npc_spawn()`'s existing hazard-class comment
-  (`mock230_world.c:2467`) to point at this mechanism as the actual fix
-  rather than describing the ZoneMap refile as the only mitigation.
-- Selftests to add: (a) despawn + same-tick respawn attempt at the same
-  slot leaves the new npc waiting a tick rather than sharing the old
-  npc's tracked identity; (b) `npc_free_queue_count` drains to 0 and
-  `pending_free` clears after one `mock230_world_tick()`; (c) full
-  regression run of `--selftest` against the pre-existing 10-failure
-  baseline (see conversation history / prior commit) to confirm no new
-  failures.
+Resolved during implementation: `npc_death_step` already had `srv` and
+`slot` in scope; the stale "same pass" comment at `world_static_npcs_sync`
+and `npc_spawn`'s hazard-class comment were both updated. Still open:
+
+- No dedicated selftest was added exercising same-tick despawn +
+  reuse-attempt directly for either npcs or players — see "Status" below.
+
+## Players have the same issue, same fix
+
+`mock230_world_add_player` (`mock230_world.c:8015`) is the player
+equivalent of `npc_spawn`: it scans `srv->players[]` for the first
+`!active` pid. `mock230_world_remove_player` clears `active` immediately,
+same as the pre-fix npc despawn sites did. Both are host-driven (connection
+accept/teardown), not tick-phase-driven, so a disconnect freeing a pid and
+a *different* new connection's login reusing it, both drained in the same
+between-tick pass of the host's connection loop, hit the identical hazard:
+any third player still tracking that pid would see the new login's data —
+appearance, position, hitsplats — spliced onto their already-tracked entry
+for it. `mock230_send_player_info`'s "already tracked" loop
+(`mock230_encode.c:3672`) reconciles purely by `player_in_view` (position +
+`active`), same shape as the pre-fix NPC_INFO loop; `login_generation`
+(`mock230.h`, the player equivalent of `npc->generation`) existed but was
+never referenced anywhere in `mock230_encode.c`.
+
+This is a smaller surface than the npc case: `mock230_world_remove_player`
+is, per its own doc comment, the *only* logout path either host has — one
+despawn site instead of five.
+
+**Implemented**, mirroring the npc mechanism exactly:
+
+- `Mock230Player.pending_free` (`mock230.h`), `struct Mock230PlayerFreeCmd`,
+  `Mock230Server.player_free_queue`/`player_free_queue_count`.
+- `mock230_world_player_free(srv, pid)` / `mock230_world_player_reap(srv)`
+  (`mock230_world.c`), same shape as the npc pair, called from the same
+  `phase_cleanup` spot as `mock230_world_npc_reap`.
+- `mock230_world_add_player`'s free-slot scan now checks `pending_free` too.
+- `mock230_world_remove_player`'s `active = 0` routes through
+  `mock230_world_player_free`.
+- `player->tracked_player_generation[]` added to `mock230_encode.c`,
+  mirroring `tracked_generation[]` — the same defense-in-depth layering as
+  the npc side, using the `login_generation` field that already existed for
+  exactly this and was simply unused.
+- The v5 (`wire_is_v5`) PLAYER_INFO path returns before reaching the
+  "already tracked" loop — it doesn't send other players at all yet (a
+  separate, pre-existing gap noted in its own comment) — so there is no v5
+  counterpart to fix here, unlike NPC_INFO which had a full v5
+  implementation of its own.
+
+Verified the same way: `mock230-dev` builds clean, `--selftest` shows the
+same pre-existing 10 failures (line numbers shifted only from the added
+code), no new ones.
 
 ## Status
 

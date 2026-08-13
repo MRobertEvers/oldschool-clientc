@@ -8010,6 +8010,14 @@ mock230_world_set_active(
  * The slot is the pid, and slots are never reused while occupied nor compacted
  * when freed: the wire carries the index, so moving a player would rename them
  * to every client tracking them.
+ *
+ * "Never reused while occupied" is not the whole hazard, though — a pid freed
+ * by a logout and handed straight back out to a new connection, both drained
+ * from the same between-tick pass of the host's connection loop, could still
+ * be reused before any observer's PLAYER_INFO had a chance to report the old
+ * occupant gone. The `pending_free` check below is what closes that: see
+ * `mock230_world_player_free` and docs/mock230_npc_slot_reap.md, which is the
+ * npc-side writeup of the identical hazard.
  */
 struct Mock230Player*
 mock230_world_add_player(
@@ -8021,7 +8029,7 @@ mock230_world_add_player(
         struct Mock230Player* player = &srv->players[i];
         uint32_t generation;
 
-        if( player->active )
+        if( player->active || player->pending_free )
             continue;
         generation = player->login_generation + 1;
         if( generation == 0 )
@@ -8050,6 +8058,67 @@ mock230_world_add_player(
     fprintf(stderr, "mock230: the world is full (%d players); refusing the connection\n",
             MOCK230_PLAYER_MAX);
     return NULL;
+}
+
+/*
+ * The despawn choke point for players. See docs/mock230_npc_slot_reap.md and
+ * `mock230_world_npc_free`, whose comment this mirrors exactly — the only
+ * difference is scale (one call site instead of five, `MOCK230_PLAYER_MAX`
+ * instead of `MOCK230_NPC_MAX`).
+ *
+ * `active` still clears immediately — same-tick logic (friends lookups,
+ * `mock230_world_set_active` bookkeeping, the caller's own use of the player
+ * it is tearing down) has to keep seeing this pid as gone right away. What's
+ * deferred is only the pid's ELIGIBILITY for `mock230_world_add_player`'s
+ * free-slot scan, until `mock230_world_player_reap` drains the queue — once
+ * per tick, after every player's PLAYER_INFO for this tick has already gone
+ * out.
+ */
+void
+mock230_world_player_free(
+    struct Mock230Server* srv,
+    int pid)
+{
+    struct Mock230Player* player;
+
+    assert(srv);
+    if( pid < 0 || pid >= MOCK230_PLAYER_MAX )
+        return;
+    player = &srv->players[pid];
+    if( !player->active )
+        return; /* already gone (or already queued) — do not double-queue */
+
+    player->active = 0;
+    player->pending_free = 1;
+
+    if( srv->player_free_queue_count < MOCK230_PLAYER_MAX )
+    {
+        struct Mock230PlayerFreeCmd* cmd =
+            &srv->player_free_queue[srv->player_free_queue_count++];
+        cmd->pid = pid;
+        cmd->generation = player->login_generation;
+    }
+    /* No overflow branch: sized to MOCK230_PLAYER_MAX and at most one command
+     * per currently-active player can ever be pending between reaps. */
+}
+
+/*
+ * Once per tick, from phase_cleanup, after every player's PLAYER_INFO for
+ * this tick has already gone out. Mirrors mock230_world_npc_reap exactly.
+ */
+void
+mock230_world_player_reap(struct Mock230Server* srv)
+{
+    assert(srv);
+    for( int i = 0; i < srv->player_free_queue_count; i++ )
+    {
+        struct Mock230PlayerFreeCmd* cmd = &srv->player_free_queue[i];
+        struct Mock230Player* player = &srv->players[cmd->pid];
+
+        if( player->login_generation == cmd->generation )
+            player->pending_free = 0;
+    }
+    srv->player_free_queue_count = 0;
 }
 
 void
@@ -8222,9 +8291,15 @@ mock230_world_remove_player(
      * whatever entities those zones hold already in their area. Both halves
      * have to go: the zones' subscriber lists hold this pid, and the player's
      * own filing holds them.
+     *
+     * That ZoneMap fix does not, by itself, protect PLAYER_INFO: a pid handed
+     * straight back out to a new login before every observer's PLAYER_INFO has
+     * reported this one gone would still read, to them, as the departed player
+     * continuing. `mock230_world_player_free` is what closes that — see its
+     * own comment and docs/mock230_npc_slot_reap.md.
      */
     mock230_playerzonemap_clear(player);
-    player->active = 0;
+    mock230_world_player_free(srv, player->pid);
     mock230_zone_player_refile(srv, player->pid);
     player->session = NULL;
     /* Everyone else is holding this pid. Clearing `active` is what the next
@@ -10394,6 +10469,8 @@ phase_cleanup(struct Mock230Server* srv)
      * already ran) — slots freed this tick can now actually be reused. See
      * docs/mock230_npc_slot_reap.md. */
     mock230_world_npc_reap(srv);
+    /* Same reasoning, same timing, for pids — see mock230_world_player_free. */
+    mock230_world_player_reap(srv);
 
     /* The zones' event buffers, now that every client has been given them. The
      * state they hold — loc records, obj and npc membership — is not touched. */

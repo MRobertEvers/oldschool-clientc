@@ -3408,6 +3408,7 @@ mock230_send_player_info(struct Mock230Player* player)
     int queued_new[MOCK230_PLAYER_MAX + 1];
     int queued_count = 0;
     int kept[MOCK230_PLAYER_MAX];
+    uint32_t kept_generation[MOCK230_PLAYER_MAX];
     int nearby[MOCK230_PLAYER_MAX];
     int nearby_count;
     int kept_count = 0;
@@ -3689,7 +3690,17 @@ mock230_send_player_info(struct Mock230Player* player)
          * wrong place. The local player has op 3 to itself precisely because
          * this section cannot lend it one.
          */
-        if( other->place_dirty || !player_in_view(player, other) )
+        /*
+         * The generation term catches a pid `mock230_world_add_player` handed
+         * to a different login since this list was last written (a logout and
+         * a new connection's login, both drained between the same two ticks —
+         * see `mock230_world_player_free`). Without it this branch cannot
+         * tell "still the player I was tracking" from "someone else logged
+         * into this pid" and reads the new occupant as an ordinary
+         * continuation of the old one.
+         */
+        if( other->place_dirty || !player_in_view(player, other) ||
+            other->login_generation != player->tracked_player_generation[i] )
         {
             /* Op 3 on a tracked player is "remove". It is the one op that does
              * not keep the slot, so it must not go into `kept`. */
@@ -3699,6 +3710,7 @@ mock230_send_player_info(struct Mock230Player* player)
             continue;
         }
 
+        kept_generation[kept_count] = other->login_generation;
         kept[kept_count++] = pid;
         other_extended = other->masks != 0;
         if( other->move_count == 2 )
@@ -3774,6 +3786,7 @@ mock230_send_player_info(struct Mock230Player* player)
         queued_new[queued_count] = 1;
         queued[queued_count++] = other;
         player->player_tracked[pid] = 1;
+        kept_generation[kept_count] = other->login_generation;
         kept[kept_count++] = pid;
     }
 
@@ -3800,6 +3813,10 @@ mock230_send_player_info(struct Mock230Player* player)
      * `masks` is cleared there.
      */
     memcpy(player->tracked_players, kept, sizeof(int) * (size_t)kept_count);
+    memcpy(
+        player->tracked_player_generation,
+        kept_generation,
+        sizeof(uint32_t) * (size_t)kept_count);
     player->tracked_player_count = kept_count;
 }
 

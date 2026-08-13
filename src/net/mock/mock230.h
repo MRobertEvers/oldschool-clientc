@@ -2493,6 +2493,15 @@ struct Mock230Player
      */
     int active;
 
+    /** Set the instant this pid is freed (`mock230_world_player_free`);
+     *  cleared by `mock230_world_player_reap` once every observer's
+     *  PLAYER_INFO for this tick has already reported it gone.
+     *  `mock230_world_add_player`'s free-slot scan treats this exactly like
+     *  `active` — a pid cannot be handed to a new login while a client might
+     *  still resolve it as the departed player. Same hazard, same fix, as
+     *  `Mock230Npc.pending_free` — see docs/mock230_npc_slot_reap.md. */
+    uint8_t pending_free;
+
     /**
      * Index in the world's pool, and the pid the wire carries.
      *
@@ -2775,6 +2784,12 @@ struct Mock230Player
     /** The same pair for other players. `tracked_players` holds pool indices
      *  (pids), in the order PLAYER_INFO's tracked section writes them. */
     int tracked_players[MOCK230_PLAYER_MAX];
+    /** `srv->players[tracked_players[i]].login_generation` as of the tick that
+     *  pid was last written into this list — the player equivalent of
+     *  `tracked_generation`, guarding the same hazard: a pid freed by a
+     *  logout and reused by a different login before this client's PLAYER_INFO
+     *  caught up would otherwise read as the departed player, still there. */
+    uint32_t tracked_player_generation[MOCK230_PLAYER_MAX];
     int tracked_player_count;
     uint8_t player_tracked[MOCK230_PLAYER_MAX];
 
@@ -3133,6 +3148,14 @@ struct Mock230NpcFreeCmd
     uint16_t generation;
 };
 
+/** The player equivalent of `Mock230NpcFreeCmd` — same reason, same shape,
+ *  scaled down to `MOCK230_PLAYER_MAX` pids instead of npc slots. */
+struct Mock230PlayerFreeCmd
+{
+    int pid;
+    uint32_t generation; /* player->login_generation at the moment this was queued */
+};
+
 struct Mock230Server
 {
     /*
@@ -3163,6 +3186,13 @@ struct Mock230Server
      */
     struct Mock230Player players[MOCK230_PLAYER_MAX];
     int player_count;
+
+    /** Pids freed this tick via `mock230_world_player_free`, awaiting
+     *  `mock230_world_player_reap` — the player equivalent of
+     *  `npc_free_queue`. Sized to the whole pool for the same reason: it
+     *  can never overflow. */
+    struct Mock230PlayerFreeCmd player_free_queue[MOCK230_PLAYER_MAX];
+    int player_free_queue_count;
 
     /*
      * World-owned containers — the `scope=shared` half of the registry.
@@ -3608,12 +3638,36 @@ mock230_world_add_player(
  * The removal is not "stop encoding them": every other client is holding a pid
  * that has to be retired explicitly, or a later player taking the same slot
  * inherits the corpse. `mock230_send_player_info` does the retiring; this is
- * what tells it to, by clearing `active`.
+ * what tells it to, via `mock230_world_player_free` (see its own comment for
+ * why that is not simply clearing `active` inline).
  */
 void
 mock230_world_remove_player(
     struct Mock230Server* srv,
     struct Mock230Player* player);
+
+/**
+ * The despawn choke point for players — the exact `mock230_world_npc_free`
+ * pattern, scaled down to one call site (`mock230_world_remove_player` is,
+ * per its own doc comment, the only logout path either host has). `active`
+ * still clears immediately; what's deferred is the pid's eligibility for
+ * `mock230_world_add_player`'s free-slot scan, until `mock230_world_player_reap`
+ * drains the queue — once per tick, after every observer's PLAYER_INFO for
+ * this tick has already gone out. See docs/mock230_npc_slot_reap.md.
+ */
+void
+mock230_world_player_free(
+    struct Mock230Server* srv,
+    int pid);
+
+/**
+ * Once per tick, from phase_cleanup, after every player's PLAYER_INFO for
+ * this tick has already gone out: drains `player_free_queue`, clearing
+ * `pending_free` on each entry.
+ */
+void
+mock230_world_player_reap(
+    struct Mock230Server* srv);
 
 /**
  * Say whose turn it is.
