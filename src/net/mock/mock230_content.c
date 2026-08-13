@@ -2368,6 +2368,30 @@ load_varp_config(const char* path)
             else
                 def->wholewrite_allowed = 1;
         }
+        else if( strcmp(line, "wholeread") == 0 )
+        {
+            /*
+             * The read half of the same licence, and it is the compiler's
+             * business rather than this loader's.
+             *
+             * `wholeread=allow` says a whole-varp READ of a carrier is meant —
+             * content naming a bit no cache varbit claims, which is the only way
+             * to reach one (varbit ids are cache-only, so content cannot declare
+             * the varbit it would rather use). `ssc_symbols.c` is what enforces
+             * it, and it also refuses the declaration when no varbit is based on
+             * the varp at all, so the claim is checked where it is made.
+             *
+             * Nothing at runtime needs it: reading a carrier whole destroys
+             * nothing, which is exactly why it is a separate word from
+             * `wholewrite`. What this arm buys is that the key is *accepted* —
+             * it was rejected as unknown, and one rejected line is one content
+             * error, which is a red `mock230 --selftest` for a file that is
+             * correct.
+             */
+            if( strcmp(value, "allow") != 0 )
+                CONTENT_ERROR("%s:%d: `wholeread` takes `allow`, not `%s`\n", path,
+                              line_number, value);
+        }
         else
             CONTENT_ERROR("%s:%d: unknown varp key `%s`\n", path, line_number, line);
     }

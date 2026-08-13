@@ -18153,64 +18153,6 @@ mock230_world_selftest(void)
         }
     }
 
-    fprintf(stderr, "mock230 selftest: a script-spawned npc does not come back\n");
-    {
-        /*
-         * `npc_add` and a map-square spawn are two different lifetimes, and the
-         * death is where they part: `EntityLifeCycle.RESPAWN` vs `DESPAWN` in
-         * the reference (Npc.turn, World.removeNpc). The goblin stanzas above
-         * are the RESPAWN half — the world stands its own spawns back up after
-         * `respawnrate`. This is the other half: an npc a script created belongs
-         * to that script, and its death is the end of it.
-         *
-         * The engine used to respawn both, which is invisible for the ordinary
-         * case (content npc_adds a monster, you kill it, nobody looks at that
-         * tile again) and wrong for every encounter that spawns its own roster.
-         * The Inferno reads it as two separate bugs: every add is `npc_add`ed,
-         * so every add the player killed stood back up 25 ticks later — "the
-         * waves are spawning too fast" — and stood back up inert, because what
-         * points an add at the Ancestral Glyph is the timer armed at the
-         * `npc_add` site, and a respawn re-runs `[ai_spawn]`, not the spawner.
-         *
-         * The pair is the test. This stanza on its own would also pass if
-         * respawning were removed altogether; the goblin above is what says it
-         * was not.
-         */
-        int slot = npc_spawn(&srv, 3028, g_home_x + 9, g_home_z + 9, 0);
-
-        SELFTEST_CHECK(slot >= 0, "the fixture npc should spawn");
-        if( slot >= 0 )
-        {
-            struct Mock230Npc* npc = &srv.npcs[slot];
-            int rate = npc->def->respawnrate;
-            int generation = npc->generation;
-            int waited = rate + 8;
-
-            SELFTEST_CHECK(!npc->despawns_on_death,
-                           "a fresh slot should be the world's, not a script's");
-            SELFTEST_CHECK(rate > 0, "and its record should state a respawn rate to outlive");
-            /* What `SS_OP_NPC_ADD` does on the line after it spawns, and the
-             * only thing separating this npc from the goblin above. */
-            npc->despawns_on_death = 1;
-            mock230_combat_hit_npc(&srv, slot, 0, npc->hitpoints);
-            for( int i = 0; i < waited; i++ )
-                mock230_world_tick(&srv);
-            /*
-             * The generation is in the assertion rather than beside it: a freed
-             * slot is the pool's lowest free one and the roster sync can take it
-             * for an unrelated spawn, which would show up here as `active` for
-             * reasons that have nothing to do with respawning. Failing on the
-             * generation says that happened instead of blaming the rule.
-             */
-            SELFTEST_CHECK(npc->generation == (uint16_t)generation && !npc->active &&
-                               npc->respawn_tick < 0,
-                           "a killed npc_add npc stays dead: active=%d respawn_tick=%d "
-                           "gen %d->%d, %d ticks after death (respawnrate %d)",
-                           npc->active, npc->respawn_tick, generation, npc->generation,
-                           waited, rate);
-        }
-    }
-
     fprintf(stderr, "mock230 selftest: ::god absorbs damage at the funnel\n");
     {
         /*
@@ -18508,6 +18450,24 @@ mock230_world_selftest(void)
                            "and the player can start a fight again, got %d",
                            player->combat_target);
             selftest_park_player(&srv, died_x, died_z);
+            /*
+             * And put the fight down again before leaving.
+             *
+             * The check above deliberately ends with a live engagement on both
+             * sides, and this stanza used to walk away from it. That was
+             * survivable only while a provoked npc gave its target up on its own
+             * — once combat held one, this goblin kept swinging through every
+             * later stanza, and the next one along picks *its* goblin by
+             * scanning the pool for the first live one of the type
+             * (`selftest_find_npc`), so it took a different npc and left this
+             * one hitting the player behind its back. What it looked like was
+             * six unrelated failures: a face latch that would not set, a bow
+             * that walked into melee, a starting kit with no coins — all of them
+             * a player who was `dying` again by the time those stanzas ran.
+             */
+            mock230_combat_stop_npc(&srv, goblin);
+            mock230_world_set_active(&srv, player);
+            mock230_combat_stop_player(&srv);
         }
     }
 
@@ -24267,6 +24227,76 @@ mock230_world_selftest(void)
      * a shared varp, and writing one as a whole varp destroys the others in it
      * without any symptom until the interface is looked at.
      */
+    fprintf(stderr, "mock230 selftest: a script-spawned npc does not come back\n");
+    {
+        /*
+         * `npc_add` and a map-square spawn are two different lifetimes, and the
+         * death is where they part: `EntityLifeCycle.RESPAWN` vs `DESPAWN` in
+         * the reference (Npc.turn, World.removeNpc). The "combat" section's
+         * goblin is the RESPAWN half and asserts three times that the world
+         * stands its own spawns back up after `respawnrate`. This is the other
+         * half: an npc a script created belongs to that script, and its death is
+         * the end of it.
+         *
+         * The engine used to respawn both, which is invisible for the ordinary
+         * case (content npc_adds a monster, you kill it, nobody looks at that
+         * tile again) and wrong for every encounter that spawns its own roster.
+         * The Inferno reads it as two separate bugs: every add is `npc_add`ed,
+         * so every add the player killed stood back up 25 ticks later — "the
+         * waves are spawning too fast" — and stood back up inert, because what
+         * points an add at the Ancestral Glyph is the timer armed at the
+         * `npc_add` site, and a respawn re-runs `[ai_spawn]`, not the spawner.
+         *
+         * Those goblin checks are the other half of this test and they are not
+         * in this stanza on purpose: this one alone would also pass if
+         * respawning were deleted outright.
+         *
+         * **Placed immediately before a `selftest_reset_world`, deliberately.**
+         * It spawns an npc and runs thirty-odd world ticks, and both of those
+         * are visible to every section that comes after: the spawn shifts which
+         * pool slot the next `npc_spawn` takes, and the ticks move every
+         * wandering npc in the roster and advance the roam RNG. Run in the
+         * middle of the file it turned two unrelated sections a thousand lines
+         * away red — a ranged-reach check that suddenly measured a *different*
+         * goblin two tiles off, and a patrol check — with nothing on either to
+         * point back here. The reset below is what makes the cost end at this
+         * closing brace.
+         */
+        int slot = npc_spawn(&srv, 3028, g_home_x + 9, g_home_z + 9, 0);
+
+        SELFTEST_CHECK(slot >= 0, "the fixture npc should spawn");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv.npcs[slot];
+            int rate = npc->def->respawnrate;
+            int generation = npc->generation;
+            int waited = rate + 8;
+
+            SELFTEST_CHECK(!npc->despawns_on_death,
+                           "a fresh slot should be the world's, not a script's");
+            SELFTEST_CHECK(rate > 0, "and its record should state a respawn rate to outlive");
+            /* What `SS_OP_NPC_ADD` does on the line after it spawns, and the
+             * only thing separating this npc from the goblin above. */
+            npc->despawns_on_death = 1;
+            mock230_combat_hit_npc(&srv, slot, 0, npc->hitpoints);
+            for( int i = 0; i < waited; i++ )
+                mock230_world_tick(&srv);
+            /*
+             * The generation is in the assertion rather than beside it: a freed
+             * slot is the pool's lowest free one and the roster sync can take it
+             * for an unrelated spawn, which would show up here as `active` for
+             * reasons that have nothing to do with respawning. Failing on the
+             * generation says that happened instead of blaming the rule.
+             */
+            SELFTEST_CHECK(npc->generation == (uint16_t)generation && !npc->active &&
+                               npc->respawn_tick < 0,
+                           "a killed npc_add npc stays dead: active=%d respawn_tick=%d "
+                           "gen %d->%d, %d ticks after death (respawnrate %d)",
+                           npc->active, npc->respawn_tick, generation, npc->generation,
+                           waited, rate);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: bank varbit packing\n");
     {
         int basevar = 0;
