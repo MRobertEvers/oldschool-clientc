@@ -131,6 +131,33 @@ struct PlatformX_IO
  */
 static struct PlatformX_IO* g_web_io = NULL;
 
+/*
+ * May a read block the frame that issued it?
+ *
+ * Boot wants yes: it is a serial chain of several hundred archives, and a
+ * non-blocking read costs it a whole turn of the event loop each, so the
+ * blocking pump is the difference between a boot measured in seconds and one
+ * measured in minutes. Nothing is on screen to stutter yet.
+ *
+ * A live client wants no. A synchronous XMLHttpRequest freezes the main thread
+ * for far longer than the request takes -- in a trace of this client the nine
+ * blocking reads cost 39.9ms of frozen main thread, worst single block 17.0ms,
+ * against a measured HTTP round trip of at most 3.55ms. One of those is a
+ * dropped frame however fast the server answers, and they land exactly when
+ * something new happens: the first time an npc's hit sound is played, the id is
+ * not resident, and the fetch stalls the frame the hitsplat appears on.
+ *
+ * The asynchronous path is not a fallback here, it is the other half of the
+ * same design: Pending() parks the task either way, and the frame loop already
+ * switches its pacing to the event loop while reads are outstanding, so a
+ * backlog still drains at event-loop rate rather than display rate. This is the
+ * same configuration the page's `?io_sync=0` selects, applied to the half of
+ * the session that has frames to protect.
+ *
+ * Default 1 so a host that never calls the setter behaves as it always did.
+ */
+static int g_web_io_blocking_reads = 1;
+
 EM_JS(void, torirs_web_io_pump_js, (void), {
     if( Module.torirsIO && Module.torirsIO.pump )
         Module.torirsIO.pump();
@@ -156,6 +183,12 @@ void
 PlatformXIO_Web_Pump(void)
 {
     torirs_web_io_pump_js();
+}
+
+void
+PlatformXIO_Web_SetBlockingReads(int allowed)
+{
+    g_web_io_blocking_reads = allowed ? 1 : 0;
 }
 
 int
@@ -583,8 +616,12 @@ PlatformX_IO_Process(
      * The page decides whether it can do that (see the harness's pumpSync).
      * When it cannot, the requests stay pending and the frame-gated path
      * delivers them later; the Pending() gate covers both.
+     *
+     * The host decides whether it *wants* it: blocking is a boot tool, and a
+     * live client would rather wait a turn of the event loop than freeze the
+     * frame a new sound or model arrived on. See g_web_io_blocking_reads.
      */
-    if( px->pending_count > 0 )
+    if( px->pending_count > 0 && g_web_io_blocking_reads )
         torirs_web_io_pump_sync_js();
 
     return served;

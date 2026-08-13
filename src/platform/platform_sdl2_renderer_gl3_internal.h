@@ -419,6 +419,9 @@ struct ToriRS_GL3
      * (scene, mask, size) and rewrite it each draw so the two never alias. */
     struct GL3RotmaskDedicated rotmask_slots[GL3_ROTMASK_DEDICATED_CAP];
     GLuint rotmask_last_texture;
+    /* Shared staging for the rotated-masked bake, so the minimap and compass
+     * reuse one buffer instead of allocating a pixmap inside the frame. */
+    struct TRSPK_RotmaskBake rotmask_bake;
     struct GL3SpriteSlot sprite_slots[TRSPK_GL3_SPRITE_CAP];
     struct GL3FontSlot font_slots[TRSPK_GL3_FONT_CAP];
     GLuint quad_vao;

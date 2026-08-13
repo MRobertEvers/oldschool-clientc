@@ -2368,6 +2368,30 @@ load_varp_config(const char* path)
             else
                 def->wholewrite_allowed = 1;
         }
+        else if( strcmp(line, "wholeread") == 0 )
+        {
+            /*
+             * The read half of the same licence, and it is the compiler's
+             * business rather than this loader's.
+             *
+             * `wholeread=allow` says a whole-varp READ of a carrier is meant —
+             * content naming a bit no cache varbit claims, which is the only way
+             * to reach one (varbit ids are cache-only, so content cannot declare
+             * the varbit it would rather use). `ssc_symbols.c` is what enforces
+             * it, and it also refuses the declaration when no varbit is based on
+             * the varp at all, so the claim is checked where it is made.
+             *
+             * Nothing at runtime needs it: reading a carrier whole destroys
+             * nothing, which is exactly why it is a separate word from
+             * `wholewrite`. What this arm buys is that the key is *accepted* —
+             * it was rejected as unknown, and one rejected line is one content
+             * error, which is a red `mock230 --selftest` for a file that is
+             * correct.
+             */
+            if( strcmp(value, "allow") != 0 )
+                CONTENT_ERROR("%s:%d: `wholeread` takes `allow`, not `%s`\n", path,
+                              line_number, value);
+        }
         else
             CONTENT_ERROR("%s:%d: unknown varp key `%s`\n", path, line_number, line);
     }
@@ -3116,11 +3140,56 @@ has_suffix(
            strcmp(name + name_length - suffix_length, suffix) == 0;
 }
 
+static int
+dirent_name_compare(
+    const void* a,
+    const void* b)
+{
+    const struct dirent* const* da = a;
+    const struct dirent* const* db = b;
+    return strcmp((*da)->d_name, (*db)->d_name);
+}
+
+/* mingw-w64's dirent.h implements opendir/readdir but not the BSD/glibc
+ * scandir/alphasort extensions, so walk the directory by hand and sort the
+ * results ourselves -- portable across the unix and win32 builds. */
+static int
+mock230_scandir(
+    const char* dir,
+    struct dirent*** out_entries)
+{
+    DIR* d = opendir(dir);
+    struct dirent** entries = NULL;
+    int count = 0;
+    int capacity = 0;
+    struct dirent* ent;
+
+    if( !d )
+        return -1;
+
+    while( (ent = readdir(d)) != NULL )
+    {
+        if( count == capacity )
+        {
+            capacity = capacity ? capacity * 2 : 16;
+            entries = realloc(entries, (size_t)capacity * sizeof(*entries));
+        }
+        entries[count] = malloc(sizeof(*entries[count]));
+        *entries[count] = *ent;
+        count++;
+    }
+    closedir(d);
+
+    qsort(entries, (size_t)count, sizeof(*entries), dirent_name_compare);
+    *out_entries = entries;
+    return count;
+}
+
 /**
  * Recursively load every `.npc` then every `.loc`; the two passes keep a door
  * config free to name a loc declared in another file.
  *
- * `scandir` + `alphasort`, not `readdir` walked as it comes: `readdir` makes no
+ * Sorted via `mock230_scandir`, not `readdir` walked as it comes: `readdir` makes no
  * ordering promise at all, it hands back entries in whatever order the
  * filesystem's directory storage happens to hold them, and two files that
  * declare a block for the same npc are not merged (`mock230_content_npc`
@@ -3143,7 +3212,7 @@ walk_configs(
 {
     struct dirent** entries;
     char path[1024];
-    int count = scandir(dir, &entries, NULL, alphasort);
+    int count = mock230_scandir(dir, &entries);
 
     if( count < 0 )
         return;

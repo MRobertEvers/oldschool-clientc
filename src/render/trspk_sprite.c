@@ -1,6 +1,95 @@
 #include "render/trspk_sprite.h"
 
 #include "toridraw_math.h"
+#include "toridraw_sprite.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+void
+trspk_sprite_argb_to_rgba(
+    uint32_t const* src,
+    uint32_t* dst,
+    size_t count)
+{
+    for( size_t i = 0; i < count; i++ )
+    {
+        uint32_t const pix = src[i];
+        uint8_t const a_hi = (uint8_t)((pix >> 24) & 0xFFu);
+        uint32_t const rgb = pix & 0x00FFFFFFu;
+        uint8_t const a = (a_hi != 0u) ? a_hi : (rgb != 0u ? 0xFFu : 0u);
+        dst[i] = (uint32_t)((pix >> 16) & 0xFFu) | ((uint32_t)((pix >> 8) & 0xFFu) << 8) |
+                 ((uint32_t)(pix & 0xFFu) << 16) | ((uint32_t)a << 24);
+    }
+}
+
+uint32_t const*
+trspk_sprite_rotmask_bake(
+    struct TRSPK_RotmaskBake* bake,
+    struct ToriRS_RenderCommand_Sprite const* cmd,
+    struct ToriDraw_Sprite* sp,
+    struct ToriDraw_Sprite* mask_sp,
+    int dst_w,
+    int dst_h)
+{
+    struct ToriDraw_ViewPort vp = { 0 };
+    size_t need;
+    bool grew = false;
+    if( !bake || !cmd || !sp || !mask_sp || dst_w <= 0 || dst_h <= 0 )
+        return NULL;
+    need = (size_t)dst_w * (size_t)dst_h;
+    if( bake->capacity < need )
+    {
+        uint32_t* grown = realloc(bake->pixels, need * sizeof(uint32_t));
+        if( !grown )
+            return NULL;
+        bake->pixels = grown;
+        bake->capacity = need;
+        grew = true;
+    }
+    /* Whether the pixels the blit will not touch need wiping is the caller's to
+     * state -- see ToriRS_RenderCommand_Sprite.mask_needs_clear. A buffer that
+     * just grew is wiped either way: realloc leaves the new tail
+     * uninitialised, so honouring "no clear" there would upload heap garbage
+     * rather than the previous frame the caller meant to keep. */
+    if( cmd->mask_needs_clear || grew )
+        memset(bake->pixels, 0, need * sizeof(uint32_t));
+
+    vp.width = dst_w;
+    vp.height = dst_h;
+    vp.clip_left = 0;
+    vp.clip_top = 0;
+    vp.clip_right = dst_w;
+    vp.clip_bottom = dst_h;
+    vp.stride = dst_w;
+    ToriDraw2D_BlitSpriteRotatedMaskedEx(
+        sp,
+        mask_sp,
+        cmd->mask_keep_opaque,
+        &vp,
+        0,
+        0,
+        dst_w,
+        dst_h,
+        cmd->dst_anchor_x,
+        cmd->dst_anchor_y,
+        cmd->src_anchor_x,
+        cmd->src_anchor_y,
+        cmd->rotation_r2pi2048,
+        (int*)bake->pixels);
+    trspk_sprite_argb_to_rgba(bake->pixels, bake->pixels, need);
+    return bake->pixels;
+}
+
+void
+trspk_sprite_rotmask_bake_release(struct TRSPK_RotmaskBake* bake)
+{
+    if( !bake )
+        return;
+    free(bake->pixels);
+    bake->pixels = NULL;
+    bake->capacity = 0;
+}
 
 void
 trspk_sprite_local_to_uv(

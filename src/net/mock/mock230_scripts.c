@@ -1840,6 +1840,18 @@ run_trigger_script_inner(
         srv->pending_active_obj = 0;
     }
 
+    /* The npc the subject npc is acting on — `[ai_opnpc<n>]`'s target, reached
+     * from the script as `.npc_*`. One-shot for the same reason the obj above
+     * is: a script that fires another trigger must not inherit it. */
+    if( srv->pending_active_npc2 )
+    {
+        int npc2 = srv->pending_active_npc2 - 1;
+
+        srv->pending_active_npc2 = 0;
+        if( npc2 >= 0 && npc2 < MOCK230_NPC_MAX && srv->npcs[npc2].active )
+            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, &srv->npcs[npc2]);
+    }
+
     /*
      * The loc the trigger is about, on the same footing as the npc.
      *
@@ -1995,6 +2007,33 @@ mock230_scripts_run_trigger_lastint(
     rc = run_trigger_impl(srv, trigger, type, category, npc_slot, -1, -1, 1, 1);
     srv->pending_last_int = saved;
     srv->pending_last_int_valid = saved_valid;
+    return rc;
+}
+
+/*
+ * The same dispatch, naming the npc the subject npc is acting on.
+ *
+ * `[ai_opnpc<n>,<attacker>]` runs with the attacker as the primary active npc
+ * and the target as the secondary — the reference's `activeNpc` / `activeNpc2`
+ * pair — because a script about a fight between two npcs has to be able to name
+ * both of them, and `.npc_*` is how it names the second.
+ */
+int
+mock230_scripts_run_trigger_npc2(
+    struct Mock230Server* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot,
+    int npc2_slot)
+{
+    int rc;
+
+    srv->pending_active_npc2 = npc2_slot >= 0 ? npc2_slot + 1 : 0;
+    rc = run_trigger_impl(srv, trigger, type, category, npc_slot, -1, -1, 1, 1);
+    /* Cleared again here: a lookup that finds no script never reaches
+     * `run_trigger_script`, and a stale value would arm the next trigger. */
+    srv->pending_active_npc2 = 0;
     return rc;
 }
 
@@ -3398,11 +3437,46 @@ mock230_script_loc_resolve(
  * resumed script either finds the same npc or finds none — never a different
  * one wearing the same address.
  */
+/*
+ * The active npc's slot, honouring the `.` operand.
+ *
+ * `host_tag` is the PRIMARY npc's slot and nothing else — it is stored as a
+ * slot rather than a pointer so a parked script cannot resume onto a despawned
+ * npc — and every npc command here resolved through it, dotted or not. So the
+ * secondary npc pointer was *set* by four call sites and read by none: a `.npc_`
+ * command silently answered about the primary.
+ *
+ * That was invisible while the only dotted npc code in the tree was
+ * `[proc,.npc_findcount]`, whose iterator sets the secondary itself and whose
+ * primary is normally the same npc anyway. It stopped being invisible with
+ * `[ai_opnpc2]`, where the two are the attacker and its target: `.npc_uid`
+ * returned the attacker's own uid, so an add fired its shot at itself and
+ * queued its own damage onto itself.
+ *
+ * The secondary is held as a pointer into `srv->npcs`, so its slot is its index
+ * — the same array the primary's slot indexes.
+ */
+static int
+active_npc_slot(struct SSVM_State* state)
+{
+    struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
+
+    if( state->dot )
+    {
+        const struct Mock230Npc* npc = SSVM_ActiveSlot(state, SSVM_ENT_NPC, SSVM_SECONDARY);
+
+        if( !npc )
+            return -1;
+        return (int)(npc - srv->npcs);
+    }
+    return (int)state->host_tag - 1;
+}
+
 static struct Mock230Npc*
 active_npc(struct SSVM_State* state)
 {
     struct Mock230Server* srv = (struct Mock230Server*)state->env->host.user;
-    int slot = (int)state->host_tag - 1;
+    int slot = active_npc_slot(state);
 
     if( slot < 0 || slot >= MOCK230_NPC_MAX )
         return NULL;
@@ -4627,6 +4701,135 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `npc_attacknpc(npc_uid $target)` — the active npc starts an ordinary
+     * fight with another npc, `npc_attackplayer()` with the active player, and
+     * `npc_hastarget()` asks whether it is already in one of either kind.
+     *
+     * The target is what `mock230_combat_npc_tick` reads to decide that combat
+     * owns this npc: it faces, closes to its `attackrange`, and swings on the
+     * record's `attackrate` through `[ai_opnpc2]` or `[ai_opplayer2]`. Setting
+     * it is what "and now fight this, normally" means, and until these existed
+     * content could not say it at all — `npc_setmode(applayer2)` runs one AP
+     * handler and falls back to `none`, so a script that wanted a standing
+     * fight had to re-arm the mode every tick and carry its own attack clock
+     * beside the engine's, and no spelling of it could name another npc.
+     *
+     * `attack_clock = 0` rather than a flinch delay, matching `maybe_aggress`:
+     * a fight the npc *starts* swings on the tick it is in range. The halved
+     * clock in `mock230_combat_hit_npc` belongs to retaliation, which is a
+     * different event.
+     *
+     * A uid rather than a slot for the target: slots are recycled, and the
+     * generation half is what stops a fight outliving the npc it was with.
+     */
+    case SS_OP_NPC_ATTACKNPC:
+    {
+        int32_t uid;
+        struct Mock230Npc* npc = active_npc(state);
+        int target;
+        uint16_t generation;
+
+        if( !SSVM_PopInt(state, &uid) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_attacknpc with no active npc");
+            return 1;
+        }
+        target = (int)((uint32_t)uid & 0xffffu);
+        generation = (uint16_t)((uint32_t)uid >> 16);
+        if( uid < 0 || target < 0 || target >= MOCK230_NPC_MAX ||
+            !srv->npcs[target].active || srv->npcs[target].death_tick >= 0 ||
+            generation == 0 || srv->npcs[target].generation != generation ||
+            &srv->npcs[target] == npc )
+        {
+            /* A target that is gone is not an error — the caller found it a
+             * moment ago and things die. Say nothing and leave the npc idle. */
+            return 1;
+        }
+        if( npc->combat_target_npc != target )
+        {
+            npc->combat_target_npc = target;
+            npc->combat_target_npc_gen = generation;
+            npc->attack_clock = 0;
+        }
+        npc->combat_target = -1;
+        mock230_npc_face_npc(npc, target);
+        return 1;
+    }
+
+    case SS_OP_NPC_ATTACKPLAYER:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc || !player )
+        {
+            SSVM_Abort(state, "npc_attackplayer needs an active npc and player");
+            return 1;
+        }
+        if( npc->combat_target != player->pid )
+        {
+            npc->combat_target = player->pid;
+            npc->attack_clock = 0;
+        }
+        npc->combat_target_npc = -1;
+        npc->combat_target_npc_gen = 0;
+        mock230_npc_face_player(npc, npc->combat_target);
+        return 1;
+    }
+
+    /*
+     * `npc_attackdelay(int $ticks)` — the combat attack clock, which content
+     * could not reach.
+     *
+     * The only word content had for "wait before swinging again" was
+     * `npc_delay`, and that means something else: it makes the npc invalid for
+     * the whole of its turn (`Npc.isValid()`), so it runs no timers, no modes
+     * and no QUEUE. In this tree an npc's queue is where every hit the player
+     * lands arrives — `npc_queue(2, $damage, 0)` — so a monster pacing itself on
+     * `npc_delay(4)` took one turn in five and the hitsplat for a hit could sit
+     * unshown for four ticks, or be dropped outright when a window's worth
+     * landed together past the client's four-hitmark ceiling.
+     *
+     * Two commands because there are two claims: `npc_delay` is "I am running a
+     * scripted sequence, leave me alone" and `npc_attackdelay` is "my weapon is
+     * on cooldown". Only the first should stop damage landing.
+     *
+     * Written straight to `attack_clock`, which is the field
+     * `mock230_combat_npc_tick` counts down before firing the swing trigger —
+     * the same one it seeds from `attackrate`, so a handler that states its own
+     * cadence overrides the record's for that swing and nothing else changes.
+     */
+    case SS_OP_NPC_ATTACKDELAY:
+    {
+        int32_t ticks;
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &ticks) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_attackdelay with no active npc");
+            return 1;
+        }
+        npc->attack_clock = ticks > 0 ? ticks : 0;
+        return 1;
+    }
+
+    case SS_OP_NPC_HASTARGET:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_hastarget with no active npc");
+            return 1;
+        }
+        SSVM_PushInt(state, (npc->combat_target >= 0 || npc->combat_target_npc >= 0) ? 1 : 0);
+        return 1;
+    }
+
     case SS_OP_NPC_VAR_SET:
     {
         int32_t slot;
@@ -5042,9 +5245,9 @@ mock230_script_command(
      * safe across a despawn and pool-slot reuse. */
     case SS_OP_NPC_UID:
     {
-        int slot = (int)state->host_tag - 1;
+        int slot = active_npc_slot(state);
 
-        if( slot < 0 )
+        if( slot < 0 || slot >= MOCK230_NPC_MAX )
         {
             SSVM_Abort(state, "npc_uid with no active npc");
             return 1;
@@ -5104,6 +5307,10 @@ mock230_script_command(
         /* 0 is "stays until something removes it", matching the reference and
          * matching every npc the map squares spawn. */
         srv->npcs[slot].despawn_tick = duration > 0 ? srv->tick + duration : -1;
+        /* And this npc is the script's, not the world's: killing it is the end
+         * of it. `EntityLifeCycle.DESPAWN` is set at exactly this call in the
+         * reference too — see the field. */
+        srv->npcs[slot].despawns_on_death = 1;
         /* Left active, so the script can act on what it just made. */
         SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
         state->host_tag = slot + 1;

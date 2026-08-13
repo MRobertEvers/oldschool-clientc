@@ -903,6 +903,9 @@ translate_ui_cmd(
         out->u.sprite.mask_scene_id = mask_scene_id;
         out->u.sprite.mask_atlas_index = desc->mask_atlas_index;
         out->u.sprite.mask_keep_opaque = desc->mask_keep_opaque;
+        /* The compass is a disc in a square box, so the corners fall outside
+         * the mask and the blit never writes them. */
+        out->u.sprite.mask_needs_clear = 1;
         /* Rotation 0 (camera facing north) still needs the anchored blit:
          * the plain path would draw the padded canvas top-left-anchored. */
         out->u.sprite.rotated = 1;
@@ -1003,6 +1006,9 @@ translate_ui_cmd(
         out->u.sprite.mask_scene_id = desc->mask_scene_id;
         out->u.sprite.mask_atlas_index = desc->mask_atlas_index;
         out->u.sprite.mask_keep_opaque = desc->mask_keep_opaque;
+        /* Same round window as the compass: the map over-fills its box and the
+         * mask clips it to a circle, so the corners are never written. */
+        out->u.sprite.mask_needs_clear = 1;
         /* Rotation 0 (camera facing north) still needs the anchored blit. */
         out->u.sprite.rotated = 1;
         out->u.sprite.rotation_r2pi2048 = desc->rotation_r2pi2048;

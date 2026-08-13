@@ -938,13 +938,14 @@ PlatformXIO_Js5GetProgress(
 
 #if defined(TORIRS_WEB_CACHE_IDB)
 /*
- * The frame loop's two host-facing calls.
+ * The frame loop's host-facing calls.
  *
  * They are declared in platform_x_io_web.h and implemented by the wire backend
  * on the other web lane. Their contract is about the *host*, not about where
- * the bytes come from — "give the asynchronous side a turn" and "how many reads
- * are outstanding" — so this backend answers them too, and frame_loop_step
- * needs no idea which cache source it was built against.
+ * the bytes come from — "give the asynchronous side a turn", "how many reads
+ * are outstanding", "may a read block the frame" — so this backend answers them
+ * too, and frame_loop_step needs no idea which cache source it was built
+ * against.
  *
  * The pacing one matters more here than on the wire lane. While JS5 has reads
  * in flight the loop must run from the event loop rather than from
@@ -969,5 +970,16 @@ PlatformXIO_Web_PendingTotal(void)
         if( g_web_px->js5_pending[i].in_use )
             count++;
     return count;
+}
+
+/*
+ * Nothing to answer here. This lane has no synchronous read to suppress: JS5
+ * arrives over a WebSocket, which cannot deliver inside the call that asked for
+ * it, so every read on this backend is already the non-blocking kind.
+ */
+void
+PlatformXIO_Web_SetBlockingReads(int allowed)
+{
+    (void)allowed;
 }
 #endif

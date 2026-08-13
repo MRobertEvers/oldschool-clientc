@@ -330,7 +330,7 @@ build_scripts() {
 # a 440 MB base cache plus a repack and a verify on every single launch. So ask
 # the predicate `make` would apply if the target were a real file — see
 # tools/cache_overlay_stale.py, which owns the input set for both lanes and is
-# the only implementation of it (run-live.bat calls the same script).
+# the only implementation of it (run-live.ps1 calls the same script).
 #
 # Anything other than exit 1 bakes. A predicate that could not answer must never
 # be read as "up to date": a needless bake costs two minutes, and a wrongly
@@ -341,8 +341,13 @@ cache_overlay() {
     _base=$3
     _stager=$4
     _target=$5
+    # --tree: the script's own default is the OSRS-Content submodule, and the
+    # whole point of the discovery above is that the tree in use is often a
+    # build/ checkout instead. Left to the default the predicate watches a tree
+    # nobody is building from and answers "fresh" for a lane that moved.
     if python3 tools/cache_overlay_stale.py \
             --cache "$CACHE_DIR" --lane "$_lane" --base "$_base" \
+            ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
             --input "$_stager" --input src/makefile \
             --input 3rd/rscache/tools/cachepack >&2; then
         _stale=0
