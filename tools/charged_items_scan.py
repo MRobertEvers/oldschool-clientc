@@ -503,7 +503,15 @@ FAMILY_DATA = {
     "Celestial ring": dict(
         storage="item_var", depletion="none", max_charges=10000,
         charge_source="Charged with stardust from Shooting Stars, 1:1", drain_event="1 charge per ore mined",
-        status="charges_only", note="No implementation found (zero grep hits).",
+        status="implemented",
+        note="Wired into skill_mining/scripts/mining.rs2's two ore-success sites, the same site "
+             "crystal_pickaxe's own drain already used (a real, small choke point -- unlike Hunter's ~15 "
+             "scattered trap files). Op numbers differ between uncharged (ifop2=Wear/ifop3=Charge) and "
+             "charged (ifop1=Wear/ifop2=Check/ifop3=Charge/ifop5=Uncharge) forms, checked directly rather "
+             "than assumed. NOT implemented: the 'up to adamantite, with some exceptions' ore-tier cap -- "
+             "mining_table has no ore-tier column, so the 1/10 proc applies to every successful mine "
+             "uniformly; and the quantity-prompted Charge UX, simplified to 'consume all available stardust "
+             "up to the cap in one click.' Both stated, not silently dropped.",
     ),
     "Celestial signet": dict(
         storage="item_var", depletion="none", max_charges=10000,
