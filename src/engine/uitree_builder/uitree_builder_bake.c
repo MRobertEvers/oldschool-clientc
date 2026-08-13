@@ -395,6 +395,22 @@ uitree_builder_bake_pack_under_owner(
         }
     }
 
+    /*
+     * The pack's own handlers, which this path used to drop on the floor.
+     *
+     * `UITree_BuildFromComponentPack` bakes them and this function does not,
+     * and the two are not interchangeable: every *sidebar tab* mounts through
+     * here (`task_slot_mount.c`), so interface 182's "Click here to logout" and
+     * "World Switcher" carried `onmouseover`/`onmouseleave` in the cache,
+     * decoded them correctly, and arrived in the tree with no hooks at all —
+     * the text never changed colour under the pointer. The combat tab's
+     * buttons lost their `onmouserepeat` tooltips the same way.
+     *
+     * Last, not with the insert pass: hooks are resolved by component id, so
+     * every node has to be in the tree first.
+     */
+    UITree_BakePackRuntimeHooks(tree, pack);
+
     free(index_map);
 }
 

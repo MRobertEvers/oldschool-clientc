@@ -2754,6 +2754,14 @@ struct Mock230Player
      *  "in what order" and the flags answer "at all" in O(1). The list is sized
      *  by the wire (an 8-bit count), the flags by the world. */
     int tracked[MOCK230_TRACKED_NPC_MAX];
+    /** `srv->npcs[tracked[i]].generation` as of the tick that npc was last
+     *  written into this list. `npc_spawn` can hand the same slot to a
+     *  different npc inside one tick (see its own comment on
+     *  `mock230_zone_npc_refile`) — the "already tracked" loop below has to
+     *  notice that before it treats the new occupant's data as this slot's
+     *  continuation, or the new npc's masks (including a same-tick hit) get
+     *  spliced onto whatever this client still thinks the slot is. */
+    int tracked_generation[MOCK230_TRACKED_NPC_MAX];
     int tracked_count;
     uint8_t npc_tracked[MOCK230_NPC_MAX];
 

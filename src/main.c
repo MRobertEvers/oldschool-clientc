@@ -272,41 +272,24 @@ dump_tree_node(
 static void
 dump_hooks(struct App* app)
 {
-    /* Positional: this walks UITreeRuntimeHooks as an array of identically
-     * shaped hooks, so the order has to be the struct's order exactly. It had
-     * drifted — four hooks added to the struct and not here — which silently
-     * relabelled everything past on_mouse_repeat, so an on_target_enter read
-     * back as "on_scroll_wheel" and the spellbook looked wired when it was not. */
-    static char const* const hook_names[] = {
-        "on_click",           "on_hold",
-        "on_mouse_over",      "on_mouse_leave",
-        "on_mouse_repeat",    "on_click_repeat",
-        "on_release",         "on_target_enter",
-        "on_target_leave",    "on_drag",
-        "on_drag_complete",   "on_scroll_wheel",
-        "on_key",             "on_op",
-        "on_timer",           "on_var_transmit",
-        "on_inv_transmit",    "on_misc_transmit",
-        "on_friend_transmit", "on_dialog_abort",
-        "on_resize",          "on_sub_change",
-    };
-    _Static_assert(
-        sizeof(hook_names) / sizeof(hook_names[0]) ==
-            sizeof(struct UITreeRuntimeHooks) / sizeof(struct UITreeRuntimeScriptHook),
-        "hook name table must name every UITreeRuntimeHooks slot, in order");
     uint32_t i;
 
+    /* Positional walk over the slots. The names and the range check belong to
+     * the slot type (ui/uitree_hook.h) rather than to a table kept here — the
+     * copy that used to live in this function drifted out of step with the
+     * struct and silently relabelled every hook past on_mouse_repeat. */
     for( i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent* c = &app->tree->components[i];
-        struct UITreeRuntimeScriptHook const* hooks;
+        struct UITreeRuntimeHooks const* hooks;
         int h;
         if( c->freed )
             continue;
-        hooks = (struct UITreeRuntimeScriptHook const*)UITree_Hooks(c);
-        for( h = 0; h < (int)(sizeof(hook_names) / sizeof(hook_names[0])); h++ )
+        hooks = UITree_Hooks(c);
+        for( h = 0; h < UITree_HooksSlotCount(); h++ )
         {
-            if( hooks[h].script_id == 0 )
+            struct UITreeRuntimeScriptHook const* slot = UITree_HooksSlotAtConst(hooks, h);
+            if( !UITree_HookIsSet(slot) )
                 continue;
             fprintf(
                 stderr,
@@ -314,9 +297,9 @@ dump_hooks(struct App* app)
                 c->component_id,
                 (c->component_id >> 16) & 0xFFFF,
                 c->component_id & 0xFFFF,
-                hook_names[h],
-                hooks[h].script_id,
-                hooks[h].argc);
+                UITree_HooksSlotName(h),
+                slot->script_id,
+                slot->argc);
         }
     }
 }

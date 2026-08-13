@@ -21,14 +21,24 @@ free_list_len(struct UITree const* tree)
     return n;
 }
 
+/*
+ * Copy of `rs_cs2_hooks_survive_clear`, and the copy is the hazard: this file
+ * asserts against its own mirror, so the two drifting apart is invisible here
+ * by construction. It drifted once — the mirror and the original both counted
+ * only the click-shaped hooks, so a node whose only hooks were hover hooks had
+ * its whole block freed by a clear the lines below take care to survive. Move
+ * them together.
+ */
 static int
-hooks_have_interaction(struct UITreeRuntimeHooks const* hooks)
+hooks_survive_clear(struct UITreeRuntimeHooks const* hooks)
 {
     return hooks->on_op.script_id > 0 || hooks->on_click.script_id > 0 ||
            hooks->on_hold.script_id > 0 || hooks->on_click_repeat.script_id > 0 ||
            hooks->on_release.script_id > 0 || hooks->on_target_enter.script_id > 0 ||
            hooks->on_target_leave.script_id > 0 || hooks->on_drag.script_id > 0 ||
-           hooks->on_drag_complete.script_id > 0;
+           hooks->on_drag_complete.script_id > 0 ||
+           hooks->on_mouse_over.script_id > 0 || hooks->on_mouse_leave.script_id > 0 ||
+           hooks->on_mouse_repeat.script_id > 0 || hooks->on_scroll_wheel.script_id > 0;
 }
 
 /* Mirror RS_CS2Host_ClearHooksForInterfaceGroup's per-node policy: clear
@@ -40,16 +50,16 @@ clear_reactive_hooks_at(struct UITree* tree, int32_t idx)
     struct UITreeRuntimeHooks* hooks = tree->components[idx].runtime_hooks;
     if( !hooks )
         return;
-    memset(&hooks->on_timer, 0, sizeof(hooks->on_timer));
-    memset(&hooks->on_key, 0, sizeof(hooks->on_key));
-    memset(&hooks->on_var_transmit, 0, sizeof(hooks->on_var_transmit));
-    memset(&hooks->on_inv_transmit, 0, sizeof(hooks->on_inv_transmit));
-    memset(&hooks->on_misc_transmit, 0, sizeof(hooks->on_misc_transmit));
-    memset(&hooks->on_friend_transmit, 0, sizeof(hooks->on_friend_transmit));
-    memset(&hooks->on_dialog_abort, 0, sizeof(hooks->on_dialog_abort));
-    memset(&hooks->on_resize, 0, sizeof(hooks->on_resize));
-    memset(&hooks->on_sub_change, 0, sizeof(hooks->on_sub_change));
-    if( !hooks_have_interaction(hooks) )
+    UITree_HookClear(&hooks->on_timer);
+    UITree_HookClear(&hooks->on_key);
+    UITree_HookClear(&hooks->on_var_transmit);
+    UITree_HookClear(&hooks->on_inv_transmit);
+    UITree_HookClear(&hooks->on_misc_transmit);
+    UITree_HookClear(&hooks->on_friend_transmit);
+    UITree_HookClear(&hooks->on_dialog_abort);
+    UITree_HookClear(&hooks->on_resize);
+    UITree_HookClear(&hooks->on_sub_change);
+    if( !hooks_survive_clear(hooks) )
         UITree_FreeHooksAt(tree, idx);
     else
         UITree_SyncHookMembership(tree, idx);
@@ -237,6 +247,7 @@ test_clear_hooks_preserves_sibling_on_op(void)
     int32_t compass;
     int32_t panel;
     int32_t leaf;
+    int32_t hover_only;
     struct UITreeRuntimeHooks* hooks;
 
     printf("TEST: clear hooks preserves sibling on_op\n");
@@ -285,7 +296,36 @@ test_clear_hooks_preserves_sibling_on_op(void)
     hooks->on_click.script_id = 88;
     UITree_SyncHookMembership(tree, leaf);
 
+    /*
+     * A label whose ONLY handlers are hover ones, which is what interface 182's
+     * "Click here to logout" is: `onmouseover` and `onmouseleave` from the
+     * cache, no click, no op. The clear preserves both slots and then used to
+     * free the block out from under them because neither counted as a reason to
+     * keep it, so the text stopped changing colour under the pointer.
+     */
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = (12 << 16) | 2;
+    hover_only = UITree_Push(tree, panel, &spec);
+    TEST_ASSERT(hover_only >= 0, "hover-only label");
+    hooks = UITree_HooksMut(&tree->components[hover_only]);
+    hooks->on_mouse_over.script_id = 45;
+    hooks->on_mouse_leave.script_id = 45;
+    hooks->on_timer.script_id = 77;
+    UITree_SyncHookMembership(tree, hover_only);
+
     clear_reactive_hooks_for_group(tree, 12);
+
+    TEST_ASSERT(
+        tree->components[hover_only].runtime_hooks != NULL,
+        "a hover-only label keeps its hook block through a clear");
+    TEST_ASSERT(
+        tree->components[hover_only].runtime_hooks->on_mouse_over.script_id == 45 &&
+            tree->components[hover_only].runtime_hooks->on_mouse_leave.script_id == 45,
+        "and keeps both hover hooks");
+    TEST_ASSERT(
+        tree->components[hover_only].runtime_hooks->on_timer.script_id == 0,
+        "while still losing its reactive on_timer");
 
     TEST_ASSERT(
         tree->components[compass].runtime_hooks != NULL &&

@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -68,8 +69,8 @@ bake_runtime_hook_from_torirs(
         src->str_argc);
 }
 
-static void
-bake_pack_runtime_hooks(
+void
+UITree_BakePackRuntimeHooks(
     struct UITree* tree,
     struct ToriRS_ComponentPack const* pack)
 {
@@ -105,6 +106,10 @@ bake_pack_runtime_hooks(
         BAKE_HOOK(on_mouse_repeat, &src->on_mouse_repeat);
         BAKE_HOOK(on_scroll_wheel, &src->on_scroll_wheel);
         BAKE_HOOK(on_timer, &src->on_timer);
+        BAKE_HOOK(on_click_repeat, &src->on_click_repeat);
+        BAKE_HOOK(on_release, &src->on_release);
+        BAKE_HOOK(on_target_enter, &src->on_target_enter);
+        BAKE_HOOK(on_target_leave, &src->on_target_leave);
 #undef BAKE_HOOK
     }
 }
@@ -358,7 +363,7 @@ UITree_BuildFromComponentPack(
 
     int result = UITree_BuildFromSource(tree, &source);
     if( result >= 0 )
-        bake_pack_runtime_hooks(tree, pack);
+        UITree_BakePackRuntimeHooks(tree, pack);
     free(build_cache);
     return result;
 }

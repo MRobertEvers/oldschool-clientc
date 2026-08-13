@@ -589,7 +589,7 @@ UITree_HooksMut(struct UITreeComponent* c)
 {
     assert(c);
     if( !c->runtime_hooks )
-        c->runtime_hooks = calloc(1, sizeof(struct UITreeRuntimeHooks));
+        c->runtime_hooks = UITree_HooksBlockNew();
     return c->runtime_hooks;
 }
 
@@ -597,7 +597,7 @@ void
 UITree_HooksFree(struct UITreeComponent* c)
 {
     assert(c);
-    free(c->runtime_hooks);
+    UITree_HooksBlockFree(c->runtime_hooks);
     c->runtime_hooks = NULL;
 }
 
@@ -2441,7 +2441,7 @@ UITree_CcCopy(
     {
         struct UITreeRuntimeHooks* hooks = UITree_HooksMut(dst);
         if( hooks )
-            *hooks = *src.runtime_hooks;
+            UITree_HooksBlockCopy(hooks, src.runtime_hooks);
     }
     /* Plain data, but it must be listed explicitly: this function copies field
      * by field rather than by struct assignment, so a template row that binds
@@ -3411,26 +3411,9 @@ UITree_ApplyRuntimeHook(
     assert(slot);
     assert(tree);
 
-    memset(slot, 0, sizeof(*slot));
-    slot->script_id = script_id;
-    if( argc > UITREE_HOOK_ARG_MAX )
-        argc = UITREE_HOOK_ARG_MAX;
-    if( argc < 0 )
-        argc = 0;
-    slot->argc = argc;
-    if( argv && argc > 0 )
-        memcpy(slot->argv, argv, (size_t)argc * sizeof(int));
-    slot->str_mask = str_mask;
-    if( str_argc > UITREE_HOOK_STR_ARG_MAX )
-        str_argc = UITREE_HOOK_STR_ARG_MAX;
-    if( str_argc < 0 || !strs )
-        str_argc = 0;
-    slot->str_argc = str_argc;
-    for( int i = 0; i < str_argc; i++ )
-    {
-        strncpy(slot->strv[i], strs[i] ? strs[i] : "", UITREE_HOOK_STR_ARG_LEN - 1);
-        slot->strv[i][UITREE_HOOK_STR_ARG_LEN - 1] = '\0';
-    }
+    /* Clamping and the tail allocations both belong to the slot type — see
+     * ui/uitree_hook.h for why they are no longer inline arrays. */
+    UITree_HookSet(slot, script_id, argv, argc, str_mask, strs, str_argc);
     {
         int32_t idx = UITree_FindByComponentId(tree, component_id);
         if( idx >= 0 )

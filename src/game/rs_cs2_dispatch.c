@@ -117,14 +117,13 @@ RS_CS2_DispatchHook(
 
     {
         char const* strp[UITREE_HOOK_STR_ARG_MAX];
-        for( int i = 0; i < UITREE_HOOK_STR_ARG_MAX; i++ )
-            strp[i] = hook->strv[i];
+        UITree_HookStrArgv(hook, strp, (int)(sizeof(strp) / sizeof(strp[0])));
         task = CreateTask_CS2RunMixed(
             host,
             hook->script_id,
             component_id,
             component_id,
-            hook->argc > 0 ? hook->argv : NULL,
+            UITree_HookArgs(hook),
             hook->argc,
             hook->str_mask,
             strp,

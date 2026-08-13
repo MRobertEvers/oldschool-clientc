@@ -11958,6 +11958,31 @@ mock230_world_selftest(void)
             player->z = old_z;
             mock230_mapinstance_free(handle);
         }
+
+        /* Mor Ul Rek (TzHaar City) was silent in its own interior -- 3 of its
+         * 8 map squares had a track, 5 did not. Sourced from the OSRS Wiki's
+         * Bucket API (see docs/audio/music_regions.tsv), all 5 should now
+         * resolve to song 502 ("Mor Ul Rek"); two of them (9806, 10062) are
+         * inferred rather than geometrically confirmed -- see the comment
+         * above those rows in the tsv. */
+        {
+            static const int k_mor_ul_rek_regions[] = { 9551, 9552, 9806, 9807,
+                                                          9808, 10062, 10063, 10064 };
+            for( size_t i = 0; i < sizeof(k_mor_ul_rek_regions) / sizeof(k_mor_ul_rek_regions[0]);
+                 i++ )
+            {
+                const struct Mock230MusicRegion* track =
+                    mock230_music_for_region(k_mor_ul_rek_regions[i]);
+                SELFTEST_CHECK(track != NULL, "Mor Ul Rek region %d should carry a music track",
+                               k_mor_ul_rek_regions[i]);
+            }
+        }
+
+        /* Two previously-dead rows (unmatched track names) now resolve. */
+        SELFTEST_CHECK(mock230_music_for_region(9520) != NULL,
+                       "region 9520 (Castle Wars) should carry a music track");
+        SELFTEST_CHECK(mock230_music_for_region(13362) != NULL,
+                       "region 13362 (Emir's Arena) should carry a music track");
     }
 
     fprintf(stderr, "mock230 selftest: rev239 interface writer bytes\n");

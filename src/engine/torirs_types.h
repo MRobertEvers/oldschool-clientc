@@ -1025,12 +1025,24 @@ struct ToriRS_Component
     struct ToriRS_ScriptHook on_mouse_repeat;
     struct ToriRS_ScriptHook on_scroll_wheel;
     struct ToriRS_ScriptHook on_timer;
+    /* And these five for the same reason, found by auditing the list rather
+     * than by a bug report: `uitree_interact.c` dispatches click-repeat and
+     * release, `app.c` dispatches the target pair, and the host keeps a
+     * stat-transmit table beside the varp/inv ones -- all four of those
+     * mechanisms existed with nothing but CS2 able to reach them. */
+    struct ToriRS_ScriptHook on_click_repeat;
+    struct ToriRS_ScriptHook on_release;
+    struct ToriRS_ScriptHook on_target_enter;
+    struct ToriRS_ScriptHook on_target_leave;
     struct ToriRS_ScriptHook on_varp_transmit;
     struct ToriRS_ScriptHook on_inv_transmit;
+    struct ToriRS_ScriptHook on_stat_transmit;
     int inventory_triggers_count;
     int inventory_triggers[TORIRS_INVENTORY_TRIGGER_MAX];
     int varp_triggers_count;
     int varp_triggers[TORIRS_VARP_TRIGGER_MAX];
+    int stat_triggers_count;
+    int stat_triggers[TORIRS_VARP_TRIGGER_MAX];
     /** GRAPHIC with no sprite refs: draw nothing, keep layout hitbox. */
     uint8_t graphic_hitbox_only;
     /** dat2 tiled: repeat sprite across IF3 layout rect. */

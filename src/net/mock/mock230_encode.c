@@ -4311,6 +4311,7 @@ mock230_send_npc_info(struct Mock230Player* player)
     int nearby_count;
     int queued_count = 0;
     int kept[MOCK230_TRACKED_NPC_MAX];
+    int kept_generation[MOCK230_TRACKED_NPC_MAX];
     int kept_count = 0;
     /* The candidates for the entering-view section: whoever the ZoneMap says
      * stands within the add radius, rather than every npc in the world. */
@@ -4392,7 +4393,16 @@ mock230_send_npc_info(struct Mock230Player* player)
             int in_range;
 
             mock230_npc_view_deltas(npc, player, &view_dx, &view_dz);
+            /*
+             * The generation term catches a slot `npc_spawn` handed to a
+             * different npc since this list was last written (same-tick
+             * despawn + respawn — see `tracked_generation`'s comment). Without
+             * it this branch cannot tell "still the npc I was tracking" from
+             * "something else lives here now" and reads the new occupant as
+             * an ordinary continuation of the old one.
+             */
             in_range = npc->active && npc->level == player->level &&
+                       npc->generation == player->tracked_generation[i] &&
                        view_dx <= MOCK230_NPC_VIEW_TILES && view_dz <= MOCK230_NPC_VIEW_TILES;
 
             if( !in_range || npc->tele )
@@ -4410,8 +4420,10 @@ mock230_send_npc_info(struct Mock230Player* player)
                  * well-formed packet every tick.
                  */
                 player->npc_tracked[slot] = 0;
+                mock230_slotmap_release(player, slot);
                 continue;
             }
+            kept_generation[kept_count] = npc->generation;
             kept[kept_count++] = slot;
             {
                 int const extended = npc_extended_pending_v5(player, npc, 0);
@@ -4509,6 +4521,7 @@ mock230_send_npc_info(struct Mock230Player* player)
                 break;
             adds[add_count++] = slot;
             player->npc_tracked[slot] = 1;
+            kept_generation[kept_count] = npc->generation;
             kept[kept_count++] = slot;
         }
 
@@ -4623,6 +4636,10 @@ mock230_send_npc_info(struct Mock230Player* player)
         }
         flush(player, &buf, OP_NPC_INFO, 2);
         memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+        memcpy(
+            player->tracked_generation,
+            kept_generation,
+            sizeof(int) * (size_t)kept_count);
         player->tracked_count = kept_count;
         return;
     }
@@ -4651,8 +4668,18 @@ mock230_send_npc_info(struct Mock230Player* player)
          * come back, which is worse than losing it early. Large npcs on the
          * classic wire want a wider add field, not a wider keep test.
          */
-        int in_range = npc->active && npc->level == player->level && dx >= -15 && dx <= 15 &&
-                       dz >= -15 && dz <= 15;
+        /*
+         * The generation term catches a slot `npc_spawn` handed to a
+         * different npc since this list was last written (same-tick despawn +
+         * respawn — see `tracked_generation`'s comment on the struct). Without
+         * it this branch cannot tell "still the npc I was tracking" from
+         * "something else lives here now" and reads the new occupant as an
+         * ordinary continuation of the old one — including its masks, so a
+         * same-tick hit on the new npc renders on the client's stale entity.
+         */
+        int in_range = npc->active && npc->level == player->level &&
+                       npc->generation == player->tracked_generation[i] && dx >= -15 &&
+                       dx <= 15 && dz >= -15 && dz <= 15;
         int extended = npc_extended_pending(npc);
 
         /*
@@ -4680,6 +4707,7 @@ mock230_send_npc_info(struct Mock230Player* player)
             continue;
         }
 
+        kept_generation[kept_count] = npc->generation;
         kept[kept_count++] = slot;
         if( npc->run_dir >= 0 )
         {
@@ -4771,6 +4799,7 @@ mock230_send_npc_info(struct Mock230Player* player)
                 npc_queue_push(queued, &queued_count, slot, force_face, force_type);
         }
         player->npc_tracked[slot] = 1;
+        kept_generation[kept_count] = npc->generation;
         kept[kept_count++] = slot;
     }
 
@@ -4784,6 +4813,10 @@ mock230_send_npc_info(struct Mock230Player* player)
     flush(player, &buf, OP_NPC_INFO, 2);
 
     memcpy(player->tracked, kept, sizeof(int) * (size_t)kept_count);
+    memcpy(
+        player->tracked_generation,
+        kept_generation,
+        sizeof(int) * (size_t)kept_count);
     player->tracked_count = kept_count;
 }
 

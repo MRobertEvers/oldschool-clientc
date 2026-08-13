@@ -1,6 +1,8 @@
 #ifndef SRC_UITREE_H
 #define SRC_UITREE_H
 
+#include "ui/uitree_hook.h"
+
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -168,61 +170,14 @@ struct UITreeElemPosition
     uint8_t layout_resolved;
 };
 
-/* Same width as an onload's argv (TORIRS_COMPONENT_HOOK_ARG_MAX) and for the
- * same reason: the widest `if_seton*` in cache.osrs239 carries 44 arguments,
- * and the two paths must not disagree about how many of them survive — a hook
- * re-registered at runtime with the arguments its onload was given has to end
- * up saying the same thing. */
-#define UITREE_HOOK_ARG_MAX 64
+/* Runtime script hooks live in their own file: the slot type, its accessors and
+ * its lifetime (the argument tails are owned allocations now, so a slot cannot
+ * be memset or struct-copied by hand). See ui/uitree_hook.h. */
 
 /** %1..%5 are the placeholders the reference client substitutes in text. */
 #define UITREE_CS1_VALUE_MAX 5
 /** CS1 "infinity" (inv-contains sentinel); rendered as "*" in text. */
 #define UITREE_CS1_VALUE_INFINITY 999999999
-#define UITREE_HOOK_STR_ARG_MAX 4
-#define UITREE_HOOK_STR_ARG_LEN 80
-
-struct UITreeRuntimeScriptHook
-{
-    int script_id;
-    int argc;
-    int argv[UITREE_HOOK_ARG_MAX];
-    /* Bit i set = arg position i is a string arg; strings fill strv[] in
-     * position order (k-th set bit -> strv[k]). argv[i] unused there. */
-    uint64_t str_mask;
-    int str_argc;
-    char strv[UITREE_HOOK_STR_ARG_MAX][UITREE_HOOK_STR_ARG_LEN];
-};
-
-struct UITreeRuntimeHooks
-{
-    struct UITreeRuntimeScriptHook on_click;
-    struct UITreeRuntimeScriptHook on_hold;
-    struct UITreeRuntimeScriptHook on_mouse_over;
-    struct UITreeRuntimeScriptHook on_mouse_leave;
-    struct UITreeRuntimeScriptHook on_mouse_repeat;
-    struct UITreeRuntimeScriptHook on_click_repeat;
-    struct UITreeRuntimeScriptHook on_release;
-    /* BUTTON_TARGET selection lifecycle. Spellbook icons use these to swap
-     * their outline when target mode is armed/cancelled. */
-    struct UITreeRuntimeScriptHook on_target_enter;
-    struct UITreeRuntimeScriptHook on_target_leave;
-    struct UITreeRuntimeScriptHook on_drag;
-    struct UITreeRuntimeScriptHook on_drag_complete;
-    struct UITreeRuntimeScriptHook on_scroll_wheel;
-    struct UITreeRuntimeScriptHook on_key;
-    struct UITreeRuntimeScriptHook on_op;
-    struct UITreeRuntimeScriptHook on_timer;
-    struct UITreeRuntimeScriptHook on_var_transmit;
-    struct UITreeRuntimeScriptHook on_inv_transmit;
-    struct UITreeRuntimeScriptHook on_misc_transmit;
-    /** CC/IF_SETONFRIENDTRANSMIT. Like on_misc_transmit it carries no trigger
-     *  list: every registered hook re-runs when the friend store changes. */
-    struct UITreeRuntimeScriptHook on_friend_transmit;
-    struct UITreeRuntimeScriptHook on_dialog_abort;
-    struct UITreeRuntimeScriptHook on_resize;
-    struct UITreeRuntimeScriptHook on_sub_change;
-};
 
 /** click_mask / events bits (OSRS WidgetFlags / IF_SETEVENTS). */
 #define UITREE_FLAG_DRAG_DEPTH_SHIFT 17

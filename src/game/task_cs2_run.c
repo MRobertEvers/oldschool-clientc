@@ -1919,14 +1919,13 @@ Task_CS2SubChangeDispatch_Run(
          * this same pass. */
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
             continue;
-        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
-            strp[si] = hook->strv[si];
+            UITree_HookStrArgv(hook, strp, UITREE_HOOK_STR_ARG_MAX);
         TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
             hook->component_id,
-            hook->argc > 0 ? hook->argv : NULL,
+            UITree_HookArgs(hook),
             hook->argc,
             hook->str_mask,
             strp,
@@ -1976,11 +1975,14 @@ CreateTask_CS2SubChangeDispatch(struct RS_CS2Host* host)
             dst->component_id = node->component_id;
             dst->script_id = slot->script_id;
             dst->argc = slot->argc > UITREE_HOOK_ARG_MAX ? UITREE_HOOK_ARG_MAX : slot->argc;
-            if( dst->argc > 0 )
-                memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+            for( int ai = 0; ai < dst->argc; ai++ )
+                dst->argv[ai] = UITree_HookArg(slot, ai);
             dst->str_mask = slot->str_mask;
-            dst->str_argc = slot->str_argc;
-            memcpy(dst->strv, slot->strv, sizeof(dst->strv));
+            dst->str_argc = slot->str_argc > UITREE_HOOK_STR_ARG_MAX
+                                ? UITREE_HOOK_STR_ARG_MAX
+                                : slot->str_argc;
+            for( int si = 0; si < dst->str_argc; si++ )
+                snprintf(dst->strv[si], UITREE_HOOK_STR_ARG_LEN, "%s", UITree_HookStr(slot, si));
         }
     }
 
@@ -2031,14 +2033,13 @@ Task_CS2MiscTransmitDispatch_Run(
 
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
             continue;
-        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
-            strp[si] = hook->strv[si];
+            UITree_HookStrArgv(hook, strp, UITREE_HOOK_STR_ARG_MAX);
         TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
             hook->component_id,
-            hook->argc > 0 ? hook->argv : NULL,
+            UITree_HookArgs(hook),
             hook->argc,
             hook->str_mask,
             strp,
@@ -2100,11 +2101,14 @@ create_no_trigger_transmit_dispatch(
             dst->component_id = node->component_id;
             dst->script_id = slot->script_id;
             dst->argc = slot->argc > UITREE_HOOK_ARG_MAX ? UITREE_HOOK_ARG_MAX : slot->argc;
-            if( dst->argc > 0 )
-                memcpy(dst->argv, slot->argv, (size_t)dst->argc * sizeof(int));
+            for( int ai = 0; ai < dst->argc; ai++ )
+                dst->argv[ai] = UITree_HookArg(slot, ai);
             dst->str_mask = slot->str_mask;
-            dst->str_argc = slot->str_argc;
-            memcpy(dst->strv, slot->strv, sizeof(dst->strv));
+            dst->str_argc = slot->str_argc > UITREE_HOOK_STR_ARG_MAX
+                                ? UITREE_HOOK_STR_ARG_MAX
+                                : slot->str_argc;
+            for( int si = 0; si < dst->str_argc; si++ )
+                snprintf(dst->strv[si], UITREE_HOOK_STR_ARG_LEN, "%s", UITree_HookStr(slot, si));
         }
     }
 
