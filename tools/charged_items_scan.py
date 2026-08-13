@@ -966,9 +966,16 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=2500,
         charge_source="Slayer's enchantment used on a Slayer's staff (raises Magic req to 75)",
         drain_event="1 charge per Magic Dart cast that lands on a monster killed as part of the player's Slayer task",
-        status="charges_only",
-        note="obj slayer_staff_enchanted: ifop3=Check, ifop5=Revert, no Charge/Uncharge -- confirms item_var+"
-             "revert. magic_dart.rs2 exists but has no slayer-task check or charge call.",
+        status="implemented",
+        note="Wired into skill_combat/scripts/player/spells/magic_dart.rs2's pvm_magic_dart, reusing "
+             "skill_slayer/scripts/slayer_kill.rs2's slayer_npc_matches_task (which already reads the "
+             "ambient npc_category/%if1-3 task state with no npc parameter) to gate on the current target "
+             "matching the player's Slayer task. Drains once per cast at a task-matching target regardless "
+             "of hit success -- the wiki's 'casts against monsters' reads as attempts, not landed hits, "
+             "unlike blood fury/Saradomin's blessed sword. NOT implemented: the actual power increase Magic "
+             "Dart gets from the enchanted staff -- pvm_magic_dart.rs2's maxhit formula has no staff-tier "
+             "branch. Tracking charges correctly does not depend on that gameplay effect existing, the same "
+             "tradeoff Venator bow's/Echo boots' own notes make for their missing effects.",
     ),
     "Tome of earth": dict(
         storage="item_var", depletion="none", max_charges=20000,
