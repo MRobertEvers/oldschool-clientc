@@ -549,7 +549,16 @@ FAMILY_DATA = {
         storage="item_var", depletion="none", max_charges=1000,
         charge_source="Diango's Toy Store, charged with teleport cards (150gp each)",
         drain_event="1 charge per teleport to Champions' Guild",
-        status="charges_only", note="No implementation found.",
+        status="implemented",
+        note="Teleports to Charlie the Tramp's real, verified spawn coordinate (areas/world/configs/"
+             "m50_52.spawn: 'tramppg 3208 3391 0') rather than a guessed tile -- no hand-authored "
+             "loc-placement data exists in this tree to read the guild door's own coordinate from (locs are "
+             "cache-baked, not source scripts), so this grounds the destination in the wiki's own stated "
+             "landmark ('a short distance from Charlie the Tramp') and a real spawn record instead. Gated "
+             "on Wilderness level per the wiki. NOT implemented: charging via Diango's shop (150gp/teleport "
+             "card) and the 'retains charges if bought back' shop-memory behaviour -- both shop-purchase "
+             "interactions, not charges gaps, the same distinction this session draws for other missing "
+             "acquisition paths. Spawn pre-charged to test.",
     ),
     "Circlet of water": dict(
         storage="item_var", depletion="none", max_charges=500000,
