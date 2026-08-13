@@ -52,6 +52,11 @@ BATCH = 50
 # a wrong title silently binds the wrong item's numbers to a whole family.
 TITLE_OVERRIDE = {
     "Toxic staff": "Toxic staff of the dead",
+    "Hat of the eye (blue)": "Hat of the eye",
+    "Hat of the eye (green)": "Hat of the eye",
+    "Hat of the eye (red)": "Hat of the eye",
+    "Magic cape(t)": "Magic cape",
+    "Sara's blessed sword": "Saradomin's blessed sword",
 }
 
 

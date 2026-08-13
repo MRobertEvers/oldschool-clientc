@@ -115,6 +115,19 @@ STEM_SUFFIX_RE = re.compile(
 )
 STEM_TRAILING_TIER_RE = re.compile(r"\s+(?:100|75|50|25|\d{1,2})$")
 
+# A stem that names the same real-world family as a different stem, but
+# cannot be unified by suffix-stripping alone — the un/base form's own
+# display name shares no substring with the charged form's (a genuine cache
+# fact, not a scan bug): "Uncharged trident" vs "Trident of the seas",
+# "Sara's blessed sword (full)" (stems to "Sara's blessed sword") vs
+# "Saradomin's blessed sword". Checked by hand against configs/all.obj
+# before adding an entry here — see docs/ITEM_CHARGES_PLAN.md §4a.
+STEM_ALIAS = {
+    "Uncharged trident": "Trident of the seas",
+    "Uncharged toxic trident": "Trident of the swamp",
+    "Sara's blessed sword": "Saradomin's blessed sword",
+}
+
 
 def stem_name(display_name):
     n = display_name
@@ -130,7 +143,8 @@ def stem_name(display_name):
             n = n2
             changed = True
     n = re.sub(r"\s+\(uncharged\)$", "", n, flags=re.IGNORECASE)
-    return n.strip()
+    n = n.strip()
+    return STEM_ALIAS.get(n, n)
 
 
 def scan_families(records):
@@ -218,6 +232,18 @@ FAMILY_DATA = {
         charge_source="Made from Ring of suffering (r) via the recoil-jewellery family",
         drain_event="Recoil damage consumes 1 charge per proc (shares ring_of_recoil.rs2's mechanic)",
         status="implemented", note="See general/scripts/enchanted_jewellry/ring_of_recoil.rs2.",
+    ),
+    "Saradomin's blessed sword": dict(
+        storage="item_var", depletion="revert", max_charges=10000,
+        charge_source="Saradomin sword + Saradomin's tear",
+        drain_event="1 charge per HIT (not swing) — up to 3x/swing on multi-hit weapons matters for this one",
+        status="charges_only",
+        note="ifop4=Revert (not Uncharge) reverts immediately to Saradomin's tear, "
+             "a different obj entirely, not an 'uncharged' variant of the sword. "
+             "Real melee swing hook exists (combat_stats.rs2) but per-HIT (not "
+             "per-swing) drain needs a call site inside ~player_hit_npc_prepare "
+             "or equivalent, not yet wired — same shape as scythe's per-swing "
+             "hook, one layer deeper.",
     ),
     # -- id_ladder, implemented -------------------------------------------
     "Ring of dueling": dict(
@@ -351,14 +377,54 @@ NOT_A_CHARGE_DENYLIST = {
     "Binding necklace", "Enchanted gem", "Eternal gem",
     "Spoils of war", "Jar generator", "Looting bag", "Water container",
     "Facility bottle", "Seed pack", "Fish barrel", "Open fish barrel",
-    "Log basket", "Open log basket", "Pocket kingdom", "Terrifying charm",
-    "Sara's blessed sword", "Saradomin's blessed sword",
+    "Log basket", "Open log basket", "Terrifying charm",
     "5-gallon jug", "8-gallon jug", "Cooler", "Crystal saw",
     "Damaged soul bearer", "Blood essence", "Minecart control scroll",
     "Basic quetzal whistle blueprint", "Enhanced quetzal whistle blueprint",
     "Perfected quetzal whistle blueprint", "Torn enhanced quetzal whistle blueprint",
     "Torn perfected quetzal whistle blueprint", "Grape barrel", "Mulch",
     "Packed mulch",
+}
+
+# Real charge items in OSRS, but standalone Leagues relics/rewards with no
+# base-game counterpart — this server does not model Leagues seasons at all
+# (checked: no leagues/ or season/ tree anywhere in server/scripts), so these
+# can never be obtained here. Distinct from NOT_A_CHARGE_DENYLIST (which is
+# "not a charge system in OSRS at all") — status `out_of_scope` says "is one,
+# but the game mode it lives in is not in this tree", so a future Leagues
+# port knows to look here rather than assuming the scan already covered it.
+# The Oathplate/Radiant slayer helmets are Leagues-skinned slayer helmets,
+# NOT standalone relics — they share the real slayer_helmet family's mechanic
+# and are deliberately not in this set.
+OUT_OF_SCOPE_LEAGUES = {
+    "Butler's bell", "Flask of fervour", "Pocket kingdom", "Minion whistle",
+}
+
+# Same reasoning, Deadman Mode: every "Sigil of X" wiki page opens with
+# {{Deadman seasonal}} (checked directly against the fetched wikitext for
+# all ten), and Corrupted scythe of vitur / Corrupted tumeken's shadow are
+# explicitly Deadman-only recolours of two families already implemented in
+# their non-corrupted form. This server has no deadman/ or dmm/ tree either.
+OUT_OF_SCOPE_DEADMAN = {
+    "Sigil of binding", "Sigil of escaping", "Sigil of finality",
+    "Sigil of freedom", "Sigil of last recall", "Sigil of specialised strikes",
+    "Sigil of supreme stamina", "Sigil of the porcupine", "Sigil of the serpent",
+    "Sigil of versatility", "Corrupted scythe of vitur", "Corrupted tumeken's shadow",
+}
+
+# Slayer helmet and every one of its recolours / Leagues skins share ONE
+# mechanic: `Check` reports the current Slayer task assignment, not a charge
+# count — confirmed from the wiki's own changelog ("The 'Check' option was
+# added, allowing players to see their current Slayer task"). Storage class
+# `none`, and grouped with NOT_A_CHARGE_DENYLIST for the same reason: the
+# scan's Check-op sweep is structurally right to flag these, the content
+# just isn't a charge system.
+SLAYER_HELMET_FAMILY = {
+    "Slayer helmet", "Black slayer helmet", "Green slayer helmet",
+    "Red slayer helmet", "Purple slayer helmet", "Turquoise slayer helmet",
+    "Hydra slayer helmet", "Twisted slayer helmet", "Tzkal slayer helmet",
+    "Tztok slayer helmet", "Vampyric slayer helmet", "Araxyte slayer helmet",
+    "Hooded slayer helmet", "Oathplate slayer helmet", "Radiant slayer helmet",
 }
 
 
@@ -377,7 +443,7 @@ def classify(stem, members):
             "status": data.get("status", "uncurated"),
             "note": data.get("note", ""),
         }
-    if stem in NOT_A_CHARGE_DENYLIST:
+    if stem in NOT_A_CHARGE_DENYLIST or stem in SLAYER_HELMET_FAMILY:
         return {
             "family": stem,
             "obj_ids": ids,
@@ -387,7 +453,32 @@ def classify(stem, members):
             "drain_event": "",
             "depletion": "",
             "status": "not_a_charge",
-            "note": "",
+            "note": "Check reports Slayer task assignment, not a charge count."
+                    if stem in SLAYER_HELMET_FAMILY else "",
+        }
+    if stem in OUT_OF_SCOPE_LEAGUES:
+        return {
+            "family": stem,
+            "obj_ids": ids,
+            "storage": "unknown",
+            "max_charges": "",
+            "charge_source": "",
+            "drain_event": "",
+            "depletion": "",
+            "status": "out_of_scope",
+            "note": "Leagues-only relic; this server does not model Leagues seasons.",
+        }
+    if stem in OUT_OF_SCOPE_DEADMAN:
+        return {
+            "family": stem,
+            "obj_ids": ids,
+            "storage": "unknown",
+            "max_charges": "",
+            "charge_source": "",
+            "drain_event": "",
+            "depletion": "",
+            "status": "out_of_scope",
+            "note": "Deadman Mode only; this server does not model Deadman seasons.",
         }
     return {
         "family": stem,
@@ -437,7 +528,7 @@ def write_doc(rows):
         "depletion-shape definitions.\n"
     )
     lines.append(f"Total families found: **{len(rows)}**\n")
-    for status in ("implemented", "charges_only", "uncurated", "not_a_charge"):
+    for status in ("implemented", "charges_only", "uncurated", "not_a_charge", "out_of_scope"):
         members = by_status.get(status, [])
         lines.append(f"\n## `{status}` ({len(members)})\n")
         lines.append("| family | storage | depletion | max | drain event |")
