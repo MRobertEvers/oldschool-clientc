@@ -387,10 +387,14 @@ def check(root: Path) -> list[str]:
         f"{QBD_COMBAT}: an extreme-fire pulse can escape into the reward transition",
     )
     for fragment in (
-        "queue*(rs2012_qbd_extreme_pulse, 4)(0, npc_uid);",
+        # Rounds land at T0+4/+6/+8 (queue stores delay+1), all scheduled
+        # upfront from the ai_timer context so none loses a tick to the
+        # queue-drain cursor.
+        "queue*(rs2012_qbd_extreme_pulse, 3)(0, npc_uid);",
+        "queue*(rs2012_qbd_extreme_pulse, 5)(1, npc_uid);",
+        "queue*(rs2012_qbd_extreme_pulse, 7)(2, npc_uid);",
         "[queue,rs2012_qbd_extreme_pulse](int $pulse, npc_uid $source)",
         "~rs2012_qbd_hit_player($source, $damage, ^magic_style, false);",
-        "queue*(rs2012_qbd_extreme_pulse, 1)(add($pulse, 1), $source);",
     ):
         require(fragment in combat, f"{QBD_COMBAT}: extreme fire lost its QBD source UID: {fragment!r}")
     for proc in ("rs2012_qbd_complete", "rs2012_qbd_clear_state"):

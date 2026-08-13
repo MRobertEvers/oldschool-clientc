@@ -436,8 +436,23 @@ enum
     /** Script-owned integer state slots carried by each live npc instance. */
     /* Slots 0..15 are established runtime state; slot 16 is the
      * GiantChinchompa post-special dismissal latch and slot 17 retains the
-     * Spirit Graahk's generation-safe normal-combat target. */
-    MOCK230_NPC_VAR_MAX = 18,
+     * Spirit Graahk's generation-safe normal-combat target.
+     *
+     * Slot 18 is npc poison (`^npc_poison_var_slot`, combat.constant).
+     *
+     * That constant used to say 62, and `npc_poison_tick` is spliced into the
+     * shared melee AI's attack cadence — so with an 18-slot array EVERY npc
+     * melee swing aborted `[ai_opplayer2,_]` mid-script with "npc_var_get
+     * slot 62 outside 0..17", losing the rest of that trigger's work. It was
+     * near-silent in play (the swing had already landed) and showed up only
+     * as a log line.
+     *
+     * Grow this by ONE slot per genuinely new use, never in bulk: `struct
+     * Mock230Server` is a stack local in the selftest (mock230_world.c), so
+     * every slot costs MOCK230_NPC_MAX * 4 bytes of stack frame. Widening
+     * straight to 64 added 753 KB and segfaulted the suite before its first
+     * check. */
+    MOCK230_NPC_VAR_MAX = 19,
 
     /**
      * Where an npc is in the death sequence — `Mock230Npc.death_stage`.
@@ -483,7 +498,13 @@ enum
      * `mock230_ids()->lootdrop_duration`. */
 
     /* Parked script bookkeeping. */
-    MOCK230_QUEUE_MAX = 16,
+    /* 32, up from 16: the reference's queue is an uncapped linked list, and
+     * the QBD encounter's documented worst case (three wall waves + their
+     * steppers, four soul shadows, Royal-crossbow bleed splats, the platform
+     * hazard, siphon and worm chains, plus transient damage entries) can
+     * exceed 16 concurrent entries — a full queue is an SSVM abort content
+     * cannot see coming. */
+    MOCK230_QUEUE_MAX = 32,
     /** Arguments one queued script can carry. The reference's list is
      *  unbounded; four covers every `queue*` in the tree and keeps the entry a
      *  fixed size. Overflow is reported, never truncated silently. */
