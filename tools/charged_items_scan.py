@@ -686,9 +686,22 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=5000,
         charge_source="Smouldering stone used on a Dragon pickaxe; recharged the same way",
         drain_event="1 charge consumed each time the pickaxe's mining effect activates",
-        status="charges_only",
-        note="Covers infernal_pickaxe + trailblazer_pickaxe/trailblazer_reloaded_pickaxe, same "
-             "not-Leagues-locked reasoning. Unimplemented (specwep.rs2 only gates the special attack).",
+        status="implemented",
+        note="Wired into skill_mining/scripts/mining.rs2's two ore-success sites, alongside Celestial "
+             "ring/signet's own procs at the same site. Present-check covers worn OR anywhere in the "
+             "backpack (wiki explicit: 'equipped or in the inventory'), unlike every other item this "
+             "session's worn-only checks. Recharging (smouldering stone or another dragon pickaxe) is a "
+             "full refill to 5,000, not a per-item increment -- confirmed against the wiki's own cost table "
+             "rather than assumed from sibling items. Auto-reverts one-way to the untradeable-forever empty "
+             "obj id at 0 (wiki explicit it can never revert back to a dragon pickaxe). Does NOT cover "
+             "infernal_axe/infernal_harpoon (same family, different skills -- Woodcutting/Fishing hit-"
+             "success sites this pass did not locate) or the Trailblazer League recolours of any of the "
+             "three. NOT implemented: the real per-ore Smithing XP table (uses half the row's Mining XP as "
+             "a stand-in, almost certainly the wrong absolute number since the two skills' XP scales are "
+             "unrelated) and the 'does not consume ore at certain spots' exclusion list (Motherlode Mine, "
+             "Volcanic Mine, amethyst, gem rocks, crashed stars, dense runestone, punishment rocks) -- "
+             "mining_table has no ore-tier column to gate on, same limitation Celestial ring's own note "
+             "states for its 'up to adamantite' cap.",
     ),
     "Ironwood blowpipe": dict(
         storage="item_var", depletion="none", max_charges=16383,
