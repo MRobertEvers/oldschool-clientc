@@ -12,6 +12,14 @@
 #include <string.h>
 #include <strings.h>
 
+/* Row text below is display-only (dispatch runs on the separate action/pick
+ * fields) and safely clipped by snprintf if a name/tooltip is unusually long,
+ * so GCC's worst-case-from-declared-array-bounds truncation math is noise
+ * here. */
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 /* Level-difference colour tag for a combat level shown to the local player
  * (reference Client.combatColourCode, Client.ts:10111). diff = viewer - other:
  * an NPC far above the player reads red/orange, far below reads green, equal

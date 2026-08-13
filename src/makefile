@@ -608,9 +608,27 @@ $(OBJ_DIR)/asan_dyld_shim.dylib: platform/asan_dyld_shim.c | $(OBJ_DIR)
 		-install_name @loader_path/$(notdir $(OBJ_DIR))/asan_dyld_shim.dylib \
 		-o $@ $<
 
+# The web lane alone can put ~300 object paths on this line, and emcc.bat is a
+# batch file -- invoking it routes through cmd.exe's own argument buffer, whose
+# practical ceiling (~8191 chars) is far below CreateProcess's real 32767, so a
+# link line that would run fine calling gcc.exe directly still dies here with
+# the literal, unhelpful "The command line is too long." $(OBJS) is what makes
+# the line big (a few hundred plain paths, ~9KB, versus ~2KB for everything
+# else combined) and, unlike $(CFLAGS)/$(LDFLAGS), it is safe to move into a
+# GCC/Clang/emcc response file with zero escaping: paths, no spaces, no quotes.
+#
+# Writing that file with a recipe-line `printf ... > file` just traded one
+# oversized command line for another: mingw32-make's own recipe-to-shell
+# handoff silently dropped the trailing `> file` off a line that long, so the
+# object list spilled to stdout instead of landing in the response file, and
+# the very next line failed with "response file not found". $(file >...) is
+# GNU Make 4.0+'s own builtin for this -- it writes the file from inside make
+# itself, no shell process and no command line involved, so there is nothing
+# left for any OS argument-length limit to truncate.
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(ASAN_DYLD_SHIM)
+	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
+	$(CC) $(CFLAGS) -o $@ @$(OBJ_DIR)/link_objs.rsp $(LDFLAGS) $(ASAN_DYLD_SHIM)
 	@echo $(OBJ_DIR) > .last_flavor
 
 # --- Web target ----------------------------------------------------------
@@ -711,14 +729,30 @@ IO_SERVER_OBJ_DIR = build
 # `build` and nothing had a rule for `build/rscache_unity.o` either. On a tree
 # that had one from an earlier debug build it linked stale objects; on a clean
 # one it died with "No rule to make target `build'".
+#
+# OBJ_DIR=$(IO_SERVER_OBJ_DIR) below is the same fix applied to the OTHER thing
+# that can move OBJ_DIR off `build`: PLATFORM_OBJ_BASE itself. PLATFORM=native
+# resolves to whatever this host is, and that stem is only literally `build` on
+# macOS (platform.mk) — win32 is build_win32, win64 is build_win64. Without
+# this, a Windows build hit the identical symptom the OPT=1 case above already
+# describes, just from PLATFORM_OBJ_BASE instead of a suffix: the rscache_unity.o
+# rule lands under build_win64/ while this path still asks for build/.
 IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
-	TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0
+	TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0 OBJ_DIR=$(IO_SERVER_OBJ_DIR)
 # features/features.c: BootManifest_LoadFile resolves `[features:boot]` names
 # through it, so a server that reads a manifest needs it too — without it the
 # link fails on ToriRS_Features_ByName.
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
 	bootmanifest/bootmanifest.c features/features.c $(INI_SRC)
+# http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
+# split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
+# ws2_32, not the CRT, so a native Windows link needs it named explicitly.
+ifeq ($(OS),Windows_NT)
+IO_SERVER_SOCKET_LIBS := -lws2_32
+else
+IO_SERVER_SOCKET_LIBS :=
+endif
 io-server:
 	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/io_server
 # The objdir is order-only: it is a prerequisite so that it exists, and every
@@ -732,7 +766,7 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
-		$(IO_SERVER_OBJ_DIR)/xteas.o -lm
+		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
 # IO wire codec round-trip: encode a request/response pair for every item kind
@@ -1870,7 +1904,7 @@ mock230: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock230 $(MOCK230_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/mock230"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.
@@ -1887,7 +1921,7 @@ mock230-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 	$(CC) $(CFLAGS) -DMOCK230_DEFAULT_PORT=43597 -o $(OBJ_DIR)/dev_mock230 $(MOCK230_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm
+		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/dev_mock230"
 
 # MallocScribble is not a debugging flourish here, it is what makes this

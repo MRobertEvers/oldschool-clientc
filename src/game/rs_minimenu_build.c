@@ -13,6 +13,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Row text below is display-only (dispatch runs on the separate action/pick
+ * fields) and safely clipped by snprintf if a name/verb is unusually long, so
+ * GCC's worst-case-from-declared-array-bounds truncation math is noise here. */
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 #define RS_MINIMENU_HIT_STACK_MAX 64
 
 /* Client-TS ClientCode.ts social ranges (addSocialOptions); mirrors

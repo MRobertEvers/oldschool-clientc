@@ -1209,8 +1209,23 @@ d3d9_ui_rotmask_upload_source(
     if( !renderer || !slot || !sprite || !sprite->pixels_argb )
         return false;
     if( slot->source_texture )
-        return true;
-    if( !d3d9_ui_rotmask_create_texture(
+    {
+        /* Content refresh (e.g. minimap floor change, world map rebake): the
+         * slot's cache key (scene/atlas ids, dims) is unchanged, but the
+         * sprite's pixels_argb may have been rewritten in place since the
+         * texture was last uploaded, so re-copy every frame rather than
+         * trusting a one-time upload. */
+        HRESULT hr = IDirect3DTexture9_LockRect(slot->source_texture, 0u, &locked, NULL, 0u);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("LockTexture(rotated sprite source refresh)", hr);
+            return false;
+        }
+        texture = slot->source_texture;
+        texture_width = slot->source_texture_width;
+        texture_height = slot->source_texture_height;
+    }
+    else if( !d3d9_ui_rotmask_create_texture(
             renderer,
             slot->source_width,
             slot->source_height,
@@ -1262,8 +1277,18 @@ d3d9_ui_rotmask_upload_mask(
     if( !renderer || !slot || !mask || !mask->pixels_argb )
         return false;
     if( slot->mask_texture )
-        return true;
-    if( !d3d9_ui_rotmask_create_texture(
+    {
+        HRESULT hr = IDirect3DTexture9_LockRect(slot->mask_texture, 0u, &locked, NULL, 0u);
+        if( FAILED(hr) )
+        {
+            d3d9_log_hr("LockTexture(rotated sprite mask refresh)", hr);
+            return false;
+        }
+        texture = slot->mask_texture;
+        texture_width = slot->mask_texture_width;
+        texture_height = slot->mask_texture_height;
+    }
+    else if( !d3d9_ui_rotmask_create_texture(
             renderer,
             slot->width,
             slot->height,

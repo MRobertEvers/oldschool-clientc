@@ -25,10 +25,7 @@ RS_Chat_Init(struct RS_Chat* chat, char const* username)
 {
     assert(chat);
     memset(chat, 0, sizeof(*chat));
-    if( username )
-        strncpy(chat->username, username, sizeof(chat->username) - 1);
-    else
-        strncpy(chat->username, "Player", sizeof(chat->username) - 1);
+    snprintf(chat->username, sizeof(chat->username), "%s", username ? username : "Player");
 }
 
 void
@@ -48,9 +45,9 @@ RS_Chat_AddMessage(
     memset(&chat->messages[0], 0, sizeof(chat->messages[0]));
     chat->messages[0].type = type;
     if( sender )
-        strncpy(chat->messages[0].sender, sender, RS_CHAT_SENDER_LEN - 1);
+        snprintf(chat->messages[0].sender, sizeof(chat->messages[0].sender), "%s", sender);
     if( text )
-        strncpy(chat->messages[0].text, text, RS_CHAT_TEXT_LEN - 1);
+        snprintf(chat->messages[0].text, sizeof(chat->messages[0].text), "%s", text);
 }
 
 static int

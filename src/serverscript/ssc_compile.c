@@ -278,7 +278,7 @@ declare_local(struct SSC_Compiler* compiler, const char* name, int is_string)
     }
 
     local = &build->locals[build->local_count++];
-    snprintf(local->name, sizeof(local->name), "%s", name);
+    snprintf(local->name, sizeof(local->name), "%.63s", name);
     local->is_string = is_string;
     /* Ints and strings are addressed out of separate arrays, each indexed from
      * zero, so they need separate counters. Sharing one compiles fine and reads
@@ -1694,7 +1694,7 @@ parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
     if( lexer->current.kind != SSC_TOK_PUNCT )
         return fail(compiler, "expected a comparison operator in the condition");
 
-    snprintf(op, sizeof(op), "%s", lexer->current.text);
+    snprintf(op, sizeof(op), "%.3s", lexer->current.text);
     SSC_LexNext(lexer);
 
     if( !parse_expression(compiler, &right_is_string) )
@@ -2158,7 +2158,7 @@ parse_statement(struct SSC_Compiler* compiler)
             SSC_LexNext(lexer);
             if( lexer->current.kind != SSC_TOK_LOCAL )
                 return fail(compiler, "expected a $local after def_%s", type);
-            snprintf(local_name, sizeof(local_name), "%s", lexer->current.text);
+            snprintf(local_name, sizeof(local_name), "%.63s", lexer->current.text);
             SSC_LexNext(lexer);
 
             /* `def_string $name;` with no initialiser just reserves the slot.
@@ -2332,7 +2332,7 @@ parse_header(
 
     if( lexer->current.kind != SSC_TOK_IDENT )
         return fail(compiler, "expected a trigger name");
-    snprintf(trigger_name, sizeof(trigger_name), "%s", lexer->current.text);
+    snprintf(trigger_name, sizeof(trigger_name), "%.63s", lexer->current.text);
     SSC_LexNext(lexer);
 
     if( !SSC_LexIsPunct(lexer, ",") )
@@ -2343,7 +2343,7 @@ parse_header(
      * a number rather than a name. */
     if( lexer->current.kind == SSC_TOK_IDENT || lexer->current.kind == SSC_TOK_INT )
     {
-        snprintf(subject, sizeof(subject), "%s", lexer->current.text);
+        snprintf(subject, sizeof(subject), "%.127s", lexer->current.text);
         subject_is_coord = lexer->current.kind == SSC_TOK_INT;
         subject_value = lexer->current.value;
     }
@@ -2371,7 +2371,7 @@ parse_header(
      * carries them — so the file is walked and skipped rather than compiled. */
     if( strcmp(trigger_name, "command") == 0 )
     {
-        snprintf(out_name, name_capacity, "[command,%s]", subject);
+        snprintf(out_name, name_capacity, "[command,%.115s]", subject);
         *out_lookup_key = -1;
         return 2;
     }
@@ -2380,7 +2380,7 @@ parse_header(
     if( trigger < 0 )
         return fail(compiler, "unknown trigger '%s'", trigger_name);
 
-    snprintf(out_name, name_capacity, "[%s,%s]", trigger_name, subject);
+    snprintf(out_name, name_capacity, "[%.32s,%.90s]", trigger_name, subject);
 
     /* Name-addressed triggers carry -1: they are reached by script id from a
      * gosub or a queue, never looked up by trigger. */
@@ -2503,7 +2503,7 @@ parse_header_lists(struct SSC_Compiler* compiler)
 
         if( lexer->current.kind != SSC_TOK_IDENT )
             return fail(compiler, "expected an argument type");
-        snprintf(type, sizeof(type), "%s", lexer->current.text);
+        snprintf(type, sizeof(type), "%.63s", lexer->current.text);
         is_string = type_is_string(type);
         SSC_LexNext(lexer);
 
@@ -2702,12 +2702,12 @@ SSC_Declare(
             SSC_LexNext(&lexer);
             if( lexer.current.kind != SSC_TOK_IDENT )
                 continue;
-            snprintf(trigger, sizeof(trigger), "%s", lexer.current.text);
+            snprintf(trigger, sizeof(trigger), "%.63s", lexer.current.text);
             SSC_LexNext(&lexer);
             if( !SSC_LexIsPunct(&lexer, ",") )
                 continue;
             SSC_LexNext(&lexer);
-            snprintf(subject, sizeof(subject), "%s", lexer.current.text);
+            snprintf(subject, sizeof(subject), "%.127s", lexer.current.text);
             SSC_LexNext(&lexer);
 
             /* Command declarations are not scripts and must not take ids. */
@@ -2732,7 +2732,7 @@ SSC_Declare(
             {
                 char full_name[SSC_MAX_NAME];
 
-                snprintf(full_name, sizeof(full_name), "[%s,%s]", trigger, subject);
+                snprintf(full_name, sizeof(full_name), "[%.32s,%.90s]", trigger, subject);
                 if( script_id_for_name(compiler, full_name) >= 0 )
                 {
                     if( diag )
@@ -2761,7 +2761,7 @@ SSC_Declare(
             {
                 int slot = compiler->name_count;
 
-                snprintf(compiler->names[slot], SSC_MAX_NAME, "[%s,%s]", trigger, subject);
+                snprintf(compiler->names[slot], SSC_MAX_NAME, "[%.32s,%.90s]", trigger, subject);
                 compiler->name_count++;
 
                 /*
@@ -3102,6 +3102,12 @@ SSC_CompileDir(
     int ok = 1;
     int i;
 
+    /* SSC_Declare runs before SSC_CompileFile ever sets compiler->diag, but
+     * both go through fail(), which only writes compiler->diag when it is
+     * non-NULL — without this, a fail() during the declare pass silently
+     * drops its message and the caller sees an empty diagnostic. */
+    compiler->diag = diag;
+
     collect_sources(dir, &paths, &count, &capacity);
     /* Sorted so script ids are stable across machines — the container indexes
      * by id, and a gosub compiled today must still resolve tomorrow. */
@@ -3144,7 +3150,7 @@ SSC_Write(
     if( !dat )
     {
         if( diag )
-            snprintf(diag->message, sizeof(diag->message), "cannot write %s", path);
+            snprintf(diag->message, sizeof(diag->message), "cannot write %.242s", path);
         return 0;
     }
     snprintf(path, sizeof(path), "%s/script.idx", dir);
@@ -3153,7 +3159,7 @@ SSC_Write(
     {
         fclose(dat);
         if( diag )
-            snprintf(diag->message, sizeof(diag->message), "cannot write %s", path);
+            snprintf(diag->message, sizeof(diag->message), "cannot write %.242s", path);
         return 0;
     }
 

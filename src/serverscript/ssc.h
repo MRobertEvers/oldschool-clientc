@@ -52,16 +52,18 @@ enum
      * it — which surfaced as "no proc named update_all" for a proc that plainly
      * exists, in a file the compiler had already read.
      *
-     * Raised again 2026-08-13: 16384 was hit organically (a concurrent
-     * session's 147-file drop-table merge landed on top of an
-     * already-16,018-script tree) and the overflow path
-     * (ssc_compile.c "more than %d scripts; raise SSC_MAX_SCRIPTS") failed
-     * silently — `fail()` no-ops once `compiler->failed` is already set from
-     * an earlier call in the same pass, so the real message never reached
-     * `diag`. Content growing past a compiler ceiling is expected here, not
-     * exceptional (same shape as the 4096->16384 raise); the number is
-     * raised with headroom rather than to the exact count observed, for the
-     * same reason 4096->16384 wasn't a tight fit either. */
+     * Raised again 2026-08-13: this mock's own content (region music coverage,
+     * drop tables) grew past 16384 too — organically, when a 147-file
+     * drop-table drop landed on an already-16,018-script tree. That overflow
+     * was silent for the same reason the 4096 one was: the guard's message
+     * (ssc_compile.c "more than %d scripts; raise SSC_MAX_SCRIPTS") goes
+     * through `fail()`, which no-ops once `compiler->failed` is already set by
+     * an earlier call in the same pass, so it never reached `diag`.
+     * `SSC_Declare` now refuses to compile rather than repeat the silent drop.
+     *
+     * Content growing past a compiler ceiling is expected here, not
+     * exceptional, so the number is raised with headroom rather than to the
+     * exact count observed — 4096->16384 wasn't a tight fit either. */
     SSC_MAX_SCRIPTS = 32768,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,

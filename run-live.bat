@@ -43,7 +43,11 @@ goto :collect
 rem No `--` separator before %EXTRA%: PowerShell rejects a bare `--` as an
 rem ambiguous parameter name. Client arguments are long-form (--soft3d,
 rem --opengl3), so they never match a parameter and land in ClientArgs anyway.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" "%MANIFEST%" -User "%USER_NAME%" -Pass "%PASS%"%EXTRA%
+rem
+rem Manifest/user/pass are now positional on the PowerShell side too (it takes
+rem one raw argument array, exactly like run-live.sh's $1/shift), so they are
+rem simply forwarded in order rather than converted to -User/-Pass.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" "%MANIFEST%" "%USER_NAME%" "%PASS%"%EXTRA%
 exit /b %ERRORLEVEL%
 
 :usage

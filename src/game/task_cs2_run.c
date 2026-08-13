@@ -1914,19 +1914,20 @@ Task_CS2SubChangeDispatch_Run(
     {
         struct Task_CS2SubChangeHook const* hook = &self->hooks[self->hook_index];
         char const* strp[UITREE_HOOK_STR_ARG_MAX];
+        int si;
 
         /* The hook's component may have been reclaimed by an earlier hook in
          * this same pass. */
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
             continue;
-        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+        for( si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
             strp[si] = hook->strv[si];
         TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
             hook->component_id,
-            hook->argc > 0 ? hook->argv : NULL,
+            hook->argv,
             hook->argc,
             hook->str_mask,
             strp,
@@ -2031,17 +2032,18 @@ Task_CS2MiscTransmitDispatch_Run(
     {
         struct Task_CS2SubChangeHook const* hook = &self->hooks[self->hook_index];
         char const* strp[UITREE_HOOK_STR_ARG_MAX];
+        int si;
 
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
             continue;
-        for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
+        for( si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
             strp[si] = hook->strv[si];
         TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
             hook->component_id,
-            hook->argc > 0 ? hook->argv : NULL,
+            hook->argv,
             hook->argc,
             hook->str_mask,
             strp,
