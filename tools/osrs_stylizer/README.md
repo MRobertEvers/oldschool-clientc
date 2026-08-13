@@ -428,13 +428,51 @@ python osrsify.py --model <part1.ob3> --model <part2.ob3> \
 python osrsify.py ... --regime sculpt     # or: --regime both
 ```
 
-Before either regime starts, the driver runs the **defight pre-pass**
-(`--defight auto|on|off`, auto = on when `--zbuffer`): the base models are
-repaired in `<run>/defight/` and the fixed parts become the baseline, every
-candidate's input, and the `base_models` recorded in `results.json`. Fixing
-z-fighting *before* decimation matters — the collapse search would otherwise
-inherit (and could freely reshuffle) depth ties the judges can't see. A
-defight failure is logged and the run continues on the original models.
+Three optional pre-passes run before the baseline is banked, in this order.
+Each rewrites the parts the search then treats as original, so all three have
+to happen up front — a bake or a repair applied afterwards would be measured
+as damage the reduction caused.
+
+**Material backport** (`--backport`) re-runs `rs2012_material_bake` on the
+lane before the search sees the parts. This has to come first because the bake
+changes face *counts*, not just colours — fully transparent faces are dropped
+— so a baseline banked before it is a baseline of a different model. The baked
+OB3s land in `<run>/backport/` and the content tree is never written to.
+`--matte N` is the main dial (0 keeps the HD texture's full contrast, 100
+flattens each material to one colour; the current lane carries 60), with
+`--face-color-bake`, `--face-color-strength`, `--no-face-alpha-bake` and
+`--wisp-alpha` deciding what happens to faces whose material was erased.
+`--backport-cache` is the HD cache materials are read *from* and is not
+`--cache`, which is the dat2 cache sequences decode from.
+
+**Priorities** (`--force-priorities off|solve|keep|strip`) decides what the
+painter's-order bands mean for this run. Ported content usually inherits bands
+that meant something in the source engine and nothing here, which is what
+makes `off` a poor default for anything backported:
+
+- `solve` re-derives the banding by sweeping the model from `--prio-views` ×
+  `--prio-pitches` directions, counting faces that draw in front of something
+  they are behind, and annealing (`--prio-slow`) plus an engine-judged greedy
+  repair (`--prio-repair`). Runs once, before the search.
+- `keep` inherits the bands but audits them.
+- `strip` frees the per-face priority array outright, so every model
+  depth-sorts as one flat bucket. The honest baseline when the inherited bands
+  are meaningless. The tool self-verifies on decode-back that
+  `face_priorities == NULL`, and the file shrinks by exactly one byte per
+  face.
+- Under `solve`/`keep`/`strip` every candidate is additionally swept for
+  z-violations and ghost faces and compared against the *baseline's* own
+  count, so what is policed is the regression: `--prio-zviol-tol` /
+  `--prio-ghost-tol` reject outright, `--prio-zviol-weight` charges fitness
+  for anything smaller.
+
+**Defight** (`--defight auto|on|off`, auto = on when `--zbuffer`): the base
+models are repaired in `<run>/defight/` and the fixed parts become the
+baseline, every candidate's input, and the `base_models` recorded in
+`results.json`. Fixing z-fighting *before* decimation matters — the collapse
+search would otherwise inherit (and could freely reshuffle) depth ties the
+judges can't see. A defight failure is logged and the run continues on the
+original models.
 
 Two regimes over one judge:
 
@@ -489,13 +527,105 @@ candidate's `.ob3` + mapping/moves files are mirrored to `<run>/best/`.
 ### Watching a run: `watch_osrsify.py`
 
 ```bash
+python osrsify.py                  # no arguments: opens the dashboard in a browser
 python watch_osrsify.py            # serves http://localhost:8765/, watches runs/osrsify_*
 ```
 
-Stdlib-only dashboard over the run directories: per-run summary strip with a
-fraction-range filter, fitness chart, best/recent candidate cards, and a
-detail view per candidate (bind renders, region close-ups and posed frames
-paired against the baseline's).
+`osrsify.py` with no arguments is the front door — it probes port 8765, joins
+a dashboard that is already up rather than fighting it for the port, and
+otherwise starts one on `127.0.0.1` and opens a browser at it. An empty
+`runs/` is not an error there: the guided flow is how you get your first run.
+
+Stdlib-only dashboard over the run directories: per-run summary strip, fitness
+chart, best/recent candidate cards, and a detail view per candidate (bind
+renders, region close-ups and posed frames paired against the baseline's).
+
+**Filtering.** Each run's strip carries min/max inputs for the reduction
+fraction and for the merged **vertex** and **face** counts, so you can ask
+"the best thing that fits 6000/6000" directly instead of reading the ladder.
+Counts come from a passing candidate's recorded `verts`/`faces` and are
+recovered from the `over-budget:<v>v/<f>f` status of a rejected one; a
+candidate with no counts at all (a sculpt) is exempt from the fraction filter
+but *hidden* whenever a poly bound is set, since including unmeasured
+candidates in a poly filter would be a guess. With any filter on, the heading
+becomes **top hits in filter** and shows 8 instead of 3.
+
+**Starting a run.** The *new run* button opens a guided flow: one decision per
+screen, in the order the pipeline applies them, each with a paragraph on what
+the answer changes and what it costs. The decision tree lives in `WIZARD` as
+data — steps and fields carry `when` gates of the form
+`[name, "in", [values]]`, or a list of those when two branches arrive at the
+same screen — so choosing a z-buffered render closes the whole priority
+subtree, and a closed branch's values are dropped from the launch payload
+entirely rather than being passed as stale flags. The render screen offers
+painter's order in both of its useful shapes: *with priority bands*, which
+leads to a follow-up screen about what to do with them (leave, re-derive,
+audit), and *no priorities*, which settles that follow-up as
+`--force-priorities strip` and skips it — while still asking the depth-audit
+tolerances, since a stripped model is exactly the case where the audit is
+worth reading. Knob-heavy sections
+(the bake recipe, the priority solver, the audit tolerances, the reduce
+ladder, the judging gates, the close-ups, the render detail) open with a
+single "recommended, or walk me through them?" card and expand to one knob per
+screen only if asked; anything you were never shown is left out of the command
+line so `osrsify.py` keeps its own default for it. The last screen shows the
+exact command before anything starts.
+
+Every launch is remembered in `~/Documents/osrsify/recents.json` together with
+the answers that produced it, so **use these answers** reopens the flow on a
+past run's exact decisions (minus its `--out-dir`). The all-options form is
+still there behind the second tab.
+
+**Authoring a result from the dashboard.** Every place a candidate appears —
+each result card, the detail modal, a favorite whose run is still on disk, and
+the run strip's *author the winner* — carries an **⎘ author** button that opens
+the same guided flow in `--mode author`, prefilled from the run that produced
+the candidate: `--author-from` points at that exact `cand/<tag>` (or `best/`),
+the source stays whatever the search used (its preset, or all four of
+model/seq/seqcfg/cache), `--author-out` is the directory those parts were read
+from, `--pack` is that lane's `pack/7_models.pack`, and the pack ids are
+the numeric stems of the original filenames in preset order — which is the
+pairing `--mode author` assumes. Where the parts came from is read off
+`config.model`, or the preset when the run passed only `--preset`; explicitly
+**not** off `config.base_models`, which the bake/defight/priorities pre-passes
+rewrite to their own copies inside the run directory. A run whose inputs were
+themselves intermediates (the older `runs/*_inputs/` studies) therefore gets no
+proposed destination at all rather than an offer to write back into a
+workspace. Nothing about the destination is guessed
+silently: the flow asks each of those as its own screen, and because these are
+the only answers in the tool that write outside a run directory, the three
+destructive ones default to the safe branch — keep the original beside the new
+file (`--author-suffix _lowpoly`), verify by re-rendering afterwards, and
+**dry run first**. The review screen ends with a plain-English plan of what
+lands where, banner-marked when it is only a dry run, plus the checks
+`osrsify.py` would otherwise die on: no pack, no destination, nothing to
+author, or a part count that does not match the number of pack ids.
+
+**Archiving and deleting runs.** Waves are large — 60k files and 12 GB is a
+normal one — so each run's strip carries an *archive* and a *delete* button,
+and both are server-side jobs the page watches rather than requests it waits
+on. `POST /api/archive/<run>` zips the run directory and its sibling
+`runs/<run>.log` into `runs/archive/<run>.zip` at deflate level 9; that is
+worth the CPU because a wave's bulk is uncompressed `.bmp` render
+intermediates, which routinely take a 505 MB run down to 42 MB. The zip is
+written to `.part` and renamed only on success, so an interrupted or cancelled
+archive never leaves something that looks like a good backup. Archiving is
+non-destructive — the run stays exactly where it was.
+
+*Delete* opens a confirmation built from a live measurement of the run: the
+file count, the byte total, every path it will take, and whether an archive of
+it exists (with an **archive it first** button when it does not). It stays
+disabled until the acknowledgement is ticked. Confirmed, it hands the whole
+list to the shell's delete with `FOF_ALLOWUNDO`, so the run lands in the
+**Recycle Bin** as one restorable entry — but nothing in the dashboard can
+bring it back, and a run larger than the bin's quota is deleted outright
+instead. Both operations refuse while a search is still running or paused: its
+files are open, and half a wave is not a backup.
+
+`GET /api/jobs` is the progress feed the page polls at 700 ms while anything
+is live (archive: files, bytes, throughput and an ETA; delete: the tree
+shrinking under the shell operation). An archive can be cancelled mid-flight;
+a delete cannot — it is one shell call.
 
 The detail view's **Open in viewer** button (and the strip's *baseline
 viewer* link) opens a live orbit viewer: `rs2012_model_view --wire-out`
@@ -525,7 +655,10 @@ python osrsify.py --mode author --preset qbd \
 - **which models** — `--author-from <dir>` takes each `--model`/`--preset`
   part out of a run's `best/` (or `cand/<tag>/`) *by filename*, so the parts
   keep the preset's order instead of a directory listing's; `--author-model`
-  (repeatable) names them outright instead.
+  (repeatable) names them outright instead. Both resolve a relative path
+  against this tool's directory when that is where it exists, so the
+  `runs/<study>/best` anyone actually types works as well as the repo-root
+  form the presets use.
 - **where they land** — `--author-out` is a directory under the content
   tree's `models/` (or a single `.ob3` path when authoring one part), and
   `--author-suffix` keeps the original file in place beside the new one.

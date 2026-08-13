@@ -63,6 +63,49 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
+
+def open_ui(port=8765):
+    """Serve the dashboard and open a browser at it. Bound to localhost only:
+    this is the convenience path, so it should not put a server on every
+    interface without being asked — watch_osrsify.py itself still defaults to
+    0.0.0.0 for anyone who wants that."""
+    import glob as _glob
+    import socket
+    import threading
+    import webbrowser
+    from http.server import ThreadingHTTPServer
+
+    url = "http://127.0.0.1:%d/" % port
+    probe = socket.socket()
+    probe.settimeout(0.4)
+    taken = probe.connect_ex(("127.0.0.1", port)) == 0
+    probe.close()
+    if taken:
+        # somebody already has the dashboard up — join it rather than fight
+        # over the port
+        print("osrsify: dashboard already running — %s" % url)
+        webbrowser.open(url)
+        return
+    import watch_osrsify as ui
+    for d in sorted(_glob.glob(os.path.join(HERE, "runs", "osrsify_*"))):
+        if os.path.isdir(d):
+            ui.RUNS[os.path.basename(d)] = os.path.abspath(d)
+    print("osrsify: dashboard on %s — %d run(s), Ctrl-C to stop"
+          % (url, len(ui.RUNS)))
+    threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+    try:
+        ThreadingHTTPServer(("127.0.0.1", port), ui.Handler).serve_forever()
+    except KeyboardInterrupt:
+        print("")
+
+
+if len(sys.argv) == 1:
+    # Bare `python osrsify.py` means "show me the UI". Handled here, above the
+    # torch import, so the browser opens straight away instead of after ten
+    # seconds of loading judges that this path never uses.
+    open_ui()
+    sys.exit(0)
+
 from PIL import Image           # noqa: E402
 import torch                    # noqa: E402
 import torch.nn as nn           # noqa: E402
@@ -163,6 +206,19 @@ def pause_gate(o):
 
 def absify(path):
     return path if os.path.isabs(path) else os.path.join(ROOT, path)
+
+
+def absify_run(path):
+    """Like absify, but for paths that plausibly name a run directory. Content
+    paths are repo-root relative (that is how presets.json writes them) while
+    runs/ sits under this tool's own directory, so "runs/<study>/best" — the
+    thing anyone actually types — has to resolve against HERE. Prefer whichever
+    one exists; fall back to the root form so the error names one path."""
+    if os.path.isabs(path):
+        return path
+    root = os.path.join(ROOT, path)
+    here = os.path.join(HERE, path)
+    return here if (os.path.exists(here) and not os.path.exists(root)) else root
 
 
 # ---------------------------------------------------------------- seq config
@@ -1234,9 +1290,9 @@ def do_author(o):
     # each BASE part's filename inside a run's output directory, so the parts
     # keep the preset's order instead of a directory listing's.
     if o.author_model:
-        srcs = [absify(m) for m in o.author_model]
+        srcs = [absify_run(m) for m in o.author_model]
     elif o.author_from:
-        d = absify(o.author_from)
+        d = absify_run(o.author_from)
         if not o.model:
             raise SystemExit("osrsify: --author-from needs --model/--preset to "
                              "know which parts to pull (and in what order)")
