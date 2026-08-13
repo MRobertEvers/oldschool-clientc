@@ -216,6 +216,10 @@ WRAP_BOUND(
     hitsplat,
     struct RSCache_Dat2ConfigHitsplat,
     RSCache_Dat2ConfigHitsplatEncodeBound)
+/* Group 32 is a hitsplat stream only in the OldSchool lineage — a pre-EoC RS2
+ * cache puts something else there entirely. Without this the decoder claimed
+ * those bytes and produced thousands of nonsense records. */
+WRAP_FLAGS(hitsplat, RSCache_Dat2ConfigHitsplatFlags)
 
 WRAP_INIT(
     healthbar,
@@ -901,7 +905,7 @@ static const struct RSCache_OpcodeCodec k_codecs[] = {
         struct RSCache_Dat2ConfigInv,
         inv,
         cpc_inv_free),
-    ROW(
+    ROW_ERA_NOFINISH(
         "hitsplat",
         RSCACHE_TYPE_HITSPLAT,
         RSCACHE_EPOCH_DAT2,

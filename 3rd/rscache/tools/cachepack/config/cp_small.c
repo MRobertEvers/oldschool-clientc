@@ -429,32 +429,62 @@ cp_unpack_hitsplat(
 {
     struct RSCache_Dat2ConfigHitsplat entry;
     memset(&entry, 0, sizeof(entry));
-    RSCache_Dat2ConfigHitsplatDecodeInplace(&entry, record, record_size);
+    RSCache_Dat2ConfigHitsplatDecodeInplace(
+        &entry, record, record_size,
+        (unsigned)RSCache_Dat2ConfigHitsplatFlags(ctx ? &ctx->profile : NULL));
     if( entry._consumed != record_size )
         cp_warn(ctx, &ctx->warn_short_decode, "hitsplat %d: consumed %d of %d bytes", id,
                 entry._consumed, record_size);
 
     if( entry.sprite_id >= 0 )
         cp_lines_addf(out, "sprite=%d", entry.sprite_id);
-    if( entry.has_opcode_8 )
-        cp_lines_addf(out, "opcode8=%d", entry.opcode_8);
-    if( entry.has_opcode_9 )
-        cp_lines_addf(out, "opcode9=%d", entry.opcode_9);
-    if( entry.opcode_11 )
+    if( entry.has_opcode_1 )
+        cp_lines_addf(out, "opcode1=%d", entry.opcode_1);
+    if( entry.has_colour )
+        cp_lines_addf(out, "colour=%d", entry.colour);
+    if( entry.has_opcode_3 )
+        cp_lines_addf(out, "opcode3=%d", entry.opcode_3);
+    if( entry.has_opcode_4 )
+        cp_lines_addf(out, "opcode4=%d", entry.opcode_4);
+    if( entry.has_opcode_6 )
+        cp_lines_addf(out, "opcode6=%d", entry.opcode_6);
+    if( entry.has_opcode_7 )
+        cp_lines_addf(out, "opcode7=%d", entry.opcode_7);
+    /* Opcode 8 is a string, not the u16 this tool used to emit — see
+     * `dat2_config_hitsplat.h`. The marker byte rides with it because it is what
+     * makes the repack byte-identical, and it is 0 on every record measured. */
+    if( entry.has_text )
+    {
+        cp_lines_addf(out, "text=%s", entry.text);
+        if( entry.text_marker != 0 )
+            cp_lines_addf(out, "textmarker=%d", entry.text_marker);
+    }
+    if( entry.has_duration )
+        cp_lines_addf(out, "duration=%d", entry.duration);
+    if( entry.has_opcode_10 )
+        cp_lines_addf(out, "opcode10=%d", entry.opcode_10);
+    if( entry.has_opcode_11_flag )
         cp_lines_addf(out, "opcode11=yes");
+    if( entry.has_slot_policy )
+        cp_lines_addf(out, "slotpolicy=%d", entry.slot_policy);
     if( entry.has_opcode_13 )
         cp_lines_addf(out, "opcode13=%d", entry.opcode_13);
-    if( entry.has_opcode_49 )
-        cp_lines_addf(out, "opcode49=%d", entry.opcode_49);
-    if( entry.has_opcode_18 )
+    if( entry.has_opcode_14 )
+        cp_lines_addf(out, "opcode14=%d", entry.opcode_11_14);
+    if( entry.variant_opcode )
     {
-        /* Opcode 18's eleven bytes are carried, not split — the library's own
-         * position, because its field boundaries are suggestive but unestablished.
-         * Hex keeps the round trip exact without pretending to a structure. */
-        char hex[RSCACHE_HITSPLAT_OPCODE_18_BYTES * 2 + 1];
-        for( int i = 0; i < RSCACHE_HITSPLAT_OPCODE_18_BYTES; i++ )
-            snprintf(hex + i * 2, 3, "%02x", entry.opcode_18[i]);
-        cp_lines_addf(out, "opcode18=%s", hex);
+        /* Opcode 17/18's payload IS structured — the reference reads
+         * `u16, u16, [u16], u8 count, u16[count+1]`. It used to be emitted as
+         * eleven opaque hex bytes because that structure was only guessed at. */
+        char list[RSCACHE_HITSPLAT_MAX_VARIANTS * 7 + 1];
+        int w = 0;
+        for( int i = 0; i < entry.variant_count; i++ )
+            w += snprintf(list + w, sizeof(list) - (size_t)w, i ? ",%d" : "%d",
+                          entry.variants[i]);
+        cp_lines_addf(out, "variantop=%d", entry.variant_opcode);
+        cp_lines_addf(out, "variantabc=%d,%d,%d", entry.variant_a, entry.variant_b,
+                      entry.variant_c);
+        cp_lines_addf(out, "variants=%s", list);
     }
 
     /*
@@ -485,7 +515,8 @@ cp_pack_hitsplat(
     struct RSCache_Dat2ConfigHitsplat entry;
     memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigHitsplatDecodeInplace(
-        &entry, cp_empty_record, (int)sizeof(cp_empty_record));
+        &entry, cp_empty_record, (int)sizeof(cp_empty_record),
+        RSCACHE_CONFIG_HITSPLAT_DECODE_OSRS);
     entry.id = id;
 
     for( int i = 0; i < config->count; i++ )
@@ -495,51 +526,112 @@ cp_pack_hitsplat(
         int ok = 1;
         if( strcmp(key, "sprite") == 0 )
             ok = cp_parse_int(value, &entry.sprite_id);
-        else if( strcmp(key, "opcode8") == 0 )
+        else if( strcmp(key, "opcode1") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_8);
-            entry.has_opcode_8 = true;
+            ok = cp_parse_int(value, &entry.opcode_1);
+            entry.has_opcode_1 = true;
         }
-        else if( strcmp(key, "opcode9") == 0 )
+        else if( strcmp(key, "colour") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_9);
-            entry.has_opcode_9 = true;
+            ok = cp_parse_int(value, &entry.colour);
+            entry.has_colour = true;
+        }
+        else if( strcmp(key, "opcode3") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.opcode_3);
+            entry.has_opcode_3 = true;
+        }
+        else if( strcmp(key, "opcode4") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.opcode_4);
+            entry.has_opcode_4 = true;
+        }
+        else if( strcmp(key, "opcode6") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.opcode_6);
+            entry.has_opcode_6 = true;
+        }
+        else if( strcmp(key, "opcode7") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.opcode_7);
+            entry.has_opcode_7 = true;
+        }
+        else if( strcmp(key, "text") == 0 )
+        {
+            if( strlen(value) >= RSCACHE_HITSPLAT_MAX_TEXT )
+                ok = 0;
+            else
+            {
+                snprintf(entry.text, sizeof(entry.text), "%s", value);
+                entry.has_text = true;
+            }
+        }
+        else if( strcmp(key, "textmarker") == 0 )
+        {
+            int marker = 0;
+            ok = cp_parse_int(value, &marker);
+            entry.text_marker = (uint8_t)marker;
+        }
+        else if( strcmp(key, "duration") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.duration);
+            entry.has_duration = true;
+        }
+        else if( strcmp(key, "opcode10") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.opcode_10);
+            entry.has_opcode_10 = true;
         }
         else if( strcmp(key, "opcode11") == 0 )
         {
             bool flag = false;
             ok = cp_parse_bool(value, &flag);
-            entry.opcode_11 = flag ? 1 : 0;
+            entry.has_opcode_11_flag = flag;
+            if( flag )
+                entry.opcode_11_14 = 0;
+        }
+        else if( strcmp(key, "slotpolicy") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.slot_policy);
+            entry.has_slot_policy = true;
         }
         else if( strcmp(key, "opcode13") == 0 )
         {
             ok = cp_parse_int(value, &entry.opcode_13);
             entry.has_opcode_13 = true;
         }
-        else if( strcmp(key, "opcode49") == 0 )
+        else if( strcmp(key, "opcode14") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_49);
-            entry.has_opcode_49 = true;
+            ok = cp_parse_int(value, &entry.opcode_11_14);
+            entry.has_opcode_14 = true;
         }
-        else if( strcmp(key, "opcode18") == 0 )
+        else if( strcmp(key, "variantop") == 0 )
+            ok = cp_parse_int(value, &entry.variant_opcode);
+        else if( strcmp(key, "variantabc") == 0 )
         {
-            if( strlen(value) != RSCACHE_HITSPLAT_OPCODE_18_BYTES * 2 )
-            {
+            char scratch[64];
+            char* fields[3];
+            if( strlen(value) >= sizeof(scratch) )
                 ok = 0;
-            }
+            else if( cp_split(value, scratch, fields, 3) != 3 )
+                ok = 0;
+            else
+                ok = cp_parse_int(fields[0], &entry.variant_a) &&
+                     cp_parse_int(fields[1], &entry.variant_b) &&
+                     cp_parse_int(fields[2], &entry.variant_c);
+        }
+        else if( strcmp(key, "variants") == 0 )
+        {
+            char scratch[RSCACHE_HITSPLAT_MAX_VARIANTS * 8];
+            char* fields[RSCACHE_HITSPLAT_MAX_VARIANTS];
+            if( strlen(value) >= sizeof(scratch) )
+                ok = 0;
             else
             {
-                for( int b = 0; b < RSCACHE_HITSPLAT_OPCODE_18_BYTES && ok; b++ )
-                {
-                    char pair[3] = { value[b * 2], value[b * 2 + 1], '\0' };
-                    char* end = NULL;
-                    long byte = strtol(pair, &end, 16);
-                    if( *end )
-                        ok = 0;
-                    else
-                        entry.opcode_18[b] = (uint8_t)byte;
-                }
-                entry.has_opcode_18 = true;
+                int n = cp_split(value, scratch, fields, RSCACHE_HITSPLAT_MAX_VARIANTS);
+                entry.variant_count = 0;
+                for( int f = 0; f < n && ok; f++ )
+                    ok = cp_parse_int(fields[f], &entry.variants[entry.variant_count++]);
             }
         }
         else if( strcmp(key, "opcodeorder") == 0 )

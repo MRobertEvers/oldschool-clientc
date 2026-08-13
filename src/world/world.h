@@ -861,7 +861,9 @@ World_PlayerAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int slot_limit);
+    int slot_limit,
+    int duration,
+    int slot_policy);
 
 void
 World_NpcAddHitmark(
@@ -881,7 +883,9 @@ World_NpcAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int slot_limit);
+    int slot_limit,
+    int duration,
+    int slot_policy);
 
 void
 World_PlayerSetHealthbar(struct World* world, int idx, int fill, int width);

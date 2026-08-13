@@ -22479,6 +22479,196 @@ mock230_world_selftest(void)
                                    big, dist, player->dest_x, player->dest_z, bx, bz, big,
                                    big);
                     steps_clear(player);
+
+                    /*
+                     * Attacking a big npc FROM UNDERNEATH IT.
+                     *
+                     * Players walk through npcs — only `blockwalk=all` stops
+                     * them — so standing inside a 5x5 boss's footprint is an
+                     * ordinary thing to be doing when you click Attack. The
+                     * route then has to leave the rect rather than approach it,
+                     * and the exclusive-rect target offers no tile the mover is
+                     * not already inside.
+                     *
+                     * Every cell of the footprint is tried, not just the middle:
+                     * the centre and the edges are different problems, and an
+                     * exit that works from one corner can fail from the far one.
+                     */
+                    {
+                        int inside_fail_x = -1;
+                        int inside_fail_z = -1;
+                        int inside_fail_dist = -1;
+                        int inside_no_route = 0;
+
+                        for( int ox = 0; ox < big; ox++ )
+                        {
+                            for( int oz = 0; oz < big; oz++ )
+                            {
+                                int d;
+
+                                selftest_park_player(srv, bx + ox, bz + oz);
+                                steps_clear(player);
+                                mock230_scene_npc_approach(big, &approach);
+                                mock230_world_walk_to_approach(srv, bx, bz, &approach);
+                                if( player->waypoint_index < 0 )
+                                    inside_no_route++;
+                                d = distance_to_rect(player->dest_x, player->dest_z, bx, bz,
+                                                     big, big);
+                                if( d != 1 && inside_fail_dist < 0 )
+                                {
+                                    inside_fail_x = bx + ox;
+                                    inside_fail_z = bz + oz;
+                                    inside_fail_dist = d;
+                                }
+                                steps_clear(player);
+                            }
+                        }
+
+                        SELFTEST_CHECK(inside_no_route == 0,
+                                       "a player standing inside a size-%d npc should still "
+                                       "get a route out to attack it; %d of %d cells queued "
+                                       "none",
+                                       big, inside_no_route, big * big);
+                        SELFTEST_CHECK(inside_fail_dist < 0,
+                                       "standing inside a size-%d npc, the attack route must "
+                                       "leave the footprint: from %d,%d it ended dist=%d from "
+                                       "rect %d,%d %dx%d (0 = still underneath it)",
+                                       big, inside_fail_x, inside_fail_z, inside_fail_dist,
+                                       bx, bz, big, big);
+                    }
+
+                    /*
+                     * The same, with the npc's back to a wall.
+                     *
+                     * The Queen Black Dragon stands at the north end of her
+                     * platform: part of her 5x5 footprint sits over tiles the
+                     * collision map blocks, and she is `nomove`, so she never
+                     * shuffles off them. A player under her then has to leave a
+                     * rect whose northern exits do not exist, and the route has
+                     * to find the southern ones instead of failing or aiming at
+                     * a tile it can never reach.
+                     *
+                     * The block is put down and taken up again around the check
+                     * so the shared scene is left as it was found.
+                     */
+                    {
+                        int blocked_fail_x = -1;
+                        int blocked_fail_z = -1;
+                        int blocked_fail_dist = -1;
+                        int blocked_no_route = 0;
+                        int const wall_z = bz + big - 1;
+
+                        for( int ox = -1; ox <= big; ox++ )
+                        {
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 1);
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z + 1, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 1);
+                        }
+
+                        for( int ox = 0; ox < big; ox++ )
+                        {
+                            for( int oz = 0; oz < big - 1; oz++ )
+                            {
+                                int d;
+
+                                selftest_park_player(srv, bx + ox, bz + oz);
+                                steps_clear(player);
+                                mock230_scene_npc_approach(big, &approach);
+                                mock230_world_walk_to_approach(srv, bx, bz, &approach);
+                                if( player->waypoint_index < 0 )
+                                    blocked_no_route++;
+                                d = distance_to_rect(player->dest_x, player->dest_z, bx, bz,
+                                                     big, big);
+                                if( d != 1 && blocked_fail_dist < 0 )
+                                {
+                                    blocked_fail_x = bx + ox;
+                                    blocked_fail_z = bz + oz;
+                                    blocked_fail_dist = d;
+                                }
+                                steps_clear(player);
+                            }
+                        }
+
+                        for( int ox = -1; ox <= big; ox++ )
+                        {
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 0);
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z + 1, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 0);
+                        }
+
+                        SELFTEST_CHECK(blocked_no_route == 0,
+                                       "a player under a size-%d npc whose far edge is walled "
+                                       "must still get a route out; %d cell(s) queued none",
+                                       big, blocked_no_route);
+                        SELFTEST_CHECK(blocked_fail_dist < 0,
+                                       "under a size-%d npc with its far edge walled, the "
+                                       "attack route must still leave the footprint: from "
+                                       "%d,%d it ended dist=%d (0 = still underneath)",
+                                       big, blocked_fail_x, blocked_fail_z, blocked_fail_dist);
+                    }
+
+                    /*
+                     * End to end, on the tick loop.
+                     *
+                     * The two checks above call `mock230_world_walk_to_approach`
+                     * once and read the destination it picks, which is only the
+                     * first half of the story: what the player actually does is
+                     * the per-tick repath in `mock230_combat_player_approach`,
+                     * re-aiming every tick while the mover steps. A destination
+                     * that is right once and re-picked wrongly every tick after
+                     * looks exactly like the reported symptom — a long pause and
+                     * then a walk to somewhere off to one side.
+                     *
+                     * The goblin stands in for the boss: the interaction carries
+                     * the footprint, so a 1x1 npc described as 5x5 exercises the
+                     * same geometry without needing a size-5 record here.
+                     */
+                    {
+                        int arrived = 0;
+                        int const start_x = bx + 2;
+                        int const start_z = bz + 2;
+
+                        mock230_world_npc_teleport(npc, bx, bz, 0);
+                        npc->next_roam_tick = srv->tick + 1000;
+                        /* The real boss stamps NPC_OCC over its whole footprint,
+                         * which a size-1 stand-in does not. Players do not read
+                         * that flag, so this should change nothing — stamping it
+                         * is how that "should" gets checked rather than assumed. */
+                        mock230_scene_change_occupancy(0, bx, bz, big, COLL_FLAG_NPC_OCC, 1);
+                        selftest_park_player(srv, start_x, start_z);
+                        steps_clear(player);
+                        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 1, goblin,
+                                                      npc->type, bx, bz, npc->level, big, big);
+                        player->interaction.ap_tried = 1;
+                        mock230_scene_npc_approach(big, &approach);
+                        mock230_world_walk_to_approach(srv, bx, bz, &approach);
+
+                        for( int t = 0; t < 24; t++ )
+                        {
+                            npc->next_roam_tick = srv->tick + 1000;
+                            mock230_world_tick(srv);
+                            if( distance_to_rect(player->x, player->z, bx, bz, big, big) == 1 )
+                            {
+                                arrived = 1;
+                                break;
+                            }
+                        }
+
+                        SELFTEST_CHECK(arrived,
+                                       "a player starting UNDER a size-%d npc should walk out "
+                                       "and stand beside it within 24 ticks; ended at %d,%d "
+                                       "(dist %d from rect %d,%d %dx%d) having started at "
+                                       "%d,%d",
+                                       big, player->x, player->z,
+                                       distance_to_rect(player->x, player->z, bx, bz, big, big),
+                                       bx, bz, big, big, start_x, start_z);
+                        mock230_scene_change_occupancy(0, bx, bz, big, COLL_FLAG_NPC_OCC, 0);
+                        mock230_world_interaction_clear_at(player);
+                        steps_clear(player);
+                    }
+
                     selftest_park_player(srv, save_x, save_z);
                     steps_clear(player);
                 }
@@ -32398,6 +32588,35 @@ mock230_world_selftest(void)
                 }
 
                 /*
+                 * The head-down pose must cover the whole fire-wall cast.
+                 *
+                 * 16746 is a one-shot: content cannot loop a sequence, so the
+                 * pose is held by re-asserting it as it ends. A three-wave cast
+                 * runs to `3 + 2 * spacing` ticks while the animation is only
+                 * `anim_ticks`, and the three scheduled re-assertions plus the
+                 * initial play cover `4 * anim_ticks`. Retuning the wave spacing
+                 * without retuning the hold would put her back on her feet with
+                 * walls still to come — visible, and nothing else would say so.
+                 */
+                {
+                    int const anim_ticks =
+                        mock230_content_constant_int("rs2012_qbd_wall_anim_ticks", -1);
+                    int const spacing =
+                        mock230_content_constant_int("rs2012_qbd_wall_wave_spacing", -1);
+                    int const last_wave = 3 + 2 * spacing;
+
+                    SELFTEST_CHECK(anim_ticks > 0 && spacing > 0,
+                                   "the wall pose constants should be stated, got anim=%d "
+                                   "spacing=%d",
+                                   anim_ticks, spacing);
+                    SELFTEST_CHECK(4 * anim_ticks >= last_wave,
+                                   "the wall breath pose covers %d ticks (4 x %d) but a "
+                                   "three-wave cast runs to tick %d — she stands back up "
+                                   "before the last wall spawns",
+                                   4 * anim_ticks, anim_ticks, last_wave);
+                }
+
+                /*
                  * The grotworm's three stages must not overlap.
                  *
                  * `rs2012_qbd_spot_3141` (flying) and `3142` (landing) are both
@@ -32415,7 +32634,7 @@ mock230_world_selftest(void)
                     int const flight =
                         mock230_content_constant_int("rs2012_qbd_worm_flight_cycles", -1);
                     int const landing =
-                        mock230_content_constant_int("rs2012_qbd_worm_landing_shown_cycles", -1);
+                        mock230_content_constant_int("rs2012_qbd_worm_landing_cycles", -1);
                     int const hatch =
                         mock230_content_constant_int("rs2012_qbd_worm_hatch_delay", -1);
 
@@ -32424,10 +32643,9 @@ mock230_world_selftest(void)
                                    "flight=%d landing=%d hatch=%d",
                                    flight, landing, hatch);
                     SELFTEST_CHECK(hatch * 30 == flight + landing,
-                                   "the worm hatch (%d ticks = %d cycles) must follow the "
-                                   "flight plus the shown landing (%d + %d = %d), or the "
-                                   "animation and the npc overlap by more than the one tick "
-                                   "of tail that is cut on purpose",
+                                   "the worm hatch (%d ticks = %d cycles) must land exactly "
+                                   "when the landing animation ends (flight %d + landing %d "
+                                   "= %d), or the animation and the npc are two worms",
                                    hatch, hatch * 30, flight, landing, flight + landing);
                 }
 

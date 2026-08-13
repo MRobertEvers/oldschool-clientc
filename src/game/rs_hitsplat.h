@@ -16,10 +16,12 @@
  * returns -1, the sprite half of the overlay is skipped, and a hit renders as a
  * bare number floating over the entity — which is exactly what it did.
  *
- * Only the sprite id is kept. The records carry more (opcodes 8, 9, 13 and an
- * 11-byte composite whose fields are not established — see
- * `3rd/rscache/src/datatypes/dat2_config_hitsplat.h`), none of which this
- * client has a use for yet.
+ * Three fields are kept. The sprite id is what draws the splat; `duration`
+ * (opcode 9) is how long it stays up, and `slot_policy` (opcode 12) is what the
+ * entity does when all its hitmark slots are already busy. The last two used to
+ * be hardcoded in `World_EntityAddHitmark` as 70 and "drop it" — which happen to
+ * be the reference's own DEFAULTS, so the hardcoding was right until a record
+ * overrode them. See `3rd/rscache/src/datatypes/dat2_config_hitsplat.h`.
  */
 
 enum
@@ -33,6 +35,10 @@ struct RS_Hitsplats
     /** Indexed by hitsplat type. -1 = no sprite, which is a real state: 25 of
      *  cache.osrs230's records have none. */
     int* sprite_ids;
+    /** Opcode 9, in client cycles. Defaults to 70 per record. */
+    int* durations;
+    /** Opcode 12: -1 discard, 0 evict oldest, 1 evict smallest. Defaults to -1. */
+    int* slot_policies;
     int count;
 };
 
@@ -42,11 +48,14 @@ RS_Hitsplats_Init(struct RS_Hitsplats* hitsplats);
 void
 RS_Hitsplats_Free(struct RS_Hitsplats* hitsplats);
 
-/** Takes ownership of `sprite_ids`. */
+/** Takes ownership of all three arrays. `durations`/`slot_policies` may be NULL,
+ *  in which case every type reports the reference's defaults. */
 int
 RS_Hitsplats_SetTypes(
     struct RS_Hitsplats* hitsplats,
     int* sprite_ids,
+    int* durations,
+    int* slot_policies,
     int count);
 
 /** Sprite id for a hitsplat type, or -1 when the type has none or the table was
@@ -54,6 +63,18 @@ RS_Hitsplats_SetTypes(
  *  as an error: a cache with no hitsplat group is a supported configuration. */
 int
 RS_Hitsplats_SpriteFor(
+    struct RS_Hitsplats const* hitsplats,
+    int hitsplat_type);
+
+/** Splat duration in client cycles. Falls back to the reference's 70. */
+int
+RS_Hitsplats_DurationFor(
+    struct RS_Hitsplats const* hitsplats,
+    int hitsplat_type);
+
+/** Slot-full policy. Falls back to the reference's -1 (discard the new splat). */
+int
+RS_Hitsplats_SlotPolicyFor(
     struct RS_Hitsplats const* hitsplats,
     int hitsplat_type);
 

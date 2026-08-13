@@ -3,6 +3,7 @@
 #include "engine/cache_provider.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "game/rs_hitsplat.h"
+#include "world/entity_pathing.h"
 
 #include "asyncio.h"
 #include "cache/rscache_io.h"
@@ -45,6 +46,8 @@ Task_Dat2HitsplatLoad_Run(
     struct RSCache_Dat2DiskArchive* archive = NULL;
     struct RSCache_FileList* filelist = NULL;
     int* sprite_ids = NULL;
+    int* durations = NULL;
+    int* slot_policies = NULL;
     int count = 0;
     int decoded = 0;
 
@@ -85,8 +88,13 @@ Task_Dat2HitsplatLoad_Run(
     }
 
     sprite_ids = malloc((size_t)count * sizeof(*sprite_ids));
-    if( !sprite_ids )
+    durations = malloc((size_t)count * sizeof(*durations));
+    slot_policies = malloc((size_t)count * sizeof(*slot_policies));
+    if( !sprite_ids || !durations || !slot_policies )
     {
+        free(sprite_ids);
+        free(durations);
+        free(slot_policies);
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
         PT_EXIT(&task->pt);
@@ -94,7 +102,13 @@ Task_Dat2HitsplatLoad_Run(
     /* -1 is "no sprite", and it is a real state rather than a hole: a quarter
      * of cache.osrs230's records genuinely carry no opcode 5. */
     for( int i = 0; i < count; i++ )
+    {
         sprite_ids[i] = -1;
+        /* The reference's own pre-loop defaults, so a type with no opcode 9 or
+         * 12 behaves exactly as it did when both were hardcoded in the client. */
+        durations[i] = WORLD_HITMARK_DEFAULT_DURATION;
+        slot_policies[i] = WORLD_HITMARK_POLICY_DISCARD;
+    }
 
     for( int i = 0; i < filelist->file_count; i++ )
     {
@@ -104,21 +118,34 @@ Task_Dat2HitsplatLoad_Run(
         if( id < 0 || id >= count || filelist->file_sizes[i] <= 0 )
             continue;
         memset(&entry, 0, sizeof(entry));
+        /* Group 32 holds hitsplat records only in the OldSchool lineage — the
+         * same reason `task_dat2_worldmap_load.c` asks before reading table 19.
+         * Off-lineage the flags come back empty and the decoder claims nothing,
+         * so the short-decode warning below fires instead of the loader
+         * inventing sprite ids out of another type's bytes. */
         RSCache_Dat2ConfigHitsplatDecodeInplace(
-            &entry, filelist->files[i], filelist->file_sizes[i]);
+            &entry,
+            filelist->files[i],
+            filelist->file_sizes[i],
+            (unsigned)RSCache_Dat2ConfigHitsplatFlags(
+                CacheProvider_Profile(&task->bc->base)));
         if( entry._consumed != filelist->file_sizes[i] )
             fprintf(stderr, "hitsplat %d: decode consumed %d of %d bytes\n", id,
                     entry._consumed, filelist->file_sizes[i]);
         sprite_ids[id] = entry.sprite_id;
+        durations[id] = entry.duration;
+        slot_policies[id] = entry.slot_policy;
         decoded++;
     }
 
     RSCache_FileListFree(filelist);
     RSCache_Dat2DiskArchiveFree(archive);
 
-    if( !RS_Hitsplats_SetTypes(task->hitsplats, sprite_ids, count) )
+    if( !RS_Hitsplats_SetTypes(task->hitsplats, sprite_ids, durations, slot_policies, count) )
     {
         free(sprite_ids);
+        free(durations);
+        free(slot_policies);
         PT_EXIT(&task->pt);
     }
     printf("hitsplat load: %d types (%d records)\n", count, decoded);

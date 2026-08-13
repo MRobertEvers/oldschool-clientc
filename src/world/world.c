@@ -1913,7 +1913,16 @@ World_PlayerAddHitmark(
     int total_health)
 {
     World_PlayerAddHitmarkTimed(
-        world, idx, damage_type, damage, health, total_health, 0, WORLD_ENTITY_DAMAGE_SLOTS);
+        world,
+        idx,
+        damage_type,
+        damage,
+        health,
+        total_health,
+        0,
+        WORLD_ENTITY_DAMAGE_SLOTS,
+        WORLD_HITMARK_DEFAULT_DURATION,
+        WORLD_HITMARK_POLICY_DISCARD);
 }
 
 void
@@ -1925,7 +1934,9 @@ World_PlayerAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int slot_limit)
+    int slot_limit,
+    int duration,
+    int slot_policy)
 {
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
@@ -1940,7 +1951,9 @@ World_PlayerAddHitmarkTimed(
         damage_type,
         damage,
         delay,
-        slot_limit);
+        slot_limit,
+        duration,
+        slot_policy);
     player->combat.health = health;
     player->combat.total_health = total_health;
     player->combat.healthbar_width = 0;
@@ -2175,7 +2188,16 @@ World_NpcAddHitmark(
     int total_health)
 {
     World_NpcAddHitmarkTimed(
-        world, idx, damage_type, damage, health, total_health, 0, WORLD_ENTITY_DAMAGE_SLOTS);
+        world,
+        idx,
+        damage_type,
+        damage,
+        health,
+        total_health,
+        0,
+        WORLD_ENTITY_DAMAGE_SLOTS,
+        WORLD_HITMARK_DEFAULT_DURATION,
+        WORLD_HITMARK_POLICY_DISCARD);
 }
 
 void
@@ -2187,7 +2209,9 @@ World_NpcAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int slot_limit)
+    int slot_limit,
+    int duration,
+    int slot_policy)
 {
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
@@ -2202,7 +2226,9 @@ World_NpcAddHitmarkTimed(
         damage_type,
         damage,
         delay,
-        slot_limit);
+        slot_limit,
+        duration,
+        slot_policy);
     npc->combat.health = health;
     npc->combat.total_health = total_health;
     npc->combat.healthbar_width = 0;

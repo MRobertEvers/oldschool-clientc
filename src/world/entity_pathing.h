@@ -55,6 +55,24 @@ World_EntityDrawPositionSetToTile(
     int size_x,
     int size_z);
 
+/**
+ * Slot-full policy, the hitsplat config's opcode 12 (`field5318` in the rev-239
+ * deob's `class420`). The reference's own default is DISCARD; a zeroed value is
+ * NOT the default, which is why this is passed rather than defaulted to 0.
+ */
+enum World_HitmarkSlotPolicy
+{
+    /** Drop the incoming splat. The reference's default (-1). */
+    WORLD_HITMARK_POLICY_DISCARD = -1,
+    /** Overwrite the splat with the lowest remaining cycle. */
+    WORLD_HITMARK_POLICY_EVICT_OLDEST = 0,
+    /** Overwrite the lowest-valued splat, unless it is already >= the new one. */
+    WORLD_HITMARK_POLICY_EVICT_SMALLEST = 1,
+};
+
+/** The reference's pre-loop default for the splat duration (opcode 9). */
+#define WORLD_HITMARK_DEFAULT_DURATION 70
+
 void
 World_EntityAddHitmark(
     uint8_t* damage_values,
@@ -65,6 +83,8 @@ World_EntityAddHitmark(
     int damage_type,
     int damage_value,
     int delay,
-    int slot_limit);
+    int slot_limit,
+    int duration,
+    int slot_policy);
 
 #endif
