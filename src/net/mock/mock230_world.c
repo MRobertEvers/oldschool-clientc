@@ -2547,6 +2547,9 @@ npc_spawn(
          * passive. See the field. */
         npc->huntmode = def->huntmode;
         npc->combat_target = -1;
+        /* Explicit for the same reason as `combat_target` beside it: the memset
+         * above makes it 0, and 0 is npc slot zero. */
+        npc->combat_target_npc = -1;
         npc->death_tick = -1;
         npc->respawn_tick = -1;
         /* Explicit, because the memset above makes it 0 and 0 is a *tick*:
@@ -3524,8 +3527,13 @@ advance_npcs(struct Mock230Server* srv)
 
         /* Combat and death own the npc's movement. Roaming used to clear
          * step_dir here, which also wiped the step the combat mover had just
-         * produced — phase 11 does that clear, once, at the right time. */
-        if( npc->combat_target >= 0 || npc->death_tick >= 0 )
+         * produced — phase 11 does that clear, once, at the right time.
+         *
+         * Either kind of combat target: a fight with another npc closes and
+         * paces exactly like a fight with a player, so the mode machine and the
+         * roam must keep out of it the same way. */
+        if( npc->combat_target >= 0 || npc->combat_target_npc >= 0 ||
+            npc->death_tick >= 0 )
             continue;
         if( npc_run_mode(srv, npc, slot) )
             continue;
@@ -29818,33 +29826,28 @@ mock230_world_selftest(void)
             }
 
             /*
-             * And an add that is mid-`npc_delay` still drains its queue.
+             * And the whole life of an add, from landing to the player's first
+             * hit, against the fixture that actually runs it.
              *
-             * The player's melee swing ends in `npc_queue(2, $damage, 0)`
-             * (skill_combat/combat_stats.rs2 `[proc,player_melee_swing]`), so
-             * for anything the player attacks, the npc's queue *is* the damage
-             * path — ranged, magic and every special already went that way and
-             * melee joined them. Jal-Xil, meanwhile, attacks on `npc_delay(4)`.
+             * `::zukstill 3` rather than `::zuk`, because the adds do not reach
+             * the real fight until tick ~92 and Zuk kills the fixture player
+             * first. What this stanza pins is one claim in five parts: an add
+             * fights the shield and then the player using the ENGINE's combat
+             * machine, and nothing in content paces either half.
              *
-             * Those two facts used to cancel each other out. The queue drain
-             * re-read `delayed_until` after `[ai_timer]` had run, and the add's
-             * timer ends in the delay that the drain then refused to look past
-             * — so the tick the delay expired was also the tick a fresh one was
-             * armed, and the entries piled up four-per-swing and never fired.
-             * Reported as "the Inferno adds show no hitsplats"; measured as
-             * Jal-Xil sitting at 125/125 with eleven queue entries on it.
-             *
-             * `::zukstill 3` rather than `::zuk`, because the fixture has to be
-             * an add that is *actually* running its attack loop: the adds do not
-             * reach the real fight until tick ~92, and a hand-spawned one with
-             * no timer never delays itself, which is the whole condition under
-             * test. Six ticks is more than the four an add's delay can hold the
-             * drain for, so a queue that fires at all fires inside the window.
+             * Every part of it fails if the npc-versus-npc target is taken out
+             * of the engine: without it the only way to shoot the glyph is a
+             * script clock, and a script clock means `npc_delay`, and a delayed
+             * npc does not drain the queue the player's hits arrive on.
              */
             {
                 int ranger_type =
                     mock230_content_symbol(MOCK230_PACK_NPC, "inferno_ranger_finalwave");
+                int mager_type =
+                    mock230_content_symbol(MOCK230_PACK_NPC, "inferno_mager_finalwave");
                 int ranger = -1;
+                int glyph_slot = -1;
+                int spawn_tick = 0;
 
                 selftest_reset_world(&srv, player, 402, 402);
                 SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "zukstill 3"),
@@ -29861,37 +29864,89 @@ mock230_world_selftest(void)
                     mock230_world_tick(&srv);
                     ranger = selftest_find_npc(&srv, ranger_type);
                 }
+                glyph_slot = selftest_find_npc(&srv, glyph_type);
+                spawn_tick = (int)srv.tick;
                 SELFTEST_CHECK(ranger >= 0, "the fixture should leave a Jal-Xil standing");
-                if( ranger >= 0 )
+                SELFTEST_CHECK(glyph_slot >= 0,
+                               "and an Ancestral Glyph for it to shoot at");
+                if( ranger >= 0 && glyph_slot >= 0 )
                 {
                     struct Mock230Npc* xil = &srv.npcs[ranger];
-                    int delayed = 0;
+                    struct Mock230Npc* glyph = &srv.npcs[glyph_slot];
+                    int rate = xil->def ? xil->def->attackrate : 0;
+                    int mager = selftest_find_npc(&srv, mager_type);
+                    int parked = 0;
+                    int early = 0;
                     int hp_before;
                     int armed = -1;
 
-                    /* Wait for the add to be inside its own attack delay — the
-                     * state the drain used to refuse to run in. Asserted rather
-                     * than assumed: an add that never delays would make every
-                     * check below pass for the wrong reason. */
-                    for( int tick = 0; tick < 12 && !delayed; tick++ )
+                    SELFTEST_CHECK(rate > 1, "Jal-Xil should state an attack speed, got %d",
+                                   rate);
+
+                    /*
+                     * 1. It waits. `npc_settimer(npc_param(attackrate))` at the
+                     *    spawn site is the whole of the opening pause, so the
+                     *    add stands there for a cycle before it takes a target
+                     *    — it used to fire on the tick it landed.
+                     */
+                    for( int tick = 0; tick + 1 < rate; tick++ )
                     {
                         mock230_world_tick(&srv);
-                        delayed = xil->delayed_until > srv.tick;
+                        early |= xil->combat_target_npc >= 0;
+                        parked |= xil->delayed_until > srv.tick;
                     }
-                    SELFTEST_CHECK(delayed,
-                                   "Jal-Xil's [ai_timer] should hold it on npc_delay between "
-                                   "swings — without that this stanza tests nothing");
+                    SELFTEST_CHECK(!early,
+                                   "a fresh add must wait its attack cycle before it takes "
+                                   "the shield as a target (it took one %d tick(s) in)",
+                                   (int)srv.tick - spawn_tick);
 
-                    /* The hit below starts a real fight, and Jal-Xil's answer
-                     * (max hit 46) kills a default selftest player before the
-                     * retaliation stanza can watch it — a dying target clears
-                     * `combat_target`, which reads as the leash bug this
-                     * stanza exists to catch. Tank it: `player->hitpoints` is
-                     * the pool `mock230_combat_hit_player` drains; the stat
-                     * level only feeds `stat()` reads. */
-                    player->stat_level[MOCK230_STAT_HITPOINTS] = 200;
-                    player->hitpoints = 200;
+                    /*
+                     * 2. Then it fights the glyph — a real engine combat target,
+                     *    not a script pointing at a coordinate — and faces it.
+                     *    `face_entity` below `MOCK230_FACE_PLAYER_BASE` is an
+                     *    npc slot, the half of that id space nothing in this
+                     *    server wrote until npcs could fight each other.
+                     */
+                    for( int tick = 0; tick < 8 && xil->combat_target_npc < 0; tick++ )
+                    {
+                        mock230_world_tick(&srv);
+                        parked |= xil->delayed_until > srv.tick;
+                    }
+                    SELFTEST_CHECK(xil->combat_target_npc == glyph_slot,
+                                   "then it should take the glyph as its combat target, got "
+                                   "%d (glyph is %d)",
+                                   xil->combat_target_npc, glyph_slot);
+                    SELFTEST_CHECK(xil->face_entity == glyph_slot,
+                                   "and face it — FACE_ENTITY should be the glyph's npc slot "
+                                   "%d, got %d",
+                                   glyph_slot, xil->face_entity);
 
+                    hp_before = glyph->hitpoints;
+                    for( int tick = 0; tick < 4 * rate; tick++ )
+                    {
+                        mock230_world_tick(&srv);
+                        parked |= xil->delayed_until > srv.tick;
+                    }
+                    SELFTEST_CHECK(glyph->hitpoints < hp_before,
+                                   "and the shots must land on it; glyph still %d of %d",
+                                   glyph->hitpoints, hp_before);
+
+                    /*
+                     * 3. And it is never parked, on any tick of any of that.
+                     *
+                     * `npc_delay` makes an npc invalid for its whole turn, and
+                     * a turn an npc does not take is a turn it does not drain
+                     * its queue on — which is where every hit the player lands
+                     * arrives (`npc_queue(2, $damage, 0)`). The adds used to
+                     * pace themselves on `npc_delay(4)`, so they took one turn
+                     * in five and a hitsplat could sit unshown for four ticks.
+                     */
+                    SELFTEST_CHECK(!parked,
+                                   "an add must never hold itself on npc_delay — its queue "
+                                   "is where the player's hits land, and a delayed npc does "
+                                   "not drain one");
+
+                    /* 4. So a hit on it shows up on the very next tick. */
                     hp_before = xil->hitpoints;
                     for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
                     {
@@ -29908,70 +29963,161 @@ mock230_world_selftest(void)
                         break;
                     }
                     SELFTEST_CHECK(armed >= 0, "the add should have a free queue slot");
-
-                    for( int tick = 0; tick < 6; tick++ )
-                        mock230_world_tick(&srv);
-
+                    mock230_world_tick(&srv);
                     SELFTEST_CHECK(armed < 0 || !xil->queue[armed].active,
-                                   "a delayed add must still drain its queue within its own "
-                                   "attack delay");
+                                   "a hit on an add must land on the next tick, not whenever "
+                                   "it next takes a turn");
                     SELFTEST_CHECK(xil->hitpoints == hp_before - 7,
                                    "and take the queued damage — [ai_queue2] is where every "
                                    "hit on an add lands; %d -> %d",
                                    hp_before, xil->hitpoints);
 
                     /*
-                     * And the hit must be answered from where the add stands.
+                     * 5. The player attacks it, and that is the end of the
+                     *    shield for this add — forever, and from anywhere.
                      *
-                     * Retaliation used to fail twice over, and both halves were
-                     * invisible from the assertions above. The record's default
-                     * `maxrange` leash is 7 measured from the SPAWN tile, so
-                     * the tick after `combat_target` latched,
-                     * `target_within_maxrange` read a player across the arena
-                     * as escaped and cleared it — a one-tick fight. And with
-                     * the default `attackrange` of 1, an add that did keep its
-                     * target walked the whole floor to melee before the combat
-                     * clock let it swing. `param=attackrange,40` + `maxrange=40`
-                     * (configs/inferno.npc, the wiki's ">10 tiles" bound) plus
-                     * the [ai_opplayer2] redirect are the fix; this holds all
-                     * three.
-                     *
-                     * The player is parked 19 tiles west on the ranger's own
-                     * row — outside the old leash and the old AP walk gate,
-                     * inside the new reach.
+                     * The player is parked at the far south-west corner of the
+                     * arena, on the far side of the floor from the ranger's
+                     * spawn: outside the record's default 7-tile `maxrange`
+                     * leash and outside the engine's flat 10-tile AP walk gate,
+                     * inside the `param=attackrange,40` / `maxrange=40` the
+                     * wiki's ">10 tiles" bound put on these records. Jal-Xil
+                     * (max hit 46) kills a default fixture player before any of
+                     * this can be watched, and `player->hitpoints` is the pool
+                     * `mock230_combat_hit_player` drains — the stat level only
+                     * feeds `stat()` reads — so raise both.
                      */
                     {
+                        /*
+                         * The four corner combat-spawn tiles of the arena
+                         * (`^inferno_spawn_*` in inferno.constant), as local
+                         * offsets from the instance base. Known-good floor —
+                         * the wave spawner stands monsters on them — so a miss
+                         * here is about reach, not about the player being off
+                         * the map.
+                         */
+                        static const struct
+                        {
+                            const char* name;
+                            int lx;
+                            int lz;
+                        } k_corners[] = {
+                            { "south-west", 20, 20 },
+                            { "south-east", 39, 20 },
+                            { "north-west", 19, 41 },
+                            { "north-east", 39, 40 },
+                        };
                         int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
                         int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
-                        int xil_home_x = xil->x;
-                        int xil_home_z = xil->z;
-                        int hp_level_before;
+                        int home_x = xil->x;
+                        int home_z = xil->z;
+                        int glyph_hp;
                         int held = 1;
+                        int returned = 0;
 
-                        player->x = base_x + 16;
-                        player->z = base_z + 38; /* ^inferno_ranger_lz */
-                        hp_level_before = player->hitpoints;
+                        /* Leave the ranger as the glyph's only attacker, so any
+                         * glyph damage below is attributable to it. */
+                        if( mager >= 0 )
+                            srv.npcs[mager].active = 0;
 
-                        for( int tick = 0; tick < 12; tick++ )
-                        {
+                        /* Jal-Xil (max hit 46) kills a default fixture player
+                         * long before any of this can be watched; the per-tick
+                         * top-up below says why both fields have to move. */
+                        player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                        player->hitpoints = 900;
+                        mock230_combat_sync_hitpoints(player);
+                        player->x = base_x + k_corners[0].lx;
+                        player->z = base_z + k_corners[0].lz;
+
+                        mock230_world_set_active(&srv, player);
+                        mock230_combat_hit_npc(
+                            &srv, ranger,
+                            mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage"),
+                            3);
+                        SELFTEST_CHECK(xil->combat_target == player->pid &&
+                                           xil->combat_target_npc < 0,
+                                       "the player's hit must take the add off the shield and "
+                                       "onto them (target %d, npc target %d)",
+                                       xil->combat_target, xil->combat_target_npc);
+
+                        /* One flight's worth of ticks for the arrow already in
+                         * the air, then the glyph must be untouched for good. */
+                        for( int tick = 0; tick < 2 * rate; tick++ )
                             mock230_world_tick(&srv);
-                            held &= xil->combat_target == player->pid;
+                        glyph_hp = glyph->hitpoints;
+
+                        /*
+                         * From every corner of the floor, and without taking a
+                         * step out of it.
+                         *
+                         * Two engine numbers have to be right for this and they
+                         * fail differently: `param=attackrange,40` is how far
+                         * the add may shoot (unstated it is 1, melee, and the
+                         * add marches across the arena), and `maxrange=40` is
+                         * how far from its SPAWN tile the fight may travel
+                         * before `target_within_maxrange` calls it off
+                         * (unstated it is 7, and retaliation lasts one tick).
+                         * The wiki puts these monsters' reach past the player's
+                         * own maximum of ten and states no figure, so both are
+                         * the arena — see configs/inferno.npc.
+                         */
+                        for( size_t c = 0; c < sizeof(k_corners) / sizeof(k_corners[0]); c++ )
+                        {
+                            int took = 0;
+                            int gap;
+
+                            player->x = base_x + k_corners[c].lx;
+                            player->z = base_z + k_corners[c].lz;
+                            gap = abs(player->x - xil->x) > abs(player->z - xil->z)
+                                      ? abs(player->x - xil->x)
+                                      : abs(player->z - xil->z);
+
+                            for( int tick = 0; tick < 3 * rate; tick++ )
+                            {
+                                int before = player->hitpoints;
+
+                                mock230_world_tick(&srv);
+                                if( player->hitpoints < before )
+                                    took += before - player->hitpoints;
+                                /*
+                                 * Topped up every tick, not once per corner.
+                                 * Jal-Xil's max hit is 46 and this stanza
+                                 * stands in front of one for four corners'
+                                 * worth of ticks; a fixture player who is
+                                 * allowed to die takes the fight down with them
+                                 * — `mock230_combat_npc_tick` drops the target
+                                 * of a `dying` player — and the leash check
+                                 * below then reads as exactly the bug it is
+                                 * looking for. Both fields: `player->hitpoints`
+                                 * is the pool damage drains and the stat level
+                                 * is the ceiling `sync_hitpoints` clamps it to.
+                                 */
+                                player->stat_level[MOCK230_STAT_HITPOINTS] = 900;
+                                player->hitpoints = 900;
+                                mock230_combat_sync_hitpoints(player);
+                                held &= xil->combat_target == player->pid;
+                                returned |= xil->combat_target_npc >= 0;
+                            }
+                            SELFTEST_CHECK(took > 0,
+                                           "an add must reach the player anywhere in the "
+                                           "arena — %s corner, %d tiles, took no damage in "
+                                           "%d ticks",
+                                           k_corners[c].name, gap, 3 * rate);
+                            SELFTEST_CHECK(abs(xil->x - home_x) + abs(xil->z - home_z) <= 1,
+                                           "and shoot from where it stands rather than close "
+                                           "the distance — %s corner moved it (%d,%d) -> "
+                                           "(%d,%d)",
+                                           k_corners[c].name, home_x, home_z, xil->x, xil->z);
                         }
                         SELFTEST_CHECK(held,
-                                       "a provoked Jal-Xil must hold its target across the "
+                                       "a provoked add must hold its target across the whole "
                                        "arena — the default 7-tile maxrange leash cleared it "
                                        "on the first combat tick (target %d)",
                                        xil->combat_target);
-                        SELFTEST_CHECK(abs(xil->x - xil_home_x) +
-                                               abs(xil->z - xil_home_z) <=
-                                           2,
-                                       "and shoot from where it stands, not march to melee — "
-                                       "moved (%d,%d) -> (%d,%d)",
-                                       xil_home_x, xil_home_z, xil->x, xil->z);
-                        SELFTEST_CHECK(player->hitpoints < hp_level_before,
-                                       "and its ranged answer must land on the player (hp "
-                                       "still %d of %d)",
-                                       player->hitpoints, hp_level_before);
+                        SELFTEST_CHECK(!returned && glyph->hitpoints == glyph_hp,
+                                       "and must never go back to the shield: glyph %d -> %d, "
+                                       "npc target %d",
+                                       glyph_hp, glyph->hitpoints, xil->combat_target_npc);
                     }
                 }
             }

@@ -709,8 +709,9 @@ RS_CS2Host_Init(
     host->mouse_x = -1;
     host->mouse_y = -1;
     host->cam_follow_height = 0;
-    /* The audio engine starts at full gain; the option host must report the
-     * same state before interface 116 sends its first slider update. */
+    /* The option store is the authority on the boot volumes -- App_Init pushes
+     * these at the audio engine and seeds interface 116's varps from them, so
+     * all three agree before the first slider update arrives. */
     for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
     {
         host->game_options[id] = RS_CS2Host_OptionDefault(RS_CS2_OPTION_GAME, id);
@@ -1214,9 +1215,26 @@ RS_CS2Host_OptionDefault(
     int kind,
     int option_id)
 {
-    /* Full volume, matching the mixer's own starting gain: an option nothing
-     * has written must not read back as silence. Every other option is zero,
-     * which is CS2's answer for an option no script has set. */
+    /*
+     * The client boots muted, and it is the master gain that does it.
+     *
+     * A deliberate divergence from the reference, which comes up at full
+     * volume. Muting at the master rather than zeroing all four is what makes
+     * one click on interface 116's master mute icon enough to get the
+     * reference's mix back -- the three per-bus volumes below keep their full
+     * default, so nothing has to be dragged up afterwards.
+     *
+     * Nothing here is "the mixer is off": App_Init seeds the backend from this
+     * value and the panel seeds its varps from it too, so a muted client looks
+     * muted rather than showing full sliders over a silent mixer. The moment
+     * the player raises it, game/rs_prefs.c writes the new value out and the
+     * next launch is no longer muted.
+     */
+    if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME )
+        return 0;
+    /* Full volume for the per-bus ones: an option nothing has written must not
+     * read back as silence, or unmuting would restore nothing. Every other
+     * option is zero, which is CS2's answer for an option no script has set. */
     return option_is_volume(kind, option_id) ? 100 : 0;
 }
 

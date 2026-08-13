@@ -460,10 +460,13 @@
 #define SS_OP_NPC_FINDOWNED2 11031
 #define SS_OP_OBJ_ADD_PRIVATE 11032
 #define SS_OP_NPC_POISON 11033
+#define SS_OP_NPC_ATTACKNPC 11034
+#define SS_OP_NPC_ATTACKPLAYER 11035
+#define SS_OP_NPC_HASTARGET 11036
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11034
+#define SS_OPCODE_MAX 11037
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 438
+#define SS_OPCODE_COUNT 441
 
 #endif

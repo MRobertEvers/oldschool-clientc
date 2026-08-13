@@ -666,6 +666,20 @@ frame_loop_step(void)
      * a request nobody carries parks the task queue forever. */
     PlatformXIO_Web_Pump();
 
+    /*
+     * Let the boot block on its reads, and never let the live client.
+     *
+     * A blocking read returns inside the frame that asked for it, which is what
+     * keeps the boot's serial chain of archives from costing an event-loop turn
+     * apiece. But it freezes the main thread for longer than the request takes,
+     * and past APP_STATE_READY the reads that remain are precisely the ones
+     * that coincide with something new on screen — the first play of an npc's
+     * hit sound is a fetch on the frame its hitsplat is drawn, and that reads
+     * as the hitsplat being slow. After READY the read is queued instead and
+     * the pacing below drains it at event-loop rate.
+     */
+    PlatformXIO_Web_SetBlockingReads(app.app_state != APP_STATE_READY);
+
     /* Pace the loop by what it is waiting for.
      *
      * A task pipeline is serial: it issues one read, parks, and cannot resume

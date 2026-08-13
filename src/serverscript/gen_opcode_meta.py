@@ -506,6 +506,32 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # attacker for credit, and ticks every 30 game ticks. This host has no NPC
     # varn/timer namespace for content to express that state.
     "NPC_POISON": (11033, 1, 0, 0, 0),
+
+    # ---- npcs fighting things (11034..11036) -----------------------------
+    #
+    # npc_attacknpc(npc_uid $target)
+    # npc_attackplayer()
+    # npc_hastarget()(boolean)
+    #
+    # An npc's combat target is engine state — it decides facing, pathing, the
+    # attack clock and which trigger fires — and content had no way to read or
+    # write it. Two consequences, both of which this tree hit:
+    #
+    #   * a monster could only ever be made to fight a *player*, because the
+    #     target was a pid. An encounter whose monsters attack scenery (the
+    #     Inferno's adds and the Ancestral Glyph) had to drive the fight from
+    #     `[ai_timer]` and carry its own clock, facing and reach beside the
+    #     engine's, which is two combat systems racing each other on one npc.
+    #   * "and now fight this player normally" could only be spelled
+    #     `npc_setmode(applayer2)`, which fires one AP handler and falls back to
+    #     `none`, so content had to re-arm it every single tick.
+    #
+    # `npc_attacknpc` fires `[ai_opnpc2,<attacker>]` with the target armed as
+    # the secondary npc. NPC_FINDCOMBAT is the same question asked from the
+    # player's end.
+    "NPC_ATTACKNPC": (11034, 1, 0, 0, 0),
+    "NPC_ATTACKPLAYER": (11035, 0, 0, 0, 0),
+    "NPC_HASTARGET": (11036, 0, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------
@@ -634,6 +660,12 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_ATTACKPLAYER": (
+        (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["active_player"]),
+        0,
+    ),
+    "NPC_HASTARGET": (1 << POINTER_BITS["active_npc"], 0),
     "PLAYER_LOCK": (1 << POINTER_BITS["p_active_player"], 0),
     # Deliberately no PLAYER_UNLOCK mask. A player-bound softtimer has no
     # protected pointer, yet it is the emergency activity-cleanup context that
