@@ -550,6 +550,25 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # running a scripted sequence, leave me alone", `npc_attackdelay` is "my
     # weapon is on cooldown". Only the first should stop damage landing.
     "NPC_ATTACKDELAY": (11037, 1, 0, 0, 0),
+
+    # ambientsound(int $soundscape)
+    #
+    # The region's background bed: `AMBIENTSOUND_START` when the argument is
+    # >= 0, `AMBIENTSOUND_STOP` when it is negative. The id names a config
+    # group-15 soundscape record — a set of continuous loops plus timed random
+    # sets — not a sound effect, so this is not a spelling of `sound_synth`.
+    #
+    # The reference has no such command because at its revision the type does
+    # not exist (group 15 is an OldSchool 231+ addition). But a place whose
+    # ambience is carried some *other* way still has to be able to say so, and
+    # the QBD arena is exactly that place: it is a foreign rev-727 region whose
+    # cave noise comes entirely from loc ambient emitters on its own scenery,
+    # so an OldSchool bed underneath it is a second, wrong soundscape playing
+    # over the authored one.
+    #
+    # `midi_song` is the model, down to -1 meaning stop, because the two
+    # answer the same question about the same square.
+    "AMBIENTSOUND": (11038, 1, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------

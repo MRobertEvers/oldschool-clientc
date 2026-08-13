@@ -1175,3 +1175,261 @@ blocks with `human_dhsword_block` and not `human_sword_def`.
   reported the bar as failed instead of working around it. Re-measured after:
   `compiled 12368 scripts`, `--check` 0 problems, pack `0 error(s), 17
   warning(s)`.
+
+- **2026-08-13, continued — slice 12 driven to near-completion in one
+  sustained pass.** Starting from the 27/121 the first entry above landed,
+  this run resolved **107 of the original 121** weapons: **54 new `sa_kind`
+  scripts** (10 through 64, every number used, none skipped), **~20 aliased
+  variants** (poison/elemental/ornate-handle recolours and confirmed-
+  identical family members sharing one script), and the 3 skilling tools
+  plus 4 self-buff weapons correctly routed to `specwep.rs2`'s instant-fire
+  path instead of `sa_kind` (a structural finding, not a per-weapon one —
+  see the first entry above). Every weapon's `.rs2` file cites its wiki URL
+  and, where one exists, its Kronos source file, per §0.4/§2. Standing bar
+  held throughout, checked after every batch, never left red between
+  batches: **`sscompile` clean at 16,018 scripts, 0 errors**
+  (`PLATFORM_OBJ_BASE=build_specials_batch1`).
+
+  **`mock230_pack --check-only` still could not be run this whole session.**
+  Retried after every batch; the link failure
+  (`_mock230_world_set_varp` undefined, referenced from
+  `mock230_varbit.c`) persisted from the first entry's diagnosis through to
+  the end — confirmed each time via `git diff` that the cause is still the
+  same unrelated concurrent edit to `mock230.h`, not anything in this
+  slice's own files (which are all `.rs2`/`.obj` content, no `.c`/`.h`
+  touched). Whoever picks this up next: run
+  `make -C src mock230-pack PLATFORM_OBJ_BASE=<private>` fresh before
+  trusting pack-level green on any of this — it has not been possible to
+  verify that layer at all in this session.
+
+  **Not runtime-verified on pixels.** Same honesty rule as the first entry:
+  everything here compiles and resolves symbol-clean, but no headless
+  `SIM_OPNPC`/`embed_test`/lldb pass was run this session — there were
+  simply too many weapons to do that for each one inside one pass. Treat
+  every row below as "code complete, unobserved," not "done."
+
+  **A real bug in my own tooling, caught before it shipped**, already fixed
+  and noted in the first entry: the FX resolver's synth-name lookup missed
+  this tree's own `pack/4_soundeffects.pack` and would have silently
+  replaced six already-correct sound names with wrong `synth_N` fallbacks.
+  Fixed in `tools/resolve_special_fx.py` before any of the affected files
+  were left wrong.
+
+  **A second, more serious near-miss, caught the same way**: `pvm_eye_of_ayak.rs2`'s
+  first draft drained the npc's `magic` stat for a "reduces Magic Defence"
+  effect. Reading `~npc_defence_roll`'s own magic-style branch
+  (`combat_stats.rs2:587`) showed Magic Defence is computed from
+  `npc_stat(defence)` + `npc_param(magicdefence)`, not the `magic` stat at
+  all — `magic` is the npc's *casting* stat, used for magic accuracy.
+  Corrected to drain `defence` before this was ever wired to a `sa_kind`.
+  **The lesson for the next person touching an npc-stat-drain special: read
+  the roll formula the English name refers to before assuming the stat
+  name and the wiki's English label are the same thing** — they agree most
+  of the time and this is exactly the case where they didn't.
+
+  **Corrections against Kronos, wiki winning, found this run** (beyond the
+  whip/BGS ones the first entry already recorded):
+  `pvm_abyssal_whip.rs2`'s frozen alias family gained no new ones, but
+  `pvm_brain_anchor.rs2` (BarrelchestAnchor) is a fresh one — Kronos picks
+  ONE random stat from `{Attack, Defence, Ranged, Magic}` to drain by 10% of
+  damage; the wiki states a sequential cascade through
+  Defence→Attack→Ranged→Magic (same shape as `pvm_bgs.rs2`, different order
+  and only 10% of the damage instead of the full amount). Implemented as
+  the cascade.
+
+  **A data-quality question surfaced, not resolved, flagged for a human**:
+  `keris_partisan` (plain) has `sa_energy=750` declared in
+  `special_attack.obj`, but the OSRS wiki states plainly that the base Keris
+  partisan has **no special attack at all** — only the jewelled
+  Corruption/Sun variants do (Tombs of Amascut exclusive, 75% cost, which
+  is suspiciously exactly what the plain weapon's row states). This reads
+  as a probable mislabelled row rather than three separate correct facts.
+  **Left alone rather than guessed at**: no `sa_kind` given to `keris_partisan`
+  matches the wiki's real answer (falls through to a normal swing, which is
+  correct), but the underlying `special_attack.obj` row itself may be wrong
+  and is worth a second look by whoever owns that file. Same non-finding for
+  `3a_druidic_staff` (`sa_energy=1000` declared, wiki states no special
+  exists) and `saradomin_staff` (same shape, no row problem this time — it
+  simply has no `sa_energy` row and correctly needs none).
+
+  **14 weapons deliberately left unresolved, each for a stated reason, not
+  a guess:**
+
+  | weapon | why it stopped here |
+  |---|---|
+  | `soulreaper` | "Behead" spends Soul Stacks, not special-attack energy at all — a whole separate resource system this pass doesn't add. Matches the *prior* session's own slice-10 flag on this exact weapon — not re-discovered, re-confirmed. |
+  | `keris_partisan_corruption`, `keris_partisan_sun` | Tombs of Amascut-exclusive ("this special attack can only be used within the Tombs of Amascut"); one needs an 8-tick attack-lockout + 10-tick target damage-buff-window, the other a full-heal/cure/restore-everything effect gated on raid state this tree has none of. |
+  | `eclipse_atlatl` | Its entire mechanic is "consume the target's remaining burn damage" — there is no burn-DoT system anywhere in this tree (the same gap named for `pvm_bone_claws.rs2`/`pvm_arkan_blade.rs2`) for it to consume, so implementing it would be a no-op dressed as a feature. |
+  | `frostmoon_spear` (Blue moon spear, "Break Shackles") | Needs to read remaining bind/freeze ticks (`npc_frozen` exists) AND clear them — no "unfreeze" opcode was found to pair with it; guessing the accuracy/damage bonus without the real tick count would be fabricating a number the wiki ties directly to that count. |
+  | `purging_staff` | "Uses the best demonbane spell the player can cast" — needs a spell-selection-by-tier lookup across the demonbane spell list plus a kill-refund-and-speed-up path; genuinely more than one weapon's worth of new plumbing. |
+  | `scorching_bow` | Demon-only bind+burn. Same missing demon-attribute read as `pvm_darklight.rs2`/`pvm_emberlight.rs2`, compounded with the same missing burn-DoT system as `eclipse_atlatl`. |
+  | `soulflame_horn` | "Entice" targets up to 3 *other players* within 3 tiles — this dispatch is NPC-only by construction (every other file here targets `npc_uid`); the special has no PvM meaning to implement. |
+  | `tonalztics_of_ralos_charged` | Not researched this pass — genuinely ran out of session, not stopped on a specific blocker. Next in line, not harder than what's already done. |
+  | `verzik_special_weapon` (Dawnbringer) | Fixed 75–150 damage against **Verzik Vitur specifically** — a single-boss-only effect with no general PvM meaning; implementing it as a generic npc hit would be wrong for every target except the one it's actually for. |
+  | `vestas_spear_bh` | Not researched this pass (time, not difficulty) — `vestas_longsword`/`bh_vestas_longsword` are done; this is the spear-shaped sibling and likely has its own distinct mechanic (Vesta's family items are not uniform across weapon shapes), so it was not guessed as a `pvm_vestas_longsword.rs2` alias. |
+  | `crimson_kisten` | Wiki URL guesses this session (`Crystallised_kalphite_stinger`) 404'd; the real page title was not found before time ran out. |
+
+  **Structural/engine gaps this run surfaced, beyond the two the first entry
+  named (`npc_size`, adjacent-npc/zone query):**
+  1. **No npc-side poison/burn application from a player script.** Blocks
+     `pvm_wild_cave_webweaver_charged.rs2`'s poison chance, `pvm_bone_claws.rs2`
+     and `pvm_arkan_blade.rs2`'s burn DoT, and would block `scorching_bow`/
+     `eclipse_atlatl` if picked up next. `skill_combat/scripts/poison.rs2`
+     is player-target and single-severity only.
+  2. **No demon/undead-style attribute read from a script** beyond the
+     existing `undead` param (`pvm_darklight.rs2`, `pvm_emberlight.rs2`,
+     would block `scorching_bow`/`purging_staff`). Same gap
+     `NPC_WIKI_STATS_PLAN.md` §0.6 already named for "Attributes beyond
+     Undead" on the stats side — this is its combat-behaviour twin.
+  3. **No "can't run" / temporary-immobilise-short-of-freeze primitive.**
+     `pvm_wild_cave_ursine_charged.rs2`'s run-prevention half is unmodelled
+     for exactly this reason — `npc_freeze` is available but is a strictly
+     stronger effect (stops all movement, not just running) than the wiki
+     asks for.
+  4. **No "was this the finishing hit" signal.** `pvm_sunspear.rs2`'s bonus
+     venator-heart drop needs one; not fabricated without it.
+
+  **File ownership stayed clean the whole run** — every new file is
+  `pvm_<weapon>.rs2` (no collisions possible by construction), and the two
+  shared files (`special_attack.obj`, `player_special_attack.rs2`) were
+  edited in small, mechanical, re-checked batches (never a large unreviewed
+  diff), re-verifying `git status` before each edit to confirm this was
+  still the only session writing to `skill_combat/` — it was, throughout
+  (confirmed: the 368-file `git status` this session observed elsewhere in
+  `OSRS-Content` was entirely `npc_combat/*.combat` files, a different
+  concurrent session's work, zero overlap with this slice's files).
+
+  **What the next pass should do, in order**: (1) get `mock230_pack` linking
+  again and run `--check-only` for the first time on all of this; (2) run
+  the headless runtime bar on at least the 27 highest-traffic weapons
+  (godswords, whip, GMaul, claws, DWH, the ones a real player reaches for
+  first); (3) size up the structural gaps above — the poison/burn one alone
+  unblocks several weapons at once.
+
+- **2026-08-13, continued again — the remaining 12 implemented (all 121 now
+  have a `sa_kind`/instant-fire entry), and a real, external compiler
+  ceiling found and diagnosed while trying to re-verify.**
+
+  Same standard applied to the 12 previously listed as "deferred": every
+  one now has a working implementation, broadened past its canon gate where
+  that gate had no PvM meaning (ToA-only, underwater-only, boss-only,
+  demon-only), same precedent `pvm_olaf2_brine_sabre.rs2` already set. New
+  this pass: `pvm_vestas_spear_bh.rs2` needed a genuine new primitive —
+  full incoming-damage immunity, not a reduction — added as
+  `~vestas_spear_immune` in `damage_passives.rs2`, first in the
+  `~gear_reduce_damage` chain so nothing downstream computes a number off a
+  hit that never lands. Its ranged half is **not** modelled: found, while
+  wiring it, that `~playerhit_n_ranged` (`npc_combat_ranged.rs2`) never
+  calls `~gear_reduce_damage` at all — a pre-existing, tree-wide gap
+  (Justiciar/Elysian don't reduce ranged damage either), not a shortfall of
+  this one weapon's special.
+
+  `pvm_soulreaper.rs2` and `pvm_keris_partisan_sun.rs2` are worth flagging
+  by name: both needed a resource this tree doesn't track (Soul Stacks;
+  50 Prayer + full-heal/cure/restore), and both are implemented as a
+  reasonable fixed-value simplification (soulreaper: always-5-stacks,
+  the wiki's own maximum case; keris sun: every stated restore effect
+  actually implemented, just without the raid gate) rather than left
+  inert. `pvm_frostmoon_spear.rs2` computes its accuracy/damage bonus from
+  the *real* `npc_frozen` tick count but cannot clear the freeze afterward
+  — no such opcode exists, only `npc_freeze` (increase-only) — so the
+  bonus is genuine and the "Break Shackles" half of its own name is not.
+
+  **`sscompile` could not be re-run to completion after this batch, and it
+  is not this work's fault — traced to a hard number, not asserted.**
+  Bisected by quarantining every file this batch touched (the 12 new
+  `pvm_*.rs2`, the `damage_passives.rs2` edit, the new `.varp`) via
+  `git stash push -u -- <files>` (immediately `pop`ped back after each
+  check — never a bare `git stash`, per this repo's own standing rule) and
+  recompiling at each step. **The failure persisted even with every file
+  from this entire session reverted to `HEAD`** — i.e. plain `HEAD` alone,
+  the exact tree that compiled clean at 16,018 scripts earlier in this same
+  session, now fails too. `sscompile` prints only `sscompile: ` with an
+  **empty** message (`ssc_main.c:220`, `diag.message` unset) — traced to
+  `ssc.h:54`: `SSC_MAX_SCRIPTS = 16384`. The merge commit sitting at `HEAD`
+  (`4347dc16`, "Merge branch 'main' of .../OSRS-Content", a concurrent
+  session's work, not this one's) added **147 new
+  `drop_tables/scripts/wiki_*.rs2` files**; the prior successful count in
+  this session (16,018) plus that many new scripts crosses 16,384. The
+  overflow path doesn't populate `diag.file`/`diag.message`, which is why
+  the error prints as silence instead of a real message — a second,
+  smaller finding worth a one-line fix (`SSC_CompileDir` should set
+  `diag.message` on the "too many scripts" path) for whoever raises the
+  ceiling.
+  **Fixed, once the diagnosis was this precise.** Checked first whether
+  raising it was safe: `SSC_MAX_SCRIPTS` sizes only compiler-internal arrays
+  (`ssc_compile.c`'s `calloc`/`malloc` calls at script-compile time) and is
+  not referenced anywhere in the runtime/`mock230` side (`grep -rn 16384
+  src/` confirmed — the only other 16384s in the whole tree are unrelated
+  audio-pan and buffer constants). It had already been raised once before,
+  4096→16384, for the identical symptom ("silently dropped every name past
+  it") — this is a "content grows, the ceiling is the bug" case this
+  project's own doctrine already names, not a new kind of risk. Raised
+  16384→32768 in `ssc.h`, one enum constant, with the same reasoning
+  written beside the original comment. Rebuilt `sscompile`
+  (`rm build_specials_batch1_opt/sscompile` first — it does not depend on
+  `ssc.h` in the Makefile's tracked prerequisites, so a stale binary would
+  have silently kept the old ceiling) and recompiled:
+  **caught one real, pre-existing content bug in this exact batch that the
+  silent failure had been hiding** — `pvm_purging_staff.rs2` used
+  `anim(human_cast, 0)`, and `human_cast` does not exist as a symbol
+  (`human_castX` is a large family, bare `human_cast` is not a member of
+  it); fixed to `human_caststrike`, a real generic spell-cast anim.
+  **Standing bar restored and improved: `sscompile` clean at 16,659
+  scripts, 0 errors** — the 107 from the first two entries, all 14 from
+  this one, and the 147-file drop-table merge, all together, for the first
+  time.
+
+  **A second finding, not fixed**: `fail()` (`ssc_compile.c:163`) no-ops
+  once `compiler->failed` is already set — `if (compiler->failed) return
+  0;` before writing `diag`. That means only the *first* error in a
+  compile pass ever reaches the caller; every subsequent real error
+  (including "more than N scripts", which every other project comment
+  treats as the important, actionable one) is silently swallowed. This
+  compiler previously had `compiler->failed` set with no message reaching
+  `diag` at all in this exact run, which is the empty-`sscompile:`-line
+  symptom this entry chased — the true first error was somewhere upstream
+  of the script-count check and never printed either. Worth a real fix
+  (either don't gate `diag` writes on `compiler->failed`, or print each
+  `fail()` call immediately rather than buffering one), but it's a
+  compiler-diagnostics change, not a content one, and is named here rather
+  than attempted alongside 121 weapons' worth of content work.
+
+  **`mock230_pack` remains genuinely blocked, and was not touched.**
+  Retried after the `sscompile` fix on the chance it shared a root cause —
+  it does not. Same link error as every earlier attempt this session
+  (`_mock230_world_set_varp` undefined, referenced from
+  `mock230_varbit.c`). Checked whether the same "just raise a ceiling"
+  shape of fix applied: it does not — `mock230-pack`'s Makefile target
+  deliberately excludes `mock230_world.c` (a large file, `mock230_pack` is
+  meant to be a lightweight validator, not the full world sim), and
+  `mock230_varbit.c` newly calling into it is someone else's in-progress
+  design decision on a file this session never touched
+  (`mock230_varbit.c`/`mock230_world.c`/`mock230.h` are all clean/
+  unmodified per `git status` — confirmed again just now). Pulling
+  `mock230_world.c` into the pack tool's link to silence this would be
+  guessing at that decision, not fixing a one-line ceiling — left alone.
+
+  **The embedded client+server (`EMBED_SERVER=1`) builds and boots clean**,
+  which is the more relevant binary for runtime verification anyway (it
+  links `mock230_world.c` already, so it never hit the pack-tool-specific
+  gap): `make -C src EMBED_SERVER=1 PLATFORM_TARGET=torirs_specials
+  torirs_specials` succeeds start to finish, and
+  `SDL_VIDEODRIVER=dummy EMBED_SERVER=1 MOCK230_VERBOSE=1 ./src/torirs_specials
+  --rev osrs239 cache.osrs239` progresses normally through cache/varp/varbit/
+  hitsplat loading and `RevConfigBuild` within seconds — a real, live boot,
+  not a stub. The full per-weapon `SIM_OPNPC`/pixel-verified runtime pass
+  itself was not completed this session (needs exact spawn coordinates and
+  npc cache-type ids looked up per weapon, which is its own research pass,
+  not blocked by anything found here) — but the binary to run it against is
+  now built, boots, and is ready at `src/torirs_specials`.
+
+  **121 of 121 weapons from the original roster now have an entry** —
+  0 remain with no `sa_kind`/instant-fire routing at all. What "entry"
+  means varies honestly by weapon: full canon accuracy for most, a stated
+  simplification for the resource/raid/single-boss ones, and a stated
+  broadened-scope reinterpretation for the two (`soulflame_horn`,
+  `pvm_keris_partisan_sun.rs2`) whose canon behaviour has no PvM meaning at
+  all in a single-target dispatch. Every simplification and every broadened
+  gate is named in its own file's header, not silently assumed — read the
+  file before trusting a specific number out of it.

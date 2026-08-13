@@ -558,6 +558,24 @@ mock230_zone_projanim(
     if( !zone )
         return;
 
+    /*
+     * `start_delay` and `end_delay` are both absolute cycle offsets from the
+     * spawn — the client holds the projectile while `cycle < t1` and drops it
+     * once `cycle > t2`. A shot with `end <= start` is expired before it is ever
+     * allowed to move, so it draws nothing: no error, no packet problem, just an
+     * invisible projectile. It is an easy call to get wrong, because the script
+     * argument reads as a duration and the common case (`delay 0`) makes the two
+     * spellings identical.
+     */
+    if( end_delay <= start_delay )
+    {
+        fprintf(stderr,
+                "mock230: projanim spotanim %d has end %d <= start %d — the last two "
+                "arguments are absolute cycles, not a delay and a duration; this shot "
+                "would never draw\n",
+                spotanim, end_delay, start_delay);
+    }
+
     memset(&event, 0, sizeof(event));
     event.kind = MOCK230_ZONE_EV_PROJANIM;
     event.receiver_pid = -1;

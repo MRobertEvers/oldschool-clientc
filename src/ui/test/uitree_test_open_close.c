@@ -276,7 +276,7 @@ test_clear_hooks_preserves_sibling_on_op(void)
         "compass id is 161:0x8001");
     hooks = UITree_HooksMut(&tree->components[compass]);
     hooks->on_op.script_id = 1050;
-    strncpy(tree->components[compass].menu_options.ops[0], "Look North",
+    strncpy(UITree_MenuOptionsMut(&tree->components[compass])->ops[0], "Look North",
             UITREE_MENU_OPTION_LEN - 1);
     UITree_SyncHookMembership(tree, compass);
 
@@ -332,7 +332,7 @@ test_clear_hooks_preserves_sibling_on_op(void)
             tree->components[compass].runtime_hooks->on_op.script_id == 1050,
         "compass on_op survives sibling pack clear");
     TEST_ASSERT(
-        tree->components[compass].menu_options.ops[0][0] != '\0',
+        UITree_MenuOptions(&tree->components[compass])->ops[0][0] != '\0',
         "compass Look North op text still present");
     TEST_ASSERT(
         tree->components[leaf].runtime_hooks != NULL &&

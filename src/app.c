@@ -1866,6 +1866,32 @@ app_entity_model_height(
     return bounds ? -bounds->min_y : 0;
 }
 
+/* The height OVERHEADS hang off, which is not always the model's height.
+ *
+ * Reference `Actor.getLogicalHeight` and the NPC override of it: an npc whose
+ * type states `height` (opcode 124) anchors its bar and splats at that instead
+ * of at the model, and the model is unaffected either way. Otherwise the anchor
+ * is `logicalHeight`, which the reference refreshes from each model it builds
+ * and initialises to 200 -- so an actor that never builds a model keeps 200
+ * rather than collapsing to the floor. That default is the whole reason a
+ * model-less marker npc reads as floating slightly above its tile there, and
+ * `height` is how a record moves it deliberately. */
+#define APP_OVERLAY_DEFAULT_LOGICAL_HEIGHT 200
+
+static int
+app_entity_overlay_height(
+    struct App* app,
+    int element_id,
+    int type_height)
+{
+    int height;
+
+    if( type_height >= 0 )
+        return type_height;
+    height = app_entity_model_height(app, element_id);
+    return height > 0 ? height : APP_OVERLAY_DEFAULT_LOGICAL_HEIGHT;
+}
+
 static void
 app_overlay_push(
     struct App* app,
@@ -2153,10 +2179,11 @@ app_overlay_build_entity(
     struct WorldEntityFacet_Combat const* combat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     int font_id,
-    int hitmarks_scene)
+    int hitmarks_scene,
+    int type_height)
 {
     int cycle = app->world->cycle;
-    int height = app_entity_model_height(app, element_id);
+    int height = app_entity_overlay_height(app, element_id, type_height);
     int screen_x, screen_y;
 
     /* Health bar: 30px wide, green/red split, 15px above the model top.
@@ -2323,10 +2350,16 @@ app_build_entity_overlays(
          i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        struct ToriRS_Npctype* npctype;
         if( !npc || npc->element_id < 0 )
             continue;
+        /* Only the npc branch can carry an overhead-height override; the
+         * reference reads it off the NpcComposition, which players have no
+         * equivalent of (Actor.getLogicalHeight is unconditional there). */
+        npctype = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
         app_overlay_build_entity(
-            app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene);
+            app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene,
+            npctype ? npctype->height : -1);
     }
 
     pool = &world->entities.player;
@@ -2338,7 +2371,7 @@ app_build_entity_overlays(
             continue;
         app_overlay_build_entity(
             app, player->element_id, &player->combat, &player->draw_position, font_id,
-            hitmarks_scene);
+            hitmarks_scene, -1);
         app_overlay_build_player_headicons(
             app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
     }
@@ -10089,7 +10122,7 @@ app_world_spawn_npc_now(
     bd_t0 = bd_us ? PlatformSDL2_TicksUs() : 0;
 
     npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
-    if( !npctype || npctype->models_count <= 0 )
+    if( !npctype )
     {
         /* Once per id. The server re-sends the same missing npc every time the
          * player walks back into its zone, and on Windows an unbuffered stderr
@@ -10101,7 +10134,34 @@ app_world_spawn_npc_now(
     }
 
     bd_t = bd_us ? PlatformSDL2_TicksUs() : 0;
-    model = app_world_build_npc_model(app, npc_id, npctype);
+    if( npctype->models_count <= 0 )
+    {
+        /*
+         * A model-less npc is legal content, not a broken record.
+         *
+         * The reference client builds the entity straight off the wire and only
+         * resolves a model at draw time, where a null model skips the body and
+         * leaves the entity otherwise intact (rev239 deob: the npc add path
+         * constructs and registers unconditionally; Renderable.draw returns
+         * early on a null model). OldSchool ships such npcs deliberately --
+         * `invisible_npc_softblocking`, `hw22_trick_ghost_invis` -- as pure
+         * server-side markers that still carry hitsplats, overhead text and
+         * collision.
+         *
+         * Rejecting them here dropped the entity entirely: no element, so no
+         * entry in the npc pool, so every later NPC_INFO mask for that slot
+         * resolved to -1 and was discarded. An empty model keeps the entity in
+         * the world and draws nothing; its zeroed bounds cylinder gives
+         * height 0, which anchors overlays at the marker's own tile.
+         */
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+    }
+    else
+    {
+        model = app_world_build_npc_model(app, npc_id, npctype);
+    }
     if( bd_us )
         bd_model = PlatformSDL2_TicksUs() - bd_t;
     if( !model )
@@ -13105,10 +13165,15 @@ app_inv_cell_op_flash(
     hook = UITree_ResolveClickHook(app->tree, idx, &hook_com_id);
     if( !hook || hook->script_id <= 0 )
         return;
-    hook_copy = *hook;
+    /* A SNAPSHOT, and it has to be a deep one: the dispatch below can run
+     * scripts that rewrite this very hook, and a slot's arguments are owned
+     * allocations now, so the old `hook_copy = *hook` aliased tails the
+     * dispatch could free underneath it. */
+    UITree_HookInitCopy(&hook_copy, hook);
     RS_CS2_SetEventOp(&app->host, op_index > 0 ? op_index : 1, 0);
     RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
     RS_CS2_SetEventOp(&app->host, 1, 0);
+    UITree_HookClear(&hook_copy);
 }
 
 /* Target-mode visuals are script-owned. The spellbook registers
@@ -13597,7 +13662,7 @@ app_inv_drag_drop(
 
         if( hook && hook->script_id > 0 )
         {
-            struct UITreeRuntimeScriptHook hook_copy = *hook;
+            struct UITreeRuntimeScriptHook hook_copy;
             struct ToriRS_TaskQueue* drag_queue = ToriRS_TaskQueue_New();
             struct TaskRunner drag_runner = {
                 .queue = drag_queue,
@@ -13605,6 +13670,7 @@ app_inv_drag_drop(
                 .px = app->runner.px,
             };
             int target_id = dst_com;
+            UITree_HookInitCopy(&hook_copy, hook);
             if( dst_node >= 0 )
                 target_id = app->tree->components[dst_node].component_id;
             RS_CS2_SetEventOp(&app->host, 1, 0);
@@ -13614,6 +13680,7 @@ app_inv_drag_drop(
             RS_CS2_DispatchHook(&app->host, &drag_runner, hook_com, &hook_copy);
             TaskRunner_Drain(&drag_runner);
             ToriRS_TaskQueue_Free(drag_queue);
+            UITree_HookClear(&hook_copy);
             app->need_redraw = 1;
         }
     }
@@ -13931,8 +13998,8 @@ app_minimenu_run_option(
             {
                 /* Classic targetOp = "<verb-prefix> <base> <verb-suffix>", the
                  * verb split on its first space (Client-TS TGT_BUTTON). */
-                char const* verb = node->menu_options.target_verb;
-                char const* base = node->menu_options.target_base;
+                char const* verb = UITree_MenuOptions(node)->target_verb;
+                char const* base = UITree_MenuOptions(node)->target_base;
                 char const* space = strchr(verb, ' ');
                 if( space )
                 {
@@ -13959,7 +14026,8 @@ app_minimenu_run_option(
                  * row builders append the target's name to. */
                 snprintf(
                     app->targetsel.op, sizeof(app->targetsel.op), "%.*s %.*s ->",
-                    29, node->menu_options.target_verb, 29, node->menu_options.option);
+                    29, UITree_MenuOptions(node)->target_verb,
+                    29, UITree_MenuOptions(node)->option);
             }
         }
         app_targetsel_dispatch_hook(app, 1);
@@ -14215,12 +14283,13 @@ app_minimenu_run_option(
                 return 0;
             }
         }
-        hook_copy = *hook;
+        UITree_HookInitCopy(&hook_copy, hook);
         RS_CS2_SetEventOp(&app->host, opt.action_index >= 0 ? opt.action_index + 1 : 1, 0);
         RS_CS2_SetEventMouse(&app->host, click_x, click_y);
         RS_CS2_DispatchHook(&app->host, &app->runner, hook_com_id, &hook_copy);
         RS_CS2_SetEventOp(&app->host, 1, 0);
         RS_CS2_PumpTransmits(&app->host, &app->runner);
+        UITree_HookClear(&hook_copy);
         return 1;
     }
     case UI_MINIMENU_PICK_TERRAIN:
@@ -16789,7 +16858,20 @@ App_WorldApplyNpcType(
             element_id,
             npc_type);
 
-    model = app_world_build_npc_model(app, npc_type, npctype);
+    /* Retyping TO a model-less type must actually hide the npc. Building
+     * nothing here would leave the old model mounted and the entity would keep
+     * rendering as its previous form; an empty model is the retype's honest
+     * result, and matches the spawn path's handling of the same content. */
+    if( npctype->models_count <= 0 )
+    {
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+    }
+    else
+    {
+        model = app_world_build_npc_model(app, npc_type, npctype);
+    }
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
     if( model && app_npc_wants_zbuffer(npc_type, npctype) )

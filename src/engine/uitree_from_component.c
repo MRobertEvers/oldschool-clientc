@@ -1,6 +1,7 @@
 #include "uitree_from_component.h"
 
 #include "torirs_types.h"
+#include "engine/torirs_component_hook.h"
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
 
@@ -87,29 +88,29 @@ UITree_BakePackRuntimeHooks(
 
         if( idx < 0 )
             continue;
-#define BAKE_HOOK(member, source)                     \
-    bake_runtime_hook_from_torirs(                    \
-        tree,                                         \
-        node,                                         \
-        src->id,                                      \
+#define BAKE_HOOK(member, kind)                        \
+    bake_runtime_hook_from_torirs(                     \
+        tree,                                          \
+        node,                                          \
+        src->id,                                       \
         offsetof(struct UITreeRuntimeHooks, member),   \
-        (source))
+        ToriRS_ComponentHookPeek(src, (kind)))
 
         node = &tree->components[idx];
-        BAKE_HOOK(on_click, &src->on_click);
-        BAKE_HOOK(on_op, &src->on_op);
-        BAKE_HOOK(on_mouse_over, &src->on_mouse_over);
-        BAKE_HOOK(on_mouse_leave, &src->on_mouse_leave);
-        BAKE_HOOK(on_drag, &src->on_drag);
-        BAKE_HOOK(on_drag_complete, &src->on_drag_complete);
-        BAKE_HOOK(on_hold, &src->on_hold);
-        BAKE_HOOK(on_mouse_repeat, &src->on_mouse_repeat);
-        BAKE_HOOK(on_scroll_wheel, &src->on_scroll_wheel);
-        BAKE_HOOK(on_timer, &src->on_timer);
-        BAKE_HOOK(on_click_repeat, &src->on_click_repeat);
-        BAKE_HOOK(on_release, &src->on_release);
-        BAKE_HOOK(on_target_enter, &src->on_target_enter);
-        BAKE_HOOK(on_target_leave, &src->on_target_leave);
+        BAKE_HOOK(on_click, TORIRS_COMPONENT_HOOK_CLICK);
+        BAKE_HOOK(on_op, TORIRS_COMPONENT_HOOK_OP);
+        BAKE_HOOK(on_mouse_over, TORIRS_COMPONENT_HOOK_MOUSE_OVER);
+        BAKE_HOOK(on_mouse_leave, TORIRS_COMPONENT_HOOK_MOUSE_LEAVE);
+        BAKE_HOOK(on_drag, TORIRS_COMPONENT_HOOK_DRAG);
+        BAKE_HOOK(on_drag_complete, TORIRS_COMPONENT_HOOK_DRAG_COMPLETE);
+        BAKE_HOOK(on_hold, TORIRS_COMPONENT_HOOK_HOLD);
+        BAKE_HOOK(on_mouse_repeat, TORIRS_COMPONENT_HOOK_MOUSE_REPEAT);
+        BAKE_HOOK(on_scroll_wheel, TORIRS_COMPONENT_HOOK_SCROLL_WHEEL);
+        BAKE_HOOK(on_timer, TORIRS_COMPONENT_HOOK_TIMER);
+        BAKE_HOOK(on_click_repeat, TORIRS_COMPONENT_HOOK_CLICK_REPEAT);
+        BAKE_HOOK(on_release, TORIRS_COMPONENT_HOOK_RELEASE);
+        BAKE_HOOK(on_target_enter, TORIRS_COMPONENT_HOOK_TARGET_ENTER);
+        BAKE_HOOK(on_target_leave, TORIRS_COMPONENT_HOOK_TARGET_LEAVE);
 #undef BAKE_HOOK
     }
 }

@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "engine/torirs_component_hook.h"
+
 #include <stdint.h>
 
 #define TORIRS_MAP_TERRAIN_X 64
@@ -366,6 +368,16 @@ struct ToriRS_Npctype
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */
     int ambient;
     int contrast;
+    /** NpcType.height (OldSchool opcode 124), -1 when absent.
+     *
+     *  The height OVERHEADS are anchored to — health bars and hitsplats — not
+     *  the model's own height and no effect on the drawn model. The reference
+     *  resolves the anchor as `height == -1 ? logicalHeight : height` (NPC's
+     *  override of Actor.getLogicalHeight), where logicalHeight is refreshed
+     *  from the built model and defaults to 200. This field is the only way a
+     *  record can move its own overheads, and it exists precisely because a
+     *  model-less npc never refreshes logicalHeight from anything. */
+    int height;
     /** Client render hint from the npc's params: draw this npc's model through
      *  the depth-tested kernels rather than the painter's sort. Param
      *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does
@@ -1016,32 +1028,12 @@ struct ToriRS_Component
     int* script_comparator;
     int* script_operand;
     uint8_t script_kind;
-    struct ToriRS_ScriptHook on_load;
-    struct ToriRS_ScriptHook on_click;
-    struct ToriRS_ScriptHook on_op;
-    struct ToriRS_ScriptHook on_mouse_over;
-    struct ToriRS_ScriptHook on_mouse_leave;
-    struct ToriRS_ScriptHook on_drag;
-    struct ToriRS_ScriptHook on_drag_complete;
-    /* These four are dispatched at runtime but used to be dropped here, so a
-     * cache-authored handler could never fire -- only a CS2 SETON* call could
-     * populate them. See uitree_interact.c (hold/repeat/wheel) and app.c (timer). */
-    struct ToriRS_ScriptHook on_hold;
-    struct ToriRS_ScriptHook on_mouse_repeat;
-    struct ToriRS_ScriptHook on_scroll_wheel;
-    struct ToriRS_ScriptHook on_timer;
-    /* And these five for the same reason, found by auditing the list rather
-     * than by a bug report: `uitree_interact.c` dispatches click-repeat and
-     * release, `app.c` dispatches the target pair, and the host keeps a
-     * stat-transmit table beside the varp/inv ones -- all four of those
-     * mechanisms existed with nothing but CS2 able to reach them. */
-    struct ToriRS_ScriptHook on_click_repeat;
-    struct ToriRS_ScriptHook on_release;
-    struct ToriRS_ScriptHook on_target_enter;
-    struct ToriRS_ScriptHook on_target_leave;
-    struct ToriRS_ScriptHook on_varp_transmit;
-    struct ToriRS_ScriptHook on_inv_transmit;
-    struct ToriRS_ScriptHook on_stat_transmit;
+    /* The eighteen script hooks, lazily allocated per kind — see
+     * engine/torirs_component_hook.h for why they are no longer inline (they
+     * were 51% of this struct, carried by every component whether it declared
+     * one or not). Indexed by ToriRS_ComponentHookKind; go through the
+     * accessors, which distinguish "absent" from "present but empty". */
+    struct ToriRS_ScriptHook* hooks[TORIRS_COMPONENT_HOOK_COUNT];
     int inventory_triggers_count;
     int inventory_triggers[TORIRS_INVENTORY_TRIGGER_MAX];
     int varp_triggers_count;

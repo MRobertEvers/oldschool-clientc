@@ -1,5 +1,7 @@
 #include "engine/torirs_component_from_rscache.h"
 
+#include "engine/torirs_component_hook.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -233,24 +235,38 @@ torirs_component_copy_dat2_hooks(
     if( !dst || !src || !src->if3 )
         return;
 
-    torirs_copy_script_hook(&dst->on_load, src->onLoad, src->onLoadLen);
-    torirs_copy_script_hook(&dst->on_click, src->onClick, src->onClickLen);
-    torirs_copy_script_hook(&dst->on_op, src->onOp, src->onOpLen);
-    torirs_copy_script_hook(&dst->on_mouse_over, src->onMouseOver, src->onMouseOverLen);
-    torirs_copy_script_hook(&dst->on_mouse_leave, src->onMouseLeave, src->onMouseLeaveLen);
-    torirs_copy_script_hook(&dst->on_drag, src->onDrag, src->onDragLen);
-    torirs_copy_script_hook(&dst->on_drag_complete, src->onDragComplete, src->onDragCompleteLen);
-    torirs_copy_script_hook(&dst->on_hold, src->onHold, src->onHoldLen);
-    torirs_copy_script_hook(&dst->on_mouse_repeat, src->onMouseRepeat, src->onMouseRepeatLen);
-    torirs_copy_script_hook(&dst->on_scroll_wheel, src->onScrollWheel, src->onScrollWheelLen);
-    torirs_copy_script_hook(&dst->on_timer, src->onTimer, src->onTimerLen);
-    torirs_copy_script_hook(&dst->on_click_repeat, src->onClickRepeat, src->onClickRepeatLen);
-    torirs_copy_script_hook(&dst->on_release, src->onRelease, src->onReleaseLen);
-    torirs_copy_script_hook(&dst->on_target_enter, src->onTargetEnter, src->onTargetEnterLen);
-    torirs_copy_script_hook(&dst->on_target_leave, src->onTargetLeave, src->onTargetLeaveLen);
-    torirs_copy_script_hook(&dst->on_varp_transmit, src->onVarpTransmit, src->onVarpTransmitLen);
-    torirs_copy_script_hook(&dst->on_inv_transmit, src->onInvTransmit, src->onInvTransmitLen);
-    torirs_copy_script_hook(&dst->on_stat_transmit, src->onStatTransmit, src->onStatTransmitLen);
+    /* One line per kind, and each allocates only when the cache actually
+     * carried that hook — see engine/torirs_component_hook.h. */
+#define COPY_HOOK(kind, field)                                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        if( src->field##Len > 0 && src->field )                                                    \
+        {                                                                                          \
+            struct ToriRS_ScriptHook* slot = ToriRS_ComponentHookInit(dst, (kind));                 \
+            if( slot )                                                                             \
+                torirs_copy_script_hook(slot, src->field, src->field##Len);                        \
+        }                                                                                          \
+    } while( 0 )
+
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_LOAD, onLoad);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_CLICK, onClick);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_OP, onOp);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_MOUSE_OVER, onMouseOver);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_MOUSE_LEAVE, onMouseLeave);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_DRAG, onDrag);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_DRAG_COMPLETE, onDragComplete);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_HOLD, onHold);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_MOUSE_REPEAT, onMouseRepeat);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_SCROLL_WHEEL, onScrollWheel);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_TIMER, onTimer);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_CLICK_REPEAT, onClickRepeat);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_RELEASE, onRelease);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_TARGET_ENTER, onTargetEnter);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_TARGET_LEAVE, onTargetLeave);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_VARP_TRANSMIT, onVarpTransmit);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_INV_TRANSMIT, onInvTransmit);
+    COPY_HOOK(TORIRS_COMPONENT_HOOK_STAT_TRANSMIT, onStatTransmit);
+#undef COPY_HOOK
 
     if( src->inventoryTriggers && src->inventoryTriggersLen > 0 )
     {
@@ -282,14 +298,31 @@ torirs_component_copy_dat2_hooks(
             dst->stat_triggers[i] = src->statTriggers[i];
     }
 
-    if( dst->scripts_count <= 0 &&
-        (dst->on_load.argc > 0 || dst->on_click.argc > 0 || dst->on_op.argc > 0 ||
-         dst->on_mouse_over.argc > 0 || dst->on_mouse_leave.argc > 0 ||
-         dst->on_click_repeat.argc > 0 || dst->on_release.argc > 0 ||
-         dst->on_target_enter.argc > 0 || dst->on_target_leave.argc > 0 ||
-         dst->on_varp_transmit.argc > 0 || dst->on_inv_transmit.argc > 0 ||
-         dst->on_stat_transmit.argc > 0) )
-        dst->script_kind = 1;
+    /*
+     * Exactly the twelve kinds this test named before the hooks moved behind
+     * accessors — NOT "any hook". `script_kind` picks the CS1-vs-CS2 handling
+     * for the component, and widening it to include drag/hold/timer/wheel
+     * silently reclassified components that had only those, which cost an
+     * interface its mount (60 components, 14 var hooks, 8 timers).
+     */
+    {
+        static enum ToriRS_ComponentHookKind const k_cs2_kinds[] = {
+            TORIRS_COMPONENT_HOOK_LOAD,          TORIRS_COMPONENT_HOOK_CLICK,
+            TORIRS_COMPONENT_HOOK_OP,            TORIRS_COMPONENT_HOOK_MOUSE_OVER,
+            TORIRS_COMPONENT_HOOK_MOUSE_LEAVE,   TORIRS_COMPONENT_HOOK_CLICK_REPEAT,
+            TORIRS_COMPONENT_HOOK_RELEASE,       TORIRS_COMPONENT_HOOK_TARGET_ENTER,
+            TORIRS_COMPONENT_HOOK_TARGET_LEAVE,  TORIRS_COMPONENT_HOOK_VARP_TRANSMIT,
+            TORIRS_COMPONENT_HOOK_INV_TRANSMIT,  TORIRS_COMPONENT_HOOK_STAT_TRANSMIT,
+        };
+        int any = 0;
+        for( size_t i = 0; i < sizeof(k_cs2_kinds) / sizeof(k_cs2_kinds[0]) && !any; i++ )
+        {
+            struct ToriRS_ScriptHook const* h = ToriRS_ComponentHookPeek(dst, k_cs2_kinds[i]);
+            any = h && h->argc > 0;
+        }
+        if( dst->scripts_count <= 0 && any )
+            dst->script_kind = 1;
+    }
 }
 
 struct ToriRS_Component*

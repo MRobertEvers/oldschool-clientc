@@ -136,7 +136,7 @@ UITree_ObjCellForNode(
      * The child wins when it has any, which is also what the reference does —
      * it reads the ops off whatever component the cursor is over.
      */
-    out->ops_node_index = menu_has_ops(&node->menu_options)
+    out->ops_node_index = menu_has_ops(UITree_MenuOptions(node))
                               ? node_index
                               : (node->parent >= 0 ? node->parent : node_index);
     out->component_id = dynamic_parent_component_id(tree, node);
@@ -152,7 +152,7 @@ UITree_ObjCellForNode(
      * nothing at rev 230 is draggable or a Use target until the server arms it.
      */
     out->can_drag = 0;
-    out->obj_ops = !menu_has_ops(&tree->components[out->ops_node_index].menu_options);
+    out->obj_ops = !menu_has_ops(UITree_MenuOptions(&tree->components[out->ops_node_index]));
     out->obj_use = out->obj_ops;
     out->can_use_on = 0;
     out->can_drop = 0;

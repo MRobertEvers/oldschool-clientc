@@ -147,6 +147,14 @@ UITree_HookSet(
 void
 UITree_HookClear(struct UITreeRuntimeScriptHook* hook);
 
+/** Deep copy into an UNINITIALISED slot — a local snapshot, typically. Zeroes
+ *  `dst` first, so it never frees the caller's stack garbage; release it with
+ *  UITree_HookClear when the snapshot goes out of scope. */
+void
+UITree_HookInitCopy(
+    struct UITreeRuntimeScriptHook* dst,
+    struct UITreeRuntimeScriptHook const* src);
+
 /** Deep copy: `dst` ends up owning its own tails. Self-copy is safe. */
 void
 UITree_HookCopy(

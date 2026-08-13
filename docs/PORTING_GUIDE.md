@@ -650,6 +650,38 @@ shows no *new* silently-missing opcodes. "It compiles" is not done;
 "the graphic plays but the character is frozen"-class bugs (anim priority,
 missing `IF_SETEVENTS`) only show up in the client.
 
+### 4.3a Porting a boss: state its triggers, including the ones it does nothing in
+
+The combat triggers are **wildcards**. An npc that names no
+`[ai_opplayer2,<type>]` does not thereby "not swing" — the engine's attack clock
+falls through to `[ai_opplayer2,_]` in `skill_combat/combat.rs2`, the default
+melee swing, which plays the npc's `attack_anim` and runs `~npc_meleeattack` on
+`attackrate`. A boss that drives its own attacks from `[ai_timer]` then has two
+attack systems running at once, and nothing reports it: arriving at the wildcard
+is the designed outcome for the thousands of npcs with no script.
+
+The Queen Black Dragon shipped this way and it presented as three unrelated
+bugs — a dragonfire animation cut short *only* when a player stood in melee
+range (the engine's swing needs to be in reach), attacks on two interleaved
+clocks that read as erratic timing, and an extra melee hit nobody had budgeted
+for. See the header on `[ai_opplayer2,_]` for the full account.
+
+So, when porting anything that owns its own attacks:
+
+- **Opting out:** state the trigger and return —
+  `[ai_opplayer2,<type>]` / `return;` (`rs2012_qbd_combat.rs2`).
+- **Attacking at range:** redirect rather than opt out — `npc_setmode(applayer2)`
+  hands the swing to the npc's own `[ai_applayer2]`
+  (`minigame_inferno/scripts/inferno_ai.rs2`).
+- **Ordinary melee monster:** state nothing; the default is what you want.
+
+The same shape applies to the other combat wildcards (`[ai_queue2,_]`,
+`[opnpc2,_]`). Write the choice down; leaving it unstated picks one silently.
+
+A test that asserts this must use `SSVM_ProviderGetByTriggerSpecific` — the
+ordinary lookup answers with the wildcard, so a check written against it passes
+on exactly the records it is meant to catch.
+
 ### 4.4 Kronos → OSRS-Content (post-254 skills / activities)
 
 LostCity stops at Sept 2004. Farming, hunter, slayer, construction, and most
@@ -1279,14 +1311,17 @@ forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
   otherwise** (`REV230_UI_BLANK_PANELS.md` §1): `TORIRS_DUMP_TREE_EXIT=1` →
   `TORIRS_DUMP_BOUNDS` → `TORIRS_DUMP_SETSIZE` → only then suspect a packet.
 - **A bare name in an argument is ambiguous until something says which namespace
-  it belongs to, and the wrong answer never fails.** This tree has hit it four
+  it belongs to, and the wrong answer never fails.** This tree has hit it five
   times now and the shape is always the same: the name resolves, the opcode is
   legal, the write lands, and the damage is somewhere else. `stat_heal(hitpoints,
   …)` took param 2100; `if_openmain_side(farming_tools, …)` took loc 7516;
   `if ($stat = attack …)` took varp 259 and made 357 items wearable at level 1;
   `settimer(poison, 30)` took **obj 273** and armed a timer on
   `[label,woman_im_looking_for_a_lady]`, so a player in the volcano got a West
-  Ardougne dialogue box. See `serverscript.md` §The compiler for all four.
+  Ardougne dialogue box; and `~cheat_maxstat(attack)` took varp 259 again,
+  because until 2026-08-13 the namespace was stated for *commands* only and a
+  call to content's own proc was resolved unhinted. See `serverscript.md`
+  §The compiler for all five.
 
   Three rules fall out, in order of preference. **(a) Put the name in data.** A
   config key (`.enum` with `inputtype=stat`, a `.dbtable` column) is resolved by
@@ -1297,7 +1332,10 @@ forbidden. Cursor rule: `.cursor/rules/no-park-sibling-content.mdc`
   membership from the reference's typed signatures in
   `LostCity_Server/content/scripts/engine.rs2`, **never from the command's
   spelling**: `npc_settimer(int $interval)` takes no script despite the name, and
-  guessing from names is how the list got wrong the first time. **(c) Leave a
+  guessing from names is how the list got wrong the first time. A `~proc`
+  argument needs no table — the callee's own header states the type, and
+  `parse_call` hints from it — but only for the positions it can still count,
+  so declare the header you want honoured. **(c) Leave a
   check that does not need the site to be reached.** A collision hides until the
   timer fires or the quest completes — nine of the twenty-three `settimer`/`queue`
   sites were once-per-account quest queues — so the check belongs at load over

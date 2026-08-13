@@ -535,17 +535,21 @@ static int map_allocate(
                 int existing = -1;
                 if( tool_id_map_lookup(&prior, source_id, &existing) )
                 {
+                    /*
+                     * A second destination for one source is a **fork**: a
+                     * record authored beside the imported one (the QBD priority
+                     * comparison keeps an unported original that way). The first
+                     * row stays the mapping, because append-stability means the
+                     * published id is the one already issued -- but the fork's
+                     * id is occupied all the same, so reserve it or the
+                     * allocator will hand it to the next new record and two
+                     * different things will answer to it.
+                     *
+                     * Two *sources* claiming one destination stays fatal below:
+                     * that one cannot be resolved by preferring either row.
+                     */
                     if( existing != dest_id )
-                    {
-                        fprintf(
-                            stderr,
-                            "cachepack import: duplicate ledger source for %s %d: %d and %d\n",
-                            kind,
-                            source_id,
-                            existing,
-                            dest_id);
-                        ok = 0;
-                    }
+                        ok = ints_add(&reserved, dest_id);
                     continue;
                 }
                 if( tool_id_map_lookup(&destinations, dest_id, &existing) )
@@ -778,7 +782,11 @@ static int ledger_set(const char* path, const char* kind, int source_id,
     while( fgets(line, sizeof(line), in) )
     {
         char row_kind[64]; int row_id = -1;
-        if( sscanf(line, "%63[^\t]\t%d", row_kind, &row_id) == 2 &&
+        /* `!found` keeps this to the *first* row for the source. A later row
+         * with the same source is a fork authored beside the import (see the
+         * reservation branch in map_allocate); it is not this import's row to
+         * rewrite, and matching it would report its id as a conflict. */
+        if( !found && sscanf(line, "%63[^\t]\t%d", row_kind, &row_id) == 2 &&
             strcmp(row_kind, kind) == 0 && row_id == source_id )
         {
             char old_source[256], old_dest[256], old_dest_name[256];

@@ -128,6 +128,8 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->turn_speed = src->turnspeed;
     npctype->width_scale = src->resizeh > 0 ? src->resizeh : 128;
     npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
+    /* dat1 has no overhead-height opcode; -1 means "use the model's height". */
+    npctype->height = -1;
     npctype->alwaysontop = src->alwaysontop;
     npctype->minimap_visible = src->minimap;
     npctype->ambient = src->ambient;
@@ -246,6 +248,9 @@ ToriRS_NpctypeFromRSCacheDat2(
      * 128 the reference defaults to — map it here or every unscaled npc collapses. */
     npctype->width_scale = src->width_scale > 0 ? src->width_scale : 128;
     npctype->height_scale = src->height_scale > 0 ? src->height_scale : 128;
+    /* Opcode 124, already -1 from the decoder when the record does not state
+     * it. Note 123 is a boolean here and only carries a height on RS2 caches. */
+    npctype->height = src->height;
     npctype->alwaysontop = src->has_render_priority;
     npctype->minimap_visible = src->is_minimap_visible;
     npctype->ambient = src->ambient;

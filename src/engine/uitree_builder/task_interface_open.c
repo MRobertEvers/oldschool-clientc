@@ -4,6 +4,7 @@
 
 #include "engine/cache_provider.h"
 #include "engine/task_obj_model_load.h"
+#include "engine/torirs_component_hook.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
@@ -74,11 +75,20 @@ struct Task_InterfaceOpen
     int mount_type;
     struct InterfaceOpenStats* stats;
 
-    struct InterfaceOpenOnLoad onloads[INTERFACE_OPEN_ONLOAD_MAX];
+    /*
+     * Grown on demand rather than sized for the worst interface in the cache.
+     * Inline, these two were `onloads[256]` + `runtime_hooks[512]` of ~600-byte
+     * entries — 460 KB of the task's 556 KB, on every mount, when the gameframe
+     * collects six onloads and no runtime hooks. Thirty-eight of these tasks
+     * were live at peak: 21 MB. Push/At below; nothing indexes them directly.
+     */
+    struct InterfaceOpenOnLoad* onloads;
     int onload_count;
+    int onload_cap;
 
-    struct InterfaceOpenRuntimeHook runtime_hooks[INTERFACE_OPEN_RUNTIME_HOOK_MAX];
+    struct InterfaceOpenRuntimeHook* runtime_hooks;
     int runtime_hook_count;
+    int runtime_hook_cap;
 
     int seed_obj_ids[INTERFACE_OPEN_SEED_OBJ_MAX];
     int seed_obj_count;
@@ -171,6 +181,76 @@ upload_model_nodes(
     }
 }
 
+/*
+ * The two collected lists. `Push` returns the new entry to fill (NULL if the
+ * cap or the allocator says no); `At` is the checked read — the loops that
+ * replay these run across protothread yields, so an index that has drifted past
+ * the count is a real failure mode rather than a theoretical one.
+ */
+static struct InterfaceOpenOnLoad*
+Task_InterfaceOpen_PushOnLoad(struct Task_InterfaceOpen* self)
+{
+    assert(self);
+    if( self->onload_count >= self->onload_cap )
+    {
+        int cap = self->onload_cap ? self->onload_cap * 2 : 8;
+        struct InterfaceOpenOnLoad* grown;
+        if( cap > INTERFACE_OPEN_ONLOAD_MAX )
+            cap = INTERFACE_OPEN_ONLOAD_MAX;
+        if( self->onload_count >= cap )
+            return NULL;
+        grown = (struct InterfaceOpenOnLoad*)realloc(
+            self->onloads, (size_t)cap * sizeof(*grown));
+        if( !grown )
+            return NULL;
+        self->onloads = grown;
+        self->onload_cap = cap;
+    }
+    return &self->onloads[self->onload_count++];
+}
+
+static struct InterfaceOpenOnLoad const*
+Task_InterfaceOpen_OnLoadAt(
+    struct Task_InterfaceOpen const* self,
+    int index)
+{
+    assert(self);
+    assert(index >= 0 && index < self->onload_count && "onload index out of range");
+    return &self->onloads[index];
+}
+
+static struct InterfaceOpenRuntimeHook*
+Task_InterfaceOpen_PushRuntimeHook(struct Task_InterfaceOpen* self)
+{
+    assert(self);
+    if( self->runtime_hook_count >= self->runtime_hook_cap )
+    {
+        int cap = self->runtime_hook_cap ? self->runtime_hook_cap * 2 : 8;
+        struct InterfaceOpenRuntimeHook* grown;
+        if( cap > INTERFACE_OPEN_RUNTIME_HOOK_MAX )
+            cap = INTERFACE_OPEN_RUNTIME_HOOK_MAX;
+        if( self->runtime_hook_count >= cap )
+            return NULL;
+        grown = (struct InterfaceOpenRuntimeHook*)realloc(
+            self->runtime_hooks, (size_t)cap * sizeof(*grown));
+        if( !grown )
+            return NULL;
+        self->runtime_hooks = grown;
+        self->runtime_hook_cap = cap;
+    }
+    return &self->runtime_hooks[self->runtime_hook_count++];
+}
+
+static struct InterfaceOpenRuntimeHook const*
+Task_InterfaceOpen_RuntimeHookAt(
+    struct Task_InterfaceOpen const* self,
+    int index)
+{
+    assert(self);
+    assert(index >= 0 && index < self->runtime_hook_count && "runtime hook index out of range");
+    return &self->runtime_hooks[index];
+}
+
 static void
 collect_onloads(
     struct Task_InterfaceOpen* self,
@@ -181,16 +261,22 @@ collect_onloads(
     for( int i = 0; i < pack->component_count; i++ )
     {
         struct ToriRS_Component const* src = &pack->components[i];
-        if( src->on_load.argc <= 0 )
+        struct ToriRS_ScriptHook const* on_load =
+            ToriRS_ComponentHookPeek(src, TORIRS_COMPONENT_HOOK_LOAD);
+        if( !on_load || on_load->argc <= 0 )
             continue;
-        int script_id = src->on_load.argv[0];
+        int script_id = on_load->argv[0];
         if( script_id <= 0 )
             continue;
-        assert(self->onload_count < INTERFACE_OPEN_ONLOAD_MAX);
-        struct InterfaceOpenOnLoad* hook = &self->onloads[self->onload_count++];
+        struct InterfaceOpenOnLoad* hook = Task_InterfaceOpen_PushOnLoad(self);
+        if( !hook )
+        {
+            fprintf(stderr, "InterfaceOpen: onload list full at %d\n", self->onload_count);
+            break;
+        }
         hook->component_id = src->id;
         hook->script_id = script_id;
-        hook->argc = src->on_load.argc;
+        hook->argc = on_load->argc;
         if( hook->argc > INTERFACE_OPEN_ONLOAD_ARGV_MAX )
         {
             fprintf(
@@ -201,10 +287,10 @@ collect_onloads(
                 (unsigned)src->id);
             hook->argc = INTERFACE_OPEN_ONLOAD_ARGV_MAX;
         }
-        memcpy(hook->argv, src->on_load.argv, (size_t)hook->argc * sizeof(int));
-        hook->str_mask = src->on_load.str_mask;
-        hook->str_argc = src->on_load.str_argc;
-        memcpy(hook->strv, src->on_load.strv, sizeof(hook->strv));
+        memcpy(hook->argv, on_load->argv, (size_t)hook->argc * sizeof(int));
+        hook->str_mask = on_load->str_mask;
+        hook->str_argc = on_load->str_argc;
+        memcpy(hook->strv, on_load->strv, sizeof(hook->strv));
     }
 }
 
@@ -373,8 +459,13 @@ collect_sub_change_hooks(struct Task_InterfaceOpen* self)
                 (c->component_id >> 16) & 0xffff,
                 c->component_id & 0xffff,
                 slot->script_id);
-        assert(self->runtime_hook_count < INTERFACE_OPEN_RUNTIME_HOOK_MAX);
-        dst = &self->runtime_hooks[self->runtime_hook_count++];
+        dst = Task_InterfaceOpen_PushRuntimeHook(self);
+        if( !dst )
+        {
+            fprintf(stderr, "InterfaceOpen: runtime-hook list full at %d\n",
+                    self->runtime_hook_count);
+            break;
+        }
         dst->component_id = c->component_id;
         dst->script_id = slot->script_id;
         dst->argc = slot->argc;
@@ -598,7 +689,7 @@ Task_InterfaceOpen_Run(
     /* 6. Run IF3 on_load hooks. */
     for( self->i = 0; self->i < self->onload_count; self->i++ )
     {
-        struct InterfaceOpenOnLoad const* hook = &self->onloads[self->i];
+        struct InterfaceOpenOnLoad const* hook = Task_InterfaceOpen_OnLoadAt(self, self->i);
         int const* args;
         int arg_count;
 
@@ -654,7 +745,8 @@ Task_InterfaceOpen_Run(
         collect_sub_change_hooks(self);
         for( self->i = 0; self->i < self->runtime_hook_count; self->i++ )
         {
-            struct InterfaceOpenRuntimeHook const* hook = &self->runtime_hooks[self->i];
+            struct InterfaceOpenRuntimeHook const* hook =
+                Task_InterfaceOpen_RuntimeHookAt(self, self->i);
             char const* strp[UITREE_HOOK_STR_ARG_MAX];
             for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
                 strp[si] = hook->strv[si];
@@ -703,6 +795,12 @@ Task_InterfaceOpen_Run(
 static void
 Task_InterfaceOpen_Free(struct ToriRS_Task* base)
 {
+    struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)base;
+    if( self )
+    {
+        free(self->onloads);
+        free(self->runtime_hooks);
+    }
     free(base);
 }
 

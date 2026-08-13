@@ -1845,6 +1845,13 @@ enum
 struct Mock230Npc
 {
     int active;
+    /** Set the instant this npc is despawned (`mock230_world_npc_free`);
+     *  cleared by `mock230_world_npc_reap` once every player's NPC_INFO for
+     *  this tick has already reported it gone. `npc_spawn`'s free-slot scan
+     *  treats this exactly like `active` — a slot cannot be handed to a new
+     *  npc while a client might still resolve it as the old one. See
+     *  docs/mock230_npc_slot_reap.md. */
+    uint8_t pending_free;
     /** Bumped whenever this pool slot becomes a different NPC. */
     uint16_t generation;
     int type;
@@ -2486,6 +2493,15 @@ struct Mock230Player
      */
     int active;
 
+    /** Set the instant this pid is freed (`mock230_world_player_free`);
+     *  cleared by `mock230_world_player_reap` once every observer's
+     *  PLAYER_INFO for this tick has already reported it gone.
+     *  `mock230_world_add_player`'s free-slot scan treats this exactly like
+     *  `active` — a pid cannot be handed to a new login while a client might
+     *  still resolve it as the departed player. Same hazard, same fix, as
+     *  `Mock230Npc.pending_free` — see docs/mock230_npc_slot_reap.md. */
+    uint8_t pending_free;
+
     /**
      * Index in the world's pool, and the pid the wire carries.
      *
@@ -2768,6 +2784,12 @@ struct Mock230Player
     /** The same pair for other players. `tracked_players` holds pool indices
      *  (pids), in the order PLAYER_INFO's tracked section writes them. */
     int tracked_players[MOCK230_PLAYER_MAX];
+    /** `srv->players[tracked_players[i]].login_generation` as of the tick that
+     *  pid was last written into this list — the player equivalent of
+     *  `tracked_generation`, guarding the same hazard: a pid freed by a
+     *  logout and reused by a different login before this client's PLAYER_INFO
+     *  caught up would otherwise read as the departed player, still there. */
+    uint32_t tracked_player_generation[MOCK230_PLAYER_MAX];
     int tracked_player_count;
     uint8_t player_tracked[MOCK230_PLAYER_MAX];
 
@@ -2803,6 +2825,25 @@ struct Mock230Player
      *  a second map square that maps to the same track does not restart it --
      *  a track restarting every 64 tiles is the tell that this is missing. */
     int music_track;
+
+    /** The ambient soundscape this client is currently running, or -1 for
+     *  none. Same latch discipline as `music_track`: the bed is re-sent only
+     *  when the id actually changes. */
+    int ambient_scape;
+
+    /**
+     * The map square whose ambience `ambientsound` was last called for, or -1.
+     *
+     * A script that owns its square's bed (the QBD arena stops it, because the
+     * arena's noise comes from loc emitters) has to survive the map-square
+     * latch firing in the *same tick* as the teleport that put the player
+     * there. Recording the square the script spoke about makes the latch's
+     * "re-establish the world bed" step conditional on the player having
+     * actually left that square, so the two cannot fight and the order they
+     * run in stops mattering.
+     */
+    int ambient_script_map_x;
+    int ambient_script_map_z;
 
     /*
      * ── The two coordinate latches `updateMap` holds ─────────────────
@@ -3105,6 +3146,35 @@ mock230_player_floater(struct Mock230Player const* player)
     return mock230_ids()->com_gameframe_floater;
 }
 
+/**
+ * One queued "this slot's occupant is gone" command — the emitted half of
+ * the despawn/reap split (mock230_world_npc_free / mock230_world_npc_reap).
+ * Mirrors PktNpcInfoOp's reader-emits-commands shape, and the real client's
+ * own `field956` removal queue (Statics.method13029 in the rev-239 deob):
+ * a despawn site doesn't free a slot directly, it emits a command here, and
+ * a single reap call later in the tick is what actually acts on it. See
+ * docs/mock230_npc_slot_reap.md.
+ */
+struct Mock230NpcFreeCmd
+{
+    int slot;
+    /** npc->generation at the moment this was queued — defensive: lets the
+     *  reap refuse to touch a slot that was somehow reused before its own
+     *  queued command drained (should be structurally impossible, since
+     *  `pending_free` blocks npc_spawn's scan until reap runs, but this
+     *  costs nothing and matches every other generation guard in this
+     *  file). */
+    uint16_t generation;
+};
+
+/** The player equivalent of `Mock230NpcFreeCmd` — same reason, same shape,
+ *  scaled down to `MOCK230_PLAYER_MAX` pids instead of npc slots. */
+struct Mock230PlayerFreeCmd
+{
+    int pid;
+    uint32_t generation; /* player->login_generation at the moment this was queued */
+};
+
 struct Mock230Server
 {
     /*
@@ -3135,6 +3205,13 @@ struct Mock230Server
      */
     struct Mock230Player players[MOCK230_PLAYER_MAX];
     int player_count;
+
+    /** Pids freed this tick via `mock230_world_player_free`, awaiting
+     *  `mock230_world_player_reap` — the player equivalent of
+     *  `npc_free_queue`. Sized to the whole pool for the same reason: it
+     *  can never overflow. */
+    struct Mock230PlayerFreeCmd player_free_queue[MOCK230_PLAYER_MAX];
+    int player_free_queue_count;
 
     /*
      * World-owned containers — the `scope=shared` half of the registry.
@@ -3179,6 +3256,14 @@ struct Mock230Server
      *  roster, and iterating 2048 slots to find 63 npcs would make it read like
      *  one. */
     int npc_slot_max;
+
+    /** Slots freed this tick via `mock230_world_npc_free`, awaiting
+     *  `mock230_world_npc_reap` (called once, from phase_cleanup, after
+     *  every player's NPC_INFO for this tick has already gone out). Sized to
+     *  the whole pool: at most one command per currently-active npc can ever
+     *  be pending between reaps, so this can never overflow. */
+    struct Mock230NpcFreeCmd npc_free_queue[MOCK230_NPC_MAX];
+    int npc_free_queue_count;
 
     /**
      * The world cut into 8x8 zones — entity lists, loc records and this tick's
@@ -3572,12 +3657,36 @@ mock230_world_add_player(
  * The removal is not "stop encoding them": every other client is holding a pid
  * that has to be retired explicitly, or a later player taking the same slot
  * inherits the corpse. `mock230_send_player_info` does the retiring; this is
- * what tells it to, by clearing `active`.
+ * what tells it to, via `mock230_world_player_free` (see its own comment for
+ * why that is not simply clearing `active` inline).
  */
 void
 mock230_world_remove_player(
     struct Mock230Server* srv,
     struct Mock230Player* player);
+
+/**
+ * The despawn choke point for players — the exact `mock230_world_npc_free`
+ * pattern, scaled down to one call site (`mock230_world_remove_player` is,
+ * per its own doc comment, the only logout path either host has). `active`
+ * still clears immediately; what's deferred is the pid's eligibility for
+ * `mock230_world_add_player`'s free-slot scan, until `mock230_world_player_reap`
+ * drains the queue — once per tick, after every observer's PLAYER_INFO for
+ * this tick has already gone out. See docs/mock230_npc_slot_reap.md.
+ */
+void
+mock230_world_player_free(
+    struct Mock230Server* srv,
+    int pid);
+
+/**
+ * Once per tick, from phase_cleanup, after every player's PLAYER_INFO for
+ * this tick has already gone out: drains `player_free_queue`, clearing
+ * `pending_free` on each entry.
+ */
+void
+mock230_world_player_reap(
+    struct Mock230Server* srv);
 
 /**
  * Say whose turn it is.
@@ -3837,6 +3946,19 @@ mock230_seq_by_name(const char* name);
 int
 mock230_seq_priority(int seq_id);
 
+/**
+ * Whether the LOADED cache's sequence archive actually carries this id.
+ *
+ * `mock230_seq_priority` cannot say: an id past the end of the table answers
+ * with the default, which is indistinguishable from a record that really states
+ * 5. That matters for content living in a lane cache — a check about a lane
+ * animation run against the pristine cache would compare two defaults and read
+ * as a genuine result. Callers that mean "skip unless this lane is loaded" ask
+ * here first.
+ */
+int
+mock230_seq_priority_known(int seq_id);
+
 /* ------------------------------------------------------------------ */
 /* Animation (mock230_combat.c)                                        */
 /* ------------------------------------------------------------------ */
@@ -4020,6 +4142,30 @@ mock230_world_npc_spawn(
     int x,
     int z,
     int level);
+
+/**
+ * The despawn choke point. Every real despawn site calls this instead of
+ * writing `npc->active = 0` directly: it still clears `active` immediately
+ * (same-tick game logic — `npc_find`, `huntall`, `npc_hastarget` — must keep
+ * seeing the npc as gone right away), but defers the slot's eligibility for
+ * `npc_spawn`'s free-slot scan by queuing a free command instead of letting
+ * it be reused same-tick. See docs/mock230_npc_slot_reap.md. Safe to call on
+ * an already-inactive slot (no-op).
+ */
+void
+mock230_world_npc_free(
+    struct Mock230Server* srv,
+    int slot);
+
+/**
+ * Once per tick, from phase_cleanup, after every player's NPC_INFO for this
+ * tick has already gone out: drains `npc_free_queue`, clearing `pending_free`
+ * on each entry. This is the only place a slot becomes eligible for
+ * `npc_spawn`'s scan again.
+ */
+void
+mock230_world_npc_reap(
+    struct Mock230Server* srv);
 
 /** Resolve an npc's owner, rejecting a logged-out or reused player slot. */
 struct Mock230Player*
@@ -5580,6 +5726,20 @@ void
 mock230_send_run_weight(
     struct Mock230Player* player,
     int kilograms);
+/**
+ * The map square whose *region* rules (music, ambient bed) apply to a player.
+ *
+ * Not `player->x >> 6` inside an instance: an instanced player's own square is
+ * out past the edge of the real map and describes nothing, so this resolves
+ * through the square the instance was copied from. See the long note at the
+ * definition for why every instanced encounter was silent before it existed.
+ */
+void
+mock230_region_square_for(
+    struct Mock230Player* player,
+    int* out_map_x,
+    int* out_map_z);
+
 void
 mock230_send_ambientsound_start(
     struct Mock230Player* player,

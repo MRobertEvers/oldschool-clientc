@@ -1600,7 +1600,7 @@ npc_death_step(
             return;
         }
         mock230_world_npc_occupancy(npc, 0);
-        npc->active = 0;
+        mock230_world_npc_free(srv, slot);
         npc->death_tick = -1;
         npc->death_stage = MOCK230_DEATH_NONE;
         /*
@@ -1931,6 +1931,12 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         if( npc->generation == 0 )
             npc->generation = 1;
         npc->active = 1;
+        /* Should already be 0 by now — the death that set respawn_tick ran
+         * its own tick's phase_cleanup reap strictly before any later tick's
+         * phase_world could reach here (see docs/mock230_npc_slot_reap.md).
+         * Explicit anyway: a slot stuck at pending_free=1 would be silently
+         * invisible to npc_spawn's scan forever. */
+        npc->pending_free = 0;
         npc->respawn_tick = -1;
         npc->death_tick = -1;
         npc->x = npc->spawn_x;

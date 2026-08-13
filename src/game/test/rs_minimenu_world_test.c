@@ -144,8 +144,8 @@ test_if3_item_uses_only_scripted_ops(void)
     child.height = 32;
     child.u.cc_obj.obj_id = 1;
     child.u.cc_obj.obj_count = 1;
-    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Script op");
-    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Terminal op");
+    snprintf(UITree_MenuOptionsMut(&child)->ops[0], sizeof(UITree_MenuOptionsMut(&child)->ops[0]), "Script op");
+    snprintf(UITree_MenuOptionsMut(&child)->ops[9], sizeof(UITree_MenuOptionsMut(&child)->ops[9]), "Terminal op");
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "IF3 item child pushed");
@@ -197,7 +197,7 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     parent.component_id = events.component_id;
     parent.width = 64;
     parent.height = 64;
-    snprintf(parent.menu_options.target_verb, sizeof(parent.menu_options.target_verb), "Use");
+    snprintf(UITree_MenuOptionsMut(&parent)->target_verb, sizeof(UITree_MenuOptionsMut(&parent)->target_verb), "Use");
     parent_index = UITree_Push(tree, -1, &parent);
     TEST_ASSERT(parent_index >= 0, "rev239 item parent pushed");
     if( parent_index >= 0 )
@@ -211,8 +211,8 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
     child.height = 32;
     child.u.cc_obj.obj_id = obj->id;
     child.u.cc_obj.obj_count = 1;
-    snprintf(child.menu_options.ops[0], sizeof(child.menu_options.ops[0]), "Wear");
-    snprintf(child.menu_options.ops[9], sizeof(child.menu_options.ops[9]), "Examine");
+    snprintf(UITree_MenuOptionsMut(&child)->ops[0], sizeof(UITree_MenuOptionsMut(&child)->ops[0]), "Wear");
+    snprintf(UITree_MenuOptionsMut(&child)->ops[9], sizeof(UITree_MenuOptionsMut(&child)->ops[9]), "Examine");
     {
         int32_t child_index = UITree_Push(tree, parent_index, &child);
         TEST_ASSERT(child_index >= 0, "rev239 item child pushed");

@@ -5,6 +5,7 @@
 #include "uitree_builder_manifest.h"
 
 #include "engine/cache_provider.h"
+#include "engine/torirs_component_hook.h"
 #include "engine/torirs_types.h"
 #include "engine/uitree_from_component.h"
 #include "engine/uitree_scene_bridge.h"
@@ -244,24 +245,26 @@ collect_onload(
     struct ToriRS_Component const* src)
 {
     assert(builder && src);
-    if( src->on_load.argc <= 0 )
+    struct ToriRS_ScriptHook const* on_load =
+        ToriRS_ComponentHookPeek(src, TORIRS_COMPONENT_HOOK_LOAD);
+    if( !on_load || on_load->argc <= 0 )
         return;
-    int script_id = src->on_load.argv[0];
+    int script_id = on_load->argv[0];
     if( script_id <= 0 )
         return;
     {
         char const* strp[TORIRS_COMPONENT_HOOK_STR_MAX];
         for( int i = 0; i < TORIRS_COMPONENT_HOOK_STR_MAX; i++ )
-            strp[i] = src->on_load.strv[i];
+            strp[i] = on_load->strv[i];
         UITreeBuilder_AddOnLoad(
             builder,
             src->id,
             script_id,
-            src->on_load.argv,
-            src->on_load.argc,
-            src->on_load.str_mask,
+            on_load->argv,
+            on_load->argc,
+            on_load->str_mask,
             strp,
-            src->on_load.str_argc);
+            on_load->str_argc);
     }
 }
 

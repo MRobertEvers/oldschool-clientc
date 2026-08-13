@@ -5327,9 +5327,10 @@ mock230_script_command(
             SSVM_Abort(state, "npc_del with no active npc");
             return 1;
         }
-        /* The ordinary NPC_INFO remove path: clearing `active` is what the
-         * encoder reads, exactly as a death does. */
-        npc->active = 0;
+        /* The ordinary NPC_INFO remove path, exactly as a death does — see
+         * docs/mock230_npc_slot_reap.md for why this is a queued free rather
+         * than a direct `active = 0`. */
+        mock230_world_npc_free(srv, active_npc_slot(state));
         return 1;
     }
 
@@ -6837,6 +6838,37 @@ mock230_script_command(
      */
     case SS_OP_BUSY:
         SSVM_PushInt(state, !player_can_access(srv));
+        return 1;
+
+    /*
+     * `[command,busy2]()(boolean)` — `PlayerOps.ts` BUSY2:
+     * `activePlayer.hasInteraction() || activePlayer.hasWaypoints()`.
+     *
+     * A *different* question from `busy` above, and the difference is the whole
+     * point: `busy` is "can a script be handed to this player" (delayed, or a
+     * modal is up), while this one is "is this player already committed to
+     * something" — a latched target, or a route still being walked.
+     *
+     * The only caller is auto-retaliation, and it is the reason the command
+     * exists at all: `p_opnpc(2)` clears the interaction and the step queue
+     * before it latches, so an ungated retaliation queue *takes* a player who
+     * is mid-fight with another monster, or half way to the one they clicked,
+     * and points them at whatever hit them last. Reading the two fields is the
+     * reference's own test, and both terms are needed — a player walking to a
+     * target they have already committed to has waypoints and an interaction,
+     * one running for a bank door has waypoints and none.
+     *
+     * `interaction.kind` is `hasInteraction()`: the field is cleared to
+     * MOCK230_INTERACT_NONE by `interaction_clear`, which is what
+     * `clearInteraction` is here. `waypoint_index >= 0` is `hasWaypoints()`:
+     * -1 is the idle sentinel (see the queue's comment in mock230.h).
+     */
+    case SS_OP_BUSY2:
+        SSVM_PushInt(state,
+                     player->interaction.kind != MOCK230_INTERACT_NONE ||
+                             player->waypoint_index >= 0
+                         ? 1
+                         : 0);
         return 1;
 
     /*
@@ -8608,6 +8640,51 @@ mock230_script_command(
                 mock230_send_midi_song_stop(player, 0, 30);
             else
                 mock230_send_midi_song(player, id);
+        }
+        return 1;
+    }
+
+    /*
+     * `ambientsound(int $soundscape)` — the region's background bed.
+     *
+     * The id names a config group-15 soundscape (a set of continuous loops
+     * plus independently timed random sets), not a sound effect, so this is
+     * not a spelling of `sound_synth`; and negative means stop, the same rule
+     * `midi_song` and `sound_synth` state.
+     *
+     * Calling it claims the bed for the map square the caller is standing on,
+     * which is how the claim survives `mock230_ambient_enter_region` running
+     * later in the same tick as the teleport that got the player here. The
+     * claim is released by leaving that square, so a script that silences a
+     * place does not also have to remember to restore the world's bed on every
+     * exit path it has — including the ones it does not control, like a death
+     * or a logout.
+     */
+    case SS_OP_AMBIENTSOUND:
+    {
+        int32_t id;
+
+        if( !SSVM_PopInt(state, &id) )
+            return 1;
+        if( srv->verbose )
+            fprintf(stderr, "mock230: ambientsound(%d)\n", id);
+        if( player != NULL )
+        {
+            int map_x;
+            int map_z;
+
+            mock230_region_square_for(player, &map_x, &map_z);
+            player->ambient_script_map_x = map_x;
+            player->ambient_script_map_z = map_z;
+
+            if( player->ambient_scape != id )
+            {
+                player->ambient_scape = id < 0 ? -1 : id;
+                if( id < 0 )
+                    mock230_send_ambientsound_stop(player, 1);
+                else
+                    mock230_send_ambientsound_start(player, id, 1);
+            }
         }
         return 1;
     }

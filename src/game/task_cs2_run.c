@@ -987,7 +987,7 @@ Task_CS2Run_Run(
                         int32_t opb = UITree_FindByComponentId(
                             self->host->tree, self->active_component_id);
                         if( opb >= 0 )
-                            s = self->host->tree->components[opb].menu_options.option;
+                            s = UITree_MenuOptions(&self->host->tree->components[opb])->option;
                     }
                     (void)CS2VM2_SetStringCurrentFrameLocal(thread, str_i, s);
                     str_i++;

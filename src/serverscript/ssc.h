@@ -50,10 +50,20 @@ enum
     /* LostCity's own content is 9,334 scripts, so this is not a theoretical
      * bound. It was 4096, and the declare pass silently dropped every name past
      * it — which surfaced as "no proc named update_all" for a proc that plainly
-     * exists, in a file the compiler had already read. It was 16384 until this
-     * mock's own content (region music coverage, drop tables) grew past that
-     * too — SSC_Declare now refuses to compile rather than repeat the same
-     * silent-drop failure. */
+     * exists, in a file the compiler had already read.
+     *
+     * Raised again 2026-08-13: this mock's own content (region music coverage,
+     * drop tables) grew past 16384 too — organically, when a 147-file
+     * drop-table drop landed on an already-16,018-script tree. That overflow
+     * was silent for the same reason the 4096 one was: the guard's message
+     * (ssc_compile.c "more than %d scripts; raise SSC_MAX_SCRIPTS") goes
+     * through `fail()`, which no-ops once `compiler->failed` is already set by
+     * an earlier call in the same pass, so it never reached `diag`.
+     * `SSC_Declare` now refuses to compile rather than repeat the silent drop.
+     *
+     * Content growing past a compiler ceiling is expected here, not
+     * exceptional, so the number is raised with headroom rather than to the
+     * exact count observed — 4096->16384 wasn't a tight fit either. */
     SSC_MAX_SCRIPTS = 32768,
     SSC_MAX_OPS = 8192,
     SSC_MAX_LOCALS = 256,
