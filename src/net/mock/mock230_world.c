@@ -31730,6 +31730,68 @@ mock230_world_selftest(void)
         mock230_friends_reset();
     }
 
+    fprintf(stderr, "mock230 selftest: charged item vars survive container moves\n");
+    {
+        /*
+         * docs/ITEM_CHARGES_PLAN.md §3a: `mock230_container_set` clears a
+         * slot's vars on any obj_id change and `mock230_container_add` never
+         * writes them, so unequipping a charged item, or banking one, reset
+         * its charge count to 0. Fixed with `mock230_item_vars_copy` plus
+         * `mock230_container_add_out_slot` / `inv_add_ex` / `bank_add_ex`
+         * (mock230_container.c, mock230_bank.c), wired into the
+         * `INV_MOVEITEM` / `INV_MOVEFROMSLOT` opcode arms and the bank
+         * deposit/withdraw functions. These four procs (selftest.rs2) drive
+         * the real opcodes a player's equip/unequip and bank deposit/
+         * withdraw actually use — a regression here is the exact bug the
+         * plan found, not a re-test of the C helper in isolation.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t charges = 77;
+            int32_t out = 0;
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_equip]",
+                                                          &charges, 1, &out) &&
+                               out == charges,
+                           "equip (inv_movetoslot) should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_unequip]", &charges,
+                                              1, &out) &&
+                    out == charges,
+                "unequip (inv_moveitem worn->inv) should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_movefromslot]",
+                                              &charges, 1, &out) &&
+                    out == charges,
+                "inv_movefromslot should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_bank_roundtrip]",
+                                              &charges, 1, &out) &&
+                    out == charges,
+                "a bank deposit/withdraw round trip should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            mock230_scripts_free(srv);
+        }
+    }
+
     /*
      * The Queen, her tortured souls, and the intermission worms all store
      * revision-727 life points, but only the Queen owns a phase cap and a

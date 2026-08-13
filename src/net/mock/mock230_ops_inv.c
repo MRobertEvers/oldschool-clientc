@@ -204,9 +204,19 @@ mock230_ops_inv(
             SSVM_Abort(state, "inv_movefromslot: slot %d is empty", (int)from_slot);
             return 1;
         }
-        mock230_container_set(from, (int)from_slot, -1, 0);
-        moved = mock230_container_add(to, obj_id, count, 0);
-        spill_to_floor(srv, obj_id, count - moved, mock230_ids()->lootdrop_duration);
+        {
+            /* A single unstackable unit carries its vars to wherever it
+             * lands — see mock230_item_vars_copy. Snapshot before the source
+             * slot is cleared; container_set would otherwise wipe them. */
+            struct Mock230Item saved = from->items[from_slot];
+            int landed_slot = -1;
+
+            mock230_container_set(from, (int)from_slot, -1, 0);
+            moved = mock230_container_add_out_slot(to, obj_id, count, 0, &landed_slot);
+            spill_to_floor(srv, obj_id, count - moved, mock230_ids()->lootdrop_duration);
+            if( landed_slot >= 0 )
+                mock230_item_vars_copy(&to->items[landed_slot], &saved);
+        }
         return 1;
     }
 
@@ -474,14 +484,37 @@ mock230_ops_inv(
             struct Mock230Container* to = container(state, to_inv, opcode);
             int taken;
             int moved;
+            struct Mock230Item saved;
+            int carry_vars = 0;
+            int landed_slot = -1;
 
             if( !from || !to )
                 return 1;
+            /* A move of exactly one unstackable unit — every equip/unequip
+             * call is this shape — carries that slot's vars to wherever it
+             * lands (mock230_item_vars_copy). Snapshot before container_del
+             * clears the source; container_del picks the same first matching
+             * slot this loop does, so the snapshot and the deletion agree on
+             * which slot. */
+            if( count == 1 && !mock230_objinfo((int)obj_id)->stackable )
+            {
+                for( int i = 0; i < from->slots; i++ )
+                {
+                    if( from->items[i].obj_id == (int)obj_id )
+                    {
+                        saved = from->items[i];
+                        carry_vars = 1;
+                        break;
+                    }
+                }
+            }
             taken = container_del(from, (int)obj_id, (int)count);
             if( taken <= 0 )
                 return 1;
-            moved = mock230_container_add(to, (int)obj_id, taken, 0);
+            moved = mock230_container_add_out_slot(to, (int)obj_id, taken, 0, &landed_slot);
             spill_to_floor(srv, (int)obj_id, taken - moved, mock230_ids()->lootdrop_duration);
+            if( carry_vars && landed_slot >= 0 )
+                mock230_item_vars_copy(&to->items[landed_slot], &saved);
         }
         return 1;
     }
