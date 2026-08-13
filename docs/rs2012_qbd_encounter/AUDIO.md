@@ -18,7 +18,7 @@ The encounter's audio has four independent layers, and they fail independently:
 | Music | songs 1119 / 1118 | server, `midi_song` |
 | Sound effects | **sequence frame-sound events** | client, off the animation frame |
 | Area sounds | **loc ambient emitters** on the arena scenery | client, off the built scene |
-| Ambient bed | `AMBIENTSOUND_START` soundscape | server, per region — **see §5** |
+| Ambient bed | `AMBIENTSOUND_START` soundscape | server, per map square (`ambientsound`) |
 
 Nothing in the encounter dispatches a sound from a script. Every effect below
 rides an animation the server was already playing, which is why an animation
@@ -155,21 +155,39 @@ when opcode 1's walk is the 0x7FFF sentinel), not in the generated npc config.
 The soul is unaffected — BAS 2514 states both halves on opcode 1, and both
 ported.
 
-### 4.4 A foreign OSRS ambient bed drones over the 2012 arena — **open**
+### 4.4 A foreign OldSchool ambient bed drone over the 2012 arena — **fixed**
 
-`mock230_world.c` sends `AMBIENTSOUND_START(soundscape 1)` once at login and
-never revises it; the comment says so plainly ("that is not authenticity, it is
-*reachability*"). Group-15 soundscapes are an OldSchool 231+ type that rev 727
-does not have, so soundscape 1 is an OSRS bed — and it keeps playing underneath
-the QBD arena, whose ambience is supposed to come entirely from the loc
-emitters in §3. `area_volume` defaults to full, so it is audible.
+`mock230_world.c` sent `AMBIENTSOUND_START(soundscape 1)` once at login and
+never revised it; the comment said so plainly ("that is not authenticity, it is
+*reachability*"). That made the bed a property of the *session* rather than of
+the place — so an OldSchool soundscape (group 15 is a 231+ type rev 727 does
+not have) played underneath the arena's authored loc emitters for the whole
+fight, at full `area_volume`. Two ambiences, one of them from the wrong game.
 
-This is a mock-wide issue rather than a QBD one (there is no region→soundscape
-table, and no ServerScript op for the ambient bed — LostCity rev 254, the
-reference, has none either). The narrow workaround today is
-`MOCK230_AMBIENT=-1`. The encounter-correct fix is for the arena instance to
-stop the bed on entry and restore it on leave, which needs either a new op or a
-server-side region rule; neither is attempted here.
+Three changes:
+
+- The bed now hangs off the **map-square latch**, beside the music that is
+  keyed the same way, through the same instance-aware square resolver
+  (`mock230_region_square_for` — an instanced player's own square describes
+  nothing, so both resolve through the square the instance was copied from).
+  There is still no region→soundscape data in any cache, so the bed itself is
+  still one placeholder for the whole world; what is now per-square is who
+  owns it.
+- A new ServerScript command, **`ambientsound(int $soundscape)`** — opcode
+  11038, in the 11000+ band this tree allocates for surface the LostCity
+  reference does not have. `AMBIENTSOUND_START` when the argument is >= 0,
+  `AMBIENTSOUND_STOP` when it is negative, the same -1-means-stop rule
+  `midi_song` and `sound_synth` state. It is not a spelling of `sound_synth`:
+  the id names a soundscape record, not a sound effect.
+- The arena claims its own bed: `ambientsound(-1)` beside the `midi_song(1119)`
+  on entry.
+
+Calling the command claims the caller's map square, and the claim is released
+by leaving that square. That is what makes it order-independent against the
+latch, which fires *later in the same tick* as the teleport that arrives in the
+arena — and it means no exit path has to restore anything. Teleport out, die,
+log out: the square changes, the claim lapses, the world bed returns. The QBD
+teardown says nothing about ambience at all.
 
 ## 5. Verification
 
@@ -180,6 +198,9 @@ make -C src mock230-cache-rs2012
 
 # The codec change itself
 make -C 3rd/rscache build/test_rs530_codec && 3rd/rscache/build/test_rs530_codec
+
+# The ambient bed: the claim, its release, and the command reaching its handler
+make -C src test-mock230 test-mock230-coverage
 ```
 
 `test_rs2012_audio_bridge.py` is the contract: 29 synths, 106 samples + the
@@ -200,4 +221,6 @@ awk '/^\[seq_22001\]$/{f=1;next} /^\[/{f=0} f && /^sound=/' /tmp/qbd/configs/all
 
 Still unproven by test and worth a listening pass: that the rolled alternative
 is audibly different from the primary (the audit only proves the payloads
-decode), and the perceptual result of §4.2's flat volume.
+decode), the perceptual result of §4.2's flat volume, and that the arena's
+seven loc emitters actually read as a cave once the OldSchool bed is out from
+under them.

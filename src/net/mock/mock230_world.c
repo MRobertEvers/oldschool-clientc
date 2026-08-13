@@ -12249,59 +12249,32 @@ mock230_world_selftest(void)
          * revised, so it played under every square including the QBD arena's
          * authored loc ambience.
          *
-         * `ambientsound` claims the square the caller stands on, and the claim
-         * has to beat `mock230_ambient_enter_region` running LATER in the same
-         * tick as the teleport that arrived there — which is the order the two
+         * The claim `ambientsound` leaves behind has to beat
+         * `mock230_ambient_enter_region` running LATER in the same tick as the
+         * teleport that arrived on the square — which is the order the two
          * actually run in. Asserting the claim rather than a packet: a packet
          * assertion passes on the entering tick and says nothing about the
-         * latch that undoes it a few phases later.
+         * latch that would undo it a few phases later. The command that sets
+         * the claim is exercised further down, once scripts are loaded.
          */
         {
-            uint16_t ambient_ops[] = {
-                SS_OP_PUSH_CONSTANT_INT, SS_OP_AMBIENTSOUND, SS_OP_RETURN,
-            };
-            int32_t ambient_operands[] = { -1, 0, 0 };
-            char* ambient_strings[3] = { NULL };
-            struct SSVM_Script ambient_script = {
-                .id = -1,
-                .name = "[selftest,ambientsound]",
-                .source_path = "<selftest>",
-                .lookup_key = -1,
-                .op_count = 3,
-                .opcodes = ambient_ops,
-                .int_operands = ambient_operands,
-                .string_operands = ambient_strings,
-            };
-            int old_x = player->x;
-            int old_z = player->z;
             int old_scape = player->ambient_scape;
+            int square = 3222 >> 6;
 
-            player->x = 3222;
-            player->z = 3222;
-            player->ambient_scape = 1;
-            player->ambient_script_map_x = -1;
-            player->ambient_script_map_z = -1;
+            player->ambient_scape = -1;
+            player->ambient_script_map_x = square;
+            player->ambient_script_map_z = square;
 
-            SELFTEST_CHECK(mock230_scripts_run_hook(srv, &ambient_script, NULL, 0),
-                           "ambientsound executes through the host VM");
-            SELFTEST_CHECK(player->ambient_scape == -1,
-                           "ambientsound(-1) should stop the bed, got scape %d",
-                           player->ambient_scape);
-            SELFTEST_CHECK(player->ambient_script_map_x == (3222 >> 6) &&
-                               player->ambient_script_map_z == (3222 >> 6),
-                           "ambientsound should claim the caller's square, got %d,%d",
-                           player->ambient_script_map_x, player->ambient_script_map_z);
-
-            /* Same square: the world bed must stay out of the way. */
-            mock230_ambient_enter_region(player, 3222 >> 6, 3222 >> 6);
+            mock230_ambient_enter_region(player, square, square);
             SELFTEST_CHECK(player->ambient_scape == -1,
                            "the world bed must not talk over a script's claim on the same "
                            "square, got scape %d",
                            player->ambient_scape);
 
-            /* A different square releases it, and the bed comes back with no
-             * exit path having had to restore it by hand. */
-            mock230_ambient_enter_region(player, 40, 40);
+            /* A different square releases the claim, and the bed comes back
+             * with no exit path having had to restore it by hand — which is
+             * what lets the QBD teardown say nothing about ambience at all. */
+            mock230_ambient_enter_region(player, square + 1, square);
             SELFTEST_CHECK(player->ambient_scape == 1,
                            "leaving the claimed square should restore the world bed, got "
                            "scape %d",
@@ -12309,8 +12282,6 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->ambient_script_map_x < 0,
                            "and should release the claim");
 
-            player->x = old_x;
-            player->z = old_z;
             player->ambient_scape = old_scape;
             player->ambient_script_map_x = -1;
             player->ambient_script_map_z = -1;
@@ -12610,6 +12581,53 @@ mock230_world_selftest(void)
              */
             SELFTEST_CHECK(mock230_scripts_report_script_id_args(srv) == 0,
                            "every script-id argument should name a script of that kind");
+
+            /*
+             * `ambientsound` reaches its host handler and claims the square.
+             *
+             * Pinned because the failure is silent in both directions: an
+             * unimplemented opcode would take the loud stub, pop its int and
+             * return, so the QBD arena would keep the world bed with nothing
+             * saying so; and a handler that forgot the claim would work on the
+             * entering tick and be undone by the map latch later in it.
+             */
+            {
+                uint16_t ambient_ops[] = {
+                    SS_OP_PUSH_CONSTANT_INT, SS_OP_AMBIENTSOUND, SS_OP_RETURN,
+                };
+                int32_t ambient_operands[] = { -1, 0, 0 };
+                char* ambient_strings[3] = { NULL };
+                struct SSVM_Script ambient_script = {
+                    .id = -1,
+                    .name = "[selftest,ambientsound]",
+                    .source_path = "<selftest>",
+                    .lookup_key = -1,
+                    .op_count = 3,
+                    .opcodes = ambient_ops,
+                    .int_operands = ambient_operands,
+                    .string_operands = ambient_strings,
+                };
+                int old_scape = player->ambient_scape;
+
+                player->ambient_scape = 1;
+                player->ambient_script_map_x = -1;
+                player->ambient_script_map_z = -1;
+
+                SELFTEST_CHECK(mock230_scripts_run_hook(srv, &ambient_script, NULL, 0),
+                               "ambientsound executes through the host VM");
+                SELFTEST_CHECK(player->ambient_scape == -1,
+                               "ambientsound(-1) should stop the bed, got scape %d",
+                               player->ambient_scape);
+                SELFTEST_CHECK(player->ambient_script_map_x == (player->x >> 6) &&
+                                   player->ambient_script_map_z == (player->z >> 6),
+                               "ambientsound should claim the caller's square (%d,%d), got %d,%d",
+                               player->x >> 6, player->z >> 6,
+                               player->ambient_script_map_x, player->ambient_script_map_z);
+
+                player->ambient_scape = old_scape;
+                player->ambient_script_map_x = -1;
+                player->ambient_script_map_z = -1;
+            }
 
             /* Drive the ai_* dispatch through a real VM state. The script
              * writes the active player's varp; with player 1 deliberately
@@ -32381,7 +32399,7 @@ mock230_world_selftest(void)
                     int const flight =
                         mock230_content_constant_int("rs2012_qbd_worm_flight_cycles", -1);
                     int const landing =
-                        mock230_content_constant_int("rs2012_qbd_worm_landing_cycles", -1);
+                        mock230_content_constant_int("rs2012_qbd_worm_landing_shown_cycles", -1);
                     int const hatch =
                         mock230_content_constant_int("rs2012_qbd_worm_hatch_delay", -1);
 
@@ -32390,9 +32408,10 @@ mock230_world_selftest(void)
                                    "flight=%d landing=%d hatch=%d",
                                    flight, landing, hatch);
                     SELFTEST_CHECK(hatch * 30 == flight + landing,
-                                   "the worm hatch (%d ticks = %d cycles) must land exactly "
-                                   "when the landing animation ends (flight %d + landing %d "
-                                   "= %d), or the animation and the npc are two worms",
+                                   "the worm hatch (%d ticks = %d cycles) must follow the "
+                                   "flight plus the shown landing (%d + %d = %d), or the "
+                                   "animation and the npc overlap by more than the one tick "
+                                   "of tail that is cut on purpose",
                                    hatch, hatch * 30, flight, landing, flight + landing);
                 }
 
