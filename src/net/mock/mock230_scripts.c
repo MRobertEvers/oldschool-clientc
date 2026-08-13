@@ -7709,6 +7709,34 @@ mock230_script_command(
     }
 
     /*
+     * Wall-clock days since the Unix epoch — `date_minutes`'s own comment
+     * gives the reference formula for minutes (`Math.floor(currentMs /
+     * 60000)`); this is the same shape one unit coarser
+     * (`Math.floor(currentMs / 86400000)`), not a verified read of
+     * NumberOps.ts's actual `runeday` epoch, which is not vendored in this
+     * tree — stated rather than assumed, the same way abyssal_tentacle's gap
+     * is stated in docs/ITEM_CHARGES_PLAN.md rather than guessed at.
+     * `%current_runeday` (varbit 9535, docs/collection_log_server_reqs.md)
+     * is the client's own day counter and is a *different* thing this does
+     * not write — a display value, not this opcode's source of truth.
+     *
+     * What matters for a daily-reset charge count (docs/ITEM_CHARGES_PLAN.md
+     * §2c) is only that the value is monotonic and advances exactly once
+     * every 24 hours in one consistent zone, which `floor(unix_seconds /
+     * 86400)` in UTC already is — content compares `%last_reset_day !=
+     * date_runeday()`, not the number's absolute magnitude.
+     */
+    case SS_OP_DATE_RUNEDAY:
+    {
+        struct timespec ts;
+
+        if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
+            ts.tv_sec = 0, ts.tv_nsec = 0;
+        SSVM_PushInt(state, (int)(ts.tv_sec / 86400LL));
+        return 1;
+    }
+
+    /*
      * `map_members` gates the members-only branches in LostCity's drop tables,
      * which are ported here verbatim. The mock is a free world, so this is a
      * constant — but it has to *exist*, because the alternative is deleting

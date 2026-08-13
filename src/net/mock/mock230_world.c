@@ -31792,6 +31792,41 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: date_runeday\n");
+    {
+        /*
+         * Declared since before this tree could run it — ss_opcode.h had
+         * SS_OP_DATE_RUNEDAY (4630) with no `case` anywhere
+         * (docs/ITEM_CHARGES_PLAN.md §3b). Every daily-reset charge family
+         * needs it to exist and to be the same "days since epoch" shape
+         * date_minutes already is at minute granularity, which this checks
+         * directly against `time(NULL)` rather than trusting the opcode's
+         * own arithmetic to grade itself.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t runeday = -1;
+            long long expected = (long long)time(NULL) / 86400LL;
+
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(srv, "[proc,selftest_date_runeday]", NULL,
+                                                          0, &runeday),
+                           "date_runeday should answer");
+            SELFTEST_CHECK(runeday == (int32_t)expected,
+                           "date_runeday should be days since the Unix epoch, got %d want %d",
+                           runeday, (int32_t)expected);
+            mock230_scripts_free(srv);
+        }
+    }
+
     /*
      * The Queen, her tortured souls, and the intermission worms all store
      * revision-727 life points, but only the Queen owns a phase cap and a
