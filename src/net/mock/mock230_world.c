@@ -32221,6 +32221,54 @@ mock230_world_selftest(void)
                 }
 
                 /*
+                 * Her flinch and her death must be STATED as absent.
+                 *
+                 * Omitting them does not mean "none": `[default]` in
+                 * `general/configs/npc_default.npc` carries the unarmed human
+                 * set, every record is seeded from it, and the fallback is the
+                 * right one for a nameless humanoid and badly wrong for a rig
+                 * this size — a 5x5 dragon playing `human_unarmedblock`. It is
+                 * also the quiet kind of wrong: the animation plays, so nothing
+                 * errors, it just is not hers.
+                 *
+                 * `null` is how a record says none, and this asserts it survived
+                 * to the loaded def rather than trusting the spelling.
+                 */
+                {
+                    /* All FOUR forms: she is retyped between them mid-fight, so
+                     * one form left unstated is a flinch that appears only after
+                     * an armour swap. */
+                    static const char* const k_qbd_forms[] = {
+                        "rs2012_qbd_sleeping",
+                        "rs2012_qbd_default",
+                        "rs2012_qbd_crystal",
+                        "rs2012_qbd_hardened",
+                    };
+                    const struct Mock230NpcDef* base = mock230_content_npc_default();
+
+                    SELFTEST_CHECK(base->defend_anim >= 0 && base->death_anim >= 0,
+                                   "the [default] block should still carry the fallback "
+                                   "human animations, else these checks prove nothing");
+                    for( int f = 0; f < (int)(sizeof(k_qbd_forms) / sizeof(k_qbd_forms[0])); f++ )
+                    {
+                        int const id = mock230_content_symbol(MOCK230_PACK_NPC, k_qbd_forms[f]);
+                        const struct Mock230NpcDef* d =
+                            id >= 0 ? mock230_content_npc(id) : NULL;
+
+                        if( !d )
+                            continue;
+                        SELFTEST_CHECK(d->defend_anim < 0,
+                                       "%s must state defend_anim=null, got %d (the "
+                                       "[default] fallback is %d)",
+                                       k_qbd_forms[f], d->defend_anim, base->defend_anim);
+                        SELFTEST_CHECK(d->death_anim < 0,
+                                       "%s must state death_anim=null, got %d (the "
+                                       "[default] fallback is %d)",
+                                       k_qbd_forms[f], d->death_anim, base->death_anim);
+                    }
+                }
+
+                /*
                  * 16721 must never be cut short, and both ways it could be are
                  * one constant edit away from reopening.
                  *
