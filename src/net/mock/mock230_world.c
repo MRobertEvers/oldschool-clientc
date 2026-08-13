@@ -1363,6 +1363,14 @@ interaction_try(
 
     if( !interaction_target(srv, &target_x, &target_z, &size_x, &size_z) )
     {
+        /* The target is gone — an npc that just died is the common case. A
+         * route queued to approach it (melee adjacency, or the "get to ap
+         * range" walk on the way in) is aimed at a tile that no longer means
+         * anything, and nothing else on this path would stop it: with the
+         * interaction cleared, next tick's gate on `interaction.kind` is
+         * false and advance_player keeps draining the queue regardless,
+         * walking the player onto the corpse over the following ticks. */
+        steps_clear(player);
         mock230_world_interaction_clear(srv);
         return 1;
     }
@@ -1670,6 +1678,10 @@ interaction_path_to_pathing_target(struct Mock230Server* srv)
         return;
     if( !interaction_target(srv, &target_x, &target_z, &size_x, &size_z) )
     {
+        /* See the matching comment in interaction_try: a stale target must
+         * drop any route queued toward it, or advance_player keeps walking
+         * the player there with nothing left to supervise the queue. */
+        steps_clear(player);
         mock230_world_interaction_clear(srv);
         return;
     }
@@ -1706,6 +1718,10 @@ interaction_continue_or_give_up(struct Mock230Server* srv)
         return;
     if( !interaction_target(srv, &target_x, &target_z, &size_x, &size_z) )
     {
+        /* See the matching comment in interaction_try: a stale target must
+         * drop any route queued toward it, or advance_player keeps walking
+         * the player there with nothing left to supervise the queue. */
+        steps_clear(player);
         mock230_world_interaction_clear(srv);
         return;
     }
