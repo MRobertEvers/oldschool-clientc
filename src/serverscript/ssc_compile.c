@@ -411,6 +411,12 @@ check_carrier_write(
  * A warning and not an error, because the read is recoverable and there are real
  * uses for the word — a migration that unpacks it by hand, a transmit check. What
  * it is almost never is what the reference script meant, so it says so.
+ *
+ * `wholeread=allow` is where content states one of those real uses, and it is a
+ * different key from `wholewrite=allow` on purpose: a whole read is recoverable
+ * and a whole write is not, so silencing the first must not license the second.
+ * A `wholewrite` exemption covers reads too — a varp that may be overwritten
+ * whole has already conceded the packing.
  */
 static void
 warn_carrier_read(
@@ -424,7 +430,7 @@ warn_carrier_read(
     if( push != SS_OP_PUSH_VARP )
         return;
     carrier = SSC_SymbolsCarrier(compiler->symbols, varp);
-    if( !carrier || carrier->exempt )
+    if( !carrier || carrier->exempt || carrier->read_exempt )
         return;
     fprintf(stderr,
             "sscompile: %s:%d: warning: `%%%s` reads varp %d whole, and %d varbit(s) are "
@@ -443,13 +449,21 @@ warn_carrier_read(
  * through to the normal error.
  *
  * Returns the script id, or -1.
+ *
+ * `out_stated` (optional) reports *how* it was found: 1 when the argument's own
+ * declared trigger named the script exactly, 0 when the fallback order below
+ * picked one. Only the caller can act on that, and the difference matters —
+ * see the note in parse_expression.
  */
 static int
-script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name)
+script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name, int* out_stated)
 {
     static const char* const k_triggers[] = { "proc",      "label", "queue",
                                               "softtimer", "timer", "walktrigger" };
     size_t i;
+
+    if( out_stated )
+        *out_stated = 0;
 
     /* An argument position that states its trigger gets it first: `settimer(x)`
      * means `[timer,x]` even in a tree that also has a `[proc,x]`, and the order
@@ -462,7 +476,11 @@ script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name)
         snprintf(full, sizeof(full), "[%s,%s]", compiler->arg_script_trigger, name);
         id = script_id_for_name(compiler, full);
         if( id >= 0 )
+        {
+            if( out_stated )
+                *out_stated = 1;
             return id;
+        }
     }
 
     for( i = 0; i < sizeof(k_triggers) / sizeof(k_triggers[0]); i++ )
@@ -1432,14 +1450,28 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
          */
         if( compiler->arg_is_script_name )
         {
-            int script_id = script_id_for_bare_name(compiler, text);
+            int stated = 0;
+            int script_id = script_id_for_bare_name(compiler, text, &stated);
 
             if( script_id >= 0 )
             {
-                /* Say so when the name was ambiguous: the script won, and the
+                /*
+                 * Say so when the name was ambiguous: the script won, and the
                  * reader of `settimer(poison, …)` cannot see that from the
-                 * source. Silence here is what let the bug above live. */
-                symbol = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_UNKNOWN);
+                 * source. Silence here is what let the bug above live.
+                 *
+                 * `stated` is what "ambiguous" means. When the argument's own
+                 * trigger named the script exactly — `settimer(poison, 30)`
+                 * found `[timer,poison]`, `queue(prince_complete, 0, 0)` found
+                 * `[queue,prince_complete]` — the position declared which
+                 * namespace it wanted and got it, and there is nothing for a
+                 * reader to check. Noting those said "resolved correctly" 25
+                 * times a build, which is how a diagnostic stops being read.
+                 * The report is kept for the case it was written for: the
+                 * fallback trigger order picked one, and *that* choice is a
+                 * guess made by k_triggers rather than by the source.
+                 */
+                symbol = stated ? NULL : SSC_SymbolsFindValue(compiler->symbols, text);
                 if( symbol )
                 {
                     fprintf(stderr,
@@ -1455,7 +1487,19 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
             }
         }
 
-        symbol = SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_UNKNOWN);
+        /*
+         * A bare identifier never means a constant, so the lookup that backs it
+         * excludes the kind.
+         *
+         * Constants are written `^name` and expand to source *text*:
+         * SSC_SymbolsLoadConstants keeps the text and passes 0 for the value,
+         * because which kind of literal it is is only decidable where it is
+         * used. A bare name that matched one therefore did not compile to what
+         * the author wrote — `prince_complete` is 110 and compiled to 0 — and
+         * the emit below said nothing about it. Same landing as the
+         * `settimer(poison, …)` bug above, one namespace over.
+         */
+        symbol = SSC_SymbolsFindValue(compiler->symbols, text);
         if( symbol )
         {
             emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
@@ -1466,7 +1510,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         /* Not a hinted position, but still a script name — `[if_button]`-style
          * arguments and anything the hint table does not cover. */
         {
-            int script_id = script_id_for_bare_name(compiler, text);
+            int script_id = script_id_for_bare_name(compiler, text, NULL);
 
             if( script_id >= 0 )
             {
@@ -1475,6 +1519,14 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
                 return 1;
             }
         }
+        /* Nothing else claims the name, so a constant of that name is what was
+         * meant — and the fix is one character. */
+        if( SSC_SymbolsFind(compiler->symbols, text, SSC_SYM_CONSTANT) )
+            return fail(compiler,
+                        "'%s' is a constant — write '^%s'. A bare name resolves in the pack "
+                        "namespaces, where a constant carries no value, so this would have "
+                        "compiled to 0",
+                        text, text);
         return fail(compiler, "'%s' is not a command, constant, symbol or script", text);
     }
 

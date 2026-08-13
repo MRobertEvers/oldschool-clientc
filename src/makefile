@@ -692,6 +692,17 @@ win64-debug:
 # SAME PlatformX_IO_LoadItem the native build uses. Always built native, even
 # when PLATFORM=web, so `make -C src web io-server` produces both halves.
 IO_SERVER_OBJ_DIR = build
+# The path is fixed — `src/build/io_server` is what docs/WEB_SERVERS.md and the
+# echoes above name — so the sub-make has to land in the *unsuffixed* native
+# objdir, and every variable that appends a flavour suffix to OBJ_DIR is pinned
+# off here. It is a sub-make of a build that may be any flavour: `make -C src
+# OPT=1 web` runs `servers` first, the OPT=1 propagated through MAKEFLAGS, and
+# OBJ_DIR became build_opt while this path stayed `build` — so nothing created
+# `build` and nothing had a rule for `build/rscache_unity.o` either. On a tree
+# that had one from an earlier debug build it linked stale objects; on a clean
+# one it died with "No rule to make target `build'".
+IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0 \
+	TORIDRAW_NO_SIMD=0 TORIDRAW_OPT=0 EMBED_SERVER=0
 # features/features.c: BootManifest_LoadFile resolves `[features:boot]` names
 # through it, so a server that reads a manifest needs it too — without it the
 # link fails on ToriRS_Features_ByName.
@@ -699,11 +710,14 @@ IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
 	bootmanifest/bootmanifest.c features/features.c $(INI_SRC)
 io-server:
-	$(MAKE) PLATFORM=native $(IO_SERVER_OBJ_DIR)/io_server
-$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) $(IO_SERVER_OBJ_DIR) \
+	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/io_server
+# The objdir is order-only: it is a prerequisite so that it exists, and every
+# object written into it bumps its mtime, which as a normal prerequisite relinked
+# the server on every unrelated build.
+$(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
-		$(IO_SERVER_OBJ_DIR)/xteas.o
+		$(IO_SERVER_OBJ_DIR)/xteas.o | $(IO_SERVER_OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
 		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
@@ -2427,7 +2441,7 @@ MOCK230_PACK_SRCS = net/mock/mock230_pack.c net/mock/mock230_content.c \
 	net/mock/mock230_objinfo.c net/mock/mock230_npcinfo.c net/mock/mock230_seqinfo.c \
 	net/mock/mock230_locinfo.c net/mock/mock230_paramtable.c \
 	net/mock/mock230_servercodec.c net/mock/mock230_servpack.c \
-	net/mock/mock230_zone_index.c \
+	net/mock/mock230_zone_index.c net/mock/mock230_varbit.c \
 	$(RSCACHE_DIR)/tools/cachepack/cp_membership.c \
 	content/content_register.c content/content_fields.c $(INI_SRC)
 mock230-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \

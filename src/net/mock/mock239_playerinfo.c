@@ -325,7 +325,15 @@ mock239_playerinfo_write(
              * at the instant a hit lands -- with no hitsplat, because the block
              * that would have drawn it is what killed the stream.
              */
-            rsab_p1_alt3(buf, 1);
+            int const slots = ext->hit_slots > 0 ? ext->hit_slots : 4;
+            int extra = ext->hit_extra_count;
+
+            if( extra < 0 )
+                extra = 0;
+            if( extra > (int)(sizeof(ext->hit_extra) / sizeof(ext->hit_extra[0])) )
+                extra = (int)(sizeof(ext->hit_extra) / sizeof(ext->hit_extra[0]));
+
+            rsab_p1_alt3(buf, 1 + extra);
             ext_psmart1or2(buf, ext->hit_type);
             ext_psmart1or2(buf, ext->hit_value);
             ext_psmart1or2(buf, ext->hit_delay);
@@ -336,7 +344,17 @@ mock239_playerinfo_write(
              * Sending zero still posts RuneLite's HitsplatApplied callback but
              * deliberately inserts nothing into the render list.
              */
-            ext_psmart1or2(buf, ext->hit_slots > 0 ? ext->hit_slots : 4);
+            ext_psmart1or2(buf, slots);
+            /* The rest of the tick's splats, in the same four-field shape. A
+             * player hit by two things at once is two hitmarks, not one — the
+             * count above is what says so. */
+            for( int i = 0; i < extra; i++ )
+            {
+                ext_psmart1or2(buf, ext->hit_extra[i].type);
+                ext_psmart1or2(buf, ext->hit_extra[i].value);
+                ext_psmart1or2(buf, ext->hit_delay);
+                ext_psmart1or2(buf, slots);
+            }
         }
         if( has_face )
         {

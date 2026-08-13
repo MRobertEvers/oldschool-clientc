@@ -2921,8 +2921,13 @@ put_player_extended(
     }
     if( mask & MOCK230_PMASK_DAMAGE2 )
     {
-        rsab_p1(buf, player->damage);
-        rsab_p1(buf, player->damage_type);
+        /* The tick's SECOND splat. Both classic damage masks used to write the
+         * same scalar pair, so this block could only ever repeat the first one
+         * — and nothing set the bit, so it never ran at all. See the npc twin
+         * of this branch for why the second hit lands in the client's first
+         * slot rather than its second, and why that does not matter. */
+        rsab_p1(buf, player->hitmarks[1].damage);
+        rsab_p1(buf, player->hitmarks[1].type);
         rsab_p1(buf, player->hitpoints);
         rsab_p1(buf, player->max_hitpoints);
     }
@@ -3516,6 +3521,15 @@ mock230_send_player_info(struct Mock230Player* player)
                 ext.has_hit = 1;
                 ext.hit_type = player->damage_type;
                 ext.hit_value = player->damage;
+                /* Splats two and onward of the same tick. The mirrors above are
+                 * hitmarks[0]; everything the player took alongside it goes in
+                 * the list rather than being dropped (struct Mock230Hitmark). */
+                for( int i = 1; i < player->hitmark_count && i <= 3; i++ )
+                {
+                    ext.hit_extra[ext.hit_extra_count].type = player->hitmarks[i].type;
+                    ext.hit_extra[ext.hit_extra_count].value = player->hitmarks[i].damage;
+                    ext.hit_extra_count++;
+                }
                 /* The standard bar's configuration and width are content
                  * symbols, not an engine-side numeric convention. Start from
                  * full and advance to the current fill so the v239 client can
@@ -4042,16 +4056,43 @@ put_npc_extended_v5(
      */
     if( hit )
     {
-        /* NpcHitmarkEncoder: p1Alt1 count, then per hit
-         * pSmart1or2 type, value, delay, limit. One hit per tick is all the
-         * classic mask could express, so one is all there is to convert. */
-        rsab_p1_alt1(buf, 1);
-        v5_psmart1or2(buf, npc->damage_type);
-        v5_psmart1or2(buf, npc->damage);
-        v5_psmart1or2(buf, 0); /* delay: lands this tick */
-        /* Actor.method3560 only inserts the hitmark when this slot limit is
-         * positive. Revision 239 actors retain four concurrent hitmarks. */
-        v5_psmart1or2(buf, 4);
+        /*
+         * NpcHitmarkEncoder: p1Alt1 count, then per hit pSmart1or2 type, value,
+         * delay, limit.
+         *
+         * The count is `npc->hitmark_count` and not the literal 1 it used to be.
+         * That 1 was justified by "one hit per tick is all the classic mask
+         * could express" — true of the mask, but the mask was the only thing
+         * that could not: this block is a list, and the entity now keeps the
+         * whole tick's worth (see struct Mock230Hitmark). Two attackers landing
+         * together used to send one splat and the reporter saw hitsplats appear
+         * "only sometimes".
+         *
+         * Guarded below 1 because `hit` is derived from the mask, and a mask set
+         * without a hitmark would write a count of zero and then no quadruples —
+         * legal, but it would spend a block to say nothing.
+         */
+        int hits = npc->hitmark_count > 0 ? npc->hitmark_count : 1;
+
+        if( hits > MOCK230_HITMARK_MAX )
+            hits = MOCK230_HITMARK_MAX;
+        rsab_p1_alt1(buf, hits);
+        for( int i = 0; i < hits; i++ )
+        {
+            /* `hitmark_count == 0` with the mask set can only come from a
+             * writer that set the mask by hand; fall back to the mirror so it
+             * still says what it used to. */
+            int const damage = npc->hitmark_count > 0 ? npc->hitmarks[i].damage : npc->damage;
+            int const damage_type =
+                npc->hitmark_count > 0 ? npc->hitmarks[i].type : npc->damage_type;
+
+            v5_psmart1or2(buf, damage_type);
+            v5_psmart1or2(buf, damage);
+            v5_psmart1or2(buf, 0); /* delay: lands this tick */
+            /* Actor.method3560 only inserts the hitmark when this slot limit is
+             * positive. Revision 239 actors retain four concurrent hitmarks. */
+            v5_psmart1or2(buf, 4);
+        }
     }
     if( flag & V5_NPC_HEADBARS )
     {
@@ -4165,8 +4206,22 @@ put_npc_extended(
 
     if( mask & MOCK230_NMASK_DAMAGE2 )
     {
-        rsab_p1(buf, npc->damage);
-        rsab_p1(buf, npc->damage_type);
+        /*
+         * The tick's SECOND splat, and until now this branch was dead twice
+         * over: nothing ever set the bit, and it wrote the same scalar pair the
+         * DAMAGE branch below writes, so setting it would have drawn the first
+         * hit twice.
+         *
+         * The client reads this block BEFORE the DAMAGE one (0x01 sorts under
+         * 0x10) and each becomes its own `PKT_NPC_INFO_OP_DAMAGE`, so the
+         * second-dealt splat takes the first free render slot and the
+         * first-dealt takes the next. Slots only nudge a splat a few pixels
+         * apart, so the pair renders either way round; keeping DAMAGE on
+         * `hitmarks[0]` is what makes the ordinary one-hit tick byte-identical
+         * to what it sent before.
+         */
+        rsab_p1(buf, npc->hitmarks[1].damage);
+        rsab_p1(buf, npc->hitmarks[1].type);
         rsab_p1(buf, npc->hitpoints);
         rsab_p1(buf, npc->max_hitpoints);
     }
