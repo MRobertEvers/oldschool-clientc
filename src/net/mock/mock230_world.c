@@ -4214,6 +4214,37 @@ handle_worn_inv_button(
                          ? MOCK230_TRIGGER_RAN
                          : MOCK230_TRIGGER_FAILED;
     }
+    /*
+     * Nothing bound the component itself — fall through to the same
+     * obj-based [opheldN,name] dispatch the backpack path uses (above), so
+     * content only has to bind an item's Check/Revert/etc once and it fires
+     * whether the item is clicked from the backpack or the worn tab. Op1 is
+     * excluded: the worn tab's slot-0 op is always Remove regardless of what
+     * the objtype's own op1 label says (see the unequip_slot fallback
+     * below), so re-dispatching it by obj id could hijack that with an
+     * unrelated `[opheld1,obj]` binding meant for backpack context.
+     *
+     * Before this, `[opheld3,dodgy_necklace]`, `[opheld4,ibanstaff]`, every
+     * crystal item's `[opheld3,...]` Check, and any other worn charged
+     * item's Check/Revert/Dismantle bindings were unreachable while worn —
+     * `handle_worn_inv_button` never tried anything past the per-slot
+     * component binding, so clicking Check on an equipped item silently hit
+     * the engine's "nothing bound this" fallback every time. docs/
+     * ITEM_CHARGES_PLAN.md's charged items are typically worn when checked,
+     * which is exactly the case this was breaking.
+     */
+    if( result == MOCK230_TRIGGER_NONE && op_num >= 2 )
+    {
+        int worn_obj_id = player->worn[worn].obj_id;
+        if( worn_obj_id > 0 )
+        {
+            const struct Mock230ObjInfo* worn_info = mock230_objinfo(worn_obj_id);
+            player->last_item = worn_obj_id;
+            result = mock230_scripts_run_trigger(
+                srv, SS_TRIGGER_OPHELD1 + (op_num - 1), worn_obj_id,
+                worn_info->category > 0 ? worn_info->category : -1, -1);
+        }
+    }
     if( result == MOCK230_TRIGGER_NONE && op_num == 1 )
         unequip_slot(srv, worn);
 }
@@ -31788,6 +31819,73 @@ mock230_world_selftest(void)
                 "a bank deposit/withdraw round trip should carry vars, got %d", out);
 
             mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: worn-item opheld dispatch\n");
+    {
+        /*
+         * docs/ITEM_CHARGES_PLAN.md §3b: `handle_worn_inv_button` used to stop
+         * after the per-slot `[inv_button<n>,wornitems:slotN]` binding — a
+         * worn item's own `[opheld3,obj]` (Check), `[opheld4,...]`,
+         * `[opheld5,...]` never dispatched at all, so every charged item's
+         * Check silently no-op'd (fell to the "nothing bound this" fallback)
+         * the moment it was actually worn, which is when a player checks one.
+         * Fixed by falling through to the same obj-based dispatch the
+         * backpack path (`handle_opheld`) always had, for op 2-5.
+         *
+         * Drives `handle_worn_inv_button` directly — the same static
+         * function `handle_opheld_packet` calls — because there is no
+         * headless client to send a real OPHELD/INV_BUTTON packet through.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct Mock230Player* p = srv->active_player;
+            int scimitar_id = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_scimitar");
+            struct Mock230Item saved;
+            int component;
+            int32_t out = -1;
+            int vi;
+
+            assert(p);
+            SELFTEST_CHECK(scimitar_id > 0, "bronze_scimitar should resolve to a real obj id");
+
+            saved = p->worn[MOCK230_WEAR_WEAPON];
+            p->worn[MOCK230_WEAR_WEAPON].obj_id = scimitar_id;
+            p->worn[MOCK230_WEAR_WEAPON].count = 1;
+            /* var_key[i] < 0 means "free slot" (mock230_item_set_var) — a
+             * zeroed struct reads as every slot already holding key 0, not
+             * as an empty table. */
+            for( vi = 0; vi < MOCK230_ITEM_VAR_MAX; vi++ )
+            {
+                p->worn[MOCK230_WEAR_WEAPON].var_key[vi] = -1;
+                p->worn[MOCK230_WEAR_WEAPON].var_val[vi] = 0;
+            }
+
+            component = mock230_equipment_worn_component(MOCK230_WEAR_WEAPON);
+            SELFTEST_CHECK(component >= 0, "MOCK230_WEAR_WEAPON should map to a worn component");
+
+            handle_worn_inv_button(srv, component, 3);
+
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_worn_opheld_marker]", NULL, 0,
+                                              &out) &&
+                    out == 424242,
+                "worn-item op3 should have dispatched [opheld3,bronze_scimitar] and written "
+                "the marker into the WORN copy via last_slot, got %d",
+                out);
+
+            p->worn[MOCK230_WEAR_WEAPON] = saved;
             mock230_scripts_free(srv);
         }
     }
