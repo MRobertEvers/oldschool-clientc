@@ -10888,7 +10888,9 @@ selftest_rev239_zone_scan(
     const struct Mock230Capture* capture,
     enum GameProtoPktName wanted,
     int id,
-    int* out_target)
+    int* out_target,
+    int* out_duration,
+    int* out_angle_raw)
 {
     int count = 0;
 
@@ -10940,7 +10942,13 @@ selftest_rev239_zone_scan(
             case 0: length = 2; break;  /* LOC_DEL */
             case 2: length = 14; break; /* LOC_MERGE */
             case 4: length = 11; break; /* OBJ_COUNT */
-            case 5: length = 6; break;  /* MAP_ANIM */
+            case 5:                    /* MAP_ANIM */
+                /* MapAnimEncoder: p1 height, p2Alt1 id (little-endian),
+                 * p2Alt1 delay, p1 pos. */
+                length = 6;
+                if( at + 2 < packet->len )
+                    got = packet->data[at + 1] | (packet->data[at + 2] << 8);
+                break;
             case 7:                    /* LOC_ADD_CHANGE_V2 */
             {
                 int begin = at;
@@ -10989,6 +10997,7 @@ selftest_rev239_zone_scan(
                 break;
             if( ((wanted == PKT_NAME_LOC_ADD_CHANGE && ordinal == 7) ||
                  (wanted == PKT_NAME_LOC_ANIM && ordinal == 9) ||
+                 (wanted == PKT_NAME_MAP_ANIM && ordinal == 5) ||
                  (wanted == PKT_NAME_MAP_PROJANIM && ordinal == 13)) &&
                 (id < 0 || got == id) )
             {
@@ -11003,6 +11012,13 @@ selftest_rev239_zone_scan(
 
                     *out_target = target >= (1 << 23) ? target - (1 << 24) : target;
                 }
+                /* `endTime` is the flight duration in client cycles, p2Alt1 =
+                 * little-endian (bytes +7/+8); `angle` is the arc peak, p1Alt2
+                 * = negate at +18, so a flat glide's 0 reads back as raw 0. */
+                if( out_duration && ordinal == 13 && at + 8 < packet->len )
+                    *out_duration = packet->data[at + 7] | (packet->data[at + 8] << 8);
+                if( out_angle_raw && ordinal == 13 && at + 18 < packet->len )
+                    *out_angle_raw = packet->data[at + 18];
             }
             at += length;
         }
@@ -11016,7 +11032,7 @@ selftest_rev239_zone_count(
     enum GameProtoPktName wanted,
     int id)
 {
-    return selftest_rev239_zone_scan(capture, wanted, id, NULL);
+    return selftest_rev239_zone_scan(capture, wanted, id, NULL, NULL, NULL);
 }
 
 /*
@@ -12453,7 +12469,7 @@ mock230_world_selftest(void)
 
                     SELFTEST_CHECK(selftest_rev239_zone_scan(&npc_proj_capture,
                                                              PKT_NAME_MAP_PROJANIM, spotanim,
-                                                             &encoded_target) == 1,
+                                                             &encoded_target, NULL, NULL) == 1,
                                    "an npc-targeted projectile reaches the client as one "
                                    "MAP_PROJANIM carrying spotanim %d",
                                    spotanim);
@@ -31412,6 +31428,121 @@ mock230_world_selftest(void)
                                        "safe=%d inside=%d",
                                        safe_bones, instance_bones);
                     }
+                }
+            }
+
+            /*
+             * The moving fire wall's wire contract (ENCOUNTER.md §6): each
+             * wave is a per-row respawn of the wall spot-animation carried by
+             * the OFFICIAL MAP_ANIM zone packet, one row per tick, issued by
+             * the same queue that burns the row. A phase-3 cast therefore
+             * shows exactly one wall packet on tick 3 (wave 1 spawning at row
+             * 38), two on tick 10 (waves 1+2 stepping) and three on tick 17,
+             * and 3 waves x 20 rows = 60 packets over the whole flight. The
+             * shape this replaces — a single ballistic MAP_PROJANIM with
+             * peak 46 and an 18-cycle flight racing an invisible half-speed
+             * damage front — fails every one of these checks.
+             */
+            {
+                int wall_spot =
+                    mock230_content_symbol(MOCK230_PACK_SPOTANIM, "rs2012_qbd_spot_3160");
+                int wall_fixture_ok = wall_spot > 0;
+
+                SELFTEST_CHECK(wall_fixture_ok,
+                               "the QBD wall fixture should resolve the wall spotanim");
+                if( wall_fixture_ok )
+                {
+                    static struct Mock230Capture wall_capture;
+                    const struct Mock230Wire* saved_wire = srv.wire;
+                    const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+                    int at_tick3 = -1;
+                    int at_tick10 = -1;
+                    int at_tick17 = -1;
+                    int total = 0;
+                    int saved_hp;
+                    int saved_max_hp;
+                    int saved_hp_level;
+                    int saved_hp_boost;
+
+                    selftest_reset_world(&srv, player, 402, 402);
+                    /* The fixture parks in wave 1's gap column; waves 2 and 3
+                     * still burn it, and a stock 10-HP account dies mid-cast,
+                     * tearing the session (and every remaining wall row) down
+                     * with it. The stanza measures the wire, not survival.
+                     * The boosted stat must rise with the pool or the ordinary
+                     * regen clamp snaps the pool back to the stat's ceiling. */
+                    saved_hp = player->hitpoints;
+                    saved_max_hp = player->max_hitpoints;
+                    saved_hp_level = player->stat_level[MOCK230_STAT_HITPOINTS];
+                    saved_hp_boost = player->stat_boosted[MOCK230_STAT_HITPOINTS];
+                    player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                    player->max_hitpoints = 990;
+                    player->hitpoints = 990;
+                    mock230_capture_begin(&srv, &wall_capture);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdwall 3") ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "::rs2012qbdwall should reach content");
+                    mock230_capture_end(&srv);
+                    for( int i = mock230_capture_find(&wall_capture, 90 /* MESSAGE_GAME */, 0);
+                         i >= 0;
+                         i = mock230_capture_find(&wall_capture, 90, i + 1) )
+                    {
+                        const struct Mock230CapturedPacket* packet = &wall_capture.packets[i];
+
+                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                            continue;
+                        if( strstr((const char*)packet->data + 1, "rs2012qbdwall FAIL") )
+                            fprintf(stderr, "  %s\n", (const char*)packet->data + 1);
+                    }
+                    srv.wire = wire239;
+                    for( int tick = 1; tick <= 40; tick++ )
+                    {
+                        /* The teleport's rebuild flag is raised by the zone
+                         * phase of the first tick AFTER it, and phase_players
+                         * skips a rebuild-pending player wholesale — the
+                         * armed wave queue would freeze. Acknowledge inside
+                         * the loop, the same handshake the TD death fixture
+                         * performs mid-flow. */
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(
+                                player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        mock230_capture_begin(&srv, &wall_capture);
+                        mock230_world_tick(&srv);
+                        mock230_capture_end(&srv);
+                        {
+                            int n = selftest_rev239_zone_count(
+                                &wall_capture, PKT_NAME_MAP_ANIM, wall_spot);
+
+                            total += n;
+                            if( tick == 3 )
+                                at_tick3 = n;
+                            if( tick == 10 )
+                                at_tick10 = n;
+                            if( tick == 17 )
+                                at_tick17 = n;
+                        }
+                    }
+                    srv.wire = saved_wire;
+
+                    SELFTEST_CHECK(at_tick3 == 1 && at_tick10 == 2 && at_tick17 == 3,
+                                   "wave cadence should show 1/2/3 wall rows on ticks "
+                                   "3/10/17, got %d/%d/%d",
+                                   at_tick3, at_tick10, at_tick17);
+                    SELFTEST_CHECK(total == 60,
+                                   "three waves over 20 rows should spawn 60 wall rows, "
+                                   "got %d",
+                                   total);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(&srv, "rs2012qbdwallend") ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "::rs2012qbdwallend should release the wall fixture");
+                    SELFTEST_CHECK(mock230_mapinstance_live_count() == 0,
+                                   "the wall fixture should release its instance, %d live",
+                                   mock230_mapinstance_live_count());
+                    player->hitpoints = saved_hp;
+                    player->max_hitpoints = saved_max_hp;
+                    player->stat_level[MOCK230_STAT_HITPOINTS] = saved_hp_level;
+                    player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_hp_boost;
                 }
             }
 
