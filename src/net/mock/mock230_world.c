@@ -32221,6 +32221,34 @@ mock230_world_selftest(void)
                 }
 
                 /*
+                 * 16721 must never be cut short, and both ways it could be are
+                 * one constant edit away from reopening.
+                 *
+                 * Asserted in C rather than beside the other wall/gap checks in
+                 * `rs2012_qbd_selftest.rs2`, because those live in
+                 * `[debugproc,rs2012qbdtest]` — a proc `--selftest` never calls.
+                 * They only run when someone types `::rs2012qbdtest` in game, so
+                 * an invariant left there is documentation, not a gate.
+                 */
+                {
+                    int const anim_ticks =
+                        mock230_content_constant_int("rs2012_qbd_breath_anim_ticks", 0);
+                    int const spacing =
+                        mock230_content_constant_int("rs2012_qbd_recover_ordinary_min", 0);
+                    int const lock_var =
+                        mock230_content_constant_int("rs2012_qbd_var_anim_lock", 0);
+
+                    SELFTEST_CHECK(anim_ticks > 0 && spacing >= anim_ticks,
+                                   "her attack spacing (%d ticks) must cover the breath "
+                                   "animation (%d ticks) or her next attack starts inside it",
+                                   spacing, anim_ticks);
+                    SELFTEST_CHECK(lock_var > 8,
+                                   "the breath's anim-lock var (%d) must be clear of the "
+                                   "attack clock and cooldowns in slots 0..8",
+                                   lock_var);
+                }
+
+                /*
                  * Her attacks must out-prioritise her flinch.
                  *
                  * `mock230_combat_hit_npc` plays `block_seq` on every hit that
@@ -32742,16 +32770,19 @@ mock230_world_selftest(void)
             }
 
             /*
-             * The moving fire wall's wire contract (ENCOUNTER.md §6): each
-             * wave is a per-row respawn of the wall spot-animation carried by
-             * the OFFICIAL MAP_ANIM zone packet, one row per tick, issued by
-             * the same queue that burns the row. A phase-3 cast therefore
-             * shows exactly one wall packet on tick 3 (wave 1 spawning at row
-             * 38), two on tick 10 (waves 1+2 stepping) and three on tick 17,
-             * and 3 waves x 20 rows = 60 packets over the whole flight. The
-             * shape this replaces — a single ballistic MAP_PROJANIM with
-             * peak 46 and an 18-cycle flight racing an invisible half-speed
-             * damage front — fails every one of these checks.
+             * The moving fire wall's wire contract (ENCOUNTER.md §6): each wave
+             * is ONE flat MAP_PROJANIM glide, issued on the wave's first tick
+             * and left to travel, while the per-row queue underneath it walks
+             * the damage front in step. A phase-3 cast therefore emits exactly
+             * one wall projectile per wave — three over the cast, on ticks 3,
+             * 10 and 17 — and NOT one packet per row.
+             *
+             * Counting rows is what this used to assert, because the wall used
+             * to be a per-row respawn of the spot-animation. That shape cannot
+             * help but pop one tile per tick, which is what it looked like. The
+             * ballistic glide before THAT (peak 46 over 18 cycles, a 0.36s lob
+             * racing a 19-tick damage front) was wrong for its arc and its
+             * duration, not for being a projectile.
              */
             {
                 int wall_spot =
@@ -32822,7 +32853,7 @@ mock230_world_selftest(void)
                         mock230_capture_end(srv);
                         {
                             int n = selftest_rev239_zone_count(
-                                &wall_capture, PKT_NAME_MAP_ANIM, wall_spot);
+                                &wall_capture, PKT_NAME_MAP_PROJANIM, wall_spot);
 
                             total += n;
                             if( tick == 3 )
@@ -32835,13 +32866,13 @@ mock230_world_selftest(void)
                     }
                     srv->wire = saved_wire;
 
-                    SELFTEST_CHECK(at_tick3 == 1 && at_tick10 == 2 && at_tick17 == 3,
-                                   "wave cadence should show 1/2/3 wall rows on ticks "
-                                   "3/10/17, got %d/%d/%d",
+                    SELFTEST_CHECK(at_tick3 == 1 && at_tick10 == 1 && at_tick17 == 1,
+                                   "each wave should launch exactly one wall glide, on "
+                                   "ticks 3/10/17, got %d/%d/%d",
                                    at_tick3, at_tick10, at_tick17);
-                    SELFTEST_CHECK(total == 60,
-                                   "three waves over 20 rows should spawn 60 wall rows, "
-                                   "got %d",
+                    SELFTEST_CHECK(total == 3,
+                                   "a three-wave cast should launch three wall glides and "
+                                   "no per-row respawns, got %d",
                                    total);
                     SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "rs2012qbdwallend") ==
                                        MOCK230_TRIGGER_RAN,
