@@ -494,6 +494,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         (pt)->lc = __LINE__;                                                                       \
         if( !(pt)->user )                                                                          \
             (pt)->user = (child_expr);                                                             \
+        __attribute__((fallthrough));                                                              \
     case __LINE__:                                                                                 \
     {                                                                                              \
         struct ToriRS_Task* _child = (pt)->user;                                                   \
@@ -515,6 +516,7 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         (pt)->lc = __LINE__;                                                                       \
         if( !(pt)->user )                                                                          \
             (pt)->user = (expr);                                                                   \
+        __attribute__((fallthrough));                                                              \
     case __LINE__:                                                                                 \
     {                                                                                              \
         struct ToriRS_Task* _child = (pt)->user;                                                   \

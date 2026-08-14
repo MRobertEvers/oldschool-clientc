@@ -2826,6 +2826,25 @@ struct Mock230Player
      *  a track restarting every 64 tiles is the tell that this is missing. */
     int music_track;
 
+    /** The ambient soundscape this client is currently running, or -1 for
+     *  none. Same latch discipline as `music_track`: the bed is re-sent only
+     *  when the id actually changes. */
+    int ambient_scape;
+
+    /**
+     * The map square whose ambience `ambientsound` was last called for, or -1.
+     *
+     * A script that owns its square's bed (the QBD arena stops it, because the
+     * arena's noise comes from loc emitters) has to survive the map-square
+     * latch firing in the *same tick* as the teleport that put the player
+     * there. Recording the square the script spoke about makes the latch's
+     * "re-establish the world bed" step conditional on the player having
+     * actually left that square, so the two cannot fight and the order they
+     * run in stops mattering.
+     */
+    int ambient_script_map_x;
+    int ambient_script_map_z;
+
     /*
      * ── The two coordinate latches `updateMap` holds ─────────────────
      *
@@ -3926,6 +3945,19 @@ mock230_seq_by_name(const char* name);
  */
 int
 mock230_seq_priority(int seq_id);
+
+/**
+ * Whether the LOADED cache's sequence archive actually carries this id.
+ *
+ * `mock230_seq_priority` cannot say: an id past the end of the table answers
+ * with the default, which is indistinguishable from a record that really states
+ * 5. That matters for content living in a lane cache — a check about a lane
+ * animation run against the pristine cache would compare two defaults and read
+ * as a genuine result. Callers that mean "skip unless this lane is loaded" ask
+ * here first.
+ */
+int
+mock230_seq_priority_known(int seq_id);
 
 /* ------------------------------------------------------------------ */
 /* Animation (mock230_combat.c)                                        */
@@ -5694,6 +5726,20 @@ void
 mock230_send_run_weight(
     struct Mock230Player* player,
     int kilograms);
+/**
+ * The map square whose *region* rules (music, ambient bed) apply to a player.
+ *
+ * Not `player->x >> 6` inside an instance: an instanced player's own square is
+ * out past the edge of the real map and describes nothing, so this resolves
+ * through the square the instance was copied from. See the long note at the
+ * definition for why every instanced encounter was silent before it existed.
+ */
+void
+mock230_region_square_for(
+    struct Mock230Player* player,
+    int* out_map_x,
+    int* out_map_z);
+
 void
 mock230_send_ambientsound_start(
     struct Mock230Player* player,

@@ -547,10 +547,12 @@ now consumes the source format exactly.
 
 Sequence-embedded QBD sound events reference revision-727 index 14, not the
 OSRS index-4 synth table. Alternative IDs at one frame are random alternatives,
-not simultaneous sounds. The source evidence below lists those alternatives;
-the destination sequence codec retains the primary event but currently consumes
-and discards the extra nested alternatives because OSRS239 has no matching
-selector representation.
+not simultaneous sounds, and **all of them are now imported**: the 226+
+destination record writes an explicit frame per entry, so a frame's
+alternatives are repeated entries on that frame and the client's weighted run
+rolls between them. The codec used to keep only the primary and discard the
+rest — see `docs/rs2012_qbd_encounter/AUDIO.md` §4.1, which is also where the
+per-attack table now lives.
 
 - Wake 16714: 14969, 14991, 15022, 14832, 14989, 14975, 14912, 14940,
   14992, 14914 across its marked frames.
@@ -563,25 +565,28 @@ selector representation.
 - Extreme 16745: 14988. Wall 16746: 14984 then 14896.
 - Restoration 16766: 15636. Artefact complete 16771: 15634. Exit 16774: 15458.
 - Worm attack 16782: 14844/14979/14974/14967.
-- Worm turn 16787: 14921/15000/15014/14966/14922.
+- Worm crawl 16787: 14921/15000/15014/14966/14922. Bound to nothing on the
+  destination npc — see AUDIO.md §4.3.
 - Soul sequences carry no embedded audio.
 
 Revision-727 sequence opcode 18 selects recorded index-14 audio; it is not an
-ordinary animation flag. QBD has 40 recorded frame events across 18
-sequences/27 source IDs. Tormented demons add seven index-4 synth events, so
-the two encounters account for 47 primary events. Sir Rebrum's imported
-animation closure adds eight recorded events, making the full lane 55 primary
-events: 48 recorded plus seven synthesized. Every primary ID resolves in the
-destination packs.
+ordinary animation flag. The full lane carries 184 frame-sound events — 177
+recorded plus seven synthesized — of which 129 are the alternatives on the 19
+frames that declare a random set. Every ID resolves in the destination packs.
 
-The bridge preserves 83 recorded samples plus the source Vorbis setup at
+What the destination still cannot carry is opcodes 19 and 20: the per-sound
+volume percentage and random playback-rate range, 32 and 22 records over the
+encounter's sequences. Her ready breath is authored at 40% and the fire-wall
+wind-up at 150%, and the bite, both dragonfires, the sweep and the wall all
+carry a ±4% pitch wobble; the osrs239 frame-sound record has no field for
+either, so they stay source evidence.
+
+The bridge preserves 106 recorded samples plus the source Vorbis setup at
 index 14 archive 16000. Runtime sound loading first tries native index 4, then
-uses the foreign setup for the high imported sample namespace. Source sample
-6249 is the only ambiguous low ID and is explicitly remapped to 17000 in both
-the sequences and ledger. All 83 samples decode to signed 16-bit PCM from the
-composed cache. The extra members of nested random-alternative sets remain
-source evidence only: the OSRS239 sequence record can carry one event per frame,
-so it plays the primary rather than all alternatives or a fabricated mixture.
+uses the foreign setup for the high imported sample namespace. Source samples
+below 14000 — Sir Rebrum's 13 alternative footsteps and the ambiguous 6249 —
+are remapped into 17000+ in both the sequences and the ledger. All 106 samples
+decode to signed 16-bit PCM from the composed cache.
 
 ### 5.5 Core locs and models
 
@@ -648,7 +653,7 @@ manual visual follow-up rather than claimed fidelity.
 Music client IDs are 1119 `Awoken` and 1118 `Queen Black Dragon`, established
 through source script maps 1345/1351 and open727's explicit controller calls.
 Both packed tracks use source patch 1157 and the foreign index-14 setup; the
-closure contains 83 recorded samples in total. Entry sends 1119, the first
+closure contains 106 recorded samples in total. Entry sends 1119, the first
 artefact restoration changes to 1118, and shared leave/death/logout cleanup
 sends `midi_song(-1)` so the boss track cannot leak into an unmapped exterior
 region. On the revision-239 wire, each positive scripted `midi_song` is carried
@@ -1021,10 +1026,10 @@ Interfaces 1284/1285 remain at their source IDs; material texture IDs occupy
 indices are separate namespaces. These are final recursive totals, not the
 earlier seed set.
 
-Audio closure adds 29 index-4 synth archives; 83 index-14 recorded samples plus
-the foreign setup; music tracks 1118/1119; and patch 1157. Those 116 archives
-contain 2,374,417 source payload bytes. The index-14 source/destination ledger
-is append-stable and records the sole 6249→17000 collision remap explicitly.
+Audio closure adds 29 index-4 synth archives; 106 index-14 recorded samples
+plus the foreign setup; music tracks 1118/1119; and patch 1157 — 139 archives.
+The index-14 source/destination ledger is append-stable and records every
+sub-14000 collision remap into 17000+ explicitly.
 
 ### 8.2 Codec work required by revision 727
 
@@ -1099,14 +1104,15 @@ for inspection or a future fuller renderer. Clearing only the texture ID was
 the concrete cause of the mouth-only QBD intermediate render.
 
 QBD recorded audio is bridged rather than copied into the wrong cache table.
-The foreign setup remains at index 14 archive 16000, all 83 samples retain exact
-source bytes (apart from the ledger-level 6249→17000 archive relocation), and
-runtime converts them through the exact decoder/16-bit PCM path. All 55 primary
-sequence events and all 103 loc-audio references resolve to one of the 29
-index-4 synths or 84 index-14 archives. Tracks 1118/1119 and patch 1157 are also
-packed and decoded. The remaining boundary is perceptual: no live SDL listening
-A/B against the 2012 client was performed, and nested alternative selectors are
-not expressible in the OSRS239 sequence format.
+The foreign setup remains at index 14 archive 16000, all 106 samples retain
+exact source bytes (apart from the ledger-level relocations of sub-14000 ids
+into 17000+), and runtime converts them through the exact decoder/16-bit PCM
+path. All 184 sequence events and all 103 loc-audio references resolve to one
+of the 29 index-4 synths or 107 index-14 archives. Tracks 1118/1119 and patch
+1157 are also packed and decoded. The remaining boundaries are perceptual —
+no live SDL listening A/B against the 2012 client was performed — and the
+per-sound volume/rate modifiers of opcodes 19/20, which the OSRS239 sequence
+record has no field for.
 
 The original 1284/1285 visual trees are structurally complete and packed: 82
 components, 32 UI sprites, model 70127→110657 and sequence 9390→22075. Foreign

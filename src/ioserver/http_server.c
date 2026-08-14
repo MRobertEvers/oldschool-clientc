@@ -1,16 +1,30 @@
 #include "http_server.h"
 
+/* mingw-w64 (see src/platform/sockstream.c for the same split on the client
+ * side) has no POSIX socket headers at all -- Winsock2 is a different API,
+ * not a POSIX-compatible one, so this whole file branches on _WIN32 rather
+ * than trying to shim the POSIX names onto it. */
+#ifdef _WIN32
+/* The default 64-slot fd_set silently drops sockets past its capacity
+ * instead of erroring; HTTP_MAX_CLIENTS plus the listener is already 65. */
+#define FD_SETSIZE 128
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define close closesocket
+#else
 #include <arpa/inet.h>
-#include <errno.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 #define HTTP_MAX_CLIENTS 64
 /* A request body is an IO batch of a few dozen records; anything past this is
@@ -18,9 +32,53 @@
 #define HTTP_MAX_BODY (16 * 1024 * 1024)
 #define HTTP_MAX_HEADERS (64 * 1024)
 
+#ifdef _WIN32
+typedef SOCKET sock_t;
+#define SOCK_INVALID INVALID_SOCKET
+#else
+typedef int sock_t;
+#define SOCK_INVALID (-1)
+#endif
+
+/* perror() reads errno, which Winsock calls never set -- WSAGetLastError()
+ * is the only place a Windows socket failure's real code shows up. */
+static void
+sock_perror(char const* msg)
+{
+#ifdef _WIN32
+    fprintf(stderr, "%s: WSA error %d\n", msg, WSAGetLastError());
+#else
+    perror(msg);
+#endif
+}
+
+#ifdef _WIN32
+/* mingw-w64 ships no memmem() (it's a GNU/BSD extension, not POSIX, and not
+ * part of the Windows CRT) -- the request parser below needs it to find
+ * "\r\n\r\n" / "\r\n" inside a buffer that is not NUL-terminated. */
+static void*
+memmem(
+    void const* haystack,
+    size_t haystack_len,
+    void const* needle,
+    size_t needle_len)
+{
+    uint8_t const* h = (uint8_t const*)haystack;
+    uint8_t const* n = (uint8_t const*)needle;
+    size_t i;
+
+    if( needle_len == 0 || haystack_len < needle_len )
+        return NULL;
+    for( i = 0; i + needle_len <= haystack_len; i++ )
+        if( memcmp(h + i, n, needle_len) == 0 )
+            return (void*)(h + i);
+    return NULL;
+}
+#endif
+
 struct HttpClient
 {
-    int fd;
+    sock_t fd;
     uint8_t* buf;
     int len;
     int cap;
@@ -62,10 +120,10 @@ HttpServer_ContentTypeForPath(char const* path)
 static void
 client_reset(struct HttpClient* client)
 {
-    if( client->fd >= 0 )
+    if( client->fd != SOCK_INVALID )
         close(client->fd);
     free(client->buf);
-    client->fd = -1;
+    client->fd = SOCK_INVALID;
     client->buf = NULL;
     client->len = 0;
     client->cap = 0;
@@ -98,7 +156,7 @@ client_append(
 
 static int
 write_all(
-    int fd,
+    sock_t fd,
     void const* data,
     int count)
 {
@@ -106,14 +164,19 @@ write_all(
     int written = 0;
     while( written < count )
     {
-        ssize_t n = send(fd, p + written, (size_t)(count - written), 0);
+        int n = send(fd, (char const*)(p + written), count - written, 0);
         if( n <= 0 )
         {
+#ifdef _WIN32
+            if( n < 0 && WSAGetLastError() == WSAEINTR )
+                continue;
+#else
             if( n < 0 && (errno == EINTR || errno == EAGAIN) )
                 continue;
+#endif
             return -1;
         }
-        written += (int)n;
+        written += n;
     }
     return 0;
 }
@@ -144,7 +207,7 @@ status_text(int status)
 
 static int
 send_response(
-    int fd,
+    sock_t fd,
     struct HttpResponse const* res)
 {
     char header[768];
@@ -385,27 +448,46 @@ HttpServer_Run(
 {
     struct HttpClient clients[HTTP_MAX_CLIENTS];
     struct sockaddr_in addr;
-    int listen_fd;
+    sock_t listen_fd;
     int one = 1;
 
     for( int i = 0; i < HTTP_MAX_CLIENTS; i++ )
     {
-        clients[i].fd = -1;
+        clients[i].fd = SOCK_INVALID;
         clients[i].buf = NULL;
         clients[i].len = 0;
         clients[i].cap = 0;
     }
 
-    /* A peer that closes mid-write must fail the send, not kill the process. */
+#ifndef _WIN32
+    /* A peer that closes mid-write must fail the send, not kill the process.
+     * Windows sockets never raise SIGPIPE at all -- send() just returns an
+     * error -- and mingw only declares the macro behind #ifdef _POSIX, which
+     * this build does not define. */
     signal(SIGPIPE, SIG_IGN);
+#endif
+
+#ifdef _WIN32
+    {
+        WSADATA wsa_data;
+        if( WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0 )
+        {
+            fprintf(stderr, "WSAStartup failed\n");
+            return 1;
+        }
+    }
+#endif
 
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if( listen_fd < 0 )
+    if( listen_fd == SOCK_INVALID )
     {
-        perror("socket");
+        sock_perror("socket");
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return 1;
     }
-    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, (char*)&one, sizeof(one));
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -413,52 +495,74 @@ HttpServer_Run(
     addr.sin_port = htons((uint16_t)port);
     if( bind(listen_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
     {
-        perror("bind");
+        sock_perror("bind");
         close(listen_fd);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return 1;
     }
     if( listen(listen_fd, 32) != 0 )
     {
-        perror("listen");
+        sock_perror("listen");
         close(listen_fd);
+#ifdef _WIN32
+        WSACleanup();
+#endif
         return 1;
     }
 
     while( !g_stop )
     {
         fd_set readable;
-        int max_fd = listen_fd;
         struct timeval timeout = { 0, 200 * 1000 };
         int ready;
+#ifndef _WIN32
+        /* Windows ignores select()'s nfds argument entirely (Winsock's
+         * fd_set is an explicit array, not a bitmask indexed by fd number),
+         * so tracking the high-water fd is POSIX-only work. */
+        sock_t max_fd = listen_fd;
+#endif
 
         FD_ZERO(&readable);
         FD_SET(listen_fd, &readable);
         for( int i = 0; i < HTTP_MAX_CLIENTS; i++ )
         {
-            if( clients[i].fd < 0 )
+            if( clients[i].fd == SOCK_INVALID )
                 continue;
             FD_SET(clients[i].fd, &readable);
+#ifndef _WIN32
             if( clients[i].fd > max_fd )
                 max_fd = clients[i].fd;
+#endif
         }
 
+#ifdef _WIN32
+        ready = select(0, &readable, NULL, NULL, &timeout);
+#else
         ready = select(max_fd + 1, &readable, NULL, NULL, &timeout);
+#endif
         if( ready < 0 )
         {
+#ifdef _WIN32
+            if( WSAGetLastError() == WSAEINTR )
+                continue;
+#else
             if( errno == EINTR )
                 continue;
-            perror("select");
+#endif
+            sock_perror("select");
             break;
         }
 
         if( FD_ISSET(listen_fd, &readable) )
         {
-            int fd = accept(listen_fd, NULL, NULL);
-            if( fd >= 0 )
+            sock_t fd = accept(listen_fd, NULL, NULL);
+            if( fd != SOCK_INVALID )
             {
                 int slot = -1;
                 for( int i = 0; i < HTTP_MAX_CLIENTS && slot < 0; i++ )
-                    if( clients[i].fd < 0 )
+                    if( clients[i].fd == SOCK_INVALID )
                         slot = i;
                 if( slot < 0 )
                 {
@@ -469,7 +573,7 @@ HttpServer_Run(
                     /* Responses are one write; Nagle would add 40ms to every
                      * small one, which on a per-frame request loop is the
                      * whole frame budget. */
-                    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+                    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&one, sizeof(one));
                     clients[slot].fd = fd;
                 }
             }
@@ -478,19 +582,19 @@ HttpServer_Run(
         for( int i = 0; i < HTTP_MAX_CLIENTS; i++ )
         {
             uint8_t chunk[16384];
-            ssize_t n;
+            int n;
             int rc;
 
-            if( clients[i].fd < 0 || !FD_ISSET(clients[i].fd, &readable) )
+            if( clients[i].fd == SOCK_INVALID || !FD_ISSET(clients[i].fd, &readable) )
                 continue;
 
-            n = recv(clients[i].fd, chunk, sizeof(chunk), 0);
+            n = recv(clients[i].fd, (char*)chunk, sizeof(chunk), 0);
             if( n <= 0 )
             {
                 client_reset(&clients[i]);
                 continue;
             }
-            if( client_append(&clients[i], chunk, (int)n) != 0 )
+            if( client_append(&clients[i], chunk, n) != 0 )
             {
                 client_reset(&clients[i]);
                 continue;
@@ -507,5 +611,8 @@ HttpServer_Run(
     for( int i = 0; i < HTTP_MAX_CLIENTS; i++ )
         client_reset(&clients[i]);
     close(listen_fd);
+#ifdef _WIN32
+    WSACleanup();
+#endif
     return 0;
 }

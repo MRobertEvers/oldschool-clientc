@@ -183,6 +183,12 @@ mock230_seq_priority(int seq_id)
     return g_seq_priority[seq_id];
 }
 
+int
+mock230_seq_priority_known(int seq_id)
+{
+    return seq_id >= 0 && seq_id < g_seq_priority_count && g_seq_priority != NULL;
+}
+
 /**
  * The id of a named sequence.
  *

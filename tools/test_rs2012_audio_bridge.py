@@ -65,7 +65,7 @@ def verify_tree(root: Path) -> None:
     require(set(songs) == {1118, 1119}, f"song ids drifted: {sorted(songs)}")
     require(patches == {1157: "ported/rs2012_qbd_td/rs2012_patch_1157"},
             f"patch closure drifted: {patches}")
-    require(len(samples) == 84, f"expected setup + 83 samples, got {len(samples)}")
+    require(len(samples) == 107, f"expected setup + 106 samples, got {len(samples)}")
     require(samples.get(16000) == "ported/rs2012_qbd_td/rs2012_sample_setup_727",
             "foreign setup is not index 14:16000")
     require(samples.get(17000) == "ported/rs2012_qbd_td/rs2012_sample_6249",
@@ -109,9 +109,9 @@ def verify_tree(root: Path) -> None:
     for line in (configs / "rs2012.seq").read_text().splitlines():
         if line.startswith("sound="):
             seq_ids.append(int(line.split(",", 2)[1]))
-    require(len(seq_ids) == 55, f"expected 55 sequence sound events, got {len(seq_ids)}")
-    require(sum(ident in samples for ident in seq_ids) == 48,
-            "sequence recorded-sample event count is not 48")
+    require(len(seq_ids) == 184, f"expected 184 sequence sound events, got {len(seq_ids)}")
+    require(sum(ident in samples for ident in seq_ids) == 177,
+            "sequence recorded-sample event count is not 177")
     require(sum(ident in synths for ident in seq_ids) == 7,
             "sequence synth event count is not 7")
     require(all(ident in samples or ident in synths for ident in seq_ids),
@@ -137,7 +137,7 @@ def verify_authority(tree: Path) -> None:
             counts[row["kind"]] = counts.get(row["kind"], 0) + 1
             if row["kind"] == "sample" and row["source_id"] == "6249":
                 require(row["dest_id"] == "17000", "ledger does not remap sample 6249")
-    for kind, expected in {"synth": 29, "song": 2, "sample": 83,
+    for kind, expected in {"synth": 29, "song": 2, "sample": 106,
                            "sample_setup": 1, "patch": 1}.items():
         require(counts.get(kind) == expected,
                 f"ledger {kind} count {counts.get(kind, 0)} != {expected}")
@@ -187,8 +187,8 @@ def verify_composed_cache(cache: Path, audioprobe: Path, revision: str,
 
     samples = parse_pack(tree, "14_musicsamples.pack")
     sample_ids = sorted(set(samples) - {16000})
-    require(len(sample_ids) == 83,
-            f"expected 83 recorded samples to probe, got {len(sample_ids)}")
+    require(len(sample_ids) == 106,
+            f"expected 106 recorded samples to probe, got {len(sample_ids)}")
     for sample_id in sample_ids:
         output = probe(
             audioprobe,
@@ -250,10 +250,10 @@ def main() -> None:
     if args.cache is not None:
         verify_composed_cache(
             args.cache.resolve(), args.audioprobe.resolve(), args.revision, tree)
-        checks.append("composed cache: 83/83 samples, songs 1118/1119, patch 1157 decoded")
+        checks.append("composed cache: 106/106 samples, songs 1118/1119, patch 1157 decoded")
     print(
         "rs2012 audio bridge: PASS "
-        f"({'; '.join(checks)}; assets: 29 synths, 83 samples + setup, "
+        f"({'; '.join(checks)}; assets: 29 synths, 106 samples + setup, "
         "2 songs, 1 patch)"
     )
 

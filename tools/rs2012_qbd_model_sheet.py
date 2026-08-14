@@ -206,7 +206,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", required=True, help="dir of baked .ob3 models")
     ap.add_argument("--out", required=True, help="output PNG")
-    ap.add_argument("--tree", default=os.path.join(REPO, "build/osrs-content-rs2012/osrs239-content"))
+    ap.add_argument("--tree", default=os.path.join(REPO, "OSRS-Content/osrs239-content"))
     ap.add_argument("--view", default=os.path.join(REPO, "src/build_win64_opt/rs2012_model_view.exe"))
     ap.add_argument("--tile", type=int, default=128)
     ap.add_argument("--angles", type=int, default=1)

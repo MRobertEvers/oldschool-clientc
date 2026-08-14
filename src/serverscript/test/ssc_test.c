@@ -1040,6 +1040,79 @@ test_spotanim_argument_hint(void)
     fixture_close(&fixture);
 }
 
+/*
+ * A `~proc` argument resolves as the parameter it fills.
+ *
+ * The same collision class as the two hints above, on the other side of the
+ * call: the hint table in parse_command only covers *commands*, so a bare stat
+ * name handed to a proc was resolved unhinted and picked whatever sorts first.
+ * `::jas` is the case that got out — `~cheat_maxstat(attack)` compiled to
+ * `~cheat_maxstat(259)` (varp `attack`), and the abort came from
+ * `stat_advance` inside a callee whose own source is correct.
+ *
+ * The second half of the test is the half that says the rule is per-type and
+ * not "stats always win": the same word passed to an `int` parameter still
+ * means what the packs say, because nothing there asked for a stat.
+ */
+static void
+test_proc_param_kind_hint(void)
+{
+    struct Fixture fixture;
+    static const struct
+    {
+        const char* script_name;
+        int want;
+        const char* msg;
+    } k_cases[] = {
+        { "[proc,s0]", 3, "a `stat` parameter resolves the stat" },
+        { "[proc,s1]", 2100, "an `int` parameter resolves unhinted" },
+    };
+
+    printf("bare names in ~proc arguments\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,max_stat](stat $stat)\n"
+                         "stat_advance($stat, 100);\n"
+                         "\n"
+                         "[proc,take_int](int $n)\n"
+                         "~noop;\n"
+                         "\n"
+                         "[proc,noop]()\n"
+                         "\n"
+                         "[proc,s0]\n"
+                         "~max_stat(hitpoints);\n"
+                         "\n"
+                         "[proc,s1]\n"
+                         "~take_int(hitpoints);\n",
+                         "proc param kind hint") )
+        return;
+
+    for( size_t i = 0; i < sizeof(k_cases) / sizeof(k_cases[0]); i++ )
+    {
+        const struct SSVM_Script* script =
+            SSVM_ProviderGetByName(&fixture.provider, k_cases[i].script_name);
+        int pushed = -1;
+
+        if( !script )
+        {
+            printf("  FAIL proc param kind hint: no %s\n", k_cases[i].script_name);
+            g_fail++;
+            continue;
+        }
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            if( script->opcodes[op] == SS_OP_PUSH_CONSTANT_INT )
+            {
+                pushed = script->int_operands[op];
+                break;
+            }
+        }
+        CHECK_EQ(pushed, k_cases[i].want, k_cases[i].msg);
+    }
+
+    fixture_close(&fixture);
+}
+
 static void
 test_param_type_shadowing(void)
 {
@@ -1414,6 +1487,7 @@ main(void)
     test_duplicate_login();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
+    test_proc_param_kind_hint();
     test_param_type_shadowing();
     test_script_name_argument();
     test_errors();

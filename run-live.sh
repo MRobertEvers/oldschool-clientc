@@ -16,6 +16,10 @@
 # moved under it, because nothing else bakes those. TORIRS_FORCE_CACHE_BAKE=1
 # bakes without asking.
 #
+# The server script pack is compiled here too, when anything sscompile reads is
+# newer than the last compile. TORIRS_FORCE_SCRIPT_BUILD=1 recompiles without
+# asking.
+#
 # Native osrs230 / osrs239 live runs use the in-process server: they build with
 # EMBED_SERVER=1 and set TORIRS_TRANSPORT=embed. Web live runs deliberately do
 # not: a browser has no host filesystem for the embedded server's cache, content
@@ -63,10 +67,22 @@ shift
 # historical asdf/a fallback, while letting explicit launcher arguments win.
 MANIFEST_USER=$(sed -n 's/^[[:space:]]*user[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
 MANIFEST_PASS=$(sed -n 's/^[[:space:]]*pass[[:space:]]*=[[:space:]]*//p' "$MANIFEST" | head -1)
-USER_NAME="${1:-${MANIFEST_USER:-asdf}}"
-[ $# -gt 0 ] && shift || true
-PASS="${1:-${MANIFEST_PASS:-a}}"
-[ $# -gt 0 ] && shift || true
+# user/pass are positional, but only when actually present -- a client flag
+# (--d3d9-zbuffer, --soft3d, ...) must never be swallowed into either slot.
+# Every client arg is long-form (--xxx), so that prefix is the one thing
+# user/pass can never legitimately start with: stop taking positionally the
+# moment the next argument looks like a flag, and let "$@" (and the
+# manifest/asdf-a fallback above) pick it up instead. See run-live.ps1.
+USER_NAME="${MANIFEST_USER:-asdf}"
+case "${1:-}" in
+    ''|--*) ;;
+    *) USER_NAME=$1; shift ;;
+esac
+PASS="${MANIFEST_PASS:-a}"
+case "${1:-}" in
+    ''|--*) ;;
+    *) PASS=$1; shift ;;
+esac
 # "$@" is now whatever should be handed to the client verbatim.
 
 if [ ! -f "$MANIFEST" ]; then
@@ -119,12 +135,16 @@ if [ -n "${MOCK230_CONTENT_DIR:-}" ]; then
     content_tree_has_lanes "$MOCK230_CONTENT_DIR" || echo \
         "run-live.sh: MOCK230_CONTENT_DIR=$MOCK230_CONTENT_DIR has no ported/ lanes -- the bakes will likely fail" >&2
 else
-    # Checkouts under build/ first, the submodule last. Carrying the lane
-    # DIRECTORIES is not the same as carrying the lane's current bake: build/
-    # holds worktrees parked on a facebake branch, while the submodule tracks
-    # main, which gained ported/rs2012_qbd_td without the 596 rebaked models.
-    # Submodule-first silently picked pre-facebake models. See run-live.ps1.
-    for candidate in build/*/osrs239-content OSRS-Content/osrs239-content; do
+    # The submodule first, then checkouts under build/. This used to be
+    # reversed -- build/osrs-content-rs2012 (a worktree on
+    # rs2012-facebake-v10-m60) carried 596 rebaked .ob3 the submodule's main
+    # didn't have, so carrying the ported/ lane DIRECTORIES wasn't proof main
+    # had the current bake. main has since gained its own rebake and moved
+    # past that worktree's merge point on more than just the rs2012 lane, so
+    # a frozen build/ worktree is now the stale tree, and the submodule --
+    # what everyone actually commits to -- is preferred again. See
+    # run-live.ps1.
+    for candidate in OSRS-Content/osrs239-content build/*/osrs239-content; do
         if content_tree_has_lanes "$candidate"; then
             MOCK230_CONTENT_DIR=$(cd "$candidate" && pwd)
             export MOCK230_CONTENT_DIR
@@ -303,8 +323,48 @@ fi
 # nothing anywhere reports the mismatch. A `[debugproc]` added an hour ago
 # simply does not exist, which reads as "the cheat is broken".
 #
-# So the pack is built here for every embedded/native or mock/web live run.
+# So the pack is checked here for every embedded/native or mock/web live run —
+# but mock230-scripts/mock230-scripts-summoning have no output file matching
+# their own target name, so `make` reruns the ~15k-script sscompile pass
+# unconditionally, .PHONY or not. Ask the predicate `make` would apply if the
+# target were a real file — see tools/server_scripts_stale.py, which owns the
+# input set and is the only implementation of it (run-live.ps1 calls the same
+# script).
+#
+# Anything other than exit 1 rebuilds. A predicate that could not answer must
+# never be read as "up to date": a needless rebuild costs a few seconds, and a
+# wrongly skipped one costs a session spent debugging content that was never
+# compiled.
 build_scripts() {
+    # Most manifests carry no scripts= at all -- it only needs stating when
+    # build_summoning applies instead of mock230-scripts' own default output,
+    # which is $MOCK230_CONTENT_DIR/server/scripts/build (src/makefile). The
+    # content-tree discovery above has already run by this point, so
+    # MOCK230_CONTENT_DIR is set unless no candidate tree was found at all --
+    # in which case sscompile itself is about to fail on a missing --pack dir,
+    # and this predicate failing the same way is the right answer.
+    _out="$SERVER_SCRIPTS"
+    [ -z "$_out" ] && [ -n "${MOCK230_CONTENT_DIR:-}" ] && _out="$MOCK230_CONTENT_DIR/server/scripts/build"
+    if [ -n "$_out" ]; then
+        # --tree: the script's own default is the OSRS-Content submodule, and
+        # the tree in use is often a build/ checkout instead. Left to the
+        # default the predicate watches a tree nobody is building from and
+        # answers "fresh" for sources that moved.
+        if python3 tools/server_scripts_stale.py \
+                --out "$_out" \
+                ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
+                --input src/serverscript --input src/makefile \
+                --input tools/ss_allocate.py \
+                --input tools/stage_summoning_server_constants.py >&2; then
+            _stale=0
+        else
+            _stale=$?
+        fi
+        if [ "$_stale" = 1 ]; then
+            echo "run-live.sh: server script pack is up to date (TORIRS_FORCE_SCRIPT_BUILD=1 to rebuild)" >&2
+            return 0
+        fi
+    fi
     echo "run-live.sh: building the server script pack..." >&2
     case "$SERVER_SCRIPTS" in
         *build_summoning)

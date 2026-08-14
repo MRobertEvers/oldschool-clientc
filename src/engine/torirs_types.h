@@ -191,7 +191,12 @@ struct ToriRS_Flotype
 };
 
 #define TORIRS_MENU_ACTION_SLOTS 5
-#define TORIRS_NAME_MAX 32
+/* 64, not 32: same reasoning as TORIRS_MENU_ACTION_LEN below -- a name can
+ * carry <col=rrggbb>...</col> tags (e.g. "Ancestral Glyph"), and the longest
+ * one in content is 48 bytes. A 32-byte cap truncated mid-closing-tag, which
+ * left a dangling "</co" that the font markup grammar doesn't recognize and
+ * so renders literally instead of being swallowed as markup. */
+#define TORIRS_NAME_MAX 64
 /* Examine description (reference LocType/NpcType/ObjType.desc, config opcode 3).
  * Sized well past the longest cache desc so the whole gjstr survives the copy. */
 #define TORIRS_DESC_MAX 256

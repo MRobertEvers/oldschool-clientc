@@ -24,7 +24,9 @@ struct WorldEntity_NPC
      *  whose type never resolved still shows, which is the old behaviour. */
     bool minimap_visible;
     int combat_level;
-    char name[32];
+    /* 64, matching ToriRS_Npctype.name (TORIRS_NAME_MAX) -- col-tagged names
+     * like "<col=00ffff>Ancestral Glyph</col>" don't fit in 32. */
+    char name[64];
     struct WorldEntityFacet_Action actions[5];
     /** Bit i controls whether action i is offered by the minimenu. */
     uint8_t visible_ops;

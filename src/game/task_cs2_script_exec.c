@@ -201,6 +201,10 @@ struct Task_CS2ScriptExec
     struct DummyHost host;
     struct CS2VM2_Script* script;
     struct CacheProvider* provider;
+    /* Must live here, not as a Run() local: it's set before a TASK_AWAITEX
+     * yield and read again after resume, and locals don't survive a yield
+     * (the protothread macros return out of Run() on each yield). */
+    int script_id;
 };
 
 static int
@@ -211,7 +215,6 @@ Task_CS2ScriptExec_Run(
     struct Task_CS2ScriptExec* exec = (struct Task_CS2ScriptExec*)task;
     struct CS2VM2_Script* vm_script = NULL;
     struct CS2VM2_Thread* thread = NULL;
-    int script_id;
     PT_BEGIN(&(exec->pt));
 
     exec->host.provider = exec->provider;
@@ -231,15 +234,15 @@ Task_CS2ScriptExec_Run(
             printf("CS2VM2_THREAD_YIELDED\n");
             if( exec->host.request.kind == CS2VM_HOST_REQUEST_PUSHSCRIPT )
             {
-                script_id = exec->host.request.u.push_script.script_id;
-                if( !CacheProvider_ClientScriptHas(exec->provider, script_id) )
+                exec->script_id = exec->host.request.u.push_script.script_id;
+                if( !CacheProvider_ClientScriptHas(exec->provider, exec->script_id) )
                 {
                     TASK_AWAITEX(
                         &(exec->pt),
                         io,
-                        CreateTask_ClientScriptLoad(exec->provider, script_id));
+                        CreateTask_ClientScriptLoad(exec->provider, exec->script_id));
                 }
-                vm_script = CacheProvider_ClientScriptGet(exec->provider, script_id);
+                vm_script = CacheProvider_ClientScriptGet(exec->provider, exec->script_id);
                 if( !vm_script )
                 {
                     memset(&exec->host.request, 0, sizeof(exec->host.request));

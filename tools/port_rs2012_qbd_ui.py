@@ -138,7 +138,12 @@ def parse_ledger(path: Path) -> dict[tuple[str, int], int]:
         except ValueError as exc:
             raise fail(f"{path}:{line_number}: non-numeric ledger id") from exc
         if key in result:
-            raise fail(f"{path}:{line_number}: duplicate ledger source {key}")
+            # A second destination for one source is a fork authored beside the
+            # import (the QBD priority comparison keeps an unported original as
+            # npc 25010 off models 110660/110661). The first row is the
+            # published mapping, which is what this bridge resolves against;
+            # `cachepack import` reads the ledger the same way.
+            continue
         result[key] = destination
     return result
 

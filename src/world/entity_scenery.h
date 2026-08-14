@@ -112,7 +112,9 @@ struct WorldEntity_Scenery
     int force_approach;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_AnimationStep animation;
-    char name[32];
+    /* 64, matching ToriRS_Location.name (TORIRS_NAME_MAX) -- col-tagged names
+     * don't fit in 32. */
+    char name[64];
     struct WorldEntityFacet_Action actions[5];
     /** LocType.active. The reference negates a non-active loc's scene
      *  typecode so Model.draw never records it as a pick hit; torirs filters

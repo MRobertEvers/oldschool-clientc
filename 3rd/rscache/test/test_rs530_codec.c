@@ -77,8 +77,10 @@ test_sequence_530_changed_opcodes(void)
 {
     RSCACHE_TEST_GROUP("sequence 530 opcodes 13/14");
 
-    /* opcode 13: two frame slots; frame 0 has two sounds. The public neutral
-     * shape retains the first sound and must still consume the second u16 id. */
+    /* opcode 13: two frame slots; frame 0 declares two sounds. The second u16
+     * is that frame's *alternative*, which the client rolls against the first
+     * with the first's loops and radius — so both land on frame 0 rather than
+     * the second being consumed and dropped. */
     unsigned char record[] = {
         13, 0, 2,
         2, 0x01, 0x23, 0x23, 0xAB, 0xCD,
@@ -88,17 +90,41 @@ test_sequence_530_changed_opcodes(void)
     };
     struct RSCache profile = rs530_profile();
     struct RSCache_Dat2ConfigSequence sequence;
+    unsigned char encoded[64];
+    uint32_t written;
     memset(&sequence, 0, sizeof(sequence));
     RSCache_Dat2ConfigSequenceDecodeProfile(
         &sequence, &profile, (char*)record, (int)sizeof(record));
 
     RSCACHE_CHECK_EQ(sequence._consumed, sizeof(record));
-    RSCACHE_CHECK_EQ(sequence.frame_sounds.count, 1);
+    RSCACHE_CHECK_EQ(sequence.frame_sounds.count, 2);
     RSCACHE_CHECK_EQ(sequence.frame_sounds.frames[0], 0);
     RSCACHE_CHECK_EQ(sequence.frame_sounds.sounds[0].id, 0x123);
     RSCACHE_CHECK_EQ(sequence.frame_sounds.sounds[0].loops, 2);
     RSCACHE_CHECK_EQ(sequence.frame_sounds.sounds[0].location, 3);
+    RSCACHE_CHECK_EQ(sequence.frame_sounds.frames[1], 0);
+    RSCACHE_CHECK_EQ(sequence.frame_sounds.sounds[1].id, 0xABCD);
+    /* The alternative inherits the packed entry's playback fields. */
+    RSCACHE_CHECK_EQ(sequence.frame_sounds.sounds[1].loops, 2);
+    RSCACHE_CHECK_EQ(sequence.frame_sounds.sounds[1].location, 3);
     RSCACHE_CHECK(sequence.rs2_530_sound_flag);
+
+    /* And the encoder writes the alternative list back rather than only the
+     * first id. The frame list is re-emitted dense to the highest *sounded*
+     * frame, so the source record's trailing empty slot is not reproduced —
+     * that is the map's shape, not something the alternatives changed. */
+    {
+        static const unsigned char expected[] = {
+            13, 0, 1,
+            2, 0x01, 0x23, 0x23, 0xAB, 0xCD,
+            14,
+            0
+        };
+        written = RSCache_Dat2ConfigSequenceEncode(
+            &profile, &sequence, encoded, (uint32_t)sizeof(encoded));
+        RSCACHE_CHECK_EQ(written, sizeof(expected));
+        RSCACHE_CHECK(memcmp(encoded, expected, sizeof(expected)) == 0);
+    }
 
     RSCache_Dat2ConfigSequenceFreeInplace(&sequence);
 }

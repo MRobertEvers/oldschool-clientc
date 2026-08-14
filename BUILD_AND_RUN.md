@@ -685,14 +685,16 @@ take the first one carrying both lanes:
 .\run-live.ps1 manifest_osrs239_rs2012.ini      # finds the tree itself
 ```
 
-`TORIRS_PRINT_ONLY=1` reports which tree was chosen and how (`auto`,
-`-ContentDir`, or `MOCK230_CONTENT_DIR`) without building anything. To override
-the choice, name it — an explicit tree is obeyed even when it lacks the lanes,
-with a warning rather than a substitution, because mid-port the caller knows
-better:
+`TORIRS_PRINT_ONLY=1` reports which tree was chosen and how (`auto` or
+`MOCK230_CONTENT_DIR`) without building anything. To override the choice, name
+it — an explicit tree is obeyed even when it lacks the lanes, with a warning
+rather than a substitution, because mid-port the caller knows better. Both
+launchers take the same override, `MOCK230_CONTENT_DIR` — there is no separate
+`-ContentDir` flag on the PowerShell side:
 
 ```powershell
-.\run-live.ps1 manifest_osrs239_rs2012.ini -ContentDir some\other\osrs239-content
+$env:MOCK230_CONTENT_DIR = "$PWD\some\other\osrs239-content"
+.\run-live.ps1 manifest_osrs239_rs2012.ini
 ```
 
 ```sh
