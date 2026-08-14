@@ -1283,8 +1283,53 @@ task_cs2_run_new(
         memcpy(self->int_args, int_args, (size_t)int_arg_count * sizeof(int));
 
     self->str_mask = str_mask;
+    /*
+     * Truncation here corrupts arguments; it does not lose a decoration, and it
+     * looks like nothing at all.
+     *
+     * A clientscript reads its strings positionally, so dropping the tail is
+     * not "the last label went missing" — every position past the cap degrades
+     * to "" while the ones before it stay correct, and the script carries on
+     * happily. rev-239's generic inv-grid builder (clientscript 149/150, which
+     * is what draws a shop's sell panel) takes five and nine op labels
+     * respectively: pushing "Value/Sell 1/Sell 5/Sell 10/Sell 50" produced a
+     * menu with four sell rows and no error anywhere, and the wire payload
+     * proved all five strings had been sent. Say so once per script rather than
+     * per dispatch — the repaint hooks that hit this fire per cell per
+     * transmit, so an ungated line is a scroll of thousands.
+     *
+     * Only when something is actually lost: a caller filling a fixed-arity
+     * signature's unused tail with "" (which is what a four-op grid does to
+     * clientscript 149's five op slots) drops nothing, and warning about it
+     * would train the reader to ignore the line that matters.
+     */
     if( str_arg_count > TASK_CS2_RUN_STR_ARGS_MAX )
+    {
+        static int warned_script[16];
+        static int warned_count = 0;
+        int seen = 0;
+        int lost = 0;
+
+        for( int i = TASK_CS2_RUN_STR_ARGS_MAX; i < str_arg_count; i++ )
+            if( str_args && str_args[i] && str_args[i][0] != '\0' )
+                lost = 1;
+        for( int i = 0; i < warned_count; i++ )
+            if( warned_script[i] == script_id )
+                seen = 1;
+        if( lost && !seen )
+        {
+            if( warned_count < (int)(sizeof(warned_script) / sizeof(warned_script[0])) )
+                warned_script[warned_count++] = script_id;
+            fprintf(
+                stderr,
+                "cs2: clientscript %d passed %d string arguments; only the first %d are "
+                "kept and the rest arrive as \"\" (TASK_CS2_RUN_STR_ARGS_MAX)\n",
+                script_id,
+                str_arg_count,
+                TASK_CS2_RUN_STR_ARGS_MAX);
+        }
         str_arg_count = TASK_CS2_RUN_STR_ARGS_MAX;
+    }
     if( str_arg_count < 0 || !str_args )
         str_arg_count = 0;
     self->str_arg_count = str_arg_count;

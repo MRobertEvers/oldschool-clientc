@@ -441,18 +441,27 @@ World_TerrainElementAt(
     return terrain->element_id;
 }
 
+void
+World_EmitEvent(
+    struct World* world,
+    enum WorldEventKind kind,
+    int element_id)
+{
+    if( element_id < 0 )
+        return;
+    assert(world->event_count < WORLD_MAX_EVENTS && "world event queue full — raise WORLD_MAX_EVENTS");
+    world->events[world->event_count++] = (struct World_Event){
+        .kind = kind,
+        .element_id = element_id,
+    };
+}
+
 static void
 World_EmitEntityRemoved(
     struct World* world,
     int element_id)
 {
-    if( element_id < 0 )
-        return;
-    assert(world->event_count < WORLD_MAX_EVENTS && "EntityRemoved queue full — raise WORLD_MAX_EVENTS");
-    world->events[world->event_count++] = (struct World_Event){
-        .kind = WorldEventKind_EntityRemoved,
-        .element_id = element_id,
-    };
+    World_EmitEvent(world, WorldEventKind_EntityRemoved, element_id);
 }
 
 static int
@@ -1860,11 +1869,30 @@ World_NpcSetType(
     npc->size = size > 0 ? size : 1;
     if( idle )
         npc->idle_animations = *idle;
-    /* Transmog clears the transient anim (reference ClientEntity behavior on
-     * type change). */
-    npc->animation.primary.anim_id = (uint16_t)-1;
-    npc->animation.primary.frame = 0;
-    npc->animation.primary.cycle = 0;
+    /*
+     * A transmog does NOT touch the transient animation.
+     *
+     * This used to clear `primary`, on a comment claiming that was reference
+     * ClientEntity behaviour. It is not: `Client.ts`'s CHANGETYPE branch writes
+     * type, size, turnspeed, the four walk anims and readyanim, and never goes
+     * near `primaryAnim` (the only paths that clear it are RESET_ANIMS, the
+     * ABORTANIM postanim rule, and the sequence running out). Clearing it here
+     * silently destroyed any one-shot that shared a tick with a retype — and
+     * since the wire writes the SEQUENCE block BEFORE the TRANSFORMATION block
+     * of the same packet, `npc_anim(X)` followed by `npc_changetype(Y)` was
+     * *guaranteed* to be that case, not merely at risk of it.
+     *
+     * The visible bug was the Queen Black Dragon having no death: content plays
+     * her 9-second return-to-sleep and retypes her to the sleeping form, and
+     * she snapped straight to the sleeping idle instead. It is the same defect
+     * behind every transforming boss and every summoning familiar losing an
+     * animation across a form change.
+     *
+     * Nothing has to be re-bound for this to render. The world tick is the
+     * authority on the frame, and `app_world_apply_entity_anim_tracks` rebinds
+     * (seq, frame) onto whatever element the npc currently owns every frame —
+     * including the freshly-built model the retype just installed.
+     */
 }
 
 void
@@ -1913,7 +1941,16 @@ World_PlayerAddHitmark(
     int total_health)
 {
     World_PlayerAddHitmarkTimed(
-        world, idx, damage_type, damage, health, total_health, 0, WORLD_ENTITY_DAMAGE_SLOTS);
+        world,
+        idx,
+        damage_type,
+        damage,
+        health,
+        total_health,
+        0,
+        WORLD_ENTITY_DAMAGE_SLOTS,
+        WORLD_HITMARK_DEFAULT_DURATION,
+        WORLD_HITMARK_POLICY_DISCARD);
 }
 
 void
@@ -1925,7 +1962,9 @@ World_PlayerAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int slot_limit)
+    int slot_limit,
+    int duration,
+    int slot_policy)
 {
     assert(world);
     struct World_EntityPool* pool = &world->entities.player;
@@ -1940,7 +1979,9 @@ World_PlayerAddHitmarkTimed(
         damage_type,
         damage,
         delay,
-        slot_limit);
+        slot_limit,
+        duration,
+        slot_policy);
     player->combat.health = health;
     player->combat.total_health = total_health;
     player->combat.healthbar_width = 0;
@@ -2175,7 +2216,16 @@ World_NpcAddHitmark(
     int total_health)
 {
     World_NpcAddHitmarkTimed(
-        world, idx, damage_type, damage, health, total_health, 0, WORLD_ENTITY_DAMAGE_SLOTS);
+        world,
+        idx,
+        damage_type,
+        damage,
+        health,
+        total_health,
+        0,
+        WORLD_ENTITY_DAMAGE_SLOTS,
+        WORLD_HITMARK_DEFAULT_DURATION,
+        WORLD_HITMARK_POLICY_DISCARD);
 }
 
 void
@@ -2187,7 +2237,9 @@ World_NpcAddHitmarkTimed(
     int health,
     int total_health,
     int delay,
-    int slot_limit)
+    int slot_limit,
+    int duration,
+    int slot_policy)
 {
     assert(world);
     struct World_EntityPool* pool = &world->entities.npc;
@@ -2202,7 +2254,9 @@ World_NpcAddHitmarkTimed(
         damage_type,
         damage,
         delay,
-        slot_limit);
+        slot_limit,
+        duration,
+        slot_policy);
     npc->combat.health = health;
     npc->combat.total_health = total_health;
     npc->combat.healthbar_width = 0;

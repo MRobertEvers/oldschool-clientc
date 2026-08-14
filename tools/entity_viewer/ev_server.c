@@ -8,6 +8,12 @@
  *   GET /api/npc/<id>.json      one npc's animation lists (rig matches, name guesses)
  *   GET /api/npc/<id>.model     the built, merged, lit model in ev_wire format
  *   GET /api/seq/<id>.anim      one sequence as an animation in ev_wire format
+ *   GET /api/player.model?wear=  a composited player, equipment and all
+ *   GET /api/objs.json           every obj id, for the equipment picker
+ *   GET /api/spotanims.json      every graphic id, for the graphic picker
+ *   GET /api/spot/<id>.model     one graphic's model in ev_wire format
+ *   GET /api/spot/<id>.json      that graphic's own sequence id
+ *   GET /api/rig/<id>.json       every sequence on one framemap
  *   GET /<anything else>        static files from the web directory
  *
  * Single-threaded and blocking on purpose: one viewer, one browser tab, and a
@@ -19,7 +25,9 @@
  */
 
 #include "ev_build.h"
+#include "ev_player.h"
 #include "ev_render.h"
+#include "lc_pack.h"
 
 #include "bmp.h"
 #include "toridraw_model_sprite.h"
@@ -38,6 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 /* ---- catalog in memory -------------------------------------------------- */
@@ -84,6 +93,25 @@ static int g_name_match_count = 0;
 
 static struct Tool_Dat2Cache g_cache;
 static const char* g_web_dir = NULL;
+
+/*
+ * Gameval names for the player half's two pickers.
+ *
+ * The catalog CSVs name npcs and sequences, because that is what ev_catalog was
+ * built to walk. A player is dressed in objs and wears graphics, and a picker
+ * over four thousand unnamed spotanim ids is not a picker. These come from the
+ * same `id=name` compacks ev_catalog reads, through the same lc_pack loader, and
+ * are optional: without --names the lists still work and show ids alone.
+ */
+static struct LC_Pack g_obj_names = { 0 };
+static struct LC_Pack g_spotanim_names = { 0 };
+static int g_have_names = 0;
+
+/* The content tree, when one is named: its `pack/7_models.pack` says which
+ * file each model id was exported to, and an exported file that has since been
+ * edited is what the game draws. See content_model_path. */
+static const char* g_content_dir = NULL;
+static struct LC_Pack g_model_paths = { 0 };
 
 /**
  * One CSV field, unquoted in place.
@@ -635,6 +663,232 @@ handle_seq_anim(int fd, int seq_id)
     ev_wire_free(&buf);
 }
 
+/* ---- the player half ----------------------------------------------------- */
+
+/*
+ * A player is not an npc with different models on it.
+ *
+ * An npc is one config carrying a model list. A player is a set of identity
+ * kits plus the wear models of whatever is equipped, and — the part that makes
+ * a separate half of the viewer worth having — a player-attached graphic is not
+ * a second object in the scene at all: the client MERGES the posed graphic into
+ * the player's own model. So "what does this weapon animation look like with
+ * this graphic on it" cannot be answered by drawing two models near each other.
+ * These endpoints hand the browser both halves and ev_render does the merge the
+ * client's way.
+ */
+
+static const char*
+pack_name(const struct LC_Pack* pack, int id)
+{
+    if( !g_have_names || id < 0 || id > pack->max || !pack->names )
+        return NULL;
+    return pack->names[id];
+}
+
+/** `?wear=22325,1163&gender=0` -> the built player model. */
+static void
+handle_player_model(int fd, const char* query)
+{
+    struct EV_PlayerSpec spec;
+    ev_player_spec_init(&spec);
+
+    if( query )
+    {
+        const char* w = strstr(query, "wear=");
+        const char* g = strstr(query, "gender=");
+        if( g )
+            spec.gender = atoi(g + 7) ? 1 : 0;
+        if( w )
+        {
+            const char* p = w + 5;
+            while( *p && *p != '&' && spec.worn_count < EV_PLAYER_MAX_WORN )
+            {
+                if( isdigit((unsigned char)*p) )
+                {
+                    spec.worn[spec.worn_count++] = atoi(p);
+                    while( isdigit((unsigned char)*p) )
+                        p++;
+                }
+                else
+                    p++;
+            }
+        }
+    }
+
+    struct ToriDraw_Model* model = ev_build_player_model(&g_cache, &spec, NULL);
+    if( !model )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct EV_WireBuf buf = { 0 };
+    int ok = ev_wire_write_model(&buf, model);
+    ToriDraw_ModelFree(model);
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        return;
+    }
+    send_response(fd, "200 OK", "application/octet-stream", buf.data, buf.len);
+    ev_wire_free(&buf);
+}
+
+/*
+ * Where a spotanim's model actually lives, when the content tree has its own.
+ *
+ * `pack/7_models.pack` maps a model id to a path under `models/`, and the
+ * porter writes the record out there byte for byte. Once someone edits that
+ * file the cache's copy and the game's copy are different models, and a viewer
+ * reading the cache shows an arc nobody sees in play. Returns 0 when there is
+ * no content file for this id, in which case the cache's model is right.
+ */
+static int
+content_model_path(int model_id, char* out, size_t cap)
+{
+    const char* rel;
+    struct stat st;
+
+    if( !g_content_dir || model_id < 0 || model_id > g_model_paths.max || !g_model_paths.names )
+        return 0;
+    rel = g_model_paths.names[model_id];
+    if( !rel )
+        return 0;
+    snprintf(out, cap, "%s/models/%s.model", g_content_dir, rel);
+    return stat(out, &st) == 0;
+}
+
+/** Which model file a graphic would be built from, and its rotation, both
+ *  overridable: `?orient=3` forces a quarter-turn count so a rotation can be
+ *  judged in the viewer before any asset or config is edited. */
+static void
+handle_spot_model(int fd, int spotanim_id, const char* query)
+{
+    int seq = -1;
+    int orient = -1;
+    char path[2048];
+    const char* file = NULL;
+    const char* o = query ? strstr(query, "orient=") : NULL;
+
+    if( o )
+        orient = atoi(o + 7);
+    {
+        int model_id = ev_spotanim_model_id(&g_cache, spotanim_id);
+        if( content_model_path(model_id, path, sizeof(path)) )
+            file = path;
+    }
+
+    struct ToriDraw_Model* model =
+        ev_build_spotanim_model(&g_cache, spotanim_id, file, orient, &seq);
+    if( !model )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct EV_WireBuf buf = { 0 };
+    int ok = ev_wire_write_model(&buf, model);
+    ToriDraw_ModelFree(model);
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        return;
+    }
+    send_response(fd, "200 OK", "application/octet-stream", buf.data, buf.len);
+    ev_wire_free(&buf);
+}
+
+/** The graphic's own sequence id, which the page needs before it can ask for
+ *  the animation that drives it. */
+static void
+handle_spot_json(int fd, int spotanim_id)
+{
+    int seq = -1;
+    struct ToriDraw_Model* model =
+        ev_build_spotanim_model(&g_cache, spotanim_id, NULL, -1, &seq);
+    if( !model )
+    {
+        send_404(fd);
+        return;
+    }
+    ToriDraw_ModelFree(model);
+
+    struct Str s = { 0 };
+    str_add(&s, "{\"id\":%d,\"seq\":%d,\"name\":", spotanim_id, seq);
+    str_add_json(&s, pack_name(&g_spotanim_names, spotanim_id));
+    str_add(&s, "}");
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
+/*
+ * Every id in a config group, with whatever name the compacks give it.
+ *
+ * The list is not filtered to "wearable" objs even though only those contribute
+ * geometry: deciding that here would mean decoding all 30,000 obj records on
+ * every page load, and the page can say "nothing to draw" for the handful
+ * anybody tries. The spotanim list is small enough that the question does not
+ * arise.
+ */
+static void
+handle_config_ids_json(int fd, enum RSCache_Type type, int kind, const struct LC_Pack* names)
+{
+    int* ids = NULL;
+    int count = 0;
+
+    if( !tool_dat2_config_ids(&g_cache, type, kind, &ids, &count) )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct Str s = { 0 };
+    str_add(&s, "[");
+    for( int i = 0; i < count; i++ )
+    {
+        str_add(&s, i ? ",{" : "{");
+        str_add(&s, "\"id\":%d,\"name\":", ids[i]);
+        str_add_json(&s, pack_name(names, ids[i]));
+        str_add(&s, "}");
+    }
+    str_add(&s, "]");
+    free(ids);
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
+/*
+ * Every sequence built on one rig.
+ *
+ * An npc gets its animation list from the catalog's rig walk. A player has no
+ * npc row to walk from, but it has a rig — framemap 0, the shared human one —
+ * and the catalog already knows every sequence on it. 3,905 of them, which is
+ * why the page's search box is not a nicety.
+ */
+static void
+handle_rig_json(int fd, int framemap_id)
+{
+    struct Str s = { 0 };
+    str_add(&s, "{\"framemap\":%d,\"rig\":[", framemap_id);
+    int n = 0;
+    for( int i = 0; i < g_seq_count; i++ )
+    {
+        if( g_seqs[i].framemap_id != framemap_id )
+            continue;
+        str_add(&s, n++ ? ",{" : "{");
+        str_add(&s, "\"seq\":%d,\"frames\":%d,\"skeletal\":%d,\"name\":", g_seqs[i].seq_id,
+                g_seqs[i].frame_count, g_seqs[i].skeletal);
+        str_add_json(&s, g_seqs[i].name);
+        str_add(&s, "}");
+    }
+    str_add(&s, "],\"maybe\":[]}");
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
 static const char*
 mime_for(const char* path)
 {
@@ -719,7 +973,7 @@ route_id(const char* target, const char* prefix, const char* suffix, int* out_id
 }
 
 static void
-handle_request(int fd, const char* target)
+handle_request(int fd, const char* target, const char* query)
 {
     int id = 0;
     if( strcmp(target, "/api/npcs.json") == 0 )
@@ -730,6 +984,20 @@ handle_request(int fd, const char* target)
         handle_npc_model(fd, id);
     else if( route_id(target, "/api/seq/", ".anim", &id) )
         handle_seq_anim(fd, id);
+    /* The player half. */
+    else if( strcmp(target, "/api/player.model") == 0 )
+        handle_player_model(fd, query);
+    else if( strcmp(target, "/api/objs.json") == 0 )
+        handle_config_ids_json(fd, RSCACHE_TYPE_OBJ, RSCACHE_DAT2_CONFIG_KIND_OBJECT, &g_obj_names);
+    else if( strcmp(target, "/api/spotanims.json") == 0 )
+        handle_config_ids_json(
+            fd, RSCACHE_TYPE_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM, &g_spotanim_names);
+    else if( route_id(target, "/api/spot/", ".model", &id) )
+        handle_spot_model(fd, id, query);
+    else if( route_id(target, "/api/spot/", ".json", &id) )
+        handle_spot_json(fd, id);
+    else if( route_id(target, "/api/rig/", ".json", &id) )
+        handle_rig_json(fd, id);
     else
         handle_static(fd, target[0] == '/' ? target + 1 : target);
 }
@@ -1209,6 +1477,7 @@ main(int argc, char** argv)
     const char* rev_name = NULL;
     const char* cache_dir = NULL;
     const char* catalog_dir = NULL;
+    const char* names_dir = NULL;
     int port = 8099;
     int selftest_npc = -1;
     int selftest_seq = -1;
@@ -1227,6 +1496,8 @@ main(int argc, char** argv)
             catalog_dir = argv[++i];
         else if( strcmp(argv[i], "--web") == 0 && i + 1 < argc )
             g_web_dir = argv[++i];
+        else if( strcmp(argv[i], "--names") == 0 && i + 1 < argc )
+            names_dir = argv[++i];
         else if( strcmp(argv[i], "--port") == 0 && i + 1 < argc )
             port = atoi(argv[++i]);
         else if( strcmp(argv[i], "--selftest") == 0 && i + 2 < argc )
@@ -1243,7 +1514,7 @@ main(int argc, char** argv)
         fprintf(
             stderr,
             "Usage: %s --rev osrs239 <cache_dir> --catalog <dir> "
-            "[--port 8099] [--web DIR]\n",
+            "[--port 8099] [--web DIR] [--names CONTENT_DIR]\n",
             argv[0]);
         return 1;
     }
@@ -1258,6 +1529,23 @@ main(int argc, char** argv)
     }
     if( !load_catalog(catalog_dir) )
         return 1;
+
+    if( names_dir )
+    {
+        char path[2048];
+        snprintf(path, sizeof(path), "%s/configs/all.obj.compack", names_dir);
+        lc_pack_load(&g_obj_names, path, "obj", 1);
+        snprintf(path, sizeof(path), "%s/configs/all.spotanim.compack", names_dir);
+        lc_pack_load(&g_spotanim_names, path, "spotanim", 1);
+        /* Same directory: a content tree that names records also holds their
+         * exported assets, so --names is what turns the override on. */
+        g_content_dir = names_dir;
+        snprintf(path, sizeof(path), "%s/pack/7_models.pack", names_dir);
+        lc_pack_load(&g_model_paths, path, "models", 1);
+        g_have_names = 1;
+        fprintf(stderr, "gameval names: %d obj, %d spotanim\n",
+                lc_pack_named_count(&g_obj_names), lc_pack_named_count(&g_spotanim_names));
+    }
 
     ToriDraw_Init();
 
@@ -1299,10 +1587,12 @@ main(int argc, char** argv)
             if( sscanf(req, "%15s %1023s", method, target) == 2 &&
                 strcmp(method, "GET") == 0 )
             {
+                /* The query is kept rather than discarded: the player build is
+                 * parameterised by what is equipped, and that is a query. */
                 char* q = strchr(target, '?');
                 if( q )
                     *q = '\0';
-                handle_request(fd, target);
+                handle_request(fd, target, q ? q + 1 : NULL);
             }
             else
                 send_404(fd);

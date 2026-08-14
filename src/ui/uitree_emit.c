@@ -1439,7 +1439,7 @@ emit_obj_stack_count(
     struct UITreeEmitClip const* parent_clip)
 {
     int obj_id = c->item_id;
-    int obj_count = c->item_count > 0 ? c->item_count : 1;
+    int obj_count;
     int font_id;
     int stackable = 0;
     char namebuf[4] = { 0 };
@@ -1457,9 +1457,14 @@ emit_obj_stack_count(
      * negative count on any variant — cc_setobject($obj, -1) is how the spell
      * tooltip asks for a bare rune icon (the script draws its own have/need
      * text beside it). Reference: the item-sprite cache key forces the no-num
-     * mode whenever qty == -1. */
+     * mode whenever qty == -1. Zero is NOT one of these signals — an
+     * out-of-stock shop slot legitimately carries item_id >= 0 with count 0
+     * and must print "0", so it falls through to the normal draw below rather
+     * than being floored to 1 (that floor used to run unconditionally here
+     * and made every 0-stock shop line read "1"). */
     if( c->item_num_mode == 2 || c->item_count < 0 )
         return;
+    obj_count = c->item_count;
 
     {
         struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_INV_COUNT_FONT };

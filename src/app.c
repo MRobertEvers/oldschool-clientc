@@ -149,7 +149,7 @@ enum
      * and inside the scene's draw distance at the other. */
     APP_WORLD_ZOOM_DEFAULT_PCT = 100,
     APP_WORLD_ZOOM_MIN_PCT = 40,
-    APP_WORLD_ZOOM_MAX_PCT = 300,
+    APP_WORLD_ZOOM_MAX_PCT = 360,
     APP_WORLD_ZOOM_STEP_PCT = 10,
     /* Free camera (offline / scripted): no orbit distance to scale, so a notch
      * dollies along the view axis instead. */
@@ -2044,6 +2044,80 @@ app_overlay_build_player_headicons(
     }
 }
 
+/*
+ * The sprite-group id of `headicons_prayer`.
+ *
+ * An npc's opcode-102 icon names its group as a NUMBER, and the client
+ * resolves that pack by NAME (static_sprites.c, STATIC_SPRITE_HEADICONS_PRAYER)
+ * — the provider offers no synchronous name -> group-id lookup to close the
+ * gap with, only an async load task. So the number is stated here, from
+ * `OSRS-Content/osrs239-content/pack/8_sprites.pack` line 441, where it is the
+ * only group any of this cache's 77 headicon-bearing npc records names.
+ *
+ * Failure mode if a future cache renumbers it: npcs stop drawing overheads.
+ * That is the deliberate direction — a record naming an unrecognised group is
+ * skipped rather than drawn out of the prayer pack, because an icon that says
+ * "Protect from Magic" when the record meant something else is worse than no
+ * icon at all.
+ */
+#define APP_HEADICONS_PRAYER_GROUP 440
+
+/*
+ * Overhead prayer icon for an NPC (reference drawEntities, NpcType.headicon).
+ *
+ * Where a player carries an eight-bit MASK and stacks every set bit, an npc
+ * carries ONE frame from one sprite group and plots it in the first slot. That
+ * asymmetry is the reference's, not a simplification: the player's icons are a
+ * live prayer set, the npc's is a property of which record it currently is.
+ * Which is exactly how a prayer-switching npc works — `npc_changetype` between
+ * records that differ only in this field is what makes the overhead change.
+ *
+ * The group is a sprite-archive id. 440 (`headicons_prayer`) is the only one
+ * cache.osrs239 uses on an npc, and the client already resolves that pack for
+ * the player pass, so it is passed in rather than looked up again here; a
+ * record naming any other group draws nothing rather than drawing the wrong
+ * pack's frame.
+ */
+static void
+app_overlay_build_npc_headicon(
+    struct App* app,
+    int element_id,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int prayer_scene,
+    int prayer_group)
+{
+    int height;
+    int screen_x, screen_y;
+
+    if( !npctype || npctype->head_icon_index < 0 || prayer_scene <= 0 )
+        return;
+    if( npctype->head_icon_group >= 0 && npctype->head_icon_group != prayer_group )
+        return;
+    height = app_entity_model_height(app, element_id);
+    if( !app_world_project(
+            app,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
+        return;
+
+    {
+        struct UITreeEntityOverlay spr = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = screen_x - 12,
+            .y = screen_y - 30,
+            .w = 0,
+            .h = 0,
+            .scene_id = prayer_scene,
+            .atlas_index = npctype->head_icon_index,
+        };
+        app_overlay_push(app, &spr);
+    }
+}
+
 /* Push one projected world segment as a LINE overlay (box + diagonal). */
 static void
 app_overlay_push_segment(
@@ -2360,6 +2434,9 @@ app_build_entity_overlays(
         app_overlay_build_entity(
             app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene,
             npctype ? npctype->height : -1);
+        app_overlay_build_npc_headicon(
+            app, npc->element_id, npctype, &npc->draw_position, headicons_scene,
+            APP_HEADICONS_PRAYER_GROUP);
     }
 
     pool = &world->entities.player;
@@ -6039,6 +6116,37 @@ app_cs2_enqueue_followups(struct App* app)
                 &app->runner,
                 trig.component_id,
                 &UITree_Hooks(&app->tree->components[idx])->on_op);
+            /*
+             * ...and then answer the server, exactly as a picked menu row
+             * would (reference method3476, which is the *shared* body: run the
+             * on_op listener, then send IF_BUTTON<op> when that op's bit is
+             * armed). Dispatching the hook alone made cc_triggerop a purely
+             * visual call, which is what left shift-click drop doing nothing:
+             * script6012 moves "Drop" onto op 1 — a slot the server never arms
+             * — and script6014's cc_triggerop is the only thing that names the
+             * real op. Clicking it ran the script and sent nothing.
+             */
+            if( trig.op_index >= 1 && trig.op_index <= 10 &&
+                (app_if_events_for_node(app, trig.component_id) &
+                 (1u << trig.op_index)) )
+            {
+                int target = trig.component_id;
+                int sub = -1;
+                int obj_id = app->tree->components[idx].item_id;
+                app_if_button_target(app, trig.component_id, &target, &sub);
+                if( obj_id > 0 )
+                    APP_NET_SEND(
+                        app,
+                        net_out_if_button_obj_op(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                            trig.op_index, target, sub, obj_id));
+                else
+                    APP_NET_SEND(
+                        app,
+                        net_out_if_button_op(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                            trig.op_index, target, sub));
+            }
             queued = 1;
         }
     }
@@ -10166,8 +10274,20 @@ app_world_spawn_npc_now(
         bd_model = PlatformSDL2_TicksUs() - bd_t;
     if( !model )
     {
+        /* Same rationale as the models_count<=0 branch above: a missing
+         * model must not drop the entity itself, or every later NPC_INFO
+         * mask for this slot resolves to -1 and is silently discarded for
+         * the rest of the session, with no retry (npc_add only fires once
+         * per spawn). This path is reached on a transient/real model-load
+         * failure -- large multi-part npcs like QBD are the most exposed --
+         * so register an empty placeholder and keep going; that degrades to
+         * an invisible npc instead of erasing it outright. */
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
-        return -1;
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+        if( !model )
+            return -1;
     }
     /* Set explicitly both ways. Models arrive from ToriDraw_ModelFromToriRS with
      * no render flags, so the opt-in is this line and nothing else; clearing is
@@ -10465,18 +10585,38 @@ app_world_spawn_projectile_spot_now(
     app->need_redraw = 1;
 }
 
-/* Total client cycles for one loop of a seq — the sum of (frame delay + 1) per
- * frame, matching MapSpotAnim.update which subtracts getDuration(frame)+1 each
- * advance. Drives the free-standing spotanim's single-shot lifetime. */
+/* Total client cycles one loop of a seq takes TO PLAY HERE. Drives the
+ * free-standing spotanim's single-shot lifetime, so it has to agree with
+ * whatever actually steps the frames — which is
+ * ToriDraw_AnimationAdvanceObjectCycles, and that implements the rev239
+ * `while (cycle > delay) cycle -= delay` walk, not Client-TS MapSpotAnim's
+ * `getDuration(frame) + 1` subtraction.
+ *
+ * The two differ by one cycle per frame. Trace the rev239 walk: from a zero
+ * counter the first frame needs delay+1 cycles to trip a STRICT `>`, and it
+ * then leaves 1 behind, so every later frame costs exactly its own delay. The
+ * loop is therefore sum(delay) + 1 cycles long, where summing (delay + 1) is
+ * sum(delay) + frame_count.
+ *
+ * Overstating it by frame_count - 1 is not harmless: the sequence ends, the
+ * element drops its animation and snaps back to the un-posed base model, and
+ * the spotanim then sits frozen in that pose until the lifetime finally
+ * expires. On a 37-frame splash that is 36 cycles of dead frame — the visible
+ * "it plays, then freezes" at the end of every map spotanim.
+ *
+ * `delay <= 0` counts as 1 because the advance treats it that way. */
 static int
 app_seq_total_duration(struct App* app, int seq_id)
 {
     int frames = app_seq_frame_count(app, seq_id);
-    int total = 0;
+    int total = 1;
     if( frames <= 0 )
         return 1;
     for( int f = 0; f < frames; f++ )
-        total += app_seq_frame_duration(app, seq_id, f) + 1;
+    {
+        int delay = app_seq_frame_duration(app, seq_id, f);
+        total += delay > 0 ? delay : 1;
+    }
     return total > 0 ? total : 1;
 }
 
@@ -10530,6 +10670,27 @@ app_world_spawn_spotanim_now(
     World_SpotanimSpawn(
         app->world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
     app_world_apply_seq(app, element_id, spot->seq);
+    /* A delayed spotanim is invisible until World flips it active, so its
+     * sequence must not run in the meantime. Park it as anim_external — the
+     * flag the naive per-element tick uses to mean "someone else owns this
+     * element's frames" — and let WorldEventKind_SpotanimStarted hand it back
+     * on the cycle it first draws. Without this the whole delay is spent
+     * animating out of sight: `spotanim_map`'s delay is a projectile's flight
+     * time, which is routinely longer than the sequence, so the splash
+     * surfaced already finished and sat on a cleared final frame. Elements
+     * with no delay are left alone and start immediately, as before. */
+    if( delay > 0 )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( el )
+        {
+            el->anim_external = true;
+            /* anim_list membership is filtered on anim_external, so the cached
+             * list is now stale (toridraw_scene.h: the caller mutating this
+             * flag directly owns the invalidation). */
+            ToriDraw_SceneAnimListInvalidate(app->scene);
+        }
+    }
 
     fprintf(
         stderr,
@@ -12777,6 +12938,30 @@ App_WorldDrainEntityRemoved(struct App* app)
             app_entity_spotanim_drop(app, ev->element_id);
             if( app->scene )
                 ToriDraw_SceneElementRemove(app->scene, ev->element_id);
+        }
+        else if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id >= 0 &&
+                 app->scene )
+        {
+            /* The delayed map spotanim parked in app_world_spawn_spotanim_now
+             * is drawing for the first time this cycle: rewind to frame 0 and
+             * hand it back to the per-element tick.
+             *
+             * The rewind is not redundant with parking it. A sequence that was
+             * not resident at spawn binds later through seq_bind_pending, and
+             * that path catches the animation up by (now - start_cycle) — a
+             * span measured from SPAWN, which for a delayed spotanim is the
+             * wrong origin and can land it mid-sequence or past the end. Frame
+             * 0 here is what makes the start independent of when the seq
+             * happened to load. */
+            struct ToriDraw_SceneElement* el =
+                ToriDraw_SceneElementGet(app->scene, ev->element_id);
+            if( el && el->anim_external )
+            {
+                el->anim_frame = 0;
+                el->anim_cycle = 0;
+                el->anim_external = false;
+                ToriDraw_SceneAnimListInvalidate(app->scene);
+            }
         }
     }
     World_EventsClear(world);
@@ -15511,6 +15696,54 @@ App_RunOnce(
         }
     }
 
+    /* Key-down and key-up broadcasts, the same shape as the onKey loop above
+     * (re-resolve the id, re-check the hook) over the frame's pressed and
+     * released key codes. These are what the inventory registers to rebuild
+     * itself while shift is held: script6007 arms both, script6008 filters to
+     * key 81 (shift) and re-runs the slot builder with shift down or up, and
+     * script6012 then promotes the shift-click op to op 1. Only the code is
+     * reported — the reference passes no character here, so `event_key` is set
+     * and the char left at 0. */
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        int const down = pass == 0;
+        int const code_count = down ? out.key_down_count : out.key_up_count;
+        int const* codes = down ? out.key_down_codes : out.key_up_codes;
+        int const want = down ? UI_KEY_HOOK_DOWN : UI_KEY_HOOK_UP;
+
+        for( int e = 0; e < code_count; e++ )
+        {
+            for( int t = 0; t < out.key_target_count; t++ )
+            {
+                struct UIKeyTarget const* target = &out.key_targets[t];
+                struct UITreeRuntimeScriptHook const* hook;
+                int32_t idx;
+                if( !(target->hooks & want) )
+                    continue;
+                idx = UITree_FindByComponentId(app->tree, target->component_id);
+                if( idx < 0 )
+                    continue;
+                hook = down ? &UITree_Hooks(&app->tree->components[idx])->on_key_down
+                            : &UITree_Hooks(&app->tree->components[idx])->on_key_up;
+                if( hook->script_id <= 0 )
+                    continue;
+                RS_CS2_SetEventMouse(
+                    &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
+                RS_CS2_SetEventKey(&app->host, codes[e], 0);
+                if( getenv("TORIRS_KEY_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "key_%s_dispatch: com=0x%08x script=%d key=%d\n",
+                        down ? "down" : "up",
+                        target->component_id,
+                        hook->script_id,
+                        codes[e]);
+                RS_CS2_DispatchHook(&app->host, &app->runner, target->component_id, hook);
+                ran_cs2 = 1;
+            }
+        }
+    }
+
     /* Chat input: typed characters/backspace/return feed whichever chat
      * input line is open (reference handleInputKey — typing goes to the chat
      * line even while op-key bindings also fire). Only when a chat region
@@ -16871,6 +17104,17 @@ App_WorldApplyNpcType(
     else
     {
         model = app_world_build_npc_model(app, npc_type, npctype);
+        if( !model )
+            /* Unlike the models_count<=0 branch above, this is not an honest
+             * "no body" result -- it's app_world_build_model failing to
+             * resolve a type that DOES have models (see the matching log in
+             * app_world_spawn_npc_now). Neither branch below then touches the
+             * element, so it silently keeps whatever model it already had
+             * (typically the 14-bit placeholder type's, for a large npc like
+             * QBD that needed a same-packet TRANSFORMATION to reach its real
+             * id) -- which reads in-game as "the npc never rendered" with no
+             * trace of why. Log it so that's diagnosable. */
+            fprintf(stderr, "npc_retype: npc %d models failed to load\n", npc_type);
     }
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
@@ -16910,21 +17154,35 @@ App_WorldApplyNpcType(
         World_NpcSetType(
             app->world, world_idx, npc_type, npctype->size > 0 ? npctype->size : 1, &idle);
     }
-    /*
-     * A newly-added NPC reaches its ready pose through app_world_spawn_npc_now,
-     * but a revision-239 CHANGE_TYPE keeps the same scene element.  Rebind the
-     * replacement type's ready sequence here as well: World_NpcSetType clears
-     * the old primary track, and waiting for the next world cycle otherwise
-     * leaves a frame (and an async-load gap) driven by the former type.
-     *
-     * This is intentionally general rather than familiar-specific.  The
-     * regular entity sync will take over with the new idle/walk state on the
-     * next world tick, just as it does after a normal spawn.
-     */
-    if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
-        app_world_apply_seq(app, element_id, npctype->readyanim);
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        /*
+         * A newly-added NPC reaches its ready pose through
+         * app_world_spawn_npc_now, but a revision-239 CHANGE_TYPE keeps the
+         * same scene element.  Rebind the replacement type's ready sequence
+         * here as well, so the element does not spend a frame (and an
+         * async-load gap) driven by the former type's idle.
+         *
+         * Only when there is no transient animation running, though.  That is
+         * the other half of the rule World_NpcSetType now states: a one-shot
+         * survives a transmog, and unconditionally stamping the new readyanim
+         * on top of it would put the stomp back one layer up — which is
+         * exactly how the Queen Black Dragon's return-to-sleep kept being
+         * erased.  When a primary track is live, the next
+         * app_world_apply_entity_anim_tracks binds it onto the new model, and
+         * the readyanim takes over on its own when the sequence ends.
+         *
+         * This is intentionally general rather than familiar-specific.  The
+         * regular entity sync will take over with the new idle/walk state on
+         * the next world tick, just as it does after a normal spawn.
+         */
+        int const primary_live =
+            npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
+            npc->animation.primary.anim_id != 0;
+
+        if( model && !primary_live && element_id >= 0 &&
+            ToriDraw_SceneElementIsLive(app->scene, element_id) )
+            app_world_apply_seq(app, element_id, npctype->readyanim);
         if( npc )
         {
             npc->combat_level = npctype->combat_level;

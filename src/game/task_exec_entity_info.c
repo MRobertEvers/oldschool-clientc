@@ -1,6 +1,7 @@
 #include "task_exec_entity_info.h"
 
 #include "app.h"
+#include "game/rs_hitsplat.h"
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "game/rs_chat.h"
@@ -569,7 +570,13 @@ player_apply_op(
             op->_damage.health,
             op->_damage.total_health,
             op->_damage.delay,
-            op->_damage.slots);
+            op->_damage.slots,
+            /* Duration and slot-full policy are the hitsplat TYPE's, from the
+             * config group (opcodes 9 and 12) — not fixed client constants. The
+             * accessors fall back to the reference's own defaults (70, discard)
+             * when the cache has no record, which is what was hardcoded before. */
+            RS_Hitsplats_DurationFor(&self->app->hitsplats, op->_damage.damage_type),
+            RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, op->_damage.damage_type));
         break;
     case PKT_PLAYER_INFO_OP_HEADBAR:
         if( op->_headbar.remove )
@@ -1154,7 +1161,9 @@ npc_apply_op(
                 op->_damage.health,
                 op->_damage.total_health,
                 op->_damage.delay,
-                op->_damage.slots);
+                op->_damage.slots,
+                RS_Hitsplats_DurationFor(&self->app->hitsplats, op->_damage.damage_type),
+                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, op->_damage.damage_type));
         break;
     case PKT_NPC_INFO_OP_HEADBAR:
         if( idx >= 0 )

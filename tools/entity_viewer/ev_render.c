@@ -27,6 +27,24 @@ static struct ToriDraw_Scene* g_scene = NULL;
 static struct ToriDraw_Model* g_model = NULL;
 static struct ToriDraw_Animation* g_anim = NULL;
 
+/*
+ * The attached graphic.
+ *
+ * `g_spot` is the graphic's own model as the spotanim record built it, kept
+ * pristine; `g_combined` is body+graphic as the client would have merged them,
+ * rebuilt whenever the graphic's frame or height changes and posed by the
+ * BODY's sequence thereafter. `g_combined_frame` is the graphic frame the
+ * current merge was built for, so a body-only frame step does not rebuild it.
+ */
+static struct ToriDraw_Model* g_spot = NULL;
+static struct ToriDraw_Animation* g_spot_anim = NULL;
+static struct ToriDraw_Model* g_combined = NULL;
+static int g_spot_frame = -1;
+static int g_spot_height = 0;
+static int g_combined_frame = -2; /* neither a frame nor the detached -1 */
+static int g_combined_height = 0;
+static int g_spot_vertex_first = -1;
+
 /* The raster's own buffer, in toridraw's native pixel type. */
 static toripixel_t* g_pixels = NULL;
 /* What the page reads: the same image as RGBA bytes, which is what
@@ -44,6 +62,9 @@ static int g_last_cull = -1;
  * depth `zoom` exactly, which makes the pixel→world conversion exact there. */
 static int g_pan_x = 0;
 static int g_pan_y = 0;
+/* 0 = measure the lift off the model's own bounds, as before. See
+ * ev_set_frame_height for why a caller stepping an animation pins it. */
+static int g_frame_height = 0;
 /* Render discipline, mirroring the client's per-npc choice (app_npc_wants_
  * zbuffer): 0 draws the painter's sort with face priorities — the authored
  * path — and 1 depth-tests instead, which also drops priorities at sort time
@@ -86,6 +107,17 @@ ev_release(void* p)
  * Adopt a model. Returns its face count, or 0 when the blob did not parse —
  * which is a hard failure rather than an empty render, so the page can say so.
  */
+/* Any change to a body, a graphic or the graphic's placement invalidates the
+ * merge; the next pose rebuilds it. */
+static void
+drop_combined(void)
+{
+    ToriDraw_ModelFree(g_combined);
+    g_combined = NULL;
+    g_combined_frame = -2;
+    g_spot_vertex_first = -1;
+}
+
 int
 ev_set_model(const uint8_t* data, int len)
 {
@@ -95,6 +127,7 @@ ev_set_model(const uint8_t* data, int len)
 
     ToriDraw_ModelFree(g_model);
     g_model = next;
+    drop_combined();
     if( g_zbuffer )
         g_model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
     else
@@ -106,12 +139,19 @@ void
 ev_set_zbuffer(int on)
 {
     g_zbuffer = on ? 1 : 0;
-    if( !g_model )
-        return;
-    if( g_zbuffer )
-        g_model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
-    else
-        g_model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
+    /* The merged model carries its own copy of the flag (ToriDraw_ModelNewMerge
+     * ORs the parts' flags into the result), so flipping this after a merge has
+     * to reach it too or the page keeps drawing the old discipline. */
+    struct ToriDraw_Model* targets[2] = { g_model, g_combined };
+    for( int i = 0; i < 2; i++ )
+    {
+        if( !targets[i] )
+            continue;
+        if( g_zbuffer )
+            targets[i]->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+        else
+            targets[i]->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
+    }
 }
 
 /** Adopt an animation. Returns its frame count, 0 when the blob did not parse. */
@@ -133,6 +173,172 @@ ev_clear_anim(void)
 {
     ToriDraw_AnimationFree(g_anim);
     g_anim = NULL;
+}
+
+/* ---- the attached graphic ------------------------------------------------ */
+
+int
+ev_set_spot_model(const uint8_t* data, int len)
+{
+    struct ToriDraw_Model* next = ev_wire_read_model(data, (size_t)(len > 0 ? len : 0));
+    if( !next )
+        return 0;
+
+    ToriDraw_ModelFree(g_spot);
+    g_spot = next;
+    drop_combined();
+    return g_spot->face_count;
+}
+
+int
+ev_set_spot_anim(const uint8_t* data, int len)
+{
+    struct ToriDraw_Animation* next = ev_wire_read_anim(data, (size_t)(len > 0 ? len : 0));
+    if( !next )
+        return 0;
+
+    ToriDraw_AnimationFree(g_spot_anim);
+    g_spot_anim = next;
+    drop_combined();
+    return g_spot_anim->frame_count;
+}
+
+void
+ev_clear_spot(void)
+{
+    ToriDraw_ModelFree(g_spot);
+    g_spot = NULL;
+    ToriDraw_AnimationFree(g_spot_anim);
+    g_spot_anim = NULL;
+    g_spot_frame = -1;
+    drop_combined();
+}
+
+void
+ev_set_spot_state(int height, int frame)
+{
+    g_spot_height = height;
+    g_spot_frame = frame;
+}
+
+int
+ev_spot_frame_count(void)
+{
+    return g_spot_anim ? g_spot_anim->frame_count : 0;
+}
+
+int
+ev_spot_frame_delay(int index)
+{
+    if( !g_spot_anim || index < 0 || index >= g_spot_anim->frame_count )
+        return 0;
+    /* Same NULL-frames guard ev_frame_delay carries, and for the same reason:
+     * reading through a skeletal animation's absent frame table does not trap
+     * in wasm, it returns whatever bytes are at low linear memory. */
+    if( g_spot_anim->skeletal || !g_spot_anim->frames )
+        return 1;
+    return g_spot_anim->frames[index].delay;
+}
+
+/*
+ * Merge the graphic into the body, exactly as the client does.
+ *
+ * The three steps that matter, in the order app_world_sync_one_entity_spotanim
+ * takes them:
+ *
+ *   1. pose the graphic's OWN copy at its own frame,
+ *   2. null its labels, so the body's sequence cannot address its vertices —
+ *      this is what freezes the graphic in place while the body keeps moving,
+ *      and it is the mechanical reason a player-attached graphic can never
+ *      track a swinging blade,
+ *   3. translate it by -height in y (model y is negative-up) and combine.
+ *
+ * There is no rotation and no lateral term anywhere in that list. Height is the
+ * only placement the caller can express; the graphic's position in the player's
+ * local XZ plane is a property of the model's vertices and nothing else.
+ */
+static void
+rebuild_combined(void)
+{
+    struct ToriDraw_Model* posed;
+    struct ToriDraw_Model* parts[2];
+
+    drop_combined();
+    if( !g_model || !g_spot || g_spot_frame < 0 )
+        return;
+
+    posed = ToriDraw_ModelCopy(g_spot);
+    if( !posed )
+        return;
+
+    /* A frame with no transforms holds the rest pose — the renderer's own
+     * hole-frame rule. */
+    if( g_spot_anim && !g_spot_anim->skeletal && g_spot_anim->base && g_spot_anim->frames &&
+        g_spot_frame < g_spot_anim->frame_count &&
+        g_spot_anim->frames[g_spot_frame].length > 0 )
+    {
+        ToriDraw_ModelAnimateReset(posed);
+        ToriDraw_ModelAnimateFrame(posed, g_spot_anim->base, &g_spot_anim->frames[g_spot_frame]);
+    }
+
+    ToriDraw_BonesFree(posed->vertex_bones);
+    posed->vertex_bones = NULL;
+    ToriDraw_BonesFree(posed->face_bones);
+    posed->face_bones = NULL;
+
+    if( g_spot_height != 0 )
+        ToriDraw_ModelTranslate(posed, 0, -g_spot_height, 0);
+
+    /* The body goes in at its REST pose. The merged model is captured below and
+     * posed from that capture every frame, so merging a posed body would bake
+     * one frame of the swing into the rest pose and every later frame would
+     * compound on it. */
+    ToriDraw_ModelAnimateReset(g_model);
+    parts[0] = g_model;
+    parts[1] = posed;
+    g_combined = ToriDraw_ModelMerge(parts, 2);
+    ToriDraw_ModelFree(posed);
+    if( !g_combined )
+        return;
+
+    g_spot_vertex_first = g_model->vertex_count;
+    g_combined_frame = g_spot_frame;
+    g_combined_height = g_spot_height;
+    if( g_zbuffer )
+        g_combined->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    /* Capture AFTER the merge, so the per-frame reset restores the graphic's
+     * posed alphas instead of clearing them: ToriDraw_ModelCaptureOriginal-
+     * Vertices takes face_alphas too, and this sequence is an alpha animation. */
+    ToriDraw_ModelCaptureOriginalVertices(g_combined);
+    ToriDraw_ModelSetBoundsCylinder(g_combined);
+}
+
+/** What actually gets drawn and measured. */
+static struct ToriDraw_Model*
+draw_model(void)
+{
+    if( g_spot && g_spot_frame >= 0 )
+    {
+        if( !g_combined || g_combined_frame != g_spot_frame || g_combined_height != g_spot_height )
+            rebuild_combined();
+        if( g_combined )
+            return g_combined;
+    }
+    else if( g_combined )
+        drop_combined();
+    return g_model;
+}
+
+struct ToriDraw_Model*
+ev_drawn_model(void)
+{
+    return draw_model();
+}
+
+int
+ev_spot_vertex_first(void)
+{
+    return g_combined ? g_spot_vertex_first : -1;
 }
 
 int
@@ -189,40 +395,45 @@ ev_frame_delay(int index)
 void
 ev_pose(int frame)
 {
-    if( !g_model )
+    /* The merged model when a graphic is attached — the body's sequence poses
+     * body and graphic together from there, which is the client's arrangement
+     * and the only one where the graphic sits still while the body swings. */
+    struct ToriDraw_Model* m = draw_model();
+    if( !m )
         return;
 
-    ToriDraw_ModelAnimateReset(g_model);
+    ToriDraw_ModelAnimateReset(m);
     if( !g_anim || frame < 0 || frame >= g_anim->frame_count )
     {
-        ToriDraw_ModelSetBoundsCylinder(g_model);
+        ToriDraw_ModelSetBoundsCylinder(m);
         return;
     }
 
     if( g_anim->skeletal )
     {
-        if( g_model->animaya_group_counts && g_model->animaya_groups &&
-            g_model->animaya_scales && g_model->animaya_vertex_count > 0 &&
-            frame < g_anim->skeletal->frame_count && g_anim->skeletal->matrices )
-            ToriDraw_ModelAnimateSkeletal(g_model, g_anim->skeletal, frame);
+        if( m->animaya_group_counts && m->animaya_groups && m->animaya_scales &&
+            m->animaya_vertex_count > 0 && frame < g_anim->skeletal->frame_count &&
+            g_anim->skeletal->matrices )
+            ToriDraw_ModelAnimateSkeletal(m, g_anim->skeletal, frame);
     }
     else if( g_anim->base && g_anim->frames )
-        ToriDraw_ModelAnimateFrame(g_model, g_anim->base, &g_anim->frames[frame]);
+        ToriDraw_ModelAnimateFrame(m, g_anim->base, &g_anim->frames[frame]);
 }
 
 int
 ev_pose_moved_vertices(int frame)
 {
-    if( !g_model || !g_model->original_vertices_x )
+    struct ToriDraw_Model* m = draw_model();
+    if( !m || !m->original_vertices_x )
         return -1;
 
     ev_pose(frame);
 
     int moved = 0;
-    for( int i = 0; i < g_model->vertex_count; i++ )
-        if( g_model->vertices_x[i] != g_model->original_vertices_x[i] ||
-            g_model->vertices_y[i] != g_model->original_vertices_y[i] ||
-            g_model->vertices_z[i] != g_model->original_vertices_z[i] )
+    for( int i = 0; i < m->vertex_count; i++ )
+        if( m->vertices_x[i] != m->original_vertices_x[i] ||
+            m->vertices_y[i] != m->original_vertices_y[i] ||
+            m->vertices_z[i] != m->original_vertices_z[i] )
             moved++;
     return moved;
 }
@@ -245,7 +456,8 @@ ev_model_has_animaya(void)
 int
 ev_model_vertex_count(void)
 {
-    return g_model ? g_model->vertex_count : 0;
+    struct ToriDraw_Model* m = draw_model();
+    return m ? m->vertex_count : 0;
 }
 
 static int
@@ -290,6 +502,11 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
 {
     if( !g_scene || !g_model || !ensure_buffers(width, height) )
         return NULL;
+    /* Resolved before the pose so the handle below and ev_pose agree on which
+     * model is current: draw_model() can rebuild the merge as a side effect. */
+    struct ToriDraw_Model* subject = draw_model();
+    if( !subject )
+        return NULL;
 
     /*
      * Reset before applying, every frame.
@@ -307,7 +524,7 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     struct ToriDraw_ModelHandle hnd;
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
-    hnd.u.model.model = g_model;
+    hnd.u.model.model = subject;
 
     struct ToriDraw_ViewPort view_port = { 0 };
     view_port.width = width;
@@ -349,7 +566,8 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     int cos_pitch = (ToriDraw_Cos(camera.pitch) * zoom) >> 16;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
-    int model_height = bounds ? (bounds->max_y - bounds->min_y) : 0;
+    int model_height = g_frame_height > 0 ? g_frame_height
+                                          : (bounds ? (bounds->max_y - bounds->min_y) : 0);
 
     /* Same placement as ToriDraw_SpriteNewFromModelRaster, minus its widget
      * term: that path blits into a widget rect and offsets by the widget's own
@@ -405,12 +623,13 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
 int
 ev_model_height(void)
 {
-    if( !g_model )
+    struct ToriDraw_Model* m = draw_model();
+    if( !m )
         return 0;
     struct ToriDraw_ModelHandle hnd;
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;
-    hnd.u.model.model = g_model;
+    hnd.u.model.model = m;
     struct ToriDraw_BoundsCylinder* b = ToriDraw_ModelGetBoundsCylinder(hnd);
     return b ? (b->max_y - b->min_y) : 0;
 }
@@ -419,6 +638,12 @@ int
 ev_last_cull(void)
 {
     return g_last_cull;
+}
+
+void
+ev_set_frame_height(int height)
+{
+    g_frame_height = height > 0 ? height : 0;
 }
 
 void

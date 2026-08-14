@@ -1441,13 +1441,14 @@ visit_hitsplat(
     memset(&first, 0, sizeof(first));
     memset(&second, 0, sizeof(second));
 
-    RSCache_Dat2ConfigHitsplatDecodeInplace(&first, data, size);
+    unsigned hs_flags = (unsigned)RSCache_Dat2ConfigHitsplatFlags(profile);
+    RSCache_Dat2ConfigHitsplatDecodeInplace(&first, data, size, hs_flags);
     tally->records++;
     tally->tracks_consumed = true;
     if( first._consumed == size )
         tally->consumed_exact++;
 
-    uint8_t encoded[64];
+    uint8_t encoded[256];
     uint32_t written = RSCache_Dat2ConfigHitsplatEncode(&first, encoded, sizeof(encoded));
     if( written == 0 )
     {
@@ -1456,17 +1457,27 @@ visit_hitsplat(
     }
     note_bytes(tally, encoded, written, data, size);
 
-    RSCache_Dat2ConfigHitsplatDecodeInplace(&second, encoded, (int)written);
-    if( first.sprite_id == second.sprite_id && first.has_opcode_8 == second.has_opcode_8 &&
-        first.opcode_8 == second.opcode_8 && first.has_opcode_9 == second.has_opcode_9 &&
-        first.opcode_9 == second.opcode_9 && first.opcode_11 == second.opcode_11 &&
+    RSCache_Dat2ConfigHitsplatDecodeInplace(&second, encoded, (int)written, hs_flags);
+    if( first.sprite_id == second.sprite_id && first.has_text == second.has_text &&
+        strcmp(first.text, second.text) == 0 && first.text_marker == second.text_marker &&
+        first.has_duration == second.has_duration && first.duration == second.duration &&
+        first.has_slot_policy == second.has_slot_policy &&
+        first.slot_policy == second.slot_policy &&
+        first.has_opcode_11_flag == second.has_opcode_11_flag &&
+        first.has_opcode_14 == second.has_opcode_14 &&
+        first.opcode_11_14 == second.opcode_11_14 &&
         first.has_opcode_13 == second.has_opcode_13 && first.opcode_13 == second.opcode_13 &&
-        first.has_opcode_49 == second.has_opcode_49 && first.opcode_49 == second.opcode_49 &&
-        first.has_opcode_18 == second.has_opcode_18 &&
-        (!first.has_opcode_18 ||
-         memcmp(first.opcode_18, second.opcode_18, sizeof(first.opcode_18)) == 0) )
+        first.has_colour == second.has_colour && first.colour == second.colour &&
+        first.variant_opcode == second.variant_opcode &&
+        first.variant_a == second.variant_a && first.variant_b == second.variant_b &&
+        first.variant_c == second.variant_c &&
+        first.variant_count == second.variant_count &&
+        memcmp(
+            first.variants,
+            second.variants,
+            (size_t)(first.variant_count > 0 ? first.variant_count : 0) *
+                sizeof(first.variants[0])) == 0 )
         tally->semantic_ok++;
-    (void)profile;
 }
 
 /* --------------------------------------------------------------- struct --- */

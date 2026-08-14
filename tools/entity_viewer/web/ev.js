@@ -26,11 +26,51 @@ const state = {
   yaw: 0,
   pitch: 200,
   zoom: 1400,
-  /* Time owed to the current frame, so a frame with delay=3 holds for three
-   * ticks instead of the display's refresh rate deciding playback speed. */
-  frameAcc: 0,
   lastT: 0,
+
+  /*
+   * Playback is counted in CLIENT CYCLES, not in frames.
+   *
+   * A frame index cannot express an attached graphic's timing: `spotanim_pl`'s
+   * delay is a number of cycles between the animation starting and the graphic
+   * starting, and the two sequences have different frame lengths, so there is
+   * no frame number in one that names a moment in the other. Counting cycles
+   * gives both a common clock, and each side's frame is looked up from it.
+   */
+  cycle: 0,
+  cycleAcc: 0,
+  bodyDelays: [],
+  bodyTotal: 0,
+  spotDelays: [],
+  spotTotal: 0,
+
+  /* 'npc' or 'player'. */
+  mode: 'npc',
+  objs: [],
+  spotanims: [],
+  worn: [],
+  /* The attached graphic: `spotanim_pl`'s three arguments and the sequence the
+   * record names. */
+  fx: { id: null, seq: -1, height: 100, delay: 16, orient: -1 },
 };
+
+/** Which frame of a sequence is showing at `cycle`, or -1 once it has run out.
+ *  -1 is a real state for a graphic: one that has finished is not drawn, and
+ *  holding its last frame would leave it on screen for the whole recovery. */
+function frameAtCycle(delays, cycle) {
+  if (cycle < 0) return -1;
+  let acc = 0;
+  for (let i = 0; i < delays.length; i++) {
+    const d = Math.max(1, delays[i]);
+    if (cycle < acc + d) return i;
+    acc += d;
+  }
+  return -1;
+}
+
+function totalCycles(delays) {
+  return delays.reduce((a, d) => a + Math.max(1, d), 0);
+}
 
 /* ---- wasm bridge --------------------------------------------------------- */
 
@@ -48,6 +88,13 @@ function wasmCall(mod) {
     lastCull: mod.cwrap('ev_w_last_cull', 'number', []),
     render: mod.cwrap('ev_w_render', 'number',
       ['number', 'number', 'number', 'number', 'number', 'number']),
+    setFrameHeight: mod.cwrap('ev_w_set_frame_height', null, ['number']),
+    setSpotModel: mod.cwrap('ev_w_set_spot_model', 'number', ['number', 'number']),
+    setSpotAnim: mod.cwrap('ev_w_set_spot_anim', 'number', ['number', 'number']),
+    clearSpot: mod.cwrap('ev_w_clear_spot', null, []),
+    setSpotState: mod.cwrap('ev_w_set_spot_state', null, ['number', 'number']),
+    spotFrameCount: mod.cwrap('ev_w_spot_frame_count', 'number', []),
+    spotFrameDelay: mod.cwrap('ev_w_spot_frame_delay', 'number', ['number']),
     mod,
   };
 }
@@ -68,6 +115,8 @@ async function feed(url, fn) {
 /* ---- npc list ------------------------------------------------------------ */
 
 function renderNpcList() {
+  if (state.mode === 'player') { renderObjList(); return; }
+
   const q = document.getElementById('npcSearch').value.trim().toLowerCase();
   const list = document.getElementById('npcList');
   const matches = [];
@@ -108,6 +157,47 @@ function renderNpcList() {
     `${matches.length} of ${total} shown · badge is rig/maybe counts`;
 }
 
+/*
+ * The equipment picker.
+ *
+ * Every obj in the cache, not only the wearable ones: filtering here would mean
+ * decoding thirty thousand records to answer a question the picker can answer
+ * by drawing nothing. An obj with no wear model simply adds no geometry, and
+ * the chip stays so it can be taken off again.
+ */
+function renderObjList() {
+  const q = document.getElementById('npcSearch').value.trim().toLowerCase();
+  const list = document.getElementById('npcList');
+  const matches = [];
+  let total = 0;
+
+  for (const o of state.objs) {
+    if (q) {
+      const hay = `${o.id} ${(o.name || '').toLowerCase()}`;
+      if (!hay.includes(q)) continue;
+    }
+    total++;
+    if (matches.length < 400) matches.push(o);
+  }
+
+  list.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (const o of matches) {
+    const on = state.worn.includes(o.id);
+    const row = document.createElement('div');
+    row.className = 'row' + (on ? ' sel' : '');
+    row.innerHTML =
+      `<span class="id">${o.id}</span>` +
+      `<span class="nm">${escapeHtml(o.name || '(unnamed)')}</span>` +
+      `<span class="badge">${on ? 'worn' : ''}</span>`;
+    row.onclick = () => toggleWorn(o.id);
+    frag.appendChild(row);
+  }
+  list.appendChild(frag);
+  document.getElementById('npcCount').textContent =
+    `${matches.length} of ${total} shown · click to equip or unequip`;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -146,6 +236,9 @@ async function selectNpc(id) {
   state.wasm.clearAnim();
   state.frameCount = 0;
   state.frame = 0;
+  state.bodyDelays = [];
+  state.bodyTotal = 0;
+  state.cycle = 0;
   updateFrameUi();
   renderAnimList();
 }
@@ -266,8 +359,14 @@ async function selectSeq(seq) {
   state.seqId = seq;
   const frames = await feed(`/api/seq/${seq}.anim`, (p, n) => state.wasm.setAnim(p, n));
   state.frameCount = frames;
+  /* The delay table, read once. Playback is on a cycle clock so that an
+   * attached graphic's delay means something; that clock needs the lengths. */
+  state.bodyDelays = [];
+  for (let i = 0; i < frames; i++) state.bodyDelays.push(state.wasm.frameDelay(i));
+  state.bodyTotal = totalCycles(state.bodyDelays);
   state.frame = 0;
-  state.frameAcc = 0;
+  state.cycle = 0;
+  state.cycleAcc = 0;
   state.playing = frames > 0;
   document.getElementById('playBtn').textContent = state.playing ? 'Pause' : 'Play';
   updateFrameUi();
@@ -276,13 +375,11 @@ async function selectSeq(seq) {
 
 function updateFrameUi() {
   const slider = document.getElementById('frameSlider');
-  slider.max = Math.max(0, state.frameCount - 1);
-  slider.value = state.frame;
+  slider.max = Math.max(0, state.bodyTotal - 1);
+  slider.value = state.cycle;
   slider.disabled = state.frameCount === 0;
   document.getElementById('playBtn').disabled = state.frameCount === 0;
-  document.getElementById('frameLabel').textContent = state.frameCount
-    ? `seq ${state.seqId} · frame ${state.frame + 1}/${state.frameCount}`
-    : 'bind pose';
+  updateFrameLabel();
 }
 
 /* ---- render loop --------------------------------------------------------- */
@@ -294,18 +391,36 @@ function frameLoop(t) {
   const dt = state.lastT ? t - state.lastT : 0;
   state.lastT = t;
 
-  if (state.playing && state.frameCount > 0) {
-    /* A frame's delay is in ticks, and a delay of 0 would spin the animation as
-     * fast as the display refreshes, so it counts as one tick. */
-    const delay = Math.max(1, state.wasm.frameDelay(state.frame));
-    state.frameAcc += dt;
-    while (state.frameAcc >= delay * TICK_MS) {
-      state.frameAcc -= delay * TICK_MS;
-      state.frame = (state.frame + 1) % state.frameCount;
+  if (state.playing && state.bodyTotal > 0) {
+    state.cycleAcc += dt;
+    while (state.cycleAcc >= TICK_MS) {
+      state.cycleAcc -= TICK_MS;
+      /*
+       * The loop is over the BODY's length, and the graphic simply stops when
+       * its own sequence runs out. That is the game's arrangement: the graphic
+       * is fired once with a delay and plays through, it is not a second loop
+       * running alongside.
+       */
+      state.cycle = (state.cycle + 1) % state.bodyTotal;
     }
-    document.getElementById('frameSlider').value = state.frame;
-    document.getElementById('frameLabel').textContent =
-      `seq ${state.seqId} · frame ${state.frame + 1}/${state.frameCount}`;
+    const f = frameAtCycle(state.bodyDelays, state.cycle);
+    if (f >= 0) state.frame = f;
+    document.getElementById('frameSlider').value = state.cycle;
+    updateFrameLabel();
+  }
+
+  /* The graphic's own frame, from the same clock, offset by its delay. */
+  if (state.fx.id !== null) {
+    const sf = state.bodyTotal > 0
+      ? frameAtCycle(state.spotDelays, state.cycle - state.fx.delay)
+      : 0;
+    state.wasm.setSpotState(state.fx.height, sf);
+    const el = document.getElementById('fxState');
+    if (el) {
+      el.textContent = state.bodyTotal > 0
+        ? (sf < 0 ? 'not showing' : `graphic frame ${sf + 1}/${state.spotDelays.length}`)
+        : 'no animation — pick one to see the timing';
+    }
   }
 
   const w = CANVAS.width;
@@ -317,6 +432,175 @@ function frameLoop(t) {
 
   const bytes = state.wasm.mod.HEAPU8.subarray(ptr, ptr + w * h * 4);
   CTX.putImageData(new ImageData(new Uint8ClampedArray(bytes), w, h), 0, 0);
+}
+
+function updateFrameLabel() {
+  document.getElementById('frameLabel').textContent = state.frameCount
+    ? `seq ${state.seqId} · cycle ${state.cycle}/${state.bodyTotal} · frame ` +
+      `${state.frame + 1}/${state.frameCount}`
+    : 'bind pose';
+}
+
+/* ---- the player half ------------------------------------------------------
+ *
+ * Everything below exists because a player is not an npc with other models on
+ * it, and an attached graphic is not a second thing in the scene. The client
+ * merges the posed graphic into the player's own model, so the viewer asks the
+ * server for the two halves and lets ev_render merge them the same way.
+ */
+
+async function rebuildPlayer() {
+  const q = state.worn.length ? `?wear=${state.worn.join(',')}` : '';
+  const faces = await feed(`/api/player.model${q}`, (p, n) => state.wasm.setModel(p, n));
+  const meta = document.getElementById('stageMeta');
+  if (!faces) {
+    meta.textContent = 'the player model did not build';
+    return;
+  }
+  const h = state.wasm.modelHeight();
+  state.zoom = Math.max(260, Math.min(6000, Math.round(h * 3) || 900));
+  /*
+   * Pin the framing to the player alone, measured before any graphic is merged
+   * in. The framing lifts the model by half the height it measures, and a large
+   * attached graphic more than doubles the combined bounds — so leaving it to
+   * the renderer makes the player shrink and jump the moment the graphic
+   * appears, under the thing being looked at.
+   */
+  state.wasm.setFrameHeight(h);
+  meta.textContent =
+    `${faces} faces · ${state.worn.length} item(s) worn · rig 0 (the human rig)` +
+    ' · drag to orbit · wheel to zoom';
+  const names = state.worn.map((id) => {
+    const o = state.objs.find((x) => x.id === id);
+    return o && o.name ? o.name : String(id);
+  });
+  document.getElementById('stageTitle').textContent =
+    'Player' + (names.length ? ` — wearing ${names.join(', ')}` : ' — unequipped');
+}
+
+function renderWornBar() {
+  const bar = document.getElementById('wornBar');
+  bar.innerHTML = '';
+  if (!state.worn.length) {
+    bar.innerHTML = '<span class="note" style="padding:0">Nothing equipped — click an obj.</span>';
+    return;
+  }
+  for (const id of state.worn) {
+    const o = state.objs.find((x) => x.id === id);
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${escapeHtml(o && o.name ? o.name : String(id))}<span class="x">×</span>`;
+    chip.title = `obj ${id}`;
+    chip.onclick = () => { toggleWorn(id); };
+    bar.appendChild(chip);
+  }
+}
+
+async function toggleWorn(id) {
+  const at = state.worn.indexOf(id);
+  if (at >= 0) state.worn.splice(at, 1);
+  else state.worn.push(id);
+  renderWornBar();
+  renderNpcList();
+  await rebuildPlayer();
+}
+
+/** Adopt a graphic: its model, and the sequence its own record names. */
+async function selectSpotanim(id) {
+  if (id === null) {
+    state.fx.id = null;
+    state.wasm.clearSpot();
+    state.spotDelays = [];
+    state.spotTotal = 0;
+    document.getElementById('fxState').textContent = '';
+    return;
+  }
+
+  let info;
+  try {
+    const res = await fetch(`/api/spot/${id}.json`);
+    if (!res.ok) throw new Error('no such graphic');
+    info = await res.json();
+  } catch (e) {
+    document.getElementById('fxState').textContent = `spotanim ${id} did not load`;
+    return;
+  }
+
+  const turn = state.fx.orient >= 0 ? `?orient=${state.fx.orient}` : '';
+  const faces = await feed(`/api/spot/${id}.model${turn}`,
+    (p, n) => state.wasm.setSpotModel(p, n));
+  if (!faces) {
+    document.getElementById('fxState').textContent = `spotanim ${id} has no model`;
+    return;
+  }
+
+  state.fx.id = id;
+  state.fx.seq = info.seq;
+  state.spotDelays = [];
+  if (info.seq >= 0) {
+    const n = await feed(`/api/seq/${info.seq}.anim`, (p, k) => state.wasm.setSpotAnim(p, k));
+    for (let i = 0; i < n; i++) state.spotDelays.push(state.wasm.spotFrameDelay(i));
+  }
+  state.spotTotal = totalCycles(state.spotDelays);
+  document.getElementById('fxState').textContent =
+    `${faces} faces · seq ${info.seq} · ${state.spotDelays.length} frames, ` +
+    `${state.spotTotal} cycles`;
+}
+
+function fillSpotanimList() {
+  const dl = document.getElementById('fxList');
+  dl.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (const s of state.spotanims) {
+    const o = document.createElement('option');
+    o.value = s.name ? `${s.name} (${s.id})` : String(s.id);
+    frag.appendChild(o);
+  }
+  dl.appendChild(frag);
+}
+
+/** `name (1231)` or `1231` -> 1231. */
+function parseSpotanimEntry(text) {
+  const m = /\((\d+)\)\s*$/.exec(text.trim());
+  if (m) return Number(m[1]);
+  if (/^\d+$/.test(text.trim())) return Number(text.trim());
+  const hit = state.spotanims.find((s) => s.name === text.trim());
+  return hit ? hit.id : null;
+}
+
+async function setMode(mode) {
+  state.mode = mode;
+  document.getElementById('modeNpc').classList.toggle('on', mode === 'npc');
+  document.getElementById('modePlayer').classList.toggle('on', mode === 'player');
+  document.getElementById('wornBar').classList.toggle('hidden', mode !== 'player');
+  document.getElementById('fxBar').classList.toggle('hidden', mode !== 'player');
+  document.getElementById('subjectHead').textContent = mode === 'player' ? 'Equipment' : 'NPCs';
+  document.getElementById('npcSearch').placeholder =
+    mode === 'player' ? 'obj name or id' : 'name, gameval or id';
+
+  if (mode === 'npc') {
+    /* Leaving player mode drops the graphic and the pinned framing with it:
+     * both are player-half state, and an npc carrying a merged player graphic
+     * would be a lie about what the cache says. */
+    await selectSpotanim(null);
+    state.wasm.setFrameHeight(0);
+    renderNpcList();
+    if (state.npcId !== null) await selectNpc(state.npcId);
+    return;
+  }
+
+  if (!state.objs.length) {
+    state.objs = await (await fetch('/api/objs.json')).json();
+    state.spotanims = await (await fetch('/api/spotanims.json')).json();
+    fillSpotanimList();
+  }
+  if (!state.detail || state.detail.framemap !== 0) {
+    state.detail = await (await fetch('/api/rig/0.json')).json();
+  }
+  renderWornBar();
+  renderNpcList();
+  renderAnimList();
+  await rebuildPlayer();
 }
 
 /* ---- input --------------------------------------------------------------- */
@@ -364,20 +648,129 @@ function wireInput() {
     state.seqId = null;
     state.frameCount = 0;
     state.frame = 0;
+    state.bodyDelays = [];
+    state.bodyTotal = 0;
+    state.cycle = 0;
     state.playing = false;
     document.getElementById('playBtn').textContent = 'Play';
     updateFrameUi();
     renderAnimList();
   };
+  /* 512 of 2048 is a quarter turn: the camera directly above, which is the one
+   * view where a graphic's placement in the player's local xz plane is visible
+   * as a distance rather than inferred from foreshortening. */
+  document.getElementById('topBtn').onclick = () => { state.pitch = 512; };
   document.getElementById('frameSlider').oninput = (e) => {
     state.playing = false;
     document.getElementById('playBtn').textContent = 'Play';
-    state.frame = Number(e.target.value);
+    state.cycle = Number(e.target.value);
+    const f = frameAtCycle(state.bodyDelays, state.cycle);
+    if (f >= 0) state.frame = f;
     updateFrameUi();
+  };
+
+  document.getElementById('modeNpc').onclick = () => setMode('npc');
+  document.getElementById('modePlayer').onclick = () => setMode('player');
+
+  document.getElementById('fxPick').addEventListener('change', (e) => {
+    const id = parseSpotanimEntry(e.target.value);
+    if (id === null) {
+      document.getElementById('fxState').textContent = 'no graphic by that name or id';
+      return;
+    }
+    selectSpotanim(id);
+  });
+  document.getElementById('fxHeight').addEventListener('input', (e) => {
+    state.fx.height = Number(e.target.value) || 0;
+  });
+  document.getElementById('fxDelay').addEventListener('input', (e) => {
+    state.fx.delay = Number(e.target.value) || 0;
+  });
+  document.getElementById('fxOrient').addEventListener('change', (e) => {
+    state.fx.orient = Number(e.target.value);
+    /* The rotation is baked into the model at build time, so changing it means
+     * asking the server for the model again — it is not a draw-time knob. */
+    if (state.fx.id !== null) selectSpotanim(state.fx.id);
+  });
+  document.getElementById('fxClear').onclick = () => {
+    document.getElementById('fxPick').value = '';
+    selectSpotanim(null);
   };
 }
 
 /* ---- boot ---------------------------------------------------------------- */
+
+/*
+ * A viewer state in the URL: `#player&wear=22325&seq=8056&fx=1231&delay=16`.
+ *
+ * Worth having for two reasons. A particular combination of weapon, animation,
+ * graphic and delay is a finding, and a finding that can only be reproduced by
+ * describing which four boxes to fill in is a finding nobody checks. And it is
+ * what lets a headless browser open the viewer already configured, which is how
+ * this page is tested at all.
+ *
+ * Recognised: `player`, `wear=` (comma separated obj ids), `npc=`, `seq=`,
+ * `fx=` (spotanim id), `delay=`, `height=`, `orient=`, `pitch=`, `yaw=`,
+ * `zoom=`, `paused`, `cycle=`.
+ */
+function hashParams() {
+  const out = {};
+  const raw = location.hash.replace(/^#/, '');
+  if (!raw) return out;
+  for (const part of raw.split('&')) {
+    if (!part) continue;
+    const eq = part.indexOf('=');
+    if (eq < 0) out[part] = true;
+    else out[part.slice(0, eq)] = part.slice(eq + 1);
+  }
+  return out;
+}
+
+async function applyHash(p) {
+  if (p.pitch !== undefined) state.pitch = Number(p.pitch);
+  if (p.yaw !== undefined) state.yaw = Number(p.yaw) & 2047;
+
+  if (p.player !== undefined || p.wear !== undefined) {
+    if (p.wear !== undefined) {
+      state.worn = String(p.wear).split(',').filter(Boolean).map(Number);
+    }
+    await setMode('player');
+  }
+  if (p.npc !== undefined) await selectNpc(Number(p.npc));
+  if (p.seq !== undefined) await selectSeq(Number(p.seq));
+
+  if (p.height !== undefined) {
+    state.fx.height = Number(p.height);
+    document.getElementById('fxHeight').value = state.fx.height;
+  }
+  if (p.delay !== undefined) {
+    state.fx.delay = Number(p.delay);
+    document.getElementById('fxDelay').value = state.fx.delay;
+  }
+  if (p.orient !== undefined) {
+    state.fx.orient = Number(p.orient);
+    document.getElementById('fxOrient').value = String(state.fx.orient);
+  }
+  if (p.fx !== undefined) {
+    await selectSpotanim(Number(p.fx));
+    const s = state.spotanims.find((x) => x.id === Number(p.fx));
+    document.getElementById('fxPick').value = s && s.name ? `${s.name} (${s.id})` : String(p.fx);
+  }
+
+  /* Zoom last: rebuilding the player recomputes it from the model's height, so
+   * an explicit one set earlier would be overwritten. */
+  if (p.zoom !== undefined) state.zoom = Number(p.zoom);
+  if (p.cycle !== undefined) {
+    state.cycle = Number(p.cycle);
+    const f = frameAtCycle(state.bodyDelays, state.cycle);
+    if (f >= 0) state.frame = f;
+  }
+  if (p.paused !== undefined) {
+    state.playing = false;
+    document.getElementById('playBtn').textContent = 'Play';
+  }
+  updateFrameUi();
+}
 
 (async function main() {
   const mod = await EVModule();
@@ -389,8 +782,14 @@ function wireInput() {
   wireInput();
   requestAnimationFrame(frameLoop);
 
-  /* Something on screen at once, rather than an empty canvas: the first npc
-   * with a model of its own. */
-  const first = state.npcs.find((n) => n.rig > 0) || state.npcs[0];
-  if (first) selectNpc(first.id);
+  const p = hashParams();
+  if (Object.keys(p).length) {
+    await applyHash(p);
+  } else {
+    /* Something on screen at once, rather than an empty canvas: the first npc
+     * with a model of its own. */
+    const first = state.npcs.find((n) => n.rig > 0) || state.npcs[0];
+    if (first) selectNpc(first.id);
+  }
+  window.__evReady = true;
 })();

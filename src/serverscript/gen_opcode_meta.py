@@ -568,7 +568,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # entry to port (checked directly, not assumed), so — like the map-
     # instance band above — there is no reference name and no reference
     # signature, which is exactly why this sits in the EXTRA band.
-    "LAST_SUBOP": (11038, 0, 0, 1, 0),
+    "LAST_SUBOP": (11039, 0, 0, 1, 0),
 
     # ambientsound(int $soundscape)
     #
@@ -587,7 +587,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     #
     # `midi_song` is the model, down to -1 meaning stop, because the two
     # answer the same question about the same square.
-    "AMBIENTSOUND": (11039, 1, 0, 0, 0),
+    "AMBIENTSOUND": (11038, 1, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------

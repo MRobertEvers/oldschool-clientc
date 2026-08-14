@@ -78,6 +78,46 @@ SINGLE_VERB_GROUP = {
 SPIRAL = {1: "Climb", 2: "Climb-up", 3: "Climb-down"}
 SPIRAL_GROUP = "climb_spiral_middle"
 
+# The second axis: is this thing a LADDER, or is it a staircase / rock / vine?
+#
+# It matters because a ladder animates and a staircase does not. The reference
+# says so directly — `ladders+stairs/scripts/ladders.rs2` runs
+# `anim(human_reachforladder)` going up and `anim(human_pickupfloor)` going down
+# (its `~climb_ladder` proc, and `manhole.rs2` for the trapdoor case), while
+# every one of `stairs.rs2`'s several hundred staircases is a bare
+# `p_telejump` with no anim at all.
+#
+# The reference can key that off the loc NAME because it binds each loc by name;
+# this tree binds by category, so the name test happens here and the answer is
+# carried as the category's `_ladder` suffix.
+#
+# Measured on cache.osrs239: 'ladder' hits 485 of the 1,443 climb records,
+# 'stair' hits 457, and the two overlap exactly once —
+# `elem2_stairs_door_open_no_hatch`, a staircase whose name only says what it
+# does NOT have. That is what the `stair` veto below is for. 'trapdoor' (33),
+# 'manhole' (6) and 'hatch' (3) join the ladder side: you climb down through a
+# hole the same way, and the reference's own manhole script plays exactly the
+# same `human_pickupfloor`.
+# `trap_door` is not a spelling variant worth being clever about — it is one
+# record, `champions_trap_door_open`, and it climbed down un-animated for exactly
+# as long as the keyword list said `trapdoor` and the cache said `trap_door`.
+LADDER_KEYWORDS = ("ladder", "trapdoor", "trap_door", "manhole", "hatch")
+LADDER_VETO = ("stair",)
+
+
+def is_ladder(name):
+    if any(veto in name for veto in LADDER_VETO):
+        return False
+    return any(keyword in name for keyword in LADDER_KEYWORDS)
+
+
+# Emission order, and the whole set of categories this importer authors.
+GROUPS = tuple(
+    group + suffix
+    for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP)
+    for suffix in ("", "_ladder")
+)
+
 HEADER = """\
 // Ladders, staircases and every other loc whose menu says Climb.
 //
@@ -88,11 +128,17 @@ HEADER = """\
 // One key per block and it is the whole point: the cache says a loc's climb
 // *verb*, and no opcode exposes a verb to a script, so the verb is restated as a
 // category — which a trigger CAN be bound to. `ladders_stairs/scripts/
-// ladders.rs2` binds four of them and covers {covered} of the {total} records
-// cache.osrs239 states a climb verb on.
+// ladders.rs2` binds all eight of them and covers {covered} of the {total}
+// records cache.osrs239 states a climb verb on.
 //
-// The four groups, and what puts a record in one (see the importer's docstring
-// for why the grouping is by direction and not by op slot):
+// The category states TWO things, because a script needs two: which way the
+// climb goes (the record's own menu verb), and whether the thing is a LADDER —
+// the `_ladder` suffix. A ladder animates the climb the way the reference's
+// `~climb_ladder` does; a staircase, a rock and a vine do not. The suffix is
+// derived from the loc's name, see `LADDER_KEYWORDS` in the importer.
+//
+// The eight groups, and what puts a record in one (see the importer's docstring
+// for why the direction grouping is by verb set and not by op slot):
 //
 {summary}//
 // {exceptions_note}
@@ -121,6 +167,13 @@ SHARED_HEADER = """\
 // at all, 13 put it on op2 (which doors.rs2 binds), and the rest say
 // Climb-down, Open, Pass-through, Go-down or Peek. The engine's C door swap
 // never noticed because it ignored the op number entirely.
+//
+// A handful of these NAME bindings would themselves collide with a
+// hand-authored `.rs2` script that already owns the same `[oploc<N>,name]`
+// trigger (usually a quest's own state-gated trapdoor body). The compiler
+// only keeps one body for a duplicate header and silently drops the other,
+// so those names are excluded here rather than emitted — see
+// `read_other_rs2_triggers` in tools/ladder_import.py.
 """
 
 
@@ -160,6 +213,33 @@ def read_other_overlays(content, mine):
     return claimed
 
 
+def read_other_rs2_triggers(content, mine):
+    """Every `[oploc<N>,<name>]` header some OTHER hand-authored `.rs2` file
+    declares. A generated NAME binding into `climb_shared.rs2` must not
+    collide with a hand-authored trigger for the same loc — the compiler
+    resolves same-name headers by silently keeping one body and dropping the
+    other, so a quest's own gated trapdoor script must always win over the
+    generic `~climb(-1)` fallback. Returns {(slot, name): relpath}."""
+    claimed = {}
+    root = os.path.join(content, "server", "scripts")
+    mine_abs = os.path.abspath(mine)
+    for base, _dirs, files in os.walk(root):
+        for name in files:
+            if not name.endswith(".rs2"):
+                continue
+            path = os.path.join(base, name)
+            if os.path.abspath(path) == mine_abs:
+                continue
+            with open(path) as handle:
+                for line in handle:
+                    line = line.strip()
+                    match = re.match(r"^\[oploc(\d+),([^\]]+)\]", line)
+                    if match:
+                        key = (int(match.group(1)), match.group(2))
+                        claimed.setdefault(key, os.path.relpath(path, content))
+    return claimed
+
+
 def read_configs(path):
     records = {}
     current = None
@@ -191,10 +271,11 @@ def classify(records):
         if not ops:
             continue
         verbs = set(ops.values())
+        suffix = "_ladder" if is_ladder(name) else ""
         if len(verbs) == 1:
-            grouped[name] = (SINGLE_VERB_GROUP[next(iter(verbs))], ops)
+            grouped[name] = (SINGLE_VERB_GROUP[next(iter(verbs))] + suffix, ops)
         elif ops == SPIRAL:
-            grouped[name] = (SPIRAL_GROUP, ops)
+            grouped[name] = (SPIRAL_GROUP + suffix, ops)
         else:
             exceptions[name] = ops
     return grouped, exceptions
@@ -230,6 +311,20 @@ def main():
             shared[name] = (grouped[name][1], claimed[name])
             del grouped[name]
 
+    # Conflict rule 3: a NAME binding this would emit into climb_shared.rs2
+    # must not collide with a trigger some hand-authored `.rs2` file already
+    # declares for the same (op slot, loc name) — that script's body is
+    # quest-state-gated (or otherwise bespoke) and would silently lose to
+    # the generic `~climb` fallback if both declared the same header.
+    rs2_claimed = read_other_rs2_triggers(content, script_path)
+    rs2_shadowed = {}
+    for name in sorted(shared):
+        ops, _cat_info = shared[name]
+        hit = {slot: rs2_claimed[(slot, name)] for slot in ops if (slot, name) in rs2_claimed}
+        if hit:
+            rs2_shadowed[name] = hit
+            del shared[name]
+
     # Conflict rule 2: never overwrite a cache category somebody has named.
     skipped = {}
     for name in sorted(grouped):
@@ -247,12 +342,12 @@ def main():
     for name, (group, ops) in grouped.items():
         slots[group].update(ops)
 
-    total = len(grouped) + len(exceptions) + len(skipped) + len(shared)
+    total = len(grouped) + len(exceptions) + len(skipped) + len(shared) + len(rs2_shadowed)
     summary_lines = []
-    for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP):
+    for group in GROUPS:
         members = by_group.get(group, [])
         summary_lines.append(
-            "//   %-21s %5d records, ops %s\n"
+            "//   %-28s %5d records, ops %s\n"
             % (group, len(members), ",".join(str(s) for s in sorted(slots[group])))
         )
     exceptions_note = (
@@ -269,6 +364,14 @@ def main():
         exceptions_note += "\n// SKIPPED (already carry a NAMED cache category): " + ", ".join(
             "%s -> %d %s" % (n, c, cn) for n, (c, cn) in sorted(skipped.items())
         )
+    if rs2_shadowed:
+        exceptions_note += (
+            "\n// SKIPPED (a hand-authored .rs2 script already declares this trigger): "
+            + ", ".join(
+                "%s -> %s" % (n, ", ".join("op%d in %s" % (s, p) for s, p in sorted(hit.items())))
+                for n, hit in sorted(rs2_shadowed.items())
+            )
+        )
 
     body = [
         HEADER.format(
@@ -278,7 +381,7 @@ def main():
             exceptions_note=exceptions_note,
         )
     ]
-    for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP):
+    for group in GROUPS:
         body.append("\n// ---- %s ----\n" % group)
         for name in sorted(by_group.get(group, [])):
             body.append("\n[%s]\ncategory=%s\n" % (name, group))
@@ -290,11 +393,15 @@ def main():
         script.append(
             "\n// %s — `%s` in %s\n" % (", ".join("op%d %s" % kv for kv in sorted(ops.items())), other, where)
         )
+        # Same ladder/stairs axis the categories carry, spelled as the proc name
+        # instead: a name binding has no category to hang a suffix on.
+        ladder = "_ladder" if is_ladder(name) else ""
         for slot, verb in sorted(ops.items()):
             script.append(
                 "[oploc%d,%s] %s\n"
-                % (slot, name, "~climb(-1);" if verb == "Climb-down"
-                   else "~climb(1);" if verb == "Climb-up" else "~climb_unqualified;")
+                % (slot, name, "~climb%s(-1);" % ladder if verb == "Climb-down"
+                   else "~climb%s(1);" % ladder if verb == "Climb-up"
+                   else "~climb%s_unqualified;" % ladder)
             )
     script_text = "".join(script)
 
@@ -302,6 +409,9 @@ def main():
         sys.stdout.write("".join(summary_lines))
         sys.stdout.write("// exceptions: %s\n" % exceptions_note)
         sys.stdout.write("// shared with another overlay: %s\n" % ", ".join(sorted(shared)))
+        sys.stdout.write(
+            "// shadowed by hand-authored .rs2 triggers: %s\n" % ", ".join(sorted(rs2_shadowed))
+        )
         return 0
     if args.check:
         for path, want in ((out_path, text), (script_path, script_text)):

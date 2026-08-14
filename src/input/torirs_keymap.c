@@ -37,6 +37,11 @@ static struct
     { "tab", TORIRS_VK_TAB },         { "space", TORIRS_VK_SPACE },
     { "enter", TORIRS_VK_ENTER },     { "return", TORIRS_VK_ENTER },
     { "backspace", TORIRS_VK_BACKSPACE }, { "delete", TORIRS_VK_DELETE },
+    /* Modifiers: not bindable as revconfig hotkeys, but nameable so a headless
+     * run can hold one — shift is the key the scripted inventory listens for
+     * (shift-click drop). */
+    { "shift", TORIRS_VK_SHIFT },     { "ctrl", TORIRS_VK_CTRL },
+    { "alt", TORIRS_VK_ALT },
     { "pageup", 33 },                 { "pagedown", 34 },
     { "end", 35 },                    { "home", 36 },
     { "left", 37 },                   { "up", 38 },

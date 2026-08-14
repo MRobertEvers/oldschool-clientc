@@ -333,7 +333,11 @@ uitree_sync_hook_sets(
         UITreeNodeSet_Add(&tree->timer_hooks, idx);
     else
         UITreeNodeSet_Remove(&tree->timer_hooks, idx);
-    if( h && h->on_key.script_id > 0 )
+    /* One set for all three keyboard hooks: they are collected in the same
+     * scan and a component that carries any of them is rare enough that
+     * splitting the set would only add bookkeeping. */
+    if( h && (h->on_key.script_id > 0 || h->on_key_down.script_id > 0 ||
+              h->on_key_up.script_id > 0) )
         UITreeNodeSet_Add(&tree->key_hooks, idx);
     else
         UITreeNodeSet_Remove(&tree->key_hooks, idx);

@@ -23,6 +23,7 @@ main(void)
     test_wheel_stops_at_interface();
     test_drag_scrolled();
     test_emit_icons();
+    test_emit_stack_count_zero();
     test_emit_golden();
     test_key_dispatch();
     test_minimenu();

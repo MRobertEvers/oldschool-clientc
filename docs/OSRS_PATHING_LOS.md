@@ -219,6 +219,134 @@ actor block is why the reference retains it —
 adjacency reads the **source** tile's facing wall bit plus rotated
 `blockAccessFlags` / `forceapproach`.
 
+### 2.5 Walking out from under a large NPC
+
+**There is no "walk out from under" algorithm.** The behaviour falls out of the
+exclusive rectangle above plus the ordinary BFS, and the single most useful
+thing to know about it is that looking for a dedicated routine is looking for
+something that does not exist.
+
+Three facts compose it:
+
+1. **A plain NPC does not block the player.** It writes `NPC_OCC`; the player
+   mover reads only `BLOCK_NPC_AND_PLAYERS` (§6). So standing inside a boss is
+   an ordinary thing to be doing, and the flood crosses the footprint freely.
+2. **Overlap is never "reached".** `reachExclusiveRectangle` is
+   `!collides(...) && reachRectangle(...)` — and shape `-2` is the one strategy
+   `ReachStrategy.reached` denies its exact-tile shortcut to. Every tile of the
+   footprint fails, so the BFS cannot terminate until it pops a perimeter tile.
+3. **Overlap is never in AP range either.** LostCity `inApproachDistance`
+   returns false on intersection ("you are not within ap distance of pathing
+   entity if you are underneath it"); rsmod's `isWithinApRange` opens with
+   `if (isUnderTarget) return false`. Ranged and magic get no shot from under
+   the boss any more than melee does.
+
+So `findRoute(src = player, dest = npc.sw, w = h = npc.size, locShape = -2)`
+seeded at the player's own tile floods outward and stops on the nearest
+perimeter tile. **Shortest face wins; a tie resolves W > E > S > N**, which is
+not a rule of its own but a direct consequence of the neighbour expansion order
+in §2.1. Diagonals never help — leaving requires *cardinal* adjacency, so the
+Chebyshev shortcut buys nothing and every exit is a straight line.
+
+Exit tile and step count for each interior cell of a 5×5 NPC anchored at (0,0):
+
+```
+(0,4)→(-1,4) 1  (1,4)→(1,5) 1   (2,4)→(2,5) 1   (3,4)→(3,5) 1   (4,4)→(5,4) 1
+(0,3)→(-1,3) 1  (1,3)→(-1,3) 2  (2,3)→(2,5) 2   (3,3)→(5,3) 2   (4,3)→(5,3) 1
+(0,2)→(-1,2) 1  (1,2)→(-1,2) 2  (2,2)→(-1,2) 3  (3,2)→(5,2) 2   (4,2)→(5,2) 1
+(0,1)→(-1,1) 1  (1,1)→(-1,1) 2  (2,1)→(2,-1) 2  (3,1)→(5,1) 2   (4,1)→(5,1) 1
+(0,0)→(-1,0) 1  (1,0)→(1,-1) 1  (2,0)→(2,-1) 1  (3,0)→(3,-1) 1  (4,0)→(5,0) 1
+```
+
+Dead centre ties all four faces at 3 and goes **west**. `(3,3)` ties east and
+north at 2 and goes **east**.
+
+**It is not one big move.** `PlayerMovementProcessor` takes `moveSpeed.steps`
+(walk 1, run 2) single-tile validated steps, same as any other walk — centre of
+a 5×5 is 3 ticks walking, 2 running. The route is re-derived while walking
+(rsmod when `routeDestination.size <= 1`, LostCity at `isLastWaypoint`), so a
+boss that shifts under you re-aims the exit; because the search is
+deterministic, re-deriving it yields the same face rather than a wander.
+
+**And there is no delay tick.** The tick order is
+try → route → move → try (§3.2), and the post-movement `tryInteract` fires the
+op for *pathing* targets even when the player moved that tick — rsmod
+`Interactions.lateStep`: `target == InteractionTarget.Pathing || !hasMoved`.
+(Locs and objs are `Static` and get the `!hasMoved` half only, which is the
+familiar "click a door, it opens the tick after you stop".) The tick you land
+on the perimeter is the tick the attack registers. The whole cost of being
+under a 5×5 boss is the 2–3 ticks of walking.
+
+#### The NPC side is the one that *is* special-cased
+
+This is the asymmetry worth carrying: the player's exit is deterministic BFS,
+the NPC's is a coin flip.
+
+```kotlin
+// rsmod NpcInteractionProcessor.process
+if (isUnderTarget) {
+    if (isTargetBusy(interaction)) return   // Red-X: stand still, do nothing
+    npc.stepAwayFromTarget()                // random.pick(Direction.CARDINAL)
+    movement.process(npc)
+    return                                  // no op/ap this cycle — the attack is lost
+}
+```
+
+LostCity says the same thing as `PathingEntity.randomWalk`, reached only when
+`moveStrategy === NAIVE`. That lost cycle is the whole of the "walk under
+Graardor to make it miss" tank technique, and it is why the random step-off must
+**not** be tidied into a route: making the NPC smart here would delete the
+mechanic, exactly as it would delete safespots (§2.2).
+
+This tree implements `stepAwayFromTarget` (`collision_map_naive_path`'s random
+cardinal, via `mock230_world_npc_walk_to`). The `isTargetBusy` Red-X branch —
+an NPC under a target that is itself mid-interaction stands still instead of
+stepping — is **not** implemented.
+
+#### `blockwalk=all` is the one case that fails
+
+Ash: *"Do try not to get under the blocking NPCs, as they are expected to
+disrupt movement"*
+([1268255463403069440](https://x.com/JagexAsh/status/1268255463403069440)).
+That is mechanically exact. Such an NPC stamps `BLOCK_NPC_AND_PLAYERS`, which
+the player mover *does* read, so every neighbour of the source is blocked, the
+BFS finds nothing, and `findClosestApproachPoint` then picks the source tile
+itself (it is inside the rect, so its squared distance is 0 and it wins). The
+backtrace breaks immediately, the route is empty, and the post-move try reports
+**"I can't reach that!"**. Ash on why the general case is left alone:
+[1450476141345652749](https://x.com/JagexAsh/status/1450476141345652749),
+[1597568744326565888](https://x.com/JagexAsh/status/1597568744326565888).
+
+#### What this tree does
+
+`ToriRS_FeatureTable.under_target_routes_out` (§7.4). Zero — LostCity only —
+keeps the pre-existing behaviour: `interaction_random_walk`, one random cardinal
+tile per tick, *unvalidated against collision*, re-rolled every tick because the
+repath gate is `waypoint_index > 0`. Three ways that is wrong for the player:
+a coin-flip axis can step further in on a size ≥ 2 target, an unvalidated step
+into a wall stalls in `player_take_step`, and a single waypoint means a running
+player still only moves one tile.
+
+One means `interaction_path_to_pathing_target` skips the branch entirely and
+falls through to the same `walk_to_approach` every other approach uses. Set for
+`osrs` and `server_routed`; override per boot with
+`MOCK230_UNDER_TARGET_ROUTES_OUT=0|1` (the server owns this outright — the
+client sends `OPNPC` with no coordinates and never routes, so there is no client
+half to keep in step).
+
+References: rsmod
+[`ReachStrategy.reachExclusiveRectangle`](https://github.com/rsmod/rsmod/blob/main/engine/routefinder/src/main/kotlin/org/rsmod/routefinder/reach/ReachStrategy.kt),
+[`PlayerInteractionProcessor`](https://github.com/rsmod/rsmod/blob/main/api/game-process/src/main/kotlin/org/rsmod/api/game/process/player/PlayerInteractionProcessor.kt),
+[`NpcInteractionProcessor`](https://github.com/rsmod/rsmod/blob/main/api/game-process/src/main/kotlin/org/rsmod/api/game/process/npc/NpcInteractionProcessor.kt),
+[`Interactions.lateStep`](https://github.com/rsmod/rsmod/blob/main/engine/interact/src/main/kotlin/org/rsmod/interact/Interactions.kt);
+LostCity [`GameMap.findPathToEntity`](https://github.com/LostCityRS/Engine-TS/blob/274/src/engine/GameMap.ts),
+`Player.processInteraction`, `PathingEntity.inApproachDistance`;
+[2004Scape/rsmod-pathfinder](https://github.com/2004Scape/rsmod-pathfinder)
+`reach_strategy.rs`; OSRS Wiki
+[Pathfinding](https://oldschool.runescape.wiki/w/Pathfinding),
+[Line of sight](https://oldschool.runescape.wiki/w/Line_of_sight),
+[General Graardor/Strategies](https://oldschool.runescape.wiki/w/General_Graardor/Strategies).
+
 ---
 
 ## 3. Per-reference comparison
@@ -445,6 +573,7 @@ Those bits collide with rsmod's route-blocker tier (bits 22–30). See §7.3.
 | `CollisionType` strategies + `COLL_FLAG_ROOF` | `collision_map.c`, `mock230_scene.c` |
 | Configurable BFS window (`route_window`) | `collision_map.c` |
 | Occupancy re-stamp after a scene rebuild | `world_occupancy_restamp` |
+| Exit from under a pathing target (§2.5) | `mock230_world.c` `interaction_path_to_pathing_target` |
 | Era flags (`pathing_mode`, `approach_model`, …) | `features.h` / `features.c` |
 | `blockwalk` / `blocksight` / `moverestrict` / `forceapproach` | fields + content/codec |
 
@@ -516,11 +645,11 @@ change.
 
 ### 7.4 Era table (post-rework)
 
-| era | `pathing_mode` | `approach_model` | npc size | op nearest |
-|---|---|---|---|---|
-| `lostcity` | CLIENT_BFS | LEGACY_SHAPE | 1×1 | none |
-| `osrs` | **SERVER_AUTHORITATIVE** | RECT (shape-keyed) | `npc->size` | range 10 |
-| `server_routed` | SERVER_AUTHORITATIVE | RECT (shape-keyed) | `npc->size` | n/a |
+| era | `pathing_mode` | `approach_model` | npc size | op nearest | under target |
+|---|---|---|---|---|---|
+| `lostcity` | CLIENT_BFS | LEGACY_SHAPE | 1×1 | none | random step-off |
+| `osrs` | **SERVER_AUTHORITATIVE** | RECT (shape-keyed) | `npc->size` | range 10 | **routes out** |
+| `server_routed` | SERVER_AUTHORITATIVE | RECT (shape-keyed) | `npc->size` | n/a | **routes out** |
 
 `osrs` and `server_routed` now share the same pathing mode; `server_routed`
 remains as a named alias for manifests that already state it, and still

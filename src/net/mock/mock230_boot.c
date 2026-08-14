@@ -124,15 +124,30 @@ mock230_boot_load(const struct Mock230BootConfig* config)
         if( env && env[0] )
             features.ground_click_nearest_unbounded = env[0] != '0';
     }
+    /*
+     * Walking out from under a large npc. Server-only by construction — the
+     * client sends OPNPC with no coordinates and never routes — so unlike the
+     * ground-click knobs above there is no client half to keep in step.
+     *
+     * It exists so the two answers can be run back to back against the same
+     * boss: a test that only ever sees the routed exit cannot show that the
+     * random step-off was the thing being fixed.
+     */
+    {
+        char const* env = getenv("MOCK230_UNDER_TARGET_ROUTES_OUT");
+        if( env && env[0] )
+            features.under_target_routes_out = env[0] != '0';
+    }
     mock230_scene_set_features(&features);
     fprintf(stderr,
             "mock230: features era=%s approach=%s op_nearest=%d ground_nearest=%s "
-            "unbounded=%d\n",
+            "unbounded=%d under_routes_out=%d\n",
             features.name,
             features.approach_model == TORIRS_APPROACH_RECT ? "rect" : "legacy",
             features.op_click_nearest_range,
             ToriRS_Features_NearestModelName(features.ground_click_nearest_model),
-            features.ground_click_nearest_unbounded);
+            features.ground_click_nearest_unbounded,
+            features.under_target_routes_out);
 
     /* 1. The cache's own tables. The content tree overlays these, so they have
      *    to exist before it is read. */

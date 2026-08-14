@@ -226,6 +226,10 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * these from .pack files; the compiler cannot tell the difference. */
     SSC_SymbolsAdd(&fixture->symbols, "hans", 3105, SSC_SYM_NPC, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "coins", 995, SSC_SYM_OBJ, NULL);
+    /* Same name in two namespaces, as the real cache has it (grim_pendant is
+     * obj 11197 and loc 24780). OBJ sorts first, so an unqualified subject
+     * lookup takes the obj — see test_subject_namespace. */
+    SSC_SymbolsAdd(&fixture->symbols, "coins", 4242, SSC_SYM_LOC, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "inv", 93, SSC_SYM_INV, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "quest_progress", 42, SSC_SYM_VARP, NULL);
     /* The stat-name collision the arg_kind_hint exists for, as the real cache
@@ -637,6 +641,58 @@ test_trigger_subject(void)
           "GetByTrigger finds it");
     CHECK(SSVM_ProviderGetByTrigger(&fixture.provider, SS_TRIGGER_OPNPC1, 9999, -1) == NULL,
           "and does not find it under another npc");
+
+    fixture_close(&fixture);
+}
+
+static void
+test_stacked_headers(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* first;
+    const struct SSVM_Script* second;
+    const struct SSVM_Script* trailing;
+
+    printf("stacked headers share one body\n");
+
+    /* Content writes every variant of a thing as a stack of headers over a
+     * single body. Before aliasing, only the LAST name got the code and the
+     * rest compiled to a bare RETURN — the loc or npc simply did nothing when
+     * clicked, with no diagnostic anywhere. */
+    if( !fixture_compile(&fixture,
+                         "[opnpc1,hans]\n"
+                         "[opnpc2,hans]\n"
+                         "mes(\"Hello there.\");\n"
+                         "\n"
+                         "[opnpc3,hans]\n",
+                         "stacked") )
+        return;
+
+    first = SSVM_ProviderGetByName(&fixture.provider, "[opnpc1,hans]");
+    second = SSVM_ProviderGetByName(&fixture.provider, "[opnpc2,hans]");
+    CHECK(first != NULL, "the stacked header compiled");
+    CHECK(second != NULL, "the header carrying the body compiled");
+    if( first && second )
+    {
+        CHECK_EQ(first->op_count, second->op_count, "the alias has the same body");
+        CHECK(first->op_count > 1, "and that body is not a bare RETURN");
+        /* Distinct scripts, not one script under two names: freeing the pack
+         * frees both, so the alias must own its own operands. */
+        CHECK(first->id != second->id, "the alias is its own script");
+        CHECK(first->opcodes != second->opcodes, "with its own opcode array");
+        /* Each keeps the trigger IT declared — the whole point of the alias. */
+        CHECK_EQ(first->lookup_key & 0xff, SS_TRIGGER_OPNPC1, "the alias keeps its own trigger");
+        CHECK_EQ(second->lookup_key & 0xff, SS_TRIGGER_OPNPC2, "the body keeps its own trigger");
+    }
+    CHECK(SSVM_ProviderGetByTrigger(&fixture.provider, SS_TRIGGER_OPNPC1, 3105, -1) != NULL,
+          "the alias resolves through the trigger index");
+
+    /* A header with no body and nothing after it is not a stack — there is no
+     * body to share — so it stays the empty script it was written as. */
+    trailing = SSVM_ProviderGetByName(&fixture.provider, "[opnpc3,hans]");
+    CHECK(trailing != NULL, "a trailing empty header still compiles");
+    if( trailing )
+        CHECK_EQ(trailing->op_count, 1, "and stays a bare RETURN");
 
     fixture_close(&fixture);
 }
@@ -1271,6 +1327,121 @@ test_duplicate_debugproc(void)
 }
 
 static void
+test_duplicate_trigger(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[900];
+    FILE* file;
+
+    printf("duplicate trigger across files\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_duptrigger_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    /*
+     * Two files declaring one npc's trigger used to compile without a word:
+     * both took an id, but every body resolved back to the first declaration,
+     * so whichever file the walk reached last replaced the other's body and
+     * the loser's id was left empty. That is how Sheep Shearer, Rune Mysteries
+     * and A Tail of Two Cats all became unstartable — Fred, Sedridor and
+     * Unferth each ran a quest script that was not theirs.
+     */
+    snprintf(path, sizeof(path), "%s/a.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[opnpc1,hans]\nmes(\"first\");\n", file);
+    fclose(file);
+    snprintf(path, sizeof(path), "%s/b.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[opnpc1,hans]\nmes(\"second\");\n", file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    SSC_SymbolsAdd(&symbols, "hans", 3105, SSC_SYM_NPC, NULL);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a duplicate trigger fails the compile");
+    CHECK(strstr(diag.message, "duplicate script name") != NULL,
+          "and names the one-declaration invariant");
+    CHECK(strstr(diag.message, "[opnpc1,hans]") != NULL,
+          "and identifies the exact script name");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
+test_subject_namespace(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[900];
+    FILE* file;
+
+    printf("trigger subjects resolve in the trigger's own namespace\n");
+
+    /* `grim_pendant` is obj 11197 AND loc 24780 in the real cache, and an
+     * unqualified lookup takes whichever kind sorts first — OBJ. So
+     * `[oploc1,grim_pendant]` filed Grim Tales' pendant under an unrelated loc
+     * id, where another script owned the key and won. `coins` stands in for the
+     * collision here: obj 995 in the fixture, plus a loc of the same name. */
+    if( !fixture_compile(&fixture,
+                         "[oploc1,coins]\n"
+                         "mes(\"a loc\");\n",
+                         "subjectns") )
+        return;
+    script = SSVM_ProviderGetByName(&fixture.provider, "[oploc1,coins]");
+    CHECK(script != NULL, "the script compiled");
+    if( script )
+        CHECK_EQ(script->lookup_key >> 10, 4242,
+                 "oploc1 took the LOC id, not the obj that sorts first");
+    fixture_close(&fixture);
+
+    /* And when the name is not of the trigger's kind at all, falling back would
+     * silently compile it against the wrong namespace — the shape that made 21
+     * `[opheldu,<loc>]` triggers inert. */
+    snprintf(dir, sizeof(dir), "/tmp/ssc_subjectns_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+    snprintf(path, sizeof(path), "%s/a.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[opheldu,hans]\nmes(\"hans is an npc, not an obj\");\n", file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    SSC_SymbolsAdd(&symbols, "hans", 3105, SSC_SYM_NPC, NULL);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a subject of the wrong kind fails the compile");
+    CHECK(strstr(diag.message, "is not a obj") != NULL,
+          "and names the kind the trigger wanted");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
 test_duplicate_login(void)
 {
     struct SSC_Symbols symbols;
@@ -1477,6 +1648,7 @@ main(void)
     test_symbols_and_constants();
     test_varp();
     test_trigger_subject();
+    test_stacked_headers();
     test_coord_subject();
     test_implicit_return();
     test_npc_runtime_primitives();
@@ -1485,6 +1657,8 @@ main(void)
     test_vararg_limits();
     test_duplicate_debugproc();
     test_duplicate_login();
+    test_duplicate_trigger();
+    test_subject_namespace();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
     test_proc_param_kind_hint();

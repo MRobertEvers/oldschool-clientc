@@ -363,6 +363,22 @@ struct ToriRS_Npctype
      *  like npcs (spawn points, glyphs, invisible event npcs) from the map.
      *  Defaults true; only a record that states opcode 93 turns it off. */
     bool minimap_visible;
+    /**
+     * Overhead prayer icon (dat2 opcode 102 / dat1 opcode 102).
+     *
+     * `head_icon_group` is a SPRITE GROUP id — the archive the icon lives in,
+     * 440 `headicons_prayer` for every prayer-switching npc in cache.osrs239 —
+     * and `head_icon_index` is the frame within it (0 melee, 1 missiles,
+     * 2 magic, matching the player overhead pass). Both -1 when the record
+     * states no icon, which is all but 77 of this cache's 16,292 npcs.
+     *
+     * Only the FIRST icon is carried. The record's field is a list (a
+     * multi-icon npc is legal on the wire), but the reference plots one frame
+     * for an npc where a player gets an eight-bit mask, and nothing in this
+     * cache states more than one.
+     */
+    int head_icon_group;
+    int head_icon_index;
     /** NpcType ambient/contrast (opcodes 100/101). Contrast arrives pre-scaled
      *  by 5 from the decoder. Used when the era/manifest enables
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */
@@ -462,6 +478,14 @@ struct ToriRS_Objtype
     /** Base GE/alch value (cache opcode 12). The loot tracker's value column
      *  is cost*qty; CS2 reads it through OC_COST (cs2_command 4003). */
     int cost;
+    /** Shift-click inventory op, dat2 opcode 42 (reference ObjType field5070,
+     *  read by OC_SHIFTCLICKIOP). A 0-based index into `inv_actions`, -1 for
+     *  "this item has no shift-click op", and **-2 for "unstated"**, which is
+     *  the common case: the reference then falls back to op slot 4 when that
+     *  slot reads "Drop". 0 is a real index, so -2 has to be written by every
+     *  construction path — a calloc'd objtype would otherwise claim op 0.
+     *  dat1 has no such opcode, so a classic cache is always -2. */
+    int shift_click_drop_index;
     /** Team-cape id (cache opcode 115), 0 = no team. The reference folds this
      *  out of a player's WORN equipment into ClientPlayer.team while decoding
      *  the appearance, and the "Attack" menu row consults it: two players in

@@ -106,7 +106,7 @@ soft3d_outline_cache_get(
     int i;
     int victim = 0;
     uint64_t victim_used = UINT64_MAX;
-    uint32_t* outlined;
+    uint32_t const* outlined;
     uint32_t* final_px;
     int ow = 0;
     int oh = 0;
@@ -148,7 +148,7 @@ soft3d_outline_cache_get(
         outlined = ToriDraw_SpriteNewGraphicOutline(src, sw, sh, outline, &ow, &oh);
         if( !outlined )
             return NULL;
-        final_px = outlined;
+        final_px = (uint32_t*)outlined;
     }
 
     if( graphic_shadow != 0 )

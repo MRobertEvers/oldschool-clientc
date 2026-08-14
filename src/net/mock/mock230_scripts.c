@@ -4163,8 +4163,11 @@ mock230_script_command(
             else
             {
                 remaining -= items[i].count;
-                items[i].obj_id = -1;
-                items[i].count = 0;
+                /* Not a raw clear: a shop's baseline slot empties to a count of
+                 * 0 and stays (mock230_container_clear_slot). It marks the slot
+                 * itself, so the dirty call below is redundant there and
+                 * harmless — the registry's mark is idempotent. */
+                mock230_container_clear_slot(container_row(srv, player, values[0]), i);
             }
             /*
              * Through the registry. What was here read "backpack, else worn",
@@ -4207,8 +4210,9 @@ mock230_script_command(
         }
         if( values[1] < 0 || values[1] >= slots )
             return 1;
-        items[values[1]].obj_id = -1;
-        items[values[1]].count = 0;
+        /* A shop's baseline slot empties to a count of 0 and stays; see
+         * mock230_container_clear_slot. */
+        mock230_container_clear_slot(container_row(srv, player, values[0]), (int)values[1]);
         /* Through the registry, for the reason inv_del's comment gives. */
         container_dirty(srv, player, values[0], (int)values[1]);
         return 1;
@@ -7374,6 +7378,35 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * WARNING — `npc_delay` is not "make that npc wait". It SUSPENDS THE
+     * CALLING SCRIPT.
+     *
+     * The name reads like a setter on the active npc, and the body below is
+     * two lines of which only the first is about the npc. The second one ends
+     * the current script's turn: everything after the `npc_delay(...)` call
+     * resumes `ticks` later, in a fresh dispatch, or not at all.
+     *
+     * That is correct and harmless in an npc's own context — `[ai_applayer2]`,
+     * `[ai_timer]`, `[ai_queue*]` — where the script IS the npc's turn and
+     * suspending it is the whole point.
+     *
+     * It is a bug in the PLAYER's context. `~player_hit_npc_prepare` and every
+     * encounter rung under it run on the player's frame with an active npc set
+     * (that is how they read `npc_var_get`/`npc_stat` at all), so `npc_delay`
+     * there compiles, finds an npc, and suspends the player's hit mid-way:
+     * the damage is never returned, the caller never queues the splat, and the
+     * hit silently evaporates. Nothing reports it — the script simply stops.
+     *
+     * The rule: a script may only call `npc_delay` if being suspended for
+     * `ticks` is what that script wants. To stall an npc from somewhere else,
+     * write a clock into an `npc_var_*` slot and let the npc turn it into a
+     * delay in its own context. `bosses/boss_tormented_demons` does exactly
+     * that with `^td_var_stun_until` for the prayer-swap stall, which is
+     * written from the player's hit script and consumed in `~td_attack`.
+     *
+     * Same shape, same warning: `p_delay` (SS_OP_P_DELAY) suspends too.
+     */
     case SS_OP_NPC_DELAY:
     {
         int32_t ticks;
@@ -7387,6 +7420,7 @@ mock230_script_command(
             return 1;
         }
         npc->delayed_until = srv->tick + 1 + ticks;
+        /* Suspends the CALLER, not just the npc. See the warning above. */
         SSVM_Suspend(state, SSVM_NPC_SUSPENDED);
         return 1;
     }
@@ -8840,7 +8874,13 @@ mock230_script_command(
         if( limit > 0 && limit < slots )
             slots = (int)limit;
         {
-            if( mock230_objinfo((int)obj_id)->stackable )
+            /* The CONTAINER's stack policy, not the obj record's alone: a shop
+             * stacks everything (`stackall=yes`), so asking for one free slot
+             * per pot refused a sale into a nearly-full store that in fact had
+             * room in the pot cell it already held. `mock230_container_add` has
+             * always used the container's rule; this now agrees with it. */
+            if( mock230_container_stacks_obj(
+                    container_row(srv, player, inv_id), (int)obj_id) )
             {
                 int has_stack = 0;
 
@@ -9003,7 +9043,7 @@ mock230_script_command(
          * Revision 230 addresses the component and therefore always receives
          * the stop for the listener that was removed. */
         row = container_listener_row(srv->active_player, component);
-        mock230_container_unbind(srv->active_player, component);
+        mock230_container_unbind(srv, srv->active_player, component);
         wire = srv->wire ? srv->wire : mock230_wire_default();
         if( row && (wire->revision < 239 || row->listener_count == 0) )
             stop_inv = row->inv_id;
@@ -9251,12 +9291,17 @@ mock230_script_command(
         SSVM_PushInt(state, player->last_slot);
         return 1;
     /*
-     * The Rub-style submenu index (Giantsoul amulet's Bryophyta/Obor/Branda
-     * and Eldric, Xeric's talisman's five Kourend destinations, ...) —
-     * see gen_opcode_meta.py's EXTRA_OPCODES LAST_SUBOP entry for why this
-     * has no reference opcode to port. player->last_subop is already
-     * decoded off the wire (mock230_world.c's IF_SUBOP handling); this is
-     * only the missing read side.
+     * Which sub-option of an interface op fired — the `subaction=<op>,<n>,
+     * <name>` rows a rev-230 obj record can hang off one op (Xeric's talisman
+     * "Rub" has five, the Slayer ring four, and Giantsoul's Rub has its
+     * Bryophyta/Obor/Branda and Eldric destinations).
+     *
+     * The value has been decoded off IF_SUBOP into `player->last_subop` since
+     * that packet was wired (`handle_if_buttonx_packet`), and reset to -1
+     * between dispatches; this is only the read side, which content had no way
+     * to reach. This is a rev-230 addition (see gen_opcode_meta.py's
+     * EXTRA_OPCODES entry); -1 means the op carried no submenu, which is every
+     * ordinary `opheldN`.
      */
     case SS_OP_LAST_SUBOP:
         SSVM_PushInt(state, player->last_subop);

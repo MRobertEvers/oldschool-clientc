@@ -80,6 +80,15 @@ struct UITreeRuntimeHooks
     struct UITreeRuntimeScriptHook on_drag_complete;
     struct UITreeRuntimeScriptHook on_scroll_wheel;
     struct UITreeRuntimeScriptHook on_key;
+    /* Key-DOWN and key-UP, distinct from on_key (which is "key typed" and
+     * carries a character as well as a code). CS2 opcodes 1430/2430 and
+     * 1431/2431 — the vendor opcode table calls those SETONITEMONITEM and
+     * SETONCLANSETTINGS, but the rev-239 client hands them the pressed and
+     * released key lists (class415, fields 4154 and 4060), one dispatch per
+     * key code, and script6007 registers them as exactly that: the pair that
+     * rebuilds the inventory when shift goes down and comes back up. */
+    struct UITreeRuntimeScriptHook on_key_down;
+    struct UITreeRuntimeScriptHook on_key_up;
     struct UITreeRuntimeScriptHook on_op;
     struct UITreeRuntimeScriptHook on_timer;
     struct UITreeRuntimeScriptHook on_var_transmit;

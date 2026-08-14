@@ -59,7 +59,11 @@ INTERACTIVE_OPS = {
 
 OPLOC_BINDING_RE = re.compile(r"^\[(oploc\d|aplloc\d|opheldloc)\s*,\s*([A-Za-z0-9_]+)\s*\]")
 OP_FIELD_RE = re.compile(r"^op([1-5])=(.*)$")
-JL2_LINE_RE = re.compile(r"^\d+ \d+ \d+: (\d+) (\d+) (\d+)")
+# `plane x z: loc shape [angle]` -- the angle is OMITTED when it is 0, which is
+# 1,665,853 of the tree's 4,968,455 placements (33%). Requiring the third field
+# silently dropped every one of them, so both the gap counts and the two-leaf
+# pairing below only ever saw doors that happen to face north/east/south.
+JL2_LINE_RE = re.compile(r"^\d+ \d+ \d+: (\d+) (\d+)(?: (\d+))?")
 
 
 def parse_blocks(path):
@@ -286,6 +290,219 @@ def cmd_suggest_pairs(rows, buckets, tree):
         print(f"  {r['id']:>6} {r['name']:<44} x{r['placed']:<5} {r['disp']:<18} {r['ops']}")
 
 
+# ----------------------------------------------------------------------------
+# Two-leaf detection
+# ----------------------------------------------------------------------------
+#
+# A door with two leaves has to be told so. `doors.rs2` swings the leaf that
+# was clicked and nothing else, so a pair wired as two `door_closed` records is
+# a door that opens *half way* — one leaf swings, the other stays across the
+# doorway. That is invisible to every check above: both halves are "paired",
+# both have an `Open`, and `mock230_pack -v` is happy, because every id in the
+# pairing resolves.
+#
+# What separates the two is geometry, and the map squares state it. Two leaves
+# of one door sit on ADJACENT tiles, on the same shape, at the same angle, and
+# the offset between them is `~door_close(angle, shape)` — the same vector
+# `doors/scripts/door_procs.rs2` computes. That is a fact about the placement,
+# not about the name, which is why it can be measured: the leaf the offset
+# points AWAY from is the `door_left_*`/`gate_main_*` half and the one it points
+# AT is the `door_right_*`/`gate_outer_*` half. Checked against all eleven
+# clusters this tree already wires by hand (6 in `doubledoors.loc`, 5 gates in
+# `doors.loc`): the derived side matches the authored category 11 times out of
+# 11, so the rule reproduces every decision a human already made here.
+#
+# Confidence comes from requiring EVERY placement of both ids to participate.
+# A record that is sometimes half of a pair and sometimes a lone door is not a
+# double door, it is a coincidence of two doors in one wall, and it is reported
+# as partial rather than proposed.
+#
+# Which of the two systems a confirmed pair belongs to is the one remaining
+# judgement, and it is a model-id test, not a name test:
+#
+#   * `gate_main_*`/`gate_outer_*` (general_use/scripts/gates.rs2) — the long
+#     fence gate, whose two leaves swing to the SAME side and end up in a line
+#     perpendicular to the fence.
+#   * `door_left_*`/`door_right_*` (doors/scripts/doubledoors.rs2) — everything
+#     else, whose leaves swing apart.
+#
+# Kronos' `Door.java` states the same split as a model test and it is the only
+# place either tree writes the rule down:
+#
+#     if (name.contains("gate")) {
+#         def.gateType = true;
+#         if (def.modelIds[0] == 7371 ||
+#             (def.modelIds[0] == 966 && def.modelIds[1] == 967 && def.modelIds[2] == 968))
+#             def.longGate = true;
+#
+# LostCity agrees from the other direction: every one of its four
+# `gate_main_closed` records is `model=fence_gateclosedl`, which is 966/967/968
+# here — and `membergatel`/`membergater`, a metal gate, is `door_left_closed`
+# in its `doubledoors.loc` rather than a gate. So "gate" in the name is not the
+# test; the wooden-fence-gate model is.
+LONG_GATE_MODEL_HEADS = ((7371,), (966, 967, 968))
+
+# `~door_close(angle, shape)` for the two shapes it answers, as (dx, dz).
+# Verbatim from doors/scripts/door_procs.rs2 — angles are ^loc_west=0,
+# ^loc_north=1, ^loc_east=2, ^loc_south=3.
+DOOR_CLOSE_STRAIGHT = {0: (0, 1), 1: (1, 0), 2: (0, -1), 3: (-1, 0)}
+DOOR_CLOSE_DIAGONAL = {0: (1, 0), 1: (0, -1), 2: (-1, 0), 3: (0, 1)}
+SHAPE_WALL_STRAIGHT = 0
+SHAPE_WALL_DIAGONAL = 9
+
+
+def door_close_delta(shape, angle):
+    if shape == SHAPE_WALL_STRAIGHT:
+        return DOOR_CLOSE_STRAIGHT.get(angle)
+    if shape == SHAPE_WALL_DIAGONAL:
+        return DOOR_CLOSE_DIAGONAL.get(angle)
+    return None
+
+
+def load_placement_tiles(tree):
+    """(level, x, z) -> [(loc id, shape, angle)] and loc id -> [placements].
+
+    Separate from `load_placements` because that one only counts, and the
+    side of a leaf cannot be derived from a count.
+    """
+    tiles = collections.defaultdict(list)
+    by_id = collections.defaultdict(list)
+    for p in glob.glob(os.path.join(tree, "maps", "*.jl2")):
+        base = os.path.basename(p)[1:-4]
+        mx, mz = (int(v) for v in base.split("_"))
+        with open(p, encoding="utf8", errors="replace") as f:
+            for line in f:
+                m = re.match(r"^(\d+) (\d+) (\d+): (\d+) (\d+)(?: (\d+))?", line)
+                if not m:
+                    continue
+                level, lx, lz, lid, shape = (int(v) for v in m.groups()[:5])
+                angle = int(m.group(6) or 0)   # omitted means 0; see JL2_LINE_RE
+                x, z = mx * 64 + lx, mz * 64 + lz
+                tiles[(level, x, z)].append((lid, shape, angle))
+                by_id[lid].append((level, x, z, shape, angle))
+    return tiles, by_id
+
+
+def load_overlay_locs(tree):
+    """loc name -> (source path, category, next_loc_stage) over every server .loc."""
+    out = {}
+    for p in sorted(glob.glob(os.path.join(tree, "server", "scripts", "**", "*.loc"), recursive=True)):
+        rel = os.path.relpath(p, tree).replace("\\", "/")
+        for name, fields in parse_blocks(p).items():
+            if name in out:
+                continue
+            cat = nxt = None
+            for s in fields:
+                if s.startswith("category="):
+                    cat = s.split("=", 1)[1]
+                elif s.startswith("param=next_loc_stage,"):
+                    nxt = s.split(",", 1)[1]
+            out[name] = (rel, cat, nxt)
+    return out
+
+
+def loc_models(fields):
+    """The model ids a loc record names, in shape order."""
+    out = []
+    for s in fields:
+        m = re.match(r"^shape\d+=(\d+),(.*)$", s)
+        if m:
+            out.extend(int(v) for v in m.group(2).split(","))
+    return out
+
+
+def find_leaf_pairs(tree, cache, name2id, id2name):
+    """Ordered (left name, right name, shape) -> observed placements.
+
+    `left` is the leaf `~door_close` points away from, i.e. the one whose own
+    coordinate plus the close vector lands on its partner.
+    """
+    tiles, by_id = load_placement_tiles(tree)
+    swings = {
+        n for n, fields in cache.items()
+        if {v.lower() for v in loc_ops(fields).values()} & {"open", "close"}
+    }
+    pairs = collections.Counter()
+    paired_placements = collections.Counter()
+    for lid, placements in by_id.items():
+        name = id2name.get(lid)
+        if name not in swings:
+            continue
+        for level, x, z, shape, angle in placements:
+            delta = door_close_delta(shape, angle)
+            if delta is None:
+                continue
+            hit = False
+            for dx, dz, forward in ((delta[0], delta[1], True), (-delta[0], -delta[1], False)):
+                for lid2, shape2, angle2 in tiles.get((level, x + dx, z + dz), ()):
+                    other = id2name.get(lid2)
+                    if lid2 == lid or shape2 != shape or angle2 != angle or other not in swings:
+                        continue
+                    hit = True
+                    if forward:
+                        pairs[(name, other, shape)] += 1
+            if hit:
+                paired_placements[lid] += 1
+    return pairs, paired_placements, by_id
+
+
+def cmd_suggest_double_leaf(tree):
+    name2id = load_name_ids(tree)
+    id2name = {v: k for k, v in name2id.items()}
+    cache = parse_blocks(os.path.join(tree, "configs", "all.loc"))
+    overlay = load_overlay_locs(tree)
+    pairs, paired_placements, by_id = find_leaf_pairs(tree, cache, name2id, id2name)
+
+    def is_long_gate(name):
+        models = loc_models(cache.get(name, []))
+        return any(tuple(models[:len(head)]) == head for head in LONG_GATE_MODEL_HEADS)
+
+    gates, doubles, partial, skipped = [], [], [], []
+    for (left, right, shape), seen in sorted(pairs.items(), key=lambda kv: -kv[1]):
+        lid, rid = name2id[left], name2id[right]
+        full = (paired_placements[lid] == len(by_id[lid])
+                and paired_placements[rid] == len(by_id[rid]))
+        lsrc, lcat, lnext = overlay.get(left, (None, None, None))
+        rsrc, rcat, rnext = overlay.get(right, (None, None, None))
+        row = dict(left=left, right=right, shape=shape, seen=seen,
+                   lcat=lcat, rcat=rcat, lnext=lnext, rnext=rnext,
+                   lsrc=lsrc, rsrc=rsrc,
+                   lplaced=len(by_id[lid]), rplaced=len(by_id[rid]),
+                   lpaired=paired_placements[lid], rpaired=paired_placements[rid])
+        if not full:
+            partial.append(row)
+        elif (lcat or "").startswith(("door_left", "door_right", "gate_")) or \
+             (rcat or "").startswith(("door_left", "door_right", "gate_")):
+            skipped.append((row, "already wired as a two-leaf door"))
+        elif lcat is None or rcat is None or lnext is None or rnext is None:
+            skipped.append((row, f"no single-door pairing to convert ({lcat}/{rcat})"))
+        elif "reverse" in left or "reverse" in right:
+            skipped.append((row, "reverse double door — that variant is not ported"))
+        elif is_long_gate(left) and is_long_gate(right):
+            gates.append(row)
+        else:
+            doubles.append(row)
+
+    print(f"placed two-leaf clusters: {len(pairs)}")
+    print(f"  long fence gates to rewire (gate_main/gate_outer): {len(gates)}")
+    print(f"  double doors to rewire (door_left/door_right):     {len(doubles)}")
+    print(f"  already wired or not convertible:                  {len(skipped)}")
+    print(f"  partially paired — not proposed, look by hand:     {len(partial)}")
+    print()
+    for title, rows_ in (("long fence gates", gates), ("double doors", doubles)):
+        print(f"-- {title} --")
+        for r in rows_:
+            print(f"  x{r['seen']:<3} {r['left']:<44} -> {r['lnext']}")
+            print(f"        {r['right']:<44} -> {r['rnext']}   [{r['lsrc']}]")
+        print()
+    print("-- not proposed --")
+    for r, why in skipped:
+        print(f"  {r['left']:<42} + {r['right']:<42} :: {why}")
+    for r in partial:
+        print(f"  {r['left']:<42} + {r['right']:<42} :: partial "
+              f"({r['lpaired']}/{r['lplaced']}, {r['rpaired']}/{r['rplaced']})")
+
+
 QUEUE_HEADER = """# Doors & gates coverage queue
 
 Generated by `tools/door_audit.py`, which replaces `tools/door_import.py`
@@ -390,7 +607,13 @@ def main():
     ap.add_argument("--tree", required=True, help="osrs239-content tree")
     ap.add_argument("--write-queue", metavar="PATH", help="write the markdown queue doc")
     ap.add_argument("--suggest-pairs", action="store_true", help="propose open/close partners by naming convention")
+    ap.add_argument("--suggest-double-leaf", action="store_true",
+                    help="find doors placed as two leaves and wired as two single doors")
     args = ap.parse_args()
+
+    if args.suggest_double_leaf:
+        cmd_suggest_double_leaf(args.tree)
+        return 0
 
     rows = build_rows(args.tree)
     buckets = classify(rows)

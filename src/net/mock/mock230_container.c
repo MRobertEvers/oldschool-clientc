@@ -6,6 +6,7 @@
 
 #include "mock230.h"
 #include "mock230_bank.h"
+#include "mock230_shop.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -108,17 +109,16 @@ mock230_item_vars_copy(
 int
 mock230_container_scope(int32_t inv_id)
 {
-    (void)inv_id;
     /*
-     * Every inv is per-player through Phase 6a. Its `fields/inv.ini` only
-     * documents the native cache size used by private containers; LostCity's
-     * scope lives in a server-only inv.dat opcode that this cache cannot carry.
-     *
-     * The deliberate remaining hole is shop scope: its shared rows need a
-     * server-side inv definition plus player-qualified listener fan-out, not a
-     * word added to a client-only config. The world-table branch below is real
-     * and tested; the classifier belongs to that later shop slice.
+     * Every inv defaults to per-player. The one exception is a shop: content
+     * declares `scope=shared` in a `.inv` file (mock230_content.c's
+     * load_inv_config, docs/SHOPS_PLAN.md §3.1), which registers a
+     * Mock230ShopDef with `shared` set. An inv nothing declared a shop
+     * definition for — the overwhelming majority of the namespace, including
+     * the player's own backpack/worn/bank — is not asked and stays PLAYER.
      */
+    if( mock230_shop_is_shared(inv_id) )
+        return MOCK230_CONTAINER_WORLD;
     return MOCK230_CONTAINER_PLAYER;
 }
 
@@ -219,8 +219,13 @@ mock230_container_resolve(
         return row;
 
     /* Create on first use, the way `Player.getInventory` does. The size comes
-     * from the cache; an inv it does not size is not a container. */
+     * from the cache; an inv it does not size falls back to a shop's own
+     * declared `size=` (docs/SHOPS_PLAN.md §8.5 — a `pack/inv.alloc` id for a
+     * region this cache snapshot never packed a real inv for). Still not a
+     * container if neither names one. */
     slots = mock230_bank_inv_size((int)inv_id);
+    if( slots <= 0 )
+        slots = mock230_shop_content_size(inv_id);
     if( slots <= 0 )
         return NULL;
 
@@ -536,8 +541,67 @@ always_stacks(const struct Mock230Container* container)
 {
     const struct Mock230Ids* ids = mock230_ids();
 
+    /* A shop says so in its own `.inv` (`stackall=yes`), which is the real
+     * `stackType` field rather than a name this file had to invent. The two
+     * hardcoded ids below are the containers that have no `.inv` to say it in. */
+    if( mock230_shop_stackall(container->inv_id) )
+        return 1;
     return container->inv_id == ids->inv_bank ||
            container->inv_id == ids->inv_collection_log;
+}
+
+int
+mock230_container_stacks_obj(
+    const struct Mock230Container* container,
+    int obj_id)
+{
+    if( obj_id < 0 )
+        return 0;
+    if( mock230_objinfo(obj_id)->stackable )
+        return 1;
+    return container && always_stacks(container);
+}
+
+/*
+ * Empty one slot — and a shop's baseline slot empties to ZERO, not to nothing.
+ *
+ * This is LostCity's `stockobj`, the one thing `mock230_container_add`'s header
+ * says was left out of the `Inventory` port. Buying a store's last pot used to
+ * run `items[slot].obj_id = -1`, and three things followed from that one line:
+ *
+ *   1. The cell vanished from the shop. `shop_main_update` (clientscript 1076)
+ *      does `cc_sethide(true)` on a slot whose `inv_getobj` is null, so an
+ *      out-of-stock line is not drawn greyed at 0 — it is not drawn at all.
+ *   2. It never came back. `mock230_shop_restock_tick` skips `obj_id < 0`
+ *      because it reads the baseline off the obj that is *in* the slot, so the
+ *      slot it needed to refill no longer named an obj. A bought-out line was
+ *      gone until the next server boot re-seeded it.
+ *   3. Its price was lost with it. `~price_mod` scales off `inv_stockbase`
+ *      against current stock, so the item could not be valued or re-sold at the
+ *      right price even though the shop still nominally traded it.
+ *
+ * Only baseline lines survive at zero. A non-baseline slot — what a player sold
+ * into an `allstock=yes` general store — is genuinely gone when it hits zero,
+ * which is what `allstock`'s own one-a-minute decay is for.
+ */
+void
+mock230_container_clear_slot(
+    struct Mock230Container* container,
+    int slot)
+{
+    int obj_id;
+
+    if( !container || !container->used || !container->items )
+        return;
+    if( slot < 0 || slot >= container->slots )
+        return;
+    obj_id = container->items[slot].obj_id;
+    if( obj_id >= 0 && mock230_shop_has_stock_line(container->inv_id, obj_id) )
+    {
+        mock230_container_set(container, slot, obj_id, 0);
+        return;
+    }
+    mock230_container_set(container, slot, -1, 0);
 }
 
 /*
@@ -569,7 +633,7 @@ mock230_container_add_ex(
     if( obj_id < 0 || count <= 0 )
         return 0;
 
-    stackable = mock230_objinfo(obj_id)->stackable || always_stacks(container) ? 1 : 0;
+    stackable = mock230_container_stacks_obj(container, obj_id);
 
     for( int i = 0; i < container->slots; i++ )
     {
@@ -721,44 +785,73 @@ used_prefix(const struct Mock230Container* row)
     return used;
 }
 
-int
-mock230_container_unbind(
+/* A player row's listener always belongs to that row's own player; a world
+ * row's listener belongs to whichever player's bind created it. One test
+ * covers both without the caller needing to know which kind of row it has. */
+static int
+listener_matches(
+    const struct Mock230Container* row,
+    int i,
+    struct Mock230Player* player)
+{
+    if( row->owner_kind == MOCK230_CONTAINER_WORLD )
+        return row->listeners[i].player == player;
+    return 1;
+}
+
+static int
+unbind_row(
+    struct Mock230Container* row,
     struct Mock230Player* player,
     int32_t component)
 {
     int dropped = 0;
     int cleared = 0;
+    int w = 0;
+
+    if( !row->used )
+        return 0;
+    for( int r = 0; r < row->listener_count; r++ )
+    {
+        if( row->listeners[r].component == component && listener_matches(row, r, player) )
+        {
+            /* IF_CLEARINV retires the item array embedded in this widget;
+             * UPDATE_INV_STOPTRANSMIT is separate, inventory-global state
+             * and is sent by inv_stoptransmit only when no other component
+             * (or, on a shared row, no other player) still listens. Clear
+             * before dropping the association so a component moved to another
+             * inventory cannot retain old rows underneath its immediate
+             * UPDATE_INV_FULL. */
+            if( !cleared )
+            {
+                mock230_send_if_clearinv(player, component);
+                cleared = 1;
+            }
+            dropped++;
+            continue;
+        }
+        row->listeners[w++] = row->listeners[r];
+    }
+    row->listener_count = (uint8_t)w;
+    return dropped;
+}
+
+int
+mock230_container_unbind(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int32_t component)
+{
+    int dropped = 0;
 
     if( !player )
         return 0;
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
+        dropped += unbind_row(&player->containers[i], player, component);
+    if( srv )
     {
-        struct Mock230Container* row = &player->containers[i];
-        int w = 0;
-
-        if( !row->used )
-            continue;
-        for( int r = 0; r < row->listener_count; r++ )
-        {
-            if( row->listeners[r].component == component )
-            {
-                /* IF_CLEARINV retires the item array embedded in this widget;
-                 * UPDATE_INV_STOPTRANSMIT is separate, inventory-global state
-                 * and is sent by inv_stoptransmit only when no other component
-                 * still listens. Clear before dropping the association so a
-                 * component moved to another inventory cannot retain old rows
-                 * underneath its immediate UPDATE_INV_FULL. */
-                if( !cleared )
-                {
-                    mock230_send_if_clearinv(player, component);
-                    cleared = 1;
-                }
-                dropped++;
-                continue;
-            }
-            row->listeners[w++] = row->listeners[r];
-        }
-        row->listener_count = (uint8_t)w;
+        for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
+            dropped += unbind_row(&srv->world_containers[i], player, component);
     }
     return dropped;
 }
@@ -776,15 +869,19 @@ mock230_container_bind(
     if( !row || !player )
         return 0;
 
-    /* Same (inv, com) already listening — LostCity's early return. */
+    /* Same (inv, com[, player on a shared row]) already listening — LostCity's
+     * early return. */
     for( listener_i = 0; listener_i < row->listener_count; listener_i++ )
     {
-        if( row->listeners[listener_i].component == component )
+        if( row->listeners[listener_i].component == component &&
+            listener_matches(row, listener_i, player) )
             return 1;
     }
 
-    /* A component listens to at most one inv; move it if it was elsewhere. */
-    mock230_container_unbind(player, component);
+    /* A component listens to at most one inv; move it if it was elsewhere.
+     * Only this player's prior binding of `component` moves — a shared row's
+     * other listeners are other players and must not be touched. */
+    mock230_container_unbind(srv, player, component);
 
     if( row->listener_count >= MOCK230_CONTAINER_LISTENERS_MAX )
     {
@@ -797,6 +894,7 @@ mock230_container_bind(
     listener_i = row->listener_count++;
     row->listeners[listener_i].component = component;
     row->listeners[listener_i].first_seen = 1;
+    row->listeners[listener_i].player = player;
     /* The reference sends a full update the moment a listener is added, and the
      * interface being painted needs it: a paint hook only runs on a transmit,
      * so a panel mounted before the container existed stays empty otherwise.
@@ -863,6 +961,62 @@ mock230_container_flush(struct Mock230Player* player)
                                          row->slots, mock230_container_slot_mask(row));
             else
                 mock230_send_inv_full(player, (int)component, (int)row->inv_id, row->items,
+                                      used_prefix(row));
+            row->listeners[l].first_seen = 0;
+        }
+        mock230_container_clean(row);
+    }
+}
+
+void
+mock230_container_flush_world(struct Mock230Server* srv)
+{
+    if( !srv )
+        return;
+    for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
+    {
+        struct Mock230Container* row = &srv->world_containers[i];
+        int dirty;
+        int any_first_seen = 0;
+
+        if( !row->used || !row->items )
+            continue;
+
+        dirty = mock230_container_is_dirty(row);
+        for( int l = 0; l < row->listener_count; l++ )
+        {
+            if( row->listeners[l].first_seen )
+                any_first_seen = 1;
+        }
+
+        /* Same "nobody is painting from it" drop as mock230_container_flush —
+         * see its comment. A shared row's dirty_ref is always NULL (every
+         * shop row owns its own dirty state), so that branch does not apply
+         * here. */
+        if( row->listener_count == 0 )
+        {
+            if( dirty )
+                mock230_container_clean(row);
+            continue;
+        }
+
+        if( !dirty && !any_first_seen )
+            continue;
+
+        for( int l = 0; l < row->listener_count; l++ )
+        {
+            int32_t component = row->listeners[l].component;
+            struct Mock230Player* target = row->listeners[l].player;
+
+            if( !target )
+                continue; /* should not happen on a world row; skip rather than crash */
+            if( !dirty && !row->listeners[l].first_seen )
+                continue;
+            if( row->per_slot && dirty && !row->listeners[l].first_seen )
+                mock230_send_inv_partial(target, (int)component, (int)row->inv_id, row->items,
+                                         row->slots, mock230_container_slot_mask(row));
+            else
+                mock230_send_inv_full(target, (int)component, (int)row->inv_id, row->items,
                                       used_prefix(row));
             row->listeners[l].first_seen = 0;
         }

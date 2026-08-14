@@ -1102,6 +1102,43 @@ stack already held; unstackables are added one unit at a time, because the share
 `Inventory.add` puts a whole count in one slot and five platebodies are not a
 stack of five.
 
+`::spawn <npc_name|id> [count]` is the same command one namespace over — `::spawn
+goblin`, `::spawn 3028`, `::spawn hill_giant 3` — and it resolves its argument
+through the same four rungs against `configs/all.npc.compack` instead of the obj
+one (`cheat_id_from_name`, parameterised over the namespace rather than written
+twice). The npcs are placed side by side starting one tile north-east of the
+player, on the player's own level, and the count is capped at 20: a mistyped
+count that fills the npc pool presents as a world where nothing spawns, a long
+way from the command that did it. Naming an id this cache has no record for is
+allowed and says so — `npc_spawn` gives it the default config block, which is
+enough to be a target — because a content-only id is exactly that case. `::npc
+<id>` is the id-only ancestor and stays for the harnesses that spell one, the
+same relationship `::item` has to `::give`.
+
+`::runes [count]` and `::maxstats` are the two bulk shortcuts that saved typing
+`::give` twenty-two times or `::xp` twenty-four times, and both are content
+(`general/scripts/misc/cheat_runes.rs2`, `cheat_xp.rs2`) rather than engine
+branches, for the reason §4.1 gives: the cheat handler offers every line to a
+`[debugproc]` first.
+
+`::runes` adds one stack of every castable rune — the four elementals, the six
+combinations, the seven catalytics, plus astral, wrath and sunfire — at 10,000
+each unless a count is given. Twenty-two runes into a 28-slot backpack, so it
+wants an inventory with room; what does not fit reports `inv_full_message` per
+rune rather than landing on the floor. The themed look-alikes
+(`boardgames_runelink_*`, `roguetrader_*`, `zogre_brutal_rune`) and `blankrune`
+are deliberately absent: they carry a rune's name and no spell accepts them.
+
+`::maxstats` takes every skill to a **base** 99 and heals to full; `::jas` is its
+sibling and pushes the boosted level to 255, the byte ceiling `stat_add` and the
+protocol share. Prefer `::maxstats` — 255 is a number no player can hold, so
+anything that only misbehaves there is not a bug worth chasing. They share one
+skill list (`~cheat_maxstat_all`) because two lists eventually disagree about
+which skills exist. Hitpoints needs the explicit `stat_heal`: its boosted slot is
+*current* hitpoints, which a level-up raises the ceiling of without healing, so
+without it the cheat hands back a 99-hitpoints player still sitting on 10.
+Sailing is skipped — in this tree it is a protocol slot, not a trainable skill.
+
 ## 3.11g The emotes tab, and how a dynamic child is addressed
 
 The emotes tab is entirely client-built. Interface 216's onload (clientscript

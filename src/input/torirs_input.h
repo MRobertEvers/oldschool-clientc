@@ -168,6 +168,11 @@ struct LibToriRS_Input
      * where a character event replaces the key-code event. */
     unsigned char osrs_key_held[TORIRS_OSRSKEY_COUNT];
     unsigned char osrs_key_pressed[TORIRS_OSRSKEY_COUNT];
+    /* Released-this-frame edge, the mirror of osrs_key_pressed. Drives the
+     * on_key_up component hook (reference class162.method5439, the key-up list
+     * the widget dispatch walks); nothing else needs a release edge, since
+     * KEYHELD reads osrs_key_held. */
+    unsigned char osrs_key_released[TORIRS_OSRSKEY_COUNT];
 
     uint64_t double_click_threshold_ms;
     uint64_t drag_deadzone_pixels;

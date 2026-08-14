@@ -50,18 +50,28 @@ World_TestPoolIterateCount(const struct World_EntityPool* pool)
     return n;
 }
 
+/* Drains the queue and returns the number of REMOVAL events in it. Other known
+ * kinds are skipped rather than counted — a delayed spotanim emits a start
+ * event too, and callers here are counting despawns. An unrecognised kind is
+ * still a failure, so a new event kind cannot be added without deciding what
+ * these counts mean for it. */
 static inline int
 World_TestDrainRemovedEvents(struct World* world)
 {
     int n = World_EventsCount(world);
+    int removed = 0;
     for( int i = 0; i < n; i++ )
     {
         const struct World_Event* ev = World_EventsPeek(world, i);
-        if( !ev || ev->kind != WorldEventKind_EntityRemoved )
+        if( !ev )
+            g_failures++;
+        else if( ev->kind == WorldEventKind_EntityRemoved )
+            removed++;
+        else if( ev->kind != WorldEventKind_SpotanimStarted )
             g_failures++;
     }
     World_EventsClear(world);
-    return n;
+    return removed;
 }
 
 /* Unit tests */
@@ -86,6 +96,7 @@ void test_try_route_op_forceapproach(void);
 void test_force_approach_rotation(void);
 void test_try_route_op_rect(void);
 void test_try_route_op_exit_strategy(void);
+void test_under_target_exit(void);
 void test_features_eras(void);
 void test_bfs_path_source_end_truncation(void);
 void test_collision_loc_change_inverse(void);
@@ -94,6 +105,7 @@ void test_tile_stack_dedup(void);
 void test_minusedlevel_entity_draw(void);
 void test_rebuild_shift(void);
 void test_obj_raise(void);
+void test_npc_retype_keeps_animation(void);
 void test_line_of_sight(void);
 void test_line_of_sight_asymmetry(void);
 void test_naive_path_safespot(void);

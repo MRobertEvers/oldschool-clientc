@@ -65,11 +65,35 @@
                position: sticky; top: 0; display: flex; gap: 8px; align-items: center; }
   .note { padding: 10px 12px; color: var(--dim); font-size: 11px; }
   .corroborated { color: var(--rig); }
+
+  /* Mode switch and the player half's controls. */
+  .modes { display: flex; gap: 6px; padding: 10px 12px 0; }
+  .modes button { flex: 1; }
+  .modes button.on { border-color: var(--accent); color: var(--accent); }
+  .worn { padding: 8px 12px; border-bottom: 1px solid var(--line);
+          display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px;
+          padding: 2px 9px; font-size: 11px; cursor: pointer; }
+  .chip:hover { border-color: #c46; }
+  .chip .x { color: var(--dim); margin-left: 5px; }
+  .fx { display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+        border-top: 1px solid var(--line); flex-wrap: wrap; font-size: 11px; }
+  .fx label { color: var(--dim); }
+  .fx input[type=number] { width: 62px; background: var(--panel-2); color: var(--text);
+        border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; font: inherit; }
+  .fx input[type=text] { width: 210px; background: var(--panel-2); color: var(--text);
+        border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; font: inherit; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
   <div class="col">
-    <h2>NPCs</h2>
+    <h2 id="subjectHead">Subject</h2>
+    <div class="modes">
+      <button id="modeNpc" class="on">NPC</button>
+      <button id="modePlayer">Player</button>
+    </div>
+    <div class="worn hidden" id="wornBar"></div>
     <input type="search" id="npcSearch" placeholder="name, gameval or id" autocomplete="off">
     <div class="scroll" id="npcList"></div>
     <div class="meta" id="npcCount">loading…</div>
@@ -81,8 +105,33 @@
     <div class="bar">
       <button id="playBtn">Pause</button>
       <button id="bindBtn">Bind pose</button>
+      <button id="topBtn" title="look straight down">Top-down</button>
       <input type="range" id="frameSlider" min="0" max="0" value="0">
       <span class="meta" style="border:0;padding:0" id="frameLabel">—</span>
+    </div>
+    <!--
+      The graphic bar. `spotanim_pl`'s own two arguments and nothing else,
+      because those are the only two the server can express: the client applies
+      a height and a delay to a player-attached graphic and no rotation or
+      lateral offset at all.
+    -->
+    <div class="fx hidden" id="fxBar">
+      <label for="fxPick">graphic</label>
+      <input type="text" id="fxPick" list="fxList" placeholder="name or id" autocomplete="off">
+      <datalist id="fxList"></datalist>
+      <label for="fxHeight">height</label><input type="number" id="fxHeight" value="100" step="10">
+      <label for="fxDelay">delay</label><input type="number" id="fxDelay" value="16" step="1">
+      <!-- Rotation is not a spotanim_pl argument: it is the spotanim RECORD's
+           own angle opcode, applied when the model is built. It is here so a
+           quarter-turn can be judged before any config is edited. -->
+      <label for="fxOrient">turn</label>
+      <select id="fxOrient" style="background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:3px">
+        <option value="-1">record</option><option value="0">0°</option>
+        <option value="1">90°</option><option value="2">180°</option>
+        <option value="3">270°</option>
+      </select>
+      <button id="fxClear">none</button>
+      <span id="fxState" style="color:var(--dim)"></span>
     </div>
     <div class="meta" id="stageMeta">drag to orbit · wheel to zoom</div>
   </div>

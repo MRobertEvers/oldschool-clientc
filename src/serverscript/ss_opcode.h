@@ -464,8 +464,8 @@
 #define SS_OP_NPC_ATTACKPLAYER 11035
 #define SS_OP_NPC_HASTARGET 11036
 #define SS_OP_NPC_ATTACKDELAY 11037
-#define SS_OP_LAST_SUBOP 11038
-#define SS_OP_AMBIENTSOUND 11039
+#define SS_OP_AMBIENTSOUND 11038
+#define SS_OP_LAST_SUBOP 11039
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
 #define SS_OPCODE_MAX 11040

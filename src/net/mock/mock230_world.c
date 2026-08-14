@@ -16,6 +16,7 @@
 #include "mock230_music_regions.gen.h"
 
 #include "mock230_container.h"
+#include "mock230_shop.h"
 #include "mock230_content.h"
 #include "mock230_db.h"
 #include "mock230_equipment.h"
@@ -27,6 +28,9 @@
 #include "mock239_facing.h"
 #include "mock239_interface_inbound.h"
 #include "engine/world_builder/collision_map.h"
+/* `mock230_scene.h` only forward-declares `struct ToriRS_FeatureTable`, so
+ * reading a field off `mock230_scene_features()` needs the definition. */
+#include "features/features.h"
 #include "ss_trigger.h"
 #include "ss_meta.h"
 #include "ssvm.h"
@@ -1311,6 +1315,12 @@ interaction_build_approach(
 /*
  * LostCity PathingEntity.randomWalk — one cardinal step off a stacked target.
  * Deterministic via mock230_random (selftests need a stable chase).
+ *
+ * The reference guards this branch with `moveStrategy === NAIVE`, so it is what
+ * an *npc* does when it ends up under its target; rsmod spells the same thing
+ * out as `NpcInteractionProcessor.stepAwayFromTarget`. Running it for the
+ * player is the pre-`under_target_routes_out` behaviour and is kept only for
+ * eras that state it — see interaction_path_to_pathing_target.
  */
 static void
 interaction_random_walk(struct Mock230Server* srv)
@@ -1688,7 +1698,25 @@ interaction_path_to_pathing_target(struct Mock230Server* srv)
 
     interaction->x = target_x;
     interaction->z = target_z;
-    if( distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z) == 0 )
+    /*
+     * Standing inside the target's footprint.
+     *
+     * Under `under_target_routes_out` this is not a case at all: the approach
+     * the line below builds is the exclusive rectangle (shape -2), whose
+     * `reached` refuses every overlapping tile, so the ordinary BFS floods
+     * across the footprint — a plain npc writes NPC_OCC and the player mover
+     * never reads it — and terminates on the first perimeter tile it pops.
+     * Expansion order W/E/S/N makes that the nearest face, and a tie resolves
+     * west before east before south before north. One straight run, so it
+     * compresses to a single corner waypoint and a running player clears it two
+     * tiles per tick.
+     *
+     * Falling through rather than routing here is deliberate: the exit and the
+     * approach are the same call, which is exactly the reference's claim that
+     * there is no under-target branch on the player side.
+     */
+    if( !mock230_scene_features()->under_target_routes_out &&
+        distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z) == 0 )
     {
         interaction_random_walk(srv);
         return;
@@ -5437,7 +5465,7 @@ handle_opobju(
  */
 
 /* ------------------------------------------------------------------ */
-/* `::give` — an obj id from the spelling a human has                  */
+/* `::give` / `::spawn` — an id from the spelling a human has          */
 /* ------------------------------------------------------------------ */
 
 /*
@@ -5474,7 +5502,44 @@ obj_name_underscore(
 }
 
 /*
- * The obj a `::give` argument means, or -1.
+ * The display name a cheat argument is matched against, or NULL when the record
+ * is not something a human would be naming.
+ *
+ * One per namespace, because the "this row is not a real record" test is not the
+ * same question in both: an obj answers it through `known` plus the `null` every
+ * note record carries, an npc through the name gate `mock230_npcinfo` already
+ * applies (`mock230_npcinfo_known`) plus the same `null`.
+ */
+static const char*
+cheat_obj_display_name(int id)
+{
+    const struct Mock230ObjInfo* info = mock230_objinfo(id);
+
+    /* Every note record is named `null` and every placeholder is unnamed;
+     * neither is what a human typing an item name is asking for. */
+    if( !info->known || !info->name || strcmp(info->name, "null") == 0 )
+        return NULL;
+    return info->name;
+}
+
+static const char*
+cheat_npc_display_name(int id)
+{
+    const struct Mock230NpcInfo* info;
+
+    /* The multinpc instances are nameless and `mock230_npcinfo` would hand back
+     * its "Someone" placeholder for every one of them — which would make one
+     * spelling match thousands of ids. Ask the ungated question first. */
+    if( !mock230_npcinfo_known(id) )
+        return NULL;
+    info = mock230_npcinfo(id);
+    if( !info->name || strcmp(info->name, "null") == 0 )
+        return NULL;
+    return info->name;
+}
+
+/*
+ * The id a `::give`/`::spawn` argument means in one namespace, or -1.
  *
  * Four ways in, most specific first, because a cheat that guesses is worse than
  * one that refuses:
@@ -5492,15 +5557,22 @@ obj_name_underscore(
  * `suggest` is filled only on the ambiguous and empty cases (2..N candidates,
  * or none), so a miss can say *why* it missed. NULL when the caller does not
  * want one.
+ *
+ * Parameterised over the namespace rather than written twice: `::spawn` asks
+ * exactly this question about npcs, and the interesting part is the ladder, not
+ * which table it walks. `record_count` is the exclusive bound on rung 3's scan
+ * and `display_name` its accessor.
  */
 static int
-cheat_obj_from_name(
+cheat_id_from_name(
+    enum Mock230PackKind kind,
+    int record_count,
+    const char* (*display_name)(int id),
     const char* arg,
     char* suggest,
     size_t suggest_size)
 {
     char wanted[128];
-    int obj_count = mock230_objinfo_count();
     int pack_count;
     int match = -1;
     int matches = 0;
@@ -5520,33 +5592,31 @@ cheat_obj_from_name(
     if( !wanted[0] )
         return -1;
 
-    match = mock230_content_symbol(MOCK230_PACK_OBJ, wanted);
+    match = mock230_content_symbol(kind, wanted);
     if( match >= 0 )
         return match;
 
-    for( int id = 0; id < obj_count; id++ )
+    for( int id = 0; id < record_count; id++ )
     {
-        const struct Mock230ObjInfo* info = mock230_objinfo(id);
+        const char* name = display_name(id);
         char have[128];
 
-        /* Every note record is named `null` and every placeholder is unnamed;
-         * neither is what a human typing an item name is asking for. */
-        if( !info->known || !info->name || strcmp(info->name, "null") == 0 )
+        if( !name )
             continue;
-        obj_name_underscore(have, sizeof(have), info->name);
+        obj_name_underscore(have, sizeof(have), name);
         if( strcmp(have, wanted) == 0 )
             return id;
     }
 
     /* Nothing exact. Substring over the gamevals, and the answer is only an
      * answer when exactly one name carries it. */
-    pack_count = mock230_content_symbol_walk(MOCK230_PACK_OBJ, -1, NULL, NULL);
+    pack_count = mock230_content_symbol_walk(kind, -1, NULL, NULL);
     for( int i = 0; i < pack_count; i++ )
     {
         int id = -1;
         const char* name = NULL;
 
-        if( !mock230_content_symbol_walk(MOCK230_PACK_OBJ, i, &id, &name) || !name )
+        if( !mock230_content_symbol_walk(kind, i, &id, &name) || !name )
             continue;
         if( !strstr(name, wanted) )
             continue;
@@ -5577,6 +5647,33 @@ cheat_obj_from_name(
         return match;
     }
     return -1;
+}
+
+/** The obj a `::give` argument means, or -1. */
+static int
+cheat_obj_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    return cheat_id_from_name(MOCK230_PACK_OBJ, mock230_objinfo_count(),
+                              cheat_obj_display_name, arg, suggest, suggest_size);
+}
+
+/** How many npcs one `::spawn` may place. A cheat's argument is typed, so it is
+ *  also mistyped, and filling the npc pool looks like a world where nothing
+ *  spawns rather than like a typo. */
+#define MOCK230_CHEAT_SPAWN_MAX 20
+
+/** The npc type a `::spawn` argument means, or -1. */
+static int
+cheat_npc_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    return cheat_id_from_name(MOCK230_PACK_NPC, mock230_npcinfo_count(),
+                              cheat_npc_display_name, arg, suggest, suggest_size);
 }
 
 /*
@@ -5953,6 +6050,86 @@ handle_cheat(
         return;
     }
 
+    if( strncmp(text, "spawn", 5) == 0 )
+    {
+        /*
+         * `::spawn <npc_name|id> [count]` — `::give` for npcs, and the same
+         * argument ladder resolves it (`cheat_npc_from_name`): a bare id, the
+         * cache's gameval, the display name underscored, then a unique
+         * substring. `::spawn goblin`, `::spawn 3028`, `::spawn hill_giant 3`.
+         *
+         * `::npc <id>` below is the id-only ancestor and stays for the harnesses
+         * that already spell one — the same relationship `::item` has to
+         * `::give`. It also spawns onto level 3 rather than the player's, which
+         * is a bug nobody hit because nobody spawns onto a plane they cannot
+         * see; this one uses the player's level.
+         *
+         * The count is capped rather than trusted. An npc pool that is full
+         * behaves like a world where nothing spawns, and a typo'd `::spawn
+         * goblin 10000` is a long way from the branch it broke.
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int want = 1;
+        int spawned = 0;
+        int type;
+        const struct Mock230NpcInfo* info;
+
+        if( sscanf(text, "spawn %63s %d", arg, &want) < 1 )
+        {
+            say(srv, "Usage: ::spawn <npc_name> [count]");
+            return;
+        }
+        if( want < 1 )
+            want = 1;
+        if( want > MOCK230_CHEAT_SPAWN_MAX )
+            want = MOCK230_CHEAT_SPAWN_MAX;
+
+        type = cheat_npc_from_name(arg, suggest, sizeof(suggest));
+        if( type < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No npc named '%s'.", arg);
+            return;
+        }
+        info = mock230_npcinfo(type);
+        if( !mock230_npcinfo_known(type) )
+        {
+            /* Not a refusal: a spawn is allowed to name an npc this cache does
+             * not describe (npc_spawn gives it the default config block), and a
+             * content-only id is exactly that. Say so and carry on. */
+            say(srv, "Npc %d ('%s') has no record in this cache; spawning anyway.",
+                type, arg);
+        }
+
+        /* Side by side rather than stacked, so a count of three is three things
+         * a player can see and click, and each takes its own collision. */
+        for( int i = 0; i < want; i++ )
+        {
+            int slot =
+                npc_spawn(srv, type, player->x + 1 + i, player->z + 1, player->level);
+            if( slot < 0 )
+                break;
+            /* One instance, not a fixture: `::spawn` is a debugging `npc_add`,
+             * so its npc is the command's the way a script's is the script's and
+             * killing it is the end of it. A memset slot is the *world's*
+             * (`EntityLifeCycle.RESPAWN` — see the field), which would stand
+             * every test spawn back up `respawnrate` ticks later at the tile the
+             * tester was standing on. */
+            srv->npcs[slot].despawns_on_death = 1;
+            spawned++;
+        }
+        if( spawned <= 0 )
+            say(srv, "Could not spawn npc %d.", type);
+        else
+            say(srv, "Spawned %d x %s (%d) at %d,%d.", spawned,
+                mock230_npcinfo_known(type) ? info->name : arg, type, player->x + 1,
+                player->z + 1);
+        return;
+    }
+
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
     {
         int slot = inv_first_free(player);
@@ -5971,7 +6148,11 @@ handle_cheat(
     }
     if( sscanf(text, "npc %d", &npc_type) == 1 )
     {
-        npc_spawn(srv, npc_type, player->x + 1, player->z + 1, 3);
+        int slot = npc_spawn(srv, npc_type, player->x + 1, player->z + 1, 3);
+        /* The id-only ancestor of `::spawn`, and one instance for the same
+         * reason — see there. */
+        if( slot >= 0 )
+            srv->npcs[slot].despawns_on_death = 1;
         say(srv, "Spawned npc %d.", npc_type);
         return;
     }
@@ -9283,8 +9464,8 @@ enum
 enum
 {
     PP_SCRIPTS,
-    PP_LOCKED,
     PP_FACE,
+    PP_LOCKED,
     PP_INTERACT_PRE,
     PP_APPROACH,
     PP_ADVANCE,
@@ -9518,6 +9699,21 @@ phase_player(struct Mock230Player* player)
     PP_MARK(bd_on, bd_t, PP_SCRIPTS);
 
     /*
+     * Face the interaction / combat target before approach can return early
+     * and before tryInteract can clear it — LostCity PathingEntity.setFaceEntity
+     * in processPlayers, before processInteraction.
+     *
+     * Above the action-lock gate, and unconditional, because this is the only
+     * writer of the latch: `mock230_combat_stop_player_at` no longer clears it
+     * (see the comment there), so a turn this call is skipped on is a turn the
+     * release cannot be derived. A locked or dying player is precisely the case
+     * that would keep staring at whatever it was fighting. LostCity calls it
+     * for every player each turn with no `delayed` gate for the same reason.
+     */
+    mock230_player_set_face_entity(player);
+    PP_MARK(bd_on, bd_t, PP_FACE);
+
+    /*
      * An action lock is deliberately below every script/queue/timer phase.
      * That placement is its contract: a queued projectile hit still executes,
      * and a queued player_unlock can release the player for this same turn.
@@ -9538,14 +9734,6 @@ phase_player(struct Mock230Player* player)
         PP_MARK(bd_on, bd_t, PP_LOCKED);
         return;
     }
-
-    /*
-     * Face the interaction / combat target before approach can return early
-     * and before tryInteract can clear it — LostCity PathingEntity.setFaceEntity
-     * in processPlayers, before processInteraction.
-     */
-    mock230_player_set_face_entity(player);
-    PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*
      * LostCity Player.processInteraction: tryInteract → pathToPathingTarget →
@@ -10035,6 +10223,39 @@ phase_info(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
 
+    /*
+     * `MOCK230_ANIM_TRACE=1` — what a tick is about to ENCODE, per player.
+     *
+     * Here rather than in the encoder because this is the last point at which
+     * a mask is still a mask: `phase_cleanup` drops `masks`, `anim_id` and
+     * `place_dirty` immediately after, so anything that reads them from outside
+     * a tick reads the wrong thing and reads it silently.
+     *
+     * It exists because the ladder animation "worked" by every server-side
+     * measure and drew nothing. One line of this said why: `anim=828 place=1
+     * level=1` in a single encode — the climb and the arrival on the new plane
+     * in one PLAYER_INFO. Any "the entity did not do the thing" bug in a mask
+     * (anim, spotanim, say, hits) is one env var from being answered the same
+     * way. See `~climb_ladder_anim` in ladders_stairs/scripts/ladders.rs2.
+     */
+    {
+        static int trace_on = -1;
+
+        if( trace_on < 0 )
+            trace_on = getenv("MOCK230_ANIM_TRACE") != NULL;
+        if( trace_on )
+        {
+            struct Mock230Player* traced;
+
+            MOCK230_FOR_EACH_PLAYER(srv, traced)
+                fprintf(stderr,
+                        "[anim-trace] tick=%d encode masks=0x%03x anim=%d place=%d level=%d "
+                        "%d,%d\n",
+                        srv->tick, traced->masks, traced->anim_id, traced->place_dirty,
+                        traced->level, traced->x, traced->z);
+        }
+    }
+
     /* Derived client state, recomputed before anything is encoded. Cheap, and
      * it only writes when a value actually moved — so a quiet tick sends
      * nothing. */
@@ -10481,6 +10702,13 @@ phase_clients_out(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
 
+    /* Shared (world-scoped) containers first, so a shop bought from or sold
+     * to this tick reaches every listener's outgoing batch before that
+     * player's own phase_client_out closes it with a tick-end. A player's own
+     * containers are still flushed from inside phase_client_out, unchanged —
+     * this is the sibling pass for rows no single player owns. */
+    mock230_container_flush_world(srv);
+
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
         if( player->login_scene_pending || player->rebuild_scene_pending )
@@ -10564,6 +10792,13 @@ phase_cleanup(struct Mock230Server* srv)
         srv->npcs[i].anim_delay = 0;
     }
 
+    /* Shared shop stock, one nudge per baseline slot toward its target count
+     * (docs/SHOPS_PLAN.md §3.4) — LostCity's World.ts puts this in the same
+     * cleanup phase, right after the npc reset above. Marks dirty rows; the
+     * client repaints on its own via `if_setoninvtransmit`, so nothing else
+     * has to know a restock happened. */
+    mock230_shop_restock_tick(srv, srv->tick);
+
     /* Every player's NPC_INFO for this tick is behind us (phase_clients_out
      * already ran) — slots freed this tick can now actually be reused. See
      * docs/mock230_npc_slot_reap.md. */
@@ -10582,7 +10817,7 @@ static char const* const g_tick_bd_names[TICK_BD_PHASES] = {
 };
 
 static char const* const g_pp_names[PP_COUNT] = {
-    "scripts", "locked", "face",          "interact_pre",
+    "scripts", "face", "locked",          "interact_pre",
     "approach", "advance", "interact_post", "tail"
 };
 
@@ -11445,6 +11680,106 @@ selftest_find_npc(
     return -1;
 }
 
+/*
+ * ------------------------------------------------------------------
+ * The npc-lifecycle-under-damage harness
+ * ------------------------------------------------------------------
+ *
+ * Three small pieces the stanza near the bottom of this file builds its
+ * interleave out of. They are here rather than inline because the stanza is
+ * already a loop inside a loop and the reading suffers.
+ */
+
+/*
+ * A deterministic 15-bit roll. Fixed seed, so an interleave that fails fails
+ * the same way on the next run — a soak whose schedule moves every run reports
+ * a bug once and then hides it.
+ */
+static int
+selftest_lcg(
+    uint32_t* state,
+    int bound)
+{
+    *state = *state * 1664525u + 1013904223u;
+    if( bound <= 0 )
+        return 0;
+    return (int)((*state >> 16) % (uint32_t)bound);
+}
+
+/*
+ * The content-visible npc handle — generation:slot, exactly what `npc_uid`
+ * builds. The generation word is the whole point: a slot handed to a different
+ * npc, or the same slot after a respawn, reads as a DIFFERENT handle, which is
+ * what lets the harness below say "this is a new npc" without a birth-tick
+ * field on the record. 0 is "nothing live here".
+ */
+static int32_t
+selftest_npc_uid(
+    const struct Mock230Server* srv,
+    int slot)
+{
+    if( slot < 0 || slot >= MOCK230_NPC_MAX || !srv->npcs[slot].active )
+        return 0;
+    return (int32_t)(((uint32_t)srv->npcs[slot].generation << 16) | (uint32_t)slot);
+}
+
+/*
+ * Arm one entry on an npc's own queue, the way `npc_queue(q, arg, delay)` does
+ * (mock230_scripts.c, SS_OP_NPC_QUEUE) — including the raw, un-incremented
+ * delay, because the drain compares *after* its decrement and the harness is
+ * asserting on which tick the hit lands.
+ *
+ * Queue 2 carries damage: `[ai_queue2,_]` is `~npc_default_damage(last_int)`,
+ * and every hit a player lands travels down it. Arming it directly is how the
+ * harness gets a hit that is in flight *across* a tick boundary — the only
+ * place a spawn, a death or a respawn can get between the swing and the splat.
+ *
+ * Returns 0 if the queue is full.
+ */
+static int
+selftest_npc_queue(
+    struct Mock230Server* srv,
+    int slot,
+    int queue,
+    int arg,
+    int delay)
+{
+    struct Mock230Npc* npc;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return 0;
+    npc = &srv->npcs[slot];
+    if( !npc->active )
+        return 0;
+    for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+    {
+        if( npc->queue[i].active )
+            continue;
+        npc->queue[i].active = 1;
+        npc->queue[i].queue = queue;
+        npc->queue[i].delay = delay;
+        npc->queue[i].arg = arg;
+        return 1;
+    }
+    return 0;
+}
+
+/** Count active queue entries on an npc, whatever queue they name. */
+static int
+selftest_npc_queue_depth(
+    const struct Mock230Server* srv,
+    int slot)
+{
+    int n = 0;
+
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
+        return 0;
+    for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+        if( srv->npcs[slot].queue[i].active )
+            n++;
+    return n;
+}
+
 /** Count active npcs of any listed type inside one absolute tile rectangle. */
 static int
 selftest_count_npcs_in_rect_types(
@@ -11785,6 +12120,10 @@ mock230_world_selftest(void)
         if( rev_name )
             fprintf(stderr, "mock230 selftest: wire %s\n", srv->wire->name);
     }
+    /* Shop definitions were parsed once at boot (global tables); this srv is
+     * a fresh, just-memset instance and needs its own shared containers seeded
+     * from them, same as any other boot path. */
+    mock230_shop_seed(srv);
     /*
      * Its own save directory, before anything can read one.
      *
@@ -13669,8 +14008,8 @@ mock230_world_selftest(void)
                                        "equipment close test resolves its interface/container");
                         if( equipment >= 0 && universe >= 0 && worn )
                         {
-                            mock230_container_unbind(player, universe);
-                            mock230_container_unbind(player, wornitems);
+                            mock230_container_unbind(srv, player, universe);
+                            mock230_container_unbind(srv, player, wornitems);
                             SELFTEST_CHECK(mock230_container_bind(
                                                srv, player, mock230_ids()->inv_worn,
                                                universe),
@@ -13782,7 +14121,7 @@ mock230_world_selftest(void)
                                 }
                                 srv->wire = wire239;
                             }
-                            mock230_container_unbind(player, wornitems);
+                            mock230_container_unbind(srv, player, wornitems);
                         }
                     }
 
@@ -18425,6 +18764,12 @@ mock230_world_selftest(void)
                            "the dead npc should release its combat target");
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                            "npc death should clear the player's combat interaction");
+            /* A fight this long dies on the *queued* damage, which phase_npcs
+             * drains before the player's turn — so this turn's derivation
+             * already sees no target and the release is this turn's. The kill
+             * that lands after the derivation instead (a one-blow melee kill,
+             * dispatched from the packet phase) is a separate stanza: "a
+             * one-blow kill still ships the turn". */
             SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
                            "both sides should release their face latch on npc death");
 
@@ -19111,8 +19456,23 @@ mock230_world_selftest(void)
                            "the attacking npc releases a dead player");
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                            "player death clears the armed combat interaction");
-            SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
-                           "both sides release their face latch on player death");
+            SELFTEST_CHECK(npc->face_entity == -1,
+                           "the attacking npc releases its face latch on player death");
+            /*
+             * The player's half of that latch is derived, not written.
+             *
+             * The death lands after this turn's `set_face_entity`, so the turn
+             * the player died on still faces what killed it and the release is
+             * the next turn's — the same rule that makes a one-blow kill turn
+             * the player toward the npc (see "a one-blow kill still ships the
+             * turn"). The tick below is that next turn, and by then the player
+             * is dying and locked: the check after it is what says phase_player
+             * derives the latch *above* the action-lock gate rather than below
+             * it, where a corpse would keep staring at its killer.
+             */
+            SELFTEST_CHECK(player->face_entity == goblin,
+                           "a dying player still faces what killed it, got %d",
+                           player->face_entity);
 
             /* The reference leaves one quiet tick between the fatal splat and
              * cancelling the action / starting human_death. `p_delay(1)` at
@@ -19121,6 +19481,8 @@ mock230_world_selftest(void)
              * reaches every eventual-respawn assertion below. */
             mock230_world_tick(srv);
             ticks++;
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "and releases it on the next turn, got %d", player->face_entity);
             SELFTEST_CHECK(player->dying && player->active_script != NULL,
                            "the first death turn should still be a parked corpse");
             SELFTEST_CHECK(player->delayed_until == srv->tick + 2,
@@ -19294,6 +19656,9 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(player->combat_target == -1,
                            "walking away ends the fight");
+            /* Packets are phase 1 and the derivation is phase 5, so the walk-off
+             * still clears within the same turn — this call is that phase. */
+            mock230_player_set_face_entity(player);
             SELFTEST_CHECK(player->face_entity == -1,
                            "and stops facing, got %d", player->face_entity);
             SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
@@ -21593,6 +21958,235 @@ mock230_world_selftest(void)
     }
 
     /*
+     * A door with two leaves moves BOTH of them.
+     *
+     * The section above proves a single door swings. It cannot see the failure
+     * this one is for, and neither can any check that reads the pairing: 61
+     * clusters were in `doors.loc` as two INDEPENDENT `door_closed` records,
+     * each with its own `Open` and its own `next_loc_stage`, which is a valid
+     * single door twice over. Every id resolved, `mock230_pack -v` was happy,
+     * and every one of them opened half way — one leaf swung, the other stayed
+     * across the doorway. It was reported from the game as "some of these gates
+     * don't work", which is exactly how it looks.
+     *
+     * `castledoubledoorl`/`r` at 3244,3216 is Lumbridge castle's front door,
+     * inside the scene this suite already builds, and it is one of the 57 that
+     * moved to `doubledoors.loc`. The leaves sit one tile apart at the same
+     * angle — the placement signature `tools/door_audit.py --suggest-double-leaf`
+     * keys on — with `~door_close(^loc_south, wall_straight)` = (-1, 0) pointing
+     * from the left leaf at the right one, which is what makes the left leaf the
+     * left leaf.
+     *
+     * Both destinations are asserted, and they are NOT the same swing: the left
+     * half turns (3 + 3) % 4 and the right half (3 + 1) % 4, the two halves of
+     * `doubledoors.rs2` opening apart. A version of this that only checked "the
+     * clicked leaf moved" would pass on the broken tree.
+     */
+    fprintf(stderr, "mock230 selftest: a double door moves both leaves\n");
+    {
+        const int shut_l = mock230_content_symbol(MOCK230_PACK_LOC, "castledoubledoorl");
+        const int shut_r = mock230_content_symbol(MOCK230_PACK_LOC, "castledoubledoorr");
+        const int open_l = mock230_content_symbol(MOCK230_PACK_LOC, "opencastledoubledoorl");
+        const int open_r = mock230_content_symbol(MOCK230_PACK_LOC, "opencastledoubledoorr");
+        const int left_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_left_closed");
+        const int right_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_right_closed");
+
+        SELFTEST_CHECK(shut_l > 0 && shut_r > 0 && open_l > 0 && open_r > 0,
+                       "pack/loc.pack should name all four halves: %d/%d/%d/%d",
+                       shut_l, shut_r, open_l, open_r);
+        /* The side, not just "it has a category". A pair filed as two
+         * `door_left_closed` records looks paired and opens the same leaf
+         * twice. */
+        SELFTEST_CHECK(shut_l > 0 && mock230_loc_category(shut_l) == left_closed,
+                       "the left leaf reads door_left_closed (%d), got %d", left_closed,
+                       shut_l > 0 ? mock230_loc_category(shut_l) : -1);
+        SELFTEST_CHECK(shut_r > 0 && mock230_loc_category(shut_r) == right_closed,
+                       "the right leaf reads door_right_closed (%d), got %d", right_closed,
+                       shut_r > 0 ? mock230_loc_category(shut_r) : -1);
+
+        /* On the door's own tile: `fencing` runs along the north edge of
+         * 3244,3217, so a click from the courtyard is a question about the
+         * router rather than about double doors. */
+        selftest_park_player(srv, 3244, 3216);
+        if( shut_l > 0 && shut_r > 0 )
+        {
+            int slot_l = mock230_scene_find_loc(3244, 3216, 0, shut_l);
+            int slot_r = mock230_scene_find_loc(3243, 3216, 0, shut_r);
+
+            SELFTEST_CHECK(slot_l >= 0 && slot_r >= 0,
+                           "both leaves of the castle door should be in the scene: %d/%d",
+                           slot_l, slot_r);
+            if( slot_l >= 0 && slot_r >= 0 )
+            {
+                struct Mock230SceneLoc* leaf_l = mock230_scene_loc(slot_l);
+                int shape = leaf_l->shape;
+                int angle = leaf_l->angle;
+                uint8_t payload[6] = { (uint8_t)(3244 >> 8), (uint8_t)3244,
+                                       (uint8_t)(3216 >> 8), (uint8_t)3216,
+                                       (uint8_t)(shut_l >> 8), (uint8_t)shut_l };
+
+                SELFTEST_CHECK(shape == 0 && angle == 3,
+                               "placed as a wall_straight facing south, got shape %d angle %d",
+                               shape, angle);
+
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
+                               "the click on the left leaf should settle");
+                {
+                    struct Mock230SceneLoc* was_l =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3244, 3216, 0, shape));
+                    struct Mock230SceneLoc* was_r =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3243, 3216, 0, shape));
+
+                    SELFTEST_CHECK(!was_l || !was_l->active,
+                                   "opening takes the clicked leaf off its tile");
+                    /* The whole point. On the broken wiring this one is still
+                     * standing, and the doorway is still shut. */
+                    SELFTEST_CHECK(!was_r || !was_r->active,
+                                   "and takes the OTHER leaf off its tile too");
+                }
+                {
+                    struct Mock230SceneLoc* swung_l =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3244, 3215, 0, shape));
+                    struct Mock230SceneLoc* swung_r =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3243, 3215, 0, shape));
+
+                    SELFTEST_CHECK(swung_l && swung_l->loc_id == open_l && swung_l->angle == 2,
+                                   "the left leaf hangs open one tile south at angle 2, "
+                                   "got %d at angle %d",
+                                   swung_l ? swung_l->loc_id : -1,
+                                   swung_l ? swung_l->angle : -1);
+                    SELFTEST_CHECK(swung_r && swung_r->loc_id == open_r && swung_r->angle == 0,
+                                   "and the right leaf swings the other way, to angle 0, "
+                                   "got %d at angle %d",
+                                   swung_r ? swung_r->loc_id : -1,
+                                   swung_r ? swung_r->angle : -1);
+                }
+                /* Closing from the leaf that was NOT clicked, which is the
+                 * mirror-image path through `doubledoors.rs2` and the one a
+                 * player takes as often as not. */
+                payload[0] = (uint8_t)(3243 >> 8);
+                payload[1] = (uint8_t)3243;
+                payload[2] = (uint8_t)(3215 >> 8);
+                payload[3] = (uint8_t)3215;
+                payload[4] = (uint8_t)(open_r >> 8);
+                payload[5] = (uint8_t)open_r;
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
+                               "the click on the open right leaf should settle");
+                {
+                    struct Mock230SceneLoc* home_l =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3244, 3216, 0, shape));
+                    struct Mock230SceneLoc* home_r =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3243, 3216, 0, shape));
+
+                    SELFTEST_CHECK(home_l && home_l->loc_id == shut_l && home_l->angle == angle,
+                                   "closing puts the left leaf back where the map has it, "
+                                   "got %d at angle %d",
+                                   home_l ? home_l->loc_id : -1, home_l ? home_l->angle : -1);
+                    SELFTEST_CHECK(home_r && home_r->loc_id == shut_r && home_r->angle == angle,
+                                   "and the right leaf with it, got %d at angle %d",
+                                   home_r ? home_r->loc_id : -1, home_r ? home_r->angle : -1);
+                }
+            }
+        }
+        selftest_park_player(srv, 3222, 3218);
+    }
+
+    /*
+     * And the other family: a long fence gate, whose two leaves swing to the
+     * SAME side (`general_use/scripts/gates.rs2`, `gate_main_*`/`gate_outer_*`)
+     * rather than apart. `death_fencegate_l`/`r` on the Burthorpe side of Death
+     * Plateau is one of the four this pass moved off `door_closed`; LostCity's
+     * own `quest_death.loc` files it as `gate_main_closed`/`gate_outer_closed`,
+     * so this is the reference's answer, not an inference from the placement.
+     *
+     * The two destinations are one and two tiles east of the MAIN leaf's tile —
+     * both computed from the clicked leaf's coordinate, which is what makes the
+     * outer leaf's move a diagonal one and what a per-leaf swing would get
+     * wrong even if it moved both.
+     */
+    fprintf(stderr, "mock230 selftest: a long fence gate swings both leaves one way\n");
+    {
+        const int shut_main = mock230_content_symbol(MOCK230_PACK_LOC, "death_fencegate_l");
+        const int shut_outer = mock230_content_symbol(MOCK230_PACK_LOC, "death_fencegate_r");
+        const int open_main = mock230_content_symbol(MOCK230_PACK_LOC, "death_openfencegate_l");
+        const int open_outer = mock230_content_symbol(MOCK230_PACK_LOC, "death_openfencegate_r");
+        const int gate_main_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_main_closed");
+        const int gate_outer_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_outer_closed");
+
+        SELFTEST_CHECK(shut_main > 0 && shut_outer > 0 && open_main > 0 && open_outer > 0,
+                       "pack/loc.pack should name all four gate halves: %d/%d/%d/%d",
+                       shut_main, shut_outer, open_main, open_outer);
+        SELFTEST_CHECK(shut_main > 0 && mock230_loc_category(shut_main) == gate_main_closed,
+                       "the main leaf reads gate_main_closed (%d), got %d", gate_main_closed,
+                       shut_main > 0 ? mock230_loc_category(shut_main) : -1);
+        SELFTEST_CHECK(shut_outer > 0 && mock230_loc_category(shut_outer) == gate_outer_closed,
+                       "the outer leaf reads gate_outer_closed (%d), got %d", gate_outer_closed,
+                       shut_outer > 0 ? mock230_loc_category(shut_outer) : -1);
+
+        selftest_park_player(srv, 2823, 3555);
+        if( shut_main > 0 && shut_outer > 0 )
+        {
+            int slot_main = mock230_scene_find_loc(2824, 3555, 0, shut_main);
+            int slot_outer = mock230_scene_find_loc(2824, 3554, 0, shut_outer);
+
+            SELFTEST_CHECK(slot_main >= 0 && slot_outer >= 0,
+                           "both leaves of the Death Plateau gate should be in the scene: %d/%d",
+                           slot_main, slot_outer);
+            if( slot_main >= 0 && slot_outer >= 0 )
+            {
+                struct Mock230SceneLoc* leaf = mock230_scene_loc(slot_main);
+                int shape = leaf->shape;
+                int angle = leaf->angle;
+                uint8_t payload[6] = { (uint8_t)(2824 >> 8), (uint8_t)2824,
+                                       (uint8_t)(3555 >> 8), (uint8_t)3555,
+                                       (uint8_t)(shut_main >> 8), (uint8_t)shut_main };
+
+                SELFTEST_CHECK(shape == 0 && angle == 2,
+                               "placed as a wall_straight facing east, got shape %d angle %d",
+                               shape, angle);
+
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
+                               "the click on the gate should settle");
+                {
+                    struct Mock230SceneLoc* was_main =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2824, 3555, 0, shape));
+                    struct Mock230SceneLoc* was_outer =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2824, 3554, 0, shape));
+                    struct Mock230SceneLoc* swung_main =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2825, 3555, 0, shape));
+                    struct Mock230SceneLoc* swung_outer =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2826, 3555, 0, shape));
+
+                    SELFTEST_CHECK(!was_main || !was_main->active,
+                                   "opening clears the main leaf's tile");
+                    SELFTEST_CHECK(!was_outer || !was_outer->active,
+                                   "and the outer leaf's tile — the half that used to stay shut");
+                    SELFTEST_CHECK(swung_main && swung_main->loc_id == open_main &&
+                                       swung_main->angle == 1,
+                                   "the main leaf stands one tile east at angle 1, "
+                                   "got %d at angle %d",
+                                   swung_main ? swung_main->loc_id : -1,
+                                   swung_main ? swung_main->angle : -1);
+                    SELFTEST_CHECK(swung_outer && swung_outer->loc_id == open_outer &&
+                                       swung_outer->angle == 1,
+                                   "and the outer leaf two tiles east, in line with it, "
+                                   "got %d at angle %d",
+                                   swung_outer ? swung_outer->loc_id : -1,
+                                   swung_outer ? swung_outer->angle : -1);
+                }
+            }
+        }
+        selftest_park_player(srv, 3222, 3218);
+    }
+
+    /*
      * A ladder changes the level, and it is `ladders_stairs/scripts/ladders.rs2`
      * that does it (2026-08-02).
      *
@@ -21617,21 +22211,32 @@ mock230_world_selftest(void)
     {
         /* `ladder` at 3229,3224 — one of three in Lumbridge castle, op1
          * "Climb-up", carrying no cache category, so `ladders.loc` files it
-         * under the allocated `climb_up`. By name, like everything else. */
+         * under the allocated `climb_up_ladder`. By name, like everything else.
+         *
+         * `_ladder` and not `climb_up`: the category states two things, the
+         * direction and whether the thing is a ladder, because a ladder plays
+         * the climb animation and a staircase does not (the reference's
+         * `~climb_ladder` versus its anim-less `stairs.rs2`). This one is both
+         * halves at once — a Climb-up, and a ladder. */
         const int ladder = mock230_content_symbol(MOCK230_PACK_LOC, "ladder");
-        const int climb_up = mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_up");
+        const int climb_up =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_up_ladder");
+        const int reach = mock230_content_symbol(MOCK230_PACK_SEQ, "human_reachforladder");
         int slot;
+        int climb_anim = -1;
+        int anim_tick = -1;
+        int move_tick = -1;
 
         SELFTEST_CHECK(ladder > 0 && climb_up > 0,
-                       "pack should name `ladder` and the `climb_up` category: %d/%d",
+                       "pack should name `ladder` and the `climb_up_ladder` category: %d/%d",
                        ladder, climb_up);
         SELFTEST_CHECK(ladder > 0 && mock230_loc_category(ladder) == climb_up,
-                       "ladders.loc should file a Climb-up ladder under climb_up, got %d",
+                       "ladders.loc should file a Climb-up ladder under climb_up_ladder, got %d",
                        ladder > 0 ? mock230_loc_category(ladder) : -1);
         /* The group, not the record: one binding reaches all of them, which is
          * the entire reason this is a category and not a name list. */
-        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 558,
-                       "and 558 loc records share it, got %d",
+        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 232,
+                       "and 232 loc records share it, got %d",
                        climb_up > 0 ? mock230_loc_category_members(climb_up) : -1);
 
         slot = ladder > 0 ? mock230_scene_find_loc(3229, 3224, 0, ladder) : -1;
@@ -21655,49 +22260,144 @@ mock230_world_selftest(void)
             player->tracked_count = 1;
             player->tracked_player_count = 1;
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
-            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
-                           "the walk to the ladder should complete");
+            /* Ticked by hand rather than through `selftest_settle`, because the
+             * animation is a per-tick mask: `anim_id` is set by `~climb_ladder`
+             * and cleared at the end of the tick that encodes it, so a settle
+             * loop that only reports how long it took can never see it.
+             *
+             * `anim_tick` / `move_tick` are the point of the loop. They are the
+             * claim the user of a ladder actually makes — "it animates, THEN it
+             * moves" — and the two used to be the same tick: packets are pumped
+             * between ticks here (`phase_clients_in` is empty,
+             * `mock230_session_pump` runs from mock230_main.c's loop), so a
+             * click next to the ladder ran the script at tick T with no info
+             * phase left, `p_delay(0)` resumed at T+1, and T+1 both teleported
+             * and encoded. One PLAYER_INFO carried `anim=828 place=1 level=1`:
+             * the climb and the arrival, together, which draws as no climb at
+             * all. `~climb_ladder_anim`'s `p_delay(1)` is what separates them.
+             */
+            for( int tick = 0; tick < 40; tick++ )
+            {
+                if( climb_anim < 0 && player->anim_id > 0 )
+                {
+                    climb_anim = player->anim_id;
+                    anim_tick = srv->tick;
+                }
+                if( player->interaction.kind == MOCK230_INTERACT_NONE && player->level != 0 )
+                    break;
+                mock230_world_tick(srv);
+                if( move_tick < 0 && player->level != 0 )
+                    move_tick = srv->tick;
+                if( climb_anim < 0 && player->anim_id > 0 )
+                {
+                    climb_anim = player->anim_id;
+                    anim_tick = srv->tick;
+                }
+            }
             SELFTEST_CHECK(player->level == 1, "climbing it goes up a plane, got %d",
                            player->level);
+            /* And it looks like a climb while it does. Reaching UP, because this
+             * is the Climb-up half — `~climb_ladder` reads the direction and
+             * `human_pickupfloor` is the other one. The reference plays exactly
+             * these two and its staircases play neither. */
+            SELFTEST_CHECK(reach > 0 && climb_anim == reach,
+                           "and plays human_reachforladder (%d) climbing it, got %d",
+                           reach, climb_anim);
+            /* The half that a mask assertion alone cannot state: the animation
+             * has to get a tick of its own. Same tick = one packet carrying
+             * both, which is the bug this is here to keep out. */
+            SELFTEST_CHECK(anim_tick >= 0 && move_tick > anim_tick,
+                           "and the climb is encoded BEFORE the move: anim tick %d, move tick %d",
+                           anim_tick, move_tick);
             /* The bookkeeping `p_teleport` used not to do. Asserted separately
              * from the level because a plane change that forgets it is a client
              * holding npcs on a floor it has left — visible in the game, and
-             * invisible to any test that only reads `level`. */
+             * invisible to any test that only reads `level`.
+             *
+             * Two of the four are read after a tick and two cannot be: a ladder
+             * now parks for a tick between the animation and the move, and the
+             * tick that resumes it also encodes the player — which is what
+             * `zone_index` being reset and `place_dirty` being set are FOR, so
+             * by the time this line runs they have both been spent on the
+             * absolute placement they asked for. Reading them here would only
+             * assert that the encoder ran.
+             *
+             * So they are claimed against `~climb` called directly below: the
+             * same proc the ladder runs, minus `~climb_ladder`'s delay, which
+             * puts the observation back where it was before the animation
+             * existed. `tracked_*` and `rebuild_pending` are not spent by a tick
+             * and stay here, on the real click.
+             */
             SELFTEST_CHECK(player->tracked_count == 0 && player->tracked_player_count == 0,
                            "and forgets the entities on the old plane, got %d npc / %d player",
                            player->tracked_count, player->tracked_player_count);
             /* Plane change must not REBUILD_* — that reloads scenery from the
-             * cache and would wipe other-level dynamic locs (Inferno flanks).
-             * Zone catch-up resets so the new plane is FULL_FOLLOWSed. */
+             * cache and would wipe other-level dynamic locs (Inferno flanks). */
             SELFTEST_CHECK(player->rebuild_pending == 0,
                            "plane change must not queue a scene rebuild");
-            SELFTEST_CHECK(player->zone_index < 0,
-                           "and drops zone catch-up for the new plane");
-            SELFTEST_CHECK(player->place_dirty == 1,
-                           "and still forces an absolute PLAYER_INFO placement");
+            {
+                /* Back down to 0 first, so the direct call has a plane to
+                 * cross; the ladder above left the player upstairs. */
+                int arg = 1;
+
+                player->level = 0;
+                player->zone_index = 0;
+                player->place_dirty = 0;
+                if( mock230_scripts_run_proc(srv, "[proc,climb]", &arg, 1) )
+                {
+                    SELFTEST_CHECK(player->level == 1,
+                                   "~climb(1) called directly crosses a plane too, got %d",
+                                   player->level);
+                    /* Zone catch-up resets so the new plane is FULL_FOLLOWSed. */
+                    SELFTEST_CHECK(player->zone_index < 0,
+                                   "and drops zone catch-up for the new plane, got %d",
+                                   player->zone_index);
+                    SELFTEST_CHECK(player->place_dirty == 1,
+                                   "and still forces an absolute PLAYER_INFO placement");
+                }
+                player->level = 1;
+            }
 
             /* And the same ladder's other half. `laddertop` is filed under
-             * `climb_down` even though the cache states category 553 on it —
-             * 553 is not a name in pack/category.pack, and the importer refuses
-             * only over categories somebody has named. */
+             * `climb_down_ladder` even though the cache states category 553 on
+             * it — 553 is not a name in pack/category.pack, and the importer
+             * refuses only over categories somebody has named. */
             {
                 const int top = mock230_content_symbol(MOCK230_PACK_LOC, "laddertop");
                 const int climb_down =
-                    mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_down");
+                    mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_down_ladder");
+                const int crouch =
+                    mock230_content_symbol(MOCK230_PACK_SEQ, "human_pickupfloor");
+                int down_anim = -1;
 
                 SELFTEST_CHECK(top > 0 && climb_down > 0 &&
                                    mock230_loc_category(top) == climb_down,
-                               "laddertop reads climb_down (%d), got %d", climb_down,
+                               "laddertop reads climb_down_ladder (%d), got %d", climb_down,
                                top > 0 ? mock230_loc_category(top) : -1);
                 if( top > 0 && mock230_scene_find_loc(3229, 3224, 1, top) >= 0 )
                 {
                     payload[4] = (uint8_t)(top >> 8);
                     payload[5] = (uint8_t)top;
                     mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
-                    SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
-                                   "the walk to the ladder top should complete");
+                    for( int tick = 0; tick < 20; tick++ )
+                    {
+                        if( down_anim < 0 && player->anim_id > 0 )
+                            down_anim = player->anim_id;
+                        if( player->interaction.kind == MOCK230_INTERACT_NONE &&
+                            player->level != 1 )
+                            break;
+                        mock230_world_tick(srv);
+                        if( down_anim < 0 && player->anim_id > 0 )
+                            down_anim = player->anim_id;
+                    }
                     SELFTEST_CHECK(player->level == 0,
                                    "and climbing down comes back, got %d", player->level);
+                    /* The other anim, and the reason the direction is read
+                     * rather than one animation used for both: going down is a
+                     * crouch, not a reach. */
+                    SELFTEST_CHECK(crouch > 0 && down_anim == crouch,
+                                   "and plays human_pickupfloor (%d) going down, got %d",
+                                   crouch, down_anim);
                 }
             }
             /* Put the world back, so a section that fails here fails only here.
@@ -21718,6 +22418,134 @@ mock230_world_selftest(void)
             player->tracked_player_count = 0;
             mock230_world_steps_clear(player);
         }
+    }
+
+    /*
+     * A staircase answers the OPTION, not the tile it was clicked from.
+     *
+     * The ladder section above covers a one-verb loc, where "did the plane
+     * move" and "did it move the right way" are the same question. Lumbridge
+     * castle's own staircase is the case where they come apart, and it was
+     * wrong: `spiralstairsmiddle` states `op1=Climb`, `op2=Climb-up`,
+     * `op3=Climb-down`, and `~maplink_try` used to key on the player's tile
+     * alone. The wiki harvest keeps one verified row per tile — the other
+     * direction agreed with `~climb`'s ±1 default and was dropped as
+     * redundant — so the landing's two standing tiles each knew exactly one
+     * direction, and whichever it was answered BOTH ops. Standing on the west
+     * tile, Climb-down went up.
+     *
+     * The four middle-floor cases below are the whole grid: each of the two
+     * tiles, each of the two directions. Two of them passed before the `dir`
+     * column existed and are here to keep the fix from being "ignore the
+     * table" — the row still wins when it agrees with the op.
+     *
+     * The other two are `op2=Top-floor` / `op2=Bottom-floor`, the option that
+     * skips the landing entirely. Nothing in the reference names it (LostCity's
+     * `loc_1738`/`loc_1740` carry one climb verb each — the op is later than
+     * 2004), `tools/ladder_import.py` reads a direction out of a verb and put
+     * these records in `climb_up`/`climb_down` on the strength of op1, and the
+     * category binds ops 1-2 to the same ±1 — so "Top-floor" moved the player
+     * one floor, to the landing they had just asked to skip.
+     */
+    fprintf(stderr, "mock230 selftest: a staircase answers the op, not the tile\n");
+    {
+        const int middle = mock230_content_symbol(MOCK230_PACK_LOC, "spiralstairsmiddle");
+        const int bottom = mock230_content_symbol(MOCK230_PACK_LOC, "spiralstairsbottom_3");
+        const int top = mock230_content_symbol(MOCK230_PACK_LOC, "spiralstairstop_3");
+        /* Lumbridge castle's south staircase. The loc sits at 3204,3207 on
+         * every floor (2x2 on the lower two, 1x1 at the top, one tile north),
+         * and 3205,3209 / 3206,3208 are the two tiles the wiki harvest
+         * actually recorded a player standing on when the transport fired —
+         * which is why they are the two the table knows and the two that
+         * disagreed with each other. */
+        const struct
+        {
+            int loc;
+            int loc_x;
+            int loc_z;
+            int from_level;
+            int x;
+            int z;
+            int op;
+            const char* verb;
+            int want_level;
+            const char* what;
+        } k_stairs[] = {
+            { middle, 3204, 3207, 1, 3205, 3209, 2, "Climb-up", 2,
+              "Climb-up from the tile whose only row says down" },
+            { middle, 3204, 3207, 1, 3206, 3208, 3, "Climb-down", 0,
+              "Climb-down from the tile whose only row says up" },
+            { middle, 3204, 3207, 1, 3205, 3209, 3, "Climb-down", 0,
+              "Climb-down where the row agrees with the op" },
+            { middle, 3204, 3207, 1, 3206, 3208, 2, "Climb-up", 2,
+              "Climb-up where the row agrees with the op" },
+            { bottom, 3204, 3207, 0, 3205, 3209, 2, "Top-floor", 2,
+              "Top-floor from the ground floor skips the landing" },
+            { top, 3205, 3208, 2, 3205, 3209, 2, "Bottom-floor", 0,
+              "Bottom-floor from the top floor skips it going back" },
+        };
+
+        SELFTEST_CHECK(middle > 0 && bottom > 0 && top > 0,
+                       "pack/loc.pack should name the castle's three staircases: %d/%d/%d",
+                       middle, bottom, top);
+        for( size_t i = 0; i < sizeof(k_stairs) / sizeof(k_stairs[0]); i++ )
+        {
+            const int loc = k_stairs[i].loc;
+            int slot = loc > 0 ? mock230_scene_find_loc(k_stairs[i].loc_x, k_stairs[i].loc_z,
+                                                        k_stairs[i].from_level, loc)
+                               : -1;
+            const char* op_name = loc > 0 ? mock230_scene_loc_op(loc, k_stairs[i].op) : NULL;
+
+            SELFTEST_CHECK(slot >= 0, "%s: the staircase should be in the scene",
+                           k_stairs[i].what);
+            if( slot < 0 )
+                continue;
+
+            /* The op string is read off the record rather than assumed: a
+             * cache bump that moves "Top-floor" to another slot would
+             * otherwise leave this stanza asserting a plane change for an op
+             * nobody offers, which is a pass for the wrong reason. */
+            SELFTEST_CHECK(op_name && strcmp(op_name, k_stairs[i].verb) == 0,
+                           "%s: op %d should read %s, got %s", k_stairs[i].what, k_stairs[i].op,
+                           k_stairs[i].verb, op_name ? op_name : "(none)");
+
+            player->level = k_stairs[i].from_level;
+            player->x = k_stairs[i].x;
+            player->z = k_stairs[i].z;
+            player->place_dirty = 1;
+            player->rebuild_pending = 0;
+            mock230_world_steps_clear(player);
+            /* Run the trigger directly rather than over an OPLOC packet, for
+             * the reason the bank booth section states and one more: the walk
+             * is what decides WHICH of the two standing tiles the player is on
+             * when the op fires, and this stanza is about the two of them
+             * disagreeing. A router that picked its own approach tile would be
+             * choosing the test's input. The packet leg of a climb is already
+             * covered by the ladder section above.
+             *
+             * No `mock230_world_tick` either — a staircase, unlike a ladder,
+             * has no `p_delay` in front of it, so `p_teleport` lands inside the
+             * call. That also keeps the stanza off the shared roam RNG, which
+             * every section after this one reads. */
+            SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                               srv, SS_TRIGGER_OPLOC1 + (k_stairs[i].op - 1), loc,
+                               mock230_loc_category(loc), slot) == MOCK230_TRIGGER_RAN,
+                           "%s: the op should resolve to a script", k_stairs[i].what);
+            SELFTEST_CHECK(player->level == k_stairs[i].want_level, "%s: want plane %d, got %d",
+                           k_stairs[i].what, k_stairs[i].want_level, player->level);
+        }
+
+        /* Same restore the ladder section does, and for the same reason: the
+         * next section reads the entity streams and a staircase leaves the
+         * player on another plane. */
+        player->level = 0;
+        player->x = 3222;
+        player->z = 3218;
+        player->place_dirty = 1;
+        player->rebuild_pending = 0;
+        player->tracked_count = 0;
+        player->tracked_player_count = 0;
+        mock230_world_steps_clear(player);
     }
 
     /*
@@ -21869,30 +22697,57 @@ mock230_world_selftest(void)
          *
          * The number tracks the overlay and has to be re-read from it when doors
          * are authored — `grep -c '^category=door_closed$' doors.loc`. It was
-         * 382 when this was written and is 422 now; what it is defending is not
-         * the total but the *floor*, because an overlay that stopped being read
-         * answers 0 here and `validate_categories` would then call the name
-         * uncarried. Left as an equality rather than `> 0` so a half-loaded
-         * overlay — the failure that actually happens, a merge dropping one
-         * source file — is also caught, at the price of this line moving with
-         * the content. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 422,
-                       "and doors.loc states door_closed 422 times, got %d",
+         * 382 when this was written, then 422, and is 300 now: 61 clusters that
+         * the map squares place as TWO LEAVES of one door left for
+         * `doubledoors.loc` (57, as door_left_* / door_right_*) and for the gate
+         * counts below (4 long fence gates), taking two closed halves each. What
+         * it is defending is not the total but the *floor*, because an overlay
+         * that stopped being read answers 0 here and `validate_categories` would
+         * then call the name uncarried. Left as an equality rather than `> 0` so
+         * a half-loaded overlay — the failure that actually happens, a merge
+         * dropping one source file — is also caught, at the price of this line
+         * moving with the content. */
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 293,
+                       "and doors.loc states door_closed 293 times, got %d",
                        mock230_loc_category_members(door_closed));
         {
             int gate_main_closed =
                 mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_main_closed");
             int gate_outer_closed =
                 mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_outer_closed");
+            int door_left_closed =
+                mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_left_closed");
+            int door_right_closed =
+                mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_right_closed");
             SELFTEST_CHECK(gate_main_closed > 0 && gate_outer_closed > 0,
                            "pack/category.pack should name both fence-gate leaves: %d/%d",
                            gate_main_closed, gate_outer_closed);
-            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 5,
-                           "doors.loc states gate_main_closed 5 times, got %d",
+            /* 5 + the 4 that `tools/door_audit.py --suggest-double-leaf` found
+             * placed as long fence gates and wired as single doors (death,
+             * burgh, mourning_orchard, qip_sheep_shearer). */
+            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 9,
+                           "doors.loc states gate_main_closed 9 times, got %d",
                            mock230_loc_category_members(gate_main_closed));
-            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 5,
-                           "doors.loc states gate_outer_closed 5 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 9,
+                           "doors.loc states gate_outer_closed 9 times, got %d",
                            mock230_loc_category_members(gate_outer_closed));
+            /* And the other half of the same move: 6 clusters were already in
+             * doubledoors.loc, 57 joined them, then 5 more once `door_audit.py`
+             * stopped dropping angle-0 placements — a .jl2 omits the angle field
+             * when it is 0, which is a third of every placement in the tree, so
+             * the pairing scan could not see a door facing west. That last five
+             * is where the 10 that left `door_closed` above went: guidor,
+             * ogreguard, kr_church, arcquest_tower, elem2_mind. Then pass 3 of
+             * `--suggest-pairs` added 5 more door_closed pairs and moved one of
+             * them (kr_seers) here as well: 290 + 5 - 2 = 293, 68 + 1 = 69. A leaf that lost
+             * its side is a door that opens half way, which is what this whole
+             * rung exists to keep from happening silently. */
+            SELFTEST_CHECK(mock230_loc_category_members(door_left_closed) == 69,
+                           "doubledoors.loc states door_left_closed 69 times, got %d",
+                           mock230_loc_category_members(door_left_closed));
+            SELFTEST_CHECK(mock230_loc_category_members(door_right_closed) == 69,
+                           "doubledoors.loc states door_right_closed 69 times, got %d",
+                           mock230_loc_category_members(door_right_closed));
         }
 
         /* --- source 2, the cache's own config opcode 61 -------------------- */
@@ -22510,6 +23365,229 @@ mock230_world_selftest(void)
                                    big, dist, player->dest_x, player->dest_z, bx, bz, big,
                                    big);
                     steps_clear(player);
+
+                    /*
+                     * Attacking a big npc FROM UNDERNEATH IT.
+                     *
+                     * Players walk through npcs — only `blockwalk=all` stops
+                     * them — so standing inside a 5x5 boss's footprint is an
+                     * ordinary thing to be doing when you click Attack. The
+                     * route then has to leave the rect rather than approach it,
+                     * and the exclusive-rect target offers no tile the mover is
+                     * not already inside.
+                     *
+                     * Every cell of the footprint is tried, not just the middle:
+                     * the centre and the edges are different problems, and an
+                     * exit that works from one corner can fail from the far one.
+                     */
+                    {
+                        int inside_fail_x = -1;
+                        int inside_fail_z = -1;
+                        int inside_fail_dist = -1;
+                        int inside_no_route = 0;
+
+                        for( int ox = 0; ox < big; ox++ )
+                        {
+                            for( int oz = 0; oz < big; oz++ )
+                            {
+                                int d;
+
+                                selftest_park_player(srv, bx + ox, bz + oz);
+                                steps_clear(player);
+                                mock230_scene_npc_approach(big, &approach);
+                                mock230_world_walk_to_approach(srv, bx, bz, &approach);
+                                if( player->waypoint_index < 0 )
+                                    inside_no_route++;
+                                d = distance_to_rect(player->dest_x, player->dest_z, bx, bz,
+                                                     big, big);
+                                if( d != 1 && inside_fail_dist < 0 )
+                                {
+                                    inside_fail_x = bx + ox;
+                                    inside_fail_z = bz + oz;
+                                    inside_fail_dist = d;
+                                }
+                                steps_clear(player);
+                            }
+                        }
+
+                        SELFTEST_CHECK(inside_no_route == 0,
+                                       "a player standing inside a size-%d npc should still "
+                                       "get a route out to attack it; %d of %d cells queued "
+                                       "none",
+                                       big, inside_no_route, big * big);
+                        SELFTEST_CHECK(inside_fail_dist < 0,
+                                       "standing inside a size-%d npc, the attack route must "
+                                       "leave the footprint: from %d,%d it ended dist=%d from "
+                                       "rect %d,%d %dx%d (0 = still underneath it)",
+                                       big, inside_fail_x, inside_fail_z, inside_fail_dist,
+                                       bx, bz, big, big);
+                    }
+
+                    /*
+                     * The same, with the npc's back to a wall.
+                     *
+                     * The Queen Black Dragon stands at the north end of her
+                     * platform: part of her 5x5 footprint sits over tiles the
+                     * collision map blocks, and she is `nomove`, so she never
+                     * shuffles off them. A player under her then has to leave a
+                     * rect whose northern exits do not exist, and the route has
+                     * to find the southern ones instead of failing or aiming at
+                     * a tile it can never reach.
+                     *
+                     * The block is put down and taken up again around the check
+                     * so the shared scene is left as it was found.
+                     */
+                    {
+                        int blocked_fail_x = -1;
+                        int blocked_fail_z = -1;
+                        int blocked_fail_dist = -1;
+                        int blocked_no_route = 0;
+                        int const wall_z = bz + big - 1;
+
+                        for( int ox = -1; ox <= big; ox++ )
+                        {
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 1);
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z + 1, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 1);
+                        }
+
+                        for( int ox = 0; ox < big; ox++ )
+                        {
+                            for( int oz = 0; oz < big - 1; oz++ )
+                            {
+                                int d;
+
+                                selftest_park_player(srv, bx + ox, bz + oz);
+                                steps_clear(player);
+                                mock230_scene_npc_approach(big, &approach);
+                                mock230_world_walk_to_approach(srv, bx, bz, &approach);
+                                if( player->waypoint_index < 0 )
+                                    blocked_no_route++;
+                                d = distance_to_rect(player->dest_x, player->dest_z, bx, bz,
+                                                     big, big);
+                                if( d != 1 && blocked_fail_dist < 0 )
+                                {
+                                    blocked_fail_x = bx + ox;
+                                    blocked_fail_z = bz + oz;
+                                    blocked_fail_dist = d;
+                                }
+                                steps_clear(player);
+                            }
+                        }
+
+                        for( int ox = -1; ox <= big; ox++ )
+                        {
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 0);
+                            mock230_scene_change_occupancy(0, bx + ox, wall_z + 1, 1,
+                                                           COLL_FLAG_BLOCK_NPC_AND_PLAYERS, 0);
+                        }
+
+                        SELFTEST_CHECK(blocked_no_route == 0,
+                                       "a player under a size-%d npc whose far edge is walled "
+                                       "must still get a route out; %d cell(s) queued none",
+                                       big, blocked_no_route);
+                        SELFTEST_CHECK(blocked_fail_dist < 0,
+                                       "under a size-%d npc with its far edge walled, the "
+                                       "attack route must still leave the footprint: from "
+                                       "%d,%d it ended dist=%d (0 = still underneath)",
+                                       big, blocked_fail_x, blocked_fail_z, blocked_fail_dist);
+                    }
+
+                    /*
+                     * End to end, on the tick loop.
+                     *
+                     * The two checks above call `mock230_world_walk_to_approach`
+                     * once and read the destination it picks, which is only the
+                     * first half of the story: what the player actually does is
+                     * the per-tick repath in `mock230_combat_player_approach`,
+                     * re-aiming every tick while the mover steps. A destination
+                     * that is right once and re-picked wrongly every tick after
+                     * looks exactly like the reported symptom — a long pause and
+                     * then a walk to somewhere off to one side.
+                     *
+                     * The goblin stands in for the boss: the interaction carries
+                     * the footprint, so a 1x1 npc described as 5x5 exercises the
+                     * same geometry without needing a size-5 record here.
+                     */
+                    {
+                        int arrived = 0;
+                        int ticks = 0;
+                        int const start_x = bx + 2;
+                        int const start_z = bz + 2;
+
+                        mock230_world_npc_teleport(npc, bx, bz, 0);
+                        npc->next_roam_tick = srv->tick + 1000;
+                        /* The real boss stamps NPC_OCC over its whole footprint,
+                         * which a size-1 stand-in does not. Players do not read
+                         * that flag, so this should change nothing — stamping it
+                         * is how that "should" gets checked rather than assumed. */
+                        mock230_scene_change_occupancy(0, bx, bz, big, COLL_FLAG_NPC_OCC, 1);
+                        selftest_park_player(srv, start_x, start_z);
+                        steps_clear(player);
+                        mock230_world_interaction_set(srv, MOCK230_INTERACT_NPC, 1, goblin,
+                                                      npc->type, bx, bz, npc->level, big, big);
+                        player->interaction.ap_tried = 1;
+                        mock230_scene_npc_approach(big, &approach);
+                        mock230_world_walk_to_approach(srv, bx, bz, &approach);
+
+                        for( int t = 0; t < 24; t++ )
+                        {
+                            npc->next_roam_tick = srv->tick + 1000;
+                            mock230_world_tick(srv);
+                            if( distance_to_rect(player->x, player->z, bx, bz, big, big) == 1 )
+                            {
+                                arrived = 1;
+                                ticks = t + 1;
+                                break;
+                            }
+                        }
+
+                        SELFTEST_CHECK(arrived,
+                                       "a player starting UNDER a size-%d npc should walk out "
+                                       "and stand beside it within 24 ticks; ended at %d,%d "
+                                       "(dist %d from rect %d,%d %dx%d) having started at "
+                                       "%d,%d",
+                                       big, player->x, player->z,
+                                       distance_to_rect(player->x, player->z, bx, bz, big, big),
+                                       bx, bz, big, big, start_x, start_z);
+
+                        /*
+                         * WHERE it left, and HOW LONG it took.
+                         *
+                         * "Got out within 24 ticks" is satisfied by the random
+                         * cardinal step-off too — it wanders off the footprint
+                         * eventually — so on its own the check above cannot go
+                         * red for the thing this flag changes. Under
+                         * `under_target_routes_out` the answer is exact and
+                         * worth stating: dead centre of a 5x5 ties all four
+                         * faces at 3, and the W/E/S/N expansion order resolves
+                         * the tie WEST. Three tiles due west, so three ticks
+                         * walking or two running (2 + 1), never more.
+                         *
+                         * Left conditional rather than made unconditional: with
+                         * the flag off the random walk is the stated behaviour,
+                         * and a leg that failed for doing what its era asks
+                         * would be wrong about which of the two is the bug.
+                         */
+                        if( arrived && mock230_scene_features()->under_target_routes_out )
+                        {
+                            SELFTEST_CHECK(player->x == bx - 1 && player->z == start_z,
+                                           "routing out from the centre of a size-%d npc must "
+                                           "leave by the nearest face, west on a four-way tie: "
+                                           "expected %d,%d, got %d,%d",
+                                           big, bx - 1, start_z, player->x, player->z);
+                            SELFTEST_CHECK(ticks <= 3,
+                                           "routing out of a size-%d npc from dead centre is 3 "
+                                           "tiles, so 3 ticks walking or 2 running; took %d",
+                                           big, ticks);
+                        }
+                        mock230_scene_change_occupancy(0, bx, bz, big, COLL_FLAG_NPC_OCC, 0);
+                        mock230_world_interaction_clear_at(player);
+                        steps_clear(player);
+                    }
+
                     selftest_park_player(srv, save_x, save_z);
                     steps_clear(player);
                 }
@@ -22741,6 +23819,42 @@ mock230_world_selftest(void)
                        "and a line no debugproc claims falls through to the engine");
 
         /*
+         * `::run <percent>` — a *set*, built out of the only mutator content
+         * has, which is additive. The starting value is deliberately not a
+         * whole percent: `runenergy()` reports whole percent while the server
+         * stores hundredths, so a debugproc that computed its top-up from that
+         * reading would leave the remainder behind and land on 5037 here.
+         * Draining to the clamp first is what makes the write exact.
+         */
+        {
+            int saved_energy = player->run_energy;
+
+            player->run_energy = 3737;
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 50"),
+                           "::run should reach [debugproc,run]");
+            SELFTEST_CHECK(player->run_energy == 5000,
+                           "::run 50 is exactly half a bar, got %d", player->run_energy);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 100"),
+                           "::run 100 should run");
+            SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX,
+                           "::run 100 fills the bar, got %d", player->run_energy);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 0"),
+                           "::run 0 should run");
+            SELFTEST_CHECK(player->run_energy == 0,
+                           "::run 0 empties it, got %d", player->run_energy);
+
+            /* Out of range is refused rather than clamped, so a typo cannot
+             * silently mean "full". */
+            player->run_energy = 2500;
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 150"),
+                           "::run 150 should still dispatch");
+            SELFTEST_CHECK(player->run_energy == 2500,
+                           "and leave the bar alone, got %d", player->run_energy);
+
+            player->run_energy = saved_energy;
+        }
+
+        /*
          * `::~crystal_set`, through the actual CLIENT_CHEAT payload shape and
          * asserted on the worn container rather than on the return.
          *
@@ -22816,6 +23930,75 @@ mock230_world_selftest(void)
             /* Put the player back the way this section found him — see the
              * snapshot above for the two sections that were reading the
              * leftovers and what each one mis-reported because of it. */
+            memcpy(who->worn, worn_before, sizeof(worn_before));
+            memcpy(who->stat_level, level_before, sizeof(level_before));
+            memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
+        }
+
+        /*
+         * `::maxmelee`, `::maxrange`, `::maxmage` — same shape and the same
+         * restore obligation as `::~crystal_set` above (each also raises its
+         * combat stats to 99). One representative slot per style is enough to
+         * catch a missing, misspelled, or wrong-slot item; the full per-slot
+         * list is what OSRS-Content/.../cheat_max_gear.rs2 declares and the
+         * compile step already proves every gameval name in it resolves.
+         */
+        {
+            struct Mock230Player* who = &srv->players[0];
+            static const uint8_t cmd_melee[] = "~maxmelee\n";
+            static const uint8_t cmd_range[] = "~maxrange\n";
+            static const uint8_t cmd_mage[] = "~maxmage\n";
+            int torva_helm = mock230_content_symbol(MOCK230_PACK_OBJ, "torva_helm");
+            int scythe_of_vitur = mock230_content_symbol(MOCK230_PACK_OBJ, "scythe_of_vitur");
+            int twisted_bow = mock230_content_symbol(MOCK230_PACK_OBJ, "twisted_bow");
+            int masori_body_fortified =
+                mock230_content_symbol(MOCK230_PACK_OBJ, "masori_body_fortified");
+            int tumekens_shadow =
+                mock230_content_symbol(MOCK230_PACK_OBJ, "tumekens_shadow");
+            int ancestral_hat = mock230_content_symbol(MOCK230_PACK_OBJ, "ancestral_hat");
+            struct Mock230Item worn_before[MOCK230_WORN_SLOTS];
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+
+            memcpy(worn_before, who->worn, sizeof(worn_before));
+            memcpy(level_before, who->stat_level, sizeof(level_before));
+            memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
+
+            SELFTEST_CHECK(torva_helm > 0 && scythe_of_vitur > 0 && twisted_bow > 0 &&
+                               masori_body_fortified > 0 && tumekens_shadow > 0 &&
+                               ancestral_hat > 0,
+                           "the max-gear items must resolve through the pack");
+
+            handle_cheat(srv, cmd_melee, (int)sizeof(cmd_melee) - 1);
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == torva_helm,
+                           "::~maxmelee equips the Torva helm");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == scythe_of_vitur,
+                           "::~maxmelee equips the scythe of vitur");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "::~maxmelee clears the shield slot for its two-handed weapon");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_STRENGTH] == 99,
+                           "::~maxmelee raises its own equip requirements");
+
+            handle_cheat(srv, cmd_range, (int)sizeof(cmd_range) - 1);
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == twisted_bow,
+                           "::~maxrange equips the twisted bow");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_BODY].obj_id == masori_body_fortified,
+                           "::~maxrange equips the fortified Masori body");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "::~maxrange clears the shield slot for its two-handed weapon");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_RANGED] == 99,
+                           "::~maxrange raises its own equip requirements");
+
+            handle_cheat(srv, cmd_mage, (int)sizeof(cmd_mage) - 1);
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == tumekens_shadow,
+                           "::~maxmage equips Tumeken's shadow");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == ancestral_hat,
+                           "::~maxmage equips the ancestral hat");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "::~maxmage clears the shield slot for its two-handed weapon");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_MAGIC] == 99,
+                           "::~maxmage raises its own equip requirements");
+
             memcpy(who->worn, worn_before, sizeof(worn_before));
             memcpy(who->stat_level, level_before, sizeof(level_before));
             memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
@@ -22930,6 +24113,132 @@ mock230_world_selftest(void)
                                suggest[0],
                            "an ambiguous substring refuses and names candidates: '%s'",
                            suggest);
+
+            memcpy(who->inv, inv_before, sizeof(inv_before));
+            mock230_container_mark_all(
+                mock230_container_resolve(srv, who, mock230_ids()->inv_backpack));
+        }
+
+        /*
+         * `::maxstats` and `::jas`, which share one skill list in
+         * general/scripts/misc/cheat_xp.rs2 and differ only in the boost.
+         *
+         * Asserted over every skill rather than a representative one, because
+         * the failure this guards against is a skill *missing* from the list —
+         * a compile proves each name in it resolves, and nothing proves the
+         * list is complete. Sailing is skipped on purpose: it is a protocol
+         * slot in this tree, not a trainable skill, and the content says so.
+         *
+         * The two are checked apart because `stat_base` and `stat` answer
+         * differently after each, and that difference is the point of having
+         * both: `::maxstats` leaves an account a real player could hold, `::jas`
+         * pushes the boosted level to the byte ceiling.
+         *
+         * Same restore obligation as `::~crystal_set` above — a 99-everything
+         * player does not aggress low-level npcs, and later sections depend on
+         * the levels this section found.
+         */
+        {
+            struct Mock230Player* who = srv->active_player;
+            static const uint8_t cmd_maxstats[] = "~maxstats\n";
+            static const uint8_t cmd_jas[] = "~jas\n";
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+            int xp_before[MOCK230_STAT_COUNT];
+            int unmaxed = -1;
+            int unboosted = -1;
+
+            memcpy(level_before, who->stat_level, sizeof(level_before));
+            memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
+            memcpy(xp_before, who->stat_xp_tenths, sizeof(xp_before));
+
+            handle_cheat(srv, cmd_maxstats, (int)sizeof(cmd_maxstats) - 1);
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                if( i == MOCK230_STAT_SAILING )
+                    continue;
+                if( who->stat_level[i] != 99 || who->stat_boosted[i] != 99 )
+                    unmaxed = i;
+            }
+            SELFTEST_CHECK(unmaxed < 0,
+                           "::~maxstats takes every skill to a base 99 with no boost "
+                           "on top; stat %d is %d/%d",
+                           unmaxed,
+                           unmaxed < 0 ? 99 : who->stat_boosted[unmaxed],
+                           unmaxed < 0 ? 99 : who->stat_level[unmaxed]);
+
+            handle_cheat(srv, cmd_jas, (int)sizeof(cmd_jas) - 1);
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                if( i == MOCK230_STAT_SAILING )
+                    continue;
+                if( who->stat_level[i] != 99 || who->stat_boosted[i] != 255 )
+                    unboosted = i;
+            }
+            SELFTEST_CHECK(unboosted < 0,
+                           "::~jas boosts the same list to the 255 byte ceiling over a "
+                           "base 99; stat %d is %d/%d",
+                           unboosted,
+                           unboosted < 0 ? 255 : who->stat_boosted[unboosted],
+                           unboosted < 0 ? 99 : who->stat_level[unboosted]);
+
+            memcpy(who->stat_level, level_before, sizeof(level_before));
+            memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
+            memcpy(who->stat_xp_tenths, xp_before, sizeof(xp_before));
+        }
+
+        /*
+         * `::runes [count]`.
+         *
+         * Every rune in the list is asserted, and for the same reason the stat
+         * check above walks every skill: the compile proves each gameval in
+         * `cheat_runes.rs2` resolves, so the only failure left is a rune the
+         * list forgot — which no compile and no spot-check can see. The count
+         * is asserted too, since a missing argument defaulting to 0 would add
+         * nothing and still leave every name resolving.
+         *
+         * The backpack is cleared first: 22 runes need 22 of 28 slots, so a
+         * section that ran with items in hand would fail on inventory space
+         * rather than on the cheat.
+         */
+        {
+            struct Mock230Player* who = srv->active_player;
+            static const char* const rune_names[] = {
+                "airrune",   "waterrune",  "earthrune",  "firerune",
+                "mistrune",  "dustrune",   "mudrune",    "smokerune",
+                "steamrune", "lavarune",   "mindrune",   "bodyrune",
+                "cosmicrune", "chaosrune", "naturerune", "lawrune",
+                "deathrune", "bloodrune",  "soulrune",   "astralrune",
+                "wrathrune", "sunfirerune",
+            };
+            static const uint8_t cmd_runes[] = "~runes 500\n";
+            struct Mock230Item inv_before[MOCK230_INV_SLOTS];
+            const char* missing = NULL;
+            int missing_count = -1;
+
+            memcpy(inv_before, who->inv, sizeof(inv_before));
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(who, i, -1, 0);
+
+            handle_cheat(srv, cmd_runes, (int)sizeof(cmd_runes) - 1);
+            for( size_t r = 0; r < sizeof(rune_names) / sizeof(rune_names[0]); r++ )
+            {
+                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, rune_names[r]);
+                int total = 0;
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( obj > 0 && who->inv[i].obj_id == obj )
+                        total += who->inv[i].count;
+                if( total != 500 )
+                {
+                    missing = rune_names[r];
+                    missing_count = total;
+                }
+            }
+            SELFTEST_CHECK(!missing,
+                           "::~runes 500 puts 500 of every castable rune in the "
+                           "backpack; %s is %d",
+                           missing ? missing : "-", missing_count);
 
             memcpy(who->inv, inv_before, sizeof(inv_before));
             mock230_container_mark_all(
@@ -23400,6 +24709,44 @@ mock230_world_selftest(void)
          * `::gearrun` stops at the first broken assertion, so "no FAIL was
          * printed" is also what a script that aborted on line one produces.
          */
+        /*
+         * The Old School Tormented Demon contract (`::tdtest`,
+         * bosses/boss_tormented_demons/scripts/td_selftest.rs2).
+         *
+         * Unlike ::gearrun this is default-on: the script spawns one demon
+         * beside the player, drives its state machine by calling the procs
+         * with explicit arguments, and deletes the demon again. It equips
+         * nothing, raises no stat and writes no player varp outside its own
+         * `%td_*` temporaries, so nothing after it reads a changed player.
+         *
+         * Asserted on the PASS line, not on the absence of FAIL, for the same
+         * reason the gear stanza is: a script that aborted on line one also
+         * prints no failures.
+         */
+        {
+            static struct Mock230Capture tdtest_capture;
+            int td_said_pass = 0;
+
+            mock230_capture_begin(srv, &tdtest_capture);
+            mock230_scripts_run_debugproc(srv, "tdtest");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&tdtest_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&tdtest_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &tdtest_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tdtest PASS") != NULL )
+                    td_said_pass = 1;
+                else if( strstr(text, "tdtest FAIL") != NULL || strstr(text, "tdtest:") != NULL )
+                    fprintf(stderr, "  %s\n", text);
+            }
+            SELFTEST_CHECK(td_said_pass, "::tdtest should reach its PASS line");
+        }
+
         {
             static struct Mock230Capture gearrun_capture;
             int said_ok = 0;
@@ -24416,7 +25763,7 @@ mock230_world_selftest(void)
             int saw_com1 = 0;
             int saw_com2 = 0;
 
-            mock230_container_unbind(player, component);
+            mock230_container_unbind(srv, player, component);
             mock230_container_clean(row);
             SELFTEST_CHECK(row->listener_count == 0, "unbound before dual bind");
 
@@ -24462,7 +25809,7 @@ mock230_world_selftest(void)
                            "(com1=%d com2=%d)",
                            full_for_com1, full_for_com2);
 
-            SELFTEST_CHECK(mock230_container_unbind(player, component2) == 1,
+            SELFTEST_CHECK(mock230_container_unbind(srv, player, component2) == 1,
                            "stoptransmit drops only the named listener");
             SELFTEST_CHECK(row->listener_count == 1 && row->listeners[0].component == component,
                            "first listener survives the unbind");
@@ -24510,7 +25857,7 @@ mock230_world_selftest(void)
                 mock230_container_bind(srv, player, mock230_ids()->inv_worn, wornitems);
                 mock230_container_bind(srv, player, mock230_ids()->inv_worn, stats_com);
                 SELFTEST_CHECK(worn->listener_count == 2, "worn has dual listeners");
-                mock230_container_unbind(player, stats_com);
+                mock230_container_unbind(srv, player, stats_com);
                 SELFTEST_CHECK(worn->listener_count == 1 &&
                                    worn->listeners[0].component == wornitems,
                                "closing equipment stats leaves wornitems bound");
@@ -24545,7 +25892,7 @@ mock230_world_selftest(void)
             }
         }
 
-        mock230_container_unbind(player, component);
+        mock230_container_unbind(srv, player, component);
         mock230_container_forget(player, inv_collection);
     }
 
@@ -25162,6 +26509,165 @@ mock230_world_selftest(void)
                            "gen %d->%d, %d ticks after death (respawnrate %d)",
                            npc->active, npc->respawn_tick, generation, npc->generation,
                            waited, rate);
+        }
+    }
+
+    /*
+     * `::spawn <npc_name|id> [count]`, the npc half of `::give`.
+     *
+     * The resolver rungs are asserted directly because the command can only
+     * show the outcome, and the outcome of a *wrong* answer here is an npc —
+     * something that looks like it worked. The spawn itself is asserted through
+     * the same CLIENT_CHEAT payload shape the client sends.
+     *
+     * Placed immediately before the reset below on purpose: this stanza puts an
+     * npc in the pool, and the pool is shared with every section after it (see
+     * the note on `selftest_reset_world` — a spawning stanza can silently re-aim
+     * a section a thousand lines away). The free plus that reset ends its blast
+     * radius.
+     */
+    fprintf(stderr, "mock230 selftest: ::spawn\n");
+    {
+        static const uint8_t spawn_goblin[] = "~spawn goblin\n";
+        static const uint8_t spawn_unknown[] = "~spawn nosuchnpcname\n";
+        int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+        char suggest[256];
+        int before = 0;
+        int after = 0;
+        int found = -1;
+
+        SELFTEST_CHECK(goblin > 0, "`goblin` must be in the npc pack for ::spawn's checks");
+
+        SELFTEST_CHECK(cheat_npc_from_name("goblin", NULL, 0) == goblin,
+                       "::spawn resolves a gameval to the id the pack holds");
+        SELFTEST_CHECK(cheat_npc_from_name("Goblin", NULL, 0) == goblin,
+                       "a display spelling underscores to the same answer");
+        SELFTEST_CHECK(cheat_npc_from_name("3028", NULL, 0) == 3028,
+                       "a bare id is still an id");
+        /*
+         * A substring several gamevals carry (`wilderness_hill_giant`, `2`, `3`)
+         * and no record is *named*, which is what makes it reach the last rung
+         * at all: `hill_giant` does not, because a cache record spelled "Hill
+         * Giant" answers it exactly one rung earlier. Guarded on nothing being
+         * spelled this way exactly, so a later rename turns it into a skip
+         * rather than a false failure.
+         */
+        suggest[0] = '\0';
+        if( mock230_content_symbol(MOCK230_PACK_NPC, "wilderness_hill") < 0 )
+            SELFTEST_CHECK(
+                cheat_npc_from_name("wilderness_hill", suggest, sizeof(suggest)) < 0 &&
+                    suggest[0],
+                "an ambiguous substring refuses and names candidates: '%s'", suggest);
+
+        handle_cheat(srv, spawn_goblin, (int)sizeof(spawn_goblin) - 1);
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[i];
+
+            if( npc->active && npc->type == goblin && npc->x == player->x + 1 &&
+                npc->z == player->z + 1 && npc->level == player->level )
+                found = i;
+        }
+        SELFTEST_CHECK(found >= 0,
+                       "::~spawn goblin puts npc %d beside the player at %d,%d", goblin,
+                       player->x + 1, player->z + 1);
+        if( found >= 0 )
+        {
+            /* One instance and not a fixture: the world respawns what it owns,
+             * so a `::spawn` that left this at 0 would stand back up
+             * `respawnrate` ticks after the tester killed it. */
+            SELFTEST_CHECK(srv->npcs[found].despawns_on_death,
+                           "a ::spawn npc dies for good rather than respawning");
+            mock230_world_npc_free(srv, found);
+        }
+
+        /* A name nothing carries spawns nothing — the same bar `::give` sets:
+         * a cheat that silently produces the wrong thing is worse than one that
+         * refuses. */
+        before = 0;
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            if( srv->npcs[i].active )
+                before++;
+        handle_cheat(srv, spawn_unknown, (int)sizeof(spawn_unknown) - 1);
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            if( srv->npcs[i].active )
+                after++;
+        SELFTEST_CHECK(after == before, "an unknown npc name spawns nothing, %d -> %d",
+                       before, after);
+    }
+
+    /*
+     * A one-blow melee kill still turns the player toward what it killed.
+     *
+     * FACE_ENTITY is derived once per turn by `mock230_player_set_face_entity`
+     * (LostCity `PathingEntity.setFaceEntity`, the only writer of the field in
+     * either engine), and the masks are flushed once, at the end of the turn.
+     * So a disengage that runs *after* that derivation and writes the field
+     * itself does not add a release — it replaces the latch, and the client is
+     * told nothing except "face nobody". The player killed the npc without ever
+     * looking at it. Any fight lasting two turns hid it completely, because the
+     * first turn had already shipped the latch.
+     *
+     * The kill has to land after the derivation for this to bite, and a melee
+     * one-shot does: `handle_opnpc` dispatches the op from the packet phase, so
+     * the swing is already in flight when the turn starts. A long fight instead
+     * dies on queued damage that phase_npcs drains *before* the player's turn,
+     * which is why the fight stanza above asserts the opposite and both are
+     * right. Written without ticking, so the shared roam RNG does not move and
+     * the accuracy roll cannot make it flaky: the two calls below are the two
+     * halves of one turn, in the order phase_player makes them.
+     *
+     * Its own npc, freed straight away, and immediately before the reset below
+     * — see the `::spawn` note above on what a stanza that touches the pool
+     * costs the sections after it.
+     */
+    fprintf(stderr, "mock230 selftest: a one-blow kill still ships the turn\n");
+    {
+        int slot = npc_spawn(srv, 3028, g_home_x + 9, g_home_z + 9, 0);
+
+        SELFTEST_CHECK(slot >= 0, "the fixture npc should spawn");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+
+            selftest_park_player(srv, npc->x + 1, npc->z);
+            player->face_entity = -1;
+            player->masks = 0;
+
+            /* Top of the turn: phase_player derives the latch from the target
+             * the packet phase engaged. */
+            mock230_combat_engage(srv, slot);
+            mock230_player_set_face_entity(player);
+            SELFTEST_CHECK(player->face_entity == slot &&
+                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "the turn's derivation latches the target, got %d mask %s",
+                           player->face_entity,
+                           (player->masks & MOCK230_PMASK_FACE_ENTITY) ? "set" : "clear");
+
+            /* Later in the same turn: the blow, and the whole death path with
+             * it — `[ai_queue3]`, the mode reset and the disengage that used to
+             * take the latch with it. */
+            mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+            SELFTEST_CHECK(npc->hitpoints == 0, "one blow should empty the bar, got %d",
+                           npc->hitpoints);
+            SELFTEST_CHECK(player->combat_target == -1, "and end the fight");
+            SELFTEST_CHECK(player->face_entity == slot &&
+                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and leave the turn's latch alone, so the turn is what "
+                           "goes out — got %d", player->face_entity);
+
+            /* The turn after: the release, derived rather than written by the
+             * death, and carrying its own mask. */
+            player->masks = 0;
+            mock230_player_set_face_entity(player);
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "the next turn derives the release, got %d",
+                           player->face_entity);
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and says so on the wire — a release nobody sends is a "
+                           "release that never happens");
+
+            mock230_world_npc_free(srv, slot);
         }
     }
 
@@ -31448,6 +32954,107 @@ mock230_world_selftest(void)
                         j->active = 0;
                     }
                 }
+
+                /*
+                 * And the glyph dwells at each end of its row before turning
+                 * around, rather than reversing the instant it arrives.
+                 *
+                 * `inferno_glyph.rs2` counts `%inferno_glyph_stopped` up from
+                 * the tick it stops moving and only reverses once that passes
+                 * `^inferno_glyph_pause` — the same counter and the same
+                 * `[ai_timer]` the drop/ready waits above already exercise,
+                 * just the branch neither of those stanzas drives far enough
+                 * to reach. `::zukstill 3` gives it a live timer
+                 * (`npc_settimer(1)`) from its real spawn tile, so this walks
+                 * the whole path drop -> run -> row -> west end -> reversal
+                 * exactly as the live fight does, and finds the plateau
+                 * itself rather than assuming a tile number for the west end.
+                 *
+                 * Confirmed against the real fight independently of this
+                 * port: RuneLite's Inferno plugin infers the same 4-tick
+                 * dwell from live packets (`zukShieldTicksLeftInCorner = 4`
+                 * the tick the shield's position delta goes from zero back to
+                 * nonzero), which is where `^inferno_glyph_pause`'s value of
+                 * 4 comes from.
+                 */
+                {
+                    int const budget = 120;
+                    int xs[120];
+                    int zs[120];
+                    int n = 0;
+                    int pause_const = mock230_content_constant_int("inferno_glyph_pause", -1);
+                    int arrival = -1;
+                    int dwell = -1;
+                    int strayed = 0;
+
+                    selftest_reset_world(srv, player, 402, 402);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill 3"),
+                                   "::zukstill 3 should stage a live glyph for the pause "
+                                   "fixture");
+                    SELFTEST_CHECK(pause_const > 0,
+                                   "inferno_glyph_pause should resolve to a positive constant, "
+                                   "got %d",
+                                   pause_const);
+
+                    for( int tick = 0; tick < budget; tick++ )
+                    {
+                        int glyph_slot;
+
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL,
+                                                 0);
+                        mock230_world_tick(srv);
+                        glyph_slot = selftest_find_npc(srv, glyph_type);
+                        if( glyph_slot >= 0 )
+                        {
+                            xs[n] = srv->npcs[glyph_slot].x;
+                            zs[n] = srv->npcs[glyph_slot].z;
+                            n++;
+                        }
+                    }
+
+                    for( int i = 1; i + 1 < n; i++ )
+                    {
+                        if( xs[i] < xs[i - 1] && xs[i] == xs[i + 1] )
+                        {
+                            int j = i;
+
+                            while( j + 1 < n && xs[j + 1] == xs[i] )
+                                j++;
+                            if( j + 1 < n && xs[j + 1] > xs[i] )
+                            {
+                                arrival = i;
+                                dwell = j - i + 1;
+                                break;
+                            }
+                        }
+                    }
+                    /* Only checked from the tick horizontal movement starts:
+                     * before that the glyph is still walking south from its
+                     * spawn tile onto the row, which is a z change by design,
+                     * not straying off the row it walks once it gets there. */
+                    {
+                        int on_row = -1;
+
+                        for( int i = 1; i < n && on_row < 0; i++ )
+                        {
+                            if( xs[i] != xs[0] )
+                                on_row = i;
+                        }
+                        for( int i = on_row; i >= 0 && i < n; i++ )
+                            strayed |= zs[i] != zs[on_row];
+                    }
+
+                    SELFTEST_CHECK(arrival >= 0,
+                                   "the glyph should reach the west end of its row and turn "
+                                   "around within %d ticks of ::zukstill 3",
+                                   budget);
+                    SELFTEST_CHECK(!strayed, "and never leave its row while doing it");
+                    SELFTEST_CHECK(dwell == pause_const,
+                                   "the glyph should dwell at the end for "
+                                   "inferno_glyph_pause (%d) ticks before reversing, got %d",
+                                   pause_const, dwell);
+                }
             }
         }
         mock230_scripts_free(srv);
@@ -32656,6 +34263,35 @@ mock230_world_selftest(void)
                 }
 
                 /*
+                 * The head-down pose must cover the whole fire-wall cast.
+                 *
+                 * 16746 is a one-shot: content cannot loop a sequence, so the
+                 * pose is held by re-asserting it as it ends. A three-wave cast
+                 * runs to `3 + 2 * spacing` ticks while the animation is only
+                 * `anim_ticks`, and the three scheduled re-assertions plus the
+                 * initial play cover `4 * anim_ticks`. Retuning the wave spacing
+                 * without retuning the hold would put her back on her feet with
+                 * walls still to come — visible, and nothing else would say so.
+                 */
+                {
+                    int const anim_ticks =
+                        mock230_content_constant_int("rs2012_qbd_wall_anim_ticks", -1);
+                    int const spacing =
+                        mock230_content_constant_int("rs2012_qbd_wall_wave_spacing", -1);
+                    int const last_wave = 3 + 2 * spacing;
+
+                    SELFTEST_CHECK(anim_ticks > 0 && spacing > 0,
+                                   "the wall pose constants should be stated, got anim=%d "
+                                   "spacing=%d",
+                                   anim_ticks, spacing);
+                    SELFTEST_CHECK(4 * anim_ticks >= last_wave,
+                                   "the wall breath pose covers %d ticks (4 x %d) but a "
+                                   "three-wave cast runs to tick %d — she stands back up "
+                                   "before the last wall spawns",
+                                   4 * anim_ticks, anim_ticks, last_wave);
+                }
+
+                /*
                  * The grotworm's three stages must not overlap.
                  *
                  * `rs2012_qbd_spot_3141` (flying) and `3142` (landing) are both
@@ -32673,7 +34309,7 @@ mock230_world_selftest(void)
                     int const flight =
                         mock230_content_constant_int("rs2012_qbd_worm_flight_cycles", -1);
                     int const landing =
-                        mock230_content_constant_int("rs2012_qbd_worm_landing_shown_cycles", -1);
+                        mock230_content_constant_int("rs2012_qbd_worm_landing_cycles", -1);
                     int const hatch =
                         mock230_content_constant_int("rs2012_qbd_worm_hatch_delay", -1);
 
@@ -32681,12 +34317,19 @@ mock230_world_selftest(void)
                                    "the worm stage constants should all be stated, got "
                                    "flight=%d landing=%d hatch=%d",
                                    flight, landing, hatch);
-                    SELFTEST_CHECK(hatch * 30 == flight + landing,
-                                   "the worm hatch (%d ticks = %d cycles) must follow the "
-                                   "flight plus the shown landing (%d + %d = %d), or the "
-                                   "animation and the npc overlap by more than the one tick "
-                                   "of tail that is cut on purpose",
+                    SELFTEST_CHECK(hatch * 30 >= flight + landing,
+                                   "the worm hatch (%d ticks = %d cycles) must not land "
+                                   "before the landing animation ends (flight %d + landing "
+                                   "%d = %d), or the animation and the npc are two worms",
                                    hatch, hatch * 30, flight, landing, flight + landing);
+                    /* One tick of daylight is the intent; more than that and the
+                     * tile sits empty long enough to read as a dropped spawn
+                     * rather than as a beat between the effect and the npc. */
+                    SELFTEST_CHECK(hatch * 30 <= flight + landing + 30,
+                                   "the worm hatch (%d cycles) should follow the landing "
+                                   "(%d) by at most one tick, got a %d-cycle gap",
+                                   hatch * 30, flight + landing,
+                                   hatch * 30 - (flight + landing));
                 }
 
                 /*
@@ -32911,6 +34554,60 @@ mock230_world_selftest(void)
                     }
                 }
 
+                /*
+                 * Her death must OUTLIVE the retype that ends it.
+                 *
+                 * She has no `death_anim` — the check above asserts that — so
+                 * her one death animation is `rs2012_seq_16742` (return to
+                 * sleep), played by content when the fourth artefact is
+                 * restored, and the retype to the sleeping form is the same
+                 * event, and doing both on one tick rendered as no death at
+                 * all: the client discarded the transient animation on retype
+                 * and the wire writes the SEQUENCE block BEFORE the
+                 * TRANSFORMATION block of the same packet, so the animation was
+                 * set and thrown away before a frame of it was drawn. That
+                 * client half is fixed (`World_NpcSetType` in world.c — a
+                 * transmog does not touch `primaryAnim` in the reference
+                 * either), which is what makes a one-shot survive a retype at
+                 * all. This half is the content one, and it is not redundant:
+                 * she is meant to spend those nine seconds settling as the
+                 * awake form, exactly as the wake already defers its own swap
+                 * for 16714.
+                 *
+                 * Two things are pinned. The deferral must EXIST as a script —
+                 * collapsing it back into the restoration proc is the specific
+                 * regression, and it deletes this queue. And the delay must
+                 * still bracket the animation: 16742 is 456 cache frame-length
+                 * cycles at this engine's 20ms/cycle (see RS2012_QBD_TD.md
+                 * §5.2) = 9.12s = 15.2 real ticks. Short of 15 truncates a
+                 * visibly-moving tail; past 16 she finishes the one-shot,
+                 * reverts to her AWAKE idle for half a second, and only then
+                 * falls asleep — which reads as a second, later snap.
+                 */
+                if( srv->scripts_ok )
+                {
+                    int const stored =
+                        mock230_content_constant_int("rs2012_qbd_sleep_anim_ticks", -1);
+                    /* SS_OP_QUEUE stores delay+1 and the drain pre-decrements
+                     * before firing, so `queue(_, N)` waits N+1 real ticks. */
+                    int const real = stored + 1;
+
+                    SELFTEST_CHECK(
+                        SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_sleep]") != NULL,
+                        "the QBD retype to her sleeping form must stay deferred in "
+                        "[queue,rs2012_qbd_sleep]; retyping on the cast tick erases her "
+                        "return-to-sleep animation before the client draws a frame of it");
+                    SELFTEST_CHECK(stored >= 0,
+                                   "^rs2012_qbd_sleep_anim_ticks must be declared, got %d",
+                                   stored);
+                    SELFTEST_CHECK(stored < 0 || (real >= 15 && real <= 16),
+                                   "the deferred QBD retype waits %d real tick(s); "
+                                   "rs2012_seq_16742 is 456 cycles = 15.2 ticks, so this "
+                                   "must be 15 or 16 or her death is cut short (or ends in "
+                                   "her awake idle)",
+                                   real);
+                }
+
                 /* The ordinary production-shaped debug command remains gated.
                  * The manifest command bypasses only that check and does not
                  * turn the QA account into a level-60 Summoner. */
@@ -32965,6 +34662,8 @@ mock230_world_selftest(void)
                                "QBD entry should arm one lifecycle, two opening queues and HUD; "
                                "got %d/%d/%d",
                                timer_count, queue_count, hud_mounts);
+
+
 
                 /* Stand in for victory's permanent reward handoff, then move
                  * through the engine's ordinary teleport seam. The soft timer
@@ -33514,6 +35213,341 @@ mock230_world_selftest(void)
                     player->max_hitpoints = saved_max_hp;
                     player->stat_level[MOCK230_STAT_HITPOINTS] = saved_hp_level;
                     player->stat_boosted[MOCK230_STAT_HITPOINTS] = saved_hp_boost;
+                }
+            }
+
+            /*
+             * ------------------------------------------------------------------
+             * NPC LIFECYCLE UNDER DAMAGE
+             * ------------------------------------------------------------------
+             *
+             * One claim, written as an invariant rather than as a scenario:
+             * **a hit lands on the npc it was aimed at, and on no other,
+             * however many npcs spawn, despawn, die or respawn on the same
+             * tick.**
+             *
+             * It has to be an invariant because the ways it breaks do not look
+             * like each other from in front of the game. "The boss took no
+             * damage that hit", "a monster spawned already hurt", "something
+             * died to a hit I never landed" and "my hitsplat appeared on the
+             * wrong thing" are all the same defect seen from different sides,
+             * and each one on its own reads as a one-off.
+             *
+             * What makes the class possible is that a hit is not instantaneous.
+             * `npc_queue(2, $damage, $delay)` is how every melee, ranged, magic
+             * and special path in the tree delivers damage (combat_stats.rs2 ->
+             * `[ai_queue2,_]` -> `~npc_default_damage`), so between the swing
+             * and the splat there is at least one tick boundary — and a tick
+             * boundary is exactly where npcs are freed, reaped and respawned.
+             * Any state that survives that boundary when it should not is a hit
+             * arriving at the wrong npc.
+             *
+             * Two parts, and they look for different things:
+             *
+             *  A. A soak. Spawns, timed despawns, frees, direct hits and queued
+             *     hits, several per tick, on a fixed schedule. It carries a
+             *     shadow model of what every tracked npc should be holding and
+             *     compares after every tick — plus one global check that needs
+             *     no model at all: an npc whose uid was not live before this
+             *     tick has existed for zero ticks, so it must be at full
+             *     hitpoints. That check is what catches damage landing on a
+             *     stranger, whoever the stranger turns out to be.
+             *
+             *  B. The one interleave a soak reaches only by luck, so it is
+             *     spelled out: a hit still in flight when its target dies.
+             */
+            {
+                int chicken_type = mock230_content_symbol(MOCK230_PACK_NPC, "chicken");
+                int splat_damage =
+                    mock230_content_symbol(MOCK230_PACK_HITSPLAT, "hitsplat_damage");
+
+                selftest_reset_world(srv, player, 402, 402);
+                selftest_park_player(srv, player->x, player->z);
+
+                SELFTEST_CHECK(chicken_type > 0 && splat_damage >= 0,
+                               "the lifecycle harness needs `chicken` and "
+                               "`hitsplat_damage` to resolve, got %d and %d",
+                               chicken_type, splat_damage);
+                if( chicken_type > 0 && splat_damage >= 0 )
+                {
+                    enum
+                    {
+                        HARNESS_TRACK = 12,
+                        HARNESS_TICKS = 40
+                    };
+                    /* 4096 slots of uid; static rather than a 16 KB frame on a
+                     * function that is already the largest in the file. */
+                    static int32_t prev_uid[MOCK230_NPC_MAX];
+                    struct
+                    {
+                        int32_t uid;
+                        int slot;
+                        int expect_hp;
+                        /* The tick this npc was made on. The harness does not
+                         * hit an npc on its birth batch — a swing cannot reach
+                         * something that did not exist when it was thrown, and
+                         * without the gate the harness trips its own
+                         * "nothing born this tick has been hit" check. */
+                        int born_tick;
+                    } track[HARNESS_TRACK];
+                    int tracked = 0;
+                    uint32_t rng = 0x9e3779b9u;
+                    int did_spawn = 0;
+                    int did_free = 0;
+                    int did_direct = 0;
+                    int did_queued = 0;
+                    int born_hurt = 0;
+                    int32_t born_hurt_uid = 0;
+                    int born_hurt_type = 0;
+                    int born_hurt_hp = 0;
+                    int born_hurt_max = 0;
+                    int mismatches = 0;
+                    int32_t mismatch_uid = 0;
+                    int mismatch_want = 0;
+                    int mismatch_got = 0;
+                    int base_x = player->x + 3;
+                    int base_z = player->z + 3;
+
+                    /*
+                     * A. The soak.
+                     */
+                    for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+                        prev_uid[slot] = selftest_npc_uid(srv, slot);
+
+                    for( int tick = 0; tick < HARNESS_TICKS; tick++ )
+                    {
+                        int ops = 3 + selftest_lcg(&rng, 3);
+
+                        /*
+                         * Everything in this batch happens between two ticks,
+                         * which is the server's own definition of "at the same
+                         * time": the whole batch is visible to the next
+                         * `mock230_world_tick` as one instant.
+                         */
+                        for( int op = 0; op < ops; op++ )
+                        {
+                            int pick = selftest_lcg(&rng, 6);
+                            int which = tracked > 0 ? selftest_lcg(&rng, tracked) : -1;
+
+                            if( pick == 0 && tracked < HARNESS_TRACK )
+                            {
+                                /* Spawn. Spread along a row so nothing shares a
+                                 * tile with the player or with each other. */
+                                int slot = mock230_world_npc_spawn(
+                                    srv, chicken_type, base_x + tracked, base_z,
+                                    player->level);
+
+                                if( slot >= 0 )
+                                {
+                                    track[tracked].uid = selftest_npc_uid(srv, slot);
+                                    track[tracked].slot = slot;
+                                    track[tracked].expect_hp = srv->npcs[slot].hitpoints;
+                                    track[tracked].born_tick = (int)srv->tick;
+                                    tracked++;
+                                    did_spawn++;
+                                }
+                            }
+                            else if( pick == 1 && which >= 0 )
+                            {
+                                /* Free, the ordinary despawn path — the one a
+                                 * timed `npc_add` and a death both end in. */
+                                if( selftest_npc_uid(srv, track[which].slot) ==
+                                    track[which].uid )
+                                {
+                                    mock230_world_npc_free(srv, track[which].slot);
+                                    did_free++;
+                                }
+                                track[which] = track[--tracked];
+                            }
+                            else if( pick == 2 && which >= 0 )
+                            {
+                                /* A timed despawn, which expires inside
+                                 * `advance_npcs` — i.e. in the middle of the
+                                 * same phase that is draining other npcs'
+                                 * damage queues. */
+                                if( selftest_npc_uid(srv, track[which].slot) ==
+                                    track[which].uid )
+                                    srv->npcs[track[which].slot].despawn_tick =
+                                        (int)srv->tick + 1;
+                            }
+                            else if( pick == 3 && which >= 0 )
+                            {
+                                /* A direct hit: engine-applied, lands now. */
+                                int slot = track[which].slot;
+
+                                if( selftest_npc_uid(srv, slot) == track[which].uid &&
+                                    track[which].born_tick != (int)srv->tick &&
+                                    track[which].expect_hp > 1 )
+                                {
+                                    mock230_combat_hit_npc(srv, slot, splat_damage, 1);
+                                    track[which].expect_hp--;
+                                    did_direct++;
+                                }
+                            }
+                            else if( which >= 0 )
+                            {
+                                /* A queued hit: in flight across the boundary,
+                                 * which is the shape every real hit has. */
+                                int slot = track[which].slot;
+
+                                if( selftest_npc_uid(srv, slot) == track[which].uid &&
+                                    track[which].born_tick != (int)srv->tick &&
+                                    track[which].expect_hp > 1 &&
+                                    selftest_npc_queue(srv, slot, 2, 1, 0) )
+                                {
+                                    track[which].expect_hp--;
+                                    did_queued++;
+                                }
+                            }
+                        }
+
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(
+                                player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        mock230_world_tick(srv);
+
+                        /*
+                         * The model-free check, over every npc in the world and
+                         * not only the harness's own: a uid that was not live
+                         * before this tick belongs to an npc that has existed
+                         * for zero ticks. Nothing can have hit it yet.
+                         */
+                        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+                        {
+                            const struct Mock230Npc* npc = &srv->npcs[slot];
+                            int32_t uid = selftest_npc_uid(srv, slot);
+
+                            if( uid == 0 || uid == prev_uid[slot] )
+                                continue;
+                            if( npc->hitpoints < npc->max_hitpoints && !born_hurt )
+                            {
+                                born_hurt = 1;
+                                born_hurt_uid = uid;
+                                born_hurt_type = npc->type;
+                                born_hurt_hp = npc->hitpoints;
+                                born_hurt_max = npc->max_hitpoints;
+                            }
+                        }
+                        for( int slot = 0; slot < MOCK230_NPC_MAX; slot++ )
+                            prev_uid[slot] = selftest_npc_uid(srv, slot);
+
+                        /* And the modelled half: a tracked npc that is still the
+                         * same npc holds exactly what was aimed at it. */
+                        for( int i = 0; i < tracked; i++ )
+                        {
+                            int slot = track[i].slot;
+
+                            if( selftest_npc_uid(srv, slot) != track[i].uid )
+                                continue;
+                            if( srv->npcs[slot].hitpoints == track[i].expect_hp )
+                                continue;
+                            if( !mismatches )
+                            {
+                                mismatch_uid = track[i].uid;
+                                mismatch_want = track[i].expect_hp;
+                                mismatch_got = srv->npcs[slot].hitpoints;
+                            }
+                            mismatches++;
+                            /* Re-base so one divergence is reported once rather
+                             * than on every remaining tick. */
+                            track[i].expect_hp = srv->npcs[slot].hitpoints;
+                        }
+                    }
+
+                    /* The soak must have soaked. Without this a harness whose
+                     * spawns all failed reports a clean run. */
+                    SELFTEST_CHECK(did_spawn > 0 && did_free > 0 && did_direct > 0 &&
+                                       did_queued > 0,
+                                   "the lifecycle soak should exercise every op: "
+                                   "%d spawns, %d frees, %d direct hits, %d queued hits",
+                                   did_spawn, did_free, did_direct, did_queued);
+                    SELFTEST_CHECK(!born_hurt,
+                                   "an npc that has existed for zero ticks took damage: "
+                                   "uid %d (type %d) arrived at %d of %d hitpoints — a hit "
+                                   "aimed at something else landed on it",
+                                   born_hurt_uid, born_hurt_type, born_hurt_hp,
+                                   born_hurt_max);
+                    SELFTEST_CHECK(!mismatches,
+                                   "%d npc(s) hold damage nobody aimed at them; first was "
+                                   "uid %d at %d hitpoints, expected %d",
+                                   mismatches, mismatch_uid, mismatch_got, mismatch_want);
+
+                    /*
+                     * B. A hit still in flight when its target dies.
+                     *
+                     * Two attackers on one tick is all it takes. The first
+                     * kills — `mock230_combat_hit_npc` sets `death_tick` and
+                     * empties `npc->queue[]` on the way past. The second lands
+                     * *after* that, and `npc_queue` has no death guard (nor
+                     * should it: the reference queues onto a corpse too), so
+                     * its entry is left armed on an npc that will never drain
+                     * it: the npc phase skips a `death_tick`-holding npc's
+                     * queue entirely.
+                     *
+                     * What the entry must not do is outlive the npc. The slot
+                     * is freed, reaped, and later handed back by
+                     * `mock230_combat_respawn_tick` — which reactivates the
+                     * record IN PLACE rather than through `npc_spawn`'s memset,
+                     * and therefore has to name every field a new life must not
+                     * inherit. A queue entry it misses is the previous life's
+                     * damage, applied to a monster that has just walked back
+                     * into the world at full health.
+                     */
+                    {
+                        int slot = mock230_world_npc_spawn(srv, chicken_type, base_x,
+                                                           base_z + 3, player->level);
+
+                        SELFTEST_CHECK(slot >= 0,
+                                       "the death-boundary fixture should get an npc slot");
+                        if( slot >= 0 )
+                        {
+                            struct Mock230Npc* npc = &srv->npcs[slot];
+                            int32_t uid_before = selftest_npc_uid(srv, slot);
+                            int full_hp = npc->hitpoints;
+                            int respawned = 0;
+
+                            /* Attacker one: the killing blow. */
+                            mock230_combat_hit_npc(srv, slot, splat_damage, full_hp);
+                            SELFTEST_CHECK(npc->death_tick >= 0,
+                                           "the killing blow should start the death "
+                                           "sequence, death_tick %d", npc->death_tick);
+                            /* Attacker two, same tick, landing after it. */
+                            SELFTEST_CHECK(selftest_npc_queue(srv, slot, 2, 1, 0),
+                                           "a second attacker should be able to queue onto "
+                                           "an npc that is already dying");
+
+                            for( int t = 0; t < 400 && !respawned; t++ )
+                            {
+                                if( player->rebuild_scene_pending )
+                                    mock230_world_handle(
+                                        player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                                mock230_world_tick(srv);
+                                if( npc->active && selftest_npc_uid(srv, slot) != uid_before )
+                                    respawned = 1;
+                            }
+
+                            SELFTEST_CHECK(respawned,
+                                           "the npc should come back — a world npc respawns "
+                                           "on its record's rate; still active=%d gen=%u",
+                                           npc->active, (unsigned)npc->generation);
+                            if( respawned )
+                            {
+                                SELFTEST_CHECK(selftest_npc_queue_depth(srv, slot) == 0,
+                                               "a respawn must not inherit the previous "
+                                               "life's queue, %d entr(ies) carried over",
+                                               selftest_npc_queue_depth(srv, slot));
+                                SELFTEST_CHECK(npc->hitpoints == npc->max_hitpoints,
+                                               "and must come back whole: %d of %d "
+                                               "hitpoints — a hit aimed at the npc that "
+                                               "died landed on the one that replaced it",
+                                               npc->hitpoints, npc->max_hitpoints);
+                                SELFTEST_CHECK(npc->hitmark_count == 0,
+                                               "and with no hitsplat from its last life, "
+                                               "%d carried over", npc->hitmark_count);
+                            }
+                            mock230_world_npc_free(srv, slot);
+                        }
+                    }
                 }
             }
 

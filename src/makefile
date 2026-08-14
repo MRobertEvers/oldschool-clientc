@@ -497,6 +497,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ops_inv.c \
 	net/mock/mock230_ops_player.c \
 	net/mock/mock230_bank.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
+	net/mock/mock230_shop.c \
 	net/mock/mock230_friends.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
@@ -584,7 +585,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c
+.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact summoning-dialogue
 
@@ -625,10 +626,26 @@ $(OBJ_DIR)/asan_dyld_shim.dylib: platform/asan_dyld_shim.c | $(OBJ_DIR)
 # GNU Make 4.0+'s own builtin for this -- it writes the file from inside make
 # itself, no shell process and no command line involved, so there is nothing
 # left for any OS argument-length limit to truncate.
+#
+# $(file ...) really is 4.0+ only, and macOS still ships GNU Make 3.81 as
+# /usr/bin/make. There the call expands to nothing WITHOUT an error, so the
+# response file is simply never written and the link dies on
+# "no such file or directory: @build.../link_objs.rsp". Only the constrained
+# lanes (cmd.exe, mingw32-make) ever needed the indirection, so on an older
+# make just put the objects back on the link line -- the platforms that ship
+# 3.81 have a megabyte-plus ARG_MAX and never had the problem.
+# firstword(sort) is the usual "is MAKE_VERSION >= 4.0" test: sort is lexical
+# and dedupes, so 4.0 stays first only when the running make is 4.0 or newer.
+ifeq ($(firstword $(sort 4.0 $(MAKE_VERSION))),4.0)
+LINK_OBJS_ARG = @$(OBJ_DIR)/link_objs.rsp
+else
+LINK_OBJS_ARG = $(OBJS)
+endif
+
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 	@mkdir -p $(dir $@)
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
-	$(CC) $(CFLAGS) -o $@ @$(OBJ_DIR)/link_objs.rsp $(LDFLAGS) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(ASAN_DYLD_SHIM)
 	@echo $(OBJ_DIR) > .last_flavor
 
 # --- Web target ----------------------------------------------------------
@@ -2408,6 +2425,42 @@ mock230-cache-summoning: check-crystal-set-contract test-summoning-isolation tes
 		grep -Rqs '^\[clientscript,.*\](component .*int .*int .*int .*)' "$$tmp"; \
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
 		echo "mock230-cache-summoning: verified 9 clientscript archives"
+
+# Both marked lanes in one cache, for manifest_osrs239_rs2012_summoning.ini.
+#
+# Neither lane's own bake carries the other's records — `ported/` is out of the
+# ordinary content walk precisely so that a lane reaches a client through one
+# route only — so a session that wants a familiar fighting the dragon needs the
+# two composed. Composition is layering, not a third stager: `cachepack pack`
+# keeps every base byte a source does not claim, so the Summoning overlay
+# packed over the QBD/TD cache leaves the imported rev-727 npc/loc/model ids
+# exactly as that bake wrote them.
+#
+# Order is QBD/TD first. The Summoning lane's CS2 is authored and gated against
+# the pristine cache (test-summoning-cs2 compiles with --raw MOCK230_CACHE_BASE),
+# so it is the layer that must land last, on top of whatever the other lane
+# staged.
+#
+# Base and output must be different directories: mock230-cache-summoning deletes
+# its output before packing, so aiming both at one path would delete the base
+# mid-recipe. The QBD/TD cache is reused as-is rather than rebuilt into a
+# private copy — it is the same bytes manifest_osrs239_rs2012.ini boots, which
+# is what makes a defect seen here reproducible there.
+RS2012_SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012-summoning
+
+.PHONY: mock230-cache-rs2012-summoning
+mock230-cache-rs2012-summoning:
+	@test -f "$(RS2012_CACHE_DIR)/main_file_cache.dat2" || { \
+		echo "mock230-cache-rs2012-summoning: no QBD/TD base at $(RS2012_CACHE_DIR)" >&2; \
+		echo "  That cache is this composition's first layer; bake it with" >&2; \
+		echo "    $(MAKE) -C src mock230-cache-rs2012" >&2; \
+		exit 1; }
+	@test "$(abspath $(RS2012_SUMMONING_CACHE_DIR))" != "$(abspath $(RS2012_CACHE_DIR))" || { \
+		echo "mock230-cache-rs2012-summoning: output must differ from its base" >&2; exit 1; }
+	@$(MAKE) --no-print-directory mock230-cache-summoning \
+		SUMMONING_CACHE_BASE=$(RS2012_CACHE_DIR) \
+		SUMMONING_CACHE_DIR=$(RS2012_SUMMONING_CACHE_DIR)
+	@echo "mock230-cache-rs2012-summoning: use ./run-live.sh manifest_osrs239_rs2012_summoning.ini"
 
 test-summoning-phase1: mock230-cache-summoning mock230-scripts-summoning mock230-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \

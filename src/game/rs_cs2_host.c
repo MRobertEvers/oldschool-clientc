@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static int clamp_percent(int value);
 
@@ -2912,14 +2913,69 @@ exec_oc_find(
     return CS2VM2_PushInt(thread, host->item_search_count);
 }
 
-/* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
+/*
+ * OC_SHIFTCLICKIOP: which inventory op shift-clicking an obj should run.
+ *
+ * Reference Statics.method9053 (opcode 4213's handler), on ObjType:
+ *
+ *     if( shiftClickDropIndex >= 0 )  op = inv_actions[i] ? i : -1;
+ *     else if( shiftClickDropIndex == -1 )  op = -1;          // opted out
+ *     else                                                    // -2, unstated
+ *         op = "Drop".equalsIgnoreCase(inv_actions[4]) ? 4 : -1;
+ *
+ * and the opcode pushes `op + 1` — a 1-based op number, matching CC_GETOP /
+ * CC_SETOP — or -1. Both halves matter: script6012 tests the result against
+ * -1 and then feeds it to CC_GETOP through enum_4303, so returning the 0-based
+ * index would promote the op one slot too early.
+ *
+ * The -2 fallback is what actually drives shift-drop, since almost no obj
+ * states opcode 42: "Drop" being the 5th inventory op is the rule, and the
+ * cache field only exists to override it (e.g. shiftclickdrop=2 on items whose
+ * 5th op is something else).
+ */
 static int
 exec_oc_shiftclickiop(
+    struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
     struct CS2VM_HostRequest_OC_Name request)
 {
-    (void)request;
-    return CS2VM2_PushInt(thread, -1);
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Objtype* obj = NULL;
+    int index;
+
+    if( request.item_id < 0 )
+        return CS2VM2_PushInt(thread, -1);
+
+    obj = provider ? CacheProvider_ObjtypeGet(provider, request.item_id) : NULL;
+    if( !obj )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP;
+        req.u.oc_shiftclickiop = request;
+        if( !rs_cs2_await_spent(thread, req.kind, request.item_id, -1) )
+            return rs_cs2_yield_load(host, thread, &req, request.item_id, -1);
+        /* Objtype still missing after its load: no shift-click op. */
+        return CS2VM2_PushInt(thread, -1);
+    }
+
+    index = obj->shift_click_drop_index;
+    if( index >= 0 )
+    {
+        if( index >= TORIRS_MENU_ACTION_SLOTS || obj->inv_actions[index][0] == '\0' )
+            index = -1;
+    }
+    else if( index == -1 )
+    {
+        /* Stated as "no shift-click op". */
+    }
+    else
+    {
+        index = strcasecmp(obj->inv_actions[TORIRS_MENU_ACTION_SLOTS - 1], "Drop") == 0
+                    ? TORIRS_MENU_ACTION_SLOTS - 1
+                    : -1;
+    }
+
+    return CS2VM2_PushInt(thread, index < 0 ? -1 : index + 1);
 }
 
 /* OC_WEARPOS/WEARPOS2/WEARPOS3: no equip slot data exists on ToriRS_Objtype
@@ -4075,6 +4131,8 @@ rs_cs2_clear_reactive_hooks_at(
     /* UITree_HookClear, not memset: a slot owns its argument tails now. */
     UITree_HookClear(&hooks->on_timer);
     UITree_HookClear(&hooks->on_key);
+    UITree_HookClear(&hooks->on_key_down);
+    UITree_HookClear(&hooks->on_key_up);
     UITree_HookClear(&hooks->on_var_transmit);
     UITree_HookClear(&hooks->on_inv_transmit);
     UITree_HookClear(&hooks->on_misc_transmit);
@@ -4475,6 +4533,12 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return &hooks->on_key;
+    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
+    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
+        return &hooks->on_key_down;
+    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
+    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
+        return &hooks->on_key_up;
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         /* IF_ only — there is no CC_ misc-transmit request kind at this
          * revision, and the CC_SETONMISCTRANSMIT opcode (1422) is parsed into
@@ -4521,6 +4585,14 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "IF_SETONKEY";
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return "CC_SETONKEY";
+    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
+        return "IF_SETONKEYDOWN";
+    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
+        return "CC_SETONKEYDOWN";
+    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
+        return "IF_SETONKEYUP";
+    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
+        return "CC_SETONKEYUP";
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
         return "CC_SETONCLICK";
     case CS2VM_HOST_REQUEST_CC_SETONOP:
@@ -5892,7 +5964,7 @@ rs_cs2_host_exec_dispatch(
         return exec_oc_find(host, vm, request->u.oc_find);
 
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
-        return exec_oc_shiftclickiop(vm, request->u.oc_shiftclickiop);
+        return exec_oc_shiftclickiop(host, vm, request->u.oc_shiftclickiop);
 
     case CS2VM_HOST_REQUEST_OC_WEARPOS:
         return exec_oc_wearpos(vm, request->u.oc_wearpos);
@@ -6946,6 +7018,8 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
+    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
+    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         /* Was `return CS2VM_EXECNO_OK` — a well-formed request the VM had
@@ -6976,6 +7050,8 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_CC_SETONTIMER:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
+    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
+    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
         return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:

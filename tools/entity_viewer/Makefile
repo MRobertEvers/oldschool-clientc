@@ -64,7 +64,7 @@ DEP_OBJS := \
 	$(BUILD)/ini.o
 
 .PHONY: all clean wasm all-web
-all: ev_catalog ev_server
+all: ev_catalog ev_server ev_swing
 all-web: all wasm
 
 $(BUILD):
@@ -142,6 +142,12 @@ $(BUILD)/ev_render.o: ev_render.c | $(BUILD)
 $(BUILD)/torirs_types.o: $(REPO)/src/engine/torirs_types.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+# torirs_types.c's component teardown calls into this; it is self-contained
+# (torirs_types.h plus libc), so it costs nothing to carry and the link fails
+# without it.
+$(BUILD)/torirs_component_hook.o: $(REPO)/src/engine/torirs_component_hook.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
 $(BUILD)/torirs_model_from_rscache.o: $(REPO)/src/engine/torirs_model_from_rscache.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
@@ -151,15 +157,36 @@ $(BUILD)/toridraw_model_from_torirs.o: $(REPO)/src/engine/toridraw_model_from_to
 $(BUILD)/toridraw_animation_from_rscache.o: $(REPO)/src/engine/toridraw_animation_from_rscache.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+$(BUILD)/ev_player.o: ev_player.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
-		$(BUILD)/ev_render.o $(BUILD)/torirs_types.o \
-		$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
-		$(BUILD)/toridraw_animation_from_rscache.o \
-		$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
-		$(BUILD)/toridraw_model_sprite.o $(COMMON_OBJS) $(DEP_OBJS) \
+# Everything both native binaries need. ev_player.c is here and not in the wasm
+# list because it links rscache; the merge it would otherwise own lives in
+# ev_render.c precisely so the browser can do it too.
+NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_wire.o \
+	$(BUILD)/ev_render.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
+	$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
+	$(BUILD)/toridraw_animation_from_rscache.o \
+	$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+	$(BUILD)/toridraw_model_sprite.o
+
+ev_server: $(BUILD)/ev_server.o $(BUILD)/lc_pack.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_swing: a weapon swing and its attached graphic, measured ----------
+#
+# Needs no catalog and no browser: it is the same build and the same renderer as
+# ev_server, driven from the command line so a placement can be answered with a
+# number instead of an opinion.
+
+$(BUILD)/ev_swing.o: ev_swing.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+ev_swing: $(BUILD)/ev_swing.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
@@ -183,7 +210,7 @@ ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
 
 EMCC ?= emcc
 SIMD ?= 1
-EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_malloc,_free
+EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_malloc,_free
 
 EM_OPT := -O3 -flto -mnontrapping-fptoint
 ifeq ($(SIMD),1)
@@ -204,4 +231,4 @@ web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c
 		-sEXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8"]'
 
 clean:
-	rm -rf $(BUILD) ev_catalog ev_server web/ev_wasm.js web/ev_wasm.wasm
+	rm -rf $(BUILD) ev_catalog ev_server ev_swing web/ev_wasm.js web/ev_wasm.wasm

@@ -142,25 +142,51 @@ load-bearing**, don't port it blind.
 
 ---
 
-## 2. `shopside` (301) — a corpus gap, not a mock230 gap
+## 2. `shopside` (301) — RESOLVED 2026-08-13: not a gap, the panel is server-drawn
 
-`grep -rl "shopmain\|shopside\|interface_300\|interface_301"` across all
-9,368+ decompiled `.cs2` files returns **only `script_1074.cs2` and
-`script_1076.cs2`** — nothing in this corpus populates `interface_301:0` or
-binds its ops. Same gap class as the missing `~questlist_draw`/
-`~chatbox_multi_addoption` bodies (`docs/questlist_chatmenu_levelup.md`
-§1.3/§2.1): the live cache has this script, this decompile pass didn't
-capture it.
+> **This section's premise was wrong, and the correction is the answer.** It
+> assumed a `shopside_init` existed and this decompile pass had missed it.
+> Re-running the whole cache through `3rd/rscache/tools/cs2` —
+> `cs2 decompile --cache cache.osrs239 --rev osrs239 --names OSRS-Content/osrs239-content`,
+> **9,724 of 9,725 scripts, one failure (script 0, not in this cache)** —
+> confirms the corpus is complete and that **no clientscript in this cache
+> mentions interface 301 at all**. `shopside.if` carries one component and no
+> `onload=`. The panel genuinely cannot draw itself.
+>
+> It does not need to. `interface_301:0` never appears as a *literal* because
+> the component is an **argument**: the server pushes the generic inv-grid
+> builder, **clientscript 149** — `(component, inv, cols, rows, dragmode,
+> dragscroll, op1..op5)`, 149 → 153 → 154 in the decompile — which does the
+> `cc_create`, sets ops 1..5 from the strings and op 10 to "Examine", and
+> installs its own `if_setoninvtransmit` so the grid repaints on every later
+> transmit of that inv. Cell sub-id **is** the inventory slot (unlike shopmain,
+> whose cells are `$slot + 1` over a highlight cell at 0). `script_150` is the
+> nine-op variant of the same thing.
+>
+> So shopside's sell ladder is not something to re-decompile for: **the op text
+> is the server's to choose.** `server/scripts/shop/scripts/shop.rs2` passes
+> Value / Sell 1 / Sell 5 / Sell 10 — LostCity's `shop_template_side.if` ladder
+> verbatim — and binds `[if_button1..4,shopside:items]` to match.
+>
+> **Consequence of not doing this**, which is what the screen actually looked
+> like until 2026-08-13: `if_openmain_side` replaces the whole sidebar through
+> `sidemodal`, so an unpopulated 301 meant the player's inventory was a blank
+> rectangle for as long as the shop was open.
+>
+> **One client cap found on the way**, and it is silent:
+> `TASK_CS2_RUN_STR_ARGS_MAX` (`src/game/task_cs2_run.c`) and
+> `UITREE_HOOK_STR_ARG_MAX` (`src/ui/uitree_hook.h`) both keep **four** string
+> arguments; a fifth degrades to `""` rather than erroring. Pushing five op
+> labels produced `op5=""` under `TORIRS_OPS_DEBUG` while the wire payload
+> proved all five had been sent — which is why there is no "Sell 50" rung.
+> Both sites now say so on stderr when a *non-empty* string is dropped.
 
-The closest confirmed analogue is **`bankside_init`** (`script_294.cs2`) and
-its cell builder `bankside_build` (`script_296.cs2`): always draws the
-player's own built-in `inv` (93, no inv-id argument — the side panel's
-source is fixed), `cc_setdragdeadzone`/`_deadtime` per cell for drag
-interaction, and the same `if_setoninvtransmit`/`if_setonvartransmit`
-auto-repaint idiom shopmain uses. **If** shopside follows the same shape —
-unconfirmed, re-decompile before relying on it — its population needs no
-server-supplied container id, only auto-repaint on the player's own
-inventory changing.
+The closest confirmed analogue, for reference: **`bankside_init`**
+(`script_294.cs2`) and its cell builder `bankside_build` (`script_296.cs2`)
+draw the player's own built-in `inv` (93, no inv-id argument — that panel's
+source is fixed), with `cc_setdragdeadzone`/`_deadtime` per cell and the same
+auto-repaint idiom. shopside does **not** follow that shape: bankside is
+`onload=`-driven and self-contained, shopside is pushed.
 
 ---
 

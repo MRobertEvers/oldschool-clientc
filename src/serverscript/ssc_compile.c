@@ -2440,10 +2440,73 @@ parse_header(
          * compiled name keeps the underscore (`[oploc1,_outpost_gate]`), so
          * only the lookup strips it. */
         int is_category = subject[0] == '_' && subject[1] != '\0';
-        const struct SSC_Symbol* symbol = SSC_SymbolsFind(
-            compiler->symbols,
-            is_category ? subject + 1 : subject,
-            is_category ? SSC_SYM_CATEGORY : SSC_SYM_UNKNOWN);
+        const struct SSC_Symbol* symbol = NULL;
+
+        /*
+         * Resolve the subject in the namespace the trigger implies, before
+         * falling back to "any".
+         *
+         * A name can exist in more than one namespace, and an unqualified
+         * lookup takes whichever kind sorts first. `grim_pendant` is obj 11197
+         * AND loc 24780, so `[oploc1,grim_pendant]` resolved to the OBJ and
+         * filed Grim Tales' pendant under an unrelated loc id, where the
+         * walkthrough fallback owned the key and won. The pendant did nothing,
+         * and nothing said why.
+         *
+         * The fallback is deliberate: only loc/npc/obj are mapped here, so a
+         * trigger family this does not know about resolves exactly as before.
+         */
+        if( !is_category )
+        {
+            enum SSC_SymbolKind want = SSC_SYM_UNKNOWN;
+
+            if( strncmp(trigger_name, "ai_", 3) == 0 )
+                want = SSC_SYM_NPC; /* the npc running the AI, whatever it acts on */
+            else if( strncmp(trigger_name, "oploc", 5) == 0 ||
+                     strncmp(trigger_name, "aplloc", 6) == 0 ||
+                     strncmp(trigger_name, "opheldloc", 9) == 0 )
+                want = SSC_SYM_LOC;
+            else if( strncmp(trigger_name, "opnpc", 5) == 0 ||
+                     strncmp(trigger_name, "apnpc", 5) == 0 )
+                want = SSC_SYM_NPC;
+            else if( strncmp(trigger_name, "opheld", 6) == 0 ||
+                     strncmp(trigger_name, "opobj", 5) == 0 ||
+                     strncmp(trigger_name, "apobj", 5) == 0 )
+                want = SSC_SYM_OBJ;
+
+            /* `opheldt`/`opnpct` and friends take an interface COMPONENT
+             * (`magic_spellbook:magic_dart`), not an obj or npc — the colon is
+             * what says so, and every one of them in this tree has it. */
+            if( want != SSC_SYM_UNKNOWN && !strchr(subject, ':') )
+            {
+                symbol = SSC_SymbolsFind(compiler->symbols, subject, want);
+                if( !symbol && SSC_SymbolsFind(compiler->symbols, subject, SSC_SYM_UNKNOWN) )
+                {
+                    /*
+                     * The name exists, but not as the kind this trigger acts
+                     * on. Falling back would compile it against the wrong
+                     * namespace's id and register the body somewhere unrelated
+                     * — which is how `[opheldu,mdaughter_cliff_boulder]` (a
+                     * loc, written as an item-on-item) meant that using the
+                     * rope on the boulder did nothing, 30 times over. There is
+                     * no reading of that which is correct, so it is an error
+                     * rather than a fallback.
+                     */
+                    return fail(compiler,
+                                "subject '%s' of trigger '%s' is not a %s; "
+                                "use the trigger that matches what it is",
+                                subject, trigger_name,
+                                want == SSC_SYM_LOC   ? "loc"
+                                : want == SSC_SYM_NPC ? "npc"
+                                                      : "obj");
+                }
+            }
+        }
+        if( !symbol )
+            symbol = SSC_SymbolsFind(
+                compiler->symbols,
+                is_category ? subject + 1 : subject,
+                is_category ? SSC_SYM_CATEGORY : SSC_SYM_UNKNOWN);
 
         if( !symbol )
             return fail(compiler, "unknown %s subject '%s' for trigger '%s'",
@@ -2765,6 +2828,39 @@ SSC_Declare(
                 compiler->name_count++;
 
                 /*
+                 * A name declared twice does not compose and has no precedence
+                 * rule: both declarations take an id, but finish_script resolves
+                 * every body back to the FIRST matching name, so the file the
+                 * compiler happens to reach LAST silently replaces the other's
+                 * body and the loser's id is left empty. That is how Sheep
+                 * Shearer, Rune Mysteries and A Tail of Two Cats all became
+                 * unstartable — no diagnostic, correct-looking source, dead
+                 * content.
+                 *
+                 * A hard error, like the singleton families above (debugproc,
+                 * [login,_]): the tree carried a backlog of 67 of these and now
+                 * carries none, so the only thing a duplicate can be from here
+                 * is a regression. Two files that both need one npc or loc share
+                 * it the way areas/lumbridge/scripts/fred_the_farmer.rs2 and
+                 * quest_coldwar do — one trigger, branching into a `[label,...]`
+                 * the other file owns.
+                 */
+                if( script_id_for_name(compiler, compiler->names[slot]) != slot )
+                {
+                    if( diag )
+                    {
+                        snprintf(diag->file, sizeof(diag->file), "%s", path);
+                        diag->line = lexer.current.line;
+                        snprintf(diag->message, sizeof(diag->message),
+                                 "duplicate script name '%s'; declare it once and branch "
+                                 "into a [label,...] from the other file",
+                                 compiler->names[slot]);
+                    }
+                    free(source);
+                    return 0;
+                }
+
+                /*
                  * The argument list, counted the same way parse_arg_list does.
                  *
                  * `lexer.current` is the `]` here; a header with arguments has
@@ -2953,6 +3049,103 @@ finish_script(struct SSC_Compiler* compiler)
     return 1;
 }
 
+/**
+ * Give an already-finished script a second name.
+ *
+ * Content stacks headers on one body all over this tree —
+ *
+ *     [oploc1,hunting_sapling_full_green]
+ *     [oploc1,hunting_sapling_full_orange]
+ *     [oploc1,hunting_sapling_full_red]
+ *     ~hunter_net_take;
+ *
+ * — 1,287 times, meaning every leaf/variant/colour of a thing shares one
+ * handler. The compile loop reads a header, parses statements until the next
+ * `[`, and finishes; a stacked header therefore finished an EMPTY body, so
+ * only the LAST name in each stack got the code and every earlier one compiled
+ * to a bare RETURN. Nothing said so: the ids existed, the pack loaded, and the
+ * loc/npc simply did nothing when clicked. Aliasing here is what the content
+ * has always been written against.
+ *
+ * A deep copy rather than a second `finish_script`: that function hands the
+ * build's `string_operands` pointers to the script it fills rather than
+ * copying them, so running it twice over one build would put the same `char*`
+ * in two scripts and free it twice.
+ */
+static int
+alias_script(struct SSC_Compiler* compiler, int src_index, const char* name, int32_t lookup_key)
+{
+    const struct SSVM_Script* src;
+    struct SSVM_Script* dst;
+    int index;
+    int i;
+
+    index = script_id_for_name(compiler, name);
+    if( index < 0 )
+        return fail(compiler, "script '%s' was never declared", name);
+    if( index >= SSC_MAX_SCRIPTS )
+        return fail(compiler, "too many scripts");
+    if( index == src_index )
+        return 1;
+
+    src = &compiler->scripts[src_index];
+    dst = &compiler->scripts[index];
+    SSVM_ScriptFree(dst);
+
+    *dst = *src;
+    dst->id = index;
+    dst->name = strdup(name);
+    dst->source_path = strdup(src->source_path ? src->source_path : "");
+    /* Its own trigger, not the body's — that is the whole point of the alias. */
+    dst->lookup_key = lookup_key;
+
+    dst->opcodes = (uint16_t*)calloc((size_t)src->op_count, sizeof(uint16_t));
+    dst->int_operands = (int32_t*)calloc((size_t)src->op_count, sizeof(int32_t));
+    dst->string_operands = (char**)calloc((size_t)src->op_count, sizeof(char*));
+    memcpy(dst->opcodes, src->opcodes, (size_t)src->op_count * sizeof(uint16_t));
+    memcpy(dst->int_operands, src->int_operands, (size_t)src->op_count * sizeof(int32_t));
+    for( i = 0; i < src->op_count; i++ )
+        dst->string_operands[i] = src->string_operands[i] ? strdup(src->string_operands[i]) : NULL;
+
+    if( src->switch_table_count )
+    {
+        dst->switch_tables = (struct SSVM_SwitchTable*)calloc(
+            (size_t)src->switch_table_count, sizeof(struct SSVM_SwitchTable));
+        for( i = 0; i < src->switch_table_count; i++ )
+        {
+            uint16_t count = src->switch_tables[i].case_count;
+
+            dst->switch_tables[i].case_count = count;
+            dst->switch_tables[i].cases =
+                (struct SSVM_SwitchCase*)calloc(count ? count : 1, sizeof(struct SSVM_SwitchCase));
+            memcpy(dst->switch_tables[i].cases, src->switch_tables[i].cases,
+                   (size_t)count * sizeof(struct SSVM_SwitchCase));
+        }
+    }
+    else
+    {
+        dst->switch_tables = NULL;
+    }
+
+    if( src->line_count )
+    {
+        dst->line_pcs = (int32_t*)calloc((size_t)src->line_count, sizeof(int32_t));
+        dst->line_numbers = (int32_t*)calloc((size_t)src->line_count, sizeof(int32_t));
+        memcpy(dst->line_pcs, src->line_pcs, (size_t)src->line_count * sizeof(int32_t));
+        memcpy(dst->line_numbers, src->line_numbers,
+               (size_t)src->line_count * sizeof(int32_t));
+    }
+    else
+    {
+        dst->line_pcs = NULL;
+        dst->line_numbers = NULL;
+    }
+
+    if( index >= compiler->script_count )
+        compiler->script_count = index + 1;
+    return 1;
+}
+
 int
 SSC_CompileFile(
     struct SSC_Compiler* compiler,
@@ -2961,6 +3154,27 @@ SSC_CompileFile(
 {
     size_t length = 0;
     char* source = read_file(path, &length);
+    /* Headers stacked on the body that follows them. See alias_script. A stack
+     * is bounded by the file, so a fixed cap only has to exceed the longest one
+     * content actually writes by enough margin to not be a limit anyone meets.
+     *
+     * Was 64, chosen against a longest stack of 23
+     * (skill_farming/scripts/farming_compost.rs2). Raised to 256 when Barrows
+     * equipment landed: gear/barrows_ops.rs2 binds Wear and Check across six
+     * sets x four pieces x five degrade tiers, which is ~120 headers on each of
+     * its two bodies — a legitimate shape, and the first content to pass 64.
+     *
+     * Nothing downstream cares how many there are. These two arrays live only
+     * for the span between a run of headers and the body they alias onto, and
+     * `alias_script` registers each name against the same `body_index`; the
+     * bytecode has one script either way. So this is a buffer, not a format
+     * limit, and the alternative — splitting a content file into four
+     * near-identical bodies to fit the compiler — would be the tail wagging the
+     * dog. At SSC_MAX_NAME (128) this is 32 KB of frame, which is why it is not
+     * simply enormous. */
+    char pending_names[256][SSC_MAX_NAME];
+    int32_t pending_keys[256];
+    int pending_count = 0;
 
     if( !source )
     {
@@ -3026,8 +3240,42 @@ SSC_CompileFile(
         }
         if( compiler->failed )
             break;
+
+        /*
+         * An empty body immediately followed by another header is a stacked
+         * header, not a script that does nothing: hold its name and give it the
+         * next real body. `[` is the only thing that can follow — the loop above
+         * stops at nothing else — so reaching EOF with an empty body means a
+         * trailing header with no body at all, which stays empty.
+         */
+        if( compiler->build.op_count == 0 && SSC_LexIsPunct(&compiler->lexer, "[") )
+        {
+            if( pending_count >= (int)(sizeof(pending_keys) / sizeof(pending_keys[0])) )
+            {
+                fail(compiler, "more than %d headers stacked on one body",
+                     (int)(sizeof(pending_keys) / sizeof(pending_keys[0])));
+                break;
+            }
+            snprintf(pending_names[pending_count], SSC_MAX_NAME, "%s", compiler->build.name);
+            pending_keys[pending_count] = compiler->build.lookup_key;
+            pending_count++;
+            continue;
+        }
+
         if( !finish_script(compiler) )
             break;
+
+        if( pending_count )
+        {
+            int body_index = script_id_for_name(compiler, compiler->build.name);
+            int i;
+
+            for( i = 0; i < pending_count && !compiler->failed; i++ )
+                alias_script(compiler, body_index, pending_names[i], pending_keys[i]);
+            pending_count = 0;
+            if( compiler->failed )
+                break;
+        }
     }
 
     free(source);

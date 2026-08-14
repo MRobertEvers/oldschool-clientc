@@ -209,7 +209,8 @@ codec_hitsplat(struct CP_Ctx* ctx, const uint8_t* data, int size, uint8_t* out, 
 {
     struct RSCache_Dat2ConfigHitsplat entry;
     memset(&entry, 0, sizeof(entry));
-    RSCache_Dat2ConfigHitsplatDecodeInplace(&entry, data, size);
+    RSCache_Dat2ConfigHitsplatDecodeInplace(
+        &entry, data, size, (unsigned)RSCache_Dat2ConfigHitsplatFlags(ctx ? &ctx->profile : NULL));
     return RSCache_Dat2ConfigHitsplatEncode(&entry, out, cap);
 }
 

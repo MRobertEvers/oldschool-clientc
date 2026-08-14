@@ -316,7 +316,8 @@ InvManager_SetSlot(
     else
     {
         container->slots[slot].obj_id = obj_id;
-        container->slots[slot].obj_count = obj_count > 0 ? obj_count : 1;
+        /* Count zero is kept — see InvManager_ApplyFull. */
+        container->slots[slot].obj_count = obj_count;
         container->slots[slot].scene_id = data->scene_id;
         container->slots[slot].atlas_index = data->atlas_index;
     }
@@ -367,7 +368,27 @@ InvManager_ApplyFull(
         int const oc = obj_counts ? obj_counts[i] : 0;
         if( oid > INV_MANAGER_EMPTY_OBJ_ID )
         {
-            int const norm_count = oc > 0 ? oc : 1;
+            /*
+             * Zero is a COUNT, not an empty slot, and this used to round it up
+             * to one.
+             *
+             * Emptiness is the obj id's to say — the branch above already tests
+             * it, and the encoder writes the pair independently for exactly
+             * this reason (mock230_encode.c: "`obj_id >= 0` is the occupancy
+             * test, not `count > 0`"). Two things on the wire legitimately
+             * carry an obj with a count of zero: a bank placeholder, and an
+             * out-of-stock shop line, which a shop keeps in place at zero
+             * rather than deleting (mock230_container_clear_slot).
+             *
+             * The floor made both of them lie, and it lied differently
+             * depending on the obj: a stackable at zero stock drew a yellow
+             * "1", and an unstackable at zero stock drew no number at all,
+             * because `emit_obj_stack_count` skips an unstackable whose count
+             * is exactly 1. That is the whole of "the shop says 1 when it has
+             * 0". Icon rasterization is unaffected — every call site that needs
+             * a drawable quantity clamps at its own use (uitree_emit.c).
+             */
+            int const norm_count = oc;
             /* Server echo of an unchanged slot (e.g. the UPDATE_INV after an
              * optimistic drag swap) keeps its baked icon: resetting scene_id
              * leaves the slot iconless until the reconcile task runs — a
@@ -433,7 +454,9 @@ InvManager_ApplyPartial(
         int const oc = obj_counts ? obj_counts[i] : 0;
         if( oid > INV_MANAGER_EMPTY_OBJ_ID )
         {
-            int const norm_count = oc > 0 ? oc : 1;
+            /* Count zero is kept — see ApplyFull for the two things on the wire
+             * that carry one and what rounding it up did to them. */
+            int const norm_count = oc;
             /* Unchanged slot keeps its baked icon (see ApplyFull). */
             if( container->slots[slot].obj_id != oid ||
                 container->slots[slot].obj_count != norm_count )

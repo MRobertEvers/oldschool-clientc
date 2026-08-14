@@ -5,7 +5,7 @@ Every `transports.tsv` row that did NOT make it into `maplink.dbrow` or a name-b
 
 ## Climb (stairs, ladders, trapdoors)
 
-5168 climb-verb rows considered, 1706 accepted (jumps + near-miss), 1112 rejected.
+5168 climb-verb rows considered, 1708 accepted (jumps + near-miss), 1112 rejected.
 
 ## already-correct-default — 724
 

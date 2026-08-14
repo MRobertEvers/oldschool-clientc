@@ -1,6 +1,8 @@
 #include "engine/torirs_objtype_from_rscache.h"
 
 #include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -44,6 +46,38 @@ torirs_objtype_copy_recolors(
     memcpy(dst->recolors_to, to, (size_t)count * sizeof(int));
 }
 
+/*
+ * The reference ObjType initialises its fifth *inventory* op to the localized
+ * "Drop" before decoding a record, so every held item answers oc_iop(obj, 5)
+ * with "Drop" unless its config states something else there. No cache carries
+ * that op — rev-230 records name only real verbs ("Bury", "Wear") — so a
+ * decoder-faithful objtype leaves the slot empty and every consumer has to
+ * invent the row for itself. Two already did (the minimenu builder and the
+ * scripted backpack's numbered ladder); the CS2 side could not, which is what
+ * broke shift-click drop: script6012 reads the op through oc_iop/cc_getop and
+ * an empty slot 5 promotes an empty op.
+ *
+ * Filling it here instead makes the objtype say what the reference's says, and
+ * the two existing synthesis sites become no-ops (both are guarded on the slot
+ * being empty).
+ *
+ * Skipped for a bank placeholder: the reference's genPlaceholder drops the op
+ * array entirely, and a placeholder is not a droppable item.
+ */
+static void
+torirs_default_inv_drop_op(
+    struct ToriRS_Objtype* objtype,
+    bool is_placeholder)
+{
+    if( is_placeholder || objtype->inv_actions[TORIRS_MENU_ACTION_SLOTS - 1][0] != '\0' )
+        return;
+    snprintf(
+        objtype->inv_actions[TORIRS_MENU_ACTION_SLOTS - 1],
+        TORIRS_MENU_ACTION_LEN,
+        "%s",
+        "Drop");
+}
+
 struct ToriRS_Objtype*
 ToriRS_ObjtypeFromRSCacheDat1(
     int obj_id,
@@ -58,6 +92,9 @@ ToriRS_ObjtypeFromRSCacheDat1(
     objtype->wearpos = -1;
     objtype->wearpos2 = -1;
     objtype->wearpos3 = -1;
+    /* dat1 predates opcode 42: always "unstated", so OC_SHIFTCLICKIOP falls
+     * back to the reference's op-slot-4-reads-"Drop" rule. */
+    objtype->shift_click_drop_index = -2;
 
     objtype->id = obj_id;
     if( src->name )
@@ -73,6 +110,7 @@ ToriRS_ObjtypeFromRSCacheDat1(
 
     torirs_copy_menu_actions(objtype->inv_actions, src->iop);
     torirs_copy_menu_actions(objtype->ground_actions, src->op);
+    torirs_default_inv_drop_op(objtype, false);
     objtype->stackable = src->stackable ? 1 : 0;
     objtype->cost = src->cost;
     objtype->inventory_model_id = src->model;
@@ -164,6 +202,8 @@ ToriRS_ObjtypeFromRSCacheDat2(
     objtype->wearpos = src->wearpos_1;
     objtype->wearpos2 = src->wearpos_2;
     objtype->wearpos3 = src->wearpos_3;
+    /* rscache defaults this to -2 ("unstated") for the same reason we do. */
+    objtype->shift_click_drop_index = src->shift_click_drop_index;
 
     objtype->id = obj_id;
     if( src->name )
@@ -180,6 +220,7 @@ ToriRS_ObjtypeFromRSCacheDat2(
 
     torirs_copy_menu_actions(objtype->inv_actions, src->if_actions);
     torirs_copy_menu_actions(objtype->ground_actions, src->actions);
+    torirs_default_inv_drop_op(objtype, src->placeholder_template_id >= 0);
     /* ObjType.stackingBehaviour is an enum at this revision. Only value 1 is
      * stackable; value 2 has different semantics and the authoritative client
      * compares it to 1 everywhere (CC_SETOBJECT and OC_STACKABLE included).

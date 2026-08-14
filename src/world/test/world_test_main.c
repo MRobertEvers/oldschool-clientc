@@ -26,6 +26,7 @@ main(void)
     test_force_approach_rotation();
     test_try_route_op_rect();
     test_try_route_op_exit_strategy();
+    test_under_target_exit();
     test_features_eras();
     test_bfs_path_source_end_truncation();
     test_collision_loc_change_inverse();
@@ -34,6 +35,7 @@ main(void)
     test_minusedlevel_entity_draw();
     test_rebuild_shift();
     test_obj_raise();
+    test_npc_retype_keeps_animation();
     test_line_of_sight();
     test_line_of_sight_asymmetry();
     test_naive_path_safespot();

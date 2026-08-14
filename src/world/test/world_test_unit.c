@@ -135,17 +135,80 @@ test_pathing_helpers(void)
     uint8_t dtypes[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     int dstarts[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
     int dcycles[WORLD_ENTITY_DAMAGE_SLOTS] = { 0 };
-    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 10, 2, 15, 0, 4);
+#define ADD_HITMARK(cyc, type, val, delay, lim)                                                    \
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, (cyc), (type), (val), (delay), (lim),  \
+                           WORLD_HITMARK_DEFAULT_DURATION, WORLD_HITMARK_POLICY_DISCARD)
+
+    ADD_HITMARK(10, 2, 15, 0, 4);
     TEST_ASSERT(dvals[0] == 15 && dtypes[0] == 2 && dcycles[0] == 80, "hitmark slot0");
-    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 20, 1, 7, 0, 4);
+    ADD_HITMARK(20, 1, 7, 0, 4);
     TEST_ASSERT(dvals[1] == 7 && dcycles[1] == 90, "hitmark slot1");
-    /* Expire slot0 and overwrite */
-    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 80, 3, 99, 0, 4);
-    TEST_ASSERT(dvals[0] == 99 && dtypes[0] == 3, "hitmark reuse expired");
+    /* Slot0 has expired by cycle 80, but slot1 is still live (cycle 90), so the
+     * reference does NOT reuse slot0: its cursor sits one past the last live
+     * splat, which is slot2. This assertion used to expect slot0 — the old
+     * lowest-free-index behaviour — and is what caught the change. */
+    ADD_HITMARK(80, 3, 99, 0, 4);
+    TEST_ASSERT(dvals[2] == 99 && dtypes[2] == 3, "hitmark reuse follows the cursor, not index 0");
     memset(dcycles, 0, sizeof(dcycles));
-    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 100, 4, 21, 6, 3);
+    ADD_HITMARK(100, 4, 21, 6, 3);
     TEST_ASSERT(dstarts[0] == 106 && dcycles[0] == 176,
                 "hitmark preserves delayed start and lifetime");
+
+    /* --- the reference's slot rules (deob class105.method3560) -------------- */
+
+    /* Duration comes from the hitsplat type (opcode 9), not a fixed 70. */
+    memset(dcycles, 0, sizeof(dcycles));
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 100, 4, 21, 0, 4, 30,
+                           WORLD_HITMARK_POLICY_DISCARD);
+    TEST_ASSERT(dcycles[0] == 130, "hitmark honours the type's duration");
+
+    /* The insert cursor starts one past the LAST live splat and wraps, rather
+     * than taking the lowest free index: with 0 and 2 live and 1 expired, the
+     * reference picks 3. Taking the lowest would answer 1. */
+    memset(dcycles, 0, sizeof(dcycles));
+    memset(dvals, 0, sizeof(dvals));
+    dcycles[0] = 200;
+    dcycles[2] = 200;
+    ADD_HITMARK(100, 7, 55, 0, 4);
+    TEST_ASSERT(dvals[3] == 55 && dvals[1] == 0, "hitmark cursor starts past the last live splat");
+
+    /* Full + policy -1: the incoming splat is dropped and nothing is disturbed. */
+    for( int i = 0; i < 4; i++ )
+    {
+        dcycles[i] = 200;
+        dvals[i] = (uint8_t)(10 + i);
+    }
+    ADD_HITMARK(100, 7, 99, 0, 4);
+    TEST_ASSERT(dvals[0] == 10 && dvals[1] == 11 && dvals[2] == 12 && dvals[3] == 13,
+                "hitmark policy -1 discards when full");
+
+    /* Full + policy 0: overwrite whichever splat expires soonest (slot 2 here). */
+    for( int i = 0; i < 4; i++ )
+    {
+        dcycles[i] = 200 + i;
+        dvals[i] = (uint8_t)(10 + i);
+    }
+    dcycles[2] = 150;
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 100, 7, 99, 0, 4,
+                           WORLD_HITMARK_DEFAULT_DURATION, WORLD_HITMARK_POLICY_EVICT_OLDEST);
+    TEST_ASSERT(dvals[2] == 99 && dvals[0] == 10, "hitmark policy 0 evicts the soonest to expire");
+
+    /* Full + policy 1: overwrite the smallest, but only if the new hit is bigger. */
+    for( int i = 0; i < 4; i++ )
+    {
+        dcycles[i] = 200;
+        dvals[i] = (uint8_t)(20 + i);
+    }
+    dvals[1] = 3;
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 100, 7, 99, 0, 4,
+                           WORLD_HITMARK_DEFAULT_DURATION, WORLD_HITMARK_POLICY_EVICT_SMALLEST);
+    TEST_ASSERT(dvals[1] == 99, "hitmark policy 1 evicts the smallest");
+    World_EntityAddHitmark(dvals, dtypes, dstarts, dcycles, 100, 7, 1, 0, 4,
+                           WORLD_HITMARK_DEFAULT_DURATION, WORLD_HITMARK_POLICY_EVICT_SMALLEST);
+    TEST_ASSERT(dvals[0] == 20 && dvals[1] == 99 && dvals[2] == 22 && dvals[3] == 23,
+                "hitmark policy 1 refuses a hit that would not improve");
+
+#undef ADD_HITMARK
 }
 
 void
@@ -449,9 +512,34 @@ test_spotanim(void)
     struct WorldEntity_Spotanim* s = World_EntityPoolGet(&world->entities.spotanim, idx);
     TEST_ASSERT(!s->active && s->idle_cycles == 3, "spot idle");
 
-    World_Cycle(world, 3);
+    /* Nothing announced while it is still counting down its delay: the app
+     * holds the element's sequence at frame 0 until the start event, so an
+     * event emitted early would run the animation out of sight. */
+    World_Cycle(world, 1);
+    TEST_ASSERT(World_EventsCount(world) == 0, "no start event while delayed");
+
+    World_Cycle(world, 2);
     s = World_EntityPoolGet(&world->entities.spotanim, idx);
     TEST_ASSERT(s && s->active, "spot active");
+
+    /* Exactly one start event, on the cycle it first draws — this is what tells
+     * the app to begin the sequence. */
+    {
+        int starts = 0;
+        int count = World_EventsCount(world);
+        for( int i = 0; i < count; i++ )
+        {
+            const struct World_Event* ev = World_EventsPeek(world, i);
+            if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id == 40 )
+                starts++;
+        }
+        TEST_ASSERT(starts == 1, "spot start event on activation cycle");
+    }
+
+    /* And not re-announced every cycle it stays active. */
+    World_EventsClear(world);
+    World_Cycle(world, 1);
+    TEST_ASSERT(World_EventsCount(world) == 0, "start event is not repeated");
 
     World_Cycle(world, 5);
     TEST_ASSERT(world->entities.spotanim.active_count == 0, "spot expired");
@@ -800,6 +888,48 @@ test_obj_raise(void)
     TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 0) == 200, "level 0 unchanged");
     TEST_ASSERT(World_ObjRaiseGet(world, 10, 20, 1) == 50, "level 1 independent");
     TEST_ASSERT(World_ObjRaiseGet(world, -1, 0, 0) == 0, "OOB is flat");
+
+    World_Free(world);
+}
+
+/*
+ * A transmog keeps whatever one-shot is already playing.
+ *
+ * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk
+ * anims and readyanim and never touches `primaryAnim`; this pins that. The
+ * clear that used to live in `World_NpcSetType` was silently fatal to any
+ * animation issued on the same tick as a retype — which the wire makes the
+ * ordinary case, since it writes the SEQUENCE block before the TRANSFORMATION
+ * block of one packet. The Queen Black Dragon's return-to-sleep was the
+ * visible casualty: content played her only death animation and retyped her to
+ * her sleeping form together, and she snapped straight to the sleeping idle.
+ */
+void
+test_npc_retype_keeps_animation(void)
+{
+    printf("TEST: a transmog keeps a running animation\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct WorldEntityFacet_IdleAnimations sleeping = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    sleeping.readyanim = 777;
+
+    World_NpcSetPrimaryAnimation(world, ni, 16742, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 16742, "the one-shot is armed");
+
+    /* Two frames in, so a survivor is distinguishable from a restart. */
+    npc->animation.primary.frame = 2;
+
+    World_NpcSetType(world, ni, 4321, 5, &sleeping);
+    TEST_ASSERT(npc->npc_id == 4321 && npc->size == 5, "the retype still lands");
+    TEST_ASSERT(npc->idle_animations.readyanim == 777, "and swaps the idle set");
+    TEST_ASSERT(npc->animation.primary.anim_id == 16742,
+                "the running one-shot survives the retype");
+    TEST_ASSERT(npc->animation.primary.frame == 2,
+                "and keeps its place rather than restarting");
 
     World_Free(world);
 }

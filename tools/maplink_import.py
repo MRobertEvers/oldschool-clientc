@@ -42,12 +42,23 @@ dropped and printed by `--report`/written to `docs/MAPLINKS_REJECTS.md`,
 never guessed — the same rule `ladder_import.py` already applies to a
 `loc_<id>` it cannot resolve by name.
 
+The key is a tile AND a direction
+---------------------------------
+A row carries `dir`, the plane change its own menu verb names (+1 Climb-up,
+-1 Climb-down, ±2 the Top-floor/Bottom-floor op that skips a landing, 0 for a
+verb that names none), and `~maplink_try` is told which one the player asked
+for. That is not bookkeeping: a spiral staircase's middle floor offers up and
+down from ONE tile, so a tile-only key answers both ops with whichever
+direction survived the harvest — and exactly one does, because
+`classify_displacement` drops the direction whose destination already equals
+`~climb`'s ±1 default. Lumbridge castle's two landings each kept one, and
+each answered both of its ops with it.
+
 Two kinds of ambiguity, both name-scoped
 -----------------------------------------
 A `src -> dest` row is only emitted when every verified placement of that
-EXACT origin tile agrees on one destination (a coord-only table cannot hold
-two answers for one key — a spiral staircase's middle floor is the classic
-case, two different climb ops from the same tile). Where a tile disagrees,
+EXACT origin tile AND direction agrees on one destination (the table cannot
+hold two answers for one key). Where a key disagrees,
 the affected records are bound by NAME and op slot instead — but only when
 that name has EXACTLY ONE placement in the whole accepted set. A name+op
 binding is name-wide, not tile-specific: it fires for every instance of the
@@ -77,7 +88,25 @@ import os
 import re
 import sys
 
-CLIMB_VERBS = ("Climb-up", "Climb-down", "Climb")
+# Every menu verb that changes the player's plane, and BY HOW MANY planes.
+#
+# The magnitude matters as much as the sign, and it is the whole reason this
+# is a mapping rather than a tuple: a three-storey spiral staircase states
+# `op1=Climb-up`, `op2=Top-floor` on its ground floor, so one origin tile
+# carries two "up" rows that land on two different planes. `dir` (below) is
+# what tells them apart, in the table and at the trigger.
+#
+# 0 is "the verb names no direction" — a bare `Climb`, which the record only
+# ever carries alone. A 0 row matches any direction at runtime; see
+# `~maplink_try`.
+CLIMB_DELTAS = {
+    "Climb-up": 1,
+    "Climb-down": -1,
+    "Climb": 0,
+    "Top-floor": 2,
+    "Bottom-floor": -2,
+}
+CLIMB_VERBS = tuple(CLIMB_DELTAS)
 TRANSITION_VERBS = ("Enter", "Exit", "Board")
 TRANSITION_CATEGORY = "maplink_transition"  # bare name — the value `category=` and category.pack use
 TRANSITION_CATEGORY_TRIGGER = "_" + TRANSITION_CATEGORY  # trigger subject spelling: `[oploc1,_maplink_transition]`
@@ -321,12 +350,24 @@ def resolve_object(menu_target, menu_id, loc_names, loc_records, npc_names, npc_
     return None
 
 
-def classify_displacement(origin, dest):
+def classify_displacement(origin, dest, delta):
+    """What `~climb` would do with this row's verb, versus where the row says
+    the player actually lands.
+
+    `delta` is the verb's own plane change (CLIMB_DELTAS), and the comparison
+    has to use it rather than `abs(dp - op) == 1`: "the default" is not "one
+    plane in either direction", it is one plane in THE DIRECTION THE VERB
+    NAMES. A `Climb-down` row landing one plane UP is not a row `~climb`
+    already gets right — it is a row that disagrees with the verb, and
+    dropping it as redundant is how a staircase ends up answering the wrong
+    op. (A bare `Climb` names no direction; `~climb_unqualified` guesses up,
+    so that guess is what a 0-delta row is measured against.)"""
     ox, oz, op = origin
     dx, dz, dp = dest
-    if (ox, oz) == (dx, dz) and abs(dp - op) == 1:
+    step = delta if delta else 1
+    if (ox, oz) == (dx, dz) and dp - op == step:
         return "default"  # ~climb already gets this right
-    if abs(dp - op) <= 1 and abs(dx - ox) <= 3 and abs(dz - oz) <= 3:
+    if abs(dp - op) <= abs(step) and abs(dx - ox) <= 3 and abs(dz - oz) <= 3:
         return "near-miss"
     return "jump"
 
@@ -383,7 +424,7 @@ def harvest(content, data_dir, include_near_miss):
             reject_examples["not-placed-at-origin"].append("%s at %r" % (name, origin))
             continue
 
-        dclass = classify_displacement(origin, dest)
+        dclass = classify_displacement(origin, dest, CLIMB_DELTAS[verb])
         if dclass == "default":
             rejects["already-correct-default"] += 1
             continue
@@ -549,9 +590,26 @@ def harvest_agility(content, data_dir):
     return accepted, rejects, reject_examples, len(rows)
 
 
+def row_dir(verb):
+    """The plane change the verb names, 0 when it names none. Transition and
+    agility verbs (`Enter`, `Squeeze-through`, ...) are all 0 — they have no
+    direction to disagree about, so those two harvests key exactly the way
+    they did before `dir` existed."""
+    return CLIMB_DELTAS.get(verb, 0)
+
+
 def split_unambiguous(accepted):
-    """Group by exact origin tile; a tile with >1 distinct destination cannot
-    be answered by a coord-only table and needs a name+op binding instead.
+    """Group by (exact origin tile, direction); a key with >1 distinct
+    destination cannot be answered by the table and needs a name+op binding
+    instead.
+
+    Direction is part of the key because it is part of the lookup: a spiral
+    staircase's middle floor offers up and down from ONE tile, and
+    `~maplink_try` is told which one the player asked for. Two rows that share
+    a tile but name opposite directions are two answers to two questions, not
+    an ambiguity. A 0-direction row is the exception — it matches any
+    direction at runtime, so it collides with every other row on its tile and
+    the whole tile is ambiguous when one turns up alongside a directed row.
 
     A name+op binding is name-wide, not tile-specific — `[oploc1,<name>]`
     fires for EVERY placement of that name, not just the one tile it was
@@ -565,21 +623,27 @@ def split_unambiguous(accepted):
     and `_2` are placed at both ends of one bidirectional cliff jump, and
     without this check each would silently teleport an already-arrived player
     straight back to where they started."""
-    by_origin = collections.defaultdict(list)
+    by_key = collections.defaultdict(list)
+    wildcard_origins = set()  # tiles carrying a 0-direction row — collides with every other row there
     for entry in accepted:
-        by_origin[entry[0]].append(entry)
+        by_key[(entry[0], row_dir(entry[4]))].append(entry)
+        if row_dir(entry[4]) == 0:
+            wildcard_origins.add(entry[0])
 
     origins_by_name = collections.defaultdict(set)
     for entry in accepted:
         origins_by_name[entry[2]].add(entry[0])
 
-    table_rows = []  # (origin, dest, name)
+    keys_by_origin = collections.Counter(origin for origin, _dir in by_key)
+
+    table_rows = []  # (origin, dest, name, dir)
     ambiguous = []  # (origin, dest, name, slots, verb, ...) — single-placement names only
     dropped_multi_placement = set()
-    for origin, entries in by_origin.items():
+    for (origin, direction), entries in by_key.items():
         dests = {e[1] for e in entries}
-        if len(dests) == 1:
-            table_rows.append((origin, entries[0][1], entries[0][2]))
+        collides = direction != 0 and origin in wildcard_origins
+        if len(dests) == 1 and not (collides or (direction == 0 and keys_by_origin[origin] > 1)):
+            table_rows.append((origin, entries[0][1], entries[0][2], direction))
             continue
         for entry in entries:
             name = entry[2]
@@ -595,11 +659,24 @@ def build_dbtable_text():
         "// The climb destinations `~climb` cannot derive from the loc's own\n"
         "// menu verb — see docs/MAPLINKS.md. Generated rows live in maplink.dbrow;\n"
         "// this schema is hand-authored and stable.\n"
+        "//\n"
+        "// `dir` is the plane change the row's own menu verb names: +1 Climb-up,\n"
+        "// -1 Climb-down, +2 Top-floor, -2 Bottom-floor, 0 for a verb that names\n"
+        "// no direction (a bare Climb, or a transition — a cave mouth or portal).\n"
+        "// `~maplink_try` skips a row whose `dir` contradicts the op the player\n"
+        "// clicked, which is what keeps a spiral staircase's middle floor from\n"
+        "// answering Climb-down with the tile's Climb-up row.\n"
         "[maplink]\n"
         "column=src,coord,INDEXED,REQUIRED\n"
         "column=dest,coord,REQUIRED\n"
         "column=loc,loc,REQUIRED\n"
+        "column=dir,int,REQUIRED\n"
     )
+
+
+# One tile can now hold more than one row, so the row's own name has to say
+# which — `[maplink_<src>]` alone would emit two blocks under one key.
+DIR_SUFFIX = {0: "", 1: "_up", -1: "_down", 2: "_topfloor", -2: "_bottomfloor"}
 
 
 def build_dbrow_text(table_rows, near_miss):
@@ -608,14 +685,15 @@ def build_dbrow_text(table_rows, near_miss):
         "// %d rows (%s). See docs/MAPLINKS.md.\n\n"
         % (len(table_rows), "jumps + near-miss" if near_miss else "jumps only"),
     ]
-    for origin, dest, name in sorted(table_rows):
+    for origin, dest, name, direction in sorted(table_rows):
         src_lit = to_coord_literal(*origin)
         dest_lit = to_coord_literal(*dest)
-        lines.append("[maplink_%s]\n" % src_lit)
+        lines.append("[maplink_%s%s]\n" % (src_lit, DIR_SUFFIX[direction]))
         lines.append("table=maplink\n")
         lines.append("data=src,%s\n" % src_lit)
         lines.append("data=dest,%s\n" % dest_lit)
-        lines.append("data=loc,%s\n\n" % name)
+        lines.append("data=loc,%s\n" % name)
+        lines.append("data=dir,%d\n\n" % direction)
     return "".join(lines)
 
 
@@ -701,9 +779,9 @@ def split_category_conflicts(table_rows, accepted, claimed):
     category_ok = []
     needs_name_binding = []
     dropped = set()
-    for origin, dest, name in table_rows:
+    for origin, dest, name, direction in table_rows:
         if name not in claimed:
-            category_ok.append((origin, dest, name))
+            category_ok.append((origin, dest, name, direction))
             continue
         if len(origins_by_name[name]) == 1:
             slots = next(e[3] for e in accepted if e[2] == name and e[0] == origin)
@@ -835,19 +913,26 @@ def build_rejects_doc(rejects, examples, total_rows, accepted_count, near_miss,
 
 def merge_table_rows(climb_rows, transition_rows):
     """Combine both classes into one `maplink` table. A collision — the same
-    origin tile claimed by both a climb row and a transition row with
-    DIFFERENT destinations — can't be represented as one dbrow, so both sides
-    are dropped and reported rather than one silently overwriting the other
-    (a genuine cross-class conflict has never been observed on this cache;
-    guarded anyway since a coord key is shared state)."""
-    by_origin = {}
+    origin tile AND direction claimed by both a climb row and a transition row
+    with DIFFERENT destinations — can't be represented as one dbrow, so both
+    sides are dropped and reported rather than one silently overwriting the
+    other (a genuine cross-class conflict has never been observed on this
+    cache; guarded anyway since a coord key is shared state).
+
+    A transition row is always direction 0, which `~maplink_try` matches for
+    any op — so a transition sharing a tile with a directed climb row is a
+    collision on that tile whatever the directions say, and the key widens to
+    the tile alone as soon as one side is 0."""
+    by_key = {}
     conflicts = set()
-    for origin, dest, name in climb_rows + transition_rows:
-        if origin in by_origin and by_origin[origin][0] != dest:
+    wildcard_origins = {o for o, _d, _n, direction in climb_rows + transition_rows if direction == 0}
+    for origin, dest, name, direction in climb_rows + transition_rows:
+        key = origin if origin in wildcard_origins else (origin, direction)
+        if key in by_key and by_key[key][0] != dest:
             conflicts.add(origin)
         else:
-            by_origin[origin] = (dest, name)
-    merged = [(o, d, n) for o, (d, n) in by_origin.items() if o not in conflicts]
+            by_key[key] = (dest, name, origin, direction)
+    merged = [(o, d, n, r) for (d, n, o, r) in by_key.values() if o not in conflicts]
     return merged, conflicts
 
 
@@ -896,7 +981,7 @@ def main():
     category_ok, needs_binding, conflict_dropped = split_category_conflicts(
         t_table_rows, t_accepted, claimed
     )
-    transition_loc_text = build_transition_loc_text({name for _, _, name in category_ok})
+    transition_loc_text = build_transition_loc_text({name for _, _, name, _dir in category_ok})
     transition_shared_text, _ = build_shared_text(
         t_ambiguous + needs_binding, t_dropped_multi | conflict_dropped, header=TRANSITION_SHARED_HEADER
     )
@@ -925,8 +1010,8 @@ def main():
         ],
     )
     already_scripted_names = {name for (_slot, name) in already_scripted}
-    a_names_before_filter = {n for _, _, n in a_table_rows}
-    a_table_rows = [(o, d, n) for (o, d, n) in a_table_rows if n not in already_scripted_names]
+    a_names_before_filter = {n for _, _, n, _dir in a_table_rows}
+    a_table_rows = [r for r in a_table_rows if r[2] not in already_scripted_names]
     a_hand_scripted_count = len(a_names_before_filter & already_scripted_names)
     # `claimed` (computed above for transitions) excluded the wrong path for
     # this purpose — it did not exclude agility_loc_path, so on a second run
@@ -936,16 +1021,16 @@ def main():
     a_other_categories = read_other_loc_categories(args.content, exclude_paths=[agility_loc_path])
     a_claimed = (
         set(a_other_categories) | cache_named_categories
-        | {name for _, _, name in category_ok} | already_scripted_names
+        | {name for _, _, name, _dir in category_ok} | already_scripted_names
     )
     a_category_ok, a_needs_binding, a_conflict_dropped = split_category_conflicts(
         a_table_rows, a_accepted, a_claimed
     )
     a_level_by_origin = {e[0]: e[5] for e in a_accepted}
     a_rows_with_level = [
-        (origin, dest, name, a_level_by_origin[origin]) for origin, dest, name in a_category_ok
+        (origin, dest, name, a_level_by_origin[origin]) for origin, dest, name, _dir in a_category_ok
     ]
-    agility_loc_text = build_agility_loc_text({name for _, _, name in a_category_ok})
+    agility_loc_text = build_agility_loc_text({name for _, _, name, _dir in a_category_ok})
     agility_dbrow_text = build_agility_dbrow_text(a_rows_with_level)
     # a_needs_binding/a_conflict_dropped are deliberately NOT bound by name —
     # see harvest_agility's docstring. Folded into "dropped" for reporting.
@@ -953,7 +1038,7 @@ def main():
 
     # --- shared dbtable ---
     merged_table_rows, cross_class_conflicts = merge_table_rows(
-        table_rows, [(o, d, n) for o, d, n in category_ok]
+        table_rows, list(category_ok)
     )
     dbtable_text = build_dbtable_text()
     dbrow_text = build_dbrow_text(merged_table_rows, args.near_miss)

@@ -409,17 +409,27 @@ hitsplat_poison(void)
 /* ------------------------------------------------------------------ */
 
 /*
- * FACE_ENTITY is a latch, not a per-tick state.
+ * FACE_ENTITY is a latch, and dropping a target does NOT clear it here.
  *
  * The client turns the entity toward whatever the last FACE_ENTITY named and
- * keeps it there — there is no timeout and no implicit clear. So every path
- * that drops a combat target has to send -1 (65535 on the wire, which is how
- * the client spells "face nothing"), and every path means: the target died, the
- * player died, the player walked away, or the player started doing something
- * else.
+ * keeps it there — there is no timeout and no implicit clear — so the release
+ * still has to be sent. What matters is *when*. In LostCity
+ * `PathingEntity.setFaceEntity` is the only writer of `faceEntity` in the whole
+ * engine: it is derived from the current target once per turn, at a fixed point
+ * in `processPlayers`, and `clearInteraction` deliberately leaves the field
+ * alone. `mock230_player_set_face_entity` is that function, and phase_player
+ * calls it in that same slot — before the interaction, before the swing.
  *
- * Missing one of them is invisible until you notice a goblin has been staring
- * at a spot on the ground since the fight before last.
+ * Clearing the latch here as well made the derived value unreachable for one
+ * whole tick, and that tick is the interesting one. A kill in a single blow
+ * runs `set_face_entity` (latch := the npc) at the top of the turn and this
+ * function (latch := -1) at the bottom of the *same* turn, and the mask is only
+ * flushed once, after both. The client received nothing but the release: the
+ * player killed the goblin without ever turning to look at it. Every fight
+ * lasting two or more ticks hid it, because the first tick shipped the latch.
+ *
+ * So the release now lands on the next turn's `set_face_entity`, which runs
+ * unconditionally — locked, dying or idle — for exactly this reason.
  */
 void
 mock230_combat_stop_player_at(struct Mock230Player* player)
@@ -430,11 +440,6 @@ mock230_combat_stop_player_at(struct Mock230Player* player)
      * combat script on a later tick and acquire the same target again. */
     player->combat_target = -1;
     mock230_world_interaction_clear_at(player);
-    if( player->face_entity != -1 )
-    {
-        player->face_entity = -1;
-        player->masks |= MOCK230_PMASK_FACE_ENTITY;
-    }
 }
 
 void
@@ -866,6 +871,28 @@ mock230_combat_hit_npc(
          */
         npc->death_stage = MOCK230_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
+        /*
+         * Drop whatever was already armed on the npc's own queue — a healer's
+         * `npc_queue(4, heal, ...)` chief among them.
+         *
+         * `mock230_combat_stop_npc` below only clears the *targets* pointed at
+         * this npc (its attacker's combat_target_npc); it does not reach into
+         * `npc->queue[]`. Without this, a heal queued a tick or two before the
+         * killing blow keeps counting down through QUEUED/ARRIVE/CORPSE — the
+         * npc phase only skips a `death_tick`-holding npc's mode/AI, not its
+         * queue drain — and `npc_statheal` (unlike this function) has no
+         * `death_tick` guard of its own. It fires, hitpoints go back above
+         * zero, and REAP (below) reads that as a scripted revive exactly like
+         * the Kalphite Queen's own `[ai_queue3]` heal-to-transform and cancels
+         * the death outright: the npc "doesn't die".
+         *
+         * Cleared here rather than guarding `npc_statheal` itself so that
+         * pattern keeps working — an `[ai_queue3]` death script still runs
+         * *after* this point and can arm its own fresh queue entries (Jad's
+         * healer-despawn `npc_queue(5, ...)`, KQ's revive) same as before.
+         */
+        for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+            npc->queue[i].active = 0;
         /*
          * Capture kill attribution before combat_stop clears combat_target.
          * Clientscript 7192 needs the npc type + a per-kill event id; each
@@ -1964,6 +1991,52 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));
+        /*
+         * And the npc's own queue, which is where DAMAGE lives.
+         *
+         * `npc_queue(2, $damage, $delay)` is how every hit in the tree is
+         * delivered — combat_stats.rs2 queues it, `[ai_queue2,_]` turns it into
+         * a splat — so a queue entry that outlives the npc it was armed on is a
+         * hit landing on somebody else.
+         *
+         * The killing blow already empties the queue (`mock230_combat_hit_npc`,
+         * at DEATH_QUEUED). What it cannot empty is what arrives AFTER it, and
+         * two attackers on one tick is all that takes: the second swing queues
+         * onto an npc that is already dying, the npc phase never drains it (it
+         * skips anything holding a `death_tick`), and the entry sat in the slot
+         * until this function handed the slot back. The respawned monster then
+         * walked into the world and immediately took the previous life's hit —
+         * "that thing spawned already hurt", or, when a player was watching the
+         * spot, a hitsplat on an npc nobody had swung at.
+         *
+         * This function reactivates the record IN PLACE, unlike `npc_spawn`,
+         * which memsets first. Everything a new life must not inherit therefore
+         * has to be named here, and everything below this line is the rest of
+         * that list: state that describes one life rather than one pool slot.
+         * `test-mock230`'s NPC LIFECYCLE UNDER DAMAGE section is what catches
+         * the next one that goes missing.
+         */
+        for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
+            npc->queue[q].active = 0;
+        /* The splat list and the pair the classic mask spends. Cleared every
+         * tick in phase_cleanup anyway, so this is belt and braces — but a
+         * respawn arriving with a full four-splat list would silently drop the
+         * first real hit of its new life, which is the same defect wearing a
+         * different hat. */
+        memset(npc->hitmarks, 0, sizeof(npc->hitmarks));
+        npc->hitmark_count = 0;
+        npc->damage = 0;
+        npc->damage_type = 0;
+        /* Drained stats are damage by another name — `npc_statsub` is what a
+         * BGS, a Darklight or an Arclight spec leaves behind, and none of it
+         * belongs to the monster that replaces the one it was spent on. */
+        memset(npc->stat_drain, 0, sizeof(npc->stat_drain));
+        /* A parked script's deadline and a freeze both describe the life that
+         * ended: a monster that died mid-`npc_delay` used to come back unable
+         * to take its turn — which includes draining its queue, so its first
+         * hits went missing too. */
+        npc->delayed_until = 0;
+        npc->frozen_ticks = 0;
         npc->poison_severity = 0;
         npc->poison_clock = 0;
         npc->poison_source_pid = -1;

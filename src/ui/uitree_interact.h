@@ -83,6 +83,12 @@ struct UIInteraction
  */
 #define UI_KEY_TARGET_MAX 64
 
+/** Which of the three keyboard hooks a key target carries. One component can
+ *  carry any combination (the inventory carries key-down and key-up). */
+#define UI_KEY_HOOK_TYPED (1 << 0)
+#define UI_KEY_HOOK_DOWN (1 << 1)
+#define UI_KEY_HOOK_UP (1 << 2)
+
 /** A component with an onKey handler, plus its screen-space drawn origin
  * captured at collection time (reference caches _absX/_absY before dispatch,
  * and layout is not re-resolved until after the dispatch loop anyway). */
@@ -91,6 +97,10 @@ struct UIKeyTarget
     int component_id;
     int abs_x;
     int abs_y;
+    /** UI_KEY_HOOK_* bits present on the component at collection time. The
+     *  dispatcher re-reads the hook itself before running it; this only says
+     *  which of the three loops need to consider this target at all. */
+    int hooks;
 };
 
 /** One "run this component script hook" request, with optional event context
@@ -160,6 +170,14 @@ struct UIInteractOut
     int key_event_count;
     int key_mouse_x;
     int key_mouse_y;
+    /* OSRS key codes that went down / came up this frame, for the on_key_down
+     * and on_key_up hooks. Separate from key_events because those are typed
+     * events (a printable key arrives as a character, with no code) and
+     * because a release produces no typed event at all. */
+    int key_down_codes[LIBTORIRS_KEY_EVENT_MAX];
+    int key_down_count;
+    int key_up_codes[LIBTORIRS_KEY_EVENT_MAX];
+    int key_up_count;
 };
 
 void

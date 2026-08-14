@@ -16,13 +16,19 @@ World_EntityAddHitmark(
     int damage_type,
     int damage_value,
     int delay,
-    int slot_limit)
+    int slot_limit,
+    int duration,
+    int slot_policy)
 {
     int start_cycle = loop_cycle + delay;
     int cursor = 0;
+    int chosen = -1;
+    int full = 1;
 
     if( slot_limit <= 0 || slot_limit > WORLD_ENTITY_DAMAGE_SLOTS )
         slot_limit = WORLD_ENTITY_DAMAGE_SLOTS;
+    if( duration <= 0 )
+        duration = WORLD_HITMARK_DEFAULT_DURATION;
 
     /* Slot choice follows the reference's `class105.method3560` (rev-239 deob).
      *
@@ -59,38 +65,69 @@ World_EntityAddHitmark(
     {
         if( damage_cycles[i] > loop_cycle )
             cursor = (i + 1) % slot_limit;
+        else
+            full = 0; /* An expired slot exists, so nothing has to be evicted. */
     }
     if( slot_limit > 4 )
         cursor = 0;
 
-    for( int i = 0; i < slot_limit; i++ )
+    if( !full )
     {
-        int slot = cursor;
-
-        cursor = (cursor + 1) % slot_limit;
-        if( damage_cycles[slot] <= loop_cycle )
+        for( int i = 0; i < slot_limit; i++ )
         {
-            damage_values[slot] = (uint8_t)damage_value;
-            damage_types[slot] = (uint8_t)damage_type;
-            damage_start_cycles[slot] = start_cycle;
-            /* 70 is the reference's own default for this duration: `class420`'s
-             * constructor initialises `var4 = 70` before the opcode loop, and
-             * `field5309` (opcode 9) overrides it per hitsplat type. Records
-             * that set opcode 9 are therefore NOT honoured here yet — see the
-             * note in `dat2_config_hitsplat.h`, whose decoder carries opcode 9
-             * as an unnamed `opcode_9`. */
-            damage_cycles[slot] = start_cycle + 70;
-            return;
+            int slot = cursor;
+
+            cursor = (cursor + 1) % slot_limit;
+            if( damage_cycles[slot] <= loop_cycle )
+            {
+                chosen = slot;
+                break;
+            }
         }
     }
+    else
+    {
+        /* Every slot is live. What happens now is the hitsplat TYPE's decision,
+         * not a fixed rule: `field5318` (opcode 12 of the hitsplat config).
+         * Discard is its default, which is why a caller that has no config
+         * should pass WORLD_HITMARK_POLICY_DISCARD rather than 0 — 0 is a real,
+         * different policy. */
+        int best = 0;
 
-    /* All slots live: drop the new splat. This is the reference's behaviour for
-     * `field5318 == -1` (opcode 12), which is that field's DEFAULT — the
-     * constructor sets `var13 = -1` before the opcode loop. Types that set
-     * opcode 12 instead evict: 0 overwrites the splat with the lowest remaining
-     * cycle, 1 overwrites the lowest-valued splat and drops the incoming hit
-     * when that value is already >= it. Neither is reachable here because
-     * `dat2_config_hitsplat.h`'s decoder has no opcode 12 at all. */
+        if( slot_policy == WORLD_HITMARK_POLICY_DISCARD )
+            return;
+
+        for( int i = 0; i < slot_limit; i++ )
+        {
+            int metric = (slot_policy == WORLD_HITMARK_POLICY_EVICT_SMALLEST)
+                             ? (int)damage_values[i]
+                             : damage_cycles[i];
+
+            if( i == 0 || metric < best )
+            {
+                best = metric;
+                chosen = i;
+            }
+        }
+
+        /* EVICT_SMALLEST additionally refuses a hit that would not be an
+         * improvement: the reference drops the incoming splat when the smallest
+         * one already on screen is at least as large. Without this a stream of
+         * 1s would keep displacing a big hit. */
+        if( slot_policy == WORLD_HITMARK_POLICY_EVICT_SMALLEST && best >= damage_value )
+            return;
+    }
+
+    if( chosen < 0 )
+        return;
+
+    damage_values[chosen] = (uint8_t)damage_value;
+    damage_types[chosen] = (uint8_t)damage_type;
+    damage_start_cycles[chosen] = start_cycle;
+    /* `duration` is the type's own `field5309` (opcode 9), defaulted by the
+     * caller to the reference's pre-loop 70 when the cache has no record. This
+     * was hardcoded to 70 before the hitsplat config decoder could read it. */
+    damage_cycles[chosen] = start_cycle + duration;
 }
 
 struct World_StepCoord

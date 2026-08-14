@@ -23,6 +23,7 @@
 #include "mock230.h"
 #include "mock230_servercodec.h"
 #include "mock230_servpack.h"
+#include "mock230_shop.h"
 
 #include <rscache.h>
 
@@ -1867,6 +1868,171 @@ load_obj_config(const char* path)
 }
 
 /* ------------------------------------------------------------------ */
+/* .inv configs — shop definitions                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * `fields/inv.ini` reserves this grammar and refuses to let it live there:
+ * a shop's slot count is the cache's own fact (config group 5, read through
+ * `mock230_bank_inv_size`), but scope/restock/stock policy have no cache
+ * representation at all and are authored here instead.
+ *
+ * LostCity's own `.inv` grammar, unchanged:
+ *
+ *     [name]
+ *     scope=shared
+ *     restock=yes
+ *     allstock=yes
+ *     stackall=yes
+ *     stock1=obj_name,baseline_count,restock_rate
+ *     stock2=...
+ *
+ * `size=` is accepted and ignored (with a diagnostic) the same way `.npc`
+ * accepts a client-stated field: LostCity's own `.inv` files carry it and a
+ * silent drop is worse than a line explaining why it did not apply. `scope`
+ * only ever means `shared` here — every other inv this parser never mentions
+ * defaults to per-player, which is `mock230_container_scope`'s job to answer,
+ * not this file's to restate for the other ~550 non-shop inv names.
+ */
+static void
+inv_config_key(
+    struct Mock230ShopDef* def,
+    const char* key,
+    const char* value,
+    const char* where)
+{
+    if( !def )
+        return;
+    if( strcmp(key, "scope") == 0 )
+    {
+        if( strcmp(value, "shared") == 0 )
+            def->shared = 1;
+        else if( strcmp(value, "temp") != 0 )
+            CONTENT_ERROR("%s: inv scope `%s` is neither `shared` nor `temp`\n", where, value);
+        return;
+    }
+    if( strcmp(key, "restock") == 0 )
+    {
+        def->restock = (strcmp(value, "yes") == 0);
+        return;
+    }
+    if( strcmp(key, "allstock") == 0 )
+    {
+        def->allstock = (strcmp(value, "yes") == 0);
+        return;
+    }
+    if( strcmp(key, "stackall") == 0 )
+    {
+        /* This IS the stack policy `mock230_container_add` says it is missing —
+         * LostCity's `InvType.stackType`, authored here because the cache's inv
+         * config carries only size. It used to be parsed and dropped, which put
+         * the seed and the add path in disagreement: `mock230_shop_seed` writes
+         * `stock1=pot_empty,5,10` as one slot of five unstackable pots, and
+         * selling a pot back then opened a *second* pot cell. */
+        def->stackall = (strcmp(value, "yes") == 0);
+        return;
+    }
+    if( strcmp(key, "size") == 0 )
+    {
+        /* A cache-known inv already has a size (config group 5) and restating
+         * it here would drift silently out of sync with the real fact — kept
+         * as an error for that case. A `pack/inv.alloc` id has no such fact:
+         * this is content declaring the one thing the allocator can't, for a
+         * shop whose cache snapshot never packed its inv (docs/SHOPS_PLAN.md
+         * §8.5). mock230_container_resolve falls back to it only when
+         * mock230_bank_inv_size comes back empty, so a real cache size still
+         * always wins. */
+        if( mock230_bank_inv_size((int)def->inv_id) > 0 )
+        {
+            CONTENT_ERROR(
+                "%s: inv size is a cache fact (config group 5); `size=%s` is inert here — see "
+                "fields/inv.ini\n",
+                where, value);
+            return;
+        }
+        mock230_shop_def_set_size(def, atoi(value));
+        return;
+    }
+    if( strncmp(key, "stock", 5) == 0 && key[5] >= '0' && key[5] <= '9' )
+    {
+        char obj_name[128] = { 0 };
+        int baseline = 0;
+        int rate = 0;
+        int obj_id;
+
+        if( sscanf(value, "%127[^,],%d,%d", obj_name, &baseline, &rate) != 3 )
+        {
+            CONTENT_ERROR("%s: `%s=obj,baseline,rate` expected three fields, got `%s`\n", where,
+                          key, value);
+            return;
+        }
+        if( !mock230_content_symbol_checked(MOCK230_PACK_OBJ, obj_name, &obj_id) )
+        {
+            CONTENT_ERROR("%s: `%s` is not in configs/all.obj.compack\n", where, obj_name);
+            return;
+        }
+        if( !mock230_shop_def_add_stock(def, obj_id, baseline, rate) )
+            CONTENT_ERROR("%s: more than %d stock lines on inv %d\n", where,
+                          MOCK230_SHOP_STOCK_MAX, (int)def->inv_id);
+        return;
+    }
+    CONTENT_ERROR("%s: unknown inv key `%s`\n", where, key);
+}
+
+static void
+load_inv_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    char where[600];
+    struct Mock230ShopDef* def = NULL;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = mock230_content_clean_line(raw);
+        char* header;
+        char* value;
+        int inv_id;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = mock230_content_section_header(line);
+        if( header )
+        {
+            if( !mock230_content_symbol_checked(MOCK230_PACK_INV, header, &inv_id) )
+            {
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.inv.compack or pack/inv.alloc\n",
+                              path, line_number, header);
+                def = NULL;
+                continue;
+            }
+            def = mock230_shop_def_begin(inv_id);
+            continue;
+        }
+
+        value = mock230_content_split_key_value(line);
+        if( !value )
+        {
+            CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
+            continue;
+        }
+        if( !def )
+        {
+            CONTENT_ERROR("%s:%d: `%s` before any [section]\n", path, line_number, line);
+            continue;
+        }
+        snprintf(where, sizeof(where), "%s:%d", path, line_number);
+        inv_config_key(def, line, value, where);
+    }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
 /* .constant configs                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -3625,6 +3791,14 @@ mock230_content_load(const char* dir)
     walk_configs(path, ".npc", load_npc_config);
     walk_configs(path, ".obj", load_obj_config);
     walk_configs(path, ".loc", load_loc_config);
+    /* After .obj: a stockN= line names an obj and resolves it against
+     * configs/all.obj.compack, which load_obj_config's own walk does not
+     * populate but pack loading (before any of these walks) already has. */
+    mock230_shop_reset();
+    walk_configs(path, ".inv", load_inv_config);
+    if( mock230_shop_def_count() )
+        fprintf(stderr, "mock230: %d shop definitions from server/scripts/**/*.inv\n",
+                mock230_shop_def_count());
     /* After the configs: a spawn names an npc or an obj, and the name has to
      * resolve against the packs the loader has already read. */
     walk_configs(path, ".spawn", load_spawn_config);
