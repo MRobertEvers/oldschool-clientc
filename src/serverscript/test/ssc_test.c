@@ -1323,6 +1323,60 @@ test_duplicate_debugproc(void)
 }
 
 static void
+test_duplicate_trigger(void)
+{
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[900];
+    FILE* file;
+
+    printf("duplicate trigger across files\n");
+
+    snprintf(dir, sizeof(dir), "/tmp/ssc_duptrigger_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+
+    /*
+     * Two files declaring one npc's trigger used to compile without a word:
+     * both took an id, but every body resolved back to the first declaration,
+     * so whichever file the walk reached last replaced the other's body and
+     * the loser's id was left empty. That is how Sheep Shearer, Rune Mysteries
+     * and A Tail of Two Cats all became unstartable — Fred, Sedridor and
+     * Unferth each ran a quest script that was not theirs.
+     */
+    snprintf(path, sizeof(path), "%s/a.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[opnpc1,hans]\nmes(\"first\");\n", file);
+    fclose(file);
+    snprintf(path, sizeof(path), "%s/b.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[opnpc1,hans]\nmes(\"second\");\n", file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    SSC_SymbolsAdd(&symbols, "hans", 3105, SSC_SYM_NPC, NULL);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a duplicate trigger fails the compile");
+    CHECK(strstr(diag.message, "duplicate script name") != NULL,
+          "and names the one-declaration invariant");
+    CHECK(strstr(diag.message, "[opnpc1,hans]") != NULL,
+          "and identifies the exact script name");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
 test_duplicate_login(void)
 {
     struct SSC_Symbols symbols;
@@ -1538,6 +1592,7 @@ main(void)
     test_vararg_limits();
     test_duplicate_debugproc();
     test_duplicate_login();
+    test_duplicate_trigger();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
     test_proc_param_kind_hint();

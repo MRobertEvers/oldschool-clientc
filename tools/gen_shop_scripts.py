@@ -337,9 +337,13 @@ def run(write: bool) -> None:
         if shop["duplicate_of"]:
             skipped["duplicate"] += 1
             continue
-        if "__" in shop_key:
-            skipped["multi-table (needs section-aware inv binding)"] += 1
-            continue
+        # A `__N` key is not, on its own, a reason to skip — `__1` (the base
+        # table) is an ordinary shop that happens to share its page with a
+        # conditional sub-stock, and generates exactly like any other shop.
+        # A `__2`/`__3` sub-table only reaches here with a *verified* binding
+        # if `gen_shop_inv_map.py`'s skillcape-naming derivation matched it
+        # (docs/SHOPS_PLAN.md §8) — everything else stays gated by "inv
+        # binding not verified" below, same as a single-table shop would be.
         if not (shop["sellmultiplier"] and shop["buymultiplier"] and shop["delta"]):
             skipped["not coin-priced"] += 1
             continue

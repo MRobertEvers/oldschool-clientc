@@ -2774,16 +2774,28 @@ SSC_Declare(
                  * unstartable — no diagnostic, correct-looking source, dead
                  * content.
                  *
-                 * A warning rather than an error only because this tree still
-                 * carries a backlog of them; the singleton families above
-                 * (debugproc, [login,_]) are already hard failures, and this
-                 * should join them once the backlog is clear.
+                 * A hard error, like the singleton families above (debugproc,
+                 * [login,_]): the tree carried a backlog of 67 of these and now
+                 * carries none, so the only thing a duplicate can be from here
+                 * is a regression. Two files that both need one npc or loc share
+                 * it the way areas/lumbridge/scripts/fred_the_farmer.rs2 and
+                 * quest_coldwar do — one trigger, branching into a `[label,...]`
+                 * the other file owns.
                  */
                 if( script_id_for_name(compiler, compiler->names[slot]) != slot )
-                    fprintf(stderr,
-                            "%s:%d: warning: duplicate script name '%s'; one body will "
-                            "silently replace the other\n",
-                            path, lexer.current.line, compiler->names[slot]);
+                {
+                    if( diag )
+                    {
+                        snprintf(diag->file, sizeof(diag->file), "%s", path);
+                        diag->line = lexer.current.line;
+                        snprintf(diag->message, sizeof(diag->message),
+                                 "duplicate script name '%s'; declare it once and branch "
+                                 "into a [label,...] from the other file",
+                                 compiler->names[slot]);
+                    }
+                    free(source);
+                    return 0;
+                }
 
                 /*
                  * The argument list, counted the same way parse_arg_list does.

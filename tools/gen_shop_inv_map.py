@@ -278,6 +278,29 @@ def build(write: bool, refresh: bool) -> None:
                     note = lostcity[gameval].get("title", "")
                     break
 
+        # An owner npc's own gameval, spelled identically to a cache inv name,
+        # is not a token-overlap guess — it is the same string, and this
+        # cache's newer (post-2004) content routinely names a shop's inv after
+        # the one npc who runs it (`aldarin_general_store` the npc owns
+        # `aldarin_general_store` the inv; `cam_torum_shop_blacksmith`,
+        # `port_roberts_silver_trader`, ...). 104 of the 305 `proposed` rows
+        # this replaced were exactly this shape (2026-08-13 audit) and had
+        # been scored as weak 2-token matches only because `tokens()` strips
+        # "shop"/"store" for the *token-overlap* heuristic below — a filter
+        # that is right for that heuristic and wrong for exact identity, which
+        # is why this is a separate check rather than a threshold on the same
+        # score. Gated the same way the plain lostcity lookup above is (only
+        # for a base table, never a sub-table): every table on a multi-table
+        # page shares one owner npc, so this can't tell "Ranging cape" from
+        # the base either, and would repeat the same wrong-duplicate bug.
+        if not inv and not is_sub_table:
+            for gameval in owner_gamevals:
+                if gameval in shop_invs:
+                    inv = gameval
+                    source = "exact-gameval-match"
+                    note = "owner npc's own gameval is the inv name"
+                    break
+
         if not inv:
             want = tokens(shop_key) | set().union(*(tokens(g) for g in owner_gamevals)) if owner_gamevals else tokens(shop_key)
             best, score = "", 0
@@ -296,7 +319,7 @@ def build(write: bool, refresh: bool) -> None:
             "cache_inv": inv,
             "inv_id": invs.get(inv, ""),
             "owner_gameval": " ".join(dict.fromkeys(owner_gamevals)),
-            "confidence": "verified" if source in ("lostcity", "skillcape-variant") else ("proposed" if inv else ""),
+            "confidence": "verified" if source in ("lostcity", "skillcape-variant", "exact-gameval-match") else ("proposed" if inv else ""),
             "source": source,
             "note": note,
         }
