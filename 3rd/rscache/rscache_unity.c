@@ -101,6 +101,7 @@
 #include "src/revisions/rev_dat2_osrs238.c"
 #include "src/revisions/rev_dat2_osrs239.c"
 #include "src/revisions/rev_dat2_rs530.c"
+#include "src/revisions/rev_dat2_rs558.c"
 #include "src/revisions/rev_dat2_rs643.c"
 #include "src/revisions/rev_dat2_rs727.c"
 // clang-format on

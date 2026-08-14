@@ -41,6 +41,8 @@ static const struct revision_entry REVISIONS[] = {
     { "osrs239", RSCache_ProfileDat2Osrs239 },
     { "530", RSCache_ProfileDat2Rs530 },
     { "rs530", RSCache_ProfileDat2Rs530 },
+    { "558", RSCache_ProfileDat2Rs558 },
+    { "rs558", RSCache_ProfileDat2Rs558 },
     { "643", RSCache_ProfileDat2Rs643 },
     { "rs643", RSCache_ProfileDat2Rs643 },
     { "727", RSCache_ProfileDat2Rs727 },

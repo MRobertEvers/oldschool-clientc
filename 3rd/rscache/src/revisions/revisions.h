@@ -50,6 +50,14 @@ RSCache_ProfileDat1Lc245_2(void);
 struct RSCache
 RSCache_ProfileDat2Rs530(void);
 
+/**
+ * Rev 558 / 2009-12-09 (`cache.rs558_20091209_ancientcurses`), the Ancient
+ * Curses source cache. Inside the 530 lineage: FRAMEMAP_V3 but still FRAME_V1,
+ * since FRAME_V2 starts at 610.
+ */
+struct RSCache
+RSCache_ProfileDat2Rs558(void);
+
 /** The 643 / RS2 branch (`cache.643`). game=rs2 epoch=dat2 revision=643. */
 struct RSCache
 RSCache_ProfileDat2Rs643(void);
