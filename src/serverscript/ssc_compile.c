@@ -2440,10 +2440,48 @@ parse_header(
          * compiled name keeps the underscore (`[oploc1,_outpost_gate]`), so
          * only the lookup strips it. */
         int is_category = subject[0] == '_' && subject[1] != '\0';
-        const struct SSC_Symbol* symbol = SSC_SymbolsFind(
-            compiler->symbols,
-            is_category ? subject + 1 : subject,
-            is_category ? SSC_SYM_CATEGORY : SSC_SYM_UNKNOWN);
+        const struct SSC_Symbol* symbol = NULL;
+
+        /*
+         * Resolve the subject in the namespace the trigger implies, before
+         * falling back to "any".
+         *
+         * A name can exist in more than one namespace, and an unqualified
+         * lookup takes whichever kind sorts first. `grim_pendant` is obj 11197
+         * AND loc 24780, so `[oploc1,grim_pendant]` resolved to the OBJ and
+         * filed Grim Tales' pendant under an unrelated loc id, where the
+         * walkthrough fallback owned the key and won. The pendant did nothing,
+         * and nothing said why.
+         *
+         * The fallback is deliberate: only loc/npc/obj are mapped here, so a
+         * trigger family this does not know about resolves exactly as before.
+         */
+        if( !is_category )
+        {
+            enum SSC_SymbolKind want = SSC_SYM_UNKNOWN;
+
+            if( strncmp(trigger_name, "ai_", 3) == 0 )
+                want = SSC_SYM_NPC; /* the npc running the AI, whatever it acts on */
+            else if( strncmp(trigger_name, "oploc", 5) == 0 ||
+                     strncmp(trigger_name, "aplloc", 6) == 0 ||
+                     strncmp(trigger_name, "opheldloc", 9) == 0 )
+                want = SSC_SYM_LOC;
+            else if( strncmp(trigger_name, "opnpc", 5) == 0 ||
+                     strncmp(trigger_name, "apnpc", 5) == 0 )
+                want = SSC_SYM_NPC;
+            else if( strncmp(trigger_name, "opheld", 6) == 0 ||
+                     strncmp(trigger_name, "opobj", 5) == 0 ||
+                     strncmp(trigger_name, "apobj", 5) == 0 )
+                want = SSC_SYM_OBJ;
+
+            if( want != SSC_SYM_UNKNOWN )
+                symbol = SSC_SymbolsFind(compiler->symbols, subject, want);
+        }
+        if( !symbol )
+            symbol = SSC_SymbolsFind(
+                compiler->symbols,
+                is_category ? subject + 1 : subject,
+                is_category ? SSC_SYM_CATEGORY : SSC_SYM_UNKNOWN);
 
         if( !symbol )
             return fail(compiler, "unknown %s subject '%s' for trigger '%s'",

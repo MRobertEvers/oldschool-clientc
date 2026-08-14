@@ -70,13 +70,33 @@ give every variant of a thing one handler. (It was silently broken too — only
 the last name got the code, 1,287 times — see `alias_script` in
 `src/serverscript/ssc_compile.c`.)
 
-## Not covered by this rule
+## The related rule: a subject must be of the trigger's own kind
 
-`SSVM_Provider` still reports `duplicate_keys=2`: two *different* script names
-whose subjects resolve to the same cache id, so they collide in the trigger
-index rather than the name table.
+`oploc*` takes a **loc**, `opnpc*`/`ai_*` take an **npc**, `opheld*` takes an
+**obj**. Nothing enforced that, and a name can exist in more than one namespace,
+so a subject naming the wrong kind still compiled — it just resolved through
+whichever namespace sorted first and registered the body under an unrelated id.
+Two ways that showed up, 30 times:
 
-    [oploc1,dragonshipladdertop]  vs  [oploc1,myq3_hideout_trapdoor]
-    [oploc1,boardgames_runesquares_door_experienced]  vs  [oploc1,grim_pendant]
+    [oploc1,grim_pendant]         grim_pendant is obj 11197 AND loc 24780; OBJ
+                                  sorts first, so Grim Tales' pendant filed
+                                  itself under an unrelated loc
+    [opheldu,mdaughter_cliff_boulder]   the boulder is a loc, so "use rope on
+                                  boulder" was never an item-on-item action and
+                                  the rope did nothing
 
-That is a symbol-allocation problem, not a script one, and is untouched here.
+The visible symptom is always the same: the thing you click does nothing. 21
+were `[opheldu,<loc>]` that meant `oplocu`, 6 were `[opnpc*/ai_*,<loc>]`, 2 were
+`[opheldu,<npc>]` that meant `opnpcu`, and one named a varbit that has no loc at
+all. `tools/` has no checker for this yet; the scan that found them joins each
+`[trigger,subject]` against `configs/all.<kind>.compack` plus the lane packs
+under `ported/*/pack` and the `--component-root` interfaces, and anything that
+skips those last two reports hundreds of false positives.
+
+## And the one after that: a name-addressed script with no call site
+
+`proc`/`label`/`queue`/`timer` carry `lookup_key -1` — no trigger finds them, so
+a call site is the only way in. A label nothing calls is dead however far the
+quest gets, and that is a third distinct way content here has been shipped
+unreachable: A Tail of Two Cats had no route to its own completion step, and
+nothing in the tree wrote Observatory Quest's `^itgronigen_complete`.

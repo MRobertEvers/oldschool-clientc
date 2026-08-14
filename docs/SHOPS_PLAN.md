@@ -590,9 +590,10 @@ review, and are parallelisable across people.
 
 ## 8. Status, 2026-08-13
 
-Phase 1 (engine) is done. **84 shops are live** — every shop the pipeline can
-currently clear without a human decision. Three improvements past the
-original write-up widened that from the initial 21/36:
+Phase 1 (engine) is done. **115 shops are live** — every shop the pipeline can
+currently clear without a human decision. Seven improvements past the
+original write-up widened that from the initial 21/36, the seventh being a
+by-hand review pass rather than another mechanical rule (§8, general stores).
 
 * **The obj resolver now prefers a tradeable id over a lower one**
   (`gen_shop_catalog.py`'s `load_obj_index`) instead of always taking the
@@ -628,22 +629,125 @@ original write-up widened that from the initial 21/36:
   real reason to skip generation — the base table (`__1`, no section) is an
   ordinary shop, and blanket-skipping it alongside its genuinely-unbindable
   siblings had been hiding 14 ready shops.
+* **Exact npc↔inv gameval identity, a distinct signal from token overlap.**
+  This cache's newer (post-2004) content routinely names a shop's inv after
+  the one npc who owns it — `aldarin_general_store` the npc runs
+  `aldarin_general_store` the inv, `port_roberts_silver_trader`,
+  `cam_torum_shop_blacksmith`, and 101 more. That is not weak evidence merely
+  scored low; `tokens()`'s token-overlap heuristic strips "shop"/"store" (the
+  right call for *that* rule, since those words are near-universal noise
+  across the namespace) and was scoring these as ordinary 2-token matches
+  when the truth is a literal string match. Checked as its own rule, before
+  token-overlap, gated the same way as the plain lostcity lookup (skipped for
+  a multi-table sub-table, for the same shared-owner reason as above): 106 of
+  the 311 `proposed` rows this pass looked at were exactly this shape. Zero
+  regressions on the 262 already-verified rows (checked by diff before
+  writing).
+* **`tools/wiki_item_ids.py` — resolving a `review`-flagged stock line from
+  the item's own wiki page instead of the shop's.** `Skirt (blue)` and
+  `Skirt (lilac)` share one cache display name (`review=variant`, §2.1), but
+  each has its *own* wiki page, and that page states
+  `{{Infobox Item|...|id=5052}}` — the exact cache id, not a guess. Fetched
+  all 240 distinct flagged item names; 152 carried a plain `id=` (multi-
+  version items using `id1=`/`id2=` are not read — a real remaining gap, not
+  a false positive) and every one of those 152 resolved to a real record in
+  this cache (`configs/all.obj.compack`), patching 412 of the 592 flagged
+  stock lines with `match_rule=wiki-infobox-id`. `shop_catalog.csv`'s
+  `lines_needing_review` is recomputed from the patched stock, in place —
+  re-running `gen_shop_catalog.py` itself was deliberately avoided here, since
+  that would re-derive `shop_stock.csv` by name-matching again and silently
+  discard everything this pass just resolved by wiki authority.
+* **`owner-stem-match` — one step weaker than exact identity, still an
+  identity check rather than a count.** `exact-gameval-match` requires the
+  raw strings to be equal; a lot of near-misses were an owner's *role* suffix
+  away from that — `warguild_armour_shopkeeper` runs `warguild_armour_shop`,
+  `roguesden_trader` runs `roguesden_shop`. Stripping a fixed, small set of
+  role suffixes off the owner (`_shopkeeper`, `_owner`, `_1op`, ...) and a
+  shop suffix off the inv (`_shop`, `_store`, ...) and requiring the
+  *remainder* be identical — not a prefix, not an overlap count — is still an
+  identity claim, just after removing two known-meaningless decorations. All
+  29 matches this produced were inspected by hand before promoting the rule
+  to `confidence=verified` (`royal_generalstore_owner`/`royal_generalstore`,
+  `seed_merchant`/`seed_stall`, `piscarilius_fishing_supplies_trader`/
+  `piscarilius_fishing_supplies`, ...) — none were a judgment call.
+
+* **A by-hand review pass, scoped to general stores** (73 catalogued rows —
+  the most iconic, most-requested shop family, and predictable enough to
+  review at volume). Cross-referenced every general-store-shaped inv name in
+  `configs/all.inv.compack` (`grep`-built, not guessed — `generalshop1..9`,
+  `<place>_general_store`, `<place>generalstore`, ...) against each unbound
+  or weakly-`proposed` general store's own `location=`. 12 place-name matches
+  confirmed this way, all cross-checked against `shop_owners.csv` for a real
+  spawned owner before trusting them: `dorgesh_kaan_general_supplies` ->
+  `dorgesh_general_store`, `lletya_general_store` -> `lletyageneralshop1`,
+  `razmire_general_store` -> `razmiregeneralstore`, and so on. Two of these
+  caught the token-overlap rule pointing at a **wrong** place entirely —
+  `tal_teklan_general_store` had been proposed onto `tal_teklan_dyeshop` (the
+  *dye* shop) and `port_phasmatys_general_store` onto `port_roberts_general_store`
+  (a different Port, in a different content era) — both fixed to the correct
+  same-place inv. A third finding was a genuine namematch collision, not a
+  single wrong guess: `karamja_general_store__2`, `oblis_general_store__2` and
+  `general_store_canifis__2` had all independently landed `proposed` on the
+  exact same inv (`regicide_general_shop_2`) — three different shops cannot
+  share one container, so a fourth row's own `lostcity`-verified binding to
+  that same inv (`quartermasters_stores`, correctly) confirmed which one (if
+  any) was right, and the other three were cleared back to unbound rather
+  than left to mislead a later pass. One more fix generalized past this
+  session: `leenzs_general_supplies`'s owner is `piscarilius_generalstore_keeper`
+  — `_keeper` was missing from `owner-stem-match`'s role-suffix list, added,
+  and it now resolves on its own without a one-off entry.
+* **The multinpc-base spawn gap, found while reviewing stalls.** Two Sophanem
+  stall owners (Nathifa, Jamila) read `no-spawned-owner` even though they are
+  old (Contact! quest-era) content, not Varlamore — worth checking rather
+  than filing under the confirmed spawn-dump gap. Their wiki-stated npc ids
+  resolve to `contact_market_baker`/`contact_market_craft`, and *those*
+  really don't spawn — but `.spawn` files name
+  `contact_market_baker_multi`/`contact_market_craft_multi`, the multinpc
+  *base* (same shape as the Lumbridge doomsayer,
+  [[mock230-lumbridge-content]]: a varbit picks the display variant at
+  runtime, but only the base ever stands in the world). `wiki_shop_owners.py`
+  now checks for a spawned `<gameval>_multi` sibling before giving up, and
+  `owner-stem-match`'s suffix list strips `_multi` (looping, since it can
+  stack with a role suffix — `ahoy_akharanu_multi`). 13 owner rows across 13
+  shops fixed this way, all confirmed by checking the actual `.spawn` file
+  contents, not inferred from the suffix pattern alone. **Also fixed while
+  applying this**: `--refresh` had been silently deleting every
+  `manual-review` row — it re-derives every row from the mechanical rules,
+  which have no way to know a hand-verified finding exists, so the first
+  `--refresh` after this session's general-store pass wiped all 12 of those
+  rows. `manual-review` is now exempt from `--refresh` the same way a
+  pre-existing `verified` row already was.
 
 Two avenues were tried and deliberately not taken, because both would have
-traded real coverage for false confidence: cross-checking the 305 remaining
+traded real coverage for false confidence: cross-checking the remaining
 `proposed` bindings against LostCity's own stock data (zero of them show any
 meaningful overlap — LostCity never ported these shops, so there is no
-independent signal to check against) and lowering the token-match bar for
-auto-promoting a `proposed` binding (all 305 sit at 2–5 shared tokens, weak
-enough that auto-approving risks a shop silently selling the wrong items at
-the wrong price under the wrong container).
+independent signal to check against) and lowering the token-match bar on the
+*token-overlap* rule itself for whatever is left after every identity-based
+rule above (still 2–5 shared tokens, weak enough that auto-approving risks a
+shop silently selling the wrong items at the wrong price under the wrong
+container).
 
-The remaining gap to the full 609-shop catalogue is what's left after both of
-those: the shops still short a *reviewed* inv binding or a spawned owner, the
+The remaining gap to the full 609-shop catalogue is what's left after all of
+that: the shops still short a *reviewed* inv binding or a spawned owner, the
 sub-tables with no skillcape-style cache counterpart, and the token-shop
 family (out of scope by design, §7). Nothing in that remainder is blocked by
 a tooling bug any more — it is the review work §5 phases 3–6 describe, and it
 needs a person, not a smarter heuristic.
+
+**The "no spawned owner" gate was checked against its actual source, not just
+re-reported.** 42 shops today are otherwise fully ready (priced, clean stock,
+verified inv) and blocked only on their owner not appearing in any `*.spawn`
+file. All 42 are Fortis Colosseum / Aldarin / Cam Torum / Port Roberts /
+Sunset Coast / Quetzacalli / Salvager Overlook npcs — every one of them
+Varlamore content, the most recent OSRS region. Checked directly against
+`gen_spawns.py`'s own upstream source
+(`~/Documents/git_repos/xrsps-typescript/server/data/npc-spawns.json`, 24,145
+records): **zero of these 42 npcs appear in it at all**, by name or by any
+match. This is not a naming mismatch this repo's tooling could fix — the
+spawn dump itself predates Varlamore. Closing this gate needs a newer spawn
+source (or hand-recorded coordinates from someone who can walk there
+in-game), not another pass over the existing pipeline.
 
 ### 8.1 Engine — all landed, `--selftest` clean
 
@@ -680,32 +784,41 @@ needs a person, not a smarter heuristic.
   Sell-1/5/10 shape on `inv_button2/3/4`, not verified against a rev-239
   decompile of `shopside`'s own script.
 * No in-game playtest yet — everything above is verified by `--selftest`
-  (content loads clean, 85 shop definitions parsed — 84 shared shops plus
+  (content loads clean, 114 shop definitions parsed — 113 shared shops plus
   `rs2012_qbd_rewardinv`, a pre-existing non-shared inv the same loader now
-  parses — 84 seeded) and by reading the generated files against the wiki
+  parses — 113 seeded) and by reading the generated files against the wiki
   source, not by opening a shop as a connected client.
 
-### 8.2 Content — 84 shops live
+### 8.2 Content — 113 shops live
 
 Generated by `tools/gen_shop_scripts.py --write` from the reviewed rows of
-`shop_inv_map.tsv` (the `verified` tier — 236 rows after §8's dedup fix, of
-which 84 also clear every other gate today: coin-priced, clean stock, a
-spawned owner, an inv whose slot count fits, and a trigger this tool could
-safely take over). Each is one `.rs2` + one `.inv` under
-`server/scripts/shop/<area>/`, area from the wiki's `location=`:
+`shop_inv_map.tsv` (the `verified` tier — 386 rows after §8's binding
+accuracy passes, of which 113 also clear every other gate today: coin-priced,
+clean stock, a spawned owner, an inv whose slot count fits, and a trigger
+this tool could safely take over. Of the other verified-but-not-generated
+rows, 42 are blocked *only* by their owner missing from the spawn roster —
+confirmed a real external data gap, not a binding problem, see below). Each
+is one `.rs2` + one `.inv` under `server/scripts/shop/<area>/`, area from the
+wiki's `location=` (over 40 areas, one to six shops each — al_kharid,
+ape_atoll, ardougne, falador, grand_tree, rellekka and varrock currently carry
+the most; run `find server/scripts/shop -mindepth 3 -name '*.rs2' | wc -l`
+for the live count, since it moves every time this pipeline runs):
 
-al_kharid (5) · ape_atoll (3) · ardougne — east (4) · barbarian_village (1) ·
-bedabin_camp (1) · brimhaven (1) · burthorpe (1) · canifis (2) ·
-catherby (3) · dwarven_mine/dwarven_mines (2) · edgeville (1) ·
-entrana (1) · falador (4) · fishing_guild (1) · grand_tree (5) ·
-gutanoth (2) · kourend_castle (1) · lighthouse (1) · lumbridge (2 —
-`bobs_brilliant_axes`, `aarons_archery_appendages__1`'s Ranging Guild sibling
-sits under `ranging_guild`) · mage_arena (1) · misc (5) ·
-of_champions_guild (1) · of_legends_guild (1) · of_the_heroes_guild (1) ·
-port_khazard (1) · port_sarim (2) · ranging_guild (2) · rellekka (4) ·
+al_kharid (5) · ape_atoll (4) · ardougne — east (4) · bandit_camp (1) ·
+barbarian_village (1) · bedabin_camp (1) · brimhaven (1) · burthorpe (1) ·
+canifis (2) · catherby (3) · draynor_village (1) ·
+dwarven_mine/dwarven_mines (2) · edgeville (1) · entrana (1) · falador (4) ·
+fishing_guild (1) · grand_tree (5) · gutanoth (2) · jatizso (1) ·
+keldagrim (1) · kourend_castle (1) · lighthouse (1) · lumbridge (1) ·
+mage_arena (1) · misc (5) · miscellania_and_etceteria_dungeon (2) ·
+museum_camp (1) · myths_guild (1) · of_champions_guild (1) ·
+of_legends_guild (1) · of_legends_guild_west_side (1) ·
+of_the_heroes_guild (1) · of_warriors_guild (2) · of_the_warriors_guild (1) ·
+port_khazard (1) · port_piscarilius (1) · port_sarim (2) · rimmington (1) ·
+ranging_guild (2) · rellekka (4) · rogues_den (1) · shayzien (2) ·
 tai_bwo_wannai (1) · taverley (1) · tree_gnome_village (1) · tyras_camp (1) ·
-varrock (5) · west_ardougne (1) · wilderness_bandit_camp (2) ·
-wizards_guild (1) · yanille (1) · zanaris (2)
+varrock (6) · west_ardougne (1) ·
+wilderness_bandit_camp (2) · wizards_guild (1) · yanille (1) · zanaris (2)
 
 Four gamevals in `generalshop.rs2` — `generalshopkeeper3/5/7`,
 `khazard_shopkeeper`, `dwarven_shopkeeper` — needed the inline-stub patch
@@ -725,17 +838,34 @@ tree with zero duplicate-trigger warnings and zero content errors.
 
 ### 8.3 Next
 
-1. The 6 skillcape sub-shops (`aarons_archery_appendages__2/3`,
-   `auburys_rune_shop__2/3`, `hicktons_archery_emporium__2/3`) have verified
-   inv bindings (`shop_inv_map.tsv`, `source=skillcape-variant`) but need
-   hand-authored dialogue in their base shop's `.rs2` to reach them — not
-   more generator work.
+1. The 8 skillcape sub-shops (`aarons_archery_appendages__2/3`,
+   `auburys_rune_shop__2/3`, `hicktons_archery_emporium__2/3`,
+   `martin_thwaits_lost_and_found__2/3`) have verified inv bindings
+   (`shop_inv_map.tsv`, `source=skillcape-variant`) but need hand-authored
+   dialogue in their base shop's `.rs2` to reach them — not more generator
+   work.
 2. Phase 3/4 review work exactly as §5 describes, resized to today's counts:
-   305 `proposed` `shop_inv_map.tsv` rows (each 2–5 shared tokens — genuinely
-   needs a person, not a lower threshold, §8) and 592 `review`-flagged
-   `shop_stock.csv` lines are what stands between 84 shops and the
-   265-shop phase-4 target.
-3. An actual connected-client playtest of at least one shop, to catch what
+   ~165 `proposed` `shop_inv_map.tsv` rows (outside general stores and stalls,
+   which §8's by-hand passes cleared — every remaining one genuinely needs a
+   person to look at the specific shop, not a lower threshold) and 130
+   `review`-flagged `shop_stock.csv` lines with no wiki-stated item id at all
+   (down from 592 — `wiki_item_ids.py` now also reads a whitelisted
+   `version1=`/`id1=` pair, e.g. `Inventory`/`Worn`, `Fixed`/`Broken`; the
+   other version-pair vocabularies in the corpus — `Active`/`Inactive` charge
+   states, `Reward`/`During event` exclusives, pure cosmetic variants — are
+   genuinely too heterogeneous to resolve safely and stay flagged on
+   purpose) are what stands between 115 shops and the 265-shop phase-4
+   target. The same by-hand technique §8 used for
+   general stores — grep the inv namespace for a shop-family's naming
+   pattern, cross-check against `location=`, verify a live owner before
+   trusting it — applies to any other shop family with a memorable/systematic
+   name (e.g. skill guides, `_stall` shops) and is worth repeating rather
+   than treating the remainder as one undifferentiated queue.
+3. A newer spawn source. 42 otherwise-ready shops are blocked purely on their
+   Varlamore-region owner missing from `xrsps-typescript`'s spawn dump
+   (confirmed absent, not misnamed, §8) — nothing in this pipeline can fix
+   that without a newer dump or hand-recorded in-game coordinates.
+4. An actual connected-client playtest of at least one shop, to catch what
    `--selftest` cannot: whether `shopmain` draws, whether the buy ladder's
    op1/op6 Value/Buy-N toggle behaves, whether the sell ladder's inferred op
    indices are right.

@@ -13,24 +13,42 @@ So this tool does not decide; it *seeds a table for a human to decide in*, and
 records where each proposal came from so the ones already checked by someone
 else are not re-litigated.
 
-Three tiers, and the `source` column is which one a row came from:
+Six tiers, and the `source` column is which one a row came from — the first
+four are `confidence=verified` (each is a fact, not a guess); the rest are
+`confidence=proposed` and need a person:
 
-  `lostcity`   LostCity's own content already binds this npc to this inv, via
-               `param=owned_shop,<inv>` in its `.npc` configs, and its `.inv`
-               blocks cite the wiki page they were transcribed from. Those
-               bindings are hand-verified upstream and are imported as-is —
-               the *stock* is 2004-era and gets replaced by ours, but the
-               npc -> inv identity does not change between eras.
-  `namematch`  the inv gameval and the shop's owner gameval or page slug share
-               enough tokens to be worth proposing. A suggestion, nothing more.
-  ``          (empty) an inv nothing proposed a shop for, or a shop nothing
-               proposed an inv for. Both directions are listed, because a shop
-               with no inv needs an allocation and an inv with no shop is
-               either dead content or a shop this crawl missed.
+  `lostcity`            LostCity's own content already binds this npc to this
+                         inv, via `param=owned_shop,<inv>` in its `.npc`
+                         configs. Hand-verified upstream, imported as-is.
+  `skillcape-variant`   a multi-table page's 2nd/3rd table, derived from its
+                         own already-verified base table's inv via the
+                         cache's `{base}_skillcape[_trimmed]` naming
+                         convention — only when that exact name exists.
+  `exact-gameval-match` the owner npc's own gameval is spelled identically to
+                         a cache inv name (`aldarin_general_store` runs
+                         `aldarin_general_store`) — a fact about the cache's
+                         own naming, not a guess.
+  `owner-stem-match`    the owner's gameval, with a role suffix stripped
+                         (`_shopkeeper`, `_owner`, `_1op`, ...), is identical
+                         to the inv name with a shop suffix stripped
+                         (`_shop`, `_store`, ...) — `warguild_armour_shopkeeper`
+                         / `warguild_armour_shop` share the stem
+                         `warguild_armour`. Weaker than exact-gameval-match
+                         only in that two suffixes were peeled off instead of
+                         zero; still an identity match, not a token count.
+  `namematch`           the inv gameval and the shop's owner gameval or page
+                         slug share enough tokens to be worth proposing. A
+                         suggestion, nothing more — `confidence=proposed`.
+  ``                    (empty) an inv nothing proposed a shop for, or a shop
+                         nothing proposed an inv for. Both directions are
+                         listed, because a shop with no inv needs an
+                         allocation and an inv with no shop is either dead
+                         content or a shop this crawl missed.
 
-`confidence` is `verified` only for the LostCity tier. Everything else is
-`proposed`, and the file is meant to be edited: a reviewer flips a row to
-`verified`, fixes the inv, or blanks it. Re-running never overwrites a row
+`confidence` is `verified` for the four identity-based tiers above and
+`proposed` for `namematch`/unbound. The file is meant to be edited: a
+reviewer flips a `proposed` row to `verified`, fixes the inv, or blanks it.
+Re-running never overwrites a row
 whose confidence is `verified` — see `--refresh` for the escape hatch.
 """
 
@@ -169,6 +187,42 @@ def tokens(name: str) -> set[str]:
     return {p for p in parts if p and p not in {"shop", "store", "the", "of", "s"}}
 
 
+# Trailing words that name a *role* (or, for `_multi`, a presentation layer)
+# on an npc gameval, not the shop it runs — stripped so
+# `deepfin_dwarf_durrik_1op` and `deepfin_dwarf_durrik_shop` (the inv, via
+# strip_shop_suffix) compare equal on their shared stem
+# `deepfin_dwarf_durrik`. `_multi` is the multinpc-base marker
+# (`anma_assistant_multi` is what actually spawns; `wiki_shop_owners.py`
+# substitutes it in when the wiki's own stated npc id names a variant that
+# never spawns — see its `_row` comment) and stacks with a role suffix
+# (`ahoy_akharanu_multi`), so this strips in a loop rather than once.
+OWNER_ROLE_SUFFIXES = (
+    "_shopkeeper", "_assistant", "_owner", "_seller", "_trader", "_merchant",
+    "_bartender", "_keeper", "_1op", "_2op", "_3op", "_helper", "_worker",
+    "_npc", "_multi",
+)
+SHOP_ROLE_SUFFIXES = ("_shop", "_store", "_stall", "_market", "_shopkeeper")
+
+
+def strip_role_suffix(gameval: str) -> str:
+    changed = True
+    while changed:
+        changed = False
+        for suffix in OWNER_ROLE_SUFFIXES:
+            if gameval.endswith(suffix):
+                gameval = gameval[: -len(suffix)]
+                changed = True
+                break
+    return gameval
+
+
+def strip_shop_suffix(inv_name: str) -> str:
+    for suffix in SHOP_ROLE_SUFFIXES:
+        if inv_name.endswith(suffix):
+            return inv_name[: -len(suffix)]
+    return inv_name
+
+
 def load_lostcity_bindings() -> dict[str, dict]:
     """npc gameval -> {'inv':..., 'title':...} from LostCity's .npc configs."""
     out: dict[str, dict] = {}
@@ -239,7 +293,16 @@ def build(write: bool, refresh: bool) -> None:
 
     for shop_key, shop in sorted(catalog.items()):
         prior = existing.get(shop_key)
-        if prior and prior.get("confidence") == "verified" and not refresh:
+        # `manual-review` rows are a human's own finding (docs/SHOPS_PLAN.md
+        # §8's general-store/stall passes) and outrank every mechanical rule
+        # below by construction — `--refresh` re-derives everything *else*
+        # specifically so a smarter mechanical rule can correct an old
+        # mechanical guess, but it has no way to know a hand-verified row is
+        # right, so it must never touch one. Losing 16 of these to a refresh
+        # that didn't know they existed is what taught this the hard way.
+        if prior and prior.get("confidence") == "verified" and (
+            not refresh or prior.get("source") == "manual-review"
+        ):
             rows.append(prior)
             by_key[shop_key] = prior
             claimed.add(prior["cache_inv"])
@@ -301,6 +364,26 @@ def build(write: bool, refresh: bool) -> None:
                     note = "owner npc's own gameval is the inv name"
                     break
 
+        # A weaker cousin of exact-gameval-match: strip a role suffix off the
+        # owner's gameval (`deepfin_dwarf_durrik_1op` -> `deepfin_dwarf_durrik`)
+        # and a shop suffix off the inv name (`deepfin_dwarf_durrik_shop` ->
+        # `deepfin_dwarf_durrik`), and accept only when what's left is
+        # identical — not merely a prefix, which would also match e.g.
+        # `hunting_shop` against both `hunting_shop_yanille` and
+        # `hunting_shop_nardah`. Still gated off sub-tables for the same
+        # shared-owner reason as above.
+        if not inv and not is_sub_table:
+            for gameval in owner_gamevals:
+                stem = strip_role_suffix(gameval)
+                for name in shop_invs:
+                    if stem and stem == strip_shop_suffix(name):
+                        inv = name
+                        source = "owner-stem-match"
+                        note = f"{gameval} / {name} share the stem '{stem}'"
+                        break
+                if inv:
+                    break
+
         if not inv:
             want = tokens(shop_key) | set().union(*(tokens(g) for g in owner_gamevals)) if owner_gamevals else tokens(shop_key)
             best, score = "", 0
@@ -319,7 +402,7 @@ def build(write: bool, refresh: bool) -> None:
             "cache_inv": inv,
             "inv_id": invs.get(inv, ""),
             "owner_gameval": " ".join(dict.fromkeys(owner_gamevals)),
-            "confidence": "verified" if source in ("lostcity", "skillcape-variant", "exact-gameval-match") else ("proposed" if inv else ""),
+            "confidence": "verified" if source in ("lostcity", "skillcape-variant", "exact-gameval-match", "owner-stem-match") else ("proposed" if inv else ""),
             "source": source,
             "note": note,
         }

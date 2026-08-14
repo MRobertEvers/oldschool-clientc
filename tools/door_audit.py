@@ -59,7 +59,11 @@ INTERACTIVE_OPS = {
 
 OPLOC_BINDING_RE = re.compile(r"^\[(oploc\d|aplloc\d|opheldloc)\s*,\s*([A-Za-z0-9_]+)\s*\]")
 OP_FIELD_RE = re.compile(r"^op([1-5])=(.*)$")
-JL2_LINE_RE = re.compile(r"^\d+ \d+ \d+: (\d+) (\d+) (\d+)")
+# `plane x z: loc shape [angle]` -- the angle is OMITTED when it is 0, which is
+# 1,665,853 of the tree's 4,968,455 placements (33%). Requiring the third field
+# silently dropped every one of them, so both the gap counts and the two-leaf
+# pairing below only ever saw doors that happen to face north/east/south.
+JL2_LINE_RE = re.compile(r"^\d+ \d+ \d+: (\d+) (\d+)(?: (\d+))?")
 
 
 def parse_blocks(path):
@@ -368,10 +372,11 @@ def load_placement_tiles(tree):
         mx, mz = (int(v) for v in base.split("_"))
         with open(p, encoding="utf8", errors="replace") as f:
             for line in f:
-                m = re.match(r"^(\d+) (\d+) (\d+): (\d+) (\d+) (\d+)", line)
+                m = re.match(r"^(\d+) (\d+) (\d+): (\d+) (\d+)(?: (\d+))?", line)
                 if not m:
                     continue
-                level, lx, lz, lid, shape, angle = (int(v) for v in m.groups())
+                level, lx, lz, lid, shape = (int(v) for v in m.groups()[:5])
+                angle = int(m.group(6) or 0)   # omitted means 0; see JL2_LINE_RE
                 x, z = mx * 64 + lx, mz * 64 + lz
                 tiles[(level, x, z)].append((lid, shape, angle))
                 by_id[lid].append((level, x, z, shape, angle))

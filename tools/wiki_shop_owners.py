@@ -254,14 +254,32 @@ def build(write: bool) -> None:
 
 def _row(shop, owner_name, owner_page, npc_id, gamevals, spawned, source) -> dict:
     gameval = gamevals.get(npc_id, "") if npc_id else ""
+    used = gameval
+
+    # The wiki's npc id often names a *multinpc variant* — the display form a
+    # varbit picks between at runtime — while the world only ever spawns the
+    # multinpc *base*, `<variant>_multi` (same pattern as the Lumbridge
+    # doomsayer: docs/mock230-lumbridge-content.md). `contact_market_baker`
+    # (Nathifa's wiki id) never appears in a `.spawn` file; `.spawn` names
+    # `contact_market_baker_multi`. Binding the variant is how a trigger goes
+    # dead silently — the npc genuinely stands in the world, under the other
+    # name — so if the variant itself isn't spawned, try its base before
+    # giving up. Checked, not assumed: both the id and the `.spawn` presence
+    # are real lookups, not a guessed suffix rule.
+    if gameval and gameval not in spawned:
+        multi = gameval + "_multi"
+        if multi in spawned:
+            used = multi
+            source = source + "+multi-base"
+
     return {
         "shop_key": shop["shop_key"],
         "shop_name": shop["shop_name"],
         "owner_name": owner_name,
         "owner_page": owner_page,
         "npc_id": npc_id,
-        "npc_gameval": gameval,
-        "spawned": "yes" if gameval and gameval in spawned else "no",
+        "npc_gameval": used,
+        "spawned": "yes" if used and used in spawned else "no",
         "source": source,
     }
 
