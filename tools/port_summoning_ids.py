@@ -28,6 +28,22 @@ DEFAULT_TREE = REPO_ROOT / "OSRS-Content" / "osrs239-content"
 MAP_REL = Path("port") / "summoning_530.map"
 
 HEADER = ("kind", "src_id", "src_name", "dst_id", "dst_name", "disposition", "signoff")
+# The preserved review-only experiment's synth sources, held here as well as in
+# roster_boundary_530.json so the boundary cannot widen itself. Two copies is the
+# point: a synth entering the experiment has to be stated in a tool AND in the
+# boundary, and neither edit alone will pass.
+#
+# Widened on 2026-08-14 from the original eight
+# ({188, 4161, 4265, 4372, 5753, 5776, 5777, 5792}) after commit aab11db4d5
+# "summoning based on Nocturne" imported thirteen more. The cohort is still
+# status=preserved_experiment with admitted_synth_sources empty, so every one of
+# these remains withheld from the feature-on stage — this records how big the
+# withheld set is, not that any of it was let in.
+PRESERVED_EXPERIMENT_SYNTHS = {
+    188, 4161, 4265, 4372, 5753, 5764, 5770, 5774, 5776, 5777, 5779,
+    5782, 5787, 5792, 5796, 5801, 5808, 5814, 5826, 5834, 5839,
+}
+
 ALLOWED_KINDS = {
     "npc",
     "obj",
