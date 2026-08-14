@@ -64,6 +64,12 @@ ENTRY_ALIAS = {
 # Named here so the audit agrees with the block that already made this choice.
 SOURCE_STAT_OVERRIDE = {7329: 7330}
 
+# Familiar types whose ordinary swing is hand-written in summoning_combat.rs2
+# because the source gives it more than one style or an extra charged hit:
+# Honey badger, Spirit graahk, Iron titan, Steel titan.  The shared swing skips
+# them, so the table not arming one of them is not a gap.
+BESPOKE_TYPES = {16, 40, 76, 78}
+
 STYLE_MELEE = "melee"
 STYLE_RANGED = "ranged"
 STYLE_MAGIC = "magic"
@@ -144,9 +150,28 @@ def read_npc_source_ids():
     return out
 
 
+# `summoning_roster_530_*` is a preserved, unreviewed bulk import experiment.
+# `docs/summoning_port/roster_boundary_530.json` holds the whole prefix out of
+# the feature-on stage, so those records are not in the built cache and server
+# scripts may not name them (tools/test_summoning_phase5a.py enforces both).
+# A familiar whose only attack sequence is a roster one therefore cannot swing
+# here yet, however complete the rest of its profile is.
+REVIEW_ONLY_PREFIX = "summoning_roster_530"
+
+
 def read_seq_names():
-    """rev-530 source seq id -> destination seq name."""
-    out = {}
+    """rev-530 source seq id -> (admitted name or None, review-only name or None).
+
+    One source sequence can carry two destination names: the roster import
+    named every familiar's attack animation, and a special-move closure
+    separately admitted some of the same ids under its own name.  Where both
+    exist the admitted one is usable and the roster one is not — this is the
+    same substitution the Iron Titan and Spirit graahk handlers already make
+    by hand ("sequence 5229 is already admitted as Rending's shared source
+    sequence; it is the Graahk's normal melee animation too").
+    """
+    admitted = {}
+    review = {}
     port = os.path.join(CONTENT, "port")
     for name in sorted(os.listdir(port)):
         if not name.endswith(".map"):
@@ -154,8 +179,9 @@ def read_seq_names():
         for line in open(os.path.join(port, name)):
             f = line.rstrip("\n").split("\t")
             if len(f) >= 5 and f[0] == "seq" and f[1].isdigit():
-                out.setdefault(int(f[1]), f[4])
-    return out
+                target = review if f[4].startswith(REVIEW_ONLY_PREFIX) else admitted
+                target.setdefault(int(f[1]), f[4])
+    return admitted, review
 
 
 def read_roster():
@@ -234,7 +260,7 @@ def build(source):
         os.path.join(source, "Server/data/configs/npc_configs.json")))}
     types = read_registry_types()
     src_ids = read_npc_source_ids()
-    seq_names = read_seq_names()
+    seq_admitted, seq_review = read_seq_names()
     roster = read_roster()
     pouches = read_pouches(source)
     classes = read_classes(source)
@@ -279,12 +305,12 @@ def build(source):
         column = {STYLE_RANGED: "range_seq", STYLE_MAGIC: "magic_seq"}.get(
             style, "attack_seq")
         attack_seq = ""
+        withheld = ""
         row = roster.get(entry, {})
         for key in (column, "attack_seq"):
             for sid in row.get(key, "").strip().split():
-                if int(sid) in seq_names:
-                    attack_seq = seq_names[int(sid)]
-                    break
+                attack_seq = attack_seq or seq_admitted.get(int(sid), "")
+                withheld = withheld or seq_review.get(int(sid), "")
             if attack_seq:
                 break
 
@@ -316,6 +342,7 @@ def build(source):
             "style_source": style_const or "",
             "reach": REACH_OF.get(style, 0),
             "attack_seq": attack_seq,
+            "attack_seq_withheld": withheld,
             "attack_speed": num(cfg, "attack_speed", DEFAULT_ATTACK_SPEED),
             "attack_level": num(cfg, "attack_level", 0),
             "strength_level": num(cfg, "strength_level", 0),
@@ -331,7 +358,8 @@ def build(source):
 CSV_FIELDS = [
     "type", "entry", "npc", "source_npc", "pouch", "combat_familiar", "peaceful",
     "burden_beast", "auto_assist", "armed", "style", "style_source", "reach",
-    "attack_seq", "attack_speed", "attack_level", "strength_level",
+    "attack_seq", "attack_seq_withheld", "attack_speed", "attack_level",
+    "strength_level",
     "defence_level", "magic_level", "range_level", "lifepoints", "bonuses",
 ]
 
@@ -534,9 +562,18 @@ def main():
     armed = sum(r["armed"] for r in rows)
     print("%d familiars, %d auto-assist, %d armed with a swing" %
           (len(rows), assists, armed))
-    print("unarmed but assisting:",
-          ", ".join(r["entry"] for r in rows if r["auto_assist"] and not r["armed"])
-          or "none")
+    withheld = [r for r in rows
+                if r["auto_assist"] and not r["armed"]
+                and r["type"] not in BESPOKE_TYPES]
+    print("%d assist with a hand-written swing: %s" % (
+        len(BESPOKE_TYPES),
+        ", ".join(r["entry"] for r in rows if r["type"] in BESPOKE_TYPES)))
+    print("%d assist but cannot swing yet:" % len(withheld))
+    for r in withheld:
+        why = ("no attack sequence in the source record" if not r["attack_seq_withheld"]
+               else "animation held in the review-only roster import (%s)"
+                    % r["attack_seq_withheld"])
+        print("    %-20s %s" % (r["entry"], why))
     for p in (csv_path, npc_path, table_path):
         print("wrote", os.path.relpath(p, REPO))
     print("%d stat blocks written" % npc_count)

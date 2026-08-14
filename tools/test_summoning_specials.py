@@ -413,13 +413,28 @@ def main() -> int:
         mosquito_profile = combat_profiles[
             combat_profiles.index("[summoning_cohort_spirit_mosquito_spirit_mosquito]"):
         ]
+        # `strengthbonus` is slot ELEVEN of npc 7331's vector
+        # (45,49,42,39,47,46,29,43,51,16,53,10,0,0,0), which is 10.  This test
+        # asserted 53 — slot ten — until `tools/gen_familiar_normal_combat.py
+        # --audit` compared the block against the source and the swing handlers
+        # settled the mapping: `MeleeSwingHandler.kt:193` reads
+        # `bonuses[11]` for melee strength, `RangeSwingHandler.kt:239` reads
+        # `bonuses[14]`, and `MagicSwingHandler.kt:175` reads `bonuses[13]` for
+        # an NPC.  Slot ten is the prayer bonus and nothing rolls with it.
         expect("attack=28" in mosquito_profile and "strength=24" in mosquito_profile and
                "defence=25" in mosquito_profile and "param=stabattack,45" in mosquito_profile and
-               "param=strengthbonus,53" in mosquito_profile,
+               "param=strengthbonus,10" in mosquito_profile and
+               "param=prayerbonus,53" in mosquito_profile,
                "Spirit Mosquito's source combat profile is incomplete")
         kalphite_profile = combat_profiles[
             combat_profiles.index("[summoning_cohort_spirit_kalphite_spirit_kalphite]"):]
-        expect("hitpoints=350" in kalphite_profile and "attack=25" in kalphite_profile and
+        # 35, not 350.  Four blocks in this file carried their source lifepoints
+        # multiplied by ten while their own comments quoted the right number
+        # (Spirit graahk 81, Spirit kalphite 35, Stranger plant 91, Talon beast
+        # 110); `tools/gen_familiar_normal_combat.py --audit` compared them
+        # against npc_configs.json and found the discrepancy.  It only started
+        # to matter when familiars began taking hits back.
+        expect("hitpoints=35" in kalphite_profile and "attack=25" in kalphite_profile and
                "strength=25" in kalphite_profile and "defence=25" in kalphite_profile and
                "magic=25" in kalphite_profile and "ranged=25" in kalphite_profile,
                "Spirit Kalphite's source combat profile is incomplete")
@@ -447,9 +462,21 @@ def main() -> int:
         expect("if ($type = 59 | $type = 60 | $type = 61)" in execute,
                "the Titan's Constitution family is not shared")
         normal_tick = definition(scripts, "proc,summoning_familiar_normal_combat_tick")
+        # The multiway conjunction and the target resolution moved into
+        # `~summoning_familiar_engagement` when auto-assist gave every combat
+        # familiar an ordinary swing; the Iron Titan branch reaches them through
+        # that gate now instead of restating them.  Its own two charged hits
+        # stay here, which is the part that is Iron Titan and nobody else.
+        engagement = definition(scripts, "proc,summoning_familiar_engagement")
+        auto_assist = definition(scripts, "proc,summoning_familiar_autoassist")
+        expect("map_multiway(coord)" in engagement and
+               "npc_setmode(playerfollow)" in engagement and
+               "npc_finduid($familiar) = false" in engagement,
+               "the shared engagement gate lost its multiway or generation checks")
+        expect("npc_findcombat = false" in auto_assist,
+               "auto-assist no longer reads the owner's combat target")
         expect("%summoning_familiar_type != 76" in normal_tick and
-               "map_multiway(coord)" in normal_tick and
-               "npc_findcombat = false" in normal_tick and
+               "~summoning_familiar_engagement($familiar)" in normal_tick and
                "npc_finduid($familiar) = false" in normal_tick and
                "npc_walk($target_coord)" in normal_tick and
                "npc_var_set(^summoning_npcvar_charged_attack, 0)" in normal_tick and

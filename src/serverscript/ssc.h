@@ -143,6 +143,9 @@ enum SSC_SymbolKind
     SSC_SYM_FONTMETRICS,
     SSC_SYM_CONSTANT,
     SSC_SYM_SCRIPT,
+    /** index-11 archive: `midi_jingle`'s and `midi_length`'s `midi` type,
+     *  named from `pack/11_musicjingles.pack`. See tools/gen_jingle_names.py. */
+    SSC_SYM_JINGLE,
     SSC_SYM_KIND_COUNT,
 };
 

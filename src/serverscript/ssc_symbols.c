@@ -516,6 +516,7 @@ SSC_SymbolKindForNamespace(const char* ns)
          */
         { "3_interfaces",     SSC_SYM_INTERFACE },
         { "4_soundeffects",   SSC_SYM_SYNTH     },
+        { "11_musicjingles",  SSC_SYM_JINGLE    },
         { "12_clientscripts", SSC_SYM_SCRIPT    },
         { "13_fonts",         SSC_SYM_FONTMETRICS },
         { "interface", SSC_SYM_INTERFACE },
@@ -535,6 +536,8 @@ SSC_SymbolKindForNamespace(const char* ns)
         { "param",     SSC_SYM_PARAM     },
         { "category",  SSC_SYM_CATEGORY  },
         { "synth",     SSC_SYM_SYNTH     },
+        { "midi",      SSC_SYM_JINGLE    },
+        { "jingle",    SSC_SYM_JINGLE    },
         { "stat",      SSC_SYM_STAT      },
         { "fontmetrics", SSC_SYM_FONTMETRICS },
         { "script",    SSC_SYM_SCRIPT    },

@@ -182,17 +182,34 @@ FAMILY_DATA = {
     # -- item_var, implemented (Phase 3-5) --------------------------------
     "Trident of the seas": dict(
         storage="item_var", depletion="revert", max_charges=2500,
-        charge_source="Reclaim from Kraken/water fiends; bought pre-charged from other players",
-        drain_event="1 charge per cast of the trident's melee/magic special swing",
+        charge_source="1 death rune + 1 chaos rune + 5 fire runes + 10 coins per charge, used on the trident",
+        drain_event="1 charge per cast of the built-in spell",
         status="implemented",
-        note="Reverts to Uncharged trident. (e) enchanted variant shares the mechanic.",
+        note="CORRECTED 2026-08-14. This entry said `implemented` and had said so for a year, and NOTHING "
+             "existed: a grep for any of the four charged seas obj ids across server/scripts returned "
+             "zero hits, so the trident had no Check, no Uncharge, no charging, and -- worse -- no entry in "
+             "gear/powered_staff.rs2's membership test, which meant a wielded trident fell through "
+             "[label,player_combat_start] to @player_melee_attack and poked things at melee range with no "
+             "projectile and no charge cost. The old note's own drain wording ('the trident's melee/magic "
+             "special swing') and charge source ('bought pre-charged from other players') were both "
+             "invented; the real recipe is the four materials above. Now gear/trident.rs2/.constant covers "
+             "all eight charged ids (seas/swamp x plain/imbued `(e)` x plain/Leagues-ornament `(o)`), and "
+             "the built-in spell casts on the shared powered-staff dispatch with the cache's own "
+             "slayer_tots_* graphics. The tradeable full form (`tots`) is modelled as a STATE, not a tier: "
+             "full by definition with no item_var of its own, swapping to the untradeable partially-charged "
+             "id on the first cast. NOT implemented: obtaining either trident (Kraken drop / magic fang "
+             "recipe), the swamp's venom passive, drift-net fishing, and rune substitutes/combination runes.",
     ),
     "Trident of the swamp": dict(
         storage="item_var", depletion="revert", max_charges=2500,
-        charge_source="Made from Trident of the seas + 3 Coagulated venom (Zulrah drop)",
-        drain_event="1 charge per swing",
+        charge_source="1 death rune + 1 chaos rune + 5 fire runes + 1 Zulrah's scale per charge, used on the trident",
+        drain_event="1 charge per cast of the built-in spell",
         status="implemented",
-        note="Reverts to Uncharged toxic trident.",
+        note="Same shared library as Trident of the seas (gear/trident.rs2); see its note, including the "
+             "correction. Differs in exactly three places, all of them tables rather than logic: the fourth "
+             "charging material is a Zulrah's scale and not 10 coins, the max hit is floor(Magic/3)-2 and "
+             "not -5, and the FX are the toxic_tots_* recolour. Its 25% venom passive is NOT implemented -- "
+             "this tree models no venom state at all.",
     ),
     "Scythe of vitur": dict(
         storage="item_var", depletion="revert", max_charges=20000,
@@ -303,8 +320,16 @@ FAMILY_DATA = {
     "Thammaron's sceptre": dict(
         storage="item_var", depletion="revert", max_charges=17000,
         charge_source="Revenant ether (revenant_drops.rs2 + ethereum.rs2), used on the sceptre",
-        drain_event="1 charge per attack while worn in the Wilderness (wildy_passives.rs2)",
-        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+        drain_event="1 charge per attack while worn in the Wilderness (wildy_passives.rs2), and 1 per cast of the built-in spell anywhere (powered_staff.rs2)",
+        status="implemented",
+        note="Migrated from a per-weapon-type account varp 2026-08-13. Joined the powered-staff combat "
+             "dispatch 2026-08-14: this is a powered staff (wiki, first line) and until then only its "
+             "Wilderness ether passive existed, so wielding it swung a melee weapon. Its built-in spell now "
+             "casts with the cache's spells_thammaron01_travel01 projectile (projectile-only -- the cache "
+             "has no cast or impact spotanim for it under any name), max hit floor(Magic/3)-8, and spends "
+             "one ether per cast from ABOVE the 1,000-ether activation deposit, which is the same "
+             "usable-charge rule wildy_passives.rs2 already stated. The `(a)` recolour is the AUTOCAST "
+             "variant, not a powered staff, and is deliberately not on the dispatch.",
     ),
     "Craw's bow": dict(
         storage="item_var", depletion="revert", max_charges=17000,
@@ -321,8 +346,12 @@ FAMILY_DATA = {
     "Accursed sceptre": dict(
         storage="item_var", depletion="revert", max_charges=17000,
         charge_source="Revenant ether, used on the sceptre (Thammaron's + Vet'ion skull upgrade)",
-        drain_event="1 charge per attack while worn in the Wilderness",
-        status="implemented", note="Migrated from a per-weapon-type account varp 2026-08-13.",
+        drain_event="1 charge per attack while worn in the Wilderness, and 1 per cast of the built-in spell anywhere",
+        status="implemented",
+        note="Migrated from a per-weapon-type account varp 2026-08-13. Joined the powered-staff combat "
+             "dispatch 2026-08-14 alongside Thammaron's sceptre -- see that entry's note for the shared "
+             "reasoning. Differs in its projectile (spells_vetion01_travel, the Vet'ion-skull one) and its "
+             "max hit (floor(Magic/3)-6, two higher than Thammaron's).",
     ),
     "Webweaver bow": dict(
         storage="item_var", depletion="revert", max_charges=17000,
@@ -1132,8 +1161,19 @@ FAMILY_DATA = {
         storage="item_var", depletion="none", max_charges=20000,
         charge_source="Chaos runes used on it, 1:1; starts at 1,000 from the runes spent making it",
         drain_event="1 charge (=1 chaos rune) per cast of its built-in spell, usable only against rats",
-        status="charges_only",
-        note="No powered-staff spell-cast charge-consumption subsystem exists anywhere in this tree -- would be new infrastructure.",
+        status="implemented",
+        note="CORRECTED 2026-08-14: the old note here -- 'No powered-staff spell-cast charge-consumption "
+             "subsystem exists anywhere in this tree' -- had been false since the Sanguinesti staff landed "
+             "one (skill_combat/scripts/player/gear/powered_staff.rs2); it was the membership list that had "
+             "never been extended, not the subsystem that was missing. Now "
+             "gear/bone_staff.rs2/.constant: charging (chaos runes on the staff, opheldu), Check, Uncharge "
+             "(empties in place -- this is the one powered staff with no uncharged obj form to revert to, "
+             "so depletion really is 'none'), and the built-in spell on the shared dispatch with its own "
+             "projectile (spells_ratbone01_travel01). The rats-only restriction is real and enforced: it "
+             "needed an npc category name the pack deliberately held back, so `262=rat` is minted in "
+             "pack/category.pack with the evidence port/categories.map already recorded. NOT implemented: "
+             "creating the staff (battlestaff + Scurrius' spine), its flat 35 Magic xp per hit (this tree's "
+             "combat xp is damage-proportional), and the manual-cast half of the rats-only rule.",
     ),
     "Bonecrusher": dict(
         storage="item_var", depletion="none", max_charges=2147483647,

@@ -24112,9 +24112,25 @@ mock230_world_selftest(void)
                            "::teleback undoes the last move, got %d,%d,%d", player->x,
                            player->z, player->level);
 
-            /* Search reaches the enum half of the table, which is generated
-             * from the same pass as the ladder and can therefore only be
-             * missing if the enum did not load at all. */
+            /*
+             * Search walks the enum half of the table. Dispatching is not
+             * enough to assert here: `::telefind` over an enum that failed to
+             * load prints "nothing matches" and returns successfully, which
+             * reads exactly like a search that found nothing. So check the
+             * table is actually there, and check the size rather than an exact
+             * count — regenerating the table moves the count, and a test that
+             * has to be edited every time the roster moves gets edited without
+             * being read.
+             */
+            {
+                const struct Mock230EnumDef* names =
+                    mock230_content_enum("tele_name_enum");
+
+                SELFTEST_CHECK(names && names->count > 2000,
+                               "tele_name_enum should hold the whole destination "
+                               "table, got %d row(s)",
+                               names ? names->count : -1);
+            }
             SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "telefind varrock"),
                            "::telefind should run");
             SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "telehere"),
