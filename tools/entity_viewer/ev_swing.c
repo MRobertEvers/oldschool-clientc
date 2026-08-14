@@ -95,8 +95,40 @@ struct ArcSample
 struct BladeSample
 {
     struct Vec3 centroid; /* every weapon vertex */
-    struct Vec3 tip;      /* the weapon vertex furthest from the player's axis */
-    double tip_radius;
+    struct Vec3 tip;      /* one tracked vertex at the far end of the weapon */
+    struct Vec3 head;     /* the far quarter of the weapon, averaged */
+};
+
+/*
+ * Which of a weapon's vertices are the part a motion streak is meant to trail.
+ *
+ * Two wrong answers were tried first, and both produced numbers that looked
+ * like measurements.
+ *
+ *   "The vertex furthest from the player's axis, per frame" is not a point on
+ *   the weapon at all — it is whichever vertex happens to be furthest this
+ *   frame, and it swaps between opposite ends as the weapon turns. It read as
+ *   the tip travelling 288 units in one cycle during the impact hold, while the
+ *   weapon was barely moving.
+ *
+ *   "The quarter furthest from the grip" is a fixed index set, which fixes that,
+ *   but on a polearm the grip sits mid-haft and BOTH ends are far from it. The
+ *   set spanned the blade and the butt, which move in opposite directions, so
+ *   their average cancelled: a 145-unit weapon reporting a 20-unit sweep.
+ *
+ * The answer that needs no guess about which end is which: the part that
+ * actually moves. Pose every frame, total each vertex's path length, and take
+ * the ones in the top band. A streak is a record of motion, so the geometry it
+ * should trace is the geometry with motion — and this measures that rather
+ * than inferring it from the shape.
+ */
+struct BladeSelection
+{
+    int tip_index;      /* the single fastest vertex */
+    int* head_indices;  /* the top band by path length */
+    int head_count;
+    double tip_path;    /* that vertex's total travel, for the report */
+    double span;        /* how far the head set reaches from the weapon centroid */
 };
 
 /* ---- small helpers ------------------------------------------------------- */
@@ -200,22 +232,101 @@ measure_arc(const struct ToriDraw_Model* m, int first, int alpha_visible)
 }
 
 /*
- * Where the weapon is.
+ * Choose the weapon's grip and head from the REST pose. Returns 0 on failure.
  *
- * The centroid is the whole wear model, haft included, so it barely moves. The
- * tip is the vertex furthest from the player's own vertical axis, which for a
- * polearm is the far end of the blade and is what actually sweeps. Both are
- * reported because the tip is a single vertex and a single vertex can be a
- * decoration; when the two disagree about the direction of travel, the centroid
- * is the one to trust.
+ * `body_first`/`body_count` are the player's own vertices (everything before
+ * the weapon), whose centroid stands in for "where the player is".
+ */
+static int
+select_blade(
+    const struct ToriDraw_Model* m,
+    int body_count,
+    int first,
+    int count,
+    struct BladeSelection* out)
+{
+    struct Vec3 body = { 0, 0, 0 };
+    struct Vec3 grip = { 0, 0, 0 };
+    int grip_index = -1;
+    double best = 1e18;
+    double* dist;
+    double cut;
+
+    memset(out, 0, sizeof(*out));
+    if( !m || count <= 0 || body_count <= 0 )
+        return 0;
+
+    for( int i = 0; i < body_count; i++ )
+    {
+        body.x += m->vertices_x[i];
+        body.y += m->vertices_y[i];
+        body.z += m->vertices_z[i];
+    }
+    body.x /= body_count;
+    body.y /= body_count;
+    body.z /= body_count;
+
+    for( int i = first; i < first + count && i < m->vertex_count; i++ )
+    {
+        struct Vec3 v = { m->vertices_x[i], m->vertices_y[i], m->vertices_z[i] };
+        double d = dist3(v, body);
+        if( d < best )
+        {
+            best = d;
+            grip = v;
+            grip_index = i;
+        }
+    }
+    if( grip_index < 0 )
+        return 0;
+
+    dist = calloc((size_t)count, sizeof(double));
+    if( !dist )
+        return 0;
+    for( int i = 0; i < count && first + i < m->vertex_count; i++ )
+    {
+        struct Vec3 v = {
+            m->vertices_x[first + i], m->vertices_y[first + i], m->vertices_z[first + i]
+        };
+        dist[i] = dist3(v, grip);
+        if( dist[i] > out->head_span )
+        {
+            out->head_span = dist[i];
+            out->tip_index = first + i;
+        }
+    }
+
+    /* The far quarter, by distance rather than by count: a quarter of the
+     * vertices could all sit on a densely-tessellated boss halfway down. */
+    cut = out->head_span * 0.75;
+    out->head_indices = calloc((size_t)count, sizeof(int));
+    if( !out->head_indices )
+    {
+        free(dist);
+        return 0;
+    }
+    for( int i = 0; i < count && first + i < m->vertex_count; i++ )
+        if( dist[i] >= cut )
+            out->head_indices[out->head_count++] = first + i;
+    free(dist);
+    return out->head_count > 0;
+}
+
+/*
+ * Where the weapon is, this frame.
+ *
+ * Three readings, because each answers a different objection. The centroid is
+ * the whole wear model and barely moves — it is the control. The tip is one
+ * tracked vertex and shows the full sweep, but a single vertex can be a
+ * decoration hanging off the model. The head is the far quarter averaged, which
+ * is the one the offset arithmetic uses.
  */
 static struct BladeSample
-measure_blade(const struct ToriDraw_Model* m, int first, int count)
+measure_blade(const struct ToriDraw_Model* m, int first, int count,
+              const struct BladeSelection* sel)
 {
     struct BladeSample s;
     double sx = 0, sy = 0, sz = 0;
-    int best = -1;
-    double best_r = -1;
 
     memset(&s, 0, sizeof(s));
     if( !m || count <= 0 )
@@ -223,29 +334,32 @@ measure_blade(const struct ToriDraw_Model* m, int first, int count)
 
     for( int i = first; i < first + count && i < m->vertex_count; i++ )
     {
-        double x = m->vertices_x[i];
-        double y = m->vertices_y[i];
-        double z = m->vertices_z[i];
-        double r = x * x + z * z;
-        sx += x;
-        sy += y;
-        sz += z;
-        if( r > best_r )
-        {
-            best_r = r;
-            best = i;
-        }
+        sx += m->vertices_x[i];
+        sy += m->vertices_y[i];
+        sz += m->vertices_z[i];
     }
     s.centroid.x = sx / count;
     s.centroid.y = sy / count;
     s.centroid.z = sz / count;
-    if( best >= 0 )
+
+    if( !sel || sel->head_count <= 0 )
+        return s;
+
+    s.tip.x = m->vertices_x[sel->tip_index];
+    s.tip.y = m->vertices_y[sel->tip_index];
+    s.tip.z = m->vertices_z[sel->tip_index];
+
+    sx = sy = sz = 0;
+    for( int i = 0; i < sel->head_count; i++ )
     {
-        s.tip.x = m->vertices_x[best];
-        s.tip.y = m->vertices_y[best];
-        s.tip.z = m->vertices_z[best];
-        s.tip_radius = sqrt(best_r);
+        int v = sel->head_indices[i];
+        sx += m->vertices_x[v];
+        sy += m->vertices_y[v];
+        sz += m->vertices_z[v];
     }
+    s.head.x = sx / sel->head_count;
+    s.head.y = sy / sel->head_count;
+    s.head.z = sz / sel->head_count;
     return s;
 }
 
@@ -315,6 +429,75 @@ rule(int* sheet, int sheet_w, int sheet_h, int x, int colour)
         sheet[y * sheet_w + x] = colour;
 }
 
+static void
+plot(int* buf, int w, int h, int x, int y, int colour)
+{
+    if( x < 0 || y < 0 || x >= w || y >= h )
+        return;
+    buf[y * w + x] = colour;
+}
+
+/** A small cross, so a marker is findable on a busy picture without hiding what
+ *  is under it the way a filled dot would. */
+static void
+cross(int* buf, int w, int h, int x, int y, int r, int colour)
+{
+    for( int i = -r; i <= r; i++ )
+    {
+        plot(buf, w, h, x + i, y, colour);
+        plot(buf, w, h, x, y + i, colour);
+    }
+}
+
+static void
+line(int* buf, int w, int h, int x0, int y0, int x1, int y1, int colour)
+{
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    for( ;; )
+    {
+        plot(buf, w, h, x0, y0, colour);
+        if( x0 == x1 && y0 == y1 )
+            break;
+        int e2 = 2 * err;
+        if( e2 >= dy )
+        {
+            err += dy;
+            x0 += sx;
+        }
+        if( e2 <= dx )
+        {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+/*
+ * Model space -> the top-down render's pixels.
+ *
+ * ev_render's framing, at pitch 512 (a quarter turn, camera straight above),
+ * reduces to something exact: it places the model at world
+ * (0, zoom + lift, 0) and the projection is screen = centre + cam * scale /
+ * cam_z, with cam_x = model x, cam_y = -model z and cam_z = zoom + lift +
+ * model y. So a measured vertex can be marked on the picture without
+ * re-deriving the camera, and the marker landing on the thing it names is the
+ * check that the measurement and the render are talking about the same model.
+ *
+ * Note what this says about reading the image: +x is to the RIGHT, and the
+ * player's facing (-z at yaw 0, which is south) is DOWN.
+ */
+static void
+project_top_down(struct Vec3 v, int side, int zoom, int lift, int* out_x, int* out_y)
+{
+    double cam_z = (double)zoom + lift + v.y;
+    if( cam_z < 1 )
+        cam_z = 1;
+    *out_x = side / 2 + (int)(v.x * (double)TORIDRAW_PROJ_SCALE_DEFAULT / cam_z);
+    *out_y = side / 2 + (int)(-v.z * (double)TORIDRAW_PROJ_SCALE_DEFAULT / cam_z);
+}
+
 int
 main(int argc, char** argv)
 {
@@ -330,6 +513,7 @@ main(int argc, char** argv)
     int alpha_visible = DEF_ALPHA_VISIBLE;
     int side = 320;
     int columns = 12;
+    int zoom_arg = 0;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
 
@@ -353,6 +537,8 @@ main(int argc, char** argv)
             alpha_visible = atoi(argv[++i]);
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_prefix = argv[++i];
+        else if( strcmp(argv[i], "--zoom") == 0 && i + 1 < argc )
+            zoom_arg = atoi(argv[++i]);
         else if( strcmp(argv[i], "--side") == 0 && i + 1 < argc )
             side = atoi(argv[++i]);
         else if( strcmp(argv[i], "--columns") == 0 && i + 1 < argc )
@@ -390,6 +576,8 @@ main(int argc, char** argv)
             "  --alpha-visible <n>   faces with stored alpha below n count as drawn\n"
             "                        (default %d; 0 opaque, 255 invisible)\n"
             "  --out <prefix>        write <prefix>_top.bmp and <prefix>_side.bmp\n"
+            "  --zoom <units>        camera distance; larger sees more (default: 6x\n"
+            "                        the player's height, enough for the whole graphic)\n"
             "  --side <px>           contact-sheet cell size (default %d)\n"
             "  --columns <n>         cells per row (default %d)\n",
             argv[0],
@@ -480,9 +668,22 @@ main(int argc, char** argv)
         return 1;
     }
 
-    fprintf(stderr, "[adopt] body faces=%d anim=%d spot faces=%d spotanim=%d\n",
-            adopt_model(body, 0), adopt_anim(body_anim, 0), adopt_model(spot, 1),
-            adopt_anim(spot_anim, 1));
+    adopt_model(body, 0);
+    adopt_anim(body_anim, 0);
+    adopt_model(spot, 1);
+    adopt_anim(spot_anim, 1);
+
+    /*
+     * Pin the framing to the player alone, measured with the graphic detached.
+     * Merging the arc in more than doubles the combined bounds, and the framing
+     * lifts by half the height it measures, so leaving this to the renderer
+     * rescales and shifts the player between one cell of the contact sheet and
+     * the next — under the very thing being compared.
+     */
+    ev_set_spot_state(height, -1);
+    ev_pose(-1);
+    int player_height = ev_model_height();
+    ev_set_frame_height(player_height);
 
     int body_frames = body_anim->frame_count;
     int spot_frames = spot_anim->frame_count;
@@ -534,10 +735,20 @@ main(int argc, char** argv)
     }
 
     ev_set_spot_state(height, -1); /* detached: the plain player model */
+    struct BladeSelection sel;
+    ev_pose(-1);
+    if( !select_blade(
+            ev_drawn_model(), weapon_vertex_first, weapon_vertex_first, weapon_vertex_count, &sel) )
+    {
+        fprintf(stderr, "could not identify the weapon's grip and head\n");
+        return 1;
+    }
+    printf("weapon head: %d of %d vertices, %.0f units from the grip\n\n", sel.head_count,
+           weapon_vertex_count, sel.head_span);
     for( int b = 0; b < body_frames; b++ )
     {
         ev_pose(b);
-        blade[b] = measure_blade(ev_drawn_model(), weapon_vertex_first, weapon_vertex_count);
+        blade[b] = measure_blade(ev_drawn_model(), weapon_vertex_first, weapon_vertex_count, &sel);
     }
 
     /* The independence check. Two arbitrary frames, both halves measured out of
@@ -549,9 +760,9 @@ main(int argc, char** argv)
         ev_pose(b);
         struct ArcSample a2 = measure_arc(ev_drawn_model(), ev_spot_vertex_first(), alpha_visible);
         struct BladeSample b2 =
-            measure_blade(ev_drawn_model(), weapon_vertex_first, weapon_vertex_count);
+            measure_blade(ev_drawn_model(), weapon_vertex_first, weapon_vertex_count, &sel);
         double da = dist3(a2.centroid, arc[f].centroid);
-        double db = dist3(b2.centroid, blade[b].centroid);
+        double db = dist3(b2.head, blade[b].head);
         printf(
             "independence check at body frame %d / graphic frame %d: "
             "graphic moved %.2f, blade moved %.2f -> %s\n\n",
@@ -565,10 +776,10 @@ main(int argc, char** argv)
 
     /* ---- the swing, cycle by cycle --------------------------------------- */
 
-    printf("cycle  bfrm  blade tip (x,y,z)     travel   gfrm  lit/all  arc centroid (x,z)   gap\n");
+    printf("cycle  bfrm  blade head (x,y,z)    travel   gfrm  lit/all  arc centroid (x,z)   gap\n");
     printf("-----  ----  --------------------  -------  ----  -------  -------------------  ------\n");
 
-    struct Vec3 prev_tip = { 0, 0, 0 };
+    struct Vec3 prev_head = { 0, 0, 0 };
     int have_prev = 0;
     double best_gap = 1e18;
     int best_gap_cycle = -1;
@@ -585,8 +796,8 @@ main(int argc, char** argv)
         if( b < 0 )
             break;
         if( have_prev )
-            travel = dist3(blade[b].tip, prev_tip);
-        prev_tip = blade[b].tip;
+            travel = dist3(blade[b].head, prev_head);
+        prev_head = blade[b].head;
         have_prev = 1;
         if( travel > peak_travel )
         {
@@ -594,13 +805,13 @@ main(int argc, char** argv)
             peak_travel_cycle = t;
         }
 
-        printf("%5d  %4d  %6.0f %6.0f %6.0f  %7.1f", t, b, blade[b].tip.x, blade[b].tip.y,
-               blade[b].tip.z, travel);
+        printf("%5d  %4d  %6.0f %6.0f %6.0f  %7.1f", t, b, blade[b].head.x, blade[b].head.y,
+               blade[b].head.z, travel);
         if( f < 0 )
             printf("     -        -  %19s  %6s\n", "-", "-");
         else
         {
-            double gap = dist_xz(blade[b].tip, arc[f].centroid);
+            double gap = dist_xz(blade[b].head, arc[f].centroid);
             printf("  %4d  %3d/%3d", f, arc[f].visible_faces, arc[f].total_faces);
             if( arc[f].visible_faces == 0 )
                 printf("  %19s  %6s\n", "(nothing drawn)", "-");
@@ -676,7 +887,7 @@ main(int argc, char** argv)
             int f = frame_at_cycle(spot_delays, spot_frames, t - d);
             if( b < 0 || f < 0 || arc[f].visible_faces == 0 )
                 continue;
-            sum += dist_xz(blade[b].tip, arc[f].centroid);
+            sum += dist_xz(blade[b].head, arc[f].centroid);
             paired++;
         }
         /* A candidate has to overlap the swing for at least half of the
@@ -719,9 +930,9 @@ main(int argc, char** argv)
             int f = frame_at_cycle(spot_delays, spot_frames, t - best_delay);
             if( b < 0 || f < 0 || arc[f].visible_faces == 0 )
                 continue;
-            sx += blade[b].tip.x - arc[f].centroid.x;
-            sy += blade[b].tip.y - arc[f].centroid.y;
-            sz += blade[b].tip.z - arc[f].centroid.z;
+            sx += blade[b].head.x - arc[f].centroid.x;
+            sy += blade[b].head.y - arc[f].centroid.y;
+            sz += blade[b].head.z - arc[f].centroid.z;
             paired++;
         }
         if( paired )
@@ -761,16 +972,12 @@ main(int argc, char** argv)
         int* top = calloc((size_t)sheet_w * sheet_h, sizeof(int));
         int* sid = calloc((size_t)sheet_w * sheet_h, sizeof(int));
 
-        /* Frame the whole player from above. The bounds of the merged model
-         * change frame to frame, so the zoom is fixed off the rest pose — a
-         * per-frame zoom would rescale the picture under the thing being
-         * measured. */
-        ev_set_spot_state(height, -1);
-        ev_pose(-1);
-        int zoom = ev_model_height() * 3;
+        /* Wide enough for the whole graphic, not just the player. The arc is
+         * over two tiles long and a zoom framed on the player alone crops the
+         * ends off exactly where the alignment question lives. */
+        int zoom = zoom_arg > 0 ? zoom_arg : player_height * 6;
         if( zoom < 400 )
             zoom = 400;
-        fprintf(stderr, "[render] model height %d, zoom %d\n", ev_model_height(), zoom);
 
         int cell = 0;
         for( int t = 0; t < body_total && cell < cells * rows; t += step, cell++ )
@@ -779,16 +986,36 @@ main(int argc, char** argv)
             int f = frame_at_cycle(spot_delays, spot_frames, t - delay);
             int cx = (cell % cells) * side;
             int cy = (cell / cells) * side;
+            int mx, my;
             if( b < 0 )
                 break;
             ev_set_spot_state(height, f);
             /* Straight down: pitch 512 of 2048 is a quarter turn, so the orbit
              * sits directly above the model and screen x/y read as world x/z. */
-            uint8_t* r = ev_render(side, side, 0, 512, zoom, b);
-            if( cell < 3 )
-                fprintf(stderr, "[render] cell %d rgba=%p cull=%d\n", cell, (void*)r,
-                        ev_last_cull());
-            blit(top, sheet_w, cx, cy, r, side);
+            blit(top, sheet_w, cx, cy, ev_render(side, side, 0, 512, zoom, b), side);
+
+            /*
+             * The two measured points, marked on the picture they were measured
+             * from. This is the check that the table above and the render agree
+             * about which model they are describing: a cyan cross that does not
+             * sit on the blade means the vertex slice is wrong, and every number
+             * downstream of it is describing the wrong geometry.
+             */
+            project_top_down(blade[b].head, side, zoom, player_height / 2, &mx, &my);
+            cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FFFF); /* blade: cyan */
+            if( f >= 0 && arc[f].visible_faces )
+            {
+                project_top_down(arc[f].centroid, side, zoom, player_height / 2, &mx, &my);
+                cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FF00); /* arc: green */
+            }
+            /* The player's own origin, so the two crosses can be read as offsets
+             * from the player rather than as positions on a canvas. */
+            {
+                struct Vec3 origin = { 0, 0, 0 };
+                project_top_down(origin, side, zoom, player_height / 2, &mx, &my);
+                cross(top, sheet_w, sheet_h, cx + mx, cy + my, 3, 0x00FFFFFF);
+            }
+
             /* And from the side, at the yaw a player fighting south is drawn at,
              * because "is it at the right height" is not visible from above. */
             blit(sid, sheet_w, cx, cy, ev_render(side, side, 0, 100, zoom, b), side);
@@ -796,13 +1023,118 @@ main(int argc, char** argv)
             rule(sid, sheet_w, sheet_h, cx, 0x00404040);
         }
 
+        /*
+         * The trace: everything the swing does, on one overhead diagram in world
+         * units.
+         *
+         * A contact sheet answers "what does it look like at cycle N" and cannot
+         * answer "do the two paths coincide", because the answer is spread over
+         * forty cells. Here the blade's path and the lit graphic's path are two
+         * curves on the same axes, over a one-tile grid, and whether they lie on
+         * top of each other is the whole question, settled at a glance.
+         */
+        {
+            int pw = 720, ph = 720;
+            int* pix = calloc((size_t)pw * ph, sizeof(int));
+            /* Fit the diagram to whatever the two paths and the arc mesh span. */
+            double span = 8;
+            for( int f = 0; f < spot_frames; f++ )
+                if( arc[f].visible_faces )
+                {
+                    if( fabs(arc[f].centroid.x) > span )
+                        span = fabs(arc[f].centroid.x);
+                    if( fabs(arc[f].centroid.z) > span )
+                        span = fabs(arc[f].centroid.z);
+                }
+            for( int b = 0; b < body_frames; b++ )
+            {
+                if( fabs(blade[b].head.x) > span )
+                    span = fabs(blade[b].head.x);
+                if( fabs(blade[b].head.z) > span )
+                    span = fabs(blade[b].head.z);
+            }
+            span *= 1.15;
+            double sc = (pw / 2) / span;
+#define PX(wx) (pw / 2 + (int)((wx) * sc))
+#define PY(wz) (ph / 2 - (int)((wz) * sc))
+
+            for( int i = 0; i < pw * ph; i++ )
+                pix[i] = 0x00141821;
+            /* A one-tile grid: 128 model units, so a reader can convert any gap
+             * on the picture into tiles without the legend. */
+            for( int g = -8; g <= 8; g++ )
+            {
+                int gx = PX(g * 128.0), gy = PY(g * 128.0);
+                for( int i = 0; i < ph; i++ )
+                    plot(pix, pw, ph, gx, i, g == 0 ? 0x00505a6e : 0x00232937);
+                for( int i = 0; i < pw; i++ )
+                    plot(pix, pw, ph, i, gy, g == 0 ? 0x00505a6e : 0x00232937);
+            }
+
+            /* The graphic's full mesh at its brightest frame, so the paths can
+             * be read against the shape they are supposed to trace. */
+            {
+                int brightest = 0;
+                for( int f = 0; f < spot_frames; f++ )
+                    if( arc[f].visible_faces > arc[brightest].visible_faces )
+                        brightest = f;
+                ev_set_spot_state(height, brightest);
+                ev_pose(-1);
+                struct ToriDraw_Model* m = ev_drawn_model();
+                int first = ev_spot_vertex_first();
+                if( m && first >= 0 )
+                    for( int v = first; v < m->vertex_count; v++ )
+                        plot(pix, pw, ph, PX((double)m->vertices_x[v]),
+                             PY((double)m->vertices_z[v]), 0x00803038);
+            }
+
+            /* Blade path (cyan) and lit-graphic path (green), cycle by cycle. */
+            int have_b = 0, have_a = 0, bx = 0, by = 0, ax = 0, ay = 0;
+            for( int t = 0; t < body_total && t < MAX_CYCLES; t++ )
+            {
+                int b = frame_at_cycle(body_delays, body_frames, t);
+                int f = frame_at_cycle(spot_delays, spot_frames, t - delay);
+                if( b < 0 )
+                    break;
+                int nx = PX(blade[b].head.x), ny = PY(blade[b].head.z);
+                if( have_b )
+                    line(pix, pw, ph, bx, by, nx, ny, 0x0000C0D0);
+                bx = nx;
+                by = ny;
+                have_b = 1;
+                if( f >= 0 && arc[f].visible_faces )
+                {
+                    int gx = PX(arc[f].centroid.x), gy = PY(arc[f].centroid.z);
+                    if( have_a )
+                        line(pix, pw, ph, ax, ay, gx, gy, 0x0000C000);
+                    /* A tie line each cycle: its length IS the gap the table
+                     * reports, and a fan of long ties is what "out of step"
+                     * looks like. */
+                    line(pix, pw, ph, nx, ny, gx, gy, 0x00404820);
+                    ax = gx;
+                    ay = gy;
+                    have_a = 1;
+                }
+            }
+            cross(pix, pw, ph, PX(0.0), PY(0.0), 6, 0x00FFFFFF);
+
+            char ppath[1024];
+            snprintf(ppath, sizeof(ppath), "%s_plot.bmp", out_prefix);
+            bmp_write_file(ppath, pix, pw, ph);
+            free(pix);
+#undef PX
+#undef PY
+        }
+
         char path[1024];
         snprintf(path, sizeof(path), "%s_top.bmp", out_prefix);
         bmp_write_file(path, top, sheet_w, sheet_h);
         snprintf(path, sizeof(path), "%s_side.bmp", out_prefix);
         bmp_write_file(path, sid, sheet_w, sheet_h);
-        printf("\nwrote %s_top.bmp and %s_side.bmp — %d cells, every %d cycle(s), %dx%d each\n",
-               out_prefix, out_prefix, cell, step, side, side);
+        printf("\nwrote %s_top.bmp / _side.bmp (%d cells, every %d cycle(s), %dx%d)\n"
+               "  and %s_plot.bmp — the overhead trace, one-tile grid,\n"
+               "  cyan = blade head, green = lit graphic, white = the player's own origin\n",
+               out_prefix, cell, step, side, side, out_prefix);
         free(top);
         free(sid);
     }

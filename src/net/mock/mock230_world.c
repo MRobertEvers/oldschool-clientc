@@ -22159,19 +22159,28 @@ mock230_world_selftest(void)
         const struct
         {
             int loc;
+            int loc_x;
+            int loc_z;
             int from_level;
             int x;
             int z;
             int op;
+            const char* verb;
             int want_level;
             const char* what;
         } k_stairs[] = {
-            { middle, 1, 3205, 3209, 2, 2, "Climb-up from the tile whose only row says down" },
-            { middle, 1, 3206, 3208, 3, 0, "Climb-down from the tile whose only row says up" },
-            { middle, 1, 3205, 3209, 3, 0, "Climb-down where the row agrees with the op" },
-            { middle, 1, 3206, 3208, 2, 2, "Climb-up where the row agrees with the op" },
-            { bottom, 0, 3205, 3209, 2, 2, "Top-floor from the ground floor skips the landing" },
-            { top, 2, 3205, 3209, 2, 0, "Bottom-floor from the top floor skips it going back" },
+            { middle, 3204, 3207, 1, 3205, 3209, 2, "Climb-up", 2,
+              "Climb-up from the tile whose only row says down" },
+            { middle, 3204, 3207, 1, 3206, 3208, 3, "Climb-down", 0,
+              "Climb-down from the tile whose only row says up" },
+            { middle, 3204, 3207, 1, 3205, 3209, 3, "Climb-down", 0,
+              "Climb-down where the row agrees with the op" },
+            { middle, 3204, 3207, 1, 3206, 3208, 2, "Climb-up", 2,
+              "Climb-up where the row agrees with the op" },
+            { bottom, 3204, 3207, 0, 3205, 3209, 2, "Top-floor", 2,
+              "Top-floor from the ground floor skips the landing" },
+            { top, 3205, 3208, 2, 3205, 3209, 2, "Bottom-floor", 0,
+              "Bottom-floor from the top floor skips it going back" },
         };
 
         SELFTEST_CHECK(middle > 0 && bottom > 0 && top > 0,
@@ -22180,24 +22189,23 @@ mock230_world_selftest(void)
         for( size_t i = 0; i < sizeof(k_stairs) / sizeof(k_stairs[0]); i++ )
         {
             const int loc = k_stairs[i].loc;
-            int stair_z = k_stairs[i].loc == top ? 3208 : 3207;
-            int slot = loc > 0 ? mock230_scene_find_loc(3204, stair_z, k_stairs[i].from_level, loc)
+            int slot = loc > 0 ? mock230_scene_find_loc(k_stairs[i].loc_x, k_stairs[i].loc_z,
+                                                        k_stairs[i].from_level, loc)
                                : -1;
-            uint8_t payload[6];
+            const char* op_name = loc > 0 ? mock230_scene_loc_op(loc, k_stairs[i].op) : NULL;
 
-            if( loc == top )
-                slot = mock230_scene_find_loc(3205, 3208, 2, loc);
             SELFTEST_CHECK(slot >= 0, "%s: the staircase should be in the scene",
                            k_stairs[i].what);
             if( slot < 0 )
                 continue;
 
-            payload[0] = (uint8_t)(k_stairs[i].x >> 8);
-            payload[1] = (uint8_t)k_stairs[i].x;
-            payload[2] = (uint8_t)(k_stairs[i].z >> 8);
-            payload[3] = (uint8_t)k_stairs[i].z;
-            payload[4] = (uint8_t)(loc >> 8);
-            payload[5] = (uint8_t)loc;
+            /* The op string is read off the record rather than assumed: a
+             * cache bump that moves "Top-floor" to another slot would
+             * otherwise leave this stanza asserting a plane change for an op
+             * nobody offers, which is a pass for the wrong reason. */
+            SELFTEST_CHECK(op_name && strcmp(op_name, k_stairs[i].verb) == 0,
+                           "%s: op %d should read %s, got %s", k_stairs[i].what, k_stairs[i].op,
+                           k_stairs[i].verb, op_name ? op_name : "(none)");
 
             player->level = k_stairs[i].from_level;
             player->x = k_stairs[i].x;
@@ -22205,17 +22213,22 @@ mock230_world_selftest(void)
             player->place_dirty = 1;
             player->rebuild_pending = 0;
             mock230_world_steps_clear(player);
-            mock230_world_handle(player, PKTOUT_NAME_OPLOC1 + (k_stairs[i].op - 1), payload, 6);
-            for( int tick = 0; tick < 40; tick++ )
-            {
-                if( player->interaction.kind == MOCK230_INTERACT_NONE &&
-                    player->level != k_stairs[i].from_level )
-                    break;
-                mock230_world_tick(srv);
-            }
-            fprintf(stderr, "  [dbg] %s: level=%d at %d,%d interaction=%d slot=%d\n",
-                    k_stairs[i].what, player->level, player->x, player->z,
-                    (int)player->interaction.kind, slot);
+            /* Run the trigger directly rather than over an OPLOC packet, for
+             * the reason the bank booth section states and one more: the walk
+             * is what decides WHICH of the two standing tiles the player is on
+             * when the op fires, and this stanza is about the two of them
+             * disagreeing. A router that picked its own approach tile would be
+             * choosing the test's input. The packet leg of a climb is already
+             * covered by the ladder section above.
+             *
+             * No `mock230_world_tick` either — a staircase, unlike a ladder,
+             * has no `p_delay` in front of it, so `p_teleport` lands inside the
+             * call. That also keeps the stanza off the shared roam RNG, which
+             * every section after this one reads. */
+            SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                               srv, SS_TRIGGER_OPLOC1 + (k_stairs[i].op - 1), loc,
+                               mock230_loc_category(loc), slot) == MOCK230_TRIGGER_RAN,
+                           "%s: the op should resolve to a script", k_stairs[i].what);
             SELFTEST_CHECK(player->level == k_stairs[i].want_level, "%s: want plane %d, got %d",
                            k_stairs[i].what, k_stairs[i].want_level, player->level);
         }
@@ -22392,8 +22405,8 @@ mock230_world_selftest(void)
          * a half-loaded overlay — the failure that actually happens, a merge
          * dropping one source file — is also caught, at the price of this line
          * moving with the content. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 290,
-                       "and doors.loc states door_closed 290 times, got %d",
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 293,
+                       "and doors.loc states door_closed 293 times, got %d",
                        mock230_loc_category_members(door_closed));
         {
             int gate_main_closed =
@@ -22422,14 +22435,16 @@ mock230_world_selftest(void)
              * when it is 0, which is a third of every placement in the tree, so
              * the pairing scan could not see a door facing west. That last five
              * is where the 10 that left `door_closed` above went: guidor,
-             * ogreguard, kr_church, arcquest_tower, elem2_mind. A leaf that lost
+             * ogreguard, kr_church, arcquest_tower, elem2_mind. Then pass 3 of
+             * `--suggest-pairs` added 5 more door_closed pairs and moved one of
+             * them (kr_seers) here as well: 290 + 5 - 2 = 293, 68 + 1 = 69. A leaf that lost
              * its side is a door that opens half way, which is what this whole
              * rung exists to keep from happening silently. */
-            SELFTEST_CHECK(mock230_loc_category_members(door_left_closed) == 68,
-                           "doubledoors.loc states door_left_closed 68 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(door_left_closed) == 69,
+                           "doubledoors.loc states door_left_closed 69 times, got %d",
                            mock230_loc_category_members(door_left_closed));
-            SELFTEST_CHECK(mock230_loc_category_members(door_right_closed) == 68,
-                           "doubledoors.loc states door_right_closed 68 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(door_right_closed) == 69,
+                           "doubledoors.loc states door_right_closed 69 times, got %d",
                            mock230_loc_category_members(door_right_closed));
         }
 
@@ -34419,6 +34434,12 @@ mock230_world_selftest(void)
                         int32_t uid;
                         int slot;
                         int expect_hp;
+                        /* The tick this npc was made on. The harness does not
+                         * hit an npc on its birth batch — a swing cannot reach
+                         * something that did not exist when it was thrown, and
+                         * without the gate the harness trips its own
+                         * "nothing born this tick has been hit" check. */
+                        int born_tick;
                     } track[HARNESS_TRACK];
                     int tracked = 0;
                     uint32_t rng = 0x9e3779b9u;
@@ -34472,6 +34493,7 @@ mock230_world_selftest(void)
                                     track[tracked].uid = selftest_npc_uid(srv, slot);
                                     track[tracked].slot = slot;
                                     track[tracked].expect_hp = srv->npcs[slot].hitpoints;
+                                    track[tracked].born_tick = (int)srv->tick;
                                     tracked++;
                                     did_spawn++;
                                 }
@@ -34505,6 +34527,7 @@ mock230_world_selftest(void)
                                 int slot = track[which].slot;
 
                                 if( selftest_npc_uid(srv, slot) == track[which].uid &&
+                                    track[which].born_tick != (int)srv->tick &&
                                     track[which].expect_hp > 1 )
                                 {
                                     mock230_combat_hit_npc(srv, slot, splat_damage, 1);
@@ -34519,6 +34542,7 @@ mock230_world_selftest(void)
                                 int slot = track[which].slot;
 
                                 if( selftest_npc_uid(srv, slot) == track[which].uid &&
+                                    track[which].born_tick != (int)srv->tick &&
                                     track[which].expect_hp > 1 &&
                                     selftest_npc_queue(srv, slot, 2, 1, 0) )
                                 {

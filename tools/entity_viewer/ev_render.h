@@ -94,6 +94,20 @@ ev_frame_delay(int index);
 uint8_t*
 ev_render(int width, int height, int yaw, int pitch, int zoom, int frame);
 
+/**
+ * Pin the height the framing lifts the model by, instead of measuring it off
+ * the model's own bounds each render. 0 restores the measured behaviour.
+ *
+ * The framing raises the model by half its height so it sits centred rather
+ * than hanging off the top. That is right for browsing one model and wrong for
+ * comparing a series: merging a large attached graphic into a player grows the
+ * combined bounds, so the lift changes, so the camera distance changes, and the
+ * player drifts and rescales from frame to frame under whatever is being
+ * measured. A caller stepping through an animation pins this once.
+ */
+void
+ev_set_frame_height(int height);
+
 /** Pan the view: shift where the orbit centre lands on the canvas, in canvas
  *  pixels (+x right, +y down). Persists until changed; 0,0 recentres. Kept
  *  out of ev_render's signature so existing embedders stay source- and

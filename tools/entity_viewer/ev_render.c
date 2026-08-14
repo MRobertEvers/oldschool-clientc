@@ -62,6 +62,9 @@ static int g_last_cull = -1;
  * depth `zoom` exactly, which makes the pixel→world conversion exact there. */
 static int g_pan_x = 0;
 static int g_pan_y = 0;
+/* 0 = measure the lift off the model's own bounds, as before. See
+ * ev_set_frame_height for why a caller stepping an animation pins it. */
+static int g_frame_height = 0;
 /* Render discipline, mirroring the client's per-npc choice (app_npc_wants_
  * zbuffer): 0 draws the painter's sort with face priorities — the authored
  * path — and 1 depth-tests instead, which also drops priorities at sort time
@@ -563,7 +566,8 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     int cos_pitch = (ToriDraw_Cos(camera.pitch) * zoom) >> 16;
 
     struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
-    int model_height = bounds ? (bounds->max_y - bounds->min_y) : 0;
+    int model_height = g_frame_height > 0 ? g_frame_height
+                                          : (bounds ? (bounds->max_y - bounds->min_y) : 0);
 
     /* Same placement as ToriDraw_SpriteNewFromModelRaster, minus its widget
      * term: that path blits into a widget rect and offsets by the widget's own
@@ -634,6 +638,12 @@ int
 ev_last_cull(void)
 {
     return g_last_cull;
+}
+
+void
+ev_set_frame_height(int height)
+{
+    g_frame_height = height > 0 ? height : 0;
 }
 
 void

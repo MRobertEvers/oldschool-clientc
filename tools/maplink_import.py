@@ -42,12 +42,23 @@ dropped and printed by `--report`/written to `docs/MAPLINKS_REJECTS.md`,
 never guessed — the same rule `ladder_import.py` already applies to a
 `loc_<id>` it cannot resolve by name.
 
+The key is a tile AND a direction
+---------------------------------
+A row carries `dir`, the plane change its own menu verb names (+1 Climb-up,
+-1 Climb-down, ±2 the Top-floor/Bottom-floor op that skips a landing, 0 for a
+verb that names none), and `~maplink_try` is told which one the player asked
+for. That is not bookkeeping: a spiral staircase's middle floor offers up and
+down from ONE tile, so a tile-only key answers both ops with whichever
+direction survived the harvest — and exactly one does, because
+`classify_displacement` drops the direction whose destination already equals
+`~climb`'s ±1 default. Lumbridge castle's two landings each kept one, and
+each answered both of its ops with it.
+
 Two kinds of ambiguity, both name-scoped
 -----------------------------------------
 A `src -> dest` row is only emitted when every verified placement of that
-EXACT origin tile agrees on one destination (a coord-only table cannot hold
-two answers for one key — a spiral staircase's middle floor is the classic
-case, two different climb ops from the same tile). Where a tile disagrees,
+EXACT origin tile AND direction agrees on one destination (the table cannot
+hold two answers for one key). Where a key disagrees,
 the affected records are bound by NAME and op slot instead — but only when
 that name has EXACTLY ONE placement in the whole accepted set. A name+op
 binding is name-wide, not tile-specific: it fires for every instance of the
