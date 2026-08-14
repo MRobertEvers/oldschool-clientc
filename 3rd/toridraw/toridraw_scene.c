@@ -1401,6 +1401,23 @@ ToriDraw_SceneElementSetAnimation(
 }
 
 void
+ToriDraw_SceneElementSetAnimLoop(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    bool loop)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    if( !td_scene_element_valid(scene, element_id) )
+        return;
+
+    element = td_scene_element_ptr(scene, element_id);
+    if( element )
+        element->anim_loop = loop;
+}
+
+void
 ToriDraw_SceneElementSetAnimationSeq(
     struct ToriDraw_Scene* scene,
     int element_id,

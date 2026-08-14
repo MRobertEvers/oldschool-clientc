@@ -6314,6 +6314,13 @@ mock230_script_command(
             SSVM_Abort(state, "npc_anim with no active npc");
             return 1;
         }
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "srv: npc_anim tick=%d seq=%d delay=%d\n",
+                srv->tick,
+                values[0],
+                values[1]);
         mock230_anim_play_npc(npc, values[0], values[1]);
         return 1;
     }
@@ -6411,6 +6418,28 @@ mock230_script_command(
         npc->face_x = mock230_coord_fine(coord_x(coord), 1);
         npc->face_z = mock230_coord_fine(coord_z(coord), 1);
         npc->masks |= MOCK230_NMASK_FACE_COORD;
+        /*
+         * A coord facing SUPERSEDES the entity latch, and the server's own copy
+         * has to say so or the two ends desync permanently.
+         *
+         * The rev-239 client clears `facing.entity_id` the moment a FACE_COORD
+         * arrives (`World_BeginModernFacing`, reached from the FACE_COORD op in
+         * task_exec_entity_info.c), and a V5 Face block cannot carry a loc and
+         * an entity at once — `v5_face_from_classic` lets the coord win. But
+         * `mock230_npc_face_npc` only sets the mask when the latch VALUE
+         * changes, so a server that still believes it is facing slot N never
+         * re-sends it: the client faces nobody, forever, while the server sees
+         * a perfectly good latch.
+         *
+         * That is what made a familiar stop tracking a moving victim. Every
+         * special move calls `npc_facesquare`, and one call killed the
+         * FACE_ENTITY that `npc_attacknpc` had established for the whole fight
+         * (measured: 331 cycles tracking the target before the call, 0 after).
+         * Dropping our copy here lets the next `mock230_npc_face_npc` — which
+         * combat and the mode machine both run every tick — see a change and
+         * re-latch, so the facing self-heals on the following tick.
+         */
+        npc->face_entity = -1;
         return 1;
     }
 

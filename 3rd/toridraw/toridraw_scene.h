@@ -364,6 +364,17 @@ ToriDraw_SceneAnimatedElements(
 void
 ToriDraw_SceneAnimListInvalidate(struct ToriDraw_Scene* scene);
 
+/** Mark this element's sequence as looping — at the end of the frame list the
+ *  frame wraps to 0 instead of terminating the sequence. Projectiles and map
+ *  spotanims want this; DynamicObject locs do not. Survives a later
+ *  SetAnimationSeq/SetAnimation bind, so it can be set at spawn while the
+ *  sequence is still loading. */
+void
+ToriDraw_SceneElementSetAnimLoop(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    bool loop);
+
 void
 ToriDraw_SceneElementSetModel(
     struct ToriDraw_Scene* scene,

@@ -148,6 +148,24 @@ ToriDraw_AnimationAdvanceObjectCycles(
     int* frame_cycle,
     int cycles);
 
+/** Advance a *looping* sequence by client cycles: a projectile or a map
+ * spotanim, not a DynamicObject. Reference ClientProj.move / MapSpotAnim.update
+ * both wrap `animFrame` to 0 at the end of the frame list unconditionally —
+ * they never consult SeqType.frameStep and never drop the sequence. Sharing the
+ * DynamicObject advance here is wrong twice over: a projectile whose seq has no
+ * valid frame step (frameStep -1 is the common case) loses its animation part
+ * way through the flight and snaps back to the model's un-posed bind pose,
+ * which for a spotanim model that hides geometry by scaling it to zero means
+ * the hidden parts reappear mid-air.
+ *
+ * Always returns having advanced; there is no terminating case. */
+void
+ToriDraw_AnimationAdvanceLoopCycles(
+    struct ToriDraw_Animation const* anim,
+    int* frame,
+    int* frame_cycle,
+    int cycles);
+
 void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim);
 

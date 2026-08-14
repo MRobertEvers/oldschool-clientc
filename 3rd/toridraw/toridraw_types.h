@@ -437,6 +437,12 @@ struct ToriDraw_SceneElement
      * anim_frame/anim2_frame; the generic per-element modulo tick skips
      * elements with this set. */
     bool anim_external;
+    /** The sequence loops instead of terminating: at the end of the frame list
+     * anim_frame wraps to 0 rather than consulting SeqType.frameStep. Set for
+     * projectiles and map spotanims (reference ClientProj.move /
+     * MapSpotAnim.update); locs are DynamicObjects and leave it clear so they
+     * still drop their sequence and revert to the static model. */
+    bool anim_loop;
     /** Reference Model.useAABBMouseCheck: pick against the projected bounding
      *  box instead of per-face. Set for npcs, players and ground objs (see
      *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact

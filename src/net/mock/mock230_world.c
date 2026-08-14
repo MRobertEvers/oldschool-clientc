@@ -9683,9 +9683,44 @@ phase_npcs(struct Mock230Server* srv)
      * (LostCity setFaceEntity with no pathing target). */
     for( int slot = 0; slot < srv->npc_slot_max; slot++ )
     {
-        if( !srv->npcs[slot].active )
+        struct Mock230Npc* npc = &srv->npcs[slot];
+
+        if( !npc->active )
             continue;
-        mock230_npc_face_clear_if_idle(&srv->npcs[slot]);
+        /*
+         * A familiar is never "idle facing nobody" — it attends its owner.
+         *
+         * `mock230_npc_face_clear_if_idle` keeps the latch for a combat target
+         * or a player-facing MODE (>= PLAYERESCAPE), and `playerfollow` is one
+         * of those, so a heeling familiar was already covered by `npc_run_mode`.
+         * Mode `none` is not: it means "nothing owns this npc's movement", which
+         * is exactly where a familiar is parked between a targeted special's
+         * approach and its next order — and there the clear branch fired and
+         * shipped "face nobody", permanently, because nothing re-derives a
+         * latch for a modeless npc.
+         *
+         * So an owned npc with no fight re-latches onto its owner here instead
+         * of being cleared. This is also what makes the facing self-heal after
+         * an `npc_facesquare` (which drops our copy of the latch, see
+         * SS_OP_NPC_FACESQUARE): the next turn puts the owner back on the wire.
+         *
+         * Gated on having no queued waypoint. A familiar walking a route a
+         * script gave it — the special's approach — is going somewhere, and
+         * turning it to face the owner mid-errand would make it strafe there
+         * sideways. Idle means idle.
+         */
+        if( npc->owner_gen != 0 && npc->combat_target < 0 &&
+            npc->combat_target_npc < 0 && npc->waypoint_index < 0 )
+        {
+            struct Mock230Player* owner = mock230_world_npc_owner(srv, npc);
+
+            if( owner )
+            {
+                mock230_npc_face_player(npc, owner->pid);
+                continue;
+            }
+        }
+        mock230_npc_face_clear_if_idle(npc);
     }
 }
 
@@ -14700,6 +14735,24 @@ mock230_world_selftest(void)
                         hans->face_z,
                         want_npc_face_x,
                         want_npc_face_z);
+                    /* A coord facing supersedes the entity latch, and the
+                     * server's copy has to say so. The rev-239 client drops
+                     * `facing.entity_id` the moment a FACE_COORD arrives, and
+                     * `mock230_npc_face_npc` only re-sends the latch when its
+                     * VALUE changes — so a server that kept believing it faced
+                     * pid N here would never ship it again, and the npc would
+                     * stare in one direction for good. Hans is in
+                     * `playerfaceclose` (mode 6), which re-latches him on the
+                     * very next turn; that re-latch is the self-heal, and it
+                     * only happens because this dropped to -1 first.
+                     *
+                     * Found via summoned familiars: every special move calls
+                     * `npc_facesquare`, and one call stopped a familiar
+                     * tracking the victim it was mid-fight with. */
+                    SELFTEST_CHECK(hans->face_entity == -1,
+                                   "npc_facesquare must drop the FACE_ENTITY latch so the "
+                                   "next derivation re-ships it, got %d",
+                                   hans->face_entity);
                 }
 
                 /* Page one is an ordinary chatnpc; clicking through it is what
@@ -29315,6 +29368,35 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(npc->x == start_x + 1 && npc->z == start_z,
                            "and steps it once no mode owns the tick, at %d,%d", npc->x, npc->z);
 
+            /*
+             * And an OWNED npc parked in that same modeless state faces its
+             * owner rather than nobody.
+             *
+             * Mode `none` is below PLAYERESCAPE, so `npc_run_mode` derives no
+             * facing for it and `mock230_npc_face_clear_if_idle` used to take
+             * the clear branch — a familiar dropped to `none` for a special's
+             * approach walk, or left there when a fight ended, shipped "face
+             * nobody" and stayed that way, because nothing re-derives a latch
+             * for a modeless npc. Owned npcs now re-latch onto the owner in
+             * `phase_npcs`, which is also what heals the facing after an
+             * `npc_facesquare`.
+             *
+             * The waypoint is drained first: the re-latch is deliberately
+             * gated on an npc that is not mid-route, so that a familiar
+             * walking a scripted errand does not strafe there facing its
+             * owner.
+             */
+            mock230_world_npc_set_owner(npc, player);
+            npc->waypoint_index = -1;
+            npc->face_entity = -1;
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(npc->mode == MOCK230_NPCMODE_NONE,
+                           "the fixture should still be modeless, got %d", npc->mode);
+            SELFTEST_CHECK(npc->face_entity == MOCK230_FACE_PLAYER_BASE + player->pid,
+                           "an idle familiar faces its owner, got %d want %d",
+                           npc->face_entity, MOCK230_FACE_PLAYER_BASE + player->pid);
+            mock230_world_npc_set_owner(npc, NULL);
+
             memcpy(player->stat_level, level_before, sizeof(level_before));
             memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
             npc->active = 0;
@@ -33569,6 +33651,47 @@ mock230_world_selftest(void)
                                        j->combat_target, j->combat_target_npc);
                         j->active = 0;
                     }
+                }
+
+                /*
+                 * TEMPORARY diagnostic for the ranged-attack timing bug report
+                 * (JalTok-Jad's jaltokjad_attack_ranged vs tzhaar_rock_smash).
+                 * Gated on an env var so it never runs in a normal selftest
+                 * pass; remove once the investigation is done.
+                 */
+                if( getenv("JAD_TIMING_PROBE") )
+                {
+                    int jad_final =
+                        mock230_content_symbol(MOCK230_PACK_NPC, "inferno_jad_finalwave");
+                    int jad = -1;
+
+                    selftest_reset_world(srv, player, 402, 402);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill 4"),
+                                   "JAD_TIMING_PROBE: zukstill 4 setup");
+                    for( int tick = 0; tick < 24 && jad < 0; tick++ )
+                    {
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL,
+                                                 0);
+                        mock230_world_tick(srv);
+                        jad = selftest_find_npc(srv, jad_final);
+                    }
+                    fprintf(stderr, "JAD_TIMING_PROBE: staged at tick=%d jad_idx=%d\n",
+                            (int)srv->tick, jad);
+                    fprintf(stderr,
+                            "JAD_TIMING_PROBE: seq ranged=%d melee=%d magic=%d death=%d "
+                            "spot rock_smash=%d\n",
+                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_attack_ranged"),
+                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_attack_melee"),
+                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_attack_magic"),
+                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_death"),
+                            mock230_content_symbol(MOCK230_PACK_SPOTANIM, "tzhaar_rock_smash"));
+                    if( jad >= 0 )
+                    {
+                        for( int tick = 0; tick < 400; tick++ )
+                            mock230_world_tick(srv);
+                    }
+                    fprintf(stderr, "JAD_TIMING_PROBE: done at tick=%d\n", (int)srv->tick);
                 }
 
                 /*

@@ -116,6 +116,43 @@ ToriDraw_AnimationAdvanceObjectCycles(
 }
 
 void
+ToriDraw_AnimationAdvanceLoopCycles(
+    struct ToriDraw_Animation const* anim,
+    int* frame,
+    int* frame_cycle,
+    int cycles)
+{
+    int cycle;
+
+    if( !anim || !frame || !frame_cycle || !anim->frames || anim->frame_count <= 0 )
+        return;
+    if( *frame < 0 || *frame >= anim->frame_count )
+        *frame = 0;
+
+    cycle = *frame_cycle;
+    if( cycle < 0 )
+        cycle = 0;
+    if( cycles > 0 )
+        cycle += cycles;
+
+    /* Same boundary rule as the DynamicObject advance above (a frame stays
+     * current while the accumulated time is not strictly greater than its
+     * length), differing only in what happens past the last frame: wrap to 0
+     * rather than consult frame_step. */
+    while( cycle > (anim->frames[*frame].delay > 0 ? anim->frames[*frame].delay : 1) )
+    {
+        int delay = anim->frames[*frame].delay > 0 ? anim->frames[*frame].delay : 1;
+
+        cycle -= delay;
+        (*frame)++;
+        if( *frame >= anim->frame_count )
+            *frame = 0;
+    }
+
+    *frame_cycle = cycle;
+}
+
+void
 ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
 {
     if( !anim )

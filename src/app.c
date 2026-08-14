@@ -7952,8 +7952,11 @@ app_world_tick_animations(struct App* app)
             {
                 int old_frame = element->anim_frame;
 
-                if( !ToriDraw_AnimationAdvanceObjectCycles(
-                        anim, &element->anim_frame, &element->anim_cycle, 1) )
+                if( element->anim_loop )
+                    ToriDraw_AnimationAdvanceLoopCycles(
+                        anim, &element->anim_frame, &element->anim_cycle, 1);
+                else if( !ToriDraw_AnimationAdvanceObjectCycles(
+                             anim, &element->anim_frame, &element->anim_cycle, 1) )
                     ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
                 /* Play any frame sounds for the new frame. A finished
                  * DynamicObject has no sequence, so it cannot emit another. */
@@ -10112,11 +10115,14 @@ app_world_catch_up_object_seq(
 
     if( !anim || elapsed_cycles <= 0 )
         return;
-    if( anim->frame_step > 0 && elapsed_cycles > 100 )
-        elapsed_cycles = 100;
     element = ToriDraw_SceneElementGet(app->scene, element_id);
     if( !element )
         return;
+    /* A sequence that cannot terminate needs the same 100-cycle bound a looping
+     * DynamicObject gets, or a long load stall is paid back one cycle at a time
+     * here. anim_loop never terminates by construction. */
+    if( (anim->frame_step > 0 || element->anim_loop) && elapsed_cycles > 100 )
+        elapsed_cycles = 100;
 
     for( int cycle = 0; cycle < elapsed_cycles && element->anim_seq_id != -1; cycle++ )
     {
@@ -10136,10 +10142,15 @@ app_world_catch_up_object_seq(
                 element->anim_cycle = 0;
             }
         }
-        else if( anim->frames && anim->frame_count > 0 &&
-                 !ToriDraw_AnimationAdvanceObjectCycles(
-                     anim, &element->anim_frame, &element->anim_cycle, 1) )
-            ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+        else if( anim->frames && anim->frame_count > 0 )
+        {
+            if( element->anim_loop )
+                ToriDraw_AnimationAdvanceLoopCycles(
+                    anim, &element->anim_frame, &element->anim_cycle, 1);
+            else if( !ToriDraw_AnimationAdvanceObjectCycles(
+                         anim, &element->anim_frame, &element->anim_cycle, 1) )
+                ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+        }
     }
 }
 
@@ -10929,7 +10940,9 @@ app_world_spawn_projectile_now(
     /* Bind the spotanim's sequence so the projectile model animates in flight
      * (v1 Task_*ProjectileAdd loads the seq, then ElementSetSequenceId). The
      * element is left non-external, so app_world_tick_animations advances the
-     * frame each tick — matching ClientProj.move's plain frame loop. */
+     * frame each tick — matching ClientProj.move's plain frame loop, which is
+     * why the element is marked anim_loop. */
+    ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     app_world_apply_seq(app, element_id, seq_id);
     fprintf(
         stderr,
@@ -11022,6 +11035,14 @@ app_world_spawn_projectile_spot_now(
         peak,
         arc,
         target);
+    /* Reference ClientProj.move wraps animFrame to 0 at the end of the frame
+     * list and never drops the sequence. Flight time routinely outlasts the
+     * sequence — a 12-cycle spotanim seq against a 30+ cycle flight is normal —
+     * so without this the model spends most of the flight back in its un-posed
+     * bind pose. Spotanim models hide geometry by scaling it to zero in every
+     * frame, so what that actually looks like is extra parts of the model
+     * appearing mid-air partway to the target. */
+    ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
     app_world_apply_seq(app, element_id, spot->seq);
 
     if( getenv("TORIRS_NET_DEBUG") )

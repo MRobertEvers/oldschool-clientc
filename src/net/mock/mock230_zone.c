@@ -627,6 +627,16 @@ mock230_zone_mapanim(
     event.id = spotanim;
     event.src_height = height;
     event.start_delay = delay;
+    if( getenv("TORIRS_ANIM_DEBUG") )
+        fprintf(
+            stderr,
+            "srv: spotanim_map tick=%d id=%d x=%d z=%d level=%d delay=%d\n",
+            srv->tick,
+            spotanim,
+            x,
+            z,
+            level,
+            delay);
     queue_event(srv, zone, &event);
 }
 
