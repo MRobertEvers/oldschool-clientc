@@ -462,6 +462,14 @@ struct ToriRS_Objtype
     /** Base GE/alch value (cache opcode 12). The loot tracker's value column
      *  is cost*qty; CS2 reads it through OC_COST (cs2_command 4003). */
     int cost;
+    /** Shift-click inventory op, dat2 opcode 42 (reference ObjType field5070,
+     *  read by OC_SHIFTCLICKIOP). A 0-based index into `inv_actions`, -1 for
+     *  "this item has no shift-click op", and **-2 for "unstated"**, which is
+     *  the common case: the reference then falls back to op slot 4 when that
+     *  slot reads "Drop". 0 is a real index, so -2 has to be written by every
+     *  construction path — a calloc'd objtype would otherwise claim op 0.
+     *  dat1 has no such opcode, so a classic cache is always -2. */
+    int shift_click_drop_index;
     /** Team-cape id (cache opcode 115), 0 = no team. The reference folds this
      *  out of a player's WORN equipment into ClientPlayer.team while decoding
      *  the appearance, and the "Attack" menu row consults it: two players in

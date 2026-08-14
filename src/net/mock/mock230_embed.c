@@ -17,6 +17,7 @@
 #include "mock230.h"
 #include "mock230_bank.h"
 #include "mock230_container.h"
+#include "mock230_shop.h"
 #include "mock230_boot.h"
 #include "mock230_session.h"
 #include "mock230_transport.h"
@@ -82,6 +83,10 @@ mock230_embed_start(char const* rev_name)
 
     mock230_boot_defaults(&embed->config);
     mock230_boot_load(&embed->config);
+    /* Shop definitions are global (mock230_content_load populated them);
+     * seeding a container is per-server-instance, so it happens once `srv`
+     * itself exists. Calloc above already zeroed world_containers. */
+    mock230_shop_seed(&embed->srv);
 
     embed->srv.verbose = getenv("MOCK230_VERBOSE") != NULL;
     /*

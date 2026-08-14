@@ -85,7 +85,7 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     4210: (0, 1, 1, 0),  # OC_FIND(query:str) -> match count (item-name search)
     4211: (0, 0, 1, 0),  # OC_FINDNEXT -> next matched item id (or -1 when exhausted)
     4212: (0, 0, 0, 0),  # OC_FINDRESET (clears the search state; no stack effect)
-    4213: (1, 0, 1, 0),  # OC_SHIFTCLICKIOP(item) -> op index (stub: -1, no data)
+    4213: (1, 0, 1, 0),  # OC_SHIFTCLICKIOP(item) -> 1-based shift-click op (or -1)
     4217: (1, 0, 1, 0),  # OC_WEIGHT(item) -> weight (stub: 0, no data)
     4218: (1, 0, 0, 1),  # OC_EXAMINE(item) -> examine text (real data: obj.desc)
     4222: (3, 0, 0, 1),  # OC_ISUBOP(obj, opIndex, subIndex) -> sub-op string (stub: "")

@@ -4370,6 +4370,36 @@ CS2VM2_Op_CC_SetOnKey(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEY, &request);
 }
 
+/* CC_SETONKEYDOWN / CC_SETONKEYUP (1430/1431) — see
+ * CS2VM_HOST_REQUEST_CC_SETONKEYDOWN for why the vendor names are wrong. */
+int
+CS2VM2_Op_CC_SetOnKeyDown(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYDOWN, &request);
+}
+
+int
+CS2VM2_Op_CC_SetOnKeyUp(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONKEYUP, &request);
+}
+
 int
 CS2VM2_Op_CC_SetOnOp(
     struct CS2VM2_Thread* vm,
@@ -5090,6 +5120,37 @@ CS2VM2_Op_IF_SetOnKey(
 
     struct CS2VM_HostRequest_IF_SetOnOp request;
     return CS2VM2_Op_IF_SetOnEventHandler(vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEY, &request);
+}
+
+/* IF_SETONKEYDOWN / IF_SETONKEYUP (2430/2431), the IF twins of the CC pair. */
+int
+CS2VM2_Op_IF_SetOnKeyDown(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYDOWN, &request);
+}
+
+int
+CS2VM2_Op_IF_SetOnKeyUp(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONKEYUP, &request);
 }
 
 int
@@ -8854,7 +8915,8 @@ CS2VM2_Op_Chat(
     return vm->vm->host_exec(vm, &request);
 }
 
-/* OC_SHIFTCLICKIOP: no per-item shift-click preference data exists yet. */
+/* OC_SHIFTCLICKIOP: one obj id in, the 1-based inventory op a shift-click runs
+ * out (-1 for none). The host owns the rule; see exec_oc_shiftclickiop. */
 static int
 CS2VM2_Op_OC_ShiftClickIop(
     struct CS2VM2_Thread* vm)
@@ -9820,6 +9882,12 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnScrollWheel(vm, frame, operand);
     case CS2_OP_CC_SETONKEY:
         return CS2VM2_Op_CC_SetOnKey(vm, frame, operand);
+    /* Named SETONITEMONITEM / SETONCLANSETTINGS by the vendor table; they are
+     * the key-down and key-up listeners. See CS2VM2_Op_CC_SetOnKeyDown. */
+    case CS2_OP_CC_SETONITEMONITEM:
+        return CS2VM2_Op_CC_SetOnKeyDown(vm, frame, operand);
+    case CS2_OP_CC_SETONCLANSETTINGS:
+        return CS2VM2_Op_CC_SetOnKeyUp(vm, frame, operand);
     case CS2_OP_CC_SETONOP:
         return CS2VM2_Op_CC_SetOnOp(vm, frame, operand);
     case CS2_OP_CC_SETONDRAGCOMPLETE:
@@ -9918,6 +9986,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnScrollWheel(vm, frame, operand);
     case CS2_OP_IF_SETONKEY:
         return CS2VM2_Op_IF_SetOnKey(vm, frame, operand);
+    case CS2_OP_IF_SETONITEMONITEM:
+        return CS2VM2_Op_IF_SetOnKeyDown(vm, frame, operand);
+    case CS2_OP_IF_SETONCLANSETTINGS:
+        return CS2VM2_Op_IF_SetOnKeyUp(vm, frame, operand);
     case CS2_OP_IF_SETONMISCTRANSMIT:
         return CS2VM2_Op_IF_SetOnMiscTransmit(vm, frame, operand);
     case CS2_OP_IF_SETONFRIENDTRANSMIT:
@@ -10242,8 +10314,6 @@ CS2VM2_RunOp(
     case CS2_OP_CC_SETONSTOCKTRANSMIT:
     case CS2_OP_CC_SETONCLANSETTINGSTRANSMIT:
     case CS2_OP_CC_SETONCLANCHANNELTRANSMIT:
-    case CS2_OP_CC_SETONITEMONITEM:
-    case CS2_OP_CC_SETONCLANSETTINGS:
     case CS2_OP_CC_SETONMAPPOST:
     /* Input-field listeners: no text-entry model yet, but signature-driven
      * operand counts mean they must be parsed, not stubbed. */
@@ -10282,8 +10352,6 @@ CS2VM2_RunOp(
      * operand counts, so they must be parsed rather than left to the stub. */
     case CS2_OP_IF_SETONCHATTRANSMIT:
     case CS2_OP_IF_SETONSTOCKTRANSMIT:
-    case CS2_OP_IF_SETONITEMONITEM:
-    case CS2_OP_IF_SETONCLANSETTINGS:
     case CS2_OP_IF_SETONMAPPOST:
     case CS2_OP_IF_INPUT_SETONSUBMIT:
     case CS2_OP_IF_INPUT_SETONABORT:

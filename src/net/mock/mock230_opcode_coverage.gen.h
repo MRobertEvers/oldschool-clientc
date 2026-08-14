@@ -12,13 +12,13 @@
  *     63  VM core
  *    251  host commands
  *      9  host commands (db)
- *      8  host commands (inv)
+ *     10  host commands (inv)
  *      8  host commands (loc)
  *      8  host commands (npc)
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    365  total, of 443 declared opcodes
+ *    367  total, of 443 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 365
+#define MOCK230_OPCODE_COVERAGE_COUNT 367
 #define MOCK230_OPCODE_DECLARED_COUNT 443
 
 /*
@@ -284,6 +284,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4214, /* SS_OP_OC_WEARPOS2 (host commands (obj)) */
     4215, /* SS_OP_OC_WEARPOS3 (host commands (obj)) */
     4302, /* SS_OP_INV_ADD (host commands) */
+    4303, /* SS_OP_INV_ALLSTOCK (host commands (inv)) */
     4304, /* SS_OP_INV_CHANGESLOT (host commands (inv)) */
     4305, /* SS_OP_INV_CLEAR (host commands) */
     4306, /* SS_OP_INV_DEBUGNAME (host commands) */
@@ -304,6 +305,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     4322, /* SS_OP_INV_MOVETOSLOT (host commands) */
     4323, /* SS_OP_INV_SETSLOT (host commands) */
     4324, /* SS_OP_INV_SIZE (host commands) */
+    4325, /* SS_OP_INV_STOCKBASE (host commands (inv)) */
     4326, /* SS_OP_INV_STOPTRANSMIT (host commands) */
     4327, /* SS_OP_INV_TOTAL (host commands) */
     4328, /* SS_OP_INV_TOTALCAT (host commands) */

@@ -133,6 +133,15 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_SETONDRAG,
     CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL,
     CS2VM_HOST_REQUEST_CC_SETONKEY,
+    /** CC/IF_SETONKEYDOWN (1430/2430) and CC/IF_SETONKEYUP (1431/2431). The
+     *  vendor opcode table names these SETONITEMONITEM / SETONCLANSETTINGS,
+     *  which the rev-239 client contradicts: it feeds them the pressed and
+     *  released key lists (class415 fields 4154 / 4060), one dispatch per key
+     *  code, with `event_key` set — the same shape as onKey minus the typed
+     *  character. script6007 registers both on the inventory to rebuild it
+     *  when shift goes down and comes back up (shift-click drop). */
+    CS2VM_HOST_REQUEST_CC_SETONKEYDOWN,
+    CS2VM_HOST_REQUEST_CC_SETONKEYUP,
     CS2VM_HOST_REQUEST_CC_SETONOP,
     CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE,
     CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT,
@@ -201,6 +210,9 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETONTIMER,
     CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL,
     CS2VM_HOST_REQUEST_IF_SETONKEY,
+    /** See CS2VM_HOST_REQUEST_CC_SETONKEYDOWN for what these really are. */
+    CS2VM_HOST_REQUEST_IF_SETONKEYDOWN,
+    CS2VM_HOST_REQUEST_IF_SETONKEYUP,
     CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT,
     CS2VM_HOST_REQUEST_IF_SETONHOLD,
     CS2VM_HOST_REQUEST_IF_SETONDRAG,
@@ -263,8 +275,9 @@ enum CS2VM_HostRequestKind
      * matches; FINDNEXT walks them; FINDRESET clears them. Yields once (kind
      * OC_FIND) to bulk-load the obj group before the first scan. */
     CS2VM_HOST_REQUEST_OC_FIND,
-    /* OC_SHIFTCLICKIOP: default shift-click op index for an item. No per-item
-     * preference data exists, so this stubs to -1 (no default). */
+    /* OC_SHIFTCLICKIOP: which inventory op a shift-click runs, as a 1-based op
+     * number (or -1). Real data: ObjType.shift_click_drop_index when the cache
+     * states one, otherwise the reference's "op 5 is Drop" default. */
     CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP,
     /* OC_WEARPOS/WEARPOS2/WEARPOS3: equip slot(s) an item occupies. No equip
      * slot data exists on ToriRS_Objtype, so this stubs to -1 (not equippable);

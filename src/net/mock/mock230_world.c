@@ -16,6 +16,7 @@
 #include "mock230_music_regions.gen.h"
 
 #include "mock230_container.h"
+#include "mock230_shop.h"
 #include "mock230_content.h"
 #include "mock230_db.h"
 #include "mock230_equipment.h"
@@ -10450,6 +10451,13 @@ phase_clients_out(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
 
+    /* Shared (world-scoped) containers first, so a shop bought from or sold
+     * to this tick reaches every listener's outgoing batch before that
+     * player's own phase_client_out closes it with a tick-end. A player's own
+     * containers are still flushed from inside phase_client_out, unchanged —
+     * this is the sibling pass for rows no single player owns. */
+    mock230_container_flush_world(srv);
+
     MOCK230_FOR_EACH_PLAYER(srv, player)
     {
         if( player->login_scene_pending || player->rebuild_scene_pending )
@@ -11754,6 +11762,10 @@ mock230_world_selftest(void)
         if( rev_name )
             fprintf(stderr, "mock230 selftest: wire %s\n", srv->wire->name);
     }
+    /* Shop definitions were parsed once at boot (global tables); this srv is
+     * a fresh, just-memset instance and needs its own shared containers seeded
+     * from them, same as any other boot path. */
+    mock230_shop_seed(srv);
     /*
      * Its own save directory, before anything can read one.
      *
@@ -13638,8 +13650,8 @@ mock230_world_selftest(void)
                                        "equipment close test resolves its interface/container");
                         if( equipment >= 0 && universe >= 0 && worn )
                         {
-                            mock230_container_unbind(player, universe);
-                            mock230_container_unbind(player, wornitems);
+                            mock230_container_unbind(srv, player, universe);
+                            mock230_container_unbind(srv, player, wornitems);
                             SELFTEST_CHECK(mock230_container_bind(
                                                srv, player, mock230_ids()->inv_worn,
                                                universe),
@@ -13751,7 +13763,7 @@ mock230_world_selftest(void)
                                 }
                                 srv->wire = wire239;
                             }
-                            mock230_container_unbind(player, wornitems);
+                            mock230_container_unbind(srv, player, wornitems);
                         }
                     }
 
@@ -25019,7 +25031,7 @@ mock230_world_selftest(void)
             int saw_com1 = 0;
             int saw_com2 = 0;
 
-            mock230_container_unbind(player, component);
+            mock230_container_unbind(srv, player, component);
             mock230_container_clean(row);
             SELFTEST_CHECK(row->listener_count == 0, "unbound before dual bind");
 
@@ -25065,7 +25077,7 @@ mock230_world_selftest(void)
                            "(com1=%d com2=%d)",
                            full_for_com1, full_for_com2);
 
-            SELFTEST_CHECK(mock230_container_unbind(player, component2) == 1,
+            SELFTEST_CHECK(mock230_container_unbind(srv, player, component2) == 1,
                            "stoptransmit drops only the named listener");
             SELFTEST_CHECK(row->listener_count == 1 && row->listeners[0].component == component,
                            "first listener survives the unbind");
@@ -25113,7 +25125,7 @@ mock230_world_selftest(void)
                 mock230_container_bind(srv, player, mock230_ids()->inv_worn, wornitems);
                 mock230_container_bind(srv, player, mock230_ids()->inv_worn, stats_com);
                 SELFTEST_CHECK(worn->listener_count == 2, "worn has dual listeners");
-                mock230_container_unbind(player, stats_com);
+                mock230_container_unbind(srv, player, stats_com);
                 SELFTEST_CHECK(worn->listener_count == 1 &&
                                    worn->listeners[0].component == wornitems,
                                "closing equipment stats leaves wornitems bound");
@@ -25148,7 +25160,7 @@ mock230_world_selftest(void)
             }
         }
 
-        mock230_container_unbind(player, component);
+        mock230_container_unbind(srv, player, component);
         mock230_container_forget(player, inv_collection);
     }
 

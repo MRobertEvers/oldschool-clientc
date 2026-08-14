@@ -123,6 +123,7 @@ LibToriRS_Input_Begin(
 
     input->key_event_count = 0;
     memset(input->osrs_key_pressed, 0, sizeof(input->osrs_key_pressed));
+    memset(input->osrs_key_released, 0, sizeof(input->osrs_key_released));
 }
 
 void
@@ -202,6 +203,8 @@ LibToriRS_Input_SetOsrsKeyState(
     assert(input);
     if( osrs_key < 0 || osrs_key >= TORIRS_OSRSKEY_COUNT )
         return;
+    if( !down && input->osrs_key_held[osrs_key] )
+        input->osrs_key_released[osrs_key] = 1;
     input->osrs_key_held[osrs_key] = down ? 1 : 0;
     if( down && pressed_edge )
         input->osrs_key_pressed[osrs_key] = 1;
@@ -217,6 +220,10 @@ LibToriRS_Input_ClearKeys(struct LibToriRS_Input* input)
     memset(input->curr.key_up, 0, sizeof(input->curr.key_up));
     memset(input->osrs_key_held, 0, sizeof(input->osrs_key_held));
     memset(input->osrs_key_pressed, 0, sizeof(input->osrs_key_pressed));
+    /* Focus loss is not a key-up the scripts should see: the reference stops
+     * receiving events entirely, so drop the release edges too rather than
+     * synthesising a burst of on_key_up dispatches. */
+    memset(input->osrs_key_released, 0, sizeof(input->osrs_key_released));
 }
 
 void

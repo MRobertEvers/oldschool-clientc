@@ -278,10 +278,19 @@ enum
      * carry, and overflowing it is reported rather than absorbed.
      */
     MOCK230_CONTAINER_MAX = 16,
-    MOCK230_WORLD_CONTAINER_MAX = 16,
+    /** Shared (world-scoped) rows are created on first use and never evicted
+     *  (mock230_container.h's header comment), so this has to cover every
+     *  distinct shop any player visits over one server lifetime, not just
+     *  those open at once. 640 clears the wiki-catalogued shop roster
+     *  (docs/SHOPS_PLAN.md §1.3: 593 distinct shops) with headroom for the
+     *  handful of non-shop shared containers (party chest, GE offer slots). */
+    MOCK230_WORLD_CONTAINER_MAX = 640,
     /** How many components may listen to one inv at once (`inv_transmit`).
-     *  Worn tab + equipment-stats is two; four leaves room for a side panel. */
-    MOCK230_CONTAINER_LISTENERS_MAX = 4,
+     *  For a player-owned row this is worn tab + equipment-stats + a side
+     *  panel; for a shared shop row it is one (component, player) pair per
+     *  player who has it open — MOCK230_PLAYER_MAX (8) players, shopmain and
+     *  shopside each, doubled for headroom. */
+    MOCK230_CONTAINER_LISTENERS_MAX = 16,
 
     /*
      * Players this world can hold.
@@ -1528,11 +1537,18 @@ struct Mock230Container
      *
      * `first_seen` is per listener: a new bind gets a full update immediately,
      * without forcing every other listener to re-send.
+     *
+     * `player` distinguishes listeners on a WORLD row, where `component` alone
+     * is not unique: `(300<<16)|16` (shopmain:items) is the same numeric id on
+     * every client, so two different players opening the same shared shop are
+     * two listeners on one row, not one. It is unused (and left NULL) on a
+     * PLAYER row, where the row's own `owner` already answers "which player".
      */
     struct
     {
         int32_t component;
         uint8_t first_seen;
+        struct Mock230Player* player;
     } listeners[MOCK230_CONTAINER_LISTENERS_MAX];
 };
 

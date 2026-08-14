@@ -58,6 +58,7 @@
 #include "mock230_bank.h"
 #include "mock230_container.h"
 #include "mock230_ids.h"
+#include "mock230_shop.h"
 
 #include "ss_opcode.h"
 #include "ssvm.h"
@@ -540,6 +541,43 @@ mock230_ops_inv(
             mock230_container_set(row, slot, (int)values[2], (int)values[3]);
             return 1;
         }
+        return 1;
+    }
+
+    /*
+     * `[command,inv_stockbase](inv $inv, obj $obj)(int)` — the shop half of
+     * the inv namespace (docs/SHOPS_PLAN.md §3.2). `%shop`'s price formula
+     * (`~price_mod` / `adjusted_item_cost_buying`/`_selling`) looks this up to
+     * move price with distance from baseline stock; -1 means `$obj` has no
+     * declared baseline in this shop's `.inv` definition, which `~price_mod`
+     * reads as "no adjustment" rather than as an error — the general stores'
+     * `allstock=yes` slots are exactly that case.
+     *
+     * A pure read off the definition table `mock230_shop.c` parsed at content
+     * load; it does not touch the container, so an inv with no shop
+     * definition at all (every non-shop container) simply answers -1.
+     */
+    case SS_OP_INV_STOCKBASE:
+    {
+        int32_t inv_id;
+        int32_t obj_id;
+
+        if( !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_shop_stockbase(inv_id, obj_id));
+        return 1;
+    }
+
+    /* `[command,inv_allstock](inv $inv)(boolean)` — whether `$inv` is a
+     * general-store-style shop where a non-baseline slot decays to 0 rather
+     * than staying wherever a sale left it (docs/SHOPS_PLAN.md §3.4). */
+    case SS_OP_INV_ALLSTOCK:
+    {
+        int32_t inv_id;
+
+        if( !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        SSVM_PushInt(state, mock230_shop_allstock(inv_id));
         return 1;
     }
 

@@ -32,6 +32,7 @@
 
 #include "mock230_boot.h"
 #include "mock230_container.h"
+#include "mock230_shop.h"
 #include "mock230_session.h"
 #include "mock230_transport.h"
 #include "mock230_ws.h"
@@ -171,6 +172,11 @@ serve(
      * function deliberately zeroes per connection.
      */
     srv->wire = wire;
+    /* Same reason: the memset above wipes any earlier seeding of
+     * `srv->world_containers`, so shared shops are reseeded fresh per
+     * connection — one process serves one connection at a time here (the JS5
+     * thread aside), so this is boot, not a mid-session reset. */
+    mock230_shop_seed(srv);
 
     mock230_transport_socket(&transport, conn);
     mock230_session_init(&session, &transport, srv->verbose);

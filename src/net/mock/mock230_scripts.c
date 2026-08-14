@@ -8975,7 +8975,7 @@ mock230_script_command(
          * Revision 230 addresses the component and therefore always receives
          * the stop for the listener that was removed. */
         row = container_listener_row(srv->active_player, component);
-        mock230_container_unbind(srv->active_player, component);
+        mock230_container_unbind(srv, srv->active_player, component);
         wire = srv->wire ? srv->wire : mock230_wire_default();
         if( row && (wire->revision < 239 || row->listener_count == 0) )
             stop_inv = row->inv_id;

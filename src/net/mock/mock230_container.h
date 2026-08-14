@@ -249,12 +249,17 @@ mock230_container_bind(
     int32_t inv_id,
     int32_t component);
 
-/** Drop the listener that names `component`. Revision 239 first sends
- * IF_CLEARINV for the component's embedded item array. The inventory-global
- * UPDATE_INV_STOPTRANSMIT remains the caller's responsibility because another
- * component may still listen to the same inventory. Returns how many dropped. */
+/** Drop the listener that names `component` **for `player`**. Revision 239
+ * first sends IF_CLEARINV for the component's embedded item array. The
+ * inventory-global UPDATE_INV_STOPTRANSMIT remains the caller's
+ * responsibility because another component (or, on a shared row, another
+ * player) may still listen to the same inventory. `srv` is needed to reach a
+ * shared row's table — a component id alone cannot say whether the container
+ * behind it is `player`'s own or a world row several players share. Returns
+ * how many dropped (0 or 1; a player can bind one inv per component). */
 int
 mock230_container_unbind(
+    struct Mock230Server* srv,
     struct Mock230Player* player,
     int32_t component);
 
@@ -270,5 +275,18 @@ mock230_container_unbind(
  */
 void
 mock230_container_flush(struct Mock230Player* player);
+
+/**
+ * The world-row sibling of `mock230_container_flush`.
+ *
+ * A player's own containers are flushed from that player's own tick pass
+ * (`phase_client_out`); a shared row belongs to no one player, so it needs its
+ * own pass over `srv->world_containers`, once per tick, sending each dirty
+ * row's listeners to the specific player each listener names (see the
+ * `player` field on the listener struct in mock230.h for why that is not
+ * `srv->active_player`).
+ */
+void
+mock230_container_flush_world(struct Mock230Server* srv);
 
 #endif

@@ -214,11 +214,22 @@ collect_key_targets(
     {
         int32_t idx = t->key_hooks.slots[i];
         struct UITreeComponent const* c;
+        struct UITreeRuntimeHooks const* h;
         int bx = 0, by = 0, bw = 0, bh = 0;
         int offx = 0, offy = 0;
+        int mask = 0;
         assert(idx >= 0 && (uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
-        if( c->freed || UITree_Hooks(c)->on_key.script_id <= 0 )
+        if( c->freed )
+            continue;
+        h = UITree_Hooks(c);
+        if( h->on_key.script_id > 0 )
+            mask |= UI_KEY_HOOK_TYPED;
+        if( h->on_key_down.script_id > 0 )
+            mask |= UI_KEY_HOOK_DOWN;
+        if( h->on_key_up.script_id > 0 )
+            mask |= UI_KEY_HOOK_UP;
+        if( !mask )
             continue;
         if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
             continue;
@@ -227,6 +238,7 @@ collect_key_targets(
         out_targets[count].component_id = c->component_id;
         out_targets[count].abs_x = bx - offx;
         out_targets[count].abs_y = by - offy;
+        out_targets[count].hooks = mask;
         count++;
     }
     return count;
@@ -1227,12 +1239,24 @@ interact_keys(
 {
     int target_count;
     int event_count;
+    int code;
 
     assert(tree);
     assert(input);
     assert(out);
 
-    if( input->key_event_count <= 0 )
+    /* A key-UP produces no typed event, so key_event_count alone cannot gate
+     * this: the release edges have to be scanned too or on_key_up never fires
+     * (shift-drop would latch on at the first press and never come off). */
+    for( code = 0; code < TORIRS_OSRSKEY_COUNT; code++ )
+    {
+        if( input->osrs_key_pressed[code] && out->key_down_count < LIBTORIRS_KEY_EVENT_MAX )
+            out->key_down_codes[out->key_down_count++] = code;
+        if( input->osrs_key_released[code] && out->key_up_count < LIBTORIRS_KEY_EVENT_MAX )
+            out->key_up_codes[out->key_up_count++] = code;
+    }
+
+    if( input->key_event_count <= 0 && out->key_down_count <= 0 && out->key_up_count <= 0 )
         return;
 
     /* Op-key bindings resolve to on_op intents, so they run through the normal
@@ -1241,7 +1265,11 @@ interact_keys(
 
     target_count = collect_key_targets(tree, out->key_targets, UI_KEY_TARGET_MAX);
     if( target_count <= 0 )
+    {
+        out->key_down_count = 0;
+        out->key_up_count = 0;
         return;
+    }
 
     event_count = input->key_event_count;
     if( event_count > LIBTORIRS_KEY_EVENT_MAX )

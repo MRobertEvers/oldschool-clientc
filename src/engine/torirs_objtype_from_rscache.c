@@ -58,6 +58,9 @@ ToriRS_ObjtypeFromRSCacheDat1(
     objtype->wearpos = -1;
     objtype->wearpos2 = -1;
     objtype->wearpos3 = -1;
+    /* dat1 predates opcode 42: always "unstated", so OC_SHIFTCLICKIOP falls
+     * back to the reference's op-slot-4-reads-"Drop" rule. */
+    objtype->shift_click_drop_index = -2;
 
     objtype->id = obj_id;
     if( src->name )
@@ -164,6 +167,8 @@ ToriRS_ObjtypeFromRSCacheDat2(
     objtype->wearpos = src->wearpos_1;
     objtype->wearpos2 = src->wearpos_2;
     objtype->wearpos3 = src->wearpos_3;
+    /* rscache defaults this to -2 ("unstated") for the same reason we do. */
+    objtype->shift_click_drop_index = src->shift_click_drop_index;
 
     objtype->id = obj_id;
     if( src->name )

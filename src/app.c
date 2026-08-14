@@ -15511,6 +15511,54 @@ App_RunOnce(
         }
     }
 
+    /* Key-down and key-up broadcasts, the same shape as the onKey loop above
+     * (re-resolve the id, re-check the hook) over the frame's pressed and
+     * released key codes. These are what the inventory registers to rebuild
+     * itself while shift is held: script6007 arms both, script6008 filters to
+     * key 81 (shift) and re-runs the slot builder with shift down or up, and
+     * script6012 then promotes the shift-click op to op 1. Only the code is
+     * reported — the reference passes no character here, so `event_key` is set
+     * and the char left at 0. */
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        int const down = pass == 0;
+        int const code_count = down ? out.key_down_count : out.key_up_count;
+        int const* codes = down ? out.key_down_codes : out.key_up_codes;
+        int const want = down ? UI_KEY_HOOK_DOWN : UI_KEY_HOOK_UP;
+
+        for( int e = 0; e < code_count; e++ )
+        {
+            for( int t = 0; t < out.key_target_count; t++ )
+            {
+                struct UIKeyTarget const* target = &out.key_targets[t];
+                struct UITreeRuntimeScriptHook const* hook;
+                int32_t idx;
+                if( !(target->hooks & want) )
+                    continue;
+                idx = UITree_FindByComponentId(app->tree, target->component_id);
+                if( idx < 0 )
+                    continue;
+                hook = down ? &UITree_Hooks(&app->tree->components[idx])->on_key_down
+                            : &UITree_Hooks(&app->tree->components[idx])->on_key_up;
+                if( hook->script_id <= 0 )
+                    continue;
+                RS_CS2_SetEventMouse(
+                    &app->host, out.key_mouse_x - target->abs_x, out.key_mouse_y - target->abs_y);
+                RS_CS2_SetEventKey(&app->host, codes[e], 0);
+                if( getenv("TORIRS_KEY_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "key_%s_dispatch: com=0x%08x script=%d key=%d\n",
+                        down ? "down" : "up",
+                        target->component_id,
+                        hook->script_id,
+                        codes[e]);
+                RS_CS2_DispatchHook(&app->host, &app->runner, target->component_id, hook);
+                ran_cs2 = 1;
+            }
+        }
+    }
+
     /* Chat input: typed characters/backspace/return feed whichever chat
      * input line is open (reference handleInputKey — typing goes to the chat
      * line even while op-key bindings also fire). Only when a chat region

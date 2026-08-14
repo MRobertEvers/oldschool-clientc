@@ -244,9 +244,9 @@ struct CS2VM2_Array
 #define CS2_OP_CAM_GETYAW 6232
 /* OC_* obj-config getters with no cs2_opcode.h define at all (the 4213..4221
  * gap, plus 4222). Same INT8-baked-operand convention as the rest of the OC_
- * family (4200..4212, all CS2_OPERAND_INT8 in the generated meta). None of these
- * have backing data on ToriRS_Objtype yet except EXAMINE (desc field, already
- * real) — see the host handlers for what each stubs to. */
+ * family (4200..4212, all CS2_OPERAND_INT8 in the generated meta). Most still
+ * have no backing data on ToriRS_Objtype; EXAMINE (desc) and SHIFTCLICKIOP
+ * (shift_click_drop_index) are real — see the host handlers for the rest. */
 #define CS2_OP_OC_SHIFTCLICKIOP 4213
 #define CS2_OP_OC_WEARPOS 4214
 #define CS2_OP_OC_WEARPOS2 4215

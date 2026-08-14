@@ -497,6 +497,7 @@ MOCK230_CORE_SRCS = net/mock/mock230_world.c \
 	net/mock/mock230_ops_inv.c \
 	net/mock/mock230_ops_player.c \
 	net/mock/mock230_bank.c net/mock/mock230_container.c net/mock/mock230_equipment.c \
+	net/mock/mock230_shop.c \
 	net/mock/mock230_friends.c \
 	net/mock/mock230_ids.c \
 	net/mock/mock230_boot.c net/mock/mock230_save.c net/mock/mock230_transport.c net/mock/mock230_session.c \
