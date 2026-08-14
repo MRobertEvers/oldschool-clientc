@@ -668,19 +668,31 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=5000,
         charge_source="Smouldering stone used on a Dragon axe; recharged the same way",
         drain_event="1/3 chance per log chopped to consume the log for half Firemaking xp instead of a normal burn",
-        status="charges_only",
-        note="Covers infernal_axe + trailblazer_axe/trailblazer_reloaded_axe (cosmetic Trailblazer League "
-             "recolours, both tradeable with cert/placeholder variants -- NOT Leagues-locked, verified no "
-             "leagues/season tree exists in this repo). No woodcutting file references any of the three ids "
-             "-- unimplemented.",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/infernal_axe.rs2, same shape as Infernal pickaxe: present-"
+             "check covers worn OR backpack, recharge is a full refill (not per-item), one-way revert to the "
+             "untradeable empty obj at 0. Hooked into skill_woodcutting/scripts/woodcut.rs2's `get_logs` "
+             "label; Firemaking xp read from the real `firemaking_log_xp` table (unlike Infernal pickaxe's "
+             "own Mining-xp stand-in, this tree already has real per-log Firemaking xp data) and halved. Logs "
+             "the table doesn't know (redwood/teak/mahogany) get 0 xp and are correctly never destroyed -- a "
+             "guard, mutation-tested. Does NOT cover trailblazer_axe/trailblazer_reloaded_axe (cosmetic "
+             "League recolours) -- same pre-existing gap Infernal pickaxe's own implementation already has "
+             "for trailblazer_pickaxe, not reopened here.",
     ),
     "Infernal harpoon": dict(
         storage="item_var", depletion="revert", max_charges=5000,
         charge_source="Smouldering stone used on a Dragon harpoon; recharged the same way",
         drain_event="1 charge consumed each time a fish is auto-cooked while harpooning",
-        status="charges_only",
-        note="Covers infernal_harpoon + trailblazer_harpoon/trailblazer_reloaded_harpoon, same "
-             "not-Leagues-locked reasoning as Infernal axe. Unimplemented.",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/infernal_harpoon.rs2, same shape as Infernal axe. Hooked "
+             "into skill_fishing/scripts/fishing.rs2's shared `fish_roll` (both branches), gated on "
+             "`$equipment = harpoon` exactly like the pre-existing crystal harpoon drain call beside it -- "
+             "covers memberfish.rs2's shark catches too since those route through the same shared proc. "
+             "Cooking xp read from the real `cooking_generic` dbtable (indexed by the raw fish obj) and "
+             "halved. Raw shark has no row in that table at all (its own file header marks members-fish "
+             "content deferred), so shark is correctly never destroyed -- happens to match the wiki's real "
+             "big-fish exclusion by construction, not by an actual exclusion list; mutation-tested. Same "
+             "trailblazer-recolour gap as Infernal axe.",
     ),
     "Infernal pickaxe": dict(
         storage="item_var", depletion="revert", max_charges=5000,
