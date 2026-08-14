@@ -814,6 +814,12 @@ struct App
     int locedit_scene_x;
     int locedit_scene_z;
     int locedit_level;
+    /** The last world tile the cursor hovered while NOT over the panel itself
+     * -- Reselect targets this, not the live world_hover_tile_x/z, because by
+     * the time a menu click on "Reselect" lands the cursor has necessarily
+     * moved onto the panel, which invalidates the live hover. -1 = none yet. */
+    int locedit_hover_x;
+    int locedit_hover_z;
     uint64_t last_logic_ms;
     /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
      *  frame because the minimenu action path has no LibToriRS_Input in hand,

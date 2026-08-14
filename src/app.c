@@ -3449,15 +3449,20 @@ app_debug_overlay_init(struct App* app)
     app->locedit_row_size = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
     app->locedit_row_extra = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
     ToriDbgUI_Separator(&app->dbg_ui, app->locedit_panel);
-    app->locedit_item_xplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1");
-    app->locedit_item_xminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1");
-    app->locedit_item_zplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1");
-    app->locedit_item_zminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1");
-    app->locedit_item_rotate = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate");
-    app->locedit_item_reselect =
-        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (loc under cursor)");
-    app->locedit_item_deselect = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect");
-    app->locedit_item_close = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close");
+    /* Rows double as the key reference: chat input is forced off while this
+     * panel is open (below), so these letters are always free to use without
+     * a message box eating them. Still clickable too -- the key is the fast
+     * path, the click is the discoverable one. */
+    app->locedit_item_xplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
+    app->locedit_item_xminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
+    app->locedit_item_zplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
+    app->locedit_item_zminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
+    app->locedit_item_rotate = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
+    app->locedit_item_reselect = ToriDbgUI_MenuItem(
+        &app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
+    app->locedit_item_deselect =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect  [Backspace]");
+    app->locedit_item_close = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
     ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
     app->locedit_visible = 0;
     app->locedit_loc_id = -1;
@@ -3470,6 +3475,8 @@ app_debug_overlay_init(struct App* app)
     app->locedit_scene_x = -1;
     app->locedit_scene_z = -1;
     app->locedit_level = 0;
+    app->locedit_hover_x = -1;
+    app->locedit_hover_z = -1;
 }
 
 void
@@ -3635,11 +3642,17 @@ app_loc_editor_refresh_labels(struct App* app)
     ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, text);
 }
 
-/* Targets whatever loc sits at the cursor's hover tile, on the local player's
- * current level (a loc editor has no reason to reach across planes). Clears
- * the selection (loc_id -1) when there is no loc there or nothing to hover.
- * Only ever called from an explicit Reselect click -- opening the panel does
- * NOT call this, so a selection stays active across a close/reopen. */
+/* Targets whatever loc sits at locedit_hover_x/z -- the last tile the cursor
+ * hovered while NOT over the panel -- on the local player's current level (a
+ * loc editor has no reason to reach across planes). Clears the selection
+ * (loc_id -1) when there is no loc there or nothing was ever hovered. Only
+ * ever called from an explicit Reselect click -- opening the panel does NOT
+ * call this, so a selection stays active across a close/reopen.
+ *
+ * Deliberately reads locedit_hover_x/z, not the live world_hover_tile_x/z:
+ * clicking "Reselect" necessarily moves the cursor onto the panel first, and
+ * by the time the click lands, the live hover reflects the panel, not
+ * whatever loc the player was actually pointing at. */
 static void
 app_loc_editor_reselect(struct App* app)
 {
@@ -3648,7 +3661,7 @@ app_loc_editor_reselect(struct App* app)
     int idx;
 
     app->locedit_loc_id = -1;
-    if( !app->world || app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
+    if( !app->world || app->locedit_hover_x < 0 || app->locedit_hover_z < 0 )
     {
         app_loc_editor_refresh_labels(app);
         return;
@@ -3658,7 +3671,7 @@ app_loc_editor_reselect(struct App* app)
     /* loc_shape < 0: match the first loc on the tile regardless of layer --
      * a decoration like a bridge is exactly as findable as a wall this way. */
     idx = World_SceneryFindAt(
-        app->world, app->world_hover_tile_x, app->world_hover_tile_z, app->locedit_level, -1);
+        app->world, app->locedit_hover_x, app->locedit_hover_z, app->locedit_level, -1);
     if( idx < 0 )
     {
         app_loc_editor_refresh_labels(app);
@@ -3740,10 +3753,23 @@ app_loc_editor_tick(
     if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
         app_debug_key_down(app, input, APP_DEBUG_HOTKEY_LOC_EDITOR) )
     {
+        /* Toggling visibility only, never the selection -- a target picked
+         * with Reselect stays active across a close/reopen. */
         app->locedit_visible = !app->locedit_visible;
         ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, app->locedit_visible);
-        if( app->locedit_visible )
-            app_loc_editor_reselect(app);
+    }
+
+    /* Remember the world tile under the cursor whenever the cursor is NOT
+     * over the panel itself. Runs every frame, panel open or not, so the
+     * moment Reselect is clicked there is already a last-known-good world
+     * hover to read -- the live world_hover_tile_x/z cannot be used at click
+     * time because reaching the menu item necessarily moved the cursor onto
+     * the panel first. */
+    if( ToriDbgUI_HitTest(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) < 0 &&
+        app->world_hover_tile_x >= 0 && app->world_hover_tile_z >= 0 )
+    {
+        app->locedit_hover_x = app->world_hover_tile_x;
+        app->locedit_hover_z = app->world_hover_tile_z;
     }
 
     if( app->locedit_visible )
@@ -3775,6 +3801,8 @@ app_loc_editor_tick(
                 app_loc_editor_rotate(app);
             else if( activated == app->locedit_item_reselect )
                 app_loc_editor_reselect(app);
+            else if( activated == app->locedit_item_deselect )
+                app_loc_editor_deselect(app);
             else if( activated == app->locedit_item_close )
             {
                 app->locedit_visible = 0;

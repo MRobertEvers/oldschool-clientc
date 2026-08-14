@@ -288,13 +288,23 @@ def main() -> int:
                "rule is either always on or always off")
         # The last statement, not merely a mention: reading the answer and then
         # returning `true` regardless is the exact shape this must not take.
+        # An "auto" assist is legal in singles when the victim is already
+        # fighting the owner back (mutual retaliation) OR when nobody has
+        # claimed the victim yet (`npc_hastarget = false`) — the fresh-engage
+        # case that lets the familiar join on the owner's first swing instead
+        # of waiting for the victim to hit back, which is the thrall rule
+        # ("attacks the target its owner is attacking", not "attacks the
+        # target that is attacking its owner").
         allowed_code = [l.strip() for l in allowed.splitlines()
                         if l.strip() and not l.strip().startswith("//")]
-        expect("npc_combatplayer" in allowed and
-               allowed_code[-1] == "return($victim_fights_owner);",
-               "the singles rule must RETURN whether the victim is fighting "
-               "this owner — without it a familiar becomes a second attacker on "
-               "something that already had one, which is what single-way means")
+        expect("npc_combatplayer" in allowed and "npc_hastarget" in allowed and
+               "if ($victim_fights_owner = true) return(true);" in allowed and
+               "if ($victim_claimed = true) return(false);" in allowed and
+               allowed_code[-1] == "return(true);",
+               "the singles rule must RETURN whether the victim is fighting this "
+               "owner or is unclaimed — without the first half a familiar becomes "
+               "a second attacker on something that already had one, and without "
+               "the second half auto-assist cannot join until the victim retaliates")
         expect("^summoning_attack_commanded" in allowed,
                "an owner-commanded target (Goad, a targeted special) must be "
                "allowed in singles; the owner chose that fight")
