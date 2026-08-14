@@ -72,6 +72,91 @@ check_classic_animation_refreshes_bounds(void)
     CHECK(bounds.min_z_depth_any_rotation == 2001, "classic frame refreshed depth bias");
 }
 
+/*
+ * A projectile's sequence loops; it does not terminate.
+ *
+ * Reference ClientProj.move / MapSpotAnim.update wrap animFrame to 0 at the end
+ * of the frame list without consulting SeqType.frameStep. The DynamicObject
+ * advance beside it does the opposite, and sharing it for projectiles is a real
+ * visual bug: flight time routinely outlasts the sequence (the steel titan's
+ * shot is 4 frames x 3 cycles = 12 against a 30+ cycle flight), so the element
+ * loses its animation mid-air and snaps back to the model's un-posed bind pose.
+ * Spotanim models routinely hide geometry by scaling it to zero every frame, so
+ * that shows up as extra parts of the model appearing partway to the target.
+ */
+static void
+check_projectile_sequence_loops(void)
+{
+    struct ToriDraw_Animation anim = { .frame_count = 4, .frame_step = -1 };
+    struct ToriDraw_AnimFrame frames[4] = {
+        { .delay = 3 }, { .delay = 3 }, { .delay = 3 }, { .delay = 3 },
+    };
+    int hist_frame[400];
+    int hist_cycle[400];
+    int occupancy[4] = { 0, 0, 0, 0 };
+    int frame;
+    int cycle;
+
+    anim.frames = frames;
+
+    /* Baseline: the DynamicObject advance gives up once frame_step is invalid,
+     * and does so after exactly one pass of the frame list. */
+    frame = 0;
+    cycle = 0;
+    {
+        int died = -1;
+        for( int c = 0; c < 40; c++ )
+            if( !ToriDraw_AnimationAdvanceObjectCycles(&anim, &frame, &cycle, 1) )
+            {
+                died = c;
+                break;
+            }
+        CHECK(died == 12, "object advance terminates at the end of a frame_step -1 seq");
+    }
+
+    /* The loop advance keeps cycling well past that. Assert the exact period
+     * rather than mere liveness — holding on the terminal frame would also
+     * never terminate, and that is the wrong behaviour too. */
+    frame = 0;
+    cycle = 0;
+    for( int c = 0; c < 400; c++ )
+    {
+        ToriDraw_AnimationAdvanceLoopCycles(&anim, &frame, &cycle, 1);
+        CHECK(frame >= 0 && frame < anim.frame_count, "looped frame stays in range");
+        hist_frame[c] = frame;
+        hist_cycle[c] = cycle;
+        if( frame >= 0 && frame < anim.frame_count )
+            occupancy[frame]++;
+    }
+    for( int c = 0; c + 12 < 400; c++ )
+        CHECK(
+            hist_frame[c] == hist_frame[c + 12] && hist_cycle[c] == hist_cycle[c + 12],
+            "loop advance repeats with the sequence's 12-cycle period");
+    /* Each frame holds for 3 of every 12 cycles, so ~100 of 400. */
+    for( int i = 0; i < 4; i++ )
+        CHECK(occupancy[i] >= 90 && occupancy[i] <= 110, "each frame gets its share of cycles");
+
+    /* Inside the frame list the two advances must agree exactly; they differ
+     * only in what happens past the last frame. */
+    {
+        int loop_frame = 0, loop_cycle = 0, obj_frame = 0, obj_cycle = 0;
+        for( int c = 0; c < 9; c++ )
+        {
+            ToriDraw_AnimationAdvanceLoopCycles(&anim, &loop_frame, &loop_cycle, 1);
+            ToriDraw_AnimationAdvanceObjectCycles(&anim, &obj_frame, &obj_cycle, 1);
+            CHECK(
+                loop_frame == obj_frame && loop_cycle == obj_cycle,
+                "loop and object advance agree inside the frame list");
+        }
+    }
+
+    /* An out-of-range frame is snapped back rather than indexed past the array. */
+    frame = 99;
+    cycle = 0;
+    ToriDraw_AnimationAdvanceLoopCycles(&anim, &frame, &cycle, 1);
+    CHECK(frame >= 0 && frame < anim.frame_count, "out-of-range frame is clamped");
+}
+
 int
 main(void)
 {
@@ -86,6 +171,7 @@ main(void)
     int frame;
 
     check_classic_animation_refreshes_bounds();
+    check_projectile_sequence_loops();
 
     frame = 12;
     CHECK(ToriDraw_AnimationAdvanceObjectFrame(&anim, &frame), "interior frame advances");

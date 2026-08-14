@@ -867,11 +867,39 @@ World_CycleUpdateSpotanims(
 
         if( !s->active )
         {
+            int post_activation_cycles = 0;
+
             if( cycles_elapsed > 0 )
             {
+                int idle_before = s->idle_cycles;
+
                 s->idle_cycles -= cycles_elapsed;
                 if( s->idle_cycles <= 0 )
+                {
                     s->active = true;
+                    s->idle_cycles = 0;
+                    /*
+                     * How many of this step's cycles landed ON OR AFTER the
+                     * delay boundary — the boundary-crossing cycle itself
+                     * counts as the first (reference/pre-existing rule: a
+                     * single-cycle step that brings idle_cycles to exactly 0
+                     * scores active_cycle 1, not 0, so a same-tick delay=0
+                     * spotanim is unaffected — see World_SpotanimSpawn's own
+                     * immediate activation for that case).
+                     *
+                     * A multi-cycle catch-up step (several world cycles
+                     * settled in one call, e.g. after a stalled frame) can
+                     * cross the boundary mid-step. Crediting the WHOLE step
+                     * to active_cycle, as this used to, backdates the count
+                     * to before the graphic was ever visible and despawns it
+                     * up to `idle_before - 1` cycles early; this instead
+                     * counts only the cycles from the boundary onward, which
+                     * collapses to the single-step rule above whenever
+                     * cycles_elapsed == idle_before. */
+                    post_activation_cycles = cycles_elapsed - idle_before + 1;
+                    if( post_activation_cycles < 1 )
+                        post_activation_cycles = 1;
+                }
             }
             if( !s->active )
             {
@@ -884,9 +912,9 @@ World_CycleUpdateSpotanims(
              * on a dead final frame — the delay is almost always a projectile's
              * flight, so it is routinely longer than the sequence itself. */
             World_EmitEvent(world, WorldEventKind_SpotanimStarted, s->element_id);
+            s->active_cycle += post_activation_cycles;
         }
-
-        if( cycles_elapsed > 0 )
+        else if( cycles_elapsed > 0 )
             s->active_cycle += cycles_elapsed;
 
         if( s->active_cycle >= s->lifetime )

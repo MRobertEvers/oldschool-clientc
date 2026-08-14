@@ -755,6 +755,40 @@ World_SpotanimSpawn(
         .lifetime = lifetime,
         .active = false,
     };
+
+    /*
+     * `idle_delay <= 0` (spotanim_map's common case, e.g. Inferno's
+     * tzhaar_rock_smash) means "visible this cycle" — and the app layer
+     * (app_world_spawn_spotanim_now) already treats it that way: it skips the
+     * anim_external park-and-wait entirely and starts the model's sequence
+     * synchronously, in the SAME call that spawns this entity, because a
+     * zero-delay graphic has no flight/park window to hide the unplayed first
+     * frame behind (see that function's own comment).
+     *
+     * World's bookkeeping used to disagree with what was already on screen:
+     * `active` stayed false and `active_cycle` stayed 0 until the *next*
+     * `World_CycleUpdateSpotanims` pass flipped them — one whole cycle after
+     * the graphic had already started playing. That is invisible today only
+     * because the one consumer of WorldEventKind_SpotanimStarted
+     * (App_WorldDrainEntityRemoved) is itself gated on `anim_external`, which
+     * this path never sets — so the event this emits below is a no-op for it.
+     * What the stale flag actually broke is quieter: `active_cycle` is this
+     * spotanim's own lifetime clock (World_CycleUpdateSpotanims,
+     * `active_cycle >= lifetime` -> despawn), so starting it a cycle late in
+     * World's model meant the entity — and the scene element it owns — lived
+     * one cycle longer server-side... sorry, world-side, than the graphic it
+     * was timed against. Flipping `active` here, at the same instant the app
+     * layer starts drawing frame 0, is what makes "when World considers this
+     * graphic to have started" and "when the player can see it" the same
+     * question for BOTH delay classes, matching how a fresh NPC's primary
+     * animation is scored from the cycle it is *set*, not the cycle after.
+     */
+    if( idle_delay <= 0 )
+    {
+        s->idle_cycles = 0;
+        s->active = true;
+        World_EmitEvent(world, WorldEventKind_SpotanimStarted, element_id);
+    }
     return idx;
 }
 
