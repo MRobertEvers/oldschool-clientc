@@ -48,6 +48,7 @@
 #include "ssvm.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 /** table id, column index and tuple index out of a packed column reference. */
 static void
@@ -399,6 +400,14 @@ mock230_ops_db(
         player->db_query_column = column_index;
         player->db_query_tuple = tuple_index;
         player->db_query_value = value;
+        if( getenv("MOCK230_DB_DEBUG") )
+        {
+            int matched = 0;
+            while( query_row(player, matched) )
+                matched++;
+            fprintf(stderr, "DBFIND table=%d col=%d tuple=%d value=%d (0x%x) -> %d rows\n",
+                    table->table_id, column_index, tuple_index, value, value, matched);
+        }
         if( opcode == SS_OP_DB_FIND_WITH_COUNT )
         {
             int matched = 0;

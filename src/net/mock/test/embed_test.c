@@ -1965,6 +1965,54 @@ main(void)
         }
     }
 
+    /* TEMPORARY PROBE — Lumbridge cellar trapdoor. Remove. */
+    {
+        static const struct { int x, z; const char* what; } k_from[] = {
+            { 3210, 3216, "east (the forceapproach side)" },
+            { 3209, 3218, "north, two tiles away" },
+            { 3207, 3216, "west, two tiles away" },
+            { 3213, 3213, "south-east, across the kitchen" },
+        };
+        for( size_t i = 0; i < sizeof(k_from) / sizeof(k_from[0]); i++ )
+        {
+            mock230_world_set_active(world, alice);
+            mock230_world_teleport(world, 0, k_from[i].x, k_from[i].z);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+            fprintf(stderr, "PROBE from %s: start (%d,%d,%d)\n", k_from[i].what, alice->x,
+                    alice->z, alice->level);
+            peer_oploc(&peers[0], 3209, 3216, 14880);
+            for( int round = 0; round < 40; round++ )
+                pump(peers, 2, embed, 1, 64);
+            fprintf(stderr, "PROBE from %s: after (%d,%d,%d)%s\n", k_from[i].what, alice->x,
+                    alice->z, alice->level,
+                    (alice->z > 9000) ? "  <-- IN THE CELLAR" : "  <-- still upstairs");
+        }
+        /* And the trigger side on its own, the way the selftest runs it. */
+        {
+            int slot = mock230_scene_find_loc(3209, 3216, 0, 14880);
+            int cat = mock230_loc_category(14880);
+            int ran;
+
+            mock230_world_set_active(world, alice);
+            mock230_world_teleport(world, 0, 3210, 3216);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+            ran = mock230_scripts_run_trigger_on_loc(world, SS_TRIGGER_OPLOC1, 14880, cat, slot);
+            fprintf(stderr, "PROBE trigger: slot=%d category=%d ran=%d\n", slot, cat, ran);
+            for( int round = 0; round < 6; round++ )
+                pump(peers, 2, embed, 1, 64);
+            fprintf(stderr, "PROBE trigger: after (%d,%d,%d)\n", alice->x, alice->z,
+                    alice->level);
+            for( int i = 0; i < 8; i++ )
+                fprintf(stderr, "PROBE mes[%d]: %s\n", i, peers[0].saw_game_lines[i]);
+        }
+
+        mock230_world_teleport(world, 0, 3222, 3218);
+        for( int round = 0; round < 4; round++ )
+            pump(peers, 2, embed, 1, 64);
+    }
+
     /*
      * ── Friends, ignore and private chat ──────────────────────────────
      *

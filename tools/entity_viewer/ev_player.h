@@ -72,6 +72,18 @@ struct EV_PlayerPartMap
     struct EV_PlayerPart parts[EV_PLAYER_MAX_PARTS];
 };
 
+/**
+ * The model id a spotanim record names, or -1.
+ *
+ * Exposed so a caller can ask "is there a content file for this graphic's
+ * model" before building it — the content tree's copy of an exported asset can
+ * have been edited since, and then it, not the cache's, is what the game draws.
+ */
+int
+ev_spotanim_model_id(
+    struct Tool_Dat2Cache* c,
+    int spotanim_id);
+
 /** Default male: every kit auto-resolved, nothing worn. */
 void
 ev_player_spec_init(struct EV_PlayerSpec* spec);

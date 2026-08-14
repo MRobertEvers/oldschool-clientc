@@ -508,6 +508,8 @@ main(int argc, char** argv)
     int columns = 12;
     int zoom_arg = 0;
     int orient = -1;
+    int shift_x = 0;
+    int shift_z = 0;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
 
@@ -531,6 +533,10 @@ main(int argc, char** argv)
             alpha_visible = atoi(argv[++i]);
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_prefix = argv[++i];
+        else if( strcmp(argv[i], "--shift-x") == 0 && i + 1 < argc )
+            shift_x = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--shift-z") == 0 && i + 1 < argc )
+            shift_z = atoi(argv[++i]);
         else if( strcmp(argv[i], "--orient") == 0 && i + 1 < argc )
             orient = atoi(argv[++i]);
         else if( strcmp(argv[i], "--zoom") == 0 && i + 1 < argc )
@@ -571,6 +577,11 @@ main(int argc, char** argv)
             "  --wear <obj>          equip another obj (repeatable)\n"
             "  --orient <0-3>        force the graphic's quarter-turn rotation,\n"
             "                        overriding the spotanim record's own angle\n"
+            "  --shift-x / --shift-z <units>\n"
+            "                        move the graphic's vertices before merging, so a\n"
+            "                        candidate placement can be measured and drawn\n"
+            "                        before any asset is edited (-x is the player's\n"
+            "                        right, -z is forward; 128 units is a tile)\n"
             "  --alpha-visible <n>   faces with stored alpha below n count as drawn\n"
             "                        (default %d; 0 opaque, 255 invisible)\n"
             "  --out <prefix>        write <prefix>_top.bmp and <prefix>_side.bmp\n"
@@ -657,6 +668,25 @@ main(int argc, char** argv)
         fprintf(stderr, "spotanim %d did not build\n", spotanim_id);
         return 1;
     }
+    /*
+     * A trial translation, applied after the record's own transforms and before
+     * the merge. It is where an asset edit would land, so measuring with it is
+     * measuring the edit — without an edit to undo if the answer is no.
+     *
+     * Applied after lighting rather than before, which is safe only because a
+     * uniform translation does not change a single face normal: RS lighting is
+     * baked per face from the geometry's orientation, and this moves the
+     * geometry without turning it. A rotation could not be applied here, which
+     * is why --orient goes in ahead of the lighting instead.
+     */
+    if( shift_x || shift_z )
+    {
+        ToriDraw_ModelTranslate(spot, shift_x, 0, shift_z);
+        ToriDraw_ModelSetBoundsCylinder(spot);
+        ToriDraw_ModelCaptureOriginalVertices(spot);
+        printf("trial shift: graphic moved dx %+d, dz %+d before merging\n", shift_x, shift_z);
+    }
+
     int spot_framemap = -1;
     struct ToriDraw_Animation* spot_anim =
         spot_seq >= 0 ? ev_build_seq_anim(&cache, spot_seq, &spot_framemap) : NULL;
@@ -1151,6 +1181,59 @@ main(int argc, char** argv)
                    peak_travel, peak_travel_cycle, arc_peak_own, arc_peak_lit, arc[0].total_faces,
                    peak_travel_cycle - arc_peak_own);
         printf("  the along-axis sweep independently chose %d; shipped is %d\n", best_delay, delay);
+
+        /*
+         * Which way each one travels along the axis.
+         *
+         * Two candidates a half turn apart lie in the same place and cover the
+         * same ground, so every distance in this report is near enough
+         * identical for both — and one of them plays the streak backwards
+         * through the swing. Nothing else here can tell them apart, and
+         * backwards is not a subtle defect once it is on screen.
+         */
+        /*
+         * Both spans are chosen WITHOUT reference to the delay, or the test is
+         * circular: the sweep picks the delay that best lines the two up, so
+         * measuring over the window that delay produces will report agreement
+         * whatever the candidate. A first attempt did exactly that and called
+         * all four orientations correct, including the two a quarter turn out.
+         *
+         * The blade's span is the swing itself — the top of the wind-up to its
+         * furthest-forward reach. The streak's is its own lit span, which is a
+         * property of the sequence and of nothing else.
+         */
+        int deep_cycle = back_cycle;
+        double deepest_seen = 1e18;
+        for( int t = back_cycle; t < body_total && t < MAX_CYCLES; t++ )
+        {
+            int b = frame_at_cycle(body_delays, body_frames, t);
+            if( b >= 0 && blade[b].head.z < deepest_seen )
+            {
+                deepest_seen = blade[b].head.z;
+                deep_cycle = t;
+            }
+        }
+        int bb = frame_at_cycle(body_delays, body_frames, back_cycle);
+        int bf = frame_at_cycle(body_delays, body_frames, deep_cycle);
+        int first_lit = -1, last_lit = -1;
+        for( int f = 0; f < spot_frames; f++ )
+            if( arc[f].visible_faces )
+            {
+                if( first_lit < 0 )
+                    first_lit = f;
+                last_lit = f;
+            }
+        if( bb >= 0 && bf >= 0 && first_lit >= 0 && last_lit > first_lit )
+        {
+            double bd = ALONG(blade[bf].head) - ALONG(blade[bb].head);
+            double ad = ALONG(arc[last_lit].centroid) - ALONG(arc[first_lit].centroid);
+            printf("  direction along that axis — blade over its swing (cycles %d..%d) %+.0f,\n"
+                   "  streak over its own lit span %+.0f -> %s\n",
+                   back_cycle, deep_cycle, bd, ad,
+                   (bd > 0) == (ad > 0)
+                       ? "SAME WAY"
+                       : "OPPOSED — this copy plays the streak backwards through the swing");
+        }
     }
 
     /* ---- the leftover translation ---------------------------------------- */

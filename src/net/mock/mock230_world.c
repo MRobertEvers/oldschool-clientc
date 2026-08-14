@@ -5407,7 +5407,7 @@ handle_opobju(
  */
 
 /* ------------------------------------------------------------------ */
-/* `::give` — an obj id from the spelling a human has                  */
+/* `::give` / `::spawn` — an id from the spelling a human has          */
 /* ------------------------------------------------------------------ */
 
 /*
@@ -9253,8 +9253,8 @@ enum
 enum
 {
     PP_SCRIPTS,
-    PP_LOCKED,
     PP_FACE,
+    PP_LOCKED,
     PP_INTERACT_PRE,
     PP_APPROACH,
     PP_ADVANCE,
@@ -9488,6 +9488,21 @@ phase_player(struct Mock230Player* player)
     PP_MARK(bd_on, bd_t, PP_SCRIPTS);
 
     /*
+     * Face the interaction / combat target before approach can return early
+     * and before tryInteract can clear it — LostCity PathingEntity.setFaceEntity
+     * in processPlayers, before processInteraction.
+     *
+     * Above the action-lock gate, and unconditional, because this is the only
+     * writer of the latch: `mock230_combat_stop_player_at` no longer clears it
+     * (see the comment there), so a turn this call is skipped on is a turn the
+     * release cannot be derived. A locked or dying player is precisely the case
+     * that would keep staring at whatever it was fighting. LostCity calls it
+     * for every player each turn with no `delayed` gate for the same reason.
+     */
+    mock230_player_set_face_entity(player);
+    PP_MARK(bd_on, bd_t, PP_FACE);
+
+    /*
      * An action lock is deliberately below every script/queue/timer phase.
      * That placement is its contract: a queued projectile hit still executes,
      * and a queued player_unlock can release the player for this same turn.
@@ -9508,14 +9523,6 @@ phase_player(struct Mock230Player* player)
         PP_MARK(bd_on, bd_t, PP_LOCKED);
         return;
     }
-
-    /*
-     * Face the interaction / combat target before approach can return early
-     * and before tryInteract can clear it — LostCity PathingEntity.setFaceEntity
-     * in processPlayers, before processInteraction.
-     */
-    mock230_player_set_face_entity(player);
-    PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*
      * LostCity Player.processInteraction: tryInteract → pathToPathingTarget →
@@ -10566,7 +10573,7 @@ static char const* const g_tick_bd_names[TICK_BD_PHASES] = {
 };
 
 static char const* const g_pp_names[PP_COUNT] = {
-    "scripts", "locked", "face",          "interact_pre",
+    "scripts", "face", "locked",          "interact_pre",
     "approach", "advance", "interact_post", "tail"
 };
 
@@ -18513,8 +18520,30 @@ mock230_world_selftest(void)
                            "the dead npc should release its combat target");
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                            "npc death should clear the player's combat interaction");
+            /*
+             * The killing tick still *holds* the latch, and that is the point.
+             *
+             * FACE_ENTITY is derived once per turn by
+             * `mock230_player_set_face_entity`, at the top of phase_player, and
+             * the swing lands at the bottom of the same turn. A release written
+             * by the death path would overwrite the derived value before the
+             * mask was ever flushed, so a goblin killed in one blow was killed
+             * by a player who never turned to face it — invisible in any fight
+             * that lasted two ticks, because the first tick shipped the latch.
+             *
+             * `ticks` above stops on the tick the hitpoints reached zero, so
+             * this is that tick.
+             */
+            SELFTEST_CHECK(player->face_entity == goblin,
+                           "the killing blow still faces what it killed, got %d",
+                           player->face_entity);
+            player->masks = 0;
+            mock230_world_tick(srv);
             SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
-                           "both sides should release their face latch on npc death");
+                           "and both sides release the latch on the turn after");
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and say so on the wire — a release nobody sends is a "
+                           "release that never happens");
 
             /* Damage reached the client: NPC_INFO carries the hitsplat and the
              * health bar in one mask. */

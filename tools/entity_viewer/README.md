@@ -1,10 +1,11 @@
 # entity_viewer — which animations apply to an npc, and what they look like
 
-Two things: a catalog of npc→animation matches, and a browser viewer that plays
-them.
+Three things: a catalog of npc→animation matches, a browser viewer that plays
+them, and a command-line harness that measures a weapon swing against the
+graphic attached to it.
 
 ```sh
-make -C tools/entity_viewer                     # ev_catalog + ev_server
+make -C tools/entity_viewer                     # ev_catalog + ev_server + ev_swing
 make -C tools/entity_viewer wasm                # web/ev_wasm.js + .wasm (needs emcc)
 
 # 1. build the catalog (about 5 minutes over cache.osrs239)
@@ -14,9 +15,101 @@ tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
 
 # 2. serve it
 tools/entity_viewer/ev_server --rev osrs239 cache.osrs239 \
-    --catalog out/osrs239_anims --web tools/entity_viewer/web
+    --catalog out/osrs239_anims --names OSRS-Content/osrs239-content \
+    --web tools/entity_viewer/web
 # -> http://127.0.0.1:8099/
 ```
+
+`--names` is what turns the **player half** on: it supplies the gameval names
+the equipment and graphic pickers need, and it points at the content tree so an
+exported asset that has since been *edited* is drawn as the game draws it rather
+than as the cache still holds it. Without it the npc half works exactly as
+before.
+
+## The player half
+
+An npc is one config with a model list on it. A player is not, and neither is a
+player-attached graphic:
+
+> `spotanim_pl` does not draw a graphic in the world. The client poses the
+> graphic's model, **strips its labels**, lifts it by the spotanim height, and
+> MERGES it into the player's own model (`app_world_sync_one_entity_spotanim`,
+> `src/app.c`). The merged mesh is what the scene draws, and the body's sequence
+> animates it from there.
+
+Two consequences shape everything here. Drawing the player and the graphic as
+two models side by side is not what the game does, so the viewer merges. And
+because the graphic's labels are gone, the body's sequence cannot move a single
+one of its vertices — a player-attached graphic physically **cannot** track a
+swinging blade. Its position in the player's local XZ plane is a property of the
+model's own vertices and of the spotanim record's rotation; the only knobs a
+script has are the height and the delay.
+
+In the page: switch **Player**, click objs to equip them, pick any sequence from
+the human rig (framemap 0), then choose a graphic and set its height, delay and
+rotation. Playback is counted in **client cycles**, not frames, because a delay
+in cycles has no frame number in the other sequence to name.
+
+**Top-down** is the button that matters for placement: it is the one view where
+where the graphic sits relative to the player reads as a distance rather than
+being inferred from foreshortening.
+
+The viewer state lives in the URL, so a finding is a link rather than a list of
+boxes to fill in:
+
+```
+http://127.0.0.1:8099/#player&wear=22325&seq=8056&fx=1231&delay=16&height=100&orient=3&pitch=512&paused&cycle=44
+```
+
+Recognised: `player`, `wear=` (comma-separated obj ids), `npc=`, `seq=`, `fx=`
+(spotanim id), `delay=`, `height=`, `orient=` (0–3 quarter turns, overriding the
+spotanim record), `pitch=`, `yaw=`, `zoom=`, `cycle=`, `paused`. It is also how
+the page gets tested at all — a headless browser can open it already configured.
+
+## ev_swing — the same thing, measured
+
+A picture shows that a graphic is off. It cannot say which of the three things
+is off, because all three look the same:
+
+| | what is wrong | the knob |
+|---|---|---|
+| TIME | plays early or late against the swing | `spotanim_pl` delay, in client cycles |
+| PLACE | sits in the wrong part of the player's local space | the model's vertices, or the record's rotation |
+| HEIGHT | rides too high or low | `spotanim_pl` height |
+
+`ev_swing` separates them. It builds the player, merges the graphic through the
+same `ev_render` the browser uses, walks the swing a cycle at a time, and prints
+where the blade is and where the *lit* part of the graphic is at each one.
+
+```sh
+tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
+    --arc-model OSRS-Content/osrs239-content/models/spot/dragon_halberd_special_west_red.model \
+    --orient 3 --out /tmp/scythe
+```
+
+Defaults are the scythe of vitur's, as `scythe_of_vitur.rs2` ships them. What it
+reports:
+
+- **the two frame tables**, in cycles — which is worth having on its own: this
+  sequence holds every segment of its graphic fully transparent for its first
+  four frames, so a graphic played "at delay 16" does not appear until cycle 26.
+- **the graphic's pose**, as words: whether its long axis lies TANGENT across the
+  player's facing (as a slash does) or RADIAL front-to-back through them, and
+  how far in front or to the side its centre sits. No delay and no translation
+  fixes a wrong one — it is the record's rotation.
+- **a delay sweep** scored on the ALONG-axis mismatch only, so a constant lateral
+  offset cannot drown the timing signal.
+- **two landmark checks** — the cycle the blade comes in front versus the cycle
+  the graphic first shows anything, and the strike versus the graphic's brightest
+  moment. Each is checkable by hand against the tables, and agreeing with the
+  sweep is the reason to believe any of them.
+- **the residual offset**, split into the across-axis part (a rigid offset the
+  asset can absorb) and the along-axis part (left to the delay).
+
+`--out` writes three pictures: `_top.bmp` and `_side.bmp` contact sheets with the
+measured points drawn on them as crosses, and `_plot.bmp` — an overhead trace of
+the blade's path and the lit graphic's path on a one-tile grid, which is where
+"do these two coincide" is answered at a glance.
 
 ## Two kinds of rig
 

@@ -46,6 +46,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 /* ---- catalog in memory -------------------------------------------------- */
@@ -105,6 +106,12 @@ static const char* g_web_dir = NULL;
 static struct LC_Pack g_obj_names = { 0 };
 static struct LC_Pack g_spotanim_names = { 0 };
 static int g_have_names = 0;
+
+/* The content tree, when one is named: its `pack/7_models.pack` says which
+ * file each model id was exported to, and an exported file that has since been
+ * edited is what the game draws. See content_model_path. */
+static const char* g_content_dir = NULL;
+static struct LC_Pack g_model_paths = { 0 };
 
 /**
  * One CSV field, unquoted in place.
@@ -729,12 +736,52 @@ handle_player_model(int fd, const char* query)
     ev_wire_free(&buf);
 }
 
+/*
+ * Where a spotanim's model actually lives, when the content tree has its own.
+ *
+ * `pack/7_models.pack` maps a model id to a path under `models/`, and the
+ * porter writes the record out there byte for byte. Once someone edits that
+ * file the cache's copy and the game's copy are different models, and a viewer
+ * reading the cache shows an arc nobody sees in play. Returns 0 when there is
+ * no content file for this id, in which case the cache's model is right.
+ */
+static int
+content_model_path(int model_id, char* out, size_t cap)
+{
+    const char* rel;
+    struct stat st;
+
+    if( !g_content_dir || model_id < 0 || model_id > g_model_paths.max || !g_model_paths.names )
+        return 0;
+    rel = g_model_paths.names[model_id];
+    if( !rel )
+        return 0;
+    snprintf(out, cap, "%s/models/%s.model", g_content_dir, rel);
+    return stat(out, &st) == 0;
+}
+
+/** Which model file a graphic would be built from, and its rotation, both
+ *  overridable: `?orient=3` forces a quarter-turn count so a rotation can be
+ *  judged in the viewer before any asset or config is edited. */
 static void
-handle_spot_model(int fd, int spotanim_id)
+handle_spot_model(int fd, int spotanim_id, const char* query)
 {
     int seq = -1;
+    int orient = -1;
+    char path[2048];
+    const char* file = NULL;
+    const char* o = query ? strstr(query, "orient=") : NULL;
+
+    if( o )
+        orient = atoi(o + 7);
+    {
+        int model_id = ev_spotanim_model_id(&g_cache, spotanim_id);
+        if( content_model_path(model_id, path, sizeof(path)) )
+            file = path;
+    }
+
     struct ToriDraw_Model* model =
-        ev_build_spotanim_model(&g_cache, spotanim_id, NULL, -1, &seq);
+        ev_build_spotanim_model(&g_cache, spotanim_id, file, orient, &seq);
     if( !model )
     {
         send_404(fd);
@@ -946,7 +993,7 @@ handle_request(int fd, const char* target, const char* query)
         handle_config_ids_json(
             fd, RSCACHE_TYPE_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM, &g_spotanim_names);
     else if( route_id(target, "/api/spot/", ".model", &id) )
-        handle_spot_model(fd, id);
+        handle_spot_model(fd, id, query);
     else if( route_id(target, "/api/spot/", ".json", &id) )
         handle_spot_json(fd, id);
     else if( route_id(target, "/api/rig/", ".json", &id) )
@@ -1490,6 +1537,11 @@ main(int argc, char** argv)
         lc_pack_load(&g_obj_names, path, "obj", 1);
         snprintf(path, sizeof(path), "%s/configs/all.spotanim.compack", names_dir);
         lc_pack_load(&g_spotanim_names, path, "spotanim", 1);
+        /* Same directory: a content tree that names records also holds their
+         * exported assets, so --names is what turns the override on. */
+        g_content_dir = names_dir;
+        snprintf(path, sizeof(path), "%s/pack/7_models.pack", names_dir);
+        lc_pack_load(&g_model_paths, path, "models", 1);
         g_have_names = 1;
         fprintf(stderr, "gameval names: %d obj, %d spotanim\n",
                 lc_pack_named_count(&g_obj_names), lc_pack_named_count(&g_spotanim_names));

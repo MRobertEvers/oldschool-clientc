@@ -423,6 +423,17 @@ ev_build_player_model(
 
 /* ---- spotanim ------------------------------------------------------------ */
 
+int
+ev_spotanim_model_id(
+    struct Tool_Dat2Cache* c,
+    int spotanim_id)
+{
+    struct RSCache_Dat2ConfigSpotanim* spot = ev_spotanim_load(c, spotanim_id);
+    int id = spot ? spot->model : -1;
+    RSCache_Dat2ConfigSpotanimFree(spot);
+    return id;
+}
+
 struct ToriDraw_Model*
 ev_build_spotanim_model(
     struct Tool_Dat2Cache* c,

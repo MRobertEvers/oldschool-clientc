@@ -409,17 +409,27 @@ hitsplat_poison(void)
 /* ------------------------------------------------------------------ */
 
 /*
- * FACE_ENTITY is a latch, not a per-tick state.
+ * FACE_ENTITY is a latch, and dropping a target does NOT clear it here.
  *
  * The client turns the entity toward whatever the last FACE_ENTITY named and
- * keeps it there — there is no timeout and no implicit clear. So every path
- * that drops a combat target has to send -1 (65535 on the wire, which is how
- * the client spells "face nothing"), and every path means: the target died, the
- * player died, the player walked away, or the player started doing something
- * else.
+ * keeps it there — there is no timeout and no implicit clear — so the release
+ * still has to be sent. What matters is *when*. In LostCity
+ * `PathingEntity.setFaceEntity` is the only writer of `faceEntity` in the whole
+ * engine: it is derived from the current target once per turn, at a fixed point
+ * in `processPlayers`, and `clearInteraction` deliberately leaves the field
+ * alone. `mock230_player_set_face_entity` is that function, and phase_player
+ * calls it in that same slot — before the interaction, before the swing.
  *
- * Missing one of them is invisible until you notice a goblin has been staring
- * at a spot on the ground since the fight before last.
+ * Clearing the latch here as well made the derived value unreachable for one
+ * whole tick, and that tick is the interesting one. A kill in a single blow
+ * runs `set_face_entity` (latch := the npc) at the top of the turn and this
+ * function (latch := -1) at the bottom of the *same* turn, and the mask is only
+ * flushed once, after both. The client received nothing but the release: the
+ * player killed the goblin without ever turning to look at it. Every fight
+ * lasting two or more ticks hid it, because the first tick shipped the latch.
+ *
+ * So the release now lands on the next turn's `set_face_entity`, which runs
+ * unconditionally — locked, dying or idle — for exactly this reason.
  */
 void
 mock230_combat_stop_player_at(struct Mock230Player* player)
@@ -430,11 +440,6 @@ mock230_combat_stop_player_at(struct Mock230Player* player)
      * combat script on a later tick and acquire the same target again. */
     player->combat_target = -1;
     mock230_world_interaction_clear_at(player);
-    if( player->face_entity != -1 )
-    {
-        player->face_entity = -1;
-        player->masks |= MOCK230_PMASK_FACE_ENTITY;
-    }
 }
 
 void
