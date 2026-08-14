@@ -1965,6 +1965,39 @@ main(void)
         }
     }
 
+    /* TEMPORARY PROBE. Remove. */
+    {
+        static const struct { int id, x, z, level, op; const char* what; } k[] = {
+            { 14880, 3209, 3216, 0, 1, "Lumbridge cellar trapdoor" },
+            { 16671, 2839, 3537, 0, 1, "spiralstairs, the guild's own" },
+            { 16671, 2531, 3294, 0, 1, "spiralstairs, Ardougne (non-guild)" },
+            { 16671, 3312, 3185, 0, 1, "spiralstairs, Al Kharid (non-guild)" },
+            { 24303, 2840, 3538, 2, 1, "spiralstairstop_wg" },
+        };
+        for( size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++ )
+        {
+            int slot = mock230_scene_find_loc(k[i].x, k[i].z, k[i].level, k[i].id);
+            int ran;
+
+            mock230_world_teleport(world, k[i].level, k[i].x + 1, k[i].z);
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+            mock230_scene_build(mock230_world_cache_dir(), k[i].x >> 3, k[i].z >> 3);
+            slot = mock230_scene_find_loc(k[i].x, k[i].z, k[i].level, k[i].id);
+            mock230_world_set_active(world, alice);
+            alice->x = k[i].x + 1; alice->z = k[i].z; alice->level = k[i].level;
+            ran = mock230_scripts_run_trigger_on_loc(world, SS_TRIGGER_OPLOC1 + (k[i].op - 1),
+                                                     k[i].id, mock230_loc_category(k[i].id), slot);
+            for( int round = 0; round < 6; round++ )
+                pump(peers, 2, embed, 1, 64);
+            fprintf(stderr, "PROBE %-38s slot=%d ran=%d  (%d,%d,%d) -> (%d,%d,%d)\n", k[i].what,
+                    slot, ran, k[i].x + 1, k[i].z, k[i].level, alice->x, alice->z, alice->level);
+        }
+        mock230_world_teleport(world, 0, 3222, 3218);
+        for( int round = 0; round < 4; round++ )
+            pump(peers, 2, embed, 1, 64);
+    }
+
     /* TEMPORARY PROBE — Lumbridge cellar trapdoor. Remove. */
     {
         static const struct { int x, z; const char* what; } k_from[] = {

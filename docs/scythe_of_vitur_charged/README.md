@@ -1,84 +1,94 @@
-# Scythe of vitur — the charged swing and its red slash
+# Scythe of vitur (charged) — the swing, from each direction
 
-The scythe's attack draws a red crescent alongside the swing. The asset is the
-dragon halberd special's own graphic, reused by this weapon in the source game
-and exported under its source name (see
-`3rd/rscache/tools/port_lostcity/scythe_of_vitur.ini`). It exists as **four
-copies** — `dragon_halberd_special_{north,south,east,west}_red`, spotanims 506 /
-478 / 1172 / 1231 — which are the same 24-vertex mesh at four rotations, all
-centred on the origin.
+Spritesheets of `scythe_of_vitur_attack` (sequence 8056) on a player wearing the
+charged scythe (obj 22325), with the red slash attached the way the client
+attaches one.
 
-`scythe_of_vitur.rs2` plays `_west_red`. These sheets are why that is the wrong
-one.
+Every sheet is **77 cells, one per client cycle**, 11 across, no sampling — the
+whole swing, nothing dropped.
 
-## The sheets
+## The four facings
 
-Every sheet is the full `scythe_of_vitur_attack` swing (sequence 8056): **77
-cells, one per client cycle**, 11 across, no sampling. The player wears the
-charged scythe (obj 22325) and nothing else, and the graphic is merged in the
-way the client merges one — posed, labels stripped, height-translated, combined
-into the player's own model.
-
-| | what it shows |
-|---|---|
-| `*_top.png` | straight down. The view where the graphic's placement in the player's local plane reads as a distance instead of being guessed from foreshortening. **Down the image is the direction the player faces.** |
-| `*_side.png` | the game's own camera pitch, which is where height reads. |
-| `*_plot.png` | not a spritesheet: an overhead trace on a one-tile grid — cyan is the blade, green is the lit part of the graphic, the olive ties are the gap at each cycle. |
-
-| set | spotanim | what it is |
+| file | facing | yaw |
 |---|---|---|
-| `west_*` | 1231 | **what ships today**, including the hand −64 x shift on its model |
-| `south_*` | 478 | the copy that is correct |
-| `north_*` | 506 | |
-| `east_*` | 1172 | |
-| `corrected_*` | 478 | 478 plus the placement the measurement converges on |
+| `facing_south.png` | south | 0 |
+| `facing_west.png` | west | 512 |
+| `facing_north.png` | north | 1024 |
+| `facing_east.png` | east | 1536 |
 
-The `west` set is drawn from the content tree's copy of the model, which carries
-a hand-applied −64 x shift ([[spotanim-pl-has-no-lateral-offset]] in the session
-notes; `tools/shift_halberd_arc.py --show`). The other three are unmodified
-exports, so for them the content and the cache agree.
+Those are `world_cycle.c`'s own numbers: a step with z decreasing gets yaw 0,
+z increasing 1024, x decreasing 512, x increasing 1536.
 
-## What the four copies measure
+`corrected_facing_*.png` are the same four with the fix described below.
 
-Two properties decide which copy is right, and neither is a matter of taste. A
-slash lies **tangent** — its long axis across the player's facing, its body out
-in front, the way a blade passes. And its lit segment must travel the way the
-blade travels; a copy a half turn out lies in exactly the same place and covers
-exactly the same ground while playing the streak **backwards**.
+**The graphic's placement is identical in all four.** That is not a shortcut in
+how these were made — it is the mechanism. `spotanim_pl` does not put a graphic
+in the world; `app_world_sync_one_entity_spotanim` (`src/app.c`) poses it,
+strips its labels, lifts it by the spotanim height and **merges it into the
+player's own model**. The merged mesh is what the scene draws, at the player's
+yaw, so the graphic turns with the player and its position in the player's local
+space never changes. The four sheets differ only in the camera's relationship to
+that fixed arrangement.
 
-| copy | axis | centre | streak direction | |
+Two things follow, and they are the whole diagnosis:
+
+- Choosing a different graphic per facing would rotate it **twice**. Exactly one
+  copy of the asset can be correct, and it is correct at every facing.
+- The body's sequence cannot move a single one of the graphic's vertices,
+  because its labels are gone. A player-attached slash physically cannot track
+  the blade; where it sits is a property of the model's vertices alone.
+
+## What is wrong today
+
+The asset exists as four copies — `dragon_halberd_special_{north,south,east,
+west}_red`, spotanims 506 / 478 / 1172 / 1231 — the same 24-vertex mesh at four
+rotations. `scythe_of_vitur.rs2` plays `_west_red`.
+
+`topdown_*.png` are the four copies seen straight down, where placement reads as
+a distance rather than being guessed from foreshortening. **Down the image is
+the direction the player faces.**
+
+A slash lies **tangent**: long axis across the facing, body out in front, the
+way a blade passes. And its lit segment must travel the way the blade travels —
+a copy a half turn out lies in the same place and covers the same ground while
+playing the streak **backwards**.
+
+| copy | long axis | centre | streak direction | |
 |---|---|---|---|---|
 | north 506 | tangent | 5 behind | **opposed** | ✗ |
 | **south 478** | **tangent** | **5 in front** | **same way** | **✓** |
-| east 1172 | **radial** | 5 to the left | **opposed** | ✗ |
-| west 1231 *(shipped)* | **radial** | 69 to the right | same way | ✗ |
+| east 1172 | **radial** | 5 left | **opposed** | ✗ |
+| west 1231 *(shipped)* | **radial** | 69 right | same way | ✗ |
 
-Only `south` passes both. Compare `south_top.png` against `west_top.png`: the
-same crescent, a quarter turn apart, one lying across the swing and one lying
-front-to-back through the player.
+Measured, not eyeballed — the axis is the principal direction of the graphic's
+own vertices, and it is corroborated by the raw meshes:
+`tools/shift_halberd_arc.py --model spot/dragon_halberd_special_<n>_red --show`
+gives north/south a long **X** span and east/west a long **Z** span.
 
-The naming is consistent with this rather than accidental. A player at yaw 0
-faces **south**, and a player-attached graphic inherits the player's yaw — the
-client applies no rotation of its own at merge time — so the south copy is
-correct at *every* facing. The compass name records the facing the copy was
-authored for, and the other three exist for `spotanim_map`, where a tile has no
-facing to inherit.
+Compare `topdown_south.png` with `topdown_west.png`: the same crescent a quarter
+turn apart, one lying across the swing and one running front-to-back through the
+player. `plot_shipped.png` and `plot_corrected.png` are overhead traces on a
+one-tile grid — cyan the blade, green the lit graphic, olive ties the per-cycle
+gap.
 
-`scythe_of_vitur.rs2` predicted this exact symptom and this exact remedy in its
-own comment: *"If the arc ever renders rotated a quarter turn from the swing,
-the fix is one of the other three names here — not a direction test."* It does,
-and it is.
+The naming is consistent with this rather than accidental: yaw 0 faces **south**,
+so the south copy is the one authored for the orientation a merged graphic
+inherits. The other three exist for `spotanim_map`, where a tile has no facing.
 
-## The corrected placement
+`scythe_of_vitur.rs2` predicted exactly this in its own comment — *"If the arc
+ever renders rotated a quarter turn from the swing, the fix is one of the other
+three names here — not a direction test."*
 
-`corrected_*` is spotanim 478 with a −90 z shift on its model and height 117.
-Every residual converges: across-axis −0.2 units, height stable at 117, and the
-delay sweep picks 16 **independently** — the shipped delay was already right.
+## The fix
 
 ```
 spotanim_pl(dragon_halberd_special_south_red, 117, 16)
 python3 tools/shift_halberd_arc.py --model spot/dragon_halberd_special_south_red --dz -90
 ```
+
+Every residual converges: across-axis −0.2 units, height stable at 117, and the
+delay sweep picks **16 independently** — the shipped delay was already right.
+The −64 x shift on `..._west_red.model` becomes unused.
 
 **Not applied.** It edits an exported asset, and spotanim 1231 is also played by
 `pvm_dragon_halberd.rs2`, which has the same defect — whether to move both is a
@@ -86,29 +96,21 @@ call for whoever owns that file.
 
 ## Regenerating
 
-`tools/entity_viewer/ev_swing` (see `tools/entity_viewer/README.md`). Drop
-`--no-markers` to get the measured points drawn on the top-down sheet — a cyan
-cross on the blade, a green one on the lit graphic, white on the player's
-origin.
+`tools/entity_viewer/ev_swing`; see `tools/entity_viewer/README.md`.
 
 ```sh
 M=OSRS-Content/osrs239-content/models/spot
-for n in north south east west; do
-  case $n in north) id=506;; south) id=478;; east) id=1172;; west) id=1231;; esac
+for d in south:0 west:512 north:1024 east:1536; do
+  n=${d%%:*}; y=${d##*:}
   tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
-    --spotanim $id --arc-model $M/dragon_halberd_special_${n}_red.model \
-    --rows 0 --columns 11 --side 160 --no-markers \
-    --out docs/scythe_of_vitur_charged/$n
+    --spotanim 1231 --arc-model $M/dragon_halberd_special_west_red.model \
+    --height 100 --delay 16 --yaw $y --pitch 200 \
+    --rows 0 --columns 11 --side 160 --no-markers --out /tmp/ship_$n
 done
-
-tools/entity_viewer/ev_swing --rev osrs239 cache.osrs239 \
-  --spotanim 478 --arc-model $M/dragon_halberd_special_south_red.model \
-  --shift-z -90 --height 117 --delay 16 \
-  --rows 0 --columns 11 --side 160 --no-markers \
-  --out docs/scythe_of_vitur_charged/corrected
 ```
 
-It writes BMP; these were converted with `sips -s format png`. `--rows 0` is
-what gives one cell per cycle — the default caps the sheet at four rows and
-samples, which is right for a quick look and wrong for a record of the
-animation.
+`--rows 0` is what gives one cell per cycle; the default caps the sheet at four
+rows and samples, which is right for a quick look and wrong for a record of the
+animation. The `_side` output is the game-camera sheet, `_top` is straight down.
+Drop `--no-markers` (at yaw 0 only) to get the measured points drawn on — a cyan
+cross on the blade, green on the lit graphic, white on the player's origin.

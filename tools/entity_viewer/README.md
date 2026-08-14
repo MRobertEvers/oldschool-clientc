@@ -106,10 +106,24 @@ reports:
 - **the residual offset**, split into the across-axis part (a rigid offset the
   asset can absorb) and the along-axis part (left to the delay).
 
-`--out` writes three pictures: `_top.bmp` and `_side.bmp` contact sheets with the
-measured points drawn on them as crosses, and `_plot.bmp` — an overhead trace of
-the blade's path and the lit graphic's path on a one-tile grid, which is where
-"do these two coincide" is answered at a glance.
+`--out` writes three pictures: `_top.bmp` (straight down) and `_side.bmp` (the
+game's camera) contact sheets with the measured points drawn on them as crosses,
+and `_plot.bmp` — an overhead trace of the blade's path and the lit graphic's
+path on a one-tile grid, which is where "do these two coincide" is answered at a
+glance.
+
+For a **spritesheet** rather than a diagnosis: `--rows 0` gives one cell per
+client cycle with no sampling (the default caps at four rows and samples, which
+is right for a quick look and wrong for a record of the animation),
+`--no-markers` leaves the crosses off, and `--yaw` picks the facing — 0 south,
+512 west, 1024 north, 1536 east, `world_cycle.c`'s own numbers. The measurements
+are taken in the player's local space and do not change with the facing; only the
+pictures do. Markers are dropped, and said to be dropped, at any yaw but 0, since
+the projection that places them is solved for yaw 0 only.
+
+`docs/scythe_of_vitur_charged/` is a worked example: the scythe's swing from each
+of the four facings, plus the top-down comparison that shows which of the
+graphic's four compass copies is the right one.
 
 ## Two kinds of rig
 

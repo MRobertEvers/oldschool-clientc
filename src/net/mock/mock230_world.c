@@ -9616,13 +9616,7 @@ phase_player(struct Mock230Player* player)
 
     /* Order matches the reference exactly, and it matters: a script resumed
      * here must not have a queue entry started on top of it in the same tick. */
-    if( getenv("DBGFACE") )
-        fprintf(stderr, "DBGF entry ct=%d face=%d\n", player->combat_target,
-                player->face_entity);
     mock230_scripts_resume_player(srv);
-    if( getenv("DBGFACE") )
-        fprintf(stderr, "DBGF post-resume ct=%d face=%d\n", player->combat_target,
-                player->face_entity);
     mock230_scripts_process_queues(srv);
     mock230_scripts_process_timers(srv);
     /* The engine queue is drained *after* the timers, which is where
@@ -9646,9 +9640,6 @@ phase_player(struct Mock230Player* player)
      * for every player each turn with no `delayed` gate for the same reason.
      */
     mock230_player_set_face_entity(player);
-    if( getenv("DBGFACE") )
-        fprintf(stderr, "DBGF post-derive ct=%d face=%d\n", player->combat_target,
-                player->face_entity);
     PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*
@@ -10643,9 +10634,6 @@ phase_cleanup_player(struct Mock230Player* player)
      * incumbent that outlives its tick is one that keeps refusing lower-priority
      * animations forever — a goblin that lands one attack would never flinch
      * again. The reference clears it in the same reset, for the same reason. */
-    if( getenv("DBGFACE") )
-        fprintf(stderr, "DBGF flush face=%d mask=%d\n", player->face_entity,
-                (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0);
     player->masks = 0;
     /* With the masks, and for exactly the same reason: the hitmark list
      * describes one tick, and every recipient's PLAYER_INFO has to have been
@@ -18629,11 +18617,6 @@ mock230_world_selftest(void)
             while( npc->hitpoints > 0 && ticks < 200 )
             {
                 mock230_world_tick(srv);
-                fprintf(stderr,
-                        "DBG t=%d hp=%d ct=%d face=%d ik=%d dt=%d lock=%d dying=%d\n", ticks,
-                        npc->hitpoints, player->combat_target, player->face_entity,
-                        (int)player->interaction.kind, npc->death_tick,
-                        player->action_locked, player->dying);
                 ticks++;
             }
             mock230_capture_end(srv);
@@ -18677,31 +18660,14 @@ mock230_world_selftest(void)
                            "the dead npc should release its combat target");
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                            "npc death should clear the player's combat interaction");
-            /*
-             * The killing tick still *holds* the latch, and that is the point.
-             *
-             * FACE_ENTITY is derived once per turn by
-             * `mock230_player_set_face_entity`, at the top of phase_player, and
-             * the swing lands at the bottom of the same turn. A release written
-             * by the death path would overwrite the derived value before the
-             * mask was ever flushed, so a goblin killed in one blow was killed
-             * by a player who never turned to face it — invisible in any fight
-             * that lasted two ticks, because the first tick shipped the latch.
-             *
-             * `ticks` above stops on the tick the hitpoints reached zero, so
-             * this is that tick.
-             */
-            SELFTEST_CHECK(player->face_entity == goblin,
-                           "the killing blow still faces what it killed, got %d",
-                           player->face_entity);
-            /* The next turn's derivation, called directly rather than by ticking
-             * the world: a stanza that spends an extra tick moves the shared RNG
-             * stream and reddens unrelated sections a thousand lines away. This
-             * is the same call phase_player makes, in the same order. */
-            mock230_player_set_face_entity(player);
+            /* A fight this long dies on the *queued* damage, which phase_npcs
+             * drains before the player's turn — so this turn's derivation
+             * already sees no target and the release is this turn's. The kill
+             * that lands after the derivation instead (a one-blow melee kill,
+             * dispatched from the packet phase) is a separate stanza: "a
+             * one-blow kill still ships the turn". */
             SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
-                           "and both sides release the latch on the turn after, "
-                           "got %d / %d", player->face_entity, npc->face_entity);
+                           "both sides should release their face latch on npc death");
 
             /* Damage reached the client: NPC_INFO carries the hitsplat and the
              * health bar in one mask. */
@@ -19386,8 +19352,23 @@ mock230_world_selftest(void)
                            "the attacking npc releases a dead player");
             SELFTEST_CHECK(player->interaction.kind == MOCK230_INTERACT_NONE,
                            "player death clears the armed combat interaction");
-            SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
-                           "both sides release their face latch on player death");
+            SELFTEST_CHECK(npc->face_entity == -1,
+                           "the attacking npc releases its face latch on player death");
+            /*
+             * The player's half of that latch is derived, not written.
+             *
+             * The death lands after this turn's `set_face_entity`, so the turn
+             * the player died on still faces what killed it and the release is
+             * the next turn's — the same rule that makes a one-blow kill turn
+             * the player toward the npc (see "a one-blow kill still ships the
+             * turn"). The tick below is that next turn, and by then the player
+             * is dying and locked: the check after it is what says phase_player
+             * derives the latch *above* the action-lock gate rather than below
+             * it, where a corpse would keep staring at its killer.
+             */
+            SELFTEST_CHECK(player->face_entity == goblin,
+                           "a dying player still faces what killed it, got %d",
+                           player->face_entity);
 
             /* The reference leaves one quiet tick between the fatal splat and
              * cancelling the action / starting human_death. `p_delay(1)` at
@@ -19396,6 +19377,8 @@ mock230_world_selftest(void)
              * reaches every eventual-respawn assertion below. */
             mock230_world_tick(srv);
             ticks++;
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "and releases it on the next turn, got %d", player->face_entity);
             SELFTEST_CHECK(player->dying && player->active_script != NULL,
                            "the first death turn should still be a parked corpse");
             SELFTEST_CHECK(player->delayed_until == srv->tick + 2,
@@ -19469,36 +19452,6 @@ mock230_world_selftest(void)
             mock230_combat_stop_npc(srv, goblin);
             mock230_world_set_active(srv, player);
             mock230_combat_stop_player(srv);
-        }
-    }
-
-    if( getenv("DBGONEHIT") )
-    {
-        int gob = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
-        struct Mock230Npc* n = &srv->npcs[gob];
-        const struct Mock230NpcInfo* gi = mock230_npcinfo(n->type);
-
-        mock230_world_clear_pending_action(srv);
-        selftest_park_player(srv, n->x + 1, n->z);
-        player->level = n->level;
-        player->godmode = 1;
-        n->hitpoints = 1;
-        {
-            uint8_t op[2];
-            int wire_slot = mock230_slotmap_client(player, gob);
-
-            (void)gi;
-            op[0] = (uint8_t)(wire_slot >> 8);
-            op[1] = (uint8_t)wire_slot;
-            mock230_world_handle(player, PKTOUT_NAME_OPNPC2, op, 2);
-        }
-        fprintf(stderr, "ONEHIT armed face=%d ct=%d hp=%d ik=%d\n", player->face_entity,
-                player->combat_target, n->hitpoints, (int)player->interaction.kind);
-        for( int i = 0; i < 5; i++ )
-        {
-            mock230_world_tick(srv);
-            fprintf(stderr, "ONEHIT t%d hp=%d ct=%d face=%d dt=%d\n", i, n->hitpoints,
-                    player->combat_target, player->face_entity, n->death_tick);
         }
     }
 
@@ -19588,52 +19541,7 @@ mock230_world_selftest(void)
                            npc->combat_target,
                            npc->face_entity - MOCK230_FACE_PLAYER_BASE);
 
-            /*
-             * A fight that ends inside the turn that set the latch.
-             *
-             * The one that mattered is a melee kill in a single blow: the
-             * derivation at the top of phase_player points the latch at the npc
-             * for the first time, the swing at the bottom of the same turn kills
-             * it, and the mask is flushed once, afterwards. Any release written
-             * by the disengage itself is therefore the *only* thing the client
-             * ever sees — the player killed the npc without turning to look at
-             * it. Every fight lasting two or more turns hid it.
-             *
-             * `mock230_combat_stop_player` is that disengage, shared by all four
-             * ways a fight ends, so testing it here covers the target dying, the
-             * player dying, walking away and starting something else at once.
-             * The release is not lost: it is derived by the next turn's
-             * `set_face_entity`, which is the second half below.
-             */
-            player->face_entity = -1;
-            player->masks = 0;
-            mock230_combat_engage(srv, goblin);
-            mock230_player_set_face_entity(player);
-            SELFTEST_CHECK(player->face_entity == goblin &&
-                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
-                           "the turn's derivation latches the target, got %d mask %s",
-                           player->face_entity,
-                           (player->masks & MOCK230_PMASK_FACE_ENTITY) ? "set" : "clear");
-            mock230_combat_stop_player(srv);
-            SELFTEST_CHECK(player->combat_target == -1, "the disengage ends the fight");
-            SELFTEST_CHECK(player->face_entity == goblin &&
-                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
-                           "and leaves this turn's latch alone so the turn still "
-                           "ships, got %d", player->face_entity);
-
-            player->masks = 0;
-            mock230_player_set_face_entity(player);
-            SELFTEST_CHECK(player->face_entity == -1,
-                           "the next turn derives the release, got %d",
-                           player->face_entity);
-            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
-                           "and says so on the wire — a clear nobody sends is a "
-                           "clear that never happens");
-
-            /* MOVE_GAMECLICK: fixed 5-byte destination (ctrl, x, z). Re-armed,
-             * because the stanza above disengaged on purpose. */
-            mock230_combat_engage(srv, goblin);
-            mock230_player_set_face_entity(player);
+            /* MOVE_GAMECLICK: fixed 5-byte destination (ctrl, x, z). */
             player->masks = 0;
             move[0] = 0;
             move[1] = (uint8_t)((player->x + 3) >> 8);
@@ -26443,6 +26351,81 @@ mock230_world_selftest(void)
                 after++;
         SELFTEST_CHECK(after == before, "an unknown npc name spawns nothing, %d -> %d",
                        before, after);
+    }
+
+    /*
+     * A one-blow melee kill still turns the player toward what it killed.
+     *
+     * FACE_ENTITY is derived once per turn by `mock230_player_set_face_entity`
+     * (LostCity `PathingEntity.setFaceEntity`, the only writer of the field in
+     * either engine), and the masks are flushed once, at the end of the turn.
+     * So a disengage that runs *after* that derivation and writes the field
+     * itself does not add a release — it replaces the latch, and the client is
+     * told nothing except "face nobody". The player killed the npc without ever
+     * looking at it. Any fight lasting two turns hid it completely, because the
+     * first turn had already shipped the latch.
+     *
+     * The kill has to land after the derivation for this to bite, and a melee
+     * one-shot does: `handle_opnpc` dispatches the op from the packet phase, so
+     * the swing is already in flight when the turn starts. A long fight instead
+     * dies on queued damage that phase_npcs drains *before* the player's turn,
+     * which is why the fight stanza above asserts the opposite and both are
+     * right. Written without ticking, so the shared roam RNG does not move and
+     * the accuracy roll cannot make it flaky: the two calls below are the two
+     * halves of one turn, in the order phase_player makes them.
+     *
+     * Its own npc, freed straight away, and immediately before the reset below
+     * — see the `::spawn` note above on what a stanza that touches the pool
+     * costs the sections after it.
+     */
+    fprintf(stderr, "mock230 selftest: a one-blow kill still ships the turn\n");
+    {
+        int slot = npc_spawn(srv, 3028, g_home_x + 9, g_home_z + 9, 0);
+
+        SELFTEST_CHECK(slot >= 0, "the fixture npc should spawn");
+        if( slot >= 0 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[slot];
+
+            selftest_park_player(srv, npc->x + 1, npc->z);
+            player->face_entity = -1;
+            player->masks = 0;
+
+            /* Top of the turn: phase_player derives the latch from the target
+             * the packet phase engaged. */
+            mock230_combat_engage(srv, slot);
+            mock230_player_set_face_entity(player);
+            SELFTEST_CHECK(player->face_entity == slot &&
+                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "the turn's derivation latches the target, got %d mask %s",
+                           player->face_entity,
+                           (player->masks & MOCK230_PMASK_FACE_ENTITY) ? "set" : "clear");
+
+            /* Later in the same turn: the blow, and the whole death path with
+             * it — `[ai_queue3]`, the mode reset and the disengage that used to
+             * take the latch with it. */
+            mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+            SELFTEST_CHECK(npc->hitpoints == 0, "one blow should empty the bar, got %d",
+                           npc->hitpoints);
+            SELFTEST_CHECK(player->combat_target == -1, "and end the fight");
+            SELFTEST_CHECK(player->face_entity == slot &&
+                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and leave the turn's latch alone, so the turn is what "
+                           "goes out — got %d", player->face_entity);
+
+            /* The turn after: the release, derived rather than written by the
+             * death, and carrying its own mask. */
+            player->masks = 0;
+            mock230_player_set_face_entity(player);
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "the next turn derives the release, got %d",
+                           player->face_entity);
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and says so on the wire — a release nobody sends is a "
+                           "release that never happens");
+
+            mock230_world_npc_free(srv, slot);
+        }
     }
 
     fprintf(stderr, "mock230 selftest: bank varbit packing\n");

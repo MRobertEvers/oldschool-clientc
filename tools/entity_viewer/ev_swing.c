@@ -512,6 +512,8 @@ main(int argc, char** argv)
     int shift_z = 0;
     int row_cap = 4;
     int markers = 1;
+    int yaw = 0;
+    int pitch = 100;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
 
@@ -535,6 +537,10 @@ main(int argc, char** argv)
             alpha_visible = atoi(argv[++i]);
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_prefix = argv[++i];
+        else if( strcmp(argv[i], "--yaw") == 0 && i + 1 < argc )
+            yaw = atoi(argv[++i]) & 2047;
+        else if( strcmp(argv[i], "--pitch") == 0 && i + 1 < argc )
+            pitch = atoi(argv[++i]);
         else if( strcmp(argv[i], "--rows") == 0 && i + 1 < argc )
             row_cap = atoi(argv[++i]);
         else if( strcmp(argv[i], "--no-markers") == 0 )
@@ -598,7 +604,13 @@ main(int argc, char** argv)
             "  --rows <n>            cap on rows; 0 means as many as it takes, i.e.\n"
             "                        one cell per cycle with no sampling (default 4)\n"
             "  --no-markers          leave the measured points off the top-down sheet,\n"
-            "                        for a reference image rather than a diagnosis\n",
+            "                        for a reference image rather than a diagnosis\n"
+            "  --yaw <0-2047>        which way the player faces. 0 is SOUTH, 512 WEST,\n"
+            "                        1024 NORTH, 1536 EAST (world_cycle.c's own mapping).\n"
+            "                        The measurements are taken in the player's local\n"
+            "                        space and do not change with it; only the pictures do\n"
+            "  --pitch <0-2047>      camera pitch for the _side sheet (default 100).\n"
+            "                        The _top sheet is always 512, straight down\n",
             argv[0],
             DEF_WEAPON_OBJ,
             DEF_ATTACK_SEQ,
@@ -1363,7 +1375,7 @@ main(int argc, char** argv)
             ev_set_spot_state(height, f);
             /* Straight down: pitch 512 of 2048 is a quarter turn, so the orbit
              * sits directly above the model and screen x/y read as world x/z. */
-            blit(top, sheet_w, cx, cy, ev_render(side, side, 0, 512, zoom, b), side);
+            blit(top, sheet_w, cx, cy, ev_render(side, side, yaw, 512, zoom, b), side);
 
             /*
              * The two measured points, marked on the picture they were measured
@@ -1372,7 +1384,11 @@ main(int argc, char** argv)
              * sit on the blade means the vertex slice is wrong, and every number
              * downstream of it is describing the wrong geometry.
              */
-            if( markers )
+            /* project_top_down solves the framing for yaw 0 only. At any other
+             * facing the crosses would land somewhere plausible and wrong,
+             * which is worse than no crosses at all — so they are dropped and
+             * said to be dropped rather than drawn approximately. */
+            if( markers && yaw == 0 )
             {
                 project_top_down(blade[b].head, side, zoom, player_height / 2, &mx, &my);
                 cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FFFF); /* blade: cyan */
@@ -1390,7 +1406,7 @@ main(int argc, char** argv)
 
             /* And from the side, at the yaw a player fighting south is drawn at,
              * because "is it at the right height" is not visible from above. */
-            blit(sid, sheet_w, cx, cy, ev_render(side, side, 0, 100, zoom, b), side);
+            blit(sid, sheet_w, cx, cy, ev_render(side, side, yaw, pitch, zoom, b), side);
             rule(top, sheet_w, sheet_h, cx, 0x00404040);
             rule(sid, sheet_w, sheet_h, cx, 0x00404040);
         }
@@ -1503,6 +1519,9 @@ main(int argc, char** argv)
         bmp_write_file(path, top, sheet_w, sheet_h);
         snprintf(path, sizeof(path), "%s_side.bmp", out_prefix);
         bmp_write_file(path, sid, sheet_w, sheet_h);
+        if( markers && yaw != 0 )
+            printf("\n(markers omitted: they are solved for yaw 0 and this sheet is yaw %d)\n",
+                   yaw);
         printf("\nwrote %s_top.bmp / _side.bmp (%d cells, every %d cycle(s), %dx%d)\n"
                "  and %s_plot.bmp — the overhead trace, one-tile grid,\n"
                "  cyan = blade head, green = lit graphic, white = the player's own origin\n",
