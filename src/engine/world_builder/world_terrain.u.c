@@ -535,10 +535,12 @@ world_build_scene_terrain(struct WorldBuilder* builder)
 
                 int overlay_hsl = 0;
                 int texture_id = -1;
+                struct ToriRS_Texture* overlay_texture = NULL;
                 if( overlay_tile->texture_id != -1 )
                 {
                     texture_id = overlay_tile->texture_id;
-                    if( CacheProvider_TextureGet(builder->cache, texture_id) )
+                    overlay_texture = CacheProvider_TextureGet(builder->cache, texture_id);
+                    if( overlay_texture )
                     {
                         overlay_hsl = TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY;
                     }
@@ -577,7 +579,16 @@ world_build_scene_terrain(struct WorldBuilder* builder)
                 }
                 else if( overlay_hsl == TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY )
                 {
-                    minimap_foreground_rgb = ToriDraw_Hsl16ToRgb(overlay_tile->texture_avg_hsl16);
+                    /* Re-read the texture's average colour live rather than trusting
+                     * texture_avg_hsl16, which may have been frozen at population time
+                     * before the texture was resident (world_terrain_apply_tile runs
+                     * ahead of the minimap bake). A texture-only overlay flo — piers,
+                     * docks, bridges — has rgb_color == 0, so a stale/zero average bakes
+                     * the tile solid black. Mirrors worldmap_overlay_rgb's fresh lookup. */
+                    uint16_t avg_hsl = overlay_tile->texture_avg_hsl16;
+                    if( overlay_texture && overlay_texture->average_hsl != 0 )
+                        avg_hsl = (uint16_t)overlay_texture->average_hsl;
+                    minimap_foreground_rgb = ToriDraw_Hsl16ToRgb(avg_hsl);
                 }
                 else if( overlay_hsl == TERRAIN_OVERLAY_HSL_TRANSPARENT )
                 {
