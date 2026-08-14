@@ -285,7 +285,7 @@ def main() -> int:
                "1450=iron_titan_iron_within_gfx" in special_text,
                "Iron Within's source normal-swing sequence or charge graphic is not imported")
         expect("8190=steel_titan_swing" in special_text and
-               "1445=steel_titan_projectile" in special_text and
+               "1445=steel_titan_ranged_projectile" in special_text and
                "1449=steel_titan_steel_of_legends_gfx" in special_text,
                "Steel of Legends' source visual closure is not imported")
         expect("6261=spirit_scorpion_venom_shot" in special_text and
@@ -433,7 +433,7 @@ def main() -> int:
                "Iron Within's source animation closure is absent from its ledger")
         expect(re.search(r"^seq\t8190\t.*\tsummoning_special_move_steel_titan_swing\t",
                          special_ledger, re.MULTILINE) is not None and
-               re.search(r"^spotanim\t1445\t.*\tsummoning_special_move_steel_titan_projectile\t",
+               re.search(r"^spotanim\t1445\t.*\tsummoning_special_move_steel_titan_ranged_projectile\t",
                          special_ledger, re.MULTILINE) is not None and
                re.search(r"^spotanim\t1449\t.*\tsummoning_special_move_steel_titan_steel_of_legends_gfx\t",
                          special_ledger, re.MULTILINE) is not None,

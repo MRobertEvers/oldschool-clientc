@@ -585,7 +585,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
+.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash summoning-dialogue
 
@@ -2036,6 +2036,8 @@ MOCK230_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
 SUMMONING_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_scape2009_summoning
 SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
 RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
+CURSES_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_rs558_ancient_curses
+CURSES_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
 SUMMONING_CONSTANTS_OFF = $(REPO_ROOT)/build/summoning-constants-off
 SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # Allocate first, then compile.
@@ -2080,6 +2082,8 @@ mock230-scripts: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build
 	@mkdir -p $(SUMMONING_VARBIT_STAGE)
 	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -2091,6 +2095,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
+		--pack $(CURSES_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2103,6 +2108,8 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning
 	@mkdir -p $(SUMMONING_VARBIT_STAGE)
 	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
 	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
 	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
 		--src $(MOCK230_CONTENT_DIR)/server/scripts \
@@ -2114,10 +2121,40 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_CLIENT_LANE)/pack \
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
+		--pack $(CURSES_CLIENT_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
 		--constants $(SUMMONING_CONSTANTS_ON)
+
+# The Ancient Curses feature-on build. Same sources and symbol packs as the
+# default; only the generated constant root differs, so ^curses_enabled cannot
+# drift into the ordinary pack. Summoning stays off here — the two lanes are
+# independent, and a build that turns both on is a third target, not this one.
+CURSES_CONSTANTS_ON = $(REPO_ROOT)/build/curses-constants-on
+
+mock230-scripts-curses: sscompile check-crystal-set-contract
+	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_curses
+	@mkdir -p $(SUMMONING_VARBIT_STAGE)
+	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
+	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
+	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
+		--src $(MOCK230_CONTENT_DIR)/server/scripts \
+		--out $(CURSES_CONSTANTS_ON) --enabled 0 --curses 1
+	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
+		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_curses \
+		--pack $(MOCK230_CONTENT_DIR)/pack \
+		--pack $(MOCK230_CONTENT_DIR)/configs \
+		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(SUMMONING_VARBIT_STAGE) \
+		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
+		--pack $(CURSES_CLIENT_LANE)/pack \
+		--component-root $(SUMMONING_CLIENT_LANE) \
+		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
+		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
+		--constants $(CURSES_CONSTANTS_ON)
 
 test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-playerinfo
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase3.py

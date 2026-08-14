@@ -43,6 +43,20 @@
  * home revision (rs727 on cache.rs727_preeoc) reports 51% differ and a non-zero
  * `lost-here`, where rev558 reports `lost-here` 0. Import needs decode, and
  * decode is exact.
+ *
+ * Known-unsupported types at this revision, none of them on the curses path
+ * (which needs spotanim, seq, model, framemap, sprite, interface and synth):
+ *
+ *   hitsplat   1654/1654 short — fails identically on the rev530 control
+ *              (1431/1431), so it is pre-existing to the RS2 branch, not 558.
+ *   varc       1043/1043 short — rev530 decodes its own 632 records cleanly,
+ *              so the varc stream genuinely changed between 530 and 558.
+ *   healthbar   155/155  short — the rev530 cache holds no healthbar records,
+ *              so there is no control and the shape is simply unmeasured.
+ *
+ * These are read-only concerns: nothing packs *into* a 558 cache, so an
+ * unsupported decode here cannot corrupt anything. Fix them if a later lane
+ * needs them; do not assume the zero-record control above was a pass.
  */
 
 struct RSCache
