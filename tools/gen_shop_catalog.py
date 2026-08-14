@@ -416,7 +416,18 @@ def parse_page(
                 "members": strip_markup(info.get("members", "")),
                 "special": strip_markup(info.get("special", "")),
                 "currency": strip_markup(head.get("currency", "")),
-                "sellmultiplier": head.get("sellmultiplier", ""),
+                # Mirror image of the delta default below: a page with
+                # `buymultiplier=`/`delta=` but no `sellmultiplier=` is a
+                # buy-only reward shop (Initiate/Proselyte Temple Knight
+                # Armoury — 2 confirmed, both quest-reward armour stalls) —
+                # the wiki simply never states a sell rate because the shop's
+                # own item set isn't meant to be sold back at a markup.
+                # Defaulting sellmultiplier to match buymultiplier (buy and
+                # sell at the identical rate) is the zero-arbitrage choice:
+                # neither direction profits, so a wrong guess here costs
+                # nothing either way rather than opening a money exploit.
+                "sellmultiplier": head.get("sellmultiplier") or
+                    (head.get("buymultiplier", "") if head.get("delta") else ""),
                 "buymultiplier": head.get("buymultiplier", ""),
                 # A pub/bar buyback shop (buymultiplier=0 — nothing is ever
                 # purchasable) has nothing for haggle to move the price of, so

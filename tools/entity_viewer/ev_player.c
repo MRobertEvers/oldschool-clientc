@@ -428,6 +428,7 @@ ev_build_spotanim_model(
     struct Tool_Dat2Cache* c,
     int spotanim_id,
     const char* model_file_override,
+    int angle_override,
     int* out_seq_id)
 {
     struct RSCache_Dat2ConfigSpotanim* spot;
@@ -462,7 +463,12 @@ ev_build_spotanim_model(
 
     if( spot->resizeh != 128 || spot->resizev != 128 )
         ToriDraw_ModelScale(model, spot->resizeh, spot->resizeh, spot->resizev);
-    if( spot->angle != 0 )
+    /* Before lighting, where the client does it: the lighting bake reads
+     * vertex positions, so orienting afterwards would light the mesh in one
+     * pose and draw it in another. */
+    if( angle_override >= 0 )
+        ToriDraw_ModelOrient(model, angle_override & 3);
+    else if( spot->angle != 0 )
         ToriDraw_ModelOrient(model, spot->angle / 90);
 
     if( model->face_textures )

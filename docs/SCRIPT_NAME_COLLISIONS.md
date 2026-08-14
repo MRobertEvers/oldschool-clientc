@@ -105,3 +105,28 @@ a call site is the only way in. A label nothing calls is dead however far the
 quest gets, and that is a third distinct way content here has been shipped
 unreachable: A Tail of Two Cats had no route to its own completion step, and
 nothing in the tree wrote Observatory Quest's `^itgronigen_complete`.
+
+This is the one class the compiler cannot close, because "declared but uncalled"
+is legal for a library proc and a caller may live in any file — or in C.
+`tools/script_orphans.py` is the checker. It has to discount three kinds of
+caller it cannot see, and each of them, left in, produces more noise than signal:
+`debugproc` (typed as `::name`), `selftest*.rs2` (driven by the C harness), and
+the 153 scripts the engine invokes through `SSVM_ProviderGetByName` with a
+literal bracket name.
+
+What it reports now is 1 label (`not_written_yet`, a deliberate placeholder), 2
+queues (the trawler flood control, a deferral stated in its own file), and 69
+procs. 32 of those are the `general/scripts/misc` parity library and ~19 more
+carry a stated deferral. The remaining **18 are silent** — a helper written and
+its caller never wired:
+
+    crystal_add_charges_held      crystal_get_charges       demon_has_prysin_key
+    dov_spawn_chaos_golem         elem2_started             forget_meets_requirements
+    farming_compost_sync_transmit farming_falador_herb_row  farming_falador_herb_set
+    farming_patch_get_state       farming_patch_set_state   farming_patch_is_weeded
+    garden_has_vine_seeds         hunter_net_restore_tree   mta_alchem_try_alch
+    probe_rangebonus              sa_reset                  trawler_rip_net
+
+Left as a queue on purpose. Each needs a judgement about where its caller
+belongs, and guessing is worse than the gap: `farming_patch_set_state` next to a
+patch system that now stores state another way would double-write it.

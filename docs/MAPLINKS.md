@@ -169,6 +169,7 @@ cache id and enters no gameval table. `legends_gem_data.dbtable` and
 column=src,coord,INDEXED,REQUIRED
 column=dest,coord,REQUIRED
 column=loc,loc,REQUIRED
+column=dir,int,REQUIRED
 ```
 
 `src` is keyed on the **player's** tile (`coord`), not the clicked loc's own
@@ -177,11 +178,16 @@ tile (`loc_coord`) — deliberately, matching both `~climb` itself (which reads
 `Origin` column established in §1.1. Keying on `loc_coord` would simply never
 match for a multi-tile staircase.
 
+`dir` is the plane change the row's own menu verb names: +1 `Climb-up`, -1
+`Climb-down`, ±2 the `Top-floor`/`Bottom-floor` op that skips a landing, 0 for
+a verb that names no direction (a bare `Climb`, and every transition). It is
+part of the key, not decoration — see §3.4.
+
 `~climb` gains three lines at its top:
 
 ```
 [proc,climb](int $delta)
-if (~maplink_try = true) {
+if (~maplink_try($delta) = true) {
     return;
 }
 def_int $level = calc(coordy(coord) + $delta);
@@ -191,13 +197,16 @@ def_int $level = calc(coordy(coord) + $delta);
 `~maplink_try` (`scripts/maplink.rs2`) does the lookup:
 
 ```
-[proc,maplink_try]()(boolean)
+[proc,maplink_try](int $dir)(boolean)
 db_find(maplink:src, coord);
 def_dbrow $link = db_findnext;
 while ($link ! null) {
     if (db_getfield($link, maplink:loc, 0) = loc_type) {
-        p_teleport(db_getfield($link, maplink:dest, 0));
-        return (true);
+        def_int $rowdir = db_getfield($link, maplink:dir, 0);
+        if ($rowdir = 0 | $dir = 0 | $rowdir = $dir) {
+            p_teleport(db_getfield($link, maplink:dest, 0));
+            return (true);
+        }
     }
     $link = db_findnext;
 }
@@ -357,6 +366,41 @@ self-conflicted into nothing. Caught by running the generator twice in a row
 and diffing the output, which is now the standard check (§6) rather than a
 one-off.
 
+## 3.4 The direction is part of the key, and the op that skips a floor
+
+The first version of this table was keyed on the tile alone, and Lumbridge
+castle is where that came apart. `spiralstairsmiddle` states `op1=Climb`,
+`op2=Climb-up`, `op3=Climb-down`; the wiki lists all four combinations of its
+two landings' two standing tiles and two directions; and §2.2's
+`classify_displacement` then dropped, as "already correct", exactly the two
+whose destination equals the ±1-plane default. What reached the table was one
+row per tile — one that only knew *up*, one that only knew *down* — and a
+tile-keyed lookup handed that answer to **both** ops. Standing on the west
+tile of the south landing, "Climb-down" took the player up.
+
+So `dir` is part of the key and part of the lookup, `~climb` passes its own
+`$delta`, and a row that contradicts the op is skipped rather than taken. The
+fallback on a miss is not a loss: for that staircase, the dropped row's
+destination IS the ±1 default that now answers instead.
+
+A direction of 0 means "the verb names none" — a bare `Climb`, and every
+transition — and matches any caller; a caller passing 0 (`~maplink_transition`)
+matches any row. `split_unambiguous` therefore treats a 0-direction row as
+colliding with every other row on its tile, since that is what it does at
+runtime.
+
+**`Top-floor` / `Bottom-floor` is why `dir` is a plane count and not a sign.**
+Three-storey spiral staircases state a second climb op on their ground and top
+floors that skips the landing entirely, so one tile carries two *up* rows
+landing on two different planes. The verbs are in `CLIMB_DELTAS` as ±2, the
+six records that state them are bound by name to `~climb_floor_skip` in
+`ladders.rs2` (the category rung can only say one direction, and it is op1's),
+and the skip asks the table for a ±2 row before falling back to two ±1 hops —
+each of which consults the table for itself. Only the Horror from the Deep
+lighthouse has harvested rows for it; Lumbridge castle's three storeys are
+`spiralstairs*_3` records the wiki data does not know, because it lists the
+pre-rework 16671/16673 there and this cache does not place them.
+
 ## 4. What `tools/maplink_import.py` generates
 
 ```
@@ -387,11 +431,11 @@ Measured on the full run (`--near-miss`, this cache, this vendor snapshot):
 ```
 Climb (stairs, ladders, trapdoors):
 5,168 transports.tsv climb-verb rows considered
-1,706 accepted (927 jumps + 779 near-miss)
-1,676 table rows
-    0 name+op bindings (my2arm_cliff_shortcut_1/2 among the 8 dropped — see §3.1)
-    8 names dropped — multi-placement collision with an ambiguous tile
-1,112 rejected — see docs/MAPLINKS_REJECTS.md
+1,708 accepted (including the 2 Top-floor/Bottom-floor rows — see §3.4)
+1,686 table rows
+    0 name+op bindings (my2arm_cliff_shortcut_1/2 among the 6 dropped — see §3.1)
+    6 names dropped — multi-placement collision with an ambiguous (tile, direction)
+1,110 rejected — see docs/MAPLINKS_REJECTS.md
 
 Transitions (cave mouths, portals, levers):
 5,304 transports.tsv/portals/levers rows considered
@@ -409,9 +453,9 @@ Agility shortcuts:
    57 dropped — category conflict or multi-placement collision, no unsafe fallback (see §3.3)
   182 rejected — see docs/MAPLINKS_REJECTS.md
 
-Combined: 1,676 + 394 = 2,070 candidate rows in maplink.dbrow, minus 2 (one
+Combined: 1,686 + 394 = 2,080 candidate rows in maplink.dbrow, minus 2 (one
 climb row and one transition row sharing an origin tile with different
-destinations — neither kept) = 2,068 rows. Agility's 144 live in a separate
+destinations — neither kept) = 2,078 rows. Agility's 144 live in a separate
 maplink_agility.dbrow, since that table carries a fourth `level` column the
 shared table doesn't.
 ```

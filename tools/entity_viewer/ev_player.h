@@ -108,6 +108,12 @@ ev_build_player_model(
  * bytes the game draws and the bytes in cache.osrs239 are different models, and
  * a measurement against the wrong one is worse than none.
  *
+ * `angle_override` replaces the record's own rotation opcode: -1 keeps what the
+ * record says, 0..3 forces that many quarter turns. The spotanim record already
+ * carries a rotation the client applies with ToriDraw_ModelOrient before
+ * lighting, so trying a different one is a config change and not a model edit —
+ * and being able to try it without editing anything is the point.
+ *
  * `out_seq_id` receives the record's animation id (-1 when it has none).
  * Returns an owned model or NULL.
  */
@@ -116,6 +122,7 @@ ev_build_spotanim_model(
     struct Tool_Dat2Cache* c,
     int spotanim_id,
     const char* model_file_override,
+    int angle_override,
     int* out_seq_id);
 
 /*

@@ -65,6 +65,25 @@
                position: sticky; top: 0; display: flex; gap: 8px; align-items: center; }
   .note { padding: 10px 12px; color: var(--dim); font-size: 11px; }
   .corroborated { color: var(--rig); }
+
+  /* Mode switch and the player half's controls. */
+  .modes { display: flex; gap: 6px; padding: 10px 12px 0; }
+  .modes button { flex: 1; }
+  .modes button.on { border-color: var(--accent); color: var(--accent); }
+  .worn { padding: 8px 12px; border-bottom: 1px solid var(--line);
+          display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px;
+          padding: 2px 9px; font-size: 11px; cursor: pointer; }
+  .chip:hover { border-color: #c46; }
+  .chip .x { color: var(--dim); margin-left: 5px; }
+  .fx { display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+        border-top: 1px solid var(--line); flex-wrap: wrap; font-size: 11px; }
+  .fx label { color: var(--dim); }
+  .fx input[type=number] { width: 62px; background: var(--panel-2); color: var(--text);
+        border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; font: inherit; }
+  .fx input[type=text] { width: 210px; background: var(--panel-2); color: var(--text);
+        border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; font: inherit; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>

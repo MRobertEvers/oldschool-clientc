@@ -232,83 +232,76 @@ measure_arc(const struct ToriDraw_Model* m, int first, int alpha_visible)
 }
 
 /*
- * Choose the weapon's grip and head from the REST pose. Returns 0 on failure.
+ * Choose the sweeping part of the weapon from `track`, a [frames][count] table
+ * of every weapon vertex's position in every frame. Returns 0 on failure.
  *
- * `body_first`/`body_count` are the player's own vertices (everything before
- * the weapon), whose centroid stands in for "where the player is".
+ * The band is "within 40% of the fastest vertex's path length", not a fixed
+ * fraction of the vertex count: how much of a weapon sweeps is a property of
+ * the weapon, and a count-based cut would take the same number of vertices off
+ * a dagger and off a halberd.
  */
 static int
 select_blade(
-    const struct ToriDraw_Model* m,
-    int body_count,
+    const struct Vec3* track,
+    int frames,
     int first,
     int count,
     struct BladeSelection* out)
 {
-    struct Vec3 body = { 0, 0, 0 };
-    struct Vec3 grip = { 0, 0, 0 };
-    int grip_index = -1;
-    double best = 1e18;
-    double* dist;
+    double* path;
     double cut;
 
     memset(out, 0, sizeof(*out));
-    if( !m || count <= 0 || body_count <= 0 )
+    if( !track || frames < 2 || count <= 0 )
         return 0;
 
-    for( int i = 0; i < body_count; i++ )
+    path = calloc((size_t)count, sizeof(double));
+    out->head_indices = calloc((size_t)count, sizeof(int));
+    if( !path || !out->head_indices )
     {
-        body.x += m->vertices_x[i];
-        body.y += m->vertices_y[i];
-        body.z += m->vertices_z[i];
+        free(path);
+        free(out->head_indices);
+        out->head_indices = NULL;
+        return 0;
     }
-    body.x /= body_count;
-    body.y /= body_count;
-    body.z /= body_count;
 
-    for( int i = first; i < first + count && i < m->vertex_count; i++ )
-    {
-        struct Vec3 v = { m->vertices_x[i], m->vertices_y[i], m->vertices_z[i] };
-        double d = dist3(v, body);
-        if( d < best )
-        {
-            best = d;
-            grip = v;
-            grip_index = i;
-        }
-    }
-    if( grip_index < 0 )
-        return 0;
+    for( int f = 1; f < frames; f++ )
+        for( int i = 0; i < count; i++ )
+            path[i] += dist3(track[f * count + i], track[(f - 1) * count + i]);
 
-    dist = calloc((size_t)count, sizeof(double));
-    if( !dist )
-        return 0;
-    for( int i = 0; i < count && first + i < m->vertex_count; i++ )
-    {
-        struct Vec3 v = {
-            m->vertices_x[first + i], m->vertices_y[first + i], m->vertices_z[first + i]
-        };
-        dist[i] = dist3(v, grip);
-        if( dist[i] > out->head_span )
+    for( int i = 0; i < count; i++ )
+        if( path[i] > out->tip_path )
         {
-            out->head_span = dist[i];
+            out->tip_path = path[i];
             out->tip_index = first + i;
         }
+
+    cut = out->tip_path * 0.60;
+    for( int i = 0; i < count; i++ )
+        if( path[i] >= cut )
+            out->head_indices[out->head_count++] = first + i;
+
+    /* How far the chosen set reaches, so the report can say whether "the part
+     * that moves" is a blade or a scattering of trim. */
+    if( out->head_count > 0 )
+    {
+        struct Vec3 c = { 0, 0, 0 };
+        for( int i = 0; i < out->head_count; i++ )
+            c.x += track[out->head_indices[i] - first].x,
+                c.y += track[out->head_indices[i] - first].y,
+                c.z += track[out->head_indices[i] - first].z;
+        c.x /= out->head_count;
+        c.y /= out->head_count;
+        c.z /= out->head_count;
+        for( int i = 0; i < out->head_count; i++ )
+        {
+            double d = dist3(track[out->head_indices[i] - first], c);
+            if( d > out->span )
+                out->span = d;
+        }
     }
 
-    /* The far quarter, by distance rather than by count: a quarter of the
-     * vertices could all sit on a densely-tessellated boss halfway down. */
-    cut = out->head_span * 0.75;
-    out->head_indices = calloc((size_t)count, sizeof(int));
-    if( !out->head_indices )
-    {
-        free(dist);
-        return 0;
-    }
-    for( int i = 0; i < count && first + i < m->vertex_count; i++ )
-        if( dist[i] >= cut )
-            out->head_indices[out->head_count++] = first + i;
-    free(dist);
+    free(path);
     return out->head_count > 0;
 }
 
@@ -316,10 +309,10 @@ select_blade(
  * Where the weapon is, this frame.
  *
  * Three readings, because each answers a different objection. The centroid is
- * the whole wear model and barely moves — it is the control. The tip is one
- * tracked vertex and shows the full sweep, but a single vertex can be a
- * decoration hanging off the model. The head is the far quarter averaged, which
- * is the one the offset arithmetic uses.
+ * the whole wear model and barely moves — it is the control. The tip is the
+ * single fastest vertex and shows the full sweep, but one vertex can be a
+ * decoration hanging off the model. The head is the whole sweeping band
+ * averaged, which is what the offset arithmetic uses.
  */
 static struct BladeSample
 measure_blade(const struct ToriDraw_Model* m, int first, int count,
@@ -514,6 +507,7 @@ main(int argc, char** argv)
     int side = 320;
     int columns = 12;
     int zoom_arg = 0;
+    int orient = -1;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
 
@@ -537,6 +531,8 @@ main(int argc, char** argv)
             alpha_visible = atoi(argv[++i]);
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_prefix = argv[++i];
+        else if( strcmp(argv[i], "--orient") == 0 && i + 1 < argc )
+            orient = atoi(argv[++i]);
         else if( strcmp(argv[i], "--zoom") == 0 && i + 1 < argc )
             zoom_arg = atoi(argv[++i]);
         else if( strcmp(argv[i], "--side") == 0 && i + 1 < argc )
@@ -573,6 +569,8 @@ main(int argc, char** argv)
             "  --arc-model <file>    use this model record for the graphic instead\n"
             "                        of the cache's, for measuring an edited asset\n"
             "  --wear <obj>          equip another obj (repeatable)\n"
+            "  --orient <0-3>        force the graphic's quarter-turn rotation,\n"
+            "                        overriding the spotanim record's own angle\n"
             "  --alpha-visible <n>   faces with stored alpha below n count as drawn\n"
             "                        (default %d; 0 opaque, 255 invisible)\n"
             "  --out <prefix>        write <prefix>_top.bmp and <prefix>_side.bmp\n"
@@ -653,7 +651,7 @@ main(int argc, char** argv)
 
     int spot_seq = -1;
     struct ToriDraw_Model* spot =
-        ev_build_spotanim_model(&cache, spotanim_id, arc_model_file, &spot_seq);
+        ev_build_spotanim_model(&cache, spotanim_id, arc_model_file, orient, &spot_seq);
     if( !spot )
     {
         fprintf(stderr, "spotanim %d did not build\n", spotanim_id);
@@ -734,22 +732,47 @@ main(int argc, char** argv)
         arc[f] = measure_arc(ev_drawn_model(), ev_spot_vertex_first(), alpha_visible);
     }
 
+    /*
+     * Every weapon vertex, in every frame, before anything is decided about
+     * which of them matter. Choosing the sweeping band needs the whole
+     * animation, so it cannot be done in the same pass that measures it.
+     */
     ev_set_spot_state(height, -1); /* detached: the plain player model */
     struct BladeSelection sel;
-    ev_pose(-1);
-    if( !select_blade(
-            ev_drawn_model(), weapon_vertex_first, weapon_vertex_first, weapon_vertex_count, &sel) )
+    struct Vec3* track =
+        calloc((size_t)body_frames * (size_t)weapon_vertex_count, sizeof(struct Vec3));
+    if( !track )
+        return 1;
+    for( int b = 0; b < body_frames; b++ )
     {
-        fprintf(stderr, "could not identify the weapon's grip and head\n");
+        ev_pose(b);
+        struct ToriDraw_Model* m = ev_drawn_model();
+        for( int i = 0; i < weapon_vertex_count; i++ )
+        {
+            int v = weapon_vertex_first + i;
+            struct Vec3* dst = &track[(size_t)b * weapon_vertex_count + i];
+            dst->x = m->vertices_x[v];
+            dst->y = m->vertices_y[v];
+            dst->z = m->vertices_z[v];
+        }
+    }
+    if( !select_blade(track, body_frames, weapon_vertex_first, weapon_vertex_count, &sel) )
+    {
+        fprintf(stderr, "no part of obj %d's wear model moves during sequence %d\n", weapon_obj,
+                attack_seq);
         return 1;
     }
-    printf("weapon head: %d of %d vertices, %.0f units from the grip\n\n", sel.head_count,
-           weapon_vertex_count, sel.head_span);
+    printf("weapon sweep: %d of %d vertices move within 40%% of the fastest, and the\n"
+           "              fastest travels %.0f units over the swing. That set spans %.0f\n"
+           "              units — the streak is being compared against a region this\n"
+           "              size, not a point, so expect a residual of the same order.\n\n",
+           sel.head_count, weapon_vertex_count, sel.tip_path, sel.span);
     for( int b = 0; b < body_frames; b++ )
     {
         ev_pose(b);
         blade[b] = measure_blade(ev_drawn_model(), weapon_vertex_first, weapon_vertex_count, &sel);
     }
+    free(track);
 
     /* The independence check. Two arbitrary frames, both halves measured out of
      * the same merged, posed model, compared against the tables above. */
@@ -831,8 +854,8 @@ main(int argc, char** argv)
     }
 
     printf("\n");
-    printf("blade moves fastest at cycle %d (%.1f units in that cycle)\n", peak_travel_cycle,
-           peak_travel);
+    printf("largest pose change at cycle %d (%.0f units in one cycle) — the strike\n",
+           peak_travel_cycle, peak_travel);
     if( first_lit_cycle >= 0 )
         printf("graphic is lit over cycles %d..%d; closest approach %.0f units at cycle %d\n",
                first_lit_cycle, last_lit_cycle, best_gap, best_gap_cycle);
@@ -860,26 +883,144 @@ main(int argc, char** argv)
     }
     printf("\n");
 
-    /* ---- the sweep: which delay lines the two up ------------------------- */
+    /* ---- along the arc and across it ------------------------------------- */
 
     /*
-     * For each candidate delay, the mean distance between the lit part of the
-     * graphic and the blade tip over every cycle where both exist. Fewest units
-     * wins.
+     * Timing and placement have to be separated before either can be answered,
+     * and plain distance cannot separate them: if the graphic sits half a tile
+     * to one side, every delay scores about that half tile and the minimum is
+     * noise on top of a constant. The first attempt here did exactly that and
+     * produced a sweep that varied by 13% end to end — a number with a shape
+     * but no signal in it.
      *
-     * `paired` is reported alongside the score because a delay that puts the
-     * graphic almost entirely outside the swing scores well on the two cycles
-     * that do overlap, and a mean over two samples is not a measurement. Read
-     * the two columns together.
+     * The arc is a long thin crescent, so it has an obvious axis, and the two
+     * questions fall apart along it:
+     *
+     *   ALONG   how far the lit segment has travelled down the crescent versus
+     *           how far the blade has. This is timing, and a lateral offset
+     *           does not touch it.
+     *   ACROSS  the perpendicular gap. This is placement, and it is very nearly
+     *           constant with time, which is what makes it a rigid offset the
+     *           asset can absorb.
+     *
+     * The axis is the principal direction of the graphic's own vertices in the
+     * XZ plane — the closed-form eigenvector of a 2x2 covariance, no iteration.
+     * The mesh is static (`sp_d_halberd_glow` animates alpha and nothing else),
+     * so one axis serves every frame.
      */
-    printf("delay sweep — mean blade/graphic separation per candidate delay\n");
-    printf("delay  paired  mean gap  best delay so far\n");
+    double axis_x = 0, axis_z = 1, arc_cx = 0, arc_cz = 0;
+    {
+        ev_set_spot_state(height, 0);
+        ev_pose(-1);
+        struct ToriDraw_Model* m = ev_drawn_model();
+        int first = ev_spot_vertex_first();
+        int n = 0;
+        double sxx = 0, sxz = 0, szz = 0;
+        if( m && first >= 0 )
+        {
+            for( int v = first; v < m->vertex_count; v++, n++ )
+            {
+                arc_cx += m->vertices_x[v];
+                arc_cz += m->vertices_z[v];
+            }
+            if( n )
+            {
+                arc_cx /= n;
+                arc_cz /= n;
+                for( int v = first; v < m->vertex_count; v++ )
+                {
+                    double dx = m->vertices_x[v] - arc_cx;
+                    double dz = m->vertices_z[v] - arc_cz;
+                    sxx += dx * dx;
+                    sxz += dx * dz;
+                    szz += dz * dz;
+                }
+                /* Larger eigenvalue of [[sxx,sxz],[sxz,szz]], then its vector. */
+                double tr = sxx + szz;
+                double det = sxx * szz - sxz * sxz;
+                double lam = tr / 2 + sqrt(fmax(0.0, tr * tr / 4 - det));
+                double ex = sxz, ez = lam - sxx;
+                if( fabs(ex) + fabs(ez) < 1e-9 )
+                {
+                    ex = 1;
+                    ez = 0;
+                }
+                double len = sqrt(ex * ex + ez * ez);
+                axis_x = ex / len;
+                axis_z = ez / len;
+            }
+        }
+    }
+    /* Perpendicular, right-hand: (x,z) -> (-z,x). */
+    double perp_x = -axis_z, perp_z = axis_x;
+    printf("graphic axis: (%+.2f, %+.2f) in model xz, centred at (%.0f, %.0f)\n", axis_x, axis_z,
+           arc_cx, arc_cz);
+
+    /*
+     * The graphic's pose relative to the player, in words.
+     *
+     * A slash that trails a swing lies TANGENT — its long axis across the
+     * player's facing, its body out in front, the way a blade passes. One lying
+     * RADIAL runs front-to-back through the player instead, and reads as a
+     * quarter turn out however well its timing is tuned. This is stated
+     * separately from every gap and residual below because no amount of delay
+     * or translation fixes it: it is the spotanim record's rotation opcode, or
+     * the wrong one of the four pre-rotated compass models.
+     *
+     * Facing at yaw 0 is -z, so the tangential component of the axis is |x| and
+     * the forward position of the centre is -z.
+     */
+    {
+        double tangential = fabs(axis_x);
+        double forward = -arc_cz;
+        printf("graphic pose: axis is %s (%.0f%% across the facing direction)\n",
+               tangential > 0.7 ? "TANGENT — across the swing, as a slash should lie"
+                                : "RADIAL — front-to-back through the player, a quarter turn out",
+               tangential * 100);
+        printf("              centre sits %.0f units %s and %.0f units to the %s\n", fabs(forward),
+               forward >= 0 ? "IN FRONT" : "BEHIND", fabs(arc_cx),
+               arc_cx < 0 ? "player's right" : "player's left");
+    }
+
+#define ALONG(p) (((p).x - arc_cx) * axis_x + ((p).z - arc_cz) * axis_z)
+#define ACROSS(p) (((p).x - arc_cx) * perp_x + ((p).z - arc_cz) * perp_z)
+
+    /*
+     * How much overlap the best-placed delay can possibly achieve, so the sweep
+     * can reject candidates that score well only because they barely overlap.
+     *
+     * Without this the sweep's winner was a delay of 54 on 13 paired cycles: it
+     * pushes almost the whole graphic past the end of the swing, leaving a
+     * handful of cycles that happen to agree, and a mean over a handful beats a
+     * mean over fifty every time. The tail of a sweep is where that failure
+     * lives, and it looks exactly like a result.
+     */
+    int max_paired = 0;
+    for( int d = 0; d <= body_total; d++ )
+    {
+        int paired = 0;
+        for( int t = 0; t < body_total && t < MAX_CYCLES; t++ )
+        {
+            int b = frame_at_cycle(body_delays, body_frames, t);
+            int f = frame_at_cycle(spot_delays, spot_frames, t - d);
+            if( b >= 0 && f >= 0 && arc[f].visible_faces )
+                paired++;
+        }
+        if( paired > max_paired )
+            max_paired = paired;
+    }
+    int min_paired = (max_paired * 3) / 5;
+
+    printf("\ndelay sweep — mean ALONG-axis mismatch, which is timing alone\n");
+    printf("(candidates overlapping fewer than %d of a possible %d cycles are not judged)\n",
+           min_paired, max_paired);
+    printf("delay  paired  along err  across (const)  total gap\n");
     int best_delay = delay;
     double best_score = 1e18;
     int best_paired = 0;
     for( int d = 0; d <= body_total; d++ )
     {
-        double sum = 0;
+        double along = 0, across = 0, total = 0;
         int paired = 0;
         for( int t = 0; t < body_total && t < MAX_CYCLES; t++ )
         {
@@ -887,14 +1028,14 @@ main(int argc, char** argv)
             int f = frame_at_cycle(spot_delays, spot_frames, t - d);
             if( b < 0 || f < 0 || arc[f].visible_faces == 0 )
                 continue;
-            sum += dist_xz(blade[b].head, arc[f].centroid);
+            along += fabs(ALONG(blade[b].head) - ALONG(arc[f].centroid));
+            across += fabs(ACROSS(blade[b].head) - ACROSS(arc[f].centroid));
+            total += dist_xz(blade[b].head, arc[f].centroid);
             paired++;
         }
-        /* A candidate has to overlap the swing for at least half of the
-         * graphic's own lit span to be judged at all. */
-        if( paired < 4 )
+        if( paired < min_paired )
             continue;
-        double mean = sum / paired;
+        double mean = along / paired;
         if( mean < best_score )
         {
             best_score = mean;
@@ -902,10 +1043,115 @@ main(int argc, char** argv)
             best_paired = paired;
         }
         if( d % 4 == 0 || d == delay )
-            printf("%5d  %6d  %8.1f  %s\n", d, paired, mean, d == delay ? "<- shipped" : "");
+            printf("%5d  %6d  %9.1f  %14.1f  %9.1f%s\n", d, paired, mean, across / paired,
+                   total / paired, d == delay ? "  <- shipped" : "");
     }
-    printf("\nbest delay %d (%d paired cycles, mean gap %.1f units)\n", best_delay, best_paired,
-           best_score);
+    printf("\nbest delay %d (%d paired cycles, mean along-axis error %.1f units)\n", best_delay,
+           best_paired, best_score);
+
+    /*
+     * A landmark check, because the sweep above is a mean over the whole
+     * animation and a mean can be minimised by a candidate that is wrong
+     * everywhere by a similar amount.
+     *
+     * Two events, each identified independently and each checkable by hand
+     * against the two frame tables printed earlier:
+     *
+     *   the strike        the largest pose change in the swing — the cycle at
+     *                     which the blade snaps from one side of the player to
+     *                     the other
+     *   the full arc      the first cycle of the graphic's own timeline at
+     *                     which every one of its segments is lit
+     *
+     * A streak whose brightest moment is not the moment of the strike is late
+     * or early by exactly the difference, and that difference is the delay.
+     * Agreement between this and the sweep is the reason to believe either.
+     */
+    {
+        int arc_peak_own = -1;
+        int arc_peak_lit = 0;
+        int acc = 0;
+        for( int f = 0; f < spot_frames; f++ )
+        {
+            if( arc[f].visible_faces > arc_peak_lit )
+            {
+                arc_peak_lit = arc[f].visible_faces;
+                arc_peak_own = acc;
+            }
+            acc += spot_delays[f] > 0 ? spot_delays[f] : 1;
+        }
+        /*
+         * When the graphic first shows anything at all, in its own timeline.
+         * Not frame 0: this sequence holds every segment fully transparent for
+         * its first four frames, so a graphic "played at delay 16" does not
+         * appear until cycle 26, and reading the delay as the moment of
+         * appearance is wrong by those ten cycles.
+         */
+        int arc_first_own = -1;
+        acc = 0;
+        for( int f = 0; f < spot_frames; f++ )
+        {
+            if( arc[f].visible_faces && arc_first_own < 0 )
+                arc_first_own = acc;
+            acc += spot_delays[f] > 0 ? spot_delays[f] : 1;
+        }
+
+        /*
+         * When the blade first comes in front of the player.
+         *
+         * Forward is -z at yaw 0. "In front" is taken as the first cycle past
+         * halfway to the blade's own deepest forward reach, rather than any
+         * absolute distance, because how far in front a weapon reaches is a
+         * property of the weapon.
+         */
+        double deepest = 0;
+        for( int b = 0; b < body_frames; b++ )
+            if( blade[b].head.z < deepest )
+                deepest = blade[b].head.z;
+        /*
+         * The crossing that counts is the one AFTER the wind-up, not the first
+         * one in the sequence: the blade already starts slightly forward, so
+         * "the first cycle past halfway" fires at cycle 1 and reports a
+         * negative delay. Find the furthest-back cycle first — the top of the
+         * wind-up — and take the crossing after that.
+         */
+        int back_cycle = 0;
+        double furthest_back = -1e18;
+        for( int t = 0; t < body_total && t < MAX_CYCLES; t++ )
+        {
+            int b = frame_at_cycle(body_delays, body_frames, t);
+            if( b >= 0 && blade[b].head.z > furthest_back )
+            {
+                furthest_back = blade[b].head.z;
+                back_cycle = t;
+            }
+        }
+        int front_cycle = -1;
+        for( int t = back_cycle + 1; t < body_total && t < MAX_CYCLES; t++ )
+        {
+            int b = frame_at_cycle(body_delays, body_frames, t);
+            if( b >= 0 && blade[b].head.z <= deepest * 0.5 )
+            {
+                front_cycle = t;
+                break;
+            }
+        }
+
+        printf("\nlandmark check — two events, each checkable by hand in the tables above\n");
+        if( front_cycle >= 0 && arc_first_own >= 0 )
+            printf("  the wind-up peaks at cycle %d (blade furthest back, z %+.0f) and the blade\n"
+                   "  comes in front at cycle %d (z past %.0f, half its %.0f reach); the graphic\n"
+                   "  first shows anything %d cycles in, so they meet at delay %d\n",
+                   back_cycle, furthest_back, front_cycle, deepest * 0.5, deepest, arc_first_own,
+                   front_cycle - arc_first_own);
+        if( arc_peak_own >= 0 && peak_travel_cycle >= 0 )
+            printf("  the strike (largest pose change, %.0f units) is at cycle %d;\n"
+                   "  the graphic is fully lit %d cycles in (%d/%d segments), so they meet at "
+                   "delay %d\n",
+                   peak_travel, peak_travel_cycle, arc_peak_own, arc_peak_lit, arc[0].total_faces,
+                   peak_travel_cycle - arc_peak_own);
+        printf("  the along-axis sweep independently chose %d; shipped is %d\n", best_delay, delay);
+    }
 
     /* ---- the leftover translation ---------------------------------------- */
 
@@ -938,20 +1184,47 @@ main(int argc, char** argv)
         if( paired )
         {
             double dx = sx / paired, dy = sy / paired, dz = sz / paired;
+            /*
+             * The across-axis component is the part that is genuinely a rigid
+             * offset; the along-axis remainder is whatever the chosen delay
+             * could not remove, and moving the asset by it would trade a timing
+             * error for a placement error. So the recommendation is the
+             * across-axis component projected back into model x and z, and the
+             * raw mean is printed beside it to show how much was discarded.
+             */
+            struct Vec3 mean = { dx, dy, dz };
+            double across = mean.x * perp_x + mean.z * perp_z;
+            double rec_dx = across * perp_x;
+            double rec_dz = across * perp_z;
+
             printf("\nresidual offset at delay %d, averaged over %d cycles:\n", best_delay, paired);
-            printf("  dx %+7.1f units (%+.2f tiles)   %s\n", dx, dx / 128.0,
-                   dx < 0 ? "graphic must move to the player's RIGHT"
-                          : "graphic must move to the player's LEFT");
-            printf("  dz %+7.1f units (%+.2f tiles)   %s\n", dz, dz / 128.0,
-                   dz < 0 ? "graphic must move FORWARD" : "graphic must move BACK");
-            printf("  dy %+7.1f units                 %s\n", dy,
-                   "model y is negative-up: spotanim_pl height += this");
+            printf("  raw mean       dx %+7.1f  dz %+7.1f  dy %+7.1f\n", dx, dz, dy);
+            printf("  across-axis    %+7.1f units (%+.2f tiles) -> dx %+.1f, dz %+.1f\n", across,
+                   across / 128.0, rec_dx, rec_dz);
+            printf("  along-axis     %+7.1f units, left to the delay rather than the asset\n",
+                   mean.x * axis_x + mean.z * axis_z);
+            /*
+             * Height is the one term that INVERTS. The merge translates the
+             * graphic by -height in y, so the drawn y is spot_y - height; to
+             * move the drawn y by dy the height must change by -dy. Adding dy
+             * moves it the wrong way by twice the error, which reads as the
+             * knob being backwards rather than as a sign slip.
+             */
+            printf("  height         %d -> %d (dy %+.1f, and height subtracts)\n", height,
+                   height - (int)(dy + (dy < 0 ? -0.5 : 0.5)), dy);
+            printf("\n  %s\n", rec_dx < 0 ? "the graphic must move to the player's RIGHT (-x)"
+                                          : "the graphic must move to the player's LEFT (+x)");
+            printf("  %s\n", rec_dz < 0 ? "and FORWARD (-z, the way they face at yaw 0)"
+                                        : "and BACK (+z)");
             printf("\nto apply the lateral part:  python3 tools/shift_halberd_arc.py %d\n",
-                   (int)(dx + (dx < 0 ? -0.5 : 0.5)));
-            printf("to apply the height part:   spotanim_pl(..., %d, %d)\n",
-                   height + (int)(dy + (dy < 0 ? -0.5 : 0.5)), best_delay);
+                   (int)(rec_dx + (rec_dx < 0 ? -0.5 : 0.5)));
+            printf("  (that script only moves x; a dz of %+.0f needs the z stream too)\n", rec_dz);
+            printf("to apply the timing and height: spotanim_pl(..., %d, %d)\n",
+                   height - (int)(dy + (dy < 0 ? -0.5 : 0.5)), best_delay);
         }
     }
+#undef ALONG
+#undef ACROSS
 
     /* ---- pictures --------------------------------------------------------- */
 
