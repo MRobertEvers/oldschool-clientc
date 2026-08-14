@@ -9262,6 +9262,20 @@ mock230_script_command(
     case SS_OP_LAST_SLOT:
         SSVM_PushInt(state, player->last_slot);
         return 1;
+    /*
+     * Which sub-option of an interface op fired — the `subaction=<op>,<n>,
+     * <name>` rows a rev-230 obj record can hang off one op (Xeric's talisman
+     * "Rub" has five, the Slayer ring four).
+     *
+     * The value has been decoded off IF_SUBOP into `player->last_subop` since
+     * that packet was wired (`handle_if_buttonx_packet`), and reset to -1
+     * between dispatches; this is only the read side, which content had no way
+     * to reach. -1 means the op carried no submenu, which is every ordinary
+     * `opheldN`.
+     */
+    case SS_OP_LAST_SUBOP:
+        SSVM_PushInt(state, player->last_subop);
+        return 1;
     case SS_OP_LAST_TARGETSLOT:
         SSVM_PushInt(state, player->last_targetslot);
         return 1;
