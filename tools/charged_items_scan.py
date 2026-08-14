@@ -506,9 +506,14 @@ FAMILY_DATA = {
         charge_source="Gryphon feather, 1 charge each; Uncharge returns unused feathers",
         drain_event="1 charge per 25 Hunter catches while worn and charged (+4 Hunter boost instead of +2)",
         status="charges_only",
-        note="No single centralized 'catch succeeded' choke point exists in skill_hunter/scripts/ (each trap "
-             "type is its own file with its own catch logic) -- unlike combat's one swing hook, this would "
-             "need touching ~15 separate files to wire.",
+        note="general/scripts/enchanted_jewellry/horn_of_plenty.rs2/.constant/.varp now implements charge "
+             "storage, Toggle (account-wide, no second real obj id to spend on the per-item boolean), and "
+             "Check. Uncharge is a documented no-op message (the `gryphon feather` obj this recipe needs "
+             "does not exist anywhere in this cache, checked directly, so there is nothing to charge with "
+             "or refund). Still charges_only: no single centralized 'catch succeeded' choke point exists in "
+             "skill_hunter/scripts/ (each of ~16 trap-type files has its own catch logic) -- unlike "
+             "combat's one player_hit_npc_prepare hook this session's weapon/armour drains all share, this "
+             "would need touching every trap file individually.",
     ),
     "Iban's staff": dict(
         storage="item_var", depletion="none", max_charges=120,
@@ -792,7 +797,16 @@ FAMILY_DATA = {
         storage="item_var", depletion="none", max_charges=10,
         charge_source="Up to 10 pufferfish used on the trident",
         drain_event="1 charge consumed per 'Channel' use (regain underwater breath)",
-        status="charges_only", note="No implementation found.",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/merfolk_trident.rs2/.constant. The charge gate/drain "
+             "itself is real and tested (Channel checks charges, drains exactly 1, refuses at 0) -- the "
+             "downstream effect it triggers (restoring underwater breath) is a documented no-op since this "
+             "tree has no generic underwater-breath meter at all (only quest-scripted one-off diving "
+             "scenes), the same 'the charge mechanic is complete even though a secondary bonus effect "
+             "isn't' scope line this session draws for several other items (Arclight's infusion meter, "
+             "Tonalztics' auto-attack range). Charging is NOT implemented: the `pufferfish` obj this recipe "
+             "needs does not exist anywhere in this cache. Spawn a merfolk_trident with charges set "
+             "directly to test.",
     ),
     "Pendant of ates": dict(
         storage="item_var", depletion="revert", max_charges=1000,
@@ -1450,8 +1464,20 @@ FAMILY_DATA = {
     "Slayer ring": dict(
         storage="id_ladder", depletion="degrade_step", max_charges=8,
         charge_source="Made from Enchanted gem via the Slayer ring recipe",
-        drain_event="1 charge per teleport (slayer dungeons / Wilderness rub-teleport)",
-        status="charges_only", note="Ladder exists; teleport-drain binding not yet wired to the shared library.",
+        drain_event="1 charge per teleport (5 Slayer dungeons via Rub, no Wilderness rub-teleport on this "
+                     "cache's own subaction list)",
+        status="charges_only",
+        note="general/scripts/enchanted_jewellry/slayer_ring.rs2 now implements the 8-tier degrade ladder "
+             "(mirroring ring_of_dueling.rs2's own pre-existing switch shape) and Check, both directly "
+             "tested. Still charges_only: none of the five teleport destinations (Stronghold Slayer Cave/ "
+             "Slayer Tower/Fremennik Slayer Dungeon/Tarn's Lair/Dark Beasts) has a coordinate groundable "
+             "against real spawn data in this tree (only one weak single-NPC match turned up for one of "
+             "the five, not enough to trust), so the degrade step this file implements is currently "
+             "unreachable through real play -- guarded to a clean refusal instead. Crafting a ring at all "
+             "is also unimplemented: the `enchanted_gem` obj this recipe needs, and the obj a ring reverts "
+             "to at 0 charges, does not exist anywhere in this cache (checked directly under several likely "
+             "names) -- reverting at 0 deletes the ring outright rather than guessing a gem obj id. Spawn a "
+             "slayer_ring_8 to test the degrade ladder.",
     ),
 }
 
