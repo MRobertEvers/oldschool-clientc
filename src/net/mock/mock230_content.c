@@ -1923,17 +1923,34 @@ inv_config_key(
     }
     if( strcmp(key, "stackall") == 0 )
     {
-        /* Recorded for completeness; nothing reads it yet — stacking policy on
-         * a buy/sell move is `mock230_container_add`'s own `assure_full` rule,
-         * unaffected by this flag in the reference either. */
+        /* This IS the stack policy `mock230_container_add` says it is missing —
+         * LostCity's `InvType.stackType`, authored here because the cache's inv
+         * config carries only size. It used to be parsed and dropped, which put
+         * the seed and the add path in disagreement: `mock230_shop_seed` writes
+         * `stock1=pot_empty,5,10` as one slot of five unstackable pots, and
+         * selling a pot back then opened a *second* pot cell. */
+        def->stackall = (strcmp(value, "yes") == 0);
         return;
     }
     if( strcmp(key, "size") == 0 )
     {
-        CONTENT_ERROR(
-            "%s: inv size is a cache fact (config group 5); `size=%s` is inert here — see "
-            "fields/inv.ini\n",
-            where, value);
+        /* A cache-known inv already has a size (config group 5) and restating
+         * it here would drift silently out of sync with the real fact — kept
+         * as an error for that case. A `pack/inv.alloc` id has no such fact:
+         * this is content declaring the one thing the allocator can't, for a
+         * shop whose cache snapshot never packed its inv (docs/SHOPS_PLAN.md
+         * §8.5). mock230_container_resolve falls back to it only when
+         * mock230_bank_inv_size comes back empty, so a real cache size still
+         * always wins. */
+        if( mock230_bank_inv_size((int)def->inv_id) > 0 )
+        {
+            CONTENT_ERROR(
+                "%s: inv size is a cache fact (config group 5); `size=%s` is inert here — see "
+                "fields/inv.ini\n",
+                where, value);
+            return;
+        }
+        mock230_shop_def_set_size(def, atoi(value));
         return;
     }
     if( strncmp(key, "stock", 5) == 0 && key[5] >= '0' && key[5] <= '9' )

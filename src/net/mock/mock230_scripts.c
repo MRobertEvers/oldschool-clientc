@@ -4163,8 +4163,11 @@ mock230_script_command(
             else
             {
                 remaining -= items[i].count;
-                items[i].obj_id = -1;
-                items[i].count = 0;
+                /* Not a raw clear: a shop's baseline slot empties to a count of
+                 * 0 and stays (mock230_container_clear_slot). It marks the slot
+                 * itself, so the dirty call below is redundant there and
+                 * harmless — the registry's mark is idempotent. */
+                mock230_container_clear_slot(container_row(srv, player, values[0]), i);
             }
             /*
              * Through the registry. What was here read "backpack, else worn",
@@ -4207,8 +4210,9 @@ mock230_script_command(
         }
         if( values[1] < 0 || values[1] >= slots )
             return 1;
-        items[values[1]].obj_id = -1;
-        items[values[1]].count = 0;
+        /* A shop's baseline slot empties to a count of 0 and stays; see
+         * mock230_container_clear_slot. */
+        mock230_container_clear_slot(container_row(srv, player, values[0]), (int)values[1]);
         /* Through the registry, for the reason inv_del's comment gives. */
         container_dirty(srv, player, values[0], (int)values[1]);
         return 1;
@@ -8812,7 +8816,13 @@ mock230_script_command(
         if( limit > 0 && limit < slots )
             slots = (int)limit;
         {
-            if( mock230_objinfo((int)obj_id)->stackable )
+            /* The CONTAINER's stack policy, not the obj record's alone: a shop
+             * stacks everything (`stackall=yes`), so asking for one free slot
+             * per pot refused a sale into a nearly-full store that in fact had
+             * room in the pot cell it already held. `mock230_container_add` has
+             * always used the container's rule; this now agrees with it. */
+            if( mock230_container_stacks_obj(
+                    container_row(srv, player, inv_id), (int)obj_id) )
             {
                 int has_stack = 0;
 

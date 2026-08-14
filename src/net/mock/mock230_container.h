@@ -164,6 +164,35 @@ mock230_container_set(
     int obj_id,
     int count);
 
+/**
+ * Take everything out of one slot — the removal paths' "this cell is now
+ * empty", and NOT a synonym for `mock230_container_set(c, slot, -1, 0)`.
+ *
+ * A shop's baseline slot stays put at a count of 0 (LostCity's `stockobj`), so
+ * an out-of-stock line still draws, still prices, and can still restock. Every
+ * other slot is cleared outright. See the body for the three separate bugs the
+ * raw `obj_id = -1` caused in a shop.
+ */
+void
+mock230_container_clear_slot(
+    struct Mock230Container* container,
+    int slot);
+
+/**
+ * Does `obj_id` occupy one slot in THIS container however many there are?
+ *
+ * The obj record's own `stackable` OR the container's policy — LostCity's
+ * `InvType.stackType`, which for a shop comes out of its `.inv`
+ * (`stackall=yes`) and for the bank and collection log is named in
+ * mock230_ids.h. `mock230_container_add` has always applied this; the space
+ * tests used to read the obj record alone and so disagreed with it about every
+ * unstackable in a stacking container.
+ */
+int
+mock230_container_stacks_obj(
+    const struct Mock230Container* container,
+    int obj_id);
+
 /** `inv_getvar` — 0 when the slot is empty or the key is unset. */
 int
 mock230_item_get_var(

@@ -191,8 +191,13 @@ mock230_container_resolve(
         return row;
 
     /* Create on first use, the way `Player.getInventory` does. The size comes
-     * from the cache; an inv it does not size is not a container. */
+     * from the cache; an inv it does not size falls back to a shop's own
+     * declared `size=` (docs/SHOPS_PLAN.md §8.5 — a `pack/inv.alloc` id for a
+     * region this cache snapshot never packed a real inv for). Still not a
+     * container if neither names one. */
     slots = mock230_bank_inv_size((int)inv_id);
+    if( slots <= 0 )
+        slots = mock230_shop_content_size(inv_id);
     if( slots <= 0 )
         return NULL;
 
@@ -508,8 +513,67 @@ always_stacks(const struct Mock230Container* container)
 {
     const struct Mock230Ids* ids = mock230_ids();
 
+    /* A shop says so in its own `.inv` (`stackall=yes`), which is the real
+     * `stackType` field rather than a name this file had to invent. The two
+     * hardcoded ids below are the containers that have no `.inv` to say it in. */
+    if( mock230_shop_stackall(container->inv_id) )
+        return 1;
     return container->inv_id == ids->inv_bank ||
            container->inv_id == ids->inv_collection_log;
+}
+
+int
+mock230_container_stacks_obj(
+    const struct Mock230Container* container,
+    int obj_id)
+{
+    if( obj_id < 0 )
+        return 0;
+    if( mock230_objinfo(obj_id)->stackable )
+        return 1;
+    return container && always_stacks(container);
+}
+
+/*
+ * Empty one slot — and a shop's baseline slot empties to ZERO, not to nothing.
+ *
+ * This is LostCity's `stockobj`, the one thing `mock230_container_add`'s header
+ * says was left out of the `Inventory` port. Buying a store's last pot used to
+ * run `items[slot].obj_id = -1`, and three things followed from that one line:
+ *
+ *   1. The cell vanished from the shop. `shop_main_update` (clientscript 1076)
+ *      does `cc_sethide(true)` on a slot whose `inv_getobj` is null, so an
+ *      out-of-stock line is not drawn greyed at 0 — it is not drawn at all.
+ *   2. It never came back. `mock230_shop_restock_tick` skips `obj_id < 0`
+ *      because it reads the baseline off the obj that is *in* the slot, so the
+ *      slot it needed to refill no longer named an obj. A bought-out line was
+ *      gone until the next server boot re-seeded it.
+ *   3. Its price was lost with it. `~price_mod` scales off `inv_stockbase`
+ *      against current stock, so the item could not be valued or re-sold at the
+ *      right price even though the shop still nominally traded it.
+ *
+ * Only baseline lines survive at zero. A non-baseline slot — what a player sold
+ * into an `allstock=yes` general store — is genuinely gone when it hits zero,
+ * which is what `allstock`'s own one-a-minute decay is for.
+ */
+void
+mock230_container_clear_slot(
+    struct Mock230Container* container,
+    int slot)
+{
+    int obj_id;
+
+    if( !container || !container->used || !container->items )
+        return;
+    if( slot < 0 || slot >= container->slots )
+        return;
+    obj_id = container->items[slot].obj_id;
+    if( obj_id >= 0 && mock230_shop_has_stock_line(container->inv_id, obj_id) )
+    {
+        mock230_container_set(container, slot, obj_id, 0);
+        return;
+    }
+    mock230_container_set(container, slot, -1, 0);
 }
 
 int

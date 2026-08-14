@@ -10575,34 +10575,6 @@ app_world_spawn_spotanim_now(
         spot->seq,
         lifetime,
         delay);
-    { /* TEMP diagnostic: model extents of the spawned spotanim. */
-        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
-        struct ToriDraw_Model* m = el && el->model.kind == TORIDRAWMK_MODEL
-                                       ? el->model.u.model.model
-                                       : NULL;
-        if( m )
-        {
-            int minx = 1 << 30, maxx = -(1 << 30);
-            int miny = 1 << 30, maxy = -(1 << 30);
-            int minz = 1 << 30, maxz = -(1 << 30);
-            for( int v = 0; v < m->vertex_count; v++ )
-            {
-                int x = m->vertices_x[v], y = m->vertices_y[v], z = m->vertices_z[v];
-                if( x < minx ) minx = x;
-                if( x > maxx ) maxx = x;
-                if( y < miny ) miny = y;
-                if( y > maxy ) maxy = y;
-                if( z < minz ) minz = z;
-                if( z > maxz ) maxz = z;
-            }
-            fprintf(
-                stderr,
-                "spawn_spotanim bounds: verts=%d x=[%d,%d] y=[%d,%d] z=[%d,%d] "
-                "(tiles: %.2f x %.2f)\n",
-                m->vertex_count, minx, maxx, miny, maxy, minz, maxz,
-                (maxx - minx) / 128.0, (maxz - minz) / 128.0);
-        }
-    }
     app_sync_textures(app);
     app->need_redraw = 1;
 }

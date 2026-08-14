@@ -91,6 +91,24 @@ mock230_shop_is_shared(int32_t inv_id)
     return def && def->shared;
 }
 
+void
+mock230_shop_def_set_size(
+    struct Mock230ShopDef* def,
+    int32_t size)
+{
+    if( !def )
+        return;
+    def->content_size = size;
+}
+
+int
+mock230_shop_content_size(int32_t inv_id)
+{
+    const struct Mock230ShopDef* def = find_def(inv_id);
+
+    return def ? def->content_size : 0;
+}
+
 int
 mock230_shop_stockbase(
     int32_t inv_id,
@@ -112,6 +130,29 @@ mock230_shop_allstock(int32_t inv_id)
     const struct Mock230ShopDef* def = find_def(inv_id);
 
     return def ? def->allstock : 0;
+}
+
+int
+mock230_shop_stackall(int32_t inv_id)
+{
+    const struct Mock230ShopDef* def = find_def(inv_id);
+
+    return def ? def->stackall : 0;
+}
+
+int
+mock230_shop_has_stock_line(
+    int32_t inv_id,
+    int32_t obj_id)
+{
+    const struct Mock230ShopDef* def = find_def(inv_id);
+
+    if( !def )
+        return 0;
+    for( int i = 0; i < def->stock_count; i++ )
+        if( def->stock[i].obj_id == obj_id )
+            return 1;
+    return 0;
 }
 
 int
@@ -145,7 +186,13 @@ mock230_shop_seed(struct Mock230Server* srv)
             continue;
         }
         for( int s = 0; s < def->stock_count; s++ )
+        {
             mock230_container_set(row, s, def->stock[s].obj_id, def->stock[s].baseline);
+            if( def->inv_id == 2002 && getenv("MOCK230_SHOP_SEED_DEBUG") )
+                fprintf(stderr, "SHOPSEED inv=2002 slots=%d slot=%d obj=%d baseline=%d row=(%d,%d)\n",
+                        row->slots, s, def->stock[s].obj_id, def->stock[s].baseline,
+                        row->items[s].obj_id, row->items[s].count);
+        }
         /* Freshly seeded to its own baseline: nothing has changed from the
          * player's point of view yet, and marking it dirty here would just
          * cost the first bind's own full update a duplicate send. */

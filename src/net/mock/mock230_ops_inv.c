@@ -138,7 +138,10 @@ container_del(
         else
         {
             remaining -= row->items[i].count;
-            mock230_container_set(row, i, -1, 0);
+            /* Not `set(row, i, -1, 0)`: a shop's baseline slot empties to a
+             * count of 0 and stays. This is the path a buy takes
+             * (`inv_moveitem_uncert(%shop, inv, $obj, 1)`). */
+            mock230_container_clear_slot(row, i);
         }
     }
     return count - remaining;

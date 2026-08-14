@@ -1255,64 +1255,6 @@ World_CycleRegisterPainterDynamics(struct World* world)
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
-        if( getenv("TORIRS_SPOT_BOUNDS") )
-        { /* TEMP diagnostic: animated extents of a map spotanim, in tiles. */
-            struct ToriDraw_SceneElement* el =
-                ToriDraw_SceneElementGet(world->scene, s->element_id);
-            struct ToriDraw_Model* m =
-                el && el->model.kind == TORIDRAWMK_MODEL ? el->model.u.model.model : NULL;
-            if( m )
-            {
-                int minx = 1 << 30, maxx = -(1 << 30);
-                int miny = 1 << 30, maxy = -(1 << 30);
-                int minz = 1 << 30, maxz = -(1 << 30);
-                for( int v = 0; v < m->vertex_count; v++ )
-                {
-                    int x = m->vertices_x[v], y = m->vertices_y[v], z = m->vertices_z[v];
-                    if( x < minx ) minx = x;
-                    if( x > maxx ) maxx = x;
-                    if( y < miny ) miny = y;
-                    if( y > maxy ) maxy = y;
-                    if( z < minz ) minz = z;
-                    if( z > maxz ) maxz = z;
-                }
-                fprintf(stderr,
-                        "spot_bounds: cycle=%d el=%d tile=%d,%d x=[%d,%d] y=[%d,%d] "
-                        "z=[%d,%d] span=%.2fx%.2f tiles, top=%.2f tiles up\n",
-                        world->cycle, s->element_id, grid_x, grid_z, minx, maxx, miny, maxy,
-                        minz, maxz, (maxx - minx) / 128.0, (maxz - minz) / 128.0,
-                        -miny / 128.0);
-            }
-        }
-        { /* TEMP A/B: pad the map-spotanim footprint by N tiles each way. */
-            static int pad_init = 0;
-            static int pad = 0;
-            int sx, sz, size;
-            if( !pad_init )
-            {
-                char const* e = getenv("TORIRS_SPOT_PAD");
-                pad_init = 1;
-                pad = e ? (int)strtol(e, NULL, 0) : 0;
-            }
-            sx = grid_x - pad;
-            sz = grid_z - pad;
-            size = 2 * pad + 1;
-            if( sx < 0 ) { size += sx; sx = 0; }
-            if( sz < 0 ) { size += sz; sz = 0; }
-            if( sx + size > world->_scene_size ) size = world->_scene_size - sx;
-            if( sz + size > world->_scene_size ) size = world->_scene_size - sz;
-            if( size < 1 ) size = 1;
-            painter_add_normal_scenery(
-                world->painter,
-                sx,
-                sz,
-                local_level,
-                s->element_id,
-                size,
-                size,
-                ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id));
-            continue;
-        }
         painter_add_normal_scenery(
             world->painter,
             grid_x,

@@ -23482,6 +23482,7 @@ mock230_world_selftest(void)
                      */
                     {
                         int arrived = 0;
+                        int ticks = 0;
                         int const start_x = bx + 2;
                         int const start_z = bz + 2;
 
@@ -23507,6 +23508,7 @@ mock230_world_selftest(void)
                             if( distance_to_rect(player->x, player->z, bx, bz, big, big) == 1 )
                             {
                                 arrived = 1;
+                                ticks = t + 1;
                                 break;
                             }
                         }
@@ -23519,6 +23521,37 @@ mock230_world_selftest(void)
                                        big, player->x, player->z,
                                        distance_to_rect(player->x, player->z, bx, bz, big, big),
                                        bx, bz, big, big, start_x, start_z);
+
+                        /*
+                         * WHERE it left, and HOW LONG it took.
+                         *
+                         * "Got out within 24 ticks" is satisfied by the random
+                         * cardinal step-off too — it wanders off the footprint
+                         * eventually — so on its own the check above cannot go
+                         * red for the thing this flag changes. Under
+                         * `under_target_routes_out` the answer is exact and
+                         * worth stating: dead centre of a 5x5 ties all four
+                         * faces at 3, and the W/E/S/N expansion order resolves
+                         * the tie WEST. Three tiles due west, so three ticks
+                         * walking or two running (2 + 1), never more.
+                         *
+                         * Left conditional rather than made unconditional: with
+                         * the flag off the random walk is the stated behaviour,
+                         * and a leg that failed for doing what its era asks
+                         * would be wrong about which of the two is the bug.
+                         */
+                        if( arrived && mock230_scene_features()->under_target_routes_out )
+                        {
+                            SELFTEST_CHECK(player->x == bx - 1 && player->z == start_z,
+                                           "routing out from the centre of a size-%d npc must "
+                                           "leave by the nearest face, west on a four-way tie: "
+                                           "expected %d,%d, got %d,%d",
+                                           big, bx - 1, start_z, player->x, player->z);
+                            SELFTEST_CHECK(ticks <= 3,
+                                           "routing out of a size-%d npc from dead centre is 3 "
+                                           "tiles, so 3 ticks walking or 2 running; took %d",
+                                           big, ticks);
+                        }
                         mock230_scene_change_occupancy(0, bx, bz, big, COLL_FLAG_NPC_OCC, 0);
                         mock230_world_interaction_clear_at(player);
                         steps_clear(player);

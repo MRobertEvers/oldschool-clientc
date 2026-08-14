@@ -734,28 +734,6 @@ painter_paint_world3d(
                 some_drawn = 1;
                 element = &painter->elements[si];
                 assert(element->kind == PNTRELEM_SCENERY);
-                {
-                    /* TEMP diagnostic: report the occluder verdict for one tile. */
-                    static int dbg_init = 0;
-                    static int dbg_x = -1, dbg_z = -1;
-                    if( !dbg_init )
-                    {
-                        char const* e = getenv("TORIRS_OCCL_DEBUG_TILE");
-                        dbg_init = 1;
-                        if( e )
-                            sscanf(e, "%d,%d", &dbg_x, &dbg_z);
-                    }
-                    if( dbg_x == (int)element->sx && dbg_z == (int)element->sz )
-                        fprintf(stderr,
-                                "occl: tile=%d,%d h=%d hidden=%d\n",
-                                (int)element->sx, (int)element->sz,
-                                element->_scenery.model_height,
-                                painter->occluders && scene_occluders_footprint_hidden(
-                                    painter->occluders, occlusion_level, (int)element->sx,
-                                    (int)element->sz, element->_scenery.size_x,
-                                    element->_scenery.size_z,
-                                    element->_scenery.model_height));
-                }
                 if( !(painter->occluders &&
                       scene_occluders_footprint_hidden(
                           painter->occluders,

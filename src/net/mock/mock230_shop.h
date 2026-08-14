@@ -36,6 +36,9 @@ struct Mock230ShopDef
     uint8_t shared;   /* scope=shared: a world container, not per-player */
     uint8_t restock;  /* baseline items tick back toward `baseline` */
     uint8_t allstock; /* non-baseline slots decay to 0, one per minute */
+    uint8_t stackall; /* every obj stacks here, whatever its own record says */
+    int32_t content_size; /* `size=` for an inv the cache doesn't size — see
+                            * mock230_shop_content_size */
     int stock_count;
     struct Mock230ShopStock stock[MOCK230_SHOP_STOCK_MAX];
 };
@@ -66,6 +69,24 @@ mock230_shop_def(int32_t inv_id);
 int
 mock230_shop_is_shared(int32_t inv_id);
 
+/**
+ * Set from a shop `.inv`'s `size=N` — only meaningful when the inv has no
+ * cache size of its own (a `pack/inv.alloc` id with nothing in config group
+ * 5 behind it, e.g. a shop for a region this cache snapshot never packed).
+ * `inv_config_key` in mock230_content.c is the sole writer; it checks
+ * `mock230_bank_inv_size` first and refuses to shadow a real cache fact.
+ */
+void
+mock230_shop_def_set_size(
+    struct Mock230ShopDef* def,
+    int32_t size);
+
+/** `size=` for `inv_id` if one was declared and the inv has no cache size —
+ *  0 otherwise. `mock230_container_resolve`'s fallback when
+ *  `mock230_bank_inv_size` comes back empty. */
+int
+mock230_shop_content_size(int32_t inv_id);
+
 /** `SS_OP_INV_STOCKBASE` — baseline count for `obj_id` in `inv_id`'s
  *  definition, or -1 when the obj has no declared baseline (a non-baseline
  *  slot in an `allstock=yes` general store). */
@@ -77,6 +98,37 @@ mock230_shop_stockbase(
 /** `SS_OP_INV_ALLSTOCK`. */
 int
 mock230_shop_allstock(int32_t inv_id);
+
+/**
+ * `stackall=yes` — every obj in this inv occupies one slot however many there
+ * are, whatever the obj record says about stackability.
+ *
+ * This is the stack policy `mock230_container_add`'s own comment says is
+ * missing (LostCity reads `stackType` out of its server-side `inv.dat`, and
+ * this cache's inv config carries only size). It is not missing for shops: the
+ * flag is in every generated `.inv` and was being parsed and thrown away.
+ *
+ * A shop needs it because its seed already assumes it — `mock230_shop_seed`
+ * writes `stock1=pot_empty,5,10` as ONE slot holding five pots, and pots are
+ * not stackable — so without it the container disagrees with itself the first
+ * time anything is added: selling a pot back to a store that already shows
+ * "Pot 5" opened a *second* pot cell instead of making it six.
+ */
+int
+mock230_shop_stackall(int32_t inv_id);
+
+/**
+ * Is `obj_id` one of `inv_id`'s baseline stock lines?
+ *
+ * `mock230_shop_stockbase` cannot answer this — a legitimate baseline of 0 and
+ * "no such line" are both -1 there, and the general stores do declare
+ * zero-baseline lines. This is the predicate `mock230_container_clear_slot`
+ * needs: a baseline slot is emptied to a count of 0 rather than removed.
+ */
+int
+mock230_shop_has_stock_line(
+    int32_t inv_id,
+    int32_t obj_id);
 
 /** How many distinct shop definitions were parsed, for the boot log. */
 int
