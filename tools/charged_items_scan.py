@@ -991,8 +991,14 @@ FAMILY_DATA = {
         charge_source="Death runes used on it, 10 charges per rune",
         drain_event="1 charge per demonic ashes auto-purified on npc-kill drop while carried (toggle: Activity)",
         status="charges_only",
-        note="Wiki states the int32 max literally. No on-npc-death auto-pickup/auto-consume subsystem exists "
-             "anywhere in this tree -- bury_bone.rs2/bone_xp.rs2 are manual-only, no drop-interception hook exists.",
+        note="general/scripts/enchanted_jewellry/ash_sanctifier.rs2/.constant/.varp now implements charge "
+             "storage, Check, the Activity toggle (account-wide player_varp -- there is no second real obj "
+             "id to spend on a per-item boolean the way the charge count itself uses the item's own id), "
+             "and Uncharge, all independently correct and tested. Left as charges_only rather than flipped "
+             "because the actual charge-CONSUMPTION event -- auto-purifying ashes on an npc-kill drop -- "
+             "still has nothing to hook into: no drop-interception point exists anywhere in this tree's "
+             "loot pipeline (bury_bone.rs2/bone_xp.rs2 are manual-only). A ring that can only ever charge "
+             "up and never spend is not a complete charges implementation.",
     ),
     "Basic quetzal whistle": dict(
         storage="item_var", depletion="none", max_charges=5,
@@ -1085,9 +1091,14 @@ FAMILY_DATA = {
         charge_source="Ecto-tokens used on it, 25 charges per token",
         drain_event="1 charge per bone auto-crushed on npc-kill drop while carried (toggle: Activity)",
         status="charges_only",
-        note="Same missing subsystem as Ash sanctifier -- no on-npc-death auto-consume/drop-interception "
-             "hook exists. skill_prayer/scripts/bone_xp.rs2's bone_prayer_exp is the reusable per-bone XP "
-             "table for whoever wires this.",
+        note="general/scripts/enchanted_jewellry/bonecrusher.rs2/.constant/.varp now implements charge "
+             "storage, Check, the Activity toggle, and Uncharge, same shape as Ash sanctifier (see that "
+             "entry's note for the shared reasoning). A first draft wrongly copied Ash sanctifier's own "
+             "death-rune material for this item too; re-checked directly against the live wiki and fixed "
+             "before landing -- the real material is ecto-tokens, 25 charges each, not death runes. Same "
+             "missing subsystem as Ash sanctifier for the drain itself -- no on-npc-death auto-consume/"
+             "drop-interception hook exists anywhere in this tree. skill_prayer/scripts/bone_xp.rs2's "
+             "bone_prayer_exp is the reusable per-bone XP table for whoever wires it.",
     ),
     "Book of the dead": dict(
         storage="item_var", depletion="none", max_charges=250,
