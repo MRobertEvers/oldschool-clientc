@@ -1176,15 +1176,42 @@ FAMILY_DATA = {
     # -- player_varp / daily, implemented ---------------------------------
     "Explorer's ring": dict(
         storage="player_varp", depletion="none", max_charges=30,
-        charge_source="Quest reward (Fremennik Trials-line rings); refills every runeday",
-        drain_event="1 use per Low/High Alchemy cast via the ring, and per free teleport-to-Tutorial Island",
-        status="charges_only", note="Needs SS_OP_DATE_RUNEDAY (§3b); ring itself not yet in configs scan (tier op set differs).",
+        charge_source="Lumbridge & Draynor Diary reward tiers (easy/medium/hard/elite = rings 1-4); "
+                       "refills daily -- corrected from an earlier pass's wrong 'Fremennik Trials' claim, "
+                       "re-checked directly against the live wiki",
+        drain_event="Actually THREE independent daily counters, not one: 30 free Low/High Alchemy casts "
+                     "(ring 2+; High Alch needs ring 4), a separate run-energy-restore count (3/4/3 for "
+                     "rings 2/3/4), and a separate cabbage-patch-teleport count (3/day on ring 2, "
+                     "unlimited on ring 3+) -- not a Tutorial Island teleport, which this ledger's earlier "
+                     "pass wrongly assumed",
+        status="charges_only",
+        note="SS_OP_DATE_RUNEDAY (§3b) has landed (see Falador shield, now implemented with it), so that is "
+             "no longer the blocker. The real blocker: Low/High Level Alchemy is not implemented anywhere "
+             "in this tree at all -- spell ids exist in skill_magic/configs/magic.constant but no .rs2 "
+             "destroys an item and grants coins for either spell, so the ring's headline mechanic has "
+             "nothing to hook into. The energy-restore and teleport counters are individually tractable "
+             "(same daily-reset shape as Falador shield) but were not built standalone since they are not "
+             "this family's defining mechanic.",
     ),
     "Falador shield": dict(
-        storage="player_varp", depletion="none", max_charges=5,
-        charge_source="Quest/diary reward (Falador achievement diary tiers)",
-        drain_event="1 use per free prayer recharge",
-        status="charges_only", note="Needs SS_OP_DATE_RUNEDAY (§3b).",
+        storage="player_varp", depletion="none", max_charges=2,
+        charge_source="Falador Achievement Diary reward tiers (easy/medium/hard/elite)",
+        drain_event="1 use per Recharge Prayer click; max_charges/day is tier-dependent "
+                     "(1/1/1/2 for easy/medium/hard/elite)",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/falador_shield.rs2/.constant/.varp. "
+             "SS_OP_DATE_RUNEDAY (§3b) has landed since this note was last written -- "
+             "selftest.rs2's own selftest_date_runeday already exercised it, this is the first content "
+             "caller. Each tier restores a different percent of base prayer (25/50/100/100 for easy/"
+             "medium/hard/elite, all verified per-tier from the live wiki rather than assumed uniform) "
+             "as an add-capped-at-base, not a set-to-%. Account-scoped (player_varp), same reasoning "
+             "Amulet of bounty/Dodgy necklace's own varp files give. \"Recharging at full prayer does not "
+             "consume a daily use\" (30 Apr 2015) is a real guard, mutation-tested, as is the daily-cap "
+             "guard itself. NOT implemented: Explorer's ring, which this ledger's neighbouring entry also "
+             "named as needing this opcode -- that family additionally needs a working Low/High Level "
+             "Alchemy spell, which does not exist anywhere in this tree's magic content (spell ids are "
+             "declared in magic.constant but no .rs2 implements either spell), a materially larger gap "
+             "than Falador shield's own self-contained prayer-restore mechanic.",
     ),
     # -- id_ladder + item_var hybrid: all 6 Barrows sets (24 pieces) ------
     "Dharok's helm": dict(
