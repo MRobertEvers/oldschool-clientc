@@ -569,6 +569,30 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # `midi_song` is the model, down to -1 meaning stop, because the two
     # answer the same question about the same square.
     "AMBIENTSOUND": (11038, 1, 0, 0, 0),
+
+    # last_subop() -> int
+    #
+    # WHICH SUB-OPTION of an interface op was clicked. A rev-230 component op
+    # can expand into a submenu — Xeric's talisman "Rub" opens five named
+    # destinations, the Slayer ring four, the Giantsoul amulet three — and the
+    # obj record spells them as `subaction=<op>,<n>,<name>` entries. IF_SUBOP
+    # is the packet that carries the chosen `n`.
+    #
+    # The reference has no equivalent because a 2004 interface op has no
+    # submenu, which is why this sits in the rev-230 band rather than in the
+    # LostCity numbering.
+    #
+    # **The engine side already existed; only the read side was missing.**
+    # `mock230_world.c`'s `handle_if_buttonx_packet` has decoded IF_SUBOP into
+    # `player->last_subop` since the packet was wired, and resets it to -1
+    # between dispatches — content simply had no way to ask for it, so eight
+    # authored teleport-jewellery scripts referenced `last_subop` against a
+    # symbol table that did not have it and the whole tree failed to compile.
+    #
+    # -1 when the op that fired carried no submenu, which is what every
+    # ordinary `opheldN` looks like. A caller that dispatches on it should
+    # treat -1 as "no destination chosen" rather than as index 0.
+    "LAST_SUBOP": (11039, 0, 0, 1, 0),
 }
 
 # ---------------------------------------------------------------------------
