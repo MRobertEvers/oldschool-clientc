@@ -240,10 +240,21 @@ FAMILY_DATA = {
     ),
     "Abyssal tentacle": dict(
         storage="item_var", depletion="revert", max_charges=10000,
-        charge_source="Uncapped from Abyssal orphan; bought pre-charged in practice",
-        drain_event="1 charge per successful hit",
-        status="charges_only",
-        note="Reverts to Kraken tentacle. No spawn/refill path implemented (Abyssal orphan pet not in this tree) — holds and reports, drain not wired.",
+        charge_source="Combine a Kraken tentacle with an Abyssal whip (opheldu, either use-order)",
+        drain_event="1 charge per attack, regardless of whether it lands (not 'per successful hit')",
+        status="implemented",
+        note="gear/abyssal_tentacle.rs2/.constant. This ledger's own prior note was wrong on two points, "
+             "both corrected against the live wiki directly: charges do NOT come from an 'Abyssal orphan' "
+             "pet (no such mechanic exists) but from combining a Kraken tentacle + Abyssal whip, both of "
+             "which already exist and are already used elsewhere in this tree (abyssal_whip has its own "
+             "special attack in specs/pvm_abyssal_whip.rs2) -- unlike Saradomin's blessed sword, which "
+             "punted on its own creation recipe for lack of anything to model it on, this one is "
+             "implemented; and the drain is per-attack-attempt, not per-landed-hit, matching Saradomin's "
+             "blessed sword's own '10,000 hits' (not 'successful hits') shape rather than Blood fury's. "
+             "Same drain hook (player_hit_npc_prepare) and self-gating shape as Saradomin's blessed sword. "
+             "Dissolve (ifop5) is a separate, one-way, no-refund destroy, not the same as the automatic "
+             "0-charge revert to Kraken tentacle. NOT implemented: combining the charges of two existing "
+             "tentacles up to a 20,000 cap -- the wiki's own secondary, rarer path, not the main recipe.",
     ),
     "Crystal helm": dict(
         storage="item_var", depletion="revert", max_charges=10000,
