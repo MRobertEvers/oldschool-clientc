@@ -1039,25 +1039,45 @@ FAMILY_DATA = {
              "tradeoff Venator bow's/Echo boots' own notes make for their missing effects.",
     ),
     "Tome of earth": dict(
-        storage="item_var", depletion="none", max_charges=20000,
-        charge_source="Soiled pages (Hueycoatl drop), 20 charges/page, up to 1,000 pages",
-        drain_event="1 charge per cast of an offensive earth spell; other earth spells stay free (infinite runes)",
-        status="charges_only",
-        note="ifop4=Pages, no Charge/Uncharge -- depletion is a manual 'Pages' toggle to the empty obj, not "
-             "an automatic swap at 0, hence depletion=none. Sits in the shield slot; pvm_spell_cast's "
-             "staff-category check has no off-hand-tome branch to extend.",
+        storage="item_var", depletion="revert", max_charges=20000,
+        charge_source="Soiled pages, 20 charges/page, up to 1,000 pages",
+        drain_event="1 charge per cast of Earth Strike/Bolt/Blast/Wave with the tome worn; other earth-rune "
+                     "spells stay free (infinite runes, no drain)",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/tome_of_elements.rs2 (shared library for all 3 tomes) + "
+             ".constant. The prior note's claim that 'pvm_spell_cast has no off-hand-tome branch to extend' "
+             "was correct but beside the point -- the real generalizable hook was shared/skill_magic's own "
+             "`staff_runes` (magic.rs2), which already exists to grant a worn staff's free rune and just "
+             "needed a second, independent wearpos_lhand-keyed check added alongside the wearpos_rhand one "
+             "for the free-rune grant. Charge drain is separate, hooked into pvm_spell_cast directly (it "
+             "already receives $spell_data) gated by an explicit 12-spell allowlist (spells.constant has no "
+             "Surge tier in this tree's spellbook, so only Strike/Bolt/Blast/Wave per element exist to gate "
+             "on). No searing-page alt material, no +10%/+50% damage bonus (bonus-stat scope line, not a "
+             "charges concern -- same cut every other item this session makes). Auto-revert to the "
+             "_uncharged obj id at 0 charges is this implementation's own choice (id-ladder, matching "
+             "Infernal pickaxe/Cowbell amulet) -- the wiki names no explicit Uncharge option for tomes and "
+             "does not state whether a live 0-charge tome auto-swaps id; not otherwise verifiable from what's "
+             "in this tree. `::chargesrun` covers charge/cap, rune-grant gating (charged+element+worn only), "
+             "and drain/deplete-revert; mutation-tested by widening the fire spell allowlist and confirming "
+             "the drain-gate check goes red.",
     ),
     "Tome of fire": dict(
-        storage="item_var", depletion="none", max_charges=20000,
-        charge_source="Burnt or searing pages (Wintertodt), 20 charges/page, up to 1,000 pages",
-        drain_event="1 charge per cast of an offensive fire spell; other fire spells stay free",
-        status="charges_only", note="Same shape/caveats as Tome of earth -- manual Pages toggle, no drain hook wired.",
+        storage="item_var", depletion="revert", max_charges=20000,
+        charge_source="Burnt pages (wint_burnt_page), 20 charges/page, up to 1,000 pages",
+        drain_event="1 charge per cast of Fire Strike/Bolt/Blast/Wave with the tome worn; other fire-rune "
+                     "spells stay free",
+        status="implemented",
+        note="Same shared library as Tome of earth (see that entry's note for the full mechanism). Wiki "
+             "also names an alternate searing-page charging material and a minimum-hit bonus from it -- not "
+             "implemented, bonus/alt-material scope cut.",
     ),
     "Tome of water": dict(
-        storage="item_var", depletion="none", max_charges=20000,
-        charge_source="Soaked pages (Tempoross), 20 charges/page, up to 1,000 pages",
-        drain_event="1 charge per cast of an offensive water spell or a curse spell",
-        status="charges_only", note="Same shape as Tome of earth/fire; no drain hook wired.",
+        storage="item_var", depletion="revert", max_charges=20000,
+        charge_source="Soaked pages, 20 charges/page, up to 1,000 pages",
+        drain_event="1 charge per cast of Water Strike/Bolt/Blast/Wave with the tome worn; other water-rune "
+                     "spells stay free",
+        status="implemented",
+        note="Same shared library as Tome of earth (see that entry's note for the full mechanism).",
     ),
     "Tonalztics of ralos": dict(
         storage="item_var", depletion="revert", max_charges=20000,
