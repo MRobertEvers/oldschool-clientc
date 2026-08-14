@@ -121,6 +121,13 @@ SHARED_HEADER = """\
 // at all, 13 put it on op2 (which doors.rs2 binds), and the rest say
 // Climb-down, Open, Pass-through, Go-down or Peek. The engine's C door swap
 // never noticed because it ignored the op number entirely.
+//
+// A handful of these NAME bindings would themselves collide with a
+// hand-authored `.rs2` script that already owns the same `[oploc<N>,name]`
+// trigger (usually a quest's own state-gated trapdoor body). The compiler
+// only keeps one body for a duplicate header and silently drops the other,
+// so those names are excluded here rather than emitted — see
+// `read_other_rs2_triggers` in tools/ladder_import.py.
 """
 
 
@@ -157,6 +164,33 @@ def read_other_overlays(content, mine):
                         block = match.group(1)
                     elif block and line.startswith("category="):
                         claimed[block] = (os.path.relpath(path, content), line.split("=", 1)[1])
+    return claimed
+
+
+def read_other_rs2_triggers(content, mine):
+    """Every `[oploc<N>,<name>]` header some OTHER hand-authored `.rs2` file
+    declares. A generated NAME binding into `climb_shared.rs2` must not
+    collide with a hand-authored trigger for the same loc — the compiler
+    resolves same-name headers by silently keeping one body and dropping the
+    other, so a quest's own gated trapdoor script must always win over the
+    generic `~climb(-1)` fallback. Returns {(slot, name): relpath}."""
+    claimed = {}
+    root = os.path.join(content, "server", "scripts")
+    mine_abs = os.path.abspath(mine)
+    for base, _dirs, files in os.walk(root):
+        for name in files:
+            if not name.endswith(".rs2"):
+                continue
+            path = os.path.join(base, name)
+            if os.path.abspath(path) == mine_abs:
+                continue
+            with open(path) as handle:
+                for line in handle:
+                    line = line.strip()
+                    match = re.match(r"^\[oploc(\d+),([^\]]+)\]", line)
+                    if match:
+                        key = (int(match.group(1)), match.group(2))
+                        claimed.setdefault(key, os.path.relpath(path, content))
     return claimed
 
 
@@ -230,6 +264,20 @@ def main():
             shared[name] = (grouped[name][1], claimed[name])
             del grouped[name]
 
+    # Conflict rule 3: a NAME binding this would emit into climb_shared.rs2
+    # must not collide with a trigger some hand-authored `.rs2` file already
+    # declares for the same (op slot, loc name) — that script's body is
+    # quest-state-gated (or otherwise bespoke) and would silently lose to
+    # the generic `~climb` fallback if both declared the same header.
+    rs2_claimed = read_other_rs2_triggers(content, script_path)
+    rs2_shadowed = {}
+    for name in sorted(shared):
+        ops, _cat_info = shared[name]
+        hit = {slot: rs2_claimed[(slot, name)] for slot in ops if (slot, name) in rs2_claimed}
+        if hit:
+            rs2_shadowed[name] = hit
+            del shared[name]
+
     # Conflict rule 2: never overwrite a cache category somebody has named.
     skipped = {}
     for name in sorted(grouped):
@@ -247,7 +295,7 @@ def main():
     for name, (group, ops) in grouped.items():
         slots[group].update(ops)
 
-    total = len(grouped) + len(exceptions) + len(skipped) + len(shared)
+    total = len(grouped) + len(exceptions) + len(skipped) + len(shared) + len(rs2_shadowed)
     summary_lines = []
     for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP):
         members = by_group.get(group, [])
@@ -268,6 +316,14 @@ def main():
     if skipped:
         exceptions_note += "\n// SKIPPED (already carry a NAMED cache category): " + ", ".join(
             "%s -> %d %s" % (n, c, cn) for n, (c, cn) in sorted(skipped.items())
+        )
+    if rs2_shadowed:
+        exceptions_note += (
+            "\n// SKIPPED (a hand-authored .rs2 script already declares this trigger): "
+            + ", ".join(
+                "%s -> %s" % (n, ", ".join("op%d in %s" % (s, p) for s, p in sorted(hit.items())))
+                for n, hit in sorted(rs2_shadowed.items())
+            )
         )
 
     body = [
@@ -302,6 +358,9 @@ def main():
         sys.stdout.write("".join(summary_lines))
         sys.stdout.write("// exceptions: %s\n" % exceptions_note)
         sys.stdout.write("// shared with another overlay: %s\n" % ", ".join(sorted(shared)))
+        sys.stdout.write(
+            "// shadowed by hand-authored .rs2 triggers: %s\n" % ", ".join(sorted(rs2_shadowed))
+        )
         return 0
     if args.check:
         for path, want in ((out_path, text), (script_path, script_text)):

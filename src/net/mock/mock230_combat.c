@@ -867,6 +867,28 @@ mock230_combat_hit_npc(
         npc->death_stage = MOCK230_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
         /*
+         * Drop whatever was already armed on the npc's own queue — a healer's
+         * `npc_queue(4, heal, ...)` chief among them.
+         *
+         * `mock230_combat_stop_npc` below only clears the *targets* pointed at
+         * this npc (its attacker's combat_target_npc); it does not reach into
+         * `npc->queue[]`. Without this, a heal queued a tick or two before the
+         * killing blow keeps counting down through QUEUED/ARRIVE/CORPSE — the
+         * npc phase only skips a `death_tick`-holding npc's mode/AI, not its
+         * queue drain — and `npc_statheal` (unlike this function) has no
+         * `death_tick` guard of its own. It fires, hitpoints go back above
+         * zero, and REAP (below) reads that as a scripted revive exactly like
+         * the Kalphite Queen's own `[ai_queue3]` heal-to-transform and cancels
+         * the death outright: the npc "doesn't die".
+         *
+         * Cleared here rather than guarding `npc_statheal` itself so that
+         * pattern keeps working — an `[ai_queue3]` death script still runs
+         * *after* this point and can arm its own fresh queue entries (Jad's
+         * healer-despawn `npc_queue(5, ...)`, KQ's revive) same as before.
+         */
+        for( int i = 0; i < MOCK230_NPC_QUEUE_MAX; i++ )
+            npc->queue[i].active = 0;
+        /*
          * Capture kill attribution before combat_stop clears combat_target.
          * Clientscript 7192 needs the npc type + a per-kill event id; each
          * OBJ_ADD during [ai_queue3] then RUNCLIENTSCRIPTs the killers.

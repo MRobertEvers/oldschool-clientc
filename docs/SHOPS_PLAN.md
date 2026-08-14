@@ -1,5 +1,15 @@
 # Shops — catalogue, scrape, and implementation plan
 
+> **UPDATE 2026-08-13, later the same day: phase 1 and the first slice of
+> phase 2 are live.** §3.1–3.5's engine work all landed — `.inv` server
+> parsing, `scope=shared` world-container classification, the two missing
+> opcodes (`INV_STOCKBASE`/`INV_ALLSTOCK`), per-player world-container
+> listener fan-out (a real gap the original write-up under-scoped — see the
+> new note at the end of §3.1), boot seeding, and the restock tick. 21 shops
+> are authored and live — one `.rs2` + one `.inv` each, `tools/gen_shop_scripts.py`
+> generated from the reviewed catalogue — and `--selftest` loads the content
+> tree with zero errors. See §8 for the exact list and what is still open.
+
 > Written 2026-08-13. Companion to [`shop_server_reqs.md`](shop_server_reqs.md),
 > which surveyed what `shopmain`/`shopside` (300/301) need from the server.
 > That survey is still correct about the interface; **§0 below re-measures its
@@ -288,6 +298,27 @@ World containers must take the whole-container `dirty_ref` path, not the mask.
 has to fan out to *every* player watching it, not just the one who bought. A
 per-player listener list on the container row, not a single `active_player`.
 
+> **Landed 2026-08-13, and this needed more than a listener list.** The
+> existing listener struct (`mock230.h`) tracked only a `component` id, which
+> is not unique across players on a shared row — `shopmain:items` is the same
+> numeric id for every client, so two players opening the same shop collapsed
+> onto one listener. Fixed by adding a `player` field to each listener
+> (`NULL`/unused on a per-player row, meaningful on a world row) and changing
+> every match/bind/unbind to key on `(component, player)` when the row is
+> `MOCK230_CONTAINER_WORLD`. `mock230_container_unbind` gained an `srv`
+> parameter for the same reason: a component id alone cannot say whether the
+> row behind it is the caller's own or shared, so unbinding needs the world
+> table too. A new `mock230_container_flush_world(srv)` is the shared row's
+> sibling to the existing per-player `mock230_container_flush` — called once
+> per tick from `phase_clients_out`, before the per-player pass, so a shop
+> transaction reaches every listener's outgoing batch before that player's own
+> tick-end closes it. `MOCK230_WORLD_CONTAINER_MAX` went 16→640 (shared rows
+> are created on first use and never evicted, so this has to cover every
+> distinct shop any player visits in one server lifetime) and
+> `MOCK230_CONTAINER_LISTENERS_MAX` went 4→16 — both cheap: with
+  `MOCK230_PLAYER_MAX` at 8, the whole increase costs well under a MB. See
+  `mock230_container.c`/`.h` and `mock230.h`'s listener struct comment.
+
 ### 3.2 The two missing opcodes
 
 *File:* `src/net/mock/mock230_ops_inv.c` (the `host commands (inv)` layer)
@@ -554,3 +585,98 @@ review, and are parallelisable across people.
 * **Whether the 2,542 `ambiguous` obj rows are all lowest-id** — spot-checked,
   not proven. They are flagged so the generator refuses them, which is the
   point; the proof is phase 3's work.
+
+---
+
+## 8. Status, 2026-08-13
+
+Phase 1 (engine) is done. Phase 2 (the verified tier) is 21 of 36 shops —
+the other 15 are the multi-table pages (`__2`/`__3` shop keys: skillcape
+tiers, conditional sub-stocks) `tools/gen_shop_scripts.py` deliberately skips
+until `gen_shop_inv_map.py` is taught to bind per-section, not per-page.
+
+### 8.1 Engine — all landed, `--selftest` clean
+
+* `.inv` server config parsing (`scope=`, `restock=`, `allstock=`,
+  `stackall=`, `stockN=`) — `mock230_content.c`'s `load_inv_config`.
+* `mock230_shop.{c,h}` — the definition table, boot-time seed
+  (`mock230_shop_seed`, called from every boot path: `mock230_main.c`'s
+  `serve()` and `--selftest`, `mock230_embed.c`), and the restock tick
+  (`mock230_shop_restock_tick`, called once per tick from `phase_cleanup` in
+  `mock230_world.c`, in the same slot LostCity's `World.ts` puts it — right
+  after the npc reset).
+* `mock230_container_scope` classifies a shop's inv `WORLD` via
+  `mock230_shop_is_shared`; every other inv is unaffected.
+* `SS_OP_INV_STOCKBASE` / `SS_OP_INV_ALLSTOCK` — `mock230_ops_inv.c`,
+  coverage table regenerated.
+* The world-container multi-listener fan-out described in §3.1's update:
+  `mock230_container_flush_world`, called once per tick from
+  `phase_clients_out` before the per-player pass.
+* `server/scripts/shop/scripts/shop.rs2` — the shared engine procs, ported
+  from LostCity's `shop/scripts/shop.rs2` per §3.5. `openshop_activenpc` is
+  present but commented out: it reads `npc_param(owned_shop)` and three
+  siblings that this tree never allocates (§4.1 chose the explicit
+  `~openshop(inv, ...)` call specifically to avoid that allocation), so a
+  live body would fail to compile against an undeclared param.
+
+**Open from §3.4/§3.5, not yet done:**
+
+* The restock tick is written but not called anywhere per-tick. Wire
+  `mock230_shop_restock_tick(srv, tick)` into `mock230_world.c`'s cleanup
+  phase, next to the npc `resetEntity` loop LostCity's own `World.ts` puts it
+  beside (§3.4).
+* Shopside's real op indices and the Buy-X round trip are still unconfirmed
+  (§3.5 point 4, §7) — the sell ladder in `shop.rs2` is LostCity's fixed
+  Sell-1/5/10 shape on `inv_button2/3/4`, not verified against a rev-239
+  decompile of `shopside`'s own script.
+* No in-game playtest yet — everything above is verified by `--selftest`
+  (content loads clean, 22 shop definitions parsed, 21 seeded) and by reading
+  the generated files against the wiki source, not by opening a shop as a
+  connected client.
+
+### 8.2 Content — 21 shops live
+
+Generated by `tools/gen_shop_scripts.py --write` from the reviewed rows of
+`shop_inv_map.tsv` (the `verified`, LostCity-sourced tier). Each is one
+`.rs2` + one `.inv` under `server/scripts/shop/<area>/`:
+
+| area | shop |
+|---|---|
+| al_kharid | ranaels_super_skirt_store, zekes_superior_scimitars |
+| ape_atoll | solihibs_food_stall |
+| catherby | candle_shop |
+| dwarven_mines | nurmofs_pickaxe_shop |
+| east_ardougne | ardougne_fur_stall, zeneshas_plate_mail_body_shop |
+| falador | flynns_mace_market, waynes_chains_chainmail_specialist |
+| grand_tree | giannes_restaurant |
+| lumbridge | bobs_brilliant_axes |
+| misc | blurberry_bar, drogo_dwarf |
+| of_the_heroes_guild | happy_heroes_hemporium |
+| port_sarim | brians_battleaxe_bazaar |
+| ranging_guild | authentic_throwing_weapons |
+| rellekka | yrsas_accoutrements |
+| taverley | gaius_two_handed_shop |
+| varrock | varrock_swordshop |
+| wilderness_bandit_camp | tonys_pizza_bases |
+| zanaris | irksol_shop |
+
+Where a shop's owner already had a `[opnpc3,<gameval>]` "nothing to trade"
+stub (19 of 21 — `bob.rs2`, `drogo_dwarf.rs2`, etc.), `gen_shop_scripts.py`
+rewrote that stub's trailing `mes("...nothing to trade...")` line in place to
+call the new shop's open label, and left everything else in that file —
+dialogue, quest gates like Bob's `lost_tribe_bob_witness` check — untouched.
+It refused (and reported) three shops rather than guess: `magearena_guardian`
+and `grum`'s op3 blocks are not bare stubs, and `mcannonshop`'s wiki stock
+(7 lines) exceeds its cache inv's slot count (6, §2.4).
+
+### 8.3 Next
+
+1. Section-aware inv binding in `gen_shop_inv_map.py`, to unblock the 15
+   multi-table shops sitting at 100% otherwise-ready.
+2. Phase 3/4 review work exactly as §5 describes: the 305 `proposed`
+   `shop_inv_map.tsv` rows and the 2,970 `review`-flagged `shop_stock.csv`
+   lines are what stands between 21 shops and the 265-shop phase-4 target.
+3. An actual connected-client playtest of at least one shop, to catch what
+   `--selftest` cannot: whether `shopmain` draws, whether the buy ladder's
+   op1/op6 Value/Buy-N toggle behaves, whether the sell ladder's inferred op
+   indices are right.

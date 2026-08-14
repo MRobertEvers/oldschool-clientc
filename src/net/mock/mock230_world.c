@@ -10541,6 +10541,13 @@ phase_cleanup(struct Mock230Server* srv)
         srv->npcs[i].anim_delay = 0;
     }
 
+    /* Shared shop stock, one nudge per baseline slot toward its target count
+     * (docs/SHOPS_PLAN.md §3.4) — LostCity's World.ts puts this in the same
+     * cleanup phase, right after the npc reset above. Marks dirty rows; the
+     * client repaints on its own via `if_setoninvtransmit`, so nothing else
+     * has to know a restock happened. */
+    mock230_shop_restock_tick(srv, srv->tick);
+
     /* Every player's NPC_INFO for this tick is behind us (phase_clients_out
      * already ran) — slots freed this tick can now actually be reused. See
      * docs/mock230_npc_slot_reap.md. */
@@ -23255,7 +23262,7 @@ mock230_world_selftest(void)
             static const uint8_t cmd_range[] = "~maxrange\n";
             static const uint8_t cmd_mage[] = "~maxmage\n";
             int torva_helm = mock230_content_symbol(MOCK230_PACK_OBJ, "torva_helm");
-            int elder_maul = mock230_content_symbol(MOCK230_PACK_OBJ, "elder_maul");
+            int scythe_of_vitur = mock230_content_symbol(MOCK230_PACK_OBJ, "scythe_of_vitur");
             int twisted_bow = mock230_content_symbol(MOCK230_PACK_OBJ, "twisted_bow");
             int masori_body_fortified =
                 mock230_content_symbol(MOCK230_PACK_OBJ, "masori_body_fortified");
@@ -23270,7 +23277,7 @@ mock230_world_selftest(void)
             memcpy(level_before, who->stat_level, sizeof(level_before));
             memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
 
-            SELFTEST_CHECK(torva_helm > 0 && elder_maul > 0 && twisted_bow > 0 &&
+            SELFTEST_CHECK(torva_helm > 0 && scythe_of_vitur > 0 && twisted_bow > 0 &&
                                masori_body_fortified > 0 && tumekens_shadow > 0 &&
                                ancestral_hat > 0,
                            "the max-gear items must resolve through the pack");
@@ -23278,8 +23285,8 @@ mock230_world_selftest(void)
             handle_cheat(srv, cmd_melee, (int)sizeof(cmd_melee) - 1);
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == torva_helm,
                            "::~maxmelee equips the Torva helm");
-            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == elder_maul,
-                           "::~maxmelee equips the elder maul");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == scythe_of_vitur,
+                           "::~maxmelee equips the scythe of vitur");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
                            "::~maxmelee clears the shield slot for its two-handed weapon");
             SELFTEST_CHECK(who->stat_level[MOCK230_STAT_STRENGTH] == 99,
@@ -32062,6 +32069,107 @@ mock230_world_selftest(void)
                                        j->combat_target, j->combat_target_npc);
                         j->active = 0;
                     }
+                }
+
+                /*
+                 * And the glyph dwells at each end of its row before turning
+                 * around, rather than reversing the instant it arrives.
+                 *
+                 * `inferno_glyph.rs2` counts `%inferno_glyph_stopped` up from
+                 * the tick it stops moving and only reverses once that passes
+                 * `^inferno_glyph_pause` — the same counter and the same
+                 * `[ai_timer]` the drop/ready waits above already exercise,
+                 * just the branch neither of those stanzas drives far enough
+                 * to reach. `::zukstill 3` gives it a live timer
+                 * (`npc_settimer(1)`) from its real spawn tile, so this walks
+                 * the whole path drop -> run -> row -> west end -> reversal
+                 * exactly as the live fight does, and finds the plateau
+                 * itself rather than assuming a tile number for the west end.
+                 *
+                 * Confirmed against the real fight independently of this
+                 * port: RuneLite's Inferno plugin infers the same 4-tick
+                 * dwell from live packets (`zukShieldTicksLeftInCorner = 4`
+                 * the tick the shield's position delta goes from zero back to
+                 * nonzero), which is where `^inferno_glyph_pause`'s value of
+                 * 4 comes from.
+                 */
+                {
+                    int const budget = 120;
+                    int xs[120];
+                    int zs[120];
+                    int n = 0;
+                    int pause_const = mock230_content_constant_int("inferno_glyph_pause", -1);
+                    int arrival = -1;
+                    int dwell = -1;
+                    int strayed = 0;
+
+                    selftest_reset_world(srv, player, 402, 402);
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill 3"),
+                                   "::zukstill 3 should stage a live glyph for the pause "
+                                   "fixture");
+                    SELFTEST_CHECK(pause_const > 0,
+                                   "inferno_glyph_pause should resolve to a positive constant, "
+                                   "got %d",
+                                   pause_const);
+
+                    for( int tick = 0; tick < budget; tick++ )
+                    {
+                        int glyph_slot;
+
+                        if( player->rebuild_scene_pending )
+                            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL,
+                                                 0);
+                        mock230_world_tick(srv);
+                        glyph_slot = selftest_find_npc(srv, glyph_type);
+                        if( glyph_slot >= 0 )
+                        {
+                            xs[n] = srv->npcs[glyph_slot].x;
+                            zs[n] = srv->npcs[glyph_slot].z;
+                            n++;
+                        }
+                    }
+
+                    for( int i = 1; i + 1 < n; i++ )
+                    {
+                        if( xs[i] < xs[i - 1] && xs[i] == xs[i + 1] )
+                        {
+                            int j = i;
+
+                            while( j + 1 < n && xs[j + 1] == xs[i] )
+                                j++;
+                            if( j + 1 < n && xs[j + 1] > xs[i] )
+                            {
+                                arrival = i;
+                                dwell = j - i + 1;
+                                break;
+                            }
+                        }
+                    }
+                    /* Only checked from the tick horizontal movement starts:
+                     * before that the glyph is still walking south from its
+                     * spawn tile onto the row, which is a z change by design,
+                     * not straying off the row it walks once it gets there. */
+                    {
+                        int on_row = -1;
+
+                        for( int i = 1; i < n && on_row < 0; i++ )
+                        {
+                            if( xs[i] != xs[0] )
+                                on_row = i;
+                        }
+                        for( int i = on_row; i >= 0 && i < n; i++ )
+                            strayed |= zs[i] != zs[on_row];
+                    }
+
+                    SELFTEST_CHECK(arrival >= 0,
+                                   "the glyph should reach the west end of its row and turn "
+                                   "around within %d ticks of ::zukstill 3",
+                                   budget);
+                    SELFTEST_CHECK(!strayed, "and never leave its row while doing it");
+                    SELFTEST_CHECK(dwell == pause_const,
+                                   "the glyph should dwell at the end for "
+                                   "inferno_glyph_pause (%d) ticks before reversing, got %d",
+                                   pause_const, dwell);
                 }
             }
         }

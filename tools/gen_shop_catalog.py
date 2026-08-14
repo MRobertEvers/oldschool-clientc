@@ -38,11 +38,18 @@ alias). Three rules, in order, and every row records which one fired:
                      is wrong. These are flagged `review=variant` and must not
                      reach a `.inv` unlooked-at.
 
-1,579 display names resolve to more than one real record even on an exact match
-— mostly an old id and its modern replacement — so those keep the lowest id,
-name the alternatives in `obj_alternatives`, and set `review=ambiguous`.
-Nothing is silently picked: a flagged row is a row a human has to look at
-before it becomes stock.
+1,579 display names resolve to more than one real record even on an exact
+match. Most of those are the cache's own "second copy that can't be sold or
+lost" pattern — a members quest/minigame duplicate of a common item, same
+name, `tradeable=false` (`Bucket` is 1925 tradeable alongside 8986/9660,
+neither tradeable; spot-checked across the 20 most-repeated ambiguous names).
+`load_obj_index` sorts each name's candidates tradeable-first, so a tie where
+the chosen id *is* tradeable resolves without a flag — the alternatives are
+still recorded in `obj_alternatives` for the audit trail, just not blocking.
+Only a tie where *no* candidate is tradeable keeps `review=ambiguous`:
+genuinely two marketable items sharing a name, which the tradeable signal
+cannot break. Nothing is silently picked either way: a flagged row is a row a
+human has to look at before it becomes stock.
 
 **Owner name -> npc id** is deliberately *not* guessed here. Half the shop
 pages are npc pages and state `|id=` outright; the rest name their owner as a
@@ -232,11 +239,27 @@ def build_obj_csv(dest: str) -> None:
     )
 
 
-def load_obj_index(obj_csv: str) -> tuple[dict[str, list[int]], dict[int, str]]:
-    """(lowercased display name -> real obj ids, obj id -> gameval name)."""
+def load_obj_index(
+    obj_csv: str,
+) -> tuple[dict[str, list[int]], dict[int, str], dict[int, bool]]:
+    """(lowercased display name -> real obj ids [tradeable first, then by id],
+    obj id -> gameval name, obj id -> tradeable).
+
+    A name shared by several real records is almost always one marketable
+    item plus a members-only quest/minigame duplicate the cache keeps so the
+    original can't be sold or lost — `Bucket` is 1925 (tradeable) alongside
+    8986/9660 (both `tradeable=false`), and the pattern repeats across the
+    corpus (`Tinderbox`, `Chisel`, `Rope`, `Watering can`, ... — spot-checked
+    across the 20 most-repeated ambiguous names in `wiki/shop_stock.csv`,
+    docs/SHOPS_PLAN.md §2.1). Putting a tradeable id first means the resolver
+    picks the item a shop can actually sell, not whichever id happens lowest —
+    those usually agree, but not always (`watering can`'s tradeable id is not
+    its lowest).
+    """
     if not os.path.exists(obj_csv):
         build_obj_csv(obj_csv)
     by_name: dict[str, list[int]] = collections.defaultdict(list)
+    tradeable: dict[int, bool] = {}
     with open(obj_csv, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             # A noted or placeholder record carries the same display name as the
@@ -247,9 +270,11 @@ def load_obj_index(obj_csv: str) -> tuple[dict[str, list[int]], dict[int, str]]:
             name = row["name"].strip()
             if not name or name.lower() == "null":
                 continue
-            by_name[name.lower()].append(int(row["id"]))
+            obj_id = int(row["id"])
+            by_name[name.lower()].append(obj_id)
+            tradeable[obj_id] = row["tradeable"].strip().lower() == "true"
     for ids in by_name.values():
-        ids.sort()
+        ids.sort(key=lambda i: (not tradeable.get(i, False), i))
 
     gameval: dict[int, str] = {}
     with open(OBJ_COMPACK, encoding="utf-8") as f:
@@ -258,7 +283,7 @@ def load_obj_index(obj_csv: str) -> tuple[dict[str, list[int]], dict[int, str]]:
                 num, _, name = line.strip().partition("=")
                 if num.isdigit():
                     gameval[int(num)] = name
-    return by_name, gameval
+    return by_name, gameval, tradeable
 
 
 # ------------------------------------------------------------------
@@ -281,6 +306,7 @@ def parse_page(
     text: str,
     by_name: dict[str, list[int]],
     gameval: dict[int, str],
+    tradeable: dict[int, bool],
 ) -> tuple[list[dict], list[dict]]:
     infoboxes = [split_params(b) for b in find_templates(text, "Infobox Shop")]
     info = infoboxes[0] if infoboxes else {}
@@ -334,9 +360,17 @@ def parse_page(
             # A stripped qualifier is never authoritative: the cache reuses one
             # display name across a garment's colours, so the pick is a guess
             # even when exactly one id carries the name.
+            #
+            # A same-name tie is not, on its own, still a guess: `by_name`
+            # sorts tradeable ids first (load_obj_index), so when the chosen
+            # id is tradeable the untradeable alternatives are the common
+            # "quest/minigame duplicate that can't be sold" pattern
+            # (docs/SHOPS_PLAN.md §2.1) and the pick stands without a human
+            # look. Only when *no* candidate is tradeable — genuinely two
+            # marketable items sharing one name — does the tie stay flagged.
             if rule == "strip-qualifier":
                 review = "variant"
-            elif len(ids) > 1:
+            elif len(ids) > 1 and not tradeable.get(ids[0], False):
                 review = "ambiguous"
             else:
                 review = ""
@@ -425,7 +459,7 @@ def mark_duplicates(catalog: list[dict], stock: list[dict]) -> None:
 
 
 def run(write: bool, obj_csv: str) -> None:
-    by_name, gameval = load_obj_index(obj_csv)
+    by_name, gameval, tradeable = load_obj_index(obj_csv)
     manifest = load_manifest()
 
     catalog: list[dict] = []
@@ -437,7 +471,7 @@ def run(write: bool, obj_csv: str) -> None:
         if not os.path.exists(path):
             continue
         text = open(path, encoding="utf-8").read()
-        rows, lines = parse_page(title, meta, text, by_name, gameval)
+        rows, lines = parse_page(title, meta, text, by_name, gameval, tradeable)
         if not rows:
             no_table.append(title)
             continue
