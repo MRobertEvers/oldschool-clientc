@@ -480,10 +480,9 @@ main(int argc, char** argv)
         return 1;
     }
 
-    adopt_model(body, 0);
-    adopt_anim(body_anim, 0);
-    adopt_model(spot, 1);
-    adopt_anim(spot_anim, 1);
+    fprintf(stderr, "[adopt] body faces=%d anim=%d spot faces=%d spotanim=%d\n",
+            adopt_model(body, 0), adopt_anim(body_anim, 0), adopt_model(spot, 1),
+            adopt_anim(spot_anim, 1));
 
     int body_frames = body_anim->frame_count;
     int spot_frames = spot_anim->frame_count;
@@ -771,6 +770,7 @@ main(int argc, char** argv)
         int zoom = ev_model_height() * 3;
         if( zoom < 400 )
             zoom = 400;
+        fprintf(stderr, "[render] model height %d, zoom %d\n", ev_model_height(), zoom);
 
         int cell = 0;
         for( int t = 0; t < body_total && cell < cells * rows; t += step, cell++ )
@@ -784,7 +784,11 @@ main(int argc, char** argv)
             ev_set_spot_state(height, f);
             /* Straight down: pitch 512 of 2048 is a quarter turn, so the orbit
              * sits directly above the model and screen x/y read as world x/z. */
-            blit(top, sheet_w, cx, cy, ev_render(side, side, 0, 512, zoom, b), side);
+            uint8_t* r = ev_render(side, side, 0, 512, zoom, b);
+            if( cell < 3 )
+                fprintf(stderr, "[render] cell %d rgba=%p cull=%d\n", cell, (void*)r,
+                        ev_last_cull());
+            blit(top, sheet_w, cx, cy, r, side);
             /* And from the side, at the yaw a player fighting south is drawn at,
              * because "is it at the right height" is not visible from above. */
             blit(sid, sheet_w, cx, cy, ev_render(side, side, 0, 100, zoom, b), side);

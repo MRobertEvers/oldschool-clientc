@@ -1986,6 +1986,52 @@ mock230_combat_respawn_tick(struct Mock230Server* srv)
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));
+        /*
+         * And the npc's own queue, which is where DAMAGE lives.
+         *
+         * `npc_queue(2, $damage, $delay)` is how every hit in the tree is
+         * delivered — combat_stats.rs2 queues it, `[ai_queue2,_]` turns it into
+         * a splat — so a queue entry that outlives the npc it was armed on is a
+         * hit landing on somebody else.
+         *
+         * The killing blow already empties the queue (`mock230_combat_hit_npc`,
+         * at DEATH_QUEUED). What it cannot empty is what arrives AFTER it, and
+         * two attackers on one tick is all that takes: the second swing queues
+         * onto an npc that is already dying, the npc phase never drains it (it
+         * skips anything holding a `death_tick`), and the entry sat in the slot
+         * until this function handed the slot back. The respawned monster then
+         * walked into the world and immediately took the previous life's hit —
+         * "that thing spawned already hurt", or, when a player was watching the
+         * spot, a hitsplat on an npc nobody had swung at.
+         *
+         * This function reactivates the record IN PLACE, unlike `npc_spawn`,
+         * which memsets first. Everything a new life must not inherit therefore
+         * has to be named here, and everything below this line is the rest of
+         * that list: state that describes one life rather than one pool slot.
+         * `test-mock230`'s NPC LIFECYCLE UNDER DAMAGE section is what catches
+         * the next one that goes missing.
+         */
+        for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
+            npc->queue[q].active = 0;
+        /* The splat list and the pair the classic mask spends. Cleared every
+         * tick in phase_cleanup anyway, so this is belt and braces — but a
+         * respawn arriving with a full four-splat list would silently drop the
+         * first real hit of its new life, which is the same defect wearing a
+         * different hat. */
+        memset(npc->hitmarks, 0, sizeof(npc->hitmarks));
+        npc->hitmark_count = 0;
+        npc->damage = 0;
+        npc->damage_type = 0;
+        /* Drained stats are damage by another name — `npc_statsub` is what a
+         * BGS, a Darklight or an Arclight spec leaves behind, and none of it
+         * belongs to the monster that replaces the one it was spent on. */
+        memset(npc->stat_drain, 0, sizeof(npc->stat_drain));
+        /* A parked script's deadline and a freeze both describe the life that
+         * ended: a monster that died mid-`npc_delay` used to come back unable
+         * to take its turn — which includes draining its queue, so its first
+         * hits went missing too. */
+        npc->delayed_until = 0;
+        npc->frozen_ticks = 0;
         npc->poison_severity = 0;
         npc->poison_clock = 0;
         npc->poison_source_pid = -1;

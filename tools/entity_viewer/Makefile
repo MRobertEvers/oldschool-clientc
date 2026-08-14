@@ -142,6 +142,12 @@ $(BUILD)/ev_render.o: ev_render.c | $(BUILD)
 $(BUILD)/torirs_types.o: $(REPO)/src/engine/torirs_types.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+# torirs_types.c's component teardown calls into this; it is self-contained
+# (torirs_types.h plus libc), so it costs nothing to carry and the link fails
+# without it.
+$(BUILD)/torirs_component_hook.o: $(REPO)/src/engine/torirs_component_hook.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
 $(BUILD)/torirs_model_from_rscache.o: $(REPO)/src/engine/torirs_model_from_rscache.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
@@ -161,7 +167,7 @@ $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 # list because it links rscache; the merge it would otherwise own lives in
 # ev_render.c precisely so the browser can do it too.
 NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_wire.o \
-	$(BUILD)/ev_render.o $(BUILD)/torirs_types.o \
+	$(BUILD)/ev_render.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
 	$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
 	$(BUILD)/toridraw_animation_from_rscache.o \
 	$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \

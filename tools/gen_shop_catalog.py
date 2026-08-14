@@ -418,7 +418,18 @@ def parse_page(
                 "currency": strip_markup(head.get("currency", "")),
                 "sellmultiplier": head.get("sellmultiplier", ""),
                 "buymultiplier": head.get("buymultiplier", ""),
-                "delta": head.get("delta", ""),
+                # A pub/bar buyback shop (buymultiplier=0 — nothing is ever
+                # purchasable) has nothing for haggle to move the price of, so
+                # its own page routinely omits delta rather than stating a
+                # meaningless 0. Both real multipliers present with delta
+                # missing is that shape, not an unpriced shop — 13 confirmed
+                # this way (docs/SHOPS_PLAN.md §8: Dancing Donkey Inn, Flying
+                # Horse Inn, ...), all `buymultiplier=0`. Defaulting delta to
+                # "0" here states the same "no movement" fact the page's
+                # silence implies, for exactly this narrow shape; a page
+                # missing sellmultiplier or buymultiplier too still falls
+                # through to unpriced, same as ever.
+                "delta": head.get("delta") or ("0" if head.get("buymultiplier") == "0" else ""),
                 "lines": len(mine),
                 "lines_resolved": resolved,
                 "lines_needing_review": needs_review,

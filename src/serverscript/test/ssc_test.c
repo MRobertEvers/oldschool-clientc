@@ -226,6 +226,10 @@ fixture_compile(struct Fixture* fixture, const char* source, const char* label)
      * these from .pack files; the compiler cannot tell the difference. */
     SSC_SymbolsAdd(&fixture->symbols, "hans", 3105, SSC_SYM_NPC, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "coins", 995, SSC_SYM_OBJ, NULL);
+    /* Same name in two namespaces, as the real cache has it (grim_pendant is
+     * obj 11197 and loc 24780). OBJ sorts first, so an unqualified subject
+     * lookup takes the obj — see test_subject_namespace. */
+    SSC_SymbolsAdd(&fixture->symbols, "coins", 4242, SSC_SYM_LOC, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "inv", 93, SSC_SYM_INV, NULL);
     SSC_SymbolsAdd(&fixture->symbols, "quest_progress", 42, SSC_SYM_VARP, NULL);
     /* The stat-name collision the arg_kind_hint exists for, as the real cache
@@ -1654,6 +1658,7 @@ main(void)
     test_duplicate_debugproc();
     test_duplicate_login();
     test_duplicate_trigger();
+    test_subject_namespace();
     test_stat_argument_hint();
     test_spotanim_argument_hint();
     test_proc_param_kind_hint();

@@ -578,6 +578,21 @@ review, and are parallelisable across people.
   before treating it as load-bearing, and this plan does not.
 * **Token/point shops** (88) — `omnishop_shop_data`/`omnishop_stock_data`
   dbtables and a separate interface family. Related by name only.
+* **"Shops" that are wiki reference tables for a different mechanic, not a
+  shopmain/shopside storefront** — found while investigating why 141
+  catalogued rows have no price multiplier *and* no currency (§8: the
+  scraper correctly named these shops, but not all of them are shops).
+  `{{StoreTableHead|hidebuy=y|hidecaption=y|...}}` — buying hidden, no
+  caption — marks a page documenting what an npc pays for junk, not a
+  browsable coin shop; 109 of the 141 carry it (checked directly, not
+  estimated). Confirmed against one case in depth: `Apothecary's Potions`
+  catalogues cleanly by every rule in §1–2, but the Apothecary is a Romeo &
+  Juliet-quest brewing NPC (`LostCity_Server/.../apothecary.rs2`) — turn in
+  ingredients and coins, get a potion back — with no `shopmain` interface
+  anywhere in the reference. This is not a binding gap or a spawn gap; these
+  rows should never generate a `.rs2` regardless of how good the tooling
+  gets, and the honest addressable-shop count is smaller than the raw 609
+  distinct-tables figure by roughly this many.
 * **Account-mode variants** — 191 invs are `_gim`/`_uim`/`_im`/`_leagues`/
   `deadman_` copies of a base shop. One mode, one inv; the rest are out of scope.
 * **Buying back sold items at the price the shop paid** — OSRS tracks a
@@ -845,16 +860,13 @@ in-game), not another pass over the existing pipeline.
   parses — 113 seeded) and by reading the generated files against the wiki
   source, not by opening a shop as a connected client.
 
-> **Verification note, this pass:** `make -C src mock230-scripts` could not be
-> re-run clean after this pass's regeneration — the tree currently fails on
-> `ladders_stairs/scripts/maplink.rs2:39` (`'maplink:dir' is not a command,
-> constant, symbol or script`), a map-links content change unrelated to shops
-> and not authored by this work (confirmed via `git log` on that file and by
-> grepping the shop tree for duplicate `[opnpc3,...]` triggers, which found
-> none). The 10 newly-generated files and the dedup fix are believed correct
-> on that basis, but not selftest-confirmed the way every earlier count in
-> this document was — re-run `--selftest` once the tree's own maplink issue
-> clears.
+> **Verification, this pass:** the `maplink.rs2` breakage above was another
+> stream's, and cleared on its own — `make -C src mock230-scripts` now
+> compiles clean and `--selftest` confirms 162 shop definitions parsed, 161
+> seeded, matching this section's count exactly. (Three unrelated,
+> already-committed door-count failures remain in the suite —
+> `doors.loc`/`doubledoors.loc`, from the same door-opening work referenced
+> in earlier status notes — not shop content and not this pass's to fix.)
 
 ### 8.2 Content — 161 shops live
 

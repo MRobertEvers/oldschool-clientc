@@ -98,7 +98,10 @@ SPIRAL_GROUP = "climb_spiral_middle"
 # 'manhole' (6) and 'hatch' (3) join the ladder side: you climb down through a
 # hole the same way, and the reference's own manhole script plays exactly the
 # same `human_pickupfloor`.
-LADDER_KEYWORDS = ("ladder", "trapdoor", "manhole", "hatch")
+# `trap_door` is not a spelling variant worth being clever about — it is one
+# record, `champions_trap_door_open`, and it climbed down un-animated for exactly
+# as long as the keyword list said `trapdoor` and the cache said `trap_door`.
+LADDER_KEYWORDS = ("ladder", "trapdoor", "trap_door", "manhole", "hatch")
 LADDER_VETO = ("stair",)
 
 

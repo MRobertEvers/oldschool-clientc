@@ -88,10 +88,15 @@ Two ways that showed up, 30 times:
 The visible symptom is always the same: the thing you click does nothing. 21
 were `[opheldu,<loc>]` that meant `oplocu`, 6 were `[opnpc*/ai_*,<loc>]`, 2 were
 `[opheldu,<npc>]` that meant `opnpcu`, and one named a varbit that has no loc at
-all. `tools/` has no checker for this yet; the scan that found them joins each
-`[trigger,subject]` against `configs/all.<kind>.compack` plus the lane packs
-under `ported/*/pack` and the `--component-root` interfaces, and anything that
-skips those last two reports hundreds of false positives.
+all.
+
+`sscompile` now closes this two ways. It resolves a subject in the namespace the
+trigger implies **before** trying "any", which is what fixed `grim_pendant`
+without touching content; and when the name exists but not as that kind, it is a
+hard error rather than a fallback — a fallback would have quietly recreated the
+same 21 inert triggers. `opheldt`/`opnpct` are exempt: their subject is an
+interface component (`magic_spellbook:magic_dart`), and the colon is what says
+so.
 
 ## And the one after that: a name-addressed script with no call site
 
