@@ -10274,8 +10274,20 @@ app_world_spawn_npc_now(
         bd_model = PlatformSDL2_TicksUs() - bd_t;
     if( !model )
     {
+        /* Same rationale as the models_count<=0 branch above: a missing
+         * model must not drop the entity itself, or every later NPC_INFO
+         * mask for this slot resolves to -1 and is silently discarded for
+         * the rest of the session, with no retry (npc_add only fires once
+         * per spawn). This path is reached on a transient/real model-load
+         * failure -- large multi-part npcs like QBD are the most exposed --
+         * so register an empty placeholder and keep going; that degrades to
+         * an invisible npc instead of erasing it outright. */
         fprintf(stderr, "spawn_npc: npc %d models failed to load\n", npc_id);
-        return -1;
+        model = ToriDraw_ModelNew(0, 0, 0);
+        if( model )
+            ToriDraw_ModelSetBoundsCylinder(model);
+        if( !model )
+            return -1;
     }
     /* Set explicitly both ways. Models arrive from ToriDraw_ModelFromToriRS with
      * no render flags, so the opt-in is this line and nothing else; clearing is
@@ -10638,6 +10650,27 @@ app_world_spawn_spotanim_now(
     World_SpotanimSpawn(
         app->world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
     app_world_apply_seq(app, element_id, spot->seq);
+    /* A delayed spotanim is invisible until World flips it active, so its
+     * sequence must not run in the meantime. Park it as anim_external — the
+     * flag the naive per-element tick uses to mean "someone else owns this
+     * element's frames" — and let WorldEventKind_SpotanimStarted hand it back
+     * on the cycle it first draws. Without this the whole delay is spent
+     * animating out of sight: `spotanim_map`'s delay is a projectile's flight
+     * time, which is routinely longer than the sequence, so the splash
+     * surfaced already finished and sat on a cleared final frame. Elements
+     * with no delay are left alone and start immediately, as before. */
+    if( delay > 0 )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        if( el )
+        {
+            el->anim_external = true;
+            /* anim_list membership is filtered on anim_external, so the cached
+             * list is now stale (toridraw_scene.h: the caller mutating this
+             * flag directly owns the invalidation). */
+            ToriDraw_SceneAnimListInvalidate(app->scene);
+        }
+    }
 
     fprintf(
         stderr,
@@ -12885,6 +12918,30 @@ App_WorldDrainEntityRemoved(struct App* app)
             app_entity_spotanim_drop(app, ev->element_id);
             if( app->scene )
                 ToriDraw_SceneElementRemove(app->scene, ev->element_id);
+        }
+        else if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id >= 0 &&
+                 app->scene )
+        {
+            /* The delayed map spotanim parked in app_world_spawn_spotanim_now
+             * is drawing for the first time this cycle: rewind to frame 0 and
+             * hand it back to the per-element tick.
+             *
+             * The rewind is not redundant with parking it. A sequence that was
+             * not resident at spawn binds later through seq_bind_pending, and
+             * that path catches the animation up by (now - start_cycle) — a
+             * span measured from SPAWN, which for a delayed spotanim is the
+             * wrong origin and can land it mid-sequence or past the end. Frame
+             * 0 here is what makes the start independent of when the seq
+             * happened to load. */
+            struct ToriDraw_SceneElement* el =
+                ToriDraw_SceneElementGet(app->scene, ev->element_id);
+            if( el && el->anim_external )
+            {
+                el->anim_frame = 0;
+                el->anim_cycle = 0;
+                el->anim_external = false;
+                ToriDraw_SceneAnimListInvalidate(app->scene);
+            }
         }
     }
     World_EventsClear(world);

@@ -512,9 +512,34 @@ test_spotanim(void)
     struct WorldEntity_Spotanim* s = World_EntityPoolGet(&world->entities.spotanim, idx);
     TEST_ASSERT(!s->active && s->idle_cycles == 3, "spot idle");
 
-    World_Cycle(world, 3);
+    /* Nothing announced while it is still counting down its delay: the app
+     * holds the element's sequence at frame 0 until the start event, so an
+     * event emitted early would run the animation out of sight. */
+    World_Cycle(world, 1);
+    TEST_ASSERT(World_EventsCount(world) == 0, "no start event while delayed");
+
+    World_Cycle(world, 2);
     s = World_EntityPoolGet(&world->entities.spotanim, idx);
     TEST_ASSERT(s && s->active, "spot active");
+
+    /* Exactly one start event, on the cycle it first draws — this is what tells
+     * the app to begin the sequence. */
+    {
+        int starts = 0;
+        int count = World_EventsCount(world);
+        for( int i = 0; i < count; i++ )
+        {
+            const struct World_Event* ev = World_EventsPeek(world, i);
+            if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id == 40 )
+                starts++;
+        }
+        TEST_ASSERT(starts == 1, "spot start event on activation cycle");
+    }
+
+    /* And not re-announced every cycle it stays active. */
+    World_EventsClear(world);
+    World_Cycle(world, 1);
+    TEST_ASSERT(World_EventsCount(world) == 0, "start event is not repeated");
 
     World_Cycle(world, 5);
     TEST_ASSERT(world->entities.spotanim.active_count == 0, "spot expired");

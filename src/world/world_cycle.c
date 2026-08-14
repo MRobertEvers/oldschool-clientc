@@ -878,6 +878,12 @@ World_CycleUpdateSpotanims(
                 si = next;
                 continue;
             }
+            /* First cycle of visibility: the animation starts NOW. Held at
+             * frame 0 until here, because a delayed spotanim that stepped
+             * through its own delay would surface part-played and then freeze
+             * on a dead final frame — the delay is almost always a projectile's
+             * flight, so it is routinely longer than the sequence itself. */
+            World_EmitEvent(world, WorldEventKind_SpotanimStarted, s->element_id);
         }
 
         if( cycles_elapsed > 0 )
