@@ -3156,10 +3156,24 @@ SSC_CompileFile(
     char* source = read_file(path, &length);
     /* Headers stacked on the body that follows them. See alias_script. A stack
      * is bounded by the file, so a fixed cap only has to exceed the longest one
-     * content actually writes (23, in skill_farming/scripts/farming_compost.rs2)
-     * by enough margin to not be a limit anyone meets. */
-    char pending_names[64][SSC_MAX_NAME];
-    int32_t pending_keys[64];
+     * content actually writes by enough margin to not be a limit anyone meets.
+     *
+     * Was 64, chosen against a longest stack of 23
+     * (skill_farming/scripts/farming_compost.rs2). Raised to 256 when Barrows
+     * equipment landed: gear/barrows_ops.rs2 binds Wear and Check across six
+     * sets x four pieces x five degrade tiers, which is ~120 headers on each of
+     * its two bodies — a legitimate shape, and the first content to pass 64.
+     *
+     * Nothing downstream cares how many there are. These two arrays live only
+     * for the span between a run of headers and the body they alias onto, and
+     * `alias_script` registers each name against the same `body_index`; the
+     * bytecode has one script either way. So this is a buffer, not a format
+     * limit, and the alternative — splitting a content file into four
+     * near-identical bodies to fit the compiler — would be the tail wagging the
+     * dog. At SSC_MAX_NAME (128) this is 32 KB of frame, which is why it is not
+     * simply enormous. */
+    char pending_names[256][SSC_MAX_NAME];
+    int32_t pending_keys[256];
     int pending_count = 0;
 
     if( !source )
