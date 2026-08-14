@@ -149,7 +149,7 @@ enum
      * and inside the scene's draw distance at the other. */
     APP_WORLD_ZOOM_DEFAULT_PCT = 100,
     APP_WORLD_ZOOM_MIN_PCT = 40,
-    APP_WORLD_ZOOM_MAX_PCT = 300,
+    APP_WORLD_ZOOM_MAX_PCT = 360,
     APP_WORLD_ZOOM_STEP_PCT = 10,
     /* Free camera (offline / scripted): no orbit distance to scale, so a notch
      * dollies along the view axis instead. */

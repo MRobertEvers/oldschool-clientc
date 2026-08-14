@@ -21838,30 +21838,50 @@ mock230_world_selftest(void)
          *
          * The number tracks the overlay and has to be re-read from it when doors
          * are authored — `grep -c '^category=door_closed$' doors.loc`. It was
-         * 382 when this was written and is 422 now; what it is defending is not
-         * the total but the *floor*, because an overlay that stopped being read
-         * answers 0 here and `validate_categories` would then call the name
-         * uncarried. Left as an equality rather than `> 0` so a half-loaded
-         * overlay — the failure that actually happens, a merge dropping one
-         * source file — is also caught, at the price of this line moving with
-         * the content. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 422,
-                       "and doors.loc states door_closed 422 times, got %d",
+         * 382 when this was written, then 422, and is 300 now: 61 clusters that
+         * the map squares place as TWO LEAVES of one door left for
+         * `doubledoors.loc` (57, as door_left_* / door_right_*) and for the gate
+         * counts below (4 long fence gates), taking two closed halves each. What
+         * it is defending is not the total but the *floor*, because an overlay
+         * that stopped being read answers 0 here and `validate_categories` would
+         * then call the name uncarried. Left as an equality rather than `> 0` so
+         * a half-loaded overlay — the failure that actually happens, a merge
+         * dropping one source file — is also caught, at the price of this line
+         * moving with the content. */
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 300,
+                       "and doors.loc states door_closed 300 times, got %d",
                        mock230_loc_category_members(door_closed));
         {
             int gate_main_closed =
                 mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_main_closed");
             int gate_outer_closed =
                 mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_outer_closed");
+            int door_left_closed =
+                mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_left_closed");
+            int door_right_closed =
+                mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_right_closed");
             SELFTEST_CHECK(gate_main_closed > 0 && gate_outer_closed > 0,
                            "pack/category.pack should name both fence-gate leaves: %d/%d",
                            gate_main_closed, gate_outer_closed);
-            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 5,
-                           "doors.loc states gate_main_closed 5 times, got %d",
+            /* 5 + the 4 that `tools/door_audit.py --suggest-double-leaf` found
+             * placed as long fence gates and wired as single doors (death,
+             * burgh, mourning_orchard, qip_sheep_shearer). */
+            SELFTEST_CHECK(mock230_loc_category_members(gate_main_closed) == 9,
+                           "doors.loc states gate_main_closed 9 times, got %d",
                            mock230_loc_category_members(gate_main_closed));
-            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 5,
-                           "doors.loc states gate_outer_closed 5 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(gate_outer_closed) == 9,
+                           "doors.loc states gate_outer_closed 9 times, got %d",
                            mock230_loc_category_members(gate_outer_closed));
+            /* And the other half of the same move: 6 clusters were already in
+             * doubledoors.loc, 57 joined them. A leaf that lost its side is a
+             * door that opens half way, which is what this whole rung exists to
+             * keep from happening silently. */
+            SELFTEST_CHECK(mock230_loc_category_members(door_left_closed) == 63,
+                           "doubledoors.loc states door_left_closed 63 times, got %d",
+                           mock230_loc_category_members(door_left_closed));
+            SELFTEST_CHECK(mock230_loc_category_members(door_right_closed) == 63,
+                           "doubledoors.loc states door_right_closed 63 times, got %d",
+                           mock230_loc_category_members(door_right_closed));
         }
 
         /* --- source 2, the cache's own config opcode 61 -------------------- */
@@ -22981,6 +23001,75 @@ mock230_world_selftest(void)
         }
 
         /*
+         * `::maxmelee`, `::maxrange`, `::maxmage` — same shape and the same
+         * restore obligation as `::~crystal_set` above (each also raises its
+         * combat stats to 99). One representative slot per style is enough to
+         * catch a missing, misspelled, or wrong-slot item; the full per-slot
+         * list is what OSRS-Content/.../cheat_max_gear.rs2 declares and the
+         * compile step already proves every gameval name in it resolves.
+         */
+        {
+            struct Mock230Player* who = &srv->players[0];
+            static const uint8_t cmd_melee[] = "~maxmelee\n";
+            static const uint8_t cmd_range[] = "~maxrange\n";
+            static const uint8_t cmd_mage[] = "~maxmage\n";
+            int torva_helm = mock230_content_symbol(MOCK230_PACK_OBJ, "torva_helm");
+            int elder_maul = mock230_content_symbol(MOCK230_PACK_OBJ, "elder_maul");
+            int twisted_bow = mock230_content_symbol(MOCK230_PACK_OBJ, "twisted_bow");
+            int masori_body_fortified =
+                mock230_content_symbol(MOCK230_PACK_OBJ, "masori_body_fortified");
+            int tumekens_shadow =
+                mock230_content_symbol(MOCK230_PACK_OBJ, "tumekens_shadow");
+            int ancestral_hat = mock230_content_symbol(MOCK230_PACK_OBJ, "ancestral_hat");
+            struct Mock230Item worn_before[MOCK230_WORN_SLOTS];
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+
+            memcpy(worn_before, who->worn, sizeof(worn_before));
+            memcpy(level_before, who->stat_level, sizeof(level_before));
+            memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
+
+            SELFTEST_CHECK(torva_helm > 0 && elder_maul > 0 && twisted_bow > 0 &&
+                               masori_body_fortified > 0 && tumekens_shadow > 0 &&
+                               ancestral_hat > 0,
+                           "the max-gear items must resolve through the pack");
+
+            handle_cheat(srv, cmd_melee, (int)sizeof(cmd_melee) - 1);
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == torva_helm,
+                           "::~maxmelee equips the Torva helm");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == elder_maul,
+                           "::~maxmelee equips the elder maul");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "::~maxmelee clears the shield slot for its two-handed weapon");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_STRENGTH] == 99,
+                           "::~maxmelee raises its own equip requirements");
+
+            handle_cheat(srv, cmd_range, (int)sizeof(cmd_range) - 1);
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == twisted_bow,
+                           "::~maxrange equips the twisted bow");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_BODY].obj_id == masori_body_fortified,
+                           "::~maxrange equips the fortified Masori body");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "::~maxrange clears the shield slot for its two-handed weapon");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_RANGED] == 99,
+                           "::~maxrange raises its own equip requirements");
+
+            handle_cheat(srv, cmd_mage, (int)sizeof(cmd_mage) - 1);
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_WEAPON].obj_id == tumekens_shadow,
+                           "::~maxmage equips Tumeken's shadow");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == ancestral_hat,
+                           "::~maxmage equips the ancestral hat");
+            SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
+                           "::~maxmage clears the shield slot for its two-handed weapon");
+            SELFTEST_CHECK(who->stat_level[MOCK230_STAT_MAGIC] == 99,
+                           "::~maxmage raises its own equip requirements");
+
+            memcpy(who->worn, worn_before, sizeof(worn_before));
+            memcpy(who->stat_level, level_before, sizeof(level_before));
+            memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
+        }
+
+        /*
          * `::give <name> [count]`, through the same CLIENT_CHEAT payload shape.
          *
          * Four things this asserts that a "did it add something" check cannot:
@@ -23089,6 +23178,132 @@ mock230_world_selftest(void)
                                suggest[0],
                            "an ambiguous substring refuses and names candidates: '%s'",
                            suggest);
+
+            memcpy(who->inv, inv_before, sizeof(inv_before));
+            mock230_container_mark_all(
+                mock230_container_resolve(srv, who, mock230_ids()->inv_backpack));
+        }
+
+        /*
+         * `::maxstats` and `::jas`, which share one skill list in
+         * general/scripts/misc/cheat_xp.rs2 and differ only in the boost.
+         *
+         * Asserted over every skill rather than a representative one, because
+         * the failure this guards against is a skill *missing* from the list —
+         * a compile proves each name in it resolves, and nothing proves the
+         * list is complete. Sailing is skipped on purpose: it is a protocol
+         * slot in this tree, not a trainable skill, and the content says so.
+         *
+         * The two are checked apart because `stat_base` and `stat` answer
+         * differently after each, and that difference is the point of having
+         * both: `::maxstats` leaves an account a real player could hold, `::jas`
+         * pushes the boosted level to the byte ceiling.
+         *
+         * Same restore obligation as `::~crystal_set` above — a 99-everything
+         * player does not aggress low-level npcs, and later sections depend on
+         * the levels this section found.
+         */
+        {
+            struct Mock230Player* who = srv->active_player;
+            static const uint8_t cmd_maxstats[] = "~maxstats\n";
+            static const uint8_t cmd_jas[] = "~jas\n";
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+            int xp_before[MOCK230_STAT_COUNT];
+            int unmaxed = -1;
+            int unboosted = -1;
+
+            memcpy(level_before, who->stat_level, sizeof(level_before));
+            memcpy(boosted_before, who->stat_boosted, sizeof(boosted_before));
+            memcpy(xp_before, who->stat_xp_tenths, sizeof(xp_before));
+
+            handle_cheat(srv, cmd_maxstats, (int)sizeof(cmd_maxstats) - 1);
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                if( i == MOCK230_STAT_SAILING )
+                    continue;
+                if( who->stat_level[i] != 99 || who->stat_boosted[i] != 99 )
+                    unmaxed = i;
+            }
+            SELFTEST_CHECK(unmaxed < 0,
+                           "::~maxstats takes every skill to a base 99 with no boost "
+                           "on top; stat %d is %d/%d",
+                           unmaxed,
+                           unmaxed < 0 ? 99 : who->stat_boosted[unmaxed],
+                           unmaxed < 0 ? 99 : who->stat_level[unmaxed]);
+
+            handle_cheat(srv, cmd_jas, (int)sizeof(cmd_jas) - 1);
+            for( int i = 0; i < MOCK230_STAT_COUNT; i++ )
+            {
+                if( i == MOCK230_STAT_SAILING )
+                    continue;
+                if( who->stat_level[i] != 99 || who->stat_boosted[i] != 255 )
+                    unboosted = i;
+            }
+            SELFTEST_CHECK(unboosted < 0,
+                           "::~jas boosts the same list to the 255 byte ceiling over a "
+                           "base 99; stat %d is %d/%d",
+                           unboosted,
+                           unboosted < 0 ? 255 : who->stat_boosted[unboosted],
+                           unboosted < 0 ? 99 : who->stat_level[unboosted]);
+
+            memcpy(who->stat_level, level_before, sizeof(level_before));
+            memcpy(who->stat_boosted, boosted_before, sizeof(boosted_before));
+            memcpy(who->stat_xp_tenths, xp_before, sizeof(xp_before));
+        }
+
+        /*
+         * `::runes [count]`.
+         *
+         * Every rune in the list is asserted, and for the same reason the stat
+         * check above walks every skill: the compile proves each gameval in
+         * `cheat_runes.rs2` resolves, so the only failure left is a rune the
+         * list forgot — which no compile and no spot-check can see. The count
+         * is asserted too, since a missing argument defaulting to 0 would add
+         * nothing and still leave every name resolving.
+         *
+         * The backpack is cleared first: 22 runes need 22 of 28 slots, so a
+         * section that ran with items in hand would fail on inventory space
+         * rather than on the cheat.
+         */
+        {
+            struct Mock230Player* who = srv->active_player;
+            static const char* const rune_names[] = {
+                "airrune",   "waterrune",  "earthrune",  "firerune",
+                "mistrune",  "dustrune",   "mudrune",    "smokerune",
+                "steamrune", "lavarune",   "mindrune",   "bodyrune",
+                "cosmicrune", "chaosrune", "naturerune", "lawrune",
+                "deathrune", "bloodrune",  "soulrune",   "astralrune",
+                "wrathrune", "sunfirerune",
+            };
+            static const uint8_t cmd_runes[] = "~runes 500\n";
+            struct Mock230Item inv_before[MOCK230_INV_SLOTS];
+            const char* missing = NULL;
+            int missing_count = -1;
+
+            memcpy(inv_before, who->inv, sizeof(inv_before));
+            for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                inv_set(who, i, -1, 0);
+
+            handle_cheat(srv, cmd_runes, (int)sizeof(cmd_runes) - 1);
+            for( size_t r = 0; r < sizeof(rune_names) / sizeof(rune_names[0]); r++ )
+            {
+                int obj = mock230_content_symbol(MOCK230_PACK_OBJ, rune_names[r]);
+                int total = 0;
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    if( obj > 0 && who->inv[i].obj_id == obj )
+                        total += who->inv[i].count;
+                if( total != 500 )
+                {
+                    missing = rune_names[r];
+                    missing_count = total;
+                }
+            }
+            SELFTEST_CHECK(!missing,
+                           "::~runes 500 puts 500 of every castable rune in the "
+                           "backpack; %s is %d",
+                           missing ? missing : "-", missing_count);
 
             memcpy(who->inv, inv_before, sizeof(inv_before));
             mock230_container_mark_all(
@@ -32642,11 +32857,19 @@ mock230_world_selftest(void)
                                    "the worm stage constants should all be stated, got "
                                    "flight=%d landing=%d hatch=%d",
                                    flight, landing, hatch);
-                    SELFTEST_CHECK(hatch * 30 == flight + landing,
-                                   "the worm hatch (%d ticks = %d cycles) must land exactly "
-                                   "when the landing animation ends (flight %d + landing %d "
-                                   "= %d), or the animation and the npc are two worms",
+                    SELFTEST_CHECK(hatch * 30 >= flight + landing,
+                                   "the worm hatch (%d ticks = %d cycles) must not land "
+                                   "before the landing animation ends (flight %d + landing "
+                                   "%d = %d), or the animation and the npc are two worms",
                                    hatch, hatch * 30, flight, landing, flight + landing);
+                    /* One tick of daylight is the intent; more than that and the
+                     * tile sits empty long enough to read as a dropped spawn
+                     * rather than as a beat between the effect and the npc. */
+                    SELFTEST_CHECK(hatch * 30 <= flight + landing + 30,
+                                   "the worm hatch (%d cycles) should follow the landing "
+                                   "(%d) by at most one tick, got a %d-cycle gap",
+                                   hatch * 30, flight + landing,
+                                   hatch * 30 - (flight + landing));
                 }
 
                 /*
@@ -32925,6 +33148,8 @@ mock230_world_selftest(void)
                                "QBD entry should arm one lifecycle, two opening queues and HUD; "
                                "got %d/%d/%d",
                                timer_count, queue_count, hud_mounts);
+
+
 
                 /* Stand in for victory's permanent reward handoff, then move
                  * through the engine's ordinary teleport seam. The soft timer

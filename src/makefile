@@ -625,10 +625,26 @@ $(OBJ_DIR)/asan_dyld_shim.dylib: platform/asan_dyld_shim.c | $(OBJ_DIR)
 # GNU Make 4.0+'s own builtin for this -- it writes the file from inside make
 # itself, no shell process and no command line involved, so there is nothing
 # left for any OS argument-length limit to truncate.
+#
+# $(file ...) really is 4.0+ only, and macOS still ships GNU Make 3.81 as
+# /usr/bin/make. There the call expands to nothing WITHOUT an error, so the
+# response file is simply never written and the link dies on
+# "no such file or directory: @build.../link_objs.rsp". Only the constrained
+# lanes (cmd.exe, mingw32-make) ever needed the indirection, so on an older
+# make just put the objects back on the link line -- the platforms that ship
+# 3.81 have a megabyte-plus ARG_MAX and never had the problem.
+# firstword(sort) is the usual "is MAKE_VERSION >= 4.0" test: sort is lexical
+# and dedupes, so 4.0 stays first only when the running make is 4.0 or newer.
+ifeq ($(firstword $(sort 4.0 $(MAKE_VERSION))),4.0)
+LINK_OBJS_ARG = @$(OBJ_DIR)/link_objs.rsp
+else
+LINK_OBJS_ARG = $(OBJS)
+endif
+
 $(TARGET): $(OBJS) $(ASAN_DYLD_SHIM)
 	@mkdir -p $(dir $@)
 	$(file >$(OBJ_DIR)/link_objs.rsp,$(OBJS))
-	$(CC) $(CFLAGS) -o $@ @$(OBJ_DIR)/link_objs.rsp $(LDFLAGS) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -o $@ $(LINK_OBJS_ARG) $(LDFLAGS) $(ASAN_DYLD_SHIM)
 	@echo $(OBJ_DIR) > .last_flavor
 
 # --- Web target ----------------------------------------------------------

@@ -642,6 +642,58 @@ test_trigger_subject(void)
 }
 
 static void
+test_stacked_headers(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* first;
+    const struct SSVM_Script* second;
+    const struct SSVM_Script* trailing;
+
+    printf("stacked headers share one body\n");
+
+    /* Content writes every variant of a thing as a stack of headers over a
+     * single body. Before aliasing, only the LAST name got the code and the
+     * rest compiled to a bare RETURN — the loc or npc simply did nothing when
+     * clicked, with no diagnostic anywhere. */
+    if( !fixture_compile(&fixture,
+                         "[opnpc1,hans]\n"
+                         "[opnpc2,hans]\n"
+                         "mes(\"Hello there.\");\n"
+                         "\n"
+                         "[opnpc3,hans]\n",
+                         "stacked") )
+        return;
+
+    first = SSVM_ProviderGetByName(&fixture.provider, "[opnpc1,hans]");
+    second = SSVM_ProviderGetByName(&fixture.provider, "[opnpc2,hans]");
+    CHECK(first != NULL, "the stacked header compiled");
+    CHECK(second != NULL, "the header carrying the body compiled");
+    if( first && second )
+    {
+        CHECK_EQ(first->op_count, second->op_count, "the alias has the same body");
+        CHECK(first->op_count > 1, "and that body is not a bare RETURN");
+        /* Distinct scripts, not one script under two names: freeing the pack
+         * frees both, so the alias must own its own operands. */
+        CHECK(first->id != second->id, "the alias is its own script");
+        CHECK(first->opcodes != second->opcodes, "with its own opcode array");
+        /* Each keeps the trigger IT declared — the whole point of the alias. */
+        CHECK_EQ(first->lookup_key & 0xff, SS_TRIGGER_OPNPC1, "the alias keeps its own trigger");
+        CHECK_EQ(second->lookup_key & 0xff, SS_TRIGGER_OPNPC2, "the body keeps its own trigger");
+    }
+    CHECK(SSVM_ProviderGetByTrigger(&fixture.provider, SS_TRIGGER_OPNPC1, 3105, -1) != NULL,
+          "the alias resolves through the trigger index");
+
+    /* A header with no body and nothing after it is not a stack — there is no
+     * body to share — so it stays the empty script it was written as. */
+    trailing = SSVM_ProviderGetByName(&fixture.provider, "[opnpc3,hans]");
+    CHECK(trailing != NULL, "a trailing empty header still compiles");
+    if( trailing )
+        CHECK_EQ(trailing->op_count, 1, "and stays a bare RETURN");
+
+    fixture_close(&fixture);
+}
+
+static void
 test_coord_subject(void)
 {
     struct Fixture fixture;
@@ -1477,6 +1529,7 @@ main(void)
     test_symbols_and_constants();
     test_varp();
     test_trigger_subject();
+    test_stacked_headers();
     test_coord_subject();
     test_implicit_return();
     test_npc_runtime_primitives();
