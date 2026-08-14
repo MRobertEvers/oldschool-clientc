@@ -505,15 +505,20 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Gryphon feather, 1 charge each; Uncharge returns unused feathers",
         drain_event="1 charge per 25 Hunter catches while worn and charged (+4 Hunter boost instead of +2)",
-        status="charges_only",
-        note="general/scripts/enchanted_jewellry/horn_of_plenty.rs2/.constant/.varp now implements charge "
-             "storage, Toggle (account-wide, no second real obj id to spend on the per-item boolean), and "
-             "Check. Uncharge is a documented no-op message (the `gryphon feather` obj this recipe needs "
-             "does not exist anywhere in this cache, checked directly, so there is nothing to charge with "
-             "or refund). Still charges_only: no single centralized 'catch succeeded' choke point exists in "
-             "skill_hunter/scripts/ (each of ~16 trap-type files has its own catch logic) -- unlike "
-             "combat's one player_hit_npc_prepare hook this session's weapon/armour drains all share, this "
-             "would need touching every trap file individually.",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/horn_of_plenty.rs2/.constant/.varp. `~horn_of_plenty_catch` "
+             "is now called from all 17 Hunter catch sites this tree has (every `stat_advance(hunter, ...)` "
+             "call across skill_hunter/scripts/'s 13 files with one -- bird_snare/box_trap/butterfly x2/"
+             "common_trail/deadfall/desert_jungle_trail x2/falconry/impling/magic_box/net_trap/pitfall x3/"
+             "polar_trail; hunter_traps.rs2/imp_box.rs2/rabbit_hole.rs2 have none of their own), each a "
+             "single-line insertion right after the XP grant, found by an exhaustive grep pass rather than "
+             "assumed to only live in a couple of files. Self-gates on the Toggle, worn state, and charge "
+             "count the same way blood_fury_drain is safe to call unconditionally from every combat hit. "
+             "Charging is NOT implemented: the `gryphon feather` obj this recipe needs does not exist "
+             "anywhere in this cache, so Uncharge is a documented no-op rather than a refund, and the "
+             "+4-instead-of-+2 Hunter catch-chance boost itself (a separate integration point at wherever "
+             "base catch chance is computed) is also not implemented -- the charge count/drain mechanism is "
+             "complete and tested even though the bonus effect it's supposed to unlock isn't.",
     ),
     "Iban's staff": dict(
         storage="item_var", depletion="none", max_charges=120,
