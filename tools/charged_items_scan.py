@@ -1288,9 +1288,20 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Soul + chaos runes (2 soul + 5 chaos per charge; aether substitutes for soul, not refunded on uncharge)",
         drain_event="1 charge per cast of the built-in spell",
-        status="charges_only",
-        note="Same corrected gap as Sanguinesti staff: no powered-staff auto-attack dispatch exists in "
-             "this tree to hook a drain into.",
+        status="implemented",
+        note="gear/tumekens_shadow.rs2/.constant, third weapon on the shared powered-staff dispatch (gear/"
+             "powered_staff.rs2). CORRECTS this ledger's own prior claim (grouped with Warped sceptre under "
+             "'no obj anywhere in this cache') -- re-verified directly against all.obj after the same wrong "
+             "dismissal was caught and fixed for Holy sanguinesti staff: tumekens_shadow/"
+             "tumekens_shadow_uncharged are real, present records. Max hit floor(magic/3) + 1, verified "
+             "against the wiki's own level-99 example (34), fetched live rather than assumed. Charging "
+             "consumes soul runes first, falling back to aether only when soul is insufficient (like Eye of "
+             "ayak's own two-material simplification, does not track which type funded which charge, so "
+             "Uncharge always refunds the soul-side as soulrune). NOT implemented: the weapon's own x3/x4 "
+             "magic-damage-bonus passive (a much larger mechanic reaching into the whole magic-damage-bonus "
+             "pipeline, same scope line as Arclight's infusion meter/Life leech). Selftest coverage added "
+             "and mutation-tested (the aether-fallback guard); full selftest re-run in both plain and "
+             "MOCK230_GEARRUN=1 modes, same 12-failure pristine baseline before and after.",
     ),
     "Venator bow": dict(
         storage="item_var", depletion="revert", max_charges=50000,
@@ -1308,9 +1319,19 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Chaos + earth runes (2 chaos + 5 earth per charge; combination runes accepted since 14 May 2025)",
         drain_event="1 charge per cast of the built-in spell",
-        status="charges_only",
-        note="Same corrected gap as Sanguinesti staff/Tumeken's shadow: no powered-staff auto-attack "
-             "dispatch exists in this tree to hook a drain into.",
+        status="implemented",
+        note="gear/warped_sceptre.rs2/.constant, fourth weapon on the shared powered-staff dispatch. "
+             "CORRECTS this ledger's own prior claim of no obj in this cache -- re-verified directly "
+             "against all.obj, same as Tumeken's shadow: warped_sceptre/warped_sceptre_uncharged are real, "
+             "present records. Unlike Eye of ayak, the charged form itself carries ifop4=Charge, so a "
+             "partially-drained sceptre can be topped up directly, not just charged fresh -- covered by its "
+             "own selftest check and mutation-tested. Max hit floor((8*magic + 96) / 37), derived by solving "
+             "the wiki's two stated data points (16 at level 62, 24 at level 99) against its own garbled "
+             "formula text (a fraction rendered with no division bar); both endpoints check out exactly, not "
+             "assumed. NOT implemented: 'combination rune' charging (accepted since 14 May 2025, only plain "
+             "chaosrune/earthrune here) and the Wilderness on-death charge-protection carve-out. Full "
+             "selftest re-run in both plain and MOCK230_GEARRUN=1 modes, same 12-failure pristine baseline "
+             "before and after.",
     ),
     "Xeric's talisman": dict(
         storage="item_var", depletion="revert", max_charges=1000,
