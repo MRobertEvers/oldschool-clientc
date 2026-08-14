@@ -7496,11 +7496,6 @@ app_world_tick_animations(struct App* app)
                 if( !ToriDraw_AnimationAdvanceObjectCycles(
                         anim, &element->anim_frame, &element->anim_cycle, 1) )
                     ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
-                if( getenv("TORIRS_FRAMEPROBE") &&
-                    element->anim_seq_id == atoi(getenv("TORIRS_FRAMEPROBE")) )
-                    fprintf(stderr, "frameprobe: element=%d seq=%d frame=%d cycle=%d wc=%d\n",
-                            element_id, element->anim_seq_id, element->anim_frame,
-                            element->anim_cycle, app->world ? app->world->cycle : -1);
                 /* Play any frame sounds for the new frame. A finished
                  * DynamicObject has no sequence, so it cannot emit another. */
                 if( element->anim_seq_id != -1 && element->anim_frame != old_frame )
@@ -10590,18 +10585,38 @@ app_world_spawn_projectile_spot_now(
     app->need_redraw = 1;
 }
 
-/* Total client cycles for one loop of a seq — the sum of (frame delay + 1) per
- * frame, matching MapSpotAnim.update which subtracts getDuration(frame)+1 each
- * advance. Drives the free-standing spotanim's single-shot lifetime. */
+/* Total client cycles one loop of a seq takes TO PLAY HERE. Drives the
+ * free-standing spotanim's single-shot lifetime, so it has to agree with
+ * whatever actually steps the frames — which is
+ * ToriDraw_AnimationAdvanceObjectCycles, and that implements the rev239
+ * `while (cycle > delay) cycle -= delay` walk, not Client-TS MapSpotAnim's
+ * `getDuration(frame) + 1` subtraction.
+ *
+ * The two differ by one cycle per frame. Trace the rev239 walk: from a zero
+ * counter the first frame needs delay+1 cycles to trip a STRICT `>`, and it
+ * then leaves 1 behind, so every later frame costs exactly its own delay. The
+ * loop is therefore sum(delay) + 1 cycles long, where summing (delay + 1) is
+ * sum(delay) + frame_count.
+ *
+ * Overstating it by frame_count - 1 is not harmless: the sequence ends, the
+ * element drops its animation and snaps back to the un-posed base model, and
+ * the spotanim then sits frozen in that pose until the lifetime finally
+ * expires. On a 37-frame splash that is 36 cycles of dead frame — the visible
+ * "it plays, then freezes" at the end of every map spotanim.
+ *
+ * `delay <= 0` counts as 1 because the advance treats it that way. */
 static int
 app_seq_total_duration(struct App* app, int seq_id)
 {
     int frames = app_seq_frame_count(app, seq_id);
-    int total = 0;
+    int total = 1;
     if( frames <= 0 )
         return 1;
     for( int f = 0; f < frames; f++ )
-        total += app_seq_frame_duration(app, seq_id, f) + 1;
+    {
+        int delay = app_seq_frame_duration(app, seq_id, f);
+        total += delay > 0 ? delay : 1;
+    }
     return total > 0 ? total : 1;
 }
 
@@ -12940,10 +12955,6 @@ App_WorldDrainEntityRemoved(struct App* app)
              * happened to load. */
             struct ToriDraw_SceneElement* el =
                 ToriDraw_SceneElementGet(app->scene, ev->element_id);
-            if( getenv("TORIRS_FRAMEPROBE") )
-                fprintf(stderr, "spotstart: element=%d el=%p external=%d seq=%d\n",
-                        ev->element_id, (void*)el, el ? (int)el->anim_external : -1,
-                        el ? el->anim_seq_id : -2);
             if( el && el->anim_external )
             {
                 el->anim_frame = 0;

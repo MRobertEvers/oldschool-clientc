@@ -395,18 +395,24 @@ build_scripts() {
 # Anything other than exit 1 bakes. A predicate that could not answer must never
 # be read as "up to date": a needless bake costs two minutes, and a wrongly
 # skipped one costs a session spent debugging content that was never packed.
+#
+# $6 is the cache the named bake writes, and defaults to the one the manifest
+# boots. It is a parameter because a composed lane layers two bakes: the first
+# writes an intermediate the client never opens, and asking the predicate about
+# $CACHE_DIR there would compare a lane against a cache it did not produce.
 cache_overlay() {
     _label=$1
     _lane=$2
     _base=$3
     _stager=$4
     _target=$5
+    _cache=${6:-$CACHE_DIR}
     # --tree: the script's own default is the OSRS-Content submodule, and the
     # whole point of the discovery above is that the tree in use is often a
     # build/ checkout instead. Left to the default the predicate watches a tree
     # nobody is building from and answers "fresh" for a lane that moved.
     if python3 tools/cache_overlay_stale.py \
-            --cache "$CACHE_DIR" --lane "$_lane" --base "$_base" \
+            --cache "$_cache" --lane "$_lane" --base "$_base" \
             ${MOCK230_CONTENT_DIR:+--tree "$MOCK230_CONTENT_DIR"} \
             --input "$_stager" --input src/makefile \
             --input 3rd/rscache/tools/cachepack >&2; then
@@ -437,6 +443,22 @@ build_cache_overlay() {
         return 0
     fi
     case "$CACHE_DIR" in
+        # The composed lane, in the order the Makefile composes it: the QBD/TD
+        # bake writes the intermediate this one then uses as its base, so a
+        # rebuilt first layer makes the second stale by its own predicate
+        # (--base is one of the inputs it stamps against). Neither arm below
+        # can match this name -- `*cache.osrs239.rs2012` does not match a
+        # string that continues past `rs2012` -- so it needs its own.
+        *cache.osrs239.rs2012-summoning)
+            _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs239.rs2012}
+            cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
+                "${RS2012_CACHE_BASE:-cache.osrs239}" \
+                tools/stage_rs2012_overlay.py mock230-cache-rs2012 \
+                "$_rs2012_base"
+            cache_overlay "Summoning over QBD/TD" scape2009_summoning \
+                "$_rs2012_base" \
+                tools/stage_summoning_overlay.py mock230-cache-rs2012-summoning
+            ;;
         *cache.osrs239.summoning)
             cache_overlay "Summoning" scape2009_summoning \
                 "${SUMMONING_CACHE_BASE:-cache.osrs239.baked}" \
