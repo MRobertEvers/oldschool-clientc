@@ -1188,6 +1188,119 @@ static int flatten_model_materials(
     return 1;
 }
 
+/*
+ * Backport HD texture mapping to the destination's simple (render type 0) mode.
+ *
+ * A source model's texture *frames* come in four kinds. Type 0 is the SD
+ * arrangement every era shares: three vertex indices (p/m/n) naming the plane
+ * the texture is projected through. Types 1-3 are the HD cylinder/cube/sphere
+ * modes, and OB3/V3 store **no p/m/n for them at all** — their parameters live
+ * in a separate tail block (see the decoder's "only render-type-0 (simple)
+ * triangles have p/m/n in the stream"). So every face pointing at a type-1/2/3
+ * frame reads back p=m=n=0, and the destination's software raster — which
+ * implements only the simple mode — builds a zero-area mapping plane from it
+ * and rasterizes the face to nothing.
+ *
+ * That is invisible geometry, not wrong-looking geometry: the model still
+ * animates, still bounds, still picks, and the raster still counts the faces as
+ * drawn. Remapping texture *ids* (which is all this branch used to do) cannot
+ * fix it, because the id was never the broken part.
+ *
+ * The conversion keeps the type-0 frames, compacts them so the indices stay
+ * dense, and drops every face that referenced an HD frame to -1 — the encoding
+ * of "map this texture through the face's own three vertices", which is what an
+ * SD-era model does and what the destination raster expects. Changing
+ * textured_face_count also invalidates the provenance, which is deliberate: the
+ * opaque tail it would otherwise replay is exactly the HD payload being removed.
+ */
+static void backport_texture_mapping_to_simple(struct RSCache_Model* model, int source_id,
+                                               int* out_faces_simplified, int* out_frames_dropped)
+{
+    int old_count = model->textured_face_count;
+    int kept = 0;
+
+    if( out_faces_simplified ) *out_faces_simplified = 0;
+    if( out_frames_dropped ) *out_frames_dropped = 0;
+    if( !model->face_textures )
+        return;
+
+    int* remap = old_count > 0 ? (int*)malloc((size_t)old_count * sizeof(int)) : NULL;
+    if( old_count > 0 && !remap )
+        return;
+
+    for( int i = 0; i < old_count; i++ )
+    {
+        int usable = model->texture_render_types && model->texture_render_types[i] == 0 &&
+                     model->textured_p_coordinate && model->textured_m_coordinate &&
+                     model->textured_n_coordinate &&
+                     !(model->textured_p_coordinate[i] == model->textured_m_coordinate[i] &&
+                       model->textured_m_coordinate[i] == model->textured_n_coordinate[i]);
+        remap[i] = usable ? kept++ : -1;
+    }
+
+    /* Repoint every textured face, counting the ones that lose their frame. */
+    int faces_with_frame = 0;
+    if( model->face_texture_coords )
+    {
+        for( int face = 0; face < model->face_count; face++ )
+        {
+            int c;
+            if( model->face_textures[face] < 0 )
+                continue;
+            c = model->face_texture_coords[face];
+            if( c < 0 || c >= old_count || remap[c] < 0 )
+            {
+                if( c >= 0 && c < old_count && out_faces_simplified )
+                    (*out_faces_simplified)++;
+                model->face_texture_coords[face] = -1;
+            }
+            else
+            {
+                model->face_texture_coords[face] = (int16_t)remap[c];
+                faces_with_frame++;
+            }
+        }
+    }
+
+    if( out_frames_dropped )
+        *out_frames_dropped = old_count - kept;
+
+    if( kept == 0 || faces_with_frame == 0 )
+    {
+        /* Nothing references a frame any more. The whole mapping section goes,
+         * including face_texture_coords — an all-(-1) array would trip
+         * model_assert_texture_invariant and make the encoder claim a section
+         * it has no entries for. */
+        free(model->face_texture_coords); model->face_texture_coords = NULL;
+        free(model->texture_render_types); model->texture_render_types = NULL;
+        free(model->textured_p_coordinate); model->textured_p_coordinate = NULL;
+        free(model->textured_m_coordinate); model->textured_m_coordinate = NULL;
+        free(model->textured_n_coordinate); model->textured_n_coordinate = NULL;
+        model->textured_face_count = 0;
+        if( out_frames_dropped )
+            *out_frames_dropped = old_count;
+        free(remap);
+        return;
+    }
+
+    if( kept != old_count )
+    {
+        for( int i = 0; i < old_count; i++ )
+        {
+            if( remap[i] < 0 )
+                continue;
+            model->textured_p_coordinate[remap[i]] = model->textured_p_coordinate[i];
+            model->textured_m_coordinate[remap[i]] = model->textured_m_coordinate[i];
+            model->textured_n_coordinate[remap[i]] = model->textured_n_coordinate[i];
+            model->texture_render_types[remap[i]] = 0;
+        }
+        model->textured_face_count = kept;
+    }
+
+    (void)source_id;
+    free(remap);
+}
+
 static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Cache* src,
                              const struct Tool_IdMap* model_map,
                              const struct RSCache_Dat2MaterialTable* materials,
@@ -1238,6 +1351,15 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
                 return 0;
             }
             model->face_textures[face] = (int16_t)dest_texture;
+        }
+        {
+            int simplified = 0, frames_dropped = 0;
+            backport_texture_mapping_to_simple(model, source_id, &simplified, &frames_dropped);
+            if( simplified || frames_dropped )
+                fprintf(stderr,
+                        "cachepack import: model %d texture mapping backported "
+                        "(%d face(s) to simple mapping, %d HD frame(s) dropped)\n",
+                        source_id, simplified, frames_dropped);
         }
     }
     else if( m->legacy_scape2009 )

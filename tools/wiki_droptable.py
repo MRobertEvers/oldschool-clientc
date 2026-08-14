@@ -224,18 +224,76 @@ def quantity_expr(qty: str) -> str | None:
     return None  # comma lists, "?", etc. — not generated, flagged by caller
 
 
-def build_table(lines: list[dict]) -> tuple[list[str], list[str]]:
+# What a corpse leaves behind: the bones families, the demonic ashes families,
+# and `Urium remains`. Matched as whole words against the wiki's display name so
+# `Bonesack` or `Ashes of the Fallen` cannot join by accident.
+REMAINS_RE = re.compile(r"\b(bones|ashes|remains)\b", re.I)
+
+
+def death_drop_choice(lines: list[dict]) -> dict | None:
+    """The one `Always` remains line `param=death_drop` speaks for, or None.
+
+    **This is the single decision `tools/gen_npc_stats.py` and this file must
+    agree on**, which is why it lives here and both import it. The generator
+    writes the chosen item as `param=death_drop,<gameval>`; `build_table` below
+    drops that same line from the table it emits. Compute it twice, differently,
+    and the npc either drops its remains twice or not at all — both of which
+    this tree has actually shipped.
+
+    First in wiki order wins. 11 roster npcs state two distinct remains items
+    (Callisto and Venenatis drop Big bones *and* Bones); `death_drop` is one
+    value, so it takes the first and the table keeps the rest as ordinary
+    `Always` drops, which is exactly right.
+
+    Quantity is not consulted. `death_drop` is always one item —
+    `obj_add(npc_coord, npc_param(death_drop), 1, ...)` at all 80 restatement
+    sites — and 40 roster npcs state `1;2` for their remains. Dropping one where
+    the wiki says one-or-two is a rounding error; the alternative designs are
+    worse (leaving it to the table double-drops it, since the guarded
+    restatement still fires, and the npcs with no generated table at all would
+    then drop nothing).
+    """
+    for line in lines:
+        nm = (line.get("name") or "").strip()
+        if not nm or not REMAINS_RE.search(nm):
+            continue
+        if line.get("rarity", "").strip().lower() != "always":
+            continue
+        gameval = resolve_obj_name(nm)
+        if gameval is None:
+            continue
+        return {"name": nm, "gameval": gameval, "quantity": line.get("quantity", "1")}
+    return None
+
+
+def build_table(lines: list[dict], death_drop: dict | None = None) -> tuple[list[str], list[str]]:
     """Returns (runescript_lines, skipped_reasons). `Always` lines become
     unconditional obj_add; fraction lines become one cumulative threshold
     walk over the LCD of their denominators, in wiki order, matching every
-    hand-ported table's existing shape."""
+    hand-ported table's existing shape.
+
+    `death_drop` is `death_drop_choice(lines)` — the one line the npc's
+    `param=death_drop` already states, skipped here so it is not dropped twice.
+    """
     always: list[dict] = []
     fractions: list[dict] = []
     skipped: list[str] = []
+    death_drop_taken = False
 
     for line in lines:
         nm = line["name"]
-        if not nm or nm.lower() in ("nothing", "bones"):
+        if not nm or nm.lower() == "nothing":
+            continue
+        # Exactly one occurrence, matched on the same identity the generator
+        # wrote. `Bones` used to be filtered here by name, unconditionally and
+        # for every npc — which is how TzHaar (no bones on their page at all)
+        # and every dragon (Dragon bones on theirs) both ended up leaving plain
+        # bones: the table dropped the page's own statement on the floor and the
+        # restatement put the tree-wide default back in its place.
+        if (not death_drop_taken and death_drop is not None
+                and (line.get("rarity", "").strip().lower() == "always")
+                and resolve_obj_name(nm) == death_drop["gameval"]):
+            death_drop_taken = True
             continue
         gameval = resolve_obj_name(nm)
         if gameval is None:
@@ -256,15 +314,18 @@ def build_table(lines: list[dict]) -> tuple[list[str], list[str]]:
         num, den = int(m.group(1)), int(m.group(2))
         fractions.append({"gameval": gameval, "qty": qty_expr, "num": num, "den": den})
 
-    # Guarded, not unconditional: some npcs (OldSchool giant spiders,
-    # shadow_spider, 28 total in this tree) are configured
-    # `param=death_drop,null` -- no bones at all. `npc_param(death_drop)`
-    # resolves per-npc at runtime, so one shared label covering several
-    # gamevals with different death_drop values (or none) is otherwise fine,
-    # but an unconditional obj_add would try to add a `null` item for the
-    # null case specifically. Checked once (npc_stats/*.stats doesn't carry
-    # this -- checked fresh from configs/all.npc + overlays); see
-    # docs/NPC_WIKI_DROPTABLES_PLAN.md §7 for how this was found.
+    # Guarded, not unconditional, and now meaning what it says: an npc's
+    # `param=death_drop` is `death_drop_choice`'s item, written by
+    # `tools/gen_npc_stats.py` from this same page, or `null` when the page
+    # states no remains at all. So the restatement drops the *right* remains for
+    # the npc that died, and `null` genuinely means "leaves nothing" rather than
+    # "nobody filled this in".
+    #
+    # One shared label still covers several gamevals, which is still fine and is
+    # now the point: `npc_param` resolves per-npc at runtime, so the six TzHaar-
+    # Xil share a label and each answers for itself.
+    #
+    # See docs/NPC_WIKI_DROPTABLES_PLAN.md §7 and §9.
     out = [
         "if (npc_param(death_drop) ! null) {",
         "    obj_add(npc_coord, npc_param(death_drop), 1, ^lootdrop_duration);",
@@ -419,13 +480,17 @@ def report_one(gameval: str) -> dict:
         return {"gameval": gameval, "ok": False, "reason": f"no main drop block resolved for dropversion={target_dropversion!r} on '{title}' ({len(blocks)} blocks total)"}
 
     lines = [ln for b in main_blocks for ln in b["lines"]]
-    rs2, skipped = build_table(lines)
+    rs2, skipped = build_table(lines, death_drop_choice(lines))
     if len(rs2) <= 3 and not skipped:
-        # Nothing beyond the universal death_drop restatement -- a binding
-        # that states nothing is worse than no binding at all (the project's
-        # own stated rule for `duck`, shared_droptables.rs2). Not an error;
-        # just nothing to add.
-        return {"gameval": gameval, "ok": False, "reason": f"no drops beyond bones/default on '{title}' -- no binding needed"}
+        # Nothing beyond the death_drop restatement -- a binding that states
+        # nothing is worse than no binding at all (the project's own stated rule
+        # for `duck`, shared_droptables.rs2). Not an error; just nothing to add.
+        #
+        # Still 3, and still correct now that the restatement carries the npc's
+        # own remains: an npc whose whole table is `Bones|Always` is answered
+        # entirely by `param=death_drop,bones`, which `[ai_queue3,_]` restates
+        # for it without any binding here.
+        return {"gameval": gameval, "ok": False, "reason": f"no drops beyond remains/default on '{title}' -- no binding needed"}
     manifest = manifest_row(title)
     return {
         "gameval": gameval, "ok": True, "title": title, "ids": ids,

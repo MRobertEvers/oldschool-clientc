@@ -4830,6 +4830,12 @@ mock230_scripts_run_trigger_specific(
  * By key then by name, because a spell's uid is above `ssc_compile.c`'s
  * `1 << 21` ceiling and every spell trigger in the tree therefore compiled
  * name-addressed. See the definition.
+ *
+ * `loc_slot` is the loc the cast was aimed at, or -1. Being keyed by the spell
+ * says which script runs; the target still has to be the script's active entity,
+ * or `[aploct,<spell>]` cannot say anything about the loc it was aimed at. The
+ * ground obj rides in on `srv->pending_active_obj`, the same one-shot the
+ * `[opobj<n>]` arm uses.
  */
 int
 mock230_scripts_run_spell_trigger(
@@ -4837,7 +4843,8 @@ mock230_scripts_run_spell_trigger(
     int trigger,
     int spell_component,
     int npc_slot,
-    int player_slot);
+    int player_slot,
+    int loc_slot);
 
 /**
  * May this call site run its engine fallback for `result`?

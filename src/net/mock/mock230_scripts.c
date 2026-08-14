@@ -2151,7 +2151,8 @@ mock230_scripts_run_spell_trigger(
     int trigger,
     int spell_component,
     int npc_slot,
-    int player_slot)
+    int player_slot,
+    int loc_slot)
 {
     const struct SSVM_Script* script;
     const char* component;
@@ -2164,7 +2165,8 @@ mock230_scripts_run_spell_trigger(
     /* Specific and unreported, as run_if_button_trigger's key rung is: an
      * `[apnpct,_]` wildcard would swallow every cast in the game, and a miss
      * here is the *expected* case (see above), not something to report. */
-    result = run_trigger_impl(srv, trigger, spell_component, -1, npc_slot, -1, player_slot, 0, 0);
+    result = run_trigger_impl(srv, trigger, spell_component, -1, npc_slot, loc_slot, player_slot, 0,
+                              0);
     if( result != MOCK230_TRIGGER_NONE )
         return result;
 
@@ -2186,7 +2188,7 @@ mock230_scripts_run_spell_trigger(
             fprintf(stderr, "mock230: no trigger for %s\n", name);
         return MOCK230_TRIGGER_NONE;
     }
-    return run_trigger_script(srv, script, npc_slot, -1, player_slot);
+    return run_trigger_script(srv, script, npc_slot, loc_slot, player_slot);
 }
 
 /*

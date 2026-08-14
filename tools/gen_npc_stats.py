@@ -41,6 +41,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import wiki_fetch  # noqa: E402
 import wiki_infobox as wi  # noqa: E402
+import wiki_droptable as wd  # noqa: E402
 from gen_npc_combat import claim_server_membership  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -90,6 +91,7 @@ PARAM_KEYS = [
     "strengthbonus", "magicattack", "rangeattack", "rangebonus",
     "stabdefence", "slashdefence", "crushdefence", "magicdefence", "rangedefence",
     "magic_maxhit", "undead", "huntrange",
+    "death_drop",
 ]
 ALL_KEYS = FIRST_CLASS_KEYS + ["huntmode"] + PARAM_KEYS
 
@@ -383,6 +385,64 @@ def load_npc_anims_extra_lines(path: str) -> dict[str, list[str]]:
     return out
 
 
+_DEATH_DROP_CACHE: dict[tuple[str, str | None], str | None] = {}
+
+
+def death_drop_for_page(title: str, dropversion: str | None) -> str | None:
+    """The gameval this npc's `param=death_drop` should state, or None for
+    `null` — read off the npc's own cited wiki drop table.
+
+    This has to be asked, and asked here, because the answer defaults the wrong
+    way. `general/configs/npc_default.npc`'s `[default]` block authors
+    `param=death_drop,bones` and `npc_def_seed_from_cache` copies the whole
+    default record — params included — into every def. So an npc that never
+    states the param leaves plain bones, not as a decision but as a
+    fallthrough, and nothing downstream can tell the two apart: `[ai_queue3,_]`
+    and all 147 generated `wiki_*.rs2` tables both just restate the param.
+
+    Three populations, all of which were wrong before this existed:
+
+      * 289 roster npcs whose page states no remains at all — TzHaar (rock, not
+        flesh), vyrewatch, rockslugs, killerwatts, the animated tools. They get
+        `null`, and both restatement paths are `! null`-guarded, so they leave
+        nothing.
+      * ~146 whose page states *ashes* — every demon, Vile/Malicious/Fiendish/
+        Abyssal/Eldritch/Infernal. They were leaving bones.
+      * ~300 whose page states a bones *variant* — Big, Dragon, Wolf, Zogre,
+        Wyvern, Hydra, the Monkey Madness set. They were leaving their variant
+        (from the table) *and* plain bones (from the fallthrough).
+
+    Delegates to `wiki_droptable.death_drop_choice` rather than re-deriving:
+    that module's table generator skips exactly the line this returns, and the
+    two answers have to be the same one or the npc drops its remains twice or
+    not at all. The block selection is delegated for the same reason — a page
+    with several `dropversion` blocks must be read the same way by both.
+    """
+    key = (title, dropversion)
+    if key in _DEATH_DROP_CACHE:
+        return _DEATH_DROP_CACHE[key]
+    try:
+        text = wi.load_page(title)
+    except OSError:
+        # No page on disk is not "no remains" — it is no evidence either way,
+        # and the tree-wide default has to stand. Callers only reach here for a
+        # resolved title, so this is the corpus being incomplete, not a miss.
+        _DEATH_DROP_CACHE[key] = "bones"
+        return "bones"
+    blocks = [b for b in wd.parse_drop_blocks(text) if not b["tertiary"]]
+    main_blocks = wd.select_blocks(blocks, dropversion)
+    if not main_blocks:
+        # Ambiguous version split. Same reasoning as the missing page: no
+        # evidence is not evidence of none.
+        _DEATH_DROP_CACHE[key] = "bones"
+        return "bones"
+    lines = [ln for b in main_blocks for ln in b["lines"]]
+    choice = wd.death_drop_choice(lines)
+    result = choice["gameval"] if choice else None
+    _DEATH_DROP_CACHE[key] = result
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Ledger — read/write, `key = value // note` lines, matching gen_npc_combat.py
 # ---------------------------------------------------------------------------
@@ -533,6 +593,22 @@ def main() -> None:
         version = outcome["version"]
         title = outcome["title"]
         fields = extract_fields(version["fields"], cache_combat_level, cache_size)
+
+        # Always stated, including when the answer is the same `bones` the
+        # tree-wide `[default]` would have given. Restating it costs a line in a
+        # generated file and buys the thing whose absence caused every bug in
+        # this family: after this run, `param=death_drop` on a roster npc is a
+        # *statement*, sourced from that npc's own cited page, and never a
+        # fallthrough that happens to look like one.
+        death_drop = death_drop_for_page(title, version["fields"].get("dropversion"))
+        fields["death_drop"] = death_drop if death_drop else "null"
+        if death_drop:
+            fields["raw_notes"].append(
+                "death_drop=%s, off the Always remains line on the cited drop table"
+                % death_drop)
+        else:
+            fields["raw_notes"].append(
+                "death_drop=null: the cited drop table states no Always bones/ashes line")
 
         if fields["combat_mismatch"]:
             combat_mismatches.append((gameval, npc_id, title, cache_combat_level, fields["wiki_combat"]))

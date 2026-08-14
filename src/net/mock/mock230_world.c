@@ -1125,12 +1125,41 @@ run_interaction_trigger(
      * compiled lookup key. So it needs its own dispatcher, and it needs it for
      * every target kind including LOC, whose by-name rung is about the loc.
      * See mock230_scripts_run_spell_trigger.
+     *
+     * The target is still bound as the script's ACTIVE entity, exactly as the
+     * op arms below bind theirs. Being keyed by the spell decides which script
+     * runs; it does not decide what that script can see. Without this an
+     * `[aploct,<component>]` ran with no active loc and its first `loc_coord`
+     * aborted with "the active loc is gone" — the same defect the `[oploc<n>]`
+     * family had, in the one family that had no reason to be exempt. A familiar
+     * special cast at a tree is exactly that shape: the script's whole subject
+     * is the loc it was aimed at.
      */
     if( interaction->spell )
-        return mock230_scripts_run_spell_trigger(
+    {
+        int loc_slot = -1;
+        int result;
+
+        if( interaction->kind == MOCK230_INTERACT_LOC )
+        {
+            loc_slot = find_interaction_loc(interaction->x, interaction->z, interaction->level,
+                                            interaction->target_id);
+        }
+        else if( interaction->kind == MOCK230_INTERACT_OBJ )
+        {
+            int obj_slot = mock230_world_ground_find(srv, interaction->x, interaction->z,
+                                                     interaction->level, interaction->target_id);
+
+            srv->pending_active_obj =
+                obj_slot >= 0 ? mock230_world_obj_handle(srv, obj_slot) : 0;
+        }
+        result = mock230_scripts_run_spell_trigger(
             srv, trigger, interaction->spell,
             interaction->kind == MOCK230_INTERACT_NPC ? interaction->npc_slot : -1,
-            interaction->kind == MOCK230_INTERACT_PLAYER ? interaction->npc_slot : -1);
+            interaction->kind == MOCK230_INTERACT_PLAYER ? interaction->npc_slot : -1, loc_slot);
+        srv->pending_active_obj = 0;
+        return result;
+    }
 
     if( interaction->kind == MOCK230_INTERACT_LOC )
     {
@@ -1512,6 +1541,10 @@ interaction_try(
         int use_on = interaction->use_on;
         int spell = interaction->spell;
         int loc_trigger_type = target_id;
+        /* The cast arm below dispatches through `run_interaction_trigger`, which
+         * reads the interaction — and the clear a few lines down is what this
+         * copy survives. Same reason the ap rung above snapshots. */
+        struct Mock230Interaction snapshot = *interaction;
 
         /* Multiloc: scene entity / find stays BASE; trigger type+category use
          * the varbit-resolved child (LostCity OpLocHandler + getOpTrigger gap
@@ -1570,14 +1603,22 @@ interaction_try(
          * `[apnpct]`, which the ap rung above has already tried by the time a
          * walk reaches here, so this is the melee-range case and the miss is the
          * common one.
+         *
+         * Through `run_interaction_trigger`, not a bare keyed lookup, and that
+         * is a fix rather than a tidy-up: the keyed lookup can only find a
+         * subject below `ssc_compile.c`'s `1 << 21` ceiling, and every spell
+         * component in the tree is above it (a spellbook's is 14 million; the
+         * Summoning familiar overlay's is 63 million). So the by-name rung is
+         * the ONLY one that can match here, the ap rung has used it since it was
+         * written, and this arm never did — an `[opnpct,<component>]` was
+         * unreachable, and what the player got for walking all the way in was
+         * "Nothing interesting happens".
          */
         if( spell )
         {
             int ap = interaction_ap_trigger(kind, op_num, 0, spell);
 
-            if( ap < 0 ||
-                mock230_scripts_run_trigger(srv, ap + 7, spell, category, slot) ==
-                    MOCK230_TRIGGER_NONE )
+            if( ap < 0 || run_interaction_trigger(srv, &snapshot, ap + 7) == MOCK230_TRIGGER_NONE )
                 mock230_say(srv, "nothing_interesting_message", NULL);
             return 1;
         }
@@ -5320,7 +5361,7 @@ handle_opheldt(
     player->last_slot = slot;
     player->last_com = component;
 
-    if( mock230_scripts_run_spell_trigger(srv, SS_TRIGGER_OPHELDT, spell, -1, -1) ==
+    if( mock230_scripts_run_spell_trigger(srv, SS_TRIGGER_OPHELDT, spell, -1, -1, -1) ==
         MOCK230_TRIGGER_NONE )
         mock230_say(srv, "nothing_interesting_message", NULL);
 }
@@ -21634,6 +21675,93 @@ mock230_world_selftest(void)
                 srv->npcs[slot].def = restore;
             }
             selftest_clear_ground(srv);
+
+            /*
+             * D. A real npc that authors `param=death_drop,null` *and* has a
+             * bound table — the combination case C's synthetic def cannot make.
+             *
+             * TzHaar are rock, not flesh, and the OSRS Wiki drop table this
+             * tree cites for them lists no bones line at all. They dropped
+             * bones anyway for as long as the tree existed, and not through
+             * any code that mentions them: `general/configs/npc_default.npc`'s
+             * `[default]` authors `param=death_drop,bones`, every def is
+             * seeded from it, and neither `drop_tables/scripts/
+             * wiki_tzhaar_ket.rs2` nor `[ai_queue3,_]` can tell a considered
+             * `bones` from a fallthrough one — both just restate the param.
+             * `tools/gen_npc_stats.py` now pins `null` for the 381 roster npcs
+             * whose own cited page states no Always bones line.
+             *
+             * Asserted on the *def* rather than by killing one, which is the
+             * only thing that works: TzHaar spawn at 2506,5168 (Mor Ul Rek)
+             * and this selftest's scene is Lumbridge, so no TzHaar is ever in
+             * `srv->npcs` and `selftest_find_npc` answers -1. Written as a kill
+             * first, it passed against deliberately broken data because the
+             * whole block was skipped — the skip-reads-as-a-pass trap.
+             *
+             * `mock230_content_npc` + `mock230_content_npc_param` is the exact
+             * pair `npc_param` reads at rank 1 (mock230_ops_npc.c), so this
+             * asserts the value the drop tables see, one call short of the
+             * script. Both halves are pinned:
+             *
+             *   * `tzhaar_ket1` — has a bound table, so it reaches the guarded
+             *     restatement inside `wiki_tzhaar_ket_drop`.
+             *   * `tzhaar_hur1` — has none, so `[ai_queue3,_]` is its only
+             *     path. Both must be null or the family is half-fixed.
+             *   * `chicken` — the control. An npc whose page *does* state
+             *     `Bones|rarity=Always` must still be left alone, or a
+             *     too-broad generator change reads as a fix here.
+             *
+             * Falsifiable, and checked that way: deleting the
+             * `param=death_drop,null` line from `[tzhaar_ket1]` in
+             * `combat_stats.generated.npc` and rebuilding the servpack turns
+             * this red.
+             */
+            {
+                static const struct
+                {
+                    const char* gameval;
+                    int want_null;
+                } DEATH_DROP_CASES[] = {
+                    { "tzhaar_ket1", 1 }, { "tzhaar_hur1", 1 }, { "chicken", 0 },
+                };
+
+                for( size_t c = 0; c < sizeof(DEATH_DROP_CASES) / sizeof(DEATH_DROP_CASES[0]); c++ )
+                {
+                    const char* gameval = DEATH_DROP_CASES[c].gameval;
+                    int want_null = DEATH_DROP_CASES[c].want_null;
+                    int npc_id = mock230_content_symbol(MOCK230_PACK_NPC, gameval);
+                    const struct Mock230NpcDef* def =
+                        npc_id >= 0 ? mock230_content_npc(npc_id) : NULL;
+                    int32_t value = 0;
+                    int stated;
+
+                    SELFTEST_CHECK(def != NULL,
+                                   "%s should resolve to an npc def", gameval);
+                    if( !def )
+                        continue;
+
+                    /* `stated` is not asserted for the control: `chicken` is
+                     * allowed to say nothing and inherit `[default]`'s bones,
+                     * which is the whole shape being tested. Only the value
+                     * matters, and for the bones case the fallthrough IS the
+                     * value. */
+                    stated = mock230_content_npc_param(def, param_death_drop, &value);
+                    if( want_null )
+                    {
+                        SELFTEST_CHECK(stated && value < 0,
+                                       "%s must state param=death_drop,null — its cited wiki "
+                                       "drop table has no Always bones line (stated=%d value=%d)",
+                                       gameval, stated, (int)value);
+                    }
+                    else
+                    {
+                        SELFTEST_CHECK(!stated || value == obj_bones,
+                                       "%s's page states Always Bones, so it must still leave "
+                                       "bones (stated=%d value=%d)",
+                                       gameval, stated, (int)value);
+                    }
+                }
+            }
         }
         else if( !srv->scripts_ok )
         {
@@ -23994,6 +24122,13 @@ mock230_world_selftest(void)
                            "::~maxmage equips Tumeken's shadow");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_HEAD].obj_id == ancestral_hat,
                            "::~maxmage equips the ancestral hat");
+            /* The shadow drains a charge per cast and reverts to its uncharged
+             * form at 0, so an equip with no charges written would turn into a
+             * useless staff on the first cast. Unlike the scythe's varp this is
+             * item_var storage on the worn slot itself. */
+            SELFTEST_CHECK(mock230_item_get_var(&who->worn[MOCK230_WEAR_WEAPON],
+                                                tumekens_shadow) == 20000,
+                           "::~maxmage charges Tumeken's shadow to its maximum");
             SELFTEST_CHECK(who->worn[MOCK230_WEAR_SHIELD].obj_id == -1,
                            "::~maxmage clears the shield slot for its two-handed weapon");
             SELFTEST_CHECK(who->stat_level[MOCK230_STAT_MAGIC] == 99,
@@ -28760,6 +28895,70 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: a mode owns an npc's movement, a waypoint does not\n");
+    {
+        /*
+         * `npc_walk` queues a waypoint. `advance_npcs` steps it only when no
+         * mode took the tick — `npc_run_mode` returning 1 IS the npc's movement
+         * for that tick, and the queue is left where it was.
+         *
+         * Stated because content that wants an npc to walk somewhere of its own
+         * has to leave its mode first, and the failure of not doing so is
+         * silent: the opcode succeeds, the destination is stored, and nothing
+         * ever steps it. A summoned familiar sits in `playerfollow` for its
+         * whole life, so "send the familiar to the thing I cast at" is exactly
+         * this shape — see `[proc,summoning_familiar_special_approach]`, which
+         * drops to `none` for the walk and returns to `playerfollow` after it.
+         *
+         * The player stands beside the npc on purpose: `playerfollow` moves only
+         * at more than a tile, so a follower that stayed put would otherwise be
+         * indistinguishable from one walking to its owner.
+         */
+        int subject = npc_spawn(srv, 3028, 3262, 3266, 0);
+
+        SELFTEST_CHECK(subject >= 0, "the fixture npc should spawn");
+        if( subject >= 0 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[subject];
+            int level_before[MOCK230_STAT_COUNT];
+            int boosted_before[MOCK230_STAT_COUNT];
+            int start_x = npc->x;
+            int start_z = npc->z;
+
+            memcpy(level_before, player->stat_level, sizeof(level_before));
+            memcpy(boosted_before, player->stat_boosted, sizeof(boosted_before));
+            /* Out of a level-2 goblin's reach by the double-level rule, so
+             * aggression cannot take the tick this stanza is measuring. The
+             * assertion below says so rather than assuming it. */
+            player->stat_level[MOCK230_STAT_STRENGTH] = 99;
+            player->stat_boosted[MOCK230_STAT_STRENGTH] = 99;
+            /* Beside it, and NOT on the tile it is about to walk onto: a player
+             * occupies its tile for collision, so parking on the route would
+             * make a refused step look like a mode that swallowed it. */
+            selftest_park_player(srv, start_x, start_z + 1);
+
+            npc->mode = MOCK230_NPCMODE_PLAYERFOLLOW;
+            npc_queue_waypoint(npc, start_x + 4, start_z);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(npc->combat_target < 0,
+                           "the fixture must not be in combat, or this measures the wrong mover");
+            SELFTEST_CHECK(npc->x == start_x && npc->z == start_z,
+                           "a following npc does not step a queued waypoint, moved to %d,%d",
+                           npc->x, npc->z);
+
+            npc->mode = MOCK230_NPCMODE_NONE;
+            npc_queue_waypoint(npc, start_x + 4, start_z);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(npc->x == start_x + 1 && npc->z == start_z,
+                           "and steps it once no mode owns the tick, at %d,%d", npc->x, npc->z);
+
+            memcpy(player->stat_level, level_before, sizeof(level_before));
+            memcpy(player->stat_boosted, boosted_before, sizeof(boosted_before));
+            npc->active = 0;
+            mock230_zone_npc_refile(srv, subject);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: clicking an npc lands on the npc that was clicked\n");
     {
         /*
@@ -29937,6 +30136,60 @@ mock230_world_selftest(void)
                                    "[aploct,<spell>] runs keyed by the spell, not by the loc and "
                                    "not as a use-on, got %d",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    /*
+                     * And the caster has not moved. This is what binding an `ap`
+                     * form BUYS, stated as a fact rather than left implied: the
+                     * click queued a walk to the loc six tiles away, the ap rung
+                     * ran at range, and `steps_clear` threw the walk away before
+                     * a tile of it was taken. Content that binds only the `op`
+                     * form gets the opposite — the full walk, then the script —
+                     * which is the difference between casting at something and
+                     * going over to it.
+                     */
+                    SELFTEST_CHECK(player->x == 3222 && player->z == 3218,
+                                   "a cast that binds [ap*t] resolves where the caster stood, "
+                                   "at %d,%d",
+                                   player->x, player->z);
+
+                    /*
+                     * The op half, and the negative it needs: nothing binds
+                     * `[aploct]` for this second spell, so the ap rung misses,
+                     * the walk runs to completion and the arrival dispatch is
+                     * the only thing that can find the script.
+                     *
+                     * It could not, until 2026-08-14. That arm looked the
+                     * subject up by KEY, and a spell component is above
+                     * `ssc_compile.c`'s `1 << 21` ceiling, so every `[op*t]` in
+                     * the tree compiled name-addressed and none of them was
+                     * reachable: the player walked the whole way and was told
+                     * "Nothing interesting happens".
+                     */
+                    {
+                        int op_spell = mock230_content_symbol(
+                            MOCK230_PACK_COMPONENT, "magic_spellbook:teleport_minigame_lunar");
+
+                        SELFTEST_CHECK(op_spell > 0,
+                                       "the op-only selftest spell should resolve, got %d",
+                                       op_spell);
+                        if( op_spell > 0 )
+                        {
+                            selftest_park_player(srv, 3222, 3218);
+                            mock230_scripts_run_proc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                            rsab_wrap(&out, payload, sizeof(payload));
+                            rsab_p2(&out, 3220);
+                            rsab_p2(&out, 3224);
+                            rsab_p2(&out, remains);
+                            rsab_p4(&out, op_spell);
+                            mock230_world_handle(player, PKTOUT_NAME_OPLOCT, payload,
+                                                 (int)rsab_len(&out));
+                            SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
+                                           "the walk to the loc completes");
+                            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 65,
+                                           "[oploct,<spell>] is reachable on arrival, got %d",
+                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                        }
+                    }
 
                     /* apobjt: the ground-obj form. Telekinetic Grab is the only
                      * live user of it, and it is the one shape where the target

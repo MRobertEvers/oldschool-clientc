@@ -254,7 +254,12 @@ def main() -> int:
         expect("BeaverNPC.java: Multichop" in target_execute and
                "db_find(woodcutting_trees:tree, $tree_type);" in target_execute and
                "if (npc_range($tree) > 5)" in target_execute and
-               "p_delay($travel);" in target_execute and "p_delay(11);" in target_execute and
+               # The beaver's arrival is a real walk now
+               # (~summoning_familiar_special_approach), so what is left here is
+               # the source's settling beat and its eleven-tick chop window. The
+               # old `p_delay($travel)` scaled with the OWNER's distance to the
+               # tree, which is not something the owner is part of any more.
+               "p_delay(2);" in target_execute and "p_delay(11);" in target_execute and
                "~summoning_beaver_log(random(11))" in target_execute,
                "Multichop lacks its source tree gate, range, timed window, or log rewards")
         expect("SpiritKyattNPC.java: Ambush" in execute and
@@ -529,11 +534,40 @@ def main() -> int:
                "npc_findowned2 = false" in execute,
                "Call to Arms lacks its remapped visuals or delayed familiar revalidation")
         overlay = interface[interface.index("[special_overlay]") : interface.index("[special_overlay_icon]")]
-        expect("clickmask=129024" in overlay and "targetverb=Cast" in overlay,
+        expect("clickmask=129024" in overlay and "targetverb=Use" in overlay,
                "the Summoning overlay is not a five-kind target component")
         for trigger in ("opnpct", "opplayert", "opheldt", "opobjt", "oploct"):
             expect(f"[{trigger},summoning_familiar:special_overlay]" in text,
                    f"the Summoning overlay does not route {trigger}")
+        # The `ap` half is what makes the special a ranged act. The engine tries
+        # `[ap*t]` first, at its ten-tile ap range, and clears the queued walk the
+        # moment one runs — so these four bindings ARE "range 10" and ARE "the
+        # owner does not approach". Bound to the same dispatch as their `op`
+        # twins, which stay for the one case the ap rung declines: standing under
+        # the pathing entity being cast at.
+        for trigger in ("apnpct", "applayert", "apobjt", "aploct"):
+            expect(f"[{trigger},summoning_familiar:special_overlay]" in text,
+                   f"the Summoning overlay does not route {trigger} — without it the owner "
+                   f"walks to the target before the special runs")
+        # And what closes the distance instead: the familiar's own walk, between
+        # the kind check and the per-special operation.
+        dispatch = definition(scripts, "proc,summoning_familiar_special_target_dispatch")
+        approach = definition(scripts, "proc,summoning_familiar_special_approach")
+        walk_at = dispatch.find("~summoning_familiar_special_target_approach")
+        run_at = dispatch.find("~summoning_familiar_special_target_execute")
+        expect(walk_at >= 0 and run_at >= 0 and walk_at < run_at,
+               "the targeted dispatch does not walk the familiar in before the special runs")
+        release = definition(scripts, "proc,summoning_familiar_special_release")
+        expect("npc_setmode(none);" in approach and "npc_walk($target);" in approach,
+               "the familiar approach does not leave playerfollow for the walk — a queued "
+               "waypoint is never stepped while a mode owns the npc's movement")
+        expect("npc_setmode(playerfollow);" in release and
+               dispatch.count("~summoning_familiar_special_release;") == 4,
+               "the familiar is not put back on playerfollow from every path out of the "
+               "targeted dispatch — one missed rejection leaves it standing there for life")
+        expect("^summoning_special_reach" in
+               definition(scripts, "proc,summoning_familiar_special_target_approach"),
+               "the familiar approach states no arrival range")
         expect("^if_event_target_all" in text,
                "the server does not arm the target component's target mask")
         expect("PKTOUT_NAME_OPPLAYERT, handle_opplayert_packet" in mock_world and
