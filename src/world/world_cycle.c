@@ -884,9 +884,6 @@ World_CycleUpdateSpotanims(
              * on a dead final frame — the delay is almost always a projectile's
              * flight, so it is routinely longer than the sequence itself. */
             World_EmitEvent(world, WorldEventKind_SpotanimStarted, s->element_id);
-            if( getenv("TORIRS_FRAMEPROBE") )
-                fprintf(stderr, "spotactive: element=%d wc=%d life=%d\n",
-                        s->element_id, world->cycle, s->lifetime);
         }
 
         if( cycles_elapsed > 0 )
