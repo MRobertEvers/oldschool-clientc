@@ -171,6 +171,7 @@ void test_scroll_hit(void);
 void test_wheel_stops_at_interface(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);
+void test_emit_stack_count_zero(void);
 void test_emit_golden(void);
 void test_minimenu(void);
 void test_key_dispatch(void);

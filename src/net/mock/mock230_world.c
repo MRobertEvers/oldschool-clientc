@@ -5444,7 +5444,44 @@ obj_name_underscore(
 }
 
 /*
- * The obj a `::give` argument means, or -1.
+ * The display name a cheat argument is matched against, or NULL when the record
+ * is not something a human would be naming.
+ *
+ * One per namespace, because the "this row is not a real record" test is not the
+ * same question in both: an obj answers it through `known` plus the `null` every
+ * note record carries, an npc through the name gate `mock230_npcinfo` already
+ * applies (`mock230_npcinfo_known`) plus the same `null`.
+ */
+static const char*
+cheat_obj_display_name(int id)
+{
+    const struct Mock230ObjInfo* info = mock230_objinfo(id);
+
+    /* Every note record is named `null` and every placeholder is unnamed;
+     * neither is what a human typing an item name is asking for. */
+    if( !info->known || !info->name || strcmp(info->name, "null") == 0 )
+        return NULL;
+    return info->name;
+}
+
+static const char*
+cheat_npc_display_name(int id)
+{
+    const struct Mock230NpcInfo* info;
+
+    /* The multinpc instances are nameless and `mock230_npcinfo` would hand back
+     * its "Someone" placeholder for every one of them — which would make one
+     * spelling match thousands of ids. Ask the ungated question first. */
+    if( !mock230_npcinfo_known(id) )
+        return NULL;
+    info = mock230_npcinfo(id);
+    if( !info->name || strcmp(info->name, "null") == 0 )
+        return NULL;
+    return info->name;
+}
+
+/*
+ * The id a `::give`/`::spawn` argument means in one namespace, or -1.
  *
  * Four ways in, most specific first, because a cheat that guesses is worse than
  * one that refuses:
@@ -5462,15 +5499,22 @@ obj_name_underscore(
  * `suggest` is filled only on the ambiguous and empty cases (2..N candidates,
  * or none), so a miss can say *why* it missed. NULL when the caller does not
  * want one.
+ *
+ * Parameterised over the namespace rather than written twice: `::spawn` asks
+ * exactly this question about npcs, and the interesting part is the ladder, not
+ * which table it walks. `record_count` is the exclusive bound on rung 3's scan
+ * and `display_name` its accessor.
  */
 static int
-cheat_obj_from_name(
+cheat_id_from_name(
+    enum Mock230PackKind kind,
+    int record_count,
+    const char* (*display_name)(int id),
     const char* arg,
     char* suggest,
     size_t suggest_size)
 {
     char wanted[128];
-    int obj_count = mock230_objinfo_count();
     int pack_count;
     int match = -1;
     int matches = 0;
@@ -5490,33 +5534,31 @@ cheat_obj_from_name(
     if( !wanted[0] )
         return -1;
 
-    match = mock230_content_symbol(MOCK230_PACK_OBJ, wanted);
+    match = mock230_content_symbol(kind, wanted);
     if( match >= 0 )
         return match;
 
-    for( int id = 0; id < obj_count; id++ )
+    for( int id = 0; id < record_count; id++ )
     {
-        const struct Mock230ObjInfo* info = mock230_objinfo(id);
+        const char* name = display_name(id);
         char have[128];
 
-        /* Every note record is named `null` and every placeholder is unnamed;
-         * neither is what a human typing an item name is asking for. */
-        if( !info->known || !info->name || strcmp(info->name, "null") == 0 )
+        if( !name )
             continue;
-        obj_name_underscore(have, sizeof(have), info->name);
+        obj_name_underscore(have, sizeof(have), name);
         if( strcmp(have, wanted) == 0 )
             return id;
     }
 
     /* Nothing exact. Substring over the gamevals, and the answer is only an
      * answer when exactly one name carries it. */
-    pack_count = mock230_content_symbol_walk(MOCK230_PACK_OBJ, -1, NULL, NULL);
+    pack_count = mock230_content_symbol_walk(kind, -1, NULL, NULL);
     for( int i = 0; i < pack_count; i++ )
     {
         int id = -1;
         const char* name = NULL;
 
-        if( !mock230_content_symbol_walk(MOCK230_PACK_OBJ, i, &id, &name) || !name )
+        if( !mock230_content_symbol_walk(kind, i, &id, &name) || !name )
             continue;
         if( !strstr(name, wanted) )
             continue;
@@ -5547,6 +5589,33 @@ cheat_obj_from_name(
         return match;
     }
     return -1;
+}
+
+/** The obj a `::give` argument means, or -1. */
+static int
+cheat_obj_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    return cheat_id_from_name(MOCK230_PACK_OBJ, mock230_objinfo_count(),
+                              cheat_obj_display_name, arg, suggest, suggest_size);
+}
+
+/** How many npcs one `::spawn` may place. A cheat's argument is typed, so it is
+ *  also mistyped, and filling the npc pool looks like a world where nothing
+ *  spawns rather than like a typo. */
+#define MOCK230_CHEAT_SPAWN_MAX 20
+
+/** The npc type a `::spawn` argument means, or -1. */
+static int
+cheat_npc_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size)
+{
+    return cheat_id_from_name(MOCK230_PACK_NPC, mock230_npcinfo_count(),
+                              cheat_npc_display_name, arg, suggest, suggest_size);
 }
 
 /*
@@ -5920,6 +5989,77 @@ handle_cheat(
                 want - given);
         else
             say(srv, "Gave %d x %s (%d).", given, info->name, obj_id);
+        return;
+    }
+
+    if( strncmp(text, "spawn", 5) == 0 )
+    {
+        /*
+         * `::spawn <npc_name|id> [count]` — `::give` for npcs, and the same
+         * argument ladder resolves it (`cheat_npc_from_name`): a bare id, the
+         * cache's gameval, the display name underscored, then a unique
+         * substring. `::spawn goblin`, `::spawn 3028`, `::spawn hill_giant 3`.
+         *
+         * `::npc <id>` below is the id-only ancestor and stays for the harnesses
+         * that already spell one — the same relationship `::item` has to
+         * `::give`. It also spawns onto level 3 rather than the player's, which
+         * is a bug nobody hit because nobody spawns onto a plane they cannot
+         * see; this one uses the player's level.
+         *
+         * The count is capped rather than trusted. An npc pool that is full
+         * behaves like a world where nothing spawns, and a typo'd `::spawn
+         * goblin 10000` is a long way from the branch it broke.
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int want = 1;
+        int spawned = 0;
+        int type;
+        const struct Mock230NpcInfo* info;
+
+        if( sscanf(text, "spawn %63s %d", arg, &want) < 1 )
+        {
+            say(srv, "Usage: ::spawn <npc_name> [count]");
+            return;
+        }
+        if( want < 1 )
+            want = 1;
+        if( want > MOCK230_CHEAT_SPAWN_MAX )
+            want = MOCK230_CHEAT_SPAWN_MAX;
+
+        type = cheat_npc_from_name(arg, suggest, sizeof(suggest));
+        if( type < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No npc named '%s'.", arg);
+            return;
+        }
+        info = mock230_npcinfo(type);
+        if( !mock230_npcinfo_known(type) )
+        {
+            /* Not a refusal: a spawn is allowed to name an npc this cache does
+             * not describe (npc_spawn gives it the default config block), and a
+             * content-only id is exactly that. Say so and carry on. */
+            say(srv, "Npc %d ('%s') has no record in this cache; spawning anyway.",
+                type, arg);
+        }
+
+        /* Side by side rather than stacked, so a count of three is three things
+         * a player can see and click, and each takes its own collision. */
+        for( int i = 0; i < want; i++ )
+        {
+            if( npc_spawn(srv, type, player->x + 1 + i, player->z + 1, player->level) < 0 )
+                break;
+            spawned++;
+        }
+        if( spawned <= 0 )
+            say(srv, "Could not spawn npc %d.", type);
+        else
+            say(srv, "Spawned %d x %s (%d) at %d,%d.", spawned,
+                mock230_npcinfo_known(type) ? info->name : arg, type, player->x + 1,
+                player->z + 1);
         return;
     }
 
@@ -9476,7 +9616,13 @@ phase_player(struct Mock230Player* player)
 
     /* Order matches the reference exactly, and it matters: a script resumed
      * here must not have a queue entry started on top of it in the same tick. */
+    if( getenv("DBGFACE") )
+        fprintf(stderr, "DBGF entry ct=%d face=%d\n", player->combat_target,
+                player->face_entity);
     mock230_scripts_resume_player(srv);
+    if( getenv("DBGFACE") )
+        fprintf(stderr, "DBGF post-resume ct=%d face=%d\n", player->combat_target,
+                player->face_entity);
     mock230_scripts_process_queues(srv);
     mock230_scripts_process_timers(srv);
     /* The engine queue is drained *after* the timers, which is where
@@ -9500,6 +9646,9 @@ phase_player(struct Mock230Player* player)
      * for every player each turn with no `delayed` gate for the same reason.
      */
     mock230_player_set_face_entity(player);
+    if( getenv("DBGFACE") )
+        fprintf(stderr, "DBGF post-derive ct=%d face=%d\n", player->combat_target,
+                player->face_entity);
     PP_MARK(bd_on, bd_t, PP_FACE);
 
     /*
@@ -10494,6 +10643,9 @@ phase_cleanup_player(struct Mock230Player* player)
      * incumbent that outlives its tick is one that keeps refusing lower-priority
      * animations forever — a goblin that lands one attack would never flinch
      * again. The reference clears it in the same reset, for the same reason. */
+    if( getenv("DBGFACE") )
+        fprintf(stderr, "DBGF flush face=%d mask=%d\n", player->face_entity,
+                (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0);
     player->masks = 0;
     /* With the masks, and for exactly the same reason: the hitmark list
      * describes one tick, and every recipient's PLAYER_INFO has to have been
@@ -18477,6 +18629,11 @@ mock230_world_selftest(void)
             while( npc->hitpoints > 0 && ticks < 200 )
             {
                 mock230_world_tick(srv);
+                fprintf(stderr,
+                        "DBG t=%d hp=%d ct=%d face=%d ik=%d dt=%d lock=%d dying=%d\n", ticks,
+                        npc->hitpoints, player->combat_target, player->face_entity,
+                        (int)player->interaction.kind, npc->death_tick,
+                        player->action_locked, player->dying);
                 ticks++;
             }
             mock230_capture_end(srv);
@@ -18537,13 +18694,14 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->face_entity == goblin,
                            "the killing blow still faces what it killed, got %d",
                            player->face_entity);
-            player->masks = 0;
-            mock230_world_tick(srv);
+            /* The next turn's derivation, called directly rather than by ticking
+             * the world: a stanza that spends an extra tick moves the shared RNG
+             * stream and reddens unrelated sections a thousand lines away. This
+             * is the same call phase_player makes, in the same order. */
+            mock230_player_set_face_entity(player);
             SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
-                           "and both sides release the latch on the turn after");
-            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
-                           "and say so on the wire — a release nobody sends is a "
-                           "release that never happens");
+                           "and both sides release the latch on the turn after, "
+                           "got %d / %d", player->face_entity, npc->face_entity);
 
             /* Damage reached the client: NPC_INFO carries the hitsplat and the
              * health bar in one mask. */
@@ -19314,6 +19472,36 @@ mock230_world_selftest(void)
         }
     }
 
+    if( getenv("DBGONEHIT") )
+    {
+        int gob = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        struct Mock230Npc* n = &srv->npcs[gob];
+        const struct Mock230NpcInfo* gi = mock230_npcinfo(n->type);
+
+        mock230_world_clear_pending_action(srv);
+        selftest_park_player(srv, n->x + 1, n->z);
+        player->level = n->level;
+        player->godmode = 1;
+        n->hitpoints = 1;
+        {
+            uint8_t op[2];
+            int wire_slot = mock230_slotmap_client(player, gob);
+
+            (void)gi;
+            op[0] = (uint8_t)(wire_slot >> 8);
+            op[1] = (uint8_t)wire_slot;
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC2, op, 2);
+        }
+        fprintf(stderr, "ONEHIT armed face=%d ct=%d hp=%d ik=%d\n", player->face_entity,
+                player->combat_target, n->hitpoints, (int)player->interaction.kind);
+        for( int i = 0; i < 5; i++ )
+        {
+            mock230_world_tick(srv);
+            fprintf(stderr, "ONEHIT t%d hp=%d ct=%d face=%d dt=%d\n", i, n->hitpoints,
+                    player->combat_target, player->face_entity, n->death_tick);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: facing clears\n");
     {
         /*
@@ -19400,7 +19588,52 @@ mock230_world_selftest(void)
                            npc->combat_target,
                            npc->face_entity - MOCK230_FACE_PLAYER_BASE);
 
-            /* MOVE_GAMECLICK: fixed 5-byte destination (ctrl, x, z). */
+            /*
+             * A fight that ends inside the turn that set the latch.
+             *
+             * The one that mattered is a melee kill in a single blow: the
+             * derivation at the top of phase_player points the latch at the npc
+             * for the first time, the swing at the bottom of the same turn kills
+             * it, and the mask is flushed once, afterwards. Any release written
+             * by the disengage itself is therefore the *only* thing the client
+             * ever sees — the player killed the npc without turning to look at
+             * it. Every fight lasting two or more turns hid it.
+             *
+             * `mock230_combat_stop_player` is that disengage, shared by all four
+             * ways a fight ends, so testing it here covers the target dying, the
+             * player dying, walking away and starting something else at once.
+             * The release is not lost: it is derived by the next turn's
+             * `set_face_entity`, which is the second half below.
+             */
+            player->face_entity = -1;
+            player->masks = 0;
+            mock230_combat_engage(srv, goblin);
+            mock230_player_set_face_entity(player);
+            SELFTEST_CHECK(player->face_entity == goblin &&
+                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "the turn's derivation latches the target, got %d mask %s",
+                           player->face_entity,
+                           (player->masks & MOCK230_PMASK_FACE_ENTITY) ? "set" : "clear");
+            mock230_combat_stop_player(srv);
+            SELFTEST_CHECK(player->combat_target == -1, "the disengage ends the fight");
+            SELFTEST_CHECK(player->face_entity == goblin &&
+                               (player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and leaves this turn's latch alone so the turn still "
+                           "ships, got %d", player->face_entity);
+
+            player->masks = 0;
+            mock230_player_set_face_entity(player);
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "the next turn derives the release, got %d",
+                           player->face_entity);
+            SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
+                           "and says so on the wire — a clear nobody sends is a "
+                           "clear that never happens");
+
+            /* MOVE_GAMECLICK: fixed 5-byte destination (ctrl, x, z). Re-armed,
+             * because the stanza above disengaged on purpose. */
+            mock230_combat_engage(srv, goblin);
+            mock230_player_set_face_entity(player);
             player->masks = 0;
             move[0] = 0;
             move[1] = (uint8_t)((player->x + 3) >> 8);
@@ -19411,6 +19644,9 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(player->combat_target == -1,
                            "walking away ends the fight");
+            /* Packets are phase 1 and the derivation is phase 5, so the walk-off
+             * still clears within the same turn — this call is that phase. */
+            mock230_player_set_face_entity(player);
             SELFTEST_CHECK(player->face_entity == -1,
                            "and stops facing, got %d", player->face_entity);
             SELFTEST_CHECK((player->masks & MOCK230_PMASK_FACE_ENTITY) != 0,
@@ -26130,6 +26366,83 @@ mock230_world_selftest(void)
                            npc->active, npc->respawn_tick, generation, npc->generation,
                            waited, rate);
         }
+    }
+
+    /*
+     * `::spawn <npc_name|id> [count]`, the npc half of `::give`.
+     *
+     * The resolver rungs are asserted directly because the command can only
+     * show the outcome, and the outcome of a *wrong* answer here is an npc —
+     * something that looks like it worked. The spawn itself is asserted through
+     * the same CLIENT_CHEAT payload shape the client sends.
+     *
+     * Placed immediately before the reset below on purpose: this stanza puts an
+     * npc in the pool, and the pool is shared with every section after it (see
+     * the note on `selftest_reset_world` — a spawning stanza can silently re-aim
+     * a section a thousand lines away). The free plus that reset ends its blast
+     * radius.
+     */
+    fprintf(stderr, "mock230 selftest: ::spawn\n");
+    {
+        static const uint8_t spawn_goblin[] = "~spawn goblin\n";
+        static const uint8_t spawn_unknown[] = "~spawn nosuchnpcname\n";
+        int goblin = mock230_content_symbol(MOCK230_PACK_NPC, "goblin");
+        char suggest[256];
+        int before = 0;
+        int after = 0;
+        int found = -1;
+
+        SELFTEST_CHECK(goblin > 0, "`goblin` must be in the npc pack for ::spawn's checks");
+
+        SELFTEST_CHECK(cheat_npc_from_name("goblin", NULL, 0) == goblin,
+                       "::spawn resolves a gameval to the id the pack holds");
+        SELFTEST_CHECK(cheat_npc_from_name("Goblin", NULL, 0) == goblin,
+                       "a display spelling underscores to the same answer");
+        SELFTEST_CHECK(cheat_npc_from_name("3028", NULL, 0) == 3028,
+                       "a bare id is still an id");
+        /*
+         * A substring several gamevals carry (`wilderness_hill_giant`, `2`, `3`)
+         * and no record is *named*, which is what makes it reach the last rung
+         * at all: `hill_giant` does not, because a cache record spelled "Hill
+         * Giant" answers it exactly one rung earlier. Guarded on nothing being
+         * spelled this way exactly, so a later rename turns it into a skip
+         * rather than a false failure.
+         */
+        suggest[0] = '\0';
+        if( mock230_content_symbol(MOCK230_PACK_NPC, "wilderness_hill") < 0 )
+            SELFTEST_CHECK(
+                cheat_npc_from_name("wilderness_hill", suggest, sizeof(suggest)) < 0 &&
+                    suggest[0],
+                "an ambiguous substring refuses and names candidates: '%s'", suggest);
+
+        handle_cheat(srv, spawn_goblin, (int)sizeof(spawn_goblin) - 1);
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+        {
+            struct Mock230Npc* npc = &srv->npcs[i];
+
+            if( npc->active && npc->type == goblin && npc->x == player->x + 1 &&
+                npc->z == player->z + 1 && npc->level == player->level )
+                found = i;
+        }
+        SELFTEST_CHECK(found >= 0,
+                       "::~spawn goblin puts npc %d beside the player at %d,%d", goblin,
+                       player->x + 1, player->z + 1);
+        if( found >= 0 )
+            mock230_world_npc_free(srv, found);
+
+        /* A name nothing carries spawns nothing — the same bar `::give` sets:
+         * a cheat that silently produces the wrong thing is worse than one that
+         * refuses. */
+        before = 0;
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            if( srv->npcs[i].active )
+                before++;
+        handle_cheat(srv, spawn_unknown, (int)sizeof(spawn_unknown) - 1);
+        for( int i = 0; i < MOCK230_NPC_MAX; i++ )
+            if( srv->npcs[i].active )
+                after++;
+        SELFTEST_CHECK(after == before, "an unknown npc name spawns nothing, %d -> %d",
+                       before, after);
     }
 
     fprintf(stderr, "mock230 selftest: bank varbit packing\n");

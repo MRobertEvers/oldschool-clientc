@@ -510,6 +510,8 @@ main(int argc, char** argv)
     int orient = -1;
     int shift_x = 0;
     int shift_z = 0;
+    int row_cap = 4;
+    int markers = 1;
     int extra_worn[EV_PLAYER_MAX_WORN];
     int extra_worn_count = 0;
 
@@ -533,6 +535,10 @@ main(int argc, char** argv)
             alpha_visible = atoi(argv[++i]);
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )
             out_prefix = argv[++i];
+        else if( strcmp(argv[i], "--rows") == 0 && i + 1 < argc )
+            row_cap = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--no-markers") == 0 )
+            markers = 0;
         else if( strcmp(argv[i], "--shift-x") == 0 && i + 1 < argc )
             shift_x = atoi(argv[++i]);
         else if( strcmp(argv[i], "--shift-z") == 0 && i + 1 < argc )
@@ -588,7 +594,11 @@ main(int argc, char** argv)
             "  --zoom <units>        camera distance; larger sees more (default: 6x\n"
             "                        the player's height, enough for the whole graphic)\n"
             "  --side <px>           contact-sheet cell size (default %d)\n"
-            "  --columns <n>         cells per row (default %d)\n",
+            "  --columns <n>         cells per row (default %d)\n"
+            "  --rows <n>            cap on rows; 0 means as many as it takes, i.e.\n"
+            "                        one cell per cycle with no sampling (default 4)\n"
+            "  --no-markers          leave the measured points off the top-down sheet,\n"
+            "                        for a reference image rather than a diagnosis\n",
             argv[0],
             DEF_WEAPON_OBJ,
             DEF_ATTACK_SEQ,
@@ -1316,12 +1326,17 @@ main(int argc, char** argv)
         int cells = columns > 0 ? columns : 12;
         int rows = (body_total + cells - 1) / cells;
         int step = 1;
-        /* One cell per cycle when the sequence is short enough to fit; otherwise
-         * an even sample. Sampling is stated rather than silently applied. */
-        if( rows > 4 )
+        /*
+         * One cell per cycle when the sheet is allowed enough rows, an even
+         * sample otherwise. `--rows 0` means "as many as it takes", which is
+         * what a spritesheet wants: a sheet that quietly shows every second
+         * cycle is not a record of the animation, and the difference is
+         * invisible in the image. Whichever happens is printed.
+         */
+        if( row_cap > 0 && rows > row_cap )
         {
-            step = (body_total + (cells * 4) - 1) / (cells * 4);
-            rows = 4;
+            step = (body_total + (cells * row_cap) - 1) / (cells * row_cap);
+            rows = row_cap;
         }
         int sheet_w = cells * side;
         int sheet_h = rows * side;
@@ -1357,16 +1372,17 @@ main(int argc, char** argv)
              * sit on the blade means the vertex slice is wrong, and every number
              * downstream of it is describing the wrong geometry.
              */
-            project_top_down(blade[b].head, side, zoom, player_height / 2, &mx, &my);
-            cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FFFF); /* blade: cyan */
-            if( f >= 0 && arc[f].visible_faces )
+            if( markers )
             {
-                project_top_down(arc[f].centroid, side, zoom, player_height / 2, &mx, &my);
-                cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FF00); /* arc: green */
-            }
-            /* The player's own origin, so the two crosses can be read as offsets
-             * from the player rather than as positions on a canvas. */
-            {
+                project_top_down(blade[b].head, side, zoom, player_height / 2, &mx, &my);
+                cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FFFF); /* blade: cyan */
+                if( f >= 0 && arc[f].visible_faces )
+                {
+                    project_top_down(arc[f].centroid, side, zoom, player_height / 2, &mx, &my);
+                    cross(top, sheet_w, sheet_h, cx + mx, cy + my, 6, 0x0000FF00); /* arc: green */
+                }
+                /* The player's own origin, so the two crosses can be read as
+                 * offsets from the player rather than as positions on a canvas. */
                 struct Vec3 origin = { 0, 0, 0 };
                 project_top_down(origin, side, zoom, player_height / 2, &mx, &my);
                 cross(top, sheet_w, sheet_h, cx + mx, cy + my, 3, 0x00FFFFFF);

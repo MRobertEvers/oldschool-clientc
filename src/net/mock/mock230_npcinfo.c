@@ -353,6 +353,12 @@ mock230_npcinfo_known(int npc_id)
 }
 
 int
+mock230_npcinfo_count(void)
+{
+    return g_npcs ? g_npc_count : 0;
+}
+
+int
 mock230_npc_category(int npc_id)
 {
     if( !g_npcs || npc_id < 0 || npc_id >= g_npc_count )

@@ -1102,6 +1102,19 @@ stack already held; unstackables are added one unit at a time, because the share
 `Inventory.add` puts a whole count in one slot and five platebodies are not a
 stack of five.
 
+`::spawn <npc_name|id> [count]` is the same command one namespace over — `::spawn
+goblin`, `::spawn 3028`, `::spawn hill_giant 3` — and it resolves its argument
+through the same four rungs against `configs/all.npc.compack` instead of the obj
+one (`cheat_id_from_name`, parameterised over the namespace rather than written
+twice). The npcs are placed side by side starting one tile north-east of the
+player, on the player's own level, and the count is capped at 20: a mistyped
+count that fills the npc pool presents as a world where nothing spawns, a long
+way from the command that did it. Naming an id this cache has no record for is
+allowed and says so — `npc_spawn` gives it the default config block, which is
+enough to be a target — because a content-only id is exactly that case. `::npc
+<id>` is the id-only ancestor and stays for the harnesses that spell one, the
+same relationship `::item` has to `::give`.
+
 `::runes [count]` and `::maxstats` are the two bulk shortcuts that saved typing
 `::give` twenty-two times or `::xp` twenty-four times, and both are content
 (`general/scripts/misc/cheat_runes.rs2`, `cheat_xp.rs2`) rather than engine

@@ -1201,6 +1201,12 @@ mock230_npcinfo(int npc_id);
 int
 mock230_npcinfo_known(int npc_id);
 
+/** How many npc records the cache decoded — the exclusive upper bound on a scan
+ *  of the table, the npc side of `mock230_objinfo_count`. 0 before
+ *  `mock230_npcinfo_load`, and 0 without a cache. */
+int
+mock230_npcinfo_count(void);
+
 /**
  * The decoded row, or NULL — **without** the name gate `mock230_npcinfo` puts
  * in front of it.
