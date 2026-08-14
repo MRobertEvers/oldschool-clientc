@@ -797,22 +797,37 @@ FAMILY_DATA = {
     "Serpentine helm": dict(
         storage="item_var", depletion="revert", max_charges=11000,
         charge_source="Zulrah's scales used on the helm (11,000 = full charge); bank Configure-Charges supported",
-        drain_event="10 scales on entering combat, another 10 if still in combat after 90 ticks (54s)",
-        status="charges_only",
-        note="Shared mechanic across all three colour variants (cosmetic Zulrah-drop mutagens only, no stat "
-             "difference, confirmed by the wiki itself). No implementation for any of the three colours.",
+        drain_event="10 scales on entering combat, another 10 every 90 ticks (54s) while combat continues",
+        status="implemented",
+        note="skill_combat/scripts/player/gear/zulrah_item_charges.rs2/.constant/.varp -- shared library "
+             "covering all 3 helm colours (obj ids are all serpentine_helm[_charged][_cyan|_red], not "
+             "separate 'magma_helm'/'tanzanite_helm' families as an earlier pass assumed) + Toxic staff of "
+             "the dead (see that entry). Reuses this session's own Barrows/Moon degrade-on-combat timer "
+             "shape verbatim (~barrows_degrade_enter/[timer,barrows_degrade]'s pattern) rather than "
+             "reinventing one -- the repeating-every-90-ticks behaviour (not a one-shot 10+10) was verified "
+             "against the wiki's own '666.67 scales/hour of continuous combat' figure, which only holds if "
+             "the burn repeats indefinitely (3600s/54s * 10 = 666.7, matching; 11000/666.67 = 16.5 hours, "
+             "matching the stated full-charge duration) -- the ledger's prior 'another 10 if still in combat "
+             "after 90 ticks' phrasing undersold this as a one-time second burn. Charging is opheldu (scales "
+             "used directly on the item, 1:1), Uncharge (ifop5) returns the exact remaining count as unnoted "
+             "scales. Hooked into the same attack-dealt/damage-taken funnels Barrows/Moon already use. NOT "
+             "implemented: Dismantle/Restore (mutagen removal, cosmetic-only, unrelated to charges).",
     ),
     "Magma helm": dict(
         storage="item_var", depletion="revert", max_charges=11000,
         charge_source="Same as Serpentine helm -- magma-mutagen recolour, mechanically identical",
         drain_event="Same as Serpentine helm",
-        status="charges_only", note="Colour variant of Serpentine helm sharing one mechanic; see that entry.",
+        status="implemented",
+        note="Colour variant of Serpentine helm sharing one mechanic (obj serpentine_helm_charged_red) -- see "
+             "that entry for the full mechanism.",
     ),
     "Tanzanite helm": dict(
         storage="item_var", depletion="revert", max_charges=11000,
         charge_source="Same as Serpentine helm -- cyan-mutagen recolour, mechanically identical",
         drain_event="Same as Serpentine helm",
-        status="charges_only", note="Colour variant of Serpentine helm sharing one mechanic; see that entry.",
+        status="implemented",
+        note="Colour variant of Serpentine helm sharing one mechanic (obj serpentine_helm_charged_cyan) -- "
+             "see that entry for the full mechanism.",
     ),
     "Ring of pursuit": dict(
         storage="player_varp", depletion="destroy", max_charges=10,
@@ -1102,11 +1117,13 @@ FAMILY_DATA = {
     "Toxic staff of the dead": dict(
         storage="item_var", depletion="revert", max_charges=11000,
         charge_source="Zulrah's scales used on the staff, 1 scale = 1 charge",
-        drain_event="Time-based: 10 scales on entering combat, another 10 if still in combat after 1 minute",
-        status="charges_only",
-        note="specwep.rs2:198-234 implements the special attack but no charge logic. Shares Serpentine "
-             "helm's exact drain mechanism (also unimplemented) -- the drain MECHANISM itself, not just the "
-             "wiring, is absent from this codebase.",
+        drain_event="10 scales on entering combat, another 10 every 90 ticks while combat continues",
+        status="implemented",
+        note="Same shared library as Serpentine helm (obj toxic_sotd/toxic_sotd_charged) -- see that entry "
+             "for the full mechanism. specwep.rs2:198-234's pre-existing special attack is untouched by "
+             "this. Unlike the helms, the uncharged obj (toxic_sotd) still has ifop2=Wield (a weaker "
+             "Staff of the dead, not unusable) -- confirmed from the obj record rather than assumed "
+             "uniform with the helms.",
     ),
     "Tumeken's shadow": dict(
         storage="item_var", depletion="revert", max_charges=20000,
