@@ -1175,20 +1175,34 @@ FAMILY_DATA = {
              "before and after. Max hit is the wiki's own flat formula (floor(Magic level / 3), not derived "
              "from magic_spell_table since this weapon has no spell row) fed through the same "
              "npc_max_dealt/player_npc_hit_roll/player_hit_npc_prepare pipeline every other attack style "
-             "already uses. Deliberately scoped to only this one weapon rather than all five items this "
-             "ledger flags against the same missing dispatch (Eye of ayak/Holy sanguinesti staff/Tumeken's "
-             "shadow/Warped sceptre) -- each needs its own max-hit formula and special-effect research "
-             "verified before reusing this infrastructure, not assumed identical. NOT implemented: the Life "
-             "leech passive (a secondary bonus effect, same scope line Arclight's infusion meter/Tonalztics' "
-             "auto-attack range draw) and the Ornament Kit recolour (cosmetic only).",
+             "already uses. Eye of ayak and Holy sanguinesti staff (see their own entries) now also share "
+             "this dispatch, each with its own max-hit formula/obj mapping verified rather than assumed "
+             "identical; Tumeken's shadow/Warped sceptre still have no obj anywhere in this cache. NOT "
+             "implemented: the Life leech passive (a secondary bonus effect, same scope line Arclight's "
+             "infusion meter/Tonalztics' auto-attack range draw).",
     ),
     "Holy sanguinesti staff": dict(
         storage="item_var", depletion="revert", max_charges=20000,
-        charge_source="Cosmetic recolour (Saradomin) -- identical mechanic to the base Sanguinesti staff",
-        drain_event="1 charge per cast of the built-in spell",
-        status="charges_only",
-        note="sanguinesti_staff_or -- same file/mechanic as the base staff. Same corrected gap: see "
-             "Sanguinesti staff's own note -- no powered-staff auto-attack dispatch exists to hook.",
+        charge_source="Charged with blood runes (2 per charge) via bank Configure-Charges or direct use",
+        drain_event="1 charge per cast of the staff's built-in spell",
+        status="implemented",
+        note="sanguinesti_staff_or/sanguinesti_staff_uncharged_or -- NOT a mere cosmetic Ornament Kit "
+             "recolour as an earlier pass in this session wrongly assumed (the same dismissal this ledger "
+             "applies to actual recolours elsewhere): verified directly against all.obj that "
+             "sanguinesti_staff_or is a real, separately-created item ('attaching a holy ornament kit to an "
+             "uncharged Sanguinesti staff') with its own name/examine text and its own charge pool, "
+             "mechanically identical to the base staff (same params: magicattack=25, attackrate=4, "
+             "weapon_attackrange=7). gear/sanguinesti_staff.rs2 was generalized into a shared library "
+             "covering both obj-id pairs via two mapping helpers (~sanguinesti_staff_charged_obj/"
+             "~sanguinesti_staff_uncharged_obj), and gear/powered_staff.rs2's three dispatch procs "
+             "(~powered_staff_worn/~powered_staff_maxhit/~powered_staff_uncharged_obj) were extended to "
+             "recognize sanguinesti_staff_or alongside sanguinesti_staff and eye_of_ayak, sharing the "
+             "base staff's exact max-hit formula per the wiki's 'no additional stat bonuses'. Verified with "
+             "a new chargesrun_holy_sanguinesti_staff_charge_and_worn selftest proc (charge/cap/worn/maxhit/"
+             "revert) plus a mutation test on ~sanguinesti_staff_charged_obj's new branch (confirmed red with "
+             "the right FAIL message, reverted). Full selftest re-run in both plain and MOCK230_GEARRUN=1 "
+             "modes, same 12-failure pristine baseline before and after. NOT implemented: the Life leech "
+             "passive, same scope line as the base staff's own note.",
     ),
     "Slayer's staff": dict(
         storage="item_var", depletion="revert", max_charges=2500,
