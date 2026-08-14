@@ -1377,6 +1377,67 @@ test_duplicate_trigger(void)
 }
 
 static void
+test_subject_namespace(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+    struct SSC_Symbols symbols;
+    struct SSC_Compiler* compiler;
+    struct SSC_Diag diag;
+    char dir[256];
+    char path[400];
+    char command[900];
+    FILE* file;
+
+    printf("trigger subjects resolve in the trigger's own namespace\n");
+
+    /* `grim_pendant` is obj 11197 AND loc 24780 in the real cache, and an
+     * unqualified lookup takes whichever kind sorts first — OBJ. So
+     * `[oploc1,grim_pendant]` filed Grim Tales' pendant under an unrelated loc
+     * id, where another script owned the key and won. `coins` stands in for the
+     * collision here: obj 995 in the fixture, plus a loc of the same name. */
+    if( !fixture_compile(&fixture,
+                         "[oploc1,coins]\n"
+                         "mes(\"a loc\");\n",
+                         "subjectns") )
+        return;
+    script = SSVM_ProviderGetByName(&fixture.provider, "[oploc1,coins]");
+    CHECK(script != NULL, "the script compiled");
+    if( script )
+        CHECK_EQ(script->lookup_key >> 10, 4242,
+                 "oploc1 took the LOC id, not the obj that sorts first");
+    fixture_close(&fixture);
+
+    /* And when the name is not of the trigger's kind at all, falling back would
+     * silently compile it against the wrong namespace — the shape that made 21
+     * `[opheldu,<loc>]` triggers inert. */
+    snprintf(dir, sizeof(dir), "/tmp/ssc_subjectns_%d", (int)getpid());
+    snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+    if( system(command) != 0 )
+        return;
+    snprintf(path, sizeof(path), "%s/a.rs2", dir);
+    file = fopen(path, "wb");
+    fputs("[opheldu,hans]\nmes(\"hans is an npc, not an obj\");\n", file);
+    fclose(file);
+
+    SSC_SymbolsInit(&symbols);
+    SSC_SymbolsAdd(&symbols, "hans", 3105, SSC_SYM_NPC, NULL);
+    compiler = SSC_New(&symbols);
+    memset(&diag, 0, sizeof(diag));
+    CHECK(!SSC_CompileDir(compiler, dir, &diag),
+          "a subject of the wrong kind fails the compile");
+    CHECK(strstr(diag.message, "is not a obj") != NULL,
+          "and names the kind the trigger wanted");
+    printf("  reported: %s:%d: %s\n", diag.file, diag.line, diag.message);
+
+    SSC_Free(compiler);
+    SSC_SymbolsFree(&symbols);
+    snprintf(command, sizeof(command), "rm -rf %s", dir);
+    if( system(command) != 0 )
+        printf("  note: could not clean up %s\n", dir);
+}
+
+static void
 test_duplicate_login(void)
 {
     struct SSC_Symbols symbols;

@@ -2474,8 +2474,33 @@ parse_header(
                      strncmp(trigger_name, "apobj", 5) == 0 )
                 want = SSC_SYM_OBJ;
 
-            if( want != SSC_SYM_UNKNOWN )
+            /* `opheldt`/`opnpct` and friends take an interface COMPONENT
+             * (`magic_spellbook:magic_dart`), not an obj or npc — the colon is
+             * what says so, and every one of them in this tree has it. */
+            if( want != SSC_SYM_UNKNOWN && !strchr(subject, ':') )
+            {
                 symbol = SSC_SymbolsFind(compiler->symbols, subject, want);
+                if( !symbol && SSC_SymbolsFind(compiler->symbols, subject, SSC_SYM_UNKNOWN) )
+                {
+                    /*
+                     * The name exists, but not as the kind this trigger acts
+                     * on. Falling back would compile it against the wrong
+                     * namespace's id and register the body somewhere unrelated
+                     * — which is how `[opheldu,mdaughter_cliff_boulder]` (a
+                     * loc, written as an item-on-item) meant that using the
+                     * rope on the boulder did nothing, 30 times over. There is
+                     * no reading of that which is correct, so it is an error
+                     * rather than a fallback.
+                     */
+                    return fail(compiler,
+                                "subject '%s' of trigger '%s' is not a %s; "
+                                "use the trigger that matches what it is",
+                                subject, trigger_name,
+                                want == SSC_SYM_LOC   ? "loc"
+                                : want == SSC_SYM_NPC ? "npc"
+                                                      : "obj");
+                }
+            }
         }
         if( !symbol )
             symbol = SSC_SymbolsFind(

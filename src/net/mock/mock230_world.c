@@ -21834,21 +21834,30 @@ mock230_world_selftest(void)
     {
         /* `ladder` at 3229,3224 — one of three in Lumbridge castle, op1
          * "Climb-up", carrying no cache category, so `ladders.loc` files it
-         * under the allocated `climb_up`. By name, like everything else. */
+         * under the allocated `climb_up_ladder`. By name, like everything else.
+         *
+         * `_ladder` and not `climb_up`: the category states two things, the
+         * direction and whether the thing is a ladder, because a ladder plays
+         * the climb animation and a staircase does not (the reference's
+         * `~climb_ladder` versus its anim-less `stairs.rs2`). This one is both
+         * halves at once — a Climb-up, and a ladder. */
         const int ladder = mock230_content_symbol(MOCK230_PACK_LOC, "ladder");
-        const int climb_up = mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_up");
+        const int climb_up =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_up_ladder");
+        const int reach = mock230_content_symbol(MOCK230_PACK_SEQ, "human_reachforladder");
         int slot;
+        int climb_anim = -1;
 
         SELFTEST_CHECK(ladder > 0 && climb_up > 0,
-                       "pack should name `ladder` and the `climb_up` category: %d/%d",
+                       "pack should name `ladder` and the `climb_up_ladder` category: %d/%d",
                        ladder, climb_up);
         SELFTEST_CHECK(ladder > 0 && mock230_loc_category(ladder) == climb_up,
-                       "ladders.loc should file a Climb-up ladder under climb_up, got %d",
+                       "ladders.loc should file a Climb-up ladder under climb_up_ladder, got %d",
                        ladder > 0 ? mock230_loc_category(ladder) : -1);
         /* The group, not the record: one binding reaches all of them, which is
          * the entire reason this is a category and not a name list. */
-        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 558,
-                       "and 558 loc records share it, got %d",
+        SELFTEST_CHECK(climb_up > 0 && mock230_loc_category_members(climb_up) == 232,
+                       "and 232 loc records share it, got %d",
                        climb_up > 0 ? mock230_loc_category_members(climb_up) : -1);
 
         slot = ladder > 0 ? mock230_scene_find_loc(3229, 3224, 0, ladder) : -1;
@@ -21872,49 +21881,121 @@ mock230_world_selftest(void)
             player->tracked_count = 1;
             player->tracked_player_count = 1;
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
-            SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
-                           "the walk to the ladder should complete");
+            /* Ticked by hand rather than through `selftest_settle`, because the
+             * animation is a per-tick mask: `anim_id` is set by `~climb_ladder`
+             * and cleared again at the end of the tick that flushes it, so a
+             * settle loop that only reports how long it took can never see it.
+             * The plane change is one tick behind it — that is what the
+             * `p_delay(0)` in `~climb_ladder` buys, and a climb that set the
+             * mask and teleported in the same tick would show nothing. */
+            for( int tick = 0; tick < 40; tick++ )
+            {
+                if( climb_anim < 0 && player->anim_id > 0 )
+                    climb_anim = player->anim_id;
+                if( player->interaction.kind == MOCK230_INTERACT_NONE && player->level != 0 )
+                    break;
+                mock230_world_tick(srv);
+                if( climb_anim < 0 && player->anim_id > 0 )
+                    climb_anim = player->anim_id;
+            }
             SELFTEST_CHECK(player->level == 1, "climbing it goes up a plane, got %d",
                            player->level);
+            /* And it looks like a climb while it does. Reaching UP, because this
+             * is the Climb-up half — `~climb_ladder` reads the direction and
+             * `human_pickupfloor` is the other one. The reference plays exactly
+             * these two and its staircases play neither. */
+            SELFTEST_CHECK(reach > 0 && climb_anim == reach,
+                           "and plays human_reachforladder (%d) climbing it, got %d",
+                           reach, climb_anim);
             /* The bookkeeping `p_teleport` used not to do. Asserted separately
              * from the level because a plane change that forgets it is a client
              * holding npcs on a floor it has left — visible in the game, and
-             * invisible to any test that only reads `level`. */
+             * invisible to any test that only reads `level`.
+             *
+             * Two of the four are read after a tick and two cannot be: a ladder
+             * now parks for a tick between the animation and the move, and the
+             * tick that resumes it also encodes the player — which is what
+             * `zone_index` being reset and `place_dirty` being set are FOR, so
+             * by the time this line runs they have both been spent on the
+             * absolute placement they asked for. Reading them here would only
+             * assert that the encoder ran.
+             *
+             * So they are claimed against `~climb` called directly below: the
+             * same proc the ladder runs, minus `~climb_ladder`'s delay, which
+             * puts the observation back where it was before the animation
+             * existed. `tracked_*` and `rebuild_pending` are not spent by a tick
+             * and stay here, on the real click.
+             */
             SELFTEST_CHECK(player->tracked_count == 0 && player->tracked_player_count == 0,
                            "and forgets the entities on the old plane, got %d npc / %d player",
                            player->tracked_count, player->tracked_player_count);
             /* Plane change must not REBUILD_* — that reloads scenery from the
-             * cache and would wipe other-level dynamic locs (Inferno flanks).
-             * Zone catch-up resets so the new plane is FULL_FOLLOWSed. */
+             * cache and would wipe other-level dynamic locs (Inferno flanks). */
             SELFTEST_CHECK(player->rebuild_pending == 0,
                            "plane change must not queue a scene rebuild");
-            SELFTEST_CHECK(player->zone_index < 0,
-                           "and drops zone catch-up for the new plane");
-            SELFTEST_CHECK(player->place_dirty == 1,
-                           "and still forces an absolute PLAYER_INFO placement");
+            {
+                /* Back down to 0 first, so the direct call has a plane to
+                 * cross; the ladder above left the player upstairs. */
+                int arg = 1;
+
+                player->level = 0;
+                player->zone_index = 0;
+                player->place_dirty = 0;
+                if( mock230_scripts_run_proc(srv, "[proc,climb]", &arg, 1) )
+                {
+                    SELFTEST_CHECK(player->level == 1,
+                                   "~climb(1) called directly crosses a plane too, got %d",
+                                   player->level);
+                    /* Zone catch-up resets so the new plane is FULL_FOLLOWSed. */
+                    SELFTEST_CHECK(player->zone_index < 0,
+                                   "and drops zone catch-up for the new plane, got %d",
+                                   player->zone_index);
+                    SELFTEST_CHECK(player->place_dirty == 1,
+                                   "and still forces an absolute PLAYER_INFO placement");
+                }
+                player->level = 1;
+            }
 
             /* And the same ladder's other half. `laddertop` is filed under
-             * `climb_down` even though the cache states category 553 on it —
-             * 553 is not a name in pack/category.pack, and the importer refuses
-             * only over categories somebody has named. */
+             * `climb_down_ladder` even though the cache states category 553 on
+             * it — 553 is not a name in pack/category.pack, and the importer
+             * refuses only over categories somebody has named. */
             {
                 const int top = mock230_content_symbol(MOCK230_PACK_LOC, "laddertop");
                 const int climb_down =
-                    mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_down");
+                    mock230_content_symbol(MOCK230_PACK_CATEGORY, "climb_down_ladder");
+                const int crouch =
+                    mock230_content_symbol(MOCK230_PACK_SEQ, "human_pickupfloor");
+                int down_anim = -1;
 
                 SELFTEST_CHECK(top > 0 && climb_down > 0 &&
                                    mock230_loc_category(top) == climb_down,
-                               "laddertop reads climb_down (%d), got %d", climb_down,
+                               "laddertop reads climb_down_ladder (%d), got %d", climb_down,
                                top > 0 ? mock230_loc_category(top) : -1);
                 if( top > 0 && mock230_scene_find_loc(3229, 3224, 1, top) >= 0 )
                 {
                     payload[4] = (uint8_t)(top >> 8);
                     payload[5] = (uint8_t)top;
                     mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
-                    SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
-                                   "the walk to the ladder top should complete");
+                    for( int tick = 0; tick < 20; tick++ )
+                    {
+                        if( down_anim < 0 && player->anim_id > 0 )
+                            down_anim = player->anim_id;
+                        if( player->interaction.kind == MOCK230_INTERACT_NONE &&
+                            player->level != 1 )
+                            break;
+                        mock230_world_tick(srv);
+                        if( down_anim < 0 && player->anim_id > 0 )
+                            down_anim = player->anim_id;
+                    }
                     SELFTEST_CHECK(player->level == 0,
                                    "and climbing down comes back, got %d", player->level);
+                    /* The other anim, and the reason the direction is read
+                     * rather than one animation used for both: going down is a
+                     * crouch, not a reach. */
+                    SELFTEST_CHECK(crouch > 0 && down_anim == crouch,
+                                   "and plays human_pickupfloor (%d) going down, got %d",
+                                   crouch, down_anim);
                 }
             }
             /* Put the world back, so a section that fails here fails only here.
@@ -22096,8 +22177,8 @@ mock230_world_selftest(void)
          * a half-loaded overlay — the failure that actually happens, a merge
          * dropping one source file — is also caught, at the price of this line
          * moving with the content. */
-        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 300,
-                       "and doors.loc states door_closed 300 times, got %d",
+        SELFTEST_CHECK(mock230_loc_category_members(door_closed) == 290,
+                       "and doors.loc states door_closed 290 times, got %d",
                        mock230_loc_category_members(door_closed));
         {
             int gate_main_closed =
@@ -22121,14 +22202,19 @@ mock230_world_selftest(void)
                            "doors.loc states gate_outer_closed 9 times, got %d",
                            mock230_loc_category_members(gate_outer_closed));
             /* And the other half of the same move: 6 clusters were already in
-             * doubledoors.loc, 57 joined them. A leaf that lost its side is a
-             * door that opens half way, which is what this whole rung exists to
-             * keep from happening silently. */
-            SELFTEST_CHECK(mock230_loc_category_members(door_left_closed) == 63,
-                           "doubledoors.loc states door_left_closed 63 times, got %d",
+             * doubledoors.loc, 57 joined them, then 5 more once `door_audit.py`
+             * stopped dropping angle-0 placements — a .jl2 omits the angle field
+             * when it is 0, which is a third of every placement in the tree, so
+             * the pairing scan could not see a door facing west. That last five
+             * is where the 10 that left `door_closed` above went: guidor,
+             * ogreguard, kr_church, arcquest_tower, elem2_mind. A leaf that lost
+             * its side is a door that opens half way, which is what this whole
+             * rung exists to keep from happening silently. */
+            SELFTEST_CHECK(mock230_loc_category_members(door_left_closed) == 68,
+                           "doubledoors.loc states door_left_closed 68 times, got %d",
                            mock230_loc_category_members(door_left_closed));
-            SELFTEST_CHECK(mock230_loc_category_members(door_right_closed) == 63,
-                           "doubledoors.loc states door_right_closed 63 times, got %d",
+            SELFTEST_CHECK(mock230_loc_category_members(door_right_closed) == 68,
+                           "doubledoors.loc states door_right_closed 68 times, got %d",
                            mock230_loc_category_members(door_right_closed));
         }
 

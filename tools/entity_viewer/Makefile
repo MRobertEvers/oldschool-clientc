@@ -64,7 +64,7 @@ DEP_OBJS := \
 	$(BUILD)/ini.o
 
 .PHONY: all clean wasm all-web
-all: ev_catalog ev_server
+all: ev_catalog ev_server ev_swing
 all-web: all wasm
 
 $(BUILD):
@@ -151,15 +151,36 @@ $(BUILD)/toridraw_model_from_torirs.o: $(REPO)/src/engine/toridraw_model_from_to
 $(BUILD)/toridraw_animation_from_rscache.o: $(REPO)/src/engine/toridraw_animation_from_rscache.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+$(BUILD)/ev_player.o: ev_player.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-ev_server: $(BUILD)/ev_server.o $(BUILD)/ev_build.o $(BUILD)/ev_wire.o \
-		$(BUILD)/ev_render.o $(BUILD)/torirs_types.o \
-		$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
-		$(BUILD)/toridraw_animation_from_rscache.o \
-		$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
-		$(BUILD)/toridraw_model_sprite.o $(COMMON_OBJS) $(DEP_OBJS) \
+# Everything both native binaries need. ev_player.c is here and not in the wasm
+# list because it links rscache; the merge it would otherwise own lives in
+# ev_render.c precisely so the browser can do it too.
+NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_wire.o \
+	$(BUILD)/ev_render.o $(BUILD)/torirs_types.o \
+	$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
+	$(BUILD)/toridraw_animation_from_rscache.o \
+	$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+	$(BUILD)/toridraw_model_sprite.o
+
+ev_server: $(BUILD)/ev_server.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_swing: a weapon swing and its attached graphic, measured ----------
+#
+# Needs no catalog and no browser: it is the same build and the same renderer as
+# ev_server, driven from the command line so a placement can be answered with a
+# number instead of an opinion.
+
+$(BUILD)/ev_swing.o: ev_swing.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+ev_swing: $(BUILD)/ev_swing.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
@@ -204,4 +225,4 @@ web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c
 		-sEXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8"]'
 
 clean:
-	rm -rf $(BUILD) ev_catalog ev_server web/ev_wasm.js web/ev_wasm.wasm
+	rm -rf $(BUILD) ev_catalog ev_server ev_swing web/ev_wasm.js web/ev_wasm.wasm

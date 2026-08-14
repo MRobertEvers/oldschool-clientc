@@ -590,7 +590,7 @@ review, and are parallelisable across people.
 
 ## 8. Status, 2026-08-13
 
-Phase 1 (engine) is done. **115 shops are live** — every shop the pipeline can
+Phase 1 (engine) is done. **161 shops are live** — every shop the pipeline can
 currently clear without a human decision. Seven improvements past the
 original write-up widened that from the initial 21/36, the seventh being a
 by-hand review pass rather than another mechanical rule (§8, general stores).
@@ -717,6 +717,62 @@ by-hand review pass rather than another mechanical rule (§8, general stores).
   `--refresh` after this session's general-store pass wiped all 12 of those
   rows. `manual-review` is now exempt from `--refresh` the same way a
   pre-existing `verified` row already was.
+* **A third by-hand pass, on the generic "X store" family** — turned up a
+  classifier bug, not just missing bindings. `NON_SHOP_PREFIXES` excluded
+  every `smithing_`-prefixed inv as a smithing-minigame progression menu
+  (`smithing_bronze1..6`, `smithing_iron_claws`, ...), which is right for
+  those but was also hiding `smithing_guild_buyer` and
+  `smithing_guild_ore_seller` — two real Blast Furnace storefronts. Narrowed
+  the exclusion to the specific metal/tier prefixes that are genuinely not
+  shops (checked against every `smithing_*` name the cache has, not
+  guessed), and both resolved on their own via the existing
+  `exact-gameval-match` rule the moment they were reachable. 7 more
+  place-name matches on top of that (`hendors_awesome_ores` ->
+  `mguild_oreshop`, `weapons_galore` -> `frisd_weaponshop`, `void_knight_archery_store`
+  -> `pest_archery_store`, ...), each cross-checked against a spawned owner
+  first. One (`davons_amulet_store__2`) is a second wiki table for a shop
+  already bound under `__1` — recorded for completeness; `gen_shop_scripts.py`
+  correctly leaves it unclaimed rather than declaring the same npc's trigger
+  twice, the same collision guard that already covers the general-store and
+  skillcape cases.
+* **A fourth by-hand pass — numbered/prefixed families found by scanning the
+  121 remaining "blocked only by binding" shops for a repeated owner
+  prefix.** `wilderness_capeseller_1..10` -> `wildernesscapeshop1..10`, a
+  clean numbered correspondence, all 10 confirmed spawned before applying
+  (10 shops). `dwarf_city_shop_{bakery,pickaxe,warhammer,cloth}` ->
+  `keldagrim_{bread_stall,pickaxe_shop,warhammer_shop,clothes_shop}`, place
+  and purpose both matching (4 shops). Three Prifddinas shops matched an
+  underscore-normalization of their own owner name (`prif_foodstore` /
+  `prif_food_store`, `prif_macestore` / `prif_mace_store`,
+  `prif_weaponstore` / `prif_weapon_store`) — **the other 9 Prifddinas shops
+  on the list have no inv of that shape in this cache at all** (checked by
+  grep, not assumed), a real content gap rather than a binding one, left
+  unbound. Same for Darkmeyer (4 shops, zero `darkm`-prefixed invs exist) and
+  most of Shayzien (only `shayzien_rangeshop`/`_pub`/`_clothesshop` exist;
+  `shayzien_armourshop`/`_weaponshop`/`_generalstore` do not).
+
+* **A catalog-level bug, not a binding gap: `gen_shop_catalog.py`'s dedup was
+  merging different real shops that share a stock template.** Its
+  `mark_duplicates` collapses two catalogued tables into one whenever their
+  stock and multipliers match exactly — right for a shop-page +
+  hosting-npc-page pair (the case it was built for), wrong for two genuinely
+  separate shops Jagex built from the same template. `varrock_general_store`
+  and `al_kharid_general_store` sell an identical item list at identical
+  prices and are obviously not the same shop; the same was true for 59 pairs
+  across the catalogue (fur/gem/silver/spice stalls, general stores, pub
+  templates), and the merge meant `gen_shop_scripts.py` silently generated
+  only one of each pair, forever, with the other's stock and location visible
+  in the CSVs but never producing a file. Fixed by requiring `location=` be
+  either equal or blank on at least one side before merging — blank is the
+  common real case (an npc's own infobox usually states none), an active
+  disagreement is not. Unmerging is safe by construction: a location-agreeing
+  pair still merges exactly as before, so nothing that was correctly deduped
+  stopped being deduped. Re-running `mark_duplicates` against the already-
+  patched `shop_stock.csv` (not the wikitext pass, which would have discarded
+  every `wiki_item_ids.py` fix) freed 59 shops from a false merge, and 10 of
+  those — `varrock_general_store`, `falador_general_store`,
+  `zanaris_general_store`, `rimmington_general_store`, and six more — turned
+  out to already have everything else they needed and generated immediately.
 
 Two avenues were tried and deliberately not taken, because both would have
 traded real coverage for false confidence: cross-checking the remaining
@@ -789,7 +845,18 @@ in-game), not another pass over the existing pipeline.
   parses — 113 seeded) and by reading the generated files against the wiki
   source, not by opening a shop as a connected client.
 
-### 8.2 Content — 113 shops live
+> **Verification note, this pass:** `make -C src mock230-scripts` could not be
+> re-run clean after this pass's regeneration — the tree currently fails on
+> `ladders_stairs/scripts/maplink.rs2:39` (`'maplink:dir' is not a command,
+> constant, symbol or script`), a map-links content change unrelated to shops
+> and not authored by this work (confirmed via `git log` on that file and by
+> grepping the shop tree for duplicate `[opnpc3,...]` triggers, which found
+> none). The 10 newly-generated files and the dedup fix are believed correct
+> on that basis, but not selftest-confirmed the way every earlier count in
+> this document was — re-run `--selftest` once the tree's own maplink issue
+> clears.
+
+### 8.2 Content — 161 shops live
 
 Generated by `tools/gen_shop_scripts.py --write` from the reviewed rows of
 `shop_inv_map.tsv` (the `verified` tier — 386 rows after §8's binding

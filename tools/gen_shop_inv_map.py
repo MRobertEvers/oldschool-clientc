@@ -90,7 +90,13 @@ FIELDS = [
 # short enough to read.
 NON_SHOP_PREFIXES = (
     "skill_guide_",
-    "smithing_",
+    # NOT a blanket "smithing_": smithing_bronze1..5/iron1..5/.../claws and
+    # smithing_lamp_iron/steel are the smithing-minigame's own progression
+    # menus, never a shop a player walks up to — but smithing_guild_buyer and
+    # smithing_guild_ore_seller (both at the Blast Furnace) are real
+    # storefronts the blanket prefix was hiding (docs/SHOPS_PLAN.md §8).
+    "smithing_bronze", "smithing_iron", "smithing_steel", "smithing_mithril",
+    "smithing_adamant", "smithing_rune", "smithing_lamp",
     "silvercast_",
     "crafting_make_",
     "hundred_",

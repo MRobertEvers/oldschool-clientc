@@ -428,11 +428,25 @@ def parse_page(
     return catalog_rows, stock_rows
 
 
+def _locations_compatible(a: str, b: str) -> bool:
+    """Same shop, catalogued twice, is (page + hosting-npc-page): the npc's own
+    infobox usually states no `location=` at all, so one side empty is the
+    common, correct case. Two different *stated* locations is not a coverage
+    gap in this check — it is two different real shops that happen to use the
+    same stock template (Jagex reuses templates constantly: every gem stall in
+    the game sells the same four gems). 59 such pairs were being silently
+    merged before this existed — `varrock_general_store` and
+    `al_kharid_general_store` are obviously not one shop, and merging them
+    made `gen_shop_scripts.py` skip generating Varrock's entirely."""
+    return not a or not b or a == b
+
+
 def mark_duplicates(catalog: list[dict], stock: list[dict]) -> None:
     """The roster unions two templates, so a shop with its own page *and* an
     owner npc page that repeats the table is catalogued twice. Same stock, same
-    three multipliers means same shop; `duplicate_of` names the copy to author
-    from, and the shop page wins over the npc page when both exist."""
+    three multipliers means same shop *only when the location doesn't actively
+    disagree* — see `_locations_compatible`. `duplicate_of` names the copy to
+    author from, and the shop page wins over the npc page when both exist."""
     lines: dict[str, list[str]] = collections.defaultdict(list)
     for row in stock:
         lines[row["shop_key"]].append(str(row["obj_id"] or row["wiki_item"]))
@@ -453,9 +467,14 @@ def mark_duplicates(catalog: list[dict], stock: list[dict]) -> None:
         if len(members) < 2:
             continue
         members.sort(key=lambda r: (r["is_shop_page"] != "yes", r["shop_key"]))
-        canonical = members[0]["shop_key"]
+        canonical = members[0]
         for row in members[1:]:
-            row["duplicate_of"] = canonical
+            if _locations_compatible(canonical["location"], row["location"]):
+                row["duplicate_of"] = canonical["shop_key"]
+            # Incompatible: leave `row` as its own independent shop. It may
+            # still end up sharing an inv with `canonical` for real (the gem
+            # stalls do) — that is `gen_shop_inv_map.py`'s question to answer
+            # with real evidence, not this pass's to assume from stock alone.
 
 
 def run(write: bool, obj_csv: str) -> None:

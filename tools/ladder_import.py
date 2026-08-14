@@ -78,6 +78,43 @@ SINGLE_VERB_GROUP = {
 SPIRAL = {1: "Climb", 2: "Climb-up", 3: "Climb-down"}
 SPIRAL_GROUP = "climb_spiral_middle"
 
+# The second axis: is this thing a LADDER, or is it a staircase / rock / vine?
+#
+# It matters because a ladder animates and a staircase does not. The reference
+# says so directly — `ladders+stairs/scripts/ladders.rs2` runs
+# `anim(human_reachforladder)` going up and `anim(human_pickupfloor)` going down
+# (its `~climb_ladder` proc, and `manhole.rs2` for the trapdoor case), while
+# every one of `stairs.rs2`'s several hundred staircases is a bare
+# `p_telejump` with no anim at all.
+#
+# The reference can key that off the loc NAME because it binds each loc by name;
+# this tree binds by category, so the name test happens here and the answer is
+# carried as the category's `_ladder` suffix.
+#
+# Measured on cache.osrs239: 'ladder' hits 485 of the 1,443 climb records,
+# 'stair' hits 457, and the two overlap exactly once —
+# `elem2_stairs_door_open_no_hatch`, a staircase whose name only says what it
+# does NOT have. That is what the `stair` veto below is for. 'trapdoor' (33),
+# 'manhole' (6) and 'hatch' (3) join the ladder side: you climb down through a
+# hole the same way, and the reference's own manhole script plays exactly the
+# same `human_pickupfloor`.
+LADDER_KEYWORDS = ("ladder", "trapdoor", "manhole", "hatch")
+LADDER_VETO = ("stair",)
+
+
+def is_ladder(name):
+    if any(veto in name for veto in LADDER_VETO):
+        return False
+    return any(keyword in name for keyword in LADDER_KEYWORDS)
+
+
+# Emission order, and the whole set of categories this importer authors.
+GROUPS = tuple(
+    group + suffix
+    for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP)
+    for suffix in ("", "_ladder")
+)
+
 HEADER = """\
 // Ladders, staircases and every other loc whose menu says Climb.
 //
@@ -88,11 +125,17 @@ HEADER = """\
 // One key per block and it is the whole point: the cache says a loc's climb
 // *verb*, and no opcode exposes a verb to a script, so the verb is restated as a
 // category — which a trigger CAN be bound to. `ladders_stairs/scripts/
-// ladders.rs2` binds four of them and covers {covered} of the {total} records
-// cache.osrs239 states a climb verb on.
+// ladders.rs2` binds all eight of them and covers {covered} of the {total}
+// records cache.osrs239 states a climb verb on.
 //
-// The four groups, and what puts a record in one (see the importer's docstring
-// for why the grouping is by direction and not by op slot):
+// The category states TWO things, because a script needs two: which way the
+// climb goes (the record's own menu verb), and whether the thing is a LADDER —
+// the `_ladder` suffix. A ladder animates the climb the way the reference's
+// `~climb_ladder` does; a staircase, a rock and a vine do not. The suffix is
+// derived from the loc's name, see `LADDER_KEYWORDS` in the importer.
+//
+// The eight groups, and what puts a record in one (see the importer's docstring
+// for why the direction grouping is by verb set and not by op slot):
 //
 {summary}//
 // {exceptions_note}
@@ -225,10 +268,11 @@ def classify(records):
         if not ops:
             continue
         verbs = set(ops.values())
+        suffix = "_ladder" if is_ladder(name) else ""
         if len(verbs) == 1:
-            grouped[name] = (SINGLE_VERB_GROUP[next(iter(verbs))], ops)
+            grouped[name] = (SINGLE_VERB_GROUP[next(iter(verbs))] + suffix, ops)
         elif ops == SPIRAL:
-            grouped[name] = (SPIRAL_GROUP, ops)
+            grouped[name] = (SPIRAL_GROUP + suffix, ops)
         else:
             exceptions[name] = ops
     return grouped, exceptions
@@ -297,10 +341,10 @@ def main():
 
     total = len(grouped) + len(exceptions) + len(skipped) + len(shared) + len(rs2_shadowed)
     summary_lines = []
-    for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP):
+    for group in GROUPS:
         members = by_group.get(group, [])
         summary_lines.append(
-            "//   %-21s %5d records, ops %s\n"
+            "//   %-28s %5d records, ops %s\n"
             % (group, len(members), ",".join(str(s) for s in sorted(slots[group])))
         )
     exceptions_note = (
@@ -334,7 +378,7 @@ def main():
             exceptions_note=exceptions_note,
         )
     ]
-    for group in ("climb_up", "climb_down", "climb_unqualified", SPIRAL_GROUP):
+    for group in GROUPS:
         body.append("\n// ---- %s ----\n" % group)
         for name in sorted(by_group.get(group, [])):
             body.append("\n[%s]\ncategory=%s\n" % (name, group))
@@ -346,11 +390,15 @@ def main():
         script.append(
             "\n// %s — `%s` in %s\n" % (", ".join("op%d %s" % kv for kv in sorted(ops.items())), other, where)
         )
+        # Same ladder/stairs axis the categories carry, spelled as the proc name
+        # instead: a name binding has no category to hang a suffix on.
+        ladder = "_ladder" if is_ladder(name) else ""
         for slot, verb in sorted(ops.items()):
             script.append(
                 "[oploc%d,%s] %s\n"
-                % (slot, name, "~climb(-1);" if verb == "Climb-down"
-                   else "~climb(1);" if verb == "Climb-up" else "~climb_unqualified;")
+                % (slot, name, "~climb%s(-1);" % ladder if verb == "Climb-down"
+                   else "~climb%s(1);" % ladder if verb == "Climb-up"
+                   else "~climb%s_unqualified;" % ladder)
             )
     script_text = "".join(script)
 

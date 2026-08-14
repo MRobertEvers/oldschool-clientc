@@ -32,6 +32,51 @@ ev_set_anim(const uint8_t* data, int len);
 void
 ev_clear_anim(void);
 
+/* ---- the attached graphic ------------------------------------------------
+ *
+ * A player-attached spotanim is not a second thing in the scene. The client
+ * poses the graphic, strips its labels, lifts it by the spotanim height and
+ * MERGES it into the player's own model (app_world_sync_one_entity_spotanim,
+ * src/app.c); the merged mesh becomes what the scene draws, and the body's
+ * sequence animates it from there. So a viewer that draws the two models side
+ * by side is not showing what the game shows — it has to merge, and it has to
+ * merge the same way.
+ *
+ * With no spot model adopted, everything below is inert and this module behaves
+ * exactly as it did before.
+ */
+
+/** Adopt the graphic's model (ev_wire bytes). Returns its face count, 0 on a
+ *  bad blob. */
+int
+ev_set_spot_model(const uint8_t* data, int len);
+
+/** Adopt the graphic's own animation. Returns its frame count, 0 on a bad blob. */
+int
+ev_set_spot_anim(const uint8_t* data, int len);
+
+/** Drop the graphic; the model goes back to being drawn alone. */
+void
+ev_clear_spot(void);
+
+/**
+ * Where the graphic is in its own sequence, and how high it rides.
+ *
+ * `frame` < 0 detaches it for this render — which is the state during the part
+ * of a swing before the graphic has been played, and is not the same as frame 0.
+ * `height` is the spotanim height in model units, the third argument of
+ * `spotanim_pl` and the only placement lever the server has.
+ */
+void
+ev_set_spot_state(int height, int frame);
+
+int
+ev_spot_frame_count(void);
+
+/** A graphic frame's duration in client cycles. 0 when unknown. */
+int
+ev_spot_frame_delay(int index);
+
 int
 ev_frame_count(void);
 
@@ -90,5 +135,25 @@ ev_model_height(void);
 /** Why the last ev_render drew nothing: the projection's cull result. */
 int
 ev_last_cull(void);
+
+/* ---- measurement hooks ---------------------------------------------------
+ *
+ * The model as last posed, so a caller in the same process can read geometry
+ * out of it instead of guessing at it from pixels. Native only in practice —
+ * nothing in the browser calls these — but they are ordinary C, not a debug
+ * build.
+ */
+
+struct ToriDraw_Model;
+
+/** The model ev_render actually draws: the merged body+graphic when a graphic
+ *  is attached, the plain model otherwise. Valid until the next adopt/pose. */
+struct ToriDraw_Model*
+ev_drawn_model(void);
+
+/** Index of the graphic's first vertex inside ev_drawn_model(), or -1 when no
+ *  graphic is merged in. Everything at or past it is the graphic. */
+int
+ev_spot_vertex_first(void);
 
 #endif
