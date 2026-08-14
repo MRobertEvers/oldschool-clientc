@@ -437,9 +437,21 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=50000,
         charge_source="2 death + 1 chaos rune per charge, or 1 demon tear per charge (cannot mix types)",
         drain_event="1 charge per cast of the built-in spell",
-        status="charges_only",
-        note="Special attack (Soul Rend) is wired (specs/pvm_eye_of_ayak.rs2) but spec-energy gated, unrelated "
-             "to item charges. No powered-staff item-charge library exists for the normal-cast drain.",
+        status="implemented",
+        note="gear/eye_of_ayak.rs2/.constant, second weapon on the shared powered-staff dispatch (gear/"
+             "powered_staff.rs2) after Sanguinesti staff -- own max-hit formula (floor(Magic/3) - 6, "
+             "different from Sanguinesti staff's, checked directly not assumed identical). Charging is a "
+             "genuine ifop3=Charge menu option on the uncharged form only (no Charge op on the charged "
+             "form at all in this cache's own record -- topping up a partially-drained Eye of ayak is not "
+             "possible here, only a fresh charge from empty). NOT implemented: the wiki's 'cannot mix "
+             "rune-based and demon tear charges' exclusivity -- both materials add to the same pool here. "
+             "Special attack (Soul Rend, specs/pvm_eye_of_ayak.rs2) is untouched by this, spec-energy gated "
+             "as before. Found and fixed a real bug while adding this: an early draft declared `$use` in "
+             "two different branches of the same charge proc -- ServerScript's def_int is proc-scoped, not "
+             "block-scoped, so the second declaration silently read back 0 instead of erroring, and the "
+             "rune-charging path refused to charge anything despite affordable materials. Caught by "
+             "bisecting with encoded return values (mock230's headless harness doesn't surface mes() output "
+             "outside the chargesrun OK/FAIL convention) before landing, not shipped.",
     ),
     "Flamtaer bracelet": dict(
         storage="item_var", depletion="destroy", max_charges=80,
