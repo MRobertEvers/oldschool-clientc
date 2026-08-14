@@ -1153,16 +1153,22 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Charged with blood runes (2 per charge) via bank Configure-Charges or direct use",
         drain_event="1 charge per cast of the staff's built-in spell",
-        status="charges_only",
-        note="CORRECTED research error: [proc,pvm_spell_cast] (player_magic.rs2:279) is NOT a usable drain "
-             "site as originally claimed -- it only branches on oc_category(weapon)=weapon_staff to pick the "
-             "staffanim for a spell the player explicitly SELECTED (spellbook click or the autocast grid in "
-             "auto_cast.rs2, whose own spell list has no entry for this staff's built-in effect). Checked "
-             "directly: attacking an npc while wielding a powered staff has no auto-attack dispatch anywhere "
-             "in this tree -- the whole 'wield this weapon, click Attack, it casts its own baked-in spell' "
-             "combat mode powered staves need does not exist, not just the charge wiring on top of it. A "
-             "from-scratch combat feature, the same distinction Blazing/Ironwood/Rosewood blowpipe's own "
-             "notes draw for the missing dart-loading subsystem.",
+        status="implemented",
+        note="gear/sanguinesti_staff.rs2/.constant. The powered-staff auto-attack combat mode this ledger's "
+             "own prior note correctly identified as entirely missing now exists: combat.rs2's "
+             "`[label,player_combat_start]` gained one narrow, additive early-exit "
+             "(`~powered_staff_worn`/`@player_powered_staff_attack`) ahead of the existing ranged/autocast/"
+             "melee branches, none of which were modified -- verified by running the full selftest in both "
+             "plain and MOCK230_GEARRUN=1 modes and confirming the exact same 12-failure pristine baseline "
+             "before and after. Max hit is the wiki's own flat formula (floor(Magic level / 3), not derived "
+             "from magic_spell_table since this weapon has no spell row) fed through the same "
+             "npc_max_dealt/player_npc_hit_roll/player_hit_npc_prepare pipeline every other attack style "
+             "already uses. Deliberately scoped to only this one weapon rather than all five items this "
+             "ledger flags against the same missing dispatch (Eye of ayak/Holy sanguinesti staff/Tumeken's "
+             "shadow/Warped sceptre) -- each needs its own max-hit formula and special-effect research "
+             "verified before reusing this infrastructure, not assumed identical. NOT implemented: the Life "
+             "leech passive (a secondary bonus effect, same scope line Arclight's infusion meter/Tonalztics' "
+             "auto-attack range draw) and the Ornament Kit recolour (cosmetic only).",
     ),
     "Holy sanguinesti staff": dict(
         storage="item_var", depletion="revert", max_charges=20000,
