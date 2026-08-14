@@ -786,22 +786,31 @@ struct App
      * scene coords to hand-copy into a script without a server round trip. */
     int locedit_panel;
     int locedit_visible;
-    int locedit_row_target; /* "loc <id> shape <n>" or "no loc here" */
-    int locedit_row_pos;    /* "x,z,level" */
-    int locedit_row_angle;  /* "angle <0-3>" */
+    int locedit_row_target; /* "loc <id> shape <n>" or "no loc selected" */
+    int locedit_row_pos;    /* "x=.. z=.. level=.." */
+    int locedit_row_size;   /* "size AxB angle=N" */
+    int locedit_row_extra;  /* loc name, or "interactive=0/1" when unnamed */
     int locedit_item_xplus;
     int locedit_item_xminus;
     int locedit_item_zplus;
     int locedit_item_zminus;
     int locedit_item_rotate;
     int locedit_item_reselect;
+    int locedit_item_deselect;
     int locedit_item_close;
-    /** Selected loc, or loc_id -1 for "nothing selected". scene_x/z/level are
-     * the loc's CURRENT placement -- kept in sync with every move/rotate so
+    /** Selected loc, or loc_id -1 for "nothing selected". Set only by an
+     * explicit Reselect/Deselect click -- opening or closing the panel never
+     * changes it, so a target stays active across a toggle, a camera move, or
+     * a string of nudges until the user picks a different one. scene_x/z/level
+     * are the loc's CURRENT placement, kept in sync with every move/rotate so
      * the next one starts from the right tile. */
     int locedit_loc_id;
     int locedit_shape;
     int locedit_angle;
+    int locedit_size_x;
+    int locedit_size_z;
+    int locedit_interactive;
+    char locedit_name[64];
     int locedit_scene_x;
     int locedit_scene_z;
     int locedit_level;

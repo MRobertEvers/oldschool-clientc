@@ -3443,9 +3443,11 @@ app_debug_overlay_init(struct App* app)
 
     app->locedit_panel =
         ToriDbgUI_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 40, 0, "Loc Editor");
-    app->locedit_row_target = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "no loc here");
+    app->locedit_row_target =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "no loc selected");
     app->locedit_row_pos = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
-    app->locedit_row_angle = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    app->locedit_row_size = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    app->locedit_row_extra = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
     ToriDbgUI_Separator(&app->dbg_ui, app->locedit_panel);
     app->locedit_item_xplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1");
     app->locedit_item_xminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1");
@@ -3454,12 +3456,17 @@ app_debug_overlay_init(struct App* app)
     app->locedit_item_rotate = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate");
     app->locedit_item_reselect =
         ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (loc under cursor)");
+    app->locedit_item_deselect = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Deselect");
     app->locedit_item_close = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close");
     ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
     app->locedit_visible = 0;
     app->locedit_loc_id = -1;
     app->locedit_shape = -1;
     app->locedit_angle = 0;
+    app->locedit_size_x = 0;
+    app->locedit_size_z = 0;
+    app->locedit_interactive = 0;
+    app->locedit_name[0] = '\0';
     app->locedit_scene_x = -1;
     app->locedit_scene_z = -1;
     app->locedit_level = 0;
@@ -3581,8 +3588,8 @@ app_debug_overlay_tick(
  * numbers into the actual placement script.
  */
 
-/* Refreshes the panel's three readout rows from current selection state.
- * Called after every selection change, move, and rotate. */
+/* Refreshes the panel's readout rows from current selection state. Called
+ * after every selection change, deselect, move, and rotate. */
 static void
 app_loc_editor_refresh_labels(struct App* app)
 {
@@ -3590,9 +3597,10 @@ app_loc_editor_refresh_labels(struct App* app)
 
     if( app->locedit_loc_id < 0 )
     {
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, "no loc here");
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, "no loc selected");
         ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, "");
-        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_angle, "");
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, "");
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, "");
         return;
     }
     snprintf(
@@ -3606,13 +3614,32 @@ app_loc_editor_refresh_labels(struct App* app)
         app->locedit_scene_z,
         app->locedit_level);
     ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, text);
-    snprintf(text, sizeof(text), "angle=%d", app->locedit_angle);
-    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_angle, text);
+    snprintf(
+        text,
+        sizeof(text),
+        "size %dx%d angle=%d",
+        app->locedit_size_x,
+        app->locedit_size_z,
+        app->locedit_angle);
+    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_size, text);
+    /* A baked-map loc usually has no LocType.name resolved client-side (that
+     * lives in the config, not the placed entity), so an empty name is the
+     * common case -- fall back to whether it can be clicked at all rather
+     * than print a blank row. */
+    if( app->locedit_name[0] )
+        snprintf(
+            text, sizeof(text), "\"%s\" interactive=%d", app->locedit_name,
+            app->locedit_interactive);
+    else
+        snprintf(text, sizeof(text), "interactive=%d", app->locedit_interactive);
+    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_extra, text);
 }
 
 /* Targets whatever loc sits at the cursor's hover tile, on the local player's
  * current level (a loc editor has no reason to reach across planes). Clears
- * the selection (loc_id -1) when there is no loc there or nothing to hover. */
+ * the selection (loc_id -1) when there is no loc there or nothing to hover.
+ * Only ever called from an explicit Reselect click -- opening the panel does
+ * NOT call this, so a selection stays active across a close/reopen. */
 static void
 app_loc_editor_reselect(struct App* app)
 {
@@ -3646,9 +3673,21 @@ app_loc_editor_reselect(struct App* app)
     app->locedit_loc_id = scenery->loc_id;
     app->locedit_shape = scenery->shape;
     app->locedit_angle = scenery->angle;
+    app->locedit_size_x = scenery->size_x;
+    app->locedit_size_z = scenery->size_z;
+    app->locedit_interactive = scenery->interactive;
+    snprintf(app->locedit_name, sizeof(app->locedit_name), "%s", scenery->name);
     app->locedit_scene_x = scenery->grid_position.x;
     app->locedit_scene_z = scenery->grid_position.z;
     app->locedit_level = scenery->grid_position.level;
+    app_loc_editor_refresh_labels(app);
+}
+
+/* Explicit Deselect: clears the target without touching the world. */
+static void
+app_loc_editor_deselect(struct App* app)
+{
+    app->locedit_loc_id = -1;
     app_loc_editor_refresh_labels(app);
 }
 
