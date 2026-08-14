@@ -363,6 +363,22 @@ struct ToriRS_Npctype
      *  like npcs (spawn points, glyphs, invisible event npcs) from the map.
      *  Defaults true; only a record that states opcode 93 turns it off. */
     bool minimap_visible;
+    /**
+     * Overhead prayer icon (dat2 opcode 102 / dat1 opcode 102).
+     *
+     * `head_icon_group` is a SPRITE GROUP id — the archive the icon lives in,
+     * 440 `headicons_prayer` for every prayer-switching npc in cache.osrs239 —
+     * and `head_icon_index` is the frame within it (0 melee, 1 missiles,
+     * 2 magic, matching the player overhead pass). Both -1 when the record
+     * states no icon, which is all but 77 of this cache's 16,292 npcs.
+     *
+     * Only the FIRST icon is carried. The record's field is a list (a
+     * multi-icon npc is legal on the wire), but the reference plots one frame
+     * for an npc where a player gets an eight-bit mask, and nothing in this
+     * cache states more than one.
+     */
+    int head_icon_group;
+    int head_icon_index;
     /** NpcType ambient/contrast (opcodes 100/101). Contrast arrives pre-scaled
      *  by 5 from the decoder. Used when the era/manifest enables
      *  npc_light_uses_type_ambient_contrast (xrsps); Client-TS ignores them. */

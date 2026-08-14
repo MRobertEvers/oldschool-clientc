@@ -24642,6 +24642,44 @@ mock230_world_selftest(void)
          * `::gearrun` stops at the first broken assertion, so "no FAIL was
          * printed" is also what a script that aborted on line one produces.
          */
+        /*
+         * The Old School Tormented Demon contract (`::tdtest`,
+         * bosses/boss_tormented_demons/scripts/td_selftest.rs2).
+         *
+         * Unlike ::gearrun this is default-on: the script spawns one demon
+         * beside the player, drives its state machine by calling the procs
+         * with explicit arguments, and deletes the demon again. It equips
+         * nothing, raises no stat and writes no player varp outside its own
+         * `%td_*` temporaries, so nothing after it reads a changed player.
+         *
+         * Asserted on the PASS line, not on the absence of FAIL, for the same
+         * reason the gear stanza is: a script that aborted on line one also
+         * prints no failures.
+         */
+        {
+            static struct Mock230Capture tdtest_capture;
+            int td_said_pass = 0;
+
+            mock230_capture_begin(srv, &tdtest_capture);
+            mock230_scripts_run_debugproc(srv, "tdtest");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&tdtest_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
+                 i = mock230_capture_find(&tdtest_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &tdtest_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "tdtest PASS") != NULL )
+                    td_said_pass = 1;
+                else if( strstr(text, "tdtest FAIL") != NULL || strstr(text, "tdtest:") != NULL )
+                    fprintf(stderr, "  %s\n", text);
+            }
+            SELFTEST_CHECK(td_said_pass, "::tdtest should reach its PASS line");
+        }
+
         {
             static struct Mock230Capture gearrun_capture;
             int said_ok = 0;

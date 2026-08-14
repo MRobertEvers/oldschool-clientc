@@ -7378,6 +7378,35 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * WARNING — `npc_delay` is not "make that npc wait". It SUSPENDS THE
+     * CALLING SCRIPT.
+     *
+     * The name reads like a setter on the active npc, and the body below is
+     * two lines of which only the first is about the npc. The second one ends
+     * the current script's turn: everything after the `npc_delay(...)` call
+     * resumes `ticks` later, in a fresh dispatch, or not at all.
+     *
+     * That is correct and harmless in an npc's own context — `[ai_applayer2]`,
+     * `[ai_timer]`, `[ai_queue*]` — where the script IS the npc's turn and
+     * suspending it is the whole point.
+     *
+     * It is a bug in the PLAYER's context. `~player_hit_npc_prepare` and every
+     * encounter rung under it run on the player's frame with an active npc set
+     * (that is how they read `npc_var_get`/`npc_stat` at all), so `npc_delay`
+     * there compiles, finds an npc, and suspends the player's hit mid-way:
+     * the damage is never returned, the caller never queues the splat, and the
+     * hit silently evaporates. Nothing reports it — the script simply stops.
+     *
+     * The rule: a script may only call `npc_delay` if being suspended for
+     * `ticks` is what that script wants. To stall an npc from somewhere else,
+     * write a clock into an `npc_var_*` slot and let the npc turn it into a
+     * delay in its own context. `bosses/boss_tormented_demons` does exactly
+     * that with `^td_var_stun_until` for the prayer-swap stall, which is
+     * written from the player's hit script and consumed in `~td_attack`.
+     *
+     * Same shape, same warning: `p_delay` (SS_OP_P_DELAY) suspends too.
+     */
     case SS_OP_NPC_DELAY:
     {
         int32_t ticks;
@@ -7391,6 +7420,7 @@ mock230_script_command(
             return 1;
         }
         npc->delayed_until = srv->tick + 1 + ticks;
+        /* Suspends the CALLER, not just the npc. See the warning above. */
         SSVM_Suspend(state, SSVM_NPC_SUSPENDED);
         return 1;
     }

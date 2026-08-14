@@ -2044,6 +2044,80 @@ app_overlay_build_player_headicons(
     }
 }
 
+/*
+ * The sprite-group id of `headicons_prayer`.
+ *
+ * An npc's opcode-102 icon names its group as a NUMBER, and the client
+ * resolves that pack by NAME (static_sprites.c, STATIC_SPRITE_HEADICONS_PRAYER)
+ * — the provider offers no synchronous name -> group-id lookup to close the
+ * gap with, only an async load task. So the number is stated here, from
+ * `OSRS-Content/osrs239-content/pack/8_sprites.pack` line 441, where it is the
+ * only group any of this cache's 77 headicon-bearing npc records names.
+ *
+ * Failure mode if a future cache renumbers it: npcs stop drawing overheads.
+ * That is the deliberate direction — a record naming an unrecognised group is
+ * skipped rather than drawn out of the prayer pack, because an icon that says
+ * "Protect from Magic" when the record meant something else is worse than no
+ * icon at all.
+ */
+#define APP_HEADICONS_PRAYER_GROUP 440
+
+/*
+ * Overhead prayer icon for an NPC (reference drawEntities, NpcType.headicon).
+ *
+ * Where a player carries an eight-bit MASK and stacks every set bit, an npc
+ * carries ONE frame from one sprite group and plots it in the first slot. That
+ * asymmetry is the reference's, not a simplification: the player's icons are a
+ * live prayer set, the npc's is a property of which record it currently is.
+ * Which is exactly how a prayer-switching npc works — `npc_changetype` between
+ * records that differ only in this field is what makes the overhead change.
+ *
+ * The group is a sprite-archive id. 440 (`headicons_prayer`) is the only one
+ * cache.osrs239 uses on an npc, and the client already resolves that pack for
+ * the player pass, so it is passed in rather than looked up again here; a
+ * record naming any other group draws nothing rather than drawing the wrong
+ * pack's frame.
+ */
+static void
+app_overlay_build_npc_headicon(
+    struct App* app,
+    int element_id,
+    struct ToriRS_Npctype const* npctype,
+    struct WorldEntityFacet_DrawPosition const* draw_position,
+    int prayer_scene,
+    int prayer_group)
+{
+    int height;
+    int screen_x, screen_y;
+
+    if( !npctype || npctype->head_icon_index < 0 || prayer_scene <= 0 )
+        return;
+    if( npctype->head_icon_group >= 0 && npctype->head_icon_group != prayer_group )
+        return;
+    height = app_entity_model_height(app, element_id);
+    if( !app_world_project(
+            app,
+            (int)draw_position->x,
+            (int)draw_position->z,
+            height + 15,
+            &screen_x,
+            &screen_y) )
+        return;
+
+    {
+        struct UITreeEntityOverlay spr = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = screen_x - 12,
+            .y = screen_y - 30,
+            .w = 0,
+            .h = 0,
+            .scene_id = prayer_scene,
+            .atlas_index = npctype->head_icon_index,
+        };
+        app_overlay_push(app, &spr);
+    }
+}
+
 /* Push one projected world segment as a LINE overlay (box + diagonal). */
 static void
 app_overlay_push_segment(
@@ -2360,6 +2434,9 @@ app_build_entity_overlays(
         app_overlay_build_entity(
             app, npc->element_id, &npc->combat, &npc->draw_position, font_id, hitmarks_scene,
             npctype ? npctype->height : -1);
+        app_overlay_build_npc_headicon(
+            app, npc->element_id, npctype, &npc->draw_position, headicons_scene,
+            APP_HEADICONS_PRAYER_GROUP);
     }
 
     pool = &world->entities.player;

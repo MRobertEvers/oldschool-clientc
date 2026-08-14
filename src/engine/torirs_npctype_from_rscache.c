@@ -134,6 +134,10 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->minimap_visible = src->minimap;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
+    /* The dat1 decoder does not surface opcode 102. Stated rather than left at
+     * the calloc zeroes: sprite group 0 and frame 0 are both real. */
+    npctype->head_icon_group = -1;
+    npctype->head_icon_index = -1;
     /*
      * dat1 has no movement-sound opcode. Say so explicitly rather than leaving
      * the calloc zeroes: 0 is a real sound-effect id, so a zeroed field would
@@ -255,6 +259,21 @@ ToriRS_NpctypeFromRSCacheDat2(
     npctype->minimap_visible = src->is_minimap_visible;
     npctype->ambient = src->ambient;
     npctype->contrast = src->contrast;
+    /*
+     * Overhead prayer icon (opcode 102). The decoder keeps a list; the client
+     * plots one, so the first entry is the one carried. Pre-210 caches store a
+     * bare sprite index with no archive — `npc_copy_head_icons` in cachepack
+     * documents that shape — so a record with an index and no group is read as
+     * "the prayer pack", which is what the group would have named anyway.
+     */
+    npctype->head_icon_group = -1;
+    npctype->head_icon_index = -1;
+    if( src->head_icon_count > 0 && src->head_icon_sprite_index )
+    {
+        npctype->head_icon_index = src->head_icon_sprite_index[0];
+        if( src->head_icon_archive_ids )
+            npctype->head_icon_group = src->head_icon_archive_ids[0];
+    }
 
     /*
      * Client render hints ride the npc's params.
