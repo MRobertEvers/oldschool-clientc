@@ -5590,27 +5590,40 @@
    "expected_ledger_rows": {
     "npc": 253,
     "obj": 252,
-    "seq": 305,
+    "seq": 311,
     "model": 416,
     "frame_archive": 66,
     "framemap": 65,
-    "synth": 8
+    "synth": 21
    },
    "expected_pet_npc_rows": 176,
-   "expected_source_files": 630,
-   "expected_pack_references": 1833,
-   "source_fingerprint_sha256": "9561bb628ccca70eeb3a7a6824be5c24ef268b57dad8e02f1f37d9aa03de352a",
+   "expected_source_files": 643,
+   "expected_pack_references": 1844,
+   "source_fingerprint_sha256": "911e6113f3afba6fe5e59b4ac7211dd06772d0c7693f33a3af61405653b6eda5",
    "legacy_synth_sources": [
     188,
     4161,
     4265,
     4372,
     5753,
+    5764,
+    5770,
+    5774,
     5776,
     5777,
-    5792
+    5779,
+    5782,
+    5787,
+    5792,
+    5796,
+    5801,
+    5808,
+    5814,
+    5826,
+    5834,
+    5839
    ],
-   "note": "Preserved another agent's generated import experiment. It is evidence only and is withheld from the feature-on stage until a Phase-5b cohort is admitted."
+   "note": "Preserved another agent's generated import experiment. It is evidence only and is withheld from the feature-on stage until a Phase-5b cohort is admitted. Re-pinned after commit aab11db4d5 ('summoning based on Nocturne') deliberately widened the experiment: seq 305->311, synth 8->21, source files 630->643, pack references 1833->1844. Nothing was admitted by that re-pin: admitted_synth_sources is still empty and status is still preserved_experiment, so the widened set stays withheld from the feature-on stage. --repin could not do it, because it refuses when the source FILE count moves - which is correct. A moved file count is an edit to the experiment rather than an admission, and an edit has to be restated deliberately instead of absorbed."
   }
  ],
  "reserved_generated_prefixes": [

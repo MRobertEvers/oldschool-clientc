@@ -585,7 +585,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
+.PHONY: test-font-markup test-seal-rig mock230-cache-check mock230-bank test-mock230-bank mock230-alt test-mock230-alt mock230-dev test-mock230-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run mock230 test-sound test-mock230 check-crystal-set-contract bench-uitree test-rsareabuf test-varp test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile mock230-scripts mock230-scripts-summoning mock230-scripts-curses mock230-servpack mock230-cache mock230-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity mock230-cache-summoning mock230-cache-curses mock230-cache-all mock230-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c mock230-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-mock230-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash summoning-dialogue
 
@@ -2494,6 +2494,63 @@ mock230-cache-curses: check-crystal-set-contract test-curses-isolation test-curs
 		grep -Rqs 'return(6035)' "$$tmp" || { echo "mock230-cache-curses: script 7823 has no curses arm in the baked cache" >&2; exit 1; }; \
 		grep -Rqs 'varbit20412' "$$tmp" || { echo "mock230-cache-curses: the active-mask varbit did not reach the baked cache" >&2; exit 1; }; \
 		echo "curses cs2: third-book arm and mask varbit present in $(CURSES_CACHE_DIR)"
+
+# ------------------------------------------------------------------
+# All lanes on: the combination manifest_osrs239_torirs.ini boots
+# ------------------------------------------------------------------
+#
+# The default manifest carries rs2012 + Summoning + Ancient Curses, so it needs
+# a script pack with BOTH content flags set and a cache with all three lanes
+# staged. The lanes are independent, so this is a chain rather than a merge:
+# rs2012-summoning is baked first and the curses overlay goes on top of it.
+CURSES_ALL_CACHE_BASE = $(REPO_ROOT)/cache.osrs239.rs2012-summoning
+CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.rs2012-summoning-curses
+
+mock230-scripts-summoning-curses: sscompile check-crystal-set-contract
+	@mkdir -p $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses
+	@mkdir -p $(SUMMONING_VARBIT_STAGE)
+	@cp $(SUMMONING_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varbit.compack $(SUMMONING_VARBIT_STAGE)/
+	@cp $(CURSES_CLIENT_LANE)/configs/all.varp.compack $(SUMMONING_VARBIT_STAGE)/
+	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(MOCK230_CONTENT_DIR)
+	@python3 $(REPO_ROOT)/tools/stage_summoning_server_constants.py \
+		--src $(MOCK230_CONTENT_DIR)/server/scripts \
+		--out $(REPO_ROOT)/build/all-constants-on --enabled 1 --curses 1
+	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) --src $(MOCK230_CONTENT_DIR)/server/scripts \
+		--out $(MOCK230_CONTENT_DIR)/server/scripts/build_summoning_curses \
+		--pack $(MOCK230_CONTENT_DIR)/pack \
+		--pack $(MOCK230_CONTENT_DIR)/configs \
+		--pack $(SUMMONING_CLIENT_LANE)/pack \
+		--pack $(SUMMONING_VARBIT_STAGE) \
+		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
+		--pack $(CURSES_CLIENT_LANE)/pack \
+		--component-root $(SUMMONING_CLIENT_LANE) \
+		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
+		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
+		--constants $(REPO_ROOT)/build/all-constants-on
+
+# The curses overlay on top of the rs2012+Summoning cache. Same recipe as
+# mock230-cache-curses with the base and output moved, which is why the id
+# bases were picked clear of every other lane in the first place.
+#
+# The rs2012+Summoning cache is treated as an INPUT that must already exist,
+# not as a target to rebuild. Rebuilding it runs test-summoning-phase5a, which
+# is currently red for reasons that predate this lane: port/summoning_530.map is
+# committed with 311 seq and 21 synth rows while the test's preserved
+# fingerprint still expects 305 and 8 (the "summoning based on Nocturne"
+# commit moved one and not the other). That is the Summoning lane's to fix —
+# muting it here to green this build is exactly what
+# .cursor/rules/no-park-sibling-content.mdc forbids — but neither should a
+# stale fingerprint in another lane block this one from baking.
+#
+#   make -C src mock230-cache-rs2012-summoning   # when that test is green again
+mock230-cache-all:
+	@test -f "$(CURSES_ALL_CACHE_BASE)/main_file_cache.dat2" || { \
+		echo "mock230-cache-all: no base cache at $(CURSES_ALL_CACHE_BASE)." >&2; \
+		echo "  build it with: make -C src mock230-cache-rs2012-summoning" >&2; exit 1; }
+	@$(MAKE) --no-print-directory mock230-cache-curses \
+		CURSES_CACHE_BASE=$(CURSES_ALL_CACHE_BASE) \
+		CURSES_CACHE_DIR=$(CURSES_ALL_CACHE_DIR)
 
 # The lane's clientscripts must all compile before anything bakes: a decline
 # ships base-cache bytes with only a counter to say so.

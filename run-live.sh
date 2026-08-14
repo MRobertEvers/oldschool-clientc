@@ -449,6 +449,30 @@ build_cache_overlay() {
         # (--base is one of the inputs it stamps against). Neither arm below
         # can match this name -- `*cache.osrs239.rs2012` does not match a
         # string that continues past `rs2012` -- so it needs its own.
+        # Three layers, composed in Makefile order. Longest name first: the
+        # `*cache.osrs239.rs2012-summoning` arm below would otherwise never
+        # match this one, but a `*`-prefixed glob DOES match a longer suffix, so
+        # this has to be tested before it.
+        *cache.osrs239.rs2012-summoning-curses)
+            _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs239.rs2012}
+            _rs2012_summ=cache.osrs239.rs2012-summoning
+            cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
+                "${RS2012_CACHE_BASE:-cache.osrs239}" \
+                tools/stage_rs2012_overlay.py mock230-cache-rs2012 \
+                "$_rs2012_base"
+            cache_overlay "Summoning over QBD/TD" scape2009_summoning \
+                "$_rs2012_base" \
+                tools/stage_summoning_overlay.py mock230-cache-rs2012-summoning \
+                "$_rs2012_summ"
+            cache_overlay "Ancient Curses over Summoning" rs558_ancient_curses \
+                "$_rs2012_summ" \
+                tools/stage_curses_overlay.py mock230-cache-all
+            ;;
+        *cache.osrs239.curses)
+            cache_overlay "Ancient Curses" rs558_ancient_curses \
+                "${CURSES_CACHE_BASE:-cache.osrs239.baked}" \
+                tools/stage_curses_overlay.py mock230-cache-curses
+            ;;
         *cache.osrs239.rs2012-summoning)
             _rs2012_base=${RS2012_CACHE_DIR:-cache.osrs239.rs2012}
             cache_overlay "RS2012 QBD/TD" rs2012_qbd_td \
