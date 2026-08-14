@@ -1178,11 +1178,22 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=1000,
         charge_source="Lizardman fangs, 1 fang = 1 charge, used directly on the talisman",
         drain_event="1 charge per teleport to an unlocked Kourend destination, chosen from a Rub submenu",
-        status="charges_only",
-        note="Same precise blocker as Giantsoul amulet (see that entry): obj xeric_talisman's ifop3=Rub "
-             "carries 5 `subaction=3,N,<name>` entries; the engine decodes and stores the click "
-             "(player->last_subop) but exposes it to no SS_OP, and that opcode does not exist in LostCity's "
-             "real ScriptOpcode.ts to regenerate from -- a synthetic addition, not a wiring gap.",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/xeric_talisman.rs2/.constant, built on the SS_OP_LAST_SUBOP "
+             "opcode added for Giantsoul amulet (see that entry for the mechanism). Destination coordinates "
+             "came from the wiki's own TeleportLocationLine (x,y) pins, converted to "
+             "plane_mapX_mapZ_localX_localZ and cross-checked against a real nearby spawn already in this "
+             "tree for all 5 (Shayzien/Hosidius/Lovakengj/Kourend-guard/Quidamortem-minecart spawns each "
+             "land within ~40 tiles of the computed square) rather than trusted from the pin math alone. "
+             "Xeric's Honour (5th destination) has no unlock path in this tree -- no ancient tablet obj, no "
+             "Chambers of Xeric raid content anywhere -- guarded to a clean refusal, mutation-tested, same "
+             "shape as Giantsoul amulet's Royal Titans. Charging is opheldu (a fang used ON the talisman, "
+             "not a Charge menu option -- the obj record has none, unlike Giantsoul amulet, confirmed "
+             "directly rather than assumed uniform between the two). Uncharge (ifop5) returns the exact "
+             "remaining count as unnoted fangs, matching Cowbell amulet's own shape. Teleport SUCCESS is "
+             "untested for the established unsafe-in-::chargesrun reason (Chronicle/Cowbell amulet/"
+             "Giantsoul amulet's own notes); destinations are five self-contained branches for the same "
+             "reason Giantsoul amulet's are.",
     ),
     "Toxic staff": dict(
         storage="unknown", depletion="none", max_charges=None,
