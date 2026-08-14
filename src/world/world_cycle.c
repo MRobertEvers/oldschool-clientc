@@ -1284,6 +1284,35 @@ World_CycleRegisterPainterDynamics(struct World* world)
                         -miny / 128.0);
             }
         }
+        { /* TEMP A/B: pad the map-spotanim footprint by N tiles each way. */
+            static int pad_init = 0;
+            static int pad = 0;
+            int sx, sz, size;
+            if( !pad_init )
+            {
+                char const* e = getenv("TORIRS_SPOT_PAD");
+                pad_init = 1;
+                pad = e ? (int)strtol(e, NULL, 0) : 0;
+            }
+            sx = grid_x - pad;
+            sz = grid_z - pad;
+            size = 2 * pad + 1;
+            if( sx < 0 ) { size += sx; sx = 0; }
+            if( sz < 0 ) { size += sz; sz = 0; }
+            if( sx + size > world->_scene_size ) size = world->_scene_size - sx;
+            if( sz + size > world->_scene_size ) size = world->_scene_size - sz;
+            if( size < 1 ) size = 1;
+            painter_add_normal_scenery(
+                world->painter,
+                sx,
+                sz,
+                local_level,
+                s->element_id,
+                size,
+                size,
+                ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id));
+            continue;
+        }
         painter_add_normal_scenery(
             world->painter,
             grid_x,

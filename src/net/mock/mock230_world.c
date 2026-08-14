@@ -28,6 +28,9 @@
 #include "mock239_facing.h"
 #include "mock239_interface_inbound.h"
 #include "engine/world_builder/collision_map.h"
+/* `mock230_scene.h` only forward-declares `struct ToriRS_FeatureTable`, so
+ * reading a field off `mock230_scene_features()` needs the definition. */
+#include "features/features.h"
 #include "ss_trigger.h"
 #include "ss_meta.h"
 #include "ssvm.h"
@@ -1312,6 +1315,12 @@ interaction_build_approach(
 /*
  * LostCity PathingEntity.randomWalk — one cardinal step off a stacked target.
  * Deterministic via mock230_random (selftests need a stable chase).
+ *
+ * The reference guards this branch with `moveStrategy === NAIVE`, so it is what
+ * an *npc* does when it ends up under its target; rsmod spells the same thing
+ * out as `NpcInteractionProcessor.stepAwayFromTarget`. Running it for the
+ * player is the pre-`under_target_routes_out` behaviour and is kept only for
+ * eras that state it — see interaction_path_to_pathing_target.
  */
 static void
 interaction_random_walk(struct Mock230Server* srv)
@@ -1689,7 +1698,25 @@ interaction_path_to_pathing_target(struct Mock230Server* srv)
 
     interaction->x = target_x;
     interaction->z = target_z;
-    if( distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z) == 0 )
+    /*
+     * Standing inside the target's footprint.
+     *
+     * Under `under_target_routes_out` this is not a case at all: the approach
+     * the line below builds is the exclusive rectangle (shape -2), whose
+     * `reached` refuses every overlapping tile, so the ordinary BFS floods
+     * across the footprint — a plain npc writes NPC_OCC and the player mover
+     * never reads it — and terminates on the first perimeter tile it pops.
+     * Expansion order W/E/S/N makes that the nearest face, and a tie resolves
+     * west before east before south before north. One straight run, so it
+     * compresses to a single corner waypoint and a running player clears it two
+     * tiles per tick.
+     *
+     * Falling through rather than routing here is deliberate: the exit and the
+     * approach are the same call, which is exactly the reference's claim that
+     * there is no under-target branch on the player side.
+     */
+    if( !mock230_scene_features()->under_target_routes_out &&
+        distance_to_rect(player->x, player->z, target_x, target_z, size_x, size_z) == 0 )
     {
         interaction_random_walk(srv);
         return;
@@ -10165,15 +10192,37 @@ phase_info(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
 
-    if( getenv("MOCK230_CLIMB_TRACE") )
+    /*
+     * `MOCK230_ANIM_TRACE=1` — what a tick is about to ENCODE, per player.
+     *
+     * Here rather than in the encoder because this is the last point at which
+     * a mask is still a mask: `phase_cleanup` drops `masks`, `anim_id` and
+     * `place_dirty` immediately after, so anything that reads them from outside
+     * a tick reads the wrong thing and reads it silently.
+     *
+     * It exists because the ladder animation "worked" by every server-side
+     * measure and drew nothing. One line of this said why: `anim=828 place=1
+     * level=1` in a single encode — the climb and the arrival on the new plane
+     * in one PLAYER_INFO. Any "the entity did not do the thing" bug in a mask
+     * (anim, spotanim, say, hits) is one env var from being answered the same
+     * way. See `~climb_ladder_anim` in ladders_stairs/scripts/ladders.rs2.
+     */
     {
-        struct Mock230Player* trace;
+        static int trace_on = -1;
 
-        MOCK230_FOR_EACH_PLAYER(srv, trace)
-            fprintf(stderr,
-                    "[trace] tick=%d ENCODE masks=0x%03x anim=%d place=%d level=%d %d,%d\n",
-                    srv->tick, trace->masks, trace->anim_id, trace->place_dirty, trace->level,
-                    trace->x, trace->z);
+        if( trace_on < 0 )
+            trace_on = getenv("MOCK230_ANIM_TRACE") != NULL;
+        if( trace_on )
+        {
+            struct Mock230Player* traced;
+
+            MOCK230_FOR_EACH_PLAYER(srv, traced)
+                fprintf(stderr,
+                        "[anim-trace] tick=%d encode masks=0x%03x anim=%d place=%d level=%d "
+                        "%d,%d\n",
+                        srv->tick, traced->masks, traced->anim_id, traced->place_dirty,
+                        traced->level, traced->x, traced->z);
+        }
     }
 
     /* Derived client state, recomputed before anything is encoded. Cheap, and
@@ -22144,6 +22193,8 @@ mock230_world_selftest(void)
         const int reach = mock230_content_symbol(MOCK230_PACK_SEQ, "human_reachforladder");
         int slot;
         int climb_anim = -1;
+        int anim_tick = -1;
+        int move_tick = -1;
 
         SELFTEST_CHECK(ladder > 0 && climb_up > 0,
                        "pack should name `ladder` and the `climb_up_ladder` category: %d/%d",
@@ -22180,20 +22231,37 @@ mock230_world_selftest(void)
             mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
             /* Ticked by hand rather than through `selftest_settle`, because the
              * animation is a per-tick mask: `anim_id` is set by `~climb_ladder`
-             * and cleared again at the end of the tick that flushes it, so a
-             * settle loop that only reports how long it took can never see it.
-             * The plane change is one tick behind it — that is what the
-             * `p_delay(0)` in `~climb_ladder` buys, and a climb that set the
-             * mask and teleported in the same tick would show nothing. */
+             * and cleared at the end of the tick that encodes it, so a settle
+             * loop that only reports how long it took can never see it.
+             *
+             * `anim_tick` / `move_tick` are the point of the loop. They are the
+             * claim the user of a ladder actually makes — "it animates, THEN it
+             * moves" — and the two used to be the same tick: packets are pumped
+             * between ticks here (`phase_clients_in` is empty,
+             * `mock230_session_pump` runs from mock230_main.c's loop), so a
+             * click next to the ladder ran the script at tick T with no info
+             * phase left, `p_delay(0)` resumed at T+1, and T+1 both teleported
+             * and encoded. One PLAYER_INFO carried `anim=828 place=1 level=1`:
+             * the climb and the arrival, together, which draws as no climb at
+             * all. `~climb_ladder_anim`'s `p_delay(1)` is what separates them.
+             */
             for( int tick = 0; tick < 40; tick++ )
             {
                 if( climb_anim < 0 && player->anim_id > 0 )
+                {
                     climb_anim = player->anim_id;
+                    anim_tick = srv->tick;
+                }
                 if( player->interaction.kind == MOCK230_INTERACT_NONE && player->level != 0 )
                     break;
                 mock230_world_tick(srv);
+                if( move_tick < 0 && player->level != 0 )
+                    move_tick = srv->tick;
                 if( climb_anim < 0 && player->anim_id > 0 )
+                {
                     climb_anim = player->anim_id;
+                    anim_tick = srv->tick;
+                }
             }
             SELFTEST_CHECK(player->level == 1, "climbing it goes up a plane, got %d",
                            player->level);
@@ -22204,6 +22272,12 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(reach > 0 && climb_anim == reach,
                            "and plays human_reachforladder (%d) climbing it, got %d",
                            reach, climb_anim);
+            /* The half that a mask assertion alone cannot state: the animation
+             * has to get a tick of its own. Same tick = one packet carrying
+             * both, which is the bug this is here to keep out. */
+            SELFTEST_CHECK(anim_tick >= 0 && move_tick > anim_tick,
+                           "and the climb is encoded BEFORE the move: anim tick %d, move tick %d",
+                           anim_tick, move_tick);
             /* The bookkeeping `p_teleport` used not to do. Asserted separately
              * from the level because a plane change that forgets it is a client
              * holding npcs on a floor it has left — visible in the game, and

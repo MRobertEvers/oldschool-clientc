@@ -1314,6 +1314,20 @@ push_command_entity(
 {
     int count = buffer->command_count;
 
+    { /* TEMP diagnostic: trace one element id through the painter. */
+        static int trace_init = 0;
+        static int trace_id = -1;
+        if( !trace_init )
+        {
+            char const* e = getenv("TORIRS_TRACE_ELEMENT");
+            trace_init = 1;
+            if( e )
+                trace_id = (int)strtol(e, NULL, 0);
+        }
+        if( entity == trace_id || (trace_id == 0 && entity >= 8000) )
+            fprintf(stderr, "trace_element: %d emitted at cmd %d\n", entity, count);
+    }
+
 #if defined(__APPLE__) && !defined(NDEBUG)
     if( count == g_trap_command )
     {

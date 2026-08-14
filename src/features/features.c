@@ -74,6 +74,7 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
+    .under_target_routes_out = 1,
     .op_click_nearest_range = 10,
     .nearest_ranks_by_rect_distance = 1,
     .ground_click_nearest_model = TORIRS_NEAREST_BOX10_RECT,
@@ -109,6 +110,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .pathing_mode = TORIRS_PATHING_SERVER_AUTHORITATIVE,
     .approach_model = TORIRS_APPROACH_RECT,
     .npc_approach_uses_size = 1,
+    /* Same router and same exclusive rectangle as osrs, so the same answer. */
+    .under_target_routes_out = 1,
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 1,
     /* xrsps runs the same 21x21 alternative-route search for every request. */

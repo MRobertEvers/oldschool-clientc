@@ -86,6 +86,7 @@ void test_try_route_op_forceapproach(void);
 void test_force_approach_rotation(void);
 void test_try_route_op_rect(void);
 void test_try_route_op_exit_strategy(void);
+void test_under_target_exit(void);
 void test_features_eras(void);
 void test_bfs_path_source_end_truncation(void);
 void test_collision_loc_change_inverse(void);

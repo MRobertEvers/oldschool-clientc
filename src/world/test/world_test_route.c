@@ -658,6 +658,121 @@ test_try_route_op_exit_strategy(void)
     collision_map_free(cm);
 }
 
+/*
+ * Walking out from under a large npc (docs/OSRS_PATHING_LOS.md §2.5).
+ *
+ * There is no exit routine to test — the behaviour is the exclusive rectangle
+ * refusing every overlapping tile plus the ordinary flood — so what this pins
+ * is the geometry that falls out of it, cell by cell across a 5x5 footprint:
+ *
+ *   - the exit is exactly one tile off the rect, and cardinal (never a corner);
+ *   - it costs the nearest face's distance, so the route leaves the way out
+ *     rather than wandering;
+ *   - ties resolve W > E > S > N, which is the W/E/S/N expansion order of §2.1
+ *     showing through rather than a rule of its own. Dead centre ties all four
+ *     faces at 3 and must go west; (3,3) ties east and north at 2 and must go
+ *     east.
+ *
+ * The expected table was produced independently of this tree, by simulating
+ * rsmod's routeFindSize1 + reachExclusiveRectangle. Asserting it whole is the
+ * point: agreement between two implementations that share no code is worth
+ * more here than a property test either one could satisfy while both were
+ * wrong about the tie order.
+ */
+void
+test_under_target_exit(void)
+{
+    printf("TEST: exit from under a large npc\n");
+
+    struct CollisionMap* cm = collision_map_new(104, 104);
+    struct CollisionApproach approach;
+    int route_x[256];
+    int route_z[256];
+    /* SW anchor of the 5x5. Far enough from the edges that the flood is never
+     * clipped by the map rather than by the footprint. */
+    int const bx = 30;
+    int const bz = 30;
+    int const size = 5;
+    /* {ox, oz, exit dx, exit dz, steps} with the exits stated relative to the
+     * anchor, so -1 / 5 read as "one tile off the west / east face". */
+    static int const k_expect[25][5] = {
+        { 0, 4, -1, 4, 1 },  { 1, 4, 1, 5, 1 },   { 2, 4, 2, 5, 1 },
+        { 3, 4, 3, 5, 1 },   { 4, 4, 5, 4, 1 },   { 0, 3, -1, 3, 1 },
+        { 1, 3, -1, 3, 2 },  { 2, 3, 2, 5, 2 },   { 3, 3, 5, 3, 2 },
+        { 4, 3, 5, 3, 1 },   { 0, 2, -1, 2, 1 },  { 1, 2, -1, 2, 2 },
+        { 2, 2, -1, 2, 3 },  { 3, 2, 5, 2, 2 },   { 4, 2, 5, 2, 1 },
+        { 0, 1, -1, 1, 1 },  { 1, 1, -1, 1, 2 },  { 2, 1, 2, -1, 2 },
+        { 3, 1, 5, 1, 2 },   { 4, 1, 5, 1, 1 },   { 0, 0, -1, 0, 1 },
+        { 1, 0, 1, -1, 1 },  { 2, 0, 2, -1, 1 },  { 3, 0, 3, -1, 1 },
+        { 4, 0, 5, 0, 1 },
+    };
+
+    collision_map_reset(cm);
+    collision_approach_from_shape(-2, 0, size, size, 0, 1, &approach);
+    TEST_ASSERT(approach.kind == COLL_APPROACH_RECT_EXCLUSIVE,
+                "a size-5 npc target is an exclusive rectangle");
+
+    for( int i = 0; i < 25; i++ )
+    {
+        int const src_x = bx + k_expect[i][0];
+        int const src_z = bz + k_expect[i][1];
+        int const want_x = bx + k_expect[i][2];
+        int const want_z = bz + k_expect[i][3];
+        int const want_steps = k_expect[i][4];
+        char msg[192];
+        /*
+         * Two layers, and they must be read with different rulers.
+         *
+         * route_tiles emits every tile in walk order, so its length is the tick
+         * cost and its last tile is the arrival. try_route_op backtraces the
+         * same flood into dest-first CORNER waypoints (§7.1b), so a straight
+         * run of any length compresses to one. Asserting the tile count against
+         * the waypoint route is the mistake this comment exists to prevent: it
+         * reads every exit as costing a single step.
+         */
+        int tiles = collision_map_route_tiles(cm, src_x, src_z, bx, bz, &approach, NULL, route_x,
+                                              route_z, 256, NULL, NULL, NULL);
+
+        snprintf(msg, sizeof msg,
+                 "under (%d,%d) of a 5x5: expected %d step(s) to %d,%d, got %d to %d,%d",
+                 k_expect[i][0], k_expect[i][1], want_steps, want_x, want_z, tiles,
+                 tiles >= 1 ? route_x[tiles - 1] : -1, tiles >= 1 ? route_z[tiles - 1] : -1);
+        TEST_ASSERT(tiles == want_steps && route_x[tiles - 1] == want_x &&
+                        route_z[tiles - 1] == want_z,
+                    msg);
+
+        /* The exit is a straight line, so however many tiles it costs, the
+         * server queues exactly one waypoint and a running player clears it two
+         * tiles per tick. */
+        {
+            int hops = collision_map_try_route_op(cm, src_x, src_z, bx, bz, &approach, NULL,
+                                                  route_x, route_z, 256, NULL);
+
+            snprintf(msg, sizeof msg,
+                     "under (%d,%d) of a 5x5: the exit is one straight run, got %d waypoint(s)",
+                     k_expect[i][0], k_expect[i][1], hops);
+            TEST_ASSERT(hops == 1 && route_x[0] == want_x && route_z[0] == want_z, msg);
+        }
+    }
+
+    /*
+     * The walls case, and the reason the random step-off it replaced was not
+     * merely inelegant: that one rolled a cardinal without consulting
+     * collision, so a blocked roll stalled the player for the tick. Wall the
+     * whole west face off and the flood must leave by another one instead.
+     */
+    for( int oz = 0; oz < size; oz++ )
+        collision_map_add_wall(cm, bx, bz + oz, 0, COLL_ANGLE_WEST, 0);
+    {
+        int len = collision_map_try_route_op(cm, bx + 2, bz + 2, bx, bz, &approach, NULL, route_x,
+                                             route_z, 256, NULL);
+        TEST_ASSERT(len >= 1 && route_x[0] != bx - 1,
+                    "a walled west face sends the exit out of a different side");
+    }
+
+    collision_map_free(cm);
+}
+
 /* The era table is the seam both modes hang off. Assert the two shipped tables
  * differ in exactly the ways the client branches on, so a future edit that
  * flattens them fails here rather than silently in the world. */
@@ -680,6 +795,8 @@ test_features_eras(void)
     TEST_ASSERT(lostcity->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "lostcity paths client-side");
     TEST_ASSERT(lostcity->approach_model == TORIRS_APPROACH_LEGACY_SHAPE, "lostcity uses shapes");
     TEST_ASSERT(lostcity->npc_approach_uses_size == 0, "lostcity npc target is 1x1");
+    TEST_ASSERT(lostcity->under_target_routes_out == 0,
+                "lostcity steps randomly off a target it stands under");
     TEST_ASSERT(lostcity->op_click_nearest_range == 0, "lostcity has no op-click fallback");
     TEST_ASSERT(lostcity->ground_click_nearest_model == TORIRS_NEAREST_RING3_STEPS,
                 "lostcity ground click uses the 3x3 ring");
@@ -692,6 +809,7 @@ test_features_eras(void)
                 "osrs is server-authoritative");
     TEST_ASSERT(osrs->approach_model == TORIRS_APPROACH_RECT, "osrs uses rect strategies");
     TEST_ASSERT(osrs->npc_approach_uses_size == 1, "osrs npc target is size-aware");
+    TEST_ASSERT(osrs->under_target_routes_out == 1, "osrs routes out from under a large npc");
     TEST_ASSERT(osrs->op_click_nearest_range == 10, "osrs runs the alternative-route search");
     TEST_ASSERT(osrs->nearest_ranks_by_rect_distance == 1, "osrs ranks by rect distance");
     TEST_ASSERT(osrs->ground_click_nearest_model == TORIRS_NEAREST_BOX10_RECT,
@@ -719,6 +837,8 @@ test_features_eras(void)
     TEST_ASSERT(routed->approach_model == TORIRS_APPROACH_RECT,
                 "server_routed shares the shape-keyed rect model");
     TEST_ASSERT(routed->los_symmetric_pvp == 1, "server_routed PvP LoS is symmetric");
+    TEST_ASSERT(routed->under_target_routes_out == 1,
+                "server_routed shares osrs's routed exit from under a target");
     TEST_ASSERT(routed->ground_click_nearest_model == TORIRS_NEAREST_BOX10_RECT,
                 "server_routed ground click uses the 21x21 search");
 

@@ -707,6 +707,21 @@ restock, no haggle delta. That is a different feature
 what this pipeline builds, correctly out of scope per §7, not a missed 206
 shops.
 
+### 8.4.1 Three "collisions" that were actually already-solved
+
+`general_store_canifis__2`, `karamja_general_store__2`, and
+`oblis_general_store__2` all proposed the same wrong inv
+(`regicide_general_shop_2`, itself already correctly claimed by an unrelated
+Tyras Camp shop) purely because they share the generic "general store"
+naming stem. Checked what each one's own `__1` sibling already resolved to
+instead of retrying the namematch guess: `general_store_canifis__1` is
+already live on `werewolfgeneralstore`, `karamja_general_store__1` and
+`oblis_general_store__1` are already live too. All three `__2` shop_keys are
+just that same real single shop's second wiki stock table — the shop is
+already fully implemented via `__1`, same pattern as
+`fernaheis_fishing_hut__2` and `alis_discount_wares__2`–`__7`. Reclassified
+from "blocked" to "already covered," not left as an open question.
+
 ### 8.5 Whether the Prifddinas/Arceuus/Darkmeyer wall has a door — tested, no
 
 The 13 shops in that cluster looked, on closer inspection, like they might
