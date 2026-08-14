@@ -119,7 +119,7 @@ Total families found: **209**
 | Explorer's ring | player_varp | none | 30 | Actually THREE independent daily counters, not one: 30 free Low/High Alchemy casts (ring 2+; High Alch needs ring 4), a separate run-energy-restore count (3/4/3 for rings 2/3/4), and a separate cabbage-patch-teleport count (3/day on ring 2, unlimited on ring 3+) -- not a Tutorial Island teleport, which this ledger's earlier pass wrongly assumed |
 | Eye of ayak | item_var | revert | 50000 | 1 charge per cast of the built-in spell |
 | Flamtaer bracelet | item_var | destroy | 80 | 1 charge per Shades of Mort'ton temple repair action completed while worn |
-| Giantsoul amulet | item_var | revert | 16000 | 1 charge per teleport (Bryophyta's/Obor's/Royal Titans lair) |
+| Giantsoul amulet | item_var | revert | 16000 | 1 charge per teleport (Bryophyta's/Obor's/Royal Titans lair, chosen from a Rub submenu) |
 | Gnomish firelighter | item_var | none | 1000 | 1 charge per coloured fire lit |
 | Holy sanguinesti staff | item_var | revert | 20000 | 1 charge per cast of the built-in spell |
 | Horn of plenty | item_var | revert | 20000 | 1 charge per 25 Hunter catches while worn and charged (+4 Hunter boost instead of +2) |
@@ -137,7 +137,7 @@ Total families found: **209**
 | Tonalztics of ralos | item_var | revert | 20000 | 1 charge per throw (standard attack or the Division special), regardless of hits landed |
 | Tumeken's shadow | item_var | revert | 20000 | 1 charge per cast of the built-in spell |
 | Warped sceptre | item_var | revert | 20000 | 1 charge per cast of the built-in spell |
-| Xeric's talisman | item_var | revert | 1000 | 1 charge per teleport to an unlocked Kourend destination |
+| Xeric's talisman | item_var | revert | 1000 | 1 charge per teleport to an unlocked Kourend destination, chosen from a Rub submenu |
 
 ## `uncurated` (0)
 

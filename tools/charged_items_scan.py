@@ -442,8 +442,22 @@ FAMILY_DATA = {
     "Giantsoul amulet": dict(
         storage="item_var", depletion="revert", max_charges=16000,
         charge_source="1 noted/unnoted big bones + 1 law rune per charge; no refund on Uncharge",
-        drain_event="1 charge per teleport (Bryophyta's/Obor's/Royal Titans lair)",
-        status="charges_only", note="No implementation found.",
+        drain_event="1 charge per teleport (Bryophyta's/Obor's/Royal Titans lair, chosen from a Rub submenu)",
+        status="charges_only",
+        note="Checked precisely (2026-08-13), not just 'no dispatcher': the real gap is narrower and "
+             "specific -- obj giantsoul_amulet_charged's ifop4=Rub carries three `subaction=4,N,<name>` "
+             "entries (the cache's native multi-destination-submenu convention, also used by Xeric's "
+             "talisman/5 destinations and others). The wire protocol already decodes and stores this "
+             "(mock230_world.c: `player->last_subop = button.subop`), but nothing ever reads that field "
+             "back out -- no SS_OP exposes it to content, unlike last_slot/last_item's own SS_OP_LAST_SLOT/ "
+             "SS_OP_LAST_ITEM. ss_opcode.h is generated from LostCity's real ScriptOpcode.ts "
+             "(gen_opcode_meta.py's own header) and grepping that reference tree directly for a "
+             "subop/subaction opcode returns nothing -- LostCity's engine predates this OSRS convention "
+             "entirely, so exposing last_subop would be a synthetic addition with zero reference backing, "
+             "not a 'fill in the missing case' fix like SS_OP_DATE_RUNEDAY (see Falador shield) was. Once a "
+             "last_subop op exists, dispatch is trivial (an ordinary `if (last_subop = N)` chain inside the "
+             "existing [opheld4] handler, no new trigger type needed) -- but adding the opcode itself is a "
+             "deliberate call left to the user, not made unilaterally here.",
     ),
     "Gloves of silence": dict(
         storage="player_varp", depletion="destroy", max_charges=62,
@@ -1156,10 +1170,12 @@ FAMILY_DATA = {
     "Xeric's talisman": dict(
         storage="item_var", depletion="revert", max_charges=1000,
         charge_source="Lizardman fangs, 1 fang = 1 charge, used directly on the talisman",
-        drain_event="1 charge per teleport to an unlocked Kourend destination",
+        drain_event="1 charge per teleport to an unlocked Kourend destination, chosen from a Rub submenu",
         status="charges_only",
-        note="No teleport dispatcher exists at all -- the teleport feature itself, not just the charge "
-             "drain, is unimplemented.",
+        note="Same precise blocker as Giantsoul amulet (see that entry): obj xeric_talisman's ifop3=Rub "
+             "carries 5 `subaction=3,N,<name>` entries; the engine decodes and stores the click "
+             "(player->last_subop) but exposes it to no SS_OP, and that opcode does not exist in LostCity's "
+             "real ScriptOpcode.ts to regenerate from -- a synthetic addition, not a wiring gap.",
     ),
     "Toxic staff": dict(
         storage="unknown", depletion="none", max_charges=None,
