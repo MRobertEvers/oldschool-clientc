@@ -580,14 +580,24 @@ def main() -> int:
     except (OSError, RuntimeError, ValueError) as exc:
         errors.append(f"cannot prepare Phase-5b staging check: {exc}")
     else:
-        expect(len(review_files_before) == 630,
+        # Restated here rather than read from the boundary, on purpose: this is
+        # the edit tripwire. The count only moves when the preserved experiment
+        # itself is rewritten, so an edit has to be acknowledged both here and
+        # in roster_boundary_530.json before anything builds.
+        #
+        # 630 -> 643 on 2026-08-14: commit aab11db4d5 "summoning based on
+        # Nocturne" widened the experiment (also seq 305->311, synth 8->21).
+        # Nothing was admitted by that — the cohort is still
+        # status=preserved_experiment with admitted_synth_sources empty — so all
+        # 643 stay withheld from the feature-on stage.
+        expect(len(review_files_before) == 643,
                f"preserved review-only source file count changed: {len(review_files_before)}")
         # Read from the boundary rather than restated here. This count is how
         # many pack rows are still *held*, so it falls every time a record is
         # admitted — the familiar attack/defend/death animations took it from
-        # 2174 to 1833 — while the source FILE count above stays at 630 because
-        # nothing about the preserved experiment was edited. Two copies of a
-        # number that moves for a legitimate reason is two places to forget.
+        # 2174 to 1833 — while the source FILE count above moves only on an edit.
+        # Two copies of a number that moves for a legitimate reason is two places
+        # to forget.
         expected_refs = json.loads(
             args.boundary.read_text(encoding="utf-8")
         )["review_only_cohorts"][0]["expected_pack_references"]
