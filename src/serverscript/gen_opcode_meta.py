@@ -551,6 +551,25 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # weapon is on cooldown". Only the first should stop damage landing.
     "NPC_ATTACKDELAY": (11037, 1, 0, 0, 0),
 
+    # last_subop()(int)
+    #
+    # Which entry of an obj's `subaction=<op>,<slot>,<name>` Rub-style submenu
+    # was clicked (Giantsoul amulet's "Bryophyta"/"Obor"/"Branda and Eldric",
+    # Xeric's talisman's five Kourend destinations, and others) — the same
+    # "an index selecting among sub-options had no path into a script" shape
+    # IF_BUTTON1..10 above already describes for a component's op index, just
+    # for a submenu's slot index instead.
+    #
+    # The wire already carries it (mock239_interface_inbound.c decodes
+    # `button.subop`) and mock230_world.c already stores it
+    # (`player->last_subop`), same as `last_slot`/`last_item` — this command
+    # is only the missing read side. LostCity's reference predates rev-239's
+    # Rub submenu convention entirely: ScriptOpcode.ts has no subop/subaction
+    # entry to port (checked directly, not assumed), so — like the map-
+    # instance band above — there is no reference name and no reference
+    # signature, which is exactly why this sits in the EXTRA band.
+    "LAST_SUBOP": (11038, 0, 0, 1, 0),
+
     # ambientsound(int $soundscape)
     #
     # The region's background bed: `AMBIENTSOUND_START` when the argument is
@@ -568,7 +587,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     #
     # `midi_song` is the model, down to -1 meaning stop, because the two
     # answer the same question about the same square.
-    "AMBIENTSOUND": (11038, 1, 0, 0, 0),
+    "AMBIENTSOUND": (11039, 1, 0, 0, 0),
 }
 
 # ---------------------------------------------------------------------------

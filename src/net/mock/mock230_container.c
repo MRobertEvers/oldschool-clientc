@@ -73,6 +73,34 @@ mock230_item_set_var(
     item->var_val[free_i] = value;
 }
 
+/*
+ * `mock230_container_set` and `mock230_container_add` never carry a slot's
+ * vars to another slot — the former clears them on any obj_id change (that is
+ * correct: a *different* obj landing in a slot must not inherit the old
+ * occupant's charges), and the latter never writes them at all, so a
+ * dropped-and-re-added charged item, an unequipped one, or a banked one lost
+ * its charge count. This is the primitive that lets a caller carry a single
+ * unstackable unit's vars across such a move deliberately, once it knows the
+ * source and destination genuinely are the same logical item (see
+ * mock230_ops_inv.c's `INV_MOVEFROMSLOT` / `INV_MOVEITEM` arms and
+ * mock230_bank.c's deposit/withdraw, which are the two shapes that need it).
+ */
+void
+mock230_item_vars_copy(
+    struct Mock230Item* dst,
+    const struct Mock230Item* src)
+{
+    int i;
+
+    if( !dst || !src )
+        return;
+    for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
+    {
+        dst->var_key[i] = src->var_key[i];
+        dst->var_val[i] = src->var_val[i];
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /* Scope                                                               */
 /* ------------------------------------------------------------------ */
@@ -512,18 +540,30 @@ always_stacks(const struct Mock230Container* container)
            container->inv_id == ids->inv_collection_log;
 }
 
-int
-mock230_container_add(
+/*
+ * The real body, with an optional `out_slot` for callers that need to know
+ * exactly where a unit landed — see mock230_item_vars_copy's comment.
+ * `*out_slot` is only ever set when the placement is unambiguous: a single
+ * unstackable unit (count == 1 at entry) that landed in exactly one slot.
+ * Every other shape (a merged stack, more than one unit, nothing added)
+ * leaves it at -1, because "which slot" has no one answer there.
+ */
+static int
+mock230_container_add_ex(
     struct Mock230Container* container,
     int obj_id,
     int count,
-    int assure_full)
+    int assure_full,
+    int* out_slot)
 {
     int stackable;
     int free_slots = 0;
     int added = 0;
     int placeholder_slot;
+    int requested = count;
 
+    if( out_slot )
+        *out_slot = -1;
     if( !container || !container->used || !container->items )
         return 0;
     if( obj_id < 0 || count <= 0 )
@@ -577,6 +617,9 @@ mock230_container_add(
         if( count <= 0 )
             return 0;
         mock230_container_set(container, slot, obj_id, have + count);
+        /* A merge onto an existing stack is never a single fresh unit even
+         * when `requested == 1` — the destination slot already had vars of
+         * its own (or none), and this is not the "carry a charge" shape. */
         return count;
     }
 
@@ -594,6 +637,8 @@ mock230_container_add(
     if( placeholder_slot >= 0 )
     {
         mock230_container_set(container, placeholder_slot, obj_id, 1);
+        if( out_slot && requested == 1 )
+            *out_slot = placeholder_slot;
         added++;
     }
     for( int i = 0; i < container->slots && added < count; i++ )
@@ -601,9 +646,32 @@ mock230_container_add(
         if( container->items[i].obj_id >= 0 )
             continue;
         mock230_container_set(container, i, obj_id, 1);
+        if( out_slot && requested == 1 )
+            *out_slot = i;
         added++;
     }
     return added;
+}
+
+int
+mock230_container_add(
+    struct Mock230Container* container,
+    int obj_id,
+    int count,
+    int assure_full)
+{
+    return mock230_container_add_ex(container, obj_id, count, assure_full, NULL);
+}
+
+int
+mock230_container_add_out_slot(
+    struct Mock230Container* container,
+    int obj_id,
+    int count,
+    int assure_full,
+    int* out_slot)
+{
+    return mock230_container_add_ex(container, obj_id, count, assure_full, out_slot);
 }
 
 void

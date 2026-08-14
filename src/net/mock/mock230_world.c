@@ -4230,6 +4230,37 @@ handle_worn_inv_button(
                          ? MOCK230_TRIGGER_RAN
                          : MOCK230_TRIGGER_FAILED;
     }
+    /*
+     * Nothing bound the component itself — fall through to the same
+     * obj-based [opheldN,name] dispatch the backpack path uses (above), so
+     * content only has to bind an item's Check/Revert/etc once and it fires
+     * whether the item is clicked from the backpack or the worn tab. Op1 is
+     * excluded: the worn tab's slot-0 op is always Remove regardless of what
+     * the objtype's own op1 label says (see the unequip_slot fallback
+     * below), so re-dispatching it by obj id could hijack that with an
+     * unrelated `[opheld1,obj]` binding meant for backpack context.
+     *
+     * Before this, `[opheld3,dodgy_necklace]`, `[opheld4,ibanstaff]`, every
+     * crystal item's `[opheld3,...]` Check, and any other worn charged
+     * item's Check/Revert/Dismantle bindings were unreachable while worn —
+     * `handle_worn_inv_button` never tried anything past the per-slot
+     * component binding, so clicking Check on an equipped item silently hit
+     * the engine's "nothing bound this" fallback every time. docs/
+     * ITEM_CHARGES_PLAN.md's charged items are typically worn when checked,
+     * which is exactly the case this was breaking.
+     */
+    if( result == MOCK230_TRIGGER_NONE && op_num >= 2 )
+    {
+        int worn_obj_id = player->worn[worn].obj_id;
+        if( worn_obj_id > 0 )
+        {
+            const struct Mock230ObjInfo* worn_info = mock230_objinfo(worn_obj_id);
+            player->last_item = worn_obj_id;
+            result = mock230_scripts_run_trigger(
+                srv, SS_TRIGGER_OPHELD1 + (op_num - 1), worn_obj_id,
+                worn_info->category > 0 ? worn_info->category : -1, -1);
+        }
+    }
     if( result == MOCK230_TRIGGER_NONE && op_num == 1 )
         unequip_slot(srv, worn);
 }
@@ -32101,6 +32132,233 @@ mock230_world_selftest(void)
                        "setting a display name should derive its base-37 key");
 
         mock230_friends_reset();
+    }
+
+    fprintf(stderr, "mock230 selftest: charged item vars survive container moves\n");
+    {
+        /*
+         * docs/ITEM_CHARGES_PLAN.md §3a: `mock230_container_set` clears a
+         * slot's vars on any obj_id change and `mock230_container_add` never
+         * writes them, so unequipping a charged item, or banking one, reset
+         * its charge count to 0. Fixed with `mock230_item_vars_copy` plus
+         * `mock230_container_add_out_slot` / `inv_add_ex` / `bank_add_ex`
+         * (mock230_container.c, mock230_bank.c), wired into the
+         * `INV_MOVEITEM` / `INV_MOVEFROMSLOT` opcode arms and the bank
+         * deposit/withdraw functions. These four procs (selftest.rs2) drive
+         * the real opcodes a player's equip/unequip and bank deposit/
+         * withdraw actually use — a regression here is the exact bug the
+         * plan found, not a re-test of the C helper in isolation.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t charges = 77;
+            int32_t out = 0;
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_equip]",
+                                                          &charges, 1, &out) &&
+                               out == charges,
+                           "equip (inv_movetoslot) should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_unequip]", &charges,
+                                              1, &out) &&
+                    out == charges,
+                "unequip (inv_moveitem worn->inv) should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_movefromslot]",
+                                              &charges, 1, &out) &&
+                    out == charges,
+                "inv_movefromslot should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_charge_vars_bank_roundtrip]",
+                                              &charges, 1, &out) &&
+                    out == charges,
+                "a bank deposit/withdraw round trip should carry vars, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_charge_vars_reset]", NULL, 0);
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: worn-item opheld dispatch\n");
+    {
+        /*
+         * docs/ITEM_CHARGES_PLAN.md §3b: `handle_worn_inv_button` used to stop
+         * after the per-slot `[inv_button<n>,wornitems:slotN]` binding — a
+         * worn item's own `[opheld3,obj]` (Check), `[opheld4,...]`,
+         * `[opheld5,...]` never dispatched at all, so every charged item's
+         * Check silently no-op'd (fell to the "nothing bound this" fallback)
+         * the moment it was actually worn, which is when a player checks one.
+         * Fixed by falling through to the same obj-based dispatch the
+         * backpack path (`handle_opheld`) always had, for op 2-5.
+         *
+         * Drives `handle_worn_inv_button` directly — the same static
+         * function `handle_opheld_packet` calls — because there is no
+         * headless client to send a real OPHELD/INV_BUTTON packet through.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct Mock230Player* p = srv->active_player;
+            int scimitar_id = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_scimitar");
+            struct Mock230Item saved;
+            int component;
+            int32_t out = -1;
+            int vi;
+
+            assert(p);
+            SELFTEST_CHECK(scimitar_id > 0, "bronze_scimitar should resolve to a real obj id");
+
+            saved = p->worn[MOCK230_WEAR_WEAPON];
+            p->worn[MOCK230_WEAR_WEAPON].obj_id = scimitar_id;
+            p->worn[MOCK230_WEAR_WEAPON].count = 1;
+            /* var_key[i] < 0 means "free slot" (mock230_item_set_var) — a
+             * zeroed struct reads as every slot already holding key 0, not
+             * as an empty table. */
+            for( vi = 0; vi < MOCK230_ITEM_VAR_MAX; vi++ )
+            {
+                p->worn[MOCK230_WEAR_WEAPON].var_key[vi] = -1;
+                p->worn[MOCK230_WEAR_WEAPON].var_val[vi] = 0;
+            }
+
+            component = mock230_equipment_worn_component(MOCK230_WEAR_WEAPON);
+            SELFTEST_CHECK(component >= 0, "MOCK230_WEAR_WEAPON should map to a worn component");
+
+            handle_worn_inv_button(srv, component, 3);
+
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_worn_opheld_marker]", NULL, 0,
+                                              &out) &&
+                    out == 424242,
+                "worn-item op3 should have dispatched [opheld3,bronze_scimitar] and written "
+                "the marker into the WORN copy via last_slot, got %d",
+                out);
+
+            p->worn[MOCK230_WEAR_WEAPON] = saved;
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: date_runeday\n");
+    {
+        /*
+         * Declared since before this tree could run it — ss_opcode.h had
+         * SS_OP_DATE_RUNEDAY (4630) with no `case` anywhere
+         * (docs/ITEM_CHARGES_PLAN.md §3b). Every daily-reset charge family
+         * needs it to exist and to be the same "days since epoch" shape
+         * date_minutes already is at minute granularity, which this checks
+         * directly against `time(NULL)` rather than trusting the opcode's
+         * own arithmetic to grade itself.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t runeday = -1;
+            long long expected = (long long)time(NULL) / 86400LL;
+
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(srv, "[proc,selftest_date_runeday]", NULL,
+                                                          0, &runeday),
+                           "date_runeday should answer");
+            SELFTEST_CHECK(runeday == (int32_t)expected,
+                           "date_runeday should be days since the Unix epoch, got %d want %d",
+                           runeday, (int32_t)expected);
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::chargesrun\n");
+    {
+        /*
+         * The item-charges slice, asserted through its own content
+         * (general/scripts/charges/charges_selftest.rs2), the same shape
+         * `::gearrun` uses just above — asserting on the OK line rather than
+         * counting FAILs, because `::chargesrun` stops at the first broken
+         * assertion, so "no FAIL was printed" is also what a script that
+         * aborted on line one produces.
+         *
+         * Run unconditionally, unlike `::gearrun` (opt-in behind
+         * MOCK230_GEARRUN because it mutates skills and worn gear broadly):
+         * `::chargesrun` only ever touches `inv`/`worn` slot 0 and one
+         * player_varp, and its own first and last lines
+         * (`~chargesrun_clear`) leave both containers empty and the varp at
+         * 0 — the same "empty" state every section after `~gear_selftest_
+         * clear_worn` already assumes, not a special restore this stanza
+         * has to do for itself.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture chargesrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &chargesrun_capture);
+            mock230_scripts_run_debugproc(srv, "chargesrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&chargesrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&chargesrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &chargesrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "chargesrun OK", 13) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "chargesrun FAIL", 15) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::chargesrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::chargesrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
     }
 
     /*

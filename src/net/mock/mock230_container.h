@@ -178,6 +178,18 @@ mock230_item_set_var(
     int value);
 
 /**
+ * Copy `src`'s vars onto `dst` (obj_id/count untouched). For a caller that
+ * knows `src` and `dst` are the same logical item moving between slots —
+ * `mock230_container_set` and `mock230_container_add` never do this on their
+ * own, deliberately: a different obj landing in a slot must not inherit
+ * whatever was there before.
+ */
+void
+mock230_item_vars_copy(
+    struct Mock230Item* dst,
+    const struct Mock230Item* src);
+
+/**
  * The slot holding `obj_id`'s bank *placeholder*, or -1.
  *
  * A placeholder is the slot an item came out of, remembered — a different obj
@@ -216,6 +228,21 @@ mock230_container_add(
     int obj_id,
     int count,
     int assure_full);
+
+/**
+ * Same as `mock230_container_add`, but `*out_slot` receives the slot a unit
+ * landed in when — and only when — the placement is unambiguous: a single
+ * unstackable unit (`count == 1`) that landed in exactly one slot. Every
+ * other shape (a merged stack, more than one unit, nothing added) leaves it
+ * at -1. `out_slot` may be NULL. See `mock230_item_vars_copy`.
+ */
+int
+mock230_container_add_out_slot(
+    struct Mock230Container* container,
+    int obj_id,
+    int count,
+    int assure_full,
+    int* out_slot);
 
 /** Clear the dirty state after a flush. */
 void

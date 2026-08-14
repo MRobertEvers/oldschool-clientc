@@ -387,15 +387,25 @@ inv_write(
  * else takes one slot each, and a partial result is the normal case rather than
  * an error — the caller decides whether a short add is worth a message.
  */
+/*
+ * `out_fresh_slot`, when non-NULL, receives the inv slot a *single fresh
+ * unstackable unit* landed in — `count == 1`, not merged onto anything —
+ * else -1. See mock230_item_vars_copy: a charged item withdrawn from the
+ * bank needs to know exactly which slot to write its charges into, and
+ * "the slot a brand-new unit took" is the only shape that is unambiguous.
+ */
 static int
-inv_add(
+inv_add_ex(
     struct Mock230Player* player,
     int obj_id,
-    int count)
+    int count,
+    int* out_fresh_slot)
 {
     const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
     int added = 0;
 
+    if( out_fresh_slot )
+        *out_fresh_slot = -1;
     if( obj_id < 0 || count <= 0 )
         return 0;
 
@@ -422,10 +432,13 @@ inv_add(
         if( player->inv[i].obj_id >= 0 )
             continue;
         inv_write(player, i, obj_id, 1);
+        if( out_fresh_slot && count == 1 )
+            *out_fresh_slot = i;
         added++;
     }
     return added;
 }
+
 
 /** How many of `obj_id` the backpack could still take. */
 static int
@@ -931,17 +944,30 @@ cert(int obj_id)
     return info->cert_id >= 0 ? info->cert_id : obj_id;
 }
 
+/*
+ * `out_fresh_slot`, when non-NULL, receives the bank slot a deposit landed in
+ * when — and only when — it opened a *new* bank row (`count == 1` and no
+ * existing stack to merge onto). Merging onto an existing stack is left at
+ * -1: the bank has one var table per slot and one count for the whole stack
+ * (the comment below already says "everything in the bank is a stack"), so
+ * once two charged items of the same obj_id have merged there is no single
+ * charge count to preserve — a stated limit, not fixed here, the same way
+ * ITEM_CHARGES_PLAN.md §3a states the ground-obj one.
+ */
 static int
-bank_add(
+bank_add_ex(
     struct Mock230Server* srv,
     int obj_id,
-    int count)
+    int count,
+    int* out_fresh_slot)
 {
     struct Mock230Bank* bank = &srv->active_player->bank;
     const struct Mock230Ids* ids = mock230_ids();
     int slot;
     int dest_tab;
 
+    if( out_fresh_slot )
+        *out_fresh_slot = -1;
     if( obj_id < 0 || count <= 0 )
         return 0;
     /* Everything in the bank is a stack, whatever the objtype says: that is
@@ -970,6 +996,8 @@ bank_add(
     if( slot >= 0 )
     {
         bank_write(bank, slot, obj_id, count);
+        if( out_fresh_slot && count == 1 )
+            *out_fresh_slot = slot;
         return count;
     }
 
@@ -991,6 +1019,8 @@ bank_add(
         if( bank->slots[insert].obj_id >= 0 )
             bank_shift_right(bank, insert);
         bank_write(bank, insert, obj_id, count);
+        if( out_fresh_slot && count == 1 )
+            *out_fresh_slot = insert;
         bank->tab_size[dest_tab - 1]++;
         if( bank->open )
             bank_push_tab_settings(srv);
@@ -1016,9 +1046,12 @@ bank_add(
             return 0;
         }
         bank_write(bank, slot, obj_id, count);
+        if( out_fresh_slot && count == 1 )
+            *out_fresh_slot = slot;
         return count;
     }
 }
+
 
 int
 mock230_bank_deposit(
@@ -1052,9 +1085,24 @@ mock230_bank_deposit(
     if( amount <= 0 )
         return 0;
 
-    banked = bank_add(srv, uncert(obj_id), amount);
-    if( banked <= 0 )
-        return 0;
+    /* A single unstackable unit deposited from the exact slot clicked carries
+     * its vars into the bank slot it opens — see mock230_item_vars_copy and
+     * bank_add_ex's comment on why anything else (a merge, or more than one
+     * unit) is left alone. Snapshot before inv_write clears the source. */
+    {
+        int fresh_slot = -1;
+        int carry_vars = amount == 1 && !mock230_objinfo(obj_id)->stackable &&
+                          player->inv[inv_slot].obj_id == obj_id;
+        struct Mock230Item saved;
+
+        if( carry_vars )
+            saved = player->inv[inv_slot];
+        banked = bank_add_ex(srv, uncert(obj_id), amount, &fresh_slot);
+        if( banked <= 0 )
+            return 0;
+        if( carry_vars && banked == 1 && fresh_slot >= 0 )
+            mock230_item_vars_copy(&srv->active_player->bank.slots[fresh_slot], &saved);
+    }
 
     /* Take it back out of the backpack, starting with the slot that was
      * clicked so a partial deposit empties the one the player pointed at. */
@@ -1102,9 +1150,19 @@ mock230_bank_deposit_worn(
     if( amount <= 0 )
         return 0;
 
-    banked = bank_add(srv, uncert(obj_id), amount);
-    if( banked <= 0 )
-        return 0;
+    {
+        int fresh_slot = -1;
+        int carry_vars = amount == 1 && !mock230_objinfo(obj_id)->stackable;
+        struct Mock230Item saved;
+
+        if( carry_vars )
+            saved = player->worn[worn_slot];
+        banked = bank_add_ex(srv, uncert(obj_id), amount, &fresh_slot);
+        if( banked <= 0 )
+            return 0;
+        if( carry_vars && banked == 1 && fresh_slot >= 0 )
+            mock230_item_vars_copy(&srv->active_player->bank.slots[fresh_slot], &saved);
+    }
 
     player->worn[worn_slot].count -= banked;
     if( player->worn[worn_slot].count <= 0 )
@@ -1168,9 +1226,19 @@ mock230_bank_withdraw(
         amount = space;
     }
 
-    moved = inv_add(player, form, amount);
-    if( moved <= 0 )
-        return 0;
+    {
+        int fresh_slot = -1;
+        int carry_vars = amount == 1 && form == obj_id && !mock230_objinfo(obj_id)->stackable;
+        struct Mock230Item saved;
+
+        if( carry_vars )
+            saved = bank->slots[bank_slot];
+        moved = inv_add_ex(player, form, amount, &fresh_slot);
+        if( moved <= 0 )
+            return 0;
+        if( carry_vars && moved == 1 && fresh_slot >= 0 )
+            mock230_item_vars_copy(&player->inv[fresh_slot], &saved);
+    }
     bank_write(bank, bank_slot, obj_id, bank->slots[bank_slot].count - moved);
     /* Emptying a tab slot closes the gap so the contiguous prefix stays true. */
     if( bank->slots[bank_slot].obj_id < 0 )
