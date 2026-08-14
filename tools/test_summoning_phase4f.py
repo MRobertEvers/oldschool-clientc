@@ -101,6 +101,14 @@ def main() -> int:
         and "loc_anim(summoning_seq_8510);" in script,
         "craft does not use the imported player/active/idle animations",
     )
+    # Source seq 9068 holds: framestep 27 of 41 frames, no maxloops, so the
+    # client replays its tail 99 times unless the server ends it -- and a
+    # playing primary seq also freezes the entity's draw position, so the
+    # player is animating in place and cannot walk for minutes afterwards.
+    expect(
+        "anim(null, 0);" in script,
+        "craft never ends the held infusion animation",
+    )
     expect(
         "inv_del(inv, summoning_blank_pouch, $amount);" in script
         and "inv_del(inv, summoning_charm_gold, $amount);" in script
@@ -228,6 +236,20 @@ def main() -> int:
     expect(
         f"player_info: sequence idx=0 id={infuse_seq_id} delay=0" in craft_log,
         "make: player craft animation did not reach the client",
+    )
+    # The held infusion seq has to be cancelled when the action ends, and it
+    # has to be cancelled after it started: a reset the client never receives
+    # leaves the player looping the animation, and frozen where they stand.
+    craft_anim_at = craft_log.find(f"player_info: sequence idx=0 id={infuse_seq_id} delay=0")
+    reset_at = (
+        craft_log.find("player_info: sequence idx=0 id=-1 delay=0", craft_anim_at)
+        if craft_anim_at >= 0
+        else -1
+    )
+    expect(reset_at > craft_anim_at, "make: craft animation was never cancelled")
+    expect(
+        f"loopback: seq={infuse_seq_id} " not in craft_log,
+        "make: the infusion animation replayed its frame-step loop instead of ending",
     )
     charge_marker = f"seq_bind: element=19381 seq={charge_seq_id}"
     idle_marker = f"seq_bind: element=19381 seq={idle_seq_id}"

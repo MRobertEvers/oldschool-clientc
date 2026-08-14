@@ -198,6 +198,10 @@ struct Mock230WirePayload
         struct RSAreaBuf* buf,
         int fade_out_delay,
         int fade_out_speed);
+    /** MidiJingleEncoder v16 (revs 239): p3 length_in_millis, p2Alt3 id.
+     *  Confirmed against the vendored rsprot codec, the 239 Kotlin
+     *  transcription, and the rev-239 deob -- see mock230_wire.c. */
+    void (*midi_jingle)(struct RSAreaBuf* buf, int id, int length_ms);
     /** AmbientSoundStartEncoder v2: p1Add fade flag, p2 soundscape id. The id
      *  is a config-group-15 record, not a sound effect. */
     void (*ambientsound_start)(struct RSAreaBuf* buf, int id, int fade);

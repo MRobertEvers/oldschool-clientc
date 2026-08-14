@@ -432,8 +432,30 @@ def death_drop_for_page(title: str, dropversion: str | None) -> str | None:
     blocks = [b for b in wd.parse_drop_blocks(text) if not b["tertiary"]]
     main_blocks = wd.select_blocks(blocks, dropversion)
     if not main_blocks:
-        # Ambiguous version split. Same reasoning as the missing page: no
-        # evidence is not evidence of none.
+        # Ambiguous version split: the page has several `dropversion` blocks and
+        # this npc's own version named none of them. Falling through to `bones`
+        # here is what the first cut did, and it is wrong in the one direction
+        # that matters — it is the same silent default the whole change exists
+        # to remove, and `tzhaar_hur1` is exactly this case (six blocks, no
+        # match, no remains anywhere on the page, and it went back to bones).
+        #
+        # So ask the weaker question the evidence can still answer: does *any*
+        # main block on this page state remains? If none does, no version of
+        # this monster leaves any, whichever one we could not pin — that is a
+        # sound conclusion, not a guess. Only when the blocks actually disagree
+        # is there nothing to say, and only then does the default stand.
+        candidates = {
+            c["gameval"]
+            for c in (wd.death_drop_choice(b["lines"]) for b in blocks)
+            if c
+        }
+        if not candidates:
+            _DEATH_DROP_CACHE[key] = None
+            return None
+        if len(candidates) == 1:
+            result = candidates.pop()
+            _DEATH_DROP_CACHE[key] = result
+            return result
         _DEATH_DROP_CACHE[key] = "bones"
         return "bones"
     lines = [ln for b in main_blocks for ln in b["lines"]]

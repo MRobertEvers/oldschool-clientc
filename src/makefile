@@ -2129,7 +2129,8 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # this the boot warns and falls back to the text parse — which is still a real
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
-.PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale
+.PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale \
+	test-droptable-versions
 
 # The freshness predicate the launchers (run-live.sh, run-live.bat) apply before
 # asking for a marked-lane bake at all. It decides whether a lane's records are
@@ -2138,6 +2139,16 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # prerequisite of both bakes so it cannot rot alongside a lane's layout.
 test-cache-overlay-stale:
 	@cd $(REPO_ROOT) && python3 tools/test_cache_overlay_stale.py
+
+# The two drop-table invariants that shipped broken and that nothing else can
+# see: every roster npc must *state* `param=death_drop` rather than inherit the
+# tree-wide `[default] param=death_drop,bones`, and a page carrying several
+# `dropversion` tables must bind each npc to its own rather than to the first
+# one written. Reads the generated files, so it catches a bad regeneration as
+# well as a bad generator. Hermetic and sub-second; see
+# docs/NPC_WIKI_DROPTABLES_PLAN.md §9.
+test-droptable-versions:
+	@cd $(REPO_ROOT) && python3 tools/test_droptable_versions.py
 
 test-rs2012-server-overlay:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack

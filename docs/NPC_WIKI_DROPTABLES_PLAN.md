@@ -336,3 +336,137 @@ binding that states nothing is worse than no binding).
   content (§2 already found 61 category ids that must NOT become one shared
   table) — category-binding is a follow-on optimization pass (§5 step 4), not
   a precondition for closing the correctness gap.
+
+## 9. `death_drop` is a statement now, not a fallthrough (2026-08-14)
+
+Reported as "Tzhaar are still dropping bones". They were, and so was most of the
+roster, for a reason no drop-table script could have fixed.
+
+### The mechanism
+
+`general/configs/npc_default.npc`'s `[default]` block authors
+`param=death_drop,bones`, and `npc_def_seed_from_cache` copies the whole default
+record — params included — into every npc def. An npc that never states the
+param therefore drops bones as a *fallthrough*, and neither consumer can tell
+that apart from a considered `bones`: `[ai_queue3,_]`
+(`skill_combat/npc_combat.rs2`) and all the generated `wiki_*.rs2` tables both
+just restate `npc_param(death_drop)`.
+
+§7's guard (`if (npc_param(death_drop) ! null)`) is often mistaken for the fix.
+It only honours npcs *already* configured `null`; it cannot invent that
+statement. Three populations were wrong at once, measured across the 1,700-row
+roster:
+
+| | npcs | symptom |
+|---|---|---|
+| page states no remains | 289 | phantom bones — TzHaar (rock), vyrewatch, rockslugs, killerwatts, animated tools |
+| page states **ashes** | ~146 | left bones instead — every demon (Vile/Malicious/Fiendish/Abyssal/Eldritch/Infernal) |
+| page states a bones **variant** | ~300 | left the variant *and* plain bones — Big/Dragon/Wolf/Zogre/Wyvern/Hydra/monkey families |
+
+### The rule
+
+An npc's own cited wiki page decides, via its `Always` remains line — `bones`,
+`ashes` or `remains` as whole words. `tools/gen_npc_stats.py` derives it
+(`death_drop_for_page`) and states `param=death_drop` in **all 1,278** roster
+blocks, including the 788 whose answer is the same plain `bones` the `[default]`
+would have given. Restating those costs a line in a generated file and buys the
+property whose absence caused every bug in this family: the value is always a
+statement, never a default that happens to read correctly.
+
+`tools/wiki_droptable.py` skips that same line when building the table, so
+nothing is dropped twice. **Both tools call one function** —
+`wiki_droptable.death_drop_choice` — deliberately: computed twice, the two
+answers drift and the npc drops its remains twice or not at all.
+
+Resulting distribution: 788 `bones`, 169 `null`, 140 `big_bones`, 41
+`dragon_bones`, 25 `wolf_bones`, 16 `vile_ashes`, 14 `zogre_bones`, 12 `ashes`,
+11 `malicious_ashes`, 10 `fiendish_ashes`, and 22 more families.
+
+Regenerating the tables against this took the batch from 147 files/477 npcs to
+124/424. The 53 that dropped out are correct: their whole table was their
+remains, which `param=death_drop` now answers on its own through `[ai_queue3,_]`
+— the project's existing `duck` rule (a binding that states nothing is worse
+than no binding).
+
+### Four things that bit, worth not repeating
+
+1. **Plain `Bones` keeps its blanket filter in `build_table`, at every rarity.**
+   Several pages state bones twice — once `Always`, once as a fraction from a
+   sub-table the cumulative-rarity model cannot represent (Bloodveld: `Vile
+   ashes` Always, then `Bones 10/128`). Letting the fractional one through
+   pushed 5 bloodvelds, the ancient hellhound and the giant frog past their own
+   denominator (133/128), which fails the sanity check and deletes those tables
+   outright. Widening this needs the sub-table model first.
+2. **An "ambiguous page version" fallback must not fall back to `bones`.** That
+   is the default being removed. `tzhaar_hur1` regressed exactly this way — its
+   page's blocks are headed `Drops`/`Pickpocketing`, so `select_blocks` matches
+   nothing. Ask the weaker question the evidence still answers: does *any* main
+   block state remains? None does, so `null` is a conclusion, not a guess.
+3. **A kill-based test for a TzHaar silently never runs.** `selftest_find_npc`
+   scans active npc slots; the selftest scene is Lumbridge and TzHaar spawn at
+   2506,5168. Written that way it passed against deliberately broken data.
+   `mock230_world.c`'s "the death drop is content's" case D asserts on the def
+   instead — `mock230_content_npc` + `mock230_content_npc_param`, the exact pair
+   `npc_param` reads at rank 1 — and covers null, plain, variant and ashes.
+4. **That call's "was it stated" return is always true**, because of the default
+   seed. Asserting it is a check that cannot fail. Assert the value.
+
+### The version split (fixed in the same pass)
+
+`write_group` wrote `results[0]`'s table under a single `wiki_<slug>_drop` label
+and pointed every `[ai_queue3]` on the page at it. A wiki page is one *monster*,
+not one *drop table*, so that served **48 npcs across 11 groups** another
+version's loot: the level-13 giant frog got the level-99 one's table, the God
+Wars hellhound got the surface one's smouldering stone, the level-149
+TzHaar-Ket got the level-221's, and 20 goblins and 10 zombies got the wrong one
+of their page's two.
+
+`report_one` already resolved each npc to its own `dropversion` and built that
+version's table -- the information was there and was being discarded at the last
+step. `partition_by_table` now groups a page's npcs by the table they actually
+generate (by the table, not by the version string, so two versions that roll the
+same drops still share one label) and `write_group` emits one label per group:
+
+    [ai_queue3,dungeon_rat]
+    @wiki_dungeon_rat_full_tail_drop;
+
+    [ai_queue3,dungeon_rat2]
+    @wiki_dungeon_rat_normal_drop;
+
+    // dropversion: Full tail
+    // covers: dungeon_rat
+    [label,wiki_dungeon_rat_full_tail_drop]
+    ...
+
+Single-table pages keep the bare `wiki_<slug>_drop` label, so 113 of the 124
+files are byte-identical across this change and only the 11 real multi-version
+pages moved. Regeneration is deterministic (same md5 over two full runs).
+
+Worth stating because it reads backwards: npc 2865's version is `Full tail` and
+it drops **Raw rat meat**, while 2866/2867 are `Normal` and drop **Rat's tail**.
+That is what the page says -- a rat with a full tail has no severed tail to
+leave -- and the page annotates the third version "doesn't drop meat, even
+though some of their tails are long". Verify against the wikitext before
+"correcting" it.
+
+### The regression gate
+
+`tools/test_droptable_versions.py` (`make -C src test-droptable-versions`) pins
+both halves, and every check in it was confirmed to fail against deliberately
+broken input rather than merely passing:
+
+- `partition_by_table` splits differing tables and, equally, does *not* split
+  identical ones -- otherwise every page becomes one label per npc.
+- Every `@label` in a generated file resolves, no duplicate `[label,...]`, and
+  at least 11 files still carry more than one table.
+- `dungeon_rat` drops `raw_rat_meat` and **not** `rats_tail`; `dungeon_rat2` the
+  reverse. A named, recorded case rather than a shape check.
+- All 1,278 roster blocks state `param=death_drop`, and every family that was
+  wrong (`null`, `bones`, the variants, the ashes) is still represented.
+- No table emits an item its npc's `param=death_drop` already gives.
+
+### Still open
+
+Nothing from this section. `port_droptables_check.py`'s 607 findings are
+unrelated and pre-existing (`slayer_superior.rs2` and friends, none of which
+restate `npc_param(death_drop)`).

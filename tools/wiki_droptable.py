@@ -282,14 +282,24 @@ def build_table(lines: list[dict], death_drop: dict | None = None) -> tuple[list
 
     for line in lines:
         nm = line["name"]
-        if not nm or nm.lower() == "nothing":
+        # Plain `Bones` keeps its blanket filter, at every rarity, and that is
+        # deliberate rather than left over. Several pages state bones twice: an
+        # `Always` line *and* a fractional one belonging to a sub-table the
+        # cumulative-rarity model here cannot represent (Bloodveld: `Vile ashes`
+        # Always, then `Bones 10/128` and `Big bones 7/128`). Letting the
+        # fractional plain-bones line through pushed five bloodvelds, the
+        # ancient hellhound and the giant frog over their own denominator
+        # (133/128), which fails the check below and drops those seven tables on
+        # the floor entirely — a much larger regression than the line is worth.
+        # Widening this is its own job, with the sub-table model, not this one's.
+        if not nm or nm.lower() in ("nothing", "bones"):
             continue
-        # Exactly one occurrence, matched on the same identity the generator
-        # wrote. `Bones` used to be filtered here by name, unconditionally and
-        # for every npc — which is how TzHaar (no bones on their page at all)
-        # and every dragon (Dragon bones on theirs) both ended up leaving plain
-        # bones: the table dropped the page's own statement on the floor and the
-        # restatement put the tree-wide default back in its place.
+        # The npc's remains, skipped exactly once and matched on the same
+        # identity `gen_npc_stats.py` wrote into `param=death_drop`. This is the
+        # variant half: `Big bones`, `Dragon bones`, `Vile ashes` and the rest
+        # were never filtered here, so the table emitted them *and* the
+        # restatement added the tree-wide default plain bones on top — 128 npcs
+        # leaving two sets of remains, one of them the wrong species.
         if (not death_drop_taken and death_drop is not None
                 and (line.get("rarity", "").strip().lower() == "always")
                 and resolve_obj_name(nm) == death_drop["gameval"]):
@@ -515,12 +525,46 @@ def title_slug(title: str) -> str:
     return s or "unnamed"
 
 
+def partition_by_table(results: list[dict]) -> list[dict]:
+    """Split one page's npcs into groups that genuinely share a drop table.
+
+    A wiki page is one *monster*, not one *drop table*: `Goblin` carries `Drop
+    table 1` and `Drop table 2`, `Zombie` carries `Level 13` and `Level 24`,
+    `Hellhound` carries Regular / God Wars Dungeon / Wilderness Slayer Cave.
+    `report_one` already resolves each npc to its own `dropversion` and builds
+    that version's table; this is only about not throwing that away again when
+    the file is written.
+
+    It used to be thrown away: `write_group` emitted `results[0]["rs2"]` under a
+    single label and pointed every `[ai_queue3]` on the page at it, so 48 npcs
+    across 11 groups were served another version's loot — the level-13 giant
+    frog got the level-99 one's table, and the God Wars hellhound got the
+    surface one's smouldering stone.
+
+    Partitioned on the generated table rather than on the `dropversion` string,
+    so two versions that happen to roll the same drops still share one label
+    (which is correct, and keeps the file short) while any real difference gets
+    its own. Insertion-ordered, so output is stable across runs.
+    """
+    groups: dict[tuple, dict] = {}
+    for r in results:
+        key = tuple(r["rs2"])
+        g = groups.get(key)
+        if g is None:
+            groups[key] = {"rs2": r["rs2"], "versions": [], "results": []}
+            g = groups[key]
+        g["results"].append(r)
+        if r["dropversion"] and r["dropversion"] not in g["versions"]:
+            g["versions"].append(r["dropversion"])
+    return list(groups.values())
+
+
 def write_group(title: str, results: list[dict]) -> str | None:
     slug = title_slug(title)
     path = os.path.join(DROP_TABLES_DIR, f"wiki_{slug}.rs2")
     if os.path.exists(path):
         return None  # do not clobber a prior run or a hand-authored collision
-    label = f"wiki_{slug}_drop"
+    groups = partition_by_table(results)
     r0 = results[0]
     lines = [
         f"// {r0['title']} death drops. Sourced from the OSRS Wiki (not a LostCity",
@@ -532,17 +576,48 @@ def write_group(title: str, results: list[dict]) -> str | None:
     if any(r["tertiary_present"] for r in results):
         lines.append(f"// A Tertiary drop table exists on this page and is intentionally omitted --")
         lines.append(f"// no varp-check machinery exists in this table family yet (plan section 6).")
+    if len(groups) > 1:
+        lines.append("//")
+        lines.append(f"// This page states {len(groups)} distinct drop tables and each npc below is")
+        lines.append("// bound to its own. They are NOT interchangeable -- see plan section 9.")
+
+    # Label names: the page's own `wiki_<slug>_drop` when the page has a single
+    # table, which is the overwhelming majority and keeps those files byte-stable
+    # across this change. Only a genuinely multi-table page gets the version
+    # suffix, and only then does any existing file's text move.
+    used: set[str] = set()
+    for i, g in enumerate(groups):
+        if len(groups) == 1:
+            name = f"wiki_{slug}_drop"
+        else:
+            vslug = slugify(g["versions"][0]) if g["versions"] else ""
+            name = f"wiki_{slug}_{vslug}_drop" if vslug else f"wiki_{slug}_{i + 1}_drop"
+            # Two versions can slugify to the same thing, and a duplicate
+            # `[label,...]` is a compile error rather than a silent mismerge --
+            # but only because it is disambiguated here.
+            if name in used:
+                name = f"wiki_{slug}_{vslug}_{i + 1}_drop"
+        used.add(name)
+        g["label"] = name
+
     lines.append("")
-    for r in results:
-        lines.append(f"[ai_queue3,{r['gameval']}]")
-        lines.append(f"@{label};")
+    for g in groups:
+        for r in g["results"]:
+            lines.append(f"[ai_queue3,{r['gameval']}]")
+            lines.append(f"@{g['label']};")
+            lines.append("")
+    for g in groups:
+        if len(groups) > 1:
+            versions = ", ".join(g["versions"]) if g["versions"] else "(unversioned)"
+            covered = ", ".join(r["gameval"] for r in g["results"])
+            lines.append(f"// dropversion: {versions}")
+            lines.append(f"// covers: {covered}")
+        lines.append(f"[label,{g['label']}]")
+        lines.append("if (npc_findhero = ^false) {")
+        lines.append("    return;")
+        lines.append("}")
+        lines.extend(g["rs2"])
         lines.append("")
-    lines.append(f"[label,{label}]")
-    lines.append("if (npc_findhero = ^false) {")
-    lines.append("    return;")
-    lines.append("}")
-    lines.extend(r0["rs2"])
-    lines.append("")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     return path

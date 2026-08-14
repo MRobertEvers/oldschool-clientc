@@ -5808,6 +5808,14 @@ mock230_send_midi_song_stop(
     struct Mock230Player* player,
     int fade_out_delay,
     int fade_out_speed);
+/* MIDI_JINGLE. `length_ms` is the jingle's own duration (see
+ * `SS_OP_MIDI_LENGTH`) -- the client decodes it but does not act on it, so a
+ * wrong value is invisible by ear and only the wire-layout tests catch it. */
+void
+mock230_send_midi_jingle(
+    struct Mock230Player* player,
+    int id,
+    int length_ms);
 /* SYNTH_SOUND. Declared here because two callers want it: `SS_OP_SOUND_SYNTH`,
  * where a script asks for a noise, and mock230_combat.c, where an npc makes one
  * without a script being involved. */

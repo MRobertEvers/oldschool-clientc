@@ -42,6 +42,7 @@
 #include "packets/if_setscrollpos.h"
 #include "packets/if_settext.h"
 #include "packets/message_game.h"
+#include "packets/midi_jingle.h"
 #include "packets/midi_song_v2.h"
 #include "packets/server_tick_end.h"
 #include "packets/synth_sound.h"
@@ -473,6 +474,29 @@ bridge_midi_song(int revision, uint8_t const* data, int len, struct RevPacket* o
     /* Speeds are client cycles; the player wants milliseconds. */
     out->_midi_song.fade_out_ms = msg.fade_out_speed * 20;
     out->_midi_song.fade_in_ms = msg.fade_in_speed * 20;
+    return 1;
+}
+
+/*
+ * MIDI_JINGLE. The wire layout genuinely differs by revision -- rev 239 is a
+ * 5-byte `p3 length_in_millis / p2Alt3 id`, where the pre-239 revisions this
+ * tree hand-parses are a 4-byte `g2 id / g2 delay` (gameproto_parse.c, kept
+ * for lc254/lc245_2). Routing 239 through the generated codec here, instead
+ * of hand-transcribing it into osrs239_parse.c, is what actually fixes the
+ * bug: the hand-written reader used the 4-byte shape for every revision,
+ * which desynchronises the very next packet against a real 239 server and
+ * trips the `assert(position == data_size)` gameproto_parse.c never disables.
+ *
+ * `delay` carries the millisecond length; the canonical struct has no separate
+ * field for it and the client does not act on it once decoded either way
+ * (rs_audio.c's RS_Audio_Jingle ignores its own length argument).
+ */
+static int
+bridge_midi_jingle(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_midi_jingle_out, MsgMidiJingle)
+    out->_midi_jingle.id = msg.id;
+    out->_midi_jingle.delay = msg.length_in_millis;
     return 1;
 }
 
@@ -1045,6 +1069,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_UPDATE_STAT, bridge_update_stat },
     { PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
     { PKT_NAME_MIDI_SONG, bridge_midi_song },
+    { PKT_NAME_MIDI_JINGLE, bridge_midi_jingle },
     { PKT_NAME_CAM_SHAKE, bridge_cam_shake },
     { PKT_NAME_IF_RESYNC_V2, bridge_if_resync },
     { PKT_NAME_CAM_LOOKAT, bridge_cam_lookat },

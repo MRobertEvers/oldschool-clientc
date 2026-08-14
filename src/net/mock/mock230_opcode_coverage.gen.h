@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    253  host commands
+ *    255  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    369  total, of 444 declared opcodes
+ *    371  total, of 444 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,7 +26,7 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 369
+#define MOCK230_OPCODE_COVERAGE_COUNT 371
 #define MOCK230_OPCODE_DECLARED_COUNT 444
 
 /*
@@ -87,6 +87,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1019, /* SS_OP_PROJANIM_MAP (host commands) */
     1021, /* SS_OP_SPOTANIM_MAP (host commands) */
     1022, /* SS_OP_WORLD_DELAY (host commands) */
+    1023, /* SS_OP_MIDI_LENGTH (host commands) */
     2002, /* SS_OP_ANIM (host commands) */
     2005, /* SS_OP_BUSY (host commands) */
     2006, /* SS_OP_BUSY2 (host commands) */
@@ -137,6 +138,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     2060, /* SS_OP_LONGQUEUE (host commands) */
     2061, /* SS_OP_LONGQUEUEVARARG (host commands) */
     2063, /* SS_OP_MES (host commands) */
+    2064, /* SS_OP_MIDI_JINGLE (host commands) */
     2065, /* SS_OP_MIDI_SONG (host commands) */
     2069, /* SS_OP_P_APRANGE (host commands) */
     2070, /* SS_OP_P_ARRIVEDELAY (host commands) */

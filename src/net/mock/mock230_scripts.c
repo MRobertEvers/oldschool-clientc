@@ -41,6 +41,11 @@
  * See gen_opcode_coverage.py for why it is generated. */
 #include "mock230_opcode_coverage.gen.h"
 
+/* index-11 archive id -> duration in ms, decoded offline from the cache
+ * because mock230 has no live cache access at script-command time. See
+ * gen_jingle_lengths.py. */
+#include "mock230_jingle_lengths.gen.h"
+
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -8705,6 +8710,45 @@ mock230_script_command(
             else
                 mock230_send_midi_song(player, id);
         }
+        return 1;
+    }
+
+    case SS_OP_MIDI_LENGTH:
+    {
+        int32_t id;
+
+        if( !SSVM_PopInt(state, &id) )
+            return 1;
+        if( id < 0 || id >= MOCK230_JINGLE_LENGTH_COUNT )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state, k_mock230_jingle_length_ms[id]);
+        return 1;
+    }
+
+    case SS_OP_MIDI_JINGLE:
+    {
+        int32_t id;
+        int32_t length_ms;
+
+        if( !SSVM_PopInt(state, &id) )
+            return 1;
+        /* `[command,midi_jingle](midi $jingle)` (LostCity_Server/content/
+         * scripts/engine.rs2:331) takes one arg; the reference computes the
+         * wire's length field itself (`Player.playJingle` ->
+         * `new MidiJingle(id, Midi.getLength(id))`), which is why this looks
+         * up the length rather than taking a second argument. */
+        if( srv->verbose )
+            fprintf(stderr, "mock230: midi_jingle(%d)\n", id);
+        /* Negative is "no jingle", the same rule sound_synth and midi_song
+         * both state a few cases above -- these ids default to -1 too. */
+        if( id < 0 )
+            return 1;
+        length_ms = (id < MOCK230_JINGLE_LENGTH_COUNT) ? k_mock230_jingle_length_ms[id] : 0;
+        if( player != NULL )
+            mock230_send_midi_jingle(player, id, length_ms);
         return 1;
     }
 

@@ -19461,6 +19461,23 @@ mock230_world_selftest(void)
             int died_x;
             int died_z;
             int ticks = 0;
+            /*
+             * The stance the player gets up in.
+             *
+             * The seven BAS seqs are engine state that no container write
+             * touches, so emptying `worn` into the gravestone leaves whatever
+             * the last weapon — or the last content override — put there.
+             * `human_swim` with running disabled is the trawler wreck's
+             * override (`~bas_set_all(human_swim)` + `runanim(null)`), and it
+             * is the honest fixture: no worn item can produce it, so only
+             * `[queue,player_death]` calling `~update_bas` can take it off. A
+             * player who died mid-fight holding a staff is the same defect
+             * with a subtler symptom.
+             */
+            int human_ready = mock230_content_symbol(MOCK230_PACK_SEQ, "human_ready");
+            int human_walk_f = mock230_content_symbol(MOCK230_PACK_SEQ, "human_walk_f");
+            int human_running = mock230_content_symbol(MOCK230_PACK_SEQ, "human_running");
+            int human_swim = mock230_content_symbol(MOCK230_PACK_SEQ, "human_swim");
 
             memcpy(saved_inv, player->inv, sizeof(saved_inv));
             memcpy(saved_worn, player->worn, sizeof(saved_worn));
@@ -19480,6 +19497,17 @@ mock230_world_selftest(void)
              * could see: it runs one line after `stat_heal(hitpoints, …)` on the
              * only path that calls it. */
             player->run_energy = 0;
+
+            SELFTEST_CHECK(human_ready > 0 && human_walk_f > 0 && human_running > 0 &&
+                               human_swim > 0,
+                           "human_ready / human_walk_f / human_running / human_swim resolve");
+            player->readyanim = human_swim;
+            player->turnanim = human_swim;
+            player->walkanim = human_swim;
+            player->walkanim_b = human_swim;
+            player->walkanim_l = human_swim;
+            player->walkanim_r = human_swim;
+            player->runanim = -1; /* `runanim(null)` — running disabled */
 
             /* Install both halves of a real fight.  The interaction is the
              * important half: p_opnpc(2) keeps it armed between swings, and a
@@ -19549,6 +19577,17 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX,
                            "and its healenergy refilled the run bar, got %d of %d",
                            player->run_energy, MOCK230_RUN_ENERGY_MAX);
+            /* Nothing else in the sequence writes these, so a death script
+             * without `~update_bas` respawns the player still swimming — and
+             * with `runanim` null, permanently unable to run. */
+            SELFTEST_CHECK(player->readyanim == human_ready &&
+                               player->walkanim == human_walk_f &&
+                               player->runanim == human_running,
+                           "and `~update_bas` puts the empty-handed human_* stance back "
+                           "(ready %d want %d, walk %d want %d, run %d want %d)",
+                           player->readyanim, human_ready,
+                           player->walkanim, human_walk_f,
+                           player->runanim, human_running);
 
             for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
             {
@@ -21720,46 +21759,61 @@ mock230_world_selftest(void)
                 static const struct
                 {
                     const char* gameval;
-                    int want_null;
+                    const char* want; /* obj gameval, or NULL for `null` */
                 } DEATH_DROP_CASES[] = {
-                    { "tzhaar_ket1", 1 }, { "tzhaar_hur1", 1 }, { "chicken", 0 },
+                    /* No remains on the page at all — rock, not flesh. Both
+                     * rungs: ket has its own table, hur has none. */
+                    { "tzhaar_ket1", NULL },
+                    { "tzhaar_hur1", NULL },
+                    /* Plain bones, the majority case and the control against a
+                     * too-broad change reading as a fix. */
+                    { "chicken", "bones" },
+                    /* The variant families. Each of these used to leave its own
+                     * remains *and* plain bones, because the table emitted the
+                     * variant and the restatement added the tree-wide default
+                     * on top. */
+                    { "firegiant2", "big_bones" },
+                    { "black_dragon2", "dragon_bones" },
+                    { "zogre_1", "zogre_bones" },
+                    /* Ashes. Demons leave no bones at all, and this whole
+                     * family was invisible to a check that only looked for
+                     * `bones` — 92 npcs were briefly pinned to `null` here. */
+                    { "godwars_bloodveld", "vile_ashes" },
                 };
 
                 for( size_t c = 0; c < sizeof(DEATH_DROP_CASES) / sizeof(DEATH_DROP_CASES[0]); c++ )
                 {
                     const char* gameval = DEATH_DROP_CASES[c].gameval;
-                    int want_null = DEATH_DROP_CASES[c].want_null;
+                    const char* want = DEATH_DROP_CASES[c].want;
                     int npc_id = mock230_content_symbol(MOCK230_PACK_NPC, gameval);
                     const struct Mock230NpcDef* def =
                         npc_id >= 0 ? mock230_content_npc(npc_id) : NULL;
+                    int want_id = want ? mock230_content_symbol(MOCK230_PACK_OBJ, want) : -1;
                     int32_t value = 0;
                     int stated;
 
                     SELFTEST_CHECK(def != NULL,
                                    "%s should resolve to an npc def", gameval);
+                    SELFTEST_CHECK(want == NULL || want_id >= 0,
+                                   "the death-drop case's obj %s should resolve", want);
                     if( !def )
                         continue;
 
-                    /* `stated` is not asserted for the control: `chicken` is
-                     * allowed to say nothing and inherit `[default]`'s bones,
-                     * which is the whole shape being tested. Only the value
-                     * matters, and for the bones case the fallthrough IS the
-                     * value. */
+                    /* Only the value is asserted. `stated` is *always* true
+                     * here and cannot be otherwise: `npc_def_seed_from_cache`
+                     * copies `[default]`'s whole param list into every def, so
+                     * `death_drop` is present on an npc no config ever
+                     * mentions. Asserting it would be a check that cannot fail
+                     * — which is exactly the property that let this bug live,
+                     * since "the param is set" was never the question. Whether
+                     * it was set *by the npc's own block* is not visible at
+                     * this seam at all; `tools/gen_npc_stats.py` owns that, and
+                     * the value is what the drop tables actually read. */
                     stated = mock230_content_npc_param(def, param_death_drop, &value);
-                    if( want_null )
-                    {
-                        SELFTEST_CHECK(stated && value < 0,
-                                       "%s must state param=death_drop,null — its cited wiki "
-                                       "drop table has no Always bones line (stated=%d value=%d)",
-                                       gameval, stated, (int)value);
-                    }
-                    else
-                    {
-                        SELFTEST_CHECK(!stated || value == obj_bones,
-                                       "%s's page states Always Bones, so it must still leave "
-                                       "bones (stated=%d value=%d)",
-                                       gameval, stated, (int)value);
-                    }
+                    (void)stated;
+                    SELFTEST_CHECK(value == want_id,
+                                   "%s should leave %s (obj %d), got %d",
+                                   gameval, want ? want : "nothing", want_id, (int)value);
                 }
             }
         }
@@ -23980,6 +24034,96 @@ mock230_world_selftest(void)
                            "and leave the bar alone, got %d", player->run_energy);
 
             player->run_energy = saved_energy;
+        }
+
+        /*
+         * `::tele` — one command that takes either a coord literal or a name.
+         *
+         * The two halves are asserted separately because they fail separately.
+         * The literal goes through `[proc,tele_parse_coord]`, a RuneScript
+         * re-implementation of the parse the debugproc dispatcher already does
+         * in C for a `coord` parameter — it exists only because a parameter
+         * consumes its word whether or not it parses, so a command that also
+         * takes names cannot declare one. The name goes through the generated
+         * ladder in tele_destinations.rs2.
+         *
+         * A rejected argument must leave the player *where he was*. That is the
+         * case worth a test: `p_teleport` cannot fail, so anything the parse
+         * lets through is a move, and a half-parsed `0_50_50` that yielded a
+         * coord would silently drop the player two mapsquares from the tile he
+         * named.
+         */
+        {
+            int saved_x = player->x;
+            int saved_z = player->z;
+            int saved_level = player->level;
+
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "tele 0_50_50_22_18"),
+                           "::tele should reach [debugproc,tele]");
+            SELFTEST_CHECK(player->x == 3222 && player->z == 3218 &&
+                               player->level == 0,
+                           "::tele 0_50_50_22_18 lands on 3222,3218,0, got %d,%d,%d",
+                           player->x, player->z, player->level);
+
+            /* A name, and a level that is not zero — the label table is all
+             * plane 0, but the npc roster is not, and the level field of a
+             * destination has to survive the ladder. */
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "tele varrock"),
+                           "::tele varrock should run");
+            SELFTEST_CHECK(player->x == 3211 && player->z == 3450 &&
+                               player->level == 0,
+                           "::tele varrock lands on Varrock, got %d,%d,%d", player->x,
+                           player->z, player->level);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "tele Duke_Horacio"),
+                           "::tele Duke_Horacio should run");
+            SELFTEST_CHECK(player->x == 3212 && player->z == 3220 &&
+                               player->level == 1,
+                           "a name is case-insensitive and keeps its plane, got %d,%d,%d",
+                           player->x, player->z, player->level);
+
+            /* Every way of getting it wrong, each of which used to be a move. */
+            {
+                static const char* const k_rejected[] = {
+                    "tele 0_50_50",         /* too few fields */
+                    "tele 0_50_50_22_18_9", /* too many */
+                    "tele 0-50-50-22-18",   /* wrong separator */
+                    "tele 0_50_50_64_18",   /* local out of range */
+                    "tele 4_50_50_22_18",   /* plane out of range */
+                    "tele 0_50_50__18",     /* empty field */
+                    "tele nowhere_at_all",  /* not a destination */
+                    "tele bank",            /* dropped as ambiguous, on purpose */
+                };
+
+                for( size_t i = 0; i < sizeof(k_rejected) / sizeof(k_rejected[0]); i++ )
+                {
+                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, k_rejected[i]),
+                                   "`::%s` should still dispatch", k_rejected[i]);
+                    SELFTEST_CHECK(player->x == 3212 && player->z == 3220 &&
+                                       player->level == 1,
+                                   "`::%s` must not move anyone, got %d,%d,%d",
+                                   k_rejected[i], player->x, player->z, player->level);
+                }
+            }
+
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "teleback"),
+                           "::teleback should run");
+            SELFTEST_CHECK(player->x == 3211 && player->z == 3450 &&
+                               player->level == 0,
+                           "::teleback undoes the last move, got %d,%d,%d", player->x,
+                           player->z, player->level);
+
+            /* Search reaches the enum half of the table, which is generated
+             * from the same pass as the ladder and can therefore only be
+             * missing if the enum did not load at all. */
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "telefind varrock"),
+                           "::telefind should run");
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "telehere"),
+                           "::telehere should run");
+
+            player->x = saved_x;
+            player->z = saved_z;
+            player->level = saved_level;
+            player->place_dirty = 1;
         }
 
         /*

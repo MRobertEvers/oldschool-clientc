@@ -145,6 +145,7 @@ enum
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
     OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
     OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
+    OP_MIDI_JINGLE = PKT_NAME_MIDI_JINGLE,
     OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
     OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
     OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
@@ -2031,6 +2032,29 @@ mock230_send_midi_song(
     /* script9630's reference wire fallback: fade the old track over 60
      * cycles, start the next after 60, then set its gain immediately. */
     mock230_send_midi_song_envelope(player, id, 0, 60, 60, 0);
+}
+
+/*
+ * MIDI_JINGLE -- same missing-writer discipline as `mock230_send_midi_song_stop`
+ * just above, and for the same reason: osrs230's packet table has no
+ * MIDI_JINGLE either, so a caller targeting that revision WILL take this path,
+ * and a short body would desynchronise the stream rather than being ignored.
+ * `mock230_send` reports the unmapped name once by itself.
+ */
+void
+mock230_send_midi_jingle(
+    struct Mock230Player* player,
+    int id,
+    int length_ms)
+{
+    struct RSAreaBuf buf;
+    const struct Mock230WirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->midi_jingle )
+        return;
+    open_packet(&buf, 8);
+    pl->midi_jingle(&buf, id, length_ms);
+    flush(player, &buf, OP_MIDI_JINGLE, 0);
 }
 
 /*

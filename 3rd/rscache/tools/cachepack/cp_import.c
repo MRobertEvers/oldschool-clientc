@@ -1352,15 +1352,6 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
             }
             model->face_textures[face] = (int16_t)dest_texture;
         }
-        {
-            int simplified = 0, frames_dropped = 0;
-            backport_texture_mapping_to_simple(model, source_id, &simplified, &frames_dropped);
-            if( simplified || frames_dropped )
-                fprintf(stderr,
-                        "cachepack import: model %d texture mapping backported "
-                        "(%d face(s) to simple mapping, %d HD frame(s) dropped)\n",
-                        source_id, simplified, frames_dropped);
-        }
     }
     else if( m->legacy_scape2009 )
     {
@@ -1376,6 +1367,22 @@ static int write_model_asset(const struct Import_Manifest* m, struct Tool_Dat2Ca
         model->textured_face_count = 0;
         format = prov->format == RSCACHE_MODEL_FORMAT_OB3 ? RSCACHE_MODEL_FORMAT_V3
                                                           : RSCACHE_MODEL_FORMAT_V2;
+    }
+
+    /* Any model that still carries textures is about to be read by the
+     * destination's SD raster, so its mapping frames have to be ones that
+     * raster can express -- whether the textures were remapped above or came
+     * through untouched from a same-family source. A model that already uses
+     * only simple frames (every stock OSRS one does) comes out byte-identical. */
+    if( model->face_textures )
+    {
+        int simplified = 0, frames_dropped = 0;
+        backport_texture_mapping_to_simple(model, source_id, &simplified, &frames_dropped);
+        if( simplified || frames_dropped )
+            fprintf(stderr,
+                    "cachepack import: model %d texture mapping backported "
+                    "(%d face(s) to simple mapping, %d HD frame(s) dropped)\n",
+                    source_id, simplified, frames_dropped);
     }
 
     uint32_t bound = RSCache_ModelEncodeBound(model, prov);

@@ -561,6 +561,29 @@ w239_midi_song_stop(struct RSAreaBuf* buf, int fade_out_delay, int fade_out_spee
 }
 
 /*
+ * MidiJingleEncoder v16 (revs 239). `length_in_millis` is a big-endian p3, id
+ * is a p2Alt3 with 65535 meaning "no id" -- the same sentinel MIDI_SONG uses.
+ *
+ * Confirmed three independent ways rather than transcribed once:
+ *   - the vendored generated codec, 3rd/rsprot/packets/midi_jingle.c:134-140
+ *     (`packet_midi_jingle_v16_out`, table row `{239, 239, ...}`)
+ *   - the 239 Kotlin transcription, 3rd/rsprot/gen/codec/encoders_239.h:1496
+ *   - the rev-239 deob: `class243(118, 5)` and the g3/g2Alt3 read pair in
+ *     `client.java`'s handler for opcode 118.
+ *
+ * The client ignores the length once decoded (rs_audio.c's RS_Audio_Jingle
+ * comment: "trusting it would cut a jingle short on a slow load"), so a wrong
+ * value here would not be visible by ear -- only the wire-layout tests catch
+ * it, which is why they exist.
+ */
+static void
+w239_midi_jingle(struct RSAreaBuf* buf, int id, int length_ms)
+{
+    rsab_p3(buf, length_ms);
+    rsab_p2_alt3(buf, id);
+}
+
+/*
  * AmbientSoundStartEncoder / AmbientSoundStopEncoder.
  *
  * The client reads the first byte as a boolean ("fade rather than cut"), not as
@@ -1059,6 +1082,7 @@ static const struct Mock230WirePayload k_payload_osrs239 = {
     .synth_sound = w239_synth_sound,
     .midi_song = w239_midi_song,
     .midi_song_stop = w239_midi_song_stop,
+    .midi_jingle = w239_midi_jingle,
     .ambientsound_start = w239_ambientsound_start,
     .ambientsound_stop = w239_ambientsound_stop,
     .friendlist_loaded = w239_friendlist_loaded,
@@ -1128,6 +1152,7 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
     PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_MIDI_SONG_STOP,
+    PKT_NAME_MIDI_JINGLE,
     PKT_NAME_FRIENDLIST_LOADED,
     PKT_NAME_AMBIENTSOUND_START, PKT_NAME_AMBIENTSOUND_STOP,
     PKT_NAME_UPDATE_INV_FULL,  PKT_NAME_UPDATE_INV_PARTIAL,
