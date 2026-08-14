@@ -229,6 +229,98 @@ def main() -> int:
                "the generic swing is the site the lane's six combat_audio "
                "attack rows were stated for")
 
+        # ---- the familiar turns on the tick of the click ----
+        #
+        # The familiar timer would latch the same target within one tick anyway,
+        # so this is the difference between "my familiar joins the fight" and
+        # "my familiar joins the fight after standing still for 600ms".  Both
+        # paths exist: the label is the prompt one, the timer is the one that
+        # answers again after the victim dies.
+        combat_rs2 = COMBAT.read_text(encoding="utf-8")
+        start = combat_rs2[combat_rs2.index("[label,player_combat_start]"):]
+        start = start[:start.index("\n[")]
+        expect("~summoning_familiar_autoassist_on_attack;" in start,
+               "the player's attack no longer latches the familiar; it would "
+               "wait for the next familiar timer tick instead")
+        on_attack = definition(scripts, "proc,summoning_familiar_autoassist_on_attack")
+        expect("npc_finduid($victim);" in on_attack.rstrip().splitlines()[-1],
+               "the combat-start hook must restore the active npc it was called "
+               "with — the label goes on to swing at it")
+        victim_proc = definition(scripts, "proc,summoning_familiar_autoassist_victim")
+        expect("~summoning_account_enabled = false" in victim_proc,
+               "the combat-start hook reaches content that is not gated on the "
+               "Summoning feature")
+        expect(victim_proc.count("map_multiway(") == 3,
+               "the click path must apply the same three-party multiway rule as "
+               "the timer path")
+
+        # ---- every familiar flinches and dies ----
+        #
+        # `defend_anim` and `death_anim` are engine fields, so a familiar
+        # without them is silently a creature that stands perfectly still while
+        # it is beaten to death.  The counts are the source's: 43 records name
+        # defence animation 0 and 7 name none, which is why this is not 78.
+        boundary = json.loads(BOUNDARY.read_text(encoding="utf-8"))
+        admitted = frozenset(boundary.get("admitted_review_references", []))
+        with_defend = [r for r in rows if r["defend_seq"]]
+        with_death = [r for r in rows if r["death_seq"]]
+        expect(len(with_defend) == 28,
+               "%d familiars have a defend animation, the rev-530 records give "
+               "28" % len(with_defend))
+        expect(len(with_death) == 72,
+               "%d familiars have a death animation, the rev-530 records give "
+               "72" % len(with_death))
+        for row in rows:
+            body = blocks.get(row["npc"], "")
+            for key, param in (("defend_seq", "defend_anim"), ("death_seq", "death_anim")):
+                if not row[key]:
+                    continue
+                expect("param=%s,%s" % (param, row[key]) in body,
+                       "%s has a %s in the source but its live block does not "
+                       "state it" % (row["entry"], param))
+
+        # ---- an animation the cache does not carry is worse than none ----
+        #
+        # A review-only record named from content compiles — the source pack
+        # resolves the name — and then is absent from the staged cache, so the
+        # familiar plays nothing and nothing says why.  Every such name must be
+        # individually admitted; the bare prefix must never be.
+        for row in rows:
+            for key in ("attack_seq", "defend_seq", "death_seq"):
+                name = row[key]
+                if name.startswith(REVIEW_PREFIX):
+                    expect(name in admitted,
+                           "%s names review-only %s, which is held out of the "
+                           "feature cache" % (row["entry"], name))
+        expect(REVIEW_PREFIX not in admitted,
+               "the bare roster prefix is admitted, which would let the whole "
+               "preserved experiment into the cache")
+
+        # ---- the admission closure is complete ----
+        #
+        # A sequence without its frame archive, or an archive without its
+        # skeleton, animates nothing.  Both links are derived from the records
+        # themselves by the generator; this re-derives the first one from the
+        # staged-source side so a hand edit to the boundary cannot widen or
+        # narrow the set unnoticed.
+        seq_text = (LANE / "../../../ported/scape2009_summoning/configs"
+                    "/summoning_roster_530.seq").resolve().read_text(encoding="latin-1")
+        seq_blocks = {m.group(1): m.group(2) for m in
+                      re.finditer(r"^\[(\w+)\]\n(.*?)(?=^\[|\Z)", seq_text, re.M | re.S)}
+        animations = {}
+        for line in (LANE / "../../../ported/scape2009_summoning/pack"
+                     "/0_animations.pack").resolve().read_text(encoding="latin-1").splitlines():
+            if "=" in line and line.split("=")[0].isdigit():
+                key, value = line.split("=", 1)
+                animations[int(key)] = value.rsplit("/", 1)[-1]
+        for name in sorted(n for n in admitted if n in seq_blocks):
+            for frame in re.findall(r"frame=(\d+)", seq_blocks[name]):
+                archive = animations.get(int(frame) >> 16)
+                expect(archive is not None and archive in admitted,
+                       "admitted sequence %s draws frames from %s, which is not "
+                       "admitted — it would animate nothing"
+                       % (name, archive or "an archive outside this lane"))
+
         # ---- honey badger's uncharged tick reaches the shared swing ----
         badger = definition(scripts, "proc,summoning_honey_badger_charged_attack_tick")
         expect("(boolean)" in badger.splitlines()[0],

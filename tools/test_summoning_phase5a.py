@@ -19,6 +19,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -177,6 +178,15 @@ def main() -> int:
     parser.add_argument("--roster-csv", type=Path, default=ROSTER_CSV)
     parser.add_argument("--roster-manifest", type=Path, default=ROSTER_MANIFEST)
     parser.add_argument("--boundary", type=Path, default=BOUNDARY)
+    parser.add_argument(
+        "--repin", action="store_true",
+        help="rewrite the preserved experiment's pack-reference count and source "
+             "fingerprint in the boundary. Both move whenever a record is added "
+             "to admitted_review_references — the bytes held are unchanged, the "
+             "set of bytes still *being* held is smaller — so re-pinning is the "
+             "explicit second half of an admission, never a way to absorb an "
+             "edit to the experiment. It refuses when the source FILE count "
+             "moved, which is what an edit would look like.")
     args = parser.parse_args()
     args.tree = args.tree.resolve()
     args.pouches = args.pouches.resolve()
@@ -509,6 +519,24 @@ def main() -> int:
         len(source_candidate_files) == (review.expected_source_files if review is not None else -1),
         f"preserved review-only source file count changed: {len(source_candidate_files)}",
     )
+    if args.repin:
+        if len(source_candidate_files) != review.expected_source_files:
+            print("test_summoning_phase5a: refusing to re-pin — the preserved "
+                  "source FILE count moved, which is an edit to the experiment, "
+                  "not an admission", file=sys.stderr)
+            return 1
+        data = json.loads(args.boundary.read_text(encoding="utf-8"))
+        cohort = data["review_only_cohorts"][0]
+        was = cohort.get("expected_pack_references")
+        cohort["expected_pack_references"] = source_pack_references
+        cohort["source_fingerprint_sha256"] = review_only_source_fingerprint(
+            args.tree, review.prefix, stage_module
+        )
+        args.boundary.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
+        print("test_summoning_phase5a: re-pinned held pack references %s -> %d "
+              "and the source fingerprint (%d files unchanged)"
+              % (was, source_pack_references, len(source_candidate_files)))
+        return 0
     expect(
         source_pack_references == (review.expected_pack_references if review is not None else -1),
         f"preserved review-only pack-reference count changed: {source_pack_references}",
@@ -749,15 +777,38 @@ def main() -> int:
                 "feature-on staging modified preserved review-only pack entries",
             )
 
+    # Server content may name a review-only record only when that exact record
+    # is listed in `admitted_review_references`. The familiar attack, defend and
+    # death animations are admitted that way: the whole roster experiment stays
+    # held, and the individually named sequences, frame archives and skeletons
+    # the combat table reaches are not. A bare prefix reference is still a
+    # failure, because that would admit the experiment wholesale.
+    admitted_references = frozenset(
+        json.loads(args.boundary.read_text(encoding="utf-8"))
+        .get("admitted_review_references", [])
+    )
+    reference_token = re.compile(
+        r"(?<![A-Za-z0-9_])(%s[a-z0-9_]*)" % re.escape(review_prefix)
+    )
     server_sources = args.tree / "server/scripts"
-    server_review_hits = [
-        path.relative_to(server_sources).as_posix()
-        for path in server_sources.rglob("*")
-        if path.is_file() and review_prefix.encode("utf-8") in path.read_bytes()
-    ]
+    server_review_hits = []
+    for path in sorted(server_sources.rglob("*")):
+        if not path.is_file():
+            continue
+        text = path.read_bytes().decode("latin-1")
+        unadmitted = sorted(
+            {token for token in reference_token.findall(text)
+             if token not in admitted_references}
+        )
+        if unadmitted:
+            server_review_hits.append(
+                "%s (%s)" % (path.relative_to(server_sources).as_posix(),
+                             ", ".join(unadmitted[:3]))
+            )
     expect(
         not server_review_hits,
-        "server source references a review-only roster cohort: " + ", ".join(server_review_hits[:10]),
+        "server source references an unadmitted review-only roster record: "
+        + ", ".join(server_review_hits[:10]),
     )
 
     for error in errors:

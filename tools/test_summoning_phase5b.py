@@ -582,8 +582,18 @@ def main() -> int:
     else:
         expect(len(review_files_before) == 630,
                f"preserved review-only source file count changed: {len(review_files_before)}")
-        expect(review_refs_before == 2174,
-               f"preserved review-only pack-reference count changed: {review_refs_before}")
+        # Read from the boundary rather than restated here. This count is how
+        # many pack rows are still *held*, so it falls every time a record is
+        # admitted — the familiar attack/defend/death animations took it from
+        # 2174 to 1833 — while the source FILE count above stays at 630 because
+        # nothing about the preserved experiment was edited. Two copies of a
+        # number that moves for a legitimate reason is two places to forget.
+        expected_refs = json.loads(
+            args.boundary.read_text(encoding="utf-8")
+        )["review_only_cohorts"][0]["expected_pack_references"]
+        expect(review_refs_before == expected_refs,
+               f"preserved review-only pack-reference count changed: "
+               f"{review_refs_before}, boundary says {expected_refs}")
         with tempfile.TemporaryDirectory(prefix="summoning_phase5b_stage_") as temporary:
             staged = Path(temporary) / "stage"
             output = io.StringIO()

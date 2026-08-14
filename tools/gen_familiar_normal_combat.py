@@ -120,6 +120,67 @@ BONUS_SLOTS = [
 ]
 
 
+def pack_path(*parts):
+    return os.path.join(CONTENT, "ported", "scape2009_summoning", *parts)
+
+
+def read_pack_index(name):
+    """`<id>=<path>` ledger -> {id: record name}, ignoring the path prefix."""
+    out = {}
+    for line in open(pack_path("pack", name), encoding="latin-1"):
+        line = line.strip()
+        if "=" not in line or line.startswith("#"):
+            continue
+        key, value = line.split("=", 1)
+        if key.isdigit():
+            out[int(key)] = value.rsplit("/", 1)[-1]
+    return out
+
+
+def seq_frame_archives(names):
+    """The frame archives the given sequence records draw their frames from.
+
+    A `.seq` record lists `frame=<packed>,<delay>` where the high half of the
+    packed id is the destination frame-archive id.  Reading it here is what
+    makes the admission closure derived rather than declared: a sequence cannot
+    be admitted without the archive that holds its frames, and nothing else in
+    the tree states that link.
+    """
+    text = open(pack_path("configs", "summoning_roster_530.seq"),
+                encoding="latin-1").read()
+    blocks = {m.group(1): m.group(2) for m in
+              re.finditer(r"^\[(\w+)\]\n(.*?)(?=^\[|\Z)", text, re.M | re.S)}
+    archives = set()
+    for name in names:
+        body = blocks.get(name)
+        if body is None:
+            continue
+        for frame in re.findall(r"frame=(\d+)", body):
+            archives.add(int(frame) >> 16)
+    return archives
+
+
+def archive_framemaps(archive_names):
+    """The skeleton each frame archive is rigged to.
+
+    The link lives only inside the archive binary: its first two bytes are the
+    destination framemap id, big-endian.  A frame archive whose framemap is
+    absent from the cache animates nothing, so this closure has to follow it.
+    """
+    root = os.path.join(CONTENT, "animsets", "ported", "scape2009_summoning")
+    framemaps = set()
+    for name in archive_names:
+        path = os.path.join(root, name + ".anim")
+        if not os.path.isfile(path):
+            raise SystemExit("frame archive binary is missing: %s" % path)
+        with open(path, "rb") as handle:
+            head = handle.read(2)
+        if len(head) != 2:
+            raise SystemExit("frame archive is truncated: %s" % path)
+        framemaps.add((head[0] << 8) | head[1])
+    return framemaps
+
+
 def read_registry_types():
     """type int -> destination npc name, from the live registry proc."""
     path = os.path.join(LANE, "scripts", "summoning_registry.rs2")
@@ -255,6 +316,24 @@ def num(cfg, key, default):
     return int(value) if value not in (None, "") else default
 
 
+def resolve_seq(row, columns, admitted, review):
+    """The destination sequence name for the first column that has one.
+
+    An admitted name always wins over the roster import's own, because the two
+    are the same source sequence under two destination names and only the
+    admitted one was reviewed.  A roster name is returned when it is the only
+    one: those records are individually admitted through
+    `roster_boundary_530.json` by `--admit`, which reads exactly the names this
+    function returns.
+    """
+    for column in columns:
+        for sid in row.get(column, "").strip().split():
+            name = admitted.get(int(sid)) or review.get(int(sid))
+            if name:
+                return name
+    return ""
+
+
 def build(source):
     cfgs = {int(c["id"]): c for c in json.load(open(
         os.path.join(source, "Server/data/configs/npc_configs.json")))}
@@ -304,15 +383,15 @@ def build(source):
         # style's own column is empty in the source record.
         column = {STYLE_RANGED: "range_seq", STYLE_MAGIC: "magic_seq"}.get(
             style, "attack_seq")
-        attack_seq = ""
-        withheld = ""
         row = roster.get(entry, {})
-        for key in (column, "attack_seq"):
-            for sid in row.get(key, "").strip().split():
-                attack_seq = attack_seq or seq_admitted.get(int(sid), "")
-                withheld = withheld or seq_review.get(int(sid), "")
-            if attack_seq:
-                break
+        attack_seq = resolve_seq(row, (column, "attack_seq"),
+                                 seq_admitted, seq_review)
+        # Defend and death are the engine's, not the swing's: it plays
+        # `block_seq` on every hit a familiar takes and `death_seq` on the
+        # death step.  Every familiar has them, including the beasts of burden
+        # and the peaceful ones that never swing at anything.
+        defend_seq = resolve_seq(row, ("defend_seq",), seq_admitted, seq_review)
+        death_seq = resolve_seq(row, ("death_seq",), seq_admitted, seq_review)
 
         # A familiar auto-assists only when the source's own conjunction holds,
         # and can only *swing* here when it also has a style and an animation.
@@ -342,7 +421,8 @@ def build(source):
             "style_source": style_const or "",
             "reach": REACH_OF.get(style, 0),
             "attack_seq": attack_seq,
-            "attack_seq_withheld": withheld,
+            "defend_seq": defend_seq,
+            "death_seq": death_seq,
             "attack_speed": num(cfg, "attack_speed", DEFAULT_ATTACK_SPEED),
             "attack_level": num(cfg, "attack_level", 0),
             "strength_level": num(cfg, "strength_level", 0),
@@ -358,8 +438,8 @@ def build(source):
 CSV_FIELDS = [
     "type", "entry", "npc", "source_npc", "pouch", "combat_familiar", "peaceful",
     "burden_beast", "auto_assist", "armed", "style", "style_source", "reach",
-    "attack_seq", "attack_seq_withheld", "attack_speed", "attack_level",
-    "strength_level",
+    "attack_seq", "defend_seq", "death_seq", "attack_sound", "defend_sound",
+    "death_sound", "attack_speed", "attack_level", "strength_level",
     "defence_level", "magic_level", "range_level", "lifepoints", "bonuses",
 ]
 
@@ -397,7 +477,16 @@ def existing_blocks():
 
 
 def stat_lines(row):
-    """The `.npc` body for one familiar's ordinary-combat profile."""
+    """The `.npc` body for one familiar's ordinary-combat profile.
+
+    Two halves with different consumers.  The stats and bonuses are read by the
+    content-side swing through `npc_stat`/`npc_param`.  `defend_anim` and
+    `death_anim` are engine fields: `mock230_combat_hit_npc` plays `block_seq`
+    on every hit a familiar takes and the death step plays `death_seq`, so they
+    apply to every familiar including the beasts of burden and the peaceful ones
+    that never swing at anything.  A familiar with neither is a creature that
+    stands perfectly still while it is beaten to death.
+    """
     out = []
     for field, key in (("attack", "attack_level"), ("strength", "strength_level"),
                        ("defence", "defence_level"), ("magic", "magic_level"),
@@ -409,7 +498,20 @@ def stat_lines(row):
         for slot, name in BONUS_SLOTS:
             if int(values[slot]):
                 out.append("param=%s,%s" % (name, values[slot]))
+    for param, key in (("defend_anim", "defend_seq"), ("death_anim", "death_seq")):
+        if row[key]:
+            out.append("param=%s,%s" % (param, row[key]))
     return out
+
+
+def needs_block(row):
+    """Whether this familiar has anything to say in a `.npc` block.
+
+    An armed familiar needs its stats to roll with; every familiar with a
+    defend or death animation needs it whether or not it ever swings, because
+    the engine plays those when it is hit and when it dies.
+    """
+    return bool(row["armed"] or row["defend_seq"] or row["death_seq"])
 
 
 def write_npc(rows):
@@ -422,7 +524,12 @@ def write_npc(rows):
 // docs/summoning_port/familiar_normal_combat_530.csv.
 //
 // `Familiar` rolls its swing with the familiar's own stats, never the owner's,
-// so these are the numbers `~summoning_familiar_generic_swing` needs.
+// so these are the numbers `~summoning_familiar_generic_combat_tick` needs.
+//
+// `defend_anim` and `death_anim` are engine fields and apply to every familiar,
+// not only the ones that fight: `mock230_combat_hit_npc` plays the first on
+// every hit taken and the death step plays the second. A beast of burden that
+// never swings still flinches and still dies.
 //
 // A familiar whose block already exists in another lane `.npc` file is absent
 // here on purpose: `mock230_content_npc` returns the first block for an id, so
@@ -435,7 +542,7 @@ def write_npc(rows):
 """]
     written = 0
     for r in rows:
-        if not r["armed"] or r["npc"] in owned:
+        if not needs_block(r) or r["npc"] in owned:
             continue
         out.append("[%s]" % r["npc"])
         out.extend(stat_lines(r))
@@ -447,7 +554,7 @@ def write_npc(rows):
 
 
 def audit(rows):
-    """Report every armed familiar whose block another file owns.
+    """Report every familiar whose block another file owns and is missing rows.
 
     A hand-authored block that predates this table can be missing a stat the
     swing rolls with, or can disagree with the source outright.  Both are
@@ -458,7 +565,7 @@ def audit(rows):
     root = os.path.join(LANE, "configs")
     findings = 0
     for r in rows:
-        if not r["armed"] or r["npc"] not in owned:
+        if not needs_block(r) or r["npc"] not in owned:
             continue
         owner = owned[r["npc"]]
         text = open(os.path.join(root, owner)).read()
@@ -483,6 +590,57 @@ def audit(rows):
                 note = next((c for c in conflicting if c.startswith(line)), None)
                 print("      %s" % (note or line))
     return findings
+
+
+FOLD_MARK = "// generated by tools/gen_familiar_normal_combat.py --fold"
+
+
+def fold(rows):
+    """Append the missing generated rows to the block that owns each familiar.
+
+    `mock230_content_npc` returns the FIRST block for an npc id, so a familiar
+    another lane file already declares cannot be given its stats or animations
+    from the generated file — they have to go into the block that exists. Doing
+    that by hand once per new field is how the four ten-times-lifepoints typos
+    and the slot-10 bonus misreading survived as long as they did.
+
+    Only additions are folded. A line whose key the block already answers
+    differently is a disagreement with the source that wants a person to decide,
+    so it is left alone and `--audit` keeps reporting it.
+    """
+    owned = existing_blocks()
+    root = os.path.join(LANE, "configs")
+    pending = {}
+    for r in rows:
+        if not needs_block(r) or r["npc"] not in owned:
+            continue
+        owner = owned[r["npc"]]
+        text = open(os.path.join(root, owner), encoding="latin-1").read()
+        block = re.search(r"^\[%s\]\n(.*?)(?=^\[|\Z)" % re.escape(r["npc"]),
+                          text, re.M | re.S)
+        have = [l.strip() for l in block.group(1).splitlines() if l.strip()]
+        keys = {l.split("=")[0] if "=" not in l or not l.startswith("param=")
+                else l.split(",")[0] for l in have}
+        additions = [l for l in stat_lines(r) if l not in have and (
+            (l.split(",")[0] if l.startswith("param=") else l.split("=")[0])
+            not in keys)]
+        if additions:
+            pending.setdefault(owner, []).append((r["npc"], additions))
+
+    written = 0
+    for owner, entries in sorted(pending.items()):
+        path = os.path.join(root, owner)
+        text = open(path, encoding="latin-1").read()
+        for npc, additions in entries:
+            block = re.search(r"^\[%s\]\n(.*?)(?=^\[|\Z)" % re.escape(npc),
+                              text, re.M | re.S)
+            body = block.group(1).rstrip("\n")
+            replacement = "[%s]\n%s\n%s\n%s\n\n" % (
+                npc, body, FOLD_MARK, "\n".join(additions))
+            text = text[:block.start()] + replacement + text[block.end():]
+            written += 1
+        open(path, "w", encoding="latin-1").write(text)
+    return written, len(pending)
 
 
 def write_table(rows):
@@ -537,15 +695,101 @@ def write_table(rows):
     return path
 
 
+BOUNDARY = os.path.join(DOCS, "roster_boundary_530.json")
+
+# The three line-oriented ledgers a record's membership is spelled in.  The
+# stage filters these line by line, so admitting a record means retaining its
+# line in each one it appears in.
+PACK_LEDGERS = {
+    "seq": ("pack/seq.alloc", "pack/seq.client"),
+    "frame_archive": ("pack/0_animations.pack",),
+    "framemap": ("pack/1_skeletons.pack",),
+}
+
+
+def admission_closure(rows):
+    """Every review-only record the familiar animations need, and why.
+
+    Sequences come from the table itself — exactly the attack, defend and death
+    animations the rows name — then the frame archives those sequences draw
+    from, then the skeletons those archives are rigged to.  Nothing is admitted
+    that no familiar animation reaches, and the two derivation steps are read
+    out of the records rather than declared, so the set cannot quietly go stale.
+
+    The unreviewed npc, obj, loc, spotanim and model records the same import
+    holds are untouched: those are the gameplay surface the boundary exists to
+    hold back.  A sequence and a skeleton animate a record that is already
+    admitted on its own terms.
+    """
+    seqs = set()
+    for row in rows:
+        for key in ("attack_seq", "defend_seq", "death_seq"):
+            name = row[key]
+            if name.startswith(REVIEW_ONLY_PREFIX):
+                seqs.add(name)
+
+    animations = read_pack_index("0_animations.pack")
+    skeletons = read_pack_index("1_skeletons.pack")
+    archives = {animations[a] for a in seq_frame_archives(seqs) if a in animations}
+    framemaps = {skeletons[f] for f in archive_framemaps(archives) if f in skeletons}
+
+    references = sorted(seqs | archives | framemaps)
+    review_only = {name for name in references
+                   if name.startswith(REVIEW_ONLY_PREFIX)}
+    return references, review_only, len(seqs), len(archives), len(framemaps)
+
+
+def pack_lines_for(names):
+    """Every ledger line that names one of `names`, verbatim."""
+    wanted = set(names)
+    lines = []
+    for ledgers in PACK_LEDGERS.values():
+        for ledger in ledgers:
+            path = pack_path(*ledger.split("/"))
+            if not os.path.isfile(path):
+                continue
+            for line in open(path, encoding="latin-1"):
+                line = line.rstrip("\n")
+                if line.rsplit("/", 1)[-1].split("=")[-1] in wanted:
+                    lines.append(line)
+    return sorted(set(lines))
+
+
+def write_boundary(rows):
+    references, review_only, n_seq, n_arch, n_map = admission_closure(rows)
+    data = json.load(open(BOUNDARY))
+    kept = [name for name in data.get("admitted_review_references", [])
+            if name not in review_only]
+    data["admitted_review_references"] = sorted(set(kept) | review_only)
+    kept_lines = [line for line in data.get("admitted_review_pack_lines", [])
+                  if line.rsplit("/", 1)[-1].split("=")[-1] not in review_only]
+    data["admitted_review_pack_lines"] = sorted(
+        set(kept_lines) | set(pack_lines_for(review_only)))
+    with open(BOUNDARY, "w") as handle:
+        json.dump(data, handle, indent=1)
+        handle.write("\n")
+    return BOUNDARY, n_seq, n_arch, n_map
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", required=True,
                     help="root of a 2009scape checkout (rev 530)")
+    ap.add_argument("--fold", action="store_true",
+                    help="append the missing generated rows to the block that "
+                         "owns each familiar in another lane .npc file")
     ap.add_argument("--audit", action="store_true",
                     help="report armed familiars whose block another lane .npc "
                          "file owns, and what that block is missing")
     args = ap.parse_args()
     rows = build(args.source)
+
+    if args.fold:
+        written, files = fold(rows)
+        print("folded %d block%s across %d file%s" %
+              (written, "" if written == 1 else "s",
+               files, "" if files == 1 else "s"))
+        return 0
 
     if args.audit:
         print("blocks owned elsewhere, with the stats they still need:")
@@ -557,24 +801,30 @@ def main():
     csv_path = write_csv(rows)
     npc_path, npc_count = write_npc(rows)
     table_path = write_table(rows)
+    boundary_path, n_seq, n_arch, n_map = write_boundary(rows)
 
     assists = sum(r["auto_assist"] for r in rows)
     armed = sum(r["armed"] for r in rows)
     print("%d familiars, %d auto-assist, %d armed with a swing" %
           (len(rows), assists, armed))
-    withheld = [r for r in rows
-                if r["auto_assist"] and not r["armed"]
-                and r["type"] not in BESPOKE_TYPES]
     print("%d assist with a hand-written swing: %s" % (
         len(BESPOKE_TYPES),
         ", ".join(r["entry"] for r in rows if r["type"] in BESPOKE_TYPES)))
-    print("%d assist but cannot swing yet:" % len(withheld))
-    for r in withheld:
-        why = ("no attack sequence in the source record" if not r["attack_seq_withheld"]
-               else "animation held in the review-only roster import (%s)"
-                    % r["attack_seq_withheld"])
-        print("    %-20s %s" % (r["entry"], why))
-    for p in (csv_path, npc_path, table_path):
+    silent = [r for r in rows
+              if r["auto_assist"] and not r["armed"]
+              and r["type"] not in BESPOKE_TYPES]
+    print("%d assist but cannot swing: %s" % (
+        len(silent),
+        ", ".join("%s (no attack sequence in the source record)" % r["entry"]
+                  for r in silent) or "none"))
+    for key, label in (("defend_seq", "defend"), ("death_seq", "death")):
+        without = [r["entry"] for r in rows if not r[key]]
+        print("%d of %d familiars have a %s animation%s" % (
+            len(rows) - len(without), len(rows), label,
+            "" if not without else "; without: " + ", ".join(without)))
+    print("admitted %d review-only records: %d sequences, %d frame archives, "
+          "%d skeletons" % (n_seq + n_arch + n_map, n_seq, n_arch, n_map))
+    for p in (csv_path, npc_path, table_path, boundary_path):
         print("wrote", os.path.relpath(p, REPO))
     print("%d stat blocks written" % npc_count)
     return 0

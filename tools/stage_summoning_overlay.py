@@ -80,10 +80,31 @@ ADMISSION_TEXT_SUFFIXES = {
 # instead be isolated in a cohort-named file so their record structure cannot
 # be accidentally truncated.
 REVIEW_FILTER_SUFFIXES = {".alloc", ".client", ".pack"}
+
+# `.seq` is filtered by RECORD instead, which is the same promise made a safer
+# way. A sequence definition is a self-contained `[name]` block with no
+# cross-references to its neighbours, `split_config_records` parses it
+# structurally rather than by line, and — the reason this exists at all — the
+# familiar attack, defend and death animations the combat table names live
+# inside the preserved roster experiment's single `.seq` file. They cannot be
+# isolated into their own file without either editing that experiment, whose
+# fingerprint the boundary pins, or duplicating record names across two files
+# the packer would then see twice.
+#
+# Only records individually listed in `admitted_review_references` survive; the
+# rest are dropped exactly as the whole file used to be. Nothing else in this
+# lane is filtered this way, and a record file with any other suffix still has
+# to be isolated.
+REVIEW_RECORD_SUFFIXES = {".seq"}
 GENERATED_COHORT_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_(?:roster|cohort)_[a-z0-9_]+)")
 SYNTH_SOURCE_TOKEN = re.compile(r"(?:^|_)synth_(\d+)(?:$|_)")
 DIRECT_PET_RECORD_TOKEN = re.compile(r"(?<![A-Za-z0-9_])(summoning_pet_[a-z0-9_]+)")
 NPC_SOUNDS_YES = re.compile(r"(?mi)^\s*npc_sounds\s*=\s*yes\s*$")
+# The basename records filtered out of a review-only record file are written
+# under. It deliberately carries no `summoning_roster_`/`summoning_cohort_`
+# token, so `assert_review_only_absent` reads the staged file as ordinary lane
+# content and judges it by the record names inside it.
+ADMITTED_RECORD_NAME = "summoning_familiar_admitted_530"
 
 # The original Spirit wolf import predates the generated Phase-5 cohort
 # admission ledger.  Its five config filenames now follow the cohort naming
@@ -299,6 +320,26 @@ def copy_tree(source: Path, destination: Path) -> int:
     return len(files)
 
 
+def filter_admitted_records(path: Path, admission: RosterAdmission) -> tuple[list[str], int]:
+    """Split a review-only record file and keep only the admitted records.
+
+    Returns the retained lines and how many records were dropped. A record is
+    admitted by exact name, so a typo in `admitted_review_references` drops the
+    record rather than smuggling a neighbour through.
+    """
+    kept: list[str] = []
+    dropped = 0
+    for header, body in split_config_records(path).items():
+        name = header[1:-1]
+        if name in admission.admitted_review_references:
+            kept.extend(body)
+            if kept and kept[-1] != "":
+                kept.append("")
+        else:
+            dropped += 1
+    return kept, dropped
+
+
 def copy_admitted_tree(
     source: Path, destination: Path, admission: RosterAdmission
 ) -> tuple[int, int]:
@@ -316,6 +357,19 @@ def copy_admitted_tree(
     for source_file in ensure_plain_tree(source, "Summoning source"):
         relative = source_file.relative_to(source)
         if review_only_tokens(relative.as_posix(), admission):
+            if source_file.suffix in REVIEW_RECORD_SUFFIXES:
+                kept, dropped = filter_admitted_records(source_file, admission)
+                withheld += dropped
+                if not kept:
+                    continue
+                # Under a name with no cohort token of its own: the file it came
+                # from is still held out, and only these records are not.
+                destination_file = destination / relative.with_name(
+                    ADMITTED_RECORD_NAME + source_file.suffix)
+                destination_file.parent.mkdir(parents=True, exist_ok=True)
+                destination_file.write_text("\n".join(kept) + "\n", encoding="latin-1")
+                copied += 1
+                continue
             withheld += 1
             continue
         if source_file.suffix in REVIEW_FILTER_SUFFIXES:
