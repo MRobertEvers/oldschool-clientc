@@ -131,39 +131,114 @@ def load_inv_sizes() -> dict[str, int]:
 # ------------------------------------------------------------------
 
 
-def find_opnpc3_blocks(gameval: str) -> list[tuple[str, int, int, list[str]]]:
-    """Every `[opnpc3,<gameval>]` block in the tree: (path, start_line,
-    end_line, body_lines). A block runs from its header to the line before
-    the next `[...]` header at column 0 or end of file."""
+CALL_RE = re.compile(r"^@(\w+);$")
+
+
+def find_opnpc3_blocks(gameval: str) -> list[tuple[str, int, int, bool]]:
+    """Every `[opnpc3,<gameval>]` trigger in the tree: (path, start_line,
+    end_line, inline).
+
+    Two shapes content uses for a one-line trigger, both seen in this tree's
+    own shop stubs:
+
+        [opnpc3,bob]                       (block form — bob.rs2)
+        ~chatnpc(...);
+        mes("...nothing to trade...");
+
+        [opnpc3,generalshopkeeper2] @generalshop_trade_stub;   (inline —
+                                                          generalshop.rs2)
+
+    `inline=True` means the header line itself carries the whole body after
+    the `]`; `inline=False` means the body is every line up to the next
+    `[...]` header, matching `find_opnpc3_blocks`'s original block-only
+    behaviour. Missing the inline shape was a real bug (2026-08-13): four
+    `generalshop.rs2` triggers are inline, `line.strip() != header` never
+    matched them, so they read as "no existing trigger" and a freshly
+    generated file declared the same `[opnpc3,...]` a second time — the
+    duplicate `make mock230-scripts` caught.
+    """
     header = f"[opnpc3,{gameval}]"
-    hits: list[tuple[str, int, int, list[str]]] = []
+    hits: list[tuple[str, int, int, bool]] = []
     for path in glob.glob(os.path.join(SCAN_ROOT, "**", "*.rs2"), recursive=True):
         lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
         for i, line in enumerate(lines):
-            if line.strip() != header:
-                continue
-            j = i + 1
-            while j < len(lines) and not (lines[j].startswith("[") and lines[j].rstrip().endswith("]")):
-                j += 1
-            hits.append((path, i, j, lines[i + 1 : j]))
+            stripped = line.strip()
+            if stripped == header:
+                j = i + 1
+                while j < len(lines) and not (
+                    lines[j].startswith("[") and lines[j].rstrip().endswith("]")
+                ):
+                    j += 1
+                hits.append((path, i, j, False))
+            elif stripped.startswith(header + " ") or stripped.startswith(header + "\t"):
+                hits.append((path, i, i + 1, True))
     return hits
 
 
-def patch_stub(path: str, start: int, end: int, replacement_call: str) -> bool:
-    """Replace a stub block's trailing `mes("...nothing to trade...")` line
-    with a call to `~openshop`, leaving every other line — dialogue, quest
-    checks, `if_close` — untouched. Returns False (and touches nothing) if
-    the block's last non-blank line is not that exact shape, which is this
-    tool's whole safety margin: a block that does anything else is not a
-    stub this tool understands, and must be hand-edited instead."""
+def find_label_body(lines: list[str], name: str) -> list[str] | None:
+    """The body of `[label,name]` or `[proc,name]` in `lines`, or None."""
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped in (f"[label,{name}]", f"[proc,{name}]") or re.match(
+            rf"^\[proc,{re.escape(name)}\]\(", stripped
+        ):
+            j = i + 1
+            while j < len(lines) and not (lines[j].startswith("[") and lines[j].rstrip().endswith("]")):
+                j += 1
+            return lines[i + 1 : j]
+    return None
+
+
+def stub_body_ok(lines: list[str], body: list[str]) -> bool:
+    """A block is a stub this tool may take over when its last non-blank line
+    is either a bare `mes("...nothing to trade...")`, or a call to a label
+    whose own body (one level of indirection, checked in the same file) is
+    exactly that. The second case is `generalshop.rs2`'s shape:
+    `@generalshop_trade_stub;` where `[label,generalshop_trade_stub]`'s whole
+    body is the mes() line."""
+    last = next((ln for ln in reversed(body) if ln.strip()), "")
+    if STUB_MES_RE.match(last):
+        return True
+    m = CALL_RE.match(last.strip())
+    if not m:
+        return False
+    target = find_label_body(lines, m.group(1))
+    if target is None:
+        return False
+    target_last = next((ln for ln in reversed(target) if ln.strip()), "")
+    return bool(STUB_MES_RE.match(target_last))
+
+
+def patch_stub(path: str, start: int, end: int, inline: bool, replacement_call: str) -> bool:
+    """Replace a stub's trailing `mes(...)` (or, for the indirect shape, the
+    whole `[opnpc3,...]` line) with a call to the new shop's open label.
+    `stub_body_ok` is the check that must have already passed; this function
+    trusts it and only re-derives which physical line to rewrite."""
     lines = open(path, encoding="utf-8").read().split("\n")
+    if inline:
+        gameval = re.match(r"^\[opnpc3,(\w+)\]", lines[start].strip()).group(1)
+        lines[start] = f"[opnpc3,{gameval}] {replacement_call}"
+        open(path, "w", encoding="utf-8").write("\n".join(lines))
+        return True
     body = lines[start + 1 : end]
     last_i = len(body) - 1
     while last_i >= 0 and not body[last_i].strip():
         last_i -= 1
-    if last_i < 0 or not STUB_MES_RE.match(body[last_i]):
+    if last_i < 0:
         return False
-    body[last_i] = replacement_call
+    if STUB_MES_RE.match(body[last_i]):
+        body[last_i] = replacement_call
+    else:
+        m = CALL_RE.match(body[last_i].strip())
+        if not m:
+            return False
+        target = find_label_body(lines, m.group(1))
+        if target is None:
+            return False
+        # The call target's own body still says "nothing to trade" and may be
+        # shared by other npcs (generalshop_trade_stub is); leave it alone and
+        # just stop routing *this* trigger through it.
+        body[last_i] = replacement_call
     lines[start + 1 : end] = body
     open(path, "w", encoding="utf-8").write("\n".join(lines))
     return True
@@ -321,7 +396,7 @@ def run(write: bool) -> None:
         # (no existing trigger at all) get one declared in the new file;
         # `patched` ones keep their existing trigger, rewritten in place to
         # call the same label — declaring both would bind op3 twice.
-        patches: list[tuple[str, int, int]] = []
+        patches: list[tuple[str, int, int, bool]] = []
         fresh: list[str] = []
         patched_gamevals: list[str] = []
         blocked = False
@@ -334,13 +409,14 @@ def run(write: bool) -> None:
                 skipped[f"[opnpc3,{gameval}] appears in >1 file"] += 1
                 blocked = True
                 break
-            path, start, end, body = hits[0]
-            last = next((ln for ln in reversed(body) if ln.strip()), "")
-            if not STUB_MES_RE.match(last):
+            path, start, end, inline = hits[0]
+            lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+            body = [lines[start].split("]", 1)[1].strip()] if inline else lines[start + 1 : end]
+            if not stub_body_ok(lines, body):
                 skipped[f"[opnpc3,{gameval}] is not a bare trade stub"] += 1
                 blocked = True
                 break
-            patches.append((path, start, end))
+            patches.append((path, start, end, inline))
             patched_gamevals.append(gameval)
         if blocked:
             continue
@@ -374,8 +450,8 @@ def run(write: bool) -> None:
         open(inv_path, "w", encoding="utf-8").write(
             render_inv(shop_key, shop, rows, cache_inv)
         )
-        for path, start, end in patches:
-            ok = patch_stub(path, start, end, call_for_stub(shop_key))
+        for path, start, end, inline in patches:
+            ok = patch_stub(path, start, end, inline, call_for_stub(shop_key))
             if not ok:
                 print(f"warning: {path}: stub patch expected but did not apply "
                       f"(re-scan drifted?) for {shop_key}", file=sys.stderr)

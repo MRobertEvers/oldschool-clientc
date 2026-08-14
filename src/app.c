@@ -6039,6 +6039,37 @@ app_cs2_enqueue_followups(struct App* app)
                 &app->runner,
                 trig.component_id,
                 &UITree_Hooks(&app->tree->components[idx])->on_op);
+            /*
+             * ...and then answer the server, exactly as a picked menu row
+             * would (reference method3476, which is the *shared* body: run the
+             * on_op listener, then send IF_BUTTON<op> when that op's bit is
+             * armed). Dispatching the hook alone made cc_triggerop a purely
+             * visual call, which is what left shift-click drop doing nothing:
+             * script6012 moves "Drop" onto op 1 — a slot the server never arms
+             * — and script6014's cc_triggerop is the only thing that names the
+             * real op. Clicking it ran the script and sent nothing.
+             */
+            if( trig.op_index >= 1 && trig.op_index <= 10 &&
+                (app_if_events_for_node(app, trig.component_id) &
+                 (1u << trig.op_index)) )
+            {
+                int target = trig.component_id;
+                int sub = -1;
+                int obj_id = app->tree->components[idx].item_id;
+                app_if_button_target(app, trig.component_id, &target, &sub);
+                if( obj_id > 0 )
+                    APP_NET_SEND(
+                        app,
+                        net_out_if_button_obj_op(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                            trig.op_index, target, sub, obj_id));
+                else
+                    APP_NET_SEND(
+                        app,
+                        net_out_if_button_op(
+                            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
+                            trig.op_index, target, sub));
+            }
             queued = 1;
         }
     }

@@ -187,6 +187,31 @@ def load_lostcity_bindings() -> dict[str, dict]:
     return {k: v for k, v in out.items() if "inv" in v}
 
 
+# A multi-table page's 2nd/3rd table is a skillcape-tier sub-stock (§7 of
+# docs/SHOPS_PLAN.md — Ranging/Runecraft/Fletching/Magic/Thieving cape and its
+# trimmed twin), and the cache follows one naming convention for every one of
+# them: `{base_inv}_skillcape` / `{base_inv}_skillcape_trimmed`. This is a
+# derivation from an already-verified base binding, not a guess — it is
+# accepted only when the derived name actually exists in the cache's own
+# namespace, so a base shop whose skillcape counterpart the cache never built
+# (most of them: only 5 of the wiki's ~11 skillcape multi-tables have one)
+# stays unbound rather than being pointed at a name that resolves to nothing.
+SKILLCAPE_SECTION_RE = re.compile(r"^(.+?) cape(\(t\))?$", re.IGNORECASE)
+
+
+def skillcape_variant(base_inv: str, section: str, shop_invs: dict[str, str]) -> tuple[str, str]:
+    """(inv name, note) for a skillcape sub-table, or ("", "") if this cache
+    has no such variant of `base_inv`."""
+    m = SKILLCAPE_SECTION_RE.match(section.strip())
+    if not m or not base_inv:
+        return "", ""
+    trimmed = bool(m.group(2))
+    candidate = f"{base_inv}_skillcape_trimmed" if trimmed else f"{base_inv}_skillcape"
+    if candidate in shop_invs:
+        return candidate, f"skillcape variant of {base_inv}"
+    return "", ""
+
+
 def load_existing() -> dict[str, dict]:
     if not os.path.exists(OUT):
         return {}
@@ -209,12 +234,14 @@ def build(write: bool, refresh: bool) -> None:
             by_shop[row["shop_key"]].append(row)
 
     rows: list[dict] = []
+    by_key: dict[str, dict] = {}
     claimed: set[str] = set()
 
     for shop_key, shop in sorted(catalog.items()):
         prior = existing.get(shop_key)
         if prior and prior.get("confidence") == "verified" and not refresh:
             rows.append(prior)
+            by_key[shop_key] = prior
             claimed.add(prior["cache_inv"])
             continue
 
@@ -223,12 +250,33 @@ def build(write: bool, refresh: bool) -> None:
         source = ""
         note = ""
 
-        for gameval in owner_gamevals:
-            if gameval in lostcity:
-                inv = lostcity[gameval]["inv"]
-                source = "lostcity"
-                note = lostcity[gameval].get("title", "")
-                break
+        # A sub-table of a multi-table shop shares its owner npc with every
+        # other table on the same page — the owner-based lostcity lookup below
+        # cannot tell "Ranging cape" apart from the base table, and matching on
+        # it first is exactly the bug that put __2 and __3 on the same inv as
+        # __1 (docs/SHOPS_PLAN.md §1.3's original phase-1 pass). So the
+        # skillcape derivation goes first here, off the base table's *own*
+        # already-decided binding, and only the base table (or a sub-table with
+        # no skillcape counterpart in this cache) falls through to it.
+        is_sub_table = "__" in shop_key and not shop_key.endswith("__1")
+        if is_sub_table:
+            base_key = shop_key.rsplit("__", 1)[0] + "__1"
+            base_row = by_key.get(base_key)
+            if base_row and base_row["confidence"] == "verified":
+                inv, note = skillcape_variant(base_row["cache_inv"], shop.get("section", ""), shop_invs)
+                if inv:
+                    source = "skillcape-variant"
+            # No owner-based lostcity fallback here on purpose: every table on
+            # a multi-table page shares one owner npc, so that lookup cannot
+            # distinguish "Ranging cape" from the base table and would bind
+            # both to the same inv — the bug this whole branch exists to avoid.
+        else:
+            for gameval in owner_gamevals:
+                if gameval in lostcity:
+                    inv = lostcity[gameval]["inv"]
+                    source = "lostcity"
+                    note = lostcity[gameval].get("title", "")
+                    break
 
         if not inv:
             want = tokens(shop_key) | set().union(*(tokens(g) for g in owner_gamevals)) if owner_gamevals else tokens(shop_key)
@@ -242,18 +290,18 @@ def build(write: bool, refresh: bool) -> None:
                 source = "namematch"
                 note = f"{score} shared tokens"
 
-        rows.append(
-            {
-                "shop_key": shop_key,
-                "shop_name": shop["shop_name"],
-                "cache_inv": inv,
-                "inv_id": invs.get(inv, ""),
-                "owner_gameval": " ".join(dict.fromkeys(owner_gamevals)),
-                "confidence": "verified" if source == "lostcity" else ("proposed" if inv else ""),
-                "source": source,
-                "note": note,
-            }
-        )
+        row = {
+            "shop_key": shop_key,
+            "shop_name": shop["shop_name"],
+            "cache_inv": inv,
+            "inv_id": invs.get(inv, ""),
+            "owner_gameval": " ".join(dict.fromkeys(owner_gamevals)),
+            "confidence": "verified" if source in ("lostcity", "skillcape-variant") else ("proposed" if inv else ""),
+            "source": source,
+            "note": note,
+        }
+        rows.append(row)
+        by_key[shop_key] = row
         if inv:
             claimed.add(inv)
 
@@ -266,7 +314,9 @@ def build(write: bool, refresh: bool) -> None:
     print(f"{len(rows)} shops; {len(invs)} invs in the namespace "
           f"({tally['shop']} shop-shaped, {tally['mode-variant']} account-mode "
           f"variants, {tally['non-shop']} not shops)")
-    print(f"  {verified} verified from LostCity's own owned_shop bindings")
+    skillcape = sum(1 for r in rows if r["source"] == "skillcape-variant")
+    print(f"  {verified} verified ({skillcape} of those derived from a "
+          f"skillcape-tier naming convention off an already-verified base)")
     print(f"  {proposed} proposed by name match (review these)")
     print(f"  {unbound} shops with no inv proposed at all")
     print(f"  {len(unclaimed)} shop invs nothing claimed")
