@@ -1,8 +1,8 @@
 entity_kind,entry,stage,source_npc,source_obj,source_name,base_seqs,framemaps,rig_candidate_count,attack_seq,magic_seq,range_seq,defend_seq,death_seq,combat_audio,asset_status
 familiar,spirit_wolf,familiar,6829,12047,Spirit wolf,8297 8291,1491,53,8292,8292,8292,8294,8295,,catalogued
-familiar,dreadfowl,familiar,6825,12043,Dreadfowl,5386 7808,1255,13,7810,7810,7810,5388,5389,,catalogued
+familiar,dreadfowl,familiar,6825,12043,Dreadfowl,5386 7808,1255,13,7810,7810,7810,5388,7813,,catalogued
 familiar,spirit_spider,familiar,6841,12059,Spirit spider,5326 5325,1248,24,5327,5327,5327,5328,5329,"537,539,538",catalogued
-familiar,thorny_snail,familiar,6806,12019,Thorny snail,8146 8145,1730,10,8143,8143,8143,8145,8143,,catalogued
+familiar,thorny_snail,familiar,6806,12019,Thorny snail,8146 8145,1730,10,8143,8143,8143,8145,8144,,catalogued
 familiar,granite_crab,familiar,6796,12009,Granite crab,8098 8100,559,21,8104,8104,8104,8105,8106,,catalogued
 familiar,spirit_mosquito,familiar,7331,12778,Spirit mosquito,8035 8038,1745,22,8032,8032,8032,8034,8033,,catalogued
 familiar,desert_wyrm,familiar,6831,12049,Desert wyrm,7793 7792,1725,20,7795,,,,7797,,catalogued
@@ -54,9 +54,9 @@ familiar,barker_toad,familiar,6889,12123,Barker toad,7258 7259,1643,12,7260,,,,7
 familiar,war_tortoise,familiar,6815,12031,War tortoise,8284 8281,1720,9,8286,,,,8285,,catalogued
 familiar,bunyip,familiar,6813,12029,Bunyip,7738 7735,1733,10,7741,,,7742,7740,,catalogued
 familiar,fruit_bat,familiar,6817,12033,Fruit bat,8271 8273,1153,17,,,,,,,catalogued
-familiar,ravenous_locust,familiar,7372,12820,Ravenous locust,7992 7991,1752,12,,,,,,,catalogued
+familiar,ravenous_locust,familiar,7372,12820,Ravenous locust,7992 7991,1752,12,7994,,,,7996,,catalogued
 familiar,arctic_bear,familiar,6839,12057,Arctic bear,4919 4923,1151,20,4925,,,4928,4929,"498,500,499",catalogued
-familiar,phoenix,familiar,8575,14623,Phoenix,11092 11094,2430,18,,,,,,,catalogued
+familiar,phoenix,familiar,8575,14623,Phoenix,11092 11094,2430,18,11093,,,,11108,,catalogued
 familiar,obsidian_golem,familiar,7345,12792,Obsidian golem,8047 8046,1729,9,8050,,,8051,8052,,catalogued
 familiar,granite_lobster,familiar,6849,12069,Granite lobster,8116 8115,1736,9,8112,,,8114,8113,,catalogued
 familiar,praying_mantis,familiar,6798,12011,Praying mantis,8067 8072,1739,11,8069,,,,8065,,catalogued

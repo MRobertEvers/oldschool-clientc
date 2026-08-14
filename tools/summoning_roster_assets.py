@@ -78,7 +78,51 @@ def load_combat(path: Path) -> dict[int, dict[str, str]]:
     return {int(record["id"]): record for record in records}
 
 
-def animation_id(config: dict[str, str], key: str) -> str:
+# Corrections to npc_configs.json, cross-checked against nocturne-rs3's
+# `data/npcs/packedCombatDefinitions.ncd` (see NOCTURNRS3_SUMMONING.md).
+#
+# nocturne keys familiar combat definitions on the SECOND npc id of the pair
+# (the combat form), so its record for our npc N lives at N+1.  It is RS3-era,
+# so most of its disagreements are later re-animations and 2009scape stays
+# authoritative -- every entry below additionally required the sequence to
+# exist in the rev-530 cache AND a reason to distrust 2009scape here.
+#
+# Deliberately NOT taken from nocturne:
+#   pack_yak      853/852    - implausibly low, and inverted; 2009scape's
+#                              5782/5783/5784 is a coherent contiguous triple.
+#   wolpertinger  8303       - 2009scape's 8304/8305/8306 is already coherent;
+#                              no reason to prefer the id before it.
+#   albino_rat    14859/14860 - absent from the rev-530 cache entirely.
+#   pyrelord, smoke_devil, spirit_jelly, spirit_kalphite, spirit_scorpion,
+#   vampire_bat, war_tortoise - nocturne values are 17k-25k, i.e. RS3
+#                              re-animations of the same familiar.
+ANIMATION_OVERRIDES: dict[tuple[int, str], int] = {
+    # 2009scape reuses thorny snail's MELEE id (8143) as its death animation.
+    # 8144 is the unused middle of the snail's own 8143/8144/8145 block and is
+    # what nocturne records, so the duplicate is a source bug, not a shared anim.
+    (6806, "death_animation"): 8144,
+    # Dreadfowl's attack sits in the 781x block but 2009scape puts its defence
+    # and death in 538x -- which is the block its SPECIAL lives in (5387 is
+    # `dreadfowl_strike`).  nocturne keeps death in the attack's block at 7813,
+    # and its own DreadFowlCombat.java agrees with 2009scape on attack 7810, so
+    # the packed store is the better witness for death specifically.
+    (6825, "death_animation"): 7813,
+    # Ravenous locust has no combat animations at all in npc_configs.json.
+    # 799x is its block (7998 is `ravenous_locust_famine`), and both exist.
+    (7372, "melee_animation"): 7994,
+    (7372, "death_animation"): 7996,
+    # Phoenix likewise has none.  11092 is already documented as its cache-native
+    # fallback sequence, and 11093/11108 are present in the rev-530 cache.
+    (8575, "melee_animation"): 11093,
+    (8575, "death_animation"): 11108,
+}
+
+
+def animation_id(config: dict[str, str], key: str, npc_id: int | None = None) -> str:
+    if npc_id is not None:
+        override = ANIMATION_OVERRIDES.get((npc_id, key))
+        if override is not None:
+            return str(override)
     value = config.get(key)
     # 2009scape's config parser treats absent fields as absent.  Its literal
     # zeroes are fallback placeholders, not a selected familiar animation.
@@ -129,7 +173,7 @@ def build_manifest(
             ("defend", "defence_animation"),
             ("death", "death_animation"),
         ):
-            value = animation_id(config, field)
+            value = animation_id(config, field, entity.npc_id)
             if value:
                 add_unique(seqs, int(value), f"{name}_{role}")
 
@@ -243,11 +287,11 @@ def write_csv(path: Path, entities: list[Entity], catalog: dict[int, dict[str, s
                 "base_seqs": cat.get("seed_seqs", ""),
                 "framemaps": cat.get("framemaps", ""),
                 "rig_candidate_count": cat.get("rig_match_seqs", ""),
-                "attack_seq": animation_id(config, "melee_animation"),
-                "magic_seq": animation_id(config, "magic_animation"),
-                "range_seq": animation_id(config, "range_animation"),
-                "defend_seq": animation_id(config, "defence_animation"),
-                "death_seq": animation_id(config, "death_animation"),
+                "attack_seq": animation_id(config, "melee_animation", entity.npc_id),
+                "magic_seq": animation_id(config, "magic_animation", entity.npc_id),
+                "range_seq": animation_id(config, "range_animation", entity.npc_id),
+                "defend_seq": animation_id(config, "defence_animation", entity.npc_id),
+                "death_seq": animation_id(config, "death_animation", entity.npc_id),
                 "combat_audio": config.get("combat_audio", "") or "",
                 "asset_status": "catalogued",
             })
