@@ -757,12 +757,25 @@ FAMILY_DATA = {
     ),
     "Kharedst's memoirs": dict(
         storage="player_varp", depletion="none", max_charges=100,
-        charge_source="1 law+body+mind+soul rune per charge at the Old Memorial; max scales with pages added",
-        drain_event="1 charge per Reminisce teleport",
-        status="charges_only",
-        note="Wiki confirms player_varp directly: \"If the book is destroyed [while charged], all charges "
-             "are retained\" [and restored on reclaiming a fresh copy] -- account-scoped, same shape as "
-             "Dodgy necklace. Only quest scripts grant/remove the physical item; no charge storage exists.",
+        charge_source="each of 5 torn pages used on the book grants +20 charges AND unlocks its own "
+                       "destination; a separate Old Memorial rune top-up is not implemented (see note)",
+        drain_event="1 charge per Reminisce teleport to an unlocked Kourend-house destination",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/kharedst_memoirs.rs2/.constant/.varp, sixth family built "
+             "on SS_OP_LAST_SUBOP. The book has a single obj id throughout (no charged/uncharged pair, "
+             "unlike every other item this session) -- confirmed player_varp directly, both for the "
+             "charge count and for five separate per-page unlock flags. The Old Memorial (a rune-cost "
+             "top-up beyond what pages grant) has zero content anywhere in this tree -- no loc, no npc -- "
+             "so it is not implemented; what IS implemented is the wiki's other charge source, which is "
+             "self-contained and fully testable on its own: adding a page both unlocks its destination and "
+             "directly grants +20 charges. Destination coordinates came from the wiki's own per-page "
+             "teleport pins, cross-checked against a real regional-NPC spawn for all 5 (which also "
+             "confirmed the page->destination mapping, since the wiki names destinations by teleport "
+             "title, not by house, while the obj's own page ids are house-named). Each of the 5 page-adding "
+             "actions is its own dedicated proc (not one shared helper taking 'which varp') since this "
+             "language's procs are call-by-value with no verified precedent for a varp-typed parameter "
+             "writing through to the global it names -- checked directly rather than assumed after an "
+             "initial draft guessed the pass-by-reference shape would work.",
     ),
     "Merfolk trident": dict(
         storage="item_var", depletion="none", max_charges=10,
