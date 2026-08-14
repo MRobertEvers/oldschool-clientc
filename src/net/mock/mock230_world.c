@@ -3688,6 +3688,22 @@ advance_npcs(struct Mock230Server* srv)
         npc->follow_x = npc->last_step_x;
         npc->follow_z = npc->last_step_z;
 
+        /* MOCK230_FAMILIAR_DEBUG=1: one line per tick per owned npc. The
+         * familiar's pursuit is a three-way handshake between a script timer,
+         * a stored mode and a queued waypoint, and none of the three is
+         * visible from the client — "my familiar just follows me" is the same
+         * observation whether the mode never left playerfollow, the waypoint
+         * never got queued, or the timer never ran. */
+        if( npc->owner_gen != 0 && getenv("MOCK230_FAMILIAR_DEBUG") )
+        {
+            fprintf(
+                stderr,
+                "familiar_dbg tick=%d slot=%d type=%d mode=%d wp=%d ct=%d "
+                "at=%d,%d\n",
+                srv->tick, slot, npc->type, npc->mode, npc->waypoint_index,
+                npc->combat_target, npc->x, npc->z);
+        }
+
         /* Combat and death own the npc's movement. Roaming used to clear
          * step_dir here, which also wiped the step the combat mover had just
          * produced — phase 11 does that clear, once, at the right time.

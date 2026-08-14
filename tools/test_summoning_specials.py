@@ -22,6 +22,10 @@ INTERFACE = REPO / (
     "OSRS-Content/osrs239-content/ported/scape2009_summoning/"
     "interfaces/summoning_familiar.if"
 )
+ORBS_INTERFACE = REPO / (
+    "OSRS-Content/osrs239-content/ported/scape2009_summoning/"
+    "interfaces/orbs.if"
+)
 SPECIAL_MANIFEST = REPO / "docs/summoning_port/special_move_assets_530.ini"
 COMBAT_PROFILES = REPO / (
     "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summoning/"
@@ -46,15 +50,20 @@ def main() -> int:
         mock_combat = MOCK_COMBAT.read_text(encoding="utf-8")
         player_ranged = PLAYER_RANGED.read_text(encoding="utf-8")
         interface = INTERFACE.read_text(encoding="utf-8")
+        orbs_interface = ORBS_INTERFACE.read_text(encoding="utf-8")
         special_manifest = SPECIAL_MANIFEST.read_text(encoding="utf-8")
         combat_profiles = COMBAT_PROFILES.read_text(encoding="utf-8")
         execute = definition(scripts, "proc,summoning_familiar_special_execute")
         target_execute = definition(scripts, "proc,summoning_familiar_special_target_execute")
         xp = definition(scripts, "proc,summoning_familiar_special_xp")
         target_kinds = definition(scripts, "proc,summoning_familiar_special_target_kinds")
-        handler = definition(scripts, "if_button1,summoning_familiar:special")
+        # Self-cast specials fire from the Summoning orb's plain click, not the
+        # familiar panel: that badge is the free "Attack" command instead.
+        orb_handler = definition(scripts, "if_button1,orbs:summoning_orb_button")
+        handler = definition(scripts, "proc,summoning_familiar_special_fire")
         commit = definition(scripts, "proc,summoning_familiar_special_commit")
         validate = definition(scripts, "proc,summoning_familiar_special_validate")
+        attack_command = definition(scripts, "proc,summoning_familiar_command_attack")
 
         expected_xp = {
             1: 1, 2: 1, 3: 8, 4: 2, 5: 2, 6: 2, 7: 5, 8: 2, 9: 9, 10: 11, 11: 23, 12: 25, 13: 6, 14: 29, 15: 11,
@@ -86,10 +95,14 @@ def main() -> int:
                "return(true);" in scorpion,
                "Spirit Scorpion does not arm its generation-local charge")
         expect(xp_rows == expected_xp, "special XP is not the configured tenths-of-XP value")
-        expect("if (~summoning_familiar_special_execute(%summoning_familiar_type) = false) return;" in handler,
+        validate_at = handler.find("~summoning_familiar_special_validate($type)")
+        execute_at = handler.find("~summoning_familiar_special_execute($type)")
+        commit_at = handler.find("~summoning_familiar_special_commit($type);")
+        expect(validate_at >= 0 and execute_at >= 0 and commit_at >= 0 and
+               validate_at < execute_at < commit_at,
                "special resources can be committed before its operation accepts")
-        expect("~summoning_familiar_special_commit(%summoning_familiar_type);" in handler,
-               "the immediate path does not use the common special commit")
+        expect("~summoning_familiar_special_fire(%summoning_familiar_type);" in orb_handler,
+               "the Summoning orb's plain click does not fire the immediate/self-cast special")
         expect("DreadfowlNPC.java: Dreadfowl Strike" in execute and
                "npc_findcombat = false" in execute and
                "summoning_special_move_dreadfowl_strike_projectile" in execute and
@@ -462,22 +475,23 @@ def main() -> int:
         expect("if ($type = 59 | $type = 60 | $type = 61)" in execute,
                "the Titan's Constitution family is not shared")
         normal_tick = definition(scripts, "proc,summoning_familiar_normal_combat_tick")
-        # The multiway conjunction and the target resolution moved into
+        # The target resolution and the leash check moved into
         # `~summoning_familiar_engagement` when auto-assist gave every combat
         # familiar an ordinary swing; the Iron Titan branch reaches them through
         # that gate now instead of restating them.  Its own two charged hits
         # stay here, which is the part that is Iron Titan and nobody else.
         engagement = definition(scripts, "proc,summoning_familiar_engagement")
         auto_assist = definition(scripts, "proc,summoning_familiar_autoassist")
-        # The multiway conjunction moved one proc down when the singles-assist
-        # flag landed; the engagement gate now delegates to it.
+        # The area/multiway conjunction was dropped and replaced with a flat
+        # ten-tile leash off the owner (2026-08-14); the engagement gate still
+        # delegates to `~summoning_familiar_assist_allowed` for it.
         assist = definition(scripts, "proc,summoning_familiar_assist_allowed")
-        expect("map_multiway(coord)" in assist and
+        expect("distance(coord, $victim_coord) > 10" in assist and
                "npc_finduid($familiar) = false" in assist and
                "~summoning_familiar_assist_allowed(" in engagement and
                "npc_setmode(playerfollow)" in engagement and
                "npc_finduid($held) = false" in engagement,
-               "the shared engagement gate lost its multiway or generation checks")
+               "the shared engagement gate lost its leash or generation checks")
         expect("npc_findcombat = false" in auto_assist,
                "auto-assist no longer reads the owner's combat target")
         expect("%summoning_familiar_type != 76" in normal_tick and
@@ -530,14 +544,23 @@ def main() -> int:
                "summoning_special_move_steel_titan_projectile" in steel_tick,
                "Steel of Legends lacks its one-shot state, style cycle, three extras, or projectile")
         graahk_tick = definition(scripts, "proc,summoning_spirit_graahk_normal_combat_tick")
+        engagement = definition(scripts, "proc,summoning_familiar_engagement")
+        # Goad's own target-setting logic is the shared, no-cost
+        # `~summoning_familiar_command_attack` (also the familiar panel's free
+        # Attack badge) — target_execute just wraps it in the special-move
+        # scroll/points transaction, so the selected-target validation itself
+        # is checked on the shared proc, not inline here. The latch/release
+        # var_get/var_set(0) pair Goad's swing depends on is likewise shared,
+        # in `~summoning_familiar_engagement`, not inline in the graahk tick.
         expect("SpiritGraahkNPC.kt: Goad" in target_execute and
+               "~summoning_familiar_command_attack($target)" in target_execute and
                "if ($type = 40) return(1);" in text and
-               "npc_var_set(^summoning_npcvar_normal_attack_target, $target);" in target_execute and
-               "npc_findcombat = false & $already_attacking = 0" in target_execute and
-               "~summoning_familiar_npc_area_target($familiar) = false" in target_execute and
-               "npc_var_get(^summoning_npcvar_normal_attack_target)" in graahk_tick and
+               "npc_var_set(^summoning_npcvar_normal_attack_target, $target);" in attack_command and
+               "npc_findcombat = false & $already_attacking = 0" in attack_command and
+               "~summoning_familiar_npc_area_target($familiar) = false" in attack_command and
+               "npc_var_get(^summoning_npcvar_normal_attack_target)" in engagement and
                "npc_walk($target_coord);" in graahk_tick and
-               "npc_var_set(^summoning_npcvar_normal_attack_target, 0);" in graahk_tick and
+               "npc_var_set(^summoning_npcvar_normal_attack_target, 0);" in engagement and
                "npc_anim(summoning_special_move_rending, 0);" in graahk_tick and
                "npc_queue(2, $damage, 0);" in graahk_tick,
                "Goad lacks selected-target validation or its generation-safe normal-combat lifecycle")
@@ -570,12 +593,17 @@ def main() -> int:
                "summoning_special_move_call_to_arms_end" in execute and
                "npc_findowned2 = false" in execute,
                "Call to Arms lacks its remapped visuals or delayed familiar revalidation")
-        overlay = interface[interface.index("[special_overlay]") : interface.index("[special_overlay_icon]")]
-        expect("clickmask=129024" in overlay and "targetverb=Use" in overlay,
-               "the Summoning overlay is not a five-kind target component")
+        # The special move's target cursor lives on the Summoning orb now, not
+        # the familiar panel's badge — that badge is the free "Attack" command
+        # (checked further below). The orb carries op1/op2/op3 alongside the
+        # target bits, so Call familiar and a beast of burden's storage stay
+        # reachable on the right-click menu behind an armed special.
+        orb = orbs_interface[orbs_interface.index("[summoning_orb_button]"):]
+        expect("clickmask=129038" in orb and "targetverb=Use" in orb,
+               "the Summoning orb is not a five-kind target component with three op rows")
         for trigger in ("opnpct", "opplayert", "opheldt", "opobjt", "oploct"):
-            expect(f"[{trigger},summoning_familiar:special_overlay]" in text,
-                   f"the Summoning overlay does not route {trigger}")
+            expect(f"[{trigger},orbs:summoning_orb_button]" in text,
+                   f"the Summoning orb does not route {trigger}")
         # The `ap` half is what makes the special a ranged act. The engine tries
         # `[ap*t]` first, at its ten-tile ap range, and clears the queued walk the
         # moment one runs — so these four bindings ARE "range 10" and ARE "the
@@ -583,9 +611,38 @@ def main() -> int:
         # twins, which stay for the one case the ap rung declines: standing under
         # the pathing entity being cast at.
         for trigger in ("apnpct", "applayert", "apobjt", "aploct"):
-            expect(f"[{trigger},summoning_familiar:special_overlay]" in text,
-                   f"the Summoning overlay does not route {trigger} — without it the owner "
+            expect(f"[{trigger},orbs:summoning_orb_button]" in text,
+                   f"the Summoning orb does not route {trigger} — without it the owner "
                    f"walks to the target before the special runs")
+        # The orb's op order, and that every row it labels has a handler: an
+        # activatable special takes op1, Call familiar falls to op2 behind it,
+        # and a beast of burden's storage is op3.
+        arm_orb = definition(scripts, "proc,summoning_sidebar_arm_special_orb")
+        special_at = arm_orb.find('$op1 = "Use special move"')
+        call_at = arm_orb.find('$op2 = "Call familiar"')
+        expect(special_at >= 0 and call_at >= 0 and special_at < call_at,
+               "an activatable special must take the orb's op1 with Call familiar behind it")
+        expect('$op1 = "Call familiar"' in arm_orb,
+               "the orb must fall back to Call familiar on op1 with no familiar/special")
+        expect('"Take items"' in arm_orb and "^summoning_familiar_spirit_terrorbird" in arm_orb,
+               "a beast of burden gets no orb storage row")
+        for trigger in ("if_button1", "if_button2", "if_button3"):
+            expect(f"[{trigger},orbs:summoning_orb_button]" in text,
+                   f"the Summoning orb labels an op row with no {trigger} handler")
+        expect("~summoning_bob_open;" in definition(scripts, "if_button3,orbs:summoning_orb_button"),
+               "the orb's storage row does not open the beast-of-burden inventory")
+        # The familiar panel's badge is the free, no-cost "Attack" command
+        # instead: NPC-only (a familiar is never sent at a player/item/loc),
+        # and it must not touch the special-move resource transaction at all.
+        overlay = interface[interface.index("[special_overlay]"): interface.index("[special_overlay_icon]")]
+        expect("clickmask=129024" in overlay and "targetverb=Attack" in overlay,
+               "the familiar panel's badge is not an NPC-only free-attack component")
+        for trigger in ("opnpct", "apnpct"):
+            expect(f"[{trigger},summoning_familiar:special_overlay]" in text,
+                   f"the familiar panel's Attack badge does not route {trigger}")
+        expect("~summoning_familiar_special_validate" not in attack_command and
+               "~summoning_familiar_special_commit" not in attack_command,
+               "the free Attack command must not consume special-move scrolls or points")
         # And what closes the distance instead: the familiar's own walk, between
         # the kind check and the per-special operation.
         dispatch = definition(scripts, "proc,summoning_familiar_special_target_dispatch")

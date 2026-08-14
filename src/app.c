@@ -3704,6 +3704,35 @@ app_loc_editor_deselect(struct App* app)
     app_loc_editor_refresh_labels(app);
 }
 
+/* Targets an exact scene element -- the "Select" minimenu row's handler.
+ * Unlike app_loc_editor_reselect (a tile-only guess, first-loc-regardless-of-
+ * layer), this comes from the real pick/classify/dedup pipeline the minimenu
+ * itself uses, via the row's UIMinimenuPick.id, so it disambiguates a tile
+ * with a wall AND a wall-decor AND a ground loc on it exactly the way a
+ * player reading the right-click menu would. */
+static void
+app_loc_editor_select_element(struct App* app, int element_id)
+{
+    struct WorldEntity_Scenery* scenery;
+
+    if( !app->world )
+        return;
+    scenery = World_SceneryGetByElementId(app->world, element_id);
+    if( !scenery )
+        return;
+    app->locedit_loc_id = scenery->loc_id;
+    app->locedit_shape = scenery->shape;
+    app->locedit_angle = scenery->angle;
+    app->locedit_size_x = scenery->size_x;
+    app->locedit_size_z = scenery->size_z;
+    app->locedit_interactive = scenery->interactive;
+    snprintf(app->locedit_name, sizeof(app->locedit_name), "%s", scenery->name);
+    app->locedit_scene_x = scenery->grid_position.x;
+    app->locedit_scene_z = scenery->grid_position.z;
+    app->locedit_level = scenery->grid_position.level;
+    app_loc_editor_refresh_labels(app);
+}
+
 /* Client-only reposition: clear the old tile, place at the new one. Both legs
  * go through App_WorldLocChange so this is exactly what a zone LOC_DEL +
  * LOC_ADD_CHANGE pair would produce, just without a server round trip. */
@@ -3774,6 +3803,16 @@ app_loc_editor_tick(
 
     if( app->locedit_visible )
     {
+        /* A chat line stealing W/A/S/D/R/Space/Backspace would make the panel
+         * unusable, so force it (and the modal chat variants) closed for as
+         * long as this panel is open rather than merely suppressing the
+         * toggle key like the developer overlay does. The later chat-focus
+         * code (Enter / click-in-chat-region) is itself gated on
+         * locedit_visible so it cannot steal focus back mid-session. */
+        app->chat_input_active = 0;
+        app->chat.social_input_open = 0;
+        app->chat.dialog_input_open = 0;
+
         /* Overlay first, then the game (README_DEBUG_OVERLAY.md §6): a click
          * or drag that lands on this panel must not also reach the world's
          * own click-to-walk handling underneath it. */
@@ -3785,6 +3824,34 @@ app_loc_editor_tick(
         if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
             ToriDbgUI_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
             app->input_frame_consumed = 1;
+
+        /* Keyboard control, the fast path the menu rows advertise. IsKeyDown
+         * (edge, not held) so one press moves one tile rather than a nudge
+         * repeating every frame a key is held down. Space reselects at the
+         * live world_hover_tile_x/z directly -- pressing a key, unlike
+         * clicking a menu row, never moves the cursor off the world first, so
+         * the live hover is already correct and the remembered
+         * locedit_hover_x/z (which Reselect itself reads) is equally valid
+         * here since this same tick already refreshed it above. */
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
+            app_loc_editor_nudge(app, 1, 0);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
+            app_loc_editor_nudge(app, -1, 0);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_W) )
+            app_loc_editor_nudge(app, 0, 1);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_S) )
+            app_loc_editor_nudge(app, 0, -1);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_R) )
+            app_loc_editor_rotate(app);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_SPACE) )
+            app_loc_editor_reselect(app);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_BACKSPACE) )
+            app_loc_editor_deselect(app);
+        else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_ESCAPE) )
+        {
+            app->locedit_visible = 0;
+            ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
+        }
 
         activated = ToriDbgUI_TakeActivated(&app->dbg_ui);
         if( activated >= 0 )
@@ -13402,6 +13469,7 @@ app_hover_text_update(
                  * pointer is over bare viewport. */
                 .world_pickset = click_in_world ? &app->world_pickset : NULL,
                 .click_in_world = click_in_world != 0,
+                .locedit_active = app->locedit_visible != 0,
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
@@ -13492,6 +13560,7 @@ app_minimenu_open(
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
+        .locedit_active = app->locedit_visible != 0,
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -13879,6 +13948,7 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
+        .locedit_active = app->locedit_visible != 0,
     };
     struct UIMinimenu scratch;
     int default_idx;
@@ -14429,6 +14499,19 @@ app_minimenu_run_option(
             snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
         RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
         app->need_redraw = 1;
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    /* Loc editor "Select" row (rs_minimenu_world.c add_scenery_rows, gated on
+     * locedit_active): entirely client-side, same shape as the Examine
+     * intercept above -- must also run before the pick.kind switch, or a
+     * scenery-kind pick with this action would fall into the
+     * UI_MINIMENU_PICK_SCENERY case and mis-send an OPLOC. The `locedit_visible`
+     * re-check guards a row clicked in the one frame the tool closed on. */
+    if( opt.action == RS_MINIMENU_ACTION_LOCEDIT_SELECT )
+    {
+        if( app->locedit_visible )
+            app_loc_editor_select_element(app, opt.pick.id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -15682,6 +15765,7 @@ App_RunOnce(
              * row matches the right-click menu (reference doAction runs the
              * same chooseDefaultMenuEntry over the useMode/targetMode menu). */
             .selection = app_minimenu_selection(app),
+            .locedit_active = app->locedit_visible != 0,
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -15798,6 +15882,7 @@ App_RunOnce(
              * on an NPC with a spell armed built the plain ops and defaulted to
              * Attack (walk-to-melee "run up"), while the right-click menu cast. */
             .selection = app_minimenu_selection(app),
+            .locedit_active = app->locedit_visible != 0,
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -16023,8 +16108,10 @@ App_RunOnce(
     /* Chat input: typed characters/backspace/return feed whichever chat
      * input line is open (reference handleInputKey — typing goes to the chat
      * line even while op-key bindings also fire). Only when a chat region
-     * exists (dat1 gameframe). */
-    if( app->slots.chat_index >= 0 )
+     * exists (dat1 gameframe), and not while the loc editor is open -- it
+     * already forced every chat-focus flag off this frame, and W/A/S/D/R/
+     * Space/Backspace are its keys while it's up, not chat's. */
+    if( app->slots.chat_index >= 0 && !app->locedit_visible )
     {
         /* Chat input focus: a left press inside the chat region focuses it, a
          * press anywhere else unfocuses. Only while focused do typed keys feed

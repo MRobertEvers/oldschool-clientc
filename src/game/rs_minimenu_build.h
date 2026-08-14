@@ -123,7 +123,23 @@ struct RS_MinimenuBuildCtx
     int ground_fallback_x;
     int ground_fallback_z;
     int ground_fallback_level;
+
+    /* The loc editor dev tool (src/app.c, `app->locedit_visible`) wants a
+     * disambiguated target rather than "first loc found on this tile" --
+     * while it is open, every loc that already earns an Examine row also
+     * earns a Select row (RS_MINIMENU_ACTION_LOCEDIT_SELECT, rs_minimenu_world.c),
+     * intercepted client-side in app_minimenu_run_option before it can reach
+     * the real OPLOC dispatch. False in every build path that predates the
+     * tool, so this changes nothing when it is closed. */
+    bool locedit_active;
 };
+
+/* Custom, client-only minimenu action id: never sent to a server, and picked
+ * well clear of both the real rev-254 action-id band (tops out ~1714, or
+ * ~3714 deprioritized, revconfig.h) and the >1000 "deprioritized" bit
+ * UIMinimenu_ActionNormalize/SortPriorityActions test for, so a Select row
+ * sorts like any ordinary option instead of sinking to the bottom. */
+#define RS_MINIMENU_ACTION_LOCEDIT_SELECT 500000
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */

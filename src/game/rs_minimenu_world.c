@@ -451,7 +451,8 @@ add_scenery_rows(
     struct RS_MinimenuSelection const* sel,
     struct World* world,
     struct WorldEntity_Scenery const* scenery,
-    struct World_Picked const* picked)
+    struct World_Picked const* picked,
+    bool locedit_active)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
     char name_buf[UITREE_MINIMENU_OPTION_LEN];
@@ -482,6 +483,18 @@ add_scenery_rows(
 
     snprintf(text, sizeof(text), "Examine @cya@ %s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPLOC6, 0, pick);
+
+    /* Loc editor dev tool (src/app.c): every loc that earns an Examine row
+     * also earns a Select row while the tool is open, so its target comes
+     * from the same pick/classify/dedup pipeline the real minimenu already
+     * uses to disambiguate a tile -- not a guess at "first loc on the tile"
+     * by layer. Intercepted client-side in app_minimenu_run_option before it
+     * can reach the real OPLOC dispatch; never sent to a server. */
+    if( locedit_active )
+    {
+        snprintf(text, sizeof(text), "Select @cya@ %s", name);
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_LOCEDIT_SELECT, 0, pick);
+    }
 }
 
 /* Ground-item rows (Client.ts addWorldOptions entityType 3): ObjType.op in
@@ -959,7 +972,7 @@ RS_Minimenu_AddWorldRows(
             struct WorldEntity_Scenery* scenery =
                 World_SceneryGetByElementId(ctx->world, picked->element_id);
             if( scenery )
-                add_scenery_rows(menu, sel, ctx->world, scenery, picked);
+                add_scenery_rows(menu, sel, ctx->world, scenery, picked, ctx->locedit_active);
             break;
         }
         case WORLD_PICK_OBJSTACK:

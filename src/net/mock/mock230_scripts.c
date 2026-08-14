@@ -4452,6 +4452,13 @@ mock230_script_command(
          * `none` and `null` both mean stop, and 162 of the tree's 253 calls are
          * one of the two.
          */
+        if( npc->owner_gen != 0 && getenv("MOCK230_FAMILIAR_DEBUG") )
+        {
+            fprintf(
+                stderr,
+                "familiar_dbg setmode type=%d %d -> %d\n",
+                npc->type, npc->mode, (int)mode);
+        }
         npc->mode = mode;
         /*
          * A targetless mode CLEARS THE TARGET. `NPC_SETMODE` in the reference is

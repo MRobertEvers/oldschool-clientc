@@ -143,9 +143,12 @@ def main() -> int:
         # ---- the source conjunction ----
         expect("~summoning_familiar_auto_assists(%summoning_familiar_type)" in decision,
                "auto-assist does not consult the per-familiar table")
-        expect(allowed.count("map_multiway(") == 3,
-               "the assist gate checks %d multiway coords, the pre-EoC rule is "
-               "owner, familiar and victim" % allowed.count("map_multiway("))
+        expect("map_multiway(" not in allowed and "combat_assist_singles" not in allowed,
+               "the assist gate still checks area/multiway — the leash rule "
+               "(2026-08-14) dropped both the pre-EoC multicombat-only "
+               "restriction and the mutual-retaliation singles flag; a familiar "
+               "now attacks whatever the owner attacks, in any area, "
+               "immediately")
         expect("~summoning_familiar_assist_allowed(" in decision
                and "~summoning_familiar_assist_allowed(" in engagement,
                "both the latch and the swing must ask the same assist gate, or "
@@ -276,47 +279,54 @@ def main() -> int:
         expect("~summoning_familiar_assist_allowed(" in victim_proc,
                "the click path must apply the same assist gate as the timer path")
 
-        # ---- the singles-assist flag, and the thrall rule it turns on ----
+        # ---- the leash: immediate assist, any area, ten tiles off the owner ----
         #
-        # Off, the pre-EoC rule stands alone. On, a familiar may also swing in
-        # a single-way area — but only under the conditions that make OldSchool
-        # thralls legal there: it joins a fight its owner is already the other
-        # side of, or one its owner explicitly commanded. Losing either
-        # condition turns the flag from "a second rule" into "no rule".
-        expect("combat_assist_singles" in allowed,
-               "the assist gate no longer consults the server flag; the singles "
-               "rule is either always on or always off")
-        # The last statement, not merely a mention: reading the answer and then
-        # returning `true` regardless is the exact shape this must not take.
-        # An "auto" assist is legal in singles when the victim is already
-        # fighting the owner back (mutual retaliation) OR when nobody has
-        # claimed the victim yet (`npc_hastarget = false`) — the fresh-engage
-        # case that lets the familiar join on the owner's first swing instead
-        # of waiting for the victim to hit back, which is the thrall rule
-        # ("attacks the target its owner is attacking", not "attacks the
-        # target that is attacking its owner").
+        # 2026-08-14 design call: a familiar attacks whatever the owner attacks,
+        # the moment the owner does, in any area — no multiway restriction, no
+        # mutual-retaliation wait. The only thing that ever refuses a target is
+        # distance. `distance(coord, ...)` measures from the OWNER (`coord` is
+        # the active player throughout this proc; the victim's own coord is
+        # captured before `npc_finduid($familiar)` retargets the active npc).
         allowed_code = [l.strip() for l in allowed.splitlines()
                         if l.strip() and not l.strip().startswith("//")]
-        expect("npc_combatplayer" in allowed and "npc_hastarget" in allowed and
-               "if ($victim_fights_owner = true) return(true);" in allowed and
-               "if ($victim_claimed = true) return(false);" in allowed and
-               allowed_code[-1] == "return(true);",
-               "the singles rule must RETURN whether the victim is fighting this "
-               "owner or is unclaimed — without the first half a familiar becomes "
-               "a second attacker on something that already had one, and without "
-               "the second half auto-assist cannot join until the victim retaliates")
-        expect("^summoning_attack_commanded" in allowed,
-               "an owner-commanded target (Goad, a targeted special) must be "
-               "allowed in singles; the owner chose that fight")
-        expect(allowed.index("combat_assist_singles")
-               > allowed.index("map_multiway("),
-               "multiway must be answered before the flag, so turning the flag "
-               "off cannot narrow the pre-EoC rule")
+        expect("distance(coord, $victim_coord) > 10" in allowed,
+               "the assist gate no longer leashes the familiar to the owner at "
+               "ten tiles — a familiar with no leash never disengages, and one "
+               "leashed to itself or the victim breaks the moment the owner "
+               "steps away from a stationary fight")
+        expect(allowed_code[-1] == "return(true);" and allowed_code[-2] ==
+               "if (distance(coord, $victim_coord) > 10) return(false);",
+               "the leash check must be the last word — anything after it "
+               "could re-admit a target the distance check already refused")
+
+        # ---- calling the familiar drops whatever it was fighting ----
+        #
+        # Without this, a called familiar teleports to the owner's side but
+        # keeps its latched target, and `~summoning_familiar_autoassist` walks
+        # it straight back into the same fight on the next 600 ms tick — the
+        # call would relocate the familiar and change nothing else.
+        call_ex = definition(scripts, "proc,summoning_call_familiar_ex")
+        expect("npc_var_set(^summoning_npcvar_normal_attack_target, 0);" in call_ex
+               and "npc_var_set(^summoning_npcvar_attack_commanded, "
+                   "^summoning_attack_auto);" in call_ex,
+               "calling the familiar (button or the left-behind-teleport "
+               "recall) no longer clears its held combat target")
+        expect(call_ex.index("npc_var_set(^summoning_npcvar_normal_attack_target, 0);")
+               < call_ex.index("npc_tele($spawn);"),
+               "the target must be cleared before the teleport, not after, or "
+               "a tick landing between the two could still read the old target")
+
+        # Goad's own target-setting logic is the shared `summoning_familiar_command_attack`
+        # (the same free "Attack" command the familiar panel's badge issues) rather
+        # than an inline copy, so the commanded marker is asserted on that proc.
         goad = definition(scripts, "proc,summoning_familiar_special_target_execute")
+        command_attack = definition(scripts, "proc,summoning_familiar_command_attack")
+        expect("~summoning_familiar_command_attack($target)" in goad,
+               "Goad no longer routes through the shared command-attack proc")
         expect("npc_var_set(^summoning_npcvar_attack_commanded, "
-               "^summoning_attack_commanded);" in goad,
-               "Goad no longer marks its target as owner-commanded, so it would "
-               "be refused in singles")
+               "^summoning_attack_commanded);" in command_attack,
+               "the shared command-attack proc no longer marks its target as "
+               "owner-commanded, so Goad would be treated as auto-assist")
 
         # ---- every familiar flinches and dies ----
         #
