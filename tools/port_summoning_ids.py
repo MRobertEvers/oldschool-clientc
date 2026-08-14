@@ -232,7 +232,7 @@ def _review_only_cohorts(value: object) -> tuple[ReviewOnlyCohort, ...]:
                 re.fullmatch(r"[0-9a-f]{64}", source_fingerprint) is None):
             raise ValueError(f"boundary {label}.source_fingerprint_sha256 must be a lowercase SHA-256")
         synths = _id_set(raw.get("legacy_synth_sources"), f"{label}.legacy_synth_sources")
-        if synths != {188, 4161, 4265, 4372, 5753, 5776, 5777, 5792}:
+        if synths != PRESERVED_EXPERIMENT_SYNTHS:
             raise ValueError(f"boundary {label}.legacy_synth_sources does not match the preserved experiment")
         if dict(normalized_counts).get("synth") != len(synths):
             raise ValueError(f"boundary {label} synth count disagrees with legacy_synth_sources")
