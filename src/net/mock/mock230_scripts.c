@@ -9205,6 +9205,17 @@ mock230_script_command(
     case SS_OP_LAST_SLOT:
         SSVM_PushInt(state, player->last_slot);
         return 1;
+    /*
+     * The Rub-style submenu index (Giantsoul amulet's Bryophyta/Obor/Branda
+     * and Eldric, Xeric's talisman's five Kourend destinations, ...) —
+     * see gen_opcode_meta.py's EXTRA_OPCODES LAST_SUBOP entry for why this
+     * has no reference opcode to port. player->last_subop is already
+     * decoded off the wire (mock230_world.c's IF_SUBOP handling); this is
+     * only the missing read side.
+     */
+    case SS_OP_LAST_SUBOP:
+        SSVM_PushInt(state, player->last_subop);
+        return 1;
     case SS_OP_LAST_TARGETSLOT:
         SSVM_PushInt(state, player->last_targetslot);
         return 1;
