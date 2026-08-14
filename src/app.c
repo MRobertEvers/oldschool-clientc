@@ -6746,6 +6746,100 @@ app_net_link_watch(
     }
 }
 
+/*
+ * XP-drop panel probe (TORIRS_XPDROP_DEBUG=1).
+ *
+ * Interface 122 is entirely client-driven and its failure modes all present the
+ * same way — no drops — so the probe prints the three states that separate them
+ * and nothing else. Component ids are the cache's (122:2 statlistener holds the
+ * stat-transmit hook, 122:17 drops_container, 122:18..24 the seven rows); they
+ * are stable across rev 230 and 239.
+ */
+#define APP_XPDROP_IFACE 122
+#define APP_XPDROP_COM(child) ((APP_XPDROP_IFACE << 16) | (child))
+#define APP_XPDROP_ROW_COUNT 7
+
+static int
+app_xpdrop_debug(void)
+{
+    static int on = -1;
+    if( on < 0 )
+        on = getenv("TORIRS_XPDROP_DEBUG") ? 1 : 0;
+    return on;
+}
+
+static void
+app_xpdrop_debug_tick(struct App* app)
+{
+    static char last[768];
+    static int last_print_cycle = -100000;
+    char line[768];
+    int n = 0;
+    int32_t listener_idx = UITree_FindByComponentId(app->tree, APP_XPDROP_COM(2));
+    struct RS_CS2StatTransmitHook const* hook = NULL;
+
+    if( listener_idx < 0 )
+        return; /* panel not mounted — nothing to say */
+
+    for( int i = 0; i < app->host.stat_transmit_hook_count; i++ )
+    {
+        if( app->host.stat_transmit_hooks[i].component_id == APP_XPDROP_COM(2) )
+        {
+            hook = &app->host.stat_transmit_hooks[i];
+            break;
+        }
+    }
+
+    n += snprintf(
+        line + n, sizeof(line) - (size_t)n,
+        "vc70=%d vc71=%d vc76=%d serial=%u hook{%s seen=%u args=%d hid=%d} "
+        "c17hid=%d timers=%d",
+        VarCManager_GetInt(&app->varcs, 70),
+        VarCManager_GetInt(&app->varcs, 71),
+        VarCManager_GetInt(&app->varcs, 76),
+        app->host.stat_change_serial,
+        hook ? "armed" : "MISSING",
+        hook ? hook->last_seen_serial : 0u,
+        hook ? hook->int_arg_count : -1,
+        UITree_ComponentOrAncestorHidden(app->tree, APP_XPDROP_COM(2)) ? 1 : 0,
+        UITree_ComponentOrAncestorHidden(app->tree, APP_XPDROP_COM(17)) ? 1 : 0,
+        app->tree->timer_hooks.count);
+
+    for( int r = 0; r < APP_XPDROP_ROW_COUNT; r++ )
+    {
+        int const com = APP_XPDROP_COM(18 + r);
+        int32_t const idx = UITree_FindByComponentId(app->tree, com);
+        int kids = 0;
+        int timer = 0;
+        int hid = 1;
+        if( idx >= 0 )
+        {
+            for( int32_t c = app->tree->components[idx].first_child; c >= 0;
+                 c = app->tree->components[c].next_sibling )
+                kids++;
+            timer = UITree_Hooks(&app->tree->components[idx])->on_timer.script_id;
+            hid = UITree_ComponentOrAncestorHidden(app->tree, com) ? 1 : 0;
+        }
+        n += snprintf(
+            line + n, sizeof(line) - (size_t)n, " r%d=%s/%d/%d/%d", r,
+            idx < 0 ? "gone" : (hid ? "hid" : "vis"), kids, timer,
+            idx >= 0 ? app->tree->components[idx].behavior.hide : -1);
+        if( n >= (int)sizeof(line) )
+            break;
+    }
+
+    /* Only on change, plus a heartbeat, so a session can be left running. The
+     * clock is printed but deliberately not part of the compared state — it
+     * changes every tick and would make every line "new". */
+    if( strcmp(line, last) == 0 && (int)app->logic_cycle - last_print_cycle < 1500 )
+        return;
+    snprintf(last, sizeof(last), "%s", line);
+    last_print_cycle = (int)app->logic_cycle;
+    fprintf(
+        stderr, "xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle,
+        app->host.client_clock, line);
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -7290,6 +7384,18 @@ app_logic_tick(struct App* app)
             redraw = 1;
         }
     }
+
+    /* TORIRS_XPDROP_DEBUG=1: the XP-drop panel's decisive state, printed when it
+     * changes. The panel (interface 122) draws each drop HIDDEN and relies on
+     * the row's own onTimer (script1005) to reveal it, so "no drops" has three
+     * distinguishable causes and this line separates them:
+     *   - the stat hook stopped firing        (seen == serial while xp arrives)
+     *   - the script declined to draw         (serial advances, no row children)
+     *   - the row was drawn but never shown   (children present, timer=0/hidden)
+     * vc71 is the panel's own throttle (next scheduled clientclock); a vc71 far
+     * ahead of clock means every drop is being discarded by script1004. */
+    if( app_xpdrop_debug() )
+        app_xpdrop_debug_tick(app);
 
     /* Interface 116's four audio sliders arrive as CS2 option writes. The host
      * coalesces drag events; apply the latest complete snapshot here so VM

@@ -3694,14 +3694,15 @@ advance_npcs(struct Mock230Server* srv)
          * visible from the client — "my familiar just follows me" is the same
          * observation whether the mode never left playerfollow, the waypoint
          * never got queued, or the timer never ran. */
-        if( npc->owner_gen != 0 && getenv("MOCK230_FAMILIAR_DEBUG") )
+        if( npc->owner_gen != 0 && mock230_familiar_debug() )
         {
             fprintf(
                 stderr,
                 "familiar_dbg tick=%d slot=%d type=%d mode=%d wp=%d ct=%d "
-                "at=%d,%d\n",
+                "ctn=%d at=%d,%d face=%d\n",
                 srv->tick, slot, npc->type, npc->mode, npc->waypoint_index,
-                npc->combat_target, npc->x, npc->z);
+                npc->combat_target, npc->combat_target_npc, npc->x, npc->z,
+                npc->face_entity);
         }
 
         /* Combat and death own the npc's movement. Roaming used to clear

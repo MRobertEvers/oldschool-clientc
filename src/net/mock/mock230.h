@@ -784,6 +784,44 @@ enum
  */
 #define MOCK230_AFK_COMBAT_TICKS 2000
 
+/*
+ * MOCK230_FAMILIAR_DEBUG=1 — one stderr line per tick per owned npc (mode,
+ * waypoint, both combat targets, tile, face) plus every `npc_setmode` on one.
+ *
+ * A familiar's pursuit is a handshake between a script timer, a stored mode, an
+ * engine combat target and a queued waypoint, and NONE of the four is visible
+ * from the client: "my familiar just follows me and never attacks" is the same
+ * observation whether the mode never left `playerfollow`, the target never
+ * latched, the waypoint was queued into a mode that ignores waypoints, or the
+ * facing was cleared every turn. Reading the four side by side is what
+ * separated them.
+ *
+ * Cached rather than re-read: this sits in the per-tick npc loop.
+ */
+static inline int
+mock230_familiar_debug(void)
+{
+    static int on = -1;
+
+    if( on < 0 )
+        on = getenv("MOCK230_FAMILIAR_DEBUG") != NULL;
+    return on;
+}
+
+/*
+ * How far from its OWNER a summoned familiar may be dragged by a fight before
+ * the engine drops the target — the owner-relative replacement for the
+ * spawn-anchored `maxrange` leash every world npc uses (`tile_within_maxrange`).
+ *
+ * Ten tiles because that is already content's number:
+ * `~summoning_familiar_assist_allowed` (summoning_combat.rs2) refuses a victim
+ * more than ten tiles from the owner. The two have to agree — a familiar the
+ * engine still considers engaged while content has given up (or the reverse) is
+ * a familiar that stands in a fight doing nothing, which is exactly the failure
+ * this constant was added to end.
+ */
+#define MOCK230_FAMILIAR_LEASH 10
+
 /** `Mock230Player::last_input_tick` for a slot with no client behind it. Not a
  *  time, so it is outside every time: an armed clock may legitimately be a
  *  negative tick early in a world's life. */

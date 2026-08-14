@@ -294,6 +294,28 @@ def main() -> int:
                "ten tiles — a familiar with no leash never disengages, and one "
                "leashed to itself or the victim breaks the moment the owner "
                "steps away from a stationary fight")
+
+        # ---- the familiar fights under the engine's ordinary combat rules ----
+        #
+        # `npc_attacknpc` is what hands it to `npc_vs_npc_tick`, and that is the
+        # only thing that makes it FACE its target: the engine drops the face
+        # latch every turn for any npc with no engine-side combat target
+        # (`mock230_npc_face_clear_if_idle`), and a familiar's victim otherwise
+        # lives only in an npcvar the engine cannot see. It is also what gives
+        # a 2x2 familiar footprint-aware approach instead of one naive step.
+        #
+        # `npc_setmode(none)` is the shape this must NOT go back to: it leaves
+        # the familiar unfaced, unpursued, and — if a release path is ever
+        # missed — standing still forever with nothing owning its movement.
+        expect("npc_attacknpc($held);" in engagement,
+               "the engagement gate no longer hands its victim to the engine's "
+               "npc-versus-npc combat, so the familiar fights without facing "
+               "or approaching its target")
+        engagement_code = "\n".join(
+            l for l in engagement.splitlines() if not l.strip().startswith("//"))
+        expect("npc_setmode(none)" not in engagement_code,
+               "the engagement gate is back to owning movement itself; the "
+               "engine's combat tick has to own it or there is no facing")
         expect(allowed_code[-1] == "return(true);" and allowed_code[-2] ==
                "if (distance(coord, $victim_coord) > 10) return(false);",
                "the leash check must be the last word — anything after it "

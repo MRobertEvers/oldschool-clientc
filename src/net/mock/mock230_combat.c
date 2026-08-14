@@ -1360,13 +1360,53 @@ mock230_combat_level(const struct Mock230Player* player)
  */
 static int
 tile_within_maxrange(
+    const struct Mock230Server* srv,
     int x,
     int z,
     const struct Mock230Npc* npc)
 {
     int range = npc_def(npc)->maxrange;
-    int dx = abs_of(x - npc->spawn_x);
-    int dz = abs_of(z - npc->spawn_z);
+    int home_x = npc->spawn_x;
+    int home_z = npc->spawn_z;
+    int dx;
+    int dz;
+
+    /*
+     * A leash is measured from HOME, and a familiar's home is its owner, not
+     * the tile it was summoned on.
+     *
+     * `spawn_x/spawn_z` is the right anchor for everything the world places:
+     * a goblin belongs to its patch of ground and must not be dragged across
+     * the map. A summoned familiar belongs to a person. Measuring it from the
+     * summon tile leashes it to wherever the pouch happened to be clicked, so
+     * an owner who walks fifteen tiles and then attacks something has a
+     * familiar the engine refuses to let fight at all — and the refusal is
+     * silent, because `npc_vs_npc_tick` simply drops the target and the
+     * familiar reverts to following. That is indistinguishable from "my
+     * familiar ignores combat", which is what it was reported as.
+     *
+     * `MOCK230_FAMILIAR_LEASH` is the owner-relative range, and it is content's
+     * number as well: `~summoning_familiar_assist_allowed` refuses a target
+     * more than ten tiles from the owner, so the two halves agree on when a
+     * fight is over instead of one of them holding a target the other has
+     * given up. An owned npc whose owner has logged out falls back to the
+     * spawn anchor rather than becoming unleashed.
+     */
+    if( npc->owner_gen != 0 && srv )
+    {
+        const struct Mock230Player* owner =
+            mock230_world_npc_owner((struct Mock230Server*)srv, npc);
+
+        if( owner )
+        {
+            home_x = owner->x;
+            home_z = owner->z;
+            range = MOCK230_FAMILIAR_LEASH;
+        }
+    }
+
+    dx = abs_of(x - home_x);
+    dz = abs_of(z - home_z);
 
     if( dx > range + 1 || dz > range + 1 )
         return 0;
@@ -1377,10 +1417,11 @@ tile_within_maxrange(
 
 static int
 target_within_maxrange(
+    const struct Mock230Server* srv,
     const struct Mock230Player* player,
     const struct Mock230Npc* npc)
 {
-    return tile_within_maxrange(player->x, player->z, npc);
+    return tile_within_maxrange(srv, player->x, player->z, npc);
 }
 
 /*
@@ -1450,7 +1491,7 @@ maybe_aggress(
      * ticks for as long as the player stood there, sending a FACE_ENTITY latch
      * each way.
      */
-    if( !target_within_maxrange(player, npc) )
+    if( !target_within_maxrange(srv, player, npc) )
         return;
 
     npc_level = mock230_npcinfo(npc->type)->combat_level;
@@ -1730,7 +1771,7 @@ npc_vs_npc_tick(
     if( !target->active || target->death_tick >= 0 || target == npc ||
         target->generation != npc->combat_target_npc_gen ||
         target->level != npc->level ||
-        !tile_within_maxrange(target->x, target->z, npc) )
+        !tile_within_maxrange(srv, target->x, target->z, npc) )
     {
         mock230_combat_stop_npc(srv, slot);
         return 0;
@@ -1825,7 +1866,7 @@ mock230_combat_npc_tick(
      * this sits before the approach for the same reason: an npc that is about to
      * stop must not take one more step first.
      */
-    if( !target_within_maxrange(player, npc) )
+    if( !target_within_maxrange(srv, player, npc) )
     {
         mock230_combat_stop_npc(srv, slot);
         return;

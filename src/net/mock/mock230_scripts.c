@@ -4452,7 +4452,7 @@ mock230_script_command(
          * `none` and `null` both mean stop, and 162 of the tree's 253 calls are
          * one of the two.
          */
-        if( npc->owner_gen != 0 && getenv("MOCK230_FAMILIAR_DEBUG") )
+        if( npc->owner_gen != 0 && mock230_familiar_debug() )
         {
             fprintf(
                 stderr,
@@ -4477,6 +4477,19 @@ mock230_script_command(
         {
             npc->combat_target = -1;
         }
+        /*
+         * The npc-versus-npc target goes with EVERY mode, not only the
+         * targetless ones, because the npc phase gives that fight priority over
+         * the mode machine ("combat and death own the npc's movement"). A script
+         * that says `npc_setmode(playerfollow)` while `combat_target_npc` is
+         * still set is therefore asking for a mode that can never run a step —
+         * silently, which is how a familiar told to go back to its owner
+         * stayed standing in the fight it had just been released from. Setting
+         * a mode IS `clearInteraction()`/`setInteraction()` in the reference,
+         * and both replace whatever target was there.
+         */
+        npc->combat_target_npc = -1;
+        npc->combat_target_npc_gen = 0;
         if( mode == MOCK230_NPCMODE_NONE || mode == MOCK230_NPCMODE_NULL )
             npc->step_dir = -1;
         /*

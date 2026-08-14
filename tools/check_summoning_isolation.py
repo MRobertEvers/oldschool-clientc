@@ -143,13 +143,6 @@ def check(tree: Path) -> int:
             # hooks and op base at mount, one paints the selection outline.
             12006: "summoning_familiar_target_init",
             12007: "summoning_familiar_targetmode",
-            # The Summoning orb's own trio: its per-familiar op rows, plus the
-            # same target-mode init/paint split as the badge above — without
-            # which the orb keeps whichever hover frame it was left on for as
-            # long as the special's target cursor is armed.
-            12008: "summoning_orb_ops",
-            12009: "summoning_orb_targetmode",
-            12010: "summoning_orb_target_init",
         }
         if lane_script_rows != expected_scripts:
             errors.append(f"{lane_scripts}: expected {expected_scripts}, got {lane_script_rows}")

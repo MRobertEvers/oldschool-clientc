@@ -598,11 +598,23 @@ def main() -> int:
         # (checked further below). The orb carries op1/op2/op3 alongside the
         # target bits, so Call familiar and a beast of burden's storage stay
         # reachable on the right-click menu behind an armed special.
-        orb = orbs_interface[orbs_interface.index("[summoning_orb_button]"):]
-        expect("clickmask=129038" in orb and "targetverb=Use" in orb,
-               "the Summoning orb is not a five-kind target component with three op rows")
+        orb_button = orbs_interface[orbs_interface.index("[summoning_orb_button]"):
+                                    orbs_interface.index("[summoning_orb_target_overlay]")]
+        # The op button must NOT be target-armed: it carries the orb's hover
+        # graphic swap, and target-arming it stuck that swap on the hovered
+        # frame and exposed a stray "Use" row built from its orange label.
+        expect("clickmask=14" in orb_button and "targetverb=" in orb_button
+               and "targetverb=Use" not in orb_button,
+               "the Summoning orb's op button must not be a target component")
+        for row, op in (("op1", "Use special move"), ("op2", "Call familiar"),
+                        ("op3", "Take items")):
+            expect(f"{row}={op}" in orb_button,
+                   f"the Summoning orb's {row} is not the static '{op}' row")
+        orb = orbs_interface[orbs_interface.index("[summoning_orb_target_overlay]"):]
+        expect("clickmask=129024" in orb and "targetverb=Use" in orb,
+               "the Summoning orb's target overlay is not a five-kind target component")
         for trigger in ("opnpct", "opplayert", "opheldt", "opobjt", "oploct"):
-            expect(f"[{trigger},orbs:summoning_orb_button]" in text,
+            expect(f"[{trigger},orbs:summoning_orb_target_overlay]" in text,
                    f"the Summoning orb does not route {trigger}")
         # The `ap` half is what makes the special a ranged act. The engine tries
         # `[ap*t]` first, at its ten-tile ap range, and clears the queued walk the
@@ -611,25 +623,53 @@ def main() -> int:
         # twins, which stay for the one case the ap rung declines: standing under
         # the pathing entity being cast at.
         for trigger in ("apnpct", "applayert", "apobjt", "aploct"):
-            expect(f"[{trigger},orbs:summoning_orb_button]" in text,
+            expect(f"[{trigger},orbs:summoning_orb_target_overlay]" in text,
                    f"the Summoning orb does not route {trigger} — without it the owner "
                    f"walks to the target before the special runs")
-        # The orb's op order, and that every row it labels has a handler: an
-        # activatable special takes op1, Call familiar falls to op2 behind it,
-        # and a beast of burden's storage is op3.
+        # Every clientscript the Summoning server scripts invoke has to be both
+        # declared as a constant and present in the lane's clientscript pack —
+        # a `runclientscript*` to an id the client cannot resolve takes down the
+        # rest of the update batch, not just its own call.
+        constants = (REPO / "OSRS-Content/osrs239-content/server/scripts"
+                     "/ported_scape2009_summoning/configs/summoning.constant"
+                     ).read_text(encoding="utf-8")
+        packed = (REPO / "OSRS-Content/osrs239-content/ported/scape2009_summoning"
+                  "/pack/12_clientscripts.pack").read_text(encoding="utf-8")
+        packed_ids = {int(line.split("=", 1)[0]) for line in packed.splitlines() if "=" in line}
+        # Only lane-owned scripts are checked here: a constant declared in
+        # another lane's file names a script the base cache already carries.
+        for referenced in sorted(set(re.findall(r"\^clientscript_(\w+)", text))):
+            declared = re.search(rf"\^clientscript_{referenced}\s*=\s*(\d+)", constants)
+            if declared is None:
+                continue
+            expect(int(declared.group(1)) in packed_ids,
+                   f"clientscript {referenced} is invoked but absent from 12_clientscripts.pack")
         arm_orb = definition(scripts, "proc,summoning_sidebar_arm_special_orb")
-        special_at = arm_orb.find('$op1 = "Use special move"')
-        call_at = arm_orb.find('$op2 = "Call familiar"')
-        expect(special_at >= 0 and call_at >= 0 and special_at < call_at,
-               "an activatable special must take the orb's op1 with Call familiar behind it")
-        expect('$op1 = "Call familiar"' in arm_orb,
-               "the orb must fall back to Call familiar on op1 with no familiar/special")
-        expect('"Take items"' in arm_orb and "^summoning_familiar_spirit_terrorbird" in arm_orb,
+        # The stray-row trap: an IF3 target component offers its menu row from
+        # the CACHE clickmask, not the armed mask, and it covers the orb button.
+        # Hiding it is what keeps an unarmed overlay out of the menu.
+        expect("if_sethide(orbs:summoning_orb_target_overlay, true);" in arm_orb and
+               "if_sethide(orbs:summoning_orb_target_overlay, false);" in arm_orb,
+               "the orb's target overlay must be hidden unless a targeted special armed it")
+        expect("if_setevents(orbs:summoning_orb_button" in arm_orb and
+               "if_setevents(orbs:summoning_orb_target_overlay" in arm_orb,
+               "the orb arming proc does not arm both the op button and its target overlay")
+        # op2 (Call familiar) is the unconditional seed, so the orb always has a
+        # left-click; the special only ever adds op1 ahead of it and BoB op3.
+        expect("def_int $ops = ^if_event_op2;" in arm_orb and
+               "^if_event_op1" in arm_orb and "^if_event_op3" in arm_orb,
+               "the orb must always arm Call familiar, with the special and BoB rows "
+               "layered around it")
+        expect("^summoning_familiar_spirit_terrorbird" in arm_orb,
                "a beast of burden gets no orb storage row")
         for trigger in ("if_button1", "if_button2", "if_button3"):
             expect(f"[{trigger},orbs:summoning_orb_button]" in text,
-                   f"the Summoning orb labels an op row with no {trigger} handler")
-        expect("~summoning_bob_open;" in definition(scripts, "if_button3,orbs:summoning_orb_button"),
+                   f"the Summoning orb arms an op row with no {trigger} handler")
+        expect("~summoning_call_familiar;" in
+               definition(scripts, "if_button2,orbs:summoning_orb_button"),
+               "the orb's op2 is not Call familiar")
+        expect("~summoning_bob_open;" in
+               definition(scripts, "if_button3,orbs:summoning_orb_button"),
                "the orb's storage row does not open the beast-of-burden inventory")
         # The familiar panel's badge is the free, no-cost "Attack" command
         # instead: NPC-only (a familiar is never sent at a player/item/loc),
