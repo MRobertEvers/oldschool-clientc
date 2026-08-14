@@ -469,9 +469,14 @@ def main() -> int:
         # stay here, which is the part that is Iron Titan and nobody else.
         engagement = definition(scripts, "proc,summoning_familiar_engagement")
         auto_assist = definition(scripts, "proc,summoning_familiar_autoassist")
-        expect("map_multiway(coord)" in engagement and
+        # The multiway conjunction moved one proc down when the singles-assist
+        # flag landed; the engagement gate now delegates to it.
+        assist = definition(scripts, "proc,summoning_familiar_assist_allowed")
+        expect("map_multiway(coord)" in assist and
+               "npc_finduid($familiar) = false" in assist and
+               "~summoning_familiar_assist_allowed(" in engagement and
                "npc_setmode(playerfollow)" in engagement and
-               "npc_finduid($familiar) = false" in engagement,
+               "npc_finduid($held) = false" in engagement,
                "the shared engagement gate lost its multiway or generation checks")
         expect("npc_findcombat = false" in auto_assist,
                "auto-assist no longer reads the owner's combat target")

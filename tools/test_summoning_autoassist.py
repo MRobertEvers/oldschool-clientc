@@ -26,6 +26,7 @@ is what the tick reads and the CSV is what a reviewer reads.
 from __future__ import annotations
 
 import csv
+import json
 import re
 import sys
 from pathlib import Path
@@ -38,6 +39,12 @@ LANE = REPO / "OSRS-Content/osrs239-content/server/scripts/ported_scape2009_summ
 TABLE = LANE / "scripts/summoning_combat_table.rs2"
 CONFIGS = LANE / "configs"
 AUDIT = REPO / "docs/summoning_port/familiar_normal_combat_530.csv"
+BOUNDARY = REPO / "docs/summoning_port/roster_boundary_530.json"
+COMBAT = REPO / "OSRS-Content/osrs239-content/server/scripts/skill_combat/combat.rs2"
+CLIENT_LANE = REPO / "OSRS-Content/osrs239-content/ported/scape2009_summoning"
+# The preserved, unreviewed bulk import. A record inside it reaches the built
+# cache only by being named in the boundary's `admitted_review_references`.
+REVIEW_PREFIX = "summoning_roster_530"
 
 # Named rather than derived, so the test disagrees with the table when the
 # table is wrong.  Peaceful familiars first — these are the ones the wiki's
@@ -109,7 +116,14 @@ def main() -> int:
     try:
         scripts = script_dir()
         combat = definition(scripts, "proc,summoning_familiar_autoassist")
+        # The decision itself lives in the victim-taking form; the timer entry
+        # above only resolves the owner's target and delegates to it.
+        decision = definition(scripts, "proc,summoning_familiar_autoassist_victim")
         engagement = definition(scripts, "proc,summoning_familiar_engagement")
+        # The multiway conjunction moved here when the singles-assist flag
+        # landed: this proc is now the single place that decides whether a
+        # familiar may swing where it is standing, under either rule.
+        allowed = definition(scripts, "proc,summoning_familiar_assist_allowed")
         swing = definition(scripts, "proc,summoning_familiar_generic_combat_tick")
         tick = definition(scripts, "proc,summoning_familiar_normal_combat_tick")
         table = TABLE.read_text(encoding="utf-8")
@@ -127,23 +141,25 @@ def main() -> int:
                "auto-assist must latch the target before any handler reads it")
 
         # ---- the source conjunction ----
-        expect("~summoning_familiar_auto_assists(%summoning_familiar_type)" in combat,
+        expect("~summoning_familiar_auto_assists(%summoning_familiar_type)" in decision,
                "auto-assist does not consult the per-familiar table")
-        expect(combat.count("map_multiway(") == 3,
-               "auto-assist checks %d multiway coords, the source checks owner, "
-               "familiar and victim" % combat.count("map_multiway("))
-        expect(engagement.count("map_multiway(") == 3,
-               "the shared engagement resolver must re-check all three parties")
+        expect(allowed.count("map_multiway(") == 3,
+               "the assist gate checks %d multiway coords, the pre-EoC rule is "
+               "owner, familiar and victim" % allowed.count("map_multiway("))
+        expect("~summoning_familiar_assist_allowed(" in decision
+               and "~summoning_familiar_assist_allowed(" in engagement,
+               "both the latch and the swing must ask the same assist gate, or "
+               "a familiar can latch a target it may not legally hit")
         expect("npc_findcombat" in combat,
                "auto-assist must take the owner's own combat target")
-        expect("npc_var_get(^summoning_npcvar_normal_attack_target)" in combat
-               and "npc_var_set(^summoning_npcvar_normal_attack_target," in combat,
+        expect("npc_var_get(^summoning_npcvar_normal_attack_target)" in decision
+               and "npc_var_set(^summoning_npcvar_normal_attack_target," in decision,
                "auto-assist must read and write the familiar's own combat-pulse "
                "victim, not re-derive it every tick")
 
         # ---- the 2014 clause that must stay out ----
         for banned in ("npc_findattacker", "combat_attacker", "combat-attacker"):
-            expect(banned not in combat,
+            expect(banned not in combat and banned not in decision,
                    "auto-assist reintroduces the owner's attacker fallback (%s), "
                    "which is Smarter Familiars (2014-10-06) and not rev-530"
                    % banned)
@@ -237,22 +253,60 @@ def main() -> int:
         # paths exist: the label is the prompt one, the timer is the one that
         # answers again after the victim dies.
         combat_rs2 = COMBAT.read_text(encoding="utf-8")
-        start = combat_rs2[combat_rs2.index("[label,player_combat_start]"):]
-        start = start[:start.index("\n[")]
+        # Anchored at a line start: the file also names this label inside a
+        # backticked comment a few lines above its definition.
+        start = re.search(r"^\[label,player_combat_start\]\n(.*?)(?=^\[)",
+                          combat_rs2, re.M | re.S).group(1)
         expect("~summoning_familiar_autoassist_on_attack;" in start,
                "the player's attack no longer latches the familiar; it would "
                "wait for the next familiar timer tick instead")
         on_attack = definition(scripts, "proc,summoning_familiar_autoassist_on_attack")
-        expect("npc_finduid($victim);" in on_attack.rstrip().splitlines()[-1],
+        # The restore must come after the call: resolving the familiar and the
+        # victim moves the active npc, and the label swings at whatever is
+        # active when this returns.
+        expect("~summoning_familiar_autoassist_victim($victim);" in on_attack and
+               on_attack.index("npc_finduid($victim);")
+               > on_attack.index("~summoning_familiar_autoassist_victim($victim);"),
                "the combat-start hook must restore the active npc it was called "
-               "with — the label goes on to swing at it")
+               "with, after delegating — the label goes on to swing at it")
         victim_proc = definition(scripts, "proc,summoning_familiar_autoassist_victim")
         expect("~summoning_account_enabled = false" in victim_proc,
                "the combat-start hook reaches content that is not gated on the "
                "Summoning feature")
-        expect(victim_proc.count("map_multiway(") == 3,
-               "the click path must apply the same three-party multiway rule as "
-               "the timer path")
+        expect("~summoning_familiar_assist_allowed(" in victim_proc,
+               "the click path must apply the same assist gate as the timer path")
+
+        # ---- the singles-assist flag, and the thrall rule it turns on ----
+        #
+        # Off, the pre-EoC rule stands alone. On, a familiar may also swing in
+        # a single-way area — but only under the conditions that make OldSchool
+        # thralls legal there: it joins a fight its owner is already the other
+        # side of, or one its owner explicitly commanded. Losing either
+        # condition turns the flag from "a second rule" into "no rule".
+        expect("combat_assist_singles" in allowed,
+               "the assist gate no longer consults the server flag; the singles "
+               "rule is either always on or always off")
+        # The last statement, not merely a mention: reading the answer and then
+        # returning `true` regardless is the exact shape this must not take.
+        allowed_code = [l.strip() for l in allowed.splitlines()
+                        if l.strip() and not l.strip().startswith("//")]
+        expect("npc_combatplayer" in allowed and
+               allowed_code[-1] == "return($victim_fights_owner);",
+               "the singles rule must RETURN whether the victim is fighting "
+               "this owner — without it a familiar becomes a second attacker on "
+               "something that already had one, which is what single-way means")
+        expect("^summoning_attack_commanded" in allowed,
+               "an owner-commanded target (Goad, a targeted special) must be "
+               "allowed in singles; the owner chose that fight")
+        expect(allowed.index("combat_assist_singles")
+               > allowed.index("map_multiway("),
+               "multiway must be answered before the flag, so turning the flag "
+               "off cannot narrow the pre-EoC rule")
+        goad = definition(scripts, "proc,summoning_familiar_special_target_execute")
+        expect("npc_var_set(^summoning_npcvar_attack_commanded, "
+               "^summoning_attack_commanded);" in goad,
+               "Goad no longer marks its target as owner-commanded, so it would "
+               "be refused in singles")
 
         # ---- every familiar flinches and dies ----
         #
@@ -303,20 +357,23 @@ def main() -> int:
         # themselves by the generator; this re-derives the first one from the
         # staged-source side so a hand edit to the boundary cannot widen or
         # narrow the set unnoticed.
-        seq_text = (LANE / "../../../ported/scape2009_summoning/configs"
-                    "/summoning_roster_530.seq").resolve().read_text(encoding="latin-1")
+        seq_text = (CLIENT_LANE / "configs/summoning_roster_530.seq"
+                    ).read_text(encoding="latin-1")
         seq_blocks = {m.group(1): m.group(2) for m in
                       re.finditer(r"^\[(\w+)\]\n(.*?)(?=^\[|\Z)", seq_text, re.M | re.S)}
         animations = {}
-        for line in (LANE / "../../../ported/scape2009_summoning/pack"
-                     "/0_animations.pack").resolve().read_text(encoding="latin-1").splitlines():
+        for line in (CLIENT_LANE / "pack/0_animations.pack"
+                     ).read_text(encoding="latin-1").splitlines():
             if "=" in line and line.split("=")[0].isdigit():
                 key, value = line.split("=", 1)
                 animations[int(key)] = value.rsplit("/", 1)[-1]
         for name in sorted(n for n in admitted if n in seq_blocks):
             for frame in re.findall(r"frame=(\d+)", seq_blocks[name]):
                 archive = animations.get(int(frame) >> 16)
-                expect(archive is not None and archive in admitted,
+                # An archive that is not review-only is ordinary lane content
+                # and stages on its own; only a roster one needs admitting.
+                expect(archive is not None and (
+                    not archive.startswith(REVIEW_PREFIX) or archive in admitted),
                        "admitted sequence %s draws frames from %s, which is not "
                        "admitted — it would animate nothing"
                        % (name, archive or "an archive outside this lane"))

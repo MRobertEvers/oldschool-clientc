@@ -3320,6 +3320,49 @@ struct Mock230Server
 
     int verbose;
 
+    /**
+     * May a player's summoned helper swing in a SINGLE-way combat area?
+     *
+     * Read by content through `combat_assist_singles()`, and by nothing in the
+     * engine — this is policy, not mechanism, and the engine's job is only to
+     * hold it somewhere a script can reach and an operator can change.
+     *
+     * ## Why it is a flag at all
+     *
+     * Pre-EoC, a familiar could not help in a single-way area, because the
+     * player and the familiar are two attackers on one victim and single-way
+     * means one. That is the rule this tree's Summoning port implements, and
+     * `~summoning_familiar_engagement` states it as `map_multiway` on all three
+     * parties. It is also, for a modern player, the rule that makes a combat
+     * familiar do nothing almost everywhere: the Evolution of Combat made
+     * virtually the whole world multi in 2012 and the map this server runs
+     * predates that.
+     *
+     * OldSchool solved the same problem later and differently, with thralls
+     * (Arceuus, 2019). A thrall assists in single-way, and the reason it can is
+     * a *narrower* rule rather than an exemption: per the OSRS Wiki's Thrall
+     * page and Single-way combat page, a thrall attacks the target its owner is
+     * attacking and nothing else, generates no aggression of its own, and its
+     * damage "counts as damage dealt by the player that summoned it". Nothing
+     * about it is a second combatant — it is the owner's damage arriving from a
+     * second model — so single-way's one-attacker rule is never actually
+     * broken. (Thralls also ignore accuracy and cannot attack players; neither
+     * carries over here, and familiars keep rolling their own accuracy.)
+     *
+     * So the flag selects between two coherent rules, not between correct and
+     * lax: off is the pre-EoC rule the port reproduces, on is the thrall rule,
+     * and the thrall rule's conditions are enforced either way — content still
+     * refuses to let a familiar pick its own target or start a fight its owner
+     * is not already in. `npc_combatplayer` is the primitive that makes "my
+     * owner is who this npc is fighting" answerable, and without it the on
+     * position could not be implemented safely.
+     *
+     * Default ON, disabled with `MOCK230_FAMILIAR_SINGLES=0`. Only Summoning
+     * content reads it, and that content is compiled out of the ordinary script
+     * pack entirely, so "on by default" means "on wherever Summoning is on".
+     */
+    int familiar_singles_assist;
+
     /** Non-NULL only under the selftest; see mock230_capture_begin. */
     struct Mock230Capture* capture;
 

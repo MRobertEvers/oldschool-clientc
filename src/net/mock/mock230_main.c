@@ -72,6 +72,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * A boolean server flag that is ON unless the environment turns it off.
+ *
+ * The ordinary `getenv(...) != NULL` idiom above cannot express this: a flag
+ * that defaults on needs a way to say "no", and "unset the variable" is not
+ * available to a launcher that sets its whole environment from a config. `0`,
+ * `no`, `off` and `false` all disable; anything else, including unset, leaves
+ * it on.
+ */
+static int
+mock230_flag_default_on(const char* name)
+{
+    const char* value = getenv(name);
+
+    if( !value || !*value )
+        return 1;
+    return !(strcmp(value, "0") == 0 || strcmp(value, "no") == 0 ||
+             strcmp(value, "off") == 0 || strcmp(value, "false") == 0);
+}
+
 /* perror() reads errno, which Winsock calls never set -- WSAGetLastError() is
  * the only place a Windows socket failure's real code shows up. */
 static void
@@ -161,6 +181,7 @@ serve(
 
     memset(srv, 0, sizeof(*srv));
     srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
+    srv->familiar_singles_assist = mock230_flag_default_on("MOCK230_FAMILIAR_SINGLES");
     /*
      * After the memset, not before it.
      *
@@ -269,6 +290,7 @@ serve_js5(
 
     memset(srv, 0, sizeof(*srv));
     srv->verbose = getenv("MOCK230_VERBOSE") != NULL;
+    srv->familiar_singles_assist = mock230_flag_default_on("MOCK230_FAMILIAR_SINGLES");
 
     mock230_transport_socket(&transport, conn);
     mock230_session_init(&session, &transport, srv->verbose);

@@ -3440,6 +3440,29 @@ app_debug_overlay_init(struct App* app)
         &app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
     app->dbg_frame_row = ToriDbgUI_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
     ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
+
+    app->locedit_panel =
+        ToriDbgUI_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 40, 0, "Loc Editor");
+    app->locedit_row_target = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "no loc here");
+    app->locedit_row_pos = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    app->locedit_row_angle = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "");
+    ToriDbgUI_Separator(&app->dbg_ui, app->locedit_panel);
+    app->locedit_item_xplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1");
+    app->locedit_item_xminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1");
+    app->locedit_item_zplus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1");
+    app->locedit_item_zminus = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1");
+    app->locedit_item_rotate = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate");
+    app->locedit_item_reselect =
+        ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (loc under cursor)");
+    app->locedit_item_close = ToriDbgUI_MenuItem(&app->dbg_ui, app->locedit_panel, "Close");
+    ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
+    app->locedit_visible = 0;
+    app->locedit_loc_id = -1;
+    app->locedit_shape = -1;
+    app->locedit_angle = 0;
+    app->locedit_scene_x = -1;
+    app->locedit_scene_z = -1;
+    app->locedit_level = 0;
 }
 
 void
@@ -3538,6 +3561,189 @@ app_debug_overlay_tick(
     /* Build returns 0 on a frame where nothing moved. When it did rebuild the
      * canvas is stale — including the frame the panel was hidden on, whose
      * vacated pixels are still on screen until something repaints them. */
+    if( ToriDbgUI_Build(&app->dbg_ui) )
+    {
+        app->need_redraw = 1;
+        ToriDbgUI_DamageClear(&app->dbg_ui);
+    }
+}
+
+/* ---- Loc editor --------------------------------------------------------- *
+ *
+ * A second panel in the same dbg_ui instance (see the developer overlay
+ * above): move and rotate whatever loc sits under the cursor, live, without a
+ * server round trip. `App_WorldLocChange` already exists as a client-only
+ * "swap the loc at this tile" primitive (it drives zone LOC_ADD_CHANGE/DEL
+ * packets too), so a move is del-at-old-tile + change-at-new-tile and a
+ * rotate is a same-tile change with a new angle. Nothing here touches the
+ * server or persists past a world reload — the point is to read the exact
+ * scene x/z/angle off the panel once it looks right and hand-copy those
+ * numbers into the actual placement script.
+ */
+
+/* Refreshes the panel's three readout rows from current selection state.
+ * Called after every selection change, move, and rotate. */
+static void
+app_loc_editor_refresh_labels(struct App* app)
+{
+    char text[TORIDBG_INPUT_MAX];
+
+    if( app->locedit_loc_id < 0 )
+    {
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, "no loc here");
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, "");
+        ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_angle, "");
+        return;
+    }
+    snprintf(
+        text, sizeof(text), "loc %d shape %d", app->locedit_loc_id, app->locedit_shape);
+    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_target, text);
+    snprintf(
+        text,
+        sizeof(text),
+        "x=%d z=%d level=%d",
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level);
+    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_pos, text);
+    snprintf(text, sizeof(text), "angle=%d", app->locedit_angle);
+    ToriDbgUI_SetText(&app->dbg_ui, app->locedit_row_angle, text);
+}
+
+/* Targets whatever loc sits at the cursor's hover tile, on the local player's
+ * current level (a loc editor has no reason to reach across planes). Clears
+ * the selection (loc_id -1) when there is no loc there or nothing to hover. */
+static void
+app_loc_editor_reselect(struct App* app)
+{
+    struct WorldEntity_Player* player;
+    struct WorldEntity_Scenery* scenery;
+    int idx;
+
+    app->locedit_loc_id = -1;
+    if( !app->world || app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
+    {
+        app_loc_editor_refresh_labels(app);
+        return;
+    }
+    player = app_local_player(app);
+    app->locedit_level = player ? player->grid_position.level : 0;
+    /* loc_shape < 0: match the first loc on the tile regardless of layer --
+     * a decoration like a bridge is exactly as findable as a wall this way. */
+    idx = World_SceneryFindAt(
+        app->world, app->world_hover_tile_x, app->world_hover_tile_z, app->locedit_level, -1);
+    if( idx < 0 )
+    {
+        app_loc_editor_refresh_labels(app);
+        return;
+    }
+    scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
+    if( !scenery )
+    {
+        app_loc_editor_refresh_labels(app);
+        return;
+    }
+    app->locedit_loc_id = scenery->loc_id;
+    app->locedit_shape = scenery->shape;
+    app->locedit_angle = scenery->angle;
+    app->locedit_scene_x = scenery->grid_position.x;
+    app->locedit_scene_z = scenery->grid_position.z;
+    app->locedit_level = scenery->grid_position.level;
+    app_loc_editor_refresh_labels(app);
+}
+
+/* Client-only reposition: clear the old tile, place at the new one. Both legs
+ * go through App_WorldLocChange so this is exactly what a zone LOC_DEL +
+ * LOC_ADD_CHANGE pair would produce, just without a server round trip. */
+static void
+app_loc_editor_nudge(struct App* app, int dx, int dz)
+{
+    if( app->locedit_loc_id < 0 )
+        return;
+    App_WorldLocChange(
+        app, app->locedit_scene_x, app->locedit_scene_z, app->locedit_level, -1,
+        app->locedit_shape, app->locedit_angle);
+    app->locedit_scene_x += dx;
+    app->locedit_scene_z += dz;
+    App_WorldLocChange(
+        app, app->locedit_scene_x, app->locedit_scene_z, app->locedit_level,
+        app->locedit_loc_id, app->locedit_shape, app->locedit_angle);
+    app_loc_editor_refresh_labels(app);
+}
+
+/* Same-tile change with the next of the 4 config angles (0..3 = W/N/E/S,
+ * entity_scenery.h) -- no del needed, App_WorldLocChange already replaces
+ * whatever is at scene_x/z. */
+static void
+app_loc_editor_rotate(struct App* app)
+{
+    if( app->locedit_loc_id < 0 )
+        return;
+    app->locedit_angle = (app->locedit_angle + 1) % 4;
+    App_WorldLocChange(
+        app, app->locedit_scene_x, app->locedit_scene_z, app->locedit_level,
+        app->locedit_loc_id, app->locedit_shape, app->locedit_angle);
+    app_loc_editor_refresh_labels(app);
+}
+
+static void
+app_loc_editor_tick(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    int activated;
+
+    assert(app);
+    assert(input);
+
+    /* Same suppression as the developer overlay toggle: a chat line has focus
+     * must not also flip debug chrome. */
+    if( !app->chat_input_active && !app->chat.social_input_open && !app->chat.dialog_input_open &&
+        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_LOC_EDITOR) )
+    {
+        app->locedit_visible = !app->locedit_visible;
+        ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, app->locedit_visible);
+        if( app->locedit_visible )
+            app_loc_editor_reselect(app);
+    }
+
+    if( app->locedit_visible )
+    {
+        /* Overlay first, then the game (README_DEBUG_OVERLAY.md §6): a click
+         * or drag that lands on this panel must not also reach the world's
+         * own click-to-walk handling underneath it. */
+        if( ToriDbgUI_MouseMove(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
+            app->input_frame_consumed = 1;
+        if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
+            ToriDbgUI_MouseDown(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
+            app->input_frame_consumed = 1;
+        if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
+            ToriDbgUI_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
+            app->input_frame_consumed = 1;
+
+        activated = ToriDbgUI_TakeActivated(&app->dbg_ui);
+        if( activated >= 0 )
+        {
+            if( activated == app->locedit_item_xplus )
+                app_loc_editor_nudge(app, 1, 0);
+            else if( activated == app->locedit_item_xminus )
+                app_loc_editor_nudge(app, -1, 0);
+            else if( activated == app->locedit_item_zplus )
+                app_loc_editor_nudge(app, 0, 1);
+            else if( activated == app->locedit_item_zminus )
+                app_loc_editor_nudge(app, 0, -1);
+            else if( activated == app->locedit_item_rotate )
+                app_loc_editor_rotate(app);
+            else if( activated == app->locedit_item_reselect )
+                app_loc_editor_reselect(app);
+            else if( activated == app->locedit_item_close )
+            {
+                app->locedit_visible = 0;
+                ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
+            }
+        }
+    }
+
     if( ToriDbgUI_Build(&app->dbg_ui) )
     {
         app->need_redraw = 1;
@@ -15103,6 +15309,9 @@ App_RunOnce(
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
+    /* Loc editor next, same reasoning -- and it has to run before anything
+     * downstream reads input_frame_consumed for click-to-walk. */
+    app_loc_editor_tick(app, input);
 
     /*
      * Is the link still worth talking to?

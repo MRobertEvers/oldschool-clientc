@@ -126,6 +126,7 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_ENTITY_SPOTANIM,
     APP_DEBUG_HOTKEY_DAMAGE_TEST,
     APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
+    APP_DEBUG_HOTKEY_LOC_EDITOR,
     APP_DEBUG_HOTKEY_COUNT
 };
 
@@ -778,6 +779,32 @@ struct App
     int dbg_frame_head;
     /** Samples written so far, capped at APP_DEBUG_FRAME_SAMPLES. */
     int dbg_frame_count;
+    /** Loc editor: a TORIDBG_PANEL_MENU in the same dbg_ui instance (so it
+     * shares Build/Prims/emit plumbing with the frame-time panel for free).
+     * Opened at the loc under the cursor; "Move"/"Rotate" rows re-place it
+     * client-side only via App_WorldLocChange, so the readout gives exact
+     * scene coords to hand-copy into a script without a server round trip. */
+    int locedit_panel;
+    int locedit_visible;
+    int locedit_row_target; /* "loc <id> shape <n>" or "no loc here" */
+    int locedit_row_pos;    /* "x,z,level" */
+    int locedit_row_angle;  /* "angle <0-3>" */
+    int locedit_item_xplus;
+    int locedit_item_xminus;
+    int locedit_item_zplus;
+    int locedit_item_zminus;
+    int locedit_item_rotate;
+    int locedit_item_reselect;
+    int locedit_item_close;
+    /** Selected loc, or loc_id -1 for "nothing selected". scene_x/z/level are
+     * the loc's CURRENT placement -- kept in sync with every move/rotate so
+     * the next one starts from the right tile. */
+    int locedit_loc_id;
+    int locedit_shape;
+    int locedit_angle;
+    int locedit_scene_x;
+    int locedit_scene_z;
+    int locedit_level;
     uint64_t last_logic_ms;
     /** Ctrl held as of the last input pump (reference keyHeld[5]). Latched per
      *  frame because the minimenu action path has no LibToriRS_Input in hand,

@@ -4841,6 +4841,62 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * `npc_combatplayer()(boolean)` — is the ACTIVE npc fighting the ACTIVE
+     * player? NPC_FINDCOMBAT is the same question from the other end, and the
+     * two are not interchangeable.
+     *
+     * `npc_findcombat` reads `player->combat_target`: who the player is
+     * swinging at. This reads `npc->combat_target`: who the npc is swinging at.
+     * In a multi-way area the distinction rarely shows, because everything ends
+     * up fighting everything. In a single-way area it is the whole question — a
+     * player can be attacking an npc that has turned on somebody else, and a
+     * helper that joined on the strength of `npc_findcombat` alone would be a
+     * second attacker on a victim that already had one.
+     *
+     * That is exactly the line OldSchool's thralls hold: a thrall attacks its
+     * owner's target and creates no aggression of its own, so it only ever adds
+     * damage to a fight its owner is already the other side of. Content could
+     * not ask that before this command, so "assist in singles" could not be
+     * written safely at all.
+     *
+     * A pid comparison rather than an identity one: `combat_target` is a pool
+     * index, and a player who logged out leaves the slot to whoever takes it
+     * next, so the live player's own pid is the only safe thing to test.
+     */
+    case SS_OP_NPC_COMBATPLAYER:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+
+        if( !npc || !player )
+        {
+            SSVM_Abort(state, "npc_combatplayer needs an active npc and player");
+            return 1;
+        }
+        SSVM_PushInt(state, npc->combat_target == player->pid ? 1 : 0);
+        return 1;
+    }
+
+    /*
+     * `combat_assist_singles()(boolean)` — the server's policy on whether a
+     * player's summoned helper may swing in a single-way combat area.
+     *
+     * Engine state and not a content constant because it is an operator's
+     * choice between two coherent rules — the pre-EoC one this port reproduces
+     * and the later thrall one — and a content constant can only be changed by
+     * rebuilding both script packs. See `familiar_singles_assist` in mock230.h
+     * for the research behind both positions.
+     *
+     * The engine itself never reads it. Single-way is not enforced here at all:
+     * `map_multiway` is content's own gate over content's own zone table, and
+     * this command is the second half of that gate rather than a new mechanism.
+     */
+    case SS_OP_COMBAT_ASSIST_SINGLES:
+    {
+        SSVM_PushInt(state, srv->familiar_singles_assist ? 1 : 0);
+        return 1;
+    }
+
     case SS_OP_NPC_VAR_SET:
     {
         int32_t slot;

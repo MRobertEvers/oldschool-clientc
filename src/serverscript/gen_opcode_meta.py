@@ -570,6 +570,32 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # signature, which is exactly why this sits in the EXTRA band.
     "LAST_SUBOP": (11039, 0, 0, 1, 0),
 
+    # ---- a helper joining its owner's fight (11040..11041) ----------------
+    #
+    # npc_combatplayer()(boolean)
+    # combat_assist_singles()(boolean)
+    #
+    # NPC_FINDCOMBAT answers "who is the player fighting". These two answer the
+    # other half of the same question, and a summoned helper needs both.
+    #
+    # `npc_combatplayer` is the npc's own side: is the ACTIVE npc's combat
+    # target the ACTIVE player? Those are not the same question in single-way
+    # combat, where a player can be swinging at something that has turned on
+    # somebody else, and the difference is the whole of the rule OldSchool's
+    # thralls follow — a thrall attacks its owner's target and never generates
+    # aggression of its own, so it may only ever join a fight its owner is
+    # already in. Content could ask the player's side and not the npc's, so
+    # "the fight I am joining is my owner's" was not expressible.
+    #
+    # `combat_assist_singles` is the server policy flag those helpers are gated
+    # on: may a player's helper swing in a single-way area at all. It is engine
+    # state rather than a content constant because it is a server-operator
+    # decision — one live world may run pre-EoC-faithful (multiway only) and
+    # another may run the thrall rule — and a content constant can only be
+    # answered by rebuilding both script packs.
+    "NPC_COMBATPLAYER": (11040, 0, 0, 1, 0),
+    "COMBAT_ASSIST_SINGLES": (11041, 0, 0, 1, 0),
+
     # ambientsound(int $soundscape)
     #
     # The region's background bed: `AMBIENTSOUND_START` when the argument is
@@ -722,6 +748,12 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
         0,
     ),
     "NPC_HASTARGET": (1 << POINTER_BITS["active_npc"], 0),
+    # Both halves of the question have to be in scope: the npc whose target is
+    # being read, and the player it is being compared against.
+    "NPC_COMBATPLAYER": (
+        (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["active_player"]),
+        0,
+    ),
     "NPC_ATTACKDELAY": (1 << POINTER_BITS["active_npc"], 0),
     "PLAYER_LOCK": (1 << POINTER_BITS["p_active_player"], 0),
     # Deliberately no PLAYER_UNLOCK mask. A player-bound softtimer has no
