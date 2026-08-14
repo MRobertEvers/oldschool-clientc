@@ -801,19 +801,43 @@ FAMILY_DATA = {
     ),
     "Ring of shadows": dict(
         storage="item_var", depletion="revert", max_charges=1000,
-        charge_source="1 blood+soul+death+law rune per charge, used on the ring",
-        drain_event="1 charge per Teleport (Ancient Vault default; more unlocked via boss-drop tablets)",
-        status="charges_only",
-        note="Only referenced in quest_deserttreasureii/scripts (grant/remove the physical item) -- no "
-             "Teleport/Charge/Uncharge mechanic wired.",
+        charge_source="1 blood+soul+death+law rune per charge, used on the ring (obj's own ifop4=Charge, a "
+                       "menu action, not opheldu)",
+        drain_event="1 charge per Teleport to the Ancient Vault (default); the other 4 destinations are "
+                     "boss-drop-tablet unlocks with no spawned content anywhere in this tree",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/ring_of_shadows.rs2/.constant, third family built on "
+             "SS_OP_LAST_SUBOP (see Giantsoul amulet). Ancient Vault reuses Desert Treasure II's own "
+             "`^dt2_vault_coord` (deserttreasureii.constant), already used by that quest's own "
+             "`p_teleport`. Ghorrock Dungeon/The Scar/Lassar Undercity/The Stranglewood are all Desert "
+             "Treasure II post-quest boss lairs -- none of those bosses exist anywhere in this tree "
+             "(checked directly), so all four are guarded to a clean refusal and drain no charge. Charging "
+             "needs a MATCHED SET of 4 different runes per charge (not a single material like this "
+             "session's other resource-charged items), verified against the obj record's own $have = "
+             "min-of-four shape. Uncharge (ifop5) refunds all four rune types 1:1 with remaining charges "
+             "(\"uncharging the ring does refund the runes\" -- checked directly rather than assumed from "
+             "Cowbell amulet/Xeric's talisman's own single-material refund shape).",
     ),
     "Sailors' amulet": dict(
         storage="item_var", depletion="none", max_charges=10000,
-        charge_source="1 law + 10 water runes per 10 charges, used on the amulet",
-        drain_event="1 charge per Teleport (The Pandemonium default; more unlocked via Sailors' Markers)",
-        status="charges_only",
-        note="Wiki: \"cannot be uncharged\" -- refuses to teleport at 0, no revert. Only one may be owned. "
-             "No implementation found.",
+        charge_source="1 law + 10 water runes per 10 charges, used on the amulet (opheldu)",
+        drain_event="1 charge per Teleport to The Pandemonium (default); Port Roberts/Red Rock/Deepfin "
+                     "Point all require a Sailing skill level + inspecting that destination's own marker",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/sailors_amulet.rs2/.constant, fourth family built on "
+             "SS_OP_LAST_SUBOP. The Pandemonium reuses quest_pandemonium's own `^pan_pand_dock` coordinate. "
+             "Charging is BATCHED (10 charges per 1 law + 10 water runes), not 1:1 like this session's "
+             "other rune-charged items -- verified against the wiki's own wording rather than assumed "
+             "uniform, and the room/afford calc is floor-divided per batch so a remainder under 10 charges "
+             "of headroom genuinely cannot be topped off by a partial batch (matches the real batched "
+             "mechanic, not a bug). Port Roberts/Red Rock/Deepfin Point all need a Sailing skill level "
+             "(50/52/67) this tree has no Sailing skill to check at all -- guarded to a clean refusal. Red "
+             "Rock's own coordinate does exist in this tree (`^trr_red_rock`, redreef.constant) but is "
+             "deliberately NOT wired here: granting free access to a level-gated teleport this tree cannot "
+             "verify the level for would be an incorrect implementation, not merely an incomplete one -- "
+             "stated explicitly since it is the one destination this file could technically reach but "
+             "chooses not to. depletion=none matches the wiki's own \"the amulet cannot be uncharged\" -- "
+             "there is no Uncharge op on the obj record either.",
     ),
     "Serpentine helm": dict(
         storage="item_var", depletion="revert", max_charges=11000,
