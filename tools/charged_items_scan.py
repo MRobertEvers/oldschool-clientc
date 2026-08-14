@@ -861,11 +861,29 @@ FAMILY_DATA = {
              "pre/post a 2022 cosmetic change, not separate tiers). No implementation found.",
     ),
     "Ring of endurance": dict(
-        storage="item_var", depletion="none", max_charges=1000,
+        storage="item_var", depletion="revert", max_charges=1000,
         charge_source="Stamina potion doses (1/dose) or Extended stamina doses (2/dose) used on the ring",
-        drain_event="1-2 charges per stamina-potion dose drunk while worn (doubles the potion's effect)",
-        status="charges_only",
-        note="Wiki: charges are NOT refunded on Uncharge, NOT lost on death. No implementation found.",
+        drain_event="1 charge per stamina potion dose drunk while worn (doubles the potion's energy restore and duration)",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/ring_of_endurance.rs2/.constant. Charging is item-on-item "
+             "(opheldu, both stamina and extended stamina doses accepted as material -- ifop2=Wear/"
+             "ifop4=Check/ifop5=Uncharge on the charged form, no ifop3, matching the item-on-item-not-menu "
+             "charging shape). Drain is hooked into player/scripts/consumption/inferno_potions.rs2's own "
+             "[label,consume_effect_stamina] (the only place this tree actually drinks a stamina potion): "
+             "~ring_of_endurance_consume checks worn+charged, drains 1 charge, and reverts to "
+             "ring_of_endurance_nocharges at 0; the label doubles both healenergy and the buff duration when "
+             "it returns true. Wiki: charges NOT refunded on Uncharge (destroyed here, matching the mixed-"
+             "material-provenance simplification already used for Eye of ayak/Tumeken's shadow) and NOT "
+             "lost on death (untouched -- this tree's death/item-loss pipeline is outside every "
+             "charges_item_var weapon's own scope). NOT implemented: Extended stamina potion's own drinking "
+             "effect (this tree has no [opheld1,4dose2stamina] etc. at all -- a pre-existing gap independent "
+             "of this ring, though it can still be spent as charging material) and the ring's passive "
+             ">=500-charge 15% run-energy-drain-rate reduction (no run-energy-drain-rate hook exists "
+             "anywhere in this tree's content surface, the same class of engine-only gap Explorer's ring's "
+             "Alchemy-gated counters hit). The one-time Activate step (a Combat Achievements reward-"
+             "identification action, not a charge) is also untouched. Selftest coverage added and "
+             "mutation-tested (the drain-to-revert guard); full selftest re-run in both plain and "
+             "MOCK230_GEARRUN=1 modes, same 12-failure pristine baseline before and after.",
     ),
     "Ring of shadows": dict(
         storage="item_var", depletion="revert", max_charges=1000,
