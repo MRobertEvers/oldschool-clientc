@@ -440,24 +440,31 @@ FAMILY_DATA = {
              "mechanic as Deferred -- no drain event to hook into yet even though the minigame exists.",
     ),
     "Giantsoul amulet": dict(
-        storage="item_var", depletion="revert", max_charges=16000,
-        charge_source="1 noted/unnoted big bones + 1 law rune per charge; no refund on Uncharge",
-        drain_event="1 charge per teleport (Bryophyta's/Obor's/Royal Titans lair, chosen from a Rub submenu)",
-        status="charges_only",
-        note="Checked precisely (2026-08-13), not just 'no dispatcher': the real gap is narrower and "
-             "specific -- obj giantsoul_amulet_charged's ifop4=Rub carries three `subaction=4,N,<name>` "
-             "entries (the cache's native multi-destination-submenu convention, also used by Xeric's "
-             "talisman/5 destinations and others). The wire protocol already decodes and stores this "
-             "(mock230_world.c: `player->last_subop = button.subop`), but nothing ever reads that field "
-             "back out -- no SS_OP exposes it to content, unlike last_slot/last_item's own SS_OP_LAST_SLOT/ "
-             "SS_OP_LAST_ITEM. ss_opcode.h is generated from LostCity's real ScriptOpcode.ts "
-             "(gen_opcode_meta.py's own header) and grepping that reference tree directly for a "
-             "subop/subaction opcode returns nothing -- LostCity's engine predates this OSRS convention "
-             "entirely, so exposing last_subop would be a synthetic addition with zero reference backing, "
-             "not a 'fill in the missing case' fix like SS_OP_DATE_RUNEDAY (see Falador shield) was. Once a "
-             "last_subop op exists, dispatch is trivial (an ordinary `if (last_subop = N)` chain inside the "
-             "existing [opheld4] handler, no new trigger type needed) -- but adding the opcode itself is a "
-             "deliberate call left to the user, not made unilaterally here.",
+        storage="item_var", depletion="none", max_charges=16000,
+        charge_source="1 unnoted big bones + 1 law rune per charge (obj's own ifop3=Charge, a menu action "
+                       "that consumes materials already in the inventory -- not opheldu)",
+        drain_event="1 charge per teleport to Bryophyta's or Obor's lair, chosen from a Rub submenu",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/giantsoul_amulet.rs2/.constant. The prior pass's blocker "
+             "-- no SS_OP exposing the wire's already-decoded Rub-submenu click index "
+             "(player->last_subop) to content -- is now closed: added SS_OP_LAST_SUBOP as a genuinely new, "
+             "non-reference-backed opcode via gen_opcode_meta.py's existing EXTRA_OPCODES mechanism (the "
+             "same sanctioned extension point IF_SETEVENTS/IF_OPENTOP/the map-instance band etc. already "
+             "use for rev-230/239 surface LostCity's reference never had), regenerated ss_opcode.h/"
+             "ss_meta.gen.h properly rather than hand-edited, and added the read-side case in "
+             "mock230_scripts.c. Confirmed end to end: sscompile resolves a bare `last_subop` reference in "
+             ".rs2 content, and mutation-testing the cap-clamp/out-of-range guards goes red correctly. "
+             "depletion=none, not revert: the obj record has no Uncharge option and nothing forces a swap "
+             "at 0 (matches this ledger's own 'no refund on Uncharge' phrasing -- corrected from the prior "
+             "pass's revert guess). NOT implemented: the third destination, Royal Titans (Branda and "
+             "Eldric) -- that boss has no spawned content anywhere in this tree (only a generated "
+             "animation-catalog entry), unlike Bryophyta/Obor, which both have real arena coordinates via "
+             "their own minigame_bryophyta/minigame_obor .constant files. Selecting it is guarded to a "
+             "clean 'not open yet' message and drains no charge, mutation-tested. The teleport SUCCESS "
+             "path itself is untested for the same unsafe-in-::chargesrun reason Chronicle/Cowbell "
+             "amulet's own notes give; the destination-dispatch was deliberately restructured into three "
+             "self-contained branches (each with its own return) specifically so the untestable success "
+             "path can never be reached by a broken guard during mutation testing.",
     ),
     "Gloves of silence": dict(
         storage="player_varp", depletion="destroy", max_charges=62,
