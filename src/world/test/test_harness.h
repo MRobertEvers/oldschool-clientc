@@ -50,18 +50,28 @@ World_TestPoolIterateCount(const struct World_EntityPool* pool)
     return n;
 }
 
+/* Drains the queue and returns the number of REMOVAL events in it. Other known
+ * kinds are skipped rather than counted — a delayed spotanim emits a start
+ * event too, and callers here are counting despawns. An unrecognised kind is
+ * still a failure, so a new event kind cannot be added without deciding what
+ * these counts mean for it. */
 static inline int
 World_TestDrainRemovedEvents(struct World* world)
 {
     int n = World_EventsCount(world);
+    int removed = 0;
     for( int i = 0; i < n; i++ )
     {
         const struct World_Event* ev = World_EventsPeek(world, i);
-        if( !ev || ev->kind != WorldEventKind_EntityRemoved )
+        if( !ev )
+            g_failures++;
+        else if( ev->kind == WorldEventKind_EntityRemoved )
+            removed++;
+        else if( ev->kind != WorldEventKind_SpotanimStarted )
             g_failures++;
     }
     World_EventsClear(world);
-    return n;
+    return removed;
 }
 
 /* Unit tests */

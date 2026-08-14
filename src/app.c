@@ -7496,6 +7496,11 @@ app_world_tick_animations(struct App* app)
                 if( !ToriDraw_AnimationAdvanceObjectCycles(
                         anim, &element->anim_frame, &element->anim_cycle, 1) )
                     ToriDraw_SceneElementSetAnimation(app->scene, element_id, NULL, true);
+                if( getenv("TORIRS_FRAMEPROBE") &&
+                    element->anim_seq_id == atoi(getenv("TORIRS_FRAMEPROBE")) )
+                    fprintf(stderr, "frameprobe: element=%d seq=%d frame=%d cycle=%d wc=%d\n",
+                            element_id, element->anim_seq_id, element->anim_frame,
+                            element->anim_cycle, app->world ? app->world->cycle : -1);
                 /* Play any frame sounds for the new frame. A finished
                  * DynamicObject has no sequence, so it cannot emit another. */
                 if( element->anim_seq_id != -1 && element->anim_frame != old_frame )
@@ -12935,6 +12940,10 @@ App_WorldDrainEntityRemoved(struct App* app)
              * happened to load. */
             struct ToriDraw_SceneElement* el =
                 ToriDraw_SceneElementGet(app->scene, ev->element_id);
+            if( getenv("TORIRS_FRAMEPROBE") )
+                fprintf(stderr, "spotstart: element=%d el=%p external=%d seq=%d\n",
+                        ev->element_id, (void*)el, el ? (int)el->anim_external : -1,
+                        el ? el->anim_seq_id : -2);
             if( el && el->anim_external )
             {
                 el->anim_frame = 0;
@@ -17084,6 +17093,17 @@ App_WorldApplyNpcType(
     else
     {
         model = app_world_build_npc_model(app, npc_type, npctype);
+        if( !model )
+            /* Unlike the models_count<=0 branch above, this is not an honest
+             * "no body" result -- it's app_world_build_model failing to
+             * resolve a type that DOES have models (see the matching log in
+             * app_world_spawn_npc_now). Neither branch below then touches the
+             * element, so it silently keeps whatever model it already had
+             * (typically the 14-bit placeholder type's, for a large npc like
+             * QBD that needed a same-packet TRANSFORMATION to reach its real
+             * id) -- which reads in-game as "the npc never rendered" with no
+             * trace of why. Log it so that's diagnosable. */
+            fprintf(stderr, "npc_retype: npc %d models failed to load\n", npc_type);
     }
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
