@@ -973,13 +973,18 @@ FAMILY_DATA = {
     ),
     "Arclight": dict(
         storage="item_var", depletion="revert", max_charges=10000,
-        charge_source="Darklight + 3 Ancient shards at the Catacombs of Kourend altar (starts at 1,000); +333/1,000 per further shard",
+        charge_source="Darklight + shards (obj cata_shard), opheldu batches of 3 shards = 1,000 charges",
         drain_event="1 charge per successful hit, excluding special attack",
-        status="charges_only",
-        note="Zero references anywhere, including quest_shadowstorm (the Darklight quest itself). Also has a "
-             "separate 'infusion' progress counter (spent charges count toward Emberlight upgrade, persists "
-             "through 0) -- a second piece of per-item state beyond the charge count, worth flagging for the "
-             "library design.",
+        status="implemented",
+        note="gear/arclight.rs2/.constant/.varp. The 'Ancient shard' obj exists under a different literal "
+             "name than expected (cata_shard, not ancient_shard) -- found by reading the record right after "
+             "arclight's own in all.obj, not by the name search that first came up empty. Special-attack "
+             "exclusion needed a new mechanism this session's other weapon drains never did: "
+             "pvm_arclight.rs2 sets %arclight_special_active around its own call into the shared "
+             "player_hit_npc_prepare funnel, and arclight_drain skips while that flag is set -- mutation-"
+             "tested. NOT implemented: the Catacombs-of-Kourend altar location requirement for the initial "
+             "Darklight->Arclight conversion (no such loc exists anywhere in this tree, simplified to a "
+             "plain opheldu combine) and the separate 'infusion'/Emberlight-upgrade progress meter.",
     ),
     "Ash sanctifier": dict(
         storage="item_var", depletion="none", max_charges=2147483647,
@@ -1087,14 +1092,19 @@ FAMILY_DATA = {
     "Book of the dead": dict(
         storage="item_var", depletion="none", max_charges=250,
         charge_source="Recharged at the Old Memorial: 1 law + 1 body + 1 mind + 1 soul rune per charge, 10 Magic XP each",
-        drain_event="1 charge per teleport (Reminisce option, 5 destinations)",
-        status="charges_only",
-        note="CORRECTS docs/ITEM_CHARGES_PLAN.md §2c, which listed this as a player_varp example. Its "
-             "precursor Kharedst's memoirs states \"if the book is charged when destroyed, all charges are "
-             "retained\" through an in-place item upgrade -- item_var behaviour (a per-item counter "
-             "surviving an identity change), not an account pool; neither article uses "
-             "Dodgy-necklace-style \"shared across every copy\" wording. Flagged rather than asserted -- "
-             "worth confirming against the live wiki's exact phrasing before this is treated as settled.",
+        drain_event="1 charge per teleport (Reminisce option, 5 destinations, all unlocked unconditionally)",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/book_of_the_dead.rs2/.constant. Confirms the prior pass's "
+             "flagged item_var call was correct (this ledger's own note already reasoned it out from the "
+             "wiki's phrasing). Reuses Kharedst's memoirs' own destination coordinates directly by name "
+             "(same five Kourend-house teleports) -- unlike the memoirs, all five are always available "
+             "(obtaining a book of the dead already implies every page was present on the memoirs it "
+             "upgraded from), so there is no per-destination unlock state to track here. NOT implemented: "
+             "the Old Memorial recharge (same real gap kharedst_memoirs.rs2 already states -- no such loc/"
+             "npc exists anywhere in this tree) and the quest-driven Kharedst's memoirs -> book of the dead "
+             "upgrade transition itself; a freshly spawned book needs its starting charge count set "
+             "directly for testing, the same 'spawn to test' precedent this session's other creation-gap "
+             "items already accept.",
     ),
     "Bracelet of slaughter": dict(
         storage="player_varp", depletion="destroy", max_charges=30,
@@ -1192,9 +1202,14 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=20000,
         charge_source="Sunfire splinters, 1 splinter = 1 charge",
         drain_event="1 charge per throw (standard attack or the Division special), regardless of hits landed",
-        status="charges_only",
-        note="Special attack IS implemented (specs/pvm_tonalztics_of_ralos_charged.rs2) but calls no "
-             "charge-drain proc; the standard-throw path doesn't drain either.",
+        status="implemented",
+        note="gear/tonalztics_of_ralos.rs2/.constant. specs/pvm_tonalztics_of_ralos_charged.rs2's own "
+             "special already calls ~pvm_tonalztics_hit twice, each independently reaching "
+             "player_hit_npc_prepare -- so hooking the drain there once covers the standard throw AND the "
+             "special's double-throw with no separate special-attack wiring needed, unlike Arclight (which "
+             "needed a dedicated exclusion flag for the opposite reason: excluding its special, not "
+             "including it). Charging is an explicit ifop4=Charge menu option, not opheldu (confirmed from "
+             "the obj record).",
     ),
     "Toxic staff of the dead": dict(
         storage="item_var", depletion="revert", max_charges=11000,
