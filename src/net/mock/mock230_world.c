@@ -6050,8 +6050,17 @@ handle_cheat(
          * a player can see and click, and each takes its own collision. */
         for( int i = 0; i < want; i++ )
         {
-            if( npc_spawn(srv, type, player->x + 1 + i, player->z + 1, player->level) < 0 )
+            int slot =
+                npc_spawn(srv, type, player->x + 1 + i, player->z + 1, player->level);
+            if( slot < 0 )
                 break;
+            /* One instance, not a fixture: `::spawn` is a debugging `npc_add`,
+             * so its npc is the command's the way a script's is the script's and
+             * killing it is the end of it. A memset slot is the *world's*
+             * (`EntityLifeCycle.RESPAWN` — see the field), which would stand
+             * every test spawn back up `respawnrate` ticks later at the tile the
+             * tester was standing on. */
+            srv->npcs[slot].despawns_on_death = 1;
             spawned++;
         }
         if( spawned <= 0 )
@@ -6081,7 +6090,11 @@ handle_cheat(
     }
     if( sscanf(text, "npc %d", &npc_type) == 1 )
     {
-        npc_spawn(srv, npc_type, player->x + 1, player->z + 1, 3);
+        int slot = npc_spawn(srv, npc_type, player->x + 1, player->z + 1, 3);
+        /* The id-only ancestor of `::spawn`, and one instance for the same
+         * reason — see there. */
+        if( slot >= 0 )
+            srv->npcs[slot].despawns_on_death = 1;
         say(srv, "Spawned npc %d.", npc_type);
         return;
     }
@@ -10151,6 +10164,17 @@ static void
 phase_info(struct Mock230Server* srv)
 {
     struct Mock230Player* player;
+
+    if( getenv("MOCK230_CLIMB_TRACE") )
+    {
+        struct Mock230Player* trace;
+
+        MOCK230_FOR_EACH_PLAYER(srv, trace)
+            fprintf(stderr,
+                    "[trace] tick=%d ENCODE masks=0x%03x anim=%d place=%d level=%d %d,%d\n",
+                    srv->tick, trace->masks, trace->anim_id, trace->place_dirty, trace->level,
+                    trace->x, trace->z);
+    }
 
     /* Derived client state, recomputed before anything is encoded. Cheap, and
      * it only writes when a value actually moved — so a quiet tick sends
@@ -26336,7 +26360,14 @@ mock230_world_selftest(void)
                        "::~spawn goblin puts npc %d beside the player at %d,%d", goblin,
                        player->x + 1, player->z + 1);
         if( found >= 0 )
+        {
+            /* One instance and not a fixture: the world respawns what it owns,
+             * so a `::spawn` that left this at 0 would stand back up
+             * `respawnrate` ticks after the tester killed it. */
+            SELFTEST_CHECK(srv->npcs[found].despawns_on_death,
+                           "a ::spawn npc dies for good rather than respawning");
             mock230_world_npc_free(srv, found);
+        }
 
         /* A name nothing carries spawns nothing — the same bar `::give` sets:
          * a cheat that silently produces the wrong thing is worse than one that
@@ -34082,6 +34113,60 @@ mock230_world_selftest(void)
                         fprintf(stderr,
                                 "  SKIP  QBD animation priority requires the rs2012 lane\n");
                     }
+                }
+
+                /*
+                 * Her death must OUTLIVE the retype that ends it.
+                 *
+                 * She has no `death_anim` — the check above asserts that — so
+                 * her one death animation is `rs2012_seq_16742` (return to
+                 * sleep), played by content when the fourth artefact is
+                 * restored, and the retype to the sleeping form is the same
+                 * event, and doing both on one tick rendered as no death at
+                 * all: the client discarded the transient animation on retype
+                 * and the wire writes the SEQUENCE block BEFORE the
+                 * TRANSFORMATION block of the same packet, so the animation was
+                 * set and thrown away before a frame of it was drawn. That
+                 * client half is fixed (`World_NpcSetType` in world.c — a
+                 * transmog does not touch `primaryAnim` in the reference
+                 * either), which is what makes a one-shot survive a retype at
+                 * all. This half is the content one, and it is not redundant:
+                 * she is meant to spend those nine seconds settling as the
+                 * awake form, exactly as the wake already defers its own swap
+                 * for 16714.
+                 *
+                 * Two things are pinned. The deferral must EXIST as a script —
+                 * collapsing it back into the restoration proc is the specific
+                 * regression, and it deletes this queue. And the delay must
+                 * still bracket the animation: 16742 is 456 cache frame-length
+                 * cycles at this engine's 20ms/cycle (see RS2012_QBD_TD.md
+                 * §5.2) = 9.12s = 15.2 real ticks. Short of 15 truncates a
+                 * visibly-moving tail; past 16 she finishes the one-shot,
+                 * reverts to her AWAKE idle for half a second, and only then
+                 * falls asleep — which reads as a second, later snap.
+                 */
+                if( srv->scripts_ok )
+                {
+                    int const stored =
+                        mock230_content_constant_int("rs2012_qbd_sleep_anim_ticks", -1);
+                    /* SS_OP_QUEUE stores delay+1 and the drain pre-decrements
+                     * before firing, so `queue(_, N)` waits N+1 real ticks. */
+                    int const real = stored + 1;
+
+                    SELFTEST_CHECK(
+                        SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_sleep]") != NULL,
+                        "the QBD retype to her sleeping form must stay deferred in "
+                        "[queue,rs2012_qbd_sleep]; retyping on the cast tick erases her "
+                        "return-to-sleep animation before the client draws a frame of it");
+                    SELFTEST_CHECK(stored >= 0,
+                                   "^rs2012_qbd_sleep_anim_ticks must be declared, got %d",
+                                   stored);
+                    SELFTEST_CHECK(stored < 0 || (real >= 15 && real <= 16),
+                                   "the deferred QBD retype waits %d real tick(s); "
+                                   "rs2012_seq_16742 is 456 cycles = 15.2 ticks, so this "
+                                   "must be 15 or 16 or her death is cut short (or ends in "
+                                   "her awake idle)",
+                                   real);
                 }
 
                 /* The ordinary production-shaped debug command remains gated.

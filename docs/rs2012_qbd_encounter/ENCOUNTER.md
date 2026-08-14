@@ -112,7 +112,13 @@ player. Arena-local coordinates (x,z) below are offsets within the square.
    restoration switches music to 1118 *Queen Black Dragon*.
 6. **Completion**: artefact 4 → return-to-sleep sequence (16742), every
    surviving add removed, reward stairs (70790) appear, coffer rolled once
-   into the persistent ten-slot `rs2012_qbd_rewardinv`.
+   into the persistent ten-slot `rs2012_qbd_rewardinv`. 16742 is her death
+   animation and it is played on the **awake** npc: the retype to
+   `rs2012_qbd_sleeping` is deferred `^rs2012_qbd_sleep_anim_ticks` into
+   `[queue,rs2012_qbd_sleep]`, because `npc_changetype` clears the transient
+   animation and the wire writes SEQUENCE before TRANSFORMATION — issuing both
+   on one tick renders as an instant snap to the sleeping idle with no death at
+   all. Same rule, same reason as the wake swap in step 2 above.
 7. **Departure at any point** (teleport/logout/death): the one-tick lifecycle
    watchdog tears down queues, timers, locks, HUD, music, and owned NPCs. An
    unclaimed coffer survives everything.

@@ -129,6 +129,33 @@ struct ToriRS_FeatureTable
      */
     int npc_approach_uses_size;
     /**
+     * How a mover standing INSIDE its pathing target's footprint gets out from
+     * under it. See docs/OSRS_PATHING_LOS.md §2.5.
+     *
+     * 0 = one random cardinal tile, re-rolled every tick and not validated
+     *     against collision — LostCity `PathingEntity.randomWalk`. In the
+     *     reference that branch is guarded by `moveStrategy === NAIVE`, so it
+     *     is the *npc* answer; this tree has always run it for the player too,
+     *     and zero keeps that until an era asks otherwise.
+     * 1 = no special case at all: route with the ordinary exclusive-rectangle
+     *     approach (shape -2), whose `reached` refuses every overlapping tile,
+     *     so the BFS floods across the footprint and terminates on the nearest
+     *     perimeter tile. rsmod has no under-target branch in
+     *     `PlayerInteractionProcessor` — only in the npc one — which is what
+     *     makes this the modern behaviour rather than an invention.
+     *
+     * The difference is visible, not academic. Under a 5x5 boss, 0 wanders a
+     * coin-flip axis one tile per tick and can walk back in; 1 leaves by the
+     * nearest face in a straight line, at two tiles per tick when running, and
+     * the op fires on the tick of arrival because the post-move `tryInteract`
+     * already acts for pathing entities.
+     *
+     * The npc side keeps the random cardinal under both values: rsmod's
+     * `NpcInteractionProcessor.stepAwayFromTarget` picks uniformly, and the
+     * safespot / "walk under Graardor to make it miss" behaviour depends on it.
+     */
+    int under_target_routes_out;
+    /**
      * Radius of the "could not reach it, walk as close as possible" box for an
      * *interaction* click. 0 = no fallback at all (Client-TS passes
      * tryNearest=false for every type-2 tryMove); 10 = the rsmod/XRSPS

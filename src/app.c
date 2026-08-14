@@ -10575,6 +10575,34 @@ app_world_spawn_spotanim_now(
         spot->seq,
         lifetime,
         delay);
+    { /* TEMP diagnostic: model extents of the spawned spotanim. */
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(app->scene, element_id);
+        struct ToriDraw_Model* m = el && el->model.kind == TORIDRAWMK_MODEL
+                                       ? el->model.u.model.model
+                                       : NULL;
+        if( m )
+        {
+            int minx = 1 << 30, maxx = -(1 << 30);
+            int miny = 1 << 30, maxy = -(1 << 30);
+            int minz = 1 << 30, maxz = -(1 << 30);
+            for( int v = 0; v < m->vertex_count; v++ )
+            {
+                int x = m->vertices_x[v], y = m->vertices_y[v], z = m->vertices_z[v];
+                if( x < minx ) minx = x;
+                if( x > maxx ) maxx = x;
+                if( y < miny ) miny = y;
+                if( y > maxy ) maxy = y;
+                if( z < minz ) minz = z;
+                if( z > maxz ) maxz = z;
+            }
+            fprintf(
+                stderr,
+                "spawn_spotanim bounds: verts=%d x=[%d,%d] y=[%d,%d] z=[%d,%d] "
+                "(tiles: %.2f x %.2f)\n",
+                m->vertex_count, minx, maxx, miny, maxy, minz, maxz,
+                (maxx - minx) / 128.0, (maxz - minz) / 128.0);
+        }
+    }
     app_sync_textures(app);
     app->need_redraw = 1;
 }
@@ -16989,21 +17017,35 @@ App_WorldApplyNpcType(
         World_NpcSetType(
             app->world, world_idx, npc_type, npctype->size > 0 ? npctype->size : 1, &idle);
     }
-    /*
-     * A newly-added NPC reaches its ready pose through app_world_spawn_npc_now,
-     * but a revision-239 CHANGE_TYPE keeps the same scene element.  Rebind the
-     * replacement type's ready sequence here as well: World_NpcSetType clears
-     * the old primary track, and waiting for the next world cycle otherwise
-     * leaves a frame (and an async-load gap) driven by the former type.
-     *
-     * This is intentionally general rather than familiar-specific.  The
-     * regular entity sync will take over with the new idle/walk state on the
-     * next world tick, just as it does after a normal spawn.
-     */
-    if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
-        app_world_apply_seq(app, element_id, npctype->readyanim);
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+        /*
+         * A newly-added NPC reaches its ready pose through
+         * app_world_spawn_npc_now, but a revision-239 CHANGE_TYPE keeps the
+         * same scene element.  Rebind the replacement type's ready sequence
+         * here as well, so the element does not spend a frame (and an
+         * async-load gap) driven by the former type's idle.
+         *
+         * Only when there is no transient animation running, though.  That is
+         * the other half of the rule World_NpcSetType now states: a one-shot
+         * survives a transmog, and unconditionally stamping the new readyanim
+         * on top of it would put the stomp back one layer up — which is
+         * exactly how the Queen Black Dragon's return-to-sleep kept being
+         * erased.  When a primary track is live, the next
+         * app_world_apply_entity_anim_tracks binds it onto the new model, and
+         * the readyanim takes over on its own when the sequence ends.
+         *
+         * This is intentionally general rather than familiar-specific.  The
+         * regular entity sync will take over with the new idle/walk state on
+         * the next world tick, just as it does after a normal spawn.
+         */
+        int const primary_live =
+            npc && npc->animation.primary.anim_id != (uint16_t)-1 &&
+            npc->animation.primary.anim_id != 0;
+
+        if( model && !primary_live && element_id >= 0 &&
+            ToriDraw_SceneElementIsLive(app->scene, element_id) )
+            app_world_apply_seq(app, element_id, npctype->readyanim);
         if( npc )
         {
             npc->combat_level = npctype->combat_level;

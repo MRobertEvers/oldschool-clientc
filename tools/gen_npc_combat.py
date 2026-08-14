@@ -487,6 +487,34 @@ def load_default_anims(content_dir):
     return out
 
 
+def default_plays(key, rigs, mega, defaults, seq_framemaps):
+    """Can `[default]`'s sequence for this slot actually run on this npc?
+
+    The question every unanswered slot has to ask before it is left absent,
+    because absent is not "no animation" — it is the human unarmed set, and the
+    engine sends it just as faithfully as a right answer. Three cases:
+
+      * no rig at all (the cache gives the npc no `readyanim`)   -> unknowable,
+        so leave the default alone. Almost all of these are scenery.
+      * the shared human rig, or framemap 0 itself               -> the default
+        is exactly right; that is why `[default]` is the human set.
+      * the npc's own rig, and the human sequence is not on it   -> it cannot
+        play, and leaving the slot absent is a bug rather than a fallback.
+
+    The third case is `null`'s: **an npc with no defend animation must state
+    that it has none.** The Maiden of Sugadinti's rig (framemap 1812) holds an
+    idle, two attacks, two deaths and a spawn — Jagex never drew her a flinch,
+    and she should not borrow a man's. `-1` is what the engine reads as "play
+    nothing", and `param=<slot>,null` is how a config says it.
+    """
+    if not rigs or mega:
+        return True
+    seq = defaults.get(key)
+    if not seq:
+        return True
+    return bool(seq_framemaps.get(seq, set()) & rigs)
+
+
 def load_default_attackrate(content_dir):
     """`[default] param=attackrate` — the value a block imposes just by existing."""
     path = os.path.join(content_dir, "server", "scripts", "general", "configs",
@@ -1029,8 +1057,8 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
     root = os.path.join(content_dir, "server", "scripts")
     exclude = os.path.abspath(out_path)
     defaults = load_default_anims(content_dir)
-    fixed, filled, unfixable, unfillable = [], [], [], []
-    filled_sounds = []
+    fixed, filled, unfixable = [], [], []
+    filled_sounds, nulled = [], []
     checked = playable = 0
     states_server_field = set()
     rig_seq_index = defaultdict(set)
@@ -1109,6 +1137,16 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                             n for n in seq_names_by_rig(rigs, rig_seq_index)
                             if n.rsplit("_", 1)[-1] == tail)
                         if len(onrig) != 1:
+                            # Nothing on this rig performs this action, and the
+                            # row naming one that does not is the same lie as an
+                            # absent row: the engine sends it, the model cannot
+                            # drive it, nothing plays. The five Mort'ton shades
+                            # are the whole set — the shadow form's rig
+                            # (framemap 651) is ready/rise/sink/walk, so Jagex
+                            # gave it no attack and no block at all.
+                            edits.append((i, lines[i].replace(
+                                "param=%s,%s" % (key, value),
+                                "param=%s,null" % key)))
                             unfixable.append((gameval, key, value, fn))
                             continue
                         fix = onrig[0]
@@ -1138,7 +1176,15 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
                         continue   # the default plays here; leave it alone
                     fill = entry[1].get(key, (None,))[0] if entry else None
                     if not fill or not (seq_framemaps.get(fill, set()) & rigs):
-                        unfillable.append((gameval, key, fn))
+                        # No answer, and the inherited human one provably cannot
+                        # play. That is not a hole to leave open: the npc has no
+                        # such animation, and the row that says so is `null`.
+                        # Leaving it absent is the strictly worse of the two —
+                        # the engine sends the human sequence either way, and
+                        # the model drives bones it does not have.
+                        edits.append((last_param + 0.5, "param=%s,null" % key))
+                        nulled.append((gameval, key, fn))
+                        states_server_field.add(gameval)
                         continue
                     edits.append((last_param + 0.5, "param=%s,%s" % (key, fill)))
                     filled.append((gameval, key, fill, fn))
@@ -1177,9 +1223,9 @@ def fix_authored(content_dir, out_path, seq_framemaps, npc_rigs, gameval_to_id,
     print("\nauthored .npc animation rows, against each npc's own rig:")
     print("   stated and playable                     %d" % playable)
     print("   stated but OFF-RIG, corrected           %d" % len(fixed))
-    print("   stated but off-rig, no answer known     %d" % len(unfixable))
+    print("   stated but off-rig, no answer, set null %d" % len(unfixable))
     print("   ABSENT and the default cannot play, filled  %d" % len(filled))
-    print("   absent, default cannot play, no answer      %d" % len(unfillable))
+    print("   absent, no answer, stated as null           %d" % len(nulled))
     print("   SOUND rows absent (default is silence), filled  %d" % len(filled_sounds))
     for npc, key, old, new, fn in fixed[:6]:
         print("      fix  %-22s %-12s %-24s -> %s" % (npc, key, old, new))
@@ -1242,6 +1288,7 @@ def main():
     rsmod = load_rsmod(args.rsmod, seq_name_by_id, sound_by_id)
     authored_elsewhere = load_authored_blocks(args.content, out_path)
     default_rate = load_default_attackrate(args.content)
+    defaults = load_default_anims(args.content)
 
     print("catalog: %d npcs with a rig, %d framemaps, %d named sequences"
           % (len(npc_rigs), len(seqs_by_framemap), len(seq_framemaps)))
@@ -1373,8 +1420,17 @@ def main():
         else:
             rig_note = " - no rig: the cache gives this npc no readyanim"
         rows = {}
+        rigset = set(rigs)
+        mega = n_seqs > MEGA_RIG_SEQS
         for key in ANIM_KEYS:
             value, layer, why = anims[key]
+            if not value and not default_plays(key, rigset, mega, defaults,
+                                               seq_framemaps):
+                # Not "no answer" — the answer is that this npc does not do this.
+                rows[key] = ("null", "%s  %s; and [default]'s %s is not on this "
+                             "rig, so null rather than a human's"
+                             % (layer, why, defaults.get(key, "?")))
+                continue
             rows[key] = (value, "%s  %s" % (layer, why))
         for key in SOUND_KEYS:
             value, layer, why = sounds[key]
@@ -1398,7 +1454,16 @@ def main():
         picked = [(k, anims[k][0], anims[k][1]) for k in ANIM_KEYS if anims[k][0]]
         picked_sounds = [(k, sounds[k][0], sounds[k][1])
                          for k in SOUND_KEYS if sounds[k][0]]
-        if not picked and not picked_sounds:
+        # An unanswered slot whose inherited default cannot play is stated as
+        # `null`, not left absent — see default_plays(). This is a separate list
+        # from `picked` on purpose: a null is a refusal, not a decision, and
+        # folding it into `picked` would report it as coverage.
+        rigset = npc_rigs.get(npc_id, set())
+        mega = sum(len(seqs_by_framemap.get(fm, ())) for fm in rigset) > MEGA_RIG_SEQS
+        nulled = [k for k in ANIM_KEYS
+                  if not anims[k][0]
+                  and not default_plays(k, rigset, mega, defaults, seq_framemaps)]
+        if not picked and not picked_sounds and not nulled:
             continue
         rec = all_npc[gameval]
         display = rec.get("name", [""])[0]
@@ -1415,13 +1480,16 @@ def main():
         # `npc_combat/<npc>.combat` states it per row, with the reasoning -- and
         # this line is the index into it.
         note = " ".join("%s=%s" % (k.split("_")[0], l) for k, _v, l in picked)
+        note += "".join(" %s=null" % k.split("_")[0] for k in nulled)
         snote = " ".join("%s=%s" % (k.split("_")[0], l) for k, _v, l in picked_sounds)
         if note or snote:
-            blocks.append("// anim: %s%s" % (note or "none",
+            blocks.append("// anim: %s%s" % (note.strip() or "none",
                                              ("  sound: " + snote) if snote else ""))
         blocks.append("[%s]" % gameval)
         for key, value, _layer in picked:
             blocks.append("param=%s,%s" % (key, value))
+        for key in nulled:
+            blocks.append("param=%s,null" % key)
         for key, value, _layer in picked_sounds:
             # A bare id, because cachepack has no `synth` type for a `ref` to
             # name. The ledger keeps the name, which is the half that survives a

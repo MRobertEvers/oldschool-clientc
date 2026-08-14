@@ -22,6 +22,7 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .pathing_mode = TORIRS_PATHING_CLIENT_BFS,
     .approach_model = TORIRS_APPROACH_LEGACY_SHAPE,
     .npc_approach_uses_size = 0,
+    .under_target_routes_out = 0,
     .op_click_nearest_range = 0,
     .nearest_ranks_by_rect_distance = 0,
     .ground_click_nearest_model = TORIRS_NEAREST_RING3_STEPS,
@@ -49,6 +50,10 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
  *   - pathing_mode SERVER_AUTHORITATIVE: no client BFS; server SET_MAP_FLAG.
  *   - approach_model RECT: collision_approach_from_shape on placed shape.
  *   - npc_approach_uses_size: a size-3 NPC is a 3x3 exclusive-rect target.
+ *   - under_target_routes_out: standing inside a large npc is not a special
+ *     case — the exclusive rectangle already refuses every overlapping tile, so
+ *     the ordinary BFS walks out by the nearest face. rsmod's random step-off
+ *     lives in NpcInteractionProcessor only; the player half has no such branch.
  *   - op_click_nearest_range 10: rsmod's alternative-route search (server).
  *   - ground_click_nearest_model BOX10_RECT: the same search for a bare ground
  *     or minimap click. The client sends the clicked tile and nothing else, so

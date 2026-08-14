@@ -440,11 +440,6 @@ mock230_combat_stop_player_at(struct Mock230Player* player)
      * combat script on a later tick and acquire the same target again. */
     player->combat_target = -1;
     mock230_world_interaction_clear_at(player);
-    if( player->face_entity != -1 )
-    {
-        player->face_entity = -1;
-        player->masks |= MOCK230_PMASK_FACE_ENTITY;
-    }
 }
 
 void

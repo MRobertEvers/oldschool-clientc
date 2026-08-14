@@ -1860,11 +1860,30 @@ World_NpcSetType(
     npc->size = size > 0 ? size : 1;
     if( idle )
         npc->idle_animations = *idle;
-    /* Transmog clears the transient anim (reference ClientEntity behavior on
-     * type change). */
-    npc->animation.primary.anim_id = (uint16_t)-1;
-    npc->animation.primary.frame = 0;
-    npc->animation.primary.cycle = 0;
+    /*
+     * A transmog does NOT touch the transient animation.
+     *
+     * This used to clear `primary`, on a comment claiming that was reference
+     * ClientEntity behaviour. It is not: `Client.ts`'s CHANGETYPE branch writes
+     * type, size, turnspeed, the four walk anims and readyanim, and never goes
+     * near `primaryAnim` (the only paths that clear it are RESET_ANIMS, the
+     * ABORTANIM postanim rule, and the sequence running out). Clearing it here
+     * silently destroyed any one-shot that shared a tick with a retype — and
+     * since the wire writes the SEQUENCE block BEFORE the TRANSFORMATION block
+     * of the same packet, `npc_anim(X)` followed by `npc_changetype(Y)` was
+     * *guaranteed* to be that case, not merely at risk of it.
+     *
+     * The visible bug was the Queen Black Dragon having no death: content plays
+     * her 9-second return-to-sleep and retypes her to the sleeping form, and
+     * she snapped straight to the sleeping idle instead. It is the same defect
+     * behind every transforming boss and every summoning familiar losing an
+     * animation across a form change.
+     *
+     * Nothing has to be re-bound for this to render. The world tick is the
+     * authority on the frame, and `app_world_apply_entity_anim_tracks` rebinds
+     * (seq, frame) onto whatever element the npc currently owns every frame —
+     * including the freshly-built model the retype just installed.
+     */
 }
 
 void

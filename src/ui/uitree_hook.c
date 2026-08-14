@@ -1,6 +1,7 @@
 #include "ui/uitree_hook.h"
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -148,8 +149,39 @@ UITree_HookSet(
         argc = UITREE_HOOK_ARG_MAX;
     if( argc < 0 || !argv )
         argc = 0;
+    /* Positional, so the tail does not go missing — it arrives as "". See the
+     * same warning in task_cs2_run.c for what that looks like from the outside
+     * (clientscript 149's fifth op label silently stopped existing). Once per
+     * script id: a grid's repaint hook is re-registered per cell per transmit. */
     if( str_argc > UITREE_HOOK_STR_ARG_MAX )
+    {
+        static int warned_script[16];
+        static int warned_count = 0;
+        int seen = 0;
+        int lost = 0;
+
+        /* Only when something is actually lost — a fixed-arity signature whose
+         * unused tail is "" drops nothing. */
+        for( int i = UITREE_HOOK_STR_ARG_MAX; i < str_argc; i++ )
+            if( strv && strv[i] && strv[i][0] != '\0' )
+                lost = 1;
+        for( int i = 0; i < warned_count; i++ )
+            if( warned_script[i] == script_id )
+                seen = 1;
+        if( lost && !seen )
+        {
+            if( warned_count < (int)(sizeof(warned_script) / sizeof(warned_script[0])) )
+                warned_script[warned_count++] = script_id;
+            fprintf(
+                stderr,
+                "uitree: hook clientscript %d passed %d string arguments; only the first "
+                "%d are kept and the rest arrive as \"\" (UITREE_HOOK_STR_ARG_MAX)\n",
+                script_id,
+                str_argc,
+                UITREE_HOOK_STR_ARG_MAX);
+        }
         str_argc = UITREE_HOOK_STR_ARG_MAX;
+    }
     if( str_argc < 0 || !strv )
         str_argc = 0;
 

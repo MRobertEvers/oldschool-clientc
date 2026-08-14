@@ -34,6 +34,7 @@ main(void)
     test_minusedlevel_entity_draw();
     test_rebuild_shift();
     test_obj_raise();
+    test_npc_retype_keeps_animation();
     test_line_of_sight();
     test_line_of_sight_asymmetry();
     test_naive_path_safespot();

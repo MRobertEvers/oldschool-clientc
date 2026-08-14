@@ -866,3 +866,45 @@ test_obj_raise(void)
 
     World_Free(world);
 }
+
+/*
+ * A transmog keeps whatever one-shot is already playing.
+ *
+ * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk
+ * anims and readyanim and never touches `primaryAnim`; this pins that. The
+ * clear that used to live in `World_NpcSetType` was silently fatal to any
+ * animation issued on the same tick as a retype — which the wire makes the
+ * ordinary case, since it writes the SEQUENCE block before the TRANSFORMATION
+ * block of one packet. The Queen Black Dragon's return-to-sleep was the
+ * visible casualty: content played her only death animation and retyped her to
+ * her sleeping form together, and she snapped straight to the sleeping idle.
+ */
+void
+test_npc_retype_keeps_animation(void)
+{
+    printf("TEST: a transmog keeps a running animation\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct WorldEntityFacet_IdleAnimations sleeping = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    sleeping.readyanim = 777;
+
+    World_NpcSetPrimaryAnimation(world, ni, 16742, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 16742, "the one-shot is armed");
+
+    /* Two frames in, so a survivor is distinguishable from a restart. */
+    npc->animation.primary.frame = 2;
+
+    World_NpcSetType(world, ni, 4321, 5, &sleeping);
+    TEST_ASSERT(npc->npc_id == 4321 && npc->size == 5, "the retype still lands");
+    TEST_ASSERT(npc->idle_animations.readyanim == 777, "and swaps the idle set");
+    TEST_ASSERT(npc->animation.primary.anim_id == 16742,
+                "the running one-shot survives the retype");
+    TEST_ASSERT(npc->animation.primary.frame == 2,
+                "and keeps its place rather than restarting");
+
+    World_Free(world);
+}

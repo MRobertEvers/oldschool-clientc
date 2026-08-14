@@ -645,10 +645,100 @@ review, and are parallelisable across people.
 
 ## 8. Status, 2026-08-13
 
-Phase 1 (engine) is done. **178 shops are live** — every shop the pipeline can
+Phase 1 (engine) is done. **184 shops are live** — every shop the pipeline can
 currently clear without a human decision. Seven improvements past the
 original write-up widened that from the initial 21/36, the seventh being a
 by-hand review pass rather than another mechanical rule (§8, general stores).
+
+### 8.4 A second by-hand binding pass, and the wall behind the rest
+
+A later pass reviewed the ~161 shops blocked *only* on an unverified inv
+binding (everything else about them — coin pricing, reviewed stock, a
+spawned owner — already checked out). 20 were promoted to `verified` under
+the same evidentiary bar as §8's general-store pass: exact npc/inv name
+identity, or a specific location+domain stem match with zero collision
+against another shop's proposed binding in the same batch. The other ~141
+were explicitly rejected, not skipped — the two failure shapes worth naming
+because they'll recur:
+
+* **Location-blind collisions.** `tal_teklan_dyeshop` was namematch's
+  proposal for three unrelated pages (an archery shop, a dye shop, a rune
+  shop) because they share the `tal_teklan_` owner prefix; `keldagrim_*`
+  stall names got proposed for Ardougne/Prifddinas pages on the same
+  "stall" stem with the location word stripped as noise. Any candidate that
+  collides with another shop's proposal in the same run is refused, full
+  stop — a specific-but-wrong match is worse than no match, because it ships
+  silently.
+* **Genuinely unspawned owners, not a binding problem.** 5 of the 20
+  promoted bindings (`deepfin_dwarf_korgan`, the `myq6_efaritay_*` family,
+  `fortis_shop_general_1`, `port_roberts_shopkeeper`,
+  `lovakengj_thirus_*`) are correct and still didn't generate — grep against
+  every `areas/world/configs/*.spawn` file confirms zero spawn rows for any
+  of them. This is the same Varlamore/post-2004-region gap the original
+  write-up found in bucket (c): the only spawn source this tree has
+  (`xrsps-typescript`'s npc-spawns.json) has zero Varlamore rows, and a
+  broader sample of the "no spawned owner" bucket (59 checked) is almost
+  entirely Fortis/Cam Torum/Port Roberts/Aldarin/Sunset Coast/Kastori —
+  Varlamore locations, confirming this is one root cause, not 59 separate
+  ones. Not fixable from inside this pipeline; needs a spawn data source
+  this tree doesn't have.
+
+A third root cause, found while chasing the Prifddinas cluster (11 shops:
+Amlodd's Magical Supplies, Aneirin's Armour, Branwen's Farming Shop, Elgan's
+Exceptional Staffs, Guinevere's Dyes, Gwyn's Mining Emporium, Lliann's
+Wares, Sian's Ranged Weaponry, the four Prifddinas stalls, plus Arceuus'
+Filamina's Wares and Regath's Wares): their owner npcs *are* spawned
+(confirmed against `areas/world/configs/*.spawn`), so this isn't the
+Varlamore no-spawn gap. It's that `configs/all.inv.compack` has exactly four
+`prif_*` invs total — `prif_food_store`, `prif_mace_store`,
+`prif_weapon_store`, `prif_leigh_store` — none matching any of these 11
+shops' domains, and zero `arceuus_*` invs at all. This cache snapshot
+predates that game content; no binding rule fixes a shop whose inv was never
+packed. 13 more shops added to the "blocked on missing data" ledger, next to
+the 129 Varlamore ones — same shape of problem, different game update.
+
+The "not coin-priced" bucket (206) was also checked rather than assumed: a
+sample of the 129 with a *blank* currency field (not a named alt-currency
+like League Points) turned out not to be a scraper gap. `Ajjat` — a
+representative case — has no `StoreTableHead` at all; it is a one-way
+fixed-price sale (99,000gp for a skill cape) with no buy/sell ladder, no
+restock, no haggle delta. That is a different feature
+(`buy_item`/`sell_item` are ladder+haggle by construction — see §3.5) than
+what this pipeline builds, correctly out of scope per §7, not a missed 206
+shops.
+
+### 8.5 Whether the Prifddinas/Arceuus/Darkmeyer wall has a door — tested, no
+
+The 13 shops in that cluster looked, on closer inspection, like they might
+not be a spawn-data gap at all: their owner npcs (Aneirin, Elgan, Guinevere,
+Gwyn, Lliann, Filamina, Regath, Thyria, ...) turned out to have real spawn
+coordinates in the wider reference data, and were already confirmed present
+in this repo's own `areas/world/configs/*.spawn` files (§8.4's grep). The
+actual blocker is narrower than "no data" — it's that `configs/all.inv.compack`
+was never packed with a `prif_*`/`arceuus_*`/`darkm_*` inv for any of them.
+
+That looked closeable: `tools/ss_allocate.py` already lets content declare a
+brand-new inv name in `pack/inv.alloc` with no cache slot behind it at all
+(`rs2012_qbd_rewardinv`, `summoning_bob`). Tested directly — wrote a real
+`aneirins_armour_shop` block (12 already-resolved stock lines, verified
+spawned owner `prif_armourstore`, matching `~openshop` call), let the
+allocator assign it id 2002, and rebuilt. It compiled clean, but selftest
+logged `shop inv 2002 has a definition but no cache size; not seeded`:
+`mock230_container_resolve` sizes a shared shop container from the cache's
+own inv definition, and a content-only id has none. `rs2012_qbd_rewardinv`
+and `summoning_bob` get away with this because they're fixed-purpose
+containers with a size the reading code already assumes; a shop is a
+variable-size, client-rendered grid with no such assumption to fall back on.
+
+This is a real, fixable engine gap — teach `mock230_shop_seed`/
+`mock230_container_resolve` a content-declared size for shop invs specifically
+(e.g. a `size=` line in the `.inv` file itself, already parsed and currently
+inert per `inv_config_key`'s own `size=` branch) — but it is engine work, not
+content wiring, and deliberately out of scope to improvise under this plan.
+Reverted the experiment cleanly (deleted the two test files, removed the
+allocator entry, rebuilt, `all checks passed`) rather than leave broken
+content behind. Filed here so the next attempt at this cluster starts from
+"the fix is a container-sizing feature" instead of re-discovering it.
 
 * **The obj resolver now prefers a tradeable id over a lower one**
   (`gen_shop_catalog.py`'s `load_obj_index`) instead of always taking the
@@ -908,7 +998,7 @@ in-game), not another pass over the existing pipeline.
 > `doors.loc`/`doubledoors.loc`, from the same door-opening work referenced
 > in earlier status notes — not shop content and not this pass's to fix.)
 
-### 8.2 Content — 178 shops live
+### 8.2 Content — 197 shops live
 
 Generated by `tools/gen_shop_scripts.py --write` from the reviewed rows of
 `shop_inv_map.tsv` (the `verified` tier — 386 rows after §8's binding
