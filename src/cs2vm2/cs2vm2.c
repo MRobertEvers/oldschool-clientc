@@ -3997,12 +3997,21 @@ CS2VM2_Op_IF_SetOnEventHandler(
             return CS2VM_EXECNO_ERROR;
         }
 
-        if( script_id == -1 )
-        {
-            free(trigger_ids);
-            return CS2VM_EXECNO_OK;
-        }
-
+        /*
+         * A null script is a DISARM, not a no-op.
+         *
+         * `if_setontimer(null, com)` is how a script stops its own timer —
+         * script1005 (the XP-drop row) ends with exactly that, and script997
+         * uses it to turn the XP panel's auto-hide off. Returning here left the
+         * previous hook installed, so a listener that had asked to be removed
+         * kept firing for the rest of the session. It reaches the host with
+         * script_id <= 0, and UITree_HookSet already treats that as "clear the
+         * slot"; the transmit registries clear their entry rather than acquire
+         * one (see rs_cs2_acquire_*_transmit_hook's `create`).
+         *
+         * The pops above must happen either way — the stack is unwound by the
+         * signature, not by whether a handler is being installed.
+         */
         memset(out_request, 0, sizeof(*out_request));
         out_request->component_id = widget_uid;
         out_request->script_id = script_id;
@@ -4668,11 +4677,8 @@ cs2vm2_op_if_set_on_transmit(
         return CS2VM_EXECNO_ERROR;
     }
 
-    if( script_id == -1 )
-    {
-        free(trigger_ids);
-        return CS2VM_EXECNO_OK;
-    }
+    /* script -1 is a disarm, not a no-op — see CS2VM2_Op_IF_SetOnEventHandler.
+     * The host clears the registry entry instead of acquiring one. */
 
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
@@ -4825,11 +4831,8 @@ CS2VM2_Op_IF_SetOnInvTransmit(
         return CS2VM_EXECNO_ERROR;
     }
 
-    if( script_id == -1 )
-    {
-        free(trigger_ids);
-        return CS2VM_EXECNO_OK;
-    }
+    /* script -1 is a disarm, not a no-op — see CS2VM2_Op_IF_SetOnEventHandler.
+     * The host clears the registry entry instead of acquiring one. */
 
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));

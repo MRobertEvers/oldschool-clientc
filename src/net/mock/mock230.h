@@ -108,6 +108,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 struct Mock230Conn;
 struct Mock230Session;

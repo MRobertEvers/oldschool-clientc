@@ -3656,7 +3656,8 @@ rs_cs2_compact_inv_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2InvTransmitHook*
 rs_cs2_acquire_inv_transmit_hook(
     struct RS_CS2Host* host,
-    int component_id)
+    int component_id,
+    int create)
 {
     int i;
     struct RS_CS2InvTransmitHook* hook;
@@ -3672,6 +3673,12 @@ rs_cs2_acquire_inv_transmit_hook(
             return hook;
         }
     }
+
+    /* A null registration (`if_setoninvtransmit(null, com)`) disarms. It must
+     * not mint a slot for a component that never had one — a script that
+     * disarms unconditionally would fill the registry with dead entries. */
+    if( !create )
+        return NULL;
 
     rs_cs2_compact_inv_transmit_hooks(host);
 
@@ -3716,7 +3723,8 @@ rs_cs2_compact_var_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2VarTransmitHook*
 rs_cs2_acquire_var_transmit_hook(
     struct RS_CS2Host* host,
-    int component_id)
+    int component_id,
+    int create)
 {
     int i;
     struct RS_CS2VarTransmitHook* hook;
@@ -3732,6 +3740,12 @@ rs_cs2_acquire_var_transmit_hook(
             return hook;
         }
     }
+
+    /* A null registration (`if_setonvartransmit(null, com)`) disarms. It must
+     * not mint a slot for a component that never had one — a script that
+     * disarms unconditionally would fill the registry with dead entries. */
+    if( !create )
+        return NULL;
 
     rs_cs2_compact_var_transmit_hooks(host);
 
@@ -3820,7 +3834,8 @@ rs_cs2_cache_hook_triggers(
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
-    int component_id);
+    int component_id,
+    int create);
 
 /*
  * Register the transmit hooks a component record declares in the CACHE.
@@ -3884,7 +3899,7 @@ RS_CS2_RegisterCacheTransmitHooks(
 
         if( k_channels[i].channel == 0 )
         {
-            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id);
+            struct RS_CS2VarTransmitHook* hook = rs_cs2_acquire_var_transmit_hook(host, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
@@ -3901,7 +3916,7 @@ RS_CS2_RegisterCacheTransmitHooks(
         }
         else if( k_channels[i].channel == 1 )
         {
-            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id);
+            struct RS_CS2InvTransmitHook* hook = rs_cs2_acquire_inv_transmit_hook(host, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
@@ -3918,7 +3933,7 @@ RS_CS2_RegisterCacheTransmitHooks(
         }
         else
         {
-            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id);
+            struct RS_CS2StatTransmitHook* hook = rs_cs2_acquire_stat_transmit_hook(host, src->id, 1);
             if( !hook )
                 continue;
             component_id = &hook->component_id;
@@ -3950,15 +3965,19 @@ exec_set_on_inv_transmit(
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
     assert(request);
-    hook = rs_cs2_acquire_inv_transmit_hook(host, request->component_id);
+    hook = rs_cs2_acquire_inv_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
     {
-        fprintf(
-            stderr,
-            "rs_cs2_host: inv_transmit_hooks full (%d), dropping script_id=%d component_id=%d\n",
-            RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
-            request->script_id,
-            request->component_id);
+        /* Two ways to get here now, and only one is a defect: the registry is
+         * full, or this was a disarm of a component that had no hook. */
+        if( request->script_id > 0 )
+            fprintf(
+                stderr,
+                "rs_cs2_host: inv_transmit_hooks full (%d), dropping script_id=%d "
+                "component_id=%d\n",
+                RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
+                request->script_id,
+                request->component_id);
         return CS2VM_EXECNO_OK;
     }
     hook->component_id = request->component_id;
@@ -4020,7 +4039,8 @@ rs_cs2_compact_stat_transmit_hooks(struct RS_CS2Host* host)
 static struct RS_CS2StatTransmitHook*
 rs_cs2_acquire_stat_transmit_hook(
     struct RS_CS2Host* host,
-    int component_id)
+    int component_id,
+    int create)
 {
     int i;
     struct RS_CS2StatTransmitHook* hook;
@@ -4036,6 +4056,12 @@ rs_cs2_acquire_stat_transmit_hook(
             return hook;
         }
     }
+
+    /* A null registration (`if_setonstattransmit(null, com)`) disarms. It must
+     * not mint a slot for a component that never had one — a script that
+     * disarms unconditionally would fill the registry with dead entries. */
+    if( !create )
+        return NULL;
 
     /* Compact dead entries (closed/rebuilt interface left hooks behind) before
      * appending — same as inv/var acquire. */
@@ -4318,7 +4344,7 @@ exec_set_on_stat_transmit(
     assert(host);
     if( !request )
         return CS2VM_EXECNO_OK;
-    hook = rs_cs2_acquire_stat_transmit_hook(host, request->component_id);
+    hook = rs_cs2_acquire_stat_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = request->component_id;
@@ -4343,7 +4369,7 @@ exec_set_on_var_transmit(
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
-    hook = rs_cs2_acquire_var_transmit_hook(host, request->component_id);
+    hook = rs_cs2_acquire_var_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
     hook->component_id = request->component_id;
@@ -4388,16 +4414,19 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT )
     {
         struct RS_CS2InvTransmitHook* hook;
-        hook = rs_cs2_acquire_inv_transmit_hook(host, component_id);
+        hook = rs_cs2_acquire_inv_transmit_hook(host, component_id, request->script_id > 0);
         if( !hook )
         {
-            fprintf(
-                stderr,
-                "rs_cs2_host: inv_transmit_hooks full (%d), dropping cc script_id=%d "
-                "component_id=%d\n",
-                RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
-                request->script_id,
-                component_id);
+            /* Full, or a disarm of a component that had no hook — see
+             * exec_set_on_inv_transmit. */
+            if( request->script_id > 0 )
+                fprintf(
+                    stderr,
+                    "rs_cs2_host: inv_transmit_hooks full (%d), dropping cc script_id=%d "
+                    "component_id=%d\n",
+                    RS_CS2_HOST_INV_TRANSMIT_HOOK_MAX,
+                    request->script_id,
+                    component_id);
             return CS2VM_EXECNO_OK;
         }
         hook->component_id = component_id;
@@ -4419,7 +4448,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT )
     {
         struct RS_CS2VarTransmitHook* hook;
-        hook = rs_cs2_acquire_var_transmit_hook(host, component_id);
+        hook = rs_cs2_acquire_var_transmit_hook(host, component_id, request->script_id > 0);
         if( !hook )
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;
@@ -4441,7 +4470,7 @@ exec_set_on_cc_transmit(
     if( kind == CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT )
     {
         struct RS_CS2StatTransmitHook* hook;
-        hook = rs_cs2_acquire_stat_transmit_hook(host, component_id);
+        hook = rs_cs2_acquire_stat_transmit_hook(host, component_id, request->script_id > 0);
         if( !hook )
             return CS2VM_EXECNO_OK;
         hook->component_id = component_id;

@@ -6790,6 +6790,19 @@ app_xpdrop_debug_tick(struct App* app)
         }
     }
 
+    /* 122:0 (universe) carries the auto-hide timer script998 armed by script997.
+     * Its last argument is the clientclock deadline at which it hides the whole
+     * panel; once past it, script998 is supposed to disarm itself. */
+    {
+        int32_t const uni = UITree_FindByComponentId(app->tree, APP_XPDROP_COM(0));
+        struct UITreeRuntimeScriptHook const* t =
+            uni >= 0 ? &UITree_Hooks(&app->tree->components[uni])->on_timer : NULL;
+        n += snprintf(
+            line + n, sizeof(line) - (size_t)n, "uni{timer=%d deadline=%d} ",
+            t ? t->script_id : -1,
+            (t && t->argc > 0) ? UITree_HookArg(t, t->argc - 1) : -1);
+    }
+
     n += snprintf(
         line + n, sizeof(line) - (size_t)n,
         "vc70=%d vc71=%d vc76=%d serial=%u hook{%s seen=%u args=%d hid=%d} "
