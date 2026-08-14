@@ -27894,6 +27894,154 @@ mock230_world_selftest(void)
     bank_placeholder_done:;
     }
 
+#define HTPROBE(tag)                                                                               \
+    do {                                                                                           \
+        int pd_ = mock230_content_symbol(MOCK230_PACK_LOC, "poordoor");                            \
+        int ds_ = mock230_scene_find_loc_id(3226, 3223, 0, pd_);                                   \
+        int ds2_ = mock230_scene_find_loc_id(3227, 3223, 0,                                        \
+            mock230_content_symbol(MOCK230_PACK_LOC, "poordooropen"));                             \
+        fprintf(stderr, "  HTPROBE %-14s tick=%d shut_slot=%d open_slot=%d px=%d pz=%d\n", tag,     \
+                srv->tick, ds_, ds2_, srv->active_player->x, srv->active_player->z);                \
+    } while( 0 )
+    HTPROBE("before-stanza");
+    if( getenv("MOCK230_TICKCTL") != NULL )
+    {
+        for( int t = 0, n = atoi(getenv("MOCK230_TICKCTL")); t < n; t++ )
+            mock230_world_tick(srv);
+    }
+    fprintf(stderr, "mock230 selftest: home teleport channel, cooldown and abort\n");
+    if( getenv("MOCK230_NO_HT") == NULL )
+    {
+        /*
+         * Home Teleport is the only spell in the tree that costs time instead
+         * of runes, so the three things worth asserting are all things no other
+         * teleport has: that the 17-tick channel is a channel and not an
+         * instant jump, that the cooldown stamp is written on arrival rather
+         * than on cast, and that walking out of the circle cancels it for free.
+         *
+         * The middle one is the whole design. Stamping at cast time would be
+         * simpler and would look identical in a test that only casts once —
+         * and it would charge a player 30 minutes for a teleport they aborted
+         * or died during. The abort case below is what tells the two apart.
+         *
+         * Placed immediately before a `selftest_reset_world`, deliberately.
+         * This stanza runs seventy-odd world ticks, and `srv->tick` is shared
+         * state that later sections measure durations against; the reset on the
+         * far side of the closing brace is what ends its blast radius.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int spell = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                               "magic_spellbook:teleport_home_standard");
+            int stamp = mock230_content_symbol(MOCK230_PACK_VARP, "aide_tele_timer");
+            /* Far enough from the Lumbridge respawn tile that arrival is not
+             * something the fixture could have been standing on already. */
+            int const away_x = 3200;
+            int const away_z = 3250;
+
+            SELFTEST_CHECK(spell > 0, "magic_spellbook:teleport_home_standard should resolve, "
+                                      "got %d", spell);
+            SELFTEST_CHECK(stamp == 892,
+                           "aide_tele_timer must stay client varp 892 — clientscript 2614 reads "
+                           "that id to dim the icon, got %d", stamp);
+
+            if( spell > 0 && stamp >= 0 )
+            {
+                int landed = -1;
+
+                HTPROBE("enter");
+
+                /* ---- the channel ---------------------------------------- */
+                selftest_reset_world(srv, player, 402, 402);
+                selftest_park_player(srv, away_x, away_z);
+                player->varps[stamp] = 0;
+                SELFTEST_CHECK(mock230_scripts_run_if_button(srv, spell, 1) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "if_button1 on teleport_home_standard should bind (Cast)");
+                /*
+                 * The cast has parked, not finished. A spell that teleported
+                 * here would pass every arrival check below while having no
+                 * channel at all, so this is the assertion that gives the rest
+                 * of them meaning.
+                 */
+                SELFTEST_CHECK(player->x == away_x && player->z == away_z,
+                               "the cast starts a channel, it does not jump — at %d,%d",
+                               player->x, player->z);
+                SELFTEST_CHECK(player->varps[stamp] == 0,
+                               "and it has not spent the cooldown yet, got %d",
+                               player->varps[stamp]);
+
+                for( int tick = 0; tick < 30 && landed < 0; tick++ )
+                {
+                    mock230_world_tick(srv);
+                    if( player->varps[stamp] != 0 )
+                        landed = tick + 1;
+                }
+                SELFTEST_CHECK(landed >= 15 && landed <= 20,
+                               "the channel should land around tick 17, got %d", landed);
+                /* map_findsquare spreads arrival by ^home_teleport_spread=2
+                 * around 3222,3218, so the claim is the square, not the tile. */
+                SELFTEST_CHECK(player->x >= 3220 && player->x <= 3224 && player->z >= 3216 &&
+                                   player->z <= 3220,
+                               "and it lands on the Lumbridge respawn square, got %d,%d",
+                               player->x, player->z);
+                SELFTEST_CHECK(player->varps[stamp] > 1000000,
+                               "arrival stamps aide_tele_timer with wall-clock minutes, got %d",
+                               player->varps[stamp]);
+                HTPROBE("after-channel");
+
+                /* ---- the cooldown --------------------------------------- */
+                selftest_park_player(srv, away_x, away_z);
+                SELFTEST_CHECK(mock230_scripts_run_if_button(srv, spell, 1) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "a second cast still dispatches — the refusal is content's, not "
+                               "the engine's");
+                for( int tick = 0; tick < 30; tick++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->x == away_x && player->z == away_z,
+                               "but the 30-minute cooldown refuses it, at %d,%d", player->x,
+                               player->z);
+                HTPROBE("after-cooldown");
+
+                /* ---- walking out of the circle -------------------------- */
+                selftest_park_player(srv, away_x, away_z);
+                player->varps[stamp] = 0;
+                SELFTEST_CHECK(mock230_scripts_run_if_button(srv, spell, 1) ==
+                                   MOCK230_TRIGGER_RAN,
+                               "a fresh cast after clearing the stamp should bind again");
+                for( int tick = 0; tick < 3; tick++ )
+                    mock230_world_tick(srv);
+                /*
+                 * p_delay does not stop movement in this engine — only p_lock
+                 * does — so a click mid-channel routes and walks normally. That
+                 * is what makes the coord comparison in
+                 * `[proc,home_teleport_interrupted]` the abort mechanism, and
+                 * it only registers once a tile has actually been stepped.
+                 */
+                mock230_world_walk_to(srv, away_x + 5, away_z);
+                for( int tick = 0; tick < 30; tick++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->x != 3222 || player->z != 3218,
+                               "walking out of the circle cancels the channel, got %d,%d",
+                               player->x, player->z);
+                SELFTEST_CHECK(player->varps[stamp] == 0,
+                               "and an aborted channel costs no cooldown, got %d",
+                               player->varps[stamp]);
+                HTPROBE("exit");
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: bank open sends both halves\n");
     {
         static struct Mock230Capture capture;
@@ -33654,45 +33802,29 @@ mock230_world_selftest(void)
                 }
 
                 /*
-                 * TEMPORARY diagnostic for the ranged-attack timing bug report
-                 * (JalTok-Jad's jaltokjad_attack_ranged vs tzhaar_rock_smash).
-                 * Gated on an env var so it never runs in a normal selftest
-                 * pass; remove once the investigation is done.
+                 * The engine dispatches Jad's ranged-attack animation and its
+                 * tzhaar_rock_smash ground burst from consecutive statements in
+                 * one script proc (`[proc,inferno_jad_range_npc]` /
+                 * `[proc,inferno_jad_range]`, inferno_jad.rs2), so this stanza
+                 * only ever needed confirming once, not standing regression
+                 * coverage: an env-gated probe staged the same zukstill-4
+                 * fixture, ran it for several hundred ticks with
+                 * TORIRS_ANIM_DEBUG=1, and diffed the tick number
+                 * `mock230_anim_play_npc` set jaltokjad_attack_ranged (seq
+                 * 7593) against the tick `mock230_zone_mapanim` queued
+                 * tzhaar_rock_smash (spotanim 451) for the same attack — every
+                 * sample landed on the identical srv->tick. That rules out a
+                 * server-side dispatch skew; the reported "renders 1 tick
+                 * early" therefore has to be client-side, in how
+                 * World_CycleUpdateSpotanims's idle_cycles/active gate for a
+                 * WorldEntity_Spotanim compared to whatever gated
+                 * WorldEntity_NPC primary-animation start — see
+                 * World_SpotanimSpawn and World_CycleUpdateSpotanims in
+                 * src/world/world.c and world_cycle.c, and the regression
+                 * coverage in world_test_unit.c
+                 * (test_spotanim_immediate_activation /
+                 * test_spotanim_catchup_activation).
                  */
-                if( getenv("JAD_TIMING_PROBE") )
-                {
-                    int jad_final =
-                        mock230_content_symbol(MOCK230_PACK_NPC, "inferno_jad_finalwave");
-                    int jad = -1;
-
-                    selftest_reset_world(srv, player, 402, 402);
-                    SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "zukstill 4"),
-                                   "JAD_TIMING_PROBE: zukstill 4 setup");
-                    for( int tick = 0; tick < 24 && jad < 0; tick++ )
-                    {
-                        if( player->rebuild_scene_pending )
-                            mock230_world_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL,
-                                                 0);
-                        mock230_world_tick(srv);
-                        jad = selftest_find_npc(srv, jad_final);
-                    }
-                    fprintf(stderr, "JAD_TIMING_PROBE: staged at tick=%d jad_idx=%d\n",
-                            (int)srv->tick, jad);
-                    fprintf(stderr,
-                            "JAD_TIMING_PROBE: seq ranged=%d melee=%d magic=%d death=%d "
-                            "spot rock_smash=%d\n",
-                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_attack_ranged"),
-                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_attack_melee"),
-                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_attack_magic"),
-                            mock230_content_symbol(MOCK230_PACK_SEQ, "jaltokjad_death"),
-                            mock230_content_symbol(MOCK230_PACK_SPOTANIM, "tzhaar_rock_smash"));
-                    if( jad >= 0 )
-                    {
-                        for( int tick = 0; tick < 400; tick++ )
-                            mock230_world_tick(srv);
-                    }
-                    fprintf(stderr, "JAD_TIMING_PROBE: done at tick=%d\n", (int)srv->tick);
-                }
 
                 /*
                  * And the glyph dwells at each end of its row before turning

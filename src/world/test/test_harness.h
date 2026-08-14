@@ -85,6 +85,8 @@ void test_player_npc(void);
 void test_projectile(void);
 void test_projectile_target(void);
 void test_spotanim(void);
+void test_spotanim_immediate_activation(void);
+void test_spotanim_catchup_activation(void);
 void test_scenery(void);
 void test_cycle_movers(void);
 void test_delaymove_gate(void);

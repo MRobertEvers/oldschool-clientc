@@ -548,6 +548,104 @@ test_spotanim(void)
     World_Free(world);
 }
 
+/*
+ * Regression for the Inferno JalTok-Jad ranged-attack timing bug: a map
+ * spotanim spawned with idle_delay<=0 (spotanim_map's ordinary case, e.g.
+ * tzhaar_rock_smash) used to sit inactive for one whole world cycle before
+ * World_CycleUpdateSpotanims got around to flipping it — even though the app
+ * layer (app_world_spawn_spotanim_now) never waited on that flag for a
+ * zero-delay graphic and started drawing frame 0 immediately at spawn. World's
+ * own idea of "when did this start" therefore disagreed with what was already
+ * on screen by exactly one cycle, the same class of skew the bug report
+ * described between jaltokjad_attack_ranged (an ordinary WorldEntity_NPC
+ * primary animation, scored from the cycle it is *set*) and tzhaar_rock_smash
+ * (a WorldEntity_Spotanim, which used to be scored from the cycle *after*).
+ */
+void
+test_spotanim_immediate_activation(void)
+{
+    printf("TEST: spotanim immediate activation (idle_delay<=0)\n");
+
+    struct World* world = World_TestMakeReady(104);
+
+    /* spawn_spotanim_now passes 0 for both an unspecified height and a
+     * script's explicit `spotanim_map(id, coord, 0, 0)` delay — either way,
+     * idle_delay<=0 must be active from the instant World_SpotanimSpawn
+     * returns, before any World_Cycle call has run this tick. */
+    int idx = World_SpotanimSpawn(world, 90, 0, 20 * 128, 20 * 128, 0, 0, 0, 10);
+    struct WorldEntity_Spotanim* s = World_EntityPoolGet(&world->entities.spotanim, idx);
+    TEST_ASSERT(s && s->active, "delay<=0 spot active at spawn, before any cycle");
+    TEST_ASSERT(s->active_cycle == 0, "delay<=0 spot starts its own lifetime clock at 0");
+
+    {
+        int starts = 0;
+        int count = World_EventsCount(world);
+        for( int i = 0; i < count; i++ )
+        {
+            const struct World_Event* ev = World_EventsPeek(world, i);
+            if( ev->kind == WorldEventKind_SpotanimStarted && ev->element_id == 90 )
+                starts++;
+        }
+        TEST_ASSERT(starts == 1, "delay<=0 spot start event fires at spawn, not next cycle");
+    }
+    World_EventsClear(world);
+
+    /* Lifetime timing must be exactly what it always was for delay==0: an
+     * entity that becomes active AT SPAWN and one that becomes active on the
+     * FIRST subsequent World_Cycle call age identically once real cycles
+     * elapse — this only moves when `active` flips, not how fast it ages. */
+    World_Cycle(world, 10);
+    TEST_ASSERT(world->entities.spotanim.active_count == 0, "delay<=0 spot expires on schedule");
+
+    World_Free(world);
+}
+
+/*
+ * Companion regression: a multi-cycle catch-up step (several world cycles
+ * settled in one App_RunOnce after a stalled frame) used to credit the WHOLE
+ * step to a just-activated spotanim's active_cycle, even the cycles that were
+ * still inside its delay window and never drew a frame — backdating its
+ * lifetime clock and despawning it early. This checks the catch-up path
+ * lands on exactly the same active_cycle a run of single-cycle steps over the
+ * same total would have produced.
+ */
+void
+test_spotanim_catchup_activation(void)
+{
+    printf("TEST: spotanim catch-up activation (multi-cycle step across the delay boundary)\n");
+
+    /* Single-cycle reference: idle_delay=3, seven 1-cycle steps. */
+    struct World* stepped = World_TestMakeReady(104);
+    int stepped_idx = World_SpotanimSpawn(stepped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
+    for( int t = 0; t < 7; t++ )
+        World_Cycle(stepped, 1);
+    struct WorldEntity_Spotanim* stepped_s =
+        World_EntityPoolGet(&stepped->entities.spotanim, stepped_idx);
+    TEST_ASSERT(stepped_s && stepped_s->active, "stepped reference activated");
+
+    /* Same idle_delay, same total elapsed cycles, but caught up in one lump
+     * (the multi-cycle App_RunOnce catch-up path). */
+    struct World* lumped = World_TestMakeReady(104);
+    int lumped_idx = World_SpotanimSpawn(lumped, 91, 0, 20 * 128, 20 * 128, 0, 0, 3, 100);
+    World_Cycle(lumped, 7);
+    struct WorldEntity_Spotanim* lumped_s = World_EntityPoolGet(&lumped->entities.spotanim, lumped_idx);
+    TEST_ASSERT(lumped_s && lumped_s->active, "lumped catch-up activated");
+
+    if( stepped_s && lumped_s && stepped_s->active_cycle != lumped_s->active_cycle )
+        fprintf(
+            stderr,
+            "spotanim catch-up: lumped active_cycle=%d, single-stepped active_cycle=%d\n",
+            lumped_s->active_cycle,
+            stepped_s->active_cycle);
+    TEST_ASSERT(
+        stepped_s && lumped_s && stepped_s->active_cycle == lumped_s->active_cycle,
+        "catch-up active_cycle must match single-stepping — crediting the whole lumped step "
+        "backdates the lifetime clock into the still-delayed window");
+
+    World_Free(stepped);
+    World_Free(lumped);
+}
+
 void
 test_scenery(void)
 {

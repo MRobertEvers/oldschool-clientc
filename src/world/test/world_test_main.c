@@ -15,6 +15,8 @@ main(void)
     test_projectile();
     test_projectile_target();
     test_spotanim();
+    test_spotanim_immediate_activation();
+    test_spotanim_catchup_activation();
     test_scenery();
     test_cycle_movers();
     test_delaymove_gate();

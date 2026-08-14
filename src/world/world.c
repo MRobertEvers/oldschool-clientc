@@ -776,8 +776,8 @@ World_SpotanimSpawn(
      * spotanim's own lifetime clock (World_CycleUpdateSpotanims,
      * `active_cycle >= lifetime` -> despawn), so starting it a cycle late in
      * World's model meant the entity — and the scene element it owns — lived
-     * one cycle longer server-side... sorry, world-side, than the graphic it
-     * was timed against. Flipping `active` here, at the same instant the app
+     * one cycle longer than the graphic it was timed against. Flipping
+     * `active` here, at the same instant the app
      * layer starts drawing frame 0, is what makes "when World considers this
      * graphic to have started" and "when the player can see it" the same
      * question for BOTH delay classes, matching how a fresh NPC's primary

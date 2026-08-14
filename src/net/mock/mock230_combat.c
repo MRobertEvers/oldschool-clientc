@@ -653,19 +653,37 @@ mock230_combat_add_xp(
         if( player->stat_level[stat] > before )
             mock230_scripts_run_trigger_specific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
     }
-    if( stat != MOCK230_STAT_HITPOINTS )
+    if( stat != MOCK230_STAT_HITPOINTS && stat != MOCK230_STAT_SUMMONING )
     {
         /* Boosted follows base upward so a level-up is usable at once, and back
          * down only when the base actually fell beneath it — a boost above a
          * base the player no longer has is power the experience no longer pays
          * for, but clamping unconditionally would cancel a potion on every xp
          * drop. Hitpoints is exempt because its boosted slot is current
-         * hitpoints, which `sync_hitpoints` owns. */
+         * hitpoints, which `sync_hitpoints` owns.
+         *
+         * Summoning is exempt for the same reason hitpoints is: its boosted slot
+         * is not a boost, it is the *points pool*. Summoning experience is earned
+         * by infusing pouches and by every special move
+         * (`~summoning_familiar_special_commit`'s `stat_advance`), so the
+         * upward snap here was silently refilling the pool the familiar tick had
+         * just been draining — a special spent points and handed them straight
+         * back. Points now rise only where something restores them on purpose
+         * (the obelisk's op2, `::summoning_points`); a level-up raises the
+         * ceiling and leaves the current pool where it stands, which is what
+         * the live game does. */
         if( player->stat_boosted[stat] < player->stat_level[stat] )
             player->stat_boosted[stat] = player->stat_level[stat];
         else if( player->stat_level[stat] < before &&
                  player->stat_boosted[stat] > player->stat_level[stat] )
             player->stat_boosted[stat] = player->stat_level[stat];
+    }
+    else if( stat == MOCK230_STAT_SUMMONING &&
+             player->stat_boosted[stat] > player->stat_level[stat] )
+    {
+        /* The one direction that must still track: the pool cannot exceed the
+         * ceiling, so a lost level takes the surplus points with it. */
+        player->stat_boosted[stat] = player->stat_level[stat];
     }
     mock230_combat_stat_mark(player, stat);
 }

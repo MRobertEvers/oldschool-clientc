@@ -1196,6 +1196,8 @@ mock230_scene_replace_loc(
      * (see mock230_scene_add_loc) precisely so the tile can be put back without
      * the caller having to know whether it is currently there. Its collision is
      * already gone, so there is nothing to take away first. */
+    if( getenv("MOCK230_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
+        fprintf(stderr, "  DOORTRACE replace slot=%d %d -> %d\n", slot, loc->loc_id, loc_id);
     if( loc->active )
         apply_loc_collision(loc, 0);
     loc->active = 1;
@@ -1320,6 +1322,8 @@ mock230_scene_remove_loc(int slot)
 
     if( !loc || !loc->active )
         return 0;
+    if( getenv("MOCK230_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
+        fprintf(stderr, "  DOORTRACE remove slot=%d id=%d\n", slot, loc->loc_id);
     apply_loc_collision(loc, 0);
     loc->active = 0;
     return 1;
