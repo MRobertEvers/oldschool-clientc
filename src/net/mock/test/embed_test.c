@@ -216,6 +216,12 @@ struct Peer
     int saw_synth_count;
     int saw_synth_id, saw_synth_loops, saw_synth_delay;
 
+    /** Same idea, for MIDI_JINGLE -- decoded by the client's real
+     *  `gameproto_parse.c`/`rsprot_bridge.c` reader, not asserted against a
+     *  second parser. See the SS_OP_MIDI_JINGLE direct-dispatch check below. */
+    int saw_jingle_count;
+    int saw_jingle_id, saw_jingle_delay;
+
 };
 
 /** The last FACE_ENTITY this client decoded for `slot`, or -1 if none.
@@ -739,6 +745,12 @@ pump(
                 peer->saw_synth_loops = packet._synth_sound.loops;
                 peer->saw_synth_delay = packet._synth_sound.delay;
             }
+            else if( packet.packet_type == PKT_NAME_MIDI_JINGLE )
+            {
+                peer->saw_jingle_count++;
+                peer->saw_jingle_id = packet._midi_jingle.id;
+                peer->saw_jingle_delay = packet._midi_jingle.delay;
+            }
             else if( !absorb_social(peer, &packet) )
                 absorb_zone(peer, &packet, origin_x, origin_z);
             gameproto_free(&packet);
@@ -1087,6 +1099,80 @@ main(void)
                   peers[0].saw_synth_delay == synth_delay,
               "id/loops/delay round-tripped through the client's own "
               "gameproto_parse.c reader unchanged");
+    }
+
+    /*
+     * ── MIDI_JINGLE ──────────────────────────────────────────────────
+     *
+     * `midi_jingle(midi $jingle)` (`[command,midi_jingle]`,
+     * LostCity_Server/content/scripts/engine.rs2:331) was previously an
+     * `unimplemented_stub` opcode with no encoder, no wire-table entry, and a
+     * client reader whose declared packet length (packetin.h: 5 bytes) did not
+     * match what it actually consumed (gameproto_parse.c: 4). A real MIDI_JINGLE
+     * would have tripped `assert(position == data_size)` -- this build carries
+     * no `-DNDEBUG`, so that means aborting the client, not just mis-decoding.
+     *
+     * Dispatched the same way the SYNTH_SOUND check above is, for the same
+     * reason: the caller pushes one int (the jingle id; the length is looked up
+     * server-side from `mock230_jingle_lengths.gen.h`, mirroring LostCity's own
+     * `Player.playJingle` -> `new MidiJingle(id, Midi.getLength(id))`), and
+     * `mock230_script_command`'s own SS_OP_MIDI_JINGLE case does the rest —
+     * nothing here stands in for the opcode body.
+     *
+     * What this proves: the id reaches `mock230_send_midi_jingle`, is framed on
+     * the wire as `PKT_NAME_MIDI_JINGLE`, and is decoded back by the client's
+     * *own* reader -- which for rev 239 is now `rsprot_bridge.c`'s
+     * `bridge_midi_jingle`, not the 4-byte LostCity-era arm in
+     * `gameproto_parse.c`. That routing is the actual bug fix; a test that only
+     * checked the encoder would miss it entirely, since the encoder was never
+     * the half that was wrong.
+     */
+    {
+        /*
+         * osrs230's packet table genuinely has no MIDI_JINGLE writer -- the
+         * same "the revision has no writer" path `mock230_send_midi_song_stop`
+         * takes, and by the same design `mock230_send_midi_jingle` copies it
+         * from: returning rather than flushing a short body that would
+         * desynchronise the stream. `mock230_embed_start(NULL)` defaults to
+         * osrs230 (see its own comment), so this check only means something
+         * under `MOCK230_REV=osrs239`, which is the revision the bug this test
+         * exists for is actually about.
+         */
+        const char* rev_env = getenv("MOCK230_REV");
+
+        if( !rev_env || strcmp(rev_env, "osrs239") != 0 )
+        {
+            printf("embed: SKIP  MIDI_JINGLE wire check — osrs230 has no MIDI_JINGLE "
+                   "writer; rerun with MOCK230_REV=osrs239\n");
+        }
+        else
+        {
+            struct SSVM_State state;
+            int jingle_id = 152; /* quest_complete_1 -- pack/11_musicjingles.pack */
+
+            memset(&state, 0, sizeof(state));
+            state.env = world->script_env;
+            world->active_player = alice;
+
+            check(SSVM_PushInt(&state, jingle_id), "pushed the jingle id");
+            check(mock230_script_command(&state, SS_OP_MIDI_JINGLE, 0),
+                  "SS_OP_MIDI_JINGLE dispatched (mock230_scripts.c's own case, not a "
+                  "stand-in)");
+
+            peers[0].saw_jingle_count = 0;
+            for( int round = 0; round < 4; round++ )
+                pump(peers, 2, embed, 1, 64);
+
+            check(peers[0].saw_jingle_count > 0,
+                  "MIDI_JINGLE reached alice's stream (the packet is no longer "
+                  "refused by mock230_wire.c's transcribed-packet gate)");
+            check(peers[0].saw_jingle_id == jingle_id,
+                  "id round-tripped through the client's own rsprot_bridge.c "
+                  "reader unchanged");
+            check(peers[0].saw_jingle_delay >= 0,
+                  "the length field decoded to a plausible value rather than "
+                  "tripping the 4-vs-5-byte assert");
+        }
     }
 
     /*

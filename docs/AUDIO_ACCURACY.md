@@ -654,6 +654,63 @@ the *ambient* loc sound (§1) is cache-side.
 
 ---
 
+## 3.5 Jingles — MIDI_JINGLE, and naming the index-11 pack
+
+`SS_OP_MIDI_JINGLE` (2064) was declared but unimplemented (`ssvm.c`'s
+`unimplemented_stub`), and even a correct implementation would have aborted the
+client: [`packetin.h`](../src/net/rev/osrs239/packetin.h) declares rev 239's
+MIDI_JINGLE as 5 bytes, but `gameproto_parse.c` only ever read the 4-byte
+LostCity/2004 layout (`g2 id / g2 delay`) and then asserted
+`position == data_size` — a real 239 packet would trip that assert in a build
+with no `-DNDEBUG`, which this tree's `makefile` never sets.
+
+Both are fixed. `mock230_scripts.c` now has a real `SS_OP_MIDI_JINGLE` case
+(`mock230_send_midi_jingle`, wired through `mock230_wire.c`'s `midi_jingle`
+payload slot and `k_transcribed_osrs239[]`), and rev 239's actual 5-byte layout
+— `p3 length_in_millis` / `p2Alt3 id`, confirmed against the vendored generated
+codec (`3rd/rsprot/packets/midi_jingle.c`, v16 = revs 239), the 239 Kotlin
+transcription, and the rev-239 deob independently — is decoded by a new
+`bridge_midi_jingle` row in `src/net/rev/rsprot_bridge.c`, which `net.c` tries
+before the hand-written parser. The length field itself is computed
+server-side from the cache (`tools/gen_jingle_lengths.py` →
+`mock230_jingle_lengths.gen.h`, a real Standard MIDI File duration integration,
+not a placeholder) because the client decodes but does not act on it either way
+(`RS_Audio_Jingle`'s own comment: "trusting it would cut a jingle short on a
+slow load").
+
+**`pack/11_musicjingles.pack` naming.** Unlike index 6 (music tracks), index 11
+carries no name hashes in its reference table in any cache in this tree — the
+hash-recovery method `tools/gen_sound_names.py` uses cannot apply here. What
+unblocked it: the OSRS Wiki publishes a `cacheid` on every jingle's infobox,
+and that field turns out to **be** the JS5 group id — not documented anywhere
+as such, so this was verified rather than trusted, three ways:
+
+- **Id-set identity.** All 314 wiki `cacheid`s fall exactly inside this cache's
+  own 315-entry archive-11 id set (`{0..310} ∪ {830, 831, 832, 864}`; only `17`
+  and `178` have no wiki page).
+- **A companion proof on index 6**, which DOES carry name hashes: 7 sampled
+  wiki `cacheid`s all resolve to the archive-6 group whose stored hash matches
+  the lowercased track name — the same field, the same page layout, a
+  different table this cache can check unaided.
+- **Cross-era MIDI match.** `audioprobe --jingle <id>` decodes an index-11
+  archive to a real Standard MIDI File; comparing note-event streams against
+  LostCity's 74 named 2004 `.mid` jingles matched 66 exactly, and every overlap
+  agrees with the wiki.
+
+`tools/gen_jingle_names.py` does the recovery and re-runs the MIDI check as a
+standing proof (`docs/audio/osrs_wiki_jingle_ids.tsv` is the harvested source;
+`docs/audio/jingle_names.tsv` is the output with an evidence column). 313 of
+315 rows are named; `jingle_17` and `jingle_178` stay numeric.
+
+Quest-completion jingles are the first content this unblocked: `quest complete
+1/2/3` = ids 152/153/154, selected by the cache's own `quest:difficulty`
+column, with the exceptions the wiki and
+[a well-known 2007scape thread](https://www.reddit.com/r/2007scape/comments/y78sdo/)
+document (Recruitment Drive and Regicide play nothing; Sins of the Father and
+Mountain Daughter have their own jingle; Monkey Madness II plays a sound
+effect, not a jingle) — see `quests/scripts/questpoints.rs2`'s
+`[proc,quest_complete_jingle]`.
+
 ## 4. What is left
 
 Everything ranked in the original work order is done. What remains, in the order

@@ -52,6 +52,7 @@
 #include "packets/if_setposition.h"
 #include "packets/if_setrotatespeed.h"
 #include "packets/if_setscrollpos.h"
+#include "packets/midi_jingle.h"
 #include "packets/midi_song_v2.h"
 #include "packets/synth_sound.h"
 #include "packets/update_stat_v2.h"
@@ -404,6 +405,47 @@ test_message_game(uint32_t seed, int with_name)
 
 
 /*
+ * MIDI_JINGLE has NO hand-written osrs239_parse.c arm to diff against, by
+ * design: routing it through the generated codec here is what fixes the
+ * actual bug. gameproto_parse.c's 4-byte `g2 id / g2 delay` reader is the
+ * LostCity/2004 layout (kept for lc254/lc245_2, which really are 4 bytes);
+ * rev 239 is a 5-byte `p3 length_in_millis / p2Alt3 id` shape, and running the
+ * LC reader over a real 239 packet trips `assert(position == data_size)` in a
+ * build with no `-DNDEBUG` -- it would abort the client, not just mis-decode.
+ *
+ * So this checks the bridge alone rather than differentially: `encode_at_239`
+ * FILLs `m` with seed-derived ground truth and leaves it there (ENCODE only
+ * reads), so the decoded packet is compared against what was filled, not
+ * against a second parser that was never meant to see this packet.
+ */
+static void
+test_midi_jingle(uint32_t seed)
+{
+    MsgMidiJingle m;
+    struct RevPacket r;
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+    int len, ok;
+
+    g_case = "MIDI_JINGLE";
+    memset(&m, 0, sizeof(m));
+    len = encode_at_239(rsprot_midi_jingle_out, rsprot_midi_jingle_out_count, &m, seed);
+    CHECK(len > 0);
+    if( len <= 0 )
+        return;
+
+    memset(&r, 0, sizeof(r));
+    r.packet_type = (enum GameProtoPktName)PKT_NAME_MIDI_JINGLE;
+    ok = rsprot_bridge_parse(rev, PKT_NAME_MIDI_JINGLE, g_bytes, len, &r);
+    CHECK(ok == 1);
+    if( ok != 1 )
+        return;
+
+    CHECK_EQ(r._midi_jingle.id, m.id);
+    CHECK_EQ(r._midi_jingle.delay, m.length_in_millis);
+    gameproto_free(&r);
+}
+
+/*
  * The rest of the migrated packets, checked the same way but generically.
  *
  * Every packet whose canonical struct holds no pointers can be compared with a
@@ -522,6 +564,7 @@ main(void)
         test_update_runenergy(seed);
         test_message_game(seed, 0);
         test_message_game(seed, 1);
+        test_midi_jingle(seed);
         test_generic_packets(seed);
 
         if( g_failures )

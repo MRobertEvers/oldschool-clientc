@@ -20356,6 +20356,10 @@ mock230_world_selftest(void)
             int npc_mode = npc->mode;
             int gap = 0;
             int shots = 0;
+            int delay_varp = mock230_world_varp("action_delay");
+            int stamp_at[2] = { 0, 0 };
+            int stamps = 0;
+            int last_stamp;
             /*
              * The two ticks the retaliation claim below is made of. `engaged`
              * is the first tick the goblin *answers* the shot — content's
@@ -20484,6 +20488,428 @@ mock230_world_selftest(void)
             npc->combat_target = -1;
             npc->last_step_x = npc_x - 1;
             npc->last_step_z = npc_z;
+            selftest_park_player(srv, npc_x - 6, npc_z);
+        }
+    }
+
+    /*
+     * A charged staff's built-in spell must reach the client as a PROJECTILE.
+     *
+     * `::chargesrun` asserts the FX table — that content answers "trident of
+     * the seas" with `slayer_tots_projectile` — and a table full of correct
+     * ids is exactly the kind of thing that can be right while nothing is
+     * drawn. This is the other half, and it is the half that was broken: every
+     * powered staff in the tree played `anim(%com_attackanim, 0)`, the
+     * weapon's MELEE swing param, fired nothing, and landed its hitsplat one
+     * tick later at any range. Nothing errored, and a trident looked like a
+     * man hitting a goblin with a stick from six tiles away.
+     *
+     * So the claim here is made from the literal enclosed zone blob the client
+     * receives, the same way the ranged-reach stanza above makes its own — a
+     * MAP_PROJANIM carrying this trident's own travel spotanim, decoded off
+     * the wire. It needs the osrs239 wire for the same reason that stanza
+     * does, and switches it the same way.
+     *
+     * The subject is the TRADEABLE FULL trident (`tots`) rather than the
+     * ordinary charged one, because that id is the one shape of the charge
+     * model no unit test in content can reach on its own: it carries no
+     * item_var at all (a spawned one has none), content answers "full" from
+     * the cap, and the first cast has to swap it to the untradeable
+     * partially-charged id carrying 2,499. That swap is asserted below off the
+     * worn slot, so one attack proves the projectile, the dispatch, and the
+     * charge model together.
+     *
+     * Placed immediately before a `selftest_reset_world`, deliberately — it
+     * runs four world ticks, and the note on the respawn stanza above explains
+     * what four ticks cost a section a thousand lines away.
+     */
+    fprintf(stderr, "mock230 selftest: a charged staff casts a projectile\n");
+    {
+        static struct Mock230Capture capture;
+        const struct Mock230Wire* saved_wire = srv->wire;
+        const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+        int trident_full = mock230_content_symbol(MOCK230_PACK_OBJ, "tots");
+        int trident_part = mock230_content_symbol(MOCK230_PACK_OBJ, "tots_charged");
+        int travel = mock230_content_symbol(MOCK230_PACK_SPOTANIM, "slayer_tots_projectile");
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+
+        SELFTEST_CHECK(trident_full > 0 && trident_part > 0 && travel > 0,
+                       "the trident of the seas and its travel spotanim should resolve "
+                       "(obj %d/%d, spotanim %d)",
+                       trident_full, trident_part, travel);
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
+
+        if( trident_full > 0 && trident_part > 0 && travel > 0 && goblin >= 0 && wire239 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[goblin];
+            uint8_t payload[2];
+            int npc_x = npc->x;
+            int npc_z = npc->z;
+            int npc_hp = npc->hitpoints;
+            int npc_max_hp = npc->max_hitpoints;
+            int npc_mode = npc->mode;
+            int magic = player->stat_level[MOCK230_STAT_MAGIC];
+            int magic_boosted = player->stat_boosted[MOCK230_STAT_MAGIC];
+            int gap = 0;
+            int shots = 0;
+
+            selftest_park_player(srv, npc->x - 6, npc->z);
+            player->level = npc->level;
+            /* Same reasoning as the bow stanza: a dead goblin answers nothing,
+             * and the swap assertion below needs the fight to still be on. */
+            npc->max_hitpoints = 400;
+            npc->hitpoints = npc->max_hitpoints;
+            player->stat_level[MOCK230_STAT_MAGIC] = 99;
+            player->stat_boosted[MOCK230_STAT_MAGIC] = 99;
+            /*
+             * Say whose turn it is before running content for them. Sections
+             * near the top of this file inherit an active player from whatever
+             * ran last; this far down nothing guarantees it, and a
+             * `[proc,player_combat_stat]` that runs for the wrong player (or
+             * for none) leaves `%damagetype` and every `%com_*` describing
+             * someone else's weapon — which reads, from out here, as a weapon
+             * the combat dispatch refused to take. The same stanza with the
+             * ranged-reach section's own bow reproduced it exactly, which is
+             * what named this rather than the trident.
+             */
+            mock230_world_set_active(srv, player);
+            worn_set(player, MOCK230_WEAR_WEAPON, trident_full, 1);
+            mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
+            /*
+             * Clear the attack clock this player is carrying in from whatever
+             * fought last. `%action_delay` is an absolute `map_clock` stamp and
+             * `map_clock` only advances on a world tick, so a stanza that swung
+             * and then handed the player to sections that never tick leaves the
+             * clock in the future — and every tick below spends itself in
+             * `[label,player_powered_staff_attack]`'s own first branch,
+             * re-issuing `p_opnpc(2)` and walking, which is a fight that looks
+             * exactly like a dispatch that refused to take the weapon. Cost two
+             * hours the first time; the four ticks below are the whole budget.
+             */
+            player->varps[delay_varp] = 0;
+            last_stamp = 0;
+
+            selftest_npc_payload(player, goblin, payload);
+
+            srv->wire = wire239;
+            mock230_capture_begin(srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC2, payload, 2);
+            /*
+             * Nine ticks, and the attack clock watched across them. The first
+             * cast fires inside `mock230_world_handle` above (the clock was
+             * cleared, so the op swings on the spot), and each later one stamps
+             * `%action_delay` forward by the weapon's own rate — so the GAP
+             * between two consecutive stamps is the attack speed as the running
+             * game applies it, not as a param table states it. Nine ticks is
+             * two more stamps at a rate of 4, which is the smallest window that
+             * can measure an interval at all.
+             */
+            for( int i = 0; i < 9; i++ )
+            {
+                int stamp;
+
+                mock230_world_tick(srv);
+                stamp = player->varps[delay_varp];
+                if( stamp != last_stamp )
+                {
+                    if( stamps < 2 )
+                        stamp_at[stamps] = stamp;
+                    stamps++;
+                    last_stamp = stamp;
+                }
+            }
+            mock230_capture_end(srv);
+            srv->wire = saved_wire;
+
+            {
+                int dx = player->x > npc->x ? player->x - npc->x : npc->x - player->x;
+                int dz = player->z > npc->z ? player->z - npc->z : npc->z - player->z;
+
+                gap = dx > dz ? dx : dz;
+            }
+            /* `weapon_attackrange=7` on the record, and the powered-staff
+             * branch runs before the melee one — a trident that walked into
+             * melee would mean the dispatch never took it. */
+            SELFTEST_CHECK(gap >= 3,
+                           "a seven-tile trident must not walk into melee: %d tile(s) "
+                           "from the goblin at %d,%d",
+                           gap, npc->x, npc->z);
+
+            shots = selftest_rev239_zone_count(&capture, PKT_NAME_MAP_PROJANIM, travel);
+            SELFTEST_CHECK(shots > 0,
+                           "and the shot must reach the client as a MAP_PROJANIM "
+                           "carrying spotanim %d, got %d",
+                           travel, shots);
+
+            /*
+             * And the third thing about shooting something from six tiles: it
+             * does not know it has been shot until the arrow arrives.
+             *
+             * `~npc_retaliate` took a delay argument and discarded it, so the
+             * goblin was engaged on the tick the bow was *fired* — it turned and
+             * started running while the arrow was still in the air, which from
+             * in front of the game is a monster that reacts to being aimed at.
+             * The reference queues the retaliation to the landing tick
+             * (`~npc_retaliate($landing_delay)` beside `npc_queue(2,
+             * $damage_prepared, $landing_delay)`), and this is that claim: the
+             * tick the goblin answers must not come before the tick the hit
+             * lands on it.
+             *
+             * The two ticks are allowed to be equal and normally are —
+             * `[ai_queue1]` and `[ai_queue2]` are drained in the same pass — so
+             * this is `>=`. What it excludes is the strictly-earlier case, which
+             * is the whole defect.
+             */
+            SELFTEST_CHECK(flinched_tick >= 0,
+                           "the shot should land inside the window (flinch tick %d)",
+                           flinched_tick);
+            SELFTEST_CHECK(engaged_tick < 0 || engaged_tick >= flinched_tick,
+                           "a ranged hit must provoke on the tick it LANDS: the goblin "
+                           "answered on tick %d and was hit on tick %d",
+                           engaged_tick, flinched_tick);
+
+            worn_set(player, MOCK230_WEAR_WEAPON, -1, 0);
+            mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
+            /*
+             * Put the fight down, not just the fighters.
+             *
+             * The pursuit and hunt stanzas below spawn nothing of their own —
+             * they assert on this same goblin, from its spawn tile, idle. Moving
+             * it back is half of that: a shot that has not landed yet leaves an
+             * `[ai_queue1]` retaliation armed on the npc, and it fires two ticks
+             * into whichever section runs next and re-engages a goblin that
+             * section believes is standing still. The player's side of the
+             * interaction has to go too, or `p_opnpc(2)` simply starts the fight
+             * again on the next tick.
+             */
+            mock230_combat_stop_player(srv);
+            for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
+                npc->queue[q].active = 0;
+            npc->attack_clock = 0;
+            npc->x = npc_x;
+            npc->z = npc_z;
+            npc->max_hitpoints = npc_max_hp;
+            npc->hitpoints = npc_hp;
+            npc->waypoint_index = -1;
+            npc->mode = npc_mode;
+            npc->combat_target = -1;
+            npc->last_step_x = npc_x - 1;
+            npc->last_step_z = npc_z;
+            selftest_park_player(srv, npc_x - 6, npc_z);
+        }
+    }
+
+    /*
+     * A charged staff's built-in spell must reach the client as a PROJECTILE.
+     *
+     * `::chargesrun` asserts the FX table — that content answers "trident of
+     * the seas" with `slayer_tots_projectile` — and a table full of correct
+     * ids is exactly the kind of thing that can be right while nothing is
+     * drawn. This is the other half, and it is the half that was broken: every
+     * powered staff in the tree played `anim(%com_attackanim, 0)`, the
+     * weapon's MELEE swing param, fired nothing, and landed its hitsplat one
+     * tick later at any range. Nothing errored, and a trident looked like a
+     * man hitting a goblin with a stick from six tiles away.
+     *
+     * So the claim here is made from the literal enclosed zone blob the client
+     * receives, the same way the ranged-reach stanza above makes its own — a
+     * MAP_PROJANIM carrying this trident's own travel spotanim, decoded off
+     * the wire. It needs the osrs239 wire for the same reason that stanza
+     * does, and switches it the same way.
+     *
+     * The subject is the TRADEABLE FULL trident (`tots`) rather than the
+     * ordinary charged one, because that id is the one shape of the charge
+     * model no unit test in content can reach on its own: it carries no
+     * item_var at all (a spawned one has none), content answers "full" from
+     * the cap, and the first cast has to swap it to the untradeable
+     * partially-charged id carrying 2,499. That swap is asserted below off the
+     * worn slot, so one attack proves the projectile, the dispatch, and the
+     * charge model together.
+     *
+     * Placed immediately before a `selftest_reset_world`, deliberately — it
+     * runs four world ticks, and the note on the respawn stanza above explains
+     * what four ticks cost a section a thousand lines away.
+     */
+    fprintf(stderr, "mock230 selftest: a charged staff casts a projectile\n");
+    {
+        static struct Mock230Capture capture;
+        const struct Mock230Wire* saved_wire = srv->wire;
+        const struct Mock230Wire* wire239 = mock230_wire_by_name("osrs239");
+        int trident_full = mock230_content_symbol(MOCK230_PACK_OBJ, "tots");
+        int trident_part = mock230_content_symbol(MOCK230_PACK_OBJ, "tots_charged");
+        int travel = mock230_content_symbol(MOCK230_PACK_SPOTANIM, "slayer_tots_projectile");
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+
+        SELFTEST_CHECK(trident_full > 0 && trident_part > 0 && travel > 0,
+                       "the trident of the seas and its travel spotanim should resolve "
+                       "(obj %d/%d, spotanim %d)",
+                       trident_full, trident_part, travel);
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
+
+        if( trident_full > 0 && trident_part > 0 && travel > 0 && goblin >= 0 && wire239 )
+        {
+            struct Mock230Npc* npc = &srv->npcs[goblin];
+            uint8_t payload[2];
+            int npc_x = npc->x;
+            int npc_z = npc->z;
+            int npc_hp = npc->hitpoints;
+            int npc_max_hp = npc->max_hitpoints;
+            int npc_mode = npc->mode;
+            int magic = player->stat_level[MOCK230_STAT_MAGIC];
+            int magic_boosted = player->stat_boosted[MOCK230_STAT_MAGIC];
+            int gap = 0;
+            int shots = 0;
+
+            selftest_park_player(srv, npc->x - 6, npc->z);
+            player->level = npc->level;
+            /* Same reasoning as the bow stanza: a dead goblin answers nothing,
+             * and the swap assertion below needs the fight to still be on. */
+            npc->max_hitpoints = 400;
+            npc->hitpoints = npc->max_hitpoints;
+            player->stat_level[MOCK230_STAT_MAGIC] = 99;
+            player->stat_boosted[MOCK230_STAT_MAGIC] = 99;
+            /*
+             * Say whose turn it is before running content for them. Sections
+             * near the top of this file inherit an active player from whatever
+             * ran last; this far down nothing guarantees it, and a
+             * `[proc,player_combat_stat]` that runs for the wrong player (or
+             * for none) leaves `%damagetype` and every `%com_*` describing
+             * someone else's weapon — which reads, from out here, as a weapon
+             * the combat dispatch refused to take. The same stanza with the
+             * ranged-reach section's own bow reproduced it exactly, which is
+             * what named this rather than the trident.
+             */
+            mock230_world_set_active(srv, player);
+            worn_set(player, MOCK230_WEAR_WEAPON, trident_full, 1);
+            mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
+            /*
+             * Clear the attack clock this player is carrying in from whatever
+             * fought last. `%action_delay` is an absolute `map_clock` stamp and
+             * `map_clock` only advances on a world tick, so a stanza that swung
+             * and then handed the player to sections that never tick leaves the
+             * clock in the future — and every tick below spends itself in
+             * `[label,player_powered_staff_attack]`'s own first branch,
+             * re-issuing `p_opnpc(2)` and walking, which is a fight that looks
+             * exactly like a dispatch that refused to take the weapon. Cost two
+             * hours the first time; the four ticks below are the whole budget.
+             */
+            player->varps[delay_varp] = 0;
+            last_stamp = 0;
+
+            selftest_npc_payload(player, goblin, payload);
+
+            srv->wire = wire239;
+            mock230_capture_begin(srv, &capture);
+            mock230_world_handle(player, PKTOUT_NAME_OPNPC2, payload, 2);
+            /*
+             * Nine ticks, and the attack clock watched across them. The first
+             * cast fires inside `mock230_world_handle` above (the clock was
+             * cleared, so the op swings on the spot), and each later one stamps
+             * `%action_delay` forward by the weapon's own rate — so the GAP
+             * between two consecutive stamps is the attack speed as the running
+             * game applies it, not as a param table states it. Nine ticks is
+             * two more stamps at a rate of 4, which is the smallest window that
+             * can measure an interval at all.
+             */
+            for( int i = 0; i < 9; i++ )
+            {
+                int stamp;
+
+                mock230_world_tick(srv);
+                stamp = player->varps[delay_varp];
+                if( stamp != last_stamp )
+                {
+                    if( stamps < 2 )
+                        stamp_at[stamps] = stamp;
+                    stamps++;
+                    last_stamp = stamp;
+                }
+            }
+            mock230_capture_end(srv);
+            srv->wire = saved_wire;
+
+            {
+                int dx = player->x > npc->x ? player->x - npc->x : npc->x - player->x;
+                int dz = player->z > npc->z ? player->z - npc->z : npc->z - player->z;
+
+                gap = dx > dz ? dx : dz;
+            }
+            /* `weapon_attackrange=7` on the record, and the powered-staff
+             * branch runs before the melee one — a trident that walked into
+             * melee would mean the dispatch never took it. */
+            SELFTEST_CHECK(gap >= 3,
+                           "a seven-tile trident must not walk into melee: %d tile(s) "
+                           "from the goblin at %d,%d",
+                           gap, npc->x, npc->z);
+
+            {
+                int32_t worn_ok = -1;
+                int any = selftest_rev239_zone_count(&capture, PKT_NAME_MAP_PROJANIM, -1);
+                int rp = mock230_content_symbol(MOCK230_PACK_PARAM, "weapon_attackrange");
+                const struct Mock230ObjParam* pp = mock230_obj_param(trident_full, rp);
+                const struct Mock230ObjInfo* oi = mock230_objinfo(trident_full);
+                mock230_scripts_run_proc_int(srv, "[proc,powered_staff_worn]", NULL, 0, &worn_ok);
+                fprintf(stderr,
+                        "PROBE: pswrn=%d worn=%d player=%d,%d npc=%d,%d anyproj=%d "
+                        "want=%d rangeparam=%d hasparams=%d rate=%d dmgtype=%d\n",
+                        worn_ok, player->worn[MOCK230_WEAR_WEAPON].obj_id, player->x,
+                        player->z, npc->x, npc->z, any, travel,
+                        pp ? pp->ival : -999, oi ? oi->has_params : -1,
+                        oi ? oi->attackrate : -1,
+                        player->varps[mock230_world_varp("damagetype")]);
+            }
+            shots = selftest_rev239_zone_count(&capture, PKT_NAME_MAP_PROJANIM, travel);
+            SELFTEST_CHECK(shots > 0,
+                           "the built-in spell must reach the client as a MAP_PROJANIM "
+                           "carrying spotanim %d, got %d",
+                           travel, shots);
+
+            SELFTEST_CHECK(player->worn[MOCK230_WEAR_WEAPON].obj_id == trident_part,
+                           "and the first cast turns the tradeable full trident into the "
+                           "untradeable partially-charged id, got %d",
+                           player->worn[MOCK230_WEAR_WEAPON].obj_id);
+            SELFTEST_CHECK(mock230_item_get_var(&player->worn[MOCK230_WEAR_WEAPON],
+                                                trident_part) == 2500 - shots,
+                           "carrying one charge fewer than its cap per cast (%d cast(s) "
+                           "should leave %d), got %d",
+                           shots, 2500 - shots,
+                           mock230_item_get_var(&player->worn[MOCK230_WEAR_WEAPON],
+                                                trident_part));
+
+            /*
+             * And the speed. `attackrate` is 4 on this record and the param
+             * DECLARES a default of 4, so a check that only read the param
+             * would pass on a re-export that dropped it — this measures the
+             * gap the server actually left between two casts instead.
+             */
+            SELFTEST_CHECK(stamps >= 2,
+                           "nine ticks should contain at least two casts to measure a "
+                           "speed between, saw %d",
+                           stamps);
+            if( stamps >= 2 )
+                SELFTEST_CHECK(stamp_at[1] - stamp_at[0] == 4,
+                               "and a trident casts every 4 ticks: %d",
+                               stamp_at[1] - stamp_at[0]);
+
+            worn_set(player, MOCK230_WEAR_WEAPON, -1, 0);
+            mock230_scripts_run_proc(srv, "[proc,player_combat_stat]", NULL, 0);
+            /* Put the fight down, not just the fighters — the bow stanza's own
+             * note explains why both halves are needed. */
+            mock230_combat_stop_player(srv);
+            for( int q = 0; q < MOCK230_NPC_QUEUE_MAX; q++ )
+                npc->queue[q].active = 0;
+            npc->attack_clock = 0;
+            npc->x = npc_x;
+            npc->z = npc_z;
+            npc->max_hitpoints = npc_max_hp;
+            npc->hitpoints = npc_hp;
+            npc->waypoint_index = -1;
+            npc->mode = npc_mode;
+            npc->combat_target = -1;
+            npc->last_step_x = npc_x - 1;
+            npc->last_step_z = npc_z;
+            player->stat_level[MOCK230_STAT_MAGIC] = magic;
+            player->stat_boosted[MOCK230_STAT_MAGIC] = magic_boosted;
             selftest_park_player(srv, npc_x - 6, npc_z);
         }
     }

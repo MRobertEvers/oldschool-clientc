@@ -507,7 +507,10 @@ def main() -> int:
                "npc->poison_clock = srv->tick + 30;" in mock_combat,
                "NPC poison lacks its owner-attributed 30-tick source severity timer")
         expect("StrangerPlantNPC.java: Poisonous Blast" in execute and
-               "random(2) = 1) npc_poison(20);" in execute and
+               # `~npc_poison`, with the proc sigil the call has always had.
+               # This assertion has been unreachable — every run failed on an
+               # earlier `expect` — so its missing `~` never showed.
+               "random(2) = 1) ~npc_poison(20);" in execute and
                "summoning_special_move_stranger_plant_poisonous_blast" in execute and
                "summoning_special_move_stranger_plant_poisonous_blast_projectile" in execute and
                "summoning_special_move_stranger_plant_poisonous_blast_impact_gfx" in execute and
@@ -535,7 +538,9 @@ def main() -> int:
                "Goad lacks selected-target validation or its generation-safe normal-combat lifecycle")
         graahk_profile = combat_profiles[
             combat_profiles.index("[summoning_cohort_spirit_graahk_spirit_graahk]"):]
-        expect("hitpoints=810" in graahk_profile and "attack=50" in graahk_profile and
+        # 81, not 810 — see the Spirit kalphite note above; npc 7363's own
+        # lifepoints are 81 and this block's header always said so.
+        expect("hitpoints=81" in graahk_profile and "attack=50" in graahk_profile and
                "strength=50" in graahk_profile and "defence=50" in graahk_profile,
                "Goad's source normal-combat profile is incomplete")
         steel_profile = combat_profiles[

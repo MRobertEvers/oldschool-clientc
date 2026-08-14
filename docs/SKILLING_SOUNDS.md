@@ -652,23 +652,29 @@ Neither blocks §4.
 
 ## 6. Open and blocked
 
-**Level-up jingles are blocked, and are the one genuinely blocked item.** Two
-independent reasons, either of which alone would stop it:
+**Level-up jingles are no longer blocked; wiring them is just not done yet.**
+Both of the reasons that stopped this are resolved as of the quest-completion
+jingle work (see `docs/AUDIO_ACCURACY.md` §4 and `tools/gen_jingle_names.py`):
 
-- `MIDI_JINGLE` (opcode 2064) is declared in
-  [`ss_opcode.h:138`](../src/serverscript/ss_opcode.h#L138) and has **no case in
-  `mock230_scripts.c`** — the command compiles and does nothing.
-- `pack/11_musicjingles.pack` is **entirely unnamed**: 315 entries, every one
-  `jingle_<n>`. This is precisely the situation `4_soundeffects.pack` was in
-  when the skilling sounds were dropped (§1), and it has no equivalent rescue —
-  the February 2025 leak named sound effects, not jingles.
+- `MIDI_JINGLE` (opcode 2064) now has a real case in `mock230_scripts.c`, an
+  encoder (`mock230_send_midi_jingle`), a wire-table entry, and a client-side
+  decode fix (rev 239's layout was never 4 bytes; see
+  `src/net/rev/rsprot_bridge.c`'s `bridge_midi_jingle`).
+- `pack/11_musicjingles.pack` is named for 313 of its 315 rows. The name→id
+  mapping this section said was missing turned out to be recoverable: the OSRS
+  Wiki's jingle infobox `cacheid` field **is** the JS5 group id (verified, not
+  assumed — id-set identity against this cache's own archive-11 table, plus an
+  independent cross-era MIDI note-event match against LostCity's 74 named 2004
+  jingles). `docs/audio/jingle_names.tsv` records the evidence tier per id.
 
 LostCity states the *intent* cleanly (`levelup.dbtable` has
 `levelup_jingle,midi` and `unlocks_jingle,midi` columns; `levelup.dbrow` has
-`advance attack` / `advance strength` / … per skill), so the content shape is
-known. What is missing is a name→id mapping for this cache's jingle table. Until
-someone produces one — by matching audio, or by finding a source that states it
-— writing `midi_jingle(jingle_137)` would be a guess dressed as data.
+`advance attack` / `advance strength` / … per skill), and the same MIDI
+cross-check that named the pack also matched all 38 `advance <skill>` ids
+against LostCity's corpus by name, so the mapping `levelup.dbrow` needs is
+already sitting in the pack. Wiring `stat_advance` to call it is a separate,
+still-open change — this section is left here because the wiring itself, not
+the data, is what remains.
 
 **Also open:**
 

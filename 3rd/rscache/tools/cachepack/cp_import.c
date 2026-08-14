@@ -52,6 +52,26 @@ struct Import_Manifest
     int npc_sounds;
     int legacy_scape2009;
     int textures_only;
+    /*
+     * `material_mode` — what happens to a face carrying a source material.
+     * Both zero means `mapped_texture`, which is the DEFAULT and is therefore
+     * what a manifest that says nothing gets:
+     *
+     *   face_colour     drop the texture, keep the model's own face colour
+     *   average_hsl     drop the texture, overwrite the face colour with the
+     *                   material's representative HSL
+     *   mapped_texture  keep the face textured, remapping the id through
+     *                   texture_map
+     *
+     * Defaulting to mapped_texture is a sharp edge for a cross-era import,
+     * because `texture_map` below is loaded automatically for a legacy
+     * manifest: silence selects the textured path rather than opting out of
+     * it. Porting HD procedural materials that way makes models that are worse
+     * than untextured (see docs/summoning_port/TEXTURE_REVIEW.md — the whole
+     * Summoning lane went invisible, then came back looking like rock), so a
+     * cross-era manifest should state the mode it wants rather than inherit
+     * this one.
+     */
     int material_mode_face_colour;
     int material_mode_average_hsl;
     /* Explicit source procedural-material -> destination texture ids.  A
