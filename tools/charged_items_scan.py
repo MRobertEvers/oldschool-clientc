@@ -774,9 +774,22 @@ FAMILY_DATA = {
         storage="item_var", depletion="revert", max_charges=1000,
         charge_source="Frozen tears (1:1), untradeable rare drop from Frost nagua / Amoxliatl",
         drain_event="1 charge per teleport to one of six unlocked Varlamore destinations",
-        status="charges_only",
-        note="Wiki explicit: charges are NOT shared across multiple pendants owned -- item_var confirmed. "
-             "No implementation found.",
+        status="implemented",
+        note="general/scripts/enchanted_jewellry/pendant_of_ates.rs2/.constant, fifth family built on "
+             "SS_OP_LAST_SUBOP. Wiki explicit: charges are NOT shared across multiple pendants owned -- "
+             "item_var confirmed. Charging is opheldu (a tear used ON the pendant, matching the obj "
+             "record's own missing Charge menu option), 1:1, capped at 1,000; Uncharge refunds the exact "
+             "remaining count. Unlike every other Rub-submenu item this session (Xeric's talisman/Ring of "
+             "shadows/Sailors' amulet all have at least one destination open by default), this one has "
+             "ZERO: \"No teleports are available by default. To unlock locations, a player must first "
+             "activate the statue of ates at each location\" -- no statue-of-ates content exists anywhere "
+             "in this tree, so no destination could ever be legitimately opened here. All six are guarded "
+             "to a clean refusal; unlike the other four items, no coordinate was even derived for any "
+             "destination (checked first: only 2 of the 6 wiki-pin map squares have spawn data loaded in "
+             "this tree at all, and it would have been dead code regardless of coordinates, since nothing "
+             "can unlock any of them). The one item this session built where the full teleport-dispatch "
+             "proc, including every destination branch, IS safe to exercise end to end in ::chargesrun --  "
+             "no live `~player_teleport_normal` branch exists at all.",
     ),
     "Perfected quetzal whistle": dict(
         storage="item_var", depletion="none", max_charges=50,
