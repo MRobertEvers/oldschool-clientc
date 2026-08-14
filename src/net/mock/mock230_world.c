@@ -21562,6 +21562,235 @@ mock230_world_selftest(void)
     }
 
     /*
+     * A door with two leaves moves BOTH of them.
+     *
+     * The section above proves a single door swings. It cannot see the failure
+     * this one is for, and neither can any check that reads the pairing: 61
+     * clusters were in `doors.loc` as two INDEPENDENT `door_closed` records,
+     * each with its own `Open` and its own `next_loc_stage`, which is a valid
+     * single door twice over. Every id resolved, `mock230_pack -v` was happy,
+     * and every one of them opened half way — one leaf swung, the other stayed
+     * across the doorway. It was reported from the game as "some of these gates
+     * don't work", which is exactly how it looks.
+     *
+     * `castledoubledoorl`/`r` at 3244,3216 is Lumbridge castle's front door,
+     * inside the scene this suite already builds, and it is one of the 57 that
+     * moved to `doubledoors.loc`. The leaves sit one tile apart at the same
+     * angle — the placement signature `tools/door_audit.py --suggest-double-leaf`
+     * keys on — with `~door_close(^loc_south, wall_straight)` = (-1, 0) pointing
+     * from the left leaf at the right one, which is what makes the left leaf the
+     * left leaf.
+     *
+     * Both destinations are asserted, and they are NOT the same swing: the left
+     * half turns (3 + 3) % 4 and the right half (3 + 1) % 4, the two halves of
+     * `doubledoors.rs2` opening apart. A version of this that only checked "the
+     * clicked leaf moved" would pass on the broken tree.
+     */
+    fprintf(stderr, "mock230 selftest: a double door moves both leaves\n");
+    {
+        const int shut_l = mock230_content_symbol(MOCK230_PACK_LOC, "castledoubledoorl");
+        const int shut_r = mock230_content_symbol(MOCK230_PACK_LOC, "castledoubledoorr");
+        const int open_l = mock230_content_symbol(MOCK230_PACK_LOC, "opencastledoubledoorl");
+        const int open_r = mock230_content_symbol(MOCK230_PACK_LOC, "opencastledoubledoorr");
+        const int left_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_left_closed");
+        const int right_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "door_right_closed");
+
+        SELFTEST_CHECK(shut_l > 0 && shut_r > 0 && open_l > 0 && open_r > 0,
+                       "pack/loc.pack should name all four halves: %d/%d/%d/%d",
+                       shut_l, shut_r, open_l, open_r);
+        /* The side, not just "it has a category". A pair filed as two
+         * `door_left_closed` records looks paired and opens the same leaf
+         * twice. */
+        SELFTEST_CHECK(shut_l > 0 && mock230_loc_category(shut_l) == left_closed,
+                       "the left leaf reads door_left_closed (%d), got %d", left_closed,
+                       shut_l > 0 ? mock230_loc_category(shut_l) : -1);
+        SELFTEST_CHECK(shut_r > 0 && mock230_loc_category(shut_r) == right_closed,
+                       "the right leaf reads door_right_closed (%d), got %d", right_closed,
+                       shut_r > 0 ? mock230_loc_category(shut_r) : -1);
+
+        /* On the door's own tile: `fencing` runs along the north edge of
+         * 3244,3217, so a click from the courtyard is a question about the
+         * router rather than about double doors. */
+        selftest_park_player(srv, 3244, 3216);
+        if( shut_l > 0 && shut_r > 0 )
+        {
+            int slot_l = mock230_scene_find_loc(3244, 3216, 0, shut_l);
+            int slot_r = mock230_scene_find_loc(3243, 3216, 0, shut_r);
+
+            SELFTEST_CHECK(slot_l >= 0 && slot_r >= 0,
+                           "both leaves of the castle door should be in the scene: %d/%d",
+                           slot_l, slot_r);
+            if( slot_l >= 0 && slot_r >= 0 )
+            {
+                struct Mock230SceneLoc* leaf_l = mock230_scene_loc(slot_l);
+                int shape = leaf_l->shape;
+                int angle = leaf_l->angle;
+                uint8_t payload[6] = { (uint8_t)(3244 >> 8), (uint8_t)3244,
+                                       (uint8_t)(3216 >> 8), (uint8_t)3216,
+                                       (uint8_t)(shut_l >> 8), (uint8_t)shut_l };
+
+                SELFTEST_CHECK(shape == 0 && angle == 3,
+                               "placed as a wall_straight facing south, got shape %d angle %d",
+                               shape, angle);
+
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
+                               "the click on the left leaf should settle");
+                {
+                    struct Mock230SceneLoc* was_l =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3244, 3216, 0, shape));
+                    struct Mock230SceneLoc* was_r =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3243, 3216, 0, shape));
+
+                    SELFTEST_CHECK(!was_l || !was_l->active,
+                                   "opening takes the clicked leaf off its tile");
+                    /* The whole point. On the broken wiring this one is still
+                     * standing, and the doorway is still shut. */
+                    SELFTEST_CHECK(!was_r || !was_r->active,
+                                   "and takes the OTHER leaf off its tile too");
+                }
+                {
+                    struct Mock230SceneLoc* swung_l =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3244, 3215, 0, shape));
+                    struct Mock230SceneLoc* swung_r =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3243, 3215, 0, shape));
+
+                    SELFTEST_CHECK(swung_l && swung_l->loc_id == open_l && swung_l->angle == 2,
+                                   "the left leaf hangs open one tile south at angle 2, "
+                                   "got %d at angle %d",
+                                   swung_l ? swung_l->loc_id : -1,
+                                   swung_l ? swung_l->angle : -1);
+                    SELFTEST_CHECK(swung_r && swung_r->loc_id == open_r && swung_r->angle == 0,
+                                   "and the right leaf swings the other way, to angle 0, "
+                                   "got %d at angle %d",
+                                   swung_r ? swung_r->loc_id : -1,
+                                   swung_r ? swung_r->angle : -1);
+                }
+                /* Closing from the leaf that was NOT clicked, which is the
+                 * mirror-image path through `doubledoors.rs2` and the one a
+                 * player takes as often as not. */
+                payload[0] = (uint8_t)(3243 >> 8);
+                payload[1] = (uint8_t)3243;
+                payload[2] = (uint8_t)(3215 >> 8);
+                payload[3] = (uint8_t)3215;
+                payload[4] = (uint8_t)(open_r >> 8);
+                payload[5] = (uint8_t)open_r;
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
+                               "the click on the open right leaf should settle");
+                {
+                    struct Mock230SceneLoc* home_l =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3244, 3216, 0, shape));
+                    struct Mock230SceneLoc* home_r =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(3243, 3216, 0, shape));
+
+                    SELFTEST_CHECK(home_l && home_l->loc_id == shut_l && home_l->angle == angle,
+                                   "closing puts the left leaf back where the map has it, "
+                                   "got %d at angle %d",
+                                   home_l ? home_l->loc_id : -1, home_l ? home_l->angle : -1);
+                    SELFTEST_CHECK(home_r && home_r->loc_id == shut_r && home_r->angle == angle,
+                                   "and the right leaf with it, got %d at angle %d",
+                                   home_r ? home_r->loc_id : -1, home_r ? home_r->angle : -1);
+                }
+            }
+        }
+        selftest_park_player(srv, 3222, 3218);
+    }
+
+    /*
+     * And the other family: a long fence gate, whose two leaves swing to the
+     * SAME side (`general_use/scripts/gates.rs2`, `gate_main_*`/`gate_outer_*`)
+     * rather than apart. `death_fencegate_l`/`r` on the Burthorpe side of Death
+     * Plateau is one of the four this pass moved off `door_closed`; LostCity's
+     * own `quest_death.loc` files it as `gate_main_closed`/`gate_outer_closed`,
+     * so this is the reference's answer, not an inference from the placement.
+     *
+     * The two destinations are one and two tiles east of the MAIN leaf's tile —
+     * both computed from the clicked leaf's coordinate, which is what makes the
+     * outer leaf's move a diagonal one and what a per-leaf swing would get
+     * wrong even if it moved both.
+     */
+    fprintf(stderr, "mock230 selftest: a long fence gate swings both leaves one way\n");
+    {
+        const int shut_main = mock230_content_symbol(MOCK230_PACK_LOC, "death_fencegate_l");
+        const int shut_outer = mock230_content_symbol(MOCK230_PACK_LOC, "death_fencegate_r");
+        const int open_main = mock230_content_symbol(MOCK230_PACK_LOC, "death_openfencegate_l");
+        const int open_outer = mock230_content_symbol(MOCK230_PACK_LOC, "death_openfencegate_r");
+        const int gate_main_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_main_closed");
+        const int gate_outer_closed =
+            mock230_content_symbol(MOCK230_PACK_CATEGORY, "gate_outer_closed");
+
+        SELFTEST_CHECK(shut_main > 0 && shut_outer > 0 && open_main > 0 && open_outer > 0,
+                       "pack/loc.pack should name all four gate halves: %d/%d/%d/%d",
+                       shut_main, shut_outer, open_main, open_outer);
+        SELFTEST_CHECK(shut_main > 0 && mock230_loc_category(shut_main) == gate_main_closed,
+                       "the main leaf reads gate_main_closed (%d), got %d", gate_main_closed,
+                       shut_main > 0 ? mock230_loc_category(shut_main) : -1);
+        SELFTEST_CHECK(shut_outer > 0 && mock230_loc_category(shut_outer) == gate_outer_closed,
+                       "the outer leaf reads gate_outer_closed (%d), got %d", gate_outer_closed,
+                       shut_outer > 0 ? mock230_loc_category(shut_outer) : -1);
+
+        selftest_park_player(srv, 2823, 3555);
+        if( shut_main > 0 && shut_outer > 0 )
+        {
+            int slot_main = mock230_scene_find_loc(2824, 3555, 0, shut_main);
+            int slot_outer = mock230_scene_find_loc(2824, 3554, 0, shut_outer);
+
+            SELFTEST_CHECK(slot_main >= 0 && slot_outer >= 0,
+                           "both leaves of the Death Plateau gate should be in the scene: %d/%d",
+                           slot_main, slot_outer);
+            if( slot_main >= 0 && slot_outer >= 0 )
+            {
+                struct Mock230SceneLoc* leaf = mock230_scene_loc(slot_main);
+                int shape = leaf->shape;
+                int angle = leaf->angle;
+                uint8_t payload[6] = { (uint8_t)(2824 >> 8), (uint8_t)2824,
+                                       (uint8_t)(3555 >> 8), (uint8_t)3555,
+                                       (uint8_t)(shut_main >> 8), (uint8_t)shut_main };
+
+                SELFTEST_CHECK(shape == 0 && angle == 2,
+                               "placed as a wall_straight facing east, got shape %d angle %d",
+                               shape, angle);
+
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, payload, 6);
+                SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
+                               "the click on the gate should settle");
+                {
+                    struct Mock230SceneLoc* was_main =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2824, 3555, 0, shape));
+                    struct Mock230SceneLoc* was_outer =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2824, 3554, 0, shape));
+                    struct Mock230SceneLoc* swung_main =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2825, 3555, 0, shape));
+                    struct Mock230SceneLoc* swung_outer =
+                        mock230_scene_loc(mock230_scene_find_loc_exact(2826, 3555, 0, shape));
+
+                    SELFTEST_CHECK(!was_main || !was_main->active,
+                                   "opening clears the main leaf's tile");
+                    SELFTEST_CHECK(!was_outer || !was_outer->active,
+                                   "and the outer leaf's tile — the half that used to stay shut");
+                    SELFTEST_CHECK(swung_main && swung_main->loc_id == open_main &&
+                                       swung_main->angle == 1,
+                                   "the main leaf stands one tile east at angle 1, "
+                                   "got %d at angle %d",
+                                   swung_main ? swung_main->loc_id : -1,
+                                   swung_main ? swung_main->angle : -1);
+                    SELFTEST_CHECK(swung_outer && swung_outer->loc_id == open_outer &&
+                                       swung_outer->angle == 1,
+                                   "and the outer leaf two tiles east, in line with it, "
+                                   "got %d at angle %d",
+                                   swung_outer ? swung_outer->loc_id : -1,
+                                   swung_outer ? swung_outer->angle : -1);
+                }
+            }
+        }
+        selftest_park_player(srv, 3222, 3218);
+    }
+
+    /*
      * A ladder changes the level, and it is `ladders_stairs/scripts/ladders.rs2`
      * that does it (2026-08-02).
      *
