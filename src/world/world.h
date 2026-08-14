@@ -28,6 +28,14 @@ struct ToriDraw_Scene;
 enum WorldEventKind
 {
     WorldEventKind_EntityRemoved = 0,
+    /* A free-standing map spotanim's start delay has just elapsed and it is
+     * drawing for the first time. Its sequence must begin HERE, not at spawn:
+     * the element exists from spawn so the app can build its model, but a
+     * splash timed to a projectile's arrival spends its whole delay invisible,
+     * and an animation stepped through that delay is already finished — or
+     * cleared — by the time anyone can see it. See App_WorldDrainEntityRemoved
+     * and app_world_spawn_spotanim_now for the two halves. */
+    WorldEventKind_SpotanimStarted = 1,
 };
 
 struct World_Event
@@ -1061,6 +1069,12 @@ World_Cycle(
     int cycles_elapsed);
 
 /* Shared with world_cycle.c */
+void
+World_EmitEvent(
+    struct World* world,
+    enum WorldEventKind kind,
+    int element_id);
+
 void
 World_ProjectileSetTarget(
     struct World* world,

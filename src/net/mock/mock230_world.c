@@ -23788,6 +23788,42 @@ mock230_world_selftest(void)
                        "and a line no debugproc claims falls through to the engine");
 
         /*
+         * `::run <percent>` — a *set*, built out of the only mutator content
+         * has, which is additive. The starting value is deliberately not a
+         * whole percent: `runenergy()` reports whole percent while the server
+         * stores hundredths, so a debugproc that computed its top-up from that
+         * reading would leave the remainder behind and land on 5037 here.
+         * Draining to the clamp first is what makes the write exact.
+         */
+        {
+            int saved_energy = player->run_energy;
+
+            player->run_energy = 3737;
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 50"),
+                           "::run should reach [debugproc,run]");
+            SELFTEST_CHECK(player->run_energy == 5000,
+                           "::run 50 is exactly half a bar, got %d", player->run_energy);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 100"),
+                           "::run 100 should run");
+            SELFTEST_CHECK(player->run_energy == MOCK230_RUN_ENERGY_MAX,
+                           "::run 100 fills the bar, got %d", player->run_energy);
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 0"),
+                           "::run 0 should run");
+            SELFTEST_CHECK(player->run_energy == 0,
+                           "::run 0 empties it, got %d", player->run_energy);
+
+            /* Out of range is refused rather than clamped, so a typo cannot
+             * silently mean "full". */
+            player->run_energy = 2500;
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "run 150"),
+                           "::run 150 should still dispatch");
+            SELFTEST_CHECK(player->run_energy == 2500,
+                           "and leave the bar alone, got %d", player->run_energy);
+
+            player->run_energy = saved_energy;
+        }
+
+        /*
          * `::~crystal_set`, through the actual CLIENT_CHEAT payload shape and
          * asserted on the worn container rather than on the return.
          *

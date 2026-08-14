@@ -441,18 +441,27 @@ World_TerrainElementAt(
     return terrain->element_id;
 }
 
+void
+World_EmitEvent(
+    struct World* world,
+    enum WorldEventKind kind,
+    int element_id)
+{
+    if( element_id < 0 )
+        return;
+    assert(world->event_count < WORLD_MAX_EVENTS && "world event queue full — raise WORLD_MAX_EVENTS");
+    world->events[world->event_count++] = (struct World_Event){
+        .kind = kind,
+        .element_id = element_id,
+    };
+}
+
 static void
 World_EmitEntityRemoved(
     struct World* world,
     int element_id)
 {
-    if( element_id < 0 )
-        return;
-    assert(world->event_count < WORLD_MAX_EVENTS && "EntityRemoved queue full — raise WORLD_MAX_EVENTS");
-    world->events[world->event_count++] = (struct World_Event){
-        .kind = WorldEventKind_EntityRemoved,
-        .element_id = element_id,
-    };
+    World_EmitEvent(world, WorldEventKind_EntityRemoved, element_id);
 }
 
 static int
