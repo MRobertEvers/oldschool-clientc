@@ -2,8 +2,9 @@
 
 What a native software renderer would have to draw to render the Queen Black
 Dragon **from the RS727 cache**, rather than from the backported OSRS239 lane.
-This is a scoping document — it lists kernels and says why each is needed; it
-implements none of them.
+**Status: the kernels and the decoder half are implemented.** This began as a
+scoping document; §2.2 and §3(1) are now done and are marked so inline. What
+remains is one kernel family (§5) and the plumbing that reaches it.
 
 Everything below is measured, not inferred. The numbers come from
 
@@ -77,10 +78,18 @@ mixed. Every material is `combine_mode 0` (modulate), `anim_u == anim_v == 0`,
 | `gouraudhsllightness.screen.opaque.bary.branching.s4` | the ~330 untextured faces per model |
 | `gouraudhsllightness.screen.alpha.bary.branching.s4` | untextured faces among the 166 carrying alpha |
 | `texshadeblend.persp.texopaque.branching.lerp8_v3` | the 6 fully-opaque materials — 4,346 of 6,533 textured faces on model 70260 |
-| `texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3` | **added in this change.** Opaque-frame materials on a face that carries alpha |
-| `texshadeblend.persp.textrans.facealpha.branching.lerp8_v3` | **added in this change.** Only useful if a frame is reduced to a colour key — see 2.2(1) for why that is the wrong answer here |
+| `texshadeblend.persp.texopaque.facealpha[.modulate].branching.lerp8_v3` | opaque-frame materials on a face that carries alpha — part of the §2.2 matrix |
 
-### 2.2 New kernels the source model needs
+### 2.2 New kernels the source model needs — **implemented**
+
+All four landed as one flag matrix,
+[`texshadeblend.persp.tex2.branching.lerp8_v3.u.c`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.tex2.branching.lerp8_v3.u.c):
+ten variants over gate x `facealpha` x `modulate`, sharing one walker template
+with the plain kernels, with addressing carried as sampler data rather than as an
+eleventh variant axis. Verified by `make -C src test-texture-matrix` — eight
+bit-exact identities against the plain SIMD kernels, then the algebra chained off
+them; six mutations of the span and sampler are each caught.
+
 
 **(1) `texshadeblend.persp.texalpha.branching.lerp8_v3` — per-texel alpha.**
 
@@ -135,15 +144,44 @@ rather than a full matrix.
 
 ## 3. Not kernels — prerequisites without which no kernel helps
 
-**(1) Cube-map uv generation (render type 2). The largest single gap.**
+**(1) Cube-map uv generation (render type 2) — decoder and generator done.**
 
 1,338 of 6,533 textured faces per model, across materials 1420, 1607 and 1685.
-`RSCache_ModelNewDecode` **counts** these faces and then advances past their
-parameter bytes without decoding them — only render type 0 populates
-`textured_p/m/n_coordinate` ([`3rd/rscache/src/datatypes/model.c:1836`](../3rd/rscache/src/datatypes/model.c#L1836)).
-So today those faces reach the raster with no texture projector at all. This is
-a decoder change plus a uv generator, and no kernel work matters until it lands:
-a fifth of the dragon's textured surface has nothing to sample with.
+`decode_ob3` used to **count** these faces and advance past their parameter bytes
+without decoding them, so they reached the raster with no projector at all.
+
+Both halves now exist:
+
+- **Decode.** `decode_ob3` reads the complex mapping sections with six
+  independent cursors (the sections cannot be walked with one, because a face
+  draws from a section only if its render type calls for it). New fields on
+  `RSCache_Model`: `texture_scale_x/y/z`, `texture_rotation`,
+  `texture_direction`, `texture_speed`, `texture_trans_u/v`. Per-section cursor
+  asserts catch any mis-sized block. Verified over 72,069 models of
+  `cache.rs727_preeoc` (0 decode failures, 463,439 complex faces) and by the
+  library's own byte-exact model round-trip, still 100% on all five caches.
+- **Generation.** [`model_texture_uv.c`](../3rd/rscache/src/datatypes/model_texture_uv.c)
+  ports the reference's `computeTextureCoords` / `calculateTextureScales` for all
+  four render types, producing explicit per-vertex uv. Across the whole cache:
+  26.8M textured faces, **0 non-finite**, and the QBD's cube faces come out at a
+  mean span of 0.21 tiles — i.e. a sane projection.
+
+Two findings came out of that sweep and are recorded rather than papered over:
+
+- **467 type-0 faces have a degenerate projector** (p/m/n collinear), where the
+  reference divides by zero and gets Infinity. JS carries that harmlessly; here
+  it would reach a rasterizer and poison a whole triangle, so the determinant is
+  checked and the face collapses to one texel.
+- **The 24-bit scale field's signedness is unresolved.** The only reference in
+  reach (`ByteBuffer.readMedium`) is unambiguously unsigned and this decoder
+  matches it, but `calculateTextureScales` tests `scaleX <= 0`, which is dead
+  code under an unsigned read. The sweep shows why that matters: 0.316% of scale
+  samples set the high bit, and the worst cylinder face comes out with a uv span
+  of **16384.31 ≈ 0xFFFFFF / 1024** — exactly what a small negative scale read as
+  a large unsigned one produces. Under a signed read that face takes the
+  `scaleX <= 0` branch and lands at a sane scale. This does not affect the QBD,
+  which uses only cube faces, where the scales are consumed as `64/scale` with no
+  sign test.
 
 **(2) The proctex frame's alpha plane has to survive to the raster.**
 `ProcTexGenerator_Render` already emits ARGB8888 and reports `out_transparent`.
@@ -168,13 +206,28 @@ deliberate divergence rather than an oversight.
 
 ---
 
-## 4. Summary
+## 4. What landed
 
-Four new kernels — per-texel alpha, per-texel alpha with face alpha, a modulate
-variant of each, and a clamp-addressed sampler — plus the two textured facealpha
-kernels that landed with this change. Of those, the modulate pair and the alpha
-pair are the ones the QBD cannot be drawn correctly without.
+- **Ten texture kernels** (§2.2), one flag matrix, `make -C src test-texture-matrix`.
+- **The decoder** (§3.1), reading every complex mapping parameter, validated over
+  72k models with the byte-exact round-trip still green.
+- **The uv generator** (§3.1) for all four render types, 0 non-finite over 26.8M
+  faces.
 
-But the ordering matters: **cube-map uv is upstream of all of it.** Until the
-decoder reads render-type-2 parameters, 20% of the dragon's textured faces have
-no projector, and that is a model-decode problem, not a raster one.
+## 5. What is still missing
+
+**A kernel that consumes explicit per-vertex uv.** Every textured kernel in
+ToriDraw derives its uv basis from three orthographic vertex *positions* — a
+plane. That is the right representation for render type 0 and cannot represent
+types 1 and 3 at all, which are non-linear in the vertex (atan2 / asin). The
+generator produces explicit uv because that is the only representation covering
+all four types, and nothing currently rasterizes it.
+
+So the QBD's 1,338 cube faces per model now have correct texture coordinates and
+still cannot be drawn. That kernel — perspective-correct interpolation of u/z,
+v/z and 1/z, reusing the sampler and gate matrix from §2.2 — is the next piece.
+
+Also still open, unchanged by this work: routing any of it from
+`toridraw_raster.u.c` (which passes no alpha, tint or sampler for textured
+faces), the material-to-sampler binding that decides which variant a face takes,
+and the `shader_id` 1/6 and `mipmap` unknowns in §3(5).

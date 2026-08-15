@@ -23,5 +23,6 @@
 #include "toridraw_sprite.c"
 #include "toridraw_2d.c"
 #include "toridraw_vec.c"
+#include "toridraw_texture_uv.c"
 #include "graphics/shared_tables.c"
 #include "osrs/palette.c"

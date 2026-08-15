@@ -1,22 +1,23 @@
 /*
- * Perspective textured triangle with a shade plane and a per-face alpha,
- * `branching` walk. Included once per texel gate. The includer defines:
+ * Perspective textured triangle with a shade plane, `branching` walk, over the
+ * extended capability matrix. Included once per variant. The includer defines:
  *
  *   TSFA_FN       triangle entry point name
  *   TSFA_ORDERED  y-sorted helper name
- *   TSFA_SPAN     scanline kernel from span/tex.span.facealpha.u.c
+ *   TSFA_SPAN     scanline kernel from span/tex.span.tex2.u.c
  *
  * The walk, the uv basis and the shade plane are
- * texshadeblend.persp.{texopaque,textrans}.branching.lerp8_v3 verbatim; the
- * only difference is that the scanline kernel blends into the destination
- * instead of overwriting it, and so takes one more argument. Keeping the two
- * families structurally identical is deliberate: `facealpha` at 0xFF is meant
- * to land on the same pixels as the plain kernel, so any divergence in the
- * walker would show up as a seam between an alpha face and the opaque faces it
- * shares edges with.
+ * texshadeblend.persp.{texopaque,textrans}.branching.lerp8_v3 verbatim. Every
+ * capability that varies — the texel gate, per-face alpha, the face-colour
+ * tint, per-axis addressing — reaches the span through one
+ * `struct ToriDraw_TexSampler` instead of a growing argument list, so this
+ * template is shared by all ten variants and the argument order never changes
+ * when a capability is added.
  *
- * `face_alpha` is the source weight (0xFF = opaque); see the convention note in
- * span/tex.span.facealpha.u.c.
+ * Keeping the walk identical to the plain kernels is deliberate: a variant is
+ * meant to land on exactly the same pixels as its plain twin, so any divergence
+ * here would show up as a seam between an alpha face and the opaque faces it
+ * shares edges with. That invariant is what the coverage test pins.
  */
 
 static inline void
@@ -44,9 +45,7 @@ TSFA_ORDERED(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* RESTRICT texels,
-    int texture_width,
-    int face_alpha)
+    const struct ToriDraw_TexSampler* RESTRICT sampler)
 {
     if( y0 > screen_height )
         return;
@@ -188,9 +187,7 @@ TSFA_ORDERED(
             vUVPlane_normal_xhat,                                                                  \
             shade8bit_edge_ish8,                                                                   \
             shade8bit_xhat_ish8,                                                                   \
-            texels,                                                                                \
-            texture_width,                                                                         \
-            face_alpha);                                                                           \
+            sampler);                                                                              \
     } while( 0 )
 
 #define TSFA_ADVANCE()                                                                             \
@@ -280,9 +277,7 @@ TSFA_FN(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    int* RESTRICT texels,
-    int texture_width,
-    int face_alpha)
+    const struct ToriDraw_TexSampler* RESTRICT sampler)
 {
 #define TSFA_ORDERED_CALL(xa, xb, xc, ya, yb, yc, sa, sb, sc)                                      \
     TSFA_ORDERED(                                                                                  \
@@ -309,9 +304,7 @@ TSFA_FN(
         (sa),                                                                                      \
         (sb),                                                                                      \
         (sc),                                                                                      \
-        texels,                                                                                    \
-        texture_width,                                                                             \
-        face_alpha)
+        sampler)
 
     /* The uv basis is anchored to vertices 0/1/2 as the projector named them,
      * so only the screen positions and shades permute here. */

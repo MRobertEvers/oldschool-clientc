@@ -18,9 +18,16 @@ This document is the **standalone export** of the master variant table, includin
 > unchanged.
 >
 > **`gouraudrgb` (GR1/GR2) is the family that does interpolate colour**, per
-> channel, with no palette in the path. **TS12/TS13** add per-face alpha to the
-> perspective textured kernels of the `branching` family, which previously had
-> no path for it at all — see the note under SL4.
+> channel, with no palette in the path.
+>
+> **Textured families are named for their projection.** `texplane` (TS12) is
+> render type 0: the face names three vertices whose positions *are* the texture
+> plane, and the kernel walks it. `texcylinder`, `texcube` and `texsphere`
+> (render types 1/2/3) carry a *mapping* instead — a projection about the face
+> group's centre — and are **not implemented yet**; see the note under SL4.
+> `texshadeblend` / `texshadeflat` remain the older names for the plane
+> projector's two shade modes and are unchanged; folding them into `texplane` is
+> a wider rename not done here.
 
 **Primary include graph (live client):** [`dash.c`](../src/graphics/dash.c) includes [`render_flat.u.c`](../src/graphics/old/render_flat.u.c), [`render_gouraud.u.c`](../src/graphics/render_gouraud.u.c), and [`render_texture.u.c`](../src/graphics/old/render_texture.u.c) (which pulls in affine routing via [`render_texture_affine.u.c`](../src/graphics/old/render_texture_affine.u.c)).
 
@@ -73,9 +80,12 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | TS10 | `texshadeblend.affine.texopaque.branching.lerp8.scanline` / `texshadeblend.affine.textrans.branching.lerp8.scanline` / `texshadeblend.affine.texopaque.branching.lerp8_v3.scanline` / `texshadeblend.affine.textrans.branching.lerp8_v3.scanline` | Texture (SIMD scan) | affine | ordered scanline (non-ish16 + ish16 v3) | `draw_texture_scanline_*_blend_affine_branching_lerp8_ordered`, `draw_texture_scanline_*_blend_affine_branching_lerp8_ish16_ordered` | `raster/texture/span/tex.span.*.u.c` (all ISAs including scalar) |
 | GR1 | `gouraudrgb.screen.opaque.bary.branching.s4` | Gouraud RGB | screen | per-channel RGB, opaque | `raster_gouraudrgb_screen_opaque_bary_branching_s4`, `raster_gouraudrgb_screen_opaque_bary_branching_s4_ordered` | [`raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c) + shared walker [`gouraudrgb.screen.bary.branching.s4.inc`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc) |
 | GR2 | `gouraudrgb.screen.alpha.bary.branching.s4` | Gouraud RGB | screen | per-channel RGB, alpha blended | `raster_gouraudrgb_screen_alpha_bary_branching_s4`, `..._ordered` | [`raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c) (same template) |
-| TS12 | `texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3` | Texture Gouraud | perspective | opaque texture + per-face alpha | `raster_texshadeblend_persp_texopaque_facealpha_branching_lerp8_v3` | [`texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3.u.c`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3.u.c) + shared walker [`texshadeblend.persp.facealpha.branching.lerp8_v3.inc`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.facealpha.branching.lerp8_v3.inc); TS14 span |
-| TS13 | `texshadeblend.persp.textrans.facealpha.branching.lerp8_v3` | Texture Gouraud | perspective | colour-keyed texture + per-face alpha | `raster_texshadeblend_persp_textrans_facealpha_branching_lerp8_v3` | [`texshadeblend.persp.textrans.facealpha.branching.lerp8_v3.u.c`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.facealpha.branching.lerp8_v3.u.c) (same template); TS14 span |
-| TS14 | `texshadeblend.persp.{texopaque,textrans}.facealpha.lerp8_v3.span` | Texture (span) | perspective | 8-pixel read-modify-write | `raster_linear_{opaque,transparent}_blend_facealpha_lerp8_v3`, `draw_texture_scanline_{opaque,transparent}_blend_facealpha_branching_lerp8_v3_ordered`, `tex_span_exact_block_facealpha` | [`span/tex.span.facealpha.u.c`](../3rd/toridraw/graphics/raster/texture/span/tex.span.facealpha.u.c) + [`span/tex.span.facealpha_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/span/tex.span.facealpha_tmpl.inc). **Outside the ISA rotation** — scalar only, for the same read-modify-write reason SL4's spans are (see TS8) |
+| TS12 | `texplane.persp.<gate>[.facealpha][.modulate].branching.lerp8_v3` (10 IDs) | Texture Gouraud | perspective | the compositing matrix over the **plane projector**: gate {`texopaque`,`textrans`,`texalpha`} x `facealpha` x `modulate`, minus the two plain gates | `raster_texplane_persp_{texopaque,textrans,texalpha}[_facealpha][_modulate]_branching_lerp8_v3` | one file per variant, `texplane.persp.*.branching.lerp8_v3.u.c`, over a shared walker template [`texplane.persp.branching.lerp8_v3_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc); TS14 spans |
+| TS13 | `texcylinder` / `texcube` / `texsphere` | Texture Gouraud | perspective | **not implemented.** The three families that carry a *mapping* rather than a projector; see the note below | — | — |
+| TS14 | `tex.span.gates` (10 IDs) | Texture (span) | perspective | 8-pixel + exact-block spans for TS12 | `draw_texture_scanline_<gate>[_facealpha][_modulate]_branching_lerp8_v3_ordered` | [`span/tex.span.gates.u.c`](../3rd/toridraw/graphics/raster/texture/span/tex.span.gates.u.c) + [`span/tex.span.gates_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/span/tex.span.gates_tmpl.inc). Grouped per file like the per-ISA span files, not per variant. **Outside the ISA rotation** — scalar only, same read-modify-write reason as SL4 |
+| TS16 | `atan.turns16` | Table | — | arctangent table, and the arcsine entry point backed by it | `g_atan_turns16_table`, `ToriDraw_Atan2Turns16`, `ToriDraw_AsinTurns16`, `ToriDraw_InitAtanTable` | [`graphics/shared_tables.h`](../3rd/toridraw/graphics/shared_tables.h) |
+| TS17 | `texture_uv` | UV generation | — | per-vertex uv for render types 0-3, from the decoded mapping parameters | `ToriDraw_ComputeTextureUv`, `ToriDraw_ComputeTextureUvBases` | [`toridraw_texture_uv.c`](../3rd/toridraw/toridraw_texture_uv.c) |
+| TS15 | `tex_sampler` | Texture (sampler) | — | per-triangle sampler state: texels, width/shift/masks, per-axis clamp, face alpha, per-channel tint | `ToriDraw_TexSampler`, `tex_sampler_index`, `tex_sampler_mul255`, `tex_sampler_tint` | [`tex_sampler.h`](../3rd/toridraw/graphics/raster/texture/tex_sampler.h) |
 | TS11 | `texshadeblend.persp.texopaque.sort.lerp8` / `texshadeblend.persp.textrans.sort.lerp8` | Texture Gouraud | perspective | SWAP-sorted triangle lerp8 | `raster_texshadeblend_persp_texopaque_sort_lerp8`, `raster_texshadeblend_persp_textrans_sort_lerp8` | [`texture.u.c`](../src/graphics/old/texture.u.c) + [`raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c), [`texshadeblend.persp.textrans.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.u.c) + scanlines [`texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c), [`texshadeblend.persp.textrans.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.scanline.u.c) (`raster_texshadeblend_persp_*_sort_lerp8_scanline`; legacy path; TS8 span) |
 
 ---
@@ -121,23 +131,49 @@ no `branching` counterpart, so alpha-blended textured geometry had to be drawn
 opaque. The 8-pixel inner kernels are the existing per-ISA SIMD spans (**TS8**)
 except in the facealpha variants, which need a read-modify-write.
 
-**TS12/TS13 close that gap for `branching`** — the perspective `texshadeblend`
-gates now have facealpha twins too, sharing one walker template with their plain
-siblings so the two cannot drift. Two things to know about them:
+**TS12 closes that gap for `branching`, and widens it** — the perspective
+`texshadeblend` family now spans gate x facealpha x modulate, all ten variants
+generated from one walker template shared with their plain siblings so they
+cannot drift. Four things are worth knowing:
 
-- **`facealpha(0xFF)` is not the plain kernel.** `alpha_blend` rounds a 0xFF
-  channel down to 0xFE, so the two agree on *which* pixels they touch and not on
-  the exact value. Coverage is the invariant worth asserting, and it is what the
-  test asserts.
-- **The colour key and the alpha are independent.** A texel-0 pixel under
-  `textrans` is skipped outright, which is not the same as blending it at alpha
-  0 — `alpha_blend(0, dst, src)` also rounds `dst` down, so a pixel that should
-  have been untouched would be measurably altered.
+- **Every capability is a bit-exact no-op at its neutral setting.**
+  `facealpha(0xFF)`, `modulate(256,256,256)` and `texalpha` on an all-opaque
+  alpha plane each equal the plain SIMD kernel *exactly*. That is by
+  construction: a fully opaque result takes a plain store rather than
+  `alpha_blend`, which would otherwise round a 0xFF channel down to 0xFE, and
+  `tex_sampler_mul255` is exact rather than `(a*b)>>8`. Those identities are the
+  anchor the whole test chains off.
+- **The exact (cold) path clamps u even in repeat mode.** `tex_span_exact_block`
+  does, so that is what `repeat` has always meant on that path, while the
+  8-pixel path masks. The two disagree in the reference and the disagreement is
+  load-bearing — matching it is what makes the identities above hold. Diverging
+  cost ~26% of covered pixels sampling the neighbouring texel.
+- **The colour key, the texel alpha and the face alpha are three things.** A
+  keyed or zero-alpha texel is skipped outright, which is not the same as
+  compositing at alpha 0 (`alpha_blend(0, dst, src)` rounds `dst` down). The
+  texel alpha and the face alpha compose multiplicatively in one pass.
+- **The high byte of a framebuffer word is undefined.** `shade_blend` masks and
+  shifts, so scalar spans leave it zero while the NEON spans leave the
+  shade-scaled texel alpha there. Nothing downstream reads it; comparisons must
+  mask to 24 bits.
 
-Neither gate is reachable from the model raster yet: `toridraw_raster.u.c` passes
-no alpha for textured faces, so a textured face carrying `face_alphas` still
-draws opaque. Wiring that up is a deliberate separate step — it changes how
-existing content renders.
+None of it is reachable from the model raster yet: `toridraw_raster.u.c` passes
+no alpha, tint or sampler for textured faces, so a textured face still draws
+through the plain gate. Wiring that up is a deliberate separate step — it
+changes how existing content renders.
+
+**`texcylinder` / `texcube` / `texsphere` (TS13) are not implemented.** Their
+uv generation is (TS17, using the TS16 table), so the coordinates exist; what is
+missing is a rasterizer that consumes explicit per-vertex uv. The plane kernels
+cannot: they derive their uv basis from three orthographic vertex *positions*,
+which is exactly the representation render types 1 and 3 do not have (they are
+non-linear in the vertex — arctangent and arcsine). The shape of the missing
+kernel is a perspective-correct interpolation of `u/z`, `v/z` and `1/z`, feeding
+the same TS14 spans, which already divide `au/cw` and `bv/cw` per 8-pixel block
+and so are perspective-correct as they stand. The one piece needing care is the
+fixed-point normalisation of those three screen-space planes:
+`ToriDraw_TexturePlanePrepare32` cannot be reused, because its `base` term comes
+from projecting a 3D normal's z rather than from an arbitrary plane.
 
 ### Where it is and is not bit-identical
 
@@ -167,11 +203,14 @@ existing content renders.
   reproduced exactly, the colour plane against a double-precision plane (tight on
   a purely vertical gradient, bounded by the s4 stair otherwise), the channel
   clamp against `gouraudrgb_pack_ish8` directly, and the alpha algebra per pixel.
-- `make -C src test-texture-facealpha` — [`toridraw_texture_facealpha_test.c`](../3rd/toridraw/toridraw_texture_facealpha_test.c).
-  TS12/TS13 against their plain twins. Coverage is recovered by rendering the
-  plain kernel over two different backgrounds and taking the pixels that agree,
-  rather than by comparing against a background sentinel — an alpha blend can
-  land back on the background, so "changed" is not "covered".
+- `make -C src test-texture-matrix` — [`toridraw_texture_matrix_test.c`](../3rd/toridraw/toridraw_texture_matrix_test.c).
+  TS12/TS14/TS15. Eight bit-exact identities against the plain kernels anchor the
+  suite; the algebra, the gate semantics, the sampler's addressing and
+  `mul255` are chained off them. Coverage is recovered by rendering the plain
+  kernel over two different backgrounds and taking the pixels that agree, rather
+  than against a background sentinel — an alpha blend can land back on the
+  background, so "changed" is not "covered". Six mutations of the span and
+  sampler are each caught.
 - `make -C src test-scanline` — [`toridraw_scanline_parity_test.c`](../3rd/toridraw/toridraw_scanline_parity_test.c).
   Diffs every variant against its `branching` counterpart over a triangle set
   covering interior / clipped / degenerate / inverted cases, then chains the

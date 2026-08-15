@@ -190,6 +190,22 @@ prov_tail(
         prov->tail_size = to - from;
 }
 
+/**
+ * Big-endian 3-byte unsigned read — the reference's `readMedium`.
+ *
+ * Only the complex texture scale block uses it, and only from format version 14
+ * (Y alone) and 15 (all three axes). There is no RSCache_BufferG3At because
+ * nothing else in the container needs a 24-bit field.
+ */
+static int
+model_read_medium(const uint8_t* data, int* offset)
+{
+    int value = ((int)data[*offset] << 16) | ((int)data[*offset + 1] << 8) |
+                (int)data[*offset + 2];
+    *offset += 3;
+    return value;
+}
+
 static struct RSCache_Model*
 decode_ob2(
     const uint8_t* inputData,
@@ -747,12 +763,17 @@ decode_ob3(
 
     int offsetOfSimpleTextureMapping = dataOffset;
     dataOffset += simpleTextureFaceCount * 6;
+    int offsetOfComplexTextureMapping = dataOffset;
     dataOffset += complexTextureFaceCount * 6;
+    int offsetOfTextureScales = dataOffset;
     dataOffset += complexTextureFaceCount * texture_scale_bytes;
+    int offsetOfTextureRotations = dataOffset;
     dataOffset += complexTextureFaceCount;     /* rotation */
+    int offsetOfTextureDirections = dataOffset;
     dataOffset += complexTextureFaceCount;     /* direction */
-    dataOffset += complexTextureFaceCount;     /* translation */
-    dataOffset += cubeTextureFaceCount * 2;
+    int offsetOfTextureTranslations = dataOffset;
+    dataOffset += complexTextureFaceCount;     /* translation (speed) */
+    dataOffset += cubeTextureFaceCount * 2;    /* ...and the cube uv offsets */
 
     {
         /* The raw bitmask, not the extracted bit: the trailer has to carry the byte the
@@ -1004,7 +1025,31 @@ decode_ob3(
         }
     }
 
-    offset = offsetOfSimpleTextureMapping;
+    /*
+     * Texture mapping. Six independent cursors, because a face draws from a
+     * section only when its render type calls for it — a single cursor cannot
+     * walk them. Mirrors rs-map-viewer's ModelData.decodeTextureMapping, which
+     * is the only reference in reach that reads the complex blocks at all (its
+     * own V3 path allocates the arrays and never fills them).
+     */
+    if( complexTextureFaceCount > 0 && textured_face_count > 0 )
+    {
+        model->texture_scale_x = (int32_t*)calloc((size_t)textured_face_count, sizeof(int32_t));
+        model->texture_scale_y = (int32_t*)calloc((size_t)textured_face_count, sizeof(int32_t));
+        model->texture_scale_z = (int32_t*)calloc((size_t)textured_face_count, sizeof(int32_t));
+        model->texture_rotation = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_direction = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_speed = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_trans_u = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
+        model->texture_trans_v = (int8_t*)calloc((size_t)textured_face_count, sizeof(int8_t));
+    }
+
+    int cursorSimple = offsetOfSimpleTextureMapping;
+    int cursorComplex = offsetOfComplexTextureMapping;
+    int cursorScale = offsetOfTextureScales;
+    int cursorRotation = offsetOfTextureRotations;
+    int cursorDirection = offsetOfTextureDirections;
+    int cursorTranslation = offsetOfTextureTranslations;
 
     for( int i = 0; i < textured_face_count; ++i )
     {
@@ -1019,11 +1064,67 @@ decode_ob3(
             model->texture_render_types ? (model->texture_render_types[i] & 255) : 0;
         if( textureRenderType == 0 )
         {
-            model->textured_p_coordinate[i] = RSCache_BufferG2At(inputData, &offset);
-            model->textured_m_coordinate[i] = RSCache_BufferG2At(inputData, &offset);
-            model->textured_n_coordinate[i] = RSCache_BufferG2At(inputData, &offset);
+            model->textured_p_coordinate[i] = RSCache_BufferG2At(inputData, &cursorSimple);
+            model->textured_m_coordinate[i] = RSCache_BufferG2At(inputData, &cursorSimple);
+            model->textured_n_coordinate[i] = RSCache_BufferG2At(inputData, &cursorSimple);
+        }
+        else if( textureRenderType >= 1 && textureRenderType <= 3 )
+        {
+            /* Not vertex indices here — a raw axis triple. See model.h. */
+            model->textured_p_coordinate[i] = RSCache_BufferG2At(inputData, &cursorComplex);
+            model->textured_m_coordinate[i] = RSCache_BufferG2At(inputData, &cursorComplex);
+            model->textured_n_coordinate[i] = RSCache_BufferG2At(inputData, &cursorComplex);
+
+            if( model->texture_scale_x )
+            {
+                if( format_version < 15 )
+                {
+                    model->texture_scale_x[i] = RSCache_BufferG2At(inputData, &cursorScale);
+                    /* Version 14 widened Y alone. The asymmetry is the format's. */
+                    model->texture_scale_y[i] =
+                        format_version >= 14
+                            ? model_read_medium(inputData, &cursorScale)
+                            : RSCache_BufferG2At(inputData, &cursorScale);
+                    model->texture_scale_z[i] = RSCache_BufferG2At(inputData, &cursorScale);
+                }
+                else
+                {
+                    model->texture_scale_x[i] = model_read_medium(inputData, &cursorScale);
+                    model->texture_scale_y[i] = model_read_medium(inputData, &cursorScale);
+                    model->texture_scale_z[i] = model_read_medium(inputData, &cursorScale);
+                }
+
+                model->texture_rotation[i] =
+                    (int8_t)RSCache_BufferG1At(inputData, &cursorRotation);
+                model->texture_direction[i] =
+                    (int8_t)RSCache_BufferG1At(inputData, &cursorDirection);
+                model->texture_speed[i] =
+                    (int8_t)RSCache_BufferG1At(inputData, &cursorTranslation);
+
+                /* Cube faces carry two more bytes, from the same translation
+                 * cursor, so the section is complex*1 + cube*2 and interleaved
+                 * in face order rather than block-appended. */
+                if( textureRenderType == 2 )
+                {
+                    model->texture_trans_u[i] =
+                        (int8_t)RSCache_BufferG1At(inputData, &cursorTranslation);
+                    model->texture_trans_v[i] =
+                        (int8_t)RSCache_BufferG1At(inputData, &cursorTranslation);
+                }
+            }
         }
     }
+
+    /* Each cursor must have landed exactly on the next section's start. This is
+     * the only check that catches a mis-sized scale block, which otherwise
+     * silently shifts every later face's parameters. */
+    assert(cursorSimple == offsetOfComplexTextureMapping);
+    assert(cursorComplex == offsetOfTextureScales);
+    assert(cursorScale == offsetOfTextureRotations);
+    assert(cursorRotation == offsetOfTextureDirections);
+    assert(cursorDirection == offsetOfTextureTranslations);
+    assert(cursorTranslation == offsetOfTextureTranslations + complexTextureFaceCount +
+                                    cubeTextureFaceCount * 2);
 
     offset = dataOffset;
     int trailingFlag = RSCache_BufferG1At(inputData, &offset);
@@ -3503,6 +3604,24 @@ RSCache_ModelFree(struct RSCache_Model* model)
         free(model->face_texture_coords);
     if( model->texture_render_types )
         free(model->texture_render_types);
+    /* The complex-mapping arrays are allocated as a set, but freed individually
+     * so a partially-successful allocation still releases what it got. */
+    if( model->texture_scale_x )
+        free(model->texture_scale_x);
+    if( model->texture_scale_y )
+        free(model->texture_scale_y);
+    if( model->texture_scale_z )
+        free(model->texture_scale_z);
+    if( model->texture_rotation )
+        free(model->texture_rotation);
+    if( model->texture_direction )
+        free(model->texture_direction);
+    if( model->texture_speed )
+        free(model->texture_speed);
+    if( model->texture_trans_u )
+        free(model->texture_trans_u);
+    if( model->texture_trans_v )
+        free(model->texture_trans_v);
     if( model->face_textures )
         free(model->face_textures);
 

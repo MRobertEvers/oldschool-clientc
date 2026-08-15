@@ -125,6 +125,42 @@ struct RSCache_Model
     // textureSpeed: Animation speed
     uint8_t* texture_render_types;
 
+    /*
+     * Complex texture mapping parameters — render types 1 (cylinder), 2 (cube)
+     * and 3 (sphere).
+     *
+     * All eight arrays are `textured_face_count` long and indexed by the
+     * **textured face index**, the same index as `texture_render_types` and
+     * `textured_p/m/n_coordinate`, so a face reaches them through
+     * `face_texture_coords[face]`. They are allocated together and only when the
+     * model has at least one complex face; a type-0 entry reads 0 throughout.
+     *
+     * The stream stores them in six independent sections, one cursor each, and a
+     * face consumes from a section only if its render type calls for it — which
+     * is why they cannot be read in the same pass as the type-0 p/m/n triples.
+     * Section widths are `simple*6`, `complex*6`, `complex*scale_bytes`,
+     * `complex`, `complex`, `complex + cube*2`, and `scale_bytes` is 6 below
+     * format version 14, 7 at 14, and 9 at 15+.
+     *
+     * For a complex face `textured_p/m/n_coordinate` are **not vertex indices**.
+     * They are a raw axis triple consumed as `m/32767` and `sqrt(p*p + n*n)`
+     * when building the mapping's rotation matrix. Reading them as indices is
+     * meaningless and will usually be out of range.
+     *
+     * Units, as the reference consumes them: scales are /1024 (cylinder and
+     * sphere) or 64/scale (cube), rotation is in 1/128 turns, speed and the cube
+     * translations are /256. See the uv generator for the exact rules.
+     */
+    int32_t* texture_scale_x;
+    int32_t* texture_scale_y;
+    int32_t* texture_scale_z;
+    int8_t* texture_rotation;
+    int8_t* texture_direction;
+    int8_t* texture_speed;
+    /** Type 2 (cube) only; 0 for every other render type. */
+    int8_t* texture_trans_u;
+    int8_t* texture_trans_v;
+
     int rotated;
 
     /*

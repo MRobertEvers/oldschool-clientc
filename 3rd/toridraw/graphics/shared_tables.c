@@ -13,6 +13,7 @@ int g_hsl16_to_rgb_table[65536];
 static int g_sin_table_builtin[2048];
 static int g_cos_table_builtin[2048];
 static int g_tan_table_builtin[2048];
+int g_atan_turns16_table[TORIDRAW_ATAN_TABLE_LEN];
 
 const int* g_sin_table = g_sin_table_builtin;
 const int* g_cos_table = g_cos_table_builtin;
@@ -177,6 +178,11 @@ ToriDraw_InitTanTable(void)
 }
 
 void
+ToriDraw_InitAtanTable(void)
+{
+}
+
+void
 init_reciprocal16(void)
 {
 }
@@ -216,6 +222,20 @@ ToriDraw_InitTanTable(void)
     for( int i = 0; i < 2048; i++ )
         g_tan_table_builtin[i] = (int)(tan((double)i * 0.0030679615) * (1 << 16));
     g_tan_table = g_tan_table_builtin;
+}
+
+void
+ToriDraw_InitAtanTable(void)
+{
+    /* atan(t) for t in [0, 1], expressed in 1/65536 turns: atan(1) is an eighth
+     * of a turn, so the last entry is exactly 8192. Built in double and rounded
+     * to nearest so the table itself contributes no bias. */
+    for( int i = 0; i < TORIDRAW_ATAN_TABLE_LEN; i++ )
+    {
+        double t = (double)i / (double)(1 << TORIDRAW_ATAN_TABLE_BITS);
+        double turns = atan(t) / (2.0 * 3.14159265358979323846);
+        g_atan_turns16_table[i] = (int)(turns * 65536.0 + 0.5);
+    }
 }
 
 void
