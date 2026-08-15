@@ -100,16 +100,12 @@ def main() -> int:
                 "TORIRS_SIM_CLICK_AT": click_spec,
             }
         )
-        # Repo-relative argv, run from REPO: the boot path resolves data files
-        # against the working directory, and an absolute cache/manifest pair
-        # boots to the login screen and never logs in.
-        rel = lambda p: os.path.join(".", os.path.relpath(p.resolve(), REPO))
         result = subprocess.run(
             [
-                rel(args.client),
-                rel(args.cache),
+                str(args.client.resolve()),
+                str(args.cache.resolve()),
                 "--manifest",
-                rel(args.manifest),
+                str(args.manifest.resolve()),
                 "--soft3d",
             ],
             cwd=REPO,
@@ -138,12 +134,19 @@ def main() -> int:
 
     failures = []
     if kinds.count("arm") < 2:
-        # Almost always a run that never reached the world: the clicks landed on
-        # a half-built gameframe. Reported as a failure, never skipped — a skip
-        # here would read as "clearing works".
+        # Never armed means the clicks landed on a login screen, not on the
+        # inventory. By far the most common cause is a client built without the
+        # server linked in, which boots fine and simply never logs in — named
+        # explicitly because the symptom otherwise reads as a clearing bug.
+        # Reported as a failure, never skipped: a skip would read as a pass.
+        why = (
+            "client was built without the embedded server "
+            "(rebuild with `make -C src EMBED_SERVER=1`)"
+            if "no embedded server" in result.stdout
+            else "client never finished logging in; see the log"
+        )
         failures.append(
-            f"the Use selection was armed {kinds.count('arm')}/2 times "
-            "(client likely never finished logging in; see the log)"
+            f"the Use selection was armed {kinds.count('arm')}/2 times — {why}"
         )
     elif kinds != ["arm", "clear", "arm", "clear"]:
         failures.append(f"expected arm/clear/arm/clear, got {kinds}")

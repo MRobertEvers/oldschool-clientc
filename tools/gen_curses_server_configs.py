@@ -10,9 +10,9 @@ comments they are written into:
           [timer,prayer_drain] wants a per-tick accumulator value. Two
           conversions, not one: drain = 36 / seconds-per-point (calibrated
           exactly against Thick Skin, drain 1, client tooltip "1pt per 36s"),
-          and the wiki's seconds are per point of a TEN-TIMES pool — 990
-          points at 99 Prayer, where this engine has 99. Same wall-clock
-          duration therefore means ten times the seconds per point here:
+          and the wiki states its seconds on RuneScape's TEN-TIMES prayer
+          pool — 990 points at 99 Prayer, where this engine has 99. Same
+          wall-clock duration means ten times the seconds per point here:
           drain = 3.6 / wiki-seconds-per-point. See ANCIENT_CURSES.md §6.1.
 
   group   mutual-exclusion sets, from Void_RS2011Server's prayers.toml.

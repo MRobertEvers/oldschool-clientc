@@ -128,6 +128,12 @@ def main() -> int:
         # Berserker lengthens the stat-restore interval, so the shared timer
         # names the lane. Guarded by ^curses_enabled like every other caller.
         tree / "server/scripts/player/scripts/stat_restore.rs2",
+        # The npc->player deflect sites, twins of the one in combat_stats.rs2.
+        # Player-dealt damage funnels through one proc; npc-dealt damage does
+        # not, so each style's own script has to report its blocked hit.
+        # ~curse_deflect_reflect fails closed, which is checked above.
+        tree / "server/scripts/skill_combat/scripts/npc_combat_magic.rs2",
+        tree / "server/scripts/skill_combat/scripts/npc_combat_ranged.rs2",
         tree / "pack/varp.server",
     }
     for path in sorted(tree.rglob("*.rs2")):
