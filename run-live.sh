@@ -367,8 +367,14 @@ build_scripts() {
     fi
     echo "run-live.sh: building the server script pack..." >&2
     case "$SERVER_SCRIPTS" in
+        *build_summoning_curses)
+            make -C src mock230-scripts-summoning-curses || exit 1
+            ;;
         *build_summoning)
             make -C src mock230-scripts-summoning || exit 1
+            ;;
+        *build_curses)
+            make -C src mock230-scripts-curses || exit 1
             ;;
         *)
             make -C src mock230-scripts || exit 1

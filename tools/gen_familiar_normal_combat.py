@@ -100,6 +100,43 @@ REACH_OF = {STYLE_MELEE: 1, STYLE_RANGED: 7, STYLE_MAGIC: 10}
 # `NPC.configure` leaves a record with no `attack_speed` row at five ticks.
 DEFAULT_ATTACK_SPEED = 5
 
+# How fast a familiar swings, from the game's own data rather than from a
+# server's config — because neither server states it for a familiar.
+#
+# `npc_configs.json` carries an `attack_speed` for 1260 of its 8033 records and
+# for only 13 of the 78 familiars, all but two of those repeating the five-tick
+# default; 2009scape's familiars therefore swing at `NPC.configure`'s fallback,
+# not at a stated rate.  Nocturne (an RS3 server) does not state one either:
+# `NPC.getAttackSpeed` reads `NPCDefinitions.clientScriptData[14]` — an npc
+# param in the cache — and falls back to 4 when the record has none.
+#
+# That param is the answer, and a pre-EoC cache has it.  `familiar_attack_
+# speed_preeoc.csv` is param 14 for all 78 familiar records, read out of
+# cache.rs727_preeoc with:
+#
+#   tools/dump_stats/dump_stats --rev rs727 cache.rs727_preeoc \
+#       --npc-only --npc-csv <out>.csv     # `params` column, key 14
+#
+# Every one of the 72 familiar records that states it says **8**, four ticks
+# slower than the five this table used to hand every familiar.  That the whole
+# roster agrees is what makes the six silent records safe to give the same
+# number (see PREEOC_FALLBACK_SPEED below).
+#
+# Param 14 is attack speed and not something that merely looks like one: it is
+# what nocturne reads for exactly that purpose, and across the whole rev-727
+# npc table its values land where the game's known cadences are — Commander
+# Zilyana 2, guards and skeletons 4, dwarves 5, Graardor and the giants 6,
+# scarab swarms 1.
+PREEOC_SPEEDS = os.path.join(DOCS, "familiar_attack_speed_preeoc.csv")
+
+# The six familiar records with no param 14 are the five foragers (Beaver,
+# Macaw, Magpie, Ibis, Fruit bat) and the Vampyre bat.  Only the bat is armed,
+# so only the bat's rate is a live question, and 8 is what every other familiar
+# in the same cache answers.  Stated as its own constant rather than folded into
+# DEFAULT_ATTACK_SPEED so the two defaults cannot be confused: five is
+# 2009scape's engine fallback, eight is the roster's own measured rate.
+PREEOC_FALLBACK_SPEED = 8
+
 # npc_configs.json writes `bonuses` as a 15-value comma-separated vector, and
 # the source handlers index it as the tree's Steel Titan block already
 # documents: five attack, five defence, prayer at 10, melee strength at 11,
@@ -341,9 +378,25 @@ def resolve_seq(row, columns, admitted, review):
     return ""
 
 
+def read_preeoc_speeds():
+    """`source npc id -> attack speed in ticks`, from the pre-EoC cache param.
+
+    Absent and blank rows are both dropped rather than defaulted here: the
+    caller distinguishes "the cache states this familiar's rate" from "nothing
+    states it", and records that distinction in the audit CSV.
+    """
+    speeds = {}
+    with open(PREEOC_SPEEDS) as handle:
+        for row in csv.DictReader(handle):
+            if row["attack_speed"].strip():
+                speeds[int(row["source_npc"])] = int(row["attack_speed"])
+    return speeds
+
+
 def build(source):
     cfgs = {int(c["id"]): c for c in json.load(open(
         os.path.join(source, "Server/data/configs/npc_configs.json")))}
+    preeoc = read_preeoc_speeds()
     types = read_registry_types()
     src_ids = read_npc_source_ids()
     seq_admitted, seq_review = read_seq_names()

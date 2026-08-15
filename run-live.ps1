@@ -672,7 +672,10 @@ function Test-ServerScriptsFresh {
 }
 
 function Build-Scripts {
-    $target = if ($serverScripts -like '*build_summoning') { 'mock230-scripts-summoning' } else { 'mock230-scripts' }
+    $target = if ($serverScripts -like '*build_summoning_curses') { 'mock230-scripts-summoning-curses' }
+        elseif ($serverScripts -like '*build_summoning') { 'mock230-scripts-summoning' }
+        elseif ($serverScripts -like '*build_curses') { 'mock230-scripts-curses' }
+        else { 'mock230-scripts' }
 
     # Most manifests carry no scripts= at all -- it only needs stating when
     # build_summoning applies instead of mock230-scripts' own default output,
