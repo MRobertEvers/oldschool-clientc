@@ -1203,11 +1203,54 @@ npc_target_op(
         if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
             esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
         break;
+    /*
+     * ENTERING VIEW: the server is telling us this slot is a NEW npc.
+     *
+     * The slot is the server's private per-observer name and it is REUSED --
+     * `mock230_slotmap_release` frees a name the moment an npc leaves view or
+     * teleports, and `mock230_slotmap_acquire` hands it straight back out
+     * round-robin. This side only drops a name when it sees an explicit
+     * CLEAR keyed by the npc's position in the PREVIOUS packet's list, so any
+     * release the client never saw a matching CLEAR for leaves a stale
+     * registration behind.
+     *
+     * Adopting the new npc without clearing that first is what made calling a
+     * familiar move the Queen Black Dragon: the familiar teleports, the server
+     * frees and re-mints its name, the name collides with the one still
+     * registered to her, and the DELTA_XZ that follows this op resolves
+     * `cur_slot` to HER world index and jumps her to `local_player_tile + dx`
+     * -- one pop, right next to the player. Every other field in the record
+     * (type, facing, spawn cycle) lands on her too.
+     *
+     * "Entering view" is unambiguous about intent, so the disagreement is
+     * resolved in the server's favour: whatever this side still has under that
+     * name is stale by definition and is despawned before the new npc takes
+     * it. Reported, because a collision means a release went unmatched
+     * upstream and that is still worth finding.
+     */
     case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
+    {
+        int stale_world_idx = -1;
+        int stale_element_id = -1;
+
         self->cur_slot = (int)op->_bitvalue;
+        if( self->cur_slot >= 0 &&
+            RS_EntitySync_FindNpc(esync, self->cur_slot, &stale_world_idx, &stale_element_id) )
+        {
+            fprintf(
+                stderr,
+                "entity_sync: npc slot %d entered view but is still registered "
+                "(world %d, element %d) - despawning the stale entity first\n",
+                self->cur_slot, stale_world_idx, stale_element_id);
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, stale_world_idx), self->cur_slot, -1,
+                stale_world_idx, stale_element_id, "STALE_SLOT_REUSED", 1);
+            RS_EntitySync_RemoveNpc(esync, self->app->world, self->cur_slot);
+        }
         if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
             esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
         break;
+    }
     case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
         self->cur_slot = (int)op->_bitvalue < esync->active_npc_count
                              ? esync->active_npcs[op->_bitvalue]
