@@ -176,8 +176,13 @@ AudioAnalyse(
 
     re = malloc(sizeof(double) * ANALYSE_FFT_SIZE);
     im = malloc(sizeof(double) * ANALYSE_FFT_SIZE);
-    assert(re);
     assert(im);
+    if( !re )
+    {
+        free(re);
+        free(im);
+        return;
+    }
     start = frames > sample_rate * 2 ? sample_rate : 0;
     for( int s = start; s + ANALYSE_FFT_SIZE <= frames; s += ANALYSE_FFT_SIZE )
     {

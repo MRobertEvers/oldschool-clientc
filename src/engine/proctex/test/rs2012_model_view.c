@@ -172,8 +172,9 @@ load_animation_from_cache(
     }
     frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
     delays = (int*)malloc((size_t)frame_count * sizeof(int));
-    assert(frames);
     assert(delays);
+    if( !frames )
+        goto done;
 
     for( int i = 0; i < frame_count; i++ )
     {
@@ -1615,15 +1616,17 @@ main(int argc, char** argv)
     {
         reference_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         reference_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        assert(reference_pixels);
         assert(reference_tile);
+        if( !reference_pixels )
+            goto done;
     }
     if( compare )
     {
         zbuffer_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         zbuffer_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        assert(zbuffer_pixels);
         assert(zbuffer_tile);
+        if( !zbuffer_pixels )
+            goto done;
         if( diff_path )
         {
             diff_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
@@ -1639,8 +1642,9 @@ main(int argc, char** argv)
     {
         zbuffer_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         zbuffer_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        assert(zbuffer_pixels);
         assert(zbuffer_tile);
+        if( !zbuffer_pixels )
+            goto done;
     }
     if( diff_path )
     {
@@ -1818,10 +1822,9 @@ main(int argc, char** argv)
         z_painter = (int*)malloc(n * sizeof(int));
         id_zbuf = (int*)malloc(n * sizeof(int));
         z_zbuf = (int*)malloc(n * sizeof(int));
-        assert(id_painter);
-        assert(z_painter);
-        assert(id_zbuf);
         assert(z_zbuf);
+        if( !id_painter || !z_painter || !id_zbuf )
+            goto done;
     }
 
     for( int view = 0; view < angles * pitch_count; view++ )

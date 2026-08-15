@@ -424,8 +424,14 @@ cmd_seek(
     full = render_song(&load, frames, NULL);
 
     seeked = calloc((size_t)frames * 2, sizeof(int16_t));
-    assert(full);
     assert(seeked);
+    if( !full )
+    {
+        free(full);
+        free(seeked);
+        AudioSongLoad_Free(&load);
+        return 1;
+    }
     ToriRS_MidiSynth_Init(&synth, &load.bank, HARNESS_RATE);
     if( !ToriRS_MidiSynth_PlayFrom(
             &synth, load.song->midi, load.song->midi_size, true, start_tick) )

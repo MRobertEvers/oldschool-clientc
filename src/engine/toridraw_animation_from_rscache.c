@@ -106,8 +106,12 @@ ToriDraw_AnimationFromRSCache(
     anim->replaceheldleft = -1;
     anim->replaceheldright = -1;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
-    assert(anim->base);
     assert(anim->frames);
+    if( !anim->base )
+    {
+        ToriDraw_AnimationFree(anim);
+        return NULL;
+    }
     for( i = 0; i < frame_count; i++ )
         anim_frame_from_rscache(&anim->frames[i], frames[i], delays ? delays[i] : 0);
 
@@ -206,8 +210,12 @@ ToriDraw_AnimationFromRSCacheDat1(
     anim->replaceheldleft = -1;
     anim->replaceheldright = -1;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
-    assert(anim->base);
     assert(anim->frames);
+    if( !anim->base )
+    {
+        ToriDraw_AnimationFree(anim);
+        return NULL;
+    }
     for( i = 0; i < frame_count; i++ )
         anim_frame_from_dat1(&anim->frames[i], frames[i], delays ? delays[i] : 0);
 

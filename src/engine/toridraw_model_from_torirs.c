@@ -111,8 +111,12 @@ bones_from_torirs(const struct ToriRS_Bones* src)
 
     bones->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
     bones->bones_sizes = calloc((size_t)src->bones_count, sizeof(boneint_t));
-    assert(bones->bones);
     assert(bones->bones_sizes);
+    if( !bones->bones )
+    {
+        ToriDraw_BonesFree(bones);
+        return NULL;
+    }
 
     for( int i = 0; i < src->bones_count; i++ )
     {
@@ -197,9 +201,9 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
         dst->animaya_group_counts = malloc((size_t)vc);
         dst->animaya_groups = calloc((size_t)vc, sizeof(uint8_t*));
         dst->animaya_scales = calloc((size_t)vc, sizeof(uint8_t*));
-        assert(dst->animaya_group_counts);
-        assert(dst->animaya_groups);
         assert(dst->animaya_scales);
+        if( !dst->animaya_group_counts || !dst->animaya_groups )
+            goto fail;
 
         memcpy(dst->animaya_group_counts, skin->group_counts, (size_t)vc);
         for( int i = 0; i < vc; i++ )
@@ -210,8 +214,9 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
 
             dst->animaya_groups[i] = malloc((size_t)cnt);
             dst->animaya_scales[i] = malloc((size_t)cnt);
-            assert(dst->animaya_groups[i]);
             assert(dst->animaya_scales[i]);
+            if( !dst->animaya_groups[i] )
+                goto fail;
 
             if( skin->groups && skin->groups[i] )
                 memcpy(dst->animaya_groups[i], skin->groups[i], (size_t)cnt);

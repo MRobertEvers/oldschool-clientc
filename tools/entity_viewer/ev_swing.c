@@ -259,8 +259,14 @@ select_blade(
 
     path = calloc((size_t)count, sizeof(double));
     out->head_indices = calloc((size_t)count, sizeof(int));
-    assert(path);
     assert(out->head_indices);
+    if( !path )
+    {
+        free(path);
+        free(out->head_indices);
+        out->head_indices = NULL;
+        return 0;
+    }
 
     for( int f = 1; f < frames; f++ )
         for( int i = 0; i < count; i++ )

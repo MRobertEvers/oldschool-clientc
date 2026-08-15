@@ -348,10 +348,9 @@ canonicalise_framemap_index(
     int* canonical = malloc((size_t)n * sizeof(*canonical));
     uint64_t* hashes = calloc((size_t)n, sizeof(*hashes));
     struct RSCache_Dat2Framemap** maps = calloc((size_t)n, sizeof(*maps));
-    assert(referenced);
-    assert(canonical);
-    assert(hashes);
     assert(maps);
+    if( !referenced || !canonical || !hashes )
+        goto fail;
 
     for( int id = 0; id < n; id++ )
         canonical[id] = -1;

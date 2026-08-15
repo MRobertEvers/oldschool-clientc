@@ -352,8 +352,12 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
     dst->bones_count = src->bones_count;
     dst->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
     dst->bones_sizes = malloc((size_t)src->bones_count * sizeof(boneint_t));
-    assert(dst->bones);
     assert(dst->bones_sizes);
+    if( !dst->bones )
+    {
+        ToriDraw_BonesFree(dst);
+        return NULL;
+    }
 
     memcpy(dst->bones_sizes, src->bones_sizes, (size_t)src->bones_count * sizeof(boneint_t));
 

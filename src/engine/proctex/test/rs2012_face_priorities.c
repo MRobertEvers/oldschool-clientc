@@ -397,8 +397,9 @@ load_animation_from_cache(
     }
     frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
     delays = (int*)malloc((size_t)frame_count * sizeof(int));
-    assert(frames);
     assert(delays);
+    if( !frames )
+        goto done;
 
     for( int i = 0; i < frame_count; i++ )
     {
@@ -570,8 +571,9 @@ load_animation(
 
     frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
     delays = (int*)malloc((size_t)frame_count * sizeof(int));
-    assert(frames);
     assert(delays);
+    if( !frames )
+        goto done;
 
     for( int i = 0; i < frame_count; i++ )
     {
@@ -1761,10 +1763,9 @@ stock_setup(
     j->orig_y = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
     j->orig_z = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
     j->packed = (uint8_t*)calloc((size_t)(g->face_count + 1) / 2, 1);
-    assert(j->orig_x);
-    assert(j->orig_y);
-    assert(j->orig_z);
     assert(j->packed);
+    if( !j->orig_x || !j->orig_y || !j->orig_z )
+        return false;
     memcpy(j->orig_x, m->vertices_x, (size_t)m->vertex_count * sizeof(vertexint_t));
     memcpy(j->orig_y, m->vertices_y, (size_t)m->vertex_count * sizeof(vertexint_t));
     memcpy(j->orig_z, m->vertices_z, (size_t)m->vertex_count * sizeof(vertexint_t));
@@ -1795,9 +1796,9 @@ stock_setup(
     j->scenes = (struct ToriDraw_Scene**)calloc((size_t)j->thread_count, sizeof(*j->scenes));
     j->pixels = (toripixel_t**)calloc((size_t)j->thread_count, sizeof(*j->pixels));
     j->views = (struct stockview*)calloc((size_t)j->view_count, sizeof(*j->views));
-    assert(j->scenes);
-    assert(j->pixels);
     assert(j->views);
+    if( !j->scenes || !j->pixels )
+        return false;
     for( int t = 0; t < j->thread_count; t++ )
     {
         j->scenes[t] = ToriDraw_SceneNew(
@@ -2456,13 +2457,9 @@ main(int argc, char** argv)
     g.fb = (int*)malloc((size_t)g.face_count * sizeof(int));
     g.fc = (int*)malloc((size_t)g.face_count * sizeof(int));
     g.face_feature = (int*)malloc((size_t)g.face_count * sizeof(int));
-    assert(g.vx);
-    assert(g.vy);
-    assert(g.vz);
-    assert(g.fa);
-    assert(g.fb);
-    assert(g.fc);
     assert(g.face_feature);
+    if( !g.vx || !g.vy || !g.vz || !g.fa || !g.fb || !g.fc )
+        goto done;
 
     for( int i = 0; i < input_count; i++ )
     {
@@ -2611,11 +2608,9 @@ main(int argc, char** argv)
     feature_faces = (int*)malloc((size_t)g.face_count * sizeof(int));
     fixable = (long*)calloc((size_t)feature_count * (size_t)feature_count, sizeof(long));
     breakable = (long*)calloc((size_t)feature_count * (size_t)feature_count, sizeof(long));
-    assert(features);
-    assert(feature_face_offset);
-    assert(feature_faces);
-    assert(fixable);
     assert(breakable);
+    if( !features || !feature_face_offset || !feature_faces || !fixable )
+        goto done;
 
     for( int f = 0; f < g.face_count; f++ )
         features[g.face_feature[f]].face_count++;
@@ -2688,9 +2683,9 @@ main(int argc, char** argv)
     band = (int*)malloc((size_t)feature_count * sizeof(int));
     net = (long*)malloc((size_t)feature_count * (size_t)feature_count * sizeof(long));
     previous = (int*)malloc((size_t)feature_count * sizeof(int));
-    assert(band);
-    assert(net);
     assert(previous);
+    if( !band || !net )
+        goto done;
 
     /* Start in the middle, not at zero.
      *
@@ -3158,10 +3153,12 @@ main(int argc, char** argv)
             long* cy = (long*)calloc((size_t)fc2, sizeof(long));
             long* cz = (long*)calloc((size_t)fc2, sizeof(long));
             long* cn = (long*)calloc((size_t)fc2, sizeof(long));
-            assert(cx);
-            assert(cy);
-            assert(cz);
             assert(cn);
+            if( !cx || !cy || !cz )
+            {
+                free(cx); free(cy); free(cz); free(cn);
+                goto slow_done;
+            }
             for( int v = 0; v < g.vertex_count; v++ )
                 if( vertex_feature[v] >= 0 )
                 {
@@ -3208,8 +3205,12 @@ main(int argc, char** argv)
                     sv->distance = distance;
                     sv->ref_id = (int*)malloc((size_t)slow_res * slow_res * sizeof(int));
                     sv->ref_z = (int*)malloc((size_t)slow_res * slow_res * sizeof(int));
-                    assert(sv->ref_id);
                     assert(sv->ref_z);
+                    if( !sv->ref_id )
+                    {
+                        raster_scratch_free(&ref_raster);
+                        goto slow_done;
+                    }
                     project_view(&g, &sv->v, &ref_raster, sv->distance, sctx.scale);
                     raster_zbuffer_ref(&g, &ref_raster, sv->ref_id, sv->ref_z);
                 }

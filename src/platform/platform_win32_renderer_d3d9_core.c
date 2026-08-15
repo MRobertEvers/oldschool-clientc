@@ -826,8 +826,13 @@ d3d9_ui_sprite_ensure_base(
     {
         float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
         uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
-        assert(uvs);
         assert(loaded);
+        if( !uvs )
+        {
+            free(uvs);
+            free(loaded);
+            return false;
+        }
         free(slot->uvs);
         free(slot->loaded);
         slot->uvs = uvs;

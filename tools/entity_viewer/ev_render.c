@@ -797,8 +797,17 @@ ensure_buffers(int w, int h)
     free(g_rgba);
     g_pixels = malloc((size_t)w * (size_t)h * sizeof(toripixel_t));
     g_rgba = malloc((size_t)w * (size_t)h * 4);
-    assert(g_pixels);
     assert(g_rgba);
+    if( !g_pixels )
+    {
+        free(g_pixels);
+        free(g_rgba);
+        g_pixels = NULL;
+        g_rgba = NULL;
+        g_pix_w = 0;
+        g_pix_h = 0;
+        return 0;
+    }
     g_pix_w = w;
     g_pix_h = h;
     return 1;

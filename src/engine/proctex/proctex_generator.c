@@ -241,10 +241,9 @@ proctex_setup(
         calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->tables));
     gen->visiting = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), 1);
     gen->aux = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->aux));
-    assert(gen->caches);
-    assert(gen->tables);
-    assert(gen->visiting);
     assert(gen->aux);
+    if( !gen->caches || !gen->tables || !gen->visiting )
+        return false;
 
     for( int i = 0; i < gen->cache_count; i++ )
     {

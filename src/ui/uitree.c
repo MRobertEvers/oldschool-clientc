@@ -1774,8 +1774,9 @@ UITree_SetBehavior(
 
     dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
     dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
-    assert(dst->scripts);
     assert(dst->scripts_lengths);
+    if( !dst->scripts )
+        goto fail;
 
     for( int i = 0; i < src->scripts_count; i++ )
     {

@@ -101,8 +101,13 @@ torirs_bones_new(
     bones->bones_count = model_bones->bones_count;
     bones->bones = malloc(sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
     bones->bones_sizes = malloc(sizeof(gc_boneint_t) * (size_t)bones->bones_count);
-    assert(bones->bones);
     assert(bones->bones_sizes);
+    if( !bones->bones )
+    {
+        RSCache_ModelBonesFree(model_bones);
+        torirs_bones_free(bones);
+        return NULL;
+    }
     memset(bones->bones, 0, sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
     memset(bones->bones_sizes, 0, sizeof(gc_boneint_t) * (size_t)bones->bones_count);
 

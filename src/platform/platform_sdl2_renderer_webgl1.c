@@ -1180,8 +1180,9 @@ webgl1_sprite_ensure_base(
         free(slot->loaded);
         slot->uvs = calloc((size_t)count * 4u, sizeof(float));
         slot->loaded = calloc((size_t)count, sizeof(uint8_t));
-        assert(slot->uvs);
         assert(slot->loaded);
+        if( !slot->uvs )
+            return false;
     }
     if( slot->loaded[atlas_index] )
     {
