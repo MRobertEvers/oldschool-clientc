@@ -20148,6 +20148,63 @@ mock230_world_selftest(void)
             SELFTEST_CHECK(mock230_content_varp(com_mode) != NULL &&
                                mock230_content_varp(com_mode)->transmit,
                            "com_mode should be declared transmit=yes");
+
+            /*
+             * Dizana's quiver's slot has to be told it is empty.
+             *
+             * Clientscript 5026 branches on `dizanas_quiver_temp_ammo = null`,
+             * `null` is -1, and a varp nobody writes is 0 — which is a valid obj
+             * id, so an empty quiver took the occupied branch and painted
+             * `cc_setobject(obj 0, count 0)`: no pixels, over 5025's grey
+             * backdrop. Zero is the one value that cannot say "empty" here, so
+             * the assertion is on the literal -1 and on the packet carrying it,
+             * not merely on the varp being declared.
+             */
+            {
+                int quiver = mock230_content_symbol(MOCK230_PACK_VARP,
+                                                    "dizanas_quiver_temp_ammo");
+                const struct Mock230VarpDef* quiver_def =
+                    quiver >= 0 ? mock230_content_varp(quiver) : NULL;
+                int varp_small = mock230_wire_opcode(srv->wire, PKT_NAME_VARP_SMALL);
+                uint8_t body[3];
+                int found_quiver = 0;
+
+                SELFTEST_CHECK(quiver == 4142,
+                               "dizanas_quiver_temp_ammo must stay cache varp 4142, got %d",
+                               quiver);
+                SELFTEST_CHECK(quiver_def != NULL && quiver_def->transmit,
+                               "dizanas_quiver_temp_ammo must be declared transmit=yes, "
+                               "or ~quiver_login writes a server-only variable");
+                SELFTEST_CHECK(quiver >= 0 && player->varps[quiver] == -1,
+                               "[login] must leave the quiver empty as null (-1), got %d",
+                               quiver >= 0 ? player->varps[quiver] : 0);
+
+                /*
+                 * The VarpSmallEncoder body: p1Alt1(value), p2Alt3(varp) — the
+                 * rev-239 layout, so the wire has to be that one before the
+                 * bytes mean anything, exactly as for the AttackOption pair
+                 * above.
+                 */
+                if( quiver >= 0 && strcmp(srv->wire->name, "osrs239") == 0 )
+                {
+                    body[0] = (uint8_t)((-1 + 128) & 0xff);
+                    body[1] = (uint8_t)(((quiver & 0xff) + 128) & 0xff);
+                    body[2] = (uint8_t)((quiver >> 8) & 0xff);
+                    for( int i = 0; i < capture.count; i++ )
+                    {
+                        const struct Mock230CapturedPacket* pkt = &capture.packets[i];
+
+                        if( pkt->opcode != varp_small || pkt->len != 3 )
+                            continue;
+                        if( memcmp(pkt->data, body, sizeof(body)) == 0 )
+                            found_quiver = 1;
+                    }
+                    SELFTEST_CHECK(found_quiver,
+                                   "[login] must put the empty quiver on the wire as "
+                                   "VARP_SMALL %02x %02x %02x",
+                                   body[0], body[1], body[2]);
+                }
+            }
         }
     }
 

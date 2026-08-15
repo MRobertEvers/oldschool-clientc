@@ -15194,23 +15194,16 @@ app_minimenu_use_option(
 {
     struct UIMinimenu* menu = &app->interact.minimenu;
     int action = -1;
-    int had_selection;
     int result;
 
     if( option_index >= 0 && option_index < menu->option_count )
         action = UIMinimenu_ActionNormalize(menu->options[option_index].action);
 
-    had_selection = app->objsel.active || app->targetsel.active;
     result = app_minimenu_run_option(app, option_index, click_x, click_y);
 
     if( action != REVCONFIG_MINIMENU_OPHELDT_START &&
         action != REVCONFIG_MINIMENU_TGT_BUTTON )
-    {
-        app->objsel.active = 0;
-        app_targetsel_clear(app);
-        if( had_selection )
-            app->need_redraw = 1;
-    }
+        app_selection_clear(app);
     return result;
 }
 
