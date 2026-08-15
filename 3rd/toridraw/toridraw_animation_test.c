@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int failures;
 
@@ -226,6 +227,106 @@ check_duplicate_animation_registration_keeps_the_first(void)
     ToriDraw_SceneFree(scene);
 }
 
+/*
+ * A copied model keeps its bind pose, and mounting one that has none captures
+ * it. Both halves of the "Queen Black Dragon inflates into shards" fix.
+ *
+ * ToriDraw_ModelAnimateReset is gated on original_vertices_x: with no originals
+ * it RETURNS instead of restoring, so the model does not animate, it
+ * ACCUMULATES -- every keyframe composes with the previous frame's output, and
+ * a few renders later the geometry is many times its own size. Nothing errors
+ * on the way; the only symptom is the size.
+ *
+ * ToriDraw_ModelCopy used to drop the originals, and npc models come from
+ * TorirsModelInstCache_CopyGet, so every cache hit handed the scene a model in
+ * that state. It hid because ToriDraw_SceneElementSetAnimationSeq captures on
+ * the way past, covering the ordinary spawn-then-animate order. The QBD's
+ * artefact restore does npc_changetype + npc_anim on ONE tick and re-binds the
+ * sequence she is already playing, so the model was swapped under a live
+ * animation with nothing behind it to capture.
+ *
+ * Negative controls, both verified: drop the original_vertices copy out of
+ * ToriDraw_ModelCopy and the first three CHECKs fail; drop the capture out of
+ * ToriDraw_SceneElementSetModel and the last one fails.
+ */
+static void
+check_a_copied_model_keeps_its_bind_pose(void)
+{
+    struct ToriDraw_Model* src = ToriDraw_ModelNew(2, 0, 0);
+    struct ToriDraw_Model* copy;
+    struct ToriDraw_Model* uncaptured;
+    struct ToriDraw_Scene* scene;
+    struct ToriDraw_ModelHandle hnd;
+    int element_id;
+
+    CHECK(src != NULL, "source model allocation");
+    if( !src )
+        return;
+    src->vertices_x = calloc(2, sizeof(vertexint_t));
+    src->vertices_y = calloc(2, sizeof(vertexint_t));
+    src->vertices_z = calloc(2, sizeof(vertexint_t));
+    CHECK(src->vertices_x && src->vertices_y && src->vertices_z, "source vertex arrays");
+    if( !src->vertices_x || !src->vertices_y || !src->vertices_z )
+    {
+        ToriDraw_ModelFree(src);
+        return;
+    }
+    src->vertices_y[0] = 20;
+    src->vertices_y[1] = -20;
+
+    ToriDraw_ModelCaptureOriginalVertices(src);
+    /* Pose it, the way the renderer leaves a model between frames. */
+    src->vertices_y[0] = 900;
+
+    copy = ToriDraw_ModelCopy(src);
+    CHECK(copy != NULL, "model copy allocation");
+    if( copy )
+    {
+        CHECK(copy->original_vertices_x != NULL, "a copy carries a bind pose at all");
+        CHECK(
+            copy->original_vertices_y && copy->original_vertices_y[0] == 20,
+            "the copy's bind pose is the source's BIND, not the pose it was copied in");
+        ToriDraw_ModelAnimateReset(copy);
+        CHECK(
+            copy->vertices_y[0] == 20,
+            "so AnimateReset restores it instead of silently doing nothing");
+        ToriDraw_ModelFree(copy);
+    }
+    ToriDraw_ModelFree(src);
+
+    /* Mount time is the last moment a model is guaranteed to be at bind and the
+     * first at which the renderer may animate it, so a model that arrives
+     * without originals must acquire them here. */
+    scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    uncaptured = ToriDraw_ModelNew(2, 0, 0);
+    CHECK(scene && uncaptured, "scene and un-captured model allocation");
+    if( !scene || !uncaptured )
+    {
+        ToriDraw_ModelFree(uncaptured);
+        if( scene )
+            ToriDraw_SceneFree(scene);
+        return;
+    }
+    uncaptured->vertices_x = calloc(2, sizeof(vertexint_t));
+    uncaptured->vertices_y = calloc(2, sizeof(vertexint_t));
+    uncaptured->vertices_z = calloc(2, sizeof(vertexint_t));
+    if( uncaptured->vertices_y )
+        uncaptured->vertices_y[0] = 77;
+
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = uncaptured;
+    element_id = ToriDraw_SceneElementAdd(scene);
+    ToriDraw_SceneElementSetModel(scene, element_id, hnd);
+    CHECK(
+        uncaptured->original_vertices_x && uncaptured->original_vertices_y &&
+            uncaptured->original_vertices_y[0] == 77,
+        "mounting a model with no bind pose captures one, so no element can hold "
+        "a model whose AnimateReset is a no-op");
+
+    ToriDraw_SceneFree(scene);
+}
+
 int
 main(void)
 {
@@ -242,6 +343,7 @@ main(void)
     check_classic_animation_refreshes_bounds();
     check_projectile_sequence_loops();
     check_duplicate_animation_registration_keeps_the_first();
+    check_a_copied_model_keeps_its_bind_pose();
 
     frame = 12;
     CHECK(ToriDraw_AnimationAdvanceObjectFrame(&anim, &frame), "interior frame advances");

@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -559,6 +560,46 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
 {
     assert(model);
     size_t const vc = (size_t)model->vertex_count;
+
+    /*
+     * TORIRS_ANIM_RECAPTURE: catch a capture that overwrites a live bind pose.
+     *
+     * The originals ARE the bind pose -- the renderer restores them and applies
+     * the keyframe to them, every frame. Capturing while the model is posed
+     * makes the posed geometry the new bind, so the next keyframe stacks on top
+     * of the last one and the model inflates without bound. Nothing errors; the
+     * only visible sign is the geometry growing, which is why this reports the
+     * overwrite itself rather than waiting for the size to become absurd.
+     *
+     * Comparing against the EXISTING originals is what makes it specific: a
+     * re-capture of an unposed model is a harmless no-op and stays silent.
+     */
+    if( getenv("TORIRS_ANIM_RECAPTURE") && model->original_vertices_x &&
+        model->original_vertices_y && model->original_vertices_z && vc > 0 )
+    {
+        size_t differ = 0;
+        int worst = 0;
+        for( size_t i = 0; i < vc; i++ )
+        {
+            int dx = (int)model->vertices_x[i] - (int)model->original_vertices_x[i];
+            int dy = (int)model->vertices_y[i] - (int)model->original_vertices_y[i];
+            int dz = (int)model->vertices_z[i] - (int)model->original_vertices_z[i];
+            int d = (dx < 0 ? -dx : dx) + (dy < 0 ? -dy : dy) + (dz < 0 ? -dz : dz);
+            if( d )
+            {
+                differ++;
+                if( d > worst )
+                    worst = d;
+            }
+        }
+        if( differ )
+            fprintf(
+                stderr,
+                "anim_recapture: model=%p verts=%d POSED vertices captured as bind "
+                "(%zu/%zu moved, worst delta %d) -- the next keyframe will stack "
+                "on this pose\n",
+                (void*)model, model->vertex_count, differ, vc, worst);
+    }
 
     /* Re-capture, not first capture: this runs again on every SetModel /
      * SetAnimation / SetAnimationSeq, and a bind takes two of those in a row

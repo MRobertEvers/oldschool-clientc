@@ -223,6 +223,53 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
         memcpy(dst->vertices_x, src->vertices_x, (size_t)src->vertex_count * sizeof(vertexint_t));
         memcpy(dst->vertices_y, src->vertices_y, (size_t)src->vertex_count * sizeof(vertexint_t));
         memcpy(dst->vertices_z, src->vertices_z, (size_t)src->vertex_count * sizeof(vertexint_t));
+
+        /*
+         * The captured bind pose travels with the copy.
+         *
+         * ToriDraw_ModelAnimateReset is gated on original_vertices_x: with no
+         * originals it RETURNS instead of restoring, so every keyframe composes
+         * with the previous frame's output and the model inflates without bound
+         * -- it does not animate, it accumulates. Leaving these out therefore
+         * does not produce a model that animates from its current pose, it
+         * produces one that cannot animate at all, and nothing reports it.
+         *
+         * That is not hypothetical: npc models come from
+         * TorirsModelInstCache_CopyGet, so every cache hit was handing the scene
+         * a model with no bind pose. It stayed hidden because
+         * ToriDraw_SceneElementSetAnimationSeq captures on the way past, which
+         * covers the ordinary spawn-then-animate order. The Queen Black Dragon's
+         * artefact restore does `npc_changetype` and `npc_anim` on ONE tick
+         * (rs2012_qbd_session.rs2) and re-binds the sequence she is already
+         * playing, so the model was swapped underneath a live animation with no
+         * SetAnimationSeq behind it -- and her pose compounded 3076 -> 11952 ->
+         * 32839 -> saturation, every cycle.
+         */
+        if( src->original_vertices_x && src->original_vertices_y && src->original_vertices_z )
+        {
+            size_t const nbytes = (size_t)src->vertex_count * sizeof(vertexint_t);
+            dst->original_vertices_x = (vertexint_t*)malloc(nbytes);
+            dst->original_vertices_y = (vertexint_t*)malloc(nbytes);
+            dst->original_vertices_z = (vertexint_t*)malloc(nbytes);
+            /* All three or none: the reset gates on x alone and would memcpy
+             * from a NULL y/z. */
+            if( dst->original_vertices_x && dst->original_vertices_y &&
+                dst->original_vertices_z )
+            {
+                memcpy(dst->original_vertices_x, src->original_vertices_x, nbytes);
+                memcpy(dst->original_vertices_y, src->original_vertices_y, nbytes);
+                memcpy(dst->original_vertices_z, src->original_vertices_z, nbytes);
+            }
+            else
+            {
+                free(dst->original_vertices_x);
+                free(dst->original_vertices_y);
+                free(dst->original_vertices_z);
+                dst->original_vertices_x = NULL;
+                dst->original_vertices_y = NULL;
+                dst->original_vertices_z = NULL;
+            }
+        }
     }
 
 #define COPY_ARRAY(DST, SRC, COUNT, TYPE)                                                          \
@@ -241,6 +288,11 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
     COPY_ARRAY(dst->face_colors, src->face_colors, src->face_count, hsl16_t);
     COPY_ARRAY(dst->face_textures, src->face_textures, src->face_count, faceint_t);
     COPY_ARRAY(dst->face_alphas, src->face_alphas, src->face_count, alphaint_t);
+    /* The alpha half of the bind pose, for the same reason as the vertices:
+     * AnimateReset restores it alongside them, and an animation that fades a
+     * model would otherwise keep fading from wherever it left off. */
+    COPY_ARRAY(
+        dst->original_face_alphas, src->original_face_alphas, src->face_count, alphaint_t);
     COPY_ARRAY(dst->face_texture_coords, src->face_texture_coords, src->face_count, faceint_t);
     COPY_ARRAY(
         dst->textured_p_coordinate,

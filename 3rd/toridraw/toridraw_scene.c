@@ -1355,6 +1355,29 @@ ToriDraw_SceneElementSetModel(
     int element_id,
     struct ToriDraw_ModelHandle model)
 {
+    /*
+     * Mounting a model is the last moment it is guaranteed to be at its bind
+     * pose, and the first at which the renderer may animate it -- so it is
+     * where the bind pose has to exist by. Without originals
+     * ToriDraw_ModelAnimateReset silently returns and every keyframe composes
+     * with the one before it, which looks like the model inflating into shards
+     * rather than like anything missing.
+     *
+     * SetAnimationSeq also captures, and for the ordinary spawn-then-animate
+     * order that was enough, which is why this gap survived: it only shows when
+     * a model is swapped UNDER a running animation without the sequence being
+     * re-bound afterwards (a same-tick npc_changetype + npc_anim that re-binds
+     * the sequence already playing). Capturing here removes the ordering
+     * dependency entirely -- an element cannot hold an unresettable model.
+     *
+     * Conditional, so it never overwrites a bind pose the model already has:
+     * re-capturing unconditionally would take whatever pose the model is in and
+     * make THAT the bind, which is the same bug from the other direction.
+     */
+    if( model.kind == TORIDRAWMK_MODEL && model.u.model.model &&
+        model.u.model.model->vertex_count > 0 && !model.u.model.model->original_vertices_x )
+        ToriDraw_ModelCaptureOriginalVertices(model.u.model.model);
+
     td_scene_element_assign_model(scene, element_id, model);
 }
 
@@ -1590,6 +1613,88 @@ ToriDraw_SceneElementApplyAnimation(
         }
 
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
+
+        /*
+         * TORIRS_ANIM_STACK: how far this pose moved the model off its own bind
+         * pose, measured absolutely.
+         *
+         * TORIRS_ANIM_BLOWUP below reports a >2x JUMP in the bounds radius,
+         * which answers "what changed" but not "is this size legitimate" -- and
+         * its per-element slot is `element_id & 255`, so the radius it compares
+         * against can belong to a different element that happens to collide in
+         * the low byte. Neither problem matters when the model is 6x its own
+         * bind: that is not a jump relative to a neighbour, it is a pose that
+         * cannot be right, and the bind pose to compare against is sitting in
+         * original_vertices where nothing else can pollute it.
+         *
+         * A frame is applied to the reset bind pose (see the AnimateReset
+         * above), so an oversized RESULT means either the transforms are wrong
+         * for this model or the captured "bind" was itself a pose. Printing the
+         * model pointer and vertex count separates those: the same element
+         * reporting a growing extent for one model pointer is geometry
+         * compounding, a bad frame is the same extent every time.
+         */
+        /*
+         * No captured originals at all is the sharpest form of the same fault.
+         * ToriDraw_ModelAnimateReset is gated on original_vertices_x, so a model
+         * that never captured them silently RETURNS instead of restoring, and
+         * the keyframe above composes with the previous frame's output forever.
+         * The model does not animate, it accumulates.
+         */
+        if( getenv("TORIRS_ANIM_STACK") && !model->original_vertices_x &&
+            model->vertex_count > 0 )
+            fprintf(
+                stderr,
+                "anim_stack: element=%d seq=%d frame=%d model=%p verts=%d -- NO "
+                "captured bind pose, so AnimateReset is a no-op and every frame "
+                "composes with the last; this model can only grow\n",
+                element_id, element->anim_seq_id, frame, (void*)model,
+                model->vertex_count);
+
+        if( getenv("TORIRS_ANIM_STACK") && model->original_vertices_x &&
+            model->original_vertices_y && model->original_vertices_z &&
+            model->vertex_count > 0 )
+        {
+            /* EVERY vertex, not a sample. The failure throws a HANDFUL of
+             * vertices a long way -- that is what "stretched shards" is -- so a
+             * strided scan reports a healthy span while the bounds cylinder,
+             * which does see every vertex, reports six times more. Sampling
+             * here hid the defect and made the model look innocent. */
+            int const n = model->vertex_count;
+            int bind_lo = model->original_vertices_y[0];
+            int bind_hi = bind_lo;
+            int pose_lo = model->vertices_y[0];
+            int pose_hi = pose_lo;
+            int worst_v = 0, worst_d = 0;
+            for( int i = 0; i < n; i++ )
+            {
+                int b = model->original_vertices_y[i];
+                int p = model->vertices_y[i];
+                int d = p - b;
+                if( d < 0 ) d = -d;
+                if( b < bind_lo ) bind_lo = b;
+                if( b > bind_hi ) bind_hi = b;
+                if( p < pose_lo ) pose_lo = p;
+                if( p > pose_hi ) pose_hi = p;
+                if( d > worst_d ) { worst_d = d; worst_v = i; }
+            }
+            int const bind_span = bind_hi - bind_lo;
+            int const pose_span = pose_hi - pose_lo;
+            /* Her wake sequence legitimately reaches ~5x the bind span (she
+             * rears up out of a coiled rest pose), which is why this is 8x and
+             * not the 3x that looked generous on paper -- 3x reported every
+             * healthy frame of every sequence. The broken pose is ~7.5x the
+             * legitimate one, so 8x separates them cleanly. */
+            if( bind_span > 0 && pose_span > bind_span * 8 )
+                fprintf(
+                    stderr,
+                    "anim_stack: element=%d seq=%d frame=%d model=%p verts=%d -- "
+                    "posed y-span %d vs bind span %d (bind %d..%d, posed %d..%d); "
+                    "furthest vertex %d moved %d\n",
+                    element_id, element->anim_seq_id, frame, (void*)model, n,
+                    pose_span, bind_span, bind_lo, bind_hi, pose_lo, pose_hi,
+                    worst_v, worst_d);
+        }
 
 
         /*
