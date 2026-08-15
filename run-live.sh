@@ -31,6 +31,10 @@
 # newer than the last compile. TORIRS_FORCE_SCRIPT_BUILD=1 recompiles without
 # asking.
 #
+# TORIRS_PREPARE_ONLY=1 does both of those and stops, without building or
+# launching a client -- how run-runelite.sh borrows this file's bake policy
+# rather than copying it.
+#
 # Native osrs230 / osrs239 live runs use the in-process server: they build with
 # EMBED_SERVER=1 and set TORIRS_TRANSPORT=embed. Web live runs deliberately do
 # not: a browser has no host filesystem for the embedded server's cache, content
@@ -522,6 +526,18 @@ build_cache_overlay() {
             ;;
     esac
 }
+
+# TORIRS_PREPARE_ONLY=1 runs the manifest-driven preparation above -- the lane
+# cache bake and the server script pack -- and stops, without building or
+# launching a client. run-runelite.sh uses it: a RuneLite run needs the same
+# baked cache and the same compiled scripts as a native run, and a second
+# implementation of those two predicates is exactly the drift the comments above
+# spend so long guarding against. Nothing else in this file runs in that mode.
+if [ "${TORIRS_PREPARE_ONLY:-0}" = 1 ]; then
+    build_cache_overlay
+    build_scripts
+    exit 0
+fi
 
 # Web OSRS runs put the world in a native process. mock230 accepts both raw TCP
 # and RFC 6455 on one port, so Emscripten's WebSocket-backed TCP implementation

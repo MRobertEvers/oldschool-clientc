@@ -429,6 +429,19 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
 }
 
 void
+ToriDraw_ModelHDFree(struct ToriDraw_ModelHD* hd)
+{
+    if( !hd )
+        return;
+    free(hd->texture_mappings);
+    hd->texture_mappings = NULL;
+    /* The base is embedded by value, so its arrays are released here and the
+     * single allocation covering both is freed once. */
+    ToriDraw_ModelFree_arrays(&hd->base);
+    free(hd);
+}
+
+void
 ToriDraw_ModelFree(struct ToriDraw_Model* model)
 {
     if( !model )
@@ -457,6 +470,14 @@ ToriDraw_ModelAssertPnmTextureInvariant(struct ToriDraw_Model const* model)
         assert(model->textured_n_coordinate != NULL);
         assert(texture_face >= 0);
         assert(texture_face < model->textured_face_count);
+
+        /* Only render type 0 stores vertex indices here; types 1-3 store a raw
+         * projection axis, which is not an index and is normally out of range.
+         * See the field comment in the cache decoder. */
+        const int render_type =
+            model->texture_render_types ? (model->texture_render_types[texture_face] & 0xFF) : 0;
+        if( render_type != 0 )
+            continue;
 
         const int p = model->textured_p_coordinate[texture_face];
         const int m = model->textured_m_coordinate[texture_face];

@@ -345,6 +345,30 @@ own scalar `texopaque` and `textrans` despite the SIMD kernels covering the same
 gates: those take `texels` and `texture_width` directly and have nowhere to say
 "clamp", which three of the QBD's fifteen materials need.
 
+### Reaching them: `ToriDraw_RenderHD`
+
+The 48 kernels are not reachable from the stock raster, which can only express
+"is there a texture" and "is it colour-keyed". `ToriDraw_RenderHD`
+([`toridraw_render_hd.h`](../3rd/toridraw/toridraw_render_hd.h)) is the flow that
+routes to them: same projection, same face sort, same walkers, but four
+decisions per face — projection from `texture_render_types`, gate / `modulate`
+from the material, `facealpha` from the face.
+
+- **`TORIDRAWMK_MODEL_HD` is a model *variant*, not four more fields.** Almost no
+  model is HD, so the mapping array hangs off `struct ToriDraw_ModelHD` whose
+  `base` is embedded by value — a `ToriDraw_ModelHD*` IS a `ToriDraw_Model*`, and
+  every existing entry point keeps working through `ToriDraw_ModelAsFull`. The
+  scene and lighting paths were deliberately *not* widened to the new kind;
+  `ToriDraw_ModelKindIsFull` marks the ones that genuinely handle both.
+- **Fallbacks are counted, never silent.** A material with no texels draws flat
+  (`fallback_no_texels`); a mapped render type on a model with no mappings draws
+  through the plane kernel (`fallback_no_mapping`). The stock raster *skips* a
+  face whose texture has not streamed in — right for a game, wrong for a viewer.
+- **`ToriDraw_HDRenderStats` exists because routing fails silently.** A cube face
+  drawn through the plane kernel still produces pixels. `make -C src
+  test-render-hd` asserts on those counters; four mutations of the routing are
+  each caught.
+
 ### Fixed point
 
 Per-pixel work is 16.16 integer in all 48, as in every other kernel here, and

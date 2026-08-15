@@ -496,7 +496,63 @@ int g_toridraw_raster_scanline = 0;
 #include "triangles/toridraw_triangle_zbuf.u.c"
 #endif
 #include "toridraw_render.u.c"
+/* The HD kernel set: four projection families x twelve compositing variants.
+ * One file per variant; they share four templates. Included here rather than
+ * from the triangle wrappers because nothing in the stock path calls them —
+ * only ToriDraw_RenderHD does. */
+// clang-format off
+#include "graphics/raster/texture/texplane.persp.texalpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texalpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.modulate.branching.lerp8_v3.u.c"
+// clang-format on
+
 #include "toridraw_raster.u.c"
+#include "toridraw_render_hd.u.c"
 // clang-format on
 
 void
@@ -504,6 +560,8 @@ ToriDraw_Init(void)
 {
     ToriDraw_InitMath();
     ToriDraw_InitHsl16();
+    /* The HD path's cylinder and sphere projections read this. */
+    ToriDraw_InitAtanTable();
 
     const char* scanline_env = getenv("TORIDRAW_RASTER_SCANLINE");
     if( scanline_env )

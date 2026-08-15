@@ -124,11 +124,63 @@ ToriDraw_ModelIsLightable(const struct ToriDraw_Model* model)
            model->face_colors_c;
 }
 
+/**
+ * True for both model kinds that carry a full ToriDraw_Model.
+ *
+ * The scene element system is deliberately NOT updated to accept
+ * TORIDRAWMK_MODEL_HD: an HD model is not placed in a world scene today, and
+ * widening those tests would claim support that has not been built. This
+ * predicate marks the paths that genuinely handle both.
+ */
+static inline int
+ToriDraw_ModelKindIsFull(enum ToriDraw_ModelKind kind)
+{
+    return kind == TORIDRAWMK_MODEL || kind == TORIDRAWMK_MODEL_HD;
+}
+
 static inline struct ToriDraw_Model*
 ToriDraw_ModelAsFull(struct ToriDraw_ModelHandle hnd)
 {
-    assert(hnd.kind == TORIDRAWMK_MODEL);
+    /* An HD model's `base` is the first member and is a plain model, so both
+     * kinds answer this the same way and nothing downstream has to care. */
+    assert(hnd.kind == TORIDRAWMK_MODEL || hnd.kind == TORIDRAWMK_MODEL_HD);
     return hnd.u.model.model;
+}
+
+/**
+ * The HD tail, or NULL when this handle is not an HD model.
+ *
+ * Returning NULL rather than asserting is deliberate: the HD render path is
+ * meant to accept any model and fall back to the plain kernels for one that
+ * carries no mapping, so "not HD" is an ordinary answer and not a caller error.
+ */
+static inline struct ToriDraw_ModelHD*
+ToriDraw_ModelAsHD(struct ToriDraw_ModelHandle hnd)
+{
+    if( hnd.kind != TORIDRAWMK_MODEL_HD )
+        return NULL;
+    return (struct ToriDraw_ModelHD*)hnd.u.model.model;
+}
+
+/**
+ * Release an HD model: its mapping tail, then the base model's arrays.
+ *
+ * The base is embedded by value, so this frees what ToriDraw_ModelFree frees
+ * plus the tail. Calling ToriDraw_ModelFree on an HD model instead leaks the
+ * mappings, which is why this exists as its own entry point.
+ */
+void
+ToriDraw_ModelHDFree(struct ToriDraw_ModelHD* hd);
+
+/** Wrap an HD model as a handle. */
+static inline struct ToriDraw_ModelHandle
+ToriDraw_ModelHandleFromHD(struct ToriDraw_ModelHD* hd)
+{
+    struct ToriDraw_ModelHandle hnd;
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL_HD;
+    hnd.u.model.model = hd ? &hd->base : NULL;
+    return hnd;
 }
 
 static inline struct ToriDraw_BoundsCylinder*
@@ -137,6 +189,7 @@ ToriDraw_ModelGetBoundsCylinder(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         if( !hnd.u.model.model )
             return NULL;
         return hnd.u.model.model->bounds_cylinder;
@@ -208,6 +261,7 @@ ToriDraw_ModelHasTextures(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         return hnd.u.model.model->textured_face_count > 0;
     default:
         return false;
@@ -220,6 +274,7 @@ ToriDraw_ModelGetFaceCount(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         return hnd.u.model.model->face_count;
     default:
         return 0;
@@ -232,6 +287,7 @@ ToriDraw_ModelGetVertexCount(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         return hnd.u.model.model->vertex_count;
     default:
         return 0;
@@ -244,6 +300,7 @@ ToriDraw_ModelGetVerticesX(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         return hnd.u.model.model->vertices_x;
     default:
         return NULL;
@@ -256,6 +313,7 @@ ToriDraw_ModelGetVerticesY(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         return hnd.u.model.model->vertices_y;
     default:
         return NULL;
@@ -268,6 +326,7 @@ ToriDraw_ModelGetVerticesZ(struct ToriDraw_ModelHandle hnd)
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
         return hnd.u.model.model->vertices_z;
     default:
         return NULL;

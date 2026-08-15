@@ -24,6 +24,49 @@ ev_release(void* p);
 int
 ev_set_model(const uint8_t* data, int len);
 
+/* ---- the HD model ---------------------------------------------------------
+ *
+ * A model file picked off disk rather than pulled from the cache. It is drawn
+ * through ToriDraw_RenderHD, which routes each face on its render type, its
+ * material gate and its alpha — see toridraw_render_hd.h.
+ *
+ * No material table is supplied, because a bare model file describes no
+ * textures. Textured faces therefore fall back to flat colour and say so in the
+ * stats; the geometry and the per-face routing are what this view shows.
+ *
+ * While an HD model is adopted it is what draws, and the npc/player model is
+ * left untouched underneath.
+ */
+
+/** Adopt an HD model (ev_wire EVH1 bytes). Face count, or 0 on a bad blob. */
+int
+ev_set_model_hd(const uint8_t* data, int len);
+
+/** Drop it; the npc/player model draws again. */
+void
+ev_clear_model_hd(void);
+
+int
+ev_model_hd_active(void);
+
+/**
+ * Supply a synthetic checkerboard for every texture id the HD model names.
+ *
+ * Off by default, because a bare model file describes no textures and drawing
+ * one would be a claim the file does not make. On, the mapped kernels actually
+ * run — which is the only way the cylinder / cube / sphere routing is
+ * observable at all. The page labels it.
+ */
+void
+ev_set_hd_placeholder(int on);
+
+/** The last render's ToriDraw_HDRenderStats, as a flat int array. */
+const int*
+ev_hd_stats(void);
+
+int
+ev_hd_stats_count(void);
+
 /** Adopt an animation. Returns its frame count, 0 on a bad blob. */
 int
 ev_set_anim(const uint8_t* data, int len);

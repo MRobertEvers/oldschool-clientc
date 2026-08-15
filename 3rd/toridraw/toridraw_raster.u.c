@@ -1036,6 +1036,7 @@ context_from_handle(
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         ctx->num_faces = m->face_count;
@@ -1245,6 +1246,7 @@ ToriDraw_Raster(
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
     {
         return ToriDraw_RasterWithFaceIndices(
             scene, hnd, view_port, camera, pixel_buffer, smooth);

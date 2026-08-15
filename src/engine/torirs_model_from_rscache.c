@@ -192,6 +192,23 @@ torirs_sanitize_pnm_texture_coords(struct ToriRS_Model* model)
             continue;
         }
 
+        /*
+         * Only render type 0 stores VERTEX INDICES in p/m/n. Types 1-3 store a
+         * raw axis triple for their projection (m/32767 is the axis's y
+         * component, so a clean -Y axis is the value -32767), and reading that
+         * as an index is meaningless and reliably out of range.
+         *
+         * Before the decoder populated those fields they were zero and this
+         * range test passed by accident. Now it would strip the texture coord
+         * from every cylinder, cube and sphere face — which does not crash, it
+         * silently demotes them to untextured and loses the mapping the HD path
+         * needs. Skip them: the invariant this enforces is not theirs.
+         */
+        int const render_type =
+            model->texture_render_types ? (model->texture_render_types[texture_face] & 0xFF) : 0;
+        if( render_type != 0 )
+            continue;
+
         int const p = (int)model->textured_p_coordinate[texture_face];
         int const m = (int)model->textured_m_coordinate[texture_face];
         int const n = (int)model->textured_n_coordinate[texture_face];

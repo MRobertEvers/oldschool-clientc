@@ -69,6 +69,12 @@
   /* Mode switch and the player half's controls. */
   .modes { display: flex; gap: 6px; padding: 10px 12px 0; }
   .modes button { flex: 1; }
+  .hdfile { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .hdfile button { flex: 1; }
+  .hdfile .meta { flex-basis: 100%; }
+  .hdopt { flex-basis: 100%; display: flex; align-items: center; gap: 6px;
+           font-size: 12px; color: var(--muted); }
+  .hdstats { white-space: pre; font-family: ui-monospace, Menlo, monospace; line-height: 1.45; }
   .modes button.on { border-color: var(--accent); color: var(--accent); }
   .worn { padding: 8px 12px; border-bottom: 1px solid var(--line);
           display: flex; flex-wrap: wrap; gap: 6px; }
@@ -94,6 +100,23 @@
       <button id="modePlayer">Player</button>
     </div>
     <div class="worn hidden" id="wornBar"></div>
+
+    <!--
+      A model file off disk, drawn through the HD path.
+
+      Separate from the npc/player pickers because it is a different question:
+      those ask "what does this entity look like", this asks "what does this
+      FILE contain, and how does the HD router treat it". The readout is the
+      point as much as the image — a mis-routed face still draws.
+    -->
+    <div class="hdfile">
+      <button id="hdPick">Select model file…</button>
+      <button id="hdClear" disabled>Clear</button>
+      <input type="file" id="hdInput" hidden>
+      <label class="hdopt"><input type="checkbox" id="hdPlaceholder"> placeholder texture</label>
+      <div class="meta" id="hdInfo">no file loaded</div>
+      <div class="meta hdstats hidden" id="hdStats"></div>
+    </div>
     <input type="search" id="npcSearch" placeholder="name, gameval or id" autocomplete="off">
     <div class="scroll" id="npcList"></div>
     <div class="meta" id="npcCount">loading…</div>

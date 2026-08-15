@@ -95,6 +95,12 @@ function wasmCall(mod) {
     setSpotState: mod.cwrap('ev_w_set_spot_state', null, ['number', 'number']),
     spotFrameCount: mod.cwrap('ev_w_spot_frame_count', 'number', []),
     spotFrameDelay: mod.cwrap('ev_w_spot_frame_delay', 'number', ['number']),
+    setModelHd: mod.cwrap('ev_w_set_model_hd', 'number', ['number', 'number']),
+    clearModelHd: mod.cwrap('ev_w_clear_model_hd', null, []),
+    modelHdActive: mod.cwrap('ev_w_model_hd_active', 'number', []),
+    hdStats: mod.cwrap('ev_w_hd_stats', 'number', []),
+    hdStatsCount: mod.cwrap('ev_w_hd_stats_count', 'number', []),
+    setHdPlaceholder: mod.cwrap('ev_w_set_hd_placeholder', null, ['number']),
     mod,
   };
 }
@@ -110,6 +116,139 @@ async function feed(url, fn) {
   const out = fn(ptr, bytes.length);
   state.wasm.release(ptr);
   return out;
+}
+
+/* ---- a model file off disk ----------------------------------------------
+ *
+ * The browser cannot decode a cache model — that is rscache, and rscache is on
+ * the server — so the file is POSTed and comes back as an ev_wire HD blob. The
+ * server also reports what the file WAS, in headers, so the page can name the
+ * format instead of guessing from whether the decode happened to work.
+ */
+
+/* The field order of struct ToriDraw_HDRenderStats. Kept beside the C rather
+ * than derived, because the stats cross as a flat int array; a field added
+ * there and not here shifts every later label onto the wrong number. */
+const HD_STAT_FIELDS = [
+  'faces', 'drawn_untextured', 'drawn_plane', 'drawn_cylinder', 'drawn_cube',
+  'drawn_sphere', 'fallback_no_texels', 'fallback_no_mapping', 'skipped_hidden',
+  'skipped_alpha', 'gate_opaque', 'gate_trans', 'gate_alpha', 'with_facealpha',
+  'with_modulate',
+];
+
+function hdReadStats() {
+  const w = state.wasm;
+  if (!w || !w.modelHdActive()) return null;
+  const ptr = w.hdStats();
+  const n = w.hdStatsCount();
+  if (!ptr || !n) return null;
+  const words = new Int32Array(w.mod.HEAPU8.buffer, ptr, n);
+  const out = {};
+  for (let i = 0; i < Math.min(n, HD_STAT_FIELDS.length); i++) {
+    out[HD_STAT_FIELDS[i]] = words[i];
+  }
+  return out;
+}
+
+function hdShowStats() {
+  const el = document.getElementById('hdStats');
+  const st = hdReadStats();
+  if (!st) { el.classList.add('hidden'); return; }
+
+  const rows = [
+    ['faces', st.faces],
+    ['texplane', st.drawn_plane],
+    ['texcylinder', st.drawn_cylinder],
+    ['texcube', st.drawn_cube],
+    ['texsphere', st.drawn_sphere],
+    ['untextured', st.drawn_untextured],
+    ['gate op/tr/al', `${st.gate_opaque}/${st.gate_trans}/${st.gate_alpha}`],
+    ['facealpha', st.with_facealpha],
+    ['modulate', st.with_modulate],
+    ['no texels', st.fallback_no_texels],
+    ['no mapping', st.fallback_no_mapping],
+    ['skipped', st.skipped_hidden + st.skipped_alpha],
+  ];
+  el.textContent = rows.map(([k, v]) => `${k.padEnd(14)}${v}`).join('\n');
+  el.classList.remove('hidden');
+}
+
+async function hdLoadFile(file) {
+  const info = document.getElementById('hdInfo');
+  info.textContent = `reading ${file.name}…`;
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let res;
+  try {
+    res = await fetch('/api/modelfile', { method: 'POST', body: bytes });
+  } catch (e) {
+    info.textContent = `upload failed: ${e}`;
+    return;
+  }
+
+  const format = res.headers.get('X-Model-Format') || 'unknown';
+  if (!res.ok) {
+    /* The server decodes what it can and 404s what it cannot, so a failure
+     * here is "this is not a model archive this decoder handles" — worth
+     * saying with the detected format rather than as a bare error. */
+    info.textContent = `${file.name}: not decodable (looks like ${format})`;
+    return;
+  }
+
+  const blob = new Uint8Array(await res.arrayBuffer());
+  const ptr = state.wasm.alloc(blob.length);
+  if (!ptr) { info.textContent = 'out of memory'; return; }
+  state.wasm.mod.HEAPU8.set(blob, ptr);
+  const faces = state.wasm.setModelHd(ptr, blob.length);
+  state.wasm.release(ptr);
+
+  if (!faces) { info.textContent = `${file.name}: blob rejected by the renderer`; return; }
+
+  const textured = res.headers.get('X-Model-Textured') || '0';
+  const hasMappings = res.headers.get('X-Model-HD') === '1';
+  info.textContent =
+    `${file.name} — ${format}, ${faces} faces, ${textured} textured` +
+    (hasMappings ? ', mappings built' : ', no mappings');
+
+  document.getElementById('hdClear').disabled = false;
+  const ph2 = document.getElementById('hdPlaceholder');
+  if (ph2 && ph2.checked) state.wasm.setHdPlaceholder(1);
+  /* An HD model has no sequence, so playback would animate nothing. */
+  state.playing = false;
+  const play = document.getElementById('playBtn');
+  if (play) play.textContent = 'Play';
+  /* No explicit repaint: frameLoop is already running on rAF and will pick the
+   * new subject up on its next tick, which is also when the stats become real
+   * (they are filled by the render, not by adopting the model). */
+}
+
+function hdInstall() {
+  const pick = document.getElementById('hdPick');
+  const clear = document.getElementById('hdClear');
+  const input = document.getElementById('hdInput');
+  if (!pick || !input) return;
+
+  const ph = document.getElementById('hdPlaceholder');
+  if (ph) {
+    ph.addEventListener('change', () => {
+      /* Off is the faithful reading of a bare model file; on is the only way
+       * the mapped kernels run at all, so the routing readout stays 0 for
+       * cylinder/cube/sphere without it. */
+      state.wasm.setHdPlaceholder(ph.checked ? 1 : 0);
+    });
+  }
+
+  pick.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => {
+    if (input.files && input.files[0]) hdLoadFile(input.files[0]);
+    input.value = '';
+  });
+  clear.addEventListener('click', () => {
+    state.wasm.clearModelHd();
+    clear.disabled = true;
+    document.getElementById('hdInfo').textContent = 'no file loaded';
+    document.getElementById('hdStats').classList.add('hidden');
+  });
 }
 
 /* ---- npc list ------------------------------------------------------------ */
@@ -421,6 +560,14 @@ function frameLoop(t) {
         ? (sf < 0 ? 'not showing' : `graphic frame ${sf + 1}/${state.spotDelays.length}`)
         : 'no animation — pick one to see the timing';
     }
+  }
+
+  /* The routing tally is a property of the last render, so it is read here and
+   * not where the model was adopted. Throttled: it is a DOM write per field and
+   * the numbers only change when the subject does. */
+  if (state.wasm.modelHdActive()) {
+    state.hdTick = (state.hdTick || 0) + 1;
+    if (state.hdTick % 15 === 1) hdShowStats();
   }
 
   const w = CANVAS.width;
@@ -780,6 +927,7 @@ async function applyHash(p) {
   state.npcs = await (await fetch('/api/npcs.json')).json();
   renderNpcList();
   wireInput();
+  hdInstall();
   requestAnimationFrame(frameLoop);
 
   const p = hashParams();

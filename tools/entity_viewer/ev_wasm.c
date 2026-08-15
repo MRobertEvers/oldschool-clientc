@@ -34,6 +34,14 @@ EV_EXPORT void ev_w_set_spot_state(int h, int f) { ev_set_spot_state(h, f); }
 EV_EXPORT int ev_w_spot_frame_count(void) { return ev_spot_frame_count(); }
 EV_EXPORT int ev_w_spot_frame_delay(int i) { return ev_spot_frame_delay(i); }
 
+/* The HD model: a file picked off disk, drawn through ToriDraw_RenderHD. */
+EV_EXPORT int ev_w_set_model_hd(const uint8_t* d, int n) { return ev_set_model_hd(d, n); }
+EV_EXPORT void ev_w_clear_model_hd(void) { ev_clear_model_hd(); }
+EV_EXPORT int ev_w_model_hd_active(void) { return ev_model_hd_active(); }
+EV_EXPORT const int* ev_w_hd_stats(void) { return ev_hd_stats(); }
+EV_EXPORT int ev_w_hd_stats_count(void) { return ev_hd_stats_count(); }
+EV_EXPORT void ev_w_set_hd_placeholder(int on) { ev_set_hd_placeholder(on); }
+
 EV_EXPORT uint8_t*
 ev_w_render(int w, int h, int yaw, int pitch, int zoom, int frame)
 {

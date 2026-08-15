@@ -23,9 +23,29 @@
 #include <stdint.h>
 
 struct ToriDraw_Model;
+struct ToriDraw_ModelHD;
 struct ToriDraw_Animation;
 
 #define EV_WIRE_MODEL_MAGIC 0x314D5645u /* "EVM1" */
+/*
+ * "EVH1" — an HD model: this magic, then a complete EVM1 blob, then the HD
+ * tail. A distinct magic rather than a version field, so an older reader
+ * rejects the blob outright instead of parsing the base and silently dropping
+ * the mappings, which would render every mapped face through the wrong kernel
+ * and look almost right.
+ */
+#define EV_WIRE_MODEL_HD_MAGIC 0x31485645u
+
+/*
+ * Words per texture mapping on the wire: centre (3) + matrix (9) + direction
+ * (1) + speed, u/v offset, scale_z and the three axis scales (7).
+ *
+ * Named rather than inlined because the writer and the reader both need it and
+ * a disagreement between them is silent — the first version of this format had
+ * the reader indexing back from the end with a hand-counted 19, and every
+ * mapping vanished with no error anywhere.
+ */
+#define EV_WIRE_HD_MAPPING_WORDS 20
 #define EV_WIRE_ANIM_MAGIC  0x31415645u /* "EVA1" */
 
 /* ---- writing (server side) ---------------------------------------------- */
@@ -50,6 +70,19 @@ ev_wire_write_model(
     struct EV_WireBuf* out,
     const struct ToriDraw_Model* model);
 
+/**
+ * Serialise an HD model: the base, plus the per-face-group texture mappings the
+ * texcylinder / texcube / texsphere kernels need.
+ *
+ * The mappings carry floats, which every other field here avoids; they are
+ * written as their IEEE bit patterns through int32, so the format stays
+ * uniformly 32-bit and the value survives exactly.
+ */
+int
+ev_wire_write_model_hd(
+    struct EV_WireBuf* out,
+    const struct ToriDraw_ModelHD* model);
+
 /** Serialise a built animation (its rig and every frame). */
 int
 ev_wire_write_anim(
@@ -67,6 +100,22 @@ ev_wire_write_anim(
  */
 struct ToriDraw_Model*
 ev_wire_read_model(
+    const uint8_t* data,
+    size_t len);
+
+/**
+ * Rebuild an HD model. Returns NULL unless the blob starts with
+ * EV_WIRE_MODEL_HD_MAGIC. Free with ToriDraw_ModelHDFree.
+ */
+struct ToriDraw_ModelHD*
+ev_wire_read_model_hd(
+    const uint8_t* data,
+    size_t len);
+
+/** True when `data` is an HD blob. Cheap enough to call before deciding which
+ *  reader to use. */
+int
+ev_wire_is_model_hd(
     const uint8_t* data,
     size_t len);
 

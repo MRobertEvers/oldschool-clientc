@@ -26,6 +26,72 @@ exported asset that has since been *edited* is drawn as the game draws it rather
 than as the cache still holds it. Without it the npc half works exactly as
 before.
 
+## A model file, through the HD kernels
+
+The npc and player pickers ask "what does this entity look like". The **Select
+model file** button asks a different question: *what does this file contain, and
+how does the HD router treat it*.
+
+```sh
+tools/entity_viewer/run.sh          # or run.bat on Windows
+# -> http://127.0.0.1:8099/, then "Select model file…"
+```
+
+Pick any model archive off disk — dumped from a cache, produced by a tool. The
+browser cannot decode one (that is rscache, and rscache is server-side), so the
+bytes are POSTed to `/api/modelfile`, decoded, lit, and returned as an ev_wire
+**EVH1** blob: an ordinary model blob plus the per-face-group texture mappings.
+The page then draws it through `ToriDraw_RenderHD`.
+
+The response says what the file *was*, in headers, so the page names the format
+rather than inferring it from whether the decode happened to work:
+
+```
+X-Model-Format: OB3      (or V2 / V3 / OB2 / unknown)
+X-Model-Faces: 6863
+X-Model-Textured: 233
+X-Model-HD: 1            (1 = it carries texture mappings)
+```
+
+### The routing readout is the point
+
+A mis-routed face still draws. A cube-mapped face rendered through the plane
+kernel produces pixels, and nothing about the image says which kernel made
+them — so the panel reports `ToriDraw_HDRenderStats` directly: how many faces
+reached `texplane`, `texcylinder`, `texcube`, `texsphere`, which gate each
+material selected, and every fallback. On the QBD's source model (70260) that
+reads 2,438 texplane and 432 texcube, with no fallbacks.
+
+### `placeholder texture`, and why it is off by default
+
+A bare model file describes no textures. The faithful thing is to draw every
+textured face as its flat colour, which is what happens with the box unchecked —
+and it means the mapped kernels never run, so the cylinder/cube/sphere counters
+sit at zero whatever the file contains.
+
+Checking the box supplies a synthetic checkerboard for every texture id the
+model names. It is a lie about the *asset* and the label says so; it is the
+truth about the *routing*, which is what this view is for.
+
+## Running it, and staleness
+
+`run.sh` / `run.bat` exist for one reason: the viewer compiles the same C twice,
+once into the native server and once into `web/ev_wasm.wasm`. Edit
+`ev_render.c`, rebuild with `make`, and the server is current while the browser
+silently keeps running the old renderer — the page loads, the model draws, and
+nothing says the two halves disagree. You change a kernel, see no difference,
+and conclude the change did nothing.
+
+Both scripts check each artefact against every source both halves compile, and
+by default rebuild what is stale. If the wasm is stale and `emcc` is not on
+PATH they **refuse to serve** rather than warn, because a warning scrolls past.
+
+```sh
+tools/entity_viewer/run.sh --check-only   # report freshness, exit 1 if stale
+tools/entity_viewer/run.sh --no-wasm      # accept a stale wasm deliberately
+tools/entity_viewer/run.sh --port 8100 --cache ../cache.osrs239
+```
+
 ## The player half
 
 An npc is one config with a model list on it. A player is not, and neither is a

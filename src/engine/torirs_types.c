@@ -544,6 +544,13 @@ ToriRS_ModelAssertPnmTextureInvariant(struct ToriRS_Model const* model)
         assert(texture_face >= 0);
         assert(texture_face < model->textured_face_count);
 
+        /* Only render type 0 stores vertex indices here; types 1-3 store a raw
+         * projection axis, which is not an index and is normally out of range. */
+        const int render_type =
+            model->texture_render_types ? (model->texture_render_types[texture_face] & 0xFF) : 0;
+        if( render_type != 0 )
+            continue;
+
         const int p = model->textured_p_coordinate[texture_face];
         const int m = model->textured_m_coordinate[texture_face];
         const int n = model->textured_n_coordinate[texture_face];

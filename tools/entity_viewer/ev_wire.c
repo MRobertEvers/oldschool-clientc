@@ -2,6 +2,10 @@
 
 #include "toridraw.h"
 
+/* The full ToriDraw_TexMapping; toridraw_types.h only forward-declares it, so
+ * the HD tail below cannot be written or read without this. */
+#include "graphics/raster/texture/texmap_common.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -136,6 +140,9 @@ ev_wire_write_model(
     PUT_OPT(out, m->textured_p_coordinate, m->textured_face_count, m->textured_p_coordinate[i_]);
     PUT_OPT(out, m->textured_m_coordinate, m->textured_face_count, m->textured_m_coordinate[i_]);
     PUT_OPT(out, m->textured_n_coordinate, m->textured_face_count, m->textured_n_coordinate[i_]);
+    /* Which projection each textured face group uses. Without it every face
+     * reads as render type 0 and the HD path draws a cube map as a plane. */
+    PUT_OPT(out, m->texture_render_types, m->textured_face_count, m->texture_render_types[i_]);
     PUT_OPT(out, m->face_texture_coords, m->face_count, m->face_texture_coords[i_]);
 
     /* The rig binding. Without it the model has no response to a frame at all. */
@@ -166,6 +173,68 @@ ev_wire_write_model(
                 return 0;
     }
 
+    return 1;
+}
+
+/*
+ * An HD model: the HD magic, a complete base blob, then the mapping tail.
+ *
+ * Nesting a whole EVM1 blob rather than interleaving the fields means the base
+ * writer stays the single definition of what a model is — an HD blob read by
+ * the base reader (past the first 4 bytes) is byte-for-byte an ordinary model.
+ */
+int
+ev_wire_write_model_hd(
+    struct EV_WireBuf* out,
+    const struct ToriDraw_ModelHD* model)
+{
+    if( !model )
+        return 0;
+
+    if( !put_i32(out, (int32_t)EV_WIRE_MODEL_HD_MAGIC) )
+        return 0;
+
+    /*
+     * The tail's byte length, written BEFORE the base blob so the reader can
+     * find the tail without knowing how long the base is.
+     *
+     * The obvious alternative — count the tail's fields and index back from the
+     * end — is what this replaces, and it was wrong on the first attempt: the
+     * per-mapping record is 20 words and the count said 19, so the presence
+     * flag was read from the middle of a matrix and every mapping was silently
+     * dropped. A length the writer computes cannot disagree with itself.
+     */
+    int count = model->base.textured_face_count;
+    int has = model->texture_mappings && count > 0;
+    int32_t tail_bytes = 4 + (has ? count * (int32_t)EV_WIRE_HD_MAPPING_WORDS * 4 : 0);
+    if( !put_i32(out, tail_bytes) )
+        return 0;
+
+    if( !ev_wire_write_model(out, &model->base) )
+        return 0;
+
+    if( !put_i32(out, has ? 1 : 0) )
+        return 0;
+    if( !has )
+        return 1;
+
+    for( int i = 0; i < count; i++ )
+    {
+        const struct ToriDraw_TexMapping* m = &model->texture_mappings[i];
+        if( !put_i32(out, m->centre_x) || !put_i32(out, m->centre_y) ||
+            !put_i32(out, m->centre_z) )
+            return 0;
+        for( int k = 0; k < 9; k++ )
+            if( !put_f32(out, m->matrix[k]) )
+                return 0;
+        if( !put_i32(out, m->direction) )
+            return 0;
+        if( !put_f32(out, m->speed) || !put_f32(out, m->u_offset) ||
+            !put_f32(out, m->v_offset) || !put_f32(out, m->scale_z) ||
+            !put_f32(out, m->axis_scale_x) || !put_f32(out, m->axis_scale_y) ||
+            !put_f32(out, m->axis_scale_z) )
+            return 0;
+    }
     return 1;
 }
 
@@ -411,6 +480,7 @@ ev_wire_read_model(
     READ_OPT(&cur, m->textured_p_coordinate, m->textured_face_count, faceint_t);
     READ_OPT(&cur, m->textured_m_coordinate, m->textured_face_count, faceint_t);
     READ_OPT(&cur, m->textured_n_coordinate, m->textured_face_count, faceint_t);
+    READ_OPT(&cur, m->texture_render_types, m->textured_face_count, uint8_t);
     READ_OPT(&cur, m->face_texture_coords, face_count, faceint_t);
 
     m->vertex_bones = read_bones(&cur);
@@ -580,4 +650,102 @@ ev_wire_read_anim(
 bad:
     ToriDraw_AnimationFree(a);
     return NULL;
+}
+
+/* ------------------------------------------------------------------- HD */
+
+int
+ev_wire_is_model_hd(const uint8_t* data, size_t len)
+{
+    if( !data || len < 4 )
+        return 0;
+    uint32_t magic = (uint32_t)data[0] | ((uint32_t)data[1] << 8) |
+                     ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+    return magic == EV_WIRE_MODEL_HD_MAGIC;
+}
+
+struct ToriDraw_ModelHD*
+ev_wire_read_model_hd(const uint8_t* data, size_t len)
+{
+    if( !ev_wire_is_model_hd(data, len) )
+        return NULL;
+
+    /*
+     * The base blob starts 4 bytes in and the base reader validates its own
+     * magic, so a truncated or mismatched payload fails there rather than here.
+     * It returns a heap ToriDraw_Model; the HD wrapper embeds its base by
+     * value, so the contents move across and the original shell is released
+     * without touching the arrays it handed over.
+     */
+    /* magic, then the tail length, then the base blob. */
+    struct Cur head;
+    head.p = data + 4;
+    head.left = len - 4;
+    head.bad = 0;
+    int32_t tail_bytes = get_i32(&head);
+    if( head.bad || tail_bytes < 4 || (size_t)tail_bytes > len )
+        return NULL;
+
+    struct ToriDraw_Model* base = ev_wire_read_model(data + 8, len - 8 - (size_t)tail_bytes);
+    if( !base )
+        return NULL;
+
+    struct ToriDraw_ModelHD* hd =
+        (struct ToriDraw_ModelHD*)calloc(1, sizeof(struct ToriDraw_ModelHD));
+    if( !hd )
+    {
+        ToriDraw_ModelFree(base);
+        return NULL;
+    }
+    hd->base = *base;
+    free(base); /* the shell only; every array is now owned by hd->base */
+
+    int count = hd->base.textured_face_count;
+    if( len < (size_t)tail_bytes || tail_bytes < 4 )
+    {
+        ToriDraw_ModelHDFree(hd);
+        return NULL;
+    }
+
+    struct Cur cur;
+    cur.p = data + (len - (size_t)tail_bytes);
+    cur.left = (size_t)tail_bytes;
+    cur.bad = 0;
+
+    int present = get_i32(&cur);
+    if( cur.bad || !present || count <= 0 )
+        return hd; /* a valid HD model that simply carries no mappings */
+
+    hd->texture_mappings = (struct ToriDraw_TexMapping*)calloc(
+        (size_t)count, sizeof(struct ToriDraw_TexMapping));
+    if( !hd->texture_mappings )
+    {
+        ToriDraw_ModelHDFree(hd);
+        return NULL;
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriDraw_TexMapping* m = &hd->texture_mappings[i];
+        m->centre_x = get_i32(&cur);
+        m->centre_y = get_i32(&cur);
+        m->centre_z = get_i32(&cur);
+        for( int k = 0; k < 9; k++ )
+            m->matrix[k] = get_f32(&cur);
+        m->direction = get_i32(&cur);
+        m->speed = get_f32(&cur);
+        m->u_offset = get_f32(&cur);
+        m->v_offset = get_f32(&cur);
+        m->scale_z = get_f32(&cur);
+        m->axis_scale_x = get_f32(&cur);
+        m->axis_scale_y = get_f32(&cur);
+        m->axis_scale_z = get_f32(&cur);
+    }
+
+    if( cur.bad )
+    {
+        ToriDraw_ModelHDFree(hd);
+        return NULL;
+    }
+    return hd;
 }

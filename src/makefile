@@ -1793,16 +1793,38 @@ test-gouraudrgb: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_gouraudrgb_test.c -lm
 	./$(OBJ_DIR)/gouraudrgb_test
 
-# Textured per-face alpha on the `branching` family: each new kernel against
-# its plain twin, which supplies both the expected coverage and the colour the
-# blend starts from. Standalone TU, no cache or disk.
-.PHONY: test-scanline test-gouraudrgb test-texture-matrix test-texmap
+.PHONY: test-scanline test-gouraudrgb test-texture-matrix test-texmap test-render-hd
 
-test-texture-facealpha: $(OBJ_DIR)
+# The `texplane` compositing matrix on the `branching` family:
+# gate {texopaque,textrans,texalpha} x facealpha x modulate, plus clamp
+# addressing. Twelve variants, each driven into a configuration where it must
+# equal a plain SIMD kernel bit-exactly, with the algebra chained off that
+# anchor. Also covers the arctangent table. Standalone TU, no cache or disk.
+test-texture-matrix: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
-		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texture_facealpha_test \
-		$(TORIDRAW_DIR)/toridraw_texture_facealpha_test.c -lm
-	./$(OBJ_DIR)/texture_facealpha_test
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texture_matrix_test \
+		$(TORIDRAW_DIR)/toridraw_texture_matrix_test.c -lm
+	./$(OBJ_DIR)/texture_matrix_test
+
+# The mapped texture families - texcylinder / texcube / texsphere, twelve
+# variants each. Checks the projections against a libm reference, the
+# fixed-point uv plane setup against a double reference at real pixels, the
+# compositing identity chain, that the three projections actually differ, and
+# the cube face selection. Standalone TU, no cache or disk.
+test-texmap: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texmap_test \
+		$(TORIDRAW_DIR)/toridraw_texmap_test.c -lm
+	./$(OBJ_DIR)/texmap_test
+
+# ToriDraw_RenderHD's per-face routing: does each face reach the kernel its
+# render type, material gate and alpha name? Asserts on ToriDraw_HDRenderStats,
+# because a mis-routed face still produces pixels and the image cannot tell.
+test-render-hd: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/render_hd_test \
+		$(TORIDRAW_DIR)/toridraw_render_hd_test.c $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/toridraw_font.o
+	./$(OBJ_DIR)/render_hd_test
 
 # Side-by-side viewer: a textured, alpha-blended model out of a dat1 cache
 # rendered with both raster families plus an amplified difference pane.

@@ -25,6 +25,11 @@
  */
 
 #include "ev_build.h"
+
+/* The client's own RSCache_Model -> ToriDraw_Model pair, for POST /api/modelfile.
+ * Hand-rolling that conversion is what ev_build.c's header comment warns about. */
+#include "engine/toridraw_model_from_torirs.h"
+#include "engine/torirs_model_from_rscache.h"
 #include "ev_player.h"
 #include "ev_render.h"
 #include "lc_pack.h"
@@ -972,6 +977,193 @@ route_id(const char* target, const char* prefix, const char* suffix, int* out_id
     return 1;
 }
 
+
+/* ------------------------------------------------------- a model file ---
+ *
+ * POST /api/modelfile  with the raw bytes of a model archive as the body.
+ *
+ * The point is to look at a model the cache pickers cannot reach — one dumped
+ * to disk, or produced by a tool — and to see how the HD path routes it. So the
+ * response says what the file *is* as well as returning it:
+ *
+ *   X-Model-Format   OB3 | V2 | V3 | OB2 | unknown
+ *   X-Model-Faces    face count
+ *   X-Model-Textured textured face count
+ *   X-Model-HD       1 when the blob carries texture mappings
+ *
+ * A non-OB3 file is still decoded and returned when the decoder handles it; the
+ * header says which layout it was, and the page reports that rather than
+ * pretending everything is OB3.
+ */
+
+static const char*
+model_format_name(const uint8_t* data, size_t len)
+{
+    if( len < 2 )
+        return "unknown";
+    uint8_t last = data[len - 1];
+    uint8_t prev = data[len - 2];
+    if( prev == 0xFF && last == 0xFF )
+        return "OB3";
+    if( prev == 0xFF && last == 0xFE )
+        return "V2";
+    if( prev == 0xFF && last == 0xFD )
+        return "V3";
+    return "OB2";
+}
+
+static void
+handle_model_file(int fd, const uint8_t* body, size_t body_len)
+{
+    if( !body || body_len < 3 )
+    {
+        send_404(fd);
+        return;
+    }
+
+    const char* format = model_format_name(body, body_len);
+
+    struct RSCache_Model* rs = RSCache_ModelNewDecode((uint8_t*)body, (int)body_len);
+    if( !rs )
+    {
+        send_404(fd);
+        return;
+    }
+
+    /*
+     * Copy the complex mapping parameters BEFORE converting: the conversion
+     * moves arrays out of `rs` and frees the rest, and these are the fields it
+     * does not carry across. They are one entry per textured face, so the copy
+     * is small.
+     */
+    int tfc = rs->textured_face_count;
+    int32_t* sx = NULL;
+    int32_t* sy = NULL;
+    int32_t* sz = NULL;
+    int8_t* rot = NULL;
+    int8_t* dir = NULL;
+    int8_t* spd = NULL;
+    int8_t* tu = NULL;
+    int8_t* tv = NULL;
+#define EV_DUP(dstv, srcv, type)                                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        if( (srcv) && tfc > 0 )                                                                    \
+        {                                                                                          \
+            (dstv) = (type*)malloc((size_t)tfc * sizeof(type));                                    \
+            if( (dstv) )                                                                           \
+                memcpy((dstv), (srcv), (size_t)tfc * sizeof(type));                                \
+        }                                                                                          \
+    } while( 0 )
+    EV_DUP(sx, rs->texture_scale_x, int32_t);
+    EV_DUP(sy, rs->texture_scale_y, int32_t);
+    EV_DUP(sz, rs->texture_scale_z, int32_t);
+    EV_DUP(rot, rs->texture_rotation, int8_t);
+    EV_DUP(dir, rs->texture_direction, int8_t);
+    EV_DUP(spd, rs->texture_speed, int8_t);
+    EV_DUP(tu, rs->texture_trans_u, int8_t);
+    EV_DUP(tv, rs->texture_trans_v, int8_t);
+#undef EV_DUP
+
+    struct ToriRS_Model* mid = ToriRS_ModelFromRSCache(rs);
+    RSCache_ModelFree(rs);
+    if( !mid )
+    {
+        send_404(fd);
+        goto done_params;
+    }
+
+    struct ToriDraw_Model* model = ToriDraw_ModelFromToriRS(mid);
+    ToriRS_ModelFree(mid);
+    if( !model )
+    {
+        send_404(fd);
+        goto done_params;
+    }
+
+    /* An HD model embeds its base by value, so the contents move across and the
+     * original shell is released without disturbing the arrays. */
+    struct ToriDraw_ModelHD* hd =
+        (struct ToriDraw_ModelHD*)calloc(1, sizeof(struct ToriDraw_ModelHD));
+    if( !hd )
+    {
+        ToriDraw_ModelFree(model);
+        send_404(fd);
+        goto done_params;
+    }
+    hd->base = *model;
+    free(model);
+
+    /*
+     * Light it, or every face draws at its authored colour and the shape is
+     * unreadable — and, more sharply, face_colors_a/b/c do not exist until the
+     * lighting pass creates them.
+     *
+     * Through a PLAIN handle: lighting is a base-model operation and
+     * ToriDraw_LightModelActor only accepts TORIDRAWMK_MODEL, by design (the
+     * scene and lighting paths were deliberately not widened to the HD kind).
+     * Passing an HD handle here silently skips lighting and leaves those arrays
+     * NULL for the raster to dereference.
+     */
+    struct ToriDraw_ModelHandle lit;
+    memset(&lit, 0, sizeof(lit));
+    lit.kind = TORIDRAWMK_MODEL;
+    lit.u.model.model = &hd->base;
+    ToriDraw_LightModelActor(lit, 768, 64);
+
+    /* The mappings are derived from the bind pose, so this must happen before
+     * anything animates the model. */
+    ToriDraw_ModelBuildTextureMappings(hd, sx, sy, sz, rot, dir, spd, tu, tv);
+
+    struct EV_WireBuf buf = { 0 };
+    int ok = ev_wire_write_model_hd(&buf, hd);
+
+    int faces = hd->base.face_count;
+    int textured = hd->base.textured_face_count;
+    int has_mappings = hd->texture_mappings ? 1 : 0;
+    ToriDraw_ModelHDFree(hd);
+
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        goto done_params;
+    }
+
+    /* Not send_response: the format and the tallies ride as headers so the page
+     * can report what the file was without a second request, and that needs a
+     * bespoke header block. */
+    char header[512];
+    int hlen = snprintf(
+        header,
+        sizeof(header),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/octet-stream\r\n"
+        "Content-Length: %zu\r\n"
+        "Cache-Control: no-store\r\n"
+        "X-Model-Format: %s\r\n"
+        "X-Model-Faces: %d\r\n"
+        "X-Model-Textured: %d\r\n"
+        "X-Model-HD: %d\r\n"
+        "Access-Control-Expose-Headers: X-Model-Format, X-Model-Faces, "
+        "X-Model-Textured, X-Model-HD\r\n"
+        "Connection: close\r\n\r\n",
+        buf.len, format, faces, textured, has_mappings);
+    send_all(fd, header, (size_t)hlen);
+    send_all(fd, buf.data, buf.len);
+    ev_wire_free(&buf);
+
+done_params:
+    free(sx);
+    free(sy);
+    free(sz);
+    free(rot);
+    free(dir);
+    free(spd);
+    free(tu);
+    free(tv);
+}
+
 static void
 handle_request(int fd, const char* target, const char* query)
 {
@@ -998,6 +1190,7 @@ handle_request(int fd, const char* target, const char* query)
         handle_spot_json(fd, id);
     else if( route_id(target, "/api/rig/", ".json", &id) )
         handle_rig_json(fd, id);
+    /* POST /api/modelfile is routed in the accept loop, where the body is. */
     else
         handle_static(fd, target[0] == '/' ? target + 1 : target);
 }
@@ -1577,22 +1770,74 @@ main(int argc, char** argv)
         if( fd < 0 )
             continue;
 
-        char req[4096];
+        /*
+         * One read is enough for a GET, whose whole request fits comfortably.
+         * A POST carries a model file, which does not — so the headers are
+         * parsed out of the first read and the body is drained to
+         * Content-Length before anything is decoded. A short body would decode
+         * as a truncated model, which is exactly the plausible-garbage failure
+         * the rest of this tool works to avoid.
+         */
+        char req[8192];
         ssize_t n = read(fd, req, sizeof(req) - 1);
         if( n > 0 )
         {
             req[n] = '\0';
             char method[16] = { 0 };
             char target[1024] = { 0 };
-            if( sscanf(req, "%15s %1023s", method, target) == 2 &&
-                strcmp(method, "GET") == 0 )
+            if( sscanf(req, "%15s %1023s", method, target) == 2 )
             {
-                /* The query is kept rather than discarded: the player build is
-                 * parameterised by what is equipped, and that is a query. */
                 char* q = strchr(target, '?');
                 if( q )
                     *q = '\0';
-                handle_request(fd, target, q ? q + 1 : NULL);
+
+                if( strcmp(method, "GET") == 0 )
+                {
+                    /* The query is kept rather than discarded: the player build
+                     * is parameterised by what is equipped, and that is a
+                     * query. */
+                    handle_request(fd, target, q ? q + 1 : NULL);
+                }
+                else if( strcmp(method, "POST") == 0 &&
+                         strcmp(target, "/api/modelfile") == 0 )
+                {
+                    const char* hdr_end = strstr(req, "\r\n\r\n");
+                    size_t want = 0;
+                    const char* cl = strcasestr(req, "content-length:");
+                    if( cl )
+                        want = (size_t)strtoul(cl + 15, NULL, 10);
+
+                    uint8_t* body = NULL;
+                    size_t have = 0;
+                    if( hdr_end && want > 0 && want < (64u << 20) )
+                    {
+                        size_t offset = (size_t)(hdr_end + 4 - req);
+                        have = (size_t)n > offset ? (size_t)n - offset : 0;
+                        if( have > want )
+                            have = want;
+                        body = (uint8_t*)malloc(want);
+                        if( body )
+                        {
+                            memcpy(body, hdr_end + 4, have);
+                            while( have < want )
+                            {
+                                ssize_t got =
+                                    read(fd, body + have, want - have);
+                                if( got <= 0 )
+                                    break;
+                                have += (size_t)got;
+                            }
+                        }
+                    }
+
+                    if( body && have == want )
+                        handle_model_file(fd, body, want);
+                    else
+                        send_404(fd);
+                    free(body);
+                }
+                else
+                    send_404(fd);
             }
             else
                 send_404(fd);

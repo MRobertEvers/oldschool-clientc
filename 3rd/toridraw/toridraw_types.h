@@ -200,6 +200,49 @@ enum ToriDraw_ModelKind
     TORIDRAWMK_NONE = 0,
     TORIDRAWMK_MODEL = 1,
     TORIDRAWMK_GROUND = 2,
+    /** A ToriDraw_ModelHD. Its `base` is a plain model, so everything that
+     *  takes a TORIDRAWMK_MODEL works unchanged — see ToriDraw_ModelAsFull. */
+    TORIDRAWMK_MODEL_HD = 3,
+};
+
+/* Defined in graphics/raster/texture/texmap_common.h. Only ever held by pointer
+ * here, so the model header does not pull in the raster layer. */
+struct ToriDraw_TexMapping;
+
+/**
+ * A model that carries what the HD (procedural-material) render path needs, and
+ * that nothing else does.
+ *
+ * ## Why this is a variant and not four more fields on ToriDraw_Model
+ *
+ * Almost no model is HD. A cache is tens of thousands of models, of which the
+ * ones with a mapped texture group are a minority even in RS727 and are absent
+ * from OldSchool entirely. Fields on the base struct would cost a pointer each
+ * on every model ever loaded, for nothing — and this library has already paid
+ * for that shape of decision once (see docs/memory-lifetime notes: 12% of the
+ * boot heap was per-field allocation overhead).
+ *
+ * `base` is embedded first and by value, so a `struct ToriDraw_ModelHD*` IS a
+ * `struct ToriDraw_Model*` and every existing entry point keeps working through
+ * ToriDraw_ModelAsFull. The HD tail is reachable only through a handle that
+ * says TORIDRAWMK_MODEL_HD, which is what stops a non-HD path from reading it.
+ */
+struct ToriDraw_ModelHD
+{
+    struct ToriDraw_Model base;
+
+    /*
+     * Per-face-group mapping for render types 1-3. Length
+     * `base.textured_face_count`, indexed like `base.texture_render_types`;
+     * only entries whose render type is above 0 are meaningful.
+     *
+     * The derived form — centre, basis matrix, direction, speed, offsets —
+     * rather than the raw stored scales, because the derivation needs the whole
+     * face group (the centre is the midpoint of the group's bounding box, so no
+     * single triangle can compute it) and because it is invariant under
+     * animation: only the vertices move.
+     */
+    struct ToriDraw_TexMapping* texture_mappings;
 };
 
 struct ToriDraw_ModelHandle

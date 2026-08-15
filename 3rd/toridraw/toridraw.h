@@ -29,6 +29,9 @@ ToriDraw_Init(void);
  * `sort` kernels. Off by default; ToriDraw_Init() also honours
  * TORIDRAW_RASTER_SCANLINE=1 in the environment.
  */
+/* The HD render flow and its material table. */
+#include "toridraw_render_hd.h"
+
 void
 ToriDraw_RasterSetScanline(bool enabled);
 

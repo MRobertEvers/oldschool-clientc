@@ -750,7 +750,7 @@ ToriDraw_FastCull(
     int cull_mx = 0;
     int cull_my = 0;
     int cull_mz = 0;
-    assert(hnd.kind == TORIDRAWMK_MODEL);
+    assert(ToriDraw_ModelKindIsFull(hnd.kind));
 
     project_orthographic_fast(
         projected_vertex,
@@ -1535,6 +1535,7 @@ ToriDraw_ComputeProjectedFaceOrder(
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         fia = m->face_indices_a;
@@ -2005,6 +2006,7 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         fia = m->face_indices_a;
@@ -3121,6 +3123,7 @@ toridraw_projected_model_hit_face(
     switch( hnd.kind )
     {
     case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
     {
         struct ToriDraw_Model* m = model_as_full(hnd);
         fia = m->face_indices_a;

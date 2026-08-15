@@ -25,6 +25,78 @@
 
 static struct ToriDraw_Scene* g_scene = NULL;
 static struct ToriDraw_Model* g_model = NULL;
+
+/*
+ * The HD model, when one has been adopted through ev_set_model_hd.
+ *
+ * Kept separate from g_model rather than replacing it: an HD model is a
+ * different handle kind, it is not animated here (a file picked off disk has no
+ * sequence), and the whole npc/player flow above must keep working untouched
+ * while an HD model is on screen. When this is set it is what draws.
+ */
+static struct ToriDraw_ModelHD* g_model_hd = NULL;
+static struct ToriDraw_HDRenderStats g_hd_stats;
+
+/*
+ * A placeholder material, off by default.
+ *
+ * A bare model file describes no textures, so the faithful answer is to draw
+ * every textured face as flat colour — which is what happens with no material
+ * table. But then the mapped kernels never run, and the routing readout the
+ * whole view exists for reads texcube=0 no matter what the file contains.
+ *
+ * So this supplies a synthetic checkerboard for every texture id the model
+ * names. It is a lie about the ASSET and it is labelled as one in the page; it
+ * is the truth about the ROUTING, which is the question being asked.
+ */
+static int g_hd_placeholder = 0;
+static int g_hd_tex[128 * 128];
+static struct ToriDraw_HDMaterial* g_hd_mats = NULL;
+static int g_hd_mat_count = 0;
+
+static void
+hd_placeholder_build(void)
+{
+    free(g_hd_mats);
+    g_hd_mats = NULL;
+    g_hd_mat_count = 0;
+    if( !g_model_hd || !g_hd_placeholder )
+        return;
+
+    for( int v = 0; v < 128; v++ )
+        for( int u = 0; u < 128; u++ )
+            g_hd_tex[u + v * 128] =
+                (int)(0xFF000000u |
+                      ((((u >> 4) ^ (v >> 4)) & 1) ? 0x00C08040u : 0x004080C0u));
+
+    int maxid = 0;
+    for( int f = 0; f < g_model_hd->base.face_count; f++ )
+    {
+        int id = g_model_hd->base.face_textures ? g_model_hd->base.face_textures[f] : -1;
+        if( id > maxid )
+            maxid = id;
+    }
+    if( maxid < 0 )
+        return;
+
+    g_hd_mats = (struct ToriDraw_HDMaterial*)calloc((size_t)maxid + 1, sizeof(*g_hd_mats));
+    if( !g_hd_mats )
+        return;
+    for( int i = 0; i <= maxid; i++ )
+    {
+        g_hd_mats[i].texels = g_hd_tex;
+        g_hd_mats[i].width = 128;
+        g_hd_mats[i].gate = TORIDRAW_HD_GATE_OPAQUE;
+    }
+    g_hd_mat_count = maxid + 1;
+}
+
+void
+ev_set_hd_placeholder(int on)
+{
+    g_hd_placeholder = on ? 1 : 0;
+    hd_placeholder_build();
+}
 static struct ToriDraw_Animation* g_anim = NULL;
 
 /*
@@ -133,6 +205,61 @@ ev_set_model(const uint8_t* data, int len)
     else
         g_model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
     return g_model->face_count;
+}
+
+/*
+ * Adopt an HD model (ev_wire EVH1 bytes) and make it the subject.
+ *
+ * Returns the face count, 0 on a bad blob. Adopting one does not disturb the
+ * npc/player model; clearing it goes straight back to whatever was there.
+ */
+int
+ev_set_model_hd(const uint8_t* data, int len)
+{
+    struct ToriDraw_ModelHD* next =
+        ev_wire_read_model_hd(data, (size_t)(len > 0 ? len : 0));
+    if( !next )
+        return 0;
+
+    ToriDraw_ModelHDFree(g_model_hd);
+    g_model_hd = next;
+    memset(&g_hd_stats, 0, sizeof(g_hd_stats));
+    hd_placeholder_build();
+    return g_model_hd->base.face_count;
+}
+
+void
+ev_clear_model_hd(void)
+{
+    ToriDraw_ModelHDFree(g_model_hd);
+    g_model_hd = NULL;
+    memset(&g_hd_stats, 0, sizeof(g_hd_stats));
+    free(g_hd_mats);
+    g_hd_mats = NULL;
+    g_hd_mat_count = 0;
+}
+
+int
+ev_model_hd_active(void)
+{
+    return g_model_hd != NULL;
+}
+
+/*
+ * The last render's routing tally, as 13 ints in the order the header lists
+ * them. Returned as a flat buffer because that is what crosses the wasm
+ * boundary cheaply; the page names the fields.
+ */
+const int*
+ev_hd_stats(void)
+{
+    return (const int*)&g_hd_stats;
+}
+
+int
+ev_hd_stats_count(void)
+{
+    return (int)(sizeof(g_hd_stats) / sizeof(int));
 }
 
 void
@@ -598,11 +725,33 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
         position.z -= (int)(((int64_t)dy_cam * ToriDraw_Sin(camera.pitch)) >> 16);
     }
 
-    g_last_cull = ToriDraw_RenderModel1Project(hnd, g_scene, &position, &view_port, &camera);
-    if( g_last_cull == TORIDRAW_CULL_VISIBLE )
+    if( g_model_hd )
     {
-        ToriDraw_RenderModel2SortFaces(hnd, g_scene);
-        ToriDraw_RenderModel3Raster(g_scene, &view_port, &camera, g_pixels, false);
+        /*
+         * The HD flow does its own project + sort + raster, because the routing
+         * decision is per face and has to sit inside the raster loop.
+         *
+         * No material table is supplied: a model file picked off disk carries
+         * no textures, and inventing some would show a texture the file does
+         * not describe. Every textured face therefore falls back to its flat
+         * colour and is counted in `fallback_no_texels` — the geometry and the
+         * per-face routing are what this view is for, and both are visible.
+         */
+        struct ToriDraw_ModelHandle hd_hnd = ToriDraw_ModelHandleFromHD(g_model_hd);
+        struct ToriDraw_HDMaterials table = { g_hd_mats, g_hd_mat_count };
+        g_last_cull = ToriDraw_RenderHD(
+            hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
+            g_hd_mats ? &table : NULL, &g_hd_stats);
+    }
+    else
+    {
+        g_last_cull =
+            ToriDraw_RenderModel1Project(hnd, g_scene, &position, &view_port, &camera);
+        if( g_last_cull == TORIDRAW_CULL_VISIBLE )
+        {
+            ToriDraw_RenderModel2SortFaces(hnd, g_scene);
+            ToriDraw_RenderModel3Raster(g_scene, &view_port, &camera, g_pixels, false);
+        }
     }
 
     /* toripixel_t is 0x00RRGGBB; the canvas wants RGBA bytes and every pixel is
