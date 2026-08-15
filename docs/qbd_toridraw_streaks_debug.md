@@ -428,3 +428,97 @@ in the live client, which is how a traversal fault is told from a geometry one.
 | `src/makefile` | `TORIDRAW_NO_SIMD` / `ENABLE_UBSAN` |
 | `manifest_osrs239_rs2012.ini` | QBD repro manifest |
 | `saves/qbdrepro.ini` | Repro save |
+
+---
+
+## RESOLVED 2026-08-15 — the model had no bind pose, so frames accumulated
+
+The long-running "her animation bugs out / she inflates into stretched shards"
+symptom is fixed. It was **not** the model, the backport, fixed-point overflow,
+or memory corruption — four things earlier sessions each spent time on.
+
+### The defect
+
+`ToriDraw_ModelCopy` (`3rd/toridraw/toridraw_model_transform.c`) copied every
+array **except** `original_vertices_x/y/z` and `original_face_alphas`.
+
+`ToriDraw_ModelAnimateReset` is gated on `original_vertices_x`. With no
+originals it **returns instead of restoring**. So the renderer's per-frame
+`reset → apply keyframe` becomes `nothing → apply keyframe`, and each frame
+composes with the previous frame's output. The model does not animate, it
+**accumulates**.
+
+NPC models are served by `app_world_build_npc_model` through
+`TorirsModelInstCache_CopyGet`, so **every cache hit handed the scene a model
+with no bind pose.**
+
+### Why only the Queen
+
+`ToriDraw_SceneElementSetAnimationSeq` captures originals on the way past,
+which covers the ordinary spawn-then-animate order — that is why this survived
+so long. The QBD's artefact restore
+(`rs2012_qbd_session.rs2`, `~rs2012_qbd_activate_artifact`) does:
+
+```
+npc_changetype(rs2012_qbd_default, ^max_32bit_int);
+npc_anim(rs2012_seq_16748, 0);            // = seq 22009
+```
+
+on **one tick**, re-binding the sequence she is *already* playing. The model is
+swapped under a live animation with no `SetAnimationSeq` behind it, so nothing
+ever captures. Her pose then cycled, on the same frame 0, every few renders:
+
+```
+seq=22009 frame=0 radius  3076 -> 11952
+seq=22009 frame=0 radius  6508 -> 32839
+seq=22009 frame=0 radius 46340 ->  3076    <- int16 saturation, then a reset
+```
+
+### The fix
+
+1. `ToriDraw_ModelCopy` carries `original_vertices_*` and
+   `original_face_alphas`.
+2. `ToriDraw_SceneElementSetModel` captures when the incoming model has none.
+   Conditional, deliberately: an unconditional capture would make whatever pose
+   the model is in the new bind — the same bug from the other direction. Mount
+   time is the last moment a model is guaranteed to be at bind and the first at
+   which the renderer may animate it.
+
+Guarded by `check_a_copied_model_keeps_its_bind_pose` in
+`3rd/toridraw/toridraw_animation_test.c` (`make -C src
+test-animation-object-step`). Negative control verified: disabling either half
+fails the matching CHECKs.
+
+### Reproducing it
+
+`tools/qbd_anim_compound_harness.sh` mirrors
+`./run-live.sh manifest_osrs239_torirs.ini --soft3d` and drives the encounter
+to the artefact restore. Two things it gets wrong if you rebuild it from
+scratch:
+
+- **`rs2012qbdrestore` needs `%rs2012_qbd_intermission = 1`**, which only
+  `rs2012qbddrain` produces, and drain needs her **awake** — pad the cheat
+  sequence or the run passes for the wrong reason.
+- **Yaw 0 is NORTH, yaw 1024 is south** (2048 to the circle). She is north of
+  the arena entrance; a south-framed run reports a clean pass with her off
+  screen.
+
+### Detectors added
+
+Both env-gated, both silent in a healthy run:
+
+- `TORIRS_ANIM_STACK` (`toridraw_scene.c`, after `AnimateFrame`) — reports a
+  model with **no captured bind pose**, and a posed y-span far past the bind
+  span. Two calibration notes: **scan every vertex, not a sample** (the failure
+  throws a handful of vertices a long way, so a strided scan reports a healthy
+  span while the bounds cylinder sees the truth), and the ratio threshold must
+  be **8x** — she legitimately reaches 5x rearing out of her coiled rest pose,
+  so 3x fires on every healthy frame.
+- `TORIRS_ANIM_RECAPTURE` (`toridraw_model.c`) — a capture overwriting
+  originals that differ from the current vertices. It **never fired** here,
+  which is what ruled out the attractive "a spotanim attach re-captured her
+  posed body" theory.
+
+`TORIRS_ANIM_BLOWUP` is edge-triggered and slots per `element_id & 255`, so the
+"previous" radius it prints can belong to a different element. Use it to
+notice, not to conclude.

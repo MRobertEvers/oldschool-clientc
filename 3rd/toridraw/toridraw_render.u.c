@@ -112,30 +112,15 @@ toridraw_dbg_log(
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
 #define TORIDRAW_CYLINDER_FAR_PLANE_Z 7500
 
-/*
- * z_sum / 3, via the 16.16 reciprocal (21845 == 65536/3).
- *
- * The multiply is done in 64 bit because the 32-bit form overflows at
- * z_sum > 98,304 -- i.e. an average projected depth of ~32,768 per vertex --
- * and UBSan caught it live in the face sort:
- *
- *   toridraw_render.u.c: signed integer overflow:
- *     98647 * 21845 cannot be represented in type 'int'
- *
- * That threshold is why the failure is VIEWING-ANGLE dependent, which is the
- * clue that identified it: projected depth is smallest looking at a model
- * head-on and grows as the camera swings around, so the same scene renders
- * correctly from one side and corrupts its depth sort from another. A wrapped
- * z_sum becomes a negative depth, the face buckets outside the table, and the
- * model loses faces or disappears entirely -- with nothing wrong upstream.
- *
- * 64-bit here is free: the shift already forces a widening on any 64-bit host,
- * and this is one multiply per face rather than per pixel.
- */
+/* z_sum / 3, via the 16.16 reciprocal (21845 == 65536/3). Overflows at
+ * z_sum > 98,304 (~32,768 average projected depth per vertex); a wrapped z_sum
+ * goes negative and buckets outside the depth table, so the model loses faces
+ * from some camera angles and not others. Only reachable with geometry that is
+ * already wrong -- guard by range once per model, not by widening here. */
 static inline int
 div3_fast_fixedpoint(int z_sum)
 {
-    return (int)(((int64_t)z_sum * 21845) >> 16);
+    return (z_sum * 21845) >> 16;
 }
 
 /*

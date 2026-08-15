@@ -191,51 +191,36 @@ ToriDraw_AnimApplyTransform(
                 int roll = (arg_z & 255) * 8;
                 int var17;
 
-                /*
-                 * TEMPORARY (2026-08-15), same treatment as the projection.
-                 *
-                 * sin/cos are 16.16, so each product is a coordinate scaled by
-                 * up to 65536 and it is the 32-bit product -- not the shifted
-                 * result -- that overflows. UBSan caught it live here:
-                 *
-                 *   toridraw_model.c:173: signed integer overflow:
-                 *     -65358 * -35657 cannot be represented in type 'int'
-                 *
-                 * Note the coordinate: 35,657 is already outside vertexint_t.
-                 * These are RELATIVE to `transform->origin_*`, so a large pivot
-                 * makes the operand large even when every stored vertex is in
-                 * range -- and the wrapped product then writes a vertex at the
-                 * far rail. That is the geometry explosion: the Queen's radius
-                 * going 3,076 -> 11,952 -> 32,839 across one keyframe of seq
-                 * 22009, each pass feeding bigger operands into the next.
-                 *
-                 * Temporary because it is under evaluation with the projection
-                 * change; if the pair does not resolve the symptom, revert both.
-                 */
+                /* 32-bit hazard: these coordinates are relative to
+                 * transform->origin_*, so a distant pivot makes the operand
+                 * large even when every stored vertex is in range, and the
+                 * 16.16 product overflows past ~+/-32,000. Only reachable with
+                 * geometry that is already wrong (see ToriDraw_ModelCopy);
+                 * guard by range once per model, not by widening every vertex. */
                 if( roll != 0 )
                 {
-                    int64_t sin_roll = ToriDraw_Sin(roll);
-                    int64_t cos_roll = ToriDraw_Cos(roll);
-                    var17 = (int)((sin_roll * y + cos_roll * x) >> 16);
-                    y = (int)((cos_roll * y - sin_roll * x) >> 16);
+                    int sin_roll = ToriDraw_Sin(roll);
+                    int cos_roll = ToriDraw_Cos(roll);
+                    var17 = (sin_roll * y + cos_roll * x) >> 16;
+                    y = (cos_roll * y - sin_roll * x) >> 16;
                     x = var17;
                 }
 
                 if( pitch != 0 )
                 {
-                    int64_t sin_pitch = ToriDraw_Sin(pitch);
-                    int64_t cos_pitch = ToriDraw_Cos(pitch);
-                    var17 = (int)((cos_pitch * y - sin_pitch * z) >> 16);
-                    z = (int)((sin_pitch * y + cos_pitch * z) >> 16);
+                    int sin_pitch = ToriDraw_Sin(pitch);
+                    int cos_pitch = ToriDraw_Cos(pitch);
+                    var17 = (cos_pitch * y - sin_pitch * z) >> 16;
+                    z = (sin_pitch * y + cos_pitch * z) >> 16;
                     y = var17;
                 }
 
                 if( yaw != 0 )
                 {
-                    int64_t sin_yaw = ToriDraw_Sin(yaw);
-                    int64_t cos_yaw = ToriDraw_Cos(yaw);
-                    var17 = (int)((sin_yaw * z + cos_yaw * x) >> 16);
-                    z = (int)((cos_yaw * z - sin_yaw * x) >> 16);
+                    int sin_yaw = ToriDraw_Sin(yaw);
+                    int cos_yaw = ToriDraw_Cos(yaw);
+                    var17 = (sin_yaw * z + cos_yaw * x) >> 16;
+                    z = (cos_yaw * z - sin_yaw * x) >> 16;
                     x = var17;
                 }
 
@@ -266,10 +251,10 @@ ToriDraw_AnimApplyTransform(
                 int x = (int)vertices_x[vertex_index] - transform->origin_x;
                 int y = (int)vertices_y[vertex_index] - transform->origin_y;
                 int z = (int)vertices_z[vertex_index] - transform->origin_z;
-                /* Same 32-bit hazard as the rotate above. */
-                x = (int)(((int64_t)arg_x * x) / 128);
-                y = (int)(((int64_t)arg_y * y) / 128);
-                z = (int)(((int64_t)arg_z * z) / 128);
+                /* Same 32-bit hazard as the rotate above, same reasoning. */
+                x = (arg_x * x) / 128;
+                y = (arg_y * y) / 128;
+                z = (arg_z * z) / 128;
                 vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + transform->origin_x);
                 vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + transform->origin_y);
                 vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + transform->origin_z);
