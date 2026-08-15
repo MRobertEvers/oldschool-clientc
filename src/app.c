@@ -2877,7 +2877,7 @@ Task_InvIconReconcile_Run(
         }
     }
     if( self->n > 0 )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CreateTask_ObjModelLoad(app->provider, self->obj_ids, self->counts, self->n));
 
     /* Rasterize every pending slot from whatever is now resident and stamp the
@@ -2957,7 +2957,7 @@ Task_AppCS1Eval_Run(
 
     PT_BEGIN(&self->pt);
     app->cs1_host.eval_dirty = false;
-    TASK_AWAITSELF_IF(CreateTask_CS1Eval(&app->cs1_host));
+    PT_TASK_AWAITSELF_IF(CreateTask_CS1Eval(&app->cs1_host));
     app->cs1_eval_inflight = 0;
     if( app->cs1_host.eval_dirty )
         app->need_redraw = 1;
@@ -5592,18 +5592,18 @@ Task_AppBoot_Run(
      * clientcode-driven settings, so it stays untyped there.
      */
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
-        TASK_AWAITSELF_IF(CreateTask_Dat2VarpLoad(app->provider, &app->varps));
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarpLoad(app->provider, &app->varps));
 
     if( app->cfg.cache_kind == APP_CACHE_DAT1 )
-        TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
     else
-        TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
     /* Hitsplat types. dat1 has no such config group — it keeps the splat
      * graphics in a "hitmarks" sprite archive, which the static-sprite path
      * binds — so this is a dat2-only load and an absent group is not an error. */
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
-        TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
 
     /*
      * Ambient soundscapes. dat2 only, and OldSchool 231+ within that -- an
@@ -5613,7 +5613,7 @@ Task_AppBoot_Run(
      * reading, not a failure to load.
      */
     if( app->cfg.cache_kind != APP_CACHE_DAT1 )
-        TASK_AWAITSELF_IF(CreateTask_Dat2SoundscapeLoad(app->provider, &app->soundscapes));
+        PT_TASK_AWAITSELF_IF(CreateTask_Dat2SoundscapeLoad(app->provider, &app->soundscapes));
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
     /*
@@ -5629,7 +5629,7 @@ Task_AppBoot_Run(
     app->prefs_path = RS_Prefs_Path();
     RS_Prefs_Defaults(&app->prefs);
     if( app->prefs_path )
-        TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
+        PT_TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
     RS_Prefs_ApplyToHost(&app->prefs, &app->host);
 
     /*
@@ -5738,7 +5738,7 @@ Task_AppBoot_Run(
      * boot_interface_id, which is what the old open-the-interface-directly
      * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
      * group can be the root, no hardcoded 161 chrome required). */
-    TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+    PT_TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
     printf(
         "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
         "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
@@ -5756,7 +5756,7 @@ Task_AppBoot_Run(
     app->boot_progress = 60;
 
     /* Minimenu/hovertext font before the overlay nodes are pushed. */
-    TASK_AWAITSELF_IF(CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app)));
+    PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app)));
 
     app->boot_progress = 75;
 
@@ -5975,7 +5975,7 @@ Task_OpenSubRefresh_Run(
     }
     if( self->interface_id > 0 )
     {
-        TASK_AWAITSELF_IF(CreateTask_InterfaceOpenSub(
+        PT_TASK_AWAITSELF_IF(CreateTask_InterfaceOpenSub(
             app->provider,
             app->tree,
             &app->host,
@@ -6063,7 +6063,7 @@ Task_OpenSubRefresh_Run(
          * strip or whatever replaced it. Opening the bank hid the tabs and
          * closing it left them hidden, so the sidebar came back blank.
          */
-        TASK_AWAITSELF_IF(CreateTask_CS2SubChangeDispatch(&app->host));
+        PT_TASK_AWAITSELF_IF(CreateTask_CS2SubChangeDispatch(&app->host));
     }
     App_RefreshAfterTreeMutation(app);
     PT_END(&self->pt);
@@ -11337,13 +11337,13 @@ Task_AppSpawn_Run(
 
     if( self->kind == APP_SPAWN_PLAYER )
     {
-        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-        TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, APP_PLAYER_SEQ_READY));
         app_world_spawn_player_now(app, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_NPC )
     {
-        TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
         for( self->model_i = 0;; self->model_i++ )
         {
             {
@@ -11352,7 +11352,7 @@ Task_AppSpawn_Run(
                 if( !npctype || self->model_i >= npctype->models_count )
                     break;
             }
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(
                 app->provider,
                 CacheProvider_NpctypeGet(app->provider, self->npc_id)->models[self->model_i]));
         }
@@ -11377,14 +11377,14 @@ Task_AppSpawn_Run(
                 }
             }
             if( seq_id >= 0 )
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     CreateTask_SequenceLoad(app->provider, app->scene, seq_id));
         }
         app_world_spawn_npc_now(app, self->npc_id, self->tile_x, self->tile_z, self->level);
     }
     else if( self->kind == APP_SPAWN_OBJ )
     {
-        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->obj_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->obj_id));
         {
             struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->obj_id);
             if( obj && obj->inventory_model_id > 0 )
@@ -11392,7 +11392,7 @@ Task_AppSpawn_Run(
         }
         if( self->model_id > 0 )
         {
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
             App_WorldObjStackAdd(app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
         }
         else
@@ -11400,21 +11400,21 @@ Task_AppSpawn_Run(
     }
     else if( self->kind == APP_SPAWN_SPOTANIM )
     {
-        TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         {
             struct ToriRS_Spotanimtype* spot =
                 CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
             self->model_id = (spot && spot->model > 0) ? spot->model : -1;
         }
         if( self->model_id > 0 )
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
         {
             struct ToriRS_Spotanimtype* spot =
                 CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
             self->seq_id = spot ? spot->seq : -1;
         }
         if( self->seq_id >= 0 )
-            TASK_AWAITSELF_IF(
+            PT_TASK_AWAITSELF_IF(
                 CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app_world_spawn_spotanim_now(
             app,
@@ -11430,41 +11430,41 @@ Task_AppSpawn_Run(
         /* Attached graphic (SPOTANIM mask): load the same asset chain as the
          * free-standing spotanim. No completion callback — once resident,
          * app_world_sync_entity_spotanims combines synchronously next frame. */
-        TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         {
             struct ToriRS_Spotanimtype* spot =
                 CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
             self->model_id = (spot && spot->model > 0) ? spot->model : -1;
         }
         if( self->model_id > 0 )
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
         {
             struct ToriRS_Spotanimtype* spot =
                 CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
             self->seq_id = spot ? spot->seq : -1;
         }
         if( self->seq_id >= 0 )
-            TASK_AWAITSELF_IF(
+            PT_TASK_AWAITSELF_IF(
                 CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app->need_redraw = 1;
     }
     else if( self->kind == APP_SPAWN_PROJECTILE_SPOT )
     {
-        TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
         {
             struct ToriRS_Spotanimtype* spot =
                 CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
             self->model_id = (spot && spot->model > 0) ? spot->model : -1;
         }
         if( self->model_id > 0 )
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
         {
             struct ToriRS_Spotanimtype* spot =
                 CacheProvider_SpotanimtypeGet(app->provider, self->spotanim_id);
             self->seq_id = spot ? spot->seq : -1;
         }
         if( self->seq_id >= 0 )
-            TASK_AWAITSELF_IF(
+            PT_TASK_AWAITSELF_IF(
                 CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         app_world_spawn_projectile_spot_now(
             app,
@@ -11493,7 +11493,7 @@ Task_AppSpawn_Run(
          * packet order on the serial exec FIFO. */
         if( self->loc_id >= 0 )
         {
-            TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(app->provider, self->loc_id));
             for( self->model_i = 0;; self->model_i++ )
             {
                 {
@@ -11515,7 +11515,7 @@ Task_AppSpawn_Run(
                         self->model_id = cfg->models[self->model_i][self->loc_model_j];
                     }
                     if( self->model_id >= 0 )
-                        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+                        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
                 }
             }
             {
@@ -11524,7 +11524,7 @@ Task_AppSpawn_Run(
                 self->seq_id = cfg ? cfg->seq_id : -1;
             }
             if( self->seq_id >= 0 )
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         }
         if( app->world_builder && app->world && app->world->load_complete )
@@ -11573,7 +11573,7 @@ Task_AppSpawn_Run(
     }
     else
     {
-        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
         app_world_spawn_projectile_now(
             app,
             self->model_id,
@@ -11646,7 +11646,7 @@ Task_AppIfHead_Run(
 
     if( self->kind == APP_IFHEAD_NPC )
     {
-        TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->npc_id));
         /* Load each head model (re-derived from persistent model_i; -1 slots
          * are skipped — reference NpcType.getHead ignores them). */
         for( self->model_i = 0;; self->model_i++ )
@@ -11656,7 +11656,7 @@ Task_AppIfHead_Run(
                 break;
             if( npc->heads[self->model_i] < 0 )
                 continue;
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, npc->heads[self->model_i]));
         }
         scene_id = UITreeSceneBridge_EnsureNpcHead(&app->bridge, self->npc_id);
     }
@@ -11664,18 +11664,18 @@ Task_AppIfHead_Run(
     {
         /* IF_SETOBJECT: objtype + its inventory model, then the lit interface
          * model (npc_id carries the obj id). */
-        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->npc_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->npc_id));
         {
             struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, self->npc_id);
             if( obj && obj->inventory_model_id > 0 )
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     CreateTask_ModelLoad(app->provider, obj->inventory_model_id));
         }
         scene_id = UITreeSceneBridge_EnsureObjModel(&app->bridge, self->npc_id);
     }
     else if( self->kind == APP_IFHEAD_MODEL )
     {
-        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->npc_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->npc_id));
         scene_id = UITreeSceneBridge_EnsureModel(&app->bridge, self->npc_id);
     }
     else
@@ -11684,7 +11684,7 @@ Task_AppIfHead_Run(
          * then composite (reference ClientPlayer.getHeadModel). The idk configs
          * are usually already resident from the world body build; await the
          * appearance load first as a baseline. */
-        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
         /* Ensure worn-equipment obj configs are resident so their head-model
          * ids (manhead/womanhead) can be gathered below — the body build loads
          * the wear models but never the head models (reference getHeadModel
@@ -11694,7 +11694,7 @@ Task_AppIfHead_Run(
             struct WorldEntity_Player* lp = app_local_player(app);
             int slot = lp ? lp->appearance.slots[self->slot_i] : 0;
             if( Appearance_SlotKind(slot) == APPEARANCE_SLOT_OBJ )
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     CreateTask_ObjLoad(app->provider, Appearance_SlotObj(slot)));
         }
         {
@@ -11705,7 +11705,7 @@ Task_AppIfHead_Run(
                                   : 0;
         }
         for( self->model_i = 0; self->model_i < self->head_count; self->model_i++ )
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->head_ids[self->model_i]));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->head_ids[self->model_i]));
         {
             struct WorldEntity_Player* lp = app_local_player(app);
             if( lp )
@@ -11922,9 +11922,9 @@ Task_AppIfPlayerModel_Run(
      * The task sits on the serial packet executor, preserving wire order while
      * either config load yields. */
     if( self->op == APP_IFPLAYER_BODYTYPE )
-        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
     else if( self->op == APP_IFPLAYER_OBJ )
-        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->arg0));
 
     {
         struct AppIfPlayerModel* model =
@@ -12002,11 +12002,11 @@ Task_AppIfPlayerModel_Run(
     /* Resolve all configs referenced by the snapshot before collecting model
      * ids. PlayerAppearanceLoad supplies the full idk table; worn objects are
      * loaded individually, then every gendered wear model is awaited. */
-    TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+    PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
     for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
     {
         if( Appearance_SlotKind(self->slots[self->cfg_i]) == APPEARANCE_SLOT_OBJ )
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(
                 app->provider, Appearance_SlotObj(self->slots[self->cfg_i])));
     }
     self->model_count = PlayerModel_CollectAppearanceModelIds(
@@ -12016,7 +12016,7 @@ Task_AppIfPlayerModel_Run(
         self->model_ids,
         APP_IFPLAYER_MAX_MODELS);
     for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
-        TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
+        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
 
     {
         struct AppIfPlayerModel* model =
@@ -13567,6 +13567,48 @@ app_world_frame(
         }
     }
     app_world_sync_entity_animations(app);
+    /*
+     * TORIRS_ELEMENT_ALIAS_CHECK=1: assert that no two live world entities
+     * reference the same scene element.
+     *
+     * Scene element ids are recycled, and three separate subsystems key off
+     * them -- the model (AppEntitySpotanim), the animation (AppSeqBindPending)
+     * and the POSITION written every frame from the entity that owns the
+     * element. If a despawn ever leaves an entity holding an id that has since
+     * been handed to somebody else, both write to it: the survivor's model gets
+     * swapped, its animation replaced, and it is dragged around by the other
+     * entity's movement. "I called my familiar and the Queen's head moved with
+     * me" is that last symptom. The first two are fixed by identity checks; this
+     * detector is what proves whether the underlying aliasing still happens.
+     */
+    if( app->world && getenv("TORIRS_ELEMENT_ALIAS_CHECK") )
+    {
+        struct World_EntityPool* pools[2] = { &app->world->entities.player,
+                                              &app->world->entities.npc };
+        static int seen_element[8192];
+        static int seen_kind[8192];
+        static int stamp = 0;
+        stamp++;
+        for( int k = 0; k < 2; k++ )
+        {
+            for( int i = World_EntityPoolHead(pools[k]); i != WORLD_ENTITY_NIL;
+                 i = World_EntityPoolNext(pools[k], i) )
+            {
+                /* Both entity structs open with `int element_id`. */
+                int const el = *(int const*)World_EntityPoolGet(pools[k], i);
+                if( el < 0 || el >= (int)(sizeof(seen_element) / sizeof(seen_element[0])) )
+                    continue;
+                if( seen_element[el] == stamp )
+                    fprintf(
+                        stderr,
+                        "element_alias: element=%d claimed by TWO live entities "
+                        "(kinds %d and %d) -- position/model/anim will fight\n",
+                        el, seen_kind[el], k);
+                seen_element[el] = stamp;
+                seen_kind[el] = k;
+            }
+        }
+    }
     app_world_sync_entity_spotanims(app);
 
     /* Expire P_LOCMERGE markers once the ride window ends. */

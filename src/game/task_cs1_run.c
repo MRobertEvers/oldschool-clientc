@@ -178,7 +178,7 @@ Task_CS1Eval_Run(
 
             if( self->yield_plan == TASK_CS1_YIELD_COMPONENT )
             {
-                TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
+                PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
             }
             else
             {

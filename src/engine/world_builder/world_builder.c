@@ -78,12 +78,73 @@ world_builder_mark_element_keep(
         keep[element_id] = 1;
 }
 
+/*
+ * Claim `element_id` for one entity, and break the claim if somebody already
+ * holds it.
+ *
+ * A scene element has exactly one owner. Element ids are RECYCLED, and three
+ * subsystems act on the owner's id every frame: the model
+ * (AppEntitySpotanim), the deferred animation bind (AppSeqBindPending) and the
+ * POSITION, which is written straight from the owning entity. So two entities
+ * holding one id do not merely confuse a lookup -- they fight over the element,
+ * and the loser is dragged around wearing the winner's model. That is what
+ * "I called my familiar and the Queen's model followed me, and her head moved
+ * with me" is: one element, two claimants.
+ *
+ * Resolved in favour of the FIRST entity seen, because it is the one the
+ * element's current contents were built for; the later claimant is reset to
+ * "no element", which every consumer already treats as "draw and update
+ * nothing" rather than as a wrong target. An entity pointing at an id that is
+ * not live is cleared for the same reason -- it can only become a false claim
+ * the moment that id is handed out again.
+ *
+ * Deliberately a repair rather than an assert: this runs on the map rebuild,
+ * which is when the client can least afford to die, and a silently wrong owner
+ * is far worse than one entity missing its model for a frame. It reports every
+ * repair, because a repair here means some producer let the two references
+ * diverge and that producer is still the real defect.
+ */
+static void
+world_builder_claim_element(
+    struct ToriDraw_Scene* scene,
+    int* claimed_by,
+    uint8_t* keep,
+    int* element_id_field,
+    int owner_tag)
+{
+    int const id = *element_id_field;
+
+    if( id < 0 )
+        return;
+    if( id >= TORIDRAW_SCENE_MAX_ELEMENTS || !ToriDraw_SceneElementIsLive(scene, id) )
+    {
+        fprintf(
+            stderr, "world_builder: entity %#x referenced dead element %d - cleared\n",
+            owner_tag, id);
+        *element_id_field = -1;
+        return;
+    }
+    if( claimed_by[id] >= 0 )
+    {
+        fprintf(
+            stderr,
+            "world_builder: element %d claimed by entities %#x and %#x - the second is "
+            "cleared (they would fight over its model, animation and position)\n",
+            id, claimed_by[id], owner_tag);
+        *element_id_field = -1;
+        return;
+    }
+    claimed_by[id] = owner_tag;
+    world_builder_mark_element_keep(keep, id);
+}
+
 static void
 world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
 {
     struct World* world;
     struct ToriDraw_Scene* scene;
     uint8_t* keep;
+    int* claimed_by;
     struct World_EntityPool* pool;
     int id;
     int next;
@@ -95,6 +156,10 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
 
     keep = (uint8_t*)calloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS, 1);
     assert(keep && "world_builder_reconcile_dynamic_elements: keep bitmap");
+    claimed_by = (int*)malloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
+    assert(claimed_by && "world_builder_reconcile_dynamic_elements: claim map");
+    for( int ci = 0; ci < TORIDRAW_SCENE_MAX_ELEMENTS; ci++ )
+        claimed_by[ci] = -1;
 
     pool = &world->entities.player;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -102,7 +167,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
     {
         struct WorldEntity_Player* p = World_EntityPoolGet(pool, i);
         if( p )
-            world_builder_mark_element_keep(keep, p->element_id);
+            world_builder_claim_element(scene, claimed_by, keep, &p->element_id, 0x10000 | i);
     }
     pool = &world->entities.npc;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -110,7 +175,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
     {
         struct WorldEntity_NPC* n = World_EntityPoolGet(pool, i);
         if( n )
-            world_builder_mark_element_keep(keep, n->element_id);
+            world_builder_claim_element(scene, claimed_by, keep, &n->element_id, 0x20000 | i);
     }
     pool = &world->entities.obj_stack;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -118,7 +183,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
     {
         struct WorldEntity_ObjStack* s = World_EntityPoolGet(pool, i);
         if( s )
-            world_builder_mark_element_keep(keep, s->element_id);
+            world_builder_claim_element(scene, claimed_by, keep, &s->element_id, 0x30000 | i);
     }
     pool = &world->entities.projectile;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -126,7 +191,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
     {
         struct WorldEntity_Projectile* p = World_EntityPoolGet(pool, i);
         if( p )
-            world_builder_mark_element_keep(keep, p->element_id);
+            world_builder_claim_element(scene, claimed_by, keep, &p->element_id, 0x40000 | i);
     }
     pool = &world->entities.spotanim;
     for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
@@ -134,7 +199,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
     {
         struct WorldEntity_Spotanim* s = World_EntityPoolGet(pool, i);
         if( s )
-            world_builder_mark_element_keep(keep, s->element_id);
+            world_builder_claim_element(scene, claimed_by, keep, &s->element_id, 0x50000 | i);
     }
 
     for( id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL; id = next )
@@ -148,6 +213,7 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
         if( !keep[id] )
             ToriDraw_SceneElementRemove(scene, id);
     }
+    free(claimed_by);
     free(keep);
 }
 

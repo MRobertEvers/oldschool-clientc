@@ -274,11 +274,11 @@ Task_ObjModelLoad_Run(
         if( obj_id <= 0 )
             continue;
 
-        TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, obj_id));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, obj_id));
 
         self->count_obj_id = obj_model_resolve_count_obj_id(self->provider, obj_id, count);
         if( self->count_obj_id > 0 )
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->count_obj_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->count_obj_id));
 
         /* Bank note: pull in the cert template objtype whose model it borrows
          * (base obj/count obj are resident now, so render-id resolves). */
@@ -286,7 +286,7 @@ Task_ObjModelLoad_Run(
             self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
         if( self->render_obj_id > 0 && self->render_obj_id != obj_id &&
             self->render_obj_id != self->count_obj_id )
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->render_obj_id));
 
         /* Bank note: also load the base item (cert_link) objtype + its model +
          * textures — the icon composites the base's icon over the note paper. */
@@ -294,11 +294,11 @@ Task_ObjModelLoad_Run(
             self->provider, self->count_obj_id > 0 ? self->count_obj_id : obj_id);
         if( self->base_obj_id > 0 )
         {
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->base_obj_id));
             self->base_model_id =
                 obj_model_objtype_model_id(self->provider, self->base_obj_id);
             if( self->base_model_id > 0 )
-                TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->base_model_id));
+                PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->base_model_id));
             for( self->base_tex_f = 0;
                  self->base_tex_f < obj_model_face_count(self->provider, self->base_model_id);
                  self->base_tex_f++ )
@@ -307,14 +307,14 @@ Task_ObjModelLoad_Run(
                     self->provider, self->base_model_id, self->base_tex_f);
                 if( base_texture_id >= 0 &&
                     !CacheProvider_TextureHas(self->provider, base_texture_id) )
-                    TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, base_texture_id));
+                    PT_TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, base_texture_id));
             }
         }
 
         self->model_id =
             obj_model_resolve_inventory_model_id(self->provider, obj_id, self->count_obj_id);
         if( self->model_id > 0 )
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_id));
 
         /* One attempt per face: a texture whose load fails stays missing and
          * the icon raster skips those faces instead of looping here. */
@@ -325,7 +325,7 @@ Task_ObjModelLoad_Run(
             int texture_id =
                 obj_model_face_texture(self->provider, self->model_id, self->tex_f);
             if( texture_id >= 0 && !CacheProvider_TextureHas(self->provider, texture_id) )
-                TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, texture_id));
+                PT_TASK_AWAITSELF_IF(CreateTask_TextureLoad(self->provider, texture_id));
         }
     }
 

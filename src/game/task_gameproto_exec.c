@@ -193,7 +193,7 @@ Task_GameProtoExec_Run(
         /* on_done is NULL: we await the load and run the tail ourselves
          * below, so the entity shift can land between the scene swap and
          * App_WorldLoadFinish (which the shift must precede). */
-        TASK_AWAITSELF_IF(CreateTask_WorldLoad(
+        PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
             app->provider, app->world_builder, self->chunks, self->chunk_count,
             self->zone_x, self->zone_z, self->packet._map_rebuild.zones, NULL, NULL));
         /* The load's final step swapped the scene synchronously (same
@@ -214,8 +214,8 @@ Task_GameProtoExec_Run(
         self->pending_obj_id = self->packet.packet_type == PKT_NAME_OBJ_ADD
                                    ? self->packet._obj_add.obj_id
                                    : self->packet._obj_reveal.obj_id;
-        TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->pending_obj_id));
-        TASK_AWAITSELF_IF(obj_ground_model_task(self));
+        PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->pending_obj_id));
+        PT_TASK_AWAITSELF_IF(obj_ground_model_task(self));
         {
             struct RS_GameProtoCtx ctx = {
                 .tree = app->tree,
@@ -238,8 +238,8 @@ Task_GameProtoExec_Run(
                 zone_entry_obj_id(&self->packet._update_zone_enclosed.entries[self->zone_i]);
             if( self->pending_obj_id < 0 )
                 continue;
-            TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->pending_obj_id));
-            TASK_AWAITSELF_IF(obj_ground_model_task(self));
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(app->provider, self->pending_obj_id));
+            PT_TASK_AWAITSELF_IF(obj_ground_model_task(self));
         }
         {
             struct RS_GameProtoCtx ctx = {
@@ -256,12 +256,12 @@ Task_GameProtoExec_Run(
     }
     else if( self->packet.packet_type == PKT_NAME_PLAYER_INFO && app->world_active )
     {
-        TASK_AWAITSELF_IF(CreateTask_ExecPlayerInfo(
+        PT_TASK_AWAITSELF_IF(CreateTask_ExecPlayerInfo(
             app, self->packet._player_info.data, self->packet._player_info.length));
     }
     else if( self->packet.packet_type == PKT_NAME_NPC_INFO && app->world_active )
     {
-        TASK_AWAITSELF_IF(CreateTask_ExecNpcInfo(
+        PT_TASK_AWAITSELF_IF(CreateTask_ExecNpcInfo(
             app, self->packet._npc_info.data, self->packet._npc_info.length));
     }
     else

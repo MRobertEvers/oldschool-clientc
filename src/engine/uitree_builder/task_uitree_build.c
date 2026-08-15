@@ -133,11 +133,11 @@ Task_UITreeBuild_Run(
     }
 
     /* 2. Load every cache asset the manifest needs. */
-    TASK_AWAITSELF(CreateTask_UIBuilderAssetsLoad(self->builder, &self->manifest));
+    PT_TASK_AWAITSELF(CreateTask_UIBuilderAssetsLoad(self->builder, &self->manifest));
 
     /* 2b. Client-hardcoded sprites (compass, cross, hitmarks, …) — no INI node
      * owns these, so they bind to bridge slots instead of tree nodes. */
-    TASK_AWAITSELF_IF(
+    PT_TASK_AWAITSELF_IF(
         CreateTask_StaticSpritesLoad(self->builder->provider, self->builder->bridge));
 
     /* 2c. Inventory models for objs the containers already hold, then their
@@ -145,7 +145,7 @@ Task_UITreeBuild_Run(
      * the first inv transmit — the interface-open path did this and the
      * config-driven one has to as well. */
     collect_seed_objs(self);
-    TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(
+    PT_TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(
         self->builder->provider, self->seed_obj_ids, NULL, self->seed_obj_count));
     bind_seed_obj_icons(self);
 
@@ -185,7 +185,7 @@ Task_UITreeBuild_Run(
                 char const* strp[UITREE_BUILDER_ONLOAD_STR_MAX];
                 for( int si = 0; si < UITREE_BUILDER_ONLOAD_STR_MAX; si++ )
                     strp[si] = hook->strv[si];
-                TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
+                PT_TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
                     self->builder->host,
                     self->script_id,
                     hook->component_id,
@@ -208,8 +208,8 @@ Task_UITreeBuild_Run(
         /* 5. Dispatch initial inv- and var-transmit hooks registered by on_load.
          * The var ones paint the stat/quest/settings panels: without them those
          * tabs mount blank until something happens to change a varp. */
-        TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->builder->host, -1));
-        TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->builder->host, -1));
+        PT_TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->builder->host, -1));
+        PT_TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->builder->host, -1));
     }
 
     /* 6. Player-preview components idle with the player readyanim, not whatever

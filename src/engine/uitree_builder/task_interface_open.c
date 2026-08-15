@@ -526,7 +526,7 @@ Task_InterfaceOpen_Run(
     /* 1. Load interface pack. A live server can open an interface id our local
      * cache does not carry; the load then no-ops and the pack stays absent, so
      * skip the mount gracefully instead of asserting (and crashing the client). */
-    TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->interface_id));
+    PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->interface_id));
     if( !CacheProvider_ComponentPackHas(self->provider, self->interface_id) )
     {
         fprintf(
@@ -537,14 +537,14 @@ Task_InterfaceOpen_Run(
     }
 
     /* 2. Prefetch pack sprites / fonts / models. */
-    TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));
+    PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->interface_id));
 
     /* 2b. Client-hardcoded sprites (scrollbar arrows, compass, cross, …). */
-    TASK_AWAITSELF_IF(CreateTask_StaticSpritesLoad(self->provider, self->bridge));
+    PT_TASK_AWAITSELF_IF(CreateTask_StaticSpritesLoad(self->provider, self->bridge));
 
     /* 3. Load seeded inv objs + inventory models, then rasterize icons. */
     collect_seed_objs(self);
-    TASK_AWAITSELF_IF(
+    PT_TASK_AWAITSELF_IF(
         CreateTask_ObjModelLoad(self->provider, self->seed_obj_ids, NULL, self->seed_obj_count));
     {
         static int const k_containers[] = {
@@ -728,7 +728,7 @@ Task_InterfaceOpen_Run(
             char const* strp[TORIRS_COMPONENT_HOOK_STR_MAX];
             for( int si = 0; si < TORIRS_COMPONENT_HOOK_STR_MAX; si++ )
                 strp[si] = hook->strv[si];
-            TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
+            PT_TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
                 self->host,
                 self->script_id,
                 hook->component_id,
@@ -765,7 +765,7 @@ Task_InterfaceOpen_Run(
             char const* strp[UITREE_HOOK_STR_ARG_MAX];
             for( int si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
                 strp[si] = hook->strv[si];
-            TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
+            PT_TASK_AWAITSELF_IF(CreateTask_CS2RunMixed(
                 self->host,
                 hook->script_id,
                 hook->component_id,
@@ -780,8 +780,8 @@ Task_InterfaceOpen_Run(
     }
 
     /* 9. Inv + var transmit hooks registered during onLoad/onSubChange. */
-    TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
-    TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
+    PT_TASK_AWAITSELF_IF(CreateTask_CS2InvTransmitDispatch(self->host, -1));
+    PT_TASK_AWAITSELF_IF(CreateTask_CS2VarTransmitDispatch(self->host, -1));
 
     /* 9b. Player-preview components idle with the player readyanim, not whatever
      * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */

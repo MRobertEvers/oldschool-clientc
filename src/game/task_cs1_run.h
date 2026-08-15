@@ -11,7 +11,7 @@ struct RS_CS1Host;
  *
  * Sets host->eval_dirty when a cached result changed, so the caller knows a
  * redraw is needed. Returns NULL when there is nothing to evaluate — callers
- * use TASK_AWAITSELF_IF.
+ * use PT_TASK_AWAITSELF_IF.
  */
 struct ToriRS_Task*
 CreateTask_CS1Eval(struct RS_CS1Host* host);

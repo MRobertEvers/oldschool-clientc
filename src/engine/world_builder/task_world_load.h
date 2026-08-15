@@ -28,7 +28,7 @@ struct ToriRS_Task;
  * on_done (may be NULL) is invoked once, synchronously, at the tail of the load
  * — after the rebuild and load-complete, before the task frees. It is how a
  * caller runs "the load landed" work without polling: the fire-and-forget path
- * supplies it; a caller that instead awaits this task (TASK_AWAITSELF_IF) can
+ * supplies it; a caller that instead awaits this task (PT_TASK_AWAITSELF_IF) can
  * leave it NULL and run its own tail after the await returns.
  */
 struct ToriRS_Task*

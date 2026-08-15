@@ -131,19 +131,19 @@ Task_PackAssetsLoad_Run(
     }
 
     for( self->i = 0; self->i < self->sprite_count; self->i++ )
-        TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->sprite_ids[self->i]));
+        PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->sprite_ids[self->i]));
 
     for( self->i = 0; self->i < self->font_count; self->i++ )
-        TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->font_ids[self->i]));
+        PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->font_ids[self->i]));
 
     for( self->i = 0; self->i < self->model_count; self->i++ )
-        TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_ids[self->i]));
+        PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->model_ids[self->i]));
 
     for( self->i = 0; self->i < self->npc_count; self->i++ )
-        TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->npc_ids[self->i]));
+        PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->npc_ids[self->i]));
 
     if( self->needs_player )
-        TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider));
+        PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(self->provider));
 
     PT_END(&self->pt);
 }

@@ -119,7 +119,7 @@ Task_PlayerAppearanceLoad_Run(
     for( self->scan_i = 0; self->scan_i < PLAYER_IDK_SCAN_MAX; self->scan_i++ )
     {
         if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
-            TASK_AWAITSELF_IF(CreateTask_IdkLoad(self->provider, self->scan_i));
+            PT_TASK_AWAITSELF_IF(CreateTask_IdkLoad(self->provider, self->scan_i));
         if( !CacheProvider_IdkHas(self->provider, self->scan_i) )
             break;
         player_try_record_kit(self, self->scan_i);
@@ -146,7 +146,7 @@ Task_PlayerAppearanceLoad_Run(
              self->model_i < player_kit_model_count(self->provider, self->kits[self->model_part]);
              self->model_i++ )
         {
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(
                 self->provider,
                 player_kit_model_id(self->provider, self->kits[self->model_part], self->model_i)));
         }

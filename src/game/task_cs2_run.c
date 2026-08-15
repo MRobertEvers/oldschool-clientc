@@ -931,7 +931,7 @@ Task_CS2Run_Run(
         if( !CacheProvider_ClientScriptHas(self->provider, self->script_id) )
         {
             self->await_id = self->script_id;
-            TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
         }
         self->script = CacheProvider_ClientScriptGet(self->provider, self->script_id);
         if( !self->script )
@@ -1115,55 +1115,55 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_SCRIPT )
         {
-            TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_ENUM )
         {
-            TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_EnumLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_WORLDMAP )
         {
-            TASK_AWAITSELF_IF(CreateTask_WorldMapLoad(self->provider));
+            PT_TASK_AWAITSELF_IF(CreateTask_WorldMapLoad(self->provider));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_MAPELEMENT )
         {
-            TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_MapElementLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJALL )
         {
-            TASK_AWAITSELF_IF(CreateTask_ObjLoadAll(self->provider));
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjLoadAll(self->provider));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_STRUCT )
         {
             if( self->await_id >= 0 )
-                TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
+                PT_TASK_AWAITSELF_IF(CreateTask_StructLoad(self->provider, self->await_id));
             if( self->await_id2 >= 0 )
-                TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_DBROW )
         {
-            TASK_AWAITSELF_IF(CreateTask_DbRowLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_DbRowLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_DBINDEX )
         {
-            TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_DbTableIndexLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_DBTABLE )
         {
-            TASK_AWAITSELF_IF(CreateTask_DbTableLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_DbTableLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_OBJ )
         {
             if( self->await_id >= 0 )
-                TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
+                PT_TASK_AWAITSELF_IF(CreateTask_ObjLoad(self->provider, self->await_id));
             if( self->await_id2 >= 0 )
-                TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_COMPONENT )
         {
             assert(self->host->tree);
-            TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
-            TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ComponentPackLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(self->provider, self->await_id));
             task_cs2_bake_pack(self);
             if( !CacheProvider_ComponentPackHas(self->provider, self->await_id) )
             {
@@ -1173,17 +1173,17 @@ Task_CS2Run_Run(
         }
         else if( self->yield_plan == TASK_CS2_YIELD_MODEL )
         {
-            TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC )
         {
-            TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC_HEAD )
         {
             /* IF1 Task_AppIfHead parity: npctype first, then each chathead model.
              * Re-fetch the npctype after every await — the pointer may move. */
-            TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
             for( self->yield_i = 0;; self->yield_i++ )
             {
                 struct ToriRS_Npctype* npc =
@@ -1192,7 +1192,7 @@ Task_CS2Run_Run(
                     break;
                 if( npc->heads[self->yield_i] < 0 )
                     continue;
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     CreateTask_ModelLoad(self->provider, npc->heads[self->yield_i]));
             }
         }
@@ -1202,15 +1202,15 @@ Task_CS2Run_Run(
             int counts[1];
             ids[0] = self->yield_obj_id;
             counts[0] = self->yield_obj_count;
-            TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(self->provider, ids, counts, 1));
+            PT_TASK_AWAITSELF_IF(CreateTask_ObjModelLoad(self->provider, ids, counts, 1));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_SPRITE )
         {
-            TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_FONT )
         {
-            TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->provider, self->await_id));
         }
         /* TASK_CS2_YIELD_NONE: expected no-op (clear ids). Re-enter ThreadRun. */
     }
@@ -1522,7 +1522,7 @@ Task_CS2InvTransmitDispatch_Run(
                 str_ptrs[si] = hook->str_args[si];
             /* CreateTask copies the strings immediately, so the locals need
              * not survive the protothread yield. */
-            TASK_AWAITSELF(CreateTask_CS2RunMixed(
+            PT_TASK_AWAITSELF(CreateTask_CS2RunMixed(
                 self->host,
                 hook->script_id,
                 hook->component_id,
@@ -1673,7 +1673,7 @@ Task_CS2VarTransmitDispatch_Run(
                 str_ptrs[si] = hook->str_args[si];
             /* CreateTask copies the strings immediately, so the locals need
              * not survive the protothread yield. */
-            TASK_AWAITSELF(CreateTask_CS2RunMixed(
+            PT_TASK_AWAITSELF(CreateTask_CS2RunMixed(
                 self->host,
                 hook->script_id,
                 hook->component_id,
@@ -1852,7 +1852,7 @@ Task_CS2StatTransmitDispatch_Run(
             int si;
             for( si = 0; si < CS2VM_SETON_STR_ARG_MAX; si++ )
                 str_ptrs[si] = hook->str_args[si];
-            TASK_AWAITSELF(CreateTask_CS2RunMixed(
+            PT_TASK_AWAITSELF(CreateTask_CS2RunMixed(
                 self->host,
                 hook->script_id,
                 hook->component_id,
@@ -1967,7 +1967,7 @@ Task_CS2SubChangeDispatch_Run(
             continue;
         for( si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
             strp[si] = hook->strv[si];
-        TASK_AWAITSELF(CreateTask_CS2RunMixed(
+        PT_TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,
@@ -2083,7 +2083,7 @@ Task_CS2MiscTransmitDispatch_Run(
             continue;
         for( si = 0; si < UITREE_HOOK_STR_ARG_MAX; si++ )
             strp[si] = hook->strv[si];
-        TASK_AWAITSELF(CreateTask_CS2RunMixed(
+        PT_TASK_AWAITSELF(CreateTask_CS2RunMixed(
             self->host,
             hook->script_id,
             hook->component_id,

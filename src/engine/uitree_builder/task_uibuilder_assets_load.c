@@ -87,7 +87,7 @@ Task_UIBuilderAssetsLoad_Run(
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
         if( req->archive_id >= 0 )
         {
-            TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
         }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {
@@ -107,7 +107,7 @@ Task_UIBuilderAssetsLoad_Run(
                 .transform = (char const(*)[64])req->transform,
                 .transform_count = req->transform_count,
             };
-            TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->builder->provider, &src));
+            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->builder->provider, &src));
         }
     }
     /* Re-register dat1 sprites with their assigned provider ids so bake's
@@ -135,9 +135,9 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
         if( req->archive_id >= 0 )
-            TASK_AWAITSELF_IF(CreateTask_FontLoad(self->builder->provider, req->archive_id));
+            PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->builder->provider, req->archive_id));
         else if( req->cache_font_id >= 0 && req->font_name[0] != '\0' )
-            TASK_AWAITSELF_IF(CreateTask_FontLoadByName(
+            PT_TASK_AWAITSELF_IF(CreateTask_FontLoadByName(
                 self->builder->provider, req->font_name, req->cache_font_id));
     }
 
@@ -145,7 +145,7 @@ Task_UIBuilderAssetsLoad_Run(
     collect_unique_objs(self);
     for( self->i = 0; self->i < self->unique_obj_count; self->i++ )
     {
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CreateTask_ObjLoad(self->builder->provider, self->unique_objs[self->i]));
     }
 
@@ -153,11 +153,11 @@ Task_UIBuilderAssetsLoad_Run(
      * awaits — index through self each time. */
     for( self->i = 0; self->i < self->manifest->component_count; self->i++ )
     {
-        TASK_AWAITSELF_IF(CreateTask_ComponentLoad(
+        PT_TASK_AWAITSELF_IF(CreateTask_ComponentLoad(
             self->builder->provider, self->manifest->components[self->i].packed_id));
         /* Prefetch pack-referenced assets (MODEL widgets especially; dat1 sprite
          * refs resolve during the pack load itself, so those awaits no-op). */
-        TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(
+        PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(
             self->builder->provider, self->manifest->components[self->i].iface_id));
     }
 

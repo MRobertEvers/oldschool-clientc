@@ -8,7 +8,7 @@ struct CacheProvider;
 /**
  * Load objtypes and their inventory models (count-variant aware).
  * counts may be NULL (every stack count treated as 1).
- * Returns NULL if n <= 0 or nothing needs loading — callers use TASK_AWAITSELF_IF.
+ * Returns NULL if n <= 0 or nothing needs loading — callers use PT_TASK_AWAITSELF_IF.
  */
 struct ToriRS_Task*
 CreateTask_ObjModelLoad(

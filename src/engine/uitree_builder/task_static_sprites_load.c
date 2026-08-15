@@ -63,7 +63,7 @@ Task_StaticSpritesLoad_Run(
                 self->provider, StaticSprite_Def((enum StaticSpriteSlot)self->slot)) < 0 &&
             StaticSprite_Def((enum StaticSpriteSlot)self->slot)->dat2_name )
         {
-            TASK_AWAITSELF_IF(CreateTask_SpriteLoadByName(
+            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadByName(
                 self->provider,
                 StaticSprite_Def((enum StaticSpriteSlot)self->slot)->dat2_name));
         }
@@ -86,7 +86,7 @@ Task_StaticSpritesLoad_Run(
             src.index_filename = "index.dat";
             src.atlas_index = 0;
             src.atlas_count = def->dat1_atlas_count;
-            TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->provider, &src));
+            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->provider, &src));
         }
 
         {

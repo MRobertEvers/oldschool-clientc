@@ -292,9 +292,7 @@ struct Task_ExecPlayerInfo
     int old_list[RS_ENTITY_SYNC_MAX_PLAYERS];
     int old_count;
 
-    int cur_pid;       /* server slot the following ops target; -1 = none */
-    int cur_world_idx; /* resolved world pool index for cur_pid; -1 = none */
-    int cur_element_id;
+    int cur_pid; /* server slot the following ops target; -1 = none */
     int need_ensure;
 
     struct PktPlayerAppearance app_decoded;
@@ -307,6 +305,31 @@ struct Task_ExecPlayerInfo
     int pending_delay;
     int held_vals[2]; /* replaceheld left/right, as canonical appearance slots */
 };
+
+/*
+ * Resolve the current target's world-pool index (and optionally its scene
+ * element) from `cur_pid`, at the point of use.
+ *
+ * Deliberately NOT cached on the task. This function body spans
+ * PT_TASK_AWAITSELF_IF suspensions, and world-pool indices and scene element
+ * ids are recycled across them -- a value resolved before an await can name a
+ * different player afterwards while still looking valid. `cur_pid` is the only
+ * identity stable across a suspension, so everything derives from it here and
+ * nothing derived is allowed to outlive the expression that used it. The scan
+ * is linear over the tracked entities, a handful per packet.
+ */
+static inline int
+player_target(struct Task_ExecPlayerInfo* self, int* out_element_id)
+{
+    int world_idx = -1;
+    int element_id = -1;
+
+    if( self->cur_pid >= 0 )
+        RS_EntitySync_FindPlayer(&self->app->esync, self->cur_pid, &world_idx, &element_id);
+    if( out_element_id )
+        *out_element_id = element_id;
+    return world_idx;
+}
 
 static int
 local_player_pid(struct RS_EntitySync const* esync)
@@ -411,8 +434,6 @@ player_target_op(
         if( pid >= 0 )
             RS_EntitySync_RemovePlayer(esync, self->app->world, pid);
         self->cur_pid = -1;
-        self->cur_world_idx = -1;
-        self->cur_element_id = -1;
         return 1;
     }
     case PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID:
@@ -421,8 +442,6 @@ player_target_op(
          * previous packet's tracked list. */
         RS_EntitySync_RemovePlayer(esync, self->app->world, (int)op->_bitvalue);
         self->cur_pid = -1;
-        self->cur_world_idx = -1;
-        self->cur_element_id = -1;
         return 1;
     case PKT_PLAYER_INFO_OPBITS_COUNT_RESET:
     {
@@ -443,13 +462,9 @@ player_target_op(
         return 0; /* not a target op */
     }
 
-    /* Target changed: resolve, flag a spawn when unknown. */
-    self->cur_world_idx = -1;
-    self->cur_element_id = -1;
-    self->need_ensure = 0;
-    if( self->cur_pid >= 0 &&
-        !RS_EntitySync_FindPlayer(esync, self->cur_pid, &self->cur_world_idx, &self->cur_element_id) )
-        self->need_ensure = 1;
+    /* Target changed: flag a spawn when the pid resolves to nothing. */
+    (void)esync;
+    self->need_ensure = (self->cur_pid >= 0 && player_target(self, NULL) < 0) ? 1 : 0;
     return 1;
 }
 
@@ -474,11 +489,9 @@ player_ensure_now(struct Task_ExecPlayerInfo* self)
         if( player )
         {
             player->server_pid = self->cur_pid;
-            self->cur_element_id = player->element_id;
+            RS_EntitySync_RegisterPlayer(&app->esync, self->cur_pid, player->element_id, idx);
         }
     }
-    self->cur_world_idx = idx;
-    RS_EntitySync_RegisterPlayer(&app->esync, self->cur_pid, self->cur_element_id, idx);
     entity_debug_log("entity_sync: player %d spawned (world idx %d)\n", self->cur_pid, idx);
 }
 
@@ -491,7 +504,7 @@ player_apply_op(
 {
     struct App* app = self->app;
     struct World* world = app->world;
-    int idx = self->cur_world_idx;
+    int idx = player_target(self, NULL);
 
     if( idx < 0 )
         return PLAYER_NEED_NONE;
@@ -827,8 +840,6 @@ Task_ExecPlayerInfo_Run(
         (size_t)self->old_count * sizeof(self->old_list[0]));
     app->esync.active_player_count = 0;
     self->cur_pid = -1;
-    self->cur_world_idx = -1;
-    self->cur_element_id = -1;
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
     {
@@ -836,8 +847,8 @@ Task_ExecPlayerInfo_Run(
 
         if( self->need_ensure )
         {
-            TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
-            TASK_AWAITSELF_IF(
+            PT_TASK_AWAITSELF_IF(CreateTask_PlayerAppearanceLoad(app->provider));
+            PT_TASK_AWAITSELF_IF(
                 CreateTask_SequenceLoad(app->provider, app->scene, PLAYER_DEFAULT_SEQ_READY));
             player_ensure_now(self);
         }
@@ -849,7 +860,7 @@ Task_ExecPlayerInfo_Run(
             {
                 for( self->cfg_i = 0; self->cfg_i < 12; self->cfg_i++ )
                 {
-                    TASK_AWAITSELF_IF(player_slot_cfg_task(self));
+                    PT_TASK_AWAITSELF_IF(player_slot_cfg_task(self));
                 }
                 self->model_count = PlayerModel_CollectAppearanceModelIds(
                     app->provider,
@@ -859,20 +870,31 @@ Task_ExecPlayerInfo_Run(
                     (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
                 for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
                 {
-                    TASK_AWAITSELF_IF(
+                    PT_TASK_AWAITSELF_IF(
                         CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
                 }
                 for( self->seq_i = 0; self->seq_i < 7; self->seq_i++ )
                 {
-                    TASK_AWAITSELF_IF(player_appearance_seq_task(self));
+                    PT_TASK_AWAITSELF_IF(player_appearance_seq_task(self));
                 }
-                if( self->cur_world_idx >= 0 )
-                    App_WorldApplyPlayerAppearance(
-                        app, self->cur_world_idx, self->cur_element_id, &self->app_decoded);
+                /* Re-resolve after the yields, for the same reason the npc
+                 * path does: world pool indices and scene element ids are
+                 * recycled, and the awaits above let the world move underneath
+                 * the pair cached before them. `cur_pid` is the stable
+                 * identity. Applying a stale pair here dresses some other
+                 * player in this one's appearance. */
+                /* Resolved AFTER the awaits above, never before them. */
+                {
+                    int element_id;
+                    int const world_idx = player_target(self, &element_id);
+                    if( world_idx >= 0 )
+                        App_WorldApplyPlayerAppearance(
+                            app, world_idx, element_id, &self->app_decoded);
+                }
             }
             else if( need == PLAYER_NEED_SEQ )
             {
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     self->pending_seq >= 0
                         ? CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq)
                         : NULL);
@@ -902,7 +924,7 @@ Task_ExecPlayerInfo_Run(
                  * slots, so only an obj-range one names an obj; anything lower
                  * hides the item and needs no model. */
                 for( self->cfg_i = 0; self->cfg_i < 2; self->cfg_i++ )
-                    TASK_AWAITSELF_IF(
+                    PT_TASK_AWAITSELF_IF(
                         Appearance_SlotKind(self->held_vals[self->cfg_i]) ==
                                 APPEARANCE_SLOT_OBJ
                             ? CreateTask_ObjLoad(
@@ -913,7 +935,7 @@ Task_ExecPlayerInfo_Run(
                  * left hand — same appearance encoding the swap feeds the build). */
                 {
                     struct WorldEntity_Player* held_player = World_EntityPoolGet(
-                        &app->world->entities.player, self->cur_world_idx);
+                        &app->world->entities.player, player_target(self, NULL));
                     int held_slots[12];
                     for( int k = 0; k < 12; k++ )
                         held_slots[k] = -1;
@@ -933,12 +955,15 @@ Task_ExecPlayerInfo_Run(
                         (int)(sizeof(self->model_ids) / sizeof(self->model_ids[0])));
                 }
                 for( self->model_i = 0; self->model_i < self->model_count; self->model_i++ )
-                    TASK_AWAITSELF_IF(
+                    PT_TASK_AWAITSELF_IF(
                         CreateTask_ModelLoad(app->provider, self->model_ids[self->model_i]));
 
-                if( self->cur_world_idx >= 0 )
-                    World_PlayerSetPrimaryAnimation(
-                        app->world, self->cur_world_idx, self->pending_seq, self->pending_delay);
+                {
+                    int const world_idx = player_target(self, NULL);
+                    if( world_idx >= 0 )
+                        World_PlayerSetPrimaryAnimation(
+                            app->world, world_idx, self->pending_seq, self->pending_delay);
+                }
             }
         }
     }
@@ -1012,8 +1037,6 @@ struct Task_ExecNpcInfo
     int old_count;
 
     int cur_slot;
-    int cur_world_idx;
-    int cur_element_id;
 
     int pending_npc_type;
     int model_i;
@@ -1113,17 +1136,35 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
     }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
+        int element_id = -1;
         if( npc )
         {
             npc->server_slot = self->cur_slot;
-            self->cur_element_id = npc->element_id;
+            element_id = npc->element_id;
+            RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, element_id, idx);
         }
+        npc_trace(
+            app, self->pending_npc_type, self->cur_slot, -1, idx, element_id, "SPAWNED", 1);
     }
-    self->cur_world_idx = idx;
-    RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, self->cur_element_id, idx);
-    npc_trace(
-        app, self->pending_npc_type, self->cur_slot, -1, idx, self->cur_element_id, "SPAWNED", 1);
     entity_debug_log("entity_sync: npc %d spawned (world idx %d)\n", self->cur_slot, idx);
+}
+
+/*
+ * Resolve the current target's world-pool index (and optionally its scene
+ * element) from `cur_slot`, at the point of use. See player_target above for
+ * why this is never cached across a PT_TASK_AWAITSELF_IF suspension.
+ */
+static inline int
+npc_target(struct Task_ExecNpcInfo* self, int* out_element_id)
+{
+    int world_idx = -1;
+    int element_id = -1;
+
+    if( self->cur_slot >= 0 )
+        RS_EntitySync_FindNpc(&self->app->esync, self->cur_slot, &world_idx, &element_id);
+    if( out_element_id )
+        *out_element_id = element_id;
+    return world_idx;
 }
 
 /* Target/list bookkeeping. Returns 1 when the op was fully handled. */
@@ -1185,8 +1226,6 @@ npc_target_op(
             RS_EntitySync_RemoveNpc(esync, self->app->world, slot);
         }
         self->cur_slot = -1;
-        self->cur_world_idx = -1;
-        self->cur_element_id = -1;
         return 1;
     }
     case PKT_NPC_INFO_OPBITS_COUNT_RESET:
@@ -1215,14 +1254,14 @@ npc_target_op(
         return 0;
     }
 
-    self->cur_world_idx = -1;
-    self->cur_element_id = -1;
-    if( self->cur_slot >= 0 )
-        RS_EntitySync_FindNpc(esync, self->cur_slot, &self->cur_world_idx, &self->cur_element_id);
-    npc_trace(
-        self->app, npc_trace_type_of(self->app, self->cur_world_idx), self->cur_slot,
-        (int)op->_bitvalue, self->cur_world_idx, self->cur_element_id, "target_op",
-        (int)op->kind);
+    (void)esync;
+    {
+        int element_id;
+        int const world_idx = npc_target(self, &element_id);
+        npc_trace(
+            self->app, npc_trace_type_of(self->app, world_idx), self->cur_slot,
+            (int)op->_bitvalue, world_idx, element_id, "target_op", (int)op->kind);
+    }
     return 1;
 }
 
@@ -1233,7 +1272,7 @@ npc_apply_op(
 {
     struct App* app = self->app;
     struct World* world = app->world;
-    int idx = self->cur_world_idx;
+    int idx = npc_target(self, NULL);
 
     switch( op->kind )
     {
@@ -1487,8 +1526,6 @@ Task_ExecNpcInfo_Run(
         (size_t)self->old_count * sizeof(self->old_list[0]));
     app->esync.active_npc_count = 0;
     self->cur_slot = -1;
-    self->cur_world_idx = -1;
-    self->cur_element_id = -1;
 
     for( self->op_i = 0; self->op_i < self->op_count; self->op_i++ )
     {
@@ -1507,37 +1544,63 @@ Task_ExecNpcInfo_Run(
             if( need == NPC_NEED_SPAWN || need == NPC_NEED_CHANGE_TYPE )
             {
                 g_bd_spawns++;
-                TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->pending_npc_type));
+                PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(app->provider, self->pending_npc_type));
                 for( self->model_i = 0; self->model_i < npc_model_count(self); self->model_i++ )
                 {
-                    TASK_AWAITSELF_IF(npc_model_task(self));
+                    PT_TASK_AWAITSELF_IF(npc_model_task(self));
                 }
                 for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
                 {
-                    TASK_AWAITSELF_IF(npc_idle_seq_task(self));
+                    PT_TASK_AWAITSELF_IF(npc_idle_seq_task(self));
                 }
+                /*
+                 * Resolved AFTER the awaits, never before them.
+                 *
+                 * the target's indices used to be resolved before the
+                 * asset awaits, and a world pool index and a scene element id
+                 * are both RECYCLED. Across those yields the client keeps
+                 * running -- entities despawn, pool slots and element ids are
+                 * handed out again -- so by the time the loads land the pair
+                 * may name a completely different creature, and
+                 * App_WorldApplyNpcType would then retype and re-place THAT
+                 * one. A big familiar is the worst case because its models are
+                 * the slowest to load and so hold the longest yield: calling a
+                 * titan in the QBD arena made the Queen jump to the player,
+                 * because she was what those stale indices had come to mean.
+                 *
+                 * `cur_slot` is the server's npc name and is stable across the
+                 * yield, so it is the only thing here worth trusting; resolve
+                 * from it again rather than from what was cached before.
+                 */
                 bd_t = BD_T0();
-                if( self->cur_world_idx < 0 )
                 {
-                    npc_spawn_now(self);
-                    BD_ADD(g_bd_spawn, bd_t);
-                }
-                else
-                {
-                    App_WorldApplyNpcType(
-                        app, self->cur_world_idx, self->cur_element_id, self->pending_npc_type);
-                    BD_ADD(g_bd_retype, bd_t);
+                    int element_id;
+                    int const world_idx = npc_target(self, &element_id);
+                    if( world_idx < 0 )
+                    {
+                        npc_spawn_now(self);
+                        BD_ADD(g_bd_spawn, bd_t);
+                    }
+                    else
+                    {
+                        App_WorldApplyNpcType(
+                            app, world_idx, element_id, self->pending_npc_type);
+                        BD_ADD(g_bd_retype, bd_t);
+                    }
                 }
             }
             else if( need == NPC_NEED_SEQ )
             {
-                TASK_AWAITSELF_IF(
+                PT_TASK_AWAITSELF_IF(
                     self->pending_seq >= 0
                         ? CreateTask_SequenceLoad(app->provider, app->scene, self->pending_seq)
                         : NULL);
-                if( self->cur_world_idx >= 0 )
-                    World_NpcSetPrimaryAnimation(
-                        app->world, self->cur_world_idx, self->pending_seq, self->pending_delay);
+                {
+                    int const world_idx = npc_target(self, NULL);
+                    if( world_idx >= 0 )
+                        World_NpcSetPrimaryAnimation(
+                            app->world, world_idx, self->pending_seq, self->pending_delay);
+                }
             }
         }
     }

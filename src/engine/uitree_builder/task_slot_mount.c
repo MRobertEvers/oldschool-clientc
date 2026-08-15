@@ -43,8 +43,8 @@ Task_SlotMount_Run(
     if( self->iface_id > 0 )
     {
         self->packed_id = uibuilder_pack_component_id(self->iface_id);
-        TASK_AWAITSELF_IF(CreateTask_ComponentLoad(self->builder->provider, self->packed_id));
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(CreateTask_ComponentLoad(self->builder->provider, self->packed_id));
+        PT_TASK_AWAITSELF_IF(
             CreateTask_PackAssetsLoad(self->builder->provider, self->packed_id >> 16));
 
         {

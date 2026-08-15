@@ -117,7 +117,7 @@ Task_SlotMountRefresh_Run(
     struct Task_SlotMountRefresh* self = (struct Task_SlotMountRefresh*)base;
 
     PT_BEGIN(&self->pt);
-    TASK_AWAITSELF_IF(CreateTask_SlotMount(&self->app->builder, self->owner_index, self->iface_id));
+    PT_TASK_AWAITSELF_IF(CreateTask_SlotMount(&self->app->builder, self->owner_index, self->iface_id));
     App_RefreshAfterTreeMutation(self->app);
     PT_END(&self->pt);
 }

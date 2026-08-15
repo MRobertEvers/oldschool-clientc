@@ -10,7 +10,7 @@ struct UITreeSceneBridge;
  * Load every client-hardcoded sprite (StaticSpriteSlot) the cache provides and
  * bind it to its bridge slot. Slots already bound are skipped; archives the
  * era lacks (e.g. mod_icons on dat1) stay unbound at -1.
- * Returns NULL when bridge is NULL — callers use TASK_AWAITSELF_IF.
+ * Returns NULL when bridge is NULL — callers use PT_TASK_AWAITSELF_IF.
  */
 struct ToriRS_Task*
 CreateTask_StaticSpritesLoad(

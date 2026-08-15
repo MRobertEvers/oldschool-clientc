@@ -539,12 +539,32 @@ ToriRS_TaskQueue_Free(struct ToriRS_TaskQueue* queue)
         (ctx)->io->current_slot = -1;                                                              \
     } while( 0 )
 
-#define TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->pt), io, expr)
+/**
+ * PT_ prefix, matching PT_BEGIN/PT_INIT/PT_END: these SUSPEND the protothread.
+ *
+ * The prefix is the point. Control leaves this function here and comes back
+ * later, and "later" is an unbounded amount of client activity: entities spawn
+ * and despawn, and both world-pool indices and scene element ids are RECYCLED
+ * across it. Anything DERIVED from those before the await -- a resolved pool
+ * index, an element id, a pointer into a pool -- may name a different entity
+ * afterwards while still looking perfectly valid, because the task struct
+ * faithfully preserved the integer. That is the trap: hoisting state into
+ * `self->` is what makes a protothread work, and it is also what makes a stale
+ * index indistinguishable from a fresh one.
+ *
+ * Hold the STABLE identity across an await (a server slot or pid) and re-derive
+ * after it; never the derived index. That exact mistake shipped: an npc retype
+ * cached its target's pool index and element id before three of these and
+ * applied them after, so calling a slow-loading familiar re-placed whatever
+ * creature had inherited those indices in the meantime.
+ */
+#define PT_TASK_AWAITSELF(expr) TASK_AWAITEX(&(self->pt), io, expr)
 
 /**
- * Like TASK_AWAITSELF, but skip when child_expr evaluates to NULL
- * (CreateTask_*Load returns NULL when already cached).
+ * Like PT_TASK_AWAITSELF, but skip when child_expr evaluates to NULL
+ * (CreateTask_*Load returns NULL when already cached). Still a suspension
+ * point whenever the expression is non-NULL -- see above.
  */
-#define TASK_AWAITSELF_IF(expr) TASK_AWAITEX_IF(&(self->pt), io, expr)
+#define PT_TASK_AWAITSELF_IF(expr) TASK_AWAITEX_IF(&(self->pt), io, expr)
 
 #endif // ASYNCIO_H

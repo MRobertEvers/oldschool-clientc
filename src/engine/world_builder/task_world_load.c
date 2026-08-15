@@ -223,9 +223,9 @@ Task_WorldLoad_Run(
     /* 1. Map terrain + scenery per chunk. */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
     {
-        TASK_AWAITSELF_IF(CreateTask_MapTerrainLoad(
+        PT_TASK_AWAITSELF_IF(CreateTask_MapTerrainLoad(
             p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
-        TASK_AWAITSELF_IF(CreateTask_MapSceneryLoad(
+        PT_TASK_AWAITSELF_IF(CreateTask_MapSceneryLoad(
             p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
         if( !CacheProvider_MapTerrainHas(
                 p,
@@ -242,13 +242,13 @@ Task_WorldLoad_Run(
     world_load_scan_chunk_refs(self);
 
     for( self->i = 0; self->i < self->underlays.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CacheProvider_UnderlayHas(p, self->underlays.items[self->i])
                 ? NULL
                 : CreateTask_UnderlayLoad(p, self->underlays.items[self->i]));
 
     for( self->i = 0; self->i < self->overlays.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CacheProvider_FlotypeHas(p, self->overlays.items[self->i])
                 ? NULL
                 : CreateTask_FlotypeLoad(p, self->overlays.items[self->i]));
@@ -261,14 +261,14 @@ Task_WorldLoad_Run(
             idset_add(&self->textures, flo->texture);
     }
     for( self->i = 0; self->i < self->textures.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CacheProvider_TextureHas(p, self->textures.items[self->i])
                 ? NULL
                 : CreateTask_TextureLoad(p, self->textures.items[self->i]));
 
     /* 4. Scenery locs, then their models. */
     for( self->i = 0; self->i < self->locs.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CacheProvider_LocationHas(p, self->locs.items[self->i])
                 ? NULL
                 : CreateTask_LocLoad(p, self->locs.items[self->i]));
@@ -283,7 +283,7 @@ Task_WorldLoad_Run(
             break;
 
         for( self->i = 0; self->i < self->locs.count; self->i++ )
-            TASK_AWAITSELF_IF(
+            PT_TASK_AWAITSELF_IF(
                 CacheProvider_LocationHas(p, self->locs.items[self->i])
                     ? NULL
                     : CreateTask_LocLoad(p, self->locs.items[self->i]));
@@ -305,7 +305,7 @@ Task_WorldLoad_Run(
     }
 
     for( self->i = 0; self->i < self->models.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CacheProvider_ModelHas(p, self->models.items[self->i])
                 ? NULL
                 : CreateTask_ModelLoad(p, self->models.items[self->i]));
@@ -338,7 +338,7 @@ Task_WorldLoad_Run(
                 idset_add(&self->textures, loc->retextures_to[r]);
     }
     for( self->i = 0; self->i < self->textures.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CacheProvider_TextureHas(p, self->textures.items[self->i])
                 ? NULL
                 : CreateTask_TextureLoad(p, self->textures.items[self->i]));
@@ -353,7 +353,7 @@ Task_WorldLoad_Run(
             idset_add(&self->seqs, loc->seq_id);
     }
     for( self->i = 0; self->i < self->seqs.count; self->i++ )
-        TASK_AWAITSELF_IF(
+        PT_TASK_AWAITSELF_IF(
             CreateTask_SequenceLoad(p, self->builder->scene, self->seqs.items[self->i]));
 
     fprintf(
