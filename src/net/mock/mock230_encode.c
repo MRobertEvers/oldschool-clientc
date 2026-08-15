@@ -2720,6 +2720,12 @@ put_appearance(
      * stacked upward), which is the older shape. The mask is what goes on the
      * wire because the client is the only consumer; see
      * docs/mock230_player_systems.md §4.
+     *
+     * Eight icons is all this shape can carry, so a caller holding a bit above
+     * 7 loses it here. The only content that does is the Ancient Curses lane
+     * (icons 24..29), and that lane is a rev-239 cache — `put_appearance_v5`
+     * writes an index byte and has the whole range. Widening this field would
+     * change a wire format that is not this lane's to change.
      */
     {
         int headicons = player->headicons;

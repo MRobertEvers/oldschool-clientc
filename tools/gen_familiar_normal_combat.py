@@ -25,8 +25,11 @@ Those four facts settle auto-assist only.  Whether a familiar is ARMED — able
 to swing at a target it already holds, which this port's familiar-panel Attack
 badge can hand it without any of `handleTickActions`' conditions holding — is a
 separate and wider question, and since 2026-08-14 it is derived separately:
-`isCombatFamiliar()` plus a style plus an admitted attack animation, with the
-burden-beast and peaceful exclusions applying to auto-assist alone.
+`isCombatFamiliar()` plus a style plus an admitted attack animation plus a
+stated attack speed, with the burden-beast and peaceful exclusions applying to
+auto-assist alone.  A familiar with no stated attack speed answers no to BOTH
+questions and has its Attack badge hidden — nothing describes how often it would
+swing, so it does not swing at all.
 
 One fact does not come from the 2009scape checkout at all.  How fast a familiar
 swings is not in `npc_configs.json` for 65 of the 78, and nocturne does not
@@ -127,9 +130,8 @@ DEFAULT_ATTACK_SPEED = 5
 #       --npc-only --npc-csv <out>.csv     # `params` column, key 14
 #
 # Every one of the 72 familiar records that states it says **8**, four ticks
-# slower than the five this table used to hand every familiar.  That the whole
-# roster agrees is what makes the six silent records safe to give the same
-# number (see PREEOC_FALLBACK_SPEED below).
+# slower than the five this table used to hand every familiar.  The six that
+# state nothing are not given 8 anyway — see NO_ATTACK_SPEED below.
 #
 # Param 14 is attack speed and not something that merely looks like one: it is
 # what nocturne reads for exactly that purpose, and across the whole rev-727
@@ -497,7 +499,13 @@ def build(source):
         # `is_combat` still gates.  Dropping it would arm Magpie, a Forager
         # whose source record has no combat variant to take stats from at all
         # and whose attack animation is source seq 7810 — the Dreadfowl's.
-        armed = is_combat and bool(style) and bool(attack_seq)
+        #
+        # An attack speed gates too, and is the one of the four that can fail
+        # on its own: the Vampyre bat has a combat variant, a melee style and an
+        # admitted animation, and no record anywhere states how often it swings.
+        # Arming it would mean choosing its cadence here.
+        armed = (is_combat and bool(style) and bool(attack_seq)
+                 and speed is not None)
 
         bonuses = []
         if cfg.get("bonuses"):
@@ -529,9 +537,9 @@ def build(source):
             # engine default for 11 of those.  `attack_speed_source` keeps which
             # of the three answered, so a row that had to be inferred is visible
             # in the audit rather than indistinguishable from a measured one.
-            "attack_speed": preeoc.get(src, PREEOC_FALLBACK_SPEED),
+            "attack_speed": speed if speed is not None else "",
             "attack_speed_source": "preeoc_param14" if src in preeoc
-                                   else "preeoc_roster_uniform",
+                                   else "unstated",
             "attack_speed_530": num(cfg, "attack_speed", DEFAULT_ATTACK_SPEED),
             "attack_level": num(cfg, "attack_level", 0),
             "strength_level": num(cfg, "strength_level", 0),
@@ -775,7 +783,7 @@ def write_table(rows):
 // row is derived from the rev-530 source and audited in
 // docs/summoning_port/familiar_normal_combat_530.csv.
 //
-// The five procs answer two different questions, and a familiar can answer one
+// The six procs answer two different questions, and a familiar can answer one
 // yes and the other no.
 //
 // `~summoning_familiar_auto_assists` is WOULD IT JOIN A FIGHT IT WAS NOT TOLD
@@ -784,23 +792,34 @@ def write_table(rows):
 // burden, foragers and the peaceful pouches answer false, exactly as 2009scape
 // has them answer.
 //
-// The other four are CAN IT SWING AT A TARGET IT ALREADY HOLDS, and they are
-// deliberately wider: any familiar with a combat variant record, a style and an
-// admitted attack animation is armed, auto-assist notwithstanding (2026-08-14
-// design call).  The familiar panel's Attack badge hands a target to any active
+// `~summoning_familiar_armed` and the four fact procs beside it are CAN IT
+// SWING AT A TARGET IT ALREADY HOLDS, and that set is deliberately wider:
+// a combat variant record, a style, an admitted attack animation and a stated
+// attack speed arm a familiar, auto-assist notwithstanding (2026-08-14 design
+// call).  The familiar panel's Attack badge hands a target to an active
 // familiar through `~summoning_familiar_command_attack`, and a familiar that
 // accepts a commanded target must be able to act on it — a Spirit terrorbird
 // sent at an NPC fights it, and goes back to carrying logs when it is not.
 //
-// So the two sets differ in both directions.  A familiar with no admitted
-// attack sequence still auto-assists (`~summoning_familiar_attack_anim` returns
-// null for it and the tick draws nothing), and a beast of burden never
-// auto-assists but is armed for the moment it is sent.
+// So the two sets differ in both directions.  A beast of burden never
+// auto-assists but is armed for the moment it is sent, and a familiar the cache
+// gives no attack speed is neither: no rate means the record does not describe
+// something that attacks, so it cannot be sent at a target, cannot join a fight
+// of its owner's, and `~summoning_sidebar_arm_attack_target` hides its Attack
+// badge rather than offering a row that would do nothing.  Six familiars are in
+// that state — the five foragers and the Vampyre bat.
+//
+// `~summoning_familiar_armed` is the proc content asks; the four fact procs
+// return their own null-ish default for an unarmed familiar and must not be
+// read as permission on their own.
 """
     body = []
     body += switch(
         "summoning_familiar_auto_assists", "boolean",
         lambda r: "true" if r["auto_assist"] else None, "false")
+    body += switch(
+        "summoning_familiar_armed", "boolean",
+        lambda r: "true" if r["armed"] else None, "false")
     body += switch(
         "summoning_familiar_attack_style", "int",
         lambda r: {"melee": "^summoning_style_melee",
@@ -814,7 +833,7 @@ def write_table(rows):
     body += switch(
         "summoning_familiar_attack_speed", "int",
         lambda r: str(r["attack_speed"]) if r["armed"] else None,
-        str(PREEOC_FALLBACK_SPEED))
+        str(DEFAULT_ATTACK_SPEED))
     body += switch(
         "summoning_familiar_attack_reach", "int",
         lambda r: str(r["reach"]) if r["armed"] else None, "1")

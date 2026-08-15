@@ -51,11 +51,6 @@ import argparse
 import shutil
 from pathlib import Path
 
-try:
-    from PIL import Image
-except ImportError:  # pragma: no cover
-    raise SystemExit("Pillow is required: python3 -m pip install pillow")
-
 ROOT = Path(__file__).resolve().parents[1]
 TREE = ROOT / "OSRS-Content/osrs239-content"
 BASE_GROUP = TREE / "sprites/headicons_prayer"
@@ -136,7 +131,14 @@ def main() -> int:
         frames.append(base["frames"][i])
     for offset, (src_index, name) in enumerate(APPENDED):
         dst = base["count"] + offset
-        Image.open(src558 / f"{src_index}.bmp").convert("RGB").save(LANE_OUT / f"{dst}.bmp")
+        # Byte copy, not a re-encode. cachepack's BMP reader takes 32-bit BGRA
+        # bottom-up and nothing else — it checks `bpp != 32` and returns NULL,
+        # which surfaces as "is indexed and in the cache, but no file is on
+        # disk" and fails the bake. Pillow writes 24-bit for mode RGB, so
+        # loading and saving these frames silently breaks them; both sides of
+        # this copy were written by the same `bmp_write_file`, so the bytes are
+        # already in the one form that reads back.
+        shutil.copy2(src558 / f"{src_index}.bmp", LANE_OUT / f"{dst}.bmp")
         frames.append(rs558["frames"][src_index])
         print(f"  {dst:2d} {name:<18} <- rev558 group 440 frame {src_index}")
 

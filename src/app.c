@@ -2000,9 +2000,15 @@ app_overlay_build_chat(
 }
 
 /* Overhead prayer/skull headicons (reference drawEntities, Client.ts:4849).
- * `headicons` is an 8-bit mask; each set bit plots sprite[icon] from the
- * headicons pack stacked upward above the model top (start 30px up, 25px per
- * icon). Projection is at `entity.height + 15`, same as the health bar. */
+ * `headicons` is a bitmask; each set bit plots sprite[icon] from the headicons
+ * pack stacked upward above the model top (start 30px up, 25px per icon).
+ * Projection is at `entity.height + 15`, same as the health bar.
+ *
+ * The mask is walked to 31, not to 8. Eight was the width of the classic wire
+ * field, but the pack it indexes is 24 frames deep at rev 239 and 30 with the
+ * Ancient Curses lane's six overheads appended (Deflect ×4, Wrath, Soul Split
+ * at 24..29). A loop that stops at 8 does not draw a smaller icon for those —
+ * it draws nothing, and the curse reads as having no overhead at all. */
 static void
 app_overlay_build_player_headicons(
     struct App* app,
@@ -2026,7 +2032,7 @@ app_overlay_build_player_headicons(
             &screen_y) )
         return;
 
-    for( int icon = 0; icon < 8; icon++ )
+    for( int icon = 0; icon < 31; icon++ )
     {
         if( (headicons & (0x1 << icon)) == 0 )
             continue;
