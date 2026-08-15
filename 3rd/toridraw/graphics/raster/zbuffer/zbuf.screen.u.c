@@ -471,7 +471,29 @@ raster_zbuf_screen_ordered(
     if( y0 < 0 )
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * y0;
-        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
+        /*
+         * Only pre-step A->B if that edge is ever walked.
+         *
+         * Rows [y0, y1) use A->B, so when the middle vertex is at or above the
+         * top of the viewport the span is empty (`rows_seg1` clamps to 0 below)
+         * and this value feeds nothing. Skipping it is not an optimisation: a
+         * near-horizontal AB has a tiny dy and therefore a slope of hundreds of
+         * pixels per row, and multiplying that by a y0 far above the screen
+         * overflows the 16.16 product -- for a result that is then discarded.
+         * UBSan caught exactly that on the Queen Black Dragon:
+         *
+         *   zbuf.screen.u.c:474: signed integer overflow: 19595264 * -127
+         *
+         * A LIVE edge cannot overflow here, which is why this is a guard and
+         * not a widening: the edge spans y0..y1 with y1 > 0, so dy >= |y0| and
+         * the product is bounded by dx << 16 -- reaching INT_MAX needs a
+         * projected dx over 32768px, which is geometry outside the raster's
+         * coordinate domain (TORIDRAW_PROJECTED_COORD_LIMIT) rather than an
+         * arithmetic problem. Same argument covers A->C (y2 >= 0 is guaranteed
+         * by the caller's reject) and B->C (guarded by its own y1 < 0 block).
+         */
+        if( y1 > 0 )
+            edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
         s.key_at_x0 -= d.key_dy * (float)y0;
         s.hsl_ish8 -= d.hsl_dy_ish8 * y0;
         s.shade8_ish8 -= d.shade8_dy_ish8 * y0;

@@ -37,7 +37,20 @@ BOUND="${BOUND:-8000}"      # bind ~2600, worst legitimate pose ~2820
 rm -rf "$OUT"
 mkdir -p "$OUT/saves" "$OUT/frames"
 
-[ -x src/torirs ] || make -C src EMBED_SERVER=1 torirs
+# SANITIZE=1 runs the ASan+UBSan build instead, with the same flags run-live.sh
+# uses -- including TORIDRAW_NO_SIMD=1, because UBSan cannot see inside the
+# vector kernels and without it the checked build is not checking the code that
+# actually runs. halt_on_error=0 so one finding does not hide the rest.
+CLIENT_BIN=src/torirs
+if [ "${SANITIZE:-0}" != 0 ]; then
+    CLIENT_BIN=src/torirs_asan
+    make -C src EMBED_SERVER=1 ENABLE_ASAN=1 ENABLE_UBSAN=1 TORIDRAW_NO_SIMD=1 \
+        PLATFORM_OBJ_BASE=build_asan PLATFORM_TARGET=torirs_asan torirs_asan >/dev/null || exit 1
+    export ASAN_OPTIONS="detect_leaks=0:halt_on_error=0:abort_on_error=0:print_stacktrace=1:log_path=stderr"
+    export UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=0"
+else
+    [ -x src/torirs ] || make -C src EMBED_SERVER=1 torirs
+fi
 
 # `qbd` puts the player in the arena with the encounter armed, `god` makes the
 # player unkillable so the run survives long enough to reach the later phases,
@@ -81,7 +94,7 @@ TORIRS_NET_CHEAT_ROTATE=1 \
 TORIRS_NET_CHEAT_EVERY="${EVERY:-200}" \
 TORIRS_BMP_SERIES="$OUT/frames,${SHOT_START:-3300},${SHOT_STEP:-70},${SHOT_N:-30}" \
 TORIRS_MAX_FRAMES="$FRAMES" \
-  ./src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" --soft3d \
+  "./$CLIENT_BIN" --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" --soft3d \
   > "$OUT/run.log" 2>&1 || true
 
 echo "log:    $OUT/run.log"
@@ -90,6 +103,11 @@ echo "frames: $OUT/frames"
 # The cause, reported where it happens rather than inferred from the size. Any
 # line here is a capture that overwrote a live bind pose; the blowups below are
 # what that turns into a few frames later.
+echo "--- sanitizer findings ---"
+sanitizer=$(grep -c "runtime error\|ERROR: AddressSanitizer" "$OUT/run.log" || true)
+grep -E "runtime error|ERROR: AddressSanitizer" "$OUT/run.log" | head -6 || true
+echo "count: $sanitizer"
+
 echo "--- anim_stack (keyframe applied to a pose, not the bind) ---"
 stacked=$(grep -c "anim_stack" "$OUT/run.log" || true)
 grep "anim_stack" "$OUT/run.log" | head -6 || true
@@ -125,5 +143,7 @@ fail=0
     echo "FAIL: $recapture capture(s) took a posed model as its bind pose"; fail=1; }
 [ "$stacked" -gt 0 ] && {
     echo "FAIL: $stacked keyframe(s) applied to a pose instead of the bind"; fail=1; }
+[ "$sanitizer" -gt 0 ] && {
+    echo "FAIL: $sanitizer sanitizer finding(s)"; fail=1; }
 [ "$fail" = 0 ] && echo "PASS: bind poses stayed pristine and no pose compounded"
 exit "$fail"

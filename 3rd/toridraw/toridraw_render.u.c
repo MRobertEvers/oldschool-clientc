@@ -706,35 +706,6 @@ toridraw_projection_debug_print(
         position->roll);
 }
 
-/*
- * Above this the cull arithmetic stops being trustworthy.
- *
- * Both cheap culls project world-space offsets through a perspective divide,
- * and the screen extents they produce are only meaningful while the inputs stay
- * inside the rasterizer's coordinate domain. A model whose bounds have been
- * driven to the vertexint_t rails by a bad pose (the QBD reached radius 43,425
- * with its y extents pinned at +/-32768) overflows those intermediates, and the
- * wrapped result reports the model entirely off-screen -- so the one thing big
- * enough to fill the viewport is the thing that gets culled from it.
- *
- * Culling is an OPTIMISATION. When its inputs cannot be trusted the answer must
- * be "draw", never "skip": drawing something that turns out to be off-screen
- * costs a few wasted triangles, whereas skipping something on-screen deletes it.
- * One comparison against a constant, so nothing ordinary pays for it.
- */
-#define TORIDRAW_CULL_TRUSTWORTHY_EXTENT (TORIDRAW_PROJECTED_COORD_LIMIT * 2)
-
-static inline bool
-toridraw_bounds_too_large_to_cull(const struct ToriDraw_BoundsCylinder* bc)
-{
-    if( !bc )
-        return false;
-    return bc->radius > TORIDRAW_CULL_TRUSTWORTHY_EXTENT ||
-           bc->max_y > TORIDRAW_CULL_TRUSTWORTHY_EXTENT ||
-           -bc->min_y > TORIDRAW_CULL_TRUSTWORTHY_EXTENT ||
-           bc->min_z_depth_any_rotation > TORIDRAW_CULL_TRUSTWORTHY_EXTENT;
-}
-
 static inline int
 ToriDraw_AabbCull(
     struct ToriDraw_AABB* aabb,
@@ -796,11 +767,6 @@ ToriDraw_FastCull(
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     if( !bc )
         return TORIDRAW_CULL_ERROR;
-
-    /* Early switch: a model too large for the cull math is declared visible
-     * rather than measured. See toridraw_bounds_too_large_to_cull. */
-    if( toridraw_bounds_too_large_to_cull(bc) )
-        return TORIDRAW_CULL_VISIBLE;
 
     int model_edge_radius = bc->radius;
 
@@ -1038,18 +1004,6 @@ ToriDraw_CalculateCylinderAabb8point(
     aabb->min_screen_y = min_sy + cy;
     aabb->max_screen_y = max_sy + cy;
 
-    /* Same rule as the fast cull: at these magnitudes the eight projected
-     * corners are saturated garbage, and a box built from them typically lands
-     * entirely off-screen -- culling the one model big enough to fill the view.
-     * Report a box that covers everything so the caller draws instead of
-     * measuring. See toridraw_bounds_too_large_to_cull. */
-    if( toridraw_bounds_too_large_to_cull(bcyl) )
-    {
-        aabb->min_screen_x = 0;
-        aabb->min_screen_y = 0;
-        aabb->max_screen_x = view_port->width;
-        aabb->max_screen_y = view_port->height;
-    }
 
     aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
 }

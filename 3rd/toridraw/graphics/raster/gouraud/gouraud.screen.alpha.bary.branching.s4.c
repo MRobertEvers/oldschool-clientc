@@ -223,7 +223,14 @@ raster_gouraud_screen_alpha_bary_branching_s4_ordered(
     if( y0 < 0 )
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * y0;
-        edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
+        /* Only pre-step A->B if that edge is walked: rows [y0, y1) use it, so
+         * a y1 at or above the viewport leaves the span empty. A near-horizontal
+         * AB has a slope of hundreds of px per row, and times a distant y0 that
+         * overflows the 16.16 product for a result that is then discarded. A live
+         * edge cannot overflow (dy >= |y0| bounds it by dx << 16). Full argument
+         * in graphics/raster/zbuffer/zbuf.screen.u.c. */
+        if( y1 > 0 )
+            edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
 
         hsl_ish8 -= step_y_hsl_ish8 * y0;
 
