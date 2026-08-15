@@ -779,12 +779,30 @@ soft3d_draw_model_widget(
         &out_h);
 }
 
+/* TORIRS_DRAW_TRACE=<min_vertex_count>, 0/unset = off. Vertex count rather than
+ * an element id because element ids change every time the entity respawns and
+ * the model that matters here is the largest thing in the scene. */
+static int
+draw_trace_min_vertices(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_DRAW_TRACE");
+        cached = (v && *v) ? atoi(v) : 0;
+    }
+    return cached;
+}
+
 static void
 soft3d_draw_model(
     struct ToriRS_Soft3D* soft,
     struct ToriRS_RenderCommand_Model const* cmd)
 {
     struct ToriDraw_Position position;
+    int cull;
+    int trace_min;
+    int trace_this;
 
     assert(soft);
     assert(cmd);
@@ -797,10 +815,42 @@ soft3d_draw_model(
         ToriDraw_SceneElementApplyAnimation(
             soft->scene, cmd->element_id, cmd->anim_index == 0, cmd->anim_frame);
 
+    /*
+     * TORIRS_DRAW_TRACE=<min_vertex_count>: per-frame, unsampled, why a big
+     * model did or did not rasterize.
+     *
+     * Built for "I can still mouse over and click the Queen but nothing is
+     * drawn". That symptom localises here and nowhere else, because the pick
+     * below runs BEFORE the face sort: a model that projects VISIBLE and then
+     * sorts to zero faces stays fully clickable and paints nothing. The
+     * TORIDRAW_SORT_DEBUG/NDJSON counters answer the same question but are
+     * gated and sampled, so they miss the transition that causes it.
+     *
+     * cull   the projection verdict (0 = TORIDRAW_CULL_VISIBLE).
+     * sorted faces surviving the depth/priority sort; 0 here with cull=0 is
+     *        exactly the invisible-but-clickable state.
+     */
+    trace_min = draw_trace_min_vertices();
+    trace_this = trace_min > 0 && cmd->model.kind == TORIDRAWMK_MODEL &&
+                 cmd->model.u.model.model &&
+                 cmd->model.u.model.model->vertex_count >= trace_min;
+
     position = cmd->position;
-    if( ToriDraw_RenderModel1Project(
-            cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d) !=
-        TORIDRAW_CULL_VISIBLE )
+    cull = ToriDraw_RenderModel1Project(
+        cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
+    if( trace_this )
+    {
+        struct ToriDraw_Model const* m = cmd->model.u.model.model;
+        struct ToriDraw_BoundsCylinder const* bc = m->bounds_cylinder;
+        fprintf(
+            stderr,
+            "draw_trace: element=%d vc=%d faces=%d cull=%d pos=(%d,%d,%d) radius=%d "
+            "min_y=%d max_y=%d bias=%d\n",
+            cmd->element_id, m->vertex_count, m->face_count, (int)cull, position.x, position.y,
+            position.z, bc ? bc->radius : -1, bc ? bc->min_y : 0, bc ? bc->max_y : 0,
+            bc ? bc->min_z_depth_any_rotation : -1);
+    }
+    if( cull != TORIDRAW_CULL_VISIBLE )
         return;
 
     /* Hittest before the face sort: the scene scratch holds this model's
@@ -825,8 +875,13 @@ soft3d_draw_model(
 
     if( cmd->pick_only )
         return;
-    if( ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene) <= 0 )
-        return;
+    {
+        int const sorted = ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene);
+        if( trace_this )
+            fprintf(stderr, "draw_trace: element=%d sorted=%d\n", cmd->element_id, sorted);
+        if( sorted <= 0 )
+            return;
+    }
     ToriDraw_RenderModel3Raster(
         soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, false);
 }

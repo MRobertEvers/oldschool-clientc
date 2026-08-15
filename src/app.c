@@ -554,7 +554,9 @@ app_world_sync_entity_spotanims(struct App* app);
 static void
 app_entity_spotanim_drop(struct App* app, int body_element_id);
 static struct AppEntitySpotanim*
-app_entity_spotanim_find(struct App* app, int body_element_id);
+app_entity_spotanim_find(struct App* app, int body_element_id, int owner_entity_id);
+static void
+app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, bool restore);
 
 /* Send an outbound packet built by a net_out_* builder, gated on networking.
  * The builder writes into a scratch buffer using the game out-cipher; the
@@ -1847,7 +1849,7 @@ app_entity_model_height(
 {
     struct ToriDraw_SceneElement* el;
     struct ToriDraw_BoundsCylinder* bounds;
-    struct AppEntitySpotanim* spot_entry = app_entity_spotanim_find(app, element_id);
+    struct AppEntitySpotanim* spot_entry = app_entity_spotanim_find(app, element_id, 0);
 
     if( spot_entry && spot_entry->body )
     {
@@ -17157,13 +17159,30 @@ app_world_sync_entity_animations(struct App* app)
  * the body part live and the spot pose only advances with spot->frame. State
  * lives in app->entity_spotanims keyed by the body element id. ---- */
 
+/* Find the entry for (element, owner). `owner_entity_id` 0 means "any owner",
+ * used only when scanning for a free slot.
+ *
+ * An entry matching the element but NOT the owner is a recycled element id: the
+ * previous owner despawned and this id was handed to somebody else. Drop it
+ * WITHOUT restoring -- restoring would move the dead entity's body model onto
+ * the new occupant. See the note on AppEntitySpotanim::owner_entity_id. */
 static struct AppEntitySpotanim*
-app_entity_spotanim_find(struct App* app, int body_element_id)
+app_entity_spotanim_find(struct App* app, int body_element_id, int owner_entity_id)
 {
     int count = (int)(sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]));
     for( int i = 0; i < count; i++ )
-        if( app->entity_spotanims[i].body_element_id == body_element_id )
-            return &app->entity_spotanims[i];
+    {
+        struct AppEntitySpotanim* entry = &app->entity_spotanims[i];
+        if( entry->body_element_id != body_element_id )
+            continue;
+        if( owner_entity_id != 0 && entry->body_element_id >= 0 &&
+            entry->owner_entity_id != owner_entity_id )
+        {
+            app_entity_spotanim_detach(app, entry, false);
+            return NULL;
+        }
+        return entry;
+    }
     return NULL;
 }
 
@@ -17190,7 +17209,7 @@ app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, boo
         ToriDraw_ModelFree(entry->body);
     if( entry->spot )
         ToriDraw_ModelFree(entry->spot);
-    *entry = (struct AppEntitySpotanim){ .body_element_id = -1 };
+    *entry = (struct AppEntitySpotanim){ .body_element_id = -1, .owner_entity_id = 0 };
 }
 
 /* EntityRemoved drain hook: the entity element (and with it the combined
@@ -17198,7 +17217,7 @@ app_entity_spotanim_detach(struct App* app, struct AppEntitySpotanim* entry, boo
 static void
 app_entity_spotanim_drop(struct App* app, int body_element_id)
 {
-    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, body_element_id);
+    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, body_element_id, 0);
     if( entry )
         app_entity_spotanim_detach(app, entry, false);
 }
@@ -17207,10 +17226,12 @@ static void
 app_world_sync_one_entity_spotanim(
     struct App* app,
     struct WorldEntityFacet_EntitySpotanim const* spot,
-    int element_id)
+    int element_id,
+    int owner_entity_id)
 {
     struct World* world = app->world;
-    struct AppEntitySpotanim* entry = app_entity_spotanim_find(app, element_id);
+    struct AppEntitySpotanim* entry =
+        app_entity_spotanim_find(app, element_id, owner_entity_id);
     struct ToriRS_Spotanimtype* type;
     struct ToriDraw_Animation* anim;
     struct ToriDraw_SceneElement* el;
@@ -17232,11 +17253,12 @@ app_world_sync_one_entity_spotanim(
     }
     if( !entry )
     {
-        entry = app_entity_spotanim_find(app, -1);
+        entry = app_entity_spotanim_find(app, -1, 0);
         if( !entry )
             return; /* table full */
         *entry = (struct AppEntitySpotanim){
             .body_element_id = element_id,
+            .owner_entity_id = owner_entity_id,
             .spotanim_id = spot->id,
             .applied_frame = -1,
         };
@@ -17370,7 +17392,9 @@ app_world_sync_entity_spotanims(struct App* app)
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
         if( player && player->element_id >= 0 )
-            app_world_sync_one_entity_spotanim(app, &player->spotanim, player->element_id);
+            app_world_sync_one_entity_spotanim(
+                app, &player->spotanim, player->element_id,
+                WORLD_ENTITY_ID(WORLD_ENTITY_KIND_PLAYER, player->server_pid));
     }
 
     pool = &app->world->entities.npc;
@@ -17379,7 +17403,9 @@ app_world_sync_entity_spotanims(struct App* app)
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
         if( npc && npc->element_id >= 0 )
-            app_world_sync_one_entity_spotanim(app, &npc->spotanim, npc->element_id);
+            app_world_sync_one_entity_spotanim(
+                app, &npc->spotanim, npc->element_id,
+                WORLD_ENTITY_ID(WORLD_ENTITY_KIND_NPC, npc->server_slot));
     }
 }
 

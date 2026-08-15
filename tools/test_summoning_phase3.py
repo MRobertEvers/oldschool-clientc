@@ -230,13 +230,17 @@ def main() -> int:
         and "[opnpc2,summoning_cohort_dreadfowl_dreadfowl]" in source,
         "Dreadfowl interact/dismiss handlers are absent",
     )
+    # if_setanim follows the head bind: the familiar's own readyanim idles the
+    # chathead. (This check formerly asserted its absence — see
+    # `~summoning_familiar_ready_seq` for why a body sequence does pose these
+    # heads.)
     expect(
         "~summoning_familiar_npc(%summoning_familiar_type)" in source
         and "if_setnpchead(" in source
-        and "if_setanim(summoning_familiar:model," not in source
+        and "if_setanim(summoning_familiar:model," in source
         and "if_settext(summoning_familiar:title, $name);" in source
         and "npc_20000" not in familiar_cs2,
-        "sidebar head icon or name is not selected by persisted familiar type",
+        "sidebar head icon, idle or name is not selected by persisted familiar type",
     )
     expect(
         source.count("if_opensub(wornitems:universe, summoning_familiar, 1);") == 1

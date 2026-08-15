@@ -305,12 +305,18 @@ def static_contract(expect: object) -> None:
         "summoning_dreadfowl_summon" not in grant,
         "Dreadfowl debug hook bypasses the real pouch interaction",
     )
+    # The head is bound and then animated on the familiar's own readyanim.
+    # This used to assert the *absence* of the if_setanim, on the belief that a
+    # body sequence cannot pose a composed chathead; that is false for this
+    # roster — each cohort npc was ported as one rig, so the head model carries
+    # the labels the body's frames address.
     check(
         "~summoning_familiar_npc(%summoning_familiar_type)" in script
         and "if_setnpchead(" in script
-        and "if_setanim(summoning_familiar:model," not in script
+        and "if_setanim(summoning_familiar:model," in script
+        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in script
         and 'if_settext(summoning_familiar:title, $name);' in script,
-        "sidebar does not bind the selected familiar head icon and title",
+        "sidebar does not bind the selected familiar head icon, idle and title",
     )
     check(
         "npc_add(movecoord(coord, 1, 0, 0), $npc, 0);" in script

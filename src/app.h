@@ -879,6 +879,18 @@ struct App
     struct AppEntitySpotanim
     {
         int body_element_id; /* -1 = free slot */
+        /*
+         * WORLD_ENTITY_ID of the entity this snapshot was taken from.
+         *
+         * The element id ALONE is not an identity: scene element ids are
+         * recycled, so an entry keyed only by `body_element_id` outlives its
+         * owner and then aliases whoever is handed that id next. Detaching such
+         * an entry pushes `body` -- the previous owner's model -- onto the new
+         * occupant's element and hands over ownership, which is how calling a
+         * familiar in the QBD arena made the Queen's model follow the player.
+         * The liveness sweep cannot see it either: a recycled id IS live.
+         */
+        int owner_entity_id;
         int spotanim_id;
         int load_enqueued; /* asset-load task fired for spotanim_id */
         int applied_frame; /* spot seq frame baked into `combined`; -1 none */
