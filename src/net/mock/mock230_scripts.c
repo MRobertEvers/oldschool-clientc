@@ -7775,6 +7775,31 @@ mock230_script_command(
             }
             if( !slot )
             {
+                /* Name the eight occupants, not just the refusal.
+                 *
+                 * "no free timer slot" alone says a pool is full and nothing
+                 * about which timers filled it, and the abort lands mid-way
+                 * through whatever content was doing — Ancient Curses' first
+                 * activation set its mask, aborted here, and never reached its
+                 * own message or animation, which reads as "the button did
+                 * nothing" rather than as a full table. The occupant list is
+                 * what turns that into a one-line diagnosis. */
+                char full[512];
+                int at = 0;
+
+                for( int i = 0; i < MOCK230_TIMER_MAX; i++ )
+                {
+                    const struct SSVM_Script* held =
+                        SSVM_ProviderGet(srv->scripts, player->timers[i].script_id);
+
+                    at += snprintf(
+                        full + at, sizeof(full) - (size_t)at, "%s%s(every %d, armed %d)",
+                        i ? ", " : "", held && held->name ? held->name : "?",
+                        player->timers[i].interval, player->timers[i].clock);
+                    if( at >= (int)sizeof(full) )
+                        break;
+                }
+                fprintf(stderr, "mock230: timer table full: %s\n", full);
                 SSVM_Abort(state, "no free timer slot");
                 return 1;
             }

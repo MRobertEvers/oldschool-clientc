@@ -544,7 +544,35 @@ enum
      * `mock230_scripts_queue_hook`'s is.
      */
     MOCK230_ENGINE_QUEUE_MAX = 8,
-    MOCK230_TIMER_MAX = 8,
+    /*
+     * Player timers, and the one number here that was never sized against the
+     * content tree.
+     *
+     * The reference has no ceiling at all — `Player.timers` is a Map — so any
+     * figure here is this engine's invention, and 8 was small enough to be hit
+     * on a quiet login. Measured on a fresh session (MOCK230_TIMER_TRACE, since
+     * removed): `teleport_cooldown_clock`, `health_regen`, `stat_restore`,
+     * `playtime_tick`, `poison`, `fermenting_wine` and `puro_circle_tick` are
+     * armed before the player has done anything, which is 7 of 8. The tree
+     * declares about forty distinct player timers, and prayer/curse drain,
+     * `summoning_tick`, `farming_growth`, `sa_regen`, `stamina_expire` and the
+     * antifire pair are all ordinary things to hold at once.
+     *
+     * What a full table cost is worth stating, because it does not look like a
+     * timer bug from the screen. `settimer` aborts the running script, and
+     * `~curse_toggle` calls it from `~curse_switched` *after* it has already set
+     * the mask and the headicon and *before* `~curse_activate_anim` — so the
+     * first click on Turmoil lit the button, printed nothing, played nothing,
+     * and drained nothing. The second click read the mask as on and turned it
+     * back off; the third re-armed into whatever slot had since expired and
+     * worked. Reported as "I have to click Turmoil three times". `~prayer_toggle`
+     * has the same shape via `~prayer_switched`.
+     *
+     * 32 is four times the measured login load and costs 480 bytes per player.
+     * Timers are session state and are not persisted, so this is not a save
+     * format number.
+     */
+    MOCK230_TIMER_MAX = 32,
     MOCK230_WORLD_QUEUE_MAX = 16,
     MOCK230_RESUME_BUTTON_MAX = 8,
     /*

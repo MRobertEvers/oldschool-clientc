@@ -133,7 +133,7 @@ def main() -> int:
     kinds = [kind for kind, _ in events]
 
     failures = []
-    if kinds.count("arm") < 2:
+    if not kinds:
         # Never armed means the clicks landed on a login screen, not on the
         # inventory. By far the most common cause is a client built without the
         # server linked in, which boots fine and simply never logs in — named
@@ -145,9 +145,7 @@ def main() -> int:
             if "no embedded server" in result.stdout
             else "client never finished logging in; see the log"
         )
-        failures.append(
-            f"the Use selection was armed {kinds.count('arm')}/2 times — {why}"
-        )
+        failures.append(f"the Use selection was never armed — {why}")
     elif kinds != ["arm", "clear", "arm", "clear"]:
         failures.append(f"expected arm/clear/arm/clear, got {kinds}")
 

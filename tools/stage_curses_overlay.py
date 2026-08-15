@@ -53,6 +53,17 @@ LANE_COMPACKS = ("all.varp.compack", "all.varbit.compack")
 # player and npc, stops drawing.
 LANE_SPRITE_OVERRIDES = ("headicons_prayer",)
 
+# Pack files the RUNTIME reads and the packer must not.
+#
+# `pack/varp.alloc` names the lane's two minted varps for the server
+# (`mock230_content.c: load_ported_pack_symbols`, which walks `ported/*/pack/`
+# and nothing else). The same two ids are already in the lane's
+# `configs/all.varp.compack`, which is how they reach the cache — and cachepack
+# refuses to see one id in both layers ("the layers must be disjoint"), rightly,
+# since one of them would silently win. So the alloc stays in the content tree
+# where the server finds it and is kept out of the bake.
+PACK_RUNTIME_ONLY = ("varp.alloc",)
+
 
 def fail(message: str) -> SystemExit:
     return SystemExit(f"stage_curses_overlay: {message}")
@@ -65,12 +76,14 @@ def copy_file(source: Path, target: Path) -> None:
     shutil.copy2(source, target)
 
 
-def copy_tree(source: Path, target: Path) -> int:
+def copy_tree(source: Path, target: Path, skip: tuple = ()) -> int:
     if not source.is_dir():
         return 0
     count = 0
     for path in sorted(source.rglob("*")):
         if path.is_dir():
+            continue
+        if path.name in skip:
             continue
         copy_file(path, target / path.relative_to(source))
         count += 1
@@ -142,7 +155,7 @@ def main() -> int:
         copied += 1
 
     # --- packs, scripts and assets ----------------------------------------
-    staged_packs = copy_tree(lane / "pack", out / "pack")
+    staged_packs = copy_tree(lane / "pack", out / "pack", skip=PACK_RUNTIME_ONLY)
     if staged_packs == 0:
         raise fail("no pack files staged")
     copied += staged_packs
