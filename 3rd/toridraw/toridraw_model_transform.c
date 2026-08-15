@@ -465,11 +465,9 @@ ToriDraw_ModelNewMerge(
         if( has_face_textures )
         {
             out->face_textures = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
-            if( out->face_textures )
-            {
-                for( int fi = 0; fi < total_faces; fi++ )
-                    out->face_textures[fi] = (faceint_t)-1;
-            }
+            assert(out->face_textures);
+            for( int fi = 0; fi < total_faces; fi++ )
+                out->face_textures[fi] = (faceint_t)-1;
         }
         if( has_face_alphas )
             /* Zeroed: faces from alpha-less inputs must stay opaque (raster
@@ -483,12 +481,10 @@ ToriDraw_ModelNewMerge(
         if( has_tex_coords )
         {
             out->face_texture_coords = (faceint_t*)malloc((size_t)total_faces * sizeof(faceint_t));
-            if( out->face_texture_coords )
-            {
-                /* Faces from coord-less inputs must read untextured. */
-                for( int fi = 0; fi < total_faces; fi++ )
-                    out->face_texture_coords[fi] = (faceint_t)-1;
-            }
+            assert(out->face_texture_coords);
+            /* Faces from coord-less inputs must read untextured. */
+            for( int fi = 0; fi < total_faces; fi++ )
+                out->face_texture_coords[fi] = (faceint_t)-1;
         }
     }
 

@@ -34,11 +34,7 @@ js5_cache_record_group_failure(
     {
         size_t capacity = cache->failed_group_capacity ? cache->failed_group_capacity * 2u : 16u;
         uint32_t* groups = realloc(cache->failed_groups, capacity * sizeof(*groups));
-        if( !groups )
-        {
-            cache->adapter_failed = 1;
-            return;
-        }
+        assert(groups);
         cache->failed_groups = groups;
         cache->failed_group_capacity = capacity;
     }

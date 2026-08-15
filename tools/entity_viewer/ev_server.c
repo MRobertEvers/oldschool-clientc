@@ -53,6 +53,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -1545,7 +1546,9 @@ select_cache(int index)
     g_name_match_count = 0;
 
     ev_index_free(&g_index);
-    ev_index_build(&g_cache, &profile, e->path, &g_index);
+    clock_t index_t0 = clock();
+    ev_index_build(&g_cache, &profile, e->path, e->rev, &g_index);
+    int index_ms = (int)((clock() - index_t0) * 1000 / CLOCKS_PER_SEC);
     ev_textures_free(&g_texture_set);
     ev_textures_load(&g_cache, &g_texture_set);
     ev_build_set_texture_available(server_texture_available, NULL);
@@ -1555,8 +1558,8 @@ select_cache(int index)
     e->indexed = true;
 
     g_caches.active = index;
-    fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models\n",
-            e->label, e->rev, e->npc_count, e->seq_count, e->model_count);
+    fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models [index %d ms]\n",
+            e->label, e->rev, e->npc_count, e->seq_count, e->model_count, index_ms);
     return 1;
 }
 
@@ -1691,6 +1694,24 @@ handle_request(int fd, const char* target, const char* query)
             int added = ev_caches_add(&g_caches, path, rev[0] ? rev : NULL);
             if( added >= 0 )
                 ev_caches_save(&g_caches, g_caches_file);
+        }
+        handle_caches_json(fd);
+    }
+    else if( strcmp(target, "/api/caches/rev") == 0 )
+    {
+        char v[32] = { 0 };
+        char rev[32] = { 0 };
+        query_param(query, "index", v, sizeof(v));
+        query_param(query, "rev", rev, sizeof(rev));
+        int i = atoi(v);
+        if( ev_caches_set_rev(&g_caches, i, rev) )
+        {
+            ev_caches_save(&g_caches, g_caches_file);
+            /* Reopen when it is the active one: the profile decides how every
+             * record decodes, so leaving the old one open would keep answering
+             * with the widths the user just rejected. */
+            if( i == g_caches.active )
+                select_cache(i);
         }
         handle_caches_json(fd);
     }
@@ -2281,15 +2302,17 @@ main(int argc, char** argv)
     {
         g_caches.active = startup_index;
         struct EV_CacheEntry* e = &g_caches.items[startup_index];
-        ev_index_build(&g_cache, &profile, e->path, &g_index);
+        clock_t index_t0 = clock();
+        ev_index_build(&g_cache, &profile, e->path, e->rev, &g_index);
+        int index_ms = (int)((clock() - index_t0) * 1000 / CLOCKS_PER_SEC);
         ev_textures_load(&g_cache, &g_texture_set);
         ev_build_set_texture_available(server_texture_available, NULL);
         e->npc_count = g_index.npc_count;
         e->seq_count = g_index.seq_count;
         e->model_count = g_index.model_count;
         e->indexed = true;
-        fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models\n",
-                e->label, e->rev, e->npc_count, e->seq_count, e->model_count);
+        fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models [index %d ms]\n",
+                e->label, e->rev, e->npc_count, e->seq_count, e->model_count, index_ms);
     }
     if( catalog_dir && !load_catalog(catalog_dir) )
         fprintf(stderr, "catalog at %s could not be read — rig matching is off\n", catalog_dir);

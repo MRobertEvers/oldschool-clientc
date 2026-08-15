@@ -187,40 +187,38 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
     if( self->skeletal )
     {
         anim = calloc(1, sizeof(*anim));
-        if( anim )
+        assert(anim);
+        int play_frames = self->skeletal->frame_count;
+        if( self->seq && self->seq->anim_maya_end > self->seq->anim_maya_start )
         {
-            int play_frames = self->skeletal->frame_count;
-            if( self->seq && self->seq->anim_maya_end > self->seq->anim_maya_start )
-            {
-                play_frames = self->seq->anim_maya_end - self->seq->anim_maya_start;
-                if( play_frames > self->skeletal->frame_count )
-                    play_frames = self->skeletal->frame_count;
-            }
-            anim->skeletal = self->skeletal;
-            self->skeletal = NULL;
-            anim->frame_count = play_frames > 0 ? play_frames : 1;
-            if( self->seq )
-            {
-                seq_apply_meta(anim, self->seq);
-                seq_copy_frame_sounds(anim, self->seq);
-            }
-            else
-            {
-                anim->replaceheldleft = -1;
-                anim->replaceheldright = -1;
-            }
-            if( getenv("TORIRS_ANIM_DEBUG") )
-                fprintf(
-                    stderr,
-                    "seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
-                    self->seq_id,
-                    self->seq ? self->seq->anim_maya_id : -1,
-                    anim->skeletal->bone_count,
-                    anim->skeletal->frame_count,
-                    anim->frame_count);
-            ToriDraw_SceneAnimationAdd(self->scene, self->seq_id, anim);
-            return;
+            play_frames = self->seq->anim_maya_end - self->seq->anim_maya_start;
+            if( play_frames > self->skeletal->frame_count )
+                play_frames = self->skeletal->frame_count;
         }
+        anim->skeletal = self->skeletal;
+        self->skeletal = NULL;
+        anim->frame_count = play_frames > 0 ? play_frames : 1;
+        if( self->seq )
+        {
+            seq_apply_meta(anim, self->seq);
+            seq_copy_frame_sounds(anim, self->seq);
+        }
+        else
+        {
+            anim->replaceheldleft = -1;
+            anim->replaceheldright = -1;
+        }
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            fprintf(
+                stderr,
+                "seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
+                self->seq_id,
+                self->seq ? self->seq->anim_maya_id : -1,
+                anim->skeletal->bone_count,
+                anim->skeletal->frame_count,
+                anim->frame_count);
+        ToriDraw_SceneAnimationAdd(self->scene, self->seq_id, anim);
+        return;
         /* Allocation failed — drop the bake and register the empty sentinel
          * below so the seq is not re-requested forever. */
         ToriDraw_SkeletalAnimFree(self->skeletal);

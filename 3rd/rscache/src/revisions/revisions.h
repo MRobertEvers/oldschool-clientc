@@ -58,6 +58,22 @@ RSCache_ProfileDat2Rs530(void);
 struct RSCache
 RSCache_ProfileDat2Rs558(void);
 
+/**
+ * Rev 634 (`cache.void634`). Between 558 and 643 and takes pins from both: 643's
+ * loc/frame geometry, 558's sequence flags, and an obj codec of its own — the
+ * build-670 opcode table still at u16 model ids. Decode only.
+ */
+struct RSCache
+RSCache_ProfileDat2Rs634(void);
+
+/**
+ * `cache.void634`: revision 634 plus RSCACHE_QUIRK_VOID_RS634_NO_XTEAS, since
+ * that repack rewrote its map locs in plaintext. A build property, not a
+ * revision one, which is why it is a second profile and not a pin.
+ */
+struct RSCache
+RSCache_ProfileDat2Void634(void);
+
 /** The 643 / RS2 branch (`cache.643`). game=rs2 epoch=dat2 revision=643. */
 struct RSCache
 RSCache_ProfileDat2Rs643(void);

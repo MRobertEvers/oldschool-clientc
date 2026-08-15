@@ -189,10 +189,6 @@ dat2_archive_clone(const struct RSCache_Dat2DiskArchive* src)
         memcpy(dst->file_ids, src->file_ids, (size_t)src->file_count * sizeof(int));
     }
     return dst;
-
-error:
-    RSCache_Dat2DiskArchiveFree(dst);
-    return NULL;
 }
 
 static struct RSCache_Dat2DiskArchive*

@@ -112,8 +112,7 @@ grow(
     while( want < needed )
         want *= 2;
     grown = realloc(base, (size_t)want * item);
-    if( !grown )
-        return base; /* the caller re-checks capacity and gives up quietly */
+    assert(grown);
     *capacity = want;
     return grown;
 }

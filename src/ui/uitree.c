@@ -1517,8 +1517,8 @@ UITree_RebuildIdIndex(struct UITree* tree)
     {
         int32_t* keys = realloc(tree->id_index_keys, cap * sizeof(int32_t));
         int32_t* vals = realloc(tree->id_index_vals, cap * sizeof(int32_t));
-        if( keys )
-            tree->id_index_keys = keys;
+        assert(keys);
+        tree->id_index_keys = keys;
         if( vals )
             tree->id_index_vals = vals;
         if( !keys || !vals )
@@ -1809,22 +1809,6 @@ UITree_SetBehavior(
         memcpy(
             dst->script_operand, src->script_operand, (size_t)src->comparator_count * sizeof(int));
     }
-    return;
-
-fail:
-    if( dst->scripts )
-    {
-        for( int s = 0; s < dst->scripts_count; s++ )
-            free(dst->scripts[s]);
-        free(dst->scripts);
-    }
-    free(dst->scripts_lengths);
-    free(dst->script_comparator);
-    free(dst->script_operand);
-    if( dst->scripts_count > 0 )
-        uitree_cs1_script_nodes_drop(tree);
-    memset(dst, 0, sizeof(*dst));
-    UITreeNodeSet_Remove(&tree->client_code, idx);
 }
 
 int32_t

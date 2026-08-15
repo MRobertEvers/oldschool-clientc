@@ -175,13 +175,7 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
                 return false;
             }
             pass_out = malloc((size_t)width * sizeof(int32_t));
-            if( !pass_out )
-            {
-                for( idx = 0; idx < n_passes; idx++ )
-                    free(passes[idx]);
-                free(passes);
-                return false;
-            }
+            assert(pass_out);
             for( x = -he; x <= he; x++ )
                 sum += input[x & gen->width_mask];
             ptr = 0;
@@ -1949,8 +1943,8 @@ proctex_bricks_init(struct ProcTexGenerator* gen, int op_index)
     if( courses <= 0 || columns <= 0 )
     {
         aux = calloc(1, sizeof(*aux));
-        if( aux )
-            gen->aux[op_index] = aux;
+        assert(aux);
+        gen->aux[op_index] = aux;
         return aux; /* courses/columns stay 0: the caller emits a blank line */
     }
 

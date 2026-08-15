@@ -109,12 +109,7 @@ Task_Dat2SoundscapeLoad_Run(
     }
 
     entries = calloc((size_t)count, sizeof(*entries));
-    if( !entries )
-    {
-        RSCache_FileListFree(filelist);
-        RSCache_Dat2DiskArchiveFree(archive);
-        PT_EXIT(&task->pt);
-    }
+    assert(entries);
 
     for( int i = 0; i < filelist->file_count; i++ )
     {

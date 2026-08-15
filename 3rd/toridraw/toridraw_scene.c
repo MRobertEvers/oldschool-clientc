@@ -1288,13 +1288,7 @@ ToriDraw_SceneAnimatedElements(
                 cap <<= 1;
             {
                 int* grown = (int*)realloc(scene->anim_list, (size_t)cap * sizeof(int));
-                if( !grown )
-                {
-                    /* Out of memory: report empty rather than a truncated list,
-                     * and stay dirty so the next call retries. */
-                    *out_count = 0;
-                    return NULL;
-                }
+                assert(grown);
                 scene->anim_list = grown;
                 scene->anim_list_cap = cap;
             }

@@ -103,7 +103,8 @@ function wasmCall(mod) {
     setHdPlaceholder: mod.cwrap('ev_w_set_hd_placeholder', null, ['number']),
     setTextures: mod.cwrap('ev_w_set_textures', 'number', ['number', 'number']),
     textureCount: mod.cwrap('ev_w_texture_count', 'number', []),
-    move: mod.cwrap('ev_w_move', null, ['number', 'number', 'number', 'number']),
+    setPan: mod.cwrap('ev_w_set_pan', null, ['number', 'number']),
+    move: mod.cwrap('ev_w_move', null, ['number', 'number', 'number']),
     moveReset: mod.cwrap('ev_w_move_reset', null, []),
     mod,
   };
@@ -501,7 +502,7 @@ async function selectNpc(id) {
       `${faces} faces · rigs ${detail.framemaps.join(', ') || 'none'}` +
       (detail.skinned ? ' · animaya skinned' : '') +
       (state.textureCount ? ` · ${state.textureCount} textures` : '') +
-      ' · drag to orbit · wheel to zoom · WASD/RF to fly';
+      ' · drag or arrows to orbit · wheel to zoom · WASD/RF to fly';
   }
 
   state.wasm.clearAnim();
@@ -663,7 +664,8 @@ function frameLoop(t) {
   state.lastT = t;
 
   /* Once per frame, not per keydown: see wireInput. */
-  if (state.applyFly) state.applyFly();
+  if (state.applyFly) state.applyFly(dt);
+  if (state.applyRotate) state.applyRotate(dt);
 
   if (state.playing && state.bodyTotal > 0) {
     state.cycleAcc += dt;
@@ -751,7 +753,7 @@ async function rebuildPlayer() {
   state.wasm.setFrameHeight(h);
   meta.textContent =
     `${faces} faces · ${state.worn.length} item(s) worn · rig 0 (the human rig)` +
-    ' · drag to orbit · wheel to zoom';
+    ' · drag or arrows to orbit · wheel to zoom';
   const names = state.worn.map((id) => {
     const o = state.objs.find((x) => x.id === id);
     return o && o.name ? o.name : String(id);
@@ -906,8 +908,23 @@ async function renderCaches(data) {
       : 'not yet indexed';
     row.innerHTML =
       `<span class="cname">${c.label}</span>` +
-      `<span class="meta">${c.rev} · ${counts}</span>`;
+      `<span class="crev" title="detected — click to correct">${c.rev}</span>` +
+      `<span class="meta">${counts}</span>`;
     row.title = c.path;
+
+    /* The revision is a guess and has to be correctable in place: detection
+     * cannot tell osrs184 from osrs239, and the wrong profile decodes at the
+     * wrong field widths rather than failing. */
+    row.querySelector('.crev').onclick = async (e) => {
+      e.stopPropagation();
+      const next = prompt(`Revision profile for ${c.label}`, c.rev);
+      if (!next || next === c.rev) return;
+      document.getElementById('cacheInfo').textContent = `re-reading as ${next}…`;
+      const res = await fetch(
+        `/api/caches/rev?index=${c.index}&rev=${encodeURIComponent(next)}`);
+      await renderCaches(await res.json());
+      if (c.index === data.active) await reloadForCache();
+    };
     row.onclick = async () => {
       document.getElementById('cacheInfo').textContent = `switching to ${c.label}…`;
       const res = await fetch(`/api/caches/select?index=${c.index}`);
@@ -1012,15 +1029,22 @@ function wireInput() {
    */
   const held = new Set();
   const FLY_KEYS = new Set(['w', 'a', 's', 'd', 'r', 'f']);
+  /* The arrows rotate the camera — the keyboard equivalent of a drag, so that
+   * the view can be aimed without a mouse and without losing the subject.
+   * Tracked in the same held set for the same reason the fly keys are: one
+   * step per keydown would run at the OS auto-repeat rate. */
+  const ROT_KEYS = new Set(['arrowleft', 'arrowright', 'arrowup', 'arrowdown']);
 
   window.addEventListener('keydown', (e) => {
-    /* A search box has the keyboard; typing "was" into it must not fly. */
+    /* A search box has the keyboard; typing "was" into it must not fly, and
+     * the arrows must still move the caret. */
     const t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     const k = e.key.toLowerCase();
-    if (k === 'x') { state.wasm.moveReset(); e.preventDefault(); return; }
-    if (!FLY_KEYS.has(k)) return;
+    if (k === 'x') { if (state.recentre) state.recentre(); e.preventDefault(); return; }
+    if (!FLY_KEYS.has(k) && !ROT_KEYS.has(k)) return;
     held.add(k);
+    /* Also stops the arrows scrolling the page behind the canvas. */
     e.preventDefault();
   });
   window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
@@ -1028,13 +1052,55 @@ function wireInput() {
    * drifting with nothing held. */
   window.addEventListener('blur', () => held.clear());
 
-  state.applyFly = () => {
+  /*
+   * Speed is per SECOND, not per frame.
+   *
+   * A per-frame step makes the speed depend on the framerate — the same key
+   * press travels twice as far on a 120 Hz display, and a stutter changes the
+   * distance covered. It also has to be scaled to the zoom, because the same
+   * number of units is a stride beside a chicken and imperceptible beside a
+   * boss: 0.6 crosses the framing distance in a bit under two seconds, which
+   * is enough to explore without overshooting the subject in one tap.
+   */
+  const FLY_PER_SECOND = 0.6;
+
+  state.applyFly = (dt) => {
     if (!held.size || !state.wasm) return;
-    const step = Math.max(8, Math.round(state.zoom / 24));
+    /* Clamp the timestep: a backgrounded tab resumes with a huge dt, and one
+     * frame of that teleports the viewpoint past everything. */
+    const seconds = Math.min(dt, 100) / 1000;
+    const step = Math.max(1, Math.round(state.zoom * FLY_PER_SECOND * seconds));
     const forward = (held.has('w') ? step : 0) - (held.has('s') ? step : 0);
     const right = (held.has('d') ? step : 0) - (held.has('a') ? step : 0);
     const up = (held.has('r') ? step : 0) - (held.has('f') ? step : 0);
-    if (forward || right || up) state.wasm.move(forward, right, up, state.yaw);
+    if (forward || right || up) state.wasm.move(forward, right, up);
+  };
+
+  /*
+   * Arrow-key rotation, in the same per-second currency as the fly step so the
+   * two feel like one control scheme and neither depends on the framerate.
+   *
+   * A full turn in ~1.8s (2048 units / 1150) is fast enough to swing round to
+   * the far side of a model without being twitchy on a tap. Pitch moves at a
+   * third of that: its useful range is the 1..511 clamp below rather than a
+   * full revolution, so the same rate would cross the whole span in a blink.
+   *
+   * The signs and the clamps are the drag handler's, deliberately: left drag
+   * and left arrow must turn the model the same way, or the two controls
+   * disagree about which way is round.
+   */
+  const YAW_PER_SECOND = 1150;
+  const PITCH_PER_SECOND = 380;
+
+  state.applyRotate = (dt) => {
+    if (!held.size) return;
+    const seconds = Math.min(dt, 100) / 1000;
+    const yawStep = Math.round(YAW_PER_SECOND * seconds);
+    const pitchStep = Math.round(PITCH_PER_SECOND * seconds);
+    const yaw = (held.has('arrowright') ? yawStep : 0) - (held.has('arrowleft') ? yawStep : 0);
+    const pitch = (held.has('arrowdown') ? pitchStep : 0) - (held.has('arrowup') ? pitchStep : 0);
+    if (yaw) state.yaw = (state.yaw - yaw) & 2047;
+    if (pitch) state.pitch = Math.max(1, Math.min(511, state.pitch + pitch));
   };
 
   wireCaches();
@@ -1064,6 +1130,29 @@ function wireInput() {
    * view where a graphic's placement in the player's local xz plane is visible
    * as a distance rather than inferred from foreshortening. */
   document.getElementById('topBtn').onclick = () => { state.pitch = 512; };
+
+  /*
+   * Re-centre: undo the flying AND the pan, then re-derive the zoom from the
+   * model's own height.
+   *
+   * All three, because any one of them alone can leave the subject off-screen —
+   * flying far enough out and then only resetting the zoom still shows nothing,
+   * which reads as "the button does not work". The zoom is re-derived rather
+   * than remembered so it also fixes the case of a model swapped underneath a
+   * zoom chosen for the previous one.
+   */
+  const recentre = () => {
+    state.wasm.moveReset();
+    /* Zeroed even though the page never sets it: a URL hash or a later control
+     * could, and a re-centre that leaves a pan behind is the same off-screen
+     * subject the button exists to rescue. */
+    state.wasm.setPan(0, 0);
+    const h = state.wasm.modelHeight();
+    if (h > 0) state.zoom = Math.max(260, Math.min(6000, Math.round(h * 1.6)));
+  };
+  const recentreBtn = document.getElementById('recenterBtn');
+  if (recentreBtn) recentreBtn.onclick = recentre;
+  state.recentre = recentre;
   document.getElementById('frameSlider').oninput = (e) => {
     state.playing = false;
     document.getElementById('playBtn').textContent = 'Play';

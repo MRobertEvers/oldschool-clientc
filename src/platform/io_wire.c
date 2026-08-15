@@ -53,11 +53,7 @@ IOWireBuf_Append(
         while( cap < buf->len + count )
             cap *= 2;
         grown = realloc(buf->data, (size_t)cap);
-        if( !grown )
-        {
-            buf->error = 1;
-            return;
-        }
+        assert(grown);
         buf->data = grown;
         buf->cap = cap;
     }

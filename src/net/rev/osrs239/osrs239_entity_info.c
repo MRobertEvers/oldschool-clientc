@@ -736,11 +736,9 @@ tail_string(uint8_t const* data, int len, int* pos)
     while( *pos < len && data[*pos] != 0 )
         (*pos)++;
     text = (char*)malloc((size_t)(*pos - start) + 1);
-    if( text )
-    {
-        memcpy(text, data + start, (size_t)(*pos - start));
-        text[*pos - start] = '\0';
-    }
+    assert(text);
+    memcpy(text, data + start, (size_t)(*pos - start));
+    text[*pos - start] = '\0';
     if( *pos < len )
         (*pos)++;
     return text;
@@ -1087,11 +1085,9 @@ player_extended(
             while( pos < len && data[pos] != 0 )
                 pos++;
             text = (char*)malloc((size_t)(pos - start) + 1);
-            if( text )
-            {
-                memcpy(text, data + start, (size_t)(pos - start));
-                text[pos - start] = '\0';
-            }
+            assert(text);
+            memcpy(text, data + start, (size_t)(pos - start));
+            text[pos - start] = '\0';
             pos++;
             {
                 struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_SAY);
@@ -1492,11 +1488,9 @@ npc_extended(
             while( pos < len && data[pos] != 0 )
                 pos++;
             text = (char*)malloc((size_t)(pos - start) + 1);
-            if( text )
-            {
-                memcpy(text, data + start, (size_t)(pos - start));
-                text[pos - start] = '\0';
-            }
+            assert(text);
+            memcpy(text, data + start, (size_t)(pos - start));
+            text[pos - start] = '\0';
             pos++;
             {
                 struct PktNpcInfoOp* op = npc_op(r, PKT_NPC_INFO_OP_SAY);

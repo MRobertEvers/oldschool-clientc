@@ -19,6 +19,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <stdint.h>
 #include <sys/stat.h>
 
 /* ---- small helpers ------------------------------------------------------- */
@@ -344,6 +346,22 @@ ev_caches_add(struct EV_CacheList* list, const char* path, const char* rev)
 }
 
 bool
+ev_caches_set_rev(struct EV_CacheList* list, int index, const char* rev)
+{
+    assert(list);
+    if( index < 0 || index >= list->count || !rev || !*rev )
+        return false;
+    snprintf(list->items[index].rev, sizeof(list->items[index].rev), "%s", rev);
+    /* The counts came from a decode under the OLD profile, so they are no
+     * longer answers about this entry. */
+    list->items[index].indexed = false;
+    list->items[index].npc_count = 0;
+    list->items[index].seq_count = 0;
+    list->items[index].model_count = 0;
+    return true;
+}
+
+bool
 ev_caches_remove(struct EV_CacheList* list, int index)
 {
     assert(list);
@@ -585,8 +603,302 @@ sink_npc(int id, const char* data, int size, void* user)
     s->count++;
 }
 
-bool
-ev_index_build(
+/* ---- the on-disk index --------------------------------------------------- */
+
+/*
+ * Bumped whenever the serialised layout or what goes into it changes.
+ *
+ * Without it, an older file is read back into a newer struct and the counts
+ * land on the wrong fields — a corrupt index rather than a rejected one, and
+ * the symptom is npcs with impossible ids rather than an error.
+ */
+#define EV_INDEX_MAGIC 0x58495645u /* "EVIX" */
+#define EV_INDEX_VERSION 2u
+
+/*
+ * The length written for a name that is NULL, as distinct from one that is the
+ * empty string.
+ *
+ * Encoding both as 0 makes the round-trip lossy: npc 325 in cache.osrs239 has a
+ * name of "", and it came back absent. Nothing downstream cares much today —
+ * the search treats them alike — but a store that silently edits what it was
+ * given is a trap, and this one is one sentinel wide.
+ */
+#define EV_INDEX_NAME_ABSENT 0xFFFFFFFFu
+
+uint64_t
+ev_cache_fingerprint(const char* cache_dir)
+{
+    /* FNV-1a over each file's name, size and mtime. Order is fixed by the loop
+     * rather than by readdir, so the same directory always folds identically. */
+    uint64_t h = 1469598103934665603ull;
+    char path[EV_CACHE_PATH_MAX];
+    struct stat st;
+    int seen = 0;
+
+    assert(cache_dir);
+
+#define EV_FOLD(bytes, n)                                                      \
+    do                                                                         \
+    {                                                                          \
+        const unsigned char* b_ = (const unsigned char*)(bytes);               \
+        for( size_t i_ = 0; i_ < (size_t)(n); i_++ )                           \
+        {                                                                      \
+            h ^= b_[i_];                                                       \
+            h *= 1099511628211ull;                                             \
+        }                                                                      \
+    } while( 0 )
+
+    snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_dir);
+    if( stat(path, &st) == 0 )
+    {
+        int64_t size = (int64_t)st.st_size;
+        int64_t mtime = (int64_t)st.st_mtime;
+        EV_FOLD(&size, sizeof(size));
+        EV_FOLD(&mtime, sizeof(mtime));
+        seen++;
+    }
+
+    /*
+     * 0..255 covers every index a dat2 cache can have, plus 255 (the master
+     * index). Missing ones simply do not fold — a cache that later GAINS an idx
+     * therefore changes the fingerprint, which is the point.
+     */
+    for( int i = 0; i <= 255; i++ )
+    {
+        snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", cache_dir, i);
+        if( stat(path, &st) != 0 )
+            continue;
+        int32_t id = i;
+        int64_t size = (int64_t)st.st_size;
+        int64_t mtime = (int64_t)st.st_mtime;
+        EV_FOLD(&id, sizeof(id));
+        EV_FOLD(&size, sizeof(size));
+        EV_FOLD(&mtime, sizeof(mtime));
+        seen++;
+    }
+#undef EV_FOLD
+
+    /* Nothing found is not a fingerprint. Returning the empty-hash seed would
+     * make two different unreadable directories agree, so any stored index
+     * would validate against the wrong cache. */
+    return seen ? h : 0;
+}
+
+static void
+index_path(const char* cache_dir, const char* rev, char* out, size_t cap)
+{
+    snprintf(out, cap, "%s/%s/index-%s.evi", cache_dir, EV_INDEX_DIR, rev && *rev ? rev : "unknown");
+}
+
+static bool
+read_exact(FILE* f, void* dst, size_t n)
+{
+    return fread(dst, 1, n, f) == n;
+}
+
+static bool
+read_u32(FILE* f, uint32_t* out)
+{
+    return read_exact(f, out, sizeof(*out));
+}
+
+/** Returns false — and leaves `out` empty — for a missing, stale or malformed
+ *  file. All three mean the same thing to the caller: build it. */
+static bool
+index_load(const char* cache_dir, const char* rev, uint64_t fingerprint, struct EV_Index* out)
+{
+    char path[EV_CACHE_PATH_MAX];
+    uint32_t magic = 0, version = 0;
+    uint64_t stored = 0;
+    uint32_t npc_count = 0, seq_count = 0, model_count = 0;
+
+    memset(out, 0, sizeof(*out));
+    if( !fingerprint )
+        return false;
+
+    index_path(cache_dir, rev, path, sizeof(path));
+    FILE* f = fopen(path, "rb");
+    if( !f )
+        return false;
+
+    if( !read_u32(f, &magic) || magic != EV_INDEX_MAGIC ||
+        !read_u32(f, &version) || version != EV_INDEX_VERSION ||
+        !read_exact(f, &stored, sizeof(stored)) || stored != fingerprint ||
+        !read_u32(f, &npc_count) || !read_u32(f, &seq_count) || !read_u32(f, &model_count) )
+    {
+        fclose(f);
+        return false;
+    }
+
+    /*
+     * A truncated file must not be accepted as a short index.
+     *
+     * Every allocation below is sized from a count in the header, so a file cut
+     * off mid-write would otherwise load as "this cache has 4000 npcs" and the
+     * missing ones would look like a decoder that lost them. Any short read
+     * aborts the whole load.
+     */
+    bool ok = true;
+
+    if( seq_count )
+    {
+        out->seq_ids = malloc((size_t)seq_count * sizeof(*out->seq_ids));
+        ok = out->seq_ids && read_exact(f, out->seq_ids, (size_t)seq_count * sizeof(*out->seq_ids));
+        if( ok )
+            out->seq_count = (int)seq_count;
+    }
+
+    if( ok && model_count )
+    {
+        out->model_ids = malloc((size_t)model_count * sizeof(*out->model_ids));
+        ok = out->model_ids &&
+             read_exact(f, out->model_ids, (size_t)model_count * sizeof(*out->model_ids));
+        if( ok )
+            out->model_count = (int)model_count;
+    }
+
+    if( ok && npc_count )
+    {
+        out->npcs = calloc((size_t)npc_count, sizeof(*out->npcs));
+        ok = out->npcs != NULL;
+        for( uint32_t i = 0; ok && i < npc_count; i++ )
+        {
+            int32_t id = 0;
+            uint32_t len = 0;
+            if( !read_exact(f, &id, sizeof(id)) || !read_u32(f, &len) ||
+                (len != EV_INDEX_NAME_ABSENT && len > 4096u) )
+            {
+                ok = false;
+                break;
+            }
+            out->npcs[i].id = id;
+            if( len != EV_INDEX_NAME_ABSENT )
+            {
+                out->npcs[i].name = malloc((size_t)len + 1);
+                if( !out->npcs[i].name || (len && !read_exact(f, out->npcs[i].name, len)) )
+                {
+                    ok = false;
+                    break;
+                }
+                out->npcs[i].name[len] = '\0';
+            }
+            /* Counted as we go, so a mid-list failure frees exactly what was
+             * built rather than walking uninitialised slots. */
+            out->npc_count = (int)i + 1;
+        }
+    }
+
+    fclose(f);
+    if( !ok )
+    {
+        ev_index_free(out);
+        return false;
+    }
+    return true;
+}
+
+static bool
+write_exact(FILE* f, const void* src, size_t n)
+{
+    return fwrite(src, 1, n, f) == n;
+}
+
+/**
+ * Write the index beside the cache. Best effort.
+ *
+ * A read-only or otherwise unwritable cache directory is a normal thing to point
+ * this at — a mounted share, a reference copy — and refusing to serve it would
+ * be worse than rebuilding the index each time. So a failure here is reported
+ * once and otherwise ignored.
+ *
+ * Written to a temporary and renamed, because the reader validates a fingerprint
+ * and a half-written file can carry a correct one: an interrupted write would
+ * otherwise leave a file that passes validation and is short.
+ */
+static bool
+index_save(const char* cache_dir, const char* rev, uint64_t fingerprint, const struct EV_Index* ix)
+{
+    char dir[EV_CACHE_PATH_MAX];
+    char path[EV_CACHE_PATH_MAX];
+    char tmp[EV_CACHE_PATH_MAX];
+
+    if( !fingerprint )
+        return false;
+
+    snprintf(dir, sizeof(dir), "%s/%s", cache_dir, EV_INDEX_DIR);
+    if( mkdir(dir, 0777) != 0 && errno != EEXIST )
+        return false;
+
+    /*
+     * Make the directory ignore itself.
+     *
+     * This repo already ignores its own `cache.` directories, but a cache can
+     * be added from
+     * anywhere — including somewhere inside a working tree that does not. A
+     * derived file that can be rebuilt in a tenth of a second has no business
+     * showing up in `git status`, and the user cannot be expected to add an
+     * ignore rule for a directory they did not create.
+     */
+    snprintf(path, sizeof(path), "%s/.gitignore", dir);
+    if( access(path, F_OK) != 0 )
+    {
+        FILE* gi = fopen(path, "wb");
+        if( gi )
+        {
+            fputs("# Derived: the entity viewer's cache index, rebuilt on demand.\n*\n", gi);
+            fclose(gi);
+        }
+    }
+
+    index_path(cache_dir, rev, path, sizeof(path));
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+
+    FILE* f = fopen(tmp, "wb");
+    if( !f )
+        return false;
+
+    uint32_t magic = EV_INDEX_MAGIC;
+    uint32_t version = EV_INDEX_VERSION;
+    uint32_t npc_count = (uint32_t)ix->npc_count;
+    uint32_t seq_count = (uint32_t)ix->seq_count;
+    uint32_t model_count = (uint32_t)ix->model_count;
+
+    bool ok = write_exact(f, &magic, sizeof(magic)) &&
+              write_exact(f, &version, sizeof(version)) &&
+              write_exact(f, &fingerprint, sizeof(fingerprint)) &&
+              write_exact(f, &npc_count, sizeof(npc_count)) &&
+              write_exact(f, &seq_count, sizeof(seq_count)) &&
+              write_exact(f, &model_count, sizeof(model_count));
+
+    if( ok && seq_count )
+        ok = write_exact(f, ix->seq_ids, (size_t)seq_count * sizeof(*ix->seq_ids));
+    if( ok && model_count )
+        ok = write_exact(f, ix->model_ids, (size_t)model_count * sizeof(*ix->model_ids));
+
+    for( uint32_t i = 0; ok && i < npc_count; i++ )
+    {
+        int32_t id = ix->npcs[i].id;
+        const char* name = ix->npcs[i].name;
+        uint32_t len = name ? (uint32_t)strlen(name) : EV_INDEX_NAME_ABSENT;
+        ok = write_exact(f, &id, sizeof(id)) && write_exact(f, &len, sizeof(len)) &&
+             (len == 0 || len == EV_INDEX_NAME_ABSENT || write_exact(f, name, len));
+    }
+
+    if( fclose(f) != 0 )
+        ok = false;
+
+    if( !ok || rename(tmp, path) != 0 )
+    {
+        remove(tmp);
+        return false;
+    }
+    return true;
+}
+
+/* The uncached build, kept separate so the caching path reads as a wrapper. */
+static bool
+index_build_fresh(
     struct Tool_Dat2Cache* cache,
     const struct RSCache* profile,
     const char* cache_dir,
@@ -616,6 +928,35 @@ ev_index_build(
         collect_table_ids(disk, RSCACHE_DAT2_TABLE_MODELS, &out->model_count);
 
     RSCache_Dat2DiskFree(disk);
+    return true;
+}
+
+bool
+ev_index_build(
+    struct Tool_Dat2Cache* cache,
+    const struct RSCache* profile,
+    const char* cache_dir,
+    const char* rev,
+    struct EV_Index* out)
+{
+    assert(profile);
+    assert(cache_dir);
+    assert(rev);
+    assert(out);
+
+    uint64_t fingerprint = ev_cache_fingerprint(cache_dir);
+
+    if( index_load(cache_dir, rev, fingerprint, out) )
+        return true;
+
+    if( !index_build_fresh(cache, profile, cache_dir, out) )
+        return false;
+
+    if( !index_save(cache_dir, rev, fingerprint, out) )
+        fprintf(
+            stderr,
+            "index: could not write %s/%s — it will be rebuilt on each start\n",
+            cache_dir, EV_INDEX_DIR);
     return true;
 }
 

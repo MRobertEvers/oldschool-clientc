@@ -32,6 +32,7 @@
 
 #include <rscache.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -133,12 +134,7 @@ load_inv_sizes(struct RSCache_Dat2Disk* disk)
 
     g_inv_count = config_group_max_id(&group);
     g_inv_sizes = calloc((size_t)(g_inv_count > 0 ? g_inv_count : 1), sizeof(*g_inv_sizes));
-    if( !g_inv_sizes )
-    {
-        g_inv_count = 0;
-        config_group_close(&group);
-        return;
-    }
+    assert(g_inv_sizes);
 
     for( int i = 0; i < group.files->file_count; i++ )
     {
@@ -169,12 +165,7 @@ load_varbits(struct RSCache_Dat2Disk* disk)
 
     g_varbit_count = config_group_max_id(&group);
     g_varbits = calloc((size_t)(g_varbit_count > 0 ? g_varbit_count : 1), sizeof(*g_varbits));
-    if( !g_varbits )
-    {
-        g_varbit_count = 0;
-        config_group_close(&group);
-        return 0;
-    }
+    assert(g_varbits);
     for( int i = 0; i < g_varbit_count; i++ )
         g_varbits[i].basevar = -1;
 
@@ -1407,11 +1398,7 @@ mock230_bank_init_player(struct Mock230Player* player)
         size = MOCK230_BANK_SLOTS;
 
     bank->slots = calloc((size_t)size, sizeof(*bank->slots));
-    if( !bank->slots )
-    {
-        bank->size = 0;
-        return;
-    }
+    assert(bank->slots);
     bank->size = size;
     for( int i = 0; i < size; i++ )
     {

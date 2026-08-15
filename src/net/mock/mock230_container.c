@@ -241,11 +241,7 @@ mock230_container_resolve(
 
     row_init(row, inv_id, slots, scope, scope == MOCK230_CONTAINER_WORLD ? NULL : player);
     row->items = calloc((size_t)slots, sizeof(*row->items));
-    if( !row->items )
-    {
-        row->used = 0;
-        return NULL;
-    }
+    assert(row->items);
     row->owns_items = 1;
     for( int i = 0; i < slots; i++ )
     {

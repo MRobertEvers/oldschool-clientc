@@ -82,11 +82,7 @@ SSVM_StrPoolAlloc(
         }
 
         block = (struct SSVM_StrPoolBlock*)malloc(sizeof(*block) + capacity);
-        if( !block )
-        {
-            pool->exhausted = 1;
-            return NULL;
-        }
+        assert(block);
         block->next = pool->head;
         block->capacity = capacity;
         block->used = needed;

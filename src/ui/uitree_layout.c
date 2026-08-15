@@ -364,8 +364,8 @@ UITree_LayoutResolve(
         int* new_order = realloc(tree->layout_order, (size_t)cap * sizeof(int));
         int* new_depth = realloc(tree->layout_depth, (size_t)cap * sizeof(int));
         uint8_t* new_changed = realloc(tree->layout_changed, (size_t)cap);
-        if( new_order )
-            tree->layout_order = new_order;
+        assert(new_order);
+        tree->layout_order = new_order;
         if( new_depth )
             tree->layout_depth = new_depth;
         if( new_changed )
@@ -440,8 +440,7 @@ UITree_LayoutResolve(
         }
 
         int* counts = calloc((size_t)max_depth + 1, sizeof(int));
-        if( !counts )
-            return; /* out of memory: skip this frame */
+        assert(counts);
         for( uint32_t i = 0; i < n; i++ )
             if( depth[i] >= 0 )
                 counts[depth[i]]++;

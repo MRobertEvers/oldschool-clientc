@@ -965,7 +965,10 @@ mock230_content_npc_param(
     int param_id,
     int32_t* out)
 {
-    assert(def);
+    /* An npc without a content def has no params -- callers pass npc->def
+     * straight through, and "no def" is a normal state, not a caller bug. */
+    if( !def )
+        return 0;
     for( int i = 0; i < def->param_count; i++ )
     {
         if( def->params[i].key != param_id )
@@ -3132,12 +3135,7 @@ load_param_types(const char* content_dir)
     }
     g_param_type_count = highest + 1;
     g_param_types = (char*)calloc((size_t)g_param_type_count, 1);
-    if( !g_param_types )
-    {
-        g_param_type_count = 0;
-        fclose(file);
-        return 0;
-    }
+    assert(g_param_types);
     g_param_defaults = (int*)malloc((size_t)g_param_type_count * sizeof(int));
     assert(g_param_defaults);
     for( int i = 0; i < g_param_type_count; i++ )

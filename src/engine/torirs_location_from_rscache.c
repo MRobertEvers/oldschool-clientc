@@ -134,14 +134,12 @@ ToriRS_LocationFromRSCacheDat2(
     if( src->ambient_sound_id_count > 0 && src->ambient_sound_ids )
     {
         loc->ambient_sound_ids = malloc((size_t)src->ambient_sound_id_count * sizeof(int));
-        if( loc->ambient_sound_ids )
-        {
-            memcpy(
-                loc->ambient_sound_ids,
-                src->ambient_sound_ids,
-                (size_t)src->ambient_sound_id_count * sizeof(int));
-            loc->ambient_sound_id_count = src->ambient_sound_id_count;
-        }
+        assert(loc->ambient_sound_ids);
+        memcpy(
+            loc->ambient_sound_ids,
+            src->ambient_sound_ids,
+            (size_t)src->ambient_sound_id_count * sizeof(int));
+        loc->ambient_sound_id_count = src->ambient_sound_id_count;
     }
     loc->transform_varbit = src->transform_varbit;
     loc->transform_varp = src->transform_varp;

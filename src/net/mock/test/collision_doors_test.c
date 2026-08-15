@@ -365,8 +365,8 @@ sweep_scene(
         count_corner_cuts(cm, t, base_x, base_z, level);
         bytes = (size_t)(cm->size_x * cm->size_z) * sizeof(int);
         before[level] = malloc(bytes);
-        if( before[level] )
-            memcpy(before[level], cm->flags, bytes);
+        assert(before[level]);
+        memcpy(before[level], cm->flags, bytes);
     }
 
     /*

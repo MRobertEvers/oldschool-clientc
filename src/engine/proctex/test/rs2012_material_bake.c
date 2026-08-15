@@ -2915,7 +2915,7 @@ write_sprite_pack(const char* to_tree)
                 continue;
             if( preserved[id] ) { ok = 0; break; }
             preserved[id] = strdup(name);
-            if( !preserved[id] ) ok = 0;
+            assert(preserved[id]);
         }
         if( ferror(existing) ) ok = 0;
         fclose(existing);

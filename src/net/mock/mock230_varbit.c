@@ -15,6 +15,7 @@
  * than lazily per id.
  */
 #include "mock230.h"
+#include <assert.h>
 
 #include <rscache.h>
 
@@ -120,14 +121,7 @@ mock230_varbit_load(const char* cache_dir)
 
     g_varbit_count = highest + 1;
     g_varbits = calloc((size_t)g_varbit_count, sizeof(*g_varbits));
-    if( !g_varbits )
-    {
-        g_varbit_count = 0;
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
+    assert(g_varbits);
     /* -1 is "absent". A zeroed slot would read as varp 0, which is a real varp,
      * so every unknown varbit would silently alias it. */
     for( int i = 0; i < g_varbit_count; i++ )

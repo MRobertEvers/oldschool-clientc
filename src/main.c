@@ -868,17 +868,15 @@ frame_loop_step(void)
             (frame_count - series_start) % (series_step > 0 ? series_step : 1) == 0 )
         {
             int* pixels = calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
-            if( pixels )
-            {
-                char path[600];
-                if( getenv("TORIRS_ANIM_DEBUG") )
-                    fprintf(stderr, "bmp_series: frame_count=%ld\n", frame_count);
-                App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
-                bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-                free(pixels);
-                series_written++;
-            }
+            assert(pixels);
+            char path[600];
+            if( getenv("TORIRS_ANIM_DEBUG") )
+                fprintf(stderr, "bmp_series: frame_count=%ld\n", frame_count);
+            App_Render(&app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            snprintf(path, sizeof(path), "%s/frame_%05ld.bmp", series_dir, frame_count);
+            bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            free(pixels);
+            series_written++;
         }
     }
 

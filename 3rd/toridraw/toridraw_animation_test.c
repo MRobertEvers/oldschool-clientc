@@ -1,4 +1,5 @@
 #include "toridraw_scene.h"
+#include <assert.h>
 #include "toridraw_animation.h"
 #include "toridraw_model.h"
 #include "toridraw_model_transform.h"
@@ -310,8 +311,8 @@ check_a_copied_model_keeps_its_bind_pose(void)
     uncaptured->vertices_x = calloc(2, sizeof(vertexint_t));
     uncaptured->vertices_y = calloc(2, sizeof(vertexint_t));
     uncaptured->vertices_z = calloc(2, sizeof(vertexint_t));
-    if( uncaptured->vertices_y )
-        uncaptured->vertices_y[0] = 77;
+    assert(uncaptured->vertices_y);
+    uncaptured->vertices_y[0] = 77;
 
     memset(&hnd, 0, sizeof(hnd));
     hnd.kind = TORIDRAWMK_MODEL;

@@ -1,4 +1,5 @@
 #include "pkt_rebuild_normal.h"
+#include <assert.h>
 
 #include "net/rev/revpacket.h"
 
@@ -40,11 +41,9 @@ pkt_rebuild_normal_read(uint8_t const* data, int len, struct RevPacket* out)
     if( key_count > 0 )
     {
         out->_map_rebuild.region_keys = malloc((size_t)key_count * 4 * sizeof(int32_t));
-        if( out->_map_rebuild.region_keys )
-        {
-            for( int i = 0; i < key_count * 4; i++ )
-                out->_map_rebuild.region_keys[i] = (int32_t)g4(&buf);
-        }
+        assert(out->_map_rebuild.region_keys);
+        for( int i = 0; i < key_count * 4; i++ )
+            out->_map_rebuild.region_keys[i] = (int32_t)g4(&buf);
     }
 
     if( getenv("TORIRS_NET_DEBUG") )

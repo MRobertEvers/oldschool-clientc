@@ -45,6 +45,41 @@ That is the whole reason adding a cache is instant: requiring a catalog first
 would make it a five-minute wait. Without a catalog the npc list and the model
 still work; what is missing is the rig matching.
 
+### The index is cached in the cache
+
+A built index is written to **`<cache_dir>/.ev/index-<rev>.evi`**, which turns
+the ~110 ms build into a ~2 ms load — the difference between switching caches
+being free and being a pause. It lives inside the cache directory because it
+describes *that* cache: move the directory and the index travels with it, delete
+it and nothing stale is left behind. The directory writes a `.gitignore` of `*`
+on creation, so it never shows up in `git status` wherever it lands.
+
+It is **keyed by revision**, because the profile decides how every record
+decodes — the same bytes read as osrs184 and as osrs239 give different npc
+records. One file per directory would hand back the previous profile's answers
+after you corrected the revision, which is the exact silent-wrong-answer the
+correction was for.
+
+**Staleness is a fingerprint** over the size and mtime of `main_file_cache.dat2`
+and every `idxN`, stored in the file and re-checked on load. Not a content hash:
+the data file is hundreds of megabytes, and hashing it would cost more than the
+indexing it saves. That trade is real — a rewrite preserving every size and
+mtime is not caught — but any ordinary edit, repack or partial download changes
+at least one. A cache directory that cannot be written to is not an error; the
+index is just rebuilt each time, and the server says so once.
+
+```sh
+make -C tools/entity_viewer ev_index_cache_probe
+tools/entity_viewer/ev_index_cache_probe cache.osrs239 osrs239
+```
+
+That probe checks the property that actually matters — a cache which never goes
+stale is *worse* than no cache, because it answers confidently with the previous
+contents. So it builds, reloads (expecting a hit), touches an idx file, and
+reloads again (expecting a miss), comparing the full contents each time rather
+than just the timing: a load returning an empty index is also fast. It is how
+the empty-string-vs-absent name bug below was caught.
+
 ## Textures
 
 Both texture systems are loaded and drawn:
@@ -74,11 +109,31 @@ for models that do not need this, which is every OldSchool npc.
 
 ## Moving around
 
-Drag orbits, the wheel zooms, and **WASD** flies the viewpoint over the ground
-plane in whatever direction the camera is facing, with **R**/**F** for up and
-down and **X** to return to the framed view. Flying is not the drag-pan: pan
-slides the image on the canvas without changing depth, while this moves through
-the scene, so distance, culling and apparent size all follow.
+Drag orbits, the wheel zooms, **WASD** flies the viewpoint over the ground
+plane, **R**/**F** go up and down, and **Re-centre** (or **X**) undoes all of it
+and re-frames the model. Flying is not the drag-pan: pan slides the image on the
+canvas without changing depth, while this moves through the scene, so distance,
+culling and apparent size all follow.
+
+**The step carries no yaw term, and that is not an oversight.** `camera.yaw` is
+fixed at 0 in this viewer — dragging spins the *model*, it does not orbit the
+eye. The two look identical and are not: the screen axes never rotate, so right
+on screen is world x at every yaw. Rotating the step by yaw, which is what this
+did first, makes the keys correct near yaw 0 and **inverted half a turn away**.
+
+That bug survived a unit test, because the test asserted the convention I had
+assumed rather than the one the projection implements. `ev_move_screen_probe`
+replaced it and asserts nothing about internals — it renders, steps, renders
+again, and measures where the subject actually went (D moves it left, W makes it
+bigger, R moves it down) at eight yaws:
+
+```sh
+make -C tools/entity_viewer ev_move_screen_probe
+tools/entity_viewer/ev_move_screen_probe cache.osrs239 osrs239 3127
+```
+
+Speed is per *second*, not per frame: a per-frame step travels twice as far on a
+120 Hz display and changes distance whenever the framerate stutters.
 
 ## A model file, through the HD kernels
 

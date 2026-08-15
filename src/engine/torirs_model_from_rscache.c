@@ -67,21 +67,6 @@ torirs_calculate_bounds_cylinder(
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
 }
 
-static void
-torirs_bones_free(struct ToriRS_Bones* bones)
-{
-    if( !bones )
-        return;
-    if( bones->bones )
-    {
-        for( int i = 0; i < bones->bones_count; i++ )
-            free(bones->bones[i]);
-        free(bones->bones);
-    }
-    free(bones->bones_sizes);
-    free(bones);
-}
-
 static struct ToriRS_Bones*
 torirs_bones_new(
     const uint8_t* bone_map,
@@ -279,11 +264,9 @@ torirs_model_move_from_rscache(
     if( src->face_infos && fc > 0 )
     {
         dst->face_infos = malloc((size_t)fc * sizeof(int));
-        if( dst->face_infos )
-        {
-            for( int i = 0; i < fc; i++ )
-                dst->face_infos[i] = (int)src->face_infos[i];
-        }
+        assert(dst->face_infos);
+        for( int i = 0; i < fc; i++ )
+            dst->face_infos[i] = (int)src->face_infos[i];
         free(src->face_infos);
         src->face_infos = NULL;
     }
@@ -292,11 +275,9 @@ torirs_model_move_from_rscache(
     {
         size_t nbytes = torirs_face_priorities_byte_count(fc);
         dst->face_priorities = calloc(nbytes, 1);
-        if( dst->face_priorities )
-        {
-            for( int i = 0; i < fc; i++ )
-                torirs_set_face_priority(dst->face_priorities, i, src->face_priorities[i]);
-        }
+        assert(dst->face_priorities);
+        for( int i = 0; i < fc; i++ )
+            torirs_set_face_priority(dst->face_priorities, i, src->face_priorities[i]);
         free(src->face_priorities);
         src->face_priorities = NULL;
     }
@@ -354,46 +335,44 @@ torirs_model_move_from_rscache(
     {
         int vc = src->animaya_vertex_count;
         struct ToriRS_AnimayaSkin* skin = calloc(1, sizeof(struct ToriRS_AnimayaSkin));
-        if( skin )
+        assert(skin);
+        skin->vertex_count = vc;
+        skin->group_counts = malloc((size_t)vc);
+        skin->groups = calloc((size_t)vc, sizeof(uint8_t*));
+        skin->scales = calloc((size_t)vc, sizeof(uint8_t*));
+        if( skin->group_counts && skin->groups && skin->scales )
         {
-            skin->vertex_count = vc;
-            skin->group_counts = malloc((size_t)vc);
-            skin->groups = calloc((size_t)vc, sizeof(uint8_t*));
-            skin->scales = calloc((size_t)vc, sizeof(uint8_t*));
-            if( skin->group_counts && skin->groups && skin->scales )
+            memcpy(skin->group_counts, src->animaya_group_counts, (size_t)vc);
+            for( int i = 0; i < vc; i++ )
             {
-                memcpy(skin->group_counts, src->animaya_group_counts, (size_t)vc);
-                for( int i = 0; i < vc; i++ )
-                {
-                    int cnt = skin->group_counts[i];
-                    if( cnt <= 0 )
-                        continue;
-                    skin->groups[i] = malloc((size_t)cnt);
-                    skin->scales[i] = malloc((size_t)cnt);
-                    if( skin->groups[i] && src->animaya_groups[i] )
-                        memcpy(skin->groups[i], src->animaya_groups[i], (size_t)cnt);
-                    if( skin->scales[i] && src->animaya_scales[i] )
-                        memcpy(skin->scales[i], src->animaya_scales[i], (size_t)cnt);
-                }
-                dst->animaya_skin = skin;
+                int cnt = skin->group_counts[i];
+                if( cnt <= 0 )
+                    continue;
+                skin->groups[i] = malloc((size_t)cnt);
+                skin->scales[i] = malloc((size_t)cnt);
+                if( skin->groups[i] && src->animaya_groups[i] )
+                    memcpy(skin->groups[i], src->animaya_groups[i], (size_t)cnt);
+                if( skin->scales[i] && src->animaya_scales[i] )
+                    memcpy(skin->scales[i], src->animaya_scales[i], (size_t)cnt);
             }
-            else
-            {
-                ToriRS_AnimayaSkinFree(skin);
-            }
+            dst->animaya_skin = skin;
+        }
+        else
+        {
+            ToriRS_AnimayaSkinFree(skin);
         }
     }
 
     if( dst->vertex_count > 0 && dst->vertices_x && dst->vertices_y && dst->vertices_z )
     {
         dst->bounds_cylinder = malloc(sizeof(struct ToriRS_BoundsCylinder));
-        if( dst->bounds_cylinder )
-            torirs_calculate_bounds_cylinder(
-                dst->bounds_cylinder,
-                dst->vertex_count,
-                dst->vertices_x,
-                dst->vertices_y,
-                dst->vertices_z);
+        assert(dst->bounds_cylinder);
+        torirs_calculate_bounds_cylinder(
+            dst->bounds_cylinder,
+            dst->vertex_count,
+            dst->vertices_x,
+            dst->vertices_y,
+            dst->vertices_z);
     }
 
     dst->flags |= TORIRS_MODEL_FLAG_DECODED;

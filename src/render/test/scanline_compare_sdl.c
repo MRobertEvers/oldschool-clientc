@@ -1124,31 +1124,29 @@ run_headless(
             untextured_diff == 0 ? " - exact" : " - UNEXPECTED");
 
         int* triptych = malloc(sizeof(int) * PANE_W * MAX_PANES * PANE_H);
-        if( triptych )
-        {
-            const int* panes[MAX_PANES] = {
-                viewer->pane_branching, viewer->pane_scanline, viewer->pane_diff
-            };
-            int full_w = PANE_W * MAX_PANES;
-            for( int y = 0; y < PANE_H; y++ )
-                for( int pane = 0; pane < MAX_PANES; pane++ )
-                    memcpy(
-                        triptych + (y * full_w) + (pane * PANE_W),
-                        panes[pane] + (y * PANE_W),
-                        sizeof(int) * PANE_W);
+        assert(triptych);
+        const int* panes[MAX_PANES] = {
+            viewer->pane_branching, viewer->pane_scanline, viewer->pane_diff
+        };
+        int full_w = PANE_W * MAX_PANES;
+        for( int y = 0; y < PANE_H; y++ )
+            for( int pane = 0; pane < MAX_PANES; pane++ )
+                memcpy(
+                    triptych + (y * full_w) + (pane * PANE_W),
+                    panes[pane] + (y * PANE_W),
+                    sizeof(int) * PANE_W);
 
-            char path[512];
-            snprintf(
-                path,
-                sizeof(path),
-                "%s_model%d_alpha%02X.bmp",
-                bmp_prefix,
-                viewer->model_id,
-                k_alpha_modes[mode]);
-            bmp_write_file(path, triptych, full_w, PANE_H);
-            printf("  wrote %s\n", path);
-            free(triptych);
-        }
+        char path[512];
+        snprintf(
+            path,
+            sizeof(path),
+            "%s_model%d_alpha%02X.bmp",
+            bmp_prefix,
+            viewer->model_id,
+            k_alpha_modes[mode]);
+        bmp_write_file(path, triptych, full_w, PANE_H);
+        printf("  wrote %s\n", path);
+        free(triptych);
     }
 
     return worst_overall != 0;

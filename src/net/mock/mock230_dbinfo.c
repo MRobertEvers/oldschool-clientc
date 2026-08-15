@@ -98,17 +98,15 @@ import_table(
             int total = src->tuple_count * src->type_count;
             struct Mock230DbValue* defaults = calloc((size_t)total, sizeof(*defaults));
 
-            if( defaults )
+            assert(defaults);
+            for( int i = 0; i < total; i++ )
             {
-                for( int i = 0; i < total; i++ )
-                {
-                    defaults[i].value = src->values[i].int_value;
-                    defaults[i].text = src->values[i].is_string
-                        ? src->values[i].string_value : NULL;
-                }
-                mock230_db_column_defaults_set(table, col, defaults, total);
-                free(defaults);
+                defaults[i].value = src->values[i].int_value;
+                defaults[i].text = src->values[i].is_string
+                    ? src->values[i].string_value : NULL;
             }
+            mock230_db_column_defaults_set(table, col, defaults, total);
+            free(defaults);
         }
     }
     g_cache_tables++;

@@ -141,11 +141,7 @@ gjstr_nul(RSProt_Buffer* c)
         return NULL;
     }
     out = (char*)malloc((size_t)(end - start) + 1);
-    if( !out )
-    {
-        c->err = 1;
-        return NULL;
-    }
+    assert(out);
     memcpy(out, c->data + start, (size_t)(end - start));
     out[end - start] = '\0';
     c->rpos = end + 1;

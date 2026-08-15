@@ -157,16 +157,16 @@ torirs_component_copy_scripts(
     if( script_comparator )
     {
         dst->script_comparator = malloc((size_t)comparator_count * sizeof(int));
-        if( dst->script_comparator )
-            memcpy(
-                dst->script_comparator, script_comparator, (size_t)comparator_count * sizeof(int));
+        assert(dst->script_comparator);
+        memcpy(
+            dst->script_comparator, script_comparator, (size_t)comparator_count * sizeof(int));
     }
 
     if( script_operand )
     {
         dst->script_operand = malloc((size_t)comparator_count * sizeof(int));
-        if( dst->script_operand )
-            memcpy(dst->script_operand, script_operand, (size_t)comparator_count * sizeof(int));
+        assert(dst->script_operand);
+        memcpy(dst->script_operand, script_operand, (size_t)comparator_count * sizeof(int));
     }
 }
 
@@ -686,7 +686,6 @@ ToriRS_ComponentPackFromRSCacheDat1(
             &pack->components[i], parent_of[comp_id], rel_x_of[comp_id], rel_y_of[comp_id]);
     }
 
-cleanup:
     free(visited);
     free(stack);
     free(parent_of);

@@ -598,21 +598,7 @@ decode_tile(
     free(overlay_colors_hsl);
 
     struct ToriDraw_Model* td = calloc(1, sizeof(struct ToriDraw_Model));
-    if( !td )
-    {
-        free(valid_faces);
-        free(face_colors_hsl_a);
-        free(face_colors_hsl_b);
-        free(face_colors_hsl_c);
-        free(face_texture_ids);
-        free(vertices_x);
-        free(vertices_y);
-        free(vertices_z);
-        free(faces_a);
-        free(faces_b);
-        free(faces_c);
-        return NULL;
-    }
+    assert(td);
 
     td->vertex_count = vertex_count;
     td->vertices_x = vertices_x;

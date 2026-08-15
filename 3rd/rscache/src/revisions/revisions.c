@@ -43,6 +43,10 @@ static const struct revision_entry REVISIONS[] = {
     { "rs530", RSCache_ProfileDat2Rs530 },
     { "558", RSCache_ProfileDat2Rs558 },
     { "rs558", RSCache_ProfileDat2Rs558 },
+    { "634", RSCache_ProfileDat2Rs634 },
+    { "rs634", RSCache_ProfileDat2Rs634 },
+    /* Same revision, plus the repack quirk that cache's map locs need. */
+    { "void634", RSCache_ProfileDat2Void634 },
     { "643", RSCache_ProfileDat2Rs643 },
     { "rs643", RSCache_ProfileDat2Rs643 },
     { "727", RSCache_ProfileDat2Rs727 },

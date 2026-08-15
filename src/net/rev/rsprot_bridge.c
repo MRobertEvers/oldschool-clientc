@@ -782,11 +782,7 @@ bridge_update_ignorelist(int revision, uint8_t const* data, int len, struct RevP
     memset(p, 0, sizeof(*p));
     p->count = msg.count;
     p->names37 = (int64_t*)malloc((size_t)msg.count * sizeof(int64_t) + 1);
-    if( !p->names37 )
-    {
-        p->count = 0;
-        return 0;
-    }
+    assert(p->names37);
     for( int i = 0; i < msg.count; i++ )
         p->names37[i] = entries[i].name ? (int64_t)strtobase37(entries[i].name) : 0;
     return 1;

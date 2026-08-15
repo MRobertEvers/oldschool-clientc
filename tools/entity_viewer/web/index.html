@@ -49,6 +49,10 @@
   .cachelist .row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; }
   .cachelist .cname { flex: 0 0 auto; }
   .cachelist .meta { border: 0; padding: 0; margin-left: auto; font-size: 11px; opacity: .7; }
+  /* The revision reads as editable because it is a guess, not a fact. */
+  .cachelist .crev { font-size: 11px; opacity: .8; border-bottom: 1px dotted currentColor; cursor: text; }
+  .cachelist .crev:hover { opacity: 1; }
+  .cacheactive { color: var(--accent); }
   .cachelist .x { background: none; border: 0; color: var(--fg); opacity: .35; cursor: pointer; }
   .cachelist .x:hover { opacity: 1; }
   .cacheadd { display: flex; gap: 4px; }
@@ -108,6 +112,29 @@
 </head>
 <body>
   <div class="col">
+    <!--
+      The cache registry, first in the column because it governs everything
+      below it: the npc list, the animations and the models are all this
+      cache's. Open by default, and the summary names the active cache, so
+      "which cache am I looking at" never needs a click to answer.
+
+      The revision is a detected GUESS and stays editable. Detection separates
+      the families confidently, but cannot tell osrs184 from osrs239 — and the
+      wrong profile does not fail loudly, it decodes at the wrong field widths
+      and produces plausible nonsense.
+    -->
+    <details class="cachebox" id="cacheBox" open>
+      <summary>Cache: <span class="cacheactive" id="cacheActive">—</span></summary>
+      <div class="scroll cachelist" id="cacheList"></div>
+      <div class="cacheadd">
+        <input type="text" id="cachePath" placeholder="path to a cache directory">
+        <input type="text" id="cacheRev" placeholder="rev" size="6">
+        <button id="cacheAdd">Add</button>
+        <button id="cacheScan" title="scan the repo root for cache directories">Scan</button>
+      </div>
+      <div class="meta" id="cacheInfo"></div>
+    </details>
+
     <h2 id="subjectHead">Subject</h2>
     <div class="modes">
       <button id="modeNpc" class="on">NPC</button>
@@ -123,28 +150,6 @@
       FILE contain, and how does the HD router treat it". The readout is the
       point as much as the image — a mis-routed face still draws.
     -->
-    <!--
-      The cache registry.
-
-      One cache per process was fine for "look at this npc's animations" and
-      wrong for "which of my nine caches has this model", which is the question
-      that comes up when porting content across eras. Switching reopens the
-      cache and rebuilds the index; the revision is a detected GUESS and stays
-      editable, because the wrong profile does not fail loudly — it decodes at
-      the wrong field widths and produces plausible nonsense.
-    -->
-    <details class="cachebox" id="cacheBox">
-      <summary>Caches <span class="meta" id="cacheActive">—</span></summary>
-      <div class="scroll cachelist" id="cacheList"></div>
-      <div class="cacheadd">
-        <input type="text" id="cachePath" placeholder="path to a cache directory">
-        <input type="text" id="cacheRev" placeholder="rev (blank = detect)" size="8">
-        <button id="cacheAdd">Add</button>
-        <button id="cacheScan" title="scan the repo root for cache directories">Scan</button>
-      </div>
-      <div class="meta" id="cacheInfo"></div>
-    </details>
-
     <div class="hdfile">
       <button id="hdPick">Select model file…</button>
       <button id="hdAnimPick">Select animation…</button>
@@ -167,6 +172,7 @@
       <button id="playBtn">Pause</button>
       <button id="bindBtn">Bind pose</button>
       <button id="topBtn" title="look straight down">Top-down</button>
+      <button id="recenterBtn" title="undo any flying and panning, and re-frame the model (X)">Re-centre</button>
       <input type="range" id="frameSlider" min="0" max="0" value="0">
       <span class="meta" style="border:0;padding:0" id="frameLabel">—</span>
     </div>
@@ -194,7 +200,7 @@
       <button id="fxClear">none</button>
       <span id="fxState" style="color:var(--dim)"></span>
     </div>
-    <div class="meta" id="stageMeta">drag to orbit · wheel to zoom</div>
+    <div class="meta" id="stageMeta">drag or arrows to orbit · wheel to zoom</div>
   </div>
 
   <div class="col">

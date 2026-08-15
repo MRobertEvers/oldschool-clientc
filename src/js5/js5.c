@@ -198,8 +198,8 @@ js5_string_duplicate(const char* value)
     assert(value);
     size_t size = strlen(value) + 1u;
     char* copy = (char*)malloc(size);
-    if( copy )
-        memcpy(copy, value, size);
+    assert(copy);
+    memcpy(copy, value, size);
     return copy;
 }
 
@@ -701,11 +701,7 @@ js5_request_new(
         return existing;
 
     struct Js5Request* request = (struct Js5Request*)calloc(1u, sizeof(*request));
-    if( !request )
-    {
-        js5_terminal_error(client, JS5_ERROR_NO_MEMORY, archive, group);
-        return NULL;
-    }
+    assert(request);
     request->key = key;
     request->expected_crc = crc;
     request->expected_version = version;
@@ -765,11 +761,7 @@ js5_request_promote(struct Js5Client* client, struct Js5Request* request)
     }
 
     urgent = (struct Js5Request*)calloc(1u, sizeof(*urgent));
-    if( !urgent )
-    {
-        js5_terminal_error(client, JS5_ERROR_NO_MEMORY, request->archive, request->group);
-        return false;
-    }
+    assert(urgent);
     urgent->key = request->key;
     urgent->expected_crc = request->expected_crc;
     urgent->expected_version = request->expected_version;
@@ -891,11 +883,7 @@ js5_decode_reference(
     struct RSCache_Dat2DiskArchive packed;
     memset(&packed, 0, sizeof(packed));
     packed.data = (char*)malloc(container_size);
-    if( !packed.data )
-    {
-        js5_terminal_error(client, JS5_ERROR_NO_MEMORY, 255, 0);
-        return NULL;
-    }
+    assert(packed.data);
     memcpy(packed.data, raw, container_size);
     packed.data_size = (int)container_size;
     if( !RSCache_ArchiveDecryptDecompress(&packed, NULL) )
@@ -943,12 +931,7 @@ js5_reference_apply(
     if( table->archive_count > 0 )
     {
         states = (uint8_t*)calloc((size_t)table->archive_count, sizeof(uint8_t));
-        if( !states )
-        {
-            RSCache_ReferenceTableFree(table);
-            js5_terminal_error(client, JS5_ERROR_NO_MEMORY, 255, archive_id);
-            return false;
-        }
+        assert(states);
     }
 
     uint32_t total = 0u;
@@ -1704,11 +1687,7 @@ js5_response_begin(struct Js5Client* client)
         return false;
 
     uint8_t* response = (uint8_t*)malloc(response_size);
-    if( !response )
-    {
-        js5_terminal_error(client, JS5_ERROR_NO_MEMORY, archive, group);
-        return false;
-    }
+    assert(response);
     response[0] = compression;
     memcpy(response + 1u, client->response_header + 4u, 4u);
     client->response_data = response;

@@ -333,11 +333,9 @@ PlatformAudio_Init(
     /* Grow the mixer's accumulator before the real-time thread starts. */
     {
         int16_t* warmup = calloc((size_t)have.samples * TORIRS_AUDIO_CHANNELS, sizeof(int16_t));
-        if( warmup )
-        {
-            ToriRS_Mixer_Render(&audio->mixer, warmup, have.samples);
-            free(warmup);
-        }
+        assert(warmup);
+        ToriRS_Mixer_Render(&audio->mixer, warmup, have.samples);
+        free(warmup);
     }
     SDL_PauseAudioDevice(audio->device, 0);
     audio->device_open = true;

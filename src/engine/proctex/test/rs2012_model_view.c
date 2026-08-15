@@ -668,18 +668,16 @@ recenter_model(struct ToriDraw_Model* m, const int* explicit_center)
 
     if( !m->bounds_cylinder )
         m->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    if( m->bounds_cylinder )
-    {
-        struct ToriDraw_BoundsCylinder* bc = m->bounds_cylinder;
-        bc->min_y = min_y;
-        bc->max_y = max_y;
-        bc->radius = (int)sqrt((double)radius2);
-        bc->center_to_bottom_edge = (int)sqrt((double)radius2 + (double)min_y * min_y) + 1;
-        bc->center_to_top_edge = (int)sqrt((double)radius2 + (double)max_y * max_y) + 1;
-        bc->min_z_depth_any_rotation = bc->center_to_top_edge > bc->center_to_bottom_edge
-                                           ? bc->center_to_top_edge
-                                           : bc->center_to_bottom_edge;
-    }
+    assert(m->bounds_cylinder);
+    struct ToriDraw_BoundsCylinder* bc = m->bounds_cylinder;
+    bc->min_y = min_y;
+    bc->max_y = max_y;
+    bc->radius = (int)sqrt((double)radius2);
+    bc->center_to_bottom_edge = (int)sqrt((double)radius2 + (double)min_y * min_y) + 1;
+    bc->center_to_top_edge = (int)sqrt((double)radius2 + (double)max_y * max_y) + 1;
+    bc->min_z_depth_any_rotation = bc->center_to_top_edge > bc->center_to_bottom_edge
+                                       ? bc->center_to_top_edge
+                                       : bc->center_to_bottom_edge;
 }
 
 static void
@@ -2116,28 +2114,26 @@ main(int argc, char** argv)
             {
                 int* forward = (int*)malloc((size_t)order_count * sizeof(int));
 
-                if( forward )
+                assert(forward);
+                order = ToriDraw_FaceOrder(scene);
+                memcpy(forward, order, (size_t)order_count * sizeof(int));
+                for( int i = 0; i < order_count; i++ )
+                    order[i] = forward[order_count - 1 - i];
+                ToriDraw_RenderModel3Raster(scene, &vp, &camera, order_tile, false);
+                free(forward);
+
+                for( int i = 0; i < tile * tile; i++ )
                 {
-                    order = ToriDraw_FaceOrder(scene);
-                    memcpy(forward, order, (size_t)order_count * sizeof(int));
-                    for( int i = 0; i < order_count; i++ )
-                        order[i] = forward[order_count - 1 - i];
-                    ToriDraw_RenderModel3Raster(scene, &vp, &camera, order_tile, false);
-                    free(forward);
+                    int const forward_pixel =
+                        compare ? zbuffer_tile[i] : tile_pixels[i];
 
-                    for( int i = 0; i < tile * tile; i++ )
-                    {
-                        int const forward_pixel =
-                            compare ? zbuffer_tile[i] : tile_pixels[i];
-
-                        /* Covered means TOUCHED: compared against the clear
-                         * colour, not against zero, or a near-black model on a
-                         * non-black background miscounts both ways. */
-                        if( forward_pixel != background || order_tile[i] != background )
-                            order_check_covered++;
-                        if( forward_pixel != order_tile[i] )
-                            order_check_diff++;
-                    }
+                    /* Covered means TOUCHED: compared against the clear
+                     * colour, not against zero, or a near-black model on a
+                     * non-black background miscounts both ways. */
+                    if( forward_pixel != background || order_tile[i] != background )
+                        order_check_covered++;
+                    if( forward_pixel != order_tile[i] )
+                        order_check_diff++;
                 }
             }
         }

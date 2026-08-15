@@ -483,11 +483,7 @@ set_index(struct EV_TextureSet* set)
 
     set->by_id_len = max_id + 1;
     set->by_id = malloc((size_t)set->by_id_len * sizeof(*set->by_id));
-    if( !set->by_id )
-    {
-        set->by_id_len = 0;
-        return;
-    }
+    assert(set->by_id);
     for( int i = 0; i < set->by_id_len; i++ )
         set->by_id[i] = -1;
     for( int i = 0; i < set->count; i++ )
@@ -600,12 +596,7 @@ load_sprite_backed(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out, int 
         }
 
         packs = calloc((size_t)def->sprite_ids_count, sizeof(*packs));
-        if( !packs )
-        {
-            RSCache_Dat2TextureFree(def);
-            out->failed++;
-            continue;
-        }
+        assert(packs);
 
         for( int s = 0; s < def->sprite_ids_count; s++ )
         {

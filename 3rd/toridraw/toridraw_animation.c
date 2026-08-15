@@ -37,8 +37,8 @@ ToriDraw_AnimationSetSeqMeta(
         while( meta->walkmerge[count] != 9999999 )
             count++;
         anim->walkmerge = malloc(((size_t)count + 1) * sizeof(int));
-        if( anim->walkmerge )
-            memcpy(anim->walkmerge, meta->walkmerge, ((size_t)count + 1) * sizeof(int));
+        assert(anim->walkmerge);
+        memcpy(anim->walkmerge, meta->walkmerge, ((size_t)count + 1) * sizeof(int));
     }
     anim->priority = meta->priority;
     anim->max_loops = meta->max_loops;

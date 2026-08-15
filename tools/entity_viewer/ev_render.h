@@ -173,19 +173,21 @@ void
 ev_set_pan(int x, int y);
 
 /**
- * Fly the viewpoint one step.
+ * Fly the viewpoint one step, in world units, along the camera's own axes.
  *
- * `forward` and `right` are world units on the ground plane, turned by `yaw`
- * (the same 0..2047 value passed to ev_render) so W always goes where the
- * camera is looking. `up` is the world y axis and ignores yaw. Steps
- * accumulate; ev_move_reset returns to the framed view.
+ * Takes no yaw: this viewer spins the MODEL and never yaws the camera, so the
+ * screen axes are fixed — forward is always toward the subject and right is
+ * always right, at every yaw. Passing a yaw rotation here is the bug that makes
+ * the keys invert half a turn from where they were tuned.
+ *
+ * Steps accumulate; ev_move_reset returns to the framed view.
  *
  * This is not ev_set_pan. Pan slides the image on the canvas without changing
  * depth; this moves through the scene, so distance, culling and apparent size
  * all change with it.
  */
 void
-ev_move(int forward, int right, int up, int yaw);
+ev_move(int forward, int right, int up);
 
 void
 ev_move_reset(void);

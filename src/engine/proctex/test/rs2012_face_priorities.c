@@ -2969,103 +2969,102 @@ main(int argc, char** argv)
         long* offend = (long*)calloc((size_t)feature_count, sizeof(long));
         int* order = (int*)malloc((size_t)feature_count * sizeof(int));
 
-        if( offend && order )
+        assert(offend);
+        assert(order);
+        long cur = tally.wrong_between;
+        long const before = cur;
+        int trials = 0, moves = 0;
+        bool moved = true;
+
+        for( int pose = 0; pose < pose_count; pose++ )
         {
-            long cur = tally.wrong_between;
-            long const before = cur;
-            int trials = 0, moves = 0;
-            bool moved = true;
-
-            for( int pose = 0; pose < pose_count; pose++ )
+            int pose_distance = distance;
+            if( poses.anim && !apply_pose(&poses, &g, pose, res, scale, &pose_distance) )
+                continue;
+            for( int p = 0; p < pitch_steps; p++ )
             {
-                int pose_distance = distance;
-                if( poses.anim && !apply_pose(&poses, &g, pose, res, scale, &pose_distance) )
-                    continue;
-                for( int p = 0; p < pitch_steps; p++ )
+                double pitch =
+                    elev_min_deg * PRIO_PI / 180.0 +
+                    (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
+                        (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
+                for( int y = 0; y < yaw_steps; y++ )
                 {
-                    double pitch =
-                        elev_min_deg * PRIO_PI / 180.0 +
-                        (elev_max_deg - elev_min_deg) * PRIO_PI / 180.0 *
-                            (pitch_steps == 1 ? 0.5 : (double)p / (pitch_steps - 1));
-                    for( int y = 0; y < yaw_steps; y++ )
+                    struct view v;
+                    view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
+                    project_view(&g, &v, &r, pose_distance, scale);
+                    raster_zbuffer_ref(&g, &r, r.near_feature, r.near_z);
+                    raster_painter(&g, &r, band);
+                    for( int i = 0; i < res * res; i++ )
                     {
-                        struct view v;
-                        view_make(&v, 2.0 * PRIO_PI * y / yaw_steps, pitch);
-                        project_view(&g, &v, &r, pose_distance, scale);
-                        raster_zbuffer_ref(&g, &r, r.near_feature, r.near_z);
-                        raster_painter(&g, &r, band);
-                        for( int i = 0; i < res * res; i++ )
-                        {
-                            int const pf = r.paint_feature[i];
-                            if( pf >= 0 && r.near_feature[i] >= 0 &&
-                                pf != r.near_feature[i] &&
-                                r.paint_z[i] > r.near_z[i] + 2 )
-                                offend[pf]++;
-                        }
+                        int const pf = r.paint_feature[i];
+                        if( pf >= 0 && r.near_feature[i] >= 0 &&
+                            pf != r.near_feature[i] &&
+                            r.paint_z[i] > r.near_z[i] + 2 )
+                            offend[pf]++;
                     }
                 }
             }
-
-            for( int i = 0; i < feature_count; i++ )
-                order[i] = i;
-            g_sort_weight = offend;
-            qsort(order, (size_t)feature_count, sizeof(int), cmp_weight_desc);
-
-            while( moved && trials < repair_trials )
-            {
-                moved = false;
-                for( int oi = 0; oi < feature_count && trials < repair_trials; oi++ )
-                {
-                    int const feat = order[oi];
-                    int const from = band[feat];
-                    int cand[5];
-                    int cand_count = 0;
-                    long best_trial = cur;
-                    int best_to = from;
-
-                    if( offend[feat] == 0 )
-                        break; /* sorted: everything after is clean too */
-                    if( from > 0 && from <= HARD_BANDS - 1 )
-                        cand[cand_count++] = from - 1;
-                    if( from < HARD_BANDS - 1 )
-                        cand[cand_count++] = from + 1;
-                    cand[cand_count++] = 0;
-                    cand[cand_count++] = FLEX_BAND;
-                    cand[cand_count++] = FLEX_BAND + 1;
-
-                    for( int c = 0; c < cand_count && trials < repair_trials; c++ )
-                    {
-                        int const to = cand[c];
-                        bool dup = to == from;
-                        for( int k = 0; k < c && !dup; k++ )
-                            dup = cand[k] == to;
-                        if( dup )
-                            continue;
-                        band[feat] = to;
-                        trials++;
-                        long const t = stock_eval(&judge, &g, band);
-                        if( t < best_trial )
-                        {
-                            best_trial = t;
-                            best_to = to;
-                        }
-                    }
-                    band[feat] = best_to;
-                    if( best_to != from )
-                    {
-                        cur = best_trial;
-                        moved = true;
-                        moves++;
-                    }
-                }
-            }
-
-            printf(
-                "\nrepair:   %d trial(s), %d move(s), %ld -> %ld wrong px\n",
-                trials, moves, before, cur);
-            tally.wrong_between = cur;
-            gain = baseline.wrong_between - cur;
         }
+
+        for( int i = 0; i < feature_count; i++ )
+            order[i] = i;
+        g_sort_weight = offend;
+        qsort(order, (size_t)feature_count, sizeof(int), cmp_weight_desc);
+
+        while( moved && trials < repair_trials )
+        {
+            moved = false;
+            for( int oi = 0; oi < feature_count && trials < repair_trials; oi++ )
+            {
+                int const feat = order[oi];
+                int const from = band[feat];
+                int cand[5];
+                int cand_count = 0;
+                long best_trial = cur;
+                int best_to = from;
+
+                if( offend[feat] == 0 )
+                    break; /* sorted: everything after is clean too */
+                if( from > 0 && from <= HARD_BANDS - 1 )
+                    cand[cand_count++] = from - 1;
+                if( from < HARD_BANDS - 1 )
+                    cand[cand_count++] = from + 1;
+                cand[cand_count++] = 0;
+                cand[cand_count++] = FLEX_BAND;
+                cand[cand_count++] = FLEX_BAND + 1;
+
+                for( int c = 0; c < cand_count && trials < repair_trials; c++ )
+                {
+                    int const to = cand[c];
+                    bool dup = to == from;
+                    for( int k = 0; k < c && !dup; k++ )
+                        dup = cand[k] == to;
+                    if( dup )
+                        continue;
+                    band[feat] = to;
+                    trials++;
+                    long const t = stock_eval(&judge, &g, band);
+                    if( t < best_trial )
+                    {
+                        best_trial = t;
+                        best_to = to;
+                    }
+                }
+                band[feat] = best_to;
+                if( best_to != from )
+                {
+                    cur = best_trial;
+                    moved = true;
+                    moves++;
+                }
+            }
+        }
+
+        printf(
+            "\nrepair:   %d trial(s), %d move(s), %ld -> %ld wrong px\n",
+            trials, moves, before, cur);
+        tally.wrong_between = cur;
+        gain = baseline.wrong_between - cur;
         free(offend);
         free(order);
     }

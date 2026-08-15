@@ -23,8 +23,8 @@ ToriDraw_BufCopy(
     if( count == 0 || !src )
         return NULL;
     void* dst = malloc(count * elem_size);
-    if( dst )
-        memcpy(dst, src, count * elem_size);
+    assert(dst);
+    memcpy(dst, src, count * elem_size);
     return dst;
 }
 

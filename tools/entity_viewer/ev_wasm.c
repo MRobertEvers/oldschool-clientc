@@ -48,7 +48,7 @@ EV_EXPORT int ev_w_set_textures(const uint8_t* d, int n) { return ev_set_texture
 EV_EXPORT int ev_w_texture_count(void) { return ev_texture_count(); }
 
 /* Free-fly movement. */
-EV_EXPORT void ev_w_move(int f, int r, int u, int yaw) { ev_move(f, r, u, yaw); }
+EV_EXPORT void ev_w_move(int f, int r, int u) { ev_move(f, r, u); }
 EV_EXPORT void ev_w_move_reset(void) { ev_move_reset(); }
 
 EV_EXPORT uint8_t*

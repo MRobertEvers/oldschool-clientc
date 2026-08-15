@@ -238,10 +238,17 @@ ev_textures_probe: $(BUILD)/ev_textures_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
-$(BUILD)/ev_move_probe.o: test/ev_move_probe.c | $(BUILD)
+$(BUILD)/ev_index_cache_probe.o: test/ev_index_cache_probe.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 
-ev_move_probe: $(BUILD)/ev_move_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+ev_index_cache_probe: $(BUILD)/ev_index_cache_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_move_screen_probe.o: test/ev_move_screen_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_move_screen_probe: $(BUILD)/ev_move_screen_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 

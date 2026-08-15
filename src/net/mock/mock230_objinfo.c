@@ -236,7 +236,10 @@ read_requirements(
     int levels[2];
     int count = 0;
 
-    assert(wearable);
+    /* A boolean, not a pointer: most objs are not wearable and have no
+     * requirements to read. */
+    if( !wearable )
+        return;
     for( int i = 0; i < params->count; i++ )
     {
         int key = params->keys[i];
@@ -603,14 +606,7 @@ mock230_objinfo_load(const char* cache_dir)
             g_obj_count = file_id + 1;
     }
     g_objs = calloc((size_t)(g_obj_count > 0 ? g_obj_count : 1), sizeof(*g_objs));
-    if( !g_objs )
-    {
-        g_obj_count = 0;
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
+    assert(g_objs);
     for( int i = 0; i < g_obj_count; i++ )
     {
         g_objs[i].wearpos = -1;

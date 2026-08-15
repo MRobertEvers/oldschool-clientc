@@ -120,31 +120,29 @@ mock230_seqinfo_load(const char* cache_dir)
         g_seq_priority_count = 0;
 
     g_seqs = (struct SeqName*)calloc((size_t)archive->file_count, sizeof(*g_seqs));
-    if( g_seqs )
+    assert(g_seqs);
+    for( int i = 0; i < archive->file_count; i++ )
     {
-        for( int i = 0; i < archive->file_count; i++ )
-        {
-            struct RSCache_Dat2ConfigSequence* seq =
-                RSCache_Dat2ConfigSequenceNewDecodeProfile(
-                    &profile, files->files[i], files->file_sizes[i]);
+        struct RSCache_Dat2ConfigSequence* seq =
+            RSCache_Dat2ConfigSequenceNewDecodeProfile(
+                &profile, files->files[i], files->file_sizes[i]);
 
-            if( !seq )
-                continue;
-            if( seq->debug_name && seq->debug_name[0] )
-            {
-                g_seqs[loaded].name = strdup(seq->debug_name);
-                g_seqs[loaded].id = archive->file_ids[i];
-                loaded++;
-            }
-            /* The decoder zero-initialises, so a record that omits opcode 5
-             * arrives as 0 rather than as the reference's default of 5. Taking
-             * that number literally would make every un-prioritised animation
-             * lose to every other one — the gate would then be a fancier way of
-             * saying "the first animation of the tick wins". */
-            if( archive->file_ids[i] < g_seq_priority_count && seq->forced_priority > 0 )
-                g_seq_priority[archive->file_ids[i]] = (uint8_t)seq->forced_priority;
-            RSCache_Dat2ConfigSequenceFree(seq);
+        if( !seq )
+            continue;
+        if( seq->debug_name && seq->debug_name[0] )
+        {
+            g_seqs[loaded].name = strdup(seq->debug_name);
+            g_seqs[loaded].id = archive->file_ids[i];
+            loaded++;
         }
+        /* The decoder zero-initialises, so a record that omits opcode 5
+         * arrives as 0 rather than as the reference's default of 5. Taking
+         * that number literally would make every un-prioritised animation
+         * lose to every other one — the gate would then be a fancier way of
+         * saying "the first animation of the tick wins". */
+        if( archive->file_ids[i] < g_seq_priority_count && seq->forced_priority > 0 )
+            g_seq_priority[archive->file_ids[i]] = (uint8_t)seq->forced_priority;
+        RSCache_Dat2ConfigSequenceFree(seq);
     }
     g_seq_count = loaded;
 

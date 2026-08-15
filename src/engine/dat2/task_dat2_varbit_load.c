@@ -206,12 +206,7 @@ Task_Dat2VarbitLoad_Run(
     if( type_count > 0 )
     {
         types = calloc((size_t)type_count, sizeof(*types));
-        if( !types )
-        {
-            RSCache_FileListFree(filelist);
-            RSCache_Dat2DiskArchiveFree(archive);
-            PT_EXIT(&task->pt);
-        }
+        assert(types);
         for( int i = 0; i < type_count; i++ )
             types[i].basevar = -1;
     }

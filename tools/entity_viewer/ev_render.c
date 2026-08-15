@@ -1004,28 +1004,26 @@ ev_set_frame_height(int height)
 }
 
 /**
- * Step the viewpoint. `forward`/`right` are on the ground plane and follow the
- * yaw last rendered; `up` is the world y axis and does not.
+ * Step the viewpoint, in the camera's own frame.
  *
- * Yaw is applied here rather than stored, so the accumulated position stays in
- * world axes — turning after moving must not move you.
+ * ## Why there is no yaw term
+ *
+ * `yaw` in this viewer is the angle the MODEL is spun by — `camera.yaw` is
+ * fixed at 0 and the camera only ever pitches. Dragging therefore spins the
+ * subject rather than orbiting the eye, which looks identical and is not: the
+ * screen axes never rotate. Right on screen is world x at every yaw, and
+ * forward is world z at every yaw.
+ *
+ * Rotating the step by yaw — which is what this did first — makes the keys
+ * correct near yaw 0 and INVERTED half a turn away, because it applies a
+ * rotation the projection never applied. See ev_move_screen_probe, which
+ * measures where the subject actually goes rather than asserting a convention.
  */
 void
-ev_move(int forward, int right, int up, int yaw)
+ev_move(int forward, int right, int up)
 {
-    int sin_yaw = ToriDraw_Sin(yaw & 2047);
-    int cos_yaw = ToriDraw_Cos(yaw & 2047);
-
-    /*
-     * Yaw here is the angle the MODEL is spun by, so a camera at yaw t looks
-     * along the direction the world is rotated by -t. Forward is therefore
-     * (-sin, -cos) rather than (sin, cos); getting the sign wrong gives keys
-     * that work perfectly at yaw 0 and invert by 180 degrees.
-     */
-    g_fly_x -= (int)(((int64_t)forward * sin_yaw) >> 16);
-    g_fly_z -= (int)(((int64_t)forward * cos_yaw) >> 16);
-    g_fly_x += (int)(((int64_t)right * cos_yaw) >> 16);
-    g_fly_z -= (int)(((int64_t)right * sin_yaw) >> 16);
+    g_fly_x += right;
+    g_fly_z += forward;
     g_fly_y += up;
 }
 

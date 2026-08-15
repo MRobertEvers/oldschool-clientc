@@ -736,17 +736,15 @@ Task_Dat2TextureLoad_Run(
                 struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
                 int count = sprite->width * sprite->height;
                 int32_t* argb = malloc((size_t)(count > 0 ? count : 1) * sizeof(*argb));
-                if( argb )
-                {
-                    for( int i = 0; i < count; i++ )
-                        argb[i] = pack->palette[sprite->palette_pixels[i]];
-                    proctex_sprite_put(
-                        task->bc,
-                        task->dep_sprite_id,
-                        argb,
-                        sprite->width,
-                        sprite->height);
-                }
+                assert(argb);
+                for( int i = 0; i < count; i++ )
+                    argb[i] = pack->palette[sprite->palette_pixels[i]];
+                proctex_sprite_put(
+                    task->bc,
+                    task->dep_sprite_id,
+                    argb,
+                    sprite->width,
+                    sprite->height);
             }
             else
             {

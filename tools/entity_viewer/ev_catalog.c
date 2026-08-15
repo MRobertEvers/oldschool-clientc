@@ -681,7 +681,7 @@ main(int argc, char** argv)
             if( !npc ) continue;
             RSCache_Dat2ConfigNpcFree(npc);
             int* grown = realloc(npc_ids, (size_t)(npc_count + 1) * sizeof(*npc_ids));
-            if( !grown ) { free(npc_ids); return 1; }
+            assert(grown);
             npc_ids = grown;
             npc_ids[npc_count++] = id;
         }
@@ -697,7 +697,7 @@ main(int argc, char** argv)
             if( !npc ) continue;
             RSCache_Dat2ConfigNpcFree(npc);
             int* grown = realloc(npc_ids, (size_t)(npc_count + 1) * sizeof(*npc_ids));
-            if( !grown ) { free(npc_ids); return 1; }
+            assert(grown);
             npc_ids = grown;
             npc_ids[npc_count++] = id;
         }

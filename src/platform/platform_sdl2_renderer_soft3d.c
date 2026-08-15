@@ -482,14 +482,12 @@ soft3d_draw_sprite(
         {
             size_t n = (size_t)sw2 * (size_t)sh2;
             uint32_t* copy = malloc(n * sizeof(uint32_t));
-            if( copy )
-            {
-                memcpy(copy, cached, n * sizeof(uint32_t));
-                free(spr_px);
-                spr_px = copy;
-                sw = sw2;
-                sh = sh2;
-            }
+            assert(copy);
+            memcpy(copy, cached, n * sizeof(uint32_t));
+            free(spr_px);
+            spr_px = copy;
+            sw = sw2;
+            sh = sh2;
         }
     }
 
@@ -523,16 +521,14 @@ soft3d_draw_sprite(
                  * later TransformPixels free stays well-defined. */
                 size_t n = (size_t)nominal_w * (size_t)nominal_h;
                 uint32_t* owned = malloc(n * sizeof(uint32_t));
-                if( owned )
-                {
-                    memcpy(owned, clamped, n * sizeof(uint32_t));
-                    free(spr_px);
-                    spr_px = owned;
-                    sw = nominal_w;
-                    sh = nominal_h;
-                    ox = 0;
-                    oy = 0;
-                }
+                assert(owned);
+                memcpy(owned, clamped, n * sizeof(uint32_t));
+                free(spr_px);
+                spr_px = owned;
+                sw = nominal_w;
+                sh = nominal_h;
+                ox = 0;
+                oy = 0;
             }
         }
 
@@ -1205,12 +1201,7 @@ soft3d_pixowner_end(void)
         };
         struct Agg* agg = calloc((size_t)rect_w * (size_t)rect_h, sizeof(*agg));
         int agg_count = 0;
-        if( !agg )
-        {
-            if( out != stderr )
-                fclose(out);
-            return;
-        }
+        assert(agg);
         for( int i = 0; i < rect_w * rect_h; i++ )
         {
             uint32_t colour = g_pixowner_prev[i];

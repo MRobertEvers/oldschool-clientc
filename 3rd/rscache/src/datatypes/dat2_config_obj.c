@@ -47,6 +47,8 @@ RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
      * shared decoder body, so a revision module can pin it. */
     if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_BUILD670 )
         return RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670;
+    if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_BUILD502 )
+        return RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD502;
     if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_530 )
         return RSCACHE_CONFIG_OBJ_DECODE_RS2_530;
 
@@ -774,47 +776,56 @@ obj_decode_op_rs2_530(
     }
 }
 
+/**
+ * The RS2 opcode table from build 502 up.
+ *
+ * `varuint_models` is the one thing that moved inside this band: model ids are a
+ * plain u16 until build 670 and a varuint from it. Everything else — the opcode
+ * numbers and every payload width — is shared, so the two builds share a body
+ * rather than a copy that would drift.
+ */
 static bool
-obj_decode_op_rs2_b670(
+obj_decode_op_rs2_b502(
     struct RSCache_Dat2ConfigObj* object,
     int opcode,
-    struct RSCache_Buffer* buffer)
+    struct RSCache_Buffer* buffer,
+    bool varuint_models)
 {
+#define gmodel(b) (varuint_models ? gvaruint(b) : g2(b))
     switch( opcode )
     {
-    /* Every model field is a varuint here — the whole reason for this codec. */
     case 0x01:
-        object->inventory_model_id = gvaruint(buffer);
+        object->inventory_model_id = gmodel(buffer);
         return true;
     case 0x17: /* male model 0; the trailing type byte went away at build 502 */
-        object->male_model_0 = gvaruint(buffer);
+        object->male_model_0 = gmodel(buffer);
         return true;
     case 0x18:
-        object->male_model_1 = gvaruint(buffer);
+        object->male_model_1 = gmodel(buffer);
         return true;
     case 0x19: /* female model 0 */
-        object->female_model_0 = gvaruint(buffer);
+        object->female_model_0 = gmodel(buffer);
         return true;
     case 0x1A:
-        object->female_model_1 = gvaruint(buffer);
+        object->female_model_1 = gmodel(buffer);
         return true;
     case 0x4E:
-        object->male_model_2 = gvaruint(buffer);
+        object->male_model_2 = gmodel(buffer);
         return true;
     case 0x4F:
-        object->female_model_2 = gvaruint(buffer);
+        object->female_model_2 = gmodel(buffer);
         return true;
     case 0x5A:
-        object->male_head_model = gvaruint(buffer);
+        object->male_head_model = gmodel(buffer);
         return true;
     case 0x5B:
-        object->female_head_model = gvaruint(buffer);
+        object->female_head_model = gmodel(buffer);
         return true;
     case 0x5C:
-        object->male_head_model_2 = gvaruint(buffer);
+        object->male_head_model_2 = gmodel(buffer);
         return true;
     case 0x5D:
-        object->female_head_model_2 = gvaruint(buffer);
+        object->female_head_model_2 = gmodel(buffer);
         return true;
 
     case 0x02:
@@ -1035,6 +1046,7 @@ obj_decode_op_rs2_b670(
          * record in `cache.rs727_preeoc` reaches here. */
         return false;
     }
+#undef gmodel
 }
 
 bool
@@ -1049,7 +1061,9 @@ RSCache_Dat2ConfigObjDecodeOp(
         if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_530 )
             return obj_decode_op_rs2_530(object, opcode, buffer);
         if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670 )
-            return obj_decode_op_rs2_b670(object, opcode, buffer);
+            return obj_decode_op_rs2_b502(object, opcode, buffer, true);
+        if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD502 )
+            return obj_decode_op_rs2_b502(object, opcode, buffer, false);
 
         switch( opcode )
         {

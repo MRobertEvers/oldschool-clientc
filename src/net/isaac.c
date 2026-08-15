@@ -250,7 +250,7 @@ struct Isaac*
 isaac_from_state(const void* buf)
 {
     struct Isaac* isaac = malloc(sizeof(struct Isaac));
-    if( isaac )
-        memcpy(isaac, buf, sizeof(struct Isaac));
+    assert(isaac);
+    memcpy(isaac, buf, sizeof(struct Isaac));
     return isaac;
 }

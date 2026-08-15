@@ -306,11 +306,7 @@ LootStore_AddKillLoot(
         src = &store->sources[store->source_count++];
         src->id = store->next_source_id++;
         src->name = strdup(source_name);
-        if( !src->name )
-        {
-            store->source_count--;
-            return;
-        }
+        assert(src->name);
         /* calloc leaves last_event_id at 0; use a sentinel so a real event_id
          * of 0 still counts as the first kill. */
         src->last_event_id = INT_MIN;

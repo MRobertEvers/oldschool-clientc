@@ -202,29 +202,25 @@ UITree_HookSet(
     if( argc > 0 )
     {
         hook->argv = (int*)malloc((size_t)argc * sizeof(int));
-        if( hook->argv )
-        {
-            memcpy(hook->argv, argv, (size_t)argc * sizeof(int));
-            hook->argc = argc;
-        }
+        assert(hook->argv);
+        memcpy(hook->argv, argv, (size_t)argc * sizeof(int));
+        hook->argc = argc;
     }
 
     if( str_argc > 0 )
     {
         hook->strv = (char**)calloc((size_t)str_argc, sizeof(char*));
-        if( hook->strv )
+        assert(hook->strv);
+        /* str_argc is raised as each string lands, so a mid-way OOM leaves a
+         * slot whose count matches what was actually allocated — the free
+         * path walks that count and must not run past it. */
+        for( int i = 0; i < str_argc; i++ )
         {
-            /* str_argc is raised as each string lands, so a mid-way OOM leaves a
-             * slot whose count matches what was actually allocated — the free
-             * path walks that count and must not run past it. */
-            for( int i = 0; i < str_argc; i++ )
-            {
-                char* copy = hook_strdup(strv[i]);
-                if( !copy )
-                    break;
-                hook->strv[i] = copy;
-                hook->str_argc = i + 1;
-            }
+            char* copy = hook_strdup(strv[i]);
+            if( !copy )
+                break;
+            hook->strv[i] = copy;
+            hook->str_argc = i + 1;
         }
     }
 }

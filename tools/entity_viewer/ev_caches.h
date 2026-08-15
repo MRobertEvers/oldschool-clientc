@@ -31,6 +31,7 @@
 #include "asset_access.h"
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #define EV_MAX_CACHES 24
 #define EV_CACHE_PATH_MAX 512
@@ -78,6 +79,19 @@ ev_caches_save(const struct EV_CacheList* list, const char* file);
  */
 int
 ev_caches_add(struct EV_CacheList* list, const char* path, const char* rev);
+
+/**
+ * Change an entry's revision profile.
+ *
+ * Separate from add because detection is a guess that the user has to be able
+ * to override *after* seeing what it produced — a wrong profile does not fail,
+ * it decodes at the wrong field widths, so the symptom is nonsense records
+ * rather than an error. Does not reopen anything; the caller re-selects.
+ *
+ * Returns false for a bad index or an empty rev.
+ */
+bool
+ev_caches_set_rev(struct EV_CacheList* list, int index, const char* rev);
 
 /** Returns true if it removed something. Adjusts `active`. */
 bool
@@ -129,6 +143,35 @@ struct EV_Index
 };
 
 /**
+ * Where a cache's index is cached, and what invalidates it.
+ *
+ * `<cache_dir>/.ev/index-<rev>.evi`. Inside the cache directory rather than
+ * beside the viewer because the index describes THAT cache: copy or move the
+ * directory and its index travels with it, and deleting the cache does not
+ * leave a stale index behind pointing at nothing.
+ *
+ * Per revision, because the profile decides how every record decodes — the same
+ * bytes read as osrs184 and as osrs239 give different npc records. One file
+ * keyed only by directory would hand back the previous profile's answers after
+ * the revision is corrected, which is the silent-wrong-answer case the
+ * correction existed to fix.
+ */
+#define EV_INDEX_DIR ".ev"
+
+/**
+ * A cache's fingerprint: what the stored index is checked against.
+ *
+ * Sizes and modification times of `main_file_cache.dat2` and every `idxN`,
+ * folded together. NOT a content hash: the data file is hundreds of megabytes
+ * and hashing it would cost more than the indexing it saves, which would defeat
+ * the point. That trade is a real one — a rewrite that preserves every file's
+ * size and mtime is not detected — but any ordinary edit, repack or partial
+ * download changes at least one of them.
+ */
+uint64_t
+ev_cache_fingerprint(const char* cache_dir);
+
+/**
  * Build the index for an already-open cache.
  *
  * Walks each type's reference table rather than probing ids one by one: a
@@ -142,6 +185,7 @@ ev_index_build(
     struct Tool_Dat2Cache* cache,
     const struct RSCache* profile,
     const char* cache_dir,
+    const char* rev,
     struct EV_Index* out);
 
 void

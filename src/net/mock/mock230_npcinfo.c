@@ -10,6 +10,7 @@
  */
 
 #include "mock230.h"
+#include <assert.h>
 
 #include <rscache.h>
 
@@ -249,14 +250,7 @@ mock230_npcinfo_load(const char* cache_dir)
 
     g_npc_count = highest + 1;
     g_npcs = (struct Mock230NpcInfo*)calloc((size_t)g_npc_count, sizeof(*g_npcs));
-    if( !g_npcs )
-    {
-        g_npc_count = 0;
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
+    assert(g_npcs);
     for( int i = 0; i < g_npc_count; i++ )
     {
         g_npcs[i].name = NULL;

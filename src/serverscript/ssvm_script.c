@@ -99,11 +99,7 @@ read_cstr(struct RSAreaBuf* buf)
 
     length = end - start;
     out = (char*)malloc(length + 1);
-    if( !out )
-    {
-        buf->overflow = 1;
-        return NULL;
-    }
+    assert(out);
     memcpy(out, buf->data + start, length);
     out[length] = '\0';
 
@@ -122,8 +118,10 @@ alloc_zeroed(size_t count, size_t size, int* failed)
     if( count == 0 )
         return NULL;
     p = calloc(count, size);
-    if( !p )
-        *failed = 1;
+    assert(p);
+    /* Kept in the signature so the callers need no change; an allocation
+     * failure now aborts rather than being reported through it. */
+    (void)failed;
     return p;
 }
 

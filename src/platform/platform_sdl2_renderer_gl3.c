@@ -3965,21 +3965,19 @@ gl3_ev_end_3d(
         {
             int w = renderer->width, h = renderer->height;
             unsigned char* px = malloc((size_t)w * h * 3);
-            if( px )
+            assert(px);
+            FILE* f;
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
+            f = fopen(getenv("TORIRS_GL3_READBACK"), "wb");
+            if( f )
             {
-                FILE* f;
-                glPixelStorei(GL_PACK_ALIGNMENT, 1);
-                glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
-                f = fopen(getenv("TORIRS_GL3_READBACK"), "wb");
-                if( f )
-                {
-                    fprintf(f, "P6\n%d %d\n255\n", w, h);
-                    for( int y = h - 1; y >= 0; y-- )
-                        fwrite(px + (size_t)y * w * 3, 1, (size_t)w * 3, f);
-                    fclose(f);
-                }
-                free(px);
+                fprintf(f, "P6\n%d %d\n255\n", w, h);
+                for( int y = h - 1; y >= 0; y-- )
+                    fwrite(px + (size_t)y * w * 3, 1, (size_t)w * 3, f);
+                fclose(f);
             }
+            free(px);
         }
     }
 
@@ -5172,47 +5170,45 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
             done = 1;
             SDL_GL_GetDrawableSize(gl3->window, &fb_w, &fb_h);
             fb = (int*)malloc((size_t)fb_w * (size_t)fb_h * sizeof(int));
-            if( fb )
+            assert(fb);
+            int* top = (int*)malloc((size_t)gl3->width * (size_t)gl3->height * sizeof(int));
+            void bmp_write_file(const char* filename, int* px, int w, int h);
+            glPixelStorei(GL_PACK_ALIGNMENT, 1);
+            glReadBuffer(GL_BACK);
+            glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
+            if( top )
             {
-                int* top = (int*)malloc((size_t)gl3->width * (size_t)gl3->height * sizeof(int));
-                void bmp_write_file(const char* filename, int* px, int w, int h);
-                glPixelStorei(GL_PACK_ALIGNMENT, 1);
-                glReadBuffer(GL_BACK);
-                glReadPixels(0, 0, fb_w, fb_h, TORIRS_GL_READ_FORMAT, GL_UNSIGNED_BYTE, fb);
-                if( top )
+                float const sx = (float)gl3->lb_w / (float)gl3->width;
+                float const sy = (float)gl3->lb_h / (float)gl3->height;
+                int resident = 0;
+                for( int y = 0; y < gl3->height; y++ )
                 {
-                    float const sx = (float)gl3->lb_w / (float)gl3->width;
-                    float const sy = (float)gl3->lb_h / (float)gl3->height;
-                    int resident = 0;
-                    for( int y = 0; y < gl3->height; y++ )
+                    int src_y = gl3->lb_y + (int)((float)(gl3->height - 1 - y) * sy);
+                    if( src_y < 0 )
+                        src_y = 0;
+                    if( src_y >= fb_h )
+                        src_y = fb_h - 1;
+                    for( int x = 0; x < gl3->width; x++ )
                     {
-                        int src_y = gl3->lb_y + (int)((float)(gl3->height - 1 - y) * sy);
-                        if( src_y < 0 )
-                            src_y = 0;
-                        if( src_y >= fb_h )
-                            src_y = fb_h - 1;
-                        for( int x = 0; x < gl3->width; x++ )
-                        {
-                            int src_x = gl3->lb_x + (int)((float)x * sx);
-                            if( src_x < 0 )
-                                src_x = 0;
-                            if( src_x >= fb_w )
-                                src_x = fb_w - 1;
-                            top[y * gl3->width + x] = fb[src_y * fb_w + src_x];
-                        }
+                        int src_x = gl3->lb_x + (int)((float)x * sx);
+                        if( src_x < 0 )
+                            src_x = 0;
+                        if( src_x >= fb_w )
+                            src_x = fb_w - 1;
+                        top[y * gl3->width + x] = fb[src_y * fb_w + src_x];
                     }
-                    for( int i = 0; i < (int)gl3->tex_cap; i++ )
-                        resident += gl3->tex_resident[i] ? 1 : 0;
-                    bmp_write_file(path, top, gl3->width, gl3->height);
-                    fprintf(
-                        stderr,
-                        "gl3_readback: wrote %s tex_resident=%d\n",
-                        path,
-                        resident);
-                    free(top);
                 }
-                free(fb);
+                for( int i = 0; i < (int)gl3->tex_cap; i++ )
+                    resident += gl3->tex_resident[i] ? 1 : 0;
+                bmp_write_file(path, top, gl3->width, gl3->height);
+                fprintf(
+                    stderr,
+                    "gl3_readback: wrote %s tex_resident=%d\n",
+                    path,
+                    resident);
+                free(top);
             }
+            free(fb);
         }
     }
 }

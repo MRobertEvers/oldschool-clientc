@@ -662,8 +662,8 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
     {
         size_t const fc = (size_t)model->face_count;
         model->original_face_alphas = malloc(fc * sizeof(alphaint_t));
-        if( model->original_face_alphas )
-            memcpy(model->original_face_alphas, model->face_alphas, fc * sizeof(alphaint_t));
+        assert(model->original_face_alphas);
+        memcpy(model->original_face_alphas, model->face_alphas, fc * sizeof(alphaint_t));
     }
 }
 
