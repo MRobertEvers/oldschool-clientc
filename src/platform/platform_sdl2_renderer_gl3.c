@@ -3711,22 +3711,6 @@ gl3_ev_model_draw(
         return;
     ctx = renderer->scene;
     assert(ctx);
-    /* #region agent log */
-    if( mcmd->model.kind == TORIDRAWMK_MODEL && mcmd->model.u.model.model &&
-        mcmd->model.u.model.model->vertex_count > 5000 && getenv("TORIRS_ANIM_PROBE") )
-    {
-        struct ToriDraw_SceneElement* el =
-            mcmd->element_id >= 0 ? ToriDraw_SceneElementGet(ctx, mcmd->element_id) : NULL;
-        struct ToriDraw_Model* el_model =
-            (el && el->model.kind == TORIDRAWMK_MODEL) ? el->model.u.model.model : NULL;
-        if( !mcmd->animation || el_model != mcmd->model.u.model.model )
-            fprintf(
-                stderr,
-                "draw_probe: element=%d cmd_model=%p el_model=%p anim=%p frame=%d idx=%d\n",
-                mcmd->element_id, (void*)mcmd->model.u.model.model, (void*)el_model,
-                (void*)mcmd->animation, mcmd->anim_frame, mcmd->anim_index);
-    }
-    /* #endregion */
     if( mcmd->animation && mcmd->element_id >= 0 )
         ToriDraw_SceneElementApplyAnimation(
             ctx, mcmd->element_id, mcmd->anim_index == 0, mcmd->anim_frame);

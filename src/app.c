@@ -10310,10 +10310,10 @@ enum
  * Which npcs were imported from a z-buffered client.
  *
  * What that then MEANS for the render is
- * app_model_apply_import_render_flags' answer, not this one's: today it drops
- * the face priorities and nothing else, because the depth-tested kernels are
- * switched off (see app_model_zbuffer_kernels_enabled). This function only
- * identifies the models; it does not decide how they are resolved.
+ * app_model_apply_import_render_flags' answer, not this one's: the face
+ * priorities always go, and the depth-tested kernels are separately switchable
+ * (see app_model_zbuffer_kernels_enabled). This function only identifies the
+ * models; it does not decide how they are resolved.
  *
  * The content says so, per npc, with the `zbuffer_model` param -- see
  * OSRS-Content/.../minigame_rs2012_qbd/configs/rs2012_qbd.param. The client
@@ -10359,22 +10359,22 @@ app_npc_wants_zbuffer(int npc_id, struct ToriRS_Npctype const* npctype)
 /**
  * Are the depth-tested kernels switched on for the models that ask for them?
  *
- * Off by default. The depth test is currently dropping faces on the QBD and the
- * other rs2012 imports -- whole limbs, and the Queen herself, blink out at some
- * camera angles and come back at others, which is a per-pixel reject and not a
- * sort order (a bad sort draws the face in the wrong place; it does not fail to
- * draw it). Until that is root-caused, the opt-in means only the half of the
- * behaviour that is safe and that those models actually need: dropping the face
- * priorities their authoring client never honoured.
+ * On by default: an imported model's parts genuinely interpenetrate and the
+ * depth test is the only thing that resolves them correctly.
  *
- * TORIRS_MODEL_ZBUFFER=1 puts the kernels back, which is how the defect gets
- * looked at without reverting anything.
+ * TORIRS_MODEL_ZBUFFER=0 leaves those models the OTHER half of the opt-in --
+ * their face priorities still dropped (TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY),
+ * which is right for them either way, but resolved by the painter's sort. That
+ * is the A/B knob for the reported QBD symptom, where faces on the Queen and
+ * the other rs2012 npcs blink out at some camera angles: a per-pixel reject
+ * looks nothing like a bad sort, so splitting the two halves says which one is
+ * doing it without editing content or reverting code.
  */
 static bool
 app_model_zbuffer_kernels_enabled(void)
 {
-    char const* on = getenv("TORIRS_MODEL_ZBUFFER");
-    return on && *on && *on != '0';
+    char const* off = getenv("TORIRS_MODEL_ZBUFFER");
+    return !(off && *off && *off == '0');
 }
 
 /**
@@ -16913,12 +16913,29 @@ App_SendMapBuildComplete(struct App* app)
         app, net_out_map_build_complete(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
 }
 
-/* Request a sequence load once (deduped through the entity seq tracker). */
+/* Request a sequence load once (deduped through the entity seq tracker).
+ *
+ * The tracker is what stops this from re-queueing a load every world tick for
+ * the whole of a sequence's load window: `ToriDraw_SceneAnimationHas` above only
+ * goes true once the load LANDS, so between the request and the registration
+ * that test says "missing" every tick.
+ *
+ * It is a fixed 64-entry table and it used to only *record* under the capacity
+ * check while queueing unconditionally — so once 64 distinct entity sequences
+ * had been seen in a session (an afternoon of walking and fighting passes that
+ * easily; it is never pruned), the dedupe silently stopped working and every
+ * tick queued another Dat2SequenceLoad for the same seq. Each one that landed
+ * called ToriDraw_SceneAnimationAdd, which used to free the animation live
+ * elements were already pointing at. Overwrite the oldest entry instead: the
+ * table stays bounded, dedupe keeps working, and an evicted-but-still-loading
+ * seq costs at worst one redundant task, which the registry now absorbs safely. */
 static void
 app_request_entity_seq(
     struct App* app,
     int seq_id)
 {
+    int const capacity =
+        (int)(sizeof(app->entity_seq_loads.seq_ids) / sizeof(app->entity_seq_loads.seq_ids[0]));
     struct ToriRS_Task* task;
 
     if( seq_id < 0 || ToriDraw_SceneAnimationHas(app->scene, seq_id) )
@@ -16926,9 +16943,18 @@ app_request_entity_seq(
     for( int i = 0; i < app->entity_seq_loads.count; i++ )
         if( app->entity_seq_loads.seq_ids[i] == seq_id )
             return;
-    if( app->entity_seq_loads.count <
-        (int)(sizeof(app->entity_seq_loads.seq_ids) / sizeof(app->entity_seq_loads.seq_ids[0])) )
+    if( app->entity_seq_loads.count < capacity )
+    {
         app->entity_seq_loads.seq_ids[app->entity_seq_loads.count++] = seq_id;
+    }
+    else
+    {
+        memmove(
+            &app->entity_seq_loads.seq_ids[0],
+            &app->entity_seq_loads.seq_ids[1],
+            (size_t)(capacity - 1) * sizeof(app->entity_seq_loads.seq_ids[0]));
+        app->entity_seq_loads.seq_ids[capacity - 1] = seq_id;
+    }
     task = CreateTask_SequenceLoad(app->provider, app->scene, seq_id);
     if( task )
         ToriRS_TaskQueue_Add(app->runner.queue, task);

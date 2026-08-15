@@ -965,15 +965,32 @@ ToriDraw_SceneAnimationAdd(
      * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
      * write actually looks like when it happens. */
 
-    /* #region agent log */
-    if( entry->animation && entry->animation != animation && getenv("TORIRS_ANIM_PROBE") )
-        fprintf(
-            stderr,
-            "anim_replace: seq=%d old=%p new=%p (old is freed while elements may hold it)\n",
-            anim_id, (void*)entry->animation, (void*)animation);
-    /* #endregion */
+    /* First registration wins; a duplicate is freed instead of replacing it.
+     *
+     * The registry is not the only owner of a `ToriDraw_Animation*`. Scene
+     * elements cache the resolved pointer directly (`element->animation`,
+     * `element->secondary_animation`), and so does every render command already
+     * built for this frame -- none of them are notified. Freeing the registered
+     * animation to install a second copy of the SAME sequence therefore dangles
+     * every element currently playing it, and the read that follows is
+     * `animation->frames[frame].length` in ToriDraw_SceneElementApplyAnimation:
+     * freed memory that reads <= 0 takes the hole-frame branch and resets the
+     * model to its bind pose, and freed memory that reads > 0 poses it from a
+     * garbage keyframe. "The model snaps back to bind pose now and then" is
+     * exactly what that looks like.
+     *
+     * Duplicates are reachable because the load tasks dedupe against what is
+     * *registered*, not against what is *in flight*: two SequenceLoad tasks for
+     * one seq id can both be queued during the load window and both land here.
+     * Nothing wants the second one -- the two decode the same archive to equal
+     * data -- so keeping the pointer the elements already hold is both the safe
+     * answer and the correct one. */
     if( entry->animation )
-        ToriDraw_AnimationFree(entry->animation);
+    {
+        if( entry->animation != animation )
+            ToriDraw_AnimationFree(animation);
+        return;
+    }
 
     entry->id = anim_id;
     entry->animation = animation;
@@ -1516,32 +1533,6 @@ ToriDraw_SceneElementApplyAnimation(
     model = element->model.u.model.model;
     if( !model )
         return;
-
-    /* #region agent log */
-    /* TEMPORARY PROBE: why a big (imported) model ends a draw at its bind pose. */
-    if( model->vertex_count > 5000 && getenv("TORIRS_ANIM_PROBE") )
-    {
-        struct ToriDraw_Animation* a = primary ? element->animation : element->secondary_animation;
-        const char* why = NULL;
-        if( element->is_skeletal )
-            why = (!element->skeletal_animation || element->skeletal_animation->frame_count <= 0 ||
-                   model->animaya_vertex_count <= 0)
-                      ? "skeletal-no-skin"
-                      : NULL;
-        else if( !a )
-            why = "no-animation";
-        else if( !a->base || !a->frames || a->frame_count <= 0 )
-            why = "empty-animation";
-        else if( frame >= 0 && frame < a->frame_count && a->frames[frame].length <= 0 )
-            why = "hole-frame";
-        if( why )
-            fprintf(
-                stderr,
-                "apply_probe: element=%d seq=%d frame=%d primary=%d model=%p vc=%d WHY=%s\n",
-                element_id, element->anim_seq_id, frame, (int)primary, (void*)model,
-                model->vertex_count, why);
-    }
-    /* #endregion */
 
     if( element->is_skeletal )
     {

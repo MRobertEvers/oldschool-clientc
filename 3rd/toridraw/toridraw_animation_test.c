@@ -4,6 +4,7 @@
 #include "toridraw_model_transform.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static int failures;
 
@@ -157,6 +158,74 @@ check_projectile_sequence_loops(void)
     CHECK(frame >= 0 && frame < anim.frame_count, "out-of-range frame is clamped");
 }
 
+/*
+ * A second registration of one sequence id must not free the animation the
+ * first one installed.
+ *
+ * Scene elements cache the resolved `struct ToriDraw_Animation*` (element->
+ * animation), and so does every render command already built this frame; the
+ * registry cannot reach any of them. So freeing the registered animation to
+ * install a duplicate leaves those pointers dangling, and the very next read is
+ * `animation->frames[frame].length` in ToriDraw_SceneElementApplyAnimation --
+ * freed memory reading <= 0 takes the hole-frame branch and resets the model to
+ * its bind pose. Duplicates are reachable because the load tasks dedupe against
+ * what is registered, not against what is in flight.
+ *
+ * Asserted through the registry's own observable behaviour (the pointer a
+ * later Get returns is the pointer the element was handed) rather than by
+ * dereferencing freed memory, which would be undefined either way. The
+ * negative control is the old code: replacing instead of keeping makes the
+ * first CHECK fail, because Get then returns the duplicate.
+ */
+static void
+check_duplicate_animation_registration_keeps_the_first(void)
+{
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct ToriDraw_Animation* first;
+    struct ToriDraw_Animation* duplicate;
+    int element_id;
+    struct ToriDraw_SceneElement* element;
+
+    CHECK(scene != NULL, "scene allocation for duplicate-registration test");
+    if( !scene )
+        return;
+
+    first = calloc(1, sizeof(*first));
+    duplicate = calloc(1, sizeof(*duplicate));
+    CHECK(first && duplicate, "animation allocations");
+    if( !first || !duplicate )
+    {
+        free(first);
+        free(duplicate);
+        ToriDraw_SceneFree(scene);
+        return;
+    }
+    first->frame_count = 4;
+    duplicate->frame_count = 4;
+
+    ToriDraw_SceneAnimationAdd(scene, 4242, first);
+    element_id = ToriDraw_SceneElementAdd(scene);
+    element = ToriDraw_SceneElementGet(scene, element_id);
+    CHECK(element != NULL, "scene element allocation");
+    if( element )
+        element->animation = ToriDraw_SceneAnimationGet(scene, 4242);
+    CHECK(element && element->animation == first, "the element holds the registered animation");
+
+    /* The second load of the same seq lands. */
+    ToriDraw_SceneAnimationAdd(scene, 4242, duplicate);
+
+    CHECK(
+        ToriDraw_SceneAnimationGet(scene, 4242) == first,
+        "a duplicate registration keeps the animation elements already hold");
+    CHECK(
+        element && element->animation == ToriDraw_SceneAnimationGet(scene, 4242),
+        "so the element's cached pointer is still the registered one");
+
+    /* The duplicate was taken over by the registry (freed), so the scene owns
+     * exactly one animation for this id and SceneFree must not double-free. */
+    ToriDraw_SceneFree(scene);
+}
+
 int
 main(void)
 {
@@ -172,6 +241,7 @@ main(void)
 
     check_classic_animation_refreshes_bounds();
     check_projectile_sequence_loops();
+    check_duplicate_animation_registration_keeps_the_first();
 
     frame = 12;
     CHECK(ToriDraw_AnimationAdvanceObjectFrame(&anim, &frame), "interior frame advances");

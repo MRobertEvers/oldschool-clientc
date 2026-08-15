@@ -793,22 +793,6 @@ soft3d_draw_model(
     if( cmd->model.kind == TORIDRAWMK_NONE )
         return;
 
-    /* #region agent log */
-    if( cmd->model.kind == TORIDRAWMK_MODEL && cmd->model.u.model.model &&
-        cmd->model.u.model.model->vertex_count > 5000 && getenv("TORIRS_ANIM_PROBE") )
-    {
-        struct ToriDraw_SceneElement* el =
-            cmd->element_id >= 0 ? ToriDraw_SceneElementGet(soft->scene, cmd->element_id) : NULL;
-        struct ToriDraw_Model* el_model =
-            (el && el->model.kind == TORIDRAWMK_MODEL) ? el->model.u.model.model : NULL;
-        if( !cmd->animation || el_model != cmd->model.u.model.model )
-            fprintf(
-                stderr,
-                "draw_probe: element=%d cmd_model=%p el_model=%p anim=%p frame=%d idx=%d\n",
-                cmd->element_id, (void*)cmd->model.u.model.model, (void*)el_model,
-                (void*)cmd->animation, cmd->anim_frame, cmd->anim_index);
-    }
-    /* #endregion */
     if( cmd->animation && cmd->element_id >= 0 )
         ToriDraw_SceneElementApplyAnimation(
             soft->scene, cmd->element_id, cmd->anim_index == 0, cmd->anim_frame);
