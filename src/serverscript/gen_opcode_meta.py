@@ -485,6 +485,32 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # source behavior says "current combat target".
     "NPC_FINDCOMBAT": (11030, 0, 0, 1, 0),
 
+    # npc_setfollower()
+    # Declare the active NPC to be the active player's FOLLOWER (familiar/pet),
+    # not merely an npc they own.
+    #
+    # `npc_setowner` answers a different question -- "this npc is private to
+    # this player" -- and a minigame that spawns private npcs (the QBD arena)
+    # uses it for exactly that. Sharing one flag between the two meanings is
+    # what let `npc_findowned` hand the Queen Black Dragon back as the player's
+    # familiar: she was owned, and she was the lowest-numbered owned npc, so a
+    # `call familiar` teleported HER to the player. A follower is a single,
+    # explicit link, so it gets its own op and its own storage.
+    #
+    # Implies ownership: a follower is by definition private to its owner.
+    "NPC_SETFOLLOWER": (11042, 0, 0, 0, 0),
+
+    # npc_findfollower()(boolean)
+    # Resolve the active player's FOLLOWER (familiar/pet) and make it the active
+    # NPC. The explicitly-named counterpart to `npc_setfollower`, and what new
+    # content should call.
+    #
+    # `npc_findowned` is the LostCity-compatible spelling and resolves the same
+    # link, because every existing use of it means "my familiar" -- but its name
+    # says "owned", and ownership is a different and broader fact (see
+    # NPC_SETFOLLOWER). Prefer this one where the intent is the follower.
+    "NPC_FINDFOLLOWER": (11043, 0, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses

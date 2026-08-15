@@ -468,10 +468,12 @@
 #define SS_OP_LAST_SUBOP 11039
 #define SS_OP_NPC_COMBATPLAYER 11040
 #define SS_OP_COMBAT_ASSIST_SINGLES 11041
+#define SS_OP_NPC_SETFOLLOWER 11042
+#define SS_OP_NPC_FINDFOLLOWER 11043
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11042
+#define SS_OPCODE_MAX 11044
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 446
+#define SS_OPCODE_COUNT 448
 
 #endif

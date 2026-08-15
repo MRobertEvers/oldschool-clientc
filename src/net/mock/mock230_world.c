@@ -2806,6 +2806,47 @@ mock230_world_npc_owner(
 }
 
 void
+mock230_world_npc_set_follower(
+    struct Mock230Player* player,
+    const struct Mock230Npc* npc,
+    int slot)
+{
+    if( !player )
+        return;
+    if( !npc || slot < 0 || slot >= MOCK230_NPC_MAX )
+    {
+        player->follower_slot = -1;
+        player->follower_gen = 0;
+        return;
+    }
+    player->follower_slot = slot;
+    player->follower_gen = npc->generation;
+}
+
+struct Mock230Npc*
+mock230_world_npc_follower(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int* out_slot)
+{
+    struct Mock230Npc* npc;
+
+    if( out_slot )
+        *out_slot = -1;
+    if( !srv || !player || player->follower_slot < 0 ||
+        player->follower_slot >= MOCK230_NPC_MAX || player->follower_gen == 0 )
+        return NULL;
+    npc = &srv->npcs[player->follower_slot];
+    /* The generation is the whole point: a dead follower whose slot has been
+     * reused must resolve to nothing, not to its replacement. */
+    if( !npc->active || npc->generation != player->follower_gen )
+        return NULL;
+    if( out_slot )
+        *out_slot = player->follower_slot;
+    return npc;
+}
+
+void
 mock230_world_npc_set_owner(
     struct Mock230Npc* npc,
     const struct Mock230Player* player)

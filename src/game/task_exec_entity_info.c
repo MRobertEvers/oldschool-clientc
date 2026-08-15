@@ -1327,17 +1327,39 @@ npc_apply_op(
         break;
     case PKT_NPC_INFO_OPBITS_WALKDIR:
         if( idx >= 0 )
+        {
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, idx), self->cur_slot, -1, idx, -1,
+                "MOVE_WALK", (int)op->_bitvalue);
             World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->_bitvalue);
+        }
         break;
     case PKT_NPC_INFO_OPBITS_RUNDIR:
         if( idx >= 0 )
+        {
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, idx), self->cur_slot, -1, idx, -1,
+                "MOVE_RUN", (int)op->_bitvalue);
             World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->_bitvalue);
+        }
         break;
     case PKT_NPC_INFO_OP_DELTA_XZ:
         if( idx >= 0 )
         {
             int lx, lz, llevel;
             npc_local_tile(self, &lx, &lz, &llevel);
+            /*
+             * The op that teleports an npc, and the one that moves the Queen
+             * when a familiar is called: `idx` is whatever `cur_slot` resolved
+             * to, and the destination is the LOCAL PLAYER's tile plus a small
+             * delta -- so a misdirected one lands the wrong creature next to
+             * the player. Traced with both the slot and the destination so the
+             * log says which npc was targeted and where it was sent.
+             */
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, idx), self->cur_slot, -1, idx,
+                (lx + op->_delta_xz.dx) * 1000 + (lz + op->_delta_xz.dz), "MOVE_JUMP_TO_TILE",
+                op->_delta_xz.jump);
             World_NpcPathJump(
                 world, idx, op->_delta_xz.jump, lx + op->_delta_xz.dx, lz + op->_delta_xz.dz);
         }

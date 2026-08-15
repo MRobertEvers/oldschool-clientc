@@ -4622,6 +4622,35 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * npc_setfollower: this npc IS the player's familiar/pet.
+     *
+     * Distinct from npc_setowner on purpose. Ownership is "private to this
+     * player" and many npcs can share it; following is "the one npc that walks
+     * behind them" and there is at most one. Conflating them is what made
+     * `call familiar` teleport the Queen Black Dragon: she is owned (the arena
+     * is private) and she was the lowest-numbered owned npc, so the old
+     * slot-scanning `npc_findowned` handed her back as the familiar.
+     *
+     * Implies ownership, because a follower is by definition private to its
+     * owner and every caller wanted both.
+     */
+    case SS_OP_NPC_SETFOLLOWER:
+    {
+        struct Mock230Npc* npc = active_npc(state);
+        int slot;
+
+        if( !npc || !player )
+        {
+            SSVM_Abort(state, "npc_setfollower requires an active npc and player");
+            return 1;
+        }
+        slot = (int)(npc - srv->npcs);
+        mock230_world_npc_set_owner(npc, player);
+        mock230_world_npc_set_follower(player, npc, slot);
+        return 1;
+    }
+
     case SS_OP_NPC_OWNER:
     {
         struct Mock230Npc* npc = active_npc(state);
@@ -4637,47 +4666,47 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * All three resolve the player's FOLLOWER through the explicit link, never
+     * by scanning for "an npc this player owns".
+     *
+     * The scan was the bug: it returned the lowest-numbered owned npc, and in a
+     * private minigame instance that is the minigame's own boss rather than the
+     * familiar. `npc_findowned` keeps its name because every existing caller
+     * means the familiar by it; `npc_findfollower` is the spelling new content
+     * should use, and they are deliberately the same operation.
+     */
     case SS_OP_NPC_FINDOWNED:
+    case SS_OP_NPC_FINDFOLLOWER:
     {
-        if( !player )
+        int slot = -1;
+        struct Mock230Npc* npc =
+            player ? mock230_world_npc_follower(srv, player, &slot) : NULL;
+
+        if( !npc )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
-        {
-            struct Mock230Npc* npc = &srv->npcs[slot];
-
-            if( !npc->active || mock230_world_npc_owner(srv, npc) != player )
-                continue;
-            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, npc);
-            state->host_tag = slot + 1;
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
-            SSVM_PushInt(state, 1);
-            return 1;
-        }
-        SSVM_PushInt(state, 0);
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, npc);
+        state->host_tag = slot + 1;
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        SSVM_PushInt(state, 1);
         return 1;
     }
 
     case SS_OP_NPC_FINDOWNED2:
     {
-        if( !player )
+        struct Mock230Npc* npc =
+            player ? mock230_world_npc_follower(srv, player, NULL) : NULL;
+
+        if( !npc )
         {
             SSVM_PushInt(state, 0);
             return 1;
         }
-        for( int slot = 0; slot < srv->npc_slot_max; slot++ )
-        {
-            struct Mock230Npc* npc = &srv->npcs[slot];
-
-            if( !npc->active || mock230_world_npc_owner(srv, npc) != player )
-                continue;
-            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, npc);
-            SSVM_PushInt(state, 1);
-            return 1;
-        }
-        SSVM_PushInt(state, 0);
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, npc);
+        SSVM_PushInt(state, 1);
         return 1;
     }
 

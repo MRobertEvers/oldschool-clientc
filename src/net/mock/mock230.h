@@ -3138,6 +3138,24 @@ struct Mock230Player
     /* Combat. `hitpoints` / `max_hitpoints` live with the DAMAGE mask fields
      * above, since the mask is what carries them to the client. */
     /** Npc slot being fought, or -1. */
+    /*
+     * This player's FOLLOWER (familiar / pet), as an npc slot plus the
+     * generation of the npc that occupied it -- not merely "an npc they own".
+     *
+     * Ownership (Mock230Npc::owner_pid/owner_gen, set by `npc_setowner`) means
+     * "this npc is private to this player", which a minigame spawning private
+     * npcs uses legitimately. Following is a different and much narrower fact,
+     * and there is at most one. Deriving one from the other is what let
+     * `npc_findowned` return the Queen Black Dragon -- owned, and the
+     * lowest-numbered owned npc in the arena -- as the player's familiar, so
+     * `call familiar` teleported the boss to the player.
+     *
+     * The generation is what makes the link safe across despawn and slot reuse:
+     * a stale slot number resolves to nothing rather than to whoever inherited
+     * it. -1 / 0 is "no follower".
+     */
+    int follower_slot;
+    uint16_t follower_gen;
     int combat_target;
     int attack_clock;
 
@@ -6188,6 +6206,20 @@ mock230_slotmap_client(
 /** As mock230_slotmap_release, recording WHY for MOCK230_NPC_TRACE. The reason
  *  is the diagnostic: a released slot is a despawn on the client, and the
  *  re-add gets a different slot. */
+/** Record/clear this player's follower. NULL clears. */
+void
+mock230_world_npc_set_follower(
+    struct Mock230Player* player,
+    const struct Mock230Npc* npc,
+    int slot);
+
+/** The player's follower npc, or NULL when there is none or it has died. */
+struct Mock230Npc*
+mock230_world_npc_follower(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int* out_slot);
+
 void
 mock230_slotmap_release_why(
     struct Mock230Player* player,
