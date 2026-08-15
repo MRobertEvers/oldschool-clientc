@@ -10253,6 +10253,30 @@ app_world_apply_seq(
     }
 }
 
+/*
+ * Forget deferred binds for an element that is going away.
+ *
+ * Necessary because the poll below can only ask whether the element is LIVE,
+ * and scene element ids are recycled: an entry left behind by a despawned
+ * entity is indistinguishable from a valid one once the id is handed out
+ * again, and its sequence then binds onto whoever inherited it -- the wrong
+ * creature suddenly playing somebody else's animation. Dropping at the moment
+ * of death removes the ambiguity instead of trying to detect it later. Same
+ * class of bug as AppEntitySpotanim::owner_entity_id; see that note.
+ */
+static void
+app_seq_bind_pending_drop(struct App* app, int element_id)
+{
+    int kept = 0;
+    for( int i = 0; i < app->seq_bind_pending_count; i++ )
+    {
+        if( app->seq_bind_pending[i].element_id == element_id )
+            continue;
+        app->seq_bind_pending[kept++] = app->seq_bind_pending[i];
+    }
+    app->seq_bind_pending_count = kept;
+}
+
 /* Per-frame: bind deferred element/sequence pairs whose loads landed. */
 static void
 app_world_bind_pending_seqs(struct App* app)
@@ -13470,6 +13494,7 @@ App_WorldDrainEntityRemoved(struct App* app)
         if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
         {
             app_entity_spotanim_drop(app, ev->element_id);
+            app_seq_bind_pending_drop(app, ev->element_id);
             if( app->scene )
                 ToriDraw_SceneElementRemove(app->scene, ev->element_id);
         }
