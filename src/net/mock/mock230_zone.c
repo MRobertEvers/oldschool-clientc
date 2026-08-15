@@ -173,7 +173,8 @@ map_of(
     if( !srv->zone_map && create )
     {
         srv->zone_map = calloc(1, sizeof(*srv->zone_map));
-        if( srv->zone_map && !map_rehash(srv->zone_map, 256) )
+        assert(srv->zone_map);
+        if( !map_rehash(srv->zone_map, 256) )
         {
             free(srv->zone_map);
             srv->zone_map = NULL;

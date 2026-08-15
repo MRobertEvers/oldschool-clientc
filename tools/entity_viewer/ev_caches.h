@@ -104,10 +104,15 @@ ev_caches_remove(struct EV_CacheList* list, int index);
  * because the wrong profile does not fail loudly — it decodes records at the
  * wrong field widths and produces plausible nonsense.
  *
- * The split it can make confidently is the family: an RS2-era cache has a
- * materials table (26) and shards its configs, an OldSchool one does not.
- * Within a family it picks the newest profile whose npc records decode to
- * exact consumption most often.
+ * It scores every candidate profile by how many npc, obj, loc and sequence
+ * records decode to *exact consumption* and takes the best. Four types rather
+ * than npc alone because within the RS2 band the npc stream barely moved: every
+ * profile from 530 to 643 reads a 634 cache's npcs perfectly, and an npc-only
+ * score is a four-way tie decided by loop order. loc and seq are where those
+ * revisions separate.
+ *
+ * Codec-identical revisions (634 and 643) no score can separate, so the
+ * directory's own name breaks ties — and only ties.
  *
  * Writes into `out_rev` (at least 32 bytes). Returns false if nothing decoded.
  */

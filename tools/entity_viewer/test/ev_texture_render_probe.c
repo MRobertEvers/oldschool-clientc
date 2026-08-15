@@ -109,8 +109,8 @@ build_blob(const struct ToriDraw_Model* m, size_t* out_len)
         memcpy(b + at, &id32, 4); at += 4;
         b[at++] = (uint8_t)(t->size & 0xFF);
         b[at++] = (uint8_t)((t->size >> 8) & 0xFF);
-        b[at++] = (uint8_t)(t->opaque ? 1 : 0);
-        b[at++] = 0;
+        b[at++] = (uint8_t)(t->alpha_mode >= 0 && t->alpha_mode <= 2 ? t->alpha_mode : 0);
+        b[at++] = (uint8_t)((t->repeat_s ? 0 : 1) | (t->repeat_t ? 0 : 2));
         for( int p = 0; p < t->size * t->size; p++ )
         {
             uint32_t v = (uint32_t)t->texels[p];
@@ -239,7 +239,7 @@ main(int argc, char** argv)
         for( size_t q = 8; q + 8 <= blob_len; )
         {
             int sz = blob[q + 4] | (blob[q + 5] << 8);
-            blob[q + 6] = 1;
+            blob[q + 6] = 0; /* gate: opaque */
             q += 8 + (size_t)sz * sz * 4;
         }
 

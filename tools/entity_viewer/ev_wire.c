@@ -349,8 +349,7 @@ get_f32(struct Cur* c)
         {                                                                                          \
             int n_ = (count);                                                                      \
             field = calloc((size_t)(n_ > 0 ? n_ : 1), sizeof(type));                               \
-            if( !field )                                                                           \
-                goto fail;                                                                         \
+            assert(field);                                                                         \
             for( int i_ = 0; i_ < n_; i_++ )                                                       \
                 field[i_] = (type)get_i32(cur);                                                    \
             if( (cur)->bad )                                                                       \
@@ -691,14 +690,15 @@ ev_wire_read_texture(const uint8_t* data, size_t len, int index, struct EV_WireT
 
     for( int i = 0; i < count; i++ )
     {
-        int id, size, opaque;
+        int id, size, gate, flags;
         size_t texel_bytes;
 
         if( at + 8 > len )
             return 0;
         id = (int)wire_u32_at(data + at);
         size = (int)data[at + 4] | ((int)data[at + 5] << 8);
-        opaque = data[at + 6];
+        gate = data[at + 6];
+        flags = data[at + 7];
         at += 8;
 
         if( size <= 0 )
@@ -711,7 +711,9 @@ ev_wire_read_texture(const uint8_t* data, size_t len, int index, struct EV_WireT
         {
             out->id = id;
             out->size = size;
-            out->opaque = opaque;
+            out->gate = gate;
+            out->clamp_s = (flags & 1) ? 1 : 0;
+            out->clamp_t = (flags & 2) ? 1 : 0;
             out->texels = (const uint32_t*)(const void*)(data + at);
             return 1;
         }

@@ -943,8 +943,14 @@ handle_textures_bin(int fd, const char* query)
         const struct EV_Texture* tex = ev_textures_get(&g_texture_set, id);
         if( tex && tex->texels )
         {
+            /* alpha_mode 0/1/2 maps straight onto the kernel gates
+             * opaque/cutout/blend; clamp is the inverse of the repeat flags. */
+            uint8_t flags = (uint8_t)((tex->repeat_s ? 0 : 1) | (tex->repeat_t ? 0 : 2));
+            uint8_t gate = (uint8_t)(tex->alpha_mode >= 0 && tex->alpha_mode <= 2
+                                         ? tex->alpha_mode
+                                         : 0);
             uint8_t hdr[4] = { (uint8_t)(tex->size & 0xFF), (uint8_t)((tex->size >> 8) & 0xFF),
-                               (uint8_t)(tex->opaque ? 1 : 0), 0 };
+                               gate, flags };
             bytes_put_u32(&body, (uint32_t)id);
             bytes_put(&body, hdr, sizeof(hdr));
             for( int i = 0; i < tex->size * tex->size; i++ )

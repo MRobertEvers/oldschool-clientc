@@ -53,6 +53,26 @@ struct EV_Texture
     bool opaque;
     /** True when this came from the procedural evaluator. */
     bool procedural;
+
+    /*
+     * How the material says to composite this texture, NOT what its texels
+     * happen to contain.
+     *
+     * A procedural texture routinely carries partial alpha as an intermediate
+     * of its own graph while the material declares it opaque — in the RS727
+     * QBD set, 10 of 15 materials are alpha_mode 0 and only 5 are blend. Deriving
+     * the gate by scanning the baked texels therefore puts almost everything on
+     * the blend path, and blending an opaque face against the background is how
+     * a rock texture turns into a dark, half-transparent smear.
+     *
+     * 0 = opaque, 1 = cutout, 2 = blend. Absent a material table (the
+     * sprite-backed caches), this is derived from the texels, which is right
+     * there: those palettes are strictly 0 or 255.
+     */
+    int alpha_mode;
+    /** From the material's repeat_s/repeat_t; false means clamp. */
+    bool repeat_s;
+    bool repeat_t;
 };
 
 struct EV_TextureSet
@@ -68,6 +88,8 @@ struct EV_TextureSet
     bool procedural_system;
     int loaded;
     int failed;
+    /** Materials decoded, 0 when the cache has no table. */
+    int material_count;
 };
 
 /**

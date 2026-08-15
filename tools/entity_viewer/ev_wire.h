@@ -64,9 +64,14 @@ struct ToriDraw_Animation;
  *   per texture:
  *     u32 id
  *     u16 size          (width == height)
- *     u8  opaque
- *     u8  reserved
+ *     u8  gate          0 opaque, 1 cutout, 2 blend
+ *     u8  flags         bit0 clamp_s, bit1 clamp_t
  *     u32 texels[size*size]   ARGB8888
+ *
+ * `gate` is the MATERIAL's compositing decision, not a property of the texels.
+ * A procedural texture routinely carries partial alpha as an intermediate of
+ * its own graph while its material declares it opaque, so deriving this from
+ * the pixels blends surfaces that should be solid.
  */
 #define EV_WIRE_TEXTURES_MAGIC 0x31545645u
 
@@ -152,7 +157,10 @@ struct EV_WireTexture
 {
     int id;
     int size;
-    int opaque;
+    /** 0 opaque, 1 cutout, 2 blend — see the format note above. */
+    int gate;
+    int clamp_s;
+    int clamp_t;
     const uint32_t* texels;
 };
 

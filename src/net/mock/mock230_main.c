@@ -29,6 +29,7 @@
  *                       CLIENT_CHEAT path (default 0)
  */
 #include "mock230.h"
+#include <assert.h>
 
 #include "mock230_boot.h"
 #include "mock230_container.h"
@@ -514,23 +515,19 @@ main(
         {
 #ifdef _WIN32
             struct Mock230Js5Args* args = (struct Mock230Js5Args*)calloc(1, sizeof(*args));
-            if( args )
-            {
-                HANDLE thread;
-                args->wire = wire;
-                args->fd = fd;
-                thread = (HANDLE)_beginthreadex(NULL, 0, js5_thread_main, args, 0, NULL);
-                if( thread )
-                    CloseHandle(thread); /* detached: nothing joins a JS5 connection */
-                else
-                {
-                    close(fd);
-                    free(args);
-                }
-            }
+            HANDLE thread;
+            assert(args);
+            args->wire = wire;
+            args->fd = fd;
+            thread = (HANDLE)_beginthreadex(NULL, 0, js5_thread_main, args, 0, NULL);
+            if( thread )
+                CloseHandle(thread); /* detached: nothing joins a JS5 connection */
             else
             {
+                /* Not an allocation failure: the thread limit is a real
+                 * runtime condition, and the connection is dropped. */
                 close(fd);
+                free(args);
             }
 #else
             pid_t child = fork();

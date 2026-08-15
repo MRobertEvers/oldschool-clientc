@@ -1766,8 +1766,7 @@ face_bake_synthesize(struct RSCache_Model* model)
         if( ptr )                                                        \
         {                                                                \
             void* p_ = realloc(ptr, (size_t)(count) * sizeof(type));     \
-            if( !p_ )                                                    \
-                return;                                                  \
+            assert(p_);                                                  \
             ptr = (type*)p_;                                             \
         }                                                                \
     } while( 0 )

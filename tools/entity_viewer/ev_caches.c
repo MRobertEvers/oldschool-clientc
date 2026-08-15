@@ -59,7 +59,7 @@ basename_of(const char* path)
  * for anyway. A user who wants the bare revision can still set it by hand.
  */
 static const char* const RS2_CANDIDATES[] = { "rs727", "rs643", "void634", "rs558", "rs530" };
-static const char* const OSRS_CANDIDATES[] = { "osrs239", "osrs230", "osrs184" };
+static const char* const OSRS_CANDIDATES[] = { "osrs239", "osrs230", "osrs184", "kronos" };
 
 /*
  * Detection probes profiles it expects to be wrong, and a wrong profile makes

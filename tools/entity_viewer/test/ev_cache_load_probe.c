@@ -118,10 +118,29 @@ probe_npc_exact(
     *out_exact = exact;
 }
 
+/** The registry's own gate: a dat1 cache has `main_file_cache.dat`, no `dat2`. */
+static bool
+has_dat2(const char* path)
+{
+    char probe[1024];
+    snprintf(probe, sizeof(probe), "%s/main_file_cache.dat2", path);
+    struct stat st;
+    return stat(probe, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 static void
 probe_cache(const char* path)
 {
     printf("== %s\n", path);
+
+    /* Not a failure, and not silently skipped either: ev_caches_add refuses a
+     * directory with no dat2, so a dat1 cache never reaches detection. Saying so
+     * keeps a legitimate skip from reading as a pass. */
+    if( !has_dat2(path) )
+    {
+        printf("    skip: dat1 cache (no main_file_cache.dat2)\n");
+        return;
+    }
 
     char detected[32] = { 0 };
     if( !ev_cache_detect_rev(path, detected, (int)sizeof(detected)) )

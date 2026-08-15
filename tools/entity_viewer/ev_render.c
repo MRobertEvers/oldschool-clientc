@@ -69,7 +69,9 @@ struct EV_LoadedTexture
     int id;
     int* texels; /* owned */
     int size;
-    int opaque;
+    int gate;
+    int clamp_s;
+    int clamp_t;
 };
 static struct EV_LoadedTexture* g_textures = NULL;
 static int g_texture_count = 0;
@@ -155,11 +157,16 @@ hd_materials_build(void)
         m->texels = t->texels;
         m->width = t->size;
         /*
-         * A texture with any non-opaque texel needs the alpha gate — sampling it
-         * through the opaque kernel draws its cutout regions as solid colour,
-         * which is how a leaf billboard turns into a rectangle.
+         * The gate is the material's, decided server-side. It used to be
+         * derived here from "does any texel have alpha < 255", which is a
+         * property of the pixels and not a statement about the surface: a
+         * procedural texture carries partial alpha as an ordinary intermediate,
+         * so that rule put nearly every face on the blend path and every solid
+         * rock face composited against the background as a dark smear.
          */
-        m->gate = t->opaque ? TORIDRAW_HD_GATE_OPAQUE : TORIDRAW_HD_GATE_ALPHA;
+        m->gate = t->gate;
+        m->clamp_s = t->clamp_s;
+        m->clamp_t = t->clamp_t;
     }
     g_hd_mat_count = maxid + 1;
 }
@@ -223,7 +230,9 @@ ev_set_textures(const uint8_t* data, int len)
             slot->texels[p] = (int)wt.texels[p];
         slot->id = wt.id;
         slot->size = wt.size;
-        slot->opaque = wt.opaque;
+        slot->gate = wt.gate;
+        slot->clamp_s = wt.clamp_s;
+        slot->clamp_t = wt.clamp_t;
         g_texture_count++;
 
         /*
@@ -240,7 +249,7 @@ ev_set_textures(const uint8_t* data, int len)
                 tex->texels = slot->texels;
                 tex->width = wt.size;
                 tex->height = wt.size;
-                tex->opaque = wt.opaque ? true : false;
+                tex->opaque = (wt.gate == 0);
                 ToriDraw_TextureMapSet(&ToriDraw_SceneTexState(g_scene)->texture_map, wt.id, tex);
             }
         }

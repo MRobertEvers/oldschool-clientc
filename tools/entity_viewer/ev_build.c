@@ -97,8 +97,7 @@ tex_params_reserve(struct EV_TexParams* p, int want)
     do                                                                         \
     {                                                                          \
         type* grown = (type*)realloc(p->field, (size_t)cap * sizeof(type));    \
-        if( !grown )                                                           \
-            return false;                                                      \
+        assert(grown);                                                         \
         p->field = grown;                                                      \
     } while( 0 )
 
@@ -492,22 +491,18 @@ ev_build_seq_anim(
             if( skeletal )
             {
                 anim = calloc(1, sizeof(*anim));
-                if( anim )
+                assert(anim);
+                int play = skeletal->frame_count;
+                if( seq->anim_maya_end > seq->anim_maya_start )
                 {
-                    int play = skeletal->frame_count;
-                    if( seq->anim_maya_end > seq->anim_maya_start )
-                    {
-                        play = seq->anim_maya_end - seq->anim_maya_start;
-                        if( play > skeletal->frame_count )
-                            play = skeletal->frame_count;
-                    }
-                    anim->skeletal = skeletal;
-                    anim->frame_count = play > 0 ? play : 1;
-                    anim->replaceheldleft = -1;
-                    anim->replaceheldright = -1;
+                    play = seq->anim_maya_end - seq->anim_maya_start;
+                    if( play > skeletal->frame_count )
+                        play = skeletal->frame_count;
                 }
-                else
-                    ToriDraw_SkeletalAnimFree(skeletal);
+                anim->skeletal = skeletal;
+                anim->frame_count = play > 0 ? play : 1;
+                anim->replaceheldleft = -1;
+                anim->replaceheldright = -1;
             }
             RSCache_Dat2SkeletalBaseFree(base);
         }
@@ -539,35 +534,34 @@ ev_build_seq_anim(
     int* delays = calloc((size_t)seq->frame_count, sizeof(*delays));
     struct ToriDraw_Animation* anim = NULL;
 
-    if( frames && delays )
+    assert(frames);
+    assert(delays);
+    /*
+     * Every frame slot is filled, including the ones that fail to decode.
+     * Dropping a frame would shorten the sequence, which moves every later
+     * frame's timing and shifts what `frame_step` loops back to — a
+     * sequence that plays slightly wrong is harder to notice than one
+     * frame that holds.
+     */
+    int decoded = 0;
+    for( int i = 0; i < seq->frame_count; i++ )
     {
-        /*
-         * Every frame slot is filled, including the ones that fail to decode.
-         * Dropping a frame would shorten the sequence, which moves every later
-         * frame's timing and shifts what `frame_step` loops back to — a
-         * sequence that plays slightly wrong is harder to notice than one
-         * frame that holds.
-         */
-        int decoded = 0;
-        for( int i = 0; i < seq->frame_count; i++ )
-        {
-            frames[i] = tool_dat2_frame_load(c, fm, seq->frame_ids[i]);
-            delays[i] = seq->frame_lengths ? seq->frame_lengths[i] : 1;
-            if( frames[i] )
-                decoded++;
-        }
-
-        if( decoded > 0 )
-            anim = ToriDraw_AnimationFromRSCache(
-                fm,
-                (struct RSCache_Dat2Frame const* const*)frames,
-                delays,
-                seq->frame_count,
-                seq->frame_step);
-
-        for( int i = 0; i < seq->frame_count; i++ )
-            RSCache_Dat2FrameFree(frames[i]);
+        frames[i] = tool_dat2_frame_load(c, fm, seq->frame_ids[i]);
+        delays[i] = seq->frame_lengths ? seq->frame_lengths[i] : 1;
+        if( frames[i] )
+            decoded++;
     }
+
+    if( decoded > 0 )
+        anim = ToriDraw_AnimationFromRSCache(
+            fm,
+            (struct RSCache_Dat2Frame const* const*)frames,
+            delays,
+            seq->frame_count,
+            seq->frame_step);
+
+    for( int i = 0; i < seq->frame_count; i++ )
+        RSCache_Dat2FrameFree(frames[i]);
 
     free(frames);
     free(delays);

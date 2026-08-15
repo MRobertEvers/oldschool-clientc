@@ -450,7 +450,13 @@ classic_bake(
 /* ---- the set --------------------------------------------------------------- */
 
 static void
-set_put(struct EV_TextureSet* set, int id, int32_t* texels, bool opaque, bool procedural)
+set_put(
+    struct EV_TextureSet* set,
+    int id,
+    int32_t* texels,
+    bool opaque,
+    bool procedural,
+    const struct RSCache_Dat2Material* mat)
 {
     if( set->count == set->capacity )
     {
@@ -465,6 +471,20 @@ set_put(struct EV_TextureSet* set, int id, int32_t* texels, bool opaque, bool pr
     set->items[set->count].size = EV_TEX_SIZE;
     set->items[set->count].opaque = opaque;
     set->items[set->count].procedural = procedural;
+
+    if( mat && mat->exists )
+    {
+        set->items[set->count].alpha_mode = mat->alpha_mode;
+        set->items[set->count].repeat_s = mat->repeat_s;
+        set->items[set->count].repeat_t = mat->repeat_t;
+    }
+    else
+    {
+        /* No material to ask: fall back to the texels. */
+        set->items[set->count].alpha_mode = opaque ? 0 : 2;
+        set->items[set->count].repeat_s = true;
+        set->items[set->count].repeat_t = true;
+    }
     set->count++;
 }
 
@@ -489,7 +509,11 @@ set_index(struct EV_TextureSet* set)
 }
 
 static bool
-load_procedural(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out, int texture_table)
+load_procedural(
+    struct Tool_Dat2Cache* cache,
+    struct EV_TextureSet* out,
+    int texture_table,
+    const struct RSCache_Dat2MaterialTable* materials)
 {
     struct EV_ProcCtx ctx;
     int flags = RSCache_Dat2ProcTextureFlags(&cache->profile);
@@ -520,7 +544,11 @@ load_procedural(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out, int tex
         int32_t* texels = proc_bake(&ctx, ids[i], flags, &opaque);
         if( texels )
         {
-            set_put(out, ids[i], texels, opaque, true);
+            const struct RSCache_Dat2Material* mat =
+                (materials && ids[i] >= 0 && ids[i] < materials->count)
+                    ? &materials->materials[ids[i]]
+                    : NULL;
+            set_put(out, ids[i], texels, opaque, true, mat);
             out->loaded++;
         }
         else
@@ -620,7 +648,7 @@ load_sprite_backed(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out, int 
         texels = ok ? classic_bake(def, packs, &opaque) : NULL;
         if( texels )
         {
-            set_put(out, id, texels, opaque, false);
+            set_put(out, id, texels, opaque, false, NULL);
             out->loaded++;
         }
         else
@@ -658,28 +686,51 @@ ev_textures_load(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out)
      * the gate the client uses, and a cache can be new enough for procedural
      * textures and still not ship one.
      */
+    /*
+     * The materials table is both the gate for "is this cache procedural" and
+     * the source of every compositing decision, so it is decoded and KEPT
+     * rather than probed and thrown away. Without it the gate has to be guessed
+     * from the baked texels, which is wrong for a procedural texture: partial
+     * alpha is an ordinary intermediate of its own graph, not a statement that
+     * the surface is see-through.
+     */
+    struct RSCache_Dat2MaterialTable* materials = NULL;
     out->procedural_system = RSCache_Dat2UsesProcTextures(&cache->profile, true);
     if( out->procedural_system )
     {
         int materials_table = RSCache_Dat2DiskTableId(cache->disk, RSCACHE_DAT2_TABLE_MATERIALS);
-        struct RSCache_Dat2DiskArchive* probe =
+        struct RSCache_Dat2DiskArchive* archive =
             materials_table >= 0 ? archive_load(cache, materials_table, 0) : NULL;
-        if( probe )
-            RSCache_Dat2DiskArchiveFree(probe);
-        else
-            out->procedural_system = false;
+        if( archive )
+        {
+            materials = RSCache_Dat2MaterialTableNewDecode(
+                archive->data, archive->data_size,
+                RSCache_Dat2ProcTextureFlags(&cache->profile));
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+        /* The reference gates on the table decoding, not merely existing. */
+        out->procedural_system = materials != NULL;
     }
 
-    ok = out->procedural_system ? load_procedural(cache, out, texture_table)
+    ok = out->procedural_system ? load_procedural(cache, out, texture_table, materials)
                                 : load_sprite_backed(cache, out, texture_table);
+    out->material_count = materials ? materials->count : 0;
+    if( materials )
+        RSCache_Dat2MaterialTableFree(materials);
     set_index(out);
 
+    int blend = 0, cutout = 0, clamped = 0;
+    for( int i = 0; i < out->count; i++ )
+    {
+        if( out->items[i].alpha_mode == 2 ) blend++;
+        else if( out->items[i].alpha_mode == 1 ) cutout++;
+        if( !out->items[i].repeat_s || !out->items[i].repeat_t ) clamped++;
+    }
     fprintf(
         stderr,
-        "textures: %s system — %d loaded, %d failed\n",
+        "textures: %s system — %d loaded, %d failed, %d blend, %d cutout, %d clamped\n",
         out->procedural_system ? "procedural (RS2 materials)" : "sprite-backed",
-        out->loaded,
-        out->failed);
+        out->loaded, out->failed, blend, cutout, clamped);
     return ok;
 }
 
