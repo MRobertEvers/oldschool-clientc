@@ -965,6 +965,13 @@ ToriDraw_SceneAnimationAdd(
      * already guarantees room. See ToriDraw_SceneSoundAdd for what the dangling
      * write actually looks like when it happens. */
 
+    /* #region agent log */
+    if( entry->animation && entry->animation != animation && getenv("TORIRS_ANIM_PROBE") )
+        fprintf(
+            stderr,
+            "anim_replace: seq=%d old=%p new=%p (old is freed while elements may hold it)\n",
+            anim_id, (void*)entry->animation, (void*)animation);
+    /* #endregion */
     if( entry->animation )
         ToriDraw_AnimationFree(entry->animation);
 
@@ -1509,6 +1516,32 @@ ToriDraw_SceneElementApplyAnimation(
     model = element->model.u.model.model;
     if( !model )
         return;
+
+    /* #region agent log */
+    /* TEMPORARY PROBE: why a big (imported) model ends a draw at its bind pose. */
+    if( model->vertex_count > 5000 && getenv("TORIRS_ANIM_PROBE") )
+    {
+        struct ToriDraw_Animation* a = primary ? element->animation : element->secondary_animation;
+        const char* why = NULL;
+        if( element->is_skeletal )
+            why = (!element->skeletal_animation || element->skeletal_animation->frame_count <= 0 ||
+                   model->animaya_vertex_count <= 0)
+                      ? "skeletal-no-skin"
+                      : NULL;
+        else if( !a )
+            why = "no-animation";
+        else if( !a->base || !a->frames || a->frame_count <= 0 )
+            why = "empty-animation";
+        else if( frame >= 0 && frame < a->frame_count && a->frames[frame].length <= 0 )
+            why = "hole-frame";
+        if( why )
+            fprintf(
+                stderr,
+                "apply_probe: element=%d seq=%d frame=%d primary=%d model=%p vc=%d WHY=%s\n",
+                element_id, element->anim_seq_id, frame, (int)primary, (void*)model,
+                model->vertex_count, why);
+    }
+    /* #endregion */
 
     if( element->is_skeletal )
     {

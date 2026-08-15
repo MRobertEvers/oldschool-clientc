@@ -1490,9 +1490,13 @@ ToriDraw_ComputeProjectedFaceOrder(
          * priority pins a face into a draw band regardless of depth, which is
          * the painter's-algorithm crutch the z-buffer exists to replace. The
          * two together give the priority's answer, not the depth test's -- so
-         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER. */
+         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER.
+         *
+         * TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY drops them on its own, for an
+         * imported model whose priorities its authoring client never read. */
         face_priorities =
-            (toridraw_ignore_priorities() || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER))
+            (toridraw_ignore_priorities() ||
+             (m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY)))
                 ? NULL
                 : m->face_priorities;
         face_count = m->face_count;
@@ -1925,9 +1929,13 @@ ToriDraw_ComputeProjectedFaceOrderSmall(
          * priority pins a face into a draw band regardless of depth, which is
          * the painter's-algorithm crutch the z-buffer exists to replace. The
          * two together give the priority's answer, not the depth test's -- so
-         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER. */
+         * opting a model in drops them. See TORIDRAW_MODEL_FLAG_ZBUFFER.
+         *
+         * TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY drops them on its own, for an
+         * imported model whose priorities its authoring client never read. */
         face_priorities =
-            (toridraw_ignore_priorities() || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER))
+            (toridraw_ignore_priorities() ||
+             (m->flags & (TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY)))
                 ? NULL
                 : m->face_priorities;
         face_count = m->face_count;

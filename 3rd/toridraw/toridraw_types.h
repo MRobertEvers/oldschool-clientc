@@ -112,6 +112,22 @@ struct ToriDraw_Bones
  */
 #define TORIDRAW_MODEL_FLAG_ZBUFFER ((uint8_t)(1u << 0))
 
+/**
+ * Drop this model's face render priorities at sort time, without depth-testing
+ * it.
+ *
+ * This is the half of TORIDRAW_MODEL_FLAG_ZBUFFER that is about the model's
+ * AUTHORING rather than about how it is resolved: a model imported from a
+ * z-buffered client carries face priorities its own client never honoured, so
+ * they are not a draw order anyone chose — they are leftover bytes, and obeying
+ * them pins faces into bands for no reason. Dropping them leaves the model
+ * sorted by depth like everything else in the scene.
+ *
+ * ZBUFFER implies this (see the sort in toridraw_render.u.c); this flag alone is
+ * what an imported model gets while the depth-tested kernels are off.
+ */
+#define TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY ((uint8_t)(1u << 1))
+
 struct ToriDraw_Model
 {
     uint8_t flags;

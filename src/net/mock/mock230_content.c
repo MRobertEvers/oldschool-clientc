@@ -3347,18 +3347,41 @@ mock230_scandir(
 
     while( (ent = readdir(d)) != NULL )
     {
+        /* `struct dirent` is a variable-length record: `d_name` is declared at
+         * the struct's maximum but the entry readdir hands back is only
+         * `d_reclen` bytes long, and on macOS that buffer is a heap allocation
+         * sized to exactly that. A whole-struct assignment (`*dst = *ent`)
+         * therefore reads up to sizeof(struct dirent) - d_reclen bytes past it
+         * -- ASan reports it as a 1048-byte heap-buffer-overflow READ at boot.
+         * Copy the record's own length into a zeroed full-size slot instead. */
+        size_t reclen = (size_t)ent->d_reclen;
+        struct dirent* slot;
+
+        if( reclen == 0 || reclen > sizeof(*slot) )
+            reclen = sizeof(*slot);
         if( count == capacity )
         {
-            capacity = capacity ? capacity * 2 : 16;
-            entries = realloc(entries, (size_t)capacity * sizeof(*entries));
+            int const grown = capacity ? capacity * 2 : 16;
+            struct dirent** resized =
+                realloc(entries, (size_t)grown * sizeof(*entries));
+            if( !resized )
+                break;
+            entries = resized;
+            capacity = grown;
         }
-        entries[count] = malloc(sizeof(*entries[count]));
-        *entries[count] = *ent;
+        slot = calloc(1, sizeof(*slot));
+        if( !slot )
+            break;
+        memcpy(slot, ent, reclen);
+        /* A truncated copy must still be a valid C string for the sort. */
+        ((char*)slot)[sizeof(*slot) - 1] = '\0';
+        entries[count] = slot;
         count++;
     }
     closedir(d);
 
-    qsort(entries, (size_t)count, sizeof(*entries), dirent_name_compare);
+    if( count > 0 )
+        qsort(entries, (size_t)count, sizeof(*entries), dirent_name_compare);
     *out_entries = entries;
     return count;
 }

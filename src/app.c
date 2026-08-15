@@ -10307,7 +10307,13 @@ enum
 
 
 /**
- * Which npcs render through the depth-tested kernels.
+ * Which npcs were imported from a z-buffered client.
+ *
+ * What that then MEANS for the render is
+ * app_model_apply_import_render_flags' answer, not this one's: today it drops
+ * the face priorities and nothing else, because the depth-tested kernels are
+ * switched off (see app_model_zbuffer_kernels_enabled). This function only
+ * identifies the models; it does not decide how they are resolved.
  *
  * The content says so, per npc, with the `zbuffer_model` param -- see
  * OSRS-Content/.../minigame_rs2012_qbd/configs/rs2012_qbd.param. The client
@@ -10316,8 +10322,8 @@ enum
  * and a repack, not a client change.
  *
  * TORIRS_ZBUFFER_NPCS overrides the content entirely -- a comma list of npc ids
- * to depth-test instead, or the empty string for nobody. That is the A/B knob:
- * it takes the decision away from the config without editing it.
+ * to treat as imported instead, or the empty string for nobody. That is the A/B
+ * knob: it takes the decision away from the config without editing it.
  *
  * Per npc rather than globally because that is the unit of the question. The
  * goblin standing next to the dragon was authored for a painter's sort and
@@ -10348,6 +10354,49 @@ app_npc_wants_zbuffer(int npc_id, struct ToriRS_Npctype const* npctype)
             break;
     }
     return false;
+}
+
+/**
+ * Are the depth-tested kernels switched on for the models that ask for them?
+ *
+ * Off by default. The depth test is currently dropping faces on the QBD and the
+ * other rs2012 imports -- whole limbs, and the Queen herself, blink out at some
+ * camera angles and come back at others, which is a per-pixel reject and not a
+ * sort order (a bad sort draws the face in the wrong place; it does not fail to
+ * draw it). Until that is root-caused, the opt-in means only the half of the
+ * behaviour that is safe and that those models actually need: dropping the face
+ * priorities their authoring client never honoured.
+ *
+ * TORIRS_MODEL_ZBUFFER=1 puts the kernels back, which is how the defect gets
+ * looked at without reverting anything.
+ */
+static bool
+app_model_zbuffer_kernels_enabled(void)
+{
+    char const* on = getenv("TORIRS_MODEL_ZBUFFER");
+    return on && *on && *on != '0';
+}
+
+/**
+ * Stamp the render policy for a model imported from a z-buffered client.
+ *
+ * `imported` is the content's `zbuffer_model` answer (app_npc_wants_zbuffer).
+ * Written both ways because the model may be a cache copy of one that was
+ * stamped under a different npc id.
+ */
+static void
+app_model_apply_import_render_flags(struct ToriDraw_Model* model, bool imported)
+{
+    uint8_t const both =
+        (uint8_t)(TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY);
+    if( !model )
+        return;
+    model->flags &= (uint8_t)~both;
+    if( !imported )
+        return;
+    model->flags |= TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY;
+    if( app_model_zbuffer_kernels_enabled() )
+        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
 }
 
 static struct ToriDraw_Model*
@@ -10769,10 +10818,7 @@ app_world_spawn_npc_now(
      * no render flags, so the opt-in is this line and nothing else; clearing is
      * still written out because this model may be a cache copy of one that was
      * opted in earlier under a different npc id. */
-    if( app_npc_wants_zbuffer(npc_id, npctype) )
-        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
-    else
-        model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
+    app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(npc_id, npctype));
 
     size = npctype->size > 0 ? npctype->size : 1;
     world_x = tile_x * 128 + size * 64;
@@ -17672,8 +17718,8 @@ App_WorldApplyNpcType(
     }
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
-    if( model && app_npc_wants_zbuffer(npc_type, npctype) )
-        model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    if( model )
+        app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(npc_type, npctype));
 
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {

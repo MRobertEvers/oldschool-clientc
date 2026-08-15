@@ -402,6 +402,21 @@ main(void)
         centre_pixel(&without_priorities) != emblem_rgb,
         "and the emblem is then hidden by the cloth");
 
+    /* 4. The two halves of that behaviour are separable. An imported model whose
+     *    priorities its authoring client never honoured drops them WITHOUT being
+     *    depth-tested -- which is what the rs2012 npcs get while the depth-test
+     *    kernels are off (app_model_apply_import_render_flags). Same drop as the
+     *    z-buffer flag's, reached by the flag that does nothing else. */
+    model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
+    model->flags |= TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY;
+    count = sort_faces(scene, hnd);
+    check(
+        count > 0 && !emblem_draws_last(&source, ToriDraw_FaceOrder(scene), count),
+        "NO_FACE_PRIORITY drops the priority on its own");
+    check(
+        (model->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) == 0,
+        "and does so without opting the model into the depth-tested kernels");
+
     ToriDraw_SceneFree(scene);
     ToriDraw_ModelFree(model);
 

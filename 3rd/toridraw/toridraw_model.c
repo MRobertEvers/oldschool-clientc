@@ -24,6 +24,70 @@ ToriDraw_AnimVertexintClamp(int v)
     return (vertexint_t)v;
 }
 
+/* #region agent log */
+/* TEMPORARY PROBE (TORIRS_ANIM_PROBE=1): does a bone list ever name a vertex or
+ * face outside the model it is attached to, and does any transform push a
+ * coordinate past what vertexint_t can hold? Both are silent heap corruption /
+ * silent wrap today. */
+#include <stdio.h>
+static int
+td_anim_probe_on(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        const char* on = getenv("TORIRS_ANIM_PROBE");
+        cached = (on && *on && *on != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+static void
+td_anim_probe_bones(
+    const struct ToriDraw_Model* model,
+    const struct ToriDraw_Bones* bones,
+    int limit,
+    const char* what)
+{
+    static const void* seen[256];
+    static int seen_count = 0;
+    if( !td_anim_probe_on() || !bones || !bones->bones )
+        return;
+    for( int i = 0; i < seen_count; i++ )
+        if( seen[i] == (const void*)bones )
+            return;
+    if( seen_count < (int)(sizeof(seen) / sizeof(seen[0])) )
+        seen[seen_count++] = (const void*)bones;
+
+    int worst = -1;
+    int bad = 0;
+    for( int g = 0; g < bones->bones_count; g++ )
+    {
+        if( !bones->bones[g] )
+            continue;
+        for( int j = 0; j < (int)bones->bones_sizes[g]; j++ )
+        {
+            int idx = (int)bones->bones[g][j];
+            if( idx >= limit || idx < 0 )
+            {
+                bad++;
+                if( idx > worst )
+                    worst = idx;
+            }
+        }
+    }
+    fprintf(
+        stderr,
+        "anim_probe: model=%p %s groups=%d limit=%d out_of_range=%d worst=%d\n",
+        (const void*)model,
+        what,
+        bones->bones_count,
+        limit,
+        bad,
+        worst);
+}
+/* #endregion */
+
 static void
 ToriDraw_AnimApplyTransform(
     struct ToriDraw_AnimTransform* transform,
@@ -41,6 +105,14 @@ ToriDraw_AnimApplyTransform(
     vertexint_t* vertices_y = model->vertices_y;
     vertexint_t* vertices_z = model->vertices_z;
     alphaint_t* face_alphas = model->face_alphas;
+
+    /* #region agent log */
+    if( td_anim_probe_on() )
+    {
+        td_anim_probe_bones(model, vertex_bones, model->vertex_count, "vertex_bones");
+        td_anim_probe_bones(model, face_bones, model->face_count, "face_bones");
+    }
+    /* #endregion */
 
     switch( type )
     {
@@ -532,13 +604,39 @@ ToriDraw_ModelAnimateFrame(
     assert(frame->groups && frame->x && frame->y && frame->z);
 
     struct ToriDraw_AnimTransform transform = { 0 };
+    /* #region agent log */
+    int probe_ops = 0;
+    int probe_off_base = 0;
+    int probe_off_rig = 0;
+    /* #endregion */
     for( int i = 0; i < frame->length; i++ )
     {
         int group_index = frame->groups[i];
+        /* #region agent log */
+        probe_ops++;
+        /* #endregion */
         if( group_index < 0 || group_index >= base->length )
+        {
+            /* #region agent log */
+            probe_off_base++;
+            /* #endregion */
             continue;
+        }
         if( !base->bone_groups || !base->types )
             continue;
+        /* #region agent log */
+        if( td_anim_probe_on() && model->vertex_bones )
+        {
+            const uint8_t* bg = base->bone_groups[group_index];
+            int bgl = base->bone_group_lengths ? (int)base->bone_group_lengths[group_index] : 0;
+            int hit = 0;
+            for( int b = 0; b < bgl; b++ )
+                if( bg && bg[b] < model->vertex_bones->bones_count )
+                    hit++;
+            if( bgl > 0 && hit == 0 )
+                probe_off_rig++;
+        }
+        /* #endregion */
 
         uint8_t* bone_group = base->bone_groups[group_index];
         int bone_group_length =
@@ -555,6 +653,28 @@ ToriDraw_ModelAnimateFrame(
             frame->z[i],
             model);
     }
+
+    /* #region agent log */
+    if( td_anim_probe_on() )
+    {
+        long long sum = 0;
+        for( int v = 0; v < model->vertex_count; v++ )
+            sum += (long long)model->vertices_x[v] * 3 + (long long)model->vertices_y[v] * 5 +
+                   (long long)model->vertices_z[v] * 7;
+        fprintf(
+            stderr,
+            "anim_frame: model=%p vc=%d vbones=%d base_len=%d ops=%d off_base=%d off_rig=%d "
+            "vhash=%lld\n",
+            (void*)model,
+            model->vertex_count,
+            model->vertex_bones ? model->vertex_bones->bones_count : -1,
+            base->length,
+            probe_ops,
+            probe_off_base,
+            probe_off_rig,
+            sum);
+    }
+    /* #endregion */
 
     /* Projection culling and the face-sort depth bias both consume this
      * cylinder.  Keeping the bind-pose cylinder on a large deformation can
