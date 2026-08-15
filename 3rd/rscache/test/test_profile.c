@@ -392,14 +392,27 @@ test_rs2_config_codec_boundaries(void)
     RSCACHE_CHECK_EQ(RSCache_Dat2ConfigObjCodecVersion(&rs530), RSCACHE_CODEC_OBJ_RS2_530);
 
     /* Slice 2b is a profile pin, not a branch-wide inference. These assertions
-     * are the 634/727 A/B guard: their selected codecs must remain unchanged. */
+     * are the 634/727 A/B guard: neither revision may pick up the other's
+     * codecs by inference.
+     *
+     * 634 now has pins of its own (rev_dat2_rs634.c), which ProfileForIdentity
+     * borrows on an exact revision match — so the guard is no longer "634 gets
+     * nothing" but "634 gets ITS obj codec, not 727's". Its sequence codec is
+     * the same constant as 727's, which is not leakage: the payload-free flags
+     * 15/16/18 exist from 558 up and rev_dat2_rs558.c pins the same body. */
     struct RSCache rs634 = RSCache_ProfileForIdentity(
         RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 634, RSCACHE_QUIRK_VOID_RS634_NO_XTEAS);
     struct RSCache rs727 = RSCache_ProfileForIdentity(
         RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT2, 727, RSCACHE_QUIRK_NONE);
     RSCACHE_CHECK_EQ(
-        RSCache_Dat2ConfigSequenceCodecVersion(&rs634), RSCACHE_CODEC_SEQUENCE_V3);
-    RSCACHE_CHECK_EQ(RSCache_Dat2ConfigObjCodecVersion(&rs634), RSCACHE_CODEC_OBJ_DEFAULT);
+        RSCache_Dat2ConfigSequenceCodecVersion(&rs634), RSCACHE_CODEC_SEQUENCE_RS2_727);
+    RSCACHE_CHECK_EQ(
+        RSCache_Dat2ConfigObjCodecVersion(&rs634), RSCACHE_CODEC_OBJ_RS2_634);
+    /* The build-670 varuint model ids are the thing that must NOT reach 634. */
+    RSCACHE_CHECK(
+        RSCache_Dat2ConfigObjCodecVersion(&rs634) != RSCACHE_CODEC_OBJ_RS2_BUILD670);
+    RSCACHE_CHECK(
+        !(RSCache_Dat2ConfigObjFlags(&rs634) & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670));
     RSCACHE_CHECK_EQ(
         RSCache_Dat2ConfigSequenceCodecVersion(&rs727), RSCACHE_CODEC_SEQUENCE_RS2_727);
     RSCACHE_CHECK_EQ(

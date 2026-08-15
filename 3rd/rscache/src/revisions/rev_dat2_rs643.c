@@ -75,7 +75,7 @@ RSCache_ProfileDat2Rs643(void)
      * The same two pins read `cache.void634` to 100% as well — see
      * rev_dat2_rs634.c, where this band is set out in full.
      */
-    cache.codec[RSCACHE_TYPE_OBJ] = RSCACHE_CODEC_OBJ_RS2_BUILD502;
+    cache.codec[RSCACHE_TYPE_OBJ] = RSCACHE_CODEC_OBJ_RS2_634;
     cache.codec[RSCACHE_TYPE_SEQUENCE] = RSCACHE_CODEC_SEQUENCE_RS2_727;
 
     return cache;

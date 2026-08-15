@@ -347,8 +347,8 @@ dump_iface_strdup(char const* s)
     assert(s);
     size_t n = strlen(s) + 1;
     char* out = malloc(n);
-    if( out )
-        memcpy(out, s, n);
+    assert(out);
+    memcpy(out, s, n);
     return out;
 }
 
@@ -414,11 +414,9 @@ dump_iface_dat1_convert(
     {
         out->opsLen = 5;
         out->ops = calloc(5, sizeof(char*));
-        if( out->ops )
-        {
-            for( int i = 0; i < 5; i++ )
-                out->ops[i] = dump_iface_strdup(src->iop[i]);
-        }
+        assert(out->ops);
+        for( int i = 0; i < 5; i++ )
+            out->ops[i] = dump_iface_strdup(src->iop[i]);
     }
 }
 

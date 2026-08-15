@@ -231,12 +231,10 @@ proc_load_sprite(struct EV_ProcCtx* ctx, int sprite_id)
         struct RSCache_Dat2Sprite* sprite = &pack->sprites[0];
         int count = sprite->width * sprite->height;
         int32_t* argb = malloc((size_t)(count > 0 ? count : 1) * sizeof(*argb));
-        if( argb )
-        {
-            for( int i = 0; i < count; i++ )
-                argb[i] = pack->palette[sprite->palette_pixels[i]];
-            proc_sprite_put(ctx, sprite_id, argb, sprite->width, sprite->height);
-        }
+        assert(argb);
+        for( int i = 0; i < count; i++ )
+            argb[i] = pack->palette[sprite->palette_pixels[i]];
+        proc_sprite_put(ctx, sprite_id, argb, sprite->width, sprite->height);
     }
     else
     {

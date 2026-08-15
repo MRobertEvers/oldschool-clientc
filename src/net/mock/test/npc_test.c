@@ -45,6 +45,7 @@
  */
 
 #include "mock230.h"
+#include <assert.h>
 #include "mock230_content.h"
 
 #include "ss_meta.h"
@@ -1139,11 +1140,7 @@ main(void)
                subjects.override_npc >= 0 ? "" : " (no cache-overriding case found)");
 
     srv = (struct Mock230Server*)calloc(1, sizeof(*srv));
-    if( !srv )
-    {
-        printf("  FAIL could not allocate a server\n");
-        return 1;
-    }
+    assert(srv);
     test_ops(srv, &subjects);
     free(srv);
 

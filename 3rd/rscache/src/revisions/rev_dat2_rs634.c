@@ -30,11 +30,12 @@
  *
  *   loc       643's `RSCACHE_CODEC_LOC_RS2`. The 530 body reads 18,401 of
  *             57,203 locs; this reads all of them.
- *   obj       Its own codec, `RSCACHE_CODEC_OBJ_RS2_BUILD502` — the 670 opcode
- *             table with u16 model ids. The 530 body knows nothing of opcode
- *             0x84 (quests) and stops there on 125 records; the 670 body knows
- *             the opcode but reads model ids as varuint, which is not true until
- *             build 670 and misaligns 4,687 records. See dat2_config_obj.h.
+ *   obj       Its own codec, `RSCACHE_CODEC_OBJ_RS2_634`, transcribed from the
+ *             rev-634 client's item decoder (Class213.method1566): the 530 table
+ *             plus opcodes 18, 132 and 134. The 530 body has never heard of
+ *             opcode 132 and stops there on 125 records; the 670 body reads
+ *             model ids as varuint, which is not true until build 670, and
+ *             misaligns 4,687. See obj_decode_op_rs2_634.
  *   seq       558's `RSCACHE_CODEC_SEQUENCE_RS2_727`, for the same reason it is
  *             pinned there: the payload-free opcodes 15/16/18 exist here and the
  *             530/643 body rejects them, stranding 4,516 records at their first
@@ -85,8 +86,8 @@ RSCache_ProfileDat2Rs634(void)
 
     /* Not 643's: rev 634 sequences use the payload-free 15/16/18 flags. */
     cache.codec[RSCACHE_TYPE_SEQUENCE] = RSCACHE_CODEC_SEQUENCE_RS2_727;
-    /* The 670 opcode table, still at u16 model ids. */
-    cache.codec[RSCACHE_TYPE_OBJ] = RSCACHE_CODEC_OBJ_RS2_BUILD502;
+    /* The 634 client's own item table: 530's plus opcodes 18, 132 and 134. */
+    cache.codec[RSCACHE_TYPE_OBJ] = RSCACHE_CODEC_OBJ_RS2_634;
 
     /* NPC and SPOTANIM are deliberately derived; see the header comment. */
     return cache;

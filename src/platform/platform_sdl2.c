@@ -392,18 +392,7 @@ PlatformSDL2_Init(
 
     size_t const pixel_count = (size_t)width * (size_t)height;
     platform->pixels = malloc(pixel_count * sizeof(int));
-    if( !platform->pixels )
-    {
-        fprintf(stderr, "Failed to allocate pixel buffer\n");
-        SDL_DestroyTexture(platform->texture);
-        platform->texture = NULL;
-        SDL_DestroyRenderer(platform->renderer);
-        platform->renderer = NULL;
-        SDL_DestroyWindow(platform->window);
-        platform->window = NULL;
-        SDL_Quit();
-        return false;
-    }
+    assert(platform->pixels);
     memset(platform->pixels, 0, pixel_count * sizeof(int));
 
     /* SDL_TEXTINPUT is how we get layout-resolved, shift-applied characters;
@@ -597,12 +586,7 @@ PlatformSDL2_Resize(
 
     pixel_count = (size_t)width * (size_t)height;
     pixels = malloc(pixel_count * sizeof(int));
-    if( !pixels )
-    {
-        fprintf(stderr, "resize: failed to allocate %dx%d pixel buffer\n", width, height);
-        SDL_DestroyTexture(texture);
-        return false;
-    }
+    assert(pixels);
     memset(pixels, 0, pixel_count * sizeof(int));
 
     /* Swap only after both allocations succeeded: a failed resize must leave a

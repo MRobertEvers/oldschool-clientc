@@ -53,6 +53,31 @@ int main(int argc, char** argv)
     printf("  opaque=%d  non-opaque=%d (of which %d really have non-255 alpha)\n",
            opaque_n, set.count - opaque_n, partial);
 
+    /* How transparent are the non-opaque ones, really? A texture that is 99%%
+     * alpha-0 draws as nothing through the alpha gate, which is the difference
+     * between "has some cutouts" and "is invisible". */
+    {
+        long long total = 0, zero = 0, full = 0, mid = 0;
+        int mostly_clear = 0;
+        for( int i = 0; i < set.count; i++ )
+        {
+            if( !set.items[i].texels ) continue;
+            int n = set.items[i].size * set.items[i].size, z = 0;
+            for( int p = 0; p < n; p++ )
+            {
+                int a = (set.items[i].texels[p] >> 24) & 0xFF;
+                total++;
+                if( a == 0 ) { zero++; z++; }
+                else if( a == 255 ) full++;
+                else mid++;
+            }
+            if( z * 2 > n ) mostly_clear++;
+        }
+        printf("  texels: alpha0=%.1f%%  alpha255=%.1f%%  partial=%.1f%%   "
+               "textures >50%% clear: %d\n",
+               100.0 * zero / total, 100.0 * full / total, 100.0 * mid / total, mostly_clear);
+    }
+
     for( int i = 0; i < set.count && i < 3; i++ ) {
         const struct EV_Texture* t = &set.items[i];
         printf("  id=%-5d %dx%d opaque=%d proc=%d  px[0]=%08X px[mid]=%08X px[end]=%08X\n",

@@ -300,7 +300,11 @@ ev_map_add(
     int face_first)
 {
     struct EV_PlayerPart* p;
-    assert(map);
+    /* The part map is an optional out-parameter — most callers only want the
+     * merged model — so absent in, absent out. NOT a contract violation. */
+    if( !map )
+        return;
+    assert(part);
     if( map->count >= EV_PLAYER_MAX_PARTS )
         return;
     p = &map->parts[map->count++];

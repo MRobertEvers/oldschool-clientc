@@ -584,11 +584,7 @@ main(int argc, char** argv)
         framemap_aliases);
 
     int* seq_framemap = malloc(((size_t)max_seq_id + 1) * sizeof(int));
-    if( !seq_framemap )
-    {
-        fprintf(stderr, "out of memory indexing sequences by id\n");
-        return 1;
-    }
+    assert(seq_framemap);
     for( int i = 0; i <= max_seq_id; i++ )
         seq_framemap[i] = -1;
     for( int i = 0; i < fm_index.count; i++ )
@@ -601,11 +597,7 @@ main(int argc, char** argv)
     if( seq_name_capacity > 1 )
     {
         seq_tokens = calloc((size_t)seq_name_capacity, sizeof(struct Tokens));
-        if( !seq_tokens )
-        {
-            fprintf(stderr, "out of memory tokenising sequence names\n");
-            return 1;
-        }
+        assert(seq_tokens);
         for( int i = 0; i < seq_name_capacity; i++ )
             tokenise(name_of(&seq_names, i), &seq_tokens[i]);
     }

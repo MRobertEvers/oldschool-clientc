@@ -801,11 +801,7 @@ Task_Dat2TextureLoad_Run(
     }
 
     task->packs = calloc((size_t)task->def->sprite_ids_count, sizeof(*task->packs));
-    if( !task->packs )
-    {
-        fprintf(stderr, "Failed to allocate sprite packs for texture %d\n", task->texture_id);
-        PT_EXIT(&task->pt);
-    }
+    assert(task->packs);
     task->sprite_index = 0;
 
     for( ; task->sprite_index < task->def->sprite_ids_count; task->sprite_index++ )

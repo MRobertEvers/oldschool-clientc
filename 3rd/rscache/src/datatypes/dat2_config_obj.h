@@ -134,15 +134,13 @@ struct RSCache_Dat2ConfigObj
 #define RSCACHE_CONFIG_OBJ_DECODE_RS2_530 32
 
 /**
- * The RS2 build-502..669 branch (rev 634 and its neighbours).
+ * The RS2 rev-634 item stream (rev 634 and 643).
  *
- * Same opcode *table* as the 670 branch — 0x17/0x19 already lost their trailing
- * type byte at 502, and the ~thirty opcodes the 530 body has never heard of
- * (0x84 quests, 0x86 pick-size, 0x8B/0x8C bind link, the cursor block at
- * 0x8E-0x9A) are all present — with model ids still a plain u16. Only the width
- * moved at 670, so this shares the 670 body and flips that one read.
+ * The 530 table plus opcodes 18, 132 and 134, transcribed from the rev-634
+ * client's own decoder. See obj_decode_op_rs2_634 for the reading and for why
+ * the build-670 body is not it.
  */
-#define RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD502 64
+#define RSCACHE_CONFIG_OBJ_DECODE_RS2_634 64
 
 /*
  * Codec versions. A field that merely got wider is absorbed by
@@ -154,8 +152,8 @@ struct RSCache_Dat2ConfigObj
 #define RSCACHE_CODEC_OBJ_RS2_BUILD670 2
 /** RS2 rev 530: bare 23/25 model ids plus opcodes 96 and 121-130. */
 #define RSCACHE_CODEC_OBJ_RS2_530 3
-/** RS2 builds 502-669: the 670 opcode table with u16 model ids. */
-#define RSCACHE_CODEC_OBJ_RS2_BUILD502 4
+/** RS2 rev 634/643: the 530 table plus opcodes 18, 132 and 134. */
+#define RSCACHE_CODEC_OBJ_RS2_634 4
 
 /** Which obj codec this cache uses. */
 int

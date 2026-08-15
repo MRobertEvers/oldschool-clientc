@@ -6,7 +6,10 @@
 #include <assert.h>
 
 #include "dat2disk.h"
+#include "datatypes/dat2_config_loc.h"
 #include "datatypes/dat2_config_npc.h"
+#include "datatypes/dat2_config_obj.h"
+#include "datatypes/dat2_config_sequence.h"
 #include "filelist.h"
 #include "reference_table.h"
 #include "revisions/revisions.h"
@@ -48,9 +51,14 @@ basename_of(const char* path)
  *
  * Ordered rather than exhaustive on purpose: the list is the profiles this tool
  * can usefully browse, and trying every registered revision would mostly
- * distinguish profiles that differ in ways an npc record cannot show.
+ * distinguish profiles that differ in ways a config record cannot show.
+ *
+ * `void634` rather than `rs634`: the two share every codec, and the one that
+ * differs — RSCACHE_QUIRK_VOID_RS634_NO_XTEAS — is right for the cache in this
+ * tree and harmless for a stock 634 one, which the viewer never asks for keys
+ * for anyway. A user who wants the bare revision can still set it by hand.
  */
-static const char* const RS2_CANDIDATES[] = { "rs727", "rs643", "rs558", "rs530" };
+static const char* const RS2_CANDIDATES[] = { "rs727", "rs643", "void634", "rs558", "rs530" };
 static const char* const OSRS_CANDIDATES[] = { "osrs239", "osrs230", "osrs184" };
 
 /*
@@ -93,13 +101,155 @@ unmute_stdout(struct muted* m)
 }
 
 /**
- * How many of the first `limit` npc records decode to exact consumption.
+ * Did this record decode to exact consumption under `profile`?
  *
  * Exact consumption is the signal that matters: a wrong profile usually still
  * *decodes* — it stops early on a byte it read as a terminator — so "did it
  * return non-NULL" separates nothing. Landing exactly on the end of every
  * record is what a right profile does and a wrong one does not.
  */
+static bool
+record_is_exact(
+    const struct RSCache* profile,
+    enum RSCache_Type type,
+    char* data,
+    int size)
+{
+    bool exact = false;
+    switch( type )
+    {
+    case RSCACHE_TYPE_NPC:
+    {
+        struct RSCache_Dat2ConfigNpc* r =
+            RSCache_Dat2ConfigNpcNewDecodeProfile(profile, data, size);
+        exact = r && r->_consumed == size;
+        RSCache_Dat2ConfigNpcFree(r);
+        break;
+    }
+    case RSCACHE_TYPE_OBJ:
+    {
+        struct RSCache_Dat2ConfigObj* r =
+            RSCache_Dat2ConfigObjNewDecodeProfile(profile, data, size);
+        exact = r && r->_consumed == size;
+        RSCache_Dat2ConfigObjFree(r);
+        break;
+    }
+    case RSCACHE_TYPE_LOC:
+    {
+        struct RSCache_Dat2ConfigLoc* r =
+            RSCache_Dat2ConfigLocNewDecodeProfile(profile, data, size);
+        exact = r && r->_consumed == size;
+        RSCache_Dat2ConfigLocFree(r);
+        break;
+    }
+    case RSCACHE_TYPE_SEQUENCE:
+    {
+        struct RSCache_Dat2ConfigSequence* r =
+            RSCache_Dat2ConfigSequenceNewDecodeProfile(profile, data, size);
+        exact = r && r->_consumed == size;
+        RSCache_Dat2ConfigSequenceFree(r);
+        break;
+    }
+    default:
+        break;
+    }
+    return exact;
+}
+
+/**
+ * Score one type: how many of the first `limit` records consume exactly.
+ *
+ * Adds to the running tallies rather than answering on its own, because the
+ * verdict is over the whole set — see score_profile.
+ *
+ * The two record layouts are the same pair walk_records deals with, and getting
+ * them confused is silent: under the config-group layout (OldSchool) the
+ * reference table's ids name config *kinds*, so decoding a table id as a record
+ * hands the decoder a whole archive and scores every profile at zero.
+ */
+static void
+score_type(
+    struct RSCache_Dat2Disk* disk,
+    const struct RSCache* profile,
+    enum RSCache_Type type,
+    int limit,
+    int* seen,
+    int* exact)
+{
+    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(profile, type);
+    int table_id = RSCache_Dat2DiskTableId(disk, addr.table);
+    if( table_id < 0 )
+        return;
+
+    /* The groups to walk: one named archive under the config-group layout, or
+     * every id in the reference table under the sharded one. */
+    int single = addr.group;
+    int* group_ids = &single;
+    int group_count = 1;
+    struct RSCache_ReferenceTable* table = NULL;
+
+    if( addr.group_shift != 0 )
+    {
+        struct RSCache_Dat2DiskArchive* ref =
+            RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, table_id);
+        if( !ref )
+            return;
+        table = RSCache_ReferenceTableNewDecode(ref->data, ref->data_size);
+        RSCache_Dat2DiskArchiveFree(ref);
+        if( !table )
+            return;
+        group_ids = table->ids;
+        group_count = table->id_count;
+    }
+
+    for( int g = 0; g < group_count && *seen < limit; g++ )
+    {
+        struct RSCache_Dat2DiskArchive* a =
+            RSCache_Dat2DiskArchiveNewLoad(disk, table_id, group_ids[g]);
+        if( !a )
+            continue;
+        RSCache_Dat2DiskArchiveInitMetadata(disk, a);
+
+        struct RSCache_FileList* fl =
+            RSCache_FileListNewFromDecode(a->data, a->data_size, a->file_count);
+        if( fl )
+        {
+            for( int f = 0; f < fl->file_count && *seen < limit; f++ )
+            {
+                if( fl->file_sizes[f] <= 0 )
+                    continue;
+                (*seen)++;
+                if( record_is_exact(profile, type, fl->files[f], fl->file_sizes[f]) )
+                    (*exact)++;
+            }
+            RSCache_FileListFree(fl);
+        }
+        RSCache_Dat2DiskArchiveFree(a);
+    }
+
+    if( table )
+        RSCache_ReferenceTableFree(table);
+}
+
+/*
+ * The types the score is taken over.
+ *
+ * Not npc alone, which is what this used to be. Every RS2 profile from 530 to
+ * 643 reads a 634 cache's npc records to 100% exact consumption — the npc stream
+ * did not move across that whole band — so an npc-only score is a four-way tie
+ * and the winner is whichever candidate the loop happened to reach first. loc
+ * and seq are where those revisions actually separate (32% vs 100% loc between
+ * 558 and 643; 70% vs 100% seq between 643 and 558), and obj separates 643 from
+ * 727. Scoring all four is what makes the answer evidence rather than order.
+ */
+static const enum RSCache_Type SCORED_TYPES[] = {
+    RSCACHE_TYPE_NPC,
+    RSCACHE_TYPE_OBJ,
+    RSCACHE_TYPE_LOC,
+    RSCACHE_TYPE_SEQUENCE,
+};
+
+/** Percentage of sampled records consuming exactly, or -1 if nothing decoded. */
 static int
 score_profile(const char* path, const struct RSCache* profile, int limit)
 {
@@ -115,74 +265,19 @@ score_profile(const char* path, const struct RSCache* profile, int limit)
     struct RSCache local = *profile;
     RSCache_Dat2DiskSetProfile(disk, &local);
 
-    struct RSCache_RecordAddress addr = RSCache_RecordAddressFor(&local, RSCACHE_TYPE_NPC);
-    int table_id = RSCache_Dat2DiskTableId(disk, addr.table);
-    if( table_id < 0 )
-    {
-        RSCache_Dat2DiskFree(disk);
-        unmute_stdout(&mute);
-        return -1;
-    }
-
-    struct RSCache_Dat2DiskArchive* ref =
-        RSCache_Dat2DiskArchiveNewReferenceTableLoad(disk, table_id);
-    if( !ref )
-    {
-        RSCache_Dat2DiskFree(disk);
-        unmute_stdout(&mute);
-        return -1;
-    }
-    struct RSCache_ReferenceTable* table =
-        RSCache_ReferenceTableNewDecode(ref->data, ref->data_size);
-    RSCache_Dat2DiskArchiveFree(ref);
-    if( !table )
-    {
-        RSCache_Dat2DiskFree(disk);
-        unmute_stdout(&mute);
-        return -1;
-    }
-
     int seen = 0;
     int exact = 0;
-    for( int i = 0; i < table->id_count && seen < limit; i++ )
+    for( size_t t = 0; t < sizeof(SCORED_TYPES) / sizeof(SCORED_TYPES[0]); t++ )
     {
-        struct RSCache_Dat2DiskArchive* a =
-            RSCache_Dat2DiskArchiveNewLoad(disk, table_id, table->ids[i]);
-        if( !a )
-            continue;
-        RSCache_Dat2DiskArchiveInitMetadata(disk, a);
-
-        if( addr.group_shift == 0 )
-        {
-            struct RSCache_Dat2ConfigNpc* n =
-                RSCache_Dat2ConfigNpcNewDecodeProfile(&local, a->data, a->data_size);
-            seen++;
-            if( n && n->_consumed == a->data_size )
-                exact++;
-        }
-        else
-        {
-            struct RSCache_FileList* fl =
-                RSCache_FileListNewFromDecode(a->data, a->data_size, a->file_count);
-            if( fl )
-            {
-                for( int f = 0; f < fl->file_count && seen < limit; f++ )
-                {
-                    if( fl->file_sizes[f] <= 0 )
-                        continue;
-                    struct RSCache_Dat2ConfigNpc* n = RSCache_Dat2ConfigNpcNewDecodeProfile(
-                        &local, (char*)fl->files[f], fl->file_sizes[f]);
-                    seen++;
-                    if( n && n->_consumed == fl->file_sizes[f] )
-                        exact++;
-                }
-                RSCache_FileListFree(fl);
-            }
-        }
-        RSCache_Dat2DiskArchiveFree(a);
+        /* Per-type budget, so one plentiful type cannot crowd out the ones that
+         * carry the distinguishing evidence. */
+        int type_seen = 0;
+        int type_exact = 0;
+        score_type(disk, &local, SCORED_TYPES[t], limit, &type_seen, &type_exact);
+        seen += type_seen;
+        exact += type_exact;
     }
 
-    RSCache_ReferenceTableFree(table);
     RSCache_Dat2DiskFree(disk);
     unmute_stdout(&mute);
     return seen > 0 ? (exact * 100) / seen : -1;
@@ -214,6 +309,18 @@ ev_cache_detect_rev(const char* path, char* out_rev, int out_len)
     int counts[2] = { (int)(sizeof(RS2_CANDIDATES) / sizeof(RS2_CANDIDATES[0])),
                       (int)(sizeof(OSRS_CANDIDATES) / sizeof(OSRS_CANDIDATES[0])) };
 
+    /*
+     * The directory's own name breaks ties, and only ties.
+     *
+     * Revisions inside one band can be codec-identical — 634 and 643 read every
+     * config type the same way — so no amount of decoding separates them, and
+     * the winner would otherwise be whichever the loop reached first. This tree
+     * names every cache `cache.<rev>`, so the folder is the one piece of
+     * evidence left. It never overrules a higher score: a directory called
+     * cache.void634 holding an OldSchool cache still detects as OldSchool.
+     */
+    const char* base = basename_of(path);
+
     for( int l = 0; l < 2; l++ )
     {
         for( int i = 0; i < counts[l]; i++ )
@@ -222,7 +329,11 @@ ev_cache_detect_rev(const char* path, char* out_rev, int out_len)
             if( !RSCache_ProfileByName(lists[l][i], &p) )
                 continue;
             int score = score_profile(path, &p, 240);
-            if( score > best_score )
+            bool named = strstr(base, lists[l][i]) != NULL;
+            bool better = score > best_score;
+            bool tie_and_named = score == best_score && named && best &&
+                                 strstr(base, best) == NULL;
+            if( better || tie_and_named )
             {
                 best_score = score;
                 best = lists[l][i];

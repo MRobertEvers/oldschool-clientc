@@ -994,9 +994,9 @@ player_extended(
             if( payload_len > 0 && pos + payload_len <= len )
             {
                 payload = (uint8_t*)malloc((size_t)payload_len);
-                if( payload )
-                    for( int b = 0; b < payload_len; b++ )
-                        payload[payload_len - b - 1] = data[pos + b];
+                assert(payload);
+                for( int b = 0; b < payload_len; b++ )
+                    payload[payload_len - b - 1] = data[pos + b];
             }
             pos += payload_len;
             if( pos > len )

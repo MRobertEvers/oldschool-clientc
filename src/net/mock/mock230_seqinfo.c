@@ -114,10 +114,8 @@ mock230_seqinfo_load(const char* cache_dir)
             g_seq_priority_count = archive->file_ids[i] + 1;
     }
     g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count);
-    if( g_seq_priority )
-        memset(g_seq_priority, MOCK230_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
-    else
-        g_seq_priority_count = 0;
+    assert(g_seq_priority);
+    memset(g_seq_priority, MOCK230_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
 
     g_seqs = (struct SeqName*)calloc((size_t)archive->file_count, sizeof(*g_seqs));
     assert(g_seqs);

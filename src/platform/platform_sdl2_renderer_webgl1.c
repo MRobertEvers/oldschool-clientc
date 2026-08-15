@@ -1556,11 +1556,7 @@ webgl1_bake_font_atlas(
     int const atlas_h = total_h;
     size_t const pixel_count = (size_t)atlas_w * (size_t)atlas_h;
     uint8_t* alpha = calloc(pixel_count, 1);
-    if( !alpha )
-    {
-        fprintf(stderr, "webgl1_bake_font_atlas: alpha alloc failed font_id=%d\n", font_id);
-        return false;
-    }
+    assert(alpha);
 
     int y = 0;
     for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )

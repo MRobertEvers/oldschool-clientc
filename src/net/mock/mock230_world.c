@@ -1279,7 +1279,10 @@ claimed_in(
     const char* const* claimed,
     size_t count)
 {
-    assert(verb);
+    /* An op slot an npc does not define is a NULL verb -- most npcs define
+     * fewer than five -- so "no verb" claims nothing. */
+    if( !verb )
+        return NULL;
     for( size_t i = 0; i < count; i++ )
         if( strcmp(verb, claimed[i]) == 0 )
             return claimed[i];
@@ -12231,11 +12234,7 @@ mock230_world_selftest(void)
 
     if( !srv )
         srv = calloc(1, sizeof(*srv));
-    if( !srv )
-    {
-        fprintf(stderr, "mock230 selftest: cannot allocate the server\n");
-        return 1;
-    }
+    assert(srv);
     struct Mock230Player* player;
     const struct Mock230Ids* ids = mock230_ids();
 

@@ -3481,12 +3481,7 @@ load_multiway(const char* path)
             int capacity = g_multiway_capacity ? g_multiway_capacity * 2 : 1024;
             int* grown = realloc(g_multiway, (size_t)capacity * sizeof(*grown));
 
-            if( !grown )
-            {
-                CONTENT_ERROR("maps/multiway.csv: out of memory at %d zones\n",
-                              g_multiway_count);
-                break;
-            }
+            assert(grown);
             g_multiway = grown;
             g_multiway_capacity = capacity;
         }

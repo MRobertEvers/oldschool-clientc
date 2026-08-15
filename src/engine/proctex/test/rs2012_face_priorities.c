@@ -3448,8 +3448,10 @@ main(int argc, char** argv)
             slow_delta_x = (int*)calloc((size_t)g.vertex_count, sizeof(int));
             slow_delta_y = (int*)calloc((size_t)g.vertex_count, sizeof(int));
             slow_delta_z = (int*)calloc((size_t)g.vertex_count, sizeof(int));
-            if( slow_delta_x && slow_delta_y && slow_delta_z )
-                for( int v = 0; v < g.vertex_count; v++ )
+            assert(slow_delta_x);
+            assert(slow_delta_y);
+            assert(slow_delta_z);
+            for( int v = 0; v < g.vertex_count; v++ )
                 {
                     int const F = vertex_feature[v];
                     if( F >= 0 && best_off[F] )

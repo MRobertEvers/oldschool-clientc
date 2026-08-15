@@ -47,8 +47,8 @@ RSCache_Dat2ConfigObjFlags(const struct RSCache* cache)
      * shared decoder body, so a revision module can pin it. */
     if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_BUILD670 )
         return RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670;
-    if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_BUILD502 )
-        return RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD502;
+    if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_634 )
+        return RSCACHE_CONFIG_OBJ_DECODE_RS2_634;
     if( RSCache_Dat2ConfigObjCodecVersion(cache) == RSCACHE_CODEC_OBJ_RS2_530 )
         return RSCACHE_CONFIG_OBJ_DECODE_RS2_530;
 
@@ -656,6 +656,69 @@ static bool
 obj_decode_op_rs2_530(
     struct RSCache_Dat2ConfigObj* object,
     int opcode,
+    struct RSCache_Buffer* buffer);
+
+/* ---- RS2 rev 634 ------------------------------------------------------- */
+
+/*
+ * Exact wire table from the rev-634 client's own item decoder — `Class213`,
+ * method1566, in the deobfuscated 634 tree (~/Documents/git_repos/634-client).
+ *
+ * Read against that method arm by arm, 634's table is rev 530's plus exactly
+ * three opcodes, and the three are why the 530 body cannot read a 634 cache:
+ *
+ *   18   multi stack size, a u16 the client keeps and this struct does not
+ *   132  quest ids: a byte count then that many u16s
+ *   134  a single byte (pick-size shift in later builds)
+ *
+ * Everything else — 23/24/25/26 with no trailing type byte, opcode 42's counted
+ * *byte* array, 96, the 100-109 stack pairs, 121-130 — the two clients read
+ * identically, so those arms delegate rather than being copied and left to
+ * drift. Opcode 96 is the one arm that had to be restated: the 634 client reads
+ * it unsigned where 2009scape's 530 reads a signed byte.
+ *
+ * ## Not the build-670 body with narrower ids
+ *
+ * That was tried first, since 670's only *documented* change is varuint model
+ * ids, and it consumes every record in `cache.void634` exactly. It is still
+ * wrong: the 670 body reads opcode 42 as a smart count followed by byte *pairs*
+ * and opcode 132's count as a smart. Neither shape occurs in this cache, so the
+ * measurement could not see it — a reminder that exact consumption proves a
+ * table is not contradicted, not that it is right. The client is the authority.
+ */
+static bool
+obj_decode_op_rs2_634(
+    struct RSCache_Dat2ConfigObj* object,
+    int opcode,
+    struct RSCache_Buffer* buffer)
+{
+    switch( opcode )
+    {
+    case 18: /* multi stack size */
+        g2(buffer);
+        return true;
+    case 96: /* unsigned here, where the 530 client reads a signed byte */
+        object->item_type = g1(buffer);
+        return true;
+    case 132: /* quest ids */
+    {
+        int count = g1(buffer);
+        for( int i = 0; i < count; i++ )
+            g2(buffer);
+        return true;
+    }
+    case 134:
+        object->shift_click_drop_index = g1(buffer);
+        return true;
+    default:
+        return obj_decode_op_rs2_530(object, opcode, buffer);
+    }
+}
+
+static bool
+obj_decode_op_rs2_530(
+    struct RSCache_Dat2ConfigObj* object,
+    int opcode,
     struct RSCache_Buffer* buffer)
 {
     switch( opcode )
@@ -776,56 +839,47 @@ obj_decode_op_rs2_530(
     }
 }
 
-/**
- * The RS2 opcode table from build 502 up.
- *
- * `varuint_models` is the one thing that moved inside this band: model ids are a
- * plain u16 until build 670 and a varuint from it. Everything else — the opcode
- * numbers and every payload width — is shared, so the two builds share a body
- * rather than a copy that would drift.
- */
 static bool
-obj_decode_op_rs2_b502(
+obj_decode_op_rs2_b670(
     struct RSCache_Dat2ConfigObj* object,
     int opcode,
-    struct RSCache_Buffer* buffer,
-    bool varuint_models)
+    struct RSCache_Buffer* buffer)
 {
-#define gmodel(b) (varuint_models ? gvaruint(b) : g2(b))
     switch( opcode )
     {
+    /* Every model field is a varuint here — the whole reason for this codec. */
     case 0x01:
-        object->inventory_model_id = gmodel(buffer);
+        object->inventory_model_id = gvaruint(buffer);
         return true;
     case 0x17: /* male model 0; the trailing type byte went away at build 502 */
-        object->male_model_0 = gmodel(buffer);
+        object->male_model_0 = gvaruint(buffer);
         return true;
     case 0x18:
-        object->male_model_1 = gmodel(buffer);
+        object->male_model_1 = gvaruint(buffer);
         return true;
     case 0x19: /* female model 0 */
-        object->female_model_0 = gmodel(buffer);
+        object->female_model_0 = gvaruint(buffer);
         return true;
     case 0x1A:
-        object->female_model_1 = gmodel(buffer);
+        object->female_model_1 = gvaruint(buffer);
         return true;
     case 0x4E:
-        object->male_model_2 = gmodel(buffer);
+        object->male_model_2 = gvaruint(buffer);
         return true;
     case 0x4F:
-        object->female_model_2 = gmodel(buffer);
+        object->female_model_2 = gvaruint(buffer);
         return true;
     case 0x5A:
-        object->male_head_model = gmodel(buffer);
+        object->male_head_model = gvaruint(buffer);
         return true;
     case 0x5B:
-        object->female_head_model = gmodel(buffer);
+        object->female_head_model = gvaruint(buffer);
         return true;
     case 0x5C:
-        object->male_head_model_2 = gmodel(buffer);
+        object->male_head_model_2 = gvaruint(buffer);
         return true;
     case 0x5D:
-        object->female_head_model_2 = gmodel(buffer);
+        object->female_head_model_2 = gvaruint(buffer);
         return true;
 
     case 0x02:
@@ -1046,7 +1100,6 @@ obj_decode_op_rs2_b502(
          * record in `cache.rs727_preeoc` reaches here. */
         return false;
     }
-#undef gmodel
 }
 
 bool
@@ -1061,9 +1114,9 @@ RSCache_Dat2ConfigObjDecodeOp(
         if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_530 )
             return obj_decode_op_rs2_530(object, opcode, buffer);
         if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD670 )
-            return obj_decode_op_rs2_b502(object, opcode, buffer, true);
-        if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_BUILD502 )
-            return obj_decode_op_rs2_b502(object, opcode, buffer, false);
+            return obj_decode_op_rs2_b670(object, opcode, buffer);
+        if( flags & RSCACHE_CONFIG_OBJ_DECODE_RS2_634 )
+            return obj_decode_op_rs2_634(object, opcode, buffer);
 
         switch( opcode )
         {

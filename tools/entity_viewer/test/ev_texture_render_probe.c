@@ -34,6 +34,38 @@ dump_stats(const char* when)
     printf("\n");
 }
 
+/* A BMP of the frame, because "drawn=15240, 374 colour cells" and "looks
+ * wrong" are not the same question and only one of them can be answered by
+ * counting. */
+static void
+write_bmp(const char* path, const unsigned char* rgba, int w, int h)
+{
+    FILE* f = fopen(path, "wb");
+    if( !f ) return;
+    int row = w * 3, pad = (4 - (row % 4)) % 4, data = (row + pad) * h;
+    unsigned char hdr[54] = { 'B','M' };
+    int fsz = 54 + data;
+    memcpy(hdr + 2, &fsz, 4);
+    int off = 54; memcpy(hdr + 10, &off, 4);
+    int ih = 40; memcpy(hdr + 14, &ih, 4);
+    memcpy(hdr + 18, &w, 4); memcpy(hdr + 22, &h, 4);
+    hdr[26] = 1; hdr[28] = 24;
+    memcpy(hdr + 34, &data, 4);
+    fwrite(hdr, 1, 54, f);
+    for( int y = h - 1; y >= 0; y-- )
+    {
+        for( int x = 0; x < w; x++ )
+        {
+            const unsigned char* p = rgba + (y * w + x) * 4;
+            unsigned char bgr[3] = { p[2], p[1], p[0] };
+            fwrite(bgr, 1, 3, f);
+        }
+        unsigned char z[3] = { 0, 0, 0 };
+        fwrite(z, 1, (size_t)pad, f);
+    }
+    fclose(f);
+}
+
 static struct EV_TextureSet g_set;
 
 static int
@@ -162,7 +194,7 @@ main(int argc, char** argv)
     else
         ToriDraw_ModelFree(model);
 
-    const int W = 256, H = 256;
+    const int W = 512, H = 512;
 
     ev_init();
     int loaded_faces = ev_wire_is_model_hd(wb.data, wb.len)
@@ -197,12 +229,26 @@ main(int argc, char** argv)
     printf("  cull=%d (0=visible)\n", ev_last_cull());
     dump_stats("before");
     describe(copy, W, H, "no textures");
+    if( getenv("EV_BMP_FLAT") ) write_bmp(getenv("EV_BMP_FLAT"), copy, W, H);
+
+    /* EV_FORCE_OPAQUE=1 rewrites every texture's opaque flag before install.
+     * If the render is fine that way and black otherwise, the defect is the
+     * alpha GATE, not the geometry or the mapping — two very different bugs
+     * that look the same from the canvas. */
+    if( getenv("EV_FORCE_OPAQUE") )
+        for( size_t q = 8; q + 8 <= blob_len; )
+        {
+            int sz = blob[q + 4] | (blob[q + 5] << 8);
+            blob[q + 6] = 1;
+            q += 8 + (size_t)sz * sz * 4;
+        }
 
     int n = ev_set_textures(blob, (int)blob_len);
     printf("  installed %d textures\n", n);
     unsigned char* b = ev_render(W, H, 300, 128, zoom, 0);
     dump_stats("after");
     describe(b, W, H, "with textures");
+    if( getenv("EV_BMP") ) { write_bmp(getenv("EV_BMP"), b, W, H); printf("  wrote %s\n", getenv("EV_BMP")); }
 
     int diff = 0;
     for( int i = 0; i < W * H * 4; i++ ) if( copy[i] != b[i] ) diff++;
