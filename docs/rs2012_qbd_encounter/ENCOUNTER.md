@@ -88,6 +88,45 @@ player. Arena-local coordinates (x,z) below are offsets within the square.
   of the west, east, and centre raw platforms, so each intermission is also a
   navigation exercise across hazard tiles while worms chase.
 
+### 2.1 The raw platforms are one loc, not three
+
+The glass wedges are drawn by a **single** loc that is `loc_change`d from one
+model to the next; every model in the family is the whole southern floor at a
+stage of its growth, and the growth order is the order the walk masks unlock:
+
+| model | ids (recol / plain) | picture |
+|---|---|---|
+| 110146 | 70843 / 70844 | south-WEST wedge alone |
+| 110147 | 70845 / 70846 | + south-EAST wedge |
+| 110148 | 70847 / 70848 | + south-CENTRE wedge |
+| 110149 | 70849 | all three, every wedge green |
+
+Measured off the art (`make -C src rs2012-model-view`, `--wire-out`, vertex
+cloud binned into 128-unit tiles), each body is 20.5 × 7.2 tiles with the
+wedges' wide ends on the +z side, tapering south to a 3-tile tip — the same
+profile as the west/east/centre masks above, each tip ending on the artefact
+that stands one row off it.
+
+Placement is **anchor (24,22), angle `^loc_west` (0), `centrepiece_straight`**.
+A `width=20`/`length=7` centrepiece is positioned at `tile*128 + 64*size`
+(`world_scenery.u.c`), so that SW corner centres the model on column 33 and
+lays the wedges over rows 22..27 with their north edge under the main
+platform's rim. Two traps, both of which were live bugs:
+
+- **The angle must be 0.** An odd angle swaps width and length and turns the
+  model 270°, which puts the whole family across the main platform.
+- **The anchor must not be row 21.** That is the artefacts' row, and the wire
+  carries one loc per (tile, layer): a `loc_add` whose corner tile is an
+  artefact's takes its slot, after which `loc_find` no longer sees the artefact
+  and it can never be activated.
+
+Colour is baked per wedge and is the state — newest wedge orange (the live
+path), the ones behind it green. `recol1s=3023 -> recol1d=2127` is orange to
+grey at the same lightness, and 3023 occurs in 110146 alone, so only the first
+wedge has a dormant state: it is revealed grey when artefact 1 is restored and
+lights when artefact 2 becomes unguarded. `::rs2012qbdplatform 1..7` steps the
+whole family without fighting for it.
+
 ## 3. Encounter state machine
 
 1. **Entry** (portal 70812, 60 Summoning): teleport to (33,28,p1), music 1119
@@ -106,7 +145,8 @@ player. Arena-local coordinates (x,z) below are offsets within the square.
    a grotworm **every 5 ticks** (§5.11) until the artefact is restored.
    Surviving souls/worms persist and keep fighting throughout.
 5. **Restoration**: activating artefact n heals a fresh 18,750-LP pool,
-   reveals the next raw-platform path, plays the stop-cough (16748), and
+   reveals the next raw-platform path (n=1 south-west, n=2 south-east, n=3
+   south-centre — §2.1), plays the stop-cough (16748), and
    resumes combat in phase n+1 — her **first attack comes 20 ticks after the
    restoration**, giving the player the documented breather. The first
    restoration switches music to 1118 *Queen Black Dragon*.

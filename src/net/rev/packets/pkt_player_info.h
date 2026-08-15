@@ -36,6 +36,11 @@ enum PktPlayerInfoOpKind
      * that list (0..2047 slots) instead of resending entity ids. */
     PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID,
     PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX,
+    /* Selects the target for the extended-info block that follows, BY POSITION
+     * in the list rebuilt this packet -- not by server slot. The consumer's
+     * list must have one entry per entry the decoder counted, or this resolves
+     * to the wrong entity and does so silently. See the invariant note on
+     * RS_EntitySync::active_players/active_npcs. */
     PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX,
     PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX,
     PKT_PLAYER_INFO_OPBITS_COUNT_RESET,

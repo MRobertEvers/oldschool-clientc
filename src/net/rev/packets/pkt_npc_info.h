@@ -41,6 +41,11 @@ enum PktNpcInfoOpKind
     /* Server npc slot; width is the reader's `slot_bits`. */
     PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID,
     PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX,
+    /* Selects the target for the extended-info block that follows, BY POSITION
+     * in the list rebuilt this packet -- not by server slot. The consumer's
+     * list must have one entry per entry the decoder counted, or this resolves
+     * to the wrong entity and does so silently. See the invariant note on
+     * RS_EntitySync::active_players/active_npcs. */
     PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX,
     PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX,
     PKT_NPC_INFO_OPBITS_COUNT_RESET,

@@ -1791,6 +1791,17 @@ osrs239_npc_info_read(
     struct PktNpcInfoOp* ops,
     int cap)
 {
+/*
+ * The list index below is a CONTRACT with the consumer, not a local counter.
+ *
+ * Extended-info blocks are addressed by position in the list both sides rebuild
+ * during this packet, and this index defines those positions. It advances for
+ * every entry kept or added, unconditionally. The consumer
+ * (task_exec_entity_info.c) must therefore append exactly one entry per
+ * increment -- a sentinel when it cannot resolve the slot -- or every later
+ * block in the packet applies to the entity AFTER its intended target, silently.
+ * See the invariant note on RS_EntitySync::active_players/active_npcs.
+ */
     struct V5NpcReader r;
     struct Net_BitBuffer buf;
     int count;

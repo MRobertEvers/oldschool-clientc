@@ -115,6 +115,51 @@ test_npc_info_count_zero_despawns_all(void)
     World_Free(app.world);
 }
 
+/*
+ * Extended-info masks are addressed by POSITION in the list both sides rebuild
+ * this tick, so the rebuilt list must have exactly one entry per npc the
+ * decoder counted -- including npcs this side cannot resolve.
+ *
+ * The decoder advances its list index for every kept entry unconditionally. The
+ * consumer used to append only when the lookup succeeded, so a wire count
+ * longer than the tracked list (entry 1 below resolves to nothing) left the
+ * list one short, and every extended-info block after that point applied to the
+ * npc AFTER its intended target -- an animation playing on the wrong creature,
+ * a TRANSFORMATION retyping the wrong one.
+ *
+ * Negative control: dropping the unresolvable entry instead of recording it as
+ * -1 makes the count assertion below fail at 1.
+ */
+static void
+test_npc_info_unresolvable_entry_keeps_list_positions(void)
+{
+    printf("TEST: NPC_INFO keeps list positions when an entry cannot be resolved\n");
+
+    struct App app;
+    memset(&app, 0, sizeof(app));
+    app.world = World_TestMakeReady(104);
+    RS_EntitySync_Init(&app.esync);
+
+    /* One tracked npc, but the wire says it is tracking two. */
+    register_npc(&app, 301, 500, 20, 30, 30);
+    TEST_ASSERT(app.esync.active_npc_count == 1, "one NPC tracked before the packet");
+
+    /* count=2 (0x02), then info=0 for both entries (two clear bits). */
+    uint8_t packet[] = { 0x02, 0x00 };
+    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet)));
+
+    TEST_ASSERT(
+        app.esync.active_npc_count == 2,
+        "the rebuilt list has one entry per npc the decoder counted");
+    TEST_ASSERT(app.esync.active_npcs[0] == 20, "position 0 still resolves to slot 20");
+    TEST_ASSERT(
+        app.esync.active_npcs[1] == -1,
+        "position 1 is an explicit no-target, not a shift of position 0");
+
+    RS_EntitySync_Free(&app.esync);
+    World_Free(app.world);
+}
+
 static void
 test_npc_info_count_shrink_keeps_prefix(void)
 {
@@ -140,6 +185,48 @@ test_npc_info_count_shrink_keeps_prefix(void)
     TEST_ASSERT(!RS_EntitySync_FindNpc(&app.esync, 22, NULL, NULL), "slot 22 despawned");
     TEST_ASSERT(
         World_TestPoolIterateCount(&app.world->entities.npc) == 1, "one NPC left in world pool");
+
+    RS_EntitySync_Free(&app.esync);
+    World_Free(app.world);
+}
+
+/*
+ * Same positional invariant as the npc list, on the player stream.
+ *
+ * The classic decoder advances its tracked-list index for every entry it reads,
+ * so a wire count longer than what this side tracks (entry 1 below resolves to
+ * nothing) must still occupy a position. Dropping it shifted every later
+ * extended-info block -- appearance, chat, hitsplats, animation -- onto the
+ * player after its intended target.
+ *
+ * Negative control: skipping the unresolvable entry makes the count assertion
+ * fail at 1.
+ */
+static void
+test_player_info_unresolvable_entry_keeps_list_positions(void)
+{
+    printf("TEST: PLAYER_INFO keeps list positions when an entry cannot be resolved\n");
+
+    struct App app;
+    memset(&app, 0, sizeof(app));
+    app.world = World_TestMakeReady(104);
+    RS_EntitySync_Init(&app.esync);
+
+    register_local_player(&app, 400, 7, 39, 40);
+    register_other_player(&app, 401, 8, 40, 40);
+    TEST_ASSERT(app.esync.active_player_count == 1, "one other player tracked");
+
+    /* Local info=0 (1 bit), count=2 (8 bits), then info=0 for both entries. */
+    uint8_t packet[] = { 0x01, 0x00 };
+    run_task_to_done(CreateTask_ExecPlayerInfo(&app, packet, (int)sizeof(packet)));
+
+    TEST_ASSERT(
+        app.esync.active_player_count == 2,
+        "the rebuilt list has one entry per player the decoder counted");
+    TEST_ASSERT(app.esync.active_players[0] == 8, "position 0 still resolves to pid 8");
+    TEST_ASSERT(
+        app.esync.active_players[1] == -1,
+        "position 1 is an explicit no-target, not a shift of position 0");
 
     RS_EntitySync_Free(&app.esync);
     World_Free(app.world);
@@ -183,7 +270,9 @@ main(void)
 {
     test_npc_info_count_zero_despawns_all();
     test_npc_info_count_shrink_keeps_prefix();
+    test_npc_info_unresolvable_entry_keeps_list_positions();
     test_player_info_count_zero_despawns_others();
+    test_player_info_unresolvable_entry_keeps_list_positions();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

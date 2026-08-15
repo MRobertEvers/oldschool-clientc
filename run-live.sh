@@ -11,6 +11,17 @@
 # env vars: TORIRS_NET_DEBUG=1, TORIRS_NET_CHEAT="tele 0,50,50,21,21",
 # TORIRS_MAX_FRAMES/TORIRS_EXIT_BMP.
 #
+# TORIRS_SANITIZE=1 builds and runs the AddressSanitizer + UndefinedBehavior
+# build (src/torirs_asan, its own object dir — src/torirs is left alone) with
+# the options already set. Reach for it when the symptom is a visual glitch
+# rather than a crash: ASan turns "it corrupts something occasionally" into a
+# stack trace at the write that did it. Roughly 2x slower, much larger RSS.
+# TORIRS_SANITIZE=leaks additionally turns LeakSanitizer on, which is off by
+# default because it reports the whole steady-state heap and buries everything
+# else.
+#
+#   TORIRS_SANITIZE=1 ./run-live.sh manifest_osrs239_torirs.ini --soft3d
+#
 # A manifest naming a marked-lane cache (cache.osrs239.rs2012,
 # cache.osrs239.summoning) gets that cache baked here when the content tree has
 # moved under it, because nothing else bakes those. TORIRS_FORCE_CACHE_BAKE=1
@@ -569,17 +580,74 @@ stop_mock230() {
     fi
 }
 
+# TORIRS_SANITIZE=1 builds and runs the AddressSanitizer + UndefinedBehavior
+# flavor instead of the ordinary one. Use it when something is corrupting memory
+# or reading past a buffer and the symptom is visual rather than a crash -- ASan
+# turns "it glitches sometimes" into a stack trace at the write that did it.
+#
+# It is its OWN target and object dir, so it never clobbers src/torirs and the
+# next unsanitized run does not have to rebuild the world. Expect ~2x slower and
+# a much larger RSS; that is the sanitizer, not a defect.
+#
+# On macOS this needs two things the Makefile already arranges under
+# ENABLE_ASAN=1 and nothing here has to restate: a static SDL link (a dynamic
+# one may allocate before ASan's interceptors are ready) and the dyld interpose
+# dylib in src/platform/asan_dyld_shim.c, without which the process hangs at
+# startup instead of running (LLVM #182943). The shim is linked as
+# @loader_path/<objdir>/asan_dyld_shim.dylib, so the binary has to stay in src/
+# -- which is where the build leaves it.
+#
+# UBSan is scoped to ToriDraw and to signed-integer-overflow (see src/makefile),
+# and TORIDRAW_NO_SIMD=1 goes with it because UBSan cannot see inside the vector
+# kernels -- without it the checked build is not checking the code that runs.
+SANITIZE="${TORIRS_SANITIZE:-0}"
+CLIENT_BIN=src/torirs
+if [ "$SANITIZE" != 0 ]; then
+    CLIENT_BIN=src/torirs_asan
+    SAN_MAKE_ARGS="ENABLE_ASAN=1 ENABLE_UBSAN=1 TORIDRAW_NO_SIMD=1 \
+        PLATFORM_OBJ_BASE=build_asan PLATFORM_TARGET=torirs_asan"
+    # halt_on_error=0: keep reporting after the first finding. A visual glitch
+    # usually has more than one cause and stopping at the first hides the rest.
+    # detect_leaks defaults off because LSan reports the whole steady-state heap
+    # on this client and buries the findings; TORIRS_SANITIZE=leaks turns it on.
+    _leaks=0
+    [ "$SANITIZE" = leaks ] && _leaks=1
+    export ASAN_OPTIONS="${ASAN_OPTIONS:-detect_leaks=$_leaks:halt_on_error=0:abort_on_error=0:print_stacktrace=1:log_path=stderr}"
+    export UBSAN_OPTIONS="${UBSAN_OPTIONS:-print_stacktrace=1}"
+fi
+
 if [ "$MODE" = native ]; then
     if [ "$USE_EMBED" = 1 ]; then
         echo "run-live.sh: $REV — building with EMBED_SERVER=1 (in-process server, MOCK230_REV=$MOCK230_REV)" >&2
         build_cache_overlay
         build_scripts
-        make -C src EMBED_SERVER=1 torirs
+        if [ "$SANITIZE" != 0 ]; then
+            echo "run-live.sh: TORIRS_SANITIZE=$SANITIZE — building $CLIENT_BIN with ASan+UBSan" >&2
+            # Unquoted on purpose: SAN_MAKE_ARGS is a list of make assignments.
+            # shellcheck disable=SC2086
+            make -C src EMBED_SERVER=1 $SAN_MAKE_ARGS torirs_asan || exit 1
+        else
+            make -C src EMBED_SERVER=1 torirs
+        fi
+    elif [ "$SANITIZE" != 0 ]; then
+        echo "run-live.sh: TORIRS_SANITIZE=$SANITIZE — building $CLIENT_BIN with ASan+UBSan" >&2
+        # shellcheck disable=SC2086
+        make -C src $SAN_MAKE_ARGS torirs_asan || exit 1
     elif [ ! -x src/torirs ]; then
         echo "run-live.sh: building src/torirs..." >&2
         make -C src torirs
     fi
-    exec src/torirs --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" "$@"
+    if [ "$SANITIZE" != 0 ]; then
+        # Prove the two macOS prerequisites actually made it into the link
+        # rather than discovering it as a silent hang.
+        if command -v otool >/dev/null 2>&1; then
+            otool -L "$CLIENT_BIN" | grep -q 'libclang_rt.asan' \
+                || { echo "run-live.sh: $CLIENT_BIN is not linked against the ASan runtime" >&2; exit 1; }
+            otool -L "$CLIENT_BIN" | grep -q 'asan_dyld_shim' \
+                || echo "run-live.sh: warning — no asan_dyld_shim in $CLIENT_BIN; a startup hang is the expected failure" >&2
+        fi
+    fi
+    exec "$CLIENT_BIN" --manifest "$MANIFEST" --user "$USER_NAME" --pass "$PASS" "$@"
 fi
 
 # ---------------------------------------------------------------------- web

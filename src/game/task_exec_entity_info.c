@@ -284,9 +284,28 @@ player_target_op(
     case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
         self->cur_pid = local_player_pid(esync);
         break;
+    /*
+     * Positional, exactly as the npc list is -- see the note on
+     * PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX in npc_target_op for the full
+     * reasoning; this is the same invariant on the other stream.
+     *
+     * The classic decoder advances `new_idx` for every tracked entry it reads,
+     * including the ones whose info bit is clear (pkt_player_info.c), and
+     * SET_PLAYER_OPBITS_IDX below resolves an extended-info block as
+     * `active_players[new_idx]`. So this append cannot be conditional: dropping
+     * an unresolvable entry shortens the list and every later appearance, chat,
+     * hit or animation block in the packet lands on the player after its
+     * intended target. Record -1 and let the ops treat it as no target.
+     *
+     * The local player is deliberately NOT in this list -- the decoder gives it
+     * the 2047 sentinel rather than a list position, and the executor resolves
+     * it through esync.local_pid. The v5 (rev-239) stream never emits this op
+     * at all: it addresses players by slot, so only the classic lanes are
+     * positional here.
+     */
     case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
         self->cur_pid = (int)op->_bitvalue < self->old_count ? self->old_list[op->_bitvalue] : -1;
-        if( self->cur_pid >= 0 && esync->active_player_count < RS_ENTITY_SYNC_MAX_PLAYERS )
+        if( esync->active_player_count < RS_ENTITY_SYNC_MAX_PLAYERS )
             esync->active_players[esync->active_player_count++] = self->cur_pid;
         break;
     case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
@@ -1021,9 +1040,30 @@ npc_target_op(
 
     switch( op->kind )
     {
+    /*
+     * The rebuilt list is POSITIONAL, and the decoder is what defines the
+     * positions.
+     *
+     * Extended info (SEQUENCE, TRANSFORMATION, SPOTANIM, HITMARKS, ...) is not
+     * addressed by server slot -- it is addressed by the npc's index in the
+     * list the two sides rebuild in lockstep this tick, and
+     * SET_NPC_OPBITS_IDX below resolves it as `active_npcs[list_idx]`. The
+     * decoder advances that index for EVERY npc it keeps or adds
+     * (osrs239_entity_info.c, `list_idx++`), whether or not this side can
+     * resolve the slot behind it.
+     *
+     * So the append here must be unconditional too. Skipping it -- which the
+     * old code did whenever `old_list` was shorter than the wire's count and
+     * the lookup yielded -1 -- leaves this list one entry short of the
+     * decoder's, and from that point every remaining mask in the packet lands
+     * on the npc AFTER the one it was written for. That is silent: the ops all
+     * apply, to the wrong entity. An unresolvable position is recorded as -1,
+     * which the ops below already treat as "no target", so the failure mode
+     * becomes one dropped update instead of a whole packet of misdirected ones.
+     */
     case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
         self->cur_slot = (int)op->_bitvalue < self->old_count ? self->old_list[op->_bitvalue] : -1;
-        if( self->cur_slot >= 0 && esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
+        if( esync->active_npc_count < RS_ENTITY_SYNC_MAX_NPCS )
             esync->active_npcs[esync->active_npc_count++] = self->cur_slot;
         break;
     case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:

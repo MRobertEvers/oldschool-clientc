@@ -67,6 +67,17 @@ pkt_npc_info_reader_read(
     reader->extended_count = 0;
     Net_BitBufferInit(&buf, data, length);
 
+/*
+ * The list index below is a CONTRACT with the consumer, not a local counter.
+ *
+ * Extended-info blocks are addressed by position in the list both sides rebuild
+ * during this packet, and this index defines those positions. It advances for
+ * every entry kept or added, unconditionally. The consumer
+ * (task_exec_entity_info.c) must therefore append exactly one entry per
+ * increment -- a sentinel when it cannot resolve the slot -- or every later
+ * block in the packet applies to the entity AFTER its intended target, silently.
+ * See the invariant note on RS_EntitySync::active_players/active_npcs.
+ */
     /* Tracked NPCs. */
     int new_idx = 0;
     int count = Net_BitBufferGbits(&buf, 8);
