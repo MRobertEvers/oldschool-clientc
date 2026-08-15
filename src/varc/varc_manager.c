@@ -70,8 +70,7 @@ ensure_int_capacity(
         grown *= 2;
 
     ints = malloc((size_t)grown * sizeof(int));
-    if( !ints )
-        return false;
+    assert(ints);
     /* RuneLite rev 239's Varcs integer getter returns -1 when the map has no
      * entry. Keep unused array slots at that sentinel so an explicit write of
      * zero remains distinguishable from an unset varc. */
@@ -101,8 +100,7 @@ ensure_string_capacity(
         grown *= 2;
 
     strings = calloc((size_t)grown, sizeof(char*));
-    if( !strings )
-        return false;
+    assert(strings);
     if( mgr->string_count > 0 )
         memcpy(strings, mgr->strings, (size_t)mgr->string_count * sizeof(char*));
     free(mgr->strings);
@@ -166,8 +164,7 @@ VarCManager_SetString(
         return;
 
     char* copy = strdup(value);
-    if( !copy )
-        return;
+    assert(copy);
     free(mgr->strings[id]);
     mgr->strings[id] = copy;
     notify_change(mgr, id, true);

@@ -34,8 +34,7 @@ set_node_text(
 
     {
         char* copy = strdup(text);
-        if( !copy )
-            return 0;
+        assert(copy);
         free((void*)c->u.rs_text.text);
         c->u.rs_text.text = copy;
     }

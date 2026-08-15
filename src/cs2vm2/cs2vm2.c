@@ -204,8 +204,7 @@ cs2vm2_array_reserve(
         cap = CS2VM2_ARRAY_CAPACITY;
 
     void* cells = realloc(array->cells.strings, (size_t)cap * sizeof(char*));
-    if( !cells )
-        return 0;
+    assert(cells);
     array->cells.strings = (char**)cells;
     array->capacity = cap;
     return 1;

@@ -218,11 +218,7 @@ build_npc_model(
     }
 
     struct ToriDraw_Model** parts = calloc((size_t)npc->models_count, sizeof(*parts));
-    if( !parts )
-    {
-        RSCache_Dat2ConfigNpcFree(npc);
-        return NULL;
-    }
+    assert(parts);
 
     int part_count = 0;
     for( int i = 0; i < npc->models_count; i++ )

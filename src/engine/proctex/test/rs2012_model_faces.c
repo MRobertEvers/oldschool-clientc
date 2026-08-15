@@ -17,6 +17,7 @@
  *   src/build/rs2012_model_faces model.ob3 > faces.jsonl
  */
 #include "datatypes/model.h"
+#include <assert.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,7 +35,8 @@ read_file(const char* path, int* out_size)
     long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     uint8_t* bytes = malloc((size_t)size);
-    if (!bytes || fread(bytes, 1, (size_t)size, fp) != (size_t)size)
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, fp) != (size_t)size )
     {
         fprintf(stderr, "short read on %s\n", path);
         exit(1);

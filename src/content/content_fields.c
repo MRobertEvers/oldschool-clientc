@@ -244,11 +244,7 @@ ContentFields_Load(
         return fields->count;
     }
     data = (uint8_t*)malloc((size_t)size);
-    if( !data )
-    {
-        fclose(file);
-        return fields->count;
-    }
+    assert(data);
     if( fread(data, 1, (size_t)size, file) != (size_t)size )
     {
         free(data);

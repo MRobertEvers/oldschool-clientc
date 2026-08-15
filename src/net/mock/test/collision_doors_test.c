@@ -63,6 +63,7 @@
  */
 
 #include "mock230_scene.h"
+#include <assert.h>
 
 #include "engine/world_builder/collision_map.h"
 
@@ -407,8 +408,7 @@ sweep_scene(
                 int want = door_capacity ? door_capacity * 2 : 64;
                 int* grown = realloc(doors, (size_t)want * sizeof(*grown));
 
-                if( !grown )
-                    break;
+                assert(grown);
                 doors = grown;
                 door_capacity = want;
             }

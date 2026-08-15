@@ -16,6 +16,7 @@
  */
 
 #include "ss_meta.h"
+#include <assert.h>
 #include "ssvm_provider.h"
 
 #include <stdio.h>
@@ -87,11 +88,7 @@ load_script_pack(const char* path, int* out_count)
             int grown = id + 1024;
             char** bigger = (char**)realloc(names, (size_t)grown * sizeof(char*));
 
-            if( !bigger )
-            {
-                fclose(file);
-                return names;
-            }
+            assert(bigger);
             memset(bigger + capacity, 0, (size_t)(grown - capacity) * sizeof(char*));
             names = bigger;
             capacity = grown;

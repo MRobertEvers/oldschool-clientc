@@ -143,8 +143,7 @@ painters_cullmap_build(
     size_t raw_count =
         (size_t)pitch_raw_levels * (size_t)yaw_levels * (size_t)padded_side * (size_t)padded_side;
     uint8_t* raw = (uint8_t*)malloc(raw_count);
-    if( !raw )
-        return NULL;
+    assert(raw);
     memset(raw, 0, raw_count);
 
 #define PCULL_RAW_IDX(pr, yw, px, pz)                                                              \
@@ -253,11 +252,7 @@ painters_cullmap_build(
     size_t nbits = pcull_bit_count(pitch_out_levels, yaw_levels, grid_side);
     size_t nbytes = (nbits + 7u) / 8u;
     uint8_t* visibility = (uint8_t*)malloc(nbytes);
-    if( !visibility )
-    {
-        free(raw);
-        return NULL;
-    }
+    assert(visibility);
     memset(visibility, 0, nbytes);
 
     for( int op = 0; op < pitch_out_levels; op++ )
@@ -312,11 +307,7 @@ painters_cullmap_build(
     free(raw);
 
     struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
-    if( !cm )
-    {
-        free(visibility);
-        return NULL;
-    }
+    assert(cm);
     cm->visibility = visibility;
     cm->radius = radius;
     cm->pitch_levels = pitch_out_levels;
@@ -330,8 +321,7 @@ struct PaintersCullMap*
 painters_cullmap_new_nocull(void)
 {
     struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
-    if( !cm )
-        return NULL;
+    assert(cm);
     cm->visibility = NULL;
     cm->radius = 0;
     cm->pitch_levels = 0;
@@ -394,16 +384,11 @@ painters_cullmap_from_blob(
         return NULL;
 
     uint8_t* vis = (uint8_t*)malloc(nbytes);
-    if( !vis )
-        return NULL;
+    assert(vis);
     memcpy(vis, data, nbytes);
 
     struct PaintersCullMap* cm = (struct PaintersCullMap*)malloc(sizeof(struct PaintersCullMap));
-    if( !cm )
-    {
-        free(vis);
-        return NULL;
-    }
+    assert(cm);
     cm->visibility = vis;
     cm->radius = radius;
     cm->pitch_levels = pitch_out_levels;

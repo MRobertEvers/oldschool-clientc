@@ -171,8 +171,7 @@ static struct RSCache_Dat2DiskArchive*
 dat2_archive_clone(const struct RSCache_Dat2DiskArchive* src)
 {
     struct RSCache_Dat2DiskArchive* dst = malloc(sizeof(*dst));
-    if( !dst )
-        return NULL;
+    assert(dst);
     *dst = *src;
     dst->data = NULL;
     dst->file_ids = NULL;
@@ -180,15 +179,13 @@ dat2_archive_clone(const struct RSCache_Dat2DiskArchive* src)
     if( src->data && src->data_size > 0 )
     {
         dst->data = malloc((size_t)src->data_size);
-        if( !dst->data )
-            goto error;
+        assert(dst->data);
         memcpy(dst->data, src->data, (size_t)src->data_size);
     }
     if( src->file_ids && src->file_count > 0 )
     {
         dst->file_ids = malloc((size_t)src->file_count * sizeof(int));
-        if( !dst->file_ids )
-            goto error;
+        assert(dst->file_ids);
         memcpy(dst->file_ids, src->file_ids, (size_t)src->file_count * sizeof(int));
     }
     return dst;
@@ -270,11 +267,7 @@ read_whole_file(
     }
 
     void* data = malloc((size_t)size);
-    if( !data )
-    {
-        fclose(fp);
-        return -1;
-    }
+    assert(data);
 
     if( size > 0 && fread(data, 1, (size_t)size, fp) != (size_t)size )
     {

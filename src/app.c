@@ -697,8 +697,7 @@ app_worldmap_flash_marker_scene(struct App* app)
 
     app->worldmap_flash_scene_id = -1;
     argb = calloc((size_t)MARKER_SIZE * MARKER_SIZE, sizeof(*argb));
-    if( !argb )
-        return -1;
+    assert(argb);
 
     for( int y = 0; y < MARKER_SIZE; y++ )
     {
@@ -721,11 +720,7 @@ app_worldmap_flash_marker_scene(struct App* app)
         return -1;
     }
     sprites = malloc(sizeof(*sprites));
-    if( !sprites )
-    {
-        ToriDraw_SpriteFree(sprite);
-        return -1;
-    }
+    assert(sprites);
     sprites[0] = sprite;
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID, sprites, 1);
     app->worldmap_flash_scene_id = UITREE_SCENE_WORLD_MAP_FLASH_SPRITE_ID;
@@ -1227,8 +1222,7 @@ app_worldmap_ensure_overview_scene(
 
     nbytes = (size_t)area->overview_width * (size_t)area->overview_height * sizeof(*copy);
     copy = malloc(nbytes);
-    if( !copy )
-        return -1;
+    assert(copy);
     memcpy(copy, area->overview_pixels, nbytes);
 
     sprite = ToriDraw_SpriteNewFromArgbOwned(copy, area->overview_width, area->overview_height);
@@ -1238,11 +1232,7 @@ app_worldmap_ensure_overview_scene(
         return -1;
     }
     sprites = malloc(sizeof(*sprites));
-    if( !sprites )
-    {
-        ToriDraw_SpriteFree(sprite);
-        return -1;
-    }
+    assert(sprites);
     sprites[0] = sprite;
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID, sprites, 1);
     app->worldmap_overview_scene_id = UITREE_SCENE_WORLD_MAP_OVERVIEW_SPRITE_ID;
@@ -4911,11 +4901,7 @@ app_rebuild_world_map(struct App* app, int level)
     }
 
     sprites = malloc(sizeof(*sprites));
-    if( !sprites )
-    {
-        ToriDraw_SpriteFree(sprite);
-        return;
-    }
+    assert(sprites);
     sprites[0] = sprite;
 
     ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_WORLD_MAP_SPRITE_ID, sprites, 1);

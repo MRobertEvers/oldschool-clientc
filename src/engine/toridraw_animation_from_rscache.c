@@ -19,8 +19,7 @@ anim_base_from_framemap(struct RSCache_Dat2Framemap const* fm)
     int len = fm->length;
 
     base = calloc(1, sizeof(*base));
-    if( !base )
-        return NULL;
+    assert(base);
     base->length = len;
     base->types = len > 0 ? calloc((size_t)len, sizeof(uint8_t)) : NULL;
     base->bone_groups = len > 0 ? calloc((size_t)len, sizeof(uint8_t*)) : NULL;
@@ -97,8 +96,7 @@ ToriDraw_AnimationFromRSCache(
         return NULL;
 
     anim = calloc(1, sizeof(*anim));
-    if( !anim )
-        return NULL;
+    assert(anim);
     anim->base = anim_base_from_framemap(framemap);
     anim->frame_count = frame_count;
     anim->frame_step = frame_step;
@@ -108,11 +106,8 @@ ToriDraw_AnimationFromRSCache(
     anim->replaceheldleft = -1;
     anim->replaceheldright = -1;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
-    if( !anim->base || !anim->frames )
-    {
-        ToriDraw_AnimationFree(anim);
-        return NULL;
-    }
+    assert(anim->base);
+    assert(anim->frames);
     for( i = 0; i < frame_count; i++ )
         anim_frame_from_rscache(&anim->frames[i], frames[i], delays ? delays[i] : 0);
 
@@ -127,8 +122,7 @@ anim_base_from_dat1(struct RSCache_Dat1AnimBase const* src)
     int i;
 
     base = calloc(1, sizeof(*base));
-    if( !base )
-        return NULL;
+    assert(base);
     base->length = len;
     base->types = len > 0 ? calloc((size_t)len, sizeof(uint8_t)) : NULL;
     base->bone_groups = len > 0 ? calloc((size_t)len, sizeof(uint8_t*)) : NULL;
@@ -204,8 +198,7 @@ ToriDraw_AnimationFromRSCacheDat1(
         return NULL;
 
     anim = calloc(1, sizeof(*anim));
-    if( !anim )
-        return NULL;
+    assert(anim);
     anim->base = anim_base_from_dat1(base);
     anim->frame_count = frame_count;
     anim->frame_step = frame_step;
@@ -213,11 +206,8 @@ ToriDraw_AnimationFromRSCacheDat1(
     anim->replaceheldleft = -1;
     anim->replaceheldright = -1;
     anim->frames = calloc((size_t)frame_count, sizeof(struct ToriDraw_AnimFrame));
-    if( !anim->base || !anim->frames )
-    {
-        ToriDraw_AnimationFree(anim);
-        return NULL;
-    }
+    assert(anim->base);
+    assert(anim->frames);
     for( i = 0; i < frame_count; i++ )
         anim_frame_from_dat1(&anim->frames[i], frames[i], delays ? delays[i] : 0);
 
@@ -248,11 +238,7 @@ ToriDraw_SkeletalAnimFromRSCache(
     }
 
     skeletal = calloc(1, sizeof(*skeletal));
-    if( !skeletal )
-    {
-        free(palette);
-        return NULL;
-    }
+    assert(skeletal);
     skeletal->id = seq_id;
     skeletal->bone_count = bone_count;
     skeletal->frame_count = frame_count;

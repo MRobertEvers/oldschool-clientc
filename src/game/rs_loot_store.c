@@ -43,8 +43,7 @@ ensure_source_capacity(struct LootStore* store)
 
     int grown = store->source_cap == 0 ? 16 : store->source_cap * 2;
     struct LootSource* buf = calloc((size_t)grown, sizeof(struct LootSource));
-    if( !buf )
-        return false;
+    assert(buf);
     if( store->source_count > 0 )
         memcpy(buf, store->sources, (size_t)store->source_count * sizeof(struct LootSource));
     free(store->sources);
@@ -61,8 +60,7 @@ ensure_row_capacity(struct LootSource* src)
 
     int grown = src->row_cap == 0 ? 8 : src->row_cap * 2;
     struct LootRow* buf = calloc((size_t)grown, sizeof(struct LootRow));
-    if( !buf )
-        return false;
+    assert(buf);
     if( src->row_count > 0 )
         memcpy(buf, src->rows, (size_t)src->row_count * sizeof(struct LootRow));
     free(src->rows);
@@ -84,8 +82,7 @@ ensure_query_capacity(
         grown *= 2;
 
     int* buf = calloc((size_t)grown, sizeof(int));
-    if( !buf )
-        return false;
+    assert(buf);
     free(store->query_ids);
     store->query_ids = buf;
     store->query_cap = grown;
@@ -100,8 +97,7 @@ ensure_aux_capacity(struct LootAuxList* aux)
 
     int grown = aux->cap == 0 ? 16 : aux->cap * 2;
     char** buf = calloc((size_t)grown, sizeof(char*));
-    if( !buf )
-        return false;
+    assert(buf);
     if( aux->count > 0 )
         memcpy(buf, aux->entries, (size_t)aux->count * sizeof(char*));
     free(aux->entries);
@@ -121,8 +117,7 @@ ensure_strlist_capacity(
 
     int grown = *cap == 0 ? 16 : *cap * 2;
     char** buf = calloc((size_t)grown, sizeof(char*));
-    if( !buf )
-        return false;
+    assert(buf);
     if( *count > 0 )
         memcpy(buf, *entries, (size_t)(*count) * sizeof(char*));
     free(*entries);

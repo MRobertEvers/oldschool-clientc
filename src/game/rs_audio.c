@@ -347,8 +347,7 @@ publish_sound(
         return NULL;
 
     widened = malloc((size_t)decoded->sample_count * sizeof(int16_t));
-    if( !widened )
-        return NULL;
+    assert(widened);
     if( decoded->pcm16 )
         memcpy(widened, decoded->pcm16,
                (size_t)decoded->sample_count * sizeof(*widened));

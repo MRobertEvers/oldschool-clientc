@@ -21,6 +21,7 @@
  */
 
 #include "game/cs2_harness.h"
+#include <assert.h>
 
 #include "cs2vm2/cs2vm2.h"
 #include "game/rs_cs2_dispatch.h"
@@ -179,8 +180,7 @@ harness_parse_case(char const* body, char const* end, struct HarnessCase* out)
             }
             int copy = (int)(p - text);
             char* dup = (char*)malloc((size_t)copy + 1);
-            if( !dup )
-                break;
+            assert(dup);
             memcpy(dup, text, (size_t)copy);
             dup[copy] = '\0';
             out->str_args[out->str_arg_count++] = dup;
@@ -204,11 +204,7 @@ harness_load_cases(char const* path, struct HarnessCase* cases, int max_cases)
     long size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
     char* text = (char*)malloc((size_t)size + 1);
-    if( !text )
-    {
-        fclose(fp);
-        return 0;
-    }
+    assert(text);
     size_t read = fread(text, 1, (size_t)size, fp);
     text[read] = '\0';
     fclose(fp);

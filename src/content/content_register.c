@@ -451,11 +451,7 @@ ContentRegister_Load(
         return reg->count;
     }
     data = (uint8_t*)malloc((size_t)size);
-    if( !data )
-    {
-        fclose(file);
-        return reg->count;
-    }
+    assert(data);
     if( fread(data, 1, (size_t)size, file) != (size_t)size )
     {
         free(data);

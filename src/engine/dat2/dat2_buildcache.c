@@ -189,8 +189,7 @@ dat2_buildcache_maybe_grow_hmap(
     new_capacity = map->capacity * 2;
     buffer_size = dat2_hmap_buffer_bytes(map->entry_size, new_capacity);
     new_buffer = malloc(buffer_size);
-    if( !new_buffer )
-        return;
+    assert(new_buffer);
 
     old_buffer_size = dat2_hmap_buffer_size(map);
     old_buffer = NULL;

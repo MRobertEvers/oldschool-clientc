@@ -22,19 +22,14 @@ minimap_new(
     assert(height > 0);
 
     struct Minimap* minimap = malloc(sizeof(struct Minimap));
-    if( !minimap )
-        return NULL;
+    assert(minimap);
     memset(minimap, 0, sizeof(struct Minimap));
 
     minimap->width = width;
     minimap->height = height;
 
     minimap->tiles = malloc((size_t)width * (size_t)height * sizeof(struct MinimapTile));
-    if( !minimap->tiles )
-    {
-        free(minimap);
-        return NULL;
-    }
+    assert(minimap->tiles);
     memset(minimap->tiles, 0, (size_t)width * (size_t)height * sizeof(struct MinimapTile));
 
     return minimap;
@@ -399,8 +394,7 @@ minimap_bake_argb(
     const int pw = minimap->width * 4;
     const int ph = minimap->height * 4;
     uint32_t* pixels = (uint32_t*)malloc((size_t)pw * (size_t)ph * sizeof(uint32_t));
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     const uint32_t black_argb = 0xFF000000u;
     for( int y = 0; y < ph; y++ )
@@ -458,19 +452,10 @@ minimap_render_to_sprite(struct Minimap* minimap)
         return NULL;
 
     struct ToriRS_Sprite* sprite = calloc(1, sizeof(*sprite));
-    if( !sprite )
-    {
-        free(pixels);
-        return NULL;
-    }
+    assert(sprite);
 
     sprite->frames = calloc(1, sizeof(*sprite->frames));
-    if( !sprite->frames )
-    {
-        free(pixels);
-        free(sprite);
-        return NULL;
-    }
+    assert(sprite->frames);
 
     sprite->frame_count = 1;
     sprite->frames[0].pixels_argb = pixels;

@@ -46,8 +46,7 @@ ToriDraw_ModelNew(
     uint8_t flags)
 {
     struct ToriDraw_Model* model = calloc(1, sizeof(struct ToriDraw_Model));
-    if( !model )
-        return NULL;
+    assert(model);
     model->flags = flags;
     model->vertex_count = vertex_count;
     model->face_count = face_count;

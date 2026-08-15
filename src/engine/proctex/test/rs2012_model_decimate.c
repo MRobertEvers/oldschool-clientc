@@ -36,6 +36,7 @@
  */
 
 #include "datatypes/model.h"
+#include <assert.h>
 
 #include <limits.h>
 #include <math.h>
@@ -74,7 +75,8 @@ read_file(const char* path, int* out_size)
     if (size <= 0)
         die("empty file %s", path);
     uint8_t* bytes = malloc((size_t)size);
-    if (!bytes || fread(bytes, 1, (size_t)size, fp) != (size_t)size)
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, fp) != (size_t)size )
         die("short read on %s", path);
     fclose(fp);
     *out_size = (int)size;
@@ -394,8 +396,8 @@ build_vertex_attr(void)
     {
         first_color = malloc((size_t)V * sizeof *first_color);
         first_prio = malloc((size_t)V * sizeof *first_prio);
-        if (!first_color || !first_prio)
-            die("out of memory (attr scratch)");
+        assert(first_color);
+        assert(first_prio);
     }
     for (int v = 0; v < V; v++)
         first_color[v] = first_prio[v] = -1;
@@ -1098,8 +1100,8 @@ main(int argc, char** argv)
 
     int* new_vid = malloc((size_t)V * sizeof *new_vid);
     int* new_fid = malloc((size_t)F * sizeof *new_fid);
-    if (!new_vid || !new_fid)
-        die("out of memory (remap)");
+    assert(new_vid);
+    assert(new_fid);
     compact(new_vid, new_fid);
 
     uint32_t bound = RSCache_ModelEncodeBound(M, NULL);

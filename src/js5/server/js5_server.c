@@ -467,8 +467,7 @@ Js5ServerRun(const struct Js5ServerConfig* config)
 
     slot_count = config->max_clients + JS5_SERVER_REJECT_SLOTS;
     clients = (struct Js5ServerClient*)calloc(slot_count, sizeof(*clients));
-    if( !clients )
-        goto cleanup;
+    assert(clients);
     for( uint32_t i = 0u; i < slot_count; i++ )
         clients[i].socket = JS5_SERVER_INVALID_SOCKET;
 

@@ -322,8 +322,7 @@ struct PlatformSDL2*
 PlatformSDL2_New(void)
 {
     struct PlatformSDL2* platform = malloc(sizeof(struct PlatformSDL2));
-    if( !platform )
-        return NULL;
+    assert(platform);
     memset(platform, 0, sizeof(struct PlatformSDL2));
     return platform;
 }

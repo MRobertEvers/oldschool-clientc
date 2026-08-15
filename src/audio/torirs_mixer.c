@@ -162,8 +162,7 @@ asset_load(
     if( !generator )
     {
         copy = malloc((size_t)command->sample_count * sizeof(int16_t));
-        if( !copy )
-            return;
+        assert(copy);
         memcpy(copy, command->pcm, (size_t)command->sample_count * sizeof(int16_t));
     }
 
@@ -609,8 +608,7 @@ ensure_accumulator(
     if( mixer->accumulator_frames >= frames )
         return true;
     grown = realloc(mixer->accumulator, (size_t)frames * 2 * sizeof(int32_t));
-    if( !grown )
-        return false;
+    assert(grown);
     mixer->accumulator = grown;
     mixer->accumulator_frames = frames;
     return true;
@@ -626,8 +624,7 @@ ensure_source_scratch(
     if( mixer->source_scratch_frames >= frames )
         return true;
     grown = realloc(mixer->source_scratch, (size_t)frames * 2 * sizeof(int16_t));
-    if( !grown )
-        return false;
+    assert(grown);
     mixer->source_scratch = grown;
     mixer->source_scratch_frames = frames;
     return true;

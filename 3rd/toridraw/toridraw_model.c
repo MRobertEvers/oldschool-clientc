@@ -347,17 +347,13 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
         return NULL;
 
     struct ToriDraw_Bones* dst = calloc(1, sizeof(struct ToriDraw_Bones));
-    if( !dst )
-        return NULL;
+    assert(dst);
 
     dst->bones_count = src->bones_count;
     dst->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
     dst->bones_sizes = malloc((size_t)src->bones_count * sizeof(boneint_t));
-    if( !dst->bones || !dst->bones_sizes )
-    {
-        ToriDraw_BonesFree(dst);
-        return NULL;
-    }
+    assert(dst->bones);
+    assert(dst->bones_sizes);
 
     memcpy(dst->bones_sizes, src->bones_sizes, (size_t)src->bones_count * sizeof(boneint_t));
 
@@ -371,11 +367,7 @@ ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
         }
 
         dst->bones[i] = malloc((size_t)bone_length * sizeof(boneint_t));
-        if( !dst->bones[i] )
-        {
-            ToriDraw_BonesFree(dst);
-            return NULL;
-        }
+        assert(dst->bones[i]);
         memcpy(dst->bones[i], src->bones[i], (size_t)bone_length * sizeof(boneint_t));
     }
 
@@ -438,11 +430,7 @@ ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
         return NULL;
 
     hd = (struct ToriDraw_ModelHD*)calloc(1, sizeof(*hd));
-    if( !hd )
-    {
-        ToriDraw_ModelFree(model);
-        return NULL;
-    }
+    assert(hd);
 
     /* By value: the arrays are pointers and move with the struct, so freeing
      * the shell afterwards must not go through ToriDraw_ModelFree — that would

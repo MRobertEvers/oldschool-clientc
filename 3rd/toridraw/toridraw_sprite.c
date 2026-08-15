@@ -22,8 +22,7 @@ ToriDraw_Pix8ToArgb(
     struct ToriDraw_PixPalette* palette)
 {
     uint32_t* pixels_argb = malloc((size_t)pix8->width * (size_t)pix8->height * sizeof(uint32_t));
-    if( !pixels_argb )
-        return NULL;
+    assert(pixels_argb);
     memset(pixels_argb, 0, (size_t)pix8->width * (size_t)pix8->height * sizeof(uint32_t));
 
     for( int i = 0; i < pix8->width * pix8->height; i++ )
@@ -44,8 +43,7 @@ ToriDraw_SpriteNewFromPix8(
     assert(pix8);
     assert(palette);
     struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
-    if( !sprite )
-        return NULL;
+    assert(sprite);
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
     sprite->pixels_argb = ToriDraw_Pix8ToArgb(pix8, palette);
     if( !sprite->pixels_argb )
@@ -64,8 +62,7 @@ ToriDraw_SpriteNewFromPix32(struct ToriDraw_Pix32* pix32)
     assert(pix32);
     assert(pix32->pixels);
     struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
-    if( !sprite )
-        return NULL;
+    assert(sprite);
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
 
     int y = 0;
@@ -121,8 +118,7 @@ ToriDraw_SpriteNewFromArgbOwned(
     if( width <= 0 || height <= 0 )
         return NULL;
     struct ToriDraw_Sprite* sprite = (struct ToriDraw_Sprite*)malloc(sizeof(struct ToriDraw_Sprite));
-    if( !sprite )
-        return NULL;
+    assert(sprite);
     memset(sprite, 0, sizeof(struct ToriDraw_Sprite));
     sprite->pixels_argb = pixels_argb;
     sprite->width = width;
@@ -728,8 +724,7 @@ ToriDraw_SpriteNewGraphicOutline(
     assert(src);
 
     dst = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
-    if( !dst )
-        return NULL;
+    assert(dst);
     memcpy(dst, src, (size_t)sw * (size_t)sh * sizeof(uint32_t));
 
     passes = outline >= 2 ? 2 : 1;
@@ -790,8 +785,7 @@ ToriDraw_SpriteNewGraphicShadow(
     int dw = sw + pad;
     int dh = sh + pad;
     uint32_t* dst = calloc((size_t)dw * (size_t)dh, sizeof(uint32_t));
-    if( !dst )
-        return NULL;
+    assert(dst);
 
     int sr = (shadow_colour >> 16) & 0xFF;
     int sg = (shadow_colour >> 8) & 0xFF;
@@ -947,8 +941,7 @@ ToriDraw_SpriteTransformPixels(
         return;
 
     uint32_t* dst = calloc((size_t)dst_w * (size_t)dst_h, sizeof(uint32_t));
-    if( !dst )
-        return;
+    assert(dst);
 
     uint32_t const* src = *pixels_argb;
     for( int dy = 0; dy < dst_h; dy++ )
@@ -1022,8 +1015,7 @@ ToriDraw_SpriteWriteBmpFile(
     }
 
     int* pixels = malloc((size_t)out_w * (size_t)out_h * sizeof(int));
-    if( !pixels )
-        return -1;
+    assert(pixels);
 
     int const src_stride = sprite->width;
     for( int y = 0; y < out_h; y++ )

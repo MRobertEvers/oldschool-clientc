@@ -35,6 +35,7 @@
  */
 
 #include "audio/tools/audio_analyse.h"
+#include <assert.h>
 #include "audio/tools/audio_songload.h"
 #include "audio/torirs_audio.h"
 #include "audio/torirs_midi_synth.h"
@@ -95,8 +96,7 @@ render_song(
     struct ToriRS_MidiSynth synth;
     int16_t* pcm = calloc((size_t)frames * 2, sizeof(int16_t));
 
-    if( !pcm )
-        return NULL;
+    assert(pcm);
     ToriRS_MidiSynth_Init(&synth, &load->bank, HARNESS_RATE);
     if( !ToriRS_MidiSynth_Play(&synth, load->song->midi, load->song->midi_size, true) )
     {
@@ -424,13 +424,8 @@ cmd_seek(
     full = render_song(&load, frames, NULL);
 
     seeked = calloc((size_t)frames * 2, sizeof(int16_t));
-    if( !full || !seeked )
-    {
-        free(full);
-        free(seeked);
-        AudioSongLoad_Free(&load);
-        return 1;
-    }
+    assert(full);
+    assert(seeked);
     ToriRS_MidiSynth_Init(&synth, &load.bank, HARNESS_RATE);
     if( !ToriRS_MidiSynth_PlayFrom(
             &synth, load.song->midi, load.song->midi_size, true, start_tick) )

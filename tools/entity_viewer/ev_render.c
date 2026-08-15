@@ -12,6 +12,7 @@
  */
 
 #include "ev_render.h"
+#include <assert.h>
 
 #include "ev_wire.h"
 
@@ -111,8 +112,7 @@ hd_placeholder_build(void)
         return;
 
     g_hd_mats = (struct ToriDraw_HDMaterial*)calloc((size_t)maxid + 1, sizeof(*g_hd_mats));
-    if( !g_hd_mats )
-        return;
+    assert(g_hd_mats);
     for( int i = 0; i <= maxid; i++ )
     {
         g_hd_mats[i].texels = g_hd_tex;
@@ -146,8 +146,7 @@ hd_materials_build(void)
         return;
 
     g_hd_mats = (struct ToriDraw_HDMaterial*)calloc((size_t)maxid + 1, sizeof(*g_hd_mats));
-    if( !g_hd_mats )
-        return;
+    assert(g_hd_mats);
 
     for( int i = 0; i < g_texture_count; i++ )
     {
@@ -205,8 +204,7 @@ ev_set_textures(const uint8_t* data, int len)
     }
 
     g_textures = (struct EV_LoadedTexture*)calloc((size_t)count, sizeof(*g_textures));
-    if( !g_textures )
-        return 0;
+    assert(g_textures);
 
     for( int i = 0; i < count; i++ )
     {
@@ -220,8 +218,7 @@ ev_set_textures(const uint8_t* data, int len)
         texel_count = (size_t)wt.size * (size_t)wt.size;
         slot = &g_textures[g_texture_count];
         slot->texels = (int*)malloc(texel_count * sizeof(*slot->texels));
-        if( !slot->texels )
-            break;
+        assert(slot->texels);
         for( size_t p = 0; p < texel_count; p++ )
             slot->texels[p] = (int)wt.texels[p];
         slot->id = wt.id;
@@ -800,16 +797,8 @@ ensure_buffers(int w, int h)
     free(g_rgba);
     g_pixels = malloc((size_t)w * (size_t)h * sizeof(toripixel_t));
     g_rgba = malloc((size_t)w * (size_t)h * 4);
-    if( !g_pixels || !g_rgba )
-    {
-        free(g_pixels);
-        free(g_rgba);
-        g_pixels = NULL;
-        g_rgba = NULL;
-        g_pix_w = 0;
-        g_pix_h = 0;
-        return 0;
-    }
+    assert(g_pixels);
+    assert(g_rgba);
     g_pix_w = w;
     g_pix_h = h;
     return 1;

@@ -1440,14 +1440,9 @@ SSVM_StateAlloc(
     else
     {
         state = (struct SSVM_State*)malloc(sizeof(*state));
-        if( !state )
-            return NULL;
+        assert(state);
         state->locals_arena = (char*)malloc(SSVM_LOCALS_ARENA_BYTES);
-        if( !state->locals_arena )
-        {
-            free(state);
-            return NULL;
-        }
+        assert(state->locals_arena);
     }
 
     {

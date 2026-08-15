@@ -59,8 +59,7 @@ ToriDraw_BonesMerge(
         return NULL;
 
     int* group_sizes = calloc((size_t)max_bones, sizeof(int));
-    if( !group_sizes )
-        return NULL;
+    assert(group_sizes);
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -77,21 +76,13 @@ ToriDraw_BonesMerge(
     }
 
     struct ToriDraw_Bones* out = calloc(1, sizeof(struct ToriDraw_Bones));
-    if( !out )
-    {
-        free(group_sizes);
-        return NULL;
-    }
+    assert(out);
 
     out->bones_count = max_bones;
     out->bones = calloc((size_t)max_bones, sizeof(boneint_t*));
     out->bones_sizes = malloc((size_t)max_bones * sizeof(boneint_t));
-    if( !out->bones || !out->bones_sizes )
-    {
-        free(group_sizes);
-        ToriDraw_BonesFree(out);
-        return NULL;
-    }
+    assert(out->bones);
+    assert(out->bones_sizes);
 
     for( int g = 0; g < max_bones; g++ )
     {
@@ -103,12 +94,7 @@ ToriDraw_BonesMerge(
             continue;
 
         out->bones[g] = malloc((size_t)group_size * sizeof(boneint_t));
-        if( !out->bones[g] )
-        {
-            free(group_sizes);
-            ToriDraw_BonesFree(out);
-            return NULL;
-        }
+        assert(out->bones[g]);
 
         int write_pos = 0;
         for( int i = 0; i < model_count; i++ )
@@ -193,8 +179,7 @@ ToriDraw_ModelSteal(struct ToriDraw_Model* src)
     assert(src);
 
     struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
-    if( !dst )
-        return NULL;
+    assert(dst);
 
     ToriDraw_ModelMoveArrays(dst, src);
     return dst;
@@ -339,11 +324,9 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
         dst->animaya_group_counts = (uint8_t*)malloc((size_t)vc);
         dst->animaya_groups = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
         dst->animaya_scales = (uint8_t**)calloc((size_t)vc, sizeof(uint8_t*));
-        if( !dst->animaya_group_counts || !dst->animaya_groups || !dst->animaya_scales )
-        {
-            ToriDraw_ModelFree(dst);
-            return NULL;
-        }
+        assert(dst->animaya_group_counts);
+        assert(dst->animaya_groups);
+        assert(dst->animaya_scales);
 
         memcpy(dst->animaya_group_counts, src->animaya_group_counts, (size_t)vc);
         for( int i = 0; i < vc; i++ )
@@ -354,11 +337,8 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 
             dst->animaya_groups[i] = (uint8_t*)malloc((size_t)cnt);
             dst->animaya_scales[i] = (uint8_t*)malloc((size_t)cnt);
-            if( !dst->animaya_groups[i] || !dst->animaya_scales[i] )
-            {
-                ToriDraw_ModelFree(dst);
-                return NULL;
-            }
+            assert(dst->animaya_groups[i]);
+            assert(dst->animaya_scales[i]);
 
             if( src->animaya_groups[i] )
                 memcpy(dst->animaya_groups[i], src->animaya_groups[i], (size_t)cnt);
@@ -439,8 +419,7 @@ ToriDraw_ModelNewMerge(
     }
 
     struct ToriDraw_Model* out = calloc(1, sizeof(struct ToriDraw_Model));
-    if( !out )
-        return NULL;
+    assert(out);
 
     out->vertex_count = total_vertices;
     out->face_count = total_faces;
@@ -466,11 +445,9 @@ ToriDraw_ModelNewMerge(
         out->animaya_group_counts = (uint8_t*)calloc((size_t)total_vertices, sizeof(uint8_t));
         out->animaya_groups = (uint8_t**)calloc((size_t)total_vertices, sizeof(uint8_t*));
         out->animaya_scales = (uint8_t**)calloc((size_t)total_vertices, sizeof(uint8_t*));
-        if( !out->animaya_group_counts || !out->animaya_groups || !out->animaya_scales )
-        {
-            ToriDraw_ModelFree(out);
-            return NULL;
-        }
+        assert(out->animaya_group_counts);
+        assert(out->animaya_groups);
+        assert(out->animaya_scales);
     }
 
     if( total_faces > 0 )
@@ -534,13 +511,8 @@ ToriDraw_ModelNewMerge(
 
     int* vertex_offsets = calloc((size_t)model_count, sizeof(int));
     int* face_offsets = calloc((size_t)model_count, sizeof(int));
-    if( !vertex_offsets || !face_offsets )
-    {
-        free(vertex_offsets);
-        free(face_offsets);
-        ToriDraw_ModelFree(out);
-        return NULL;
-    }
+    assert(vertex_offsets);
+    assert(face_offsets);
 
     for( int i = 0; i < model_count; i++ )
     {
@@ -566,13 +538,8 @@ ToriDraw_ModelNewMerge(
                 {
                     out->animaya_groups[dst_v] = (uint8_t*)malloc((size_t)cnt);
                     out->animaya_scales[dst_v] = (uint8_t*)malloc((size_t)cnt);
-                    if( !out->animaya_groups[dst_v] || !out->animaya_scales[dst_v] )
-                    {
-                        free(vertex_offsets);
-                        free(face_offsets);
-                        ToriDraw_ModelFree(out);
-                        return NULL;
-                    }
+                    assert(out->animaya_groups[dst_v]);
+                    assert(out->animaya_scales[dst_v]);
                     if( m->animaya_groups[v] )
                         memcpy(
                             out->animaya_groups[dst_v],

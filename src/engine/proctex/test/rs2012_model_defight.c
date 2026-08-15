@@ -37,6 +37,7 @@
  */
 
 #include "datatypes/model.h"
+#include <assert.h>
 
 #include <limits.h>
 #include <math.h>
@@ -81,7 +82,8 @@ read_file(const char* path, int* out_size)
     if (size <= 0)
         die("empty file %s", path);
     uint8_t* bytes = malloc((size_t)size);
-    if (!bytes || fread(bytes, 1, (size_t)size, fp) != (size_t)size)
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, fp) != (size_t)size )
         die("short read on %s", path);
     fclose(fp);
     *out_size = (int)size;
@@ -167,8 +169,9 @@ build_merged_topology(void)
     px_scr = malloc((size_t)total_v * sizeof *px_scr);
     py_scr = malloc((size_t)total_v * sizeof *py_scr);
     pz_cam = malloc((size_t)total_v * sizeof *pz_cam);
-    if (!px_scr || !py_scr || !pz_cam)
-        die("out of memory (projection buffers)");
+    assert(px_scr);
+    assert(py_scr);
+    assert(pz_cam);
     v_part = malloc((size_t)total_v * sizeof *v_part);
     v_local = malloc((size_t)total_v * sizeof *v_local);
     f_part = malloc((size_t)total_f * sizeof *f_part);
@@ -241,8 +244,8 @@ build_position_ids(void)
         cap <<= 1;
     uint64_t* keys = malloc(cap * sizeof *keys);
     int* ids = malloc(cap * sizeof *ids);
-    if (!keys || !ids)
-        die("out of memory (position hash)");
+    assert(keys);
+    assert(ids);
     for (uint64_t i = 0; i < cap; i++)
         keys[i] = UINT64_MAX;
     int next_id = 0;
@@ -360,8 +363,10 @@ raster_alloc(void)
     vb_buf.z2 = malloc(n * sizeof(double));
     vb_buf.f1 = malloc(n * sizeof(int));
     vb_buf.f2 = malloc(n * sizeof(int));
-    if (!vb_buf.z1 || !vb_buf.z2 || !vb_buf.f1 || !vb_buf.f2)
-        die("out of memory (raster buffers)");
+    assert(vb_buf.z1);
+    assert(vb_buf.z2);
+    assert(vb_buf.f1);
+    assert(vb_buf.f2);
 }
 
 /* One view: rotate about y by yaw then about x by pitch (proper rotations,
@@ -621,8 +626,9 @@ resolve_pairs(void)
     face_level = calloc((size_t)total_f, sizeof *face_level);
     face_dir = calloc((size_t)total_f, sizeof *face_dir);
     face_moving = calloc((size_t)total_f, 1);
-    if (!face_level || !face_dir || !face_moving)
-        die("out of memory (face layers)");
+    assert(face_level);
+    assert(face_dir);
+    assert(face_moving);
 
     int qualified = 0;
     for (uint64_t s = 0; s < pair_cap; s++)
@@ -735,8 +741,9 @@ grow_part_vertices(struct Part* pt, int extra)
     m->vertices_x = realloc(m->vertices_x, (size_t)nv * sizeof(int));
     m->vertices_y = realloc(m->vertices_y, (size_t)nv * sizeof(int));
     m->vertices_z = realloc(m->vertices_z, (size_t)nv * sizeof(int));
-    if (!m->vertices_x || !m->vertices_y || !m->vertices_z)
-        die("out of memory (vertex growth)");
+    assert(m->vertices_x);
+    assert(m->vertices_y);
+    assert(m->vertices_z);
     if (m->vertex_bone_map)
     {
         m->vertex_bone_map = realloc(m->vertex_bone_map, (size_t)nv);
@@ -773,8 +780,8 @@ dup_vertex(struct Part* pt, int v)
         m->animaya_group_counts[d] = (uint8_t)cnt;
         m->animaya_groups[d] = malloc(cnt ? (size_t)cnt : 1);
         m->animaya_scales[d] = malloc(cnt ? (size_t)cnt : 1);
-        if (!m->animaya_groups[d] || !m->animaya_scales[d])
-            die("out of memory (animaya row)");
+        assert(m->animaya_groups[d]);
+        assert(m->animaya_scales[d]);
         memcpy(m->animaya_groups[d], m->animaya_groups[v], (size_t)cnt);
         memcpy(m->animaya_scales[d], m->animaya_scales[v], (size_t)cnt);
         m->animaya_vertex_count = d + 1;

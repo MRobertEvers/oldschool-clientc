@@ -145,21 +145,8 @@ dump_iface_resolve_layout(
 {
     int* depth = calloc((size_t)n, sizeof(int));
     int* order = calloc((size_t)n, sizeof(int));
-    if( !depth || !order )
-    {
-        free(depth);
-        free(order);
-        for( int i = 0; i < n; i++ )
-        {
-            if( parent_idx )
-                parent_idx[i] = -1;
-            out_x[i] = root_x + comps[i].baseX;
-            out_y[i] = root_y + comps[i].baseY;
-            out_w[i] = comps[i].baseWidth;
-            out_h[i] = comps[i].baseHeight;
-        }
-        return;
-    }
+    assert(depth);
+    assert(order);
 
     for( int i = 0; i < n; i++ )
     {
@@ -596,13 +583,8 @@ dump_iface_load_dat1(
     int visited_cap = list->components_count + 1;
     int* visited = calloc((size_t)visited_cap, sizeof(int));
     DumpIfaceDat1Node* nodes = calloc((size_t)list->components_count, sizeof(DumpIfaceDat1Node));
-    if( !visited || !nodes )
-    {
-        free(visited);
-        free(nodes);
-        dat1_interfaces_list_free(list);
-        return -1;
-    }
+    assert(visited);
+    assert(nodes);
 
     int node_count = 0;
     if( root->id >= 0 && root->id < visited_cap )
@@ -740,18 +722,12 @@ dump_iface_load_dat2(
     int* lay_y = calloc((size_t)n, sizeof(int));
     int* lay_w = calloc((size_t)n, sizeof(int));
     int* lay_h = calloc((size_t)n, sizeof(int));
-    if( !comps || !parent_idx || !lay_x || !lay_y || !lay_w || !lay_h )
-    {
-        free(comps);
-        free(parent_idx);
-        free(lay_x);
-        free(lay_y);
-        free(lay_w);
-        free(lay_h);
-        RSCacheShared_FileListFree(fl);
-        RSCacheDat2Disk_ArchiveFree(arch);
-        return -1;
-    }
+    assert(comps);
+    assert(parent_idx);
+    assert(lay_x);
+    assert(lay_y);
+    assert(lay_w);
+    assert(lay_h);
 
     for( int fi = 0; fi < n; fi++ )
     {

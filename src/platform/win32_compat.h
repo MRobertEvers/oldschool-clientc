@@ -39,8 +39,7 @@ torirs_win32_putenv(const char* name, const char* value)
         return -1;
 
     assignment = (char*)malloc(name_len + value_len + 2u);
-    if( !assignment )
-        return -1;
+    assert(assignment);
 
     memcpy(assignment, name, name_len);
     assignment[name_len] = '=';

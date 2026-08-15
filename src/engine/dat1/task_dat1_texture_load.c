@@ -57,8 +57,7 @@ static uint8_t*
 task_dat1_texture_expand_crop(const struct RSCache_Dat1Pix8* pix8)
 {
     uint8_t* canvas = calloc((size_t)pix8->crop_width * (size_t)pix8->crop_height, 1);
-    if( !canvas )
-        return NULL;
+    assert(canvas);
 
     for( int y = 0; y < pix8->height; y++ )
     {

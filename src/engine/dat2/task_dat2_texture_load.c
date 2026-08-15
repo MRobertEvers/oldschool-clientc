@@ -229,8 +229,7 @@ proctex_resolve_texture(
     }
 
     pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
-    if( !pixels )
-        return false;
+    assert(pixels);
 
     gen = ProcTexGenerator_New(proctex_resolve_sprite, proctex_resolve_texture, bc);
     if( !gen )
@@ -310,8 +309,7 @@ proctex_bake(
     }
 
     pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     gen = ProcTexGenerator_New(proctex_resolve_sprite, proctex_resolve_texture, bc);
     if( !gen )
@@ -335,11 +333,7 @@ proctex_bake(
     ProcTexGenerator_Free(gen);
 
     texture = calloc(1, sizeof(*texture));
-    if( !texture )
-    {
-        free(pixels);
-        return NULL;
-    }
+    assert(texture);
     texture->texels = pixels;
     texture->width = size;
     texture->height = size;
@@ -415,8 +409,7 @@ texture_bake(
     assert(dest_size == 64 || dest_size == 128);
 
     pixels = calloc((size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     opaque = true;
 
@@ -433,11 +426,7 @@ texture_bake(
         assert(layer->width > 0 && layer->height > 0);
 
         adjusted_palette = malloc((size_t)layer->palette_length * sizeof(*adjusted_palette));
-        if( !adjusted_palette )
-        {
-            free(pixels);
-            return NULL;
-        }
+        assert(adjusted_palette);
 
         for( pi = 0; pi < layer->palette_length; pi++ )
         {
@@ -513,11 +502,7 @@ texture_bake(
     }
 
     texture = calloc(1, sizeof(*texture));
-    if( !texture )
-    {
-        free(pixels);
-        return NULL;
-    }
+    assert(texture);
 
     texture->texels = pixels;
     texture->width = dest_size;
@@ -548,8 +533,7 @@ texture_from_sprite_packs(
     assert(dest_size == 64 || dest_size == 128);
 
     layers = calloc((size_t)def->sprite_ids_count, sizeof(*layers));
-    if( !layers )
-        return NULL;
+    assert(layers);
 
     for( i = 0; i < def->sprite_ids_count; i++ )
     {

@@ -172,11 +172,7 @@ task_dat2_worldmap_attach_compositetextures(
         assert(width > 0 && height > 0 && rgb);
         pixel_count = width * height;
         argb = malloc((size_t)pixel_count * sizeof(*argb));
-        if( !argb )
-        {
-            free(rgb);
-            continue;
-        }
+        assert(argb);
         /* PngDecode_Rgb drops alpha to 0; overview sprites need opaque ARGB. */
         for( int p = 0; p < pixel_count; p++ )
             argb[p] = 0xFF000000u | (rgb[p] & 0xFFFFFFu);

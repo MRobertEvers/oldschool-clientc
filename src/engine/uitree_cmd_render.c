@@ -54,8 +54,7 @@ UITreeCmd_WriteBmp(
 
     n = (size_t)width * (size_t)height;
     pixels = calloc(n, sizeof(int));
-    if( !pixels )
-        return -1;
+    assert(pixels);
 
     UITreeCmd_RenderToPixels(scene, cmds, cmd_count, pixels, width, height);
     bmp_write_file(path, pixels, width, height);

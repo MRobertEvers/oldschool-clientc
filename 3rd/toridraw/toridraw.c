@@ -303,8 +303,7 @@ ToriDraw_SceneAllocBuffers(
     if( !caps->lazy_textures )
     {
         scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
-        if( !scene->tex_state )
-            return false;
+        assert(scene->tex_state);
     }
 
     return true;
@@ -334,8 +333,7 @@ ToriDraw_SceneZBufferResize(
 
     want = (size_t)stride * (size_t)rows;
     grown = (torizdepth_t*)realloc(scene->zbuffer, want * sizeof(torizdepth_t));
-    if( !grown )
-        return false;
+    assert(grown);
 
     scene->zbuffer = grown;
     scene->zbuffer_stride = stride;
@@ -374,8 +372,7 @@ ToriDraw_SceneTexState(struct ToriDraw_Scene* scene)
     if( !scene->tex_state )
     {
         scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
-        if( !scene->tex_state )
-            return NULL;
+        assert(scene->tex_state);
     }
 
     return scene->tex_state;
@@ -444,8 +441,7 @@ ToriDraw_SceneNew(
         return NULL;
 
     struct ToriDraw_Scene* scene = calloc(1, sizeof(struct ToriDraw_Scene));
-    if( !scene )
-        return NULL;
+    assert(scene);
 
     scene->flags = flags;
     /* Build on first query rather than reporting an empty list. */

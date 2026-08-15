@@ -21,8 +21,7 @@ ToriDraw_SpriteFromToriRSFrame(struct ToriRS_SpriteFrame const* frame)
 
     n = (size_t)frame->width * (size_t)frame->height;
     argb = malloc(n * sizeof(uint32_t));
-    if( !argb )
-        return NULL;
+    assert(argb);
     memcpy(argb, frame->pixels_argb, n * sizeof(uint32_t));
 
     spr = ToriDraw_SpriteNewFromArgbOwned(argb, frame->width, frame->height);
@@ -53,8 +52,7 @@ ToriDraw_SpritesFromToriRS(
 
     count = src->frame_count;
     sprites = calloc((size_t)count, sizeof(struct ToriDraw_Sprite*));
-    if( !sprites )
-        return NULL;
+    assert(sprites);
 
     for( i = 0; i < count; i++ )
     {

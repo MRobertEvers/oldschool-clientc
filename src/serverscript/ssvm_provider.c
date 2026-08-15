@@ -97,11 +97,7 @@ read_whole_file(const char* path, size_t* out_length)
     rewind(f);
 
     data = (uint8_t*)malloc((size_t)size + 1);
-    if( !data )
-    {
-        fclose(f);
-        return NULL;
-    }
+    assert(data);
     if( size > 0 && fread(data, 1, (size_t)size, f) != (size_t)size )
     {
         free(data);

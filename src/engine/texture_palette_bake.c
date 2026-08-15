@@ -71,8 +71,7 @@ ToriRS_TextureBakeIndexed(
         return NULL;
 
     adjusted_palette = malloc((size_t)palette_length * sizeof(*adjusted_palette));
-    if( !adjusted_palette )
-        return NULL;
+    assert(adjusted_palette);
 
     /* Reference rule: a colour that survives the 0xf8f8ff mask as 0 is the
      * transparent slot, and any transparent texel makes the whole texture
@@ -84,11 +83,7 @@ ToriRS_TextureBakeIndexed(
     }
 
     pixels = calloc((size_t)dest_size * (size_t)dest_size, sizeof(*pixels));
-    if( !pixels )
-    {
-        free(adjusted_palette);
-        return NULL;
-    }
+    assert(pixels);
 
     for( index = 0; index < src_width * src_height; index++ )
     {
@@ -140,11 +135,7 @@ ToriRS_TextureBakeIndexed(
     free(adjusted_palette);
 
     texture = calloc(1, sizeof(*texture));
-    if( !texture )
-    {
-        free(pixels);
-        return NULL;
-    }
+    assert(texture);
 
     texture->texels = pixels;
     texture->width = dest_size;

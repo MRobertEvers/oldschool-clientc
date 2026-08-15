@@ -547,8 +547,7 @@ UITree_MenuSubmenuSetEntry(
     if( !opts->submenus )
     {
         opts->submenus = calloc(1, sizeof(*opts->submenus));
-        if( !opts->submenus )
-            return false;
+        assert(opts->submenus);
     }
     strncpy(
         opts->submenus->ops[op_index - 1][entry_index - 1],
@@ -734,8 +733,7 @@ uitree_child_index_build(struct UITree* tree, int32_t parent_index)
 
     int32_t const cap = max_key + 1;
     int32_t* index = malloc((size_t)cap * 2u * sizeof(int32_t));
-    if( !index )
-        return;
+    assert(index);
     for( int32_t i = 0; i < cap * 2; i++ )
         index[i] = -1;
 
@@ -1776,8 +1774,8 @@ UITree_SetBehavior(
 
     dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
     dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
-    if( !dst->scripts || !dst->scripts_lengths )
-        goto fail;
+    assert(dst->scripts);
+    assert(dst->scripts_lengths);
 
     for( int i = 0; i < src->scripts_count; i++ )
     {
@@ -1788,8 +1786,7 @@ UITree_SetBehavior(
         if( len <= 0 )
             continue;
         dst->scripts[i] = malloc((size_t)len * sizeof(int));
-        if( !dst->scripts[i] )
-            goto fail;
+        assert(dst->scripts[i]);
         memcpy(dst->scripts[i], src->scripts[i], (size_t)len * sizeof(int));
         dst->scripts_lengths[i] = len;
     }
@@ -1798,8 +1795,7 @@ UITree_SetBehavior(
     if( src->script_comparator && src->comparator_count > 0 )
     {
         dst->script_comparator = malloc((size_t)src->comparator_count * sizeof(int));
-        if( !dst->script_comparator )
-            goto fail;
+        assert(dst->script_comparator);
         memcpy(
             dst->script_comparator,
             src->script_comparator,
@@ -1809,8 +1805,7 @@ UITree_SetBehavior(
     if( src->script_operand && src->comparator_count > 0 )
     {
         dst->script_operand = malloc((size_t)src->comparator_count * sizeof(int));
-        if( !dst->script_operand )
-            goto fail;
+        assert(dst->script_operand);
         memcpy(
             dst->script_operand, src->script_operand, (size_t)src->comparator_count * sizeof(int));
     }
@@ -1846,17 +1841,12 @@ UITree_Push(
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text )
     {
         text_owned = strdup(spec->u.rs_text.text);
-        if( !text_owned )
-            return -1;
+        assert(text_owned);
     }
     if( spec->type == UIELEM_RS_TEXT && spec->u.rs_text.text_active )
     {
         text_active_owned = strdup(spec->u.rs_text.text_active);
-        if( !text_active_owned )
-        {
-            free(text_owned);
-            return -1;
-        }
+        assert(text_active_owned);
     }
 
     int32_t idx = push_element(tree, parent_index);
@@ -2642,8 +2632,7 @@ UITree_ApplyComponentParam(
     if( str )
     {
         owned = strdup(str);
-        if( !owned )
-            return false;
+        assert(owned);
     }
 
     struct UITreeComponent* c = &tree->components[idx];
@@ -2754,8 +2743,7 @@ UITree_ApplyText(
     if( idx < 0 )
         return false;
     char* copy = strdup(text ? text : "");
-    if( !copy )
-        return false;
+    assert(copy);
 
     struct UITreeComponent* c = &tree->components[idx];
     if( c->type == UIELEM_RS_TEXT )
@@ -3788,8 +3776,7 @@ UITree_ReclaimInterfaceGroup(
     if( gset->count > UITREE_RECLAIM_ROOTS_STACK )
     {
         heap_roots = (int32_t*)malloc((size_t)gset->count * sizeof(int32_t));
-        if( !heap_roots )
-            return;
+        assert(heap_roots);
         roots = heap_roots;
     }
     else

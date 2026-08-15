@@ -15,6 +15,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -299,25 +300,44 @@ ev_caches_save(const struct EV_CacheList* list, const char* file)
 int
 ev_caches_add(struct EV_CacheList* list, const char* path, const char* rev)
 {
+    char resolved[EV_CACHE_PATH_MAX];
+
     assert(list);
     assert(path);
-    if( !*path || list->count >= EV_MAX_CACHES )
+    if( !*path )
         return -1;
-    if( !dir_has_cache(path) )
+
+    /*
+     * Canonicalise before anything else.
+     *
+     * The same cache reaches this by several spellings — the command line's
+     * relative path, discovery's `<root>/name`, and whatever the user typed —
+     * and a textual comparison calls those three different caches. They then
+     * fill the list, and because the list is bounded, the *real* additions
+     * start failing. That looks like "add is broken", not "add is confused
+     * about identity".
+     */
+    if( !realpath(path, resolved) )
+        snprintf(resolved, sizeof(resolved), "%s", path);
+
+    if( !dir_has_cache(resolved) )
         return -1;
 
     for( int i = 0; i < list->count; i++ )
-        if( strcmp(list->items[i].path, path) == 0 )
+        if( strcmp(list->items[i].path, resolved) == 0 )
             return i; /* already listed; not an error */
+
+    if( list->count >= EV_MAX_CACHES )
+        return -1;
 
     struct EV_CacheEntry* e = &list->items[list->count];
     memset(e, 0, sizeof(*e));
-    snprintf(e->path, sizeof(e->path), "%s", path);
-    snprintf(e->label, sizeof(e->label), "%s", basename_of(path));
+    snprintf(e->path, sizeof(e->path), "%s", resolved);
+    snprintf(e->label, sizeof(e->label), "%s", basename_of(resolved));
 
     if( rev && *rev )
         snprintf(e->rev, sizeof(e->rev), "%s", rev);
-    else if( !ev_cache_detect_rev(path, e->rev, (int)sizeof(e->rev)) )
+    else if( !ev_cache_detect_rev(resolved, e->rev, (int)sizeof(e->rev)) )
         snprintf(e->rev, sizeof(e->rev), "osrs239");
 
     return list->count++;
@@ -417,11 +437,7 @@ collect_table_ids(
         return NULL;
 
     int* ids = (int*)malloc((size_t)(table->id_count > 0 ? table->id_count : 1) * sizeof(int));
-    if( !ids )
-    {
-        RSCache_ReferenceTableFree(table);
-        return NULL;
-    }
+    assert(ids);
     for( int i = 0; i < table->id_count; i++ )
         ids[i] = table->ids[i];
     *out_count = table->id_count;
@@ -529,8 +545,7 @@ sink_id(int id, const char* data, int size, void* user)
     {
         int grown = s->cap ? s->cap * 2 : 1024;
         int* p = (int*)realloc(s->ids, (size_t)grown * sizeof(int));
-        if( !p )
-            return;
+        assert(p);
         s->ids = p;
         s->cap = grown;
     }

@@ -34,14 +34,9 @@ lightmap_new(
     int levels)
 {
     struct Lightmap* lightmap = malloc(sizeof(struct Lightmap));
-    if( !lightmap )
-        return NULL;
+    assert(lightmap);
     lightmap->lights = malloc((size_t)width * (size_t)height * (size_t)levels);
-    if( !lightmap->lights )
-    {
-        free(lightmap);
-        return NULL;
-    }
+    assert(lightmap->lights);
     memset(lightmap->lights, 0, (size_t)width * (size_t)height * (size_t)levels);
     lightmap->width = width;
     lightmap->height = height;

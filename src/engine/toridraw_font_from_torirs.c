@@ -18,8 +18,7 @@ ToriDraw_FontFromToriRS(struct ToriRS_Font const* src)
     assert(TORIRS_FONT_GLYPH_COUNT == TORIDRAW_FONT_GLYPH_COUNT);
 
     dst = calloc(1, sizeof(*dst));
-    if( !dst )
-        return NULL;
+    assert(dst);
 
     for( i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
     {
@@ -38,11 +37,7 @@ ToriDraw_FontFromToriRS(struct ToriRS_Font const* src)
 
         nbytes = (size_t)w * (size_t)h;
         dst->glyph_alpha[i] = malloc(nbytes);
-        if( !dst->glyph_alpha[i] )
-        {
-            ToriDraw_FontFree(dst);
-            return NULL;
-        }
+        assert(dst->glyph_alpha[i]);
         memcpy(dst->glyph_alpha[i], src->glyph_alpha[i], nbytes);
     }
     dst->advance[TORIDRAW_FONT_GLYPH_COUNT] = src->advance[TORIRS_FONT_GLYPH_COUNT];

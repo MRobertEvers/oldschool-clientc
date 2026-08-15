@@ -158,8 +158,7 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
     {
         int32_t* out0 = cache->plane[0] + offset;
         int32_t** passes = calloc((size_t)n_passes, sizeof(*passes));
-        if( !passes )
-            return false;
+        assert(passes);
         for( pass = -ve + line; pass <= line + ve; pass++ )
         {
             const int32_t* input =
@@ -212,8 +211,7 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
         int32_t* out1 = cache->plane[1] + offset;
         int32_t* out2 = cache->plane[2] + offset;
         int32_t*** passes = calloc((size_t)n_passes, sizeof(*passes));
-        if( !passes )
-            return false;
+        assert(passes);
         for( pass = -ve + line; pass <= line + ve; pass++ )
         {
             const int32_t* in[3];
@@ -237,20 +235,11 @@ proctex_op_blur(struct ProcTexGenerator* gen, int op_index, int line)
                 return false;
             }
             pass_out = calloc(3, sizeof(*pass_out));
-            if( !pass_out )
-            {
-                free(passes);
-                return false;
-            }
+            assert(pass_out);
             for( p = 0; p < 3; p++ )
             {
                 pass_out[p] = malloc((size_t)width * sizeof(int32_t));
-                if( !pass_out[p] )
-                {
-                    free(pass_out);
-                    free(passes);
-                    return false;
-                }
+                assert(pass_out[p]);
             }
             for( x = -he; x <= he; x++ )
             {
@@ -327,8 +316,7 @@ proctex_op_emboss(struct ProcTexGenerator* gen, int op_index, int line)
     if( !aux )
     {
         aux = calloc(1, sizeof(*aux));
-        if( !aux )
-            return false;
+        assert(aux);
         gen->aux[op_index] = aux;
     }
     if( !aux->ready )
@@ -468,8 +456,7 @@ proctex_op_perlin(struct ProcTexGenerator* gen, int op_index, int line)
     if( !aux )
     {
         aux = calloc(1, sizeof(*aux));
-        if( !aux )
-            return false;
+        assert(aux);
         gen->aux[op_index] = aux;
     }
     if( !aux->ready )
@@ -482,8 +469,8 @@ proctex_op_perlin(struct ProcTexGenerator* gen, int op_index, int line)
         aux->perm = proctex_permutations(op->u.perlin.seed);
         aux->nin0 = calloc((size_t)oct, sizeof(int16_t));
         aux->nin1 = calloc((size_t)oct, sizeof(int16_t));
-        if( !aux->nin0 || !aux->nin1 )
-            return false;
+        assert(aux->nin0);
+        assert(aux->nin1);
         if( op->u.perlin.field2 <= 0 )
         {
             int n = op->u.perlin.amplitude_count;
@@ -652,8 +639,7 @@ proctex_op_voronoi(struct ProcTexGenerator* gen, int op_index, int line)
     if( !aux )
     {
         aux = calloc(1, sizeof(*aux));
-        if( !aux )
-            return false;
+        assert(aux);
         gen->aux[op_index] = aux;
     }
     if( !aux->ready )
@@ -1135,8 +1121,7 @@ proctex_op_square_waveform(struct ProcTexGenerator* gen, int op_index, int line)
     if( !aux )
     {
         aux = calloc(1, sizeof(*aux));
-        if( !aux )
-            return false;
+        assert(aux);
         gen->aux[op_index] = aux;
     }
     if( !aux->ready )
@@ -1149,8 +1134,8 @@ proctex_op_square_waveform(struct ProcTexGenerator* gen, int op_index, int line)
         aux->count = n;
         aux->table0 = malloc((size_t)(n + 1) * sizeof(int32_t));
         aux->table1 = malloc((size_t)(n + 1) * sizeof(int32_t));
-        if( !aux->table0 || !aux->table1 )
-            return false;
+        assert(aux->table0);
+        assert(aux->table1);
         for( l = 0; l < n; l++ )
         {
             aux->table1[l] = i;
@@ -2328,12 +2313,8 @@ proctex_op_irregular_bricks(struct ProcTexGenerator* gen, int op_index, int line
     span_capacity = width / min_w + 1;
     cur_spans = calloc((size_t)span_capacity, sizeof(*cur_spans));
     prev_spans = calloc((size_t)span_capacity, sizeof(*prev_spans));
-    if( !cur_spans || !prev_spans )
-    {
-        free(cur_spans);
-        free(prev_spans);
-        return false;
-    }
+    assert(cur_spans);
+    assert(prev_spans);
 
     st.gen = gen;
     st.op = op;
@@ -2531,3 +2512,4 @@ proctex_op_irregular_bricks(struct ProcTexGenerator* gen, int op_index, int line
 
 /* The vector rasteriser is large enough to be its own unit. */
 #include "engine/proctex/proctex_raster.u.c"
+#include <assert.h>

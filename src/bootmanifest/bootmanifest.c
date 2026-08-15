@@ -898,11 +898,7 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     }
 
     char* data = malloc((size_t)file_size + 1);
-    if( !data )
-    {
-        fclose(f);
-        return -1;
-    }
+    assert(data);
     if( fread(data, 1, (size_t)file_size, f) != (size_t)file_size )
     {
         fclose(f);

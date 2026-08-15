@@ -133,8 +133,7 @@ ProcTexGenerator_New(
     proctex_init_trig();
 
     gen = calloc(1, sizeof(*gen));
-    if( !gen )
-        return NULL;
+    assert(gen);
     gen->sprite_fn = sprite_fn;
     gen->texture_fn = texture_fn;
     gen->user = user;
@@ -204,8 +203,7 @@ proctex_setup(
     {
         free(gen->h_gradient);
         gen->h_gradient = malloc((size_t)size * sizeof(int32_t));
-        if( !gen->h_gradient )
-            return false;
+        assert(gen->h_gradient);
         for( int i = 0; i < size; i++ )
             gen->h_gradient[i] = (i << 12) / size;
         gen->width = size;
@@ -218,8 +216,7 @@ proctex_setup(
     {
         free(gen->v_gradient);
         gen->v_gradient = malloc((size_t)size * sizeof(int32_t));
-        if( !gen->v_gradient )
-            return false;
+        assert(gen->v_gradient);
         for( int i = 0; i < size; i++ )
             gen->v_gradient[i] = (i << 12) / size;
         gen->height = size;
@@ -244,20 +241,20 @@ proctex_setup(
         calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->tables));
     gen->visiting = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), 1);
     gen->aux = calloc((size_t)(gen->cache_count > 0 ? gen->cache_count : 1), sizeof(*gen->aux));
-    if( !gen->caches || !gen->tables || !gen->visiting || !gen->aux )
-        return false;
+    assert(gen->caches);
+    assert(gen->tables);
+    assert(gen->visiting);
+    assert(gen->aux);
 
     for( int i = 0; i < gen->cache_count; i++ )
     {
         int planes = texture->operations[i].is_monochrome ? 1 : 3;
         gen->caches[i].done = calloc((size_t)size, 1);
-        if( !gen->caches[i].done )
-            return false;
+        assert(gen->caches[i].done);
         for( int p = 0; p < planes; p++ )
         {
             gen->caches[i].plane[p] = calloc((size_t)size * (size_t)size, sizeof(int32_t));
-            if( !gen->caches[i].plane[p] )
-                return false;
+            assert(gen->caches[i].plane[p]);
         }
     }
     return true;
@@ -383,8 +380,7 @@ proctex_curve_table(
         return gen->tables[op_index];
 
     table = malloc(257 * sizeof(int32_t));
-    if( !table )
-        return NULL;
+    assert(table);
     proctex_curve_markers(op, markers, &count);
 
     for( int index = 0; index < 257; index++ )
@@ -534,8 +530,7 @@ proctex_gradient_table(
         return gen->tables[op_index];
 
     table = calloc(257, sizeof(int32_t));
-    if( !table )
-        return NULL;
+    assert(table);
 
     /*
      * No inline stops. Three cases, and they do not collapse:

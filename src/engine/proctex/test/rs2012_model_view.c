@@ -84,6 +84,7 @@
  */
 
 #include "datatypes/dat2_frame.h"
+#include <assert.h>
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/model.h"
 #include "filelist.h"
@@ -171,8 +172,8 @@ load_animation_from_cache(
     }
     frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
     delays = (int*)malloc((size_t)frame_count * sizeof(int));
-    if( !frames || !delays )
-        goto done;
+    assert(frames);
+    assert(delays);
 
     for( int i = 0; i < frame_count; i++ )
     {
@@ -293,7 +294,8 @@ read_file(const char* path, long* out_size)
         return NULL;
     }
     bytes = (uint8_t*)malloc((size_t)size);
-    if( !bytes || fread(bytes, 1, (size_t)size, f) != (size_t)size )
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, f) != (size_t)size )
     {
         free(bytes);
         fclose(f);
@@ -444,7 +446,8 @@ view_bmp_read(const char* path, int* out_w, int* out_h)
         return NULL;
     }
     pixels = (int*)malloc((size_t)w * (size_t)h * sizeof(int));
-    if( !pixels || fseek(file, offset, SEEK_SET) != 0 )
+    assert(pixels);
+    if( fseek(file, offset, SEEK_SET) != 0 )
     {
         free(pixels);
         fclose(file);
@@ -524,11 +527,7 @@ view_read_file(const char* path)
         return NULL;
     }
     text = (char*)malloc((size_t)size + 1);
-    if( !text )
-    {
-        fclose(file);
-        return NULL;
-    }
+    assert(text);
     if( fread(text, 1, (size_t)size, file) != (size_t)size )
     {
         free(text);
@@ -592,11 +591,7 @@ view_load_lane_textures(struct ToriDraw_Scene* scene, const char* tree, bool ver
             continue;
 
         texture = (struct ToriDraw_Texture*)calloc(1, sizeof(*texture));
-        if( !texture )
-        {
-            free(texels);
-            continue;
-        }
+        assert(texture);
         texture->texels = texels;
         texture->width = width;
         texture->height = height;
@@ -735,11 +730,7 @@ write_face_labels(const struct ToriDraw_Model* m, const char* path)
     }
 
     vertex_group = (int*)malloc((size_t)m->vertex_count * sizeof(int));
-    if( !vertex_group )
-    {
-        fclose(f);
-        return;
-    }
+    assert(vertex_group);
     for( int v = 0; v < m->vertex_count; v++ )
         vertex_group[v] = -1;
     /* A vertex carries at most one label in this era's data; first-wins keeps
@@ -1434,8 +1425,7 @@ main(int argc, char** argv)
             if( *c == ',' )
                 capacity++;
         frame_ids = (int*)malloc((size_t)capacity * sizeof(int));
-        if( !frame_ids )
-            goto done;
+        assert(frame_ids);
         {
             const char* s2 = frames_arg;
             while( *s2 )
@@ -1450,8 +1440,7 @@ main(int argc, char** argv)
             const char* s2 = delays_arg;
             int n = 0;
             frame_delays = (int*)malloc((size_t)frame_id_count * sizeof(int));
-            if( !frame_delays )
-                goto done;
+            assert(frame_delays);
             while( *s2 && n < frame_id_count )
             {
                 frame_delays[n++] = (int)strtol(s2, (char**)&s2, 10);
@@ -1616,32 +1605,29 @@ main(int argc, char** argv)
     sheet_w = cols * tile;
     sheet_h = rows * tile;
     pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
-    if( !pixels )
-        goto done;
+    assert(pixels);
     if( score_path )
     {
         score_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
-        if( !score_pixels )
-            goto done;
+        assert(score_pixels);
     }
     if( reference_path )
     {
         reference_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         reference_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        if( !reference_pixels || !reference_tile )
-            goto done;
+        assert(reference_pixels);
+        assert(reference_tile);
     }
     if( compare )
     {
         zbuffer_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         zbuffer_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        if( !zbuffer_pixels || !zbuffer_tile )
-            goto done;
+        assert(zbuffer_pixels);
+        assert(zbuffer_tile);
         if( diff_path )
         {
             diff_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
-            if( !diff_pixels )
-                goto done;
+            assert(diff_pixels);
         }
     }
 
@@ -1653,20 +1639,18 @@ main(int argc, char** argv)
     {
         zbuffer_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
         zbuffer_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        if( !zbuffer_pixels || !zbuffer_tile )
-            goto done;
+        assert(zbuffer_pixels);
+        assert(zbuffer_tile);
     }
     if( diff_path )
     {
         diff_pixels = (int*)calloc((size_t)sheet_w * (size_t)sheet_h, sizeof(int));
-        if( !diff_pixels )
-            goto done;
+        assert(diff_pixels);
     }
     if( order_check )
     {
         order_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-        if( !order_tile )
-            goto done;
+        assert(order_tile);
     }
 
     /* screen = world * scale / z, so the distance that makes `extent` fill
@@ -1699,8 +1683,7 @@ main(int argc, char** argv)
         char line[2048];
         int* repl_tile = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
 
-        if( !repl_tile )
-            goto done;
+        assert(repl_tile);
         printf("repl ready frames=%d radius=%d\n", anim ? anim->frame_count : 0, extent);
         fflush(stdout);
         while( fgets(line, sizeof(line), stdin) )
@@ -1827,8 +1810,7 @@ main(int argc, char** argv)
      * blitted. The AABB cull compares the projected box against 0..width, so a
      * tile whose x_center sits at sheet coordinates is culled outright. */
     tile_pixels = (int*)calloc((size_t)tile * (size_t)tile, sizeof(int));
-    if( !tile_pixels )
-        goto done;
+    assert(tile_pixels);
     if( do_score )
     {
         size_t const n = (size_t)tile * (size_t)tile;
@@ -1836,8 +1818,10 @@ main(int argc, char** argv)
         z_painter = (int*)malloc(n * sizeof(int));
         id_zbuf = (int*)malloc(n * sizeof(int));
         z_zbuf = (int*)malloc(n * sizeof(int));
-        if( !id_painter || !z_painter || !id_zbuf || !z_zbuf )
-            goto done;
+        assert(id_painter);
+        assert(z_painter);
+        assert(id_zbuf);
+        assert(z_zbuf);
     }
 
     for( int view = 0; view < angles * pitch_count; view++ )

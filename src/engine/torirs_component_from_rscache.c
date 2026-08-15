@@ -132,8 +132,8 @@ torirs_component_copy_scripts(
 
     dst->scripts = calloc((size_t)scripts_count, sizeof(int*));
     dst->scripts_lengths = calloc((size_t)scripts_count, sizeof(int));
-    if( !dst->scripts || !dst->scripts_lengths )
-        return;
+    assert(dst->scripts);
+    assert(dst->scripts_lengths);
 
     for( int i = 0; i < scripts_count; i++ )
     {
@@ -144,8 +144,7 @@ torirs_component_copy_scripts(
         int len = scripts_lengths[i];
 
         dst->scripts[i] = malloc((size_t)len * sizeof(int));
-        if( !dst->scripts[i] )
-            continue;
+        assert(dst->scripts[i]);
         memcpy(dst->scripts[i], scripts[i], (size_t)len * sizeof(int));
         dst->scripts_lengths[i] = len;
     }
@@ -338,8 +337,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
     assert(src);
 
     struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
-    if( !dst )
-        return NULL;
+    assert(dst);
 
     dst->id = src->id;
     dst->type = torirs_component_type_from_raw(src->type);
@@ -475,8 +473,7 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     assert(src);
 
     struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
-    if( !dst )
-        return NULL;
+    assert(dst);
 
     dst->id = src->id;
     dst->type = torirs_component_type_from_raw(src->type);
@@ -624,16 +621,12 @@ ToriRS_ComponentPackFromRSCacheDat1(
     rel_x_of = calloc((size_t)list->components_count, sizeof(int));
     rel_y_of = calloc((size_t)list->components_count, sizeof(int));
     order = calloc((size_t)list->components_count, sizeof(int));
-    if( !visited || !stack || !parent_of || !rel_x_of || !rel_y_of || !order )
-    {
-        free(visited);
-        free(stack);
-        free(parent_of);
-        free(rel_x_of);
-        free(rel_y_of);
-        free(order);
-        return NULL;
-    }
+    assert(visited);
+    assert(stack);
+    assert(parent_of);
+    assert(rel_x_of);
+    assert(rel_y_of);
+    assert(order);
 
     /* Preorder DFS with an explicit stack; children pushed reversed so they pop
      * in declaration order (v1 dat1_component_walk). */
@@ -675,16 +668,10 @@ ToriRS_ComponentPackFromRSCacheDat1(
     }
 
     pack = calloc(1, sizeof(struct ToriRS_ComponentPack));
-    if( !pack )
-        goto cleanup;
+    assert(pack);
     pack->component_count = order_count;
     pack->components = calloc((size_t)order_count, sizeof(struct ToriRS_Component));
-    if( !pack->components )
-    {
-        free(pack);
-        pack = NULL;
-        goto cleanup;
-    }
+    assert(pack->components);
 
     for( int i = 0; i < order_count; i++ )
     {
@@ -742,16 +729,11 @@ ToriRS_ComponentPackFromRSCacheDat2(const struct RSCache_Dat2ComponentPack* src)
         return NULL;
 
     struct ToriRS_ComponentPack* pack = calloc(1, sizeof(struct ToriRS_ComponentPack));
-    if( !pack )
-        return NULL;
+    assert(pack);
 
     pack->component_count = src->component_count;
     pack->components = calloc((size_t)pack->component_count, sizeof(struct ToriRS_Component));
-    if( !pack->components )
-    {
-        free(pack);
-        return NULL;
-    }
+    assert(pack->components);
 
     for( int i = 0; i < pack->component_count; i++ )
     {

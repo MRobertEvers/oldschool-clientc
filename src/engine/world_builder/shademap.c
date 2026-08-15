@@ -24,14 +24,9 @@ shademap2_new(
     int levels)
 {
     struct Shademap2* shademap = malloc(sizeof(struct Shademap2));
-    if( !shademap )
-        return NULL;
+    assert(shademap);
     shademap->map = malloc((size_t)tile_width * (size_t)tile_height * (size_t)levels * sizeof(int));
-    if( !shademap->map )
-    {
-        free(shademap);
-        return NULL;
-    }
+    assert(shademap->map);
     memset(shademap->map, 0, (size_t)tile_width * (size_t)tile_height * (size_t)levels * sizeof(int));
     shademap->width = tile_width;
     shademap->height = tile_height;

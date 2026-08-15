@@ -30,8 +30,7 @@ w3d_ctx_init(struct Painter* painter)
 {
     int tile_count = painter->tile_capacity;
     struct PainterW3dCtx* w = (struct PainterW3dCtx*)calloc(1, sizeof(struct PainterW3dCtx));
-    if( !w )
-        return -1;
+    assert(w);
     w->paints = malloc((size_t)(tile_count + 1) * sizeof(struct W3dPaint));
     w->sentinel_idx = tile_count;
     if( !w->paints )

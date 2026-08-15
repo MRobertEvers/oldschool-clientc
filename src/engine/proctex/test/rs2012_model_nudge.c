@@ -54,6 +54,7 @@
  */
 
 #include "datatypes/model.h"
+#include <assert.h>
 
 #include <math.h>
 #include <stdbool.h>
@@ -111,7 +112,8 @@ read_file(const char* path, long* out_size)
         return NULL;
     }
     bytes = (uint8_t*)malloc((size_t)size);
-    if( !bytes || fread(bytes, 1, (size_t)size, f) != (size_t)size )
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, f) != (size_t)size )
     {
         free(bytes);
         fclose(f);
@@ -146,8 +148,7 @@ parse_face_list(const char* s, int* out_count)
         if( *c == ',' )
             capacity++;
     faces = (int*)malloc((size_t)capacity * sizeof(int));
-    if( !faces )
-        return NULL;
+    assert(faces);
     while( *s && count < capacity )
     {
         faces[count++] = (int)strtol(s, (char**)&s, 10);
@@ -422,8 +423,7 @@ main(int argc, char** argv)
             if( mv->kind != MV_PATCH_NORMAL || mv->part != i )
                 continue;
             touched = (uint8_t*)calloc((size_t)m->vertex_count, 1);
-            if( !touched )
-                goto done;
+            assert(touched);
             for( int j = 0; j < mv->face_count; j++ )
             {
                 int const face = mv->faces[j];
@@ -578,8 +578,7 @@ main(int argc, char** argv)
                  * grow out of. */
                 if( !m->face_priorities )
                     m->face_priorities = (uint8_t*)malloc((size_t)m->face_count);
-                if( !m->face_priorities )
-                    goto done;
+                assert(m->face_priorities);
                 memset(m->face_priorities, 10, (size_t)m->face_count);
                 m->model_priority = 255;
             }

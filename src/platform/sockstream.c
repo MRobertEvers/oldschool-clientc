@@ -110,10 +110,7 @@ struct SockStream*
 sockstream_new(void)
 {
     struct SockStream* stream = malloc(sizeof(struct SockStream));
-    if( !stream )
-    {
-        return NULL;
-    }
+    assert(stream);
     memset(stream, 0, sizeof(struct SockStream));
     sockstream_clear_socket(stream);
     stream->status = SOCKSTREAM_STATUS_IDLE;

@@ -137,8 +137,7 @@ PngDecode_Rgb(
         else if( memcmp(type, "IDAT", 4) == 0 )
         {
             uint8_t* grown = (uint8_t*)realloc(idat, idat_size + length);
-            if( !grown )
-                goto done;
+            assert(grown);
             idat = grown;
             memcpy(idat + idat_size, payload, length);
             idat_size += length;
@@ -157,8 +156,7 @@ PngDecode_Rgb(
     {
         mz_ulong raw_size = (mz_ulong)((size_t)height * ((size_t)width * bytes_per_pixel + 1));
         raw = (uint8_t*)malloc(raw_size);
-        if( !raw )
-            goto done;
+        assert(raw);
         if( mz_uncompress(raw, &raw_size, idat, (mz_ulong)idat_size) != MZ_OK )
             goto done;
         if( raw_size != (mz_ulong)((size_t)height * ((size_t)width * bytes_per_pixel + 1)) )
@@ -169,8 +167,7 @@ PngDecode_Rgb(
         goto done;
 
     pixels = (uint32_t*)malloc((size_t)width * height * sizeof(*pixels));
-    if( !pixels )
-        goto done;
+    assert(pixels);
 
     for( int row = 0; row < height; row++ )
     {

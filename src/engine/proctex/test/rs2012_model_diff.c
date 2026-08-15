@@ -9,6 +9,7 @@
  *   src/build/rs2012_model_diff original.ob3 rewritten.ob3
  */
 #include "datatypes/model.h"
+#include <assert.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +27,8 @@ read_file(const char* path, long* out_size)
     size = ftell(f);
     fseek(f, 0, SEEK_SET);
     bytes = (uint8_t*)malloc((size_t)size);
-    if( !bytes || fread(bytes, 1, (size_t)size, f) != (size_t)size )
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, f) != (size_t)size )
     {
         free(bytes);
         fclose(f);

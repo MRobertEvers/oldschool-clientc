@@ -119,11 +119,7 @@ TorirsModelInstCache_Put(
     }
 
     e = (struct TorirsModelInstEntry*)calloc(1, sizeof(*e));
-    if( !e )
-    {
-        ToriDraw_ModelFree(model);
-        return;
-    }
+    assert(e);
     e->model = model;
     e->node.map_slot = -1;
     TorirsLru_Insert(&cache->lrus[kind], &e->node, key, &evicted);

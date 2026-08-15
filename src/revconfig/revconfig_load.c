@@ -408,11 +408,7 @@ revconfig_load_fields_from_ini_prefixed(
     }
 
     file_data = malloc((size_t)file_size);
-    if( !file_data )
-    {
-        fclose(f);
-        return;
-    }
+    assert(file_data);
 
     read_size = fread(file_data, 1, (size_t)file_size, f);
     fclose(f);

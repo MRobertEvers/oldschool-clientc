@@ -50,15 +50,10 @@ ToriRS_SpriteFromDat2Pack(
         return NULL;
 
     sprite = calloc(1, sizeof(*sprite));
-    if( !sprite )
-        return NULL;
+    assert(sprite);
 
     sprite->frames = calloc((size_t)pack->count, sizeof(*sprite->frames));
-    if( !sprite->frames )
-    {
-        free(sprite);
-        return NULL;
-    }
+    assert(sprite->frames);
     sprite->frame_count = pack->count;
     snprintf(sprite->name, sizeof(sprite->name), "spr:%d", sprite_id);
 
@@ -94,8 +89,7 @@ sprite_frame_from_dat1_pix8(struct RSCache_Dat1Pix8 const* pix8)
 
     n = pix8->width * pix8->height;
     argb = calloc((size_t)n, sizeof(uint32_t));
-    if( !argb )
-        return frame;
+    assert(argb);
 
     for( int i = 0; i < n; i++ )
     {
@@ -131,8 +125,7 @@ sprite_frame_from_dat1_pix32(struct RSCache_Dat1Pix32 const* pix32)
         return frame;
 
     argb = calloc((size_t)pix32->draw_width * (size_t)pix32->draw_height, sizeof(uint32_t));
-    if( !argb )
-        return frame;
+    assert(argb);
 
     copy_w = pix32->stride_x > pix32->draw_width ? pix32->draw_width : pix32->stride_x;
     copy_h = pix32->stride_y > pix32->draw_height ? pix32->draw_height : pix32->stride_y;
@@ -234,14 +227,9 @@ ToriRS_SpriteFromDat1Jagfile(
     frame_count = atlas_count > 0 ? atlas_count : 1;
 
     sprite = calloc(1, sizeof(*sprite));
-    if( !sprite )
-        return NULL;
+    assert(sprite);
     sprite->frames = calloc((size_t)frame_count, sizeof(*sprite->frames));
-    if( !sprite->frames )
-    {
-        free(sprite);
-        return NULL;
-    }
+    assert(sprite->frames);
     sprite->frame_count = frame_count;
     strncpy(sprite->name, data_filename, sizeof(sprite->name) - 1);
 
@@ -349,8 +337,7 @@ ToriRS_SpriteApplyCrop(
             continue;
 
         cropped = calloc((size_t)w * (size_t)h, sizeof(uint32_t));
-        if( !cropped )
-            continue;
+        assert(cropped);
         for( int y = 0; y < h; y++ )
             memcpy(
                 cropped + (size_t)y * w,

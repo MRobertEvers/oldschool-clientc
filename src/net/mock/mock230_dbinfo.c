@@ -17,6 +17,7 @@
  */
 
 #include "mock230.h"
+#include <assert.h>
 #include "mock230_content.h"
 #include "mock230_db.h"
 
@@ -156,8 +157,7 @@ import_row(
 
         total = src->tuple_count * src->type_count;
         values = calloc((size_t)total, sizeof(*values));
-        if( !values )
-            continue;
+        assert(values);
         for( int i = 0; i < total; i++ )
         {
             if( src->values[i].is_string )

@@ -122,8 +122,7 @@ ensure_sorted(struct SSC_Symbols* symbols)
         return;
 
     symbols->order = (int32_t*)realloc(symbols->order, (size_t)symbols->count * sizeof(int32_t));
-    if( !symbols->order )
-        return;
+    assert(symbols->order);
     for( i = 0; i < symbols->count; i++ )
         symbols->order[i] = i;
 
@@ -1143,8 +1142,7 @@ exempt_varp(
         int next = *capacity ? *capacity * 2 : 16;
         int32_t* grown = (int32_t*)realloc(*list, (size_t)next * sizeof(*grown));
 
-        if( !grown )
-            return 0;
+        assert(grown);
         *list = grown;
         *capacity = next;
     }

@@ -33,8 +33,7 @@ struct Dat2GroupCache*
 Dat2GroupCache_New(size_t budget_bytes)
 {
     struct Dat2GroupCache* cache = calloc(1, sizeof(*cache));
-    if( !cache )
-        return NULL;
+    assert(cache);
     cache->budget = budget_bytes;
     return cache;
 }
@@ -187,11 +186,7 @@ Dat2GroupCache_Put(
     if( archive->file_ids && archive->file_count > 0 )
     {
         file_ids = malloc((size_t)archive->file_count * sizeof(*file_ids));
-        if( !file_ids )
-        {
-            RSCache_FileListFree(filelist);
-            return NULL;
-        }
+        assert(file_ids);
         memcpy(
             file_ids,
             archive->file_ids,

@@ -394,8 +394,7 @@ UITreeSceneBridge_EnsureDebugFont(
      * (see torirs_debug_font_baked.h). Handing the scene the baked struct
      * would free .rdata. */
     copy = malloc(sizeof(*copy));
-    if( !copy )
-        return -1;
+    assert(copy);
     memcpy(copy, baked, sizeof(*copy));
     for( int i = 0; i < TORIDRAW_FONT_GLYPH_COUNT; i++ )
     {
@@ -407,11 +406,7 @@ UITreeSceneBridge_EnsureDebugFont(
         if( bytes == 0 )
             continue;
         copy->glyph_alpha[i] = malloc(bytes);
-        if( !copy->glyph_alpha[i] )
-        {
-            ToriDraw_FontFree(copy);
-            return -1;
-        }
+        assert(copy->glyph_alpha[i]);
         memcpy(copy->glyph_alpha[i], baked->glyph_alpha[i], bytes);
     }
 
@@ -1070,11 +1065,7 @@ bridge_ensure_obj_icon(
     }
 
     frames = malloc(sizeof(*frames));
-    if( !frames )
-    {
-        ToriDraw_SpriteFree(sprite);
-        return -1;
-    }
+    assert(frames);
     frames[0] = sprite;
 
     scene_id = bridge->next_scene_id++;
@@ -1259,16 +1250,11 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
         return NULL;
 
     texture = calloc(1, sizeof(*texture));
-    if( !texture )
-        return NULL;
+    assert(texture);
 
     texel_bytes = (size_t)rs->width * (size_t)rs->height * sizeof(int);
     texture->texels = malloc(texel_bytes);
-    if( !texture->texels )
-    {
-        free(texture);
-        return NULL;
-    }
+    assert(texture->texels);
     memcpy(texture->texels, rs->texels, texel_bytes);
     texture->width = rs->width;
     texture->height = rs->height;

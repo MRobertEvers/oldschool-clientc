@@ -18,8 +18,7 @@ scene_occluders_new(
     assert(levels > 0 && levels <= 4);
 
     occ = calloc(1, sizeof(*occ));
-    if( !occ )
-        return NULL;
+    assert(occ);
 
     occ->width = width;
     occ->height = height;

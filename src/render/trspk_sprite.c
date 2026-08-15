@@ -1,4 +1,5 @@
 #include "render/trspk_sprite.h"
+#include <assert.h>
 
 #include "toridraw_math.h"
 #include "toridraw_sprite.h"
@@ -41,8 +42,7 @@ trspk_sprite_rotmask_bake(
     if( bake->capacity < need )
     {
         uint32_t* grown = realloc(bake->pixels, need * sizeof(uint32_t));
-        if( !grown )
-            return NULL;
+        assert(grown);
         bake->pixels = grown;
         bake->capacity = need;
         grew = true;

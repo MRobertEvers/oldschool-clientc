@@ -549,8 +549,7 @@ Js5ClientNew(
         return NULL;
 
     struct Js5Client* client = (struct Js5Client*)calloc(1u, sizeof(struct Js5Client));
-    if( !client )
-        return NULL;
+    assert(client);
     client->config = *config;
     client->host = js5_string_duplicate(config->host);
     if( !client->host )

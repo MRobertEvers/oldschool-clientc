@@ -173,8 +173,7 @@ csv_params(FILE* f, int* first, const struct RSCache_Params* params)
     }
 
     char* buf = malloc(cap);
-    if( !buf )
-        return;
+    assert(buf);
     size_t len = 0;
     for( int i = 0; i < params->count; i++ )
     {
@@ -387,8 +386,7 @@ group_ids_for(
     if( addr.group_shift == 0 )
     {
         int* groups = malloc(sizeof(int));
-        if( !groups )
-            return 0;
+        assert(groups);
         groups[0] = addr.group >= 0 ? addr.group : config_kind;
         *out_table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
         *out_groups = groups;
@@ -432,11 +430,7 @@ group_ids_for(
     }
 
     int* groups = malloc((size_t)rt->id_count * sizeof(int));
-    if( !groups )
-    {
-        RSCache_ReferenceTableFree(rt);
-        return 0;
-    }
+    assert(groups);
     for( int i = 0; i < rt->id_count; i++ )
         groups[i] = rt->ids[i];
     int count = rt->id_count;

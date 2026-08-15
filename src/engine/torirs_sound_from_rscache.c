@@ -26,11 +26,7 @@ ToriRS_SoundFromRSCache(
         return NULL;
 
     sound = calloc(1, sizeof(*sound));
-    if( !sound )
-    {
-        RSCache_SoundPcmRelease(&pcm);
-        return NULL;
-    }
+    assert(sound);
 
     sound->id = sound_id;
     sound->pcm = pcm.samples; /* ownership moves to the ToriRS type */
@@ -54,8 +50,7 @@ ToriRS_SoundFromRSCacheSample(
     if( !sample->samples || sample->sample_count <= 0 || sample->sample_rate <= 0 )
         return NULL;
     sound = calloc(1, sizeof(*sound));
-    if( !sound )
-        return NULL;
+    assert(sound);
     sound->id = sound_id;
     sound->pcm16 = sample->samples;
     sample->samples = NULL;
@@ -83,8 +78,7 @@ ToriRS_SoundExpandLoops(
         return NULL;
 
     copy = malloc((size_t)sound->sample_count);
-    if( !copy )
-        return NULL;
+    assert(copy);
     memcpy(copy, sound->pcm, (size_t)sound->sample_count);
 
     memset(&pcm, 0, sizeof(pcm));

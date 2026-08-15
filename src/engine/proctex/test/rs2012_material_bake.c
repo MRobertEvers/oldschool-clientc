@@ -20,6 +20,7 @@
  */
 
 #include "engine/proctex/proctex_generator.h"
+#include <assert.h>
 
 #include "bmp.h"
 #include "datatypes/dat2_proctexture.h"
@@ -300,7 +301,7 @@ list_add_unique(struct int_list* list, int value)
     {
         int capacity = list->capacity ? list->capacity * 2 : 64;
         int* values = realloc(list->values, (size_t)capacity * sizeof(*values));
-        if( !values ) return 0;
+        assert(values);
         list->values = values;
         list->capacity = capacity;
     }
@@ -372,11 +373,7 @@ read_text(const char* path, size_t* out_size)
         return NULL;
     }
     bytes = malloc((size_t)length + 1);
-    if( !bytes )
-    {
-        fclose(file);
-        return NULL;
-    }
+    assert(bytes);
     if( length && fread(bytes, 1, (size_t)length, file) != (size_t)length )
     {
         free(bytes);
@@ -410,7 +407,7 @@ buffer_reserve(struct char_buffer* buffer, size_t extra)
         capacity *= 2;
     }
     char* bytes = realloc(buffer->bytes, capacity);
-    if( !bytes ) return 0;
+    assert(bytes);
     buffer->bytes = bytes;
     buffer->capacity = capacity;
     return 1;
@@ -935,7 +932,7 @@ bake_texture(struct bake_context* context, int texture_id)
         return false;
 
     entry->argb = calloc((size_t)BAKE_SIZE * BAKE_SIZE, sizeof(*entry->argb));
-    if( !entry->argb ) return false;
+    assert(entry->argb);
     struct ProcTexGenerator* generator =
         ProcTexGenerator_New(bake_resolve_sprite, bake_resolve_texture, context);
     if( !generator ) return false;
@@ -1489,8 +1486,7 @@ face_bake_apply_alpha(
     if( !model->face_alphas )
     {
         model->face_alphas = calloc((size_t)model->face_count, 1);
-        if( !model->face_alphas )
-            return;
+        assert(model->face_alphas);
     }
     double authored_opacity = 1.0 - (double)model->face_alphas[face] / 255.0;
     double cov = coverage < 0.0 ? 0.0 : coverage;
@@ -1792,16 +1788,14 @@ face_bake_synthesize(struct RSCache_Model* model)
     if( !model->face_alphas )
     {
         model->face_alphas = calloc((size_t)(base_face + max_new_faces), 1);
-        if( !model->face_alphas )
-            return;
+        assert(model->face_alphas);
     }
     else
         SYNTH_GROW(model->face_alphas, uint8_t, base_face + max_new_faces);
 #undef SYNTH_GROW
     {
         void* p = realloc(g_face_drop_marks, (size_t)(base_face + max_new_faces));
-        if( !p )
-            return;
+        assert(p);
         g_face_drop_marks = p;
         memset(g_face_drop_marks + base_face, 0, (size_t)max_new_faces);
     }
@@ -2294,7 +2288,7 @@ prepare_model_outputs(
     struct model_output** out_models)
 {
     struct model_output* outputs = calloc((size_t)models->count, sizeof(*outputs));
-    if( !outputs ) return 0;
+    assert(outputs);
     g_materials = materials;
     for( int i = 0; i < models->count; i++ )
     {
@@ -2872,7 +2866,8 @@ write_sprite_asset(const char* to_tree, int source)
              "%s/sprites/ported/rs2012_qbd_td/rs2012_material_%d", to_tree, source);
     if( !mkdir_p(directory) ) return 0;
     int32_t* pixels = malloc((size_t)BAKE_SIZE * BAKE_SIZE * sizeof(*pixels));
-    if( !pixels || !quantize_texture(source, pixels) )
+    assert(pixels);
+    if( !quantize_texture(source, pixels) )
     {
         free(pixels);
         return 0;
@@ -2903,7 +2898,7 @@ write_sprite_pack(const char* to_tree)
     snprintf(path, sizeof(path),
              "%s/ported/rs2012_qbd_td/pack/8_sprites.pack", to_tree);
     char** preserved = calloc(65536, sizeof(*preserved));
-    if( !preserved ) return 0;
+    assert(preserved);
     FILE* existing = fopen(path, "rb");
     if( existing )
     {

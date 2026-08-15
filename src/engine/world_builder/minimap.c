@@ -767,8 +767,7 @@ minimap_bake_argb(
     const int ph = minimap->height * 4;
     const int plane = minimap->width * minimap->height;
     uint32_t* pixels = (uint32_t*)malloc((size_t)pw * (size_t)ph * sizeof(uint32_t));
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     if( level < 0 )
         level = 0;

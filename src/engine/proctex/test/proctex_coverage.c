@@ -16,6 +16,7 @@
  *   src/build/proctex_coverage [cache-dir]
  */
 #include "engine/proctex/proctex_generator.h"
+#include <assert.h>
 
 #include "bmp.h"
 #include "datatypes/dat2_proctexture.h"
@@ -142,8 +143,7 @@ bake_texture(struct bake_context* ctx, int texture_id, int size)
         return false;
 
     pixels = calloc((size_t)size * (size_t)size, sizeof(int32_t));
-    if( !pixels )
-        return false;
+    assert(pixels);
 
     gen = ProcTexGenerator_New(bake_resolve_sprite, bake_resolve_texture, ctx);
     if( !gen )

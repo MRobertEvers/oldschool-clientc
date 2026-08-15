@@ -176,12 +176,8 @@ AudioAnalyse(
 
     re = malloc(sizeof(double) * ANALYSE_FFT_SIZE);
     im = malloc(sizeof(double) * ANALYSE_FFT_SIZE);
-    if( !re || !im )
-    {
-        free(re);
-        free(im);
-        return;
-    }
+    assert(re);
+    assert(im);
     start = frames > sample_rate * 2 ? sample_rate : 0;
     for( int s = start; s + ANALYSE_FFT_SIZE <= frames; s += ANALYSE_FFT_SIZE )
     {
@@ -428,11 +424,7 @@ AudioReadWav(
         return false;
     }
     pcm = malloc(data_bytes);
-    if( !pcm )
-    {
-        fclose(f);
-        return false;
-    }
+    assert(pcm);
     data_bytes = (uint32_t)fread(pcm, 1, data_bytes, f);
     fclose(f);
 

@@ -155,8 +155,7 @@ ToriDraw_ComputeTextureUvBases(
         return true;
 
     int* min_x = (int*)malloc((size_t)count * 6 * sizeof(int));
-    if( !min_x )
-        return false;
+    assert(min_x);
     int* max_x = min_x + count;
     int* min_y = max_x + count;
     int* max_y = min_y + count;

@@ -66,11 +66,7 @@ proc_sprite_put(struct EV_ProcCtx* ctx, int key, int32_t* argb, int width, int h
     {
         int want = ctx->sprite_capacity ? ctx->sprite_capacity * 2 : 64;
         struct EV_ProcSprite* grown = realloc(ctx->sprites, (size_t)want * sizeof(*grown));
-        if( !grown )
-        {
-            free(argb);
-            return;
-        }
+        assert(grown);
         ctx->sprites = grown;
         ctx->sprite_capacity = want;
     }
@@ -147,8 +143,7 @@ proc_resolve_texture(void* user, int texture_id, int size, const int32_t** out_a
     }
 
     pixels = calloc((size_t)size * (size_t)size, sizeof(*pixels));
-    if( !pixels )
-        return false;
+    assert(pixels);
 
     gen = ProcTexGenerator_New(proc_resolve_sprite, proc_resolve_texture, ctx);
     if( !gen )
@@ -199,11 +194,7 @@ table_ids(struct RSCache_Dat2Disk* disk, int table_id, int* out_count)
         return NULL;
 
     int* ids = malloc((size_t)(table->id_count > 0 ? table->id_count : 1) * sizeof(*ids));
-    if( !ids )
-    {
-        RSCache_ReferenceTableFree(table);
-        return NULL;
-    }
+    assert(ids);
     for( int i = 0; i < table->id_count; i++ )
         ids[i] = table->ids[i];
     *out_count = table->id_count;
@@ -347,8 +338,7 @@ proc_bake(struct EV_ProcCtx* ctx, int texture_id, int flags, bool* out_opaque)
         return NULL;
 
     pixels = calloc((size_t)EV_TEX_SIZE * (size_t)EV_TEX_SIZE, sizeof(*pixels));
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     gen = ProcTexGenerator_New(proc_resolve_sprite, proc_resolve_texture, ctx);
     if( !gen )
@@ -414,8 +404,7 @@ classic_bake(
             continue;
 
         adjusted = malloc((size_t)pack->palette_length * sizeof(*adjusted));
-        if( !adjusted )
-            continue;
+        assert(adjusted);
         for( int pi = 0; pi < pack->palette_length; pi++ )
         {
             int alpha = ((pack->palette[pi] & 0xf8f8ff) == 0) ? 0 : 0xff;
@@ -470,11 +459,7 @@ set_put(struct EV_TextureSet* set, int id, int32_t* texels, bool opaque, bool pr
     {
         int want = set->capacity ? set->capacity * 2 : 256;
         struct EV_Texture* grown = realloc(set->items, (size_t)want * sizeof(*grown));
-        if( !grown )
-        {
-            free(texels);
-            return;
-        }
+        assert(grown);
         set->items = grown;
         set->capacity = want;
     }
@@ -534,11 +519,7 @@ load_procedural(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out, int tex
         if( ids[i] + 1 > ctx.program_len )
             ctx.program_len = ids[i] + 1;
     ctx.programs = calloc((size_t)(ctx.program_len > 0 ? ctx.program_len : 1), sizeof(*ctx.programs));
-    if( !ctx.programs )
-    {
-        free(ids);
-        return false;
-    }
+    assert(ctx.programs);
 
     for( int i = 0; i < id_count; i++ )
     {

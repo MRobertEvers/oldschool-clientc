@@ -25,8 +25,7 @@ CS2VM2_ScriptAllocSwitches(
         return true;
 
     script->switch_tables = calloc((size_t)count, sizeof(*script->switch_tables));
-    if( !script->switch_tables )
-        return false;
+    assert(script->switch_tables);
     script->switch_table_count = count;
     return true;
 }
@@ -48,8 +47,7 @@ CS2VM2_ScriptAllocSwitchCases(
         return true;
 
     table->cases = calloc((size_t)case_count, sizeof(*table->cases));
-    if( !table->cases )
-        return false;
+    assert(table->cases);
     table->case_count = case_count;
     return true;
 }

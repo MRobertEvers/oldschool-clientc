@@ -216,8 +216,7 @@ ToriDraw_MapNew(
     (void)flags;
     int status;
     struct ToriDraw_Map* m = malloc(sizeof(struct ToriDraw_Map));
-    if( !m )
-        return NULL;
+    assert(m);
     memset(m, 0, sizeof(struct ToriDraw_Map));
     status = ToriDraw_MapInit(
         m,
@@ -422,8 +421,7 @@ struct ToriDraw_MapIter*
 ToriDraw_MapIterNew(struct ToriDraw_Map* m)
 {
     struct ToriDraw_MapIter* it = malloc(sizeof(struct ToriDraw_MapIter));
-    if( !it )
-        return NULL;
+    assert(it);
     it->idx = 0;
     it->m = m;
     return it;

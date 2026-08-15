@@ -209,7 +209,8 @@ ev_model_load_file(const char* path)
         return NULL;
     }
     bytes = malloc((size_t)len);
-    if( !bytes || fread(bytes, 1, (size_t)len, f) != (size_t)len )
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)len, f) != (size_t)len )
     {
         fclose(f);
         free(bytes);

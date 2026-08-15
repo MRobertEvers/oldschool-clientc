@@ -7,6 +7,7 @@
  */
 
 #include "mock230_transport.h"
+#include <assert.h>
 
 #include "mock230_ws.h"
 
@@ -71,8 +72,7 @@ mock230_pipe_write(
         while( want < pipe->tail + len )
             want *= 2;
         grown = (uint8_t*)realloc(pipe->data, (size_t)want);
-        if( !grown )
-            return -1;
+        assert(grown);
         pipe->data = grown;
         pipe->cap = want;
     }

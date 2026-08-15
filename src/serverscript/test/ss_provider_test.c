@@ -21,6 +21,7 @@
  */
 
 #include "ss_meta.h"
+#include <assert.h>
 #include "ss_opcode.h"
 #include "ss_trigger.h"
 #include "ssvm_provider.h"
@@ -102,8 +103,8 @@ build_container(
     SSVM_ErrorClear(&err);
     dat = (uint8_t*)calloc(1, dat_capacity);
     idx = (uint8_t*)calloc(1, 4 + ((size_t)count * 4));
-    if( !dat || !idx )
-        return 0;
+    assert(dat);
+    assert(idx);
 
     dat[0] = (uint8_t)(count >> 24);
     dat[1] = (uint8_t)(count >> 16);

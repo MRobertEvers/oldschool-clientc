@@ -562,8 +562,7 @@ player_appearance_block(
     if( *pos + block_len > len )
         return 0;
     copy = (uint8_t*)malloc((size_t)block_len);
-    if( !copy )
-        return 0;
+    assert(copy);
     for( int i = 0; i < block_len; i++ )
         copy[i] = (uint8_t)((data[*pos + i] - 128) & 0xff);
     *pos += block_len;

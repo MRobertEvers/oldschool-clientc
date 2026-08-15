@@ -376,7 +376,8 @@ mock230_load_player(
         return 0;
     }
     data = (uint8_t*)malloc((size_t)size);
-    if( !data || fread(data, 1, (size_t)size, file) != (size_t)size )
+    assert(data);
+    if( fread(data, 1, (size_t)size, file) != (size_t)size )
     {
         free(data);
         fclose(file);

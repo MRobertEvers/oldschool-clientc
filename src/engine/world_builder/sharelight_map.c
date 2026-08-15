@@ -39,15 +39,10 @@ sharelight_map_new(
     int levels)
 {
     struct SharelightMap* sharelight_map = malloc(sizeof(struct SharelightMap));
-    if( !sharelight_map )
-        return NULL;
+    assert(sharelight_map);
     int n_tiles = width * height * levels;
     sharelight_map->tiles = malloc((size_t)n_tiles * sizeof(struct SharelightMapTile));
-    if( !sharelight_map->tiles )
-    {
-        free(sharelight_map);
-        return NULL;
-    }
+    assert(sharelight_map->tiles);
     for( int i = 0; i < n_tiles; i++ )
     {
         sharelight_map->tiles[i].sharelight_head = -1;

@@ -240,14 +240,8 @@ pack_build_indexes(struct Pack* pack)
         return;
     pack->by_name = malloc((size_t)pack->count * sizeof(*pack->by_name));
     pack->by_id = malloc((size_t)pack->count * sizeof(*pack->by_id));
-    if( !pack->by_name || !pack->by_id )
-    {
-        free(pack->by_name);
-        free(pack->by_id);
-        pack->by_name = NULL;
-        pack->by_id = NULL;
-        return;
-    }
+    assert(pack->by_name);
+    assert(pack->by_id);
     for( int i = 0; i < pack->count; i++ )
     {
         pack->by_name[i] = &pack->entries[i];
@@ -271,8 +265,7 @@ pack_add(
         int capacity = pack->capacity ? pack->capacity * 2 : 64;
         struct PackEntry* grown = realloc(pack->entries, (size_t)capacity * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         pack->entries = grown;
         pack->capacity = capacity;
     }
@@ -620,8 +613,7 @@ collect_rows(
         return NULL;
 
     struct SymbolRow* rows = malloc((size_t)total * sizeof(*rows));
-    if( !rows )
-        return NULL;
+    assert(rows);
     int at = 0;
     for( int k = 0; k < kind_count; k++ )
     {
@@ -3147,14 +3139,7 @@ load_param_types(const char* content_dir)
         return 0;
     }
     g_param_defaults = (int*)malloc((size_t)g_param_type_count * sizeof(int));
-    if( !g_param_defaults )
-    {
-        free(g_param_types);
-        g_param_types = NULL;
-        g_param_type_count = 0;
-        fclose(file);
-        return 0;
-    }
+    assert(g_param_defaults);
     for( int i = 0; i < g_param_type_count; i++ )
         g_param_defaults[i] = 0;
 
@@ -3370,8 +3355,7 @@ mock230_scandir(
             capacity = grown;
         }
         slot = calloc(1, sizeof(*slot));
-        if( !slot )
-            break;
+        assert(slot);
         memcpy(slot, ent, reclen);
         /* A truncated copy must still be a valid C string for the sort. */
         ((char*)slot)[sizeof(*slot) - 1] = '\0';

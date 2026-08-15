@@ -500,8 +500,7 @@ record_loc_at(
         int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
         struct Mock230SceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         g_locs = grown;
         g_loc_capacity = capacity;
     }
@@ -1283,8 +1282,7 @@ mock230_scene_add_loc(
             int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
             struct Mock230SceneLoc* grown = realloc(g_locs, (size_t)capacity * sizeof(*grown));
 
-            if( !grown )
-                return -1;
+            assert(grown);
             g_locs = grown;
             g_loc_capacity = capacity;
         }

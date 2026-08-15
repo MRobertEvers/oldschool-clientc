@@ -513,8 +513,7 @@ struct PlatformSDL2*
 PlatformSDL2_New(void)
 {
     struct PlatformSDL2* p = (struct PlatformSDL2*)malloc(sizeof(*p));
-    if( !p )
-        return NULL;
+    assert(p);
     memset(p, 0, sizeof(*p));
     p->pending_resize_w = -1;
     p->pending_resize_h = -1;

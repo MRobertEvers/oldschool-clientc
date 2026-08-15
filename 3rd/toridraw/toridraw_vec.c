@@ -43,8 +43,7 @@ ToriDraw_VecNew(
         return NULL;
 
     struct ToriDraw_Vec* v = malloc(sizeof(struct ToriDraw_Vec));
-    if( !v )
-        return NULL;
+    assert(v);
 
     v->element_size = element_size;
     v->size = 0;
@@ -53,11 +52,7 @@ ToriDraw_VecNew(
     if( initial_capacity > 0 )
     {
         v->data = malloc(initial_capacity * element_size);
-        if( !v->data )
-        {
-            free(v);
-            return NULL;
-        }
+        assert(v->data);
     }
     else
     {
@@ -89,8 +84,7 @@ ToriDraw_VecReserve(
 
     size_t new_bytes = new_capacity * v->element_size;
     unsigned char* new_data = realloc(v->data, new_bytes);
-    if( !new_data )
-        return TORIDRAW_VEC_NOMEM;
+    assert(new_data);
 
     v->data = new_data;
     v->capacity = new_capacity;
@@ -139,8 +133,7 @@ ToriDraw_VecShrinkToFit(struct ToriDraw_Vec* v)
 
     size_t new_bytes = v->size * v->element_size;
     unsigned char* new_data = realloc(v->data, new_bytes);
-    if( !new_data )
-        return TORIDRAW_VEC_NOMEM;
+    assert(new_data);
 
     v->data = new_data;
     v->capacity = v->size;
@@ -348,8 +341,7 @@ ToriDraw_VecIterNew(struct ToriDraw_Vec* v)
     assert(v);
 
     struct ToriDraw_VecIter* it = malloc(sizeof(struct ToriDraw_VecIter));
-    if( !it )
-        return NULL;
+    assert(it);
 
     it->vec = v;
     it->index = 0;

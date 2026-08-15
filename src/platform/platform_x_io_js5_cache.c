@@ -60,8 +60,7 @@ PlatformXIOJs5Cache_New(
         return NULL;
 
     cache = calloc(1u, sizeof(*cache));
-    if( !cache )
-        return NULL;
+    assert(cache);
     if( !Js5RscacheStorageInit(&cache->storage, disk, disk->directory) )
     {
         free(cache);

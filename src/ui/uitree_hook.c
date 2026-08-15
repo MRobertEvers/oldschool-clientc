@@ -134,8 +134,7 @@ hook_strdup(char const* s)
         s = "";
     len = strlen(s);
     out = (char*)malloc(len + 1);
-    if( !out )
-        return NULL;
+    assert(out);
     memcpy(out, s, len);
     out[len] = '\0';
     return out;

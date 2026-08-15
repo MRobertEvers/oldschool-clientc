@@ -85,14 +85,8 @@ alloc_var_arrays(
 
     mgr->var = calloc((size_t)count, sizeof(int));
     mgr->var_serv = calloc((size_t)count, sizeof(int));
-    if( !mgr->var || !mgr->var_serv )
-    {
-        free(mgr->var);
-        free(mgr->var_serv);
-        mgr->var = NULL;
-        mgr->var_serv = NULL;
-        return false;
-    }
+    assert(mgr->var);
+    assert(mgr->var_serv);
     return true;
 }
 
@@ -127,12 +121,8 @@ ensure_untyped_var_capacity(
 
     var = calloc((size_t)grown, sizeof(int));
     var_serv = calloc((size_t)grown, sizeof(int));
-    if( !var || !var_serv )
-    {
-        free(var);
-        free(var_serv);
-        return false;
-    }
+    assert(var);
+    assert(var_serv);
     if( mgr->varp_count > 0 )
     {
         memcpy(var, mgr->var, (size_t)mgr->varp_count * sizeof(int));
@@ -301,8 +291,7 @@ VarPManager_SetVarpTypes(
     }
 
     mgr->varp_types = malloc((size_t)count * sizeof(struct VarPType));
-    if( !mgr->varp_types )
-        return false;
+    assert(mgr->varp_types);
 
     memcpy(mgr->varp_types, types, (size_t)count * sizeof(struct VarPType));
     mgr->varp_type_count = count;
@@ -337,8 +326,7 @@ VarPManager_SetVarbitTypes(
         return true;
 
     mgr->varbit_types = malloc((size_t)count * sizeof(struct VarBitType));
-    if( !mgr->varbit_types )
-        return false;
+    assert(mgr->varbit_types);
 
     memcpy(mgr->varbit_types, types, (size_t)count * sizeof(struct VarBitType));
     mgr->varbit_count = count;
@@ -361,8 +349,7 @@ VarPManager_LoadVarpDat(
     if( count > 0 )
     {
         types = calloc((size_t)count, sizeof(struct VarPType));
-        if( !types )
-            return false;
+        assert(types);
 
         for( int i = 0; i < count; i++ )
             decode_varp_type(&types[i], &c);
@@ -389,8 +376,7 @@ VarPManager_LoadVarbitDat(
     if( count > 0 )
     {
         types = calloc((size_t)count, sizeof(struct VarBitType));
-        if( !types )
-            return false;
+        assert(types);
 
         for( int i = 0; i < count; i++ )
             decode_varbit_type(&types[i], &c);

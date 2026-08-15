@@ -56,8 +56,7 @@ varbit_types_reserve(
         return true;
     int want = id + 1;
     struct VarBitType* grown = realloc(task->types, (size_t)want * sizeof(*grown));
-    if( !grown )
-        return false;
+    assert(grown);
     for( int i = task->type_count; i < want; i++ )
     {
         memset(&grown[i], 0, sizeof(grown[i]));

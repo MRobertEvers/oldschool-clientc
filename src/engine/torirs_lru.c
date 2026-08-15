@@ -54,8 +54,7 @@ TorirsLru_Init(struct TorirsLru* lru, uint32_t initial_cap, uint32_t max_entries
     while( cap < initial_cap )
         cap <<= 1;
     lru->slots = (struct TorirsLruNode**)calloc(cap, sizeof(*lru->slots));
-    if( !lru->slots )
-        return false;
+    assert(lru->slots);
     lru->cap = cap;
     lru->max_entries = max_entries;
     return true;

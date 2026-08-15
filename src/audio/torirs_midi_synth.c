@@ -1081,8 +1081,7 @@ ensure_accumulator(
     if( synth->accumulator_frames >= frames )
         return true;
     grown = realloc(synth->accumulator, (size_t)frames * 2 * sizeof(int32_t));
-    if( !grown )
-        return false;
+    assert(grown);
     synth->accumulator = grown;
     synth->accumulator_frames = frames;
     return true;

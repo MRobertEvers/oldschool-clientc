@@ -81,8 +81,7 @@ harness_shot(void* user, char const* path)
 {
     struct App* app = (struct App*)user;
     int* pixels = (int*)calloc((size_t)UITREE_LAYOUT_ROOT_W * UITREE_LAYOUT_ROOT_H, sizeof(int));
-    if( !pixels )
-        return;
+    assert(pixels);
     App_Render(app, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     bmp_write_file(path, pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     free(pixels);

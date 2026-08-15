@@ -469,8 +469,7 @@ apply_cache_dat2(
     struct ToriRS_IOItem* item)
 {
     struct RSCache_Dat2DiskArchive* archive = calloc(1, sizeof(*archive));
-    if( !archive )
-        return -1;
+    assert(archive);
 
     archive->table_id = resp->v[0];
     archive->archive_id = resp->v[1];
@@ -480,15 +479,13 @@ apply_cache_dat2(
     if( resp->blob_len > 0 )
     {
         archive->data = malloc((size_t)resp->blob_len);
-        if( !archive->data )
-            goto oom;
+        assert(archive->data);
         memcpy(archive->data, resp->blob, (size_t)resp->blob_len);
     }
     if( resp->aux_count > 0 )
     {
         archive->file_ids = malloc((size_t)resp->aux_count * sizeof(int));
-        if( !archive->file_ids )
-            goto oom;
+        assert(archive->file_ids);
         for( int i = 0; i < resp->aux_count; i++ )
             archive->file_ids[i] = aux_at(resp->aux, i);
     }
@@ -508,8 +505,7 @@ apply_cache_dat1(
     struct ToriRS_IOItem* item)
 {
     struct RSCache_Dat1DiskArchive* archive = calloc(1, sizeof(*archive));
-    if( !archive )
-        return -1;
+    assert(archive);
 
     archive->table_id = resp->v[0];
     archive->archive_id = resp->v[1];
@@ -520,11 +516,7 @@ apply_cache_dat1(
     if( resp->blob_len > 0 )
     {
         archive->data = malloc((size_t)resp->blob_len);
-        if( !archive->data )
-        {
-            RSCache_Dat1DiskArchiveFree(archive);
-            return -1;
-        }
+        assert(archive->data);
         memcpy(archive->data, resp->blob, (size_t)resp->blob_len);
     }
 
@@ -542,8 +534,7 @@ apply_bytes(
     if( resp->blob_len > 0 )
     {
         data = malloc((size_t)resp->blob_len);
-        if( !data )
-            return -1;
+        assert(data);
         memcpy(data, resp->blob, (size_t)resp->blob_len);
     }
     item->data = data;

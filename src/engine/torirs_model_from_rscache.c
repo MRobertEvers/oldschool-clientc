@@ -101,12 +101,8 @@ torirs_bones_new(
     bones->bones_count = model_bones->bones_count;
     bones->bones = malloc(sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
     bones->bones_sizes = malloc(sizeof(gc_boneint_t) * (size_t)bones->bones_count);
-    if( !bones->bones || !bones->bones_sizes )
-    {
-        RSCache_ModelBonesFree(model_bones);
-        torirs_bones_free(bones);
-        return NULL;
-    }
+    assert(bones->bones);
+    assert(bones->bones_sizes);
     memset(bones->bones, 0, sizeof(gc_boneint_t*) * (size_t)bones->bones_count);
     memset(bones->bones_sizes, 0, sizeof(gc_boneint_t) * (size_t)bones->bones_count);
 
@@ -116,12 +112,7 @@ torirs_bones_new(
     for( int i = 0; i < bones->bones_count; i++ )
     {
         bones->bones[i] = malloc(sizeof(gc_boneint_t) * (size_t)model_bones->bones_sizes[i]);
-        if( !bones->bones[i] )
-        {
-            RSCache_ModelBonesFree(model_bones);
-            torirs_bones_free(bones);
-            return NULL;
-        }
+        assert(bones->bones[i]);
         for( int j = 0; j < model_bones->bones_sizes[i]; j++ )
             bones->bones[i][j] = (gc_boneint_t)model_bones->bones[i][j];
     }
@@ -139,11 +130,7 @@ torirs_steal_vertices_int32(
     assert(count > 0);
 
     gc_vertexint_t* dst = malloc((size_t)count * sizeof(gc_vertexint_t));
-    if( !dst )
-    {
-        free(src);
-        return NULL;
-    }
+    assert(dst);
 
     for( int i = 0; i < count; i++ )
         dst[i] = (gc_vertexint_t)src[i];
@@ -161,11 +148,7 @@ torirs_steal_face_indices_int32(
     assert(src);
 
     gc_faceint_t* dst = malloc((size_t)count * sizeof(gc_faceint_t));
-    if( !dst )
-    {
-        free(src);
-        return NULL;
-    }
+    assert(dst);
 
     for( int i = 0; i < count; i++ )
         dst[i] = (gc_faceint_t)src[i];

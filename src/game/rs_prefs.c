@@ -183,8 +183,7 @@ RS_Prefs_Encode(
     *out_data = NULL;
     *out_size = 0;
     text = (char*)malloc((size_t)cap);
-    if( !text )
-        return 0;
+    assert(text);
 
     len += snprintf(
         text + len, (size_t)(cap - len),

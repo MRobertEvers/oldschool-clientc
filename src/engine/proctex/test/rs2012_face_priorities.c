@@ -85,6 +85,7 @@
  */
 
 #include "datatypes/dat2_frame.h"
+#include <assert.h>
 #include "datatypes/dat2_framemap.h"
 #include "datatypes/model.h"
 #include "filelist.h"
@@ -192,7 +193,8 @@ read_file(const char* path, long* out_size)
         return NULL;
     }
     bytes = (uint8_t*)malloc((size_t)size);
-    if( !bytes || fread(bytes, 1, (size_t)size, f) != (size_t)size )
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, f) != (size_t)size )
     {
         free(bytes);
         fclose(f);
@@ -395,8 +397,8 @@ load_animation_from_cache(
     }
     frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
     delays = (int*)malloc((size_t)frame_count * sizeof(int));
-    if( !frames || !delays )
-        goto done;
+    assert(frames);
+    assert(delays);
 
     for( int i = 0; i < frame_count; i++ )
     {
@@ -568,8 +570,8 @@ load_animation(
 
     frames = (struct RSCache_Dat2Frame**)calloc((size_t)frame_count, sizeof(*frames));
     delays = (int*)malloc((size_t)frame_count * sizeof(int));
-    if( !frames || !delays )
-        goto done;
+    assert(frames);
+    assert(delays);
 
     for( int i = 0; i < frame_count; i++ )
     {
@@ -1759,8 +1761,10 @@ stock_setup(
     j->orig_y = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
     j->orig_z = (vertexint_t*)malloc((size_t)m->vertex_count * sizeof(vertexint_t));
     j->packed = (uint8_t*)calloc((size_t)(g->face_count + 1) / 2, 1);
-    if( !j->orig_x || !j->orig_y || !j->orig_z || !j->packed )
-        return false;
+    assert(j->orig_x);
+    assert(j->orig_y);
+    assert(j->orig_z);
+    assert(j->packed);
     memcpy(j->orig_x, m->vertices_x, (size_t)m->vertex_count * sizeof(vertexint_t));
     memcpy(j->orig_y, m->vertices_y, (size_t)m->vertex_count * sizeof(vertexint_t));
     memcpy(j->orig_z, m->vertices_z, (size_t)m->vertex_count * sizeof(vertexint_t));
@@ -1791,8 +1795,9 @@ stock_setup(
     j->scenes = (struct ToriDraw_Scene**)calloc((size_t)j->thread_count, sizeof(*j->scenes));
     j->pixels = (toripixel_t**)calloc((size_t)j->thread_count, sizeof(*j->pixels));
     j->views = (struct stockview*)calloc((size_t)j->view_count, sizeof(*j->views));
-    if( !j->scenes || !j->pixels || !j->views )
-        return false;
+    assert(j->scenes);
+    assert(j->pixels);
+    assert(j->views);
     for( int t = 0; t < j->thread_count; t++ )
     {
         j->scenes[t] = ToriDraw_SceneNew(
@@ -2451,8 +2456,13 @@ main(int argc, char** argv)
     g.fb = (int*)malloc((size_t)g.face_count * sizeof(int));
     g.fc = (int*)malloc((size_t)g.face_count * sizeof(int));
     g.face_feature = (int*)malloc((size_t)g.face_count * sizeof(int));
-    if( !g.vx || !g.vy || !g.vz || !g.fa || !g.fb || !g.fc || !g.face_feature )
-        goto done;
+    assert(g.vx);
+    assert(g.vy);
+    assert(g.vz);
+    assert(g.fa);
+    assert(g.fb);
+    assert(g.fc);
+    assert(g.face_feature);
 
     for( int i = 0; i < input_count; i++ )
     {
@@ -2505,8 +2515,7 @@ main(int argc, char** argv)
                 if( *c == ',' )
                     capacity++;
             poses.frames = (int*)malloc((size_t)capacity * sizeof(int));
-            if( !poses.frames )
-                goto done;
+            assert(poses.frames);
             for( int n = 0; *s; n++ )
             {
                 int const value = (int)strtol(s, (char**)&s, 10);
@@ -2602,8 +2611,11 @@ main(int argc, char** argv)
     feature_faces = (int*)malloc((size_t)g.face_count * sizeof(int));
     fixable = (long*)calloc((size_t)feature_count * (size_t)feature_count, sizeof(long));
     breakable = (long*)calloc((size_t)feature_count * (size_t)feature_count, sizeof(long));
-    if( !features || !feature_face_offset || !feature_faces || !fixable || !breakable )
-        goto done;
+    assert(features);
+    assert(feature_face_offset);
+    assert(feature_faces);
+    assert(fixable);
+    assert(breakable);
 
     for( int f = 0; f < g.face_count; f++ )
         features[g.face_feature[f]].face_count++;
@@ -2611,8 +2623,7 @@ main(int argc, char** argv)
         feature_face_offset[i + 1] = feature_face_offset[i] + features[i].face_count;
     {
         int* cursor = (int*)malloc((size_t)feature_count * sizeof(int));
-        if( !cursor )
-            goto done;
+        assert(cursor);
         memcpy(cursor, feature_face_offset, (size_t)feature_count * sizeof(int));
         for( int f = 0; f < g.face_count; f++ )
             feature_faces[cursor[g.face_feature[f]]++] = f;
@@ -2677,8 +2688,9 @@ main(int argc, char** argv)
     band = (int*)malloc((size_t)feature_count * sizeof(int));
     net = (long*)malloc((size_t)feature_count * (size_t)feature_count * sizeof(long));
     previous = (int*)malloc((size_t)feature_count * sizeof(int));
-    if( !band || !net || !previous )
-        goto done;
+    assert(band);
+    assert(net);
+    assert(previous);
 
     /* Start in the middle, not at zero.
      *
@@ -2732,13 +2744,11 @@ main(int argc, char** argv)
         int best = 0;
 
         proposals = (struct assignment*)calloc((size_t)slots, sizeof(struct assignment));
-        if( !proposals )
-            goto done;
+        assert(proposals);
         for( int c = 0; c < slots; c++ )
         {
             proposals[c].band = (int*)malloc((size_t)feature_count * sizeof(int));
-            if( !proposals[c].band )
-                goto done;
+            assert(proposals[c].band);
         }
 
         for( int i = 0; i < feature_count; i++ )
@@ -3148,11 +3158,10 @@ main(int argc, char** argv)
             long* cy = (long*)calloc((size_t)fc2, sizeof(long));
             long* cz = (long*)calloc((size_t)fc2, sizeof(long));
             long* cn = (long*)calloc((size_t)fc2, sizeof(long));
-            if( !cx || !cy || !cz || !cn )
-            {
-                free(cx); free(cy); free(cz); free(cn);
-                goto slow_done;
-            }
+            assert(cx);
+            assert(cy);
+            assert(cz);
+            assert(cn);
             for( int v = 0; v < g.vertex_count; v++ )
                 if( vertex_feature[v] >= 0 )
                 {
@@ -3199,11 +3208,8 @@ main(int argc, char** argv)
                     sv->distance = distance;
                     sv->ref_id = (int*)malloc((size_t)slow_res * slow_res * sizeof(int));
                     sv->ref_z = (int*)malloc((size_t)slow_res * slow_res * sizeof(int));
-                    if( !sv->ref_id || !sv->ref_z )
-                    {
-                        raster_scratch_free(&ref_raster);
-                        goto slow_done;
-                    }
+                    assert(sv->ref_id);
+                    assert(sv->ref_z);
                     project_view(&g, &sv->v, &ref_raster, sv->distance, sctx.scale);
                     raster_zbuffer_ref(&g, &ref_raster, sv->ref_id, sv->ref_z);
                 }
@@ -3659,8 +3665,7 @@ main(int argc, char** argv)
 
         free(m->face_priorities);
         m->face_priorities = (uint8_t*)malloc((size_t)m->face_count);
-        if( !m->face_priorities )
-            goto done;
+        assert(m->face_priorities);
         for( int f = 0; f < m->face_count; f++ )
         {
             int const b = features[g.face_feature[inputs[i].face_base + f]].band;

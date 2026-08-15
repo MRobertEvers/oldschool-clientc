@@ -2621,8 +2621,7 @@ SSC_New(struct SSC_Symbols* symbols)
 {
     struct SSC_Compiler* compiler = (struct SSC_Compiler*)calloc(1, sizeof(*compiler));
 
-    if( !compiler )
-        return NULL;
+    assert(compiler);
     compiler->symbols = symbols;
     compiler->scripts =
         (struct SSVM_Script*)calloc(SSC_MAX_SCRIPTS, sizeof(struct SSVM_Script));
@@ -2719,11 +2718,7 @@ read_file(const char* path, size_t* out_length)
     }
 
     data = (char*)malloc((size_t)size + 1);
-    if( !data )
-    {
-        fclose(file);
-        return NULL;
-    }
+    assert(data);
     if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
         free(data);
@@ -3329,8 +3324,7 @@ collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_cap
             int capacity = *out_capacity ? *out_capacity * 2 : 64;
             char** grown = (char**)realloc(*out_paths, (size_t)capacity * sizeof(char*));
 
-            if( !grown )
-                break;
+            assert(grown);
             *out_paths = grown;
             *out_capacity = capacity;
         }

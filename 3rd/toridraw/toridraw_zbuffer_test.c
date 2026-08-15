@@ -61,6 +61,7 @@
  */
 
 #include "toridraw.h"
+#include <assert.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -243,14 +244,9 @@ make_flat_texture(int rgb)
 {
     struct ToriDraw_Texture* tex = (struct ToriDraw_Texture*)calloc(1, sizeof(*tex));
 
-    if( !tex )
-        return NULL;
+    assert(tex);
     tex->texels = (int*)malloc((size_t)TEX_WIDTH * TEX_WIDTH * sizeof(int));
-    if( !tex->texels )
-    {
-        free(tex);
-        return NULL;
-    }
+    assert(tex->texels);
     for( int i = 0; i < TEX_WIDTH * TEX_WIDTH; i++ )
         tex->texels[i] = rgb;
     tex->width = TEX_WIDTH;

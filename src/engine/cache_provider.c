@@ -550,8 +550,7 @@ cache_provider_lru_threshold(
         return 0;
 
     stamps = malloc((size_t)map->size * sizeof(*stamps));
-    if( !stamps )
-        return 0;
+    assert(stamps);
 
     iter = hmap_iter_new(map);
     while( (raw = hmap_iter_next(iter)) && count < (size_t)map->size )
@@ -594,8 +593,7 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
     /* Removing during iteration would disturb the probe sequence, so collect
      * the keys first and delete afterwards. */
     doomed = malloc((size_t)provider->model_cache->size * sizeof(*doomed));
-    if( !doomed )
-        return;
+    assert(doomed);
 
     iter = hmap_iter_new(provider->model_cache);
     while( (entry = (struct MapEntry_ProviderModel*)hmap_iter_next(iter)) )
@@ -637,8 +635,7 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
         return;
 
     doomed = malloc((size_t)provider->sprite_cache->size * sizeof(*doomed));
-    if( !doomed )
-        return;
+    assert(doomed);
 
     iter = hmap_iter_new(provider->sprite_cache);
     while( (entry = (struct MapEntry_ProviderSprite*)hmap_iter_next(iter)) )
@@ -1920,8 +1917,7 @@ CacheProvider_ObjtypeSearchByName(
         {
             int new_cap = cap ? cap * 2 : 64;
             int* grown = realloc(ids, (size_t)new_cap * sizeof(int));
-            if( !grown )
-                break;
+            assert(grown);
             ids = grown;
             cap = new_cap;
         }

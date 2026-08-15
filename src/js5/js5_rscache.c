@@ -102,8 +102,7 @@ js5_rscache_install_group(
         return JS5_STORAGE_ERROR;
     assert(container);
     uint8_t* stored = (uint8_t*)malloc(size + 4u);
-    if( !stored )
-        return JS5_STORAGE_ERROR;
+    assert(stored);
     memcpy(stored, container, size);
     stored[size] = (uint8_t)(version >> 24u);
     stored[size + 1u] = (uint8_t)(version >> 16u);
@@ -131,8 +130,7 @@ Js5RscacheStorageInit(
     assert(disk);
     size_t length = strlen(directory) + 1u;
     char* copy = (char*)malloc(length);
-    if( !copy )
-        return false;
+    assert(copy);
     memcpy(copy, directory, length);
     storage->disk = disk;
     storage->directory = copy;

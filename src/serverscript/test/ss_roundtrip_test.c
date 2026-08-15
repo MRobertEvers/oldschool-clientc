@@ -18,6 +18,7 @@
  */
 
 #include "ss_opcode.h"
+#include <assert.h>
 #include "ssvm_provider.h"
 
 #include <stdio.h>
@@ -257,7 +258,8 @@ test_corpus(const char* corpus)
     dat_length = ftell(file);
     rewind(file);
     dat = (uint8_t*)malloc((size_t)dat_length);
-    if( !dat || fread(dat, 1, (size_t)dat_length, file) != (size_t)dat_length )
+    assert(dat);
+    if( fread(dat, 1, (size_t)dat_length, file) != (size_t)dat_length )
     {
         printf("  FAIL cannot read script.dat body\n");
         g_fail++;

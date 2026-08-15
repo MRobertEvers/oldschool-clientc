@@ -86,8 +86,7 @@ widen_effect(
 {
     int16_t* out = malloc((size_t)pcm->sample_count * sizeof(int16_t));
 
-    if( !out )
-        return NULL;
+    assert(out);
     for( int i = 0; i < pcm->sample_count; i++ )
         out[i] = (int16_t)(((int)pcm->samples[i] - 128) << 8);
     return out;

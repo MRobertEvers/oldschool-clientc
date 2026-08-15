@@ -8,16 +8,13 @@ graphic attached to it.
 make -C tools/entity_viewer                     # ev_catalog + ev_server + ev_swing
 make -C tools/entity_viewer wasm                # web/ev_wasm.js + .wasm (needs emcc)
 
-# 1. build the catalog (about 5 minutes over cache.osrs239)
+tools/entity_viewer/run.sh                      # checks freshness, then serves
+# -> http://127.0.0.1:8099/
+
+# The catalog is optional and takes about five minutes; it adds rig matching.
 mkdir -p out/osrs239_anims
 tools/entity_viewer/ev_catalog --rev osrs239 cache.osrs239 \
     --names OSRS-Content/osrs239-content --out out/osrs239_anims
-
-# 2. serve it
-tools/entity_viewer/ev_server --rev osrs239 cache.osrs239 \
-    --catalog out/osrs239_anims --names OSRS-Content/osrs239-content \
-    --web tools/entity_viewer/web
-# -> http://127.0.0.1:8099/
 ```
 
 `--names` is what turns the **player half** on: it supplies the gameval names
@@ -25,6 +22,63 @@ the equipment and graphic pickers need, and it points at the content tree so an
 exported asset that has since been *edited* is drawn as the game draws it rather
 than as the cache still holds it. Without it the npc half works exactly as
 before.
+
+## Caches
+
+The **Caches** panel lists every cache the viewer knows about and switches
+between them; each is reopened and re-indexed on the spot. The registry persists
+in `web/.ev_caches`, and `--cache-root DIR` (which `run.sh` points at the repo
+root) is scanned one level deep at startup so the repo's `cache.*` directories
+are there to click without typing a path.
+
+**The revision beside each cache is a detected guess.** Detection separates the
+families confidently — an RS2-era cache has a materials table and shards its
+configs, an OldSchool one does not — but it cannot tell osrs184 from osrs239, or
+rs558 from rs643, because their npc records barely differ. That matters because
+the wrong profile does not fail loudly: it decodes records at the wrong field
+widths and produces plausible nonsense. So the field is editable, and the value
+is what the entry is stored with.
+
+Searching npcs, sequences and models runs against a per-cache **index** built
+directly from the cache in about a tenth of a second, not against the catalog.
+That is the whole reason adding a cache is instant: requiring a catalog first
+would make it a five-minute wait. Without a catalog the npc list and the model
+still work; what is missing is the rig matching.
+
+## Textures
+
+Both texture systems are loaded and drawn:
+
+- **sprite-backed** (OldSchool, and RS2 before materials) — texture definitions
+  name palette-indexed sprites, layered into 128×128 ARGB.
+- **procedural** (RS2 from about 2010, which is what the QBD's source cache is)
+  — the texture *is* a program over noise, gradients and other textures,
+  evaluated per texel. The whole RS727 table is 2315 textures and bakes in about
+  three seconds.
+
+Neither is reimplemented here: `ev_textures.c` is a synchronous driver over the
+client's own evaluator and palette rules, because a texture that is subtly the
+wrong brightness in the viewer and right in the client is worse than no viewer.
+Which system a cache uses is *probed* — the materials table existing is the gate
+— rather than inferred from the revision.
+
+The browser has no cache, so the server ships the textures a model names as an
+`EVT1` blob, with the ids in an `X-Texture-Ids` header on the model response. A
+full RS727 set would be 151 MB; a model names a couple of dozen.
+
+**An RS2-era npc is served as an HD model.** Its textured faces are mostly
+cylinder- and cube-mapped, and the classic raster can only plane-map — it
+*skips* every face it cannot map, so such a model comes out untextured or, when
+nearly all its faces are mapped, invisible. `ev_build_npc_model_hd` returns NULL
+for models that do not need this, which is every OldSchool npc.
+
+## Moving around
+
+Drag orbits, the wheel zooms, and **WASD** flies the viewpoint over the ground
+plane in whatever direction the camera is facing, with **R**/**F** for up and
+down and **X** to return to the framed view. Flying is not the drag-pan: pan
+slides the image on the canvas without changing depth, while this moves through
+the scene, so distance, culling and apparent size all follow.
 
 ## A model file, through the HD kernels
 

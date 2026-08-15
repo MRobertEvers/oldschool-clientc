@@ -665,11 +665,7 @@ decode_tile(
      * at all. Terrain is painter-sorted like the rest of the scene. */
 
     td->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    if( !td->bounds_cylinder )
-    {
-        ToriDraw_ModelFree(td);
-        return NULL;
-    }
+    assert(td->bounds_cylinder);
     tile_calculate_bounds_cylinder(
         td->bounds_cylinder, vertex_count, vertices_x, vertices_y, vertices_z);
 

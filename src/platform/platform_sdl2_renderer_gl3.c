@@ -1066,8 +1066,7 @@ gl3_clamp_to_nominal(
         return NULL;
     assert(src);
     dst = calloc((size_t)nominal_w * (size_t)nominal_h, sizeof(uint32_t));
-    if( !dst )
-        return NULL;
+    assert(dst);
     for( y = 0; y < src_h; y++ )
     {
         int dst_y = y + src_oy;
@@ -1134,8 +1133,7 @@ gl3_sprite_prepare_pixels(
     oy = sp->crop_y;
     pixel_count = (size_t)sw * (size_t)sh;
     spr_px = malloc(pixel_count * sizeof(uint32_t));
-    if( !spr_px )
-        return false;
+    assert(spr_px);
     memcpy(spr_px, sp->pixels_argb, pixel_count * sizeof(uint32_t));
     *out_px = spr_px;
     *out_w = sw;
@@ -1220,8 +1218,8 @@ gl3_sprite_ensure_base(
         free(slot->loaded);
         slot->uvs = calloc((size_t)count * 4u, sizeof(float));
         slot->loaded = calloc((size_t)count, sizeof(uint8_t));
-        if( !slot->uvs || !slot->loaded )
-            return false;
+        assert(slot->uvs);
+        assert(slot->loaded);
     }
     if( slot->loaded[atlas_index] )
     {
@@ -2884,8 +2882,7 @@ gl3_upload_atlas_texture(struct ToriRS_GL3* renderer)
         while( cap < need )
             cap *= 2u;
         grown = (uint8_t*)realloc(renderer->atlas_stage, cap);
-        if( !grown )
-            return;
+        assert(grown);
         renderer->atlas_stage = grown;
         renderer->atlas_stage_capacity = cap;
     }

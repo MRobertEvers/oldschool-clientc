@@ -456,8 +456,7 @@ list_add(
         if( wanted <= *count )
             return MOCK230_SOCIAL_FULL;
         grown = (int64_t*)realloc(*list, (size_t)wanted * sizeof(**list));
-        if( !grown )
-            return MOCK230_SOCIAL_FULL;
+        assert(grown);
         *list = grown;
         *capacity = wanted;
     }

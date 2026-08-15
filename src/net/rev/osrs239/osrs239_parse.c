@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include <assert.h>
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
 #include "net/jbase37.h"
@@ -571,8 +572,7 @@ osrs239_parse(
         if( p->mount_count )
         {
             p->mounts = malloc((size_t)p->mount_count * sizeof(*p->mounts));
-            if( !p->mounts )
-                return 0;
+            assert(p->mounts);
         }
         for( int i = 0; i < p->mount_count; i++ )
         {
@@ -592,14 +592,7 @@ osrs239_parse(
         if( p->event_count )
         {
             p->events = malloc((size_t)p->event_count * sizeof(*p->events));
-            if( !p->events )
-            {
-                free(p->mounts);
-                p->mounts = NULL;
-                p->mount_count = 0;
-                p->event_count = 0;
-                return 0;
-            }
+            assert(p->events);
         }
         for( int i = 0; i < p->event_count; i++ )
         {
@@ -1027,15 +1020,8 @@ osrs239_parse(
         p->size = capacity;
         p->obj_ids = (int*)malloc((size_t)capacity * sizeof(int));
         p->obj_counts = (int*)malloc((size_t)capacity * sizeof(int));
-        if( !p->obj_ids || !p->obj_counts )
-        {
-            free(p->obj_ids);
-            free(p->obj_counts);
-            p->obj_ids = NULL;
-            p->obj_counts = NULL;
-            p->size = 0;
-            return 0;
-        }
+        assert(p->obj_ids);
+        assert(p->obj_counts);
         for( int i = 0; i < capacity; i++ )
         {
             int count = RSProt_BufferG1_sub128(&c);
@@ -1496,8 +1482,7 @@ osrs239_parse(
             return 0;
 
         p->zones = calloc(PKT_MAP_REBUILD_ZONES, sizeof(*p->zones));
-        if( !p->zones )
-            return 0;
+        assert(p->zones);
         bit_pos = c.rpos * 8;
         for( int i = 0; i < PKT_MAP_REBUILD_ZONES && ok; i++ )
         {

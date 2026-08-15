@@ -149,8 +149,7 @@ Js5ServerSessionNew(
         return NULL;
 
     session = (struct Js5ServerSession*)calloc(1u, sizeof(*session));
-    if( !session )
-        return NULL;
+    assert(session);
     session->urgent.requests = (struct Js5ServerRequest*)calloc(
         effective.max_pending_per_lane, sizeof(*session->urgent.requests));
     session->normal.requests = (struct Js5ServerRequest*)calloc(

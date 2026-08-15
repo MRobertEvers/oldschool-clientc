@@ -24,15 +24,10 @@ ringbuf_new(size_t capacity)
         return NULL;
 
     struct RingBuf* rb = (struct RingBuf*)malloc(sizeof(struct RingBuf));
-    if( !rb )
-        return NULL;
+    assert(rb);
 
     rb->buffer = (unsigned char*)malloc(capacity);
-    if( !rb->buffer )
-    {
-        free(rb);
-        return NULL;
-    }
+    assert(rb->buffer);
 
     rb->capacity = capacity;
     rb->head = 0;

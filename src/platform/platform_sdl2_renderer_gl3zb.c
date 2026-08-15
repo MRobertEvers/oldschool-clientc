@@ -369,8 +369,7 @@ gl3_reserve_model_indices(
         while( cap < count )
             cap *= 2u;
         grown = (uint32_t*)realloc(renderer->model_indices, (size_t)cap * sizeof(uint32_t));
-        if( !grown )
-            return false;
+        assert(grown);
         renderer->model_indices = grown;
         renderer->model_index_capacity = cap;
     }
@@ -401,8 +400,7 @@ gl3_queue_alpha_submission(
         while( cap < renderer->alpha_index_count + index_count )
             cap *= 2u;
         grown = (uint32_t*)realloc(renderer->alpha_indices, (size_t)cap * sizeof(uint32_t));
-        if( !grown )
-            return false;
+        assert(grown);
         renderer->alpha_indices = grown;
         renderer->alpha_index_capacity = cap;
     }
@@ -593,8 +591,7 @@ GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer)
         while( cap < renderer->alpha_submission_count )
             cap *= 2u;
         grown = (uint32_t*)realloc(renderer->alpha_order, (size_t)cap * sizeof(uint32_t));
-        if( !grown )
-            return;
+        assert(grown);
         renderer->alpha_order = grown;
         renderer->alpha_order_capacity = cap;
     }

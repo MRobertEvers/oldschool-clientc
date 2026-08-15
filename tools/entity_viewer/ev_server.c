@@ -525,8 +525,7 @@ str_add(struct Str* s, const char* fmt, ...)
         while( next < s->len + (size_t)(n > 0 ? n : 64) + 1 )
             next *= 2;
         char* grown = realloc(s->p, next);
-        if( !grown )
-            return;
+        assert(grown);
         s->p = grown;
         s->cap = next;
     }
@@ -617,7 +616,36 @@ handle_npc_json(int fd, int npc_id)
     const struct NpcRow* r = npc_row(npc_id);
     if( !r )
     {
-        send_404(fd);
+        /*
+         * No catalog row. Answer from the index rather than 404 — the page
+         * fetches this before drawing anything, so a 404 here aborts the boot
+         * chain and leaves an empty canvas for a cache that is perfectly fine.
+         *
+         * The animation lists are empty because they are exactly what the
+         * catalog computes; everything else the page needs to render the npc is
+         * in the model endpoint, not here.
+         */
+        const char* name = NULL;
+        for( int i = 0; i < g_index.npc_count; i++ )
+            if( g_index.npcs[i].id == npc_id )
+            {
+                name = g_index.npcs[i].name;
+                break;
+            }
+        if( !name && g_index.npc_count == 0 )
+        {
+            send_404(fd);
+            return;
+        }
+
+        struct Str fallback = { 0 };
+        str_add(&fallback, "{\"id\":%d,\"name\":", npc_id);
+        str_add_json(&fallback, name);
+        str_add(&fallback,
+                ",\"gameval\":null,\"skinned\":false,\"framemaps\":[],"
+                "\"rig\":[],\"maybe\":[],\"no_catalog\":true}");
+        send_response(fd, "200 OK", "application/json", fallback.p, fallback.len);
+        free(fallback.p);
         return;
     }
 
@@ -874,8 +902,7 @@ bytes_put(struct Bytes* b, const void* data, size_t n)
         while( want < b->len + n )
             want *= 2;
         uint8_t* grown = realloc(b->p, want);
-        if( !grown )
-            return 0;
+        assert(grown);
         b->p = grown;
         b->cap = want;
     }
@@ -1230,7 +1257,8 @@ handle_static(int fd, const char* rel)
     long len = ftell(f);
     fseek(f, 0, SEEK_SET);
     char* body = malloc((size_t)(len > 0 ? len : 1));
-    if( !body || fread(body, 1, (size_t)len, f) != (size_t)len )
+    assert(body);
+    if( fread(body, 1, (size_t)len, f) != (size_t)len )
     {
         fclose(f);
         free(body);
@@ -1500,6 +1528,21 @@ select_cache(int index)
         tool_dat2_close(&g_cache);
     g_cache = next;
     g_cache_open = 1;
+
+    /*
+     * Drop the catalog. It describes the cache that WAS open — its npc rows,
+     * its sequence ids, its rig matches — and none of that transfers. Keeping
+     * it means the list still shows the old cache's npcs under the new cache's
+     * name, and clicking one asks for an id that means something else.
+     *
+     * The rows themselves are not freed here: a catalog is loaded once at
+     * startup from --catalog and there is no per-cache one to load in its
+     * place, so zeroing the counts is what makes every reader fall through to
+     * the index. See handle_npcs_json.
+     */
+    g_npc_count = 0;
+    g_seq_count = 0;
+    g_name_match_count = 0;
 
     ev_index_free(&g_index);
     ev_index_build(&g_cache, &profile, e->path, &g_index);

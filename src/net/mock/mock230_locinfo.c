@@ -60,6 +60,7 @@
  */
 
 #include "mock230.h"
+#include <assert.h>
 #include "mock230_content.h"
 #include "mock230_paramtable.h"
 
@@ -171,8 +172,7 @@ add_name(
         while( want < g_name_blob_len + length )
             want *= 2;
         grown = realloc(g_name_blob, want);
-        if( !grown )
-            return;
+        assert(grown);
         g_name_blob = grown;
         g_name_blob_cap = want;
     }
@@ -181,8 +181,7 @@ add_name(
         int want = g_name_cap ? g_name_cap * 2 : 1024;
         struct LocNameRow* grown = realloc(g_names, (size_t)want * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         g_names = grown;
         g_name_cap = want;
     }
@@ -204,8 +203,7 @@ add_size(
         int want = g_size_cap ? g_size_cap * 2 : 1024;
         struct LocSizeRow* grown = realloc(g_sizes, (size_t)want * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         g_sizes = grown;
         g_size_cap = want;
     }
@@ -236,8 +234,7 @@ add_category(
         int want = g_category_cap ? g_category_cap * 2 : 1024;
         struct LocCategoryRow* grown = realloc(g_categories, (size_t)want * sizeof(*grown));
 
-        if( !grown )
-            return;
+        assert(grown);
         g_categories = grown;
         g_category_cap = want;
     }
@@ -259,8 +256,7 @@ mark_known(int loc_id)
         while( want <= loc_id )
             want *= 2;
         grown = realloc(g_known, (size_t)(want + 7) / 8);
-        if( !grown )
-            return;
+        assert(grown);
         memset(grown + (g_known_bits + 7) / 8, 0,
                (size_t)(want + 7) / 8 - (size_t)(g_known_bits + 7) / 8);
         g_known = grown;

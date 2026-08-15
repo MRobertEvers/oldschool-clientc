@@ -31,8 +31,7 @@ inv_container_alloc_slots(struct InvContainer* c, int slot_count)
     assert(slot_count > 0);
 
     struct InvSlot* slots = calloc((size_t)slot_count, sizeof(struct InvSlot));
-    if( !slots )
-        return false;
+    assert(slots);
 
     for( int i = 0; i < slot_count; i++ )
         inv_slot_clear(&slots[i]);

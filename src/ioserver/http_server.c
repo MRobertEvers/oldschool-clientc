@@ -145,8 +145,7 @@ client_append(
         if( cap > HTTP_MAX_BODY + HTTP_MAX_HEADERS )
             return -1;
         grown = realloc(client->buf, (size_t)cap);
-        if( !grown )
-            return -1;
+        assert(grown);
         client->buf = grown;
         client->cap = cap;
     }

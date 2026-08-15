@@ -287,8 +287,7 @@ UITree_BuildFromSource(
         return 0;
 
     int32_t* index_map = (int32_t*)calloc((size_t)src->count, sizeof(int32_t));
-    if( !index_map )
-        return -1;
+    assert(index_map);
 
     for( int i = 0; i < src->count; i++ )
         index_map[i] = -1;

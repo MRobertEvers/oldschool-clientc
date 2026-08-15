@@ -619,18 +619,13 @@ ToriDraw_SpriteNewFromModelRasterExtents(
 
     size_t pixel_count = (size_t)width * (size_t)height;
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
-    if( !pixels )
-        return result;
+    assert(pixels);
 
     ToriDraw_RenderModel2SortFaces(hnd, scene);
     ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
-    if( !argb )
-    {
-        free(pixels);
-        return result;
-    }
+    assert(argb);
 
     for( size_t i = 0; i < pixel_count; i++ )
     {
@@ -702,17 +697,12 @@ ToriDraw_SpriteNewFromModelRaster(
 
     size_t pixel_count = (size_t)width * (size_t)height;
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     ToriDraw_RenderModel(hnd, scene, &position, &view_port, &camera, pixels);
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
-    if( !argb )
-    {
-        free(pixels);
-        return NULL;
-    }
+    assert(argb);
 
     for( size_t i = 0; i < pixel_count; i++ )
     {
@@ -796,8 +786,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
 
     size_t render_pixel_count = (size_t)render_w * (size_t)render_h;
     toripixel_t* render_pixels = calloc(render_pixel_count, sizeof(toripixel_t));
-    if( !render_pixels )
-        return NULL;
+    assert(render_pixels);
 
     view_port.width = render_w;
     view_port.clip_right = render_w;
@@ -808,11 +797,7 @@ ToriDraw_SpriteNewFromObjIconRaster(
 
     size_t out_pixel_count = (size_t)width * (size_t)height;
     uint32_t* argb = malloc(out_pixel_count * sizeof(uint32_t));
-    if( !argb )
-    {
-        free(render_pixels);
-        return NULL;
-    }
+    assert(argb);
 
     if( osrs_icon )
     {

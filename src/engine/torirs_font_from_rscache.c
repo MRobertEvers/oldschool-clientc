@@ -95,8 +95,7 @@ font_new_from_dat2_metrics_and_sprite_pack(
         return NULL;
 
     font = calloc(1, sizeof(*font));
-    if( !font )
-        return NULL;
+    assert(font);
 
     font_init_charcodeset(font);
     font->line_height = metrics->ascent;
@@ -121,11 +120,7 @@ font_new_from_dat2_metrics_and_sprite_pack(
 
         len = (size_t)gw * (size_t)gh;
         font->glyph_alpha[gi] = malloc(len);
-        if( !font->glyph_alpha[gi] )
-        {
-            ToriRS_FontFree(font);
-            return NULL;
-        }
+        assert(font->glyph_alpha[gi]);
 
         for( j = 0; j < len; j++ )
             font->glyph_alpha[gi][j] = sprite->pixel_alphas[j] != 0 ? (uint8_t)255 : (uint8_t)0;
@@ -197,11 +192,7 @@ ToriRS_FontFromDat1Jagfile(
         return NULL;
 
     font = calloc(1, sizeof(*font));
-    if( !font )
-    {
-        RSCache_Dat1PixFontFree(pixfont);
-        return NULL;
-    }
+    assert(font);
 
     font_init_charcodeset(font);
 
@@ -220,12 +211,7 @@ ToriRS_FontFromDat1Jagfile(
 
         len = (size_t)gw * (size_t)gh;
         font->glyph_alpha[gi] = malloc(len);
-        if( !font->glyph_alpha[gi] )
-        {
-            RSCache_Dat1PixFontFree(pixfont);
-            ToriRS_FontFree(font);
-            return NULL;
-        }
+        assert(font->glyph_alpha[gi]);
         for( j = 0; j < len; j++ )
             font->glyph_alpha[gi][j] = pixfont->char_mask[gi][j] != 0 ? (uint8_t)255 : (uint8_t)0;
 

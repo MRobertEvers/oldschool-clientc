@@ -239,18 +239,13 @@ struct RevConfigBuffer*
 revconfig_buffer_new(uint32_t hint)
 {
     struct RevConfigBuffer* buffer = malloc(sizeof(struct RevConfigBuffer));
-    if( !buffer )
-        return NULL;
+    assert(buffer);
     memset(buffer, 0, sizeof(struct RevConfigBuffer));
 
     if( hint > 0 )
     {
         buffer->fields = malloc(sizeof(struct RevConfigField) * hint);
-        if( !buffer->fields )
-        {
-            free(buffer);
-            return NULL;
-        }
+        assert(buffer->fields);
         buffer->field_capacity = hint;
     }
 
@@ -296,18 +291,13 @@ struct RevConfigItemBuffer*
 revconfig_item_buffer_new(uint32_t hint)
 {
     struct RevConfigItemBuffer* buffer = malloc(sizeof(struct RevConfigItemBuffer));
-    if( !buffer )
-        return NULL;
+    assert(buffer);
     memset(buffer, 0, sizeof(struct RevConfigItemBuffer));
 
     if( hint > 0 )
     {
         buffer->items = malloc(sizeof(struct RevConfigItem) * hint);
-        if( !buffer->items )
-        {
-            free(buffer);
-            return NULL;
-        }
+        assert(buffer->items);
         buffer->item_capacity = hint;
     }
 

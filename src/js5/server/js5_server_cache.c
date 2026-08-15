@@ -204,8 +204,7 @@ js5_server_build_master(
     size_t body_size = (size_t)(highest + 1) * JS5_MASTER_ENTRY_BYTES;
     cache->master_size = 5u + body_size;
     cache->master = (uint8_t*)malloc(cache->master_size);
-    if( !cache->master )
-        return false;
+    assert(cache->master);
 
     uint8_t* out = cache->master;
     *out++ = 0u;
@@ -293,8 +292,7 @@ Js5ServerCacheOpen(const char* cache_dir)
     if( !cache_dir[0] )
         return NULL;
     cache = (struct Js5ServerCache*)calloc(1u, sizeof(*cache));
-    if( !cache )
-        return NULL;
+    assert(cache);
     if( snprintf(cache->directory, sizeof(cache->directory), "%s", cache_dir) >=
         (int)sizeof(cache->directory) )
     {
@@ -414,8 +412,7 @@ Js5ServerCacheLoad(
     if( archive == JS5_REFERENCE_INDEX && group == JS5_REFERENCE_INDEX )
     {
         blob->data = (uint8_t*)malloc(cache->master_size);
-        if( !blob->data )
-            return JS5_SERVER_CACHE_ERROR;
+        assert(blob->data);
         memcpy(blob->data, cache->master, cache->master_size);
         blob->size = cache->master_size;
         return JS5_SERVER_CACHE_OK;
@@ -437,11 +434,7 @@ Js5ServerCacheLoad(
         return validation;
     }
     blob->data = (uint8_t*)malloc(container_size);
-    if( !blob->data )
-    {
-        RSCache_Dat2DiskArchiveFree(raw);
-        return JS5_SERVER_CACHE_ERROR;
-    }
+    assert(blob->data);
     memcpy(blob->data, container, container_size);
     blob->size = container_size;
     RSCache_Dat2DiskArchiveFree(raw);

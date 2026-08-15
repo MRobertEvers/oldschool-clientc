@@ -391,8 +391,7 @@ cache_put(
     }
 
     copy = malloc((size_t)record_len);
-    if( !copy )
-        return;
+    assert(copy);
     memcpy(copy, record, (size_t)record_len);
 
     slot->used = 1;

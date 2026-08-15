@@ -310,11 +310,8 @@ mock230_scripts_load(
 
     srv->scripts = (struct SSVM_Provider*)calloc(1, sizeof(struct SSVM_Provider));
     srv->script_env = (struct SSVM_Env*)calloc(1, sizeof(struct SSVM_Env));
-    if( !srv->scripts || !srv->script_env )
-    {
-        mock230_scripts_free(srv);
-        return 0;
-    }
+    assert(srv->scripts);
+    assert(srv->script_env);
 
     SSVM_ErrorClear(&err);
     if( !SSVM_ProviderLoadDir(srv->scripts, dir, &err) )

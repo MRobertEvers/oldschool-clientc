@@ -153,8 +153,7 @@ map_rehash(
 {
     struct Mock230Zone** slots = calloc((size_t)capacity, sizeof(*slots));
 
-    if( !slots )
-        return 0;
+    assert(slots);
     for( int i = 0; i < map->capacity; i++ )
     {
         if( !map->slots[i] )
@@ -205,8 +204,7 @@ zone_at(
         return map->slots[i];
 
     zone = calloc(1, sizeof(*zone));
-    if( !zone )
-        return NULL;
+    assert(zone);
     zone->index = index;
     zone->x = x >> 3;
     zone->z = z >> 3;

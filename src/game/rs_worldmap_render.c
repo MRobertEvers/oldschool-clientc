@@ -1280,11 +1280,7 @@ RS_WorldMapRender_RegionSprite(
         return -1;
     }
     sprite_list = malloc(sizeof(*sprite_list));
-    if( !sprite_list )
-    {
-        ToriDraw_SpriteFree(sprite);
-        return -1;
-    }
+    assert(sprite_list);
     sprite_list[0] = sprite;
 
     /* SceneSpriteAdd frees whatever the slot held, so an evicted region needs no

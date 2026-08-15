@@ -1,4 +1,5 @@
 #include "wordpack.h"
+#include <assert.h>
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -73,8 +74,7 @@ wordpack_unpack(
     int length)
 {
     char* out = malloc(101);
-    if( !out )
-        return NULL;
+    assert(out);
     memset(out, 0, 101);
 
     int pos = 0;

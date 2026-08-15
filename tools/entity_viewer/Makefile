@@ -28,6 +28,17 @@ CFLAGS  ?= -std=c11 -g -O2 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
 CFLAGS  += $(INCLUDES)
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 
+# Header dependencies.
+#
+# Without these a header change rebuilds nothing, and the objects that used the
+# old declarations link cleanly against the ones that used the new. That is not
+# a build error, it is a program that runs and is wrong -- a struct that grew a
+# field reads at the wrong offsets, and an inline function that changed keeps
+# its old body in whichever object was not rebuilt. Both have cost real time on
+# this tool.
+CFLAGS  += -MMD -MP
+DEP_CFLAGS += -MMD -MP
+
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
 DEP_CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
@@ -281,7 +292,14 @@ endif
 
 wasm: web/ev_wasm.js
 
-web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c
+# The wasm is built from one emcc invocation, so there are no per-object
+# depfiles to include -- the header list is explicit instead. A stale wasm is
+# the failure run.sh exists to catch, and it is silent: the browser keeps
+# running the old renderer while the server is current.
+EM_HEADERS := $(wildcard ev_*.h) $(wildcard $(TORIDRAW)/*.h) \
+	$(wildcard $(TORIDRAW)/graphics/*.h) $(wildcard $(TORIDRAW)/graphics/raster/*/*.h)
+
+web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c $(EM_HEADERS)
 	$(EMCC) $(EM_OPT) -std=c11 -w $(INCLUDES) \
 		-I$(REPO)/v0 \
 		-o $@ ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c \
@@ -291,6 +309,8 @@ web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c
 		-sASSERTIONS=0 -sENVIRONMENT=web \
 		-sEXPORTED_FUNCTIONS='[$(EM_EXPORTS)]' \
 		-sEXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8"]'
+
+-include $(wildcard $(BUILD)/*.d)
 
 clean:
 	rm -rf $(BUILD) ev_catalog ev_server ev_swing web/ev_wasm.js web/ev_wasm.wasm

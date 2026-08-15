@@ -80,8 +80,7 @@ mock230_embed_start(char const* rev_name)
     }
 
     embed = (struct Mock230Embed*)calloc(1, sizeof(*embed));
-    if( !embed )
-        return NULL;
+    assert(embed);
 
     mock230_boot_defaults(&embed->config);
     mock230_boot_load(&embed->config);

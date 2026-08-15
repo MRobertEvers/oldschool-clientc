@@ -1,3 +1,4 @@
+#include <assert.h>
 /* proctex_raster.u.c — included by proctex_ops.u.c
  *
  * The `rasterizer` operation (type 29): a small vector display list — lines, cubic beziers,
@@ -75,8 +76,7 @@ raster_init_circle_outline(struct proctex_raster* rs, int size)
         return true;
     {
         int32_t* grown = realloc(rs->circle_outline, (size_t)size * sizeof(int32_t));
-        if( !grown )
-            return false;
+        assert(grown);
         memset(
             grown + rs->circle_outline_size,
             0,
@@ -1485,8 +1485,7 @@ proctex_op_rasterizer(struct ProcTexGenerator* gen, int op_index, int line)
     else
     {
         packed = calloc((size_t)width * (size_t)height, sizeof(int32_t));
-        if( !packed )
-            return false;
+        assert(packed);
         rs.pixels = packed;
     }
 

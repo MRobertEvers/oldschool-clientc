@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include <assert.h>
 #include "net/rev/packets/pkt_rebuild_normal.h"
 #include "net/rev/packets/pkt_rebuild_region.h"
 #include "net/rev/pktnames.h"
@@ -192,8 +193,7 @@ osrs230_parse(
             int text_len = len - 4;
             char* text = (char*)malloc((size_t)text_len + 1);
 
-            if( !text )
-                return 0;
+            assert(text);
             /* Newline-terminated on the wire, like every other Jagex string. */
             memcpy(text, data + 4, (size_t)text_len);
             text[text_len] = '\0';
@@ -281,15 +281,8 @@ osrs230_parse(
         out->_update_inv_full.size = capacity;
         out->_update_inv_full.obj_ids = malloc((size_t)capacity * sizeof(int));
         out->_update_inv_full.obj_counts = malloc((size_t)capacity * sizeof(int));
-        if( !out->_update_inv_full.obj_ids || !out->_update_inv_full.obj_counts )
-        {
-            free(out->_update_inv_full.obj_ids);
-            free(out->_update_inv_full.obj_counts);
-            out->_update_inv_full.obj_ids = NULL;
-            out->_update_inv_full.obj_counts = NULL;
-            out->_update_inv_full.size = 0;
-            return 0;
-        }
+        assert(out->_update_inv_full.obj_ids);
+        assert(out->_update_inv_full.obj_counts);
         for( int i = 0; i < capacity; i++ )
             osrs230_read_inv_slot(
                 &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);
@@ -370,8 +363,7 @@ osrs230_parse(
             return 0;
         text_len = len - 1;
         out->_message_game.text = malloc((size_t)text_len + 1);
-        if( !out->_message_game.text )
-            return 0;
+        assert(out->_message_game.text);
         memcpy(out->_message_game.text, data + 1, (size_t)text_len);
         out->_message_game.text[text_len] = '\0';
         return 1;

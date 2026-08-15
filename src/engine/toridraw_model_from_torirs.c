@@ -103,8 +103,7 @@ bones_from_torirs(const struct ToriRS_Bones* src)
         return NULL;
 
     struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
-    if( !bones )
-        return NULL;
+    assert(bones);
 
     bones->bones_count = src->bones_count;
     if( src->bones_count <= 0 )
@@ -112,11 +111,8 @@ bones_from_torirs(const struct ToriRS_Bones* src)
 
     bones->bones = calloc((size_t)src->bones_count, sizeof(boneint_t*));
     bones->bones_sizes = calloc((size_t)src->bones_count, sizeof(boneint_t));
-    if( !bones->bones || !bones->bones_sizes )
-    {
-        ToriDraw_BonesFree(bones);
-        return NULL;
-    }
+    assert(bones->bones);
+    assert(bones->bones_sizes);
 
     for( int i = 0; i < src->bones_count; i++ )
     {
@@ -124,11 +120,7 @@ bones_from_torirs(const struct ToriRS_Bones* src)
         if( src->bones_sizes[i] <= 0 )
             continue;
         bones->bones[i] = malloc((size_t)src->bones_sizes[i] * sizeof(boneint_t));
-        if( !bones->bones[i] )
-        {
-            ToriDraw_BonesFree(bones);
-            return NULL;
-        }
+        assert(bones->bones[i]);
         for( int j = 0; j < src->bones_sizes[i]; j++ )
             bones->bones[i][j] = (boneint_t)src->bones[i][j];
     }
@@ -205,8 +197,9 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
         dst->animaya_group_counts = malloc((size_t)vc);
         dst->animaya_groups = calloc((size_t)vc, sizeof(uint8_t*));
         dst->animaya_scales = calloc((size_t)vc, sizeof(uint8_t*));
-        if( !dst->animaya_group_counts || !dst->animaya_groups || !dst->animaya_scales )
-            goto fail;
+        assert(dst->animaya_group_counts);
+        assert(dst->animaya_groups);
+        assert(dst->animaya_scales);
 
         memcpy(dst->animaya_group_counts, skin->group_counts, (size_t)vc);
         for( int i = 0; i < vc; i++ )
@@ -217,8 +210,8 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
 
             dst->animaya_groups[i] = malloc((size_t)cnt);
             dst->animaya_scales[i] = malloc((size_t)cnt);
-            if( !dst->animaya_groups[i] || !dst->animaya_scales[i] )
-                goto fail;
+            assert(dst->animaya_groups[i]);
+            assert(dst->animaya_scales[i]);
 
             if( skin->groups && skin->groups[i] )
                 memcpy(dst->animaya_groups[i], skin->groups[i], (size_t)cnt);

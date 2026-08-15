@@ -1,4 +1,5 @@
 #include "pkt_rebuild_region.h"
+#include <assert.h>
 
 #include "net/bitbuffer.h"
 #include "net/rev/revpacket.h"
@@ -53,8 +54,7 @@ pkt_rebuild_region_read(uint8_t const* data, int len, struct RevPacket* out)
     zone_z = (data[4] << 8) | data[5];
 
     zones = calloc(PKT_MAP_REBUILD_ZONES, sizeof(*zones));
-    if( !zones )
-        return 0;
+    assert(zones);
 
     Net_BitBufferInit(&bits, data + 6, len - 6);
     for( int i = 0; i < PKT_MAP_REBUILD_ZONES; i++ )

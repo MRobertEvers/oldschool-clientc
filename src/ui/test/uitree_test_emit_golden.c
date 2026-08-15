@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include <assert.h>
 
 #include <stdlib.h>
 
@@ -62,11 +63,7 @@ read_whole(char const* path, long* out_len)
     len = ftell(f);
     fseek(f, 0, SEEK_SET);
     data = malloc((size_t)len + 1);
-    if( !data )
-    {
-        fclose(f);
-        return NULL;
-    }
+    assert(data);
     if( len > 0 && fread(data, 1, (size_t)len, f) != (size_t)len )
     {
         free(data);

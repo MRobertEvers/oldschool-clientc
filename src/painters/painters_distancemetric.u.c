@@ -2,6 +2,7 @@
 #define PAINTERS_DISTANCEMETRIC_U_C
 
 #include "painters_i.h"
+#include <assert.h>
 
 #include <stdlib.h>
 
@@ -46,8 +47,7 @@ static int
 distmetric_ctx_init(struct Painter* painter)
 {
     struct DistMetricCtx* d = (struct DistMetricCtx*)calloc(1, sizeof(struct DistMetricCtx));
-    if( !d )
-        return -1;
+    assert(d);
     for( int i = 0; i < PAINTER_DIST_QUEUE_BUCKETS; i++ )
         int_queue_init(&d->distance_queues[i], 1024);
     d->max_active_dist = 0;

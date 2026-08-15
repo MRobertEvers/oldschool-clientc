@@ -288,15 +288,10 @@ publish_model_textures(
             continue;
 
         struct ToriDraw_Texture* texture = calloc(1, sizeof(*texture));
-        if( !texture )
-            continue;
+        assert(texture);
         size_t texel_bytes = (size_t)src->width * (size_t)src->height * sizeof(int);
         texture->texels = malloc(texel_bytes);
-        if( !texture->texels )
-        {
-            free(texture);
-            continue;
-        }
+        assert(texture->texels);
         memcpy(texture->texels, src->texels, texel_bytes);
         texture->width = src->width;
         texture->height = src->height;
@@ -475,15 +470,10 @@ world_sync_textures(struct Viewer* viewer)
                 continue;
 
             struct ToriDraw_Texture* texture = calloc(1, sizeof(*texture));
-            if( !texture )
-                continue;
+            assert(texture);
             size_t texel_bytes = (size_t)src->width * (size_t)src->height * sizeof(int);
             texture->texels = malloc(texel_bytes);
-            if( !texture->texels )
-            {
-                free(texture);
-                continue;
-            }
+            assert(texture->texels);
             memcpy(texture->texels, src->texels, texel_bytes);
             texture->width = src->width;
             texture->height = src->height;
@@ -1047,8 +1037,7 @@ run_untextured_sweep(
 
     size_t bytes = sizeof(faceint_t) * (size_t)viewer->model->face_count;
     faceint_t* saved = malloc(bytes);
-    if( !saved )
-        return 0;
+    assert(saved);
     memcpy(saved, viewer->model->face_textures, bytes);
     for( int face = 0; face < viewer->model->face_count; face++ )
         viewer->model->face_textures[face] = -1;
@@ -1185,8 +1174,7 @@ write_window_shot(
     int panes_shown = pane_count(viewer);
     int full_w = PANE_W * panes_shown;
     int* shot = malloc(sizeof(int) * (size_t)full_w * PANE_H);
-    if( !shot )
-        return;
+    assert(shot);
 
     const int* panes[MAX_PANES] = {
         viewer->pane_branching, viewer->pane_scanline, viewer->pane_diff

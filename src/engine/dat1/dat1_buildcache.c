@@ -496,8 +496,7 @@ dat1_buildcache_get_anim_versions(
     data = (unsigned char const*)versionlist->files[data_idx];
     count = versionlist->file_sizes[data_idx] / 2;
     dat1_buildcache->anim_versions = malloc((size_t)count * sizeof(uint16_t));
-    if( !dat1_buildcache->anim_versions )
-        return NULL;
+    assert(dat1_buildcache->anim_versions);
     for( int i = 0; i < count; i++ )
         dat1_buildcache->anim_versions[i] =
             (uint16_t)((data[i * 2] << 8) | data[(i * 2) + 1]);

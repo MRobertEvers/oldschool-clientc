@@ -23,6 +23,7 @@
  */
 
 #include "toridraw_render_hd.h"
+#include <assert.h>
 
 #include "toridraw_model.h"
 #include "toridraw_model_internal.h"
@@ -450,12 +451,8 @@ ToriDraw_ModelBuildTextureMappings(
     int fc = hd->base.face_count;
     int* vx = (int*)malloc((size_t)(vc > 0 ? vc : 1) * sizeof(int) * 3);
     int* fi = (int*)malloc((size_t)(fc > 0 ? fc : 1) * sizeof(int) * 3);
-    if( !vx || !fi )
-    {
-        free(vx);
-        free(fi);
-        return false;
-    }
+    assert(vx);
+    assert(fi);
     int* vy = vx + vc;
     int* vz = vy + vc;
     int* fa = fi;

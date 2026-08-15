@@ -463,8 +463,7 @@ soft3d_draw_sprite(
     }
 
     spr_px = malloc(pixel_count * sizeof(uint32_t));
-    if( !spr_px )
-        return;
+    assert(spr_px);
     memcpy(spr_px, spr->pixels_argb, pixel_count * sizeof(uint32_t));
 
     if( cmd->outline > 0 || cmd->graphic_shadow != 0 )

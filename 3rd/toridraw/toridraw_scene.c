@@ -112,8 +112,7 @@ td_scene_maybe_grow_hmap(struct ToriDraw_Map* map)
     size_t esize = ToriDraw_MapEntrySize(map);
     size_t new_buffer_size = ToriDraw_MapBufferSizeFor(esize, new_capacity);
     void* new_buffer = malloc(new_buffer_size);
-    if( !new_buffer )
-        return;
+    assert(new_buffer);
 
     void* old_buffer = NULL;
     int rc = ToriDraw_MapResize(map, new_buffer, new_buffer_size, new_capacity, &old_buffer);
@@ -314,8 +313,7 @@ td_scene_allocate_element_id(
         if( scene->elements.count >= TORIDRAW_SCENE_MAX_ELEMENTS )
             return -1;
         element = calloc(1, sizeof(struct ToriDraw_SceneElement));
-        if( !element )
-            return -1;
+        assert(element);
     }
 
     td_scene_reset_element(element);
@@ -688,11 +686,7 @@ ToriDraw_SoundNew(
         return NULL;
     }
     sound = calloc(1, sizeof(*sound));
-    if( !sound )
-    {
-        free(samples);
-        return NULL;
-    }
+    assert(sound);
     sound->samples = samples;
     sound->sample_count = sample_count;
     sound->sample_rate = sample_rate;

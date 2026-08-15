@@ -180,14 +180,9 @@ Dat2WebStore_New(const char* cache_key)
         return NULL;
 
     store = calloc(1u, sizeof(*store));
-    if( !store )
-        return NULL;
+    assert(store);
     store->cache_key = strdup(cache_key);
-    if( !store->cache_key )
-    {
-        free(store);
-        return NULL;
-    }
+    assert(store->cache_key);
     g_web_store = store;
     return store;
 }

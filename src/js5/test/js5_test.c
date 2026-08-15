@@ -76,8 +76,7 @@ fake_append(struct FakeJs5Transport* fake, const uint8_t* data, size_t size)
     if( size > SIZE_MAX - fake->incoming_size )
         return false;
     uint8_t* grown = (uint8_t*)realloc(fake->incoming, fake->incoming_size + size);
-    if( !grown )
-        return false;
+    assert(grown);
     fake->incoming = grown;
     memcpy(grown + fake->incoming_size, data, size);
     fake->incoming_size += size;

@@ -66,8 +66,7 @@ struct LibToriRS_Input*
 LibToriRS_Input_New(void)
 {
     struct LibToriRS_Input* input = malloc(sizeof(struct LibToriRS_Input));
-    if( !input )
-        return NULL;
+    assert(input);
     memset(input, 0, sizeof(struct LibToriRS_Input));
     return input;
 }

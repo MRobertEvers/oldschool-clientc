@@ -777,8 +777,7 @@ d3d9_ui_upload_sprite_pixels(
     assert(source);
     count = (size_t)width * (size_t)height;
     argb = (uint32_t*)malloc(count * sizeof(*argb));
-    if( !argb )
-        return false;
+    assert(argb);
     for( i = 0u; i < count; i++ )
         argb[i] = d3d9_ui_normalize_argb(source[i]);
     inserted = trspk_atlas_binpack_insert(
@@ -827,12 +826,8 @@ d3d9_ui_sprite_ensure_base(
     {
         float* uvs = (float*)calloc((size_t)count * 4u, sizeof(float));
         uint8_t* loaded = (uint8_t*)calloc((size_t)count, sizeof(uint8_t));
-        if( !uvs || !loaded )
-        {
-            free(uvs);
-            free(loaded);
-            return false;
-        }
+        assert(uvs);
+        assert(loaded);
         free(slot->uvs);
         free(slot->loaded);
         slot->uvs = uvs;
@@ -910,8 +905,7 @@ d3d9_ui_clamp_sprite(
         return NULL;
     assert(source);
     result = (uint32_t*)calloc((size_t)width * (size_t)height, sizeof(*result));
-    if( !result )
-        return NULL;
+    assert(result);
     for( y = 0; y < source_height; y++ )
     {
         int dst_y = y + offset_y;
@@ -985,8 +979,7 @@ d3d9_ui_sprite_ensure_variant(
     nominal_width = sprite->width;
     nominal_height = sprite->height;
     pixels = (uint32_t*)malloc((size_t)width * (size_t)height * sizeof(*pixels));
-    if( !pixels )
-        return false;
+    assert(pixels);
     memcpy(pixels, sprite->pixels_argb, (size_t)width * (size_t)height * sizeof(*pixels));
     if( command->outline > 0 )
     {
@@ -4798,8 +4791,7 @@ d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed)
     if( capacity != 0u && byte_count / sizeof(*grown) != capacity )
         return false;
     grown = (uint16_t*)realloc(renderer->model_indices, byte_count);
-    if( !grown )
-        return false;
+    assert(grown);
     renderer->model_indices = grown;
     renderer->model_index_capacity = capacity;
     return true;
@@ -5785,8 +5777,7 @@ ToriRS_D3D9_New(int width, int height)
     if( width <= 0 || height <= 0 )
         return NULL;
     renderer = (struct ToriRS_D3D9*)calloc(1u, sizeof(*renderer));
-    if( !renderer )
-        return NULL;
+    assert(renderer);
     renderer->width = width;
     renderer->height = height;
     renderer->tex_slot_next = 1u;
