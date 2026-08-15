@@ -33,6 +33,25 @@
 
 /* --------------------------------------------------- texopaque (gate 0) */
 
+/*
+ * The two plain gates. `texplane` does not use these — it reaches the per-ISA
+ * SIMD spans, which are faster and which it must stay bit-identical to — but the
+ * mapped families have no SIMD twin to defer to, and they need a sampler-shaped
+ * entry point regardless. Different symbol names from the SIMD pair
+ * (`draw_texture_scanline_{opaque,transparent}_blend_...`), so nothing collides.
+ */
+#define TS2_SPAN_FN draw_texture_scanline_texopaque_branching_lerp8_v3_ordered
+#define TS2_GATE 0
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 0
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_textrans_branching_lerp8_v3_ordered
+#define TS2_GATE 1
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 0
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
 #define TS2_SPAN_FN draw_texture_scanline_texopaque_facealpha_branching_lerp8_v3_ordered
 #define TS2_GATE 0
 #define TS2_FACEALPHA 1

@@ -1796,7 +1796,7 @@ test-gouraudrgb: $(OBJ_DIR)
 # Textured per-face alpha on the `branching` family: each new kernel against
 # its plain twin, which supplies both the expected coverage and the colour the
 # blend starts from. Standalone TU, no cache or disk.
-.PHONY: test-scanline test-gouraudrgb test-texture-matrix
+.PHONY: test-scanline test-gouraudrgb test-texture-matrix test-texmap
 
 test-texture-facealpha: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \

@@ -52,6 +52,8 @@
 #include "graphics/raster/texture/span/tex.span.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.texopaque.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texshadeblend.persp.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.texopaque.modulate.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
@@ -268,6 +270,18 @@ test_identities(int* plain_buf, int* got)
         int* plain_tex;
         int* variant_tex;
     } cases[] = {
+        /* The sampler-shaped plain gates against the SIMD kernels they exist
+         * alongside. This is the equality that says the scalar span and the
+         * per-ISA vector spans have not drifted — everything else in the matrix
+         * is checked against these two. */
+        { "texplane.texopaque(sampler) == texopaque(SIMD)",
+          (plain_fn)raster_texshadeblend_persp_texopaque_branching_lerp8_v3,
+          (matrix_fn)raster_texplane_persp_texopaque_branching_lerp8_v3,
+          g_tex_opaque, g_tex_opaque },
+        { "texplane.textrans(sampler) == textrans(SIMD)",
+          (plain_fn)raster_texshadeblend_persp_textrans_branching_lerp8_v3,
+          (matrix_fn)raster_texplane_persp_textrans_branching_lerp8_v3,
+          g_tex_keyed, g_tex_keyed },
         { "texopaque.facealpha(0xFF) == texopaque",
           (plain_fn)raster_texshadeblend_persp_texopaque_branching_lerp8_v3,
           (matrix_fn)raster_texplane_persp_texopaque_facealpha_branching_lerp8_v3,

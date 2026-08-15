@@ -80,8 +80,8 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | TS10 | `texshadeblend.affine.texopaque.branching.lerp8.scanline` / `texshadeblend.affine.textrans.branching.lerp8.scanline` / `texshadeblend.affine.texopaque.branching.lerp8_v3.scanline` / `texshadeblend.affine.textrans.branching.lerp8_v3.scanline` | Texture (SIMD scan) | affine | ordered scanline (non-ish16 + ish16 v3) | `draw_texture_scanline_*_blend_affine_branching_lerp8_ordered`, `draw_texture_scanline_*_blend_affine_branching_lerp8_ish16_ordered` | `raster/texture/span/tex.span.*.u.c` (all ISAs including scalar) |
 | GR1 | `gouraudrgb.screen.opaque.bary.branching.s4` | Gouraud RGB | screen | per-channel RGB, opaque | `raster_gouraudrgb_screen_opaque_bary_branching_s4`, `raster_gouraudrgb_screen_opaque_bary_branching_s4_ordered` | [`raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c) + shared walker [`gouraudrgb.screen.bary.branching.s4.inc`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc) |
 | GR2 | `gouraudrgb.screen.alpha.bary.branching.s4` | Gouraud RGB | screen | per-channel RGB, alpha blended | `raster_gouraudrgb_screen_alpha_bary_branching_s4`, `..._ordered` | [`raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c) (same template) |
-| TS12 | `texplane.persp.<gate>[.facealpha][.modulate].branching.lerp8_v3` (10 IDs) | Texture Gouraud | perspective | the compositing matrix over the **plane projector**: gate {`texopaque`,`textrans`,`texalpha`} x `facealpha` x `modulate`, minus the two plain gates | `raster_texplane_persp_{texopaque,textrans,texalpha}[_facealpha][_modulate]_branching_lerp8_v3` | one file per variant, `texplane.persp.*.branching.lerp8_v3.u.c`, over a shared walker template [`texplane.persp.branching.lerp8_v3_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc); TS14 spans |
-| TS13 | `texcylinder` / `texcube` / `texsphere` | Texture Gouraud | perspective | **not implemented.** The three families that carry a *mapping* rather than a projector; see the note below | — | — |
+| TS12 | `texplane.persp.<gate>[.facealpha][.modulate].branching.lerp8_v3` (12 IDs) | Texture Gouraud | perspective | the compositing matrix over the **plane projector** (render type 0): gate {`texopaque`,`textrans`,`texalpha`} x `facealpha` x `modulate` | `raster_texplane_persp_{texopaque,textrans,texalpha}[_facealpha][_modulate]_branching_lerp8_v3` | one file per variant, `texplane.persp.*.branching.lerp8_v3.u.c`, over a shared walker template [`texplane.persp.branching.lerp8_v3_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/texplane.persp.branching.lerp8_v3_tmpl.inc); TS14 spans |
+| TS13 | `tex{cylinder,cube,sphere}.persp.<gate>[.facealpha][.modulate].branching.lerp8_v3` (36 IDs) | Texture Gouraud | perspective | the three families that carry a *mapping* rather than a projector. Each computes uv per vertex itself — through the TS16 table, not libm — and interpolates it perspective-correctly. Twelve gate variants each (the full matrix; unlike `texplane` they have no plain SIMD twin to defer to) | `raster_tex{cylinder,cube,sphere}_persp_<gate>[_facealpha][_modulate]_branching_lerp8_v3` | one file per variant, `tex{cylinder,cube,sphere}.persp.*.u.c`, over a shared walker [`texmap.persp.branching.lerp8_v3_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/texmap.persp.branching.lerp8_v3_tmpl.inc) + [`texmap_common.h`](../3rd/toridraw/graphics/raster/texture/texmap_common.h); TS14 spans |
 | TS14 | `tex.span.gates` (10 IDs) | Texture (span) | perspective | 8-pixel + exact-block spans for TS12 | `draw_texture_scanline_<gate>[_facealpha][_modulate]_branching_lerp8_v3_ordered` | [`span/tex.span.gates.u.c`](../3rd/toridraw/graphics/raster/texture/span/tex.span.gates.u.c) + [`span/tex.span.gates_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/span/tex.span.gates_tmpl.inc). Grouped per file like the per-ISA span files, not per variant. **Outside the ISA rotation** — scalar only, same read-modify-write reason as SL4 |
 | TS16 | `atan.turns16` | Table | — | arctangent table, and the arcsine entry point backed by it | `g_atan_turns16_table`, `ToriDraw_Atan2Turns16`, `ToriDraw_AsinTurns16`, `ToriDraw_InitAtanTable` | [`graphics/shared_tables.h`](../3rd/toridraw/graphics/shared_tables.h) |
 | TS17 | `texture_uv` | UV generation | — | per-vertex uv for render types 0-3, from the decoded mapping parameters | `ToriDraw_ComputeTextureUv`, `ToriDraw_ComputeTextureUvBases` | [`toridraw_texture_uv.c`](../3rd/toridraw/toridraw_texture_uv.c) |
@@ -162,18 +162,35 @@ no alpha, tint or sampler for textured faces, so a textured face still draws
 through the plain gate. Wiring that up is a deliberate separate step — it
 changes how existing content renders.
 
-**`texcylinder` / `texcube` / `texsphere` (TS13) are not implemented.** Their
-uv generation is (TS17, using the TS16 table), so the coordinates exist; what is
-missing is a rasterizer that consumes explicit per-vertex uv. The plane kernels
-cannot: they derive their uv basis from three orthographic vertex *positions*,
-which is exactly the representation render types 1 and 3 do not have (they are
-non-linear in the vertex — arctangent and arcsine). The shape of the missing
-kernel is a perspective-correct interpolation of `u/z`, `v/z` and `1/z`, feeding
-the same TS14 spans, which already divide `au/cw` and `bv/cw` per 8-pixel block
-and so are perspective-correct as they stand. The one piece needing care is the
-fixed-point normalisation of those three screen-space planes:
-`ToriDraw_TexturePlanePrepare32` cannot be reused, because its `base` term comes
-from projecting a 3D normal's z rather than from an arbitrary plane.
+**`texcylinder` / `texcube` / `texsphere` (TS13)** are the families for render
+types 1, 2 and 3, where the face carries a mapping rather than a projector. Four
+things about them:
+
+- **The projection happens in the kernel, per triangle.** It could be a pre-pass
+  writing a uv array, and for a static model that would be cheaper — but the uv
+  depends on the *animated* vertex positions, so a rigged model would rebuild
+  that whole array every frame where triangle setup touches only the three
+  vertices being drawn. The caller therefore passes model-space positions
+  alongside the screen and camera-space ones.
+- **They are separate kernels, not one kernel with a mode.** The projection and
+  its seam fixup are what distinguishes them; a per-pixel branch on a
+  per-triangle property is waste, and a symbol named `texsphere` should not be
+  able to draw a cube. The test asserts the three actually produce different
+  pixels, so the split cannot silently degenerate into three names for one thing.
+- **They need no new span.** TS14 already computes `au / (cw >> shift)` per
+  8-pixel block, which *is* perspective-correct interpolation of u/w over 1/w —
+  so only the setup differs, and it builds those accumulators from explicit uv
+  instead of from a plane's normals.
+- **The fixed-point normalisation is the delicate part.**
+  `ToriDraw_TexturePlanePrepare32` could not be reused: its `base` comes from
+  projecting a 3D normal's z, not from an arbitrary screen-space plane. The
+  scale is instead chosen from the values the span will actually see — a plane's
+  extremes over the clipped screen bounding box are at its corners — which
+  bounds every intermediate including the eight-pixel lookahead past a short
+  tail.
+
+Their uv generator twin (TS17) shares the same projection code, so a generated
+uv and a kernel-drawn uv cannot disagree.
 
 ### Where it is and is not bit-identical
 
@@ -203,6 +220,14 @@ from projecting a 3D normal's z rather than from an arbitrary plane.
   reproduced exactly, the colour plane against a double-precision plane (tight on
   a purely vertical gradient, bounded by the s4 stair otherwise), the channel
   clamp against `gouraudrgb_pack_ish8` directly, and the alpha algebra per pixel.
+- `make -C src test-texmap` — [`toridraw_texmap_test.c`](../3rd/toridraw/toridraw_texmap_test.c).
+  TS13. The projections against a libm reference (bounded by the TS16 table's own
+  accuracy, ~2e-5 tiles measured); the fixed-point uv planes against a double
+  reference at real pixel positions; the same neutral-setting identity chain as
+  TS12; that the three projections differ; and cube face selection, both the
+  dominant-axis rule and that the per-axis scales reach it. Six mutations caught,
+  including one — a dropped axis scale — that only the last check sees, because
+  every other test triangle has an axis-aligned normal.
 - `make -C src test-texture-matrix` — [`toridraw_texture_matrix_test.c`](../3rd/toridraw/toridraw_texture_matrix_test.c).
   TS12/TS14/TS15. Eight bit-exact identities against the plain kernels anchor the
   suite; the algebra, the gate semantics, the sampler's addressing and
@@ -269,6 +294,70 @@ are shared. World mode replays a painter command list, which owns per-model
 projection and sorting; that work is identical for both families but dilutes the
 raster difference to a wash. The honest summary is a **modest raster win, not an
 end-to-end one**: at world scale the transform and sort dominate.
+
+---
+
+## The textured variant matrix
+
+Four **projection** families, twelve **compositing** variants each — 48 kernels,
+one file per variant, four shared walker templates.
+
+| | `texopaque` | `textrans` | `texalpha` |
+|---|:--:|:--:|:--:|
+| plain | ✓ | ✓ | ✓ |
+| `.facealpha` | ✓ | ✓ | ✓ |
+| `.modulate` | ✓ | ✓ | ✓ |
+| `.facealpha.modulate` | ✓ | ✓ | ✓ |
+
+× `texplane` (TS12) · `texcylinder` · `texcube` · `texsphere` (TS13)
+
+**The projection axis** is what the face carries:
+
+| family | render type | what the face carries | linear in the vertex? |
+|---|:--:|---|:--:|
+| `texplane` | 0 | a *projector* — three vertices whose positions are the texture plane | yes (it *is* a plane) |
+| `texcylinder` | 1 | a *mapping* — angle about an axis, height along it | no (arctangent) |
+| `texcube` | 2 | a *mapping* — the triangle normal picks one of six faces, then flat | yes, per face |
+| `texsphere` | 3 | a *mapping* — longitude and latitude | no (arctangent, arcsine) |
+
+`texplane` walks its plane directly and never forms a uv. The three mapped
+families compute uv per vertex in triangle setup — through the TS16 arctangent
+table, never libm — and interpolate it perspective-correctly into the same TS14
+spans. That is why they are four families and not one with a mode: the
+projection and its seam fixup are the difference, and a symbol named `texsphere`
+should not be able to draw a cube. The test asserts the three mapped families
+produce different pixels, so the split cannot silently collapse.
+
+**The compositing axes** are orthogonal to the projection and identical across
+all four families:
+
+| axis | what it adds | neutral setting |
+|---|---|---|
+| gate | how a texel decides coverage: all / colour-key / its own alpha byte | `texopaque` |
+| `facealpha` | the face's alpha, composed multiplicatively with the gate's | `0xFF` |
+| `modulate` | a per-channel tint by the face's colour | `(256,256,256)` |
+
+Every axis at its neutral setting is a **bit-exact no-op**, which is what the
+tests chain off. Addressing (repeat / clamp, per axis) is deliberately *not* an
+axis — it rides the sampler as data, because it changes an index computation
+rather than the shape of the composite. That is also why `texplane` carries its
+own scalar `texopaque` and `textrans` despite the SIMD kernels covering the same
+gates: those take `texels` and `texture_width` directly and have nowhere to say
+"clamp", which three of the QBD's fifteen materials need.
+
+### Fixed point
+
+Per-pixel work is 16.16 integer in all 48, as in every other kernel here, and
+every kernel input is `int` — except `ToriDraw_TexMapping`, which the mapped
+families take per face group and which carries floats. Float otherwise appears
+in exactly two places: the perspective reciprocal in the spans
+(`1.0f / (float)w`, once per 8 pixels — **pre-existing**, and copied verbatim so
+the identities above stay bit-exact), and the mapped families' per-triangle
+projection and uv-plane solve. A fully fixed-point mapping basis would need a
+per-group exponent rather than a flat 16.16: cube scales are `64 / raw` and the
+raw range measured over `cache.rs727_preeoc` is `[0, 16777215]`, so the basis
+spans about seven orders of magnitude and the small end is not representable in
+16.16.
 
 ---
 

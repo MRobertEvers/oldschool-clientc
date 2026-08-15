@@ -2,9 +2,9 @@
 
 What a native software renderer would have to draw to render the Queen Black
 Dragon **from the RS727 cache**, rather than from the backported OSRS239 lane.
-**Status: the kernels and the decoder half are implemented.** This began as a
-scoping document; §2.2 and §3(1) are now done and are marked so inline. What
-remains is one kernel family (§5) and the plumbing that reaches it.
+**Status: implemented.** This began as a scoping document. The kernels, the
+decoder, the uv generation and the mapped-projection families are all done and
+marked inline. What remains is plumbing, not capability — see §5.
 
 Everything below is measured, not inferred. The numbers come from
 
@@ -216,18 +216,31 @@ deliberate divergence rather than an oversight.
 
 ## 5. What is still missing
 
-**A kernel that consumes explicit per-vertex uv.** Every textured kernel in
-ToriDraw derives its uv basis from three orthographic vertex *positions* — a
-plane. That is the right representation for render type 0 and cannot represent
-types 1 and 3 at all, which are non-linear in the vertex (atan2 / asin). The
-generator produces explicit uv because that is the only representation covering
-all four types, and nothing currently rasterizes it.
+Not capability — **routing**. Every kernel the QBD needs now exists and is
+tested:
 
-So the QBD's 1,338 cube faces per model now have correct texture coordinates and
-still cannot be drawn. That kernel — perspective-correct interpolation of u/z,
-v/z and 1/z, reusing the sampler and gate matrix from §2.2 — is the next piece.
+- `texplane` for the 226 simple projector faces, across the full gate matrix;
+- `texcube` for the 1,338 cube faces per model, which compute their own uv;
+- `texcylinder` and `texsphere`, which the QBD does not use but the wider RS727
+  cache does (81,957 and 1,484 complex faces respectively).
 
-Also still open, unchanged by this work: routing any of it from
-`toridraw_raster.u.c` (which passes no alpha, tint or sampler for textured
-faces), the material-to-sampler binding that decides which variant a face takes,
-and the `shader_id` 1/6 and `mipmap` unknowns in §3(5).
+Forty-eight kernels: four projection families x twelve compositing variants,
+one file per variant. See the matrix in
+[`RASTER_VARIANT_CATALOGUE.md`](RASTER_VARIANT_CATALOGUE.md).
+
+What has not been done is wiring them from `toridraw_raster.u.c`, which still
+passes no alpha, tint, sampler or mapping for a textured face, so nothing
+renders differently yet. That needs three things, none of them a kernel:
+
+1. **A material-to-variant binding.** Something has to read a material's
+   `alpha_mode`, `valid`, `repeat_s/t` and baked-frame properties and decide
+   which of the 46 variants a face takes, and fill the sampler. §1's table is
+   the input to that decision.
+2. **Model-space vertices at the raster.** The mapped kernels need them for the
+   projection; the raster context today carries only screen and camera space.
+3. **The mapping basis per face group**, from `ToriDraw_ComputeTextureUvBases`,
+   carried on the drawable model.
+
+Still genuinely unknown, unchanged by this work: `shader_id` 1 and 6 on five
+materials, `mipmap` (SD never mipmapped), and the 24-bit scale field's
+signedness recorded in §3(1).

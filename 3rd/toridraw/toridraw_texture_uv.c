@@ -25,6 +25,12 @@
  *     what the reference does and which cube face a triangle lands on depends
  *     on it.
  *
+ * The projections themselves are NOT duplicated here: they live in
+ * graphics/raster/texture/texmap_common.h, because the texcylinder / texcube /
+ * texsphere kernels do the same projection per triangle and the two must not be
+ * able to disagree. This file owns the per-face-group setup (the mapping basis)
+ * and the type-0 plane solve; the projection is shared.
+ *
  * What is NOT the reference: the angles. libm's atan2 and asin are not
  * bit-identical across platforms, so uv generated from them is not reproducible
  * either. Both go through the arctangent table in graphics/shared_tables.h,
@@ -36,6 +42,7 @@
 
 #include "toridraw_texture_uv.h"
 
+#include "graphics/raster/texture/texmap_common.h"
 #include "graphics/shared_tables.h"
 
 
@@ -125,189 +132,10 @@ texture_basis_matrix(
     out[8] *= scale_z;
 }
 
-/** Apply the scroll direction, shared by all three complex projections. */
-static void
-apply_direction(int direction, float* u, float* v)
-{
-    if( direction == 1 )
-    {
-        float t = *u;
-        *u = -*v;
-        *v = t;
-    }
-    else if( direction == 2 )
-    {
-        *u = -*u;
-        *v = -*v;
-    }
-    else if( direction == 3 )
-    {
-        float t = *u;
-        *u = *v;
-        *v = -t;
-    }
-}
 
-/** Type 1 — cylindrical. */
-static void
-project_cylinder(
-    float vx,
-    float vy,
-    float vz,
-    int cx,
-    int cy,
-    int cz,
-    const float* mat,
-    float scale_z,
-    int direction,
-    float speed,
-    float* out_u,
-    float* out_v)
-{
-    vx -= (float)cx;
-    vy -= (float)cy;
-    vz -= (float)cz;
 
-    float a = vx * mat[0] + vy * mat[1] + vz * mat[2];
-    float b = vx * mat[3] + vy * mat[4] + vz * mat[5];
-    float c = vx * mat[6] + vy * mat[7] + vz * mat[8];
 
-    /* (turns16 + 32768) / 65536 is exactly atan2/2pi + 0.5, with no pi. */
-    float u = (float)(ToriDraw_Atan2Turns16(a, c) + 32768) * (1.0f / 65536.0f);
-    if( scale_z != 1.0f )
-        u *= scale_z;
-    float v = b + 0.5f + speed;
 
-    apply_direction(direction, &u, &v);
-    *out_u = u;
-    *out_v = v;
-}
-
-/**
- * Which cube face a triangle projects onto, from its scaled normal. The
- * dominant axis wins; ties fall through to x, matching the reference's
- * strict `>` comparisons.
- */
-static int
-cube_axis(float x, float y, float z)
-{
-    float ax = x < 0.0f ? -x : x;
-    float ay = y < 0.0f ? -y : y;
-    float az = z < 0.0f ? -z : z;
-
-    if( ay > ax && ay > az )
-        return y > 0.0f ? 0 : 1;
-    if( az > ax && az > ay )
-        return z > 0.0f ? 2 : 3;
-    return x > 0.0f ? 4 : 5;
-}
-
-/** Type 2 — cube. Linear in the vertex, once the axis is chosen per face. */
-static void
-project_cube(
-    float vx,
-    float vy,
-    float vz,
-    int cx,
-    int cy,
-    int cz,
-    int axis,
-    const float* mat,
-    int direction,
-    float speed,
-    float u_offset,
-    float v_offset,
-    float* out_u,
-    float* out_v)
-{
-    vx -= (float)cx;
-    vy -= (float)cy;
-    vz -= (float)cz;
-
-    float a = vx * mat[0] + vy * mat[1] + vz * mat[2];
-    float b = vx * mat[3] + vy * mat[4] + vz * mat[5];
-    float c = vx * mat[6] + vy * mat[7] + vz * mat[8];
-
-    float u;
-    float v;
-    if( axis == 0 )
-    {
-        u = a + speed + 0.5f;
-        v = -c + v_offset + 0.5f;
-    }
-    else if( axis == 1 )
-    {
-        u = a + speed + 0.5f;
-        v = c + v_offset + 0.5f;
-    }
-    else if( axis == 2 )
-    {
-        u = -a + speed + 0.5f;
-        v = -b + u_offset + 0.5f;
-    }
-    else if( axis == 3 )
-    {
-        u = a + speed + 0.5f;
-        v = -b + u_offset + 0.5f;
-    }
-    else if( axis == 4 )
-    {
-        u = c + v_offset + 0.5f;
-        v = -b + u_offset + 0.5f;
-    }
-    else
-    {
-        u = -c + v_offset + 0.5f;
-        v = -b + u_offset + 0.5f;
-    }
-
-    apply_direction(direction, &u, &v);
-    *out_u = u;
-    *out_v = v;
-}
-
-/** Type 3 — spherical. */
-static void
-project_sphere(
-    float vx,
-    float vy,
-    float vz,
-    int cx,
-    int cy,
-    int cz,
-    const float* mat,
-    int direction,
-    float speed,
-    float* out_u,
-    float* out_v)
-{
-    vx -= (float)cx;
-    vy -= (float)cy;
-    vz -= (float)cz;
-
-    float a = vx * mat[0] + vy * mat[1] + vz * mat[2];
-    float b = vx * mat[3] + vy * mat[4] + vz * mat[5];
-    float c = vx * mat[6] + vy * mat[7] + vz * mat[8];
-
-    float u = (float)(ToriDraw_Atan2Turns16(a, c) + 32768) * (1.0f / 65536.0f);
-    /*
-     * asin(b / |v|) == atan2(b, hypot(a, c)), exactly. Taking the second form
-     * skips the division and the full-length sqrt, and removes the 0/0 the
-     * first produces for a vertex sitting exactly at the mapping centre — the
-     * reference gets NaN there, which poisons a whole triangle rather than one
-     * texel. atan2(0, 0) is 0, i.e. the equator, which is the sensible answer
-     * for a point with no direction.
-     *
-     * asin/pi is twice asin/2pi, hence the doubled turns below.
-     */
-    float v = (float)(2 * ToriDraw_Atan2Turns16(b, sqrtf(a * a + c * c)) + 32768) *
-                  (1.0f / 65536.0f) +
-              speed;
-
-    apply_direction(direction, &u, &v);
-    *out_u = u;
-    *out_v = v;
-}
 
 bool
 ToriDraw_ComputeTextureUvBases(
@@ -601,44 +429,59 @@ ToriDraw_ComputeTextureUv(
         else if( bases && coord >= 0 && coord < model->textured_face_count &&
                  bases[coord].valid )
         {
+            /* Build the same mapping descriptor the kernels take, then call the
+             * same projection they call. One implementation, so a generated uv
+             * and a kernel-drawn uv cannot disagree. */
             const struct ToriDraw_TextureUvBasis* b = &bases[coord];
-            int direction =
-                model->direction ? (model->direction[coord] & 0xFF) : 0;
-            float speed =
-                model->speed ? (float)model->speed[coord] / 256.0f : 0.0f;
+            struct ToriDraw_TexMapping map;
+            memset(&map, 0, sizeof(map));
+            map.centre_x = b->centre_x;
+            map.centre_y = b->centre_y;
+            map.centre_z = b->centre_z;
+            for( int k = 0; k < 9; k++ )
+                map.matrix[k] = b->matrix[k];
+            map.direction = model->direction ? (model->direction[coord] & 0xFF) : 0;
+            map.speed = model->speed ? (float)model->speed[coord] / 256.0f : 0.0f;
+
             int idx[3] = { i0, i1, i2 };
 
             if( type == 1 )
             {
                 int sx_raw = model->scale_x ? model->scale_x[coord] : 0;
-                float scale_z = (float)sx_raw / 1024.0f;
-                for( int k = 0; k < 3; k++ )
-                    project_cylinder(
-                        (float)model->vertices_x[idx[k]],
-                        (float)model->vertices_y[idx[k]],
-                        (float)model->vertices_z[idx[k]],
-                        b->centre_x, b->centre_y, b->centre_z,
-                        b->matrix, scale_z, direction, speed, &u[k], &v[k]);
+                map.scale_z = (float)sx_raw / 1024.0f;
 
-                /* Seam fixup: a vertex that wrapped the cylinder the long way
-                 * round is pulled back, so the triangle spans the short arc. */
-                float half = scale_z / 2.0f;
-                float* axis = (direction & 1) ? v : u;
+                for( int k = 0; k < 3; k++ )
+                    toridraw_texmap_project_cylinder(
+                        &map,
+                        model->vertices_x[idx[k]],
+                        model->vertices_y[idx[k]],
+                        model->vertices_z[idx[k]],
+                        &u[k], &v[k]);
+
+                float half = map.scale_z / 2.0f;
+                float* axis = (map.direction & 1) ? v : u;
                 if( axis[1] - axis[0] > half )
-                    axis[1] -= scale_z;
+                    axis[1] -= map.scale_z;
                 else if( axis[0] - axis[1] > half )
-                    axis[1] += scale_z;
+                    axis[1] += map.scale_z;
                 if( axis[2] - axis[0] > half )
-                    axis[2] -= scale_z;
+                    axis[2] -= map.scale_z;
                 else if( axis[0] - axis[2] > half )
-                    axis[2] += scale_z;
+                    axis[2] += map.scale_z;
             }
             else if( type == 2 )
             {
-                float u_off =
+                map.u_offset =
                     model->trans_u ? (float)model->trans_u[coord] / 256.0f : 0.0f;
-                float v_off =
+                map.v_offset =
                     model->trans_v ? (float)model->trans_v[coord] / 256.0f : 0.0f;
+
+                int sx_raw = model->scale_x ? model->scale_x[coord] : 0;
+                int sy_raw = model->scale_y ? model->scale_y[coord] : 0;
+                int sz_raw = model->scale_z ? model->scale_z[coord] : 0;
+                map.axis_scale_x = sx_raw ? (float)sx_raw / 64.0f : 0.0f;
+                map.axis_scale_y = sy_raw ? (float)sy_raw / 64.0f : 0.0f;
+                map.axis_scale_z = sz_raw ? (float)sz_raw / 64.0f : 0.0f;
 
                 float d1x = (float)(model->vertices_x[i1] - model->vertices_x[i0]);
                 float d1y = (float)(model->vertices_y[i1] - model->vertices_y[i0]);
@@ -650,45 +493,35 @@ ToriDraw_ComputeTextureUv(
                 float ny = d1z * d2x - d2z * d1x;
                 float nz = d1x * d2y - d2x * d1y;
 
-                /* The axis test divides by the *raw* scales again, not by the
-                 * basis's already-scaled matrix — the reference applies them
-                 * twice here and the choice of face depends on it. */
-                int sx_raw = model->scale_x ? model->scale_x[coord] : 0;
-                int sy_raw = model->scale_y ? model->scale_y[coord] : 0;
-                int sz_raw = model->scale_z ? model->scale_z[coord] : 0;
-                float inv_x = sx_raw ? (float)sx_raw / 64.0f : 0.0f;
-                float inv_y = sy_raw ? (float)sy_raw / 64.0f : 0.0f;
-                float inv_z = sz_raw ? (float)sz_raw / 64.0f : 0.0f;
-
-                float ax = (nx * b->matrix[0] + ny * b->matrix[1] + nz * b->matrix[2]) * inv_x;
-                float ay = (nx * b->matrix[3] + ny * b->matrix[4] + nz * b->matrix[5]) * inv_y;
-                float az = (nx * b->matrix[6] + ny * b->matrix[7] + nz * b->matrix[8]) * inv_z;
-
-                int axis = cube_axis(ax, ay, az);
+                float ax = (nx * map.matrix[0] + ny * map.matrix[1] + nz * map.matrix[2]) *
+                           map.axis_scale_x;
+                float ay = (nx * map.matrix[3] + ny * map.matrix[4] + nz * map.matrix[5]) *
+                           map.axis_scale_y;
+                float az = (nx * map.matrix[6] + ny * map.matrix[7] + nz * map.matrix[8]) *
+                           map.axis_scale_z;
+                int axis_sel = toridraw_texmap_cube_axis(ax, ay, az);
 
                 for( int k = 0; k < 3; k++ )
-                    project_cube(
-                        (float)model->vertices_x[idx[k]],
-                        (float)model->vertices_y[idx[k]],
-                        (float)model->vertices_z[idx[k]],
-                        b->centre_x, b->centre_y, b->centre_z,
-                        axis, b->matrix, direction, speed, u_off, v_off, &u[k], &v[k]);
+                    toridraw_texmap_project_cube(
+                        &map, axis_sel,
+                        model->vertices_x[idx[k]],
+                        model->vertices_y[idx[k]],
+                        model->vertices_z[idx[k]],
+                        &u[k], &v[k]);
             }
             else if( type == 3 )
             {
                 for( int k = 0; k < 3; k++ )
-                    project_sphere(
-                        (float)model->vertices_x[idx[k]],
-                        (float)model->vertices_y[idx[k]],
-                        (float)model->vertices_z[idx[k]],
-                        b->centre_x, b->centre_y, b->centre_z,
-                        b->matrix, direction, speed, &u[k], &v[k]);
+                    toridraw_texmap_project_sphere(
+                        &map,
+                        model->vertices_x[idx[k]],
+                        model->vertices_y[idx[k]],
+                        model->vertices_z[idx[k]],
+                        &u[k], &v[k]);
 
-                float* axis = (direction & 1) ? v : u;
+                float* axis = (map.direction & 1) ? v : u;
                 if( axis[1] - axis[0] > 0.5f )
                     axis[1] -= 1.0f;
-                /* `> 0` where every sibling uses `> 0.5`. See the header note —
-                 * reproduced, not corrected. */
                 else if( axis[0] - axis[1] > 0.0f )
                     axis[1] += 1.0f;
                 if( axis[2] - axis[0] > 0.5f )
