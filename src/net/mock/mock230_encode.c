@@ -435,6 +435,70 @@ wire_for(struct Mock230Player* player)
 typedef char mock230_client_slots_fit_the_wire
     [MOCK230_CLIENT_NPC_SLOTS <= (1 << MOCK230_NPC_SLOT_BITS) - 1 ? 1 : -1];
 
+/*
+ * MOCK230_NPC_TRACE=<npc_id>[,...]: narrate this observer's private npc-slot
+ * bookkeeping for those npc types.
+ *
+ * The client keys its entity registry BY SLOT, and the slot is not the world
+ * pool index -- it is a per-observer name minted here (see
+ * mock230_slotmap_acquire). So the server has to hand the same creature the
+ * same name for as long as the client is tracking it: a release followed by a
+ * re-acquire is, to the client, a despawn and a brand new npc, and the re-add
+ * is the one path with no retry if it fails.
+ *
+ * Pair with TORIRS_NPC_TRACE=<npc_id> on the client to check both halves of the
+ * mapping agree tick by tick.
+ */
+static int
+mock230_npc_trace_wants(int npc_id)
+{
+    static char const* spec = NULL;
+    static int parsed = 0;
+    char const* p;
+
+    if( !parsed )
+    {
+        parsed = 1;
+        spec = getenv("MOCK230_NPC_TRACE");
+    }
+    if( !spec || !*spec || npc_id < 0 )
+        return 0;
+    for( p = spec; *p; )
+    {
+        char* end = NULL;
+        long const want = strtol(p, &end, 10);
+        if( end == p )
+            break;
+        if( want == npc_id )
+            return 1;
+        p = (*end == ',') ? end + 1 : end;
+        if( !*p )
+            break;
+    }
+    return 0;
+}
+
+static void
+mock230_npc_trace(
+    struct Mock230Player* player,
+    int world_slot,
+    int client_slot,
+    char const* what)
+{
+    struct Mock230Server* srv = player ? player->world : NULL;
+    struct Mock230Npc* npc =
+        (srv && world_slot >= 0 && world_slot < MOCK230_NPC_MAX) ? &srv->npcs[world_slot] : NULL;
+    int npc_id = npc ? npc->type : -1;
+
+    if( !mock230_npc_trace_wants(npc_id) )
+        return;
+    fprintf(
+        stderr,
+        "mock_npc_trace: npc=%d pid=%d world_slot=%d client_slot=%d tick=%d %s\n",
+        npc_id, player ? player->pid : -1, world_slot, client_slot,
+        srv ? (int)srv->tick : -1, what);
+}
+
 void
 mock230_slotmap_reset(struct Mock230Player* player)
 {
@@ -471,6 +535,7 @@ mock230_slotmap_acquire(
         map->world_of[candidate] = (int16_t)world_slot;
         map->client_of[world_slot] = (int16_t)candidate;
         map->next = (candidate + 1) % MOCK230_CLIENT_NPC_SLOTS;
+        mock230_npc_trace(player, world_slot, candidate, "ACQUIRE (new client slot)");
         return candidate;
     }
     fprintf(stderr, "mock230: pid %d has no free npc name for world slot %d\n", player->pid,
@@ -550,6 +615,15 @@ mock230_slotmap_release(
     struct Mock230Player* player,
     int world_slot)
 {
+    mock230_slotmap_release_why(player, world_slot, "unspecified");
+}
+
+void
+mock230_slotmap_release_why(
+    struct Mock230Player* player,
+    int world_slot,
+    char const* why)
+{
     struct Mock230PlayerSlotMap* map = &player->npc_slots;
     int client_slot;
 
@@ -558,6 +632,14 @@ mock230_slotmap_release(
     client_slot = map->client_of[world_slot];
     if( client_slot < 0 )
         return;
+    {
+        char msg[192];
+        snprintf(
+            msg, sizeof(msg),
+            "RELEASE why=%s (client sees a despawn; a re-add later gets a DIFFERENT slot)",
+            why ? why : "?");
+        mock230_npc_trace(player, world_slot, client_slot, msg);
+    }
     map->world_of[client_slot] = -1;
     map->client_of[world_slot] = -1;
 }
@@ -4495,7 +4577,14 @@ mock230_send_npc_info(struct Mock230Player* player)
                  * well-formed packet every tick.
                  */
                 player->npc_tracked[slot] = 0;
-                mock230_slotmap_release(player, slot);
+                mock230_slotmap_release_why(
+                    player, slot,
+                    !npc->active            ? "npc inactive"
+                    : npc->level != player->level ? "level changed"
+                    : npc->generation != player->tracked_generation[i]
+                        ? "generation changed (slot reused by a different npc)"
+                    : !in_range ? "out of view range"
+                                : "tele (teleport forces re-add)");
                 continue;
             }
             kept_generation[kept_count] = npc->generation;
@@ -4778,7 +4867,14 @@ mock230_send_npc_info(struct Mock230Player* player)
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 3);
             player->npc_tracked[slot] = 0;
-            mock230_slotmap_release(player, slot);
+            mock230_slotmap_release_why(
+                player, slot,
+                !npc->active                  ? "npc inactive"
+                : npc->level != player->level ? "level changed"
+                : npc->generation != player->tracked_generation[i]
+                    ? "generation changed (slot reused by a different npc)"
+                : !in_range ? "out of view range"
+                            : "tele (teleport forces re-add)");
             continue;
         }
 

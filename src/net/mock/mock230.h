@@ -6185,6 +6185,15 @@ mock230_slotmap_client(
     const struct Mock230Player* player,
     int world_slot);
 
+/** As mock230_slotmap_release, recording WHY for MOCK230_NPC_TRACE. The reason
+ *  is the diagnostic: a released slot is a despawn on the client, and the
+ *  re-add gets a different slot. */
+void
+mock230_slotmap_release_why(
+    struct Mock230Player* player,
+    int world_slot,
+    char const* why);
+
 void
 mock230_slotmap_release(
     struct Mock230Player* player,

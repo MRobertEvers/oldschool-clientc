@@ -40,6 +40,93 @@ entity_debug_log(char const* fmt, int a, int b)
 }
 
 /*
+ * TORIRS_NPC_TRACE=<npc_id>[,<npc_id>...]: narrate every NPC_INFO operation that
+ * lands on those npc types, with the identifiers that have to agree for it to
+ * land on the right one.
+ *
+ * Built for "the Queen Black Dragon sometimes disappears mid-fight", which is
+ * the visible end of a class of failure -- an op applied to the wrong entity,
+ * or a spawn that never happened -- where nothing errors and the packet is
+ * well-formed. What matters is not the op but the four numbers beside it:
+ *
+ *   slot     the server's PRIVATE per-observer npc name (Mock230PlayerSlotMap).
+ *            The client keys its registry by this. If it changes for the same
+ *            creature, the client sees a despawn and a fresh spawn.
+ *   list_idx the position in the list both sides rebuild this packet, which is
+ *            what extended info is addressed by. See the invariant on
+ *            RS_EntitySync::active_npcs.
+ *   world    the client's world-pool index; -1 means the slot resolved to no
+ *            entity, i.e. every following op on it is silently discarded.
+ *   element  the scene element; -1 means nothing is drawn for it.
+ *
+ * Pair it with MOCK230_NPC_TRACE=<npc_id> (mock230_encode.c) on the same run:
+ * the server prints the slot it allocated, and this prints the slot the client
+ * resolved. They must agree, every tick, for the whole fight.
+ */
+static int
+npc_trace_wants(int npc_id)
+{
+    static char const* spec = NULL;
+    static int parsed = 0;
+    char const* p;
+
+    if( !parsed )
+    {
+        parsed = 1;
+        spec = getenv("TORIRS_NPC_TRACE");
+    }
+    if( !spec || !*spec || npc_id < 0 )
+        return 0;
+    for( p = spec; *p; )
+    {
+        char* end = NULL;
+        long const want = strtol(p, &end, 10);
+        if( end == p )
+            break;
+        if( want == npc_id )
+            return 1;
+        p = (*end == ',') ? end + 1 : end;
+        if( !*p )
+            break;
+    }
+    return 0;
+}
+
+/* The npc type currently behind `world_idx`, or -1. The type is what the trace
+ * filters on, and it is only knowable once the entity exists -- a spawn is
+ * traced from its pending type instead. */
+static int
+npc_trace_type_of(struct App* app, int world_idx)
+{
+    struct WorldEntity_NPC* npc;
+
+    if( !app || !app->world || world_idx < 0 )
+        return -1;
+    npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
+    return npc ? npc->npc_id : -1;
+}
+
+static void
+npc_trace(
+    struct App* app,
+    int npc_id,
+    int slot,
+    int list_idx,
+    int world_idx,
+    int element_id,
+    char const* what,
+    int detail)
+{
+    if( !npc_trace_wants(npc_id) )
+        return;
+    fprintf(
+        stderr,
+        "npc_trace: npc=%d slot=%d list_idx=%d world=%d element=%d cycle=%d %s=%d\n",
+        npc_id, slot, list_idx, world_idx, element_id,
+        (app && app->world) ? app->world->cycle : -1, what, detail);
+}
+
+/*
  * Op-array scratch.
  *
  * Both decoders below write into an ENTITY_INFO_OPS_MAX array and drop it when
@@ -1016,7 +1103,14 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
     npc_local_tile(self, &tile_x, &tile_z, &level);
     idx = App_WorldSpawnSyncedNpc(app, self->pending_npc_type, tile_x, tile_z, level);
     if( idx < 0 )
+    {
+        /* The one failure with no retry: npc_add fires once per spawn, so an
+         * npc that fails here is absent for the rest of the session while its
+         * slot stays in the tracked list and every later op on it is dropped. */
+        npc_trace(
+            app, self->pending_npc_type, self->cur_slot, -1, -1, -1, "SPAWN_FAILED", 1);
         return;
+    }
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, idx);
         if( npc )
@@ -1027,6 +1121,8 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
     }
     self->cur_world_idx = idx;
     RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, self->cur_element_id, idx);
+    npc_trace(
+        app, self->pending_npc_type, self->cur_slot, -1, idx, self->cur_element_id, "SPAWNED", 1);
     entity_debug_log("entity_sync: npc %d spawned (world idx %d)\n", self->cur_slot, idx);
 }
 
@@ -1080,7 +1176,14 @@ npc_target_op(
     {
         int slot = (int)op->_bitvalue < self->old_count ? self->old_list[op->_bitvalue] : -1;
         if( slot >= 0 )
+        {
+            int w = -1, e = -1;
+            RS_EntitySync_FindNpc(esync, slot, &w, &e);
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, w), slot, (int)op->_bitvalue, w, e,
+                "REMOVE", 1);
             RS_EntitySync_RemoveNpc(esync, self->app->world, slot);
+        }
         self->cur_slot = -1;
         self->cur_world_idx = -1;
         self->cur_element_id = -1;
@@ -1095,7 +1198,14 @@ npc_target_op(
          * rejected by pick → visible but Walk-here only). */
         int keep = (int)op->_bitvalue;
         for( int i = keep; i < self->old_count; i++ )
+        {
+            int w = -1, e = -1;
+            RS_EntitySync_FindNpc(esync, self->old_list[i], &w, &e);
+            npc_trace(
+                self->app, npc_trace_type_of(self->app, w), self->old_list[i], i, w, e,
+                "REMOVE_COUNT_SHRINK", keep);
             RS_EntitySync_RemoveNpc(esync, self->app->world, self->old_list[i]);
+        }
         esync->active_npc_count = 0;
         return 1;
     }
@@ -1109,6 +1219,10 @@ npc_target_op(
     self->cur_element_id = -1;
     if( self->cur_slot >= 0 )
         RS_EntitySync_FindNpc(esync, self->cur_slot, &self->cur_world_idx, &self->cur_element_id);
+    npc_trace(
+        self->app, npc_trace_type_of(self->app, self->cur_world_idx), self->cur_slot,
+        (int)op->_bitvalue, self->cur_world_idx, self->cur_element_id, "target_op",
+        (int)op->kind);
     return 1;
 }
 
