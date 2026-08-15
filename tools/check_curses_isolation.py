@@ -125,6 +125,9 @@ def main() -> int:
         tree / "server/scripts/skill_prayer/scripts/prayer.rs2",
         tree / "server/scripts/skill_combat/combat_stats.rs2",
         tree / "server/scripts/player/death.rs2",
+        # Berserker lengthens the stat-restore interval, so the shared timer
+        # names the lane. Guarded by ^curses_enabled like every other caller.
+        tree / "server/scripts/player/scripts/stat_restore.rs2",
         tree / "pack/varp.server",
     }
     for path in sorted(tree.rglob("*.rs2")):

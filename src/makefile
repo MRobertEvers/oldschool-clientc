@@ -2562,7 +2562,7 @@ test-curses-cs2:
 		expected=$$(find "$(CURSES_CLIENT_LANE)/scripts" -type f -name '*.cs2' | wc -l | tr -d ' '); \
 		[ "$$expected" -gt 0 ] || { echo "test-curses-cs2: zero scripts" >&2; exit 1; }; \
 		$(CS2_BIN) compile --src "$(CURSES_CLIENT_LANE)/scripts" \
-			--raw "$(MOCK230_CACHE_BASE)" --rev osrs239 \
+			--cache "$(MOCK230_CACHE_BASE)" --rev osrs239 \
 			--names "$(RUNESTAR_CS2_NAMES)" --out "$$tmp" >"$$log" 2>&1; \
 		cat "$$log"; \
 		grep -qx "compiled $$expected, failed 0" "$$log" || { \

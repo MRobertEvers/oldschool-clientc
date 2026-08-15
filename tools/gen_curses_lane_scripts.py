@@ -73,24 +73,28 @@ PATCHES = [
      "\t\tif (%varbit14826 = 0) {\n\t\t\tcc_setgraphic(\"graphic_4892\");\n"
      "\t\t} else {\n\t\t\tcc_setgraphic(\"graphic_4893\");\n\t\t}\n"),
 
-    # NOT PATCHED: script 463 (`prayer_updatebutton`).
+    # 463 — the "Protect Item is inert here" overlay on high-risk and deadman
+    # worlds. Protect Item is index 8 in the standard book and 23 in Ruinous;
+    # in the curses book it is bit 0.
     #
-    # It would have taken a third arm on the high-risk/deadman "Protect Item is
-    # inert here" overlay (index 8 in the standard book, 23 in Ruinous, bit 0 in
-    # curses). It is deliberately left alone because **the base script does not
-    # round-trip**: compiling the untouched
-    # `OSRS-Content/osrs239-content/scripts/script_463.cs2` fails identically
+    # This was withheld for a while on the belief that the base script could not
+    # round-trip, because compiling it failed with
     #
     #   FAIL script_463.cs2: line 49: cannot determine the type of a callback
     #   argument; a hook's descriptor needs one letter per argument
     #
-    # on the `tooltip_mouserepeat(...)` hook, which this patch never touches.
-    # Shipping a script that fails to compile is worse than shipping none: the
-    # packer falls back to the base cache's bytes and only a counter says so.
-    #
-    # Cost of leaving it: with the curses book open on a high-risk world,
-    # Protect Item does not draw the "inert" overlay. Nothing else. Revisit if
-    # the compiler learns that hook descriptor.
+    # That was an artefact of the *invocation*, not the script. The hook passes
+    # `~prayer_gettooltiptext($obj1)`, and typing a `~proc` argument means
+    # loading the callee — which needs a script store. `--raw <cachedir>` does
+    # not provide one; `--cache <cachedir>` does. With `--cache` the untouched
+    # base script compiles, so the arm below is safe to ship. See the
+    # `test-curses-cs2` recipe, which uses `--cache` for exactly this reason.
+    (463,
+     "if ((%varbit14826 = 0 & $index5 = 8 | %varbit14826 = 1 & $index5 = 23) & "
+     "(~high_risk_world = 1 | ~deadman_world ! 0 | %varbit5314 = 1)) {\n",
+     "if ((%varbit14826 = 0 & $index5 = 8 | %varbit14826 = 1 & $index5 = 23 | "
+     f"%varbit14826 = {BOOK} & $index5 = 0) & "
+     "(~high_risk_world = 1 | ~deadman_world ! 0 | %varbit5314 = 1)) {\n"),
 ]
 
 
