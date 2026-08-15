@@ -13882,6 +13882,38 @@ app_targetsel_clear(
     app->need_redraw = 1;
 }
 
+/* Disarm every "armed" selection at once — the "Use <item> with..." pick and
+ * the spell/target pick.
+ *
+ * The reference clears both together at the tail of doAction (Client.ts:9506),
+ * so anything that ends a selection ends BOTH; the two modes are mutually
+ * exclusive at arm time and there is no path that should retire one while
+ * leaving the other lit. Every "clicked off" site funnels through here so a new
+ * armed mode added later cannot be forgotten at one of them. Returns nonzero
+ * when something was actually armed. */
+static int
+app_selection_clear(
+    struct App* app)
+{
+    int was_armed;
+
+    if( !app )
+        return 0;
+    was_armed = app->objsel.active || app->targetsel.active;
+    if( !was_armed )
+        return 0;
+    /* TORIRS_CLICK_DEBUG=1: which armed mode a click retired. "Use is stuck" and
+     * "Use was never armed" produce the same screen, and the outline is script
+     * -painted, so the state itself has to say so. */
+    if( getenv("TORIRS_CLICK_DEBUG") )
+        fprintf(stderr, "selclear: obj=%d tgt=%d\n", app->objsel.active,
+                app->targetsel.active);
+    app->objsel.active = 0;
+    app_targetsel_clear(app);
+    app->need_redraw = 1;
+    return 1;
+}
+
 /* Execute one selected (or defaulted) menu row: cross feedback + hook
  * dispatch with the row's op index (v1 ui_click_use_minimenu_option). The
  * cross colour comes from the action alone (RS_Minimenu_CrossModeForAction,
@@ -13996,6 +14028,9 @@ app_minimenu_inv_action(
         snprintf(app->objsel.name, sizeof(app->objsel.name), "%.*s",
                  (int)sizeof(app->objsel.name) - 1,
                  obj && obj->name[0] ? obj->name : "item");
+        if( getenv("TORIRS_CLICK_DEBUG") )
+            fprintf(stderr, "selarm: obj '%s' slot=%d com=0x%x\n", app->objsel.name, slot,
+                    com_id);
         app->need_redraw = 1;
         return 1;
     }
@@ -14131,6 +14166,15 @@ app_run_default_ui_row(struct App* app, int click_x, int click_y)
         app_minimenu_use_option(app, default_idx, click_x, click_y);
         app->interact.minimenu = saved;
     }
+    else
+        /* Cancel-only menu on a FILLED cell, which is what clicking the armed
+         * item itself produces: add_inv_slot_select_row skips the arming slot,
+         * and while a mode is armed the plain ops are not built, so the menu has
+         * no row and nothing ran. The reference still runs doAction on that
+         * Cancel row and its tail drops useMode/targetMode — clicking the lit
+         * item again is how you cancel. Without this it could never be
+         * un-selected by clicking it. */
+        app_selection_clear(app);
 }
 
 /*
@@ -14717,6 +14761,10 @@ app_minimenu_run_option(
                     29, UITree_MenuOptions(node)->option);
             }
         }
+        if( getenv("TORIRS_CLICK_DEBUG") )
+            fprintf(stderr, "selarm: tgt com=0x%x mask=0x%x op='%s'\n",
+                    app->targetsel.component_id, (unsigned)app->targetsel.mask,
+                    app->targetsel.op);
         app_targetsel_dispatch_hook(app, 1);
         app->need_redraw = 1;
         return 1;
@@ -15873,11 +15921,21 @@ App_RunOnce(
      * them the scratch menu is Cancel-only and default_idx is -1. */
     /* Minimap click-to-walk (chrome gesture from interact_click). */
     if( out.minimap_click && !out.minimenu_closed && out.minimenu_select < 0 )
+    {
         app_minimap_click(
             app,
             out.minimap_click_x,
             out.minimap_click_y,
             LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL));
+        /* The minimap is a builtin widget with no component id, so this click
+         * reaches neither the component default-row path nor the world/empty
+         * space paths below — it is the one left click that bypasses every
+         * doAction tail. Clicking it with a "Use"/spell armed is still clicking
+         * off the selection, so disarm here. Done unconditionally, not only when
+         * the walk was consumed: a click on the minimap frame or compass is just
+         * as much a click away from the target. */
+        app_selection_clear(app);
+    }
 
     /* A left press over a filled inventory slot is owned by the slot machine
      * (app_inv_drag_tick): the reference freezes mouseLoop while objDragArea
@@ -15977,9 +16035,7 @@ App_RunOnce(
              * DefaultOptionIndex returns -1 for a Cancel-only menu, so nothing
              * ran. Drop the armed selection here — clicking off any surface that
              * can't be a "use" target cancels and clears the white outline. */
-            app->objsel.active = 0;
-            app_targetsel_clear(app);
-            app->need_redraw = 1;
+            app_selection_clear(app);
         }
     }
 
@@ -16058,9 +16114,7 @@ App_RunOnce(
              * selection stays armed forever: Walk here never returns, so every
              * later world click is also inert and the world reads as
              * "unclickable". Drop the armed selection and its white outline. */
-            app->objsel.active = 0;
-            app_targetsel_clear(app);
-            app->need_redraw = 1;
+            app_selection_clear(app);
         }
     }
 
@@ -16078,9 +16132,7 @@ App_RunOnce(
               app, out.left_click_miss_x, out.left_click_miss_y) &&
           app_world_drawable(app)) )
     {
-        app->objsel.active = 0;
-        app_targetsel_clear(app);
-        app->need_redraw = 1;
+        app_selection_clear(app);
     }
 
     app->hover_com_id = out.hover_com_id;

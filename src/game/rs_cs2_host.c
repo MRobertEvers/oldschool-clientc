@@ -469,6 +469,14 @@ rs_cs2_parent_component_id(
  * rather than being restated here, because a second copy is exactly how the two
  * came to disagree.
  *
+ * The wrapping rules must match the renderer for the same reason, and the same
+ * dodge is not available: `ToriDraw2D_WrapLineCount` / `WrapMaxLineWidth` want a
+ * `ToriDraw_Font`, this side holds a `ToriRS_Font`, and the bridge between them
+ * is a deep copy — not something to do per measurement. So the walk below is a
+ * restatement of `font_wrap_segment_line_count` and `font_line_break_at`
+ * (3rd/toridraw/toridraw_font.c) and has to stay one: break at `\n`, CRLF, CR,
+ * LF and `<br>`; wrap between WORDS, never inside one.
+ *
  * What it cost: the journal's summary panel centres each cell's icon+value pair
  * on `parawidth(value)`. Every value is colour-tagged
  * (`<col=0dc10d>0</col>` — 19 bytes rendering one glyph), so the measurement
@@ -476,6 +484,54 @@ rs_cs2_parent_component_id(
  * `centre - (104 + 18 + 4)/2` — eighteen pixels off the left edge of the panel,
  * with the number stranded at the far left of a 104-wide box.
  */
+/*
+ * Is there an explicit line break at `p`? The renderer's `font_line_break_at`,
+ * restated: literal backslash-n, CRLF, a bare CR or LF, and `<br>`.
+ */
+static int
+rs_cs2_line_break_at(char const* p)
+{
+    if( !p || !p[0] )
+        return 0;
+    if( p[0] == '\\' && p[1] == 'n' )
+        return 2;
+    if( p[0] == '\r' && p[1] == '\n' )
+        return 2;
+    if( p[0] == '\n' || p[0] == '\r' )
+        return 1;
+    if( p[0] == '<' && (p[1] == 'b' || p[1] == 'B') && (p[2] == 'r' || p[2] == 'R') &&
+        p[3] == '>' )
+        return 4;
+    return 0;
+}
+
+/* The drawn width of one span, markup consumed the way the renderer consumes it. */
+static int
+rs_cs2_measure_span(
+    struct ToriRS_Font const* font,
+    char const* text,
+    int len)
+{
+    int width = 0;
+
+    for( int i = 0; i < len; )
+    {
+        unsigned char emitted = 0;
+        int const token = ToriDraw_FontMarkupTokenLength(text, len, i, &emitted);
+
+        if( token > 0 )
+        {
+            i += token;
+            if( emitted )
+                width += font->draw_width[emitted];
+            continue;
+        }
+        width += font->draw_width[(unsigned char)text[i]];
+        i++;
+    }
+    return width;
+}
+
 static void
 rs_cs2_font_wrap(
     struct ToriRS_Font const* font,
@@ -484,64 +540,75 @@ rs_cs2_font_wrap(
     int* out_lines,
     int* out_width)
 {
-    int lines = 1;
-    int line_w = 0;
+    int lines = 0;
     int best = 0;
-    int len;
-    int i = 0;
+    char const* rest;
 
     assert(font);
     *out_lines = 0;
     *out_width = 0;
     if( !text || !text[0] )
         return;
-    len = (int)strlen(text);
 
-    while( i < len )
+    rest = text;
+    for( ;; )
     {
-        unsigned char emitted = 0;
-        int const token = ToriDraw_FontMarkupTokenLength(text, len, i, &emitted);
-        unsigned char ch;
-        int adv;
+        char const* p = rest;
+        int brk = 0;
+        int span_len;
+        int cur_w = 0;
+        int word_start = 0;
+        int space_adv = font->draw_width[(unsigned char)' '];
 
-        if( token > 0 )
-        {
-            i += token;
-            if( !emitted )
-                continue; /* pure markup: consumes bytes, draws nothing */
-            ch = emitted;
-        }
-        else
-        {
-            ch = (unsigned char)text[i];
-            i++;
-        }
+        while( *p && (brk = rs_cs2_line_break_at(p)) == 0 )
+            p++;
+        span_len = (int)(p - rest);
+        lines++;
 
-        if( ch == '\n' )
+        /* Word wrapping, one word at a time, breaking BETWEEN words — which is
+         * the only rule the renderer knows. Walking character by character
+         * instead fits more onto each line and so reports fewer lines than are
+         * drawn, and every caller that sizes a box from `paraheight` then clips
+         * its own text. That is what cut the Ancient Curses tooltips off
+         * mid-word: five drawn lines measured as four. */
+        for( int i = 0; i <= span_len; i++ )
         {
-            lines++;
-            if( line_w > best )
-                best = line_w;
-            line_w = 0;
-            continue;
+            int word_len;
+            int word_w;
+            int candidate;
+
+            if( i < span_len && rest[i] != ' ' )
+                continue;
+            word_len = i - word_start;
+            if( word_len <= 0 )
+            {
+                word_start = i + 1;
+                continue;
+            }
+            word_w = rs_cs2_measure_span(font, rest + word_start, word_len);
+            candidate = cur_w == 0 ? word_w : cur_w + space_adv + word_w;
+            if( cur_w > 0 && max_width > 0 && candidate > max_width )
+            {
+                lines++;
+                if( cur_w > best )
+                    best = cur_w;
+                cur_w = word_w;
+            }
+            else
+                cur_w = candidate;
+            word_start = i + 1;
         }
-        adv = font->draw_width[ch];
-        if( max_width > 0 && line_w + adv > max_width && line_w > 0 )
-        {
-            lines++;
-            if( line_w > best )
-                best = line_w;
-            line_w = adv;
-        }
-        else
-            line_w += adv;
+        if( cur_w > best )
+            best = cur_w;
+
+        if( brk == 0 )
+            break;
+        rest = p + brk;
     }
-    if( line_w > best )
-        best = line_w;
+
     if( max_width > 0 && best > max_width )
         best = max_width;
-
-    *out_lines = lines;
+    *out_lines = lines > 0 ? lines : 1;
     *out_width = best;
 }
 
@@ -1592,8 +1659,22 @@ exec_para_height(
                 return rs_cs2_yield_load(host, thread, &req, request.font_id, -1);
         }
         else
+        {
             result = is_width ? rs_cs2_font_wrap_max_line_width(font, text, request.max_width)
                               : rs_cs2_font_wrap_line_count(font, text, request.max_width);
+            /* TORIRS_PARA_DEBUG=1 prints the measured string with the number
+             * that came back. It is the only way to tell a wrap that measured
+             * wrong from a string that arrived wrong — the Ancient Curses
+             * tooltips looked like the first and were the second, and one line
+             * of this said so. Read once: this runs inside interface builds. */
+            static int para_debug = -1;
+            if( para_debug < 0 )
+                para_debug = getenv("TORIRS_PARA_DEBUG") != NULL;
+            if( para_debug )
+                fprintf(stderr, "para%s: font=%d max_w=%d lh=%d -> %d  \"%s\"\n",
+                        is_width ? "width" : "height", request.font_id, request.max_width,
+                        font->line_height, result, text);
+        }
     }
     return CS2VM2_PushInt(thread, result);
 }

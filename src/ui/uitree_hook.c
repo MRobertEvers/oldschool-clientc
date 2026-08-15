@@ -109,7 +109,22 @@ UITree_HookClear(struct UITreeRuntimeScriptHook* hook)
     memset(hook, 0, sizeof(*hook));
 }
 
-/** A bounded copy of `s` into a fresh allocation; NULL becomes "". */
+/*
+ * A copy of `s` into a fresh allocation, whole; NULL becomes "".
+ *
+ * This used to clip at UITREE_HOOK_STR_ARG_LEN - 1 = 79 characters, which was
+ * the right rule when a slot carried `char strv[4][80]` inline and a longer
+ * string would have run off the end of the struct. The tails are their own
+ * allocations now, sized to what was passed, so the cap had stopped being a
+ * bound on anything and had become a silent edit of the argument.
+ *
+ * What it cost: a tooltip is a hook argument — `if_setonmouserepeat("...
+ * ~prayer_gettooltiptext($obj1) ...")` — and the Ancient Curses descriptions
+ * are longer than the standard book's. Soul Split's arrived as "Level 92<br>
+ * Soul Split<br>1/4 of damage dealt is also removed from opponent's P" and the
+ * tooltip drew exactly that: the box was the right size for the string it was
+ * given, so the defect read as a layout bug and is not one.
+ */
 static char*
 hook_strdup(char const* s)
 {
@@ -119,8 +134,6 @@ hook_strdup(char const* s)
     if( !s )
         s = "";
     len = strlen(s);
-    if( len > UITREE_HOOK_STR_ARG_LEN - 1 )
-        len = UITREE_HOOK_STR_ARG_LEN - 1;
     out = (char*)malloc(len + 1);
     if( !out )
         return NULL;

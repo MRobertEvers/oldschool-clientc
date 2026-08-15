@@ -34,7 +34,11 @@
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
 #define INTERFACE_OPEN_RUNTIME_HOOK_MAX 512
-#define INTERFACE_OPEN_SEED_OBJ_MAX 32
+/* Worst case is every worn + backpack slot holding a distinct obj. Sized from
+ * the container defaults so the two move together; the collector clamps rather
+ * than aborting if a container is ever registered with more slots than these. */
+#define INTERFACE_OPEN_SEED_OBJ_MAX \
+    (INV_MANAGER_DEFAULT_WORN_SLOTS + INV_MANAGER_DEFAULT_BACKPACK_SLOTS)
 
 struct InterfaceOpenOnLoad
 {
@@ -345,7 +349,18 @@ collect_seed_objs(struct Task_InterfaceOpen* self)
             }
             if( found )
                 continue;
-            assert(self->seed_obj_count < INTERFACE_OPEN_SEED_OBJ_MAX);
+            if( self->seed_obj_count >= INTERFACE_OPEN_SEED_OBJ_MAX )
+            {
+                /* Prefetch only — the per-slot EnsureObjIcon pass below still
+                 * loads whatever the seed list misses, so drop the tail rather
+                 * than kill the client. */
+                fprintf(
+                    stderr,
+                    "InterfaceOpen: seed obj list full (%d); skipping prefetch of obj %d\n",
+                    INTERFACE_OPEN_SEED_OBJ_MAX,
+                    oid);
+                return;
+            }
             self->seed_obj_ids[self->seed_obj_count++] = oid;
         }
     }

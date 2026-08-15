@@ -794,7 +794,17 @@ struct CS2VM_HostRequest_IF_SetOutline
  * signature position i as a string; strings fill str_args[] in position order
  * (k-th set bit -> str_args[k]). int_args[i] is unused at string positions. */
 #define CS2VM_SETON_STR_ARG_MAX 4
-#define CS2VM_SETON_STR_ARG_LEN 80
+/*
+ * 256, not 80. A hook's string argument is frequently a whole line of UI copy —
+ * `if_setonmouserepeat("tooltip_mouserepeat(…, ~prayer_gettooltiptext($obj1),
+ * …)")` hands over the entire tooltip — and the copy into this struct is a
+ * `strncpy` that truncates in silence. At 80 the Ancient Curses descriptions
+ * lost their tails one character past "opponent's P", and because the tooltip
+ * box is then sized from the string it was given, the result read as a layout
+ * bug rather than as a lost argument. OSRS's own longest is 152 characters
+ * (Deflect Summoning); 256 clears every string any cache in this tree arms.
+ */
+#define CS2VM_SETON_STR_ARG_LEN 256
 
 /*
  * How many arguments a hook registration can carry.

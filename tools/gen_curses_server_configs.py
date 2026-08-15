@@ -37,7 +37,16 @@ DRAIN_FAMILY = (("Sap", 150), ("Deflect", 120), ("Leech", 100))
 # Mutual-exclusion groups, from Void_RS2011Server/data/skill/prayer/prayers.toml.
 GROUPS = {
     "Protect Item": [], "Sap Warrior": [11], "Sap Ranger": [14], "Sap Mage": [13],
-    "Sap Spirit": [16], "Berserker": [], "Deflect Summoning": [9],
+    # Deflect Summoning carries the overhead group (12) as well as its own (9).
+    #
+    # Source 2 has it in 9 alone, and rev558 agrees with that reading — it ships
+    # COMBINED overhead icons (group 440 frames 16/17/18) for Deflect Summoning
+    # paired with each of the other three, which only makes sense if the pair is
+    # legal. This tree cannot draw that pair: rev 239's appearance block carries
+    # ONE overhead index, so a second lit overhead is not merely unpainted, it is
+    # unsendable. Every curse that draws an icon is therefore exclusive with
+    # every other one, which is the rule the two ends can both keep.
+    "Sap Spirit": [16], "Berserker": [], "Deflect Summoning": [9, 12],
     "Deflect Magic": [12], "Deflect Missiles": [12], "Deflect Melee": [12],
     "Leech Attack": [11], "Leech Ranged": [14], "Leech Magic": [13],
     "Leech Defence": [15], "Leech Strength": [10], "Leech Energy": [],
