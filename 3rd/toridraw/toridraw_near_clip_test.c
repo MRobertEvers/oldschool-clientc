@@ -7,6 +7,7 @@
  */
 
 #include "toridraw.h"
+#include <assert.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -179,7 +180,8 @@ render_lit_pixels(int reverse)
     toripixel_t* storage = malloc(all_pixels * sizeof(*storage));
     int lit = 0;
 
-    if( !scene || !storage )
+    assert(storage);
+    if( !scene )
     {
         CHECK(storage != NULL, "pixel allocation");
         free(storage);

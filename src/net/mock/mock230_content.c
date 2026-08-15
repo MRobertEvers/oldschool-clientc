@@ -240,15 +240,8 @@ pack_build_indexes(struct Pack* pack)
         return;
     pack->by_name = malloc((size_t)pack->count * sizeof(*pack->by_name));
     pack->by_id = malloc((size_t)pack->count * sizeof(*pack->by_id));
+    assert(pack->by_name);
     assert(pack->by_id);
-    if( !pack->by_name )
-    {
-        free(pack->by_name);
-        free(pack->by_id);
-        pack->by_name = NULL;
-        pack->by_id = NULL;
-        return;
-    }
     for( int i = 0; i < pack->count; i++ )
     {
         pack->by_name[i] = &pack->entries[i];

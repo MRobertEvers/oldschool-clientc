@@ -698,16 +698,8 @@ bridge_update_inv_full(int revision, uint8_t const* data, int len, struct RevPac
     p->size = msg.capacity;
     p->obj_ids = (int*)malloc((size_t)msg.capacity * sizeof(int) + 1);
     p->obj_counts = (int*)malloc((size_t)msg.capacity * sizeof(int) + 1);
+    assert(p->obj_ids);
     assert(p->obj_counts);
-    if( !p->obj_ids )
-    {
-        free(p->obj_ids);
-        free(p->obj_counts);
-        p->obj_ids = NULL;
-        p->obj_counts = NULL;
-        p->size = 0;
-        return 0;
-    }
     for( int i = 0; i < msg.capacity; i++ )
     {
         p->obj_ids[i] = slots[i].id;

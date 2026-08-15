@@ -378,12 +378,8 @@ read_bones(struct Cur* c)
     int n = bones->bones_count > 0 ? bones->bones_count : 1;
     bones->bones = calloc((size_t)n, sizeof(boneint_t*));
     bones->bones_sizes = calloc((size_t)n, sizeof(boneint_t));
+    assert(bones->bones);
     assert(bones->bones_sizes);
-    if( !bones->bones )
-    {
-        ToriDraw_BonesFree(bones);
-        return NULL;
-    }
 
     for( int i = 0; i < bones->bones_count; i++ )
     {
@@ -434,9 +430,9 @@ ev_wire_read_model(
     m->vertices_x = calloc((size_t)(vertex_count > 0 ? vertex_count : 1), sizeof(vertexint_t));
     m->vertices_y = calloc((size_t)(vertex_count > 0 ? vertex_count : 1), sizeof(vertexint_t));
     m->vertices_z = calloc((size_t)(vertex_count > 0 ? vertex_count : 1), sizeof(vertexint_t));
+    assert(m->vertices_x);
+    assert(m->vertices_y);
     assert(m->vertices_z);
-    if( !m->vertices_x || !m->vertices_y )
-        goto fail;
     for( int i = 0; i < vertex_count; i++ )
     {
         m->vertices_x[i] = (vertexint_t)get_i32(&cur);
@@ -449,9 +445,9 @@ ev_wire_read_model(
     m->face_indices_a = calloc((size_t)(face_count > 0 ? face_count : 1), sizeof(faceint_t));
     m->face_indices_b = calloc((size_t)(face_count > 0 ? face_count : 1), sizeof(faceint_t));
     m->face_indices_c = calloc((size_t)(face_count > 0 ? face_count : 1), sizeof(faceint_t));
+    assert(m->face_indices_a);
+    assert(m->face_indices_b);
     assert(m->face_indices_c);
-    if( !m->face_indices_a || !m->face_indices_b )
-        goto fail;
     for( int i = 0; i < face_count; i++ )
     {
         m->face_indices_a[i] = (faceint_t)get_i32(&cur);
@@ -493,9 +489,9 @@ ev_wire_read_model(
         m->animaya_group_counts = calloc((size_t)n, 1);
         m->animaya_groups = calloc((size_t)n, sizeof(uint8_t*));
         m->animaya_scales = calloc((size_t)n, sizeof(uint8_t*));
+        assert(m->animaya_group_counts);
+        assert(m->animaya_groups);
         assert(m->animaya_scales);
-        if( !m->animaya_group_counts || !m->animaya_groups )
-            goto fail;
         for( int i = 0; i < n; i++ )
         {
             int cnt = get_i32(&cur);
@@ -506,9 +502,8 @@ ev_wire_read_model(
                 continue;
             m->animaya_groups[i] = malloc((size_t)cnt);
             m->animaya_scales[i] = malloc((size_t)cnt);
+            assert(m->animaya_groups[i]);
             assert(m->animaya_scales[i]);
-            if( !m->animaya_groups[i] )
-                goto fail;
             for( int j = 0; j < cnt; j++ )
             {
                 m->animaya_groups[i][j] = (uint8_t)get_i32(&cur);
@@ -590,9 +585,9 @@ ev_wire_read_anim(
         a->base->types = calloc((size_t)n, sizeof(uint8_t));
         a->base->bone_group_lengths = calloc((size_t)n, sizeof(uint16_t));
         a->base->bone_groups = calloc((size_t)n, sizeof(uint8_t*));
+        assert(a->base->types);
+        assert(a->base->bone_group_lengths);
         assert(a->base->bone_groups);
-        if( !a->base->types || !a->base->bone_group_lengths )
-            goto bad;
 
         for( int i = 0; i < a->base->length; i++ )
         {
@@ -625,9 +620,10 @@ ev_wire_read_anim(
         fr->x = calloc((size_t)n, sizeof(int16_t));
         fr->y = calloc((size_t)n, sizeof(int16_t));
         fr->z = calloc((size_t)n, sizeof(int16_t));
+        assert(fr->groups);
+        assert(fr->x);
+        assert(fr->y);
         assert(fr->z);
-        if( !fr->groups || !fr->x || !fr->y )
-            goto bad;
         for( int i = 0; i < fr->length; i++ )
         {
             fr->groups[i] = (int16_t)get_i32(&cur);

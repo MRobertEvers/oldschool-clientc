@@ -21,6 +21,7 @@
  */
 
 #include "ss_opcode.h"
+#include <assert.h>
 #include "ssvm.h"
 
 #include <stdarg.h>
@@ -207,11 +208,9 @@ walk_script(struct Verifier* verifier, const struct SSVM_Script* script)
     walk_state.worklist = (int32_t*)malloc((size_t)script->op_count * sizeof(int32_t));
     walk_state.worklist_length = 0;
 
-    if( !walk_state.int_at || !walk_state.str_at || !walk_state.worklist )
-    {
-        result.status = EFFECT_UNMODELLABLE;
-        goto done;
-    }
+    assert(walk_state.int_at);
+    assert(walk_state.str_at);
+    assert(walk_state.worklist);
 
     for( pc = 0; pc < script->op_count; pc++ )
     {

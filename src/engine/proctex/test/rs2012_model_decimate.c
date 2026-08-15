@@ -396,9 +396,8 @@ build_vertex_attr(void)
     {
         first_color = malloc((size_t)V * sizeof *first_color);
         first_prio = malloc((size_t)V * sizeof *first_prio);
+        assert(first_color);
         assert(first_prio);
-        if( !first_color )
-            die("out of memory (attr scratch)");
     }
     for (int v = 0; v < V; v++)
         first_color[v] = first_prio[v] = -1;
@@ -1101,9 +1100,8 @@ main(int argc, char** argv)
 
     int* new_vid = malloc((size_t)V * sizeof *new_vid);
     int* new_fid = malloc((size_t)F * sizeof *new_fid);
+    assert(new_vid);
     assert(new_fid);
-    if( !new_vid )
-        die("out of memory (remap)");
     compact(new_vid, new_fid);
 
     uint32_t bound = RSCache_ModelEncodeBound(M, NULL);

@@ -281,16 +281,8 @@ osrs230_parse(
         out->_update_inv_full.size = capacity;
         out->_update_inv_full.obj_ids = malloc((size_t)capacity * sizeof(int));
         out->_update_inv_full.obj_counts = malloc((size_t)capacity * sizeof(int));
+        assert(out->_update_inv_full.obj_ids);
         assert(out->_update_inv_full.obj_counts);
-        if( !out->_update_inv_full.obj_ids )
-        {
-            free(out->_update_inv_full.obj_ids);
-            free(out->_update_inv_full.obj_counts);
-            out->_update_inv_full.obj_ids = NULL;
-            out->_update_inv_full.obj_counts = NULL;
-            out->_update_inv_full.size = 0;
-            return 0;
-        }
         for( int i = 0; i < capacity; i++ )
             osrs230_read_inv_slot(
                 &cur, &out->_update_inv_full.obj_ids[i], &out->_update_inv_full.obj_counts[i]);

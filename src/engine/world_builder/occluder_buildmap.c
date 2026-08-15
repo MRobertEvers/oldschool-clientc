@@ -41,14 +41,8 @@ occluder_buildmap_new(
     n = size_x * size_z * levels;
     map->marks = calloc((size_t)n, sizeof(uint16_t));
     map->floor_opacity = calloc((size_t)n, sizeof(uint8_t));
+    assert(map->marks);
     assert(map->floor_opacity);
-    if( !map->marks )
-    {
-        free(map->marks);
-        free(map->floor_opacity);
-        free(map);
-        return NULL;
-    }
     map->size_x = size_x;
     map->size_z = size_z;
     map->levels = levels;

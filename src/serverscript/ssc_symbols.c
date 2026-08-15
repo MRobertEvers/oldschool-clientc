@@ -735,8 +735,7 @@ SSC_SymbolsLoadComponentDir(
     }* ifaces = calloc((size_t)scanned, sizeof(*ifaces));
     int count = 0;
 
-    if( !ifaces )
-        return 0;
+    assert(ifaces);
     for( int i = 0; i < symbols->count && count < scanned; i++ )
     {
         if( symbols->entries[i].kind != SSC_SYM_INTERFACE )

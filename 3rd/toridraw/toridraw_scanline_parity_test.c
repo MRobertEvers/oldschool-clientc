@@ -792,9 +792,8 @@ main(void)
 
     int* ref = malloc(sizeof(int) * BUF_LEN);
     int* got = malloc(sizeof(int) * BUF_LEN);
+    assert(ref);
     assert(got);
-    if( !ref )
-        return 1;
 
     test_flat(ref, got);
     test_gouraudhsllightness(ref, got);

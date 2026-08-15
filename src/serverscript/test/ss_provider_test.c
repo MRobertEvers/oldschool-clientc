@@ -103,9 +103,8 @@ build_container(
     SSVM_ErrorClear(&err);
     dat = (uint8_t*)calloc(1, dat_capacity);
     idx = (uint8_t*)calloc(1, 4 + ((size_t)count * 4));
+    assert(dat);
     assert(idx);
-    if( !dat )
-        return 0;
 
     dat[0] = (uint8_t)(count >> 24);
     dat[1] = (uint8_t)(count >> 16);

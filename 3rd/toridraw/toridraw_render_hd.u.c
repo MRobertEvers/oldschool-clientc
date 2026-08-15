@@ -451,13 +451,8 @@ ToriDraw_ModelBuildTextureMappings(
     int fc = hd->base.face_count;
     int* vx = (int*)malloc((size_t)(vc > 0 ? vc : 1) * sizeof(int) * 3);
     int* fi = (int*)malloc((size_t)(fc > 0 ? fc : 1) * sizeof(int) * 3);
+    assert(vx);
     assert(fi);
-    if( !vx )
-    {
-        free(vx);
-        free(fi);
-        return false;
-    }
     int* vy = vx + vc;
     int* vz = vy + vc;
     int* fa = fi;

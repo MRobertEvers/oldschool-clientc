@@ -469,9 +469,8 @@ proctex_op_perlin(struct ProcTexGenerator* gen, int op_index, int line)
         aux->perm = proctex_permutations(op->u.perlin.seed);
         aux->nin0 = calloc((size_t)oct, sizeof(int16_t));
         aux->nin1 = calloc((size_t)oct, sizeof(int16_t));
+        assert(aux->nin0);
         assert(aux->nin1);
-        if( !aux->nin0 )
-            return false;
         if( op->u.perlin.field2 <= 0 )
         {
             int n = op->u.perlin.amplitude_count;
@@ -1135,9 +1134,8 @@ proctex_op_square_waveform(struct ProcTexGenerator* gen, int op_index, int line)
         aux->count = n;
         aux->table0 = malloc((size_t)(n + 1) * sizeof(int32_t));
         aux->table1 = malloc((size_t)(n + 1) * sizeof(int32_t));
+        assert(aux->table0);
         assert(aux->table1);
-        if( !aux->table0 )
-            return false;
         for( l = 0; l < n; l++ )
         {
             aux->table1[l] = i;
@@ -2315,13 +2313,8 @@ proctex_op_irregular_bricks(struct ProcTexGenerator* gen, int op_index, int line
     span_capacity = width / min_w + 1;
     cur_spans = calloc((size_t)span_capacity, sizeof(*cur_spans));
     prev_spans = calloc((size_t)span_capacity, sizeof(*prev_spans));
+    assert(cur_spans);
     assert(prev_spans);
-    if( !cur_spans )
-    {
-        free(cur_spans);
-        free(prev_spans);
-        return false;
-    }
 
     st.gen = gen;
     st.op = op;

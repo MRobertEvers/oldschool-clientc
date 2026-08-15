@@ -85,15 +85,8 @@ alloc_var_arrays(
 
     mgr->var = calloc((size_t)count, sizeof(int));
     mgr->var_serv = calloc((size_t)count, sizeof(int));
+    assert(mgr->var);
     assert(mgr->var_serv);
-    if( !mgr->var )
-    {
-        free(mgr->var);
-        free(mgr->var_serv);
-        mgr->var = NULL;
-        mgr->var_serv = NULL;
-        return false;
-    }
     return true;
 }
 
@@ -128,13 +121,8 @@ ensure_untyped_var_capacity(
 
     var = calloc((size_t)grown, sizeof(int));
     var_serv = calloc((size_t)grown, sizeof(int));
+    assert(var);
     assert(var_serv);
-    if( !var )
-    {
-        free(var);
-        free(var_serv);
-        return false;
-    }
     if( mgr->varp_count > 0 )
     {
         memcpy(var, mgr->var, (size_t)mgr->varp_count * sizeof(int));

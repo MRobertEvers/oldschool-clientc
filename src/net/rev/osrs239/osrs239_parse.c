@@ -1020,16 +1020,8 @@ osrs239_parse(
         p->size = capacity;
         p->obj_ids = (int*)malloc((size_t)capacity * sizeof(int));
         p->obj_counts = (int*)malloc((size_t)capacity * sizeof(int));
+        assert(p->obj_ids);
         assert(p->obj_counts);
-        if( !p->obj_ids )
-        {
-            free(p->obj_ids);
-            free(p->obj_counts);
-            p->obj_ids = NULL;
-            p->obj_counts = NULL;
-            p->size = 0;
-            return 0;
-        }
         for( int i = 0; i < capacity; i++ )
         {
             int count = RSProt_BufferG1_sub128(&c);

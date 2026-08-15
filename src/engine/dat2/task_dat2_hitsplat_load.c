@@ -90,16 +90,9 @@ Task_Dat2HitsplatLoad_Run(
     sprite_ids = malloc((size_t)count * sizeof(*sprite_ids));
     durations = malloc((size_t)count * sizeof(*durations));
     slot_policies = malloc((size_t)count * sizeof(*slot_policies));
+    assert(sprite_ids);
+    assert(durations);
     assert(slot_policies);
-    if( !sprite_ids || !durations )
-    {
-        free(sprite_ids);
-        free(durations);
-        free(slot_policies);
-        RSCache_FileListFree(filelist);
-        RSCache_Dat2DiskArchiveFree(archive);
-        PT_EXIT(&task->pt);
-    }
     /* -1 is "no sprite", and it is a real state rather than a hole: a quarter
      * of cache.osrs230's records genuinely carry no opcode 5. */
     for( int i = 0; i < count; i++ )

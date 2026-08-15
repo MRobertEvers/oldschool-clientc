@@ -1429,13 +1429,8 @@ collision_tiles_backtrace(
 
     tmp_x = (int*)malloc((size_t)buf_size * sizeof(int));
     tmp_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    assert(tmp_x);
     assert(tmp_z);
-    if( !tmp_x )
-    {
-        free(tmp_x);
-        free(tmp_z);
-        return -1;
-    }
 
     while( path_len < buf_size && (trace_x != src_x || trace_z != src_z) )
     {
@@ -1550,15 +1545,10 @@ route_tiles_impl(
     dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
     queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
     queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    assert(dir_map);
+    assert(dist_map);
+    assert(queue_x);
     assert(queue_z);
-    if( !dir_map || !dist_map || !queue_x )
-    {
-        free(dir_map);
-        free(dist_map);
-        free(queue_x);
-        free(queue_z);
-        return -1;
-    }
 
     arrived = collision_flood(
         cm, src_x, src_z, dst_x, dst_z, approach, dir_map, dist_map, queue_x, queue_z, &end_x,
@@ -1649,15 +1639,10 @@ collision_map_try_route(
     int* dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
     int* queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
     int* queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    assert(dir_map);
+    assert(dist_map);
+    assert(queue_x);
     assert(queue_z);
-    if( !dir_map || !dist_map || !queue_x )
-    {
-        free(dir_map);
-        free(dist_map);
-        free(queue_x);
-        free(queue_z);
-        return -1;
-    }
 
     int arrived = collision_flood(
         cm, src_x, src_z, dst_x, dst_z, NULL, dir_map, dist_map, queue_x, queue_z, NULL, NULL);
@@ -1711,15 +1696,10 @@ collision_map_try_route_op(
     int* dist_map = (int*)malloc((size_t)buf_size * sizeof(int));
     int* queue_x = (int*)malloc((size_t)buf_size * sizeof(int));
     int* queue_z = (int*)malloc((size_t)buf_size * sizeof(int));
+    assert(dir_map);
+    assert(dist_map);
+    assert(queue_x);
     assert(queue_z);
-    if( !dir_map || !dist_map || !queue_x )
-    {
-        free(dir_map);
-        free(dist_map);
-        free(queue_x);
-        free(queue_z);
-        return -1;
-    }
 
     /* Arrival is whichever approach tile the flood reaches first (or the exact
      * tile). Client-TS passes tryNearest = false for every type-2 tryMove, so

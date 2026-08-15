@@ -381,8 +381,7 @@ classic_bake(
     int32_t* pixels = calloc((size_t)EV_TEX_SIZE * (size_t)EV_TEX_SIZE, sizeof(*pixels));
     bool opaque = true;
 
-    if( !pixels )
-        return NULL;
+    assert(pixels);
 
     for( int layer = 0; layer < def->sprite_ids_count; layer++ )
     {

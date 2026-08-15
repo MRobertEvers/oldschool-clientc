@@ -132,9 +132,8 @@ torirs_component_copy_scripts(
 
     dst->scripts = calloc((size_t)scripts_count, sizeof(int*));
     dst->scripts_lengths = calloc((size_t)scripts_count, sizeof(int));
+    assert(dst->scripts);
     assert(dst->scripts_lengths);
-    if( !dst->scripts )
-        return;
 
     for( int i = 0; i < scripts_count; i++ )
     {
@@ -622,17 +621,12 @@ ToriRS_ComponentPackFromRSCacheDat1(
     rel_x_of = calloc((size_t)list->components_count, sizeof(int));
     rel_y_of = calloc((size_t)list->components_count, sizeof(int));
     order = calloc((size_t)list->components_count, sizeof(int));
+    assert(visited);
+    assert(stack);
+    assert(parent_of);
+    assert(rel_x_of);
+    assert(rel_y_of);
     assert(order);
-    if( !visited || !stack || !parent_of || !rel_x_of || !rel_y_of )
-    {
-        free(visited);
-        free(stack);
-        free(parent_of);
-        free(rel_x_of);
-        free(rel_y_of);
-        free(order);
-        return NULL;
-    }
 
     /* Preorder DFS with an explicit stack; children pushed reversed so they pop
      * in declaration order (v1 dat1_component_walk). */

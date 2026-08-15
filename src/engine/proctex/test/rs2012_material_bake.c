@@ -2309,12 +2309,7 @@ prepare_model_outputs(
         {
             g_face_drop_marks = calloc((size_t)model->face_count, 1);
             g_face_drop_marks_size = model->face_count;
-            if( !g_face_drop_marks )
-            {
-                RSCache_ModelFree(model);
-                RSCache_ModelProvenanceFree(provenance);
-                goto fail;
-            }
+            assert(g_face_drop_marks);
         }
         if( model->face_textures )
             for( int face = 0; face < model->face_count; face++ )
