@@ -136,8 +136,7 @@ PlatformAudio_Init(
     struct PlatformAudio* audio,
     int sample_rate)
 {
-    if( !audio )
-        return false;
+    assert(audio);
     audio->sample_rate = sample_rate > 0 ? sample_rate : TORIRS_AUDIO_SAMPLE_RATE;
     ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
     audio->device_open = torirs_audio_js_init(audio->sample_rate) != 0;
@@ -158,8 +157,8 @@ PlatformAudio_Submit(
     struct PlatformAudio* audio,
     const struct ToriRS_AudioCommand* command)
 {
-    if( !audio || !command )
-        return;
+    assert(audio);
+    assert(command);
     audio->commands++;
     ToriRS_Mixer_Apply(&audio->mixer, command);
 }
@@ -170,8 +169,8 @@ PlatformAudio_SubmitAll(
     const struct ToriRS_AudioCommand* commands,
     int count)
 {
-    if( !audio || !commands )
-        return;
+    assert(audio);
+    assert(commands);
     for( int i = 0; i < count; i++ )
         PlatformAudio_Submit(audio, &commands[i]);
 }
@@ -179,7 +178,8 @@ PlatformAudio_SubmitAll(
 void
 PlatformAudio_Update(struct PlatformAudio* audio)
 {
-    if( !audio || !audio->device_open )
+    assert(audio);
+    if( !audio->device_open )
         return;
     /* One block ahead of the lead is enough; scheduling more only adds
      * latency, and the browser will not thank us for a hundred queued nodes. */
@@ -196,8 +196,7 @@ PlatformAudio_Feedback(
     struct PlatformAudio* audio,
     struct ToriRS_AudioFeedback* out)
 {
-    if( !out )
-        return;
+    assert(out);
     memset(out, 0, sizeof(*out));
     if( !audio )
         return;
@@ -212,8 +211,7 @@ PlatformAudio_Stats(struct PlatformAudio* audio)
     struct ToriRS_MixerStats mixer_stats;
 
     memset(&stats, 0, sizeof(stats));
-    if( !audio )
-        return stats;
+    assert(audio);
     mixer_stats = ToriRS_Mixer_Stats(&audio->mixer);
     stats.commands = audio->commands;
     stats.assets_live = mixer_stats.assets_live;

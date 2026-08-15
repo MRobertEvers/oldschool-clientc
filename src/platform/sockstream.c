@@ -1,4 +1,5 @@
 #include "sockstream.h"
+#include <assert.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -126,10 +127,10 @@ sockstream_connect(
     int port,
     int timeout_sec)
 {
-    if( !host || port <= 0 || !stream )
-    {
+    if( port <= 0 )
         return;
-    }
+    assert(host);
+    assert(stream);
     memset(stream, 0, sizeof(struct SockStream));
     sockstream_clear_socket(stream);
     stream->status = SOCKSTREAM_STATUS_CONNECTING;
@@ -269,10 +270,7 @@ sockstream_connect(
 int
 sockstream_lasterror(struct SockStream* stream)
 {
-    if( !stream )
-    {
-        return SOCKSTREAM_ERROR;
-    }
+    assert(stream);
 #ifdef _WIN32
     int error = WSAGetLastError();
     if( error == WSAEWOULDBLOCK )
@@ -412,10 +410,7 @@ sockstream_recv(
 int
 sockstream_poll_connect(struct SockStream* stream)
 {
-    if ( !stream )
-    {
-        return SOCKSTREAM_CONNECT_FAILED;
-    }
+    assert(stream);
     if( !stream || !sockstream_has_socket(stream) || stream->status != SOCKSTREAM_STATUS_CONNECTING )
     {
         // If already connected, return success
@@ -525,20 +520,16 @@ sockstream_is_connected(struct SockStream* stream)
 intptr_t
 sockstream_get_fd(struct SockStream* stream)
 {
-    if( !stream || stream->status != SOCKSTREAM_STATUS_CONNECTED )
-    {
+    assert(stream);
+    if( stream->status != SOCKSTREAM_STATUS_CONNECTED )
         return -1;
-    }
     return stream->sockfd;
 }
 
 void
 sockstream_close(struct SockStream* stream)
 {
-    if( !stream )
-    {
-        return;
-    }
+    assert(stream);
 
     if( sockstream_has_socket(stream) )
     {

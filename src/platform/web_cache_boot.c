@@ -38,6 +38,7 @@
  */
 
 #include "platform/web_cache_boot.h"
+#include <assert.h>
 
 #include "app.h"
 #include "bootmanifest/bootmanifest.h"
@@ -329,8 +330,7 @@ torirs_web_cache_prime_stats(int* out)
 {
     struct Js5Progress progress;
 
-    if( !out )
-        return;
+    assert(out);
     memset(out, 0, 5 * sizeof(int));
     /* Live while the primer exists, the retained snapshot afterwards — which is
      * the case the page's failure report reads. */

@@ -32,8 +32,9 @@ torirs_dup_int_array(
 {
     int* dst;
 
-    if( count <= 0 || !src )
+    if( count <= 0 )
         return NULL;
+    assert(src);
 
     dst = malloc((size_t)count * sizeof(int));
     assert(dst);

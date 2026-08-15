@@ -8,8 +8,7 @@
 bool
 UITree_ComponentClipsChildren(struct UITreeComponent const* component)
 {
-    if( !component )
-        return false;
+    assert(component);
     switch( component->type )
     {
     case UIELEM_RS_LAYER:
@@ -25,8 +24,7 @@ UITree_ComponentClipsChildren(struct UITreeComponent const* component)
 bool
 UITree_ComponentEstablishesSurface(struct UITreeComponent const* component)
 {
-    if( !component )
-        return false;
+    assert(component);
     if( component->type == UIELEM_BUILTIN_CHAT || component->type == UIELEM_BUILTIN_SIDEBAR )
         return true;
 
@@ -90,7 +88,8 @@ UITree_LayerChildClip(
 bool
 UITree_ScrollLayerNeedsVertical(struct UITreeComponent const* layer)
 {
-    if( !layer || layer->type != UIELEM_RS_LAYER )
+    assert(layer);
+    if( layer->type != UIELEM_RS_LAYER )
         return false;
     int h = 0;
     UITree_LayoutGetBounds(&layer->position, NULL, NULL, NULL, &h);
@@ -100,7 +99,8 @@ UITree_ScrollLayerNeedsVertical(struct UITreeComponent const* layer)
 bool
 UITree_ScrollLayerNeedsHorizontal(struct UITreeComponent const* layer)
 {
-    if( !layer || layer->type != UIELEM_RS_LAYER )
+    assert(layer);
+    if( layer->type != UIELEM_RS_LAYER )
         return false;
     int w = 0;
     UITree_LayoutGetBounds(&layer->position, NULL, NULL, &w, NULL);
@@ -110,8 +110,7 @@ UITree_ScrollLayerNeedsHorizontal(struct UITreeComponent const* layer)
 int
 UITree_ScrollMaxX(struct UITreeComponent const* layer)
 {
-    if( !layer )
-        return 0;
+    assert(layer);
     int w = 0;
     UITree_LayoutGetBounds(&layer->position, NULL, NULL, &w, NULL);
     int max = layer->u.rs_layer.scroll_width - w;
@@ -121,8 +120,7 @@ UITree_ScrollMaxX(struct UITreeComponent const* layer)
 int
 UITree_ScrollMaxY(struct UITreeComponent const* layer)
 {
-    if( !layer )
-        return 0;
+    assert(layer);
     int h = 0;
     UITree_LayoutGetBounds(&layer->position, NULL, NULL, NULL, &h);
     int max = layer->u.rs_layer.scroll_height - h;
@@ -164,8 +162,9 @@ UITree_ScrollIntersectClip(
     int w,
     int h)
 {
-    if( !clip || w <= 0 || h <= 0 )
+    if( w <= 0 || h <= 0 )
         return;
+    assert(clip);
     if( clip->clip_w <= 0 || clip->clip_h <= 0 )
     {
         clip->clip_x = x;
@@ -194,7 +193,8 @@ UITree_ScrollIntersectClip(
 bool
 UITree_PointInClip(int px, int py, struct UITreeScrollClip const* clip)
 {
-    if( !clip || clip->clip_w <= 0 || clip->clip_h <= 0 )
+    assert(clip);
+    if( clip->clip_w <= 0 || clip->clip_h <= 0 )
         return true;
     return px >= clip->clip_x && px < clip->clip_x + clip->clip_w &&
            py >= clip->clip_y && py < clip->clip_y + clip->clip_h;
@@ -591,7 +591,8 @@ UITree_ScrollbarHandle(
     int step)
 {
     assert(tree);
-    if( !hit || hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
+    assert(hit);
+    if( hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
         return false;
 
     /* Write the canonical component scroll offset (what emit + CS2 opcodes read).

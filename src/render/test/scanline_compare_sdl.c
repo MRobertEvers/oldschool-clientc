@@ -251,8 +251,7 @@ run_task(
     struct Viewer* viewer,
     struct ToriRS_Task* task)
 {
-    if( !task )
-        return;
+    assert(task);
     ToriRS_TaskQueue_Add(viewer->runner.queue, task);
     TaskRunner_Drain(&viewer->runner);
 }
@@ -269,7 +268,8 @@ publish_model_textures(
 {
     struct ToriDraw_TextureState* tex_state = ToriDraw_SceneTexState(viewer->scene);
 
-    if( !rs_model || !rs_model->face_textures || !tex_state )
+    assert(rs_model);
+    if( !rs_model->face_textures || !tex_state )
         return;
 
     for( int face = 0; face < rs_model->face_count; face++ )

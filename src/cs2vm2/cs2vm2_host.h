@@ -2,6 +2,7 @@
 #define CS2VM2_HOST_H
 
 #include <stdbool.h>
+#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -42,8 +43,7 @@ enum CS2VM_WindowMode
 static inline int
 CS2VM_WindowModeFromName(char const* name)
 {
-    if( !name )
-        return 0;
+    assert(name);
     if( strcmp(name, "fixed") == 0 )
         return CS2VM_WINDOW_MODE_FIXED;
     if( strcmp(name, "resizable") == 0 )

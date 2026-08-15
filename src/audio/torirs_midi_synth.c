@@ -1,4 +1,5 @@
 #include "audio/torirs_midi_synth.h"
+#include <assert.h>
 
 #include <rscache.h>
 
@@ -98,8 +99,7 @@ ToriRS_MidiSynth_HeldNoteCount(const struct ToriRS_MidiSynth* synth)
 {
     int held = 0;
 
-    if( !synth )
-        return 0;
+    assert(synth);
     for( int i = 0; i < synth->order_count; i++ )
     {
         const struct ToriRS_MidiNode* node = &synth->nodes[synth->order[i]];
@@ -720,8 +720,7 @@ ToriRS_MidiSynth_Init(
     struct ToriRS_SoundBank* bank,
     int sample_rate)
 {
-    if( !synth )
-        return;
+    assert(synth);
     memset(synth, 0, sizeof(*synth));
     synth->bank = bank;
     synth->sample_rate = sample_rate > 0 ? sample_rate : 22050;
@@ -752,8 +751,7 @@ ToriRS_MidiSynth_Free(struct ToriRS_MidiSynth* synth)
 void
 ToriRS_MidiSynth_Stop(struct ToriRS_MidiSynth* synth)
 {
-    if( !synth )
-        return;
+    assert(synth);
     channel_all_sound_off(synth, -1);
     channel_reset(synth, -1);
     for( int i = 0; i < TORIRS_MIDI_CHANNELS; i++ )
@@ -774,8 +772,7 @@ ToriRS_MidiSynth_Play(
     int midi_size,
     bool looping)
 {
-    if( !synth )
-        return false;
+    assert(synth);
     ToriRS_MidiSynth_Stop(synth);
     if( !ToriRS_MidiFile_Open(&synth->file, midi, midi_size) )
         return false;
@@ -856,8 +853,7 @@ ToriRS_MidiSynth_PlayFrom(
 bool
 ToriRS_MidiSynth_Finished(const struct ToriRS_MidiSynth* synth)
 {
-    if( !synth )
-        return true;
+    assert(synth);
     if( synth->playing )
         return false;
     return synth->order_count == 0;
@@ -1133,8 +1129,10 @@ ToriRS_MidiSynth_Render(
     int guard = 0;
     const int guard_limit = 1 << 16;
 
-    if( !synth || !out || frames <= 0 )
+    if( frames <= 0 )
         return;
+    assert(synth);
+    assert(out);
     memset(out, 0, (size_t)frames * 2 * sizeof(int16_t));
     if( !ensure_accumulator(synth, frames) )
         return;

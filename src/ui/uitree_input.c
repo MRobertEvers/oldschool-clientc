@@ -46,8 +46,7 @@ UITree_PointInComponent(
     int px,
     int py)
 {
-    if( !position )
-        return false;
+    assert(position);
 
     int x = 0;
     int y = 0;

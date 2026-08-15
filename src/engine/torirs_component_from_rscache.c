@@ -64,7 +64,8 @@ torirs_component_type_from_raw(int type)
 static void
 torirs_component_apply_graphic_hitbox_only(struct ToriRS_Component* dst)
 {
-    if( !dst || dst->type != TORIRS_COMPONENT_GRAPHIC )
+    assert(dst);
+    if( dst->type != TORIRS_COMPONENT_GRAPHIC )
         return;
     dst->graphic_hitbox_only =
         (dst->sprite_ref[0] == '\0' && dst->sprite_active_ref[0] == '\0') ? 1 : 0;
@@ -76,8 +77,9 @@ torirs_dat2_sprite_ref_from_id(
     char* out,
     size_t out_size)
 {
-    if( !out || out_size == 0 )
+    if( out_size == 0 )
         return;
+    assert(out);
     if( sprite_id < 0 )
     {
         out[0] = '\0';
@@ -91,8 +93,10 @@ torirs_component_copy_inv_slots_dat2(
     struct ToriRS_Component* dst,
     const struct RSCache_Dat2Component* src)
 {
-    if( !dst || !src || src->type != TORIRS_COMPONENT_INV )
+    assert(src);
+    if( src->type != TORIRS_COMPONENT_INV )
         return;
+    assert(dst);
 
     for( int i = 0; i < TORIRS_INV_SLOT_MAX; i++ )
     {
@@ -173,8 +177,7 @@ torirs_copy_script_hook(
     struct RSCache_Dat2ComponentScriptVar* src,
     int32_t src_len)
 {
-    if( !dst )
-        return;
+    assert(dst);
     memset(dst, 0, sizeof(*dst));
     if( !src || src_len <= 0 )
         return;
@@ -213,8 +216,10 @@ torirs_component_copy_dat2_cs1_scripts(
     struct ToriRS_Component* dst,
     const struct RSCache_Dat2Component* src)
 {
-    if( !dst || !src || src->cs1ScriptsLen <= 0 || !src->cs1Scripts )
+    assert(src);
+    if( src->cs1ScriptsLen <= 0 || !src->cs1Scripts )
         return;
+    assert(dst);
 
     torirs_component_copy_scripts(
         dst,
@@ -232,8 +237,10 @@ torirs_component_copy_dat2_hooks(
     struct ToriRS_Component* dst,
     const struct RSCache_Dat2Component* src)
 {
-    if( !dst || !src || !src->if3 )
+    assert(src);
+    if( !src->if3 )
         return;
+    assert(dst);
 
     /* One line per kind, and each allocates only when the cache actually
      * carried that hook — see engine/torirs_component_hook.h. */
@@ -328,8 +335,7 @@ torirs_component_copy_dat2_hooks(
 struct ToriRS_Component*
 ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
     if( !dst )
@@ -466,8 +472,7 @@ ToriRS_ComponentFromRSCacheDat2(const struct RSCache_Dat2Component* src)
 struct ToriRS_Component*
 ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriRS_Component* dst = calloc(1, sizeof(struct ToriRS_Component));
     if( !dst )
@@ -606,7 +611,8 @@ ToriRS_ComponentPackFromRSCacheDat1(
     int stack_top;
     int order_count;
 
-    if( !list || !list->components || root_id < 0 || root_id >= list->components_count )
+    assert(list);
+    if( !list->components || root_id < 0 || root_id >= list->components_count )
         return NULL;
     root = list->components[root_id];
     if( !root )
@@ -731,7 +737,8 @@ torirs_component_pack_apply_layout(
 struct ToriRS_ComponentPack*
 ToriRS_ComponentPackFromRSCacheDat2(const struct RSCache_Dat2ComponentPack* src)
 {
-    if( !src || src->component_count <= 0 || !src->components )
+    assert(src);
+    if( src->component_count <= 0 || !src->components )
         return NULL;
 
     struct ToriRS_ComponentPack* pack = calloc(1, sizeof(struct ToriRS_ComponentPack));

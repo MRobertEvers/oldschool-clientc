@@ -58,8 +58,7 @@ shademap2_in_bounds(
     /* The shademap is build-only (freed at build end). A runtime loc spawn
      * (WorldBuilder_ApplyLocChange) has none, and doesn't need shade bake — all
      * shademap writers gate on this, so a NULL map makes them no-ops. */
-    if( !shademap )
-        return false;
+    assert(shademap);
     return sx >= 0 && sx < shademap->width && sz >= 0 && sz < shademap->height && level >= 0 &&
            level < shademap->levels;
 }

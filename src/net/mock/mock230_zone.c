@@ -297,8 +297,9 @@ queue_event(
 {
     struct Mock230ZoneMap* map = map_of(srv, 1);
 
-    if( !zone || !map )
+    if( !map )
         return;
+    assert(zone);
 
     zone->events = grow(zone->events, &zone->event_capacity, zone->event_count + 1,
                         sizeof(*zone->events));

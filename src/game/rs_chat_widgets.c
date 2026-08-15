@@ -1,4 +1,5 @@
 #include "rs_chat_widgets.h"
+#include <assert.h>
 
 #include "rs_chat.h"
 #include "ui/uitree.h"
@@ -37,8 +38,9 @@ RS_ChatWidgets_ComposeLine(
     char* out,
     int cap)
 {
-    if( !out || cap <= 0 )
+    if( cap <= 0 )
         return;
+    assert(out);
     out[0] = '\0';
     if( !message )
         return;
@@ -94,8 +96,11 @@ RS_ChatWidgets_Apply(
     int visible = 0;
     int viewport = 0;
 
-    if( !tree || !chat || !filters || !RS_ChatWidgets_Enabled(layout) )
+    if( !RS_ChatWidgets_Enabled(layout) )
         return 0;
+    assert(tree);
+    assert(chat);
+    assert(filters);
 
     line_height = layout->line_height > 0 ? layout->line_height : 14;
 

@@ -39,8 +39,7 @@ host_static_sprite_scene(
 {
     struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_STATIC_SPRITE_SCENE };
     int scene_id;
-    if( !host )
-        return -1;
+    assert(host);
     req.u.static_sprite.slot = (int)slot;
     scene_id = UITree_Host(host, &req);
     return scene_id > 0 ? scene_id : -1;
@@ -49,7 +48,8 @@ host_static_sprite_scene(
 static bool
 layer_needs_scroll_offset(struct UITreeComponent const* c)
 {
-    if( !c || c->type != UIELEM_RS_LAYER )
+    assert(c);
+    if( c->type != UIELEM_RS_LAYER )
         return false;
     return UITree_ScrollLayerNeedsVertical(c) || UITree_ScrollLayerNeedsHorizontal(c);
 }
@@ -1365,8 +1365,10 @@ emit_obj_selected_icon(
     int obj_count;
     int outline_scene;
 
-    if( !host || !desc || obj_id <= 0 )
+    if( obj_id <= 0 )
         return;
+    assert(host);
+    assert(desc);
     /* Same two kinds emit_obj_stack_count accepts: a node with a stale item_id
      * under a plain SETGRAPHIC sprite is not an item cell. */
     if( desc->kind != UITREE_EMIT_CC_OBJ &&

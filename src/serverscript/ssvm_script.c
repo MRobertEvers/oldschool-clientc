@@ -1,4 +1,5 @@
 #include "ssvm_script.h"
+#include <assert.h>
 
 #include "ss_opcode.h"
 
@@ -16,8 +17,7 @@
 void
 SSVM_ErrorClear(struct SSVM_Error* err)
 {
-    if( !err )
-        return;
+    assert(err);
     err->script_id = -1;
     err->offset = -1;
     err->message[0] = '\0';
@@ -33,8 +33,7 @@ SSVM_ErrorSet(
 {
     va_list args;
 
-    if( !err )
-        return 0;
+    assert(err);
 
     err->script_id = script_id;
     err->offset = offset;
@@ -148,8 +147,7 @@ SSVM_ScriptDecode(
     int i;
     int32_t op;
 
-    if( !out )
-        return SSVM_ErrorSet(err, id, -1, "no output script");
+    assert(out);
 
     memset(out, 0, sizeof(*out));
     out->id = id;
@@ -369,8 +367,7 @@ SSVM_ScriptEncode(
     if( out_length )
         *out_length = 0;
 
-    if( !script )
-        return SSVM_ErrorSet(err, -1, -1, "no script to encode");
+    assert(script);
 
     /* Size first. Every term is exact rather than a guess, so the sizing pass
      * doubles as a check that the layout below is the layout being described. */
@@ -538,7 +535,8 @@ SSVM_ScriptLineNumber(
 {
     int i;
 
-    if( !script || !script->line_count )
+    assert(script);
+    if( !script->line_count )
         return 0;
 
     for( i = 0; i < script->line_count; i++ )
@@ -559,7 +557,8 @@ SSVM_ScriptFileName(const struct SSVM_Script* script)
 {
     const char* slash;
 
-    if( !script || !script->source_path )
+    assert(script);
+    if( !script->source_path )
         return "";
 
     slash = strrchr(script->source_path, '/');
@@ -571,7 +570,8 @@ SSVM_ScriptFileName(const struct SSVM_Script* script)
 int
 SSVM_ScriptTrigger(const struct SSVM_Script* script)
 {
-    if( !script || script->lookup_key < 0 )
+    assert(script);
+    if( script->lookup_key < 0 )
         return -1;
     return script->lookup_key & 0xff;
 }

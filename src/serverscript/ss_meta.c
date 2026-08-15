@@ -6,6 +6,7 @@
  */
 
 #include "ss_meta.h"
+#include <assert.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -50,8 +51,7 @@ SSVM_OpcodeFromName(const char* name)
 {
     int opcode;
 
-    if( !name )
-        return -1;
+    assert(name);
     if( *name == '.' )
         name++;
 
@@ -94,8 +94,7 @@ SSVM_TriggerFromName(const char* name)
 {
     int i;
 
-    if( !name )
-        return -1;
+    assert(name);
 
     for( i = 0; i < SS_TRIGGER_MAX; i++ )
     {

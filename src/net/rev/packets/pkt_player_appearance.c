@@ -1,4 +1,5 @@
 #include "pkt_player_appearance.h"
+#include <assert.h>
 
 #include "net/jbase37.h"
 
@@ -383,8 +384,10 @@ pkt_appearance_read(
     struct OpWriter w;
     int ok;
 
-    if( !data || !ops || len <= 0 || ops_capacity <= 0 )
+    if( len <= 0 || ops_capacity <= 0 )
         return -1;
+    assert(data);
+    assert(ops);
 
     memset(&w, 0, sizeof(w));
     w.ops = ops;
@@ -402,8 +405,7 @@ pkt_appearance_read(
 void
 PktPlayerAppearance_Init(struct PktPlayerAppearance* out)
 {
-    if( !out )
-        return;
+    assert(out);
     memset(out, 0, sizeof(*out));
     out->skull_icon = -1;
     out->npc_id = -1;
@@ -456,8 +458,8 @@ PktPlayerAppearance_ApplyOps(
     struct PktAppearanceOp const* ops,
     int op_count)
 {
-    if( !out || !ops )
-        return 0;
+    assert(out);
+    assert(ops);
 
     for( int i = 0; i < op_count; i++ )
     {
@@ -534,8 +536,7 @@ PktPlayerAppearance_DecodeAs(
     struct PktAppearanceOp ops[PKT_APPEARANCE_OPS_MAX];
     int op_count;
 
-    if( !out )
-        return 0;
+    assert(out);
 
     op_count = pkt_appearance_read(encoding, buf, len, ops, PKT_APPEARANCE_OPS_MAX);
     if( op_count < 0 )

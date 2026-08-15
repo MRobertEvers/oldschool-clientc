@@ -1,4 +1,5 @@
 #include "dump_interface_common.h"
+#include <assert.h>
 
 #include "osrs/rscache/dat1a/dat1a_configs_dat.h"
 #include "osrs/rscache/dat1disk/dat1disk.h"
@@ -13,8 +14,7 @@
 char const*
 dump_iface_component_type_name(RSCacheDat2A_Component const* c)
 {
-    if( !c )
-        return "unknown";
+    assert(c);
 
     if( c->if3 )
     {
@@ -67,7 +67,8 @@ dump_iface_parent_file_index(
     struct DumpIfaceLoaded const* li,
     int child_index)
 {
-    if( !li || child_index < 0 || child_index >= li->count )
+    assert(li);
+    if( child_index < 0 || child_index >= li->count )
         return -1;
     return li->parent_idx ? li->parent_idx[child_index] : -1;
 }
@@ -92,8 +93,9 @@ dump_iface_format_packed_id(
     size_t buf_size,
     int packed_id)
 {
-    if( !buf || buf_size == 0 )
+    if( buf_size == 0 )
         return;
+    assert(buf);
     snprintf(
         buf,
         buf_size,
@@ -111,8 +113,10 @@ dump_iface_decode_component_from_bytes(
     int iface_id,
     int file_index)
 {
-    if( !out || !data || size <= 0 )
+    if( size <= 0 )
         return -1;
+    assert(out);
+    assert(data);
 
     struct RSCacheShared_RSBuffer buf;
     RSCacheShared_RSBufferInit(&buf, (uint8_t*)data, size);
@@ -261,8 +265,7 @@ dump_iface_resolve_layout(
 int
 dump_iface_detect_cache_mode(char const* cache_dir)
 {
-    if( !cache_dir )
-        return -1;
+    assert(cache_dir);
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/main_file_cache.dat2", cache_dir);
@@ -289,8 +292,9 @@ dat1_ifaces_get_component(
     struct RSCacheDat1A_ConfigComponentList* list,
     int component_id)
 {
-    if( !list || component_id < 0 )
+    if( component_id < 0 )
         return NULL;
+    assert(list);
 
     if( component_id < list->components_count && list->components[component_id] )
     {
@@ -353,8 +357,7 @@ dat1_resolve_walk_root_id(
 static char*
 dump_iface_strdup(char const* s)
 {
-    if( !s )
-        return NULL;
+    assert(s);
     size_t n = strlen(s) + 1;
     char* out = malloc(n);
     if( out )
@@ -799,8 +802,9 @@ hook_refs_iface(
     int hook_len,
     int target_iface)
 {
-    if( !hook || hook_len <= 0 )
+    if( hook_len <= 0 )
         return false;
+    assert(hook);
     for( int i = 0; i < hook_len; i++ )
     {
         if( hook[i].type != SCRIPT_VAR_INT )
@@ -817,8 +821,7 @@ component_refs_iface(
     RSCacheDat2A_Component const* c,
     int target_iface)
 {
-    if( !c )
-        return false;
+    assert(c);
 
     int packed = target_iface << 16;
     if( c->id == packed || (c->id >> 16) == target_iface )
@@ -874,8 +877,10 @@ dump_iface_scan_parents(
     int target_iface,
     FILE* fp)
 {
-    if( !cache || !fp || target_iface < 0 )
+    if( target_iface < 0 )
         return -1;
+    assert(cache);
+    assert(fp);
 
     struct RSCacheDat2Disk_ReferenceTable* table =
         cache->tables[RSCacheDat2Disk_Table_Interfaces];

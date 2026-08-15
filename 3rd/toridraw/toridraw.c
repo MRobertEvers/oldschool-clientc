@@ -1,4 +1,5 @@
 #include "toridraw.h"
+#include <assert.h>
 
 #include "toridraw_types.h"
 
@@ -318,8 +319,9 @@ ToriDraw_SceneZBufferResize(
     torizdepth_t* grown;
     size_t want;
 
-    if( !scene || stride <= 0 || rows <= 0 )
+    if( stride <= 0 || rows <= 0 )
         return false;
+    assert(scene);
 
     /* Never shrink: the buffer is scratch, and a scene alternating between two
      * viewport sizes would otherwise realloc on every switch. */
@@ -367,8 +369,7 @@ ToriDraw_SceneHasZBuffer(
 struct ToriDraw_TextureState*
 ToriDraw_SceneTexState(struct ToriDraw_Scene* scene)
 {
-    if( !scene )
-        return NULL;
+    assert(scene);
 
     if( !scene->tex_state )
     {

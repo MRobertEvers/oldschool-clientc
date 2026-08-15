@@ -30,7 +30,8 @@ RS_Social_Init(struct RS_Social* social)
 static int64_t
 name_hash(char const* name)
 {
-    if( !name || !name[0] )
+    assert(name);
+    if( !name[0] )
         return 0;
     return (int64_t)strtobase37(name);
 }
@@ -72,8 +73,9 @@ RS_Social_DisplayName(
     int at_word_start = 1;
     int i = 0;
 
-    if( !out || cap <= 0 )
+    if( cap <= 0 )
         return;
+    assert(out);
     out[0] = '\0';
     if( !raw )
         return;
@@ -99,7 +101,8 @@ RS_Social_AddFriend(
     int world)
 {
     assert(social);
-    if( !name || !name[0] || social->friend_count >= RS_SOCIAL_FRIEND_MAX )
+    assert(name);
+    if( !name[0] || social->friend_count >= RS_SOCIAL_FRIEND_MAX )
         return 0;
     if( find_hash(social->friend_hash, social->friend_name, social->friend_count, name) >= 0 )
         return 0;
@@ -136,7 +139,8 @@ RS_Social_AddIgnore(
     char const* name)
 {
     assert(social);
-    if( !name || !name[0] || social->ignore_count >= RS_SOCIAL_IGNORE_MAX )
+    assert(name);
+    if( !name[0] || social->ignore_count >= RS_SOCIAL_IGNORE_MAX )
         return 0;
     if( find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name) >= 0 )
         return 0;
@@ -168,8 +172,7 @@ RS_Social_DelIgnore(
 int
 RS_Social_FriendCount(struct RS_Social const* social)
 {
-    if( !social )
-        return 0;
+    assert(social);
     /*
      * The 2004 client says this by reporting 0 friends while
      * friendServerStatus != 2 (Client.ts, the CC_FRIENDS_* clientCode branch);
@@ -195,8 +198,9 @@ RS_Social_FriendName(
     char* out,
     int cap)
 {
-    if( !out || cap <= 0 )
+    if( cap <= 0 )
         return;
+    assert(out);
     out[0] = '\0';
     if( !social || index < 0 || index >= social->friend_count )
         return;
@@ -210,8 +214,9 @@ RS_Social_IgnoreName(
     char* out,
     int cap)
 {
-    if( !out || cap <= 0 )
+    if( cap <= 0 )
         return;
+    assert(out);
     out[0] = '\0';
     if( !social || index < 0 || index >= social->ignore_count )
         return;
@@ -223,7 +228,8 @@ RS_Social_FriendWorld(
     struct RS_Social const* social,
     int index)
 {
-    if( !social || index < 0 || index >= social->friend_count )
+    assert(social);
+    if( index < 0 || index >= social->friend_count )
         return 0;
     return social->friend_world[index];
 }
@@ -233,8 +239,8 @@ RS_Social_IsFriend(
     struct RS_Social const* social,
     char const* name)
 {
-    if( !social || !name )
-        return 0;
+    assert(social);
+    assert(name);
     return find_hash(social->friend_hash, social->friend_name, social->friend_count, name) >= 0;
 }
 
@@ -243,7 +249,7 @@ RS_Social_IsIgnored(
     struct RS_Social const* social,
     char const* name)
 {
-    if( !social || !name )
-        return 0;
+    assert(social);
+    assert(name);
     return find_hash(social->ignore_hash, social->ignore_name, social->ignore_count, name) >= 0;
 }

@@ -97,8 +97,7 @@ UITree_HookStrArgv(
 void
 UITree_HookClear(struct UITreeRuntimeScriptHook* hook)
 {
-    if( !hook )
-        return;
+    assert(hook);
     free(hook->argv);
     if( hook->strv )
     {

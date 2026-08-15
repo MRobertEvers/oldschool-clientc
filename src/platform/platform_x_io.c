@@ -893,8 +893,10 @@ PlatformXIO_Js5Enable(
     struct PlatformX_IO* px,
     const struct Js5Config* config)
 {
-    if( !px || !px->dat2_disk || !config || px->js5 )
+    assert(px);
+    if( !px->dat2_disk || px->js5 )
         return -1;
+    assert(config);
     px->js5 = PlatformXIOJs5Cache_New(px->dat2_disk, config);
     return px->js5 ? 0 : -1;
 }
@@ -906,7 +908,8 @@ PlatformXIO_Js5Pump(
 {
     int result;
 
-    if( !px || !px->js5 )
+    assert(px);
+    if( !px->js5 )
         return -1;
     result = PlatformXIOJs5Cache_Tick(px->js5, now_ms);
     js5_service_pending(px, result < 0);

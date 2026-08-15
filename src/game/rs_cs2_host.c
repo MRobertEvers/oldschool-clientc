@@ -491,7 +491,8 @@ rs_cs2_parent_component_id(
 static int
 rs_cs2_line_break_at(char const* p)
 {
-    if( !p || !p[0] )
+    assert(p);
+    if( !p[0] )
         return 0;
     if( p[0] == '\\' && p[1] == 'n' )
         return 2;
@@ -547,7 +548,8 @@ rs_cs2_font_wrap(
     assert(font);
     *out_lines = 0;
     *out_width = 0;
-    if( !text || !text[0] )
+    assert(text);
+    if( !text[0] )
         return;
 
     rest = text;
@@ -619,7 +621,8 @@ rs_cs2_font_wrap_line_count(
     int max_width)
 {
     int lines, width;
-    if( !text || !text[0] )
+    assert(text);
+    if( !text[0] )
         return 0;
     if( max_width <= 0 )
         return 1;
@@ -857,8 +860,7 @@ RS_CS2Host_NotifyVarChanged(
     struct RS_CS2Host* host,
     int var_id)
 {
-    if( !host )
-        return;
+    assert(host);
     /* Advance the serial so already-fired var-transmit hooks re-run, and flag the
      * per-tick pump to re-dispatch (TS parity: value changes bump changedVarpCount,
      * processed once per cycle rather than synchronously mid-script). */
@@ -894,7 +896,8 @@ RS_CS2Host_ScriptWriteVarp(
 {
     int before;
 
-    if( !host || !host->varps )
+    assert(host);
+    if( !host->varps )
         return;
     before = VarPManager_GetVarp(host->varps, varp_id);
     VarPManager_SetVarpOptimistic(host->varps, varp_id, value);
@@ -911,7 +914,8 @@ RS_CS2Host_ScriptWriteVarbit(
     int base;
     int before;
 
-    if( !host || !host->varps )
+    assert(host);
+    if( !host->varps )
         return;
     /* Transmit hooks are keyed by varp, so the base varp is what "changed" as
      * far as a trigger list is concerned — the varbit id matches nothing. */
@@ -927,8 +931,7 @@ RS_CS2Host_NotifyInvChanged(
     struct RS_CS2Host* host,
     int container_id)
 {
-    if( !host )
-        return;
+    assert(host);
     host->inv_change_serial++;
     host->inv_transmit_dirty = 1;
     if( torirs_cc_debug() )
@@ -968,8 +971,7 @@ RS_CS2Host_NotifyStatChanged(
     struct RS_CS2Host* host,
     int stat_id)
 {
-    if( !host )
-        return;
+    assert(host);
     host->stat_change_serial++;
     host->stat_transmit_dirty = 1;
 
@@ -992,8 +994,7 @@ RS_CS2Host_NotifyStatChanged(
 void
 RS_CS2Host_NotifyMiscChanged(struct RS_CS2Host* host)
 {
-    if( !host )
-        return;
+    assert(host);
     host->misc_transmit_dirty = 1;
 }
 
@@ -1004,8 +1005,7 @@ RS_CS2Host_SetSocial(
     int* filter_modes,
     int world)
 {
-    if( !host )
-        return;
+    assert(host);
     host->social = social;
     host->chat_filter_mode = filter_modes;
     host->map_world = world;
@@ -1014,8 +1014,7 @@ RS_CS2Host_SetSocial(
 void
 RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host)
 {
-    if( !host )
-        return;
+    assert(host);
     host->friend_transmit_dirty = 1;
 }
 
@@ -1051,8 +1050,10 @@ RS_CS2Host_TakeSocialSend(
     struct RS_CS2Host* host,
     struct RS_CS2SocialSend* out)
 {
-    if( !host || !out || host->social_send_count <= 0 )
+    assert(host);
+    if( host->social_send_count <= 0 )
         return false;
+    assert(out);
     *out = host->social_send[host->social_send_head];
     host->social_send_head = (host->social_send_head + 1) % RS_CS2_HOST_SOCIAL_SEND_MAX;
     host->social_send_count--;
@@ -1091,8 +1092,10 @@ RS_CS2Host_TakeCallOnResize(
     struct RS_CS2Host* host,
     int* out_component_id)
 {
-    if( !host || !out_component_id || host->call_on_resize_count <= 0 )
+    assert(host);
+    if( host->call_on_resize_count <= 0 )
         return false;
+    assert(out_component_id);
     *out_component_id = host->call_on_resize[host->call_on_resize_head];
     host->call_on_resize_head =
         (host->call_on_resize_head + 1) % RS_CS2_HOST_CALL_ON_RESIZE_MAX;
@@ -1165,8 +1168,10 @@ RS_CS2Host_TakeSound(
     struct RS_CS2Host* host,
     struct RS_CS2Sound* out)
 {
-    if( !host || !out || host->sound_count <= 0 )
+    assert(host);
+    if( host->sound_count <= 0 )
         return false;
+    assert(out);
     *out = host->sound[host->sound_head];
     host->sound_head = (host->sound_head + 1) % RS_CS2_HOST_SOUND_MAX;
     host->sound_count--;
@@ -1332,8 +1337,9 @@ RS_CS2Host_GetOption(
 {
     int const* table;
 
-    if( !host || option_id < 0 || option_id >= RS_CS2_OPTION_MAX )
+    if( option_id < 0 || option_id >= RS_CS2_OPTION_MAX )
         return 0;
+    assert(host);
     table = option_table((struct RS_CS2Host*)host, kind);
     return table ? table[option_id] : 0;
 }
@@ -1347,8 +1353,9 @@ RS_CS2Host_SetOption(
 {
     int* table;
 
-    if( !host || option_id < 0 || option_id >= RS_CS2_OPTION_MAX )
+    if( option_id < 0 || option_id >= RS_CS2_OPTION_MAX )
         return;
+    assert(host);
     table = option_table(host, kind);
     if( !table )
         return;
@@ -1371,8 +1378,10 @@ RS_CS2Host_TakeAudioSettings(
     struct RS_CS2Host* host,
     struct RS_CS2AudioSettings* out)
 {
-    if( !host || !out || !host->audio_settings_dirty )
+    assert(host);
+    if( !host->audio_settings_dirty )
         return false;
+    assert(out);
     out->master = host->device_options[RS_CS2_DEVICEOPTION_MASTER_VOLUME];
     out->music = host->game_options[RS_CS2_GAMEOPTION_MUSIC_VOLUME];
     out->sounds = host->game_options[RS_CS2_GAMEOPTION_SOUND_VOLUME];
@@ -1388,7 +1397,8 @@ RS_CS2Host_SyncAudioVarp(
 {
     int value;
 
-    if( !host || !host->varps )
+    assert(host);
+    if( !host->varps )
         return;
     switch( varp_id )
     {
@@ -1427,8 +1437,10 @@ RS_CS2Host_TakeTriggerOp(
     struct RS_CS2Host* host,
     struct RS_CS2TriggerOp* out)
 {
-    if( !host || !out || host->trigger_op_count <= 0 )
+    assert(host);
+    if( host->trigger_op_count <= 0 )
         return false;
+    assert(out);
     *out = host->trigger_op[host->trigger_op_head];
     host->trigger_op_head = (host->trigger_op_head + 1) % RS_CS2_HOST_TRIGGER_OP_MAX;
     host->trigger_op_count--;
@@ -1466,8 +1478,10 @@ RS_CS2Host_TakeTriggerOpLocal(
     struct RS_CS2Host* host,
     struct RS_CS2TriggerOpLocal* out)
 {
-    if( !host || !out || host->triggeroplocal_count <= 0 )
+    assert(host);
+    if( host->triggeroplocal_count <= 0 )
         return false;
+    assert(out);
     *out = host->triggeroplocal[host->triggeroplocal_head];
     host->triggeroplocal_head =
         (host->triggeroplocal_head + 1) % RS_CS2_HOST_TRIGGEROPLOCAL_MAX;
@@ -4423,8 +4437,7 @@ exec_set_on_stat_transmit(
     struct RS_CS2StatTransmitHook* hook;
 
     assert(host);
-    if( !request )
-        return CS2VM_EXECNO_OK;
+    assert(request);
     hook = rs_cs2_acquire_stat_transmit_hook(host, request->component_id, request->script_id > 0);
     if( !hook )
         return CS2VM_EXECNO_OK;
@@ -4754,8 +4767,7 @@ exec_set_on_if_event(
     struct UITreeRuntimeScriptHook* slot;
 
     assert(host);
-    if( !request )
-        return CS2VM_EXECNO_OK;
+    assert(request);
 
     tree = rs_cs2_tree(host);
     if( !tree )
@@ -5087,6 +5099,9 @@ db_push_missing(
     struct RSCache_DbColumn const* col,
     int tuple)
 {
+    /* NULL is a real answer here, not a caller bug: db_column_of() returns NULL
+     * when neither the row nor the table describes the column, and an unknown
+     * column is answered with a single -1. */
     if( !col || col->type_count <= 0 || !col->types )
         return CS2VM2_PushInt(vm, -1);
 

@@ -112,8 +112,7 @@ dat2_hmap_buffer_bytes(
 static size_t
 dat2_hmap_buffer_size(struct HMap* map)
 {
-    if( !map )
-        return 0;
+    assert(map);
     return dat2_hmap_buffer_bytes(map->entry_size, map->capacity);
 }
 

@@ -14,6 +14,7 @@
  * rather than lazily per id.
  */
 #include "mock230.h"
+#include <assert.h>
 
 #include <rscache.h>
 
@@ -235,8 +236,7 @@ read_requirements(
     int levels[2];
     int count = 0;
 
-    if( !wearable )
-        return;
+    assert(wearable);
     for( int i = 0; i < params->count; i++ )
     {
         int key = params->keys[i];

@@ -156,8 +156,9 @@ torirs_steal_face_indices_int32(
     int* src,
     int count)
 {
-    if( !src || count <= 0 )
+    if( count <= 0 )
         return NULL;
+    assert(src);
 
     gc_faceint_t* dst = malloc((size_t)count * sizeof(gc_faceint_t));
     if( !dst )
@@ -175,7 +176,8 @@ torirs_steal_face_indices_int32(
 static void
 torirs_sanitize_pnm_texture_coords(struct ToriRS_Model* model)
 {
-    if( !model || !model->face_texture_coords || model->face_count <= 0 )
+    assert(model);
+    if( !model->face_texture_coords || model->face_count <= 0 )
         return;
 
     int const vc = model->vertex_count;

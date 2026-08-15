@@ -148,8 +148,7 @@ world_load_collect_loc_models(
     struct ToriRS_Location* loc,
     struct WorldLoadIdSet* models)
 {
-    if( !loc )
-        return;
+    assert(loc);
 
     if( !loc->shapes )
     {

@@ -1136,7 +1136,8 @@ UITree_Reparent(
 uint32_t
 UITree_HotkeyEffectFromName(char const* name)
 {
-    if( !name || name[0] == '\0' )
+    assert(name);
+    if( name[0] == '\0' )
         return 0;
     if( strcmp(name, "select_tab") == 0 )
         return UITREE_HOTKEY_EFFECT_SELECT_TAB;
@@ -3882,8 +3883,9 @@ UITree_ChildMountType(
     int i;
 
     assert(tree);
-    if( !child || container_uid < 0 )
+    if( container_uid < 0 )
         return -1;
+    assert(child);
     group = (child->component_id >> 16) & 0xffff;
     for( i = 0; i < tree->interface_parent_count; i++ )
     {

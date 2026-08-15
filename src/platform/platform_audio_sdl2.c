@@ -112,7 +112,8 @@ capture_drain(struct PlatformAudio* audio)
     uint64_t read;
     uint64_t write;
 
-    if( !audio || !audio->capture || !audio->capture_ring )
+    assert(audio);
+    if( !audio->capture || !audio->capture_ring )
         return;
     read = atomic_load_explicit(&audio->capture_read_frame, memory_order_relaxed);
     write = atomic_load_explicit(&audio->capture_write_frame, memory_order_acquire);
@@ -240,8 +241,7 @@ PlatformAudio_Init(
     SDL_AudioSpec want;
     SDL_AudioSpec have;
 
-    if( !audio )
-        return false;
+    assert(audio);
 
     audio->sample_rate = sample_rate > 0 ? sample_rate : TORIRS_AUDIO_SAMPLE_RATE;
     ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
@@ -378,8 +378,8 @@ PlatformAudio_Submit(
     struct PlatformAudio* audio,
     const struct ToriRS_AudioCommand* command)
 {
-    if( !audio || !command )
-        return;
+    assert(audio);
+    assert(command);
     if( audio->device )
         SDL_LockAudioDevice(audio->device);
     audio->commands++;
@@ -394,8 +394,8 @@ PlatformAudio_SubmitAll(
     const struct ToriRS_AudioCommand* commands,
     int count)
 {
-    if( !audio || !commands )
-        return;
+    assert(audio);
+    assert(commands);
     if( audio->device )
         SDL_LockAudioDevice(audio->device);
     for( int i = 0; i < count; i++ )
@@ -418,8 +418,7 @@ PlatformAudio_Feedback(
     struct PlatformAudio* audio,
     struct ToriRS_AudioFeedback* out)
 {
-    if( !out )
-        return;
+    assert(out);
     memset(out, 0, sizeof(*out));
     if( !audio )
         return;
@@ -438,8 +437,7 @@ PlatformAudio_Stats(struct PlatformAudio* audio)
     struct ToriRS_MixerStats mixer_stats;
 
     memset(&stats, 0, sizeof(stats));
-    if( !audio )
-        return stats;
+    assert(audio);
     if( audio->device )
         SDL_LockAudioDevice(audio->device);
     mixer_stats = ToriRS_Mixer_Stats(&audio->mixer);

@@ -1,4 +1,5 @@
 #include "platform_x_io_js5_cache.h"
+#include <assert.h>
 
 #include "js5/js5_rscache.h"
 #include "platform/sockstream.h"
@@ -53,8 +54,8 @@ PlatformXIOJs5Cache_New(
     struct Js5Config effective;
     struct Js5StorageOps storage;
 
-    if( !disk || !config )
-        return NULL;
+    assert(disk);
+    assert(config);
     if( sockstream_init() != 0 )
         return NULL;
 
@@ -112,8 +113,7 @@ PlatformXIOJs5Cache_Tick(
     struct Js5Completion completion;
     int result;
 
-    if( !cache )
-        return -1;
+    assert(cache);
     result = Js5ClientTick(cache->client, now_ms);
 
     /* Readiness lives in the client state. Drain notifications here so a full
@@ -132,8 +132,7 @@ PlatformXIOJs5Cache_RequestGroup(
     int archive,
     int group)
 {
-    if( !cache )
-        return JS5_REQUEST_ERROR;
+    assert(cache);
     return Js5ClientRequestGroup(cache->client, archive, group, JS5_PRIORITY_URGENT);
 }
 
@@ -154,8 +153,9 @@ PlatformXIOJs5Cache_GroupFailed(
 {
     uint32_t key;
 
-    if( !cache || archive < 0 || archive >= 255 || group < 0 || group > UINT16_MAX )
+    if( archive < 0 || archive >= 255 || group < 0 || group > UINT16_MAX )
         return false;
+    assert(cache);
     key = ((uint32_t)archive << 16u) | (uint32_t)group;
     for( size_t i = 0; i < cache->failed_group_count; i++ )
         if( cache->failed_groups[i] == key )
@@ -172,8 +172,7 @@ PlatformXIOJs5Cache_MetadataReady(const struct PlatformXIOJs5Cache* cache)
 enum Js5Error
 PlatformXIOJs5Cache_LastError(const struct PlatformXIOJs5Cache* cache)
 {
-    if( !cache )
-        return JS5_ERROR_ARGUMENT;
+    assert(cache);
     return cache->adapter_failed ? JS5_ERROR_NO_MEMORY : Js5ClientLastError(cache->client);
 }
 
@@ -182,8 +181,7 @@ PlatformXIOJs5Cache_GetProgress(
     const struct PlatformXIOJs5Cache* cache,
     struct Js5Progress* progress)
 {
-    if( !progress )
-        return;
+    assert(progress);
     if( !cache )
     {
         memset(progress, 0, sizeof(*progress));

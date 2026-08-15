@@ -73,8 +73,7 @@ occluder_buildmap_or_mark(
     int level,
     uint16_t bits)
 {
-    if( !map )
-        return;
+    assert(map);
     if( x < 0 || z < 0 || x >= map->size_x || z >= map->size_z )
         return;
     if( level < 0 || level >= map->levels )
@@ -90,8 +89,7 @@ occluder_buildmap_set_floor_opacity(
     int level,
     int opaque)
 {
-    if( !map )
-        return;
+    assert(map);
     if( x < 0 || z < 0 || x >= map->size_x || z >= map->size_z )
         return;
     if( level < 0 || level >= map->levels )
@@ -106,8 +104,7 @@ occluder_buildmap_floor_opacity(
     int z,
     int level)
 {
-    if( !map )
-        return 0;
+    assert(map);
     if( x < 0 || z < 0 || x >= map->size_x || z >= map->size_z )
         return 0;
     if( level < 0 || level >= map->levels )

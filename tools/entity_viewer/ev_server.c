@@ -25,6 +25,9 @@
  */
 
 #include "ev_build.h"
+#include <assert.h>
+#include "ev_caches.h"
+#include "ev_textures.h"
 
 /* The client's own RSCache_Model -> ToriDraw_Model pair, for POST /api/modelfile.
  * Hand-rolling that conversion is what ev_build.c's header comment warns about. */
@@ -98,6 +101,39 @@ static int g_name_match_count = 0;
 
 static struct Tool_Dat2Cache g_cache;
 static const char* g_web_dir = NULL;
+
+/*
+ * The cache registry, and the index of whichever cache is active.
+ *
+ * `g_cache` is still the one open cache every handler uses — switching
+ * rebinds it rather than adding a cache parameter to forty call sites. The
+ * index is rebuilt on each switch and is what the search endpoints read; the
+ * CSV catalog, when the active cache happens to have one, is layered on top and
+ * is entirely optional (see ev_caches.h on why the two are separate).
+ */
+static struct EV_CacheList g_caches;
+static struct EV_Index g_index;
+
+/*
+ * The active cache's baked textures.
+ *
+ * Built once per cache switch rather than per request: a procedural cache takes
+ * about three seconds for the whole table because the dependency closures
+ * overlap, and doing it per model would pay that repeatedly for the same
+ * handful of materials.
+ */
+static struct EV_TextureSet g_texture_set;
+
+/* Model building asks this before keeping a face's texture id — see
+ * ev_build_set_texture_available. */
+static int
+server_texture_available(int id, void* user)
+{
+    (void)user;
+    return ev_textures_get(&g_texture_set, id) != NULL;
+}
+static char g_caches_file[1024];
+static int g_cache_open = 0;
 
 /*
  * Gameval names for the player half's two pickers.
@@ -619,9 +655,106 @@ handle_npc_json(int fd, int npc_id)
     free(s.p);
 }
 
+/**
+ * The distinct texture ids a model's faces name, as a comma list.
+ *
+ * Sent as a header on every model response so the page knows what to ask for.
+ * Shipping the whole table instead is not an option: an RS727 set is 2315
+ * textures at 128x128x4, or 151 MB, and a model names a couple of dozen.
+ */
+static void
+model_texture_ids(const struct ToriDraw_Model* model, char* out, size_t cap)
+{
+    size_t at = 0;
+    int seen[256];
+    int seen_count = 0;
+
+    out[0] = '\0';
+    assert(model);
+    if( !model->face_textures )
+        return;
+
+    for( int f = 0; f < model->face_count; f++ )
+    {
+        int id = model->face_textures[f];
+        int dup = 0;
+        if( id < 0 )
+            continue;
+        for( int i = 0; i < seen_count; i++ )
+            if( seen[i] == id )
+            {
+                dup = 1;
+                break;
+            }
+        if( dup || seen_count >= (int)(sizeof(seen) / sizeof(seen[0])) )
+            continue;
+        seen[seen_count++] = id;
+
+        int n = snprintf(out + at, cap - at, "%s%d", at ? "," : "", id);
+        if( n <= 0 || (size_t)n >= cap - at )
+            break;
+        at += (size_t)n;
+    }
+}
+
+/**
+ * A model blob plus the texture ids its faces name.
+ *
+ * The ids ride as a header rather than inside the blob so the wire format stays
+ * the model's own — the page reads the header, fetches those textures once, and
+ * both render paths draw with them.
+ */
+static void
+send_model_with_textures(int fd, const void* body, size_t len, const char* tex_ids)
+{
+    char header[1536];
+    int hlen = snprintf(
+        header,
+        sizeof(header),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/octet-stream\r\n"
+        "Content-Length: %zu\r\n"
+        "Cache-Control: no-store\r\n"
+        "X-Texture-Ids: %s\r\n"
+        "Access-Control-Expose-Headers: X-Texture-Ids\r\n"
+        "Connection: close\r\n\r\n",
+        len, tex_ids);
+    send_all(fd, header, (size_t)hlen);
+    if( body && len )
+        send_all(fd, body, len);
+}
+
 static void
 handle_npc_model(int fd, int npc_id)
 {
+    /*
+     * Try the HD build first.
+     *
+     * An RS2-era npc's textured faces are mostly cylinder- and cube-mapped, and
+     * the classic raster can only plane-map — so it *skips* every one of them
+     * and the model comes out untextured or, when nearly all its faces are
+     * mapped, invisible. ev_build_npc_model_hd returns NULL for the models that
+     * do not need it, which is every OldSchool npc.
+     */
+    struct ToriDraw_ModelHD* hd = ev_build_npc_model_hd(&g_cache, npc_id);
+    if( hd )
+    {
+        struct EV_WireBuf hbuf = { 0 };
+        int hok = ev_wire_write_model_hd(&hbuf, hd);
+        char hd_ids[1024];
+        model_texture_ids(&hd->base, hd_ids, sizeof(hd_ids));
+        ToriDraw_ModelHDFree(hd);
+        if( hok )
+        {
+            send_model_with_textures(fd, hbuf.data, hbuf.len, hd_ids);
+            ev_wire_free(&hbuf);
+            return;
+        }
+        ev_wire_free(&hbuf);
+        /* Fall through to the plain build rather than 404: a wire failure is
+         * not a reason to show nothing. */
+    }
+
     struct ToriDraw_Model* model = ev_build_npc_model(&g_cache, npc_id);
     if( !model )
     {
@@ -631,6 +764,8 @@ handle_npc_model(int fd, int npc_id)
 
     struct EV_WireBuf buf = { 0 };
     int ok = ev_wire_write_model(&buf, model);
+    char tex_ids[1024];
+    model_texture_ids(model, tex_ids, sizeof(tex_ids));
     ToriDraw_ModelFree(model);
 
     if( !ok )
@@ -639,8 +774,141 @@ handle_npc_model(int fd, int npc_id)
         send_404(fd);
         return;
     }
-    send_response(fd, "200 OK", "application/octet-stream", buf.data, buf.len);
+    send_model_with_textures(fd, buf.data, buf.len, tex_ids);
     ev_wire_free(&buf);
+}
+
+/**
+ * One `key=value` out of a query string, percent-decoded.
+ *
+ * The existing handlers reach for `strstr(query, "wear=")` directly, which is
+ * fine for a parameter that is always first and never contains a space. A
+ * search box is neither.
+ */
+static void
+query_param(const char* query, const char* key, char* out, size_t out_len)
+{
+    out[0] = '\0';
+    if( !query )
+        return;
+
+    size_t klen = strlen(key);
+    const char* p = query;
+    while( p && *p )
+    {
+        if( strncmp(p, key, klen) == 0 && p[klen] == '=' )
+        {
+            const char* v = p + klen + 1;
+            size_t n = 0;
+            while( *v && *v != '&' && n + 1 < out_len )
+            {
+                if( *v == '%' && v[1] && v[2] )
+                {
+                    char hex[3] = { v[1], v[2], 0 };
+                    out[n++] = (char)strtol(hex, NULL, 16);
+                    v += 3;
+                }
+                else if( *v == '+' )
+                {
+                    out[n++] = ' ';
+                    v++;
+                }
+                else
+                {
+                    out[n++] = *v++;
+                }
+            }
+            out[n] = '\0';
+            return;
+        }
+        p = strchr(p, '&');
+        if( p )
+            p++;
+    }
+}
+
+/* ---- textures ------------------------------------------------------------ */
+
+/* A plain byte sink. `struct Str` is text — it is grown by snprintf and would
+ * stop at the first zero byte, and a texture blob is full of them. */
+struct Bytes
+{
+    uint8_t* p;
+    size_t len;
+    size_t cap;
+};
+
+static int
+bytes_put(struct Bytes* b, const void* data, size_t n)
+{
+    if( b->len + n > b->cap )
+    {
+        size_t want = b->cap ? b->cap * 2 : 4096;
+        while( want < b->len + n )
+            want *= 2;
+        uint8_t* grown = realloc(b->p, want);
+        if( !grown )
+            return 0;
+        b->p = grown;
+        b->cap = want;
+    }
+    memcpy(b->p + b->len, data, n);
+    b->len += n;
+    return 1;
+}
+
+static int
+bytes_put_u32(struct Bytes* b, uint32_t v)
+{
+    uint8_t enc[4] = { (uint8_t)(v & 0xFF), (uint8_t)((v >> 8) & 0xFF),
+                       (uint8_t)((v >> 16) & 0xFF), (uint8_t)((v >> 24) & 0xFF) };
+    return bytes_put(b, enc, sizeof(enc));
+}
+
+/**
+ * `GET /api/textures.bin?ids=1,2,3` — those textures as an EVT1 blob.
+ *
+ * An id the cache does not have is skipped rather than erroring: a model can
+ * name a texture that its own cache lacks, and the right result is that face
+ * falling back to flat colour, not a failed page load.
+ */
+static void
+handle_textures_bin(int fd, const char* query)
+{
+    char ids[4096] = { 0 };
+    struct Bytes body = { 0 };
+    struct Bytes out = { 0 };
+    int count = 0;
+
+    query_param(query, "ids", ids, sizeof(ids));
+
+    for( const char* p = ids; p && *p; )
+    {
+        int id = atoi(p);
+        const struct EV_Texture* tex = ev_textures_get(&g_texture_set, id);
+        if( tex && tex->texels )
+        {
+            uint8_t hdr[4] = { (uint8_t)(tex->size & 0xFF), (uint8_t)((tex->size >> 8) & 0xFF),
+                               (uint8_t)(tex->opaque ? 1 : 0), 0 };
+            bytes_put_u32(&body, (uint32_t)id);
+            bytes_put(&body, hdr, sizeof(hdr));
+            for( int i = 0; i < tex->size * tex->size; i++ )
+                bytes_put_u32(&body, (uint32_t)tex->texels[i]);
+            count++;
+        }
+        p = strchr(p, ',');
+        if( p )
+            p++;
+    }
+
+    bytes_put_u32(&out, EV_WIRE_TEXTURES_MAGIC);
+    bytes_put_u32(&out, (uint32_t)count);
+    if( body.p )
+        bytes_put(&out, body.p, body.len);
+    free(body.p);
+
+    send_response(fd, "200 OK", "application/octet-stream", (const char*)out.p, out.len);
+    free(out.p);
 }
 
 static void
@@ -1121,6 +1389,8 @@ handle_model_file(int fd, const uint8_t* body, size_t body_len)
     int faces = hd->base.face_count;
     int textured = hd->base.textured_face_count;
     int has_mappings = hd->texture_mappings ? 1 : 0;
+    char tex_ids[1024];
+    model_texture_ids(&hd->base, tex_ids, sizeof(tex_ids));
     ToriDraw_ModelHDFree(hd);
 
     if( !ok )
@@ -1145,10 +1415,11 @@ handle_model_file(int fd, const uint8_t* body, size_t body_len)
         "X-Model-Faces: %d\r\n"
         "X-Model-Textured: %d\r\n"
         "X-Model-HD: %d\r\n"
+        "X-Texture-Ids: %s\r\n"
         "Access-Control-Expose-Headers: X-Model-Format, X-Model-Faces, "
-        "X-Model-Textured, X-Model-HD\r\n"
+        "X-Model-Textured, X-Model-HD, X-Texture-Ids\r\n"
         "Connection: close\r\n\r\n",
-        buf.len, format, faces, textured, has_mappings);
+        buf.len, format, faces, textured, has_mappings, tex_ids);
     send_all(fd, header, (size_t)hlen);
     send_all(fd, buf.data, buf.len);
     ev_wire_free(&buf);
@@ -1162,6 +1433,143 @@ done_params:
     free(spd);
     free(tu);
     free(tv);
+}
+
+/* ---- the cache registry -------------------------------------------------- */
+
+
+/**
+ * Make `index` the active cache: reopen, reindex, and pick up a catalog if one
+ * happens to sit beside it.
+ *
+ * The catalog is looked for at `<cache>.anims` and `out/<basename>_anims`,
+ * which are where ev_catalog's documented invocations put it. Not finding one
+ * is normal and not an error — the index alone answers every search; the
+ * catalog only adds rig matching.
+ */
+static int
+select_cache(int index)
+{
+    if( index < 0 || index >= g_caches.count )
+        return 0;
+
+    struct EV_CacheEntry* e = &g_caches.items[index];
+
+    struct RSCache profile;
+    if( !tool_resolve_profile(e->rev, NULL, NULL, NULL, NULL, &profile) )
+    {
+        fprintf(stderr, "select_cache: unknown revision '%s'\n", e->rev);
+        return 0;
+    }
+
+    struct Tool_Dat2Cache next;
+    if( !tool_dat2_open(e->path, &profile, &next) )
+    {
+        fprintf(stderr, "select_cache: cannot open %s\n", e->path);
+        return 0;
+    }
+
+    if( g_cache_open )
+        tool_dat2_close(&g_cache);
+    g_cache = next;
+    g_cache_open = 1;
+
+    ev_index_free(&g_index);
+    ev_index_build(&g_cache, &profile, e->path, &g_index);
+    ev_textures_free(&g_texture_set);
+    ev_textures_load(&g_cache, &g_texture_set);
+    ev_build_set_texture_available(server_texture_available, NULL);
+    e->npc_count = g_index.npc_count;
+    e->seq_count = g_index.seq_count;
+    e->model_count = g_index.model_count;
+    e->indexed = true;
+
+    g_caches.active = index;
+    fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models\n",
+            e->label, e->rev, e->npc_count, e->seq_count, e->model_count);
+    return 1;
+}
+
+static void
+handle_caches_json(int fd)
+{
+    struct Str out = { 0 };
+    str_add(&out, "{\"active\":%d,\"caches\":[", g_caches.active);
+    for( int i = 0; i < g_caches.count; i++ )
+    {
+        const struct EV_CacheEntry* e = &g_caches.items[i];
+        str_add(&out, "%s{\"index\":%d,\"label\":", i ? "," : "", i);
+        str_add_json(&out, e->label);
+        str_add(&out, ",\"path\":");
+        str_add_json(&out, e->path);
+        str_add(&out, ",\"rev\":");
+        str_add_json(&out, e->rev);
+        str_add(&out, ",\"indexed\":%d,\"npcs\":%d,\"seqs\":%d,\"models\":%d}",
+                e->indexed ? 1 : 0, e->npc_count, e->seq_count, e->model_count);
+    }
+    str_add(&out, "]}");
+    send_response(fd, "200 OK", "application/json", out.p ? out.p : "{}", out.len);
+    free(out.p);
+}
+
+/** `q` is matched against the name AND the id, so "2745" and "jad" both work. */
+static int
+matches(const char* name, int id, const char* q)
+{
+    if( !q || !*q )
+        return 1;
+    char idbuf[16];
+    snprintf(idbuf, sizeof(idbuf), "%d", id);
+    if( strstr(idbuf, q) )
+        return 1;
+    return name && strcasestr(name, q) != NULL;
+}
+
+#define EV_SEARCH_LIMIT 400
+
+static void
+handle_search_npcs(int fd, const char* query)
+{
+    char q[128] = { 0 };
+    query_param(query, "q", q, sizeof(q));
+
+    struct Str out = { 0 };
+    str_add(&out, "[");
+    int n = 0;
+    for( int i = 0; i < g_index.npc_count && n < EV_SEARCH_LIMIT; i++ )
+    {
+        if( !matches(g_index.npcs[i].name, g_index.npcs[i].id, q) )
+            continue;
+        str_add(&out, "%s{\"id\":%d,\"name\":", n ? "," : "", g_index.npcs[i].id);
+        str_add_json(&out, g_index.npcs[i].name);
+        str_add(&out, "}");
+        n++;
+    }
+    str_add(&out, "]");
+    send_response(fd, "200 OK", "application/json", out.p ? out.p : "[]", out.len);
+    free(out.p);
+}
+
+/** Sequences and models have no names in the cache, so this is an id filter. */
+static void
+handle_search_ids(int fd, const char* query, const int* ids, int count)
+{
+    char q[128] = { 0 };
+    query_param(query, "q", q, sizeof(q));
+
+    struct Str out = { 0 };
+    str_add(&out, "[");
+    int n = 0;
+    for( int i = 0; i < count && n < EV_SEARCH_LIMIT; i++ )
+    {
+        if( !matches(NULL, ids[i], q) )
+            continue;
+        str_add(&out, "%s%d", n ? "," : "", ids[i]);
+        n++;
+    }
+    str_add(&out, "]");
+    send_response(fd, "200 OK", "application/json", out.p ? out.p : "[]", out.len);
+    free(out.p);
 }
 
 static void
@@ -1190,6 +1598,56 @@ handle_request(int fd, const char* target, const char* query)
         handle_spot_json(fd, id);
     else if( route_id(target, "/api/rig/", ".json", &id) )
         handle_rig_json(fd, id);
+    /* The cache registry and the searches over the active cache's index. */
+    else if( strcmp(target, "/api/caches.json") == 0 )
+        handle_caches_json(fd);
+    else if( strcmp(target, "/api/caches/select") == 0 )
+    {
+        char v[32] = { 0 };
+        query_param(query, "index", v, sizeof(v));
+        int ok = select_cache(atoi(v));
+        if( ok )
+            ev_caches_save(&g_caches, g_caches_file);
+        handle_caches_json(fd);
+    }
+    else if( strcmp(target, "/api/caches/add") == 0 )
+    {
+        char path[EV_CACHE_PATH_MAX] = { 0 };
+        char rev[32] = { 0 };
+        query_param(query, "path", path, sizeof(path));
+        query_param(query, "rev", rev, sizeof(rev));
+        if( path[0] )
+        {
+            int added = ev_caches_add(&g_caches, path, rev[0] ? rev : NULL);
+            if( added >= 0 )
+                ev_caches_save(&g_caches, g_caches_file);
+        }
+        handle_caches_json(fd);
+    }
+    else if( strcmp(target, "/api/caches/remove") == 0 )
+    {
+        char v[32] = { 0 };
+        query_param(query, "index", v, sizeof(v));
+        if( ev_caches_remove(&g_caches, atoi(v)) )
+            ev_caches_save(&g_caches, g_caches_file);
+        handle_caches_json(fd);
+    }
+    else if( strcmp(target, "/api/caches/discover") == 0 )
+    {
+        char root[EV_CACHE_PATH_MAX] = { 0 };
+        query_param(query, "root", root, sizeof(root));
+        if( ev_caches_discover(&g_caches, root[0] ? root : ".") > 0 )
+            ev_caches_save(&g_caches, g_caches_file);
+        handle_caches_json(fd);
+    }
+    else if( strcmp(target, "/api/textures.bin") == 0 )
+        handle_textures_bin(fd, query);
+    else if( strcmp(target, "/api/search/npcs.json") == 0 )
+        handle_search_npcs(fd, query);
+    else if( strcmp(target, "/api/search/seqs.json") == 0 )
+        handle_search_ids(fd, query, g_index.seq_ids, g_index.seq_count);
+    else if( strcmp(target, "/api/search/models.json") == 0 )
+        handle_search_ids(fd, query, g_index.model_ids, g_index.model_count);
     /* POST /api/modelfile is routed in the accept loop, where the body is. */
     else
         handle_static(fd, target[0] == '/' ? target + 1 : target);
@@ -1671,6 +2129,8 @@ main(int argc, char** argv)
     const char* cache_dir = NULL;
     const char* catalog_dir = NULL;
     const char* names_dir = NULL;
+    /* Where --caches discovery looks; run.sh passes the repo root. */
+    const char* cache_root = ".";
     int port = 8099;
     int selftest_npc = -1;
     int selftest_seq = -1;
@@ -1691,6 +2151,8 @@ main(int argc, char** argv)
             g_web_dir = argv[++i];
         else if( strcmp(argv[i], "--names") == 0 && i + 1 < argc )
             names_dir = argv[++i];
+        else if( strcmp(argv[i], "--cache-root") == 0 && i + 1 < argc )
+            cache_root = argv[++i];
         else if( strcmp(argv[i], "--port") == 0 && i + 1 < argc )
             port = atoi(argv[++i]);
         else if( strcmp(argv[i], "--selftest") == 0 && i + 2 < argc )
@@ -1719,6 +2181,36 @@ main(int argc, char** argv)
     {
         fprintf(stderr, "cannot open cache at %s\n", cache_dir);
         return 1;
+    }
+    g_cache_open = 1;
+
+    /*
+     * The registry. The cache named on the command line is listed and made
+     * active so nothing about the existing invocation changes; anything the
+     * user added in a previous session comes back from the registry file, and a
+     * one-level scan of the repo root turns "add a cache" into "click one".
+     */
+    snprintf(g_caches_file, sizeof(g_caches_file), "%s/.ev_caches", g_web_dir ? g_web_dir : ".");
+    ev_caches_load(&g_caches, g_caches_file);
+    int startup_index = ev_caches_add(&g_caches, cache_dir, rev_name);
+    /* The scan root is explicit rather than the CWD: the server is normally
+     * started from tools/entity_viewer, where a scan finds nothing, and a
+     * discovery that silently returns zero looks like "you have one cache". */
+    ev_caches_discover(&g_caches, cache_root);
+    ev_caches_save(&g_caches, g_caches_file);
+    if( startup_index >= 0 )
+    {
+        g_caches.active = startup_index;
+        struct EV_CacheEntry* e = &g_caches.items[startup_index];
+        ev_index_build(&g_cache, &profile, e->path, &g_index);
+        ev_textures_load(&g_cache, &g_texture_set);
+        ev_build_set_texture_available(server_texture_available, NULL);
+        e->npc_count = g_index.npc_count;
+        e->seq_count = g_index.seq_count;
+        e->model_count = g_index.model_count;
+        e->indexed = true;
+        fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models\n",
+                e->label, e->rev, e->npc_count, e->seq_count, e->model_count);
     }
     if( !load_catalog(catalog_dir) )
         return 1;

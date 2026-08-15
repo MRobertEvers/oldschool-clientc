@@ -69,8 +69,10 @@ torirs_npctype_copy_pairs_int(
     int count)
 {
     *dst_count = 0;
-    if( count <= 0 || !src_from || !src_to )
+    if( count <= 0 )
         return;
+    assert(src_from);
+    assert(src_to);
 
     *dst_from = malloc((size_t)count * sizeof(int));
     *dst_to = malloc((size_t)count * sizeof(int));

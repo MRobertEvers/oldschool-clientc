@@ -964,7 +964,8 @@ CreateTask_MusicLoad(
     int song_id,
     int source)
 {
-    if( !provider || !provider->vtable->Task_MusicLoad )
+    assert(provider);
+    if( !provider->vtable->Task_MusicLoad )
         return NULL;
     return provider->vtable->Task_MusicLoad(provider, player, song_id, source);
 }
@@ -1070,7 +1071,8 @@ CreateTask_SpriteLoadByName(
     struct CacheProvider* provider,
     char const* archive_name)
 {
-    if( !provider || !provider->vtable || !provider->vtable->Task_SpriteLoadByName )
+    assert(provider);
+    if( !provider->vtable || !provider->vtable->Task_SpriteLoadByName )
         return NULL;
     return provider->vtable->Task_SpriteLoadByName(provider, archive_name);
 }
@@ -1080,7 +1082,8 @@ CreateTask_SpriteLoadFromSource(
     struct CacheProvider* provider,
     struct CacheProviderSpriteSource const* source)
 {
-    if( !provider || !provider->vtable || !provider->vtable->Task_SpriteLoadFromSource )
+    assert(provider);
+    if( !provider->vtable || !provider->vtable->Task_SpriteLoadFromSource )
         return NULL;
     return provider->vtable->Task_SpriteLoadFromSource(provider, source);
 }
@@ -1101,7 +1104,8 @@ CreateTask_FontLoadByName(
     char const* font_name,
     int cache_font_id)
 {
-    if( !provider || !provider->vtable || !provider->vtable->Task_FontLoadByName )
+    assert(provider);
+    if( !provider->vtable || !provider->vtable->Task_FontLoadByName )
         return NULL;
     return provider->vtable->Task_FontLoadByName(provider, font_name, cache_font_id);
 }

@@ -316,8 +316,9 @@ revconfig_load_fields_from_ini_bytes_prefixed(
     struct RevConfigBuffer* revconfig_buffer)
 {
     assert(revconfig_buffer);
-    if( !data || size == 0 )
+    if( size == 0 )
         return;
+    assert(data);
 
     s_ini_item_type[0] = '\0';
     s_ini_section_skipped = 0;
@@ -445,7 +446,9 @@ revconfig_ini_has_prefixed_sections(
     int found = 0;
     FILE* f;
 
-    if( !filename || !filename[0] || !section_prefix || !section_prefix[0] )
+    assert(filename);
+    assert(section_prefix);
+    if( !filename[0] || !section_prefix[0] )
         return 0;
 
     f = fopen(filename, "r");

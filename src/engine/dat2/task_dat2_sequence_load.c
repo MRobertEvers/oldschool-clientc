@@ -69,7 +69,8 @@ seq_file_pos_for_id(
     struct RSCache_Dat2DiskArchive const* archive,
     int file_id)
 {
-    if( !archive || !archive->file_ids )
+    assert(archive);
+    if( !archive->file_ids )
         return -1;
     for( int pos = 0; pos < archive->file_count; pos++ )
         if( archive->file_ids[pos] == file_id )
@@ -125,8 +126,10 @@ seq_copy_frame_sounds(
     struct ToriDraw_Animation* anim,
     struct RSCache_Dat2ConfigSequence const* seq)
 {
-    if( !anim || !seq || seq->frame_sounds.count <= 0 )
+    assert(seq);
+    if( seq->frame_sounds.count <= 0 )
         return;
+    assert(anim);
 
     anim->frame_sounds.count = seq->frame_sounds.count;
     anim->frame_sounds.frame_indices =

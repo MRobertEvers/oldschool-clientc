@@ -90,7 +90,8 @@ font_new_from_dat2_metrics_and_sprite_pack(
     int gi;
 
     assert(metrics);
-    if( !pack || pack->count <= 0 )
+    assert(pack);
+    if( pack->count <= 0 )
         return NULL;
 
     font = calloc(1, sizeof(*font));

@@ -1,4 +1,5 @@
 #include "audio/tools/audio_analyse.h"
+#include <assert.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -97,8 +98,7 @@ AudioAnalyse(
     int start;
     int discontinuity_threshold;
 
-    if( !out )
-        return;
+    assert(out);
     memset(out, 0, sizeof(*out));
     if( !pcm || frames <= 0 || channels <= 0 )
     {
@@ -369,8 +369,10 @@ AudioWriteWav(
     uint32_t data_bytes = (uint32_t)frames * (uint32_t)channels * 2u;
     FILE* f;
 
-    if( !path || !pcm || frames <= 0 )
+    if( frames <= 0 )
         return false;
+    assert(path);
+    assert(pcm);
     f = fopen(path, "wb");
     if( !f )
         return false;

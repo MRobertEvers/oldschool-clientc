@@ -1,4 +1,5 @@
 #include "audio/torirs_music.h"
+#include <assert.h>
 
 #include "audio/torirs_mixer.h"
 
@@ -37,8 +38,7 @@
 void
 ToriRS_Music_Init(struct ToriRS_MusicPlayer* player)
 {
-    if( !player )
-        return;
+    assert(player);
     memset(player, 0, sizeof(*player));
     ToriRS_SoundBank_Init(&player->bank);
     ToriRS_MidiSynth_Init(&player->synth, &player->bank, TORIRS_AUDIO_SAMPLE_RATE);
@@ -87,8 +87,7 @@ ToriRS_Music_Request(
     int fade_out_ms,
     int fade_in_ms)
 {
-    if( !player )
-        return;
+    assert(player);
 
     if( source == TORIRS_MUSIC_SOURCE_JINGLE )
     {
@@ -140,8 +139,7 @@ ToriRS_Music_Stop(
     struct ToriRS_MusicPlayer* player,
     int fade_out_ms)
 {
-    if( !player )
-        return;
+    assert(player);
     player->resume_song = -1;
     ToriRS_Music_Request(player, -1, TORIRS_MUSIC_SOURCE_TRACK, false, fade_out_ms, 0);
 }
@@ -151,8 +149,7 @@ ToriRS_Music_SetSecondary(
     struct ToriRS_MusicPlayer* player,
     int song_id)
 {
-    if( !player )
-        return;
+    assert(player);
     player->secondary_song = song_id;
 }
 
@@ -166,8 +163,7 @@ ToriRS_Music_Swap(
     int outgoing;
     int resume_tick;
 
-    if( !player )
-        return;
+    assert(player);
     /*
      * Nothing queued, or nothing to swap out of: the reference no-ops rather
      * than treating this as a plain song change, because a swap carries no id
@@ -213,8 +209,7 @@ ToriRS_Music_SetVolume(
 {
     struct ToriRS_AudioCommand command;
 
-    if( !player )
-        return;
+    assert(player);
     if( volume < 0 )
         volume = 0;
     if( volume > TORIRS_AUDIO_VOLUME_MAX )
@@ -234,7 +229,8 @@ ToriRS_Music_TakeLoadRequest(
     int* out_song,
     enum ToriRS_MusicSource* out_source)
 {
-    if( !player || !player->has_request || player->request_loading )
+    assert(player);
+    if( !player->has_request || player->request_loading )
         return false;
     if( player->request_song < 0 )
         return false;
@@ -334,8 +330,7 @@ open_stream(
 {
     struct ToriRS_AudioCommand command;
 
-    if( !out )
-        return;
+    assert(out);
     ToriRS_AudioCommand_Init(&command, TORIRS_AUDIO_CMD_ASSET_LOAD);
     command.asset_id = MUSIC_ASSET_ID;
     command.sample_rate = TORIRS_AUDIO_SAMPLE_RATE;
@@ -498,8 +493,7 @@ ToriRS_Music_LoadFailed(
     struct ToriRS_MusicPlayer* player,
     int song_id)
 {
-    if( !player )
-        return;
+    assert(player);
     MUSIC_TRACE("music: song %d failed to load\n", song_id);
     player->songs_failed++;
     if( player->request_song == song_id )
@@ -524,8 +518,7 @@ ToriRS_Music_Tick(
      * gone along with the pushing. */
     (void)feedback;
 
-    if( !player )
-        return;
+    assert(player);
 
     /* Fade-out before a switch. Counted in ticks so it is frame-rate
      * independent; the actual ramp belongs to the music voice in the mixer. */

@@ -1,4 +1,5 @@
 #include "engine/toridraw_animation_from_rscache.h"
+#include <assert.h>
 
 #include "datatypes/dat1_anim_frame.h"
 #include "datatypes/dat2_frame.h"
@@ -234,8 +235,8 @@ ToriDraw_SkeletalAnimFromRSCache(
     int frame_count = 0;
     int bone_count = 0;
 
-    if( !maya || !base )
-        return NULL;
+    assert(maya);
+    assert(base);
 
     palette = RSCache_Dat2SkeletalBaseBakePalette(maya, base, &frame_count, &bone_count);
     if( !palette )

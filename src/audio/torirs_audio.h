@@ -2,6 +2,7 @@
 #define SRC_AUDIO_TORIRS_AUDIO_H
 
 #include <stdbool.h>
+#include <assert.h>
 #include <stdint.h>
 
 /*
@@ -276,8 +277,8 @@ ToriRS_AudioQueue_Push(
     struct ToriRS_AudioQueue* queue,
     const struct ToriRS_AudioCommand* command)
 {
-    if( !queue || !command )
-        return false;
+    assert(queue);
+    assert(command);
     if( queue->count >= TORIRS_AUDIO_QUEUE_MAX )
     {
         queue->dropped++;
@@ -293,8 +294,7 @@ ToriRS_AudioCommand_Init(
     struct ToriRS_AudioCommand* command,
     enum ToriRS_AudioCommandKind kind)
 {
-    if( !command )
-        return;
+    assert(command);
     for( unsigned i = 0; i < sizeof(*command); i++ )
         ((unsigned char*)command)[i] = 0;
     command->kind = kind;
@@ -324,8 +324,10 @@ ToriRS_AudioQueue_Drain(
 {
     int taken;
 
-    if( !queue || !out || max <= 0 )
+    if( max <= 0 )
         return 0;
+    assert(queue);
+    assert(out);
     taken = queue->count < max ? queue->count : max;
     for( int i = 0; i < taken; i++ )
         out[i] = queue->commands[i];

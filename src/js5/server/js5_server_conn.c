@@ -3,6 +3,7 @@
  */
 
 #include "js5_server_conn.h"
+#include <assert.h>
 
 #include "js5_server_session.h"
 #include "platform/net_transport_ws_frame.h"
@@ -17,8 +18,7 @@ Js5ServerConn_Open(
     const struct Js5ServerSessionConfig* config,
     uint64_t now_ms)
 {
-    if( !conn )
-        return false;
+    assert(conn);
     memset(conn, 0, sizeof(*conn));
     conn->session = Js5ServerSessionNew(cache, config, now_ms);
     return conn->session != NULL;
@@ -27,8 +27,7 @@ Js5ServerConn_Open(
 void
 Js5ServerConn_Close(struct Js5ServerConn* conn)
 {
-    if( !conn )
-        return;
+    assert(conn);
     Js5ServerSessionFree(conn->session);
     memset(conn, 0, sizeof(*conn));
 }
@@ -199,8 +198,11 @@ Js5ServerConn_TakeOutput(
     size_t view_size;
     int available;
 
-    if( !conn || !conn->session || !data || !size )
+    assert(conn);
+    if( !conn->session )
         return -1;
+    assert(data);
+    assert(size);
     *data = NULL;
     *size = 0;
 
@@ -267,8 +269,9 @@ Js5ServerConn_Consumed(
     int size,
     uint64_t now_ms)
 {
-    if( !conn || size <= 0 )
+    if( size <= 0 )
         return;
+    assert(conn);
     if( conn->out_len > 0 )
     {
         /* Framed bytes: the session was already told when the frame was built,

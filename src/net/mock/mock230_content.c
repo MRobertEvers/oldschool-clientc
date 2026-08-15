@@ -17,6 +17,7 @@
  */
 
 #include "mock230_content.h"
+#include <assert.h>
 
 #include "content/content_fields.h"
 #include "content/content_register.h"
@@ -431,7 +432,8 @@ mock230_content_symbol(
 {
     const struct Pack* pack;
 
-    if( !name || !*name )
+    assert(name);
+    if( !*name )
         return -1;
     /* LostCity spells "no value" as the literal `null`, in configs and as a
      * param default. Resolving it to -1 without complaint is what lets
@@ -477,7 +479,8 @@ mock230_content_symbol_checked(
     int* out_id)
 {
     *out_id = -1;
-    if( !name || !*name )
+    assert(name);
+    if( !*name )
         return 0;
     /* The one spelling of -1 that is an answer rather than a miss. Kept here and
      * not in the caller so "how LostCity writes nothing" is stated once. */
@@ -856,8 +859,7 @@ static int g_constant_capacity;
 const char*
 mock230_content_constant(const char* name)
 {
-    if( !name )
-        return NULL;
+    assert(name);
     if( *name == '^' )
         name++;
     for( int i = 0; i < g_constant_count; i++ )
@@ -971,8 +973,7 @@ mock230_content_npc_param(
     int param_id,
     int32_t* out)
 {
-    if( !def )
-        return 0;
+    assert(def);
     for( int i = 0; i < def->param_count; i++ )
     {
         if( def->params[i].key != param_id )
@@ -1901,8 +1902,7 @@ inv_config_key(
     const char* value,
     const char* where)
 {
-    if( !def )
-        return;
+    assert(def);
     if( strcmp(key, "scope") == 0 )
     {
         if( strcmp(value, "shared") == 0 )

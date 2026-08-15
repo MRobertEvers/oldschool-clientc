@@ -1,4 +1,5 @@
 #include "audio/torirs_midi_file.h"
+#include <assert.h>
 
 #include <string.h>
 
@@ -86,8 +87,7 @@ ToriRS_MidiFile_Open(
     int declared_tracks;
     int found = 0;
 
-    if( !file )
-        return false;
+    assert(file);
     memset(file, 0, sizeof(*file));
     if( !data || size < 14 || memcmp(data, "MThd", 4) != 0 )
         return false;
@@ -145,8 +145,7 @@ ToriRS_MidiFile_Open(
 void
 ToriRS_MidiFile_Close(struct ToriRS_MidiFile* file)
 {
-    if( !file )
-        return;
+    assert(file);
     memset(file, 0, sizeof(*file));
 }
 
@@ -156,7 +155,8 @@ ToriRS_MidiFile_NextTrack(const struct ToriRS_MidiFile* file)
     int best = -1;
     int best_tick = 0;
 
-    if( !file || !file->open )
+    assert(file);
+    if( !file->open )
         return -1;
     for( int i = 0; i < file->track_count; i++ )
     {
@@ -174,7 +174,8 @@ ToriRS_MidiFile_NextTrack(const struct ToriRS_MidiFile* file)
 bool
 ToriRS_MidiFile_Finished(const struct ToriRS_MidiFile* file)
 {
-    if( !file || !file->open )
+    assert(file);
+    if( !file->open )
         return true;
     for( int i = 0; i < file->track_count; i++ )
     {
@@ -189,8 +190,7 @@ ToriRS_MidiFile_TimeAt(
     const struct ToriRS_MidiFile* file,
     int tick)
 {
-    if( !file )
-        return 0;
+    assert(file);
     return (int64_t)file->tempo * (int64_t)tick + file->elapsed;
 }
 
@@ -205,7 +205,8 @@ ToriRS_MidiFile_ReadEvent(
 
     if( out_packed )
         *out_packed = 0;
-    if( !file || !file->open || track < 0 || track >= file->track_count )
+    assert(file);
+    if( !file->open || track < 0 || track >= file->track_count )
         return TORIRS_MIDI_EVENT_ERROR;
     if( file->track_cursor[track] < 0 )
         return TORIRS_MIDI_EVENT_END_OF_TRACK;
@@ -306,7 +307,8 @@ ToriRS_MidiFile_Rewind(
     struct ToriRS_MidiFile* file,
     int64_t elapsed)
 {
-    if( !file || !file->open )
+    assert(file);
+    if( !file->open )
         return;
     file->elapsed = elapsed;
     for( int i = 0; i < file->track_count; i++ )

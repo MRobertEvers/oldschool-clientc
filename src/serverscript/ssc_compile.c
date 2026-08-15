@@ -18,6 +18,7 @@
  */
 
 #include "ssc.h"
+#include <assert.h>
 
 #include "ss_meta.h"
 #include "ssc_lex.h"
@@ -2687,7 +2688,8 @@ SSC_ScriptAt(
     const struct SSC_Compiler* compiler,
     int index)
 {
-    if( !compiler || index < 0 || index >= compiler->script_count )
+    assert(compiler);
+    if( index < 0 || index >= compiler->script_count )
         return NULL;
     return &compiler->scripts[index];
 }

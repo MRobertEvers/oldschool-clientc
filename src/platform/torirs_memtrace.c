@@ -8,6 +8,7 @@
 #if defined(TORIRS_MEMTRACE)
 
 #include "torirs_memtrace.h"
+#include <assert.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -247,8 +248,7 @@ torirs_memtrace_heap_total(void)
 static size_t
 torirs_memtrace_usable_size(void* ptr)
 {
-    if( !ptr )
-        return 0;
+    assert(ptr);
 #if defined(__APPLE__)
     return (size_t)malloc_size(ptr);
 #elif defined(__EMSCRIPTEN__)
@@ -327,7 +327,8 @@ torirs_memtrace_fnv1a(const char* s, size_t len)
 static uint32_t
 torirs_memtrace_wasm_stack_id(const char* stack_text)
 {
-    if( !stack_text || !stack_text[0] )
+    assert(stack_text);
+    if( !stack_text[0] )
         return 0;
 
     const size_t len = strnlen(stack_text, TORIRS_MEMTRACE_WASM_STACK_MAX - 1u);
@@ -418,8 +419,7 @@ torirs_memtrace_record_event(
 static void
 torirs_memtrace_account_alloc(void* ptr, size_t req_size)
 {
-    if( !ptr )
-        return;
+    assert(ptr);
     const size_t usable = torirs_memtrace_usable_size(ptr);
     (void)req_size;
     const uint64_t live =
@@ -473,8 +473,8 @@ torirs_memtrace_mod_add(
     uint64_t size,
     const char* path)
 {
-    if( !scratch || !path )
-        return;
+    assert(scratch);
+    assert(path);
     const size_t plen = strlen(path);
     if( scratch->path_blob_len + plen > scratch->path_blob_cap )
     {
@@ -541,8 +541,8 @@ torirs_memtrace_mod_add(
     uint64_t size,
     const char* path)
 {
-    if( !scratch || !path )
-        return;
+    assert(scratch);
+    assert(path);
     const size_t plen = strlen(path);
     if( scratch->path_blob_len + plen > scratch->path_blob_cap )
     {
@@ -574,8 +574,9 @@ torirs_memtrace_phdr_cb(
 {
     (void)size;
     struct TorIRS_MemTrace_PhdrCtx* ctx = (struct TorIRS_MemTrace_PhdrCtx*)data;
-    if( !info || !ctx || !ctx->scratch )
+    if( !ctx || !ctx->scratch )
         return 0;
+    assert(info);
 
     uint64_t min_vaddr = UINT64_MAX;
     uint64_t max_vaddr = 0;
@@ -824,8 +825,9 @@ torirs_memtrace_atexit(void)
 void
 torirs_memtrace_export_path(char* out_path, size_t out_cap)
 {
-    if( !out_path || out_cap == 0 )
+    if( out_cap == 0 )
         return;
+    assert(out_path);
     strncpy(out_path, g_trace_path, out_cap - 1u);
     out_path[out_cap - 1u] = '\0';
 }

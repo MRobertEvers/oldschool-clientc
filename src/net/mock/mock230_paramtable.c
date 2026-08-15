@@ -4,6 +4,7 @@
  */
 
 #include "mock230_paramtable.h"
+#include <assert.h>
 
 #include <rscache.h>
 
@@ -60,8 +61,8 @@ mock230_paramtable_read(
     int owner,
     const struct RSCache_Params* params)
 {
-    if( !table || !params )
-        return;
+    assert(table);
+    assert(params);
 
     /* Anything appended invalidates the order the last `_sort` established. */
     table->sorted = 0;
@@ -85,8 +86,7 @@ mock230_paramtable_set_int(
     int key,
     int ival)
 {
-    if( !table )
-        return;
+    assert(table);
     /* Linear, because of who calls it: the content overlay, once at boot, with
      * hundreds of rows against a table the cache filled with tens of thousands.
      * A binary search would need the table sorted and this runs *after* the
@@ -108,8 +108,7 @@ mock230_paramtable_set_int(
 void
 mock230_paramtable_sort(struct Mock230ParamTable* table)
 {
-    if( !table )
-        return;
+    assert(table);
     if( table->rows && table->count > 1 )
         qsort(table->rows, (size_t)table->count, sizeof(*table->rows), compare_row);
     table->sorted = 1;
@@ -124,7 +123,8 @@ mock230_paramtable_find(
     int low;
     int high;
 
-    if( !table || !table->rows || table->count <= 0 )
+    assert(table);
+    if( !table->rows || table->count <= 0 )
         return NULL;
     if( !table->sorted )
     {
@@ -175,8 +175,7 @@ mock230_paramtable_bytes(const struct Mock230ParamTable* table)
 {
     size_t bytes;
 
-    if( !table )
-        return 0;
+    assert(table);
     bytes = (size_t)table->count * sizeof(struct Mock230ParamRow);
     for( int i = 0; i < table->count; i++ )
         if( table->rows[i].sval )

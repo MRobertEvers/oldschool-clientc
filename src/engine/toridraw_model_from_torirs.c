@@ -42,7 +42,8 @@ note_texture_wants(const struct ToriRS_Model* src)
 void
 ToriDraw_ModelNoteTextureWants(const struct ToriDraw_Model* model)
 {
-    if( !model || !model->face_textures )
+    assert(model);
+    if( !model->face_textures )
         return;
     for( int f = 0; f < model->face_count; f++ )
     {
@@ -58,8 +59,10 @@ ToriDraw_ModelDropNonSdTextures(
     struct CacheProvider* provider,
     struct ToriDraw_Model* model)
 {
-    if( !provider || !model || !model->face_textures )
+    assert(model);
+    if( !model->face_textures )
         return;
+    assert(provider);
     for( int face = 0; face < model->face_count; face++ )
     {
         int const texture_id = (int)model->face_textures[face];
@@ -78,8 +81,9 @@ ToriDraw_ModelTextureWantsTake(
     int max_ids)
 {
     int count = 0;
-    if( !out_ids || max_ids <= 0 )
+    if( max_ids <= 0 )
         return 0;
+    assert(out_ids);
     for( int id = 0; id < TORIDRAW_MODEL_TEXTURE_ID_MAX && count < max_ids; id++ )
     {
         if( !g_texture_wants[id] )
@@ -93,8 +97,7 @@ ToriDraw_ModelTextureWantsTake(
 static struct ToriDraw_Bones*
 bones_from_torirs(const struct ToriRS_Bones* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
     if( !bones )

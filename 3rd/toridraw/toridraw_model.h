@@ -17,8 +17,9 @@ ToriDraw_BufCopy(
     size_t count,
     size_t elem_size)
 {
-    if( !src || count == 0 )
+    if( count == 0 )
         return NULL;
+    assert(src);
     void* dst = malloc(count * elem_size);
     if( dst )
         memcpy(dst, src, count * elem_size);
@@ -169,6 +170,17 @@ ToriDraw_ModelAsHD(struct ToriDraw_ModelHandle hnd)
  * plus the tail. Calling ToriDraw_ModelFree on an HD model instead leaks the
  * mappings, which is why this exists as its own entry point.
  */
+/**
+ * Promote a plain model to the HD variant, taking ownership.
+ *
+ * The base is embedded by value, so the arrays move across untouched and only
+ * the original shell is released — `model` is invalid on return whether this
+ * succeeds or not. The mappings are still NULL; build them with
+ * ToriDraw_ModelBuildTextureMappings while the model is in its bind pose.
+ */
+struct ToriDraw_ModelHD*
+ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model);
+
 void
 ToriDraw_ModelHDFree(struct ToriDraw_ModelHD* hd);
 

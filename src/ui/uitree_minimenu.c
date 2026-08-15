@@ -105,8 +105,10 @@ UIMinimenu_PrepareShow(
     int* out_content_width)
 {
     assert(menu);
-    if( !out_layout || !out_content_width || menu->option_count <= 0 )
+    if( menu->option_count <= 0 )
         return false;
+    assert(out_layout);
+    assert(out_content_width);
 
     *out_layout = UIMinimenu_LayoutFromLineBox(line_box);
 

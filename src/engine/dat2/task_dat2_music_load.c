@@ -106,8 +106,7 @@ add_effect_sample(
     int16_t* widened;
     bool ok = false;
 
-    if( !archive )
-        return false;
+    assert(archive);
     effect = RSCache_SoundEffectNewDecode(profile, archive->data, archive->data_size);
     if( !effect )
         return false;

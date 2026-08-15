@@ -9,6 +9,7 @@
  */
 
 #include "platform/platform_sdl2_renderer_webgl1zb.h"
+#include <assert.h>
 
 #include "platform/platform_sdl2_renderer_webgl1_internal.h"
 
@@ -88,8 +89,7 @@ webgl1_world_face_pass(
 static void
 webgl1_material_pose_clear(struct WebGL1MaterialPose* pose)
 {
-    if( !pose )
-        return;
+    assert(pose);
     free(pose->face_passes);
     memset(pose, 0, sizeof(*pose));
 }
@@ -104,8 +104,9 @@ webgl1_material_pose_set(
     int face_count = trspk_toridraw_face_count(handle);
     uint8_t* passes;
 
-    if( !pose || face_count <= 0 )
+    if( face_count <= 0 )
         return false;
+    assert(pose);
     passes = pose->face_count == (uint32_t)face_count && pose->face_passes
                  ? pose->face_passes
                  : (uint8_t*)realloc(pose->face_passes, (size_t)face_count);
@@ -235,8 +236,7 @@ WEBGL1ZB_ForgetElement(
     int element_id)
 {
     struct WebGL1MaterialTable* table;
-    if( !renderer )
-        return;
+    assert(renderer);
     table = &renderer->materials;
     if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count )
         return;
@@ -260,8 +260,7 @@ WEBGL1ZB_ForgetTrack(
 {
     struct WebGL1MaterialTable* table;
     struct WebGL1MaterialTrack* track;
-    if( !renderer )
-        return;
+    assert(renderer);
     table = &renderer->materials;
     if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count ||
         anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
@@ -319,7 +318,8 @@ webgl1_world_face_front_facing(
     int64_t dx2;
     int64_t dy2;
 
-    if( !scene || !scene->screen_vertices_x || !scene->screen_vertices_y )
+    assert(scene);
+    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
         return false;
     if( handle.kind == TORIDRAWMK_MODEL && handle.u.model.model )
     {
@@ -388,8 +388,10 @@ webgl1_queue_alpha_submission(
 {
     struct WebGL1AlphaSubmission* submission;
 
-    if( !renderer || !indices || index_count == 0u )
+    if( index_count == 0u )
         return false;
+    assert(renderer);
+    assert(indices);
     if( renderer->alpha_index_count > UINT32_MAX - index_count )
         return false;
     if( renderer->alpha_index_count + index_count > renderer->alpha_index_capacity )
@@ -698,8 +700,7 @@ WEBGL1ZB_Free(struct ToriRS_GL3* renderer)
 void
 WEBGL1ZB_ResetFrame(struct ToriRS_GL3* renderer)
 {
-    if( !renderer )
-        return;
+    assert(renderer);
     renderer->alpha_submission_count = 0u;
     renderer->alpha_index_count = 0u;
 }
@@ -712,7 +713,8 @@ WEBGL1ZB_BeginPass(
     int gl_w,
     int gl_h)
 {
-    if( !renderer || !renderer->z_buffer_enabled )
+    assert(renderer);
+    if( !renderer->z_buffer_enabled )
         return;
     /*
      * Once per world pass, scissored to the world viewport so the UI drawn
@@ -739,8 +741,8 @@ WEBGL1ZB_ApplyProjectionDepth(
     float far_z = TRSPK_WEBGL1_WORLD_FAR;
     float range;
 
-    if( !renderer || !camera )
-        return;
+    assert(renderer);
+    assert(camera);
     /*
      * Give the matrix a real depth row.
      *

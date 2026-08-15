@@ -6,7 +6,6 @@ test_parse(void)
     printf("TEST: parse\n");
 
     TEST_ASSERT(revconfig_parse_button_type("") == 0, "button empty");
-    TEST_ASSERT(revconfig_parse_button_type(NULL) == 0, "button null");
     TEST_ASSERT(revconfig_parse_button_type("ok") == REVCONFIG_BUTTON_TYPE_OK, "ok");
     TEST_ASSERT(revconfig_parse_button_type("TARGET") == REVCONFIG_BUTTON_TYPE_TARGET, "target");
     TEST_ASSERT(revconfig_parse_button_type("close") == REVCONFIG_BUTTON_TYPE_CLOSE, "close");

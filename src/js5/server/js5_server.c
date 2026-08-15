@@ -3,6 +3,7 @@
 #endif
 
 #include "js5_server.h"
+#include <assert.h>
 
 #include "js5_server_cache.h"
 #include "js5_server_conn.h"
@@ -134,8 +135,7 @@ js5_server_stopping(void)
 void
 Js5ServerConfigInit(struct Js5ServerConfig* config)
 {
-    if( !config )
-        return;
+    assert(config);
     memset(config, 0, sizeof(*config));
     config->bind_address = "127.0.0.1";
     config->port = 43594u;
@@ -207,8 +207,7 @@ js5_server_client_reset(
     struct Js5ServerClient* client,
     bool verbose)
 {
-    if( !client )
-        return;
+    assert(client);
     if( verbose && client->conn.session )
     {
         struct Js5ServerSessionStats stats;

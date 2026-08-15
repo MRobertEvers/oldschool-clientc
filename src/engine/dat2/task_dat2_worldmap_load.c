@@ -140,7 +140,8 @@ task_dat2_worldmap_attach_compositetextures(
     struct RSCache_FileList* files = NULL;
 
     assert(areas);
-    if( !texture || !texture->file_ids || texture->file_count <= 0 )
+    assert(texture);
+    if( !texture->file_ids || texture->file_count <= 0 )
         return;
 
     files = RSCache_FileListNewFromDecode(texture->data, texture->data_size, texture->file_count);

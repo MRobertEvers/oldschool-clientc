@@ -1,0 +1,15 @@
+TzTok-Jad
+exported by ev_export from cache.rs727_preeoc (profile rs727)
+
+Models are RAW cache archives: the viewer decodes them itself, so these
+exercise format detection and the complex-texture decode. Animations are
+ev_wire blobs (.eva) because a sequence is not self-contained - it names
+frames which name a framemap - so a raw export would need the cache back.
+
+An animation only moves a model that shares its rig; the rig id is below.
+
+npc 2745 "TzTok-Jad"
+  model 65988  OB3    59626 bytes  verts  2531  faces  3732  texcoords  209  [plane 188 cyl 4 cube 17 sph 0]  alpha faces 38
+  bas   2432   (idle 16190 walk 16154 back -1 left -1 right -1)
+  anim  16190  bas idle               rig 3429  frames 150  294996 bytes
+  anim  16154  bas walk               rig 3429  frames  16   40076 bytes

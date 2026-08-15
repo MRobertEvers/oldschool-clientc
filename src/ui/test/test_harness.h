@@ -2,6 +2,7 @@
 #define UITREE_TEST_HARNESS_H
 
 #include "uitree.h"
+#include <assert.h>
 #include "uitree_build.h"
 #include "uitree_debug_overlay.h"
 #include "uitree_emit.h"
@@ -52,8 +53,9 @@ static inline int
 UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
 {
     struct TestHostState* st = (struct TestHostState*)user;
-    if( !st || !req )
+    if( !st )
         return 0;
+    assert(req);
 
     switch( req->kind )
     {

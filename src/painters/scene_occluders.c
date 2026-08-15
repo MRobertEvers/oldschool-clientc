@@ -176,7 +176,8 @@ occluder_footprint_tile_visible(
     int dz)
 {
     int idx;
-    if( !span || span->empty )
+    assert(span);
+    if( span->empty )
         return 1;
     if( dz < span->dz_min || dz > span->dz_max )
         return 0;
@@ -471,7 +472,8 @@ scene_occluders_ground_tile_hidden(
     int sx;
     int sz;
 
-    if( !occ || occ->active_count == 0 )
+    assert(occ);
+    if( occ->active_count == 0 )
         return false;
     if( x < 0 || z < 0 || x >= occ->width || z >= occ->height )
         return false;
@@ -527,7 +529,8 @@ scene_occluders_wall_hidden(
     int y1;
     int y2;
 
-    if( !occ || occ->active_count == 0 )
+    assert(occ);
+    if( occ->active_count == 0 )
         return false;
     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
         return false;
@@ -650,7 +653,8 @@ scene_occluders_column_hidden(
 {
     int sx;
     int sz;
-    if( !occ || occ->active_count == 0 )
+    assert(occ);
+    if( occ->active_count == 0 )
         return false;
     if( !scene_occluders_ground_tile_hidden(occ, level, x, z) )
         return false;
@@ -700,7 +704,8 @@ scene_occluders_footprint_hidden(
     int x1;
     int z1;
 
-    if( !occ || occ->active_count == 0 )
+    assert(occ);
+    if( occ->active_count == 0 )
         return false;
 
     assert(size_x >= 1);

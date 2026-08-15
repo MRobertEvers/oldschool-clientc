@@ -13,6 +13,7 @@
  */
 
 #include "ssc.h"
+#include <assert.h>
 
 #include "content/content_register.h"
 
@@ -62,7 +63,8 @@ SSC_SymbolsAdd(
 {
     struct SSC_Symbol* entry;
 
-    if( !name || !*name )
+    assert(name);
+    if( !*name )
         return 0;
 
     if( symbols->count == symbols->capacity )
@@ -195,7 +197,8 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
     int problems = 0;
     int domain_count;
 
-    if( !symbols || symbols->count < 2 )
+    assert(symbols);
+    if( symbols->count < 2 )
         return 0;
     memset(in_domain, 0, sizeof(in_domain));
     domain_count = shared_var_kinds(in_domain);
@@ -299,8 +302,8 @@ find_symbol(
     int lo;
     int hi;
 
-    if( !symbols || !name )
-        return NULL;
+    assert(symbols);
+    assert(name);
     ensure_sorted(symbols);
     if( !symbols->order )
         return NULL;
@@ -1010,8 +1013,7 @@ SSC_SymbolsCarrier(
     const struct SSC_Symbols* symbols,
     int32_t varp)
 {
-    if( !symbols )
-        return NULL;
+    assert(symbols);
     for( int i = 0; i < symbols->carrier_count; i++ )
     {
         if( symbols->carriers[i].varp == varp )
@@ -1034,8 +1036,10 @@ SSC_SymbolsLoadVarbitBases(
     int end_bit = -1;
     int32_t base = -1;
 
-    if( !symbols || !dir || !ns )
+    if( !ns )
         return -1;
+    assert(symbols);
+    assert(dir);
     snprintf(path, sizeof(path), "%s/all.%s", dir, ns);
     file = fopen(path, "rb");
     if( !file )

@@ -512,8 +512,7 @@ painter_set_level_mask(
     struct Painter* painter,
     uint8_t mask)
 {
-    if( !painter )
-        return;
+    assert(painter);
     painter->level_mask = mask;
     painter->min_level = 0;
     if( mask == 0u )
@@ -534,8 +533,7 @@ painter_set_level_range(
     int lo,
     int hi)
 {
-    if( !painter )
-        return;
+    assert(painter);
     if( lo > hi )
     {
         int t = lo;
@@ -605,8 +603,7 @@ painter_set_cullmap(
     struct Painter* painter,
     struct PaintersCullMap* cm)
 {
-    if( !painter )
-        return;
+    assert(painter);
     painter->cullmap = (const struct PaintersCullMap*)cm;
 }
 
@@ -659,8 +656,7 @@ painter_set_camera_angles(
     int pitch,
     int yaw)
 {
-    if( !painter )
-        return;
+    assert(painter);
     painter->camera_pitch = pitch;
     painter->camera_yaw = yaw;
 }

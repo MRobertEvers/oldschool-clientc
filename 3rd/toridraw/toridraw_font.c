@@ -80,8 +80,7 @@ ToriDraw_FontFinishDrawWidths(struct ToriDraw_Font* font)
 int
 ToriDraw_FontEvaluateColorTag(char const tag[3])
 {
-    if( !tag )
-        return -1;
+    assert(tag);
     if( tag[0] == 'c' && tag[1] == 'y' && tag[2] == 'a' )
         return CYAN;
     if( tag[0] == 'w' && tag[1] == 'h' && tag[2] == 'i' )
@@ -229,8 +228,9 @@ font_try_consume_markup(
     struct FontMarkupStyle* style,
     unsigned char* emit_char_out)
 {
-    if( !text || i < 0 || i >= len )
+    if( i < 0 || i >= len )
         return 0;
+    assert(text);
 
     if( emit_char_out )
         *emit_char_out = 0;
@@ -492,7 +492,8 @@ font_line_break_at(
     char const* p,
     int* advance_out)
 {
-    if( !p || p[0] == '\0' )
+    assert(p);
+    if( p[0] == '\0' )
         return false;
 
     if( p[0] == '\\' && p[1] == 'n' )
@@ -1477,8 +1478,9 @@ font_segment_has_visible_content(
     char const* text,
     int len)
 {
-    if( !text || len <= 0 )
+    if( len <= 0 )
         return false;
+    assert(text);
 
     for( int i = 0; i < len; i++ )
     {
@@ -1602,7 +1604,8 @@ font_collect_draw_lines(
     int line_lens[])
 {
     int line_count = 0;
-    if( !text || text[0] == '\0' )
+    assert(text);
+    if( text[0] == '\0' )
         return 0;
 
     int const resolved_lh =

@@ -121,8 +121,7 @@ Mock230_ServerTypes(int* out_count)
 const struct ServerType*
 Mock230_ServerTypeFor(const char* name)
 {
-    if( !name )
-        return NULL;
+    assert(name);
     for( int i = 0; i < TYPE_COUNT; i++ )
     {
         if( strcmp(k_types[i].name, name) == 0 )
@@ -233,8 +232,11 @@ Mock230_ServerDecode(
 {
     struct RSCache_Buffer buffer;
 
-    if( !type || !record || !src || size < 0 )
+    if( size < 0 )
         return -1;
+    assert(type);
+    assert(record);
+    assert(src);
 
     /* Cast away const: the cursor is shared with the encoder and so takes a
      * writable pointer, but only `g` functions run below and none of them write. */

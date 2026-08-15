@@ -1,4 +1,5 @@
 #include "mock230_friends.h"
+#include <assert.h>
 
 #include "mock230.h"
 #include "mock230_content.h"
@@ -691,8 +692,7 @@ mock230_friends_next_pm_id(void)
 int
 mock230_friends_social_gate(struct Mock230Player* player)
 {
-    if( !player )
-        return 0;
+    assert(player);
     if( player->social_protect )
         return 0;
     player->social_protect = 1;

@@ -1,12 +1,12 @@
 #include "engine/torirs_db.h"
+#include <assert.h>
 
 #include <stdlib.h>
 
 struct RSCache_DbIndexFile*
 ToriRS_DbTableIndex_Master(struct ToriRS_DbTableIndex const* idx)
 {
-    if( !idx )
-        return NULL;
+    assert(idx);
     for( int i = 0; i < idx->file_count; i++ )
         if( idx->file_ids[i] == 0 )
             return &idx->files[i];
@@ -18,8 +18,9 @@ ToriRS_DbTableIndex_Column(
     struct ToriRS_DbTableIndex const* idx,
     int column_id)
 {
-    if( !idx || column_id < 0 )
+    if( column_id < 0 )
         return NULL;
+    assert(idx);
     /* Column N is stored in file N+1 (file 0 is the master). */
     for( int i = 0; i < idx->file_count; i++ )
         if( idx->file_ids[i] == column_id + 1 )

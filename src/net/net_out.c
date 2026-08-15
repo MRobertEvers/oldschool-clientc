@@ -1,4 +1,5 @@
 #include "net_out.h"
+#include <assert.h>
 
 #include "jbase37.h"
 #include "wordpack.h"
@@ -1331,8 +1332,7 @@ net_out_message_public(
     struct RSCache_Buffer b;
     int len_pos;
     int start;
-    if( !text )
-        return -1;
+    assert(text);
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PUBLIC, 7, &b) < 0 )
         return -1;
     p1(&b, 0); /* length placeholder */
@@ -1358,8 +1358,7 @@ net_out_message_private(
     struct RSCache_Buffer b;
     int len_pos;
     int start;
-    if( !text )
-        return -1;
+    assert(text);
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PRIVATE, 12, &b) < 0 )
         return -1;
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
@@ -1399,8 +1398,7 @@ net_out_client_cheat(
     struct RSCache_Buffer b;
     int len_pos;
     int start;
-    if( !text )
-        return -1;
+    assert(text);
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLIENT_CHEAT, (int)strlen(text) + 3, &b) < 0 )
         return -1;
     p1(&b, 0); /* length placeholder */

@@ -94,8 +94,8 @@ World_AddAreaSound(
     struct World* world,
     const struct World_AreaSound* source)
 {
-    if( !world || !source )
-        return;
+    assert(world);
+    assert(source);
     if( world->area_sound_count >= world->area_sound_capacity )
     {
         int new_cap = world->area_sound_capacity ? world->area_sound_capacity * 2 : 64;
@@ -123,8 +123,7 @@ World_RemoveAreaSoundAt(
 {
     int removed = 0;
 
-    if( !world )
-        return 0;
+    assert(world);
     for( int i = 0; i < world->area_sound_count; )
     {
         struct World_AreaSound* entry = &world->area_sounds[i];
@@ -1490,8 +1489,7 @@ World_NpcSetAnimation(
 int
 World_EventsCount(struct World* world)
 {
-    if( !world )
-        return 0;
+    assert(world);
     return world->event_count;
 }
 
@@ -2044,7 +2042,8 @@ World_PlayerClearHealthbar(struct World* world, int idx)
 {
     struct WorldEntity_Player* player;
 
-    if( !world || !World_EntityPoolIsActive(&world->entities.player, idx) )
+    assert(world);
+    if( !World_EntityPoolIsActive(&world->entities.player, idx) )
         return;
     player = World_EntityPoolGet(&world->entities.player, idx);
     player->combat.combat_cycle = 0;
@@ -2319,7 +2318,8 @@ World_NpcClearHealthbar(struct World* world, int idx)
 {
     struct WorldEntity_NPC* npc;
 
-    if( !world || !World_EntityPoolIsActive(&world->entities.npc, idx) )
+    assert(world);
+    if( !World_EntityPoolIsActive(&world->entities.npc, idx) )
         return;
     npc = World_EntityPoolGet(&world->entities.npc, idx);
     npc->combat.combat_cycle = 0;

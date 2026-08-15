@@ -132,8 +132,7 @@ CreateTask_StaticSpritesLoad(
     struct Task_StaticSpritesLoad* task;
 
     assert(provider);
-    if( !bridge )
-        return NULL;
+    assert(bridge);
 
     task = calloc(1, sizeof(*task));
     assert(task);

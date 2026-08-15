@@ -55,7 +55,8 @@ is_friend(
     struct RS_ChatFilters const* filters,
     char const* name)
 {
-    if( !filters->social || !name || !name[0] )
+    assert(name);
+    if( !filters->social || !name[0] )
         return 0;
     for( int i = 0; i < filters->social->friend_count; i++ )
     {

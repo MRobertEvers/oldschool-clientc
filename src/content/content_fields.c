@@ -3,6 +3,7 @@
  */
 
 #include "content_fields.h"
+#include <assert.h>
 
 #include "content_register.h"
 
@@ -158,8 +159,7 @@ ContentFields_Find(
     const struct ContentFields* fields,
     const char* name)
 {
-    if( !name )
-        return NULL;
+    assert(name);
     for( int i = 0; i < fields->count; i++ )
     {
         if( strcmp(fields->entries[i].name, name) == 0 )

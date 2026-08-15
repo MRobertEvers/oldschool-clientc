@@ -3,6 +3,7 @@
  */
 
 #include "mock230_shop.h"
+#include <assert.h>
 
 #include "mock230.h"
 #include "mock230_container.h"
@@ -66,8 +67,7 @@ mock230_shop_def_add_stock(
     int32_t baseline,
     int32_t rate)
 {
-    if( !def )
-        return 0;
+    assert(def);
     if( def->stock_count >= MOCK230_SHOP_STOCK_MAX )
         return 0;
     def->stock[def->stock_count].obj_id = obj_id;
@@ -96,8 +96,7 @@ mock230_shop_def_set_size(
     struct Mock230ShopDef* def,
     int32_t size)
 {
-    if( !def )
-        return;
+    assert(def);
     def->content_size = size;
 }
 

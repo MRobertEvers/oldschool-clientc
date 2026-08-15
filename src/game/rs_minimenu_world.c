@@ -245,8 +245,9 @@ scenery_debug_name(
 {
     char const* name = scenery->name[0] ? scenery->name : "Scenery";
 
-    if( !WorldEntity_SceneryDebugEnabled() || !world )
+    if( !WorldEntity_SceneryDebugEnabled() )
         return name;
+    assert(world);
 
     snprintf(
         buf,

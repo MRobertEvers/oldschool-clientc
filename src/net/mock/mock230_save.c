@@ -3,6 +3,7 @@
  */
 
 #include "mock230_save.h"
+#include <assert.h>
 
 #include "mock230.h"
 #include "mock230_container.h"
@@ -166,7 +167,8 @@ mock230_save_player(
     char temp[1100];
     FILE* file;
 
-    if( !path || !*path )
+    assert(path);
+    if( !*path )
         return 0;
 
     save_mkdir_p(save_dir());
@@ -358,7 +360,8 @@ mock230_load_player(
     struct Mock230Container* section_row = NULL;
     int version = 0;
 
-    if( !path || !*path )
+    assert(path);
+    if( !*path )
         return 0;
     file = fopen(path, "rb");
     if( !file )

@@ -1,4 +1,5 @@
 #include "engine/torirs_sound_from_rscache.h"
+#include <assert.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +14,8 @@ ToriRS_SoundFromRSCache(
     struct RSCache_SoundPcm pcm;
     int queue_delay;
 
-    if( !profile || !effect )
-        return NULL;
+    assert(profile);
+    assert(effect);
 
     /* Trim before rendering: it moves the tone starts, which is what sizes the
      * render. Doing it after would render the silent lead-in and then throw the
@@ -49,7 +50,8 @@ ToriRS_SoundFromRSCacheSample(
 {
     struct ToriRS_Sound* sound;
 
-    if( !sample || !sample->samples || sample->sample_count <= 0 || sample->sample_rate <= 0 )
+    assert(sample);
+    if( !sample->samples || sample->sample_count <= 0 || sample->sample_rate <= 0 )
         return NULL;
     sound = calloc(1, sizeof(*sound));
     if( !sound )
@@ -76,7 +78,8 @@ ToriRS_SoundExpandLoops(
     struct RSCache_SoundPcm pcm;
     uint8_t* copy;
 
-    if( !sound || !sound->pcm || sound->sample_count <= 0 )
+    assert(sound);
+    if( !sound->pcm || sound->sample_count <= 0 )
         return NULL;
 
     copy = malloc((size_t)sound->sample_count);

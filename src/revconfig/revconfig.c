@@ -508,7 +508,8 @@ revconfig_item_apply_font_field(
 static int
 revconfig_font_field_is_numeric(const char* value)
 {
-    if( !value || value[0] == '\0' )
+    assert(value);
+    if( value[0] == '\0' )
         return 0;
     for( const char* p = value; *p; p++ )
     {
@@ -521,7 +522,8 @@ revconfig_font_field_is_numeric(const char* value)
 static int
 revconfig_minimenu_action_from_symbol(char const* sym)
 {
-    if( !sym || sym[0] == '\0' )
+    assert(sym);
+    if( sym[0] == '\0' )
         return 0;
 
 #define MAP_ACTION(name)                                                                           \
@@ -575,7 +577,8 @@ revconfig_minimenu_action_from_symbol(char const* sym)
 int
 revconfig_parse_minimenu_action(char const* str)
 {
-    if( !str || str[0] == '\0' )
+    assert(str);
+    if( str[0] == '\0' )
         return 0;
 
     int sym = revconfig_minimenu_action_from_symbol(str);
@@ -595,7 +598,8 @@ revconfig_parse_minimenu_action(char const* str)
 static int
 revconfig_parse_chat_button_filter(char const* value)
 {
-    if( !value || value[0] == '\0' )
+    assert(value);
+    if( value[0] == '\0' )
         return -1;
     if( strcasecmp(value, "public") == 0 )
         return 0;
@@ -611,7 +615,8 @@ revconfig_parse_chat_button_filter(char const* value)
 int
 revconfig_parse_button_type(char const* str)
 {
-    if( !str || str[0] == '\0' )
+    assert(str);
+    if( str[0] == '\0' )
         return 0;
 
     if( strcasecmp(str, "ok") == 0 )

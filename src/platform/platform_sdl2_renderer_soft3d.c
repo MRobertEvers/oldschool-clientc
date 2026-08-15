@@ -198,8 +198,9 @@ soft3d_clamp_to_nominal(
     int x;
     size_t n;
 
-    if( !src || nominal_w <= 0 || nominal_h <= 0 || src_w <= 0 || src_h <= 0 )
+    if( nominal_w <= 0 || nominal_h <= 0 || src_w <= 0 || src_h <= 0 )
         return NULL;
+    assert(src);
 
     n = (size_t)nominal_w * (size_t)nominal_h;
     dst = soft3d_scratch(n);
@@ -231,8 +232,9 @@ soft3d_scale_pixel_alpha(
 {
     size_t i;
 
-    if( !buf || alpha >= 255 )
+    if( alpha >= 255 )
         return;
+    assert(buf);
     if( alpha < 0 )
         alpha = 0;
 

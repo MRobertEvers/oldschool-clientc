@@ -1,4 +1,5 @@
 #include "game/rs_hitsplat.h"
+#include <assert.h>
 
 #include "world/entity_pathing.h"
 
@@ -31,8 +32,9 @@ RS_Hitsplats_SetTypes(
     int* slot_policies,
     int count)
 {
-    if( !sprite_ids || count <= 0 )
+    if( count <= 0 )
         return 0;
+    assert(sprite_ids);
     free(hitsplats->sprite_ids);
     free(hitsplats->durations);
     free(hitsplats->slot_policies);

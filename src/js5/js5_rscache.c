@@ -1,4 +1,5 @@
 #include "js5_rscache.h"
+#include <assert.h>
 
 #include <dat2disk.h>
 
@@ -15,8 +16,10 @@ js5_rscache_read_raw(
     size_t* size)
 {
     struct Js5RscacheStorage* storage = (struct Js5RscacheStorage*)user;
-    if( !storage || !storage->disk || !data || !size )
+    if( !storage || !storage->disk )
         return JS5_STORAGE_ERROR;
+    assert(data);
+    assert(size);
     *data = NULL;
     *size = 0u;
     struct RSCache_Dat2DiskArchive* loaded =
@@ -51,8 +54,9 @@ js5_rscache_install_reference(
     size_t size)
 {
     struct Js5RscacheStorage* storage = (struct Js5RscacheStorage*)user;
-    if( !storage || !storage->disk || !container || size > INT_MAX )
+    if( !storage || !storage->disk || size > INT_MAX )
         return JS5_STORAGE_ERROR;
+    assert(container);
     return RSCache_Dat2DiskInstallReferenceTableRaw(
                storage->disk, archive, container, (int)size)
                ? JS5_STORAGE_OK
@@ -94,8 +98,9 @@ js5_rscache_install_group(
     uint32_t version)
 {
     struct Js5RscacheStorage* storage = (struct Js5RscacheStorage*)user;
-    if( !storage || !storage->disk || !container || size > (size_t)INT_MAX - 4u )
+    if( !storage || !storage->disk || size > (size_t)INT_MAX - 4u )
         return JS5_STORAGE_ERROR;
+    assert(container);
     uint8_t* stored = (uint8_t*)malloc(size + 4u);
     if( !stored )
         return JS5_STORAGE_ERROR;
@@ -119,8 +124,11 @@ Js5RscacheStorageInit(
     struct RSCache_Dat2Disk* disk,
     const char* directory)
 {
-    if( !storage || !disk || !directory || !directory[0] )
+    assert(directory);
+    if( !directory[0] )
         return false;
+    assert(storage);
+    assert(disk);
     size_t length = strlen(directory) + 1u;
     char* copy = (char*)malloc(length);
     if( !copy )
@@ -134,8 +142,7 @@ Js5RscacheStorageInit(
 void
 Js5RscacheStorageClear(struct Js5RscacheStorage* storage)
 {
-    if( !storage )
-        return;
+    assert(storage);
     free(storage->directory);
     storage->directory = NULL;
     storage->disk = NULL;

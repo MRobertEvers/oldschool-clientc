@@ -55,7 +55,8 @@ exec_if_clearinv_node(
 {
     struct UITreeComponent* c;
 
-    if( !tree || idx < 0 || (uint32_t)idx >= tree->component_count )
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
     c = &tree->components[idx];
     if( c->freed )
@@ -180,7 +181,8 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
 {
     struct App* app;
 
-    if( !ctx || !ctx->app || !ctx->tree )
+    assert(ctx);
+    if( !ctx->app || !ctx->tree )
         return;
     app = ctx->app;
     for( uint32_t i = 0; i < ctx->tree->component_count; i++ )

@@ -790,8 +790,9 @@ CacheProvider_SpriteIdByName(
     int name_hash;
 
     assert(provider);
-    if( !archive_name || !provider->sprite_name_cache )
+    if( !provider->sprite_name_cache )
         return -1;
+    assert(archive_name);
     name_hash = sprite_name_hash(archive_name);
     entry = (struct MapEntry_ProviderSpriteName*)hmap_search(
         provider->sprite_name_cache, &name_hash, HMAP_FIND);
@@ -1852,7 +1853,8 @@ CacheProvider_ObjtypeIdByName(
     int name_hash;
 
     assert(provider);
-    if( !name || !name[0] || !provider->objtype_name_cache )
+    assert(name);
+    if( !name[0] || !provider->objtype_name_cache )
         return -1;
 
     name_hash = objtype_name_lower_hash(name, lower, sizeof(lower));
@@ -1895,7 +1897,9 @@ CacheProvider_ObjtypeSearchByName(
 
     if( out_ids )
         *out_ids = NULL;
-    if( !provider || !provider->objtype_cache || !lower_query || !lower_query[0] )
+    assert(provider);
+    assert(lower_query);
+    if( !provider->objtype_cache || !lower_query[0] )
         return 0;
 
     iter = hmap_iter_new(provider->objtype_cache);

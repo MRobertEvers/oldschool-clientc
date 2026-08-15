@@ -1,4 +1,5 @@
 #include "audio/torirs_mixer.h"
+#include <assert.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,8 +26,7 @@ ToriRS_Mixer_Init(
     struct ToriRS_Mixer* mixer,
     int sample_rate)
 {
-    if( !mixer )
-        return;
+    assert(mixer);
     memset(mixer, 0, sizeof(*mixer));
     mixer->sample_rate = sample_rate > 0 ? sample_rate : TORIRS_AUDIO_SAMPLE_RATE;
     for( int i = 0; i < TORIRS_MIXER_MAX_ASSETS; i++ )
@@ -402,8 +402,8 @@ ToriRS_Mixer_Apply(
     struct ToriRS_Mixer* mixer,
     const struct ToriRS_AudioCommand* command)
 {
-    if( !mixer || !command )
-        return;
+    assert(mixer);
+    assert(command);
 
     switch( command->kind )
     {
@@ -593,8 +593,8 @@ ToriRS_Mixer_ApplyAll(
     const struct ToriRS_AudioCommand* commands,
     int count)
 {
-    if( !mixer || !commands )
-        return;
+    assert(mixer);
+    assert(commands);
     for( int i = 0; i < count; i++ )
         ToriRS_Mixer_Apply(mixer, &commands[i]);
 }
@@ -693,8 +693,10 @@ ToriRS_Mixer_Render(
 {
     int32_t* accumulator;
 
-    if( !mixer || !out || frames <= 0 )
+    if( frames <= 0 )
         return;
+    assert(mixer);
+    assert(out);
     if( !ensure_accumulator(mixer, frames) )
     {
         memset(out, 0, (size_t)frames * 2 * sizeof(int16_t));
@@ -786,8 +788,7 @@ ToriRS_Mixer_Feedback(
     const struct ToriRS_Mixer* mixer,
     struct ToriRS_AudioFeedback* feedback)
 {
-    if( !feedback )
-        return;
+    assert(feedback);
     memset(feedback, 0, sizeof(*feedback));
     if( !mixer )
         return;
@@ -799,8 +800,7 @@ ToriRS_Mixer_LiveAssetCount(const struct ToriRS_Mixer* mixer)
 {
     int count = 0;
 
-    if( !mixer )
-        return 0;
+    assert(mixer);
     for( int i = 0; i < TORIRS_MIXER_MAX_ASSETS; i++ )
     {
         if( mixer->assets[i].asset_id >= 0 )
@@ -814,8 +814,7 @@ ToriRS_Mixer_LiveVoiceCount(const struct ToriRS_Mixer* mixer)
 {
     int count = 0;
 
-    if( !mixer )
-        return 0;
+    assert(mixer);
     for( int i = 0; i < TORIRS_MIXER_MAX_VOICES; i++ )
     {
         if( mixer->voices[i].voice.active )

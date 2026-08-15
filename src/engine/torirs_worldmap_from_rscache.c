@@ -125,8 +125,7 @@ ToriRS_WorldMapArea_ContainsPosition(
     int x,
     int y)
 {
-    if( !area )
-        return false;
+    assert(area);
     for( int i = 0; i < area->section_count; i++ )
     {
         if( section_contains_position(&area->sections[i], x, y) )
@@ -142,8 +141,7 @@ ToriRS_WorldMapArea_ContainsCoord(
     int x,
     int y)
 {
-    if( !area )
-        return false;
+    assert(area);
     for( int i = 0; i < area->section_count; i++ )
     {
         if( section_contains_coord(&area->sections[i], plane, x, y) )
@@ -161,8 +159,7 @@ ToriRS_WorldMapArea_Coord(
     int* out_x,
     int* out_y)
 {
-    if( !area )
-        return false;
+    assert(area);
     for( int i = 0; i < area->section_count; i++ )
     {
         struct ToriRS_WorldMapSection const* section = &area->sections[i];
@@ -188,8 +185,7 @@ ToriRS_WorldMapArea_Position(
     int* out_x,
     int* out_y)
 {
-    if( !area )
-        return false;
+    assert(area);
     for( int i = 0; i < area->section_count; i++ )
     {
         struct ToriRS_WorldMapSection const* section = &area->sections[i];
@@ -207,16 +203,14 @@ ToriRS_WorldMapArea_Position(
 int
 ToriRS_WorldMapArea_WidthTiles(struct ToriRS_WorldMapArea const* area)
 {
-    if( !area )
-        return 0;
+    assert(area);
     return (area->region_high_x - area->region_low_x + 1) * WORLDMAP_REGION_TILES;
 }
 
 int
 ToriRS_WorldMapArea_HeightTiles(struct ToriRS_WorldMapArea const* area)
 {
-    if( !area )
-        return 0;
+    assert(area);
     return (area->region_high_y - area->region_low_y + 1) * WORLDMAP_REGION_TILES;
 }
 
@@ -228,8 +222,7 @@ ToriRS_WorldMapArea_Bounds(
     int* max_x,
     int* max_y)
 {
-    if( !area )
-        return;
+    assert(area);
     if( min_x )
         *min_x = area->region_low_x * WORLDMAP_REGION_TILES;
     if( min_y )
@@ -452,8 +445,7 @@ ToriRS_WorldMapAreasGet(
     struct ToriRS_WorldMapAreas* areas,
     int id)
 {
-    if( !areas )
-        return NULL;
+    assert(areas);
     for( int i = 0; i < areas->count; i++ )
     {
         if( areas->areas[i].id == id )

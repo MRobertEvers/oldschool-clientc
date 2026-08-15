@@ -1,4 +1,5 @@
 #include "ev_wire.h"
+#include <assert.h>
 
 #include "toridraw.h"
 
@@ -102,8 +103,7 @@ ev_wire_write_model(
     struct EV_WireBuf* out,
     const struct ToriDraw_Model* m)
 {
-    if( !m )
-        return 0;
+    assert(m);
 
     if( !put_i32(out, (int32_t)EV_WIRE_MODEL_MAGIC) )
         return 0;
@@ -188,8 +188,7 @@ ev_wire_write_model_hd(
     struct EV_WireBuf* out,
     const struct ToriDraw_ModelHD* model)
 {
-    if( !model )
-        return 0;
+    assert(model);
 
     if( !put_i32(out, (int32_t)EV_WIRE_MODEL_HD_MAGIC) )
         return 0;
@@ -657,11 +656,77 @@ bad:
 int
 ev_wire_is_model_hd(const uint8_t* data, size_t len)
 {
-    if( !data || len < 4 )
+    if( len < 4 )
         return 0;
+    assert(data);
     uint32_t magic = (uint32_t)data[0] | ((uint32_t)data[1] << 8) |
                      ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
     return magic == EV_WIRE_MODEL_HD_MAGIC;
+}
+
+/* ---- texture sets --------------------------------------------------------- */
+
+static uint32_t
+wire_u32_at(const uint8_t* p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
+           ((uint32_t)p[3] << 24);
+}
+
+int
+ev_wire_texture_count(const uint8_t* data, size_t len)
+{
+    assert(data);
+    if( len < 8 || wire_u32_at(data) != EV_WIRE_TEXTURES_MAGIC )
+        return 0;
+    return (int)wire_u32_at(data + 4);
+}
+
+/*
+ * Walked from the start each time rather than indexed, because the entries are
+ * variable-length (a 64x64 texture is a quarter the size of a 128x128) and the
+ * format carries no offset table. Callers read the set once at load, so the
+ * quadratic walk is over tens of items, not thousands.
+ */
+int
+ev_wire_read_texture(const uint8_t* data, size_t len, int index, struct EV_WireTexture* out)
+{
+    int count = ev_wire_texture_count(data, len);
+    size_t at = 8;
+
+    if( index < 0 || index >= count )
+        return 0;
+    assert(out);
+
+    for( int i = 0; i < count; i++ )
+    {
+        int id, size, opaque;
+        size_t texel_bytes;
+
+        if( at + 8 > len )
+            return 0;
+        id = (int)wire_u32_at(data + at);
+        size = (int)data[at + 4] | ((int)data[at + 5] << 8);
+        opaque = data[at + 6];
+        at += 8;
+
+        if( size <= 0 )
+            return 0;
+        texel_bytes = (size_t)size * (size_t)size * 4u;
+        if( at + texel_bytes > len )
+            return 0;
+
+        if( i == index )
+        {
+            out->id = id;
+            out->size = size;
+            out->opaque = opaque;
+            out->texels = (const uint32_t*)(const void*)(data + at);
+            return 1;
+        }
+        at += texel_bytes;
+    }
+    return 0;
 }
 
 struct ToriDraw_ModelHD*

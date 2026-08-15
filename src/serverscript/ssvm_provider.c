@@ -1,4 +1,5 @@
 #include "ssvm_provider.h"
+#include <assert.h>
 
 #include "ss_meta.h"
 
@@ -199,8 +200,7 @@ SSVM_ProviderLoadMem(
     int32_t i;
     size_t offset;
 
-    if( !provider )
-        return SSVM_ErrorSet(err, -1, -1, "no provider");
+    assert(provider);
 
     memset(provider, 0, sizeof(*provider));
 
@@ -310,8 +310,7 @@ SSVM_ProviderLoadDir(
     size_t idx_length = 0;
     int ok;
 
-    if( !provider )
-        return SSVM_ErrorSet(err, -1, -1, "no provider");
+    assert(provider);
     memset(provider, 0, sizeof(*provider));
 
     if( !dir )
@@ -366,7 +365,8 @@ SSVM_ProviderGet(
     const struct SSVM_Provider* provider,
     int32_t id)
 {
-    if( !provider || !provider->scripts || id < 0 || id >= provider->count )
+    assert(provider);
+    if( !provider->scripts || id < 0 || id >= provider->count )
         return NULL;
     if( provider->scripts[id].op_count == 0 )
         return NULL;
@@ -382,8 +382,10 @@ SSVM_ProviderGetByName(
     int32_t lo;
     int32_t hi;
 
-    if( !provider || !provider->by_name || !name )
+    assert(provider);
+    if( !provider->by_name )
         return NULL;
+    assert(name);
 
     hash = hash_name(name);
 
@@ -431,7 +433,8 @@ find_by_key(
     int32_t lo = 0;
     int32_t hi;
 
-    if( !provider || !provider->by_key )
+    assert(provider);
+    if( !provider->by_key )
         return NULL;
 
     hi = provider->by_key_count - 1;

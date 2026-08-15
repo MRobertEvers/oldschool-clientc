@@ -489,8 +489,9 @@ CreateTask_Dat2WorldMapGeographyLoad(
 
     assert(provider);
 
-    if( !sources || source_count <= 0 )
+    if( source_count <= 0 )
         return NULL;
+    assert(sources);
     if( CacheProvider_WorldMapGeographyHas(provider, key) )
         return NULL;
 

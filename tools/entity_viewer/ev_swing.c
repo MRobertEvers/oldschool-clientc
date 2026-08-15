@@ -37,6 +37,7 @@
  */
 
 #include "ev_build.h"
+#include <assert.h>
 #include "ev_player.h"
 #include "ev_render.h"
 #include "ev_wire.h"
@@ -252,8 +253,9 @@ select_blade(
     double cut;
 
     memset(out, 0, sizeof(*out));
-    if( !track || frames < 2 || count <= 0 )
+    if( frames < 2 || count <= 0 )
         return 0;
+    assert(track);
 
     path = calloc((size_t)count, sizeof(double));
     out->head_indices = calloc((size_t)count, sizeof(int));
@@ -322,8 +324,9 @@ measure_blade(const struct ToriDraw_Model* m, int first, int count,
     double sx = 0, sy = 0, sz = 0;
 
     memset(&s, 0, sizeof(s));
-    if( !m || count <= 0 )
+    if( count <= 0 )
         return s;
+    assert(m);
 
     for( int i = first; i < first + count && i < m->vertex_count; i++ )
     {
@@ -399,8 +402,7 @@ total_cycles(const int* delays, int frame_count)
 static void
 blit(int* sheet, int sheet_w, int cell_x, int cell_y, const uint8_t* rgba, int side)
 {
-    if( !rgba )
-        return;
+    assert(rgba);
     for( int y = 0; y < side; y++ )
         for( int x = 0; x < side; x++ )
         {

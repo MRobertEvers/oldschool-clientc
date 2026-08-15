@@ -1,4 +1,5 @@
 #include "torirs_keymap.h"
+#include <assert.h>
 
 /*
  * Index = VK / DOM keyCode, value = OSRS internal code (-1 = unmapped).
@@ -69,7 +70,8 @@ name_equals_ci(
 int
 LibToriRS_OsrsKeyFromName(char const* name)
 {
-    if( !name || name[0] == '\0' )
+    assert(name);
+    if( name[0] == '\0' )
         return -1;
 
     /* Single character: a letter or a digit. */

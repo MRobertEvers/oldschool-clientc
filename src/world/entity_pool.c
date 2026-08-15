@@ -221,8 +221,7 @@ World_EntityPoolReserve(
 void
 World_EntityPoolReset(struct World_EntityPool* pool)
 {
-    if( !pool )
-        return;
+    assert(pool);
 
     for( int i = 0; i < pool->count; i++ )
     {

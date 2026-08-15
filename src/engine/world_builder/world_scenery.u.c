@@ -51,7 +51,8 @@ world_builder_resolve_loc(
 {
     int resolved_id;
 
-    if( !base_loc || base_loc->transform_count <= 0 || !base_loc->transforms )
+    assert(base_loc);
+    if( base_loc->transform_count <= 0 || !base_loc->transforms )
         return base_loc;
 
     resolved_id = VarPManager_ResolveTransform(
@@ -91,8 +92,7 @@ world_builder_resolve_loc_for_place(
 {
     struct ToriRS_Location* resolved;
 
-    if( !base_loc )
-        return NULL;
+    assert(base_loc);
 
     resolved = world_builder_resolve_loc(builder, base_loc);
     if( !resolved )

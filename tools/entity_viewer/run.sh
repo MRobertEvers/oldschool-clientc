@@ -140,7 +140,7 @@ if [ "$WASM_STALE" -eq 1 ] || [ "$WASM_T" -eq 0 ]; then
     fi
 fi
 
-ARGS="--rev $REV $CACHE --port $PORT --web $HERE/web"
+ARGS="--rev $REV $CACHE --port $PORT --web $HERE/web --cache-root $REPO"
 [ -d "$CATALOG" ] && ARGS="$ARGS --catalog $CATALOG"
 [ -d "$NAMES" ] && ARGS="$ARGS --names $NAMES"
 

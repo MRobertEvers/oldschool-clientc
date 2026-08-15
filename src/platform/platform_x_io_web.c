@@ -781,8 +781,7 @@ torirs_io_fail_pending(void)
 EMSCRIPTEN_KEEPALIVE void
 torirs_io_stats(int* out)
 {
-    if( !out )
-        return;
+    assert(out);
     if( !g_web_io )
     {
         memset(out, 0, 5 * sizeof(int));

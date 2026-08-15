@@ -41,6 +41,7 @@
  */
 
 #include "toridraw_texture_uv.h"
+#include <assert.h>
 
 #include "graphics/raster/texture/texmap_common.h"
 #include "graphics/shared_tables.h"
@@ -142,8 +143,10 @@ ToriDraw_ComputeTextureUvBases(
     const struct ToriDraw_TextureUvSource* model,
     struct ToriDraw_TextureUvBasis* out_basis)
 {
-    if( !model || !out_basis || model->textured_face_count <= 0 )
+    assert(model);
+    if( model->textured_face_count <= 0 )
         return false;
+    assert(out_basis);
 
     int count = model->textured_face_count;
     memset(out_basis, 0, (size_t)count * sizeof(*out_basis));
@@ -374,8 +377,10 @@ ToriDraw_ComputeTextureUv(
     const struct ToriDraw_TextureUvSource* model,
     float* out_uv)
 {
-    if( !model || !out_uv || !model->face_textures )
+    assert(model);
+    if( !model->face_textures )
         return false;
+    assert(out_uv);
 
     memset(out_uv, 0, (size_t)model->face_count * 6 * sizeof(float));
 

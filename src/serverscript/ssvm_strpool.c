@@ -1,4 +1,5 @@
 #include "ssvm_strpool.h"
+#include <assert.h>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -17,8 +18,7 @@ struct SSVM_StrPoolBlock
 void
 SSVM_StrPoolInit(struct SSVM_StrPool* pool)
 {
-    if( !pool )
-        return;
+    assert(pool);
     pool->head = NULL;
     pool->total_bytes = 0;
     pool->exhausted = 0;
@@ -54,7 +54,8 @@ SSVM_StrPoolAlloc(
     struct SSVM_StrPoolBlock* block;
     char* out;
 
-    if( !pool || pool->exhausted )
+    assert(pool);
+    if( pool->exhausted )
         return NULL;
 
     needed = length + 1; /* terminator */
@@ -152,8 +153,8 @@ SSVM_StrPoolFmt(
     int length;
     char* out;
 
-    if( !pool || !fmt )
-        return NULL;
+    assert(pool);
+    assert(fmt);
 
     va_start(args, fmt);
     va_copy(measure, args);

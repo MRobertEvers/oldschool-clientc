@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include <assert.h>
 
 #include "asyncio.h"
 #include "engine/cache_provider.h"
@@ -114,8 +115,7 @@ run_task(
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
-    if( !task )
-        return;
+    assert(task);
     ToriRS_TaskQueue_Add(queue, task);
     while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
         PlatformX_IO_Process(px, io);
@@ -243,8 +243,7 @@ collect_loc_models(
     struct ToriRS_Location* loc,
     struct IntSet* models)
 {
-    if( !loc )
-        return;
+    assert(loc);
 
     if( !loc->shapes )
     {

@@ -163,7 +163,8 @@ torirs_objtype_copy_params(
 {
     int i;
     assert(dst);
-    if( !src || src->count <= 0 )
+    assert(src);
+    if( src->count <= 0 )
         return;
 
     dst->param_count = src->count;

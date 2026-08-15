@@ -44,8 +44,7 @@ UITree_HasMenuOptions(struct UITreeComponent const* component)
 static int
 menu_options_is_empty(struct UITreeMenuOptions const* opts)
 {
-    if( !opts )
-        return 1;
+    assert(opts);
     if( opts->option[0] || opts->target_verb[0] || opts->target_base[0] )
         return 0;
     if( opts->option_action || opts->submenus )

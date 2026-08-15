@@ -9,6 +9,7 @@
  */
 
 #include "platform/dat2_web_store.h"
+#include <assert.h>
 
 #include <dat2disk.h>
 
@@ -131,8 +132,8 @@ web_store_get(
     int* size)
 {
     (void)user;
-    if( !data || !size )
-        return -1;
+    assert(data);
+    assert(size);
     *data = NULL;
     *size = 0;
     return torirs_web_store_get(table_id, archive_id, data, size);
@@ -148,8 +149,9 @@ web_store_put(
 {
     struct Dat2WebStore* store = (struct Dat2WebStore*)user;
 
-    if( !data || size <= 0 )
+    if( size <= 0 )
         return -1;
+    assert(data);
     if( torirs_web_store_put(table_id, archive_id, data, size) != 0 )
         return -1;
     if( store )
@@ -171,7 +173,8 @@ Dat2WebStore_New(const char* cache_key)
 {
     struct Dat2WebStore* store;
 
-    if( !cache_key || !cache_key[0] || g_web_store )
+    assert(cache_key);
+    if( !cache_key[0] || g_web_store )
         return NULL;
     if( !torirs_web_store_open(cache_key) )
         return NULL;
@@ -234,8 +237,9 @@ Dat2WebStore_FileRead(
     uint8_t** data,
     int* size)
 {
-    if( !path || !data || !size )
-        return -1;
+    assert(path);
+    assert(data);
+    assert(size);
     *data = NULL;
     *size = 0;
     return torirs_web_file_get(path, data, size);

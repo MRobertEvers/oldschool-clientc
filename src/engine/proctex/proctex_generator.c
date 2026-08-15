@@ -1,4 +1,5 @@
 #include "engine/proctex/proctex_internal.h"
+#include <assert.h>
 
 #include <stdio.h>
 
@@ -106,8 +107,7 @@ ProcTexGenerator_IsFullySupported(
     const struct RSCache_Dat2ProcTexture* texture,
     int* out_first_unsupported_type)
 {
-    if( !texture )
-        return false;
+    assert(texture);
     for( int i = 0; i < texture->operation_count; i++ )
     {
         if( !ProcTexGenerator_SupportsOp(texture->operations[i].type) )
@@ -1132,8 +1132,11 @@ ProcTexGenerator_Render(
     /* The refusals below are silent by default but each one means something different, and
      * they are indistinguishable from the caller's `render failed`. Name them so a texture
      * that will not bake can be diagnosed without a debugger. */
-    if( !gen || !texture || !out_argb || size <= 0 )
+    if( size <= 0 )
         return false;
+    assert(gen);
+    assert(texture);
+    assert(out_argb);
     if( texture->operation_count <= 0 || texture->colour_op < 0 )
     {
         if( getenv("TORIRS_PROCTEX_DEBUG") )

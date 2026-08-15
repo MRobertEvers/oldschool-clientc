@@ -110,7 +110,7 @@ if "%WASM_STALE%"=="1" (
     )
 )
 
-set "ARGS=--rev %REV% "%CACHE%" --port %PORT% --web "%HERE%\web""
+set "ARGS=--rev %REV% "%CACHE%" --port %PORT% --web "%HERE%\web" --cache-root "%REPO%""
 if exist "%CATALOG%" set "ARGS=%ARGS% --catalog "%CATALOG%""
 if exist "%NAMES%"   set "ARGS=%ARGS% --names "%NAMES%""
 

@@ -10,6 +10,7 @@
  * rather than teaching the protocol code about transports.
  */
 #include "mock230_ws.h"
+#include <assert.h>
 
 #include "platform/net_transport_ws_frame.h"
 #include "platform/net_transport_ws_handshake.h"
@@ -345,7 +346,8 @@ mock230_conn_send(
     uint8_t const* data,
     int len)
 {
-    if( !conn || conn->closed || conn->fd < 0 )
+    assert(conn);
+    if( conn->closed || conn->fd < 0 )
         return -1;
     if( len <= 0 )
         return 0;

@@ -3,6 +3,7 @@
  */
 
 #include "game/rs_prefs.h"
+#include <assert.h>
 
 #include "3rd/ini/ini.h"
 
@@ -51,8 +52,7 @@ RS_Prefs_Path(void)
 void
 RS_Prefs_Defaults(struct RS_Prefs* prefs)
 {
-    if( !prefs )
-        return;
+    assert(prefs);
     for( int kind = 0; kind < RS_CS2_OPTION_KIND_COUNT; kind++ )
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
             prefs->options[kind][id] = RS_CS2Host_OptionDefault(kind, id);
@@ -91,8 +91,7 @@ RS_Prefs_Decode(
     int section = PREFS_SECTION_NONE;
     int version = 0;
 
-    if( !prefs )
-        return 0;
+    assert(prefs);
     RS_Prefs_Defaults(prefs);
     if( !data || size <= 0 )
         return 0;
@@ -178,8 +177,9 @@ RS_Prefs_Encode(
     int cap = 512 + RS_CS2_OPTION_KIND_COUNT * (64 + RS_CS2_OPTION_MAX * 24);
     int len = 0;
 
-    if( !prefs || !out_data || !out_size )
-        return 0;
+    assert(prefs);
+    assert(out_data);
+    assert(out_size);
     *out_data = NULL;
     *out_size = 0;
     text = (char*)malloc((size_t)cap);
@@ -245,8 +245,8 @@ RS_Prefs_ApplyToHost(
     struct RS_Prefs const* prefs,
     struct RS_CS2Host* host)
 {
-    if( !prefs || !host )
-        return;
+    assert(prefs);
+    assert(host);
     for( int kind = 0; kind < RS_CS2_OPTION_KIND_COUNT; kind++ )
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
             RS_CS2Host_SetOption(host, kind, id, prefs->options[kind][id]);
@@ -260,8 +260,8 @@ RS_Prefs_CaptureFromHost(
 {
     int changed = 0;
 
-    if( !prefs || !host )
-        return 0;
+    assert(prefs);
+    assert(host);
     for( int kind = 0; kind < RS_CS2_OPTION_KIND_COUNT; kind++ )
         for( int id = 0; id < RS_CS2_OPTION_MAX; id++ )
         {

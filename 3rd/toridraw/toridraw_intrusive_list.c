@@ -24,8 +24,7 @@ td_intrusive_grow(struct ToriDraw_IntrusiveList* list)
 void
 ToriDraw_IntrusiveListInit(struct ToriDraw_IntrusiveList* list)
 {
-    if( !list )
-        return;
+    assert(list);
     memset(list, 0, sizeof(*list));
     list->head = TORIDRAW_INTRUSIVE_NIL;
     list->tail = TORIDRAW_INTRUSIVE_NIL;

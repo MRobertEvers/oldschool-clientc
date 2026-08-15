@@ -1,4 +1,5 @@
 #include "js5_server_cache.h"
+#include <assert.h>
 
 #include <archive.h>
 #include <checksum.h>
@@ -288,7 +289,8 @@ Js5ServerCacheOpen(const char* cache_dir)
 {
     struct Js5ServerCache* cache;
 
-    if( !cache_dir || !cache_dir[0] )
+    assert(cache_dir);
+    if( !cache_dir[0] )
         return NULL;
     cache = (struct Js5ServerCache*)calloc(1u, sizeof(*cache));
     if( !cache )
@@ -322,8 +324,7 @@ Js5ServerCacheRefreshIfStale(struct Js5ServerCache* cache)
     struct Js5ServerCacheStamp stamp;
     struct Js5ServerCache probe;
 
-    if( !cache )
-        return 0;
+    assert(cache);
     stamp = js5_server_stamp(cache->directory);
     if( js5_server_stamp_equal(&stamp, &cache->stamp) )
         return 0;
@@ -406,8 +407,8 @@ Js5ServerCacheLoad(
     const uint8_t* container;
     size_t container_size;
 
-    if( !cache || !blob )
-        return JS5_SERVER_CACHE_ERROR;
+    assert(cache);
+    assert(blob);
     memset(blob, 0, sizeof(*blob));
 
     if( archive == JS5_REFERENCE_INDEX && group == JS5_REFERENCE_INDEX )
@@ -471,8 +472,8 @@ Js5ServerCacheBuildResponse(
     size_t position = 0u;
     size_t offset = 0u;
 
-    if( !out || !out_size )
-        return JS5_SERVER_CACHE_ERROR;
+    assert(out);
+    assert(out_size);
     *out = NULL;
     *out_size = 0u;
     result = Js5ServerCacheLoad(cache, archive, group, &blob);

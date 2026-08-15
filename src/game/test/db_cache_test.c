@@ -7,6 +7,7 @@
  */
 
 #include "asyncio.h"
+#include <assert.h>
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_host.h"
@@ -47,8 +48,7 @@ run_task(
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
-    if( !task )
-        return;
+    assert(task);
     ToriRS_TaskQueue_Add(queue, task);
     while( ToriRS_TaskQueue_Run(queue, io) == TORIRS_ASYNCIO_STAT_YIELD )
         PlatformX_IO_Process(px, io);

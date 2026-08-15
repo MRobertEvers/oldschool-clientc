@@ -1,4 +1,5 @@
 #include "audio/torirs_soundbank.h"
+#include <assert.h>
 
 #include "audio/torirs_audio.h"
 
@@ -10,8 +11,7 @@
 void
 ToriRS_SoundBank_Init(struct ToriRS_SoundBank* bank)
 {
-    if( !bank )
-        return;
+    assert(bank);
     memset(bank, 0, sizeof(*bank));
 }
 
@@ -54,8 +54,9 @@ ToriRS_SoundBank_FindPatch(
     struct ToriRS_SoundBank* bank,
     int patch_id)
 {
-    if( !bank || patch_id < 0 )
+    if( patch_id < 0 )
         return NULL;
+    assert(bank);
     for( int i = 0; i < bank->patch_count; i++ )
     {
         if( bank->patches[i].patch_id == patch_id )
@@ -70,8 +71,9 @@ ToriRS_SoundBank_FindSample(
     int table,
     int id)
 {
-    if( !bank || id < 0 )
+    if( id < 0 )
         return NULL;
+    assert(bank);
     for( int i = 0; i < bank->sample_count; i++ )
     {
         if( bank->samples[i].table == table && bank->samples[i].id == id )
@@ -207,8 +209,10 @@ ToriRS_SoundBank_ResolvePatch(
 {
     int missing = 0;
 
-    if( !bank || !patch || !patch->patch )
+    assert(patch);
+    if( !patch->patch )
         return 0;
+    assert(bank);
     for( int note = 0; note < 128; note++ )
     {
         int id = RSCache_MusicPatchNoteSampleId(patch->patch, note);
@@ -243,8 +247,10 @@ ToriRS_SoundBank_NoteSound(
 {
     int index;
 
-    if( !bank || !patch || note < 0 || note >= 128 )
+    if( note < 0 || note >= 128 )
         return NULL;
+    assert(bank);
+    assert(patch);
     index = patch->note_sample[note];
     if( index < 0 || index >= bank->sample_count )
         return NULL;

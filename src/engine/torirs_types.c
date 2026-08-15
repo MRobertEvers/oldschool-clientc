@@ -7,8 +7,7 @@
 size_t
 ToriRS_MapTerrainSizeOf(const struct ToriRS_MapTerrain* terrain)
 {
-    if( !terrain )
-        return 0;
+    assert(terrain);
     return sizeof(*terrain);
 }
 
@@ -21,8 +20,7 @@ ToriRS_MapTerrainFree(struct ToriRS_MapTerrain* terrain)
 size_t
 ToriRS_MapLocsSizeOf(const struct ToriRS_MapLocs* locs)
 {
-    if( !locs )
-        return 0;
+    assert(locs);
     size_t bytes = sizeof(*locs);
     if( locs->locs )
         bytes += (size_t)locs->locs_count * sizeof(*locs->locs);
@@ -41,8 +39,7 @@ ToriRS_MapLocsFree(struct ToriRS_MapLocs* locs)
 size_t
 ToriRS_FlotypeSizeOf(const struct ToriRS_Flotype* flotype)
 {
-    if( !flotype )
-        return 0;
+    assert(flotype);
     return sizeof(*flotype);
 }
 
@@ -80,8 +77,7 @@ torirs_location_models_sizeof(const struct ToriRS_Location* loc)
 size_t
 ToriRS_LocationSizeOf(const struct ToriRS_Location* loc)
 {
-    if( !loc )
-        return 0;
+    assert(loc);
 
     size_t bytes = sizeof(*loc);
     if( loc->shapes )
@@ -136,8 +132,7 @@ ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype)
 size_t
 ToriRS_NpctypeSizeOf(const struct ToriRS_Npctype* npctype)
 {
-    if( !npctype )
-        return 0;
+    assert(npctype);
 
     size_t bytes = sizeof(*npctype);
     if( npctype->models )
@@ -167,8 +162,7 @@ ToriRS_IdkFree(struct ToriRS_Idk* idk)
 size_t
 ToriRS_IdkSizeOf(const struct ToriRS_Idk* idk)
 {
-    if( !idk )
-        return 0;
+    assert(idk);
 
     size_t bytes = sizeof(*idk);
     if( idk->model_ids )
@@ -196,8 +190,7 @@ ToriRS_ObjtypeFree(struct ToriRS_Objtype* objtype)
 size_t
 ToriRS_ObjtypeSizeOf(const struct ToriRS_Objtype* objtype)
 {
-    if( !objtype )
-        return 0;
+    assert(objtype);
 
     size_t bytes = sizeof(*objtype);
     if( objtype->recolors_from )
@@ -217,8 +210,7 @@ ToriRS_SpotanimtypeFree(struct ToriRS_Spotanimtype* spotanimtype)
 size_t
 ToriRS_SpotanimtypeSizeOf(const struct ToriRS_Spotanimtype* spotanimtype)
 {
-    if( !spotanimtype )
-        return 0;
+    assert(spotanimtype);
     return sizeof(*spotanimtype);
 }
 
@@ -242,8 +234,7 @@ torirs_animbase_free(struct ToriRS_AnimBase* base)
 static size_t
 torirs_animbase_sizeof(const struct ToriRS_AnimBase* base)
 {
-    if( !base )
-        return 0;
+    assert(base);
 
     size_t bytes = sizeof(*base);
     if( base->bone_groups )
@@ -262,8 +253,7 @@ torirs_animbase_sizeof(const struct ToriRS_AnimBase* base)
 size_t
 ToriRS_AnimayaSkinSizeOf(const struct ToriRS_AnimayaSkin* skin)
 {
-    if( !skin )
-        return 0;
+    assert(skin);
 
     size_t bytes = sizeof(*skin);
     if( skin->group_counts )
@@ -307,8 +297,7 @@ ToriRS_AnimayaSkinFree(struct ToriRS_AnimayaSkin* skin)
 size_t
 ToriRS_SkeletalAnimSizeOf(const struct ToriRS_SkeletalAnim* skeletal)
 {
-    if( !skeletal )
-        return 0;
+    assert(skeletal);
 
     size_t bytes = sizeof(*skeletal);
     if( skeletal->matrices )
@@ -328,7 +317,8 @@ ToriRS_SkeletalAnimFree(struct ToriRS_SkeletalAnim* skeletal)
 static size_t
 torirs_animframe_sizeof(const struct ToriRS_AnimFrame* frame)
 {
-    if( !frame || frame->length <= 0 )
+    assert(frame);
+    if( frame->length <= 0 )
         return 0;
 
     size_t bytes = 0;
@@ -346,8 +336,7 @@ torirs_animframe_sizeof(const struct ToriRS_AnimFrame* frame)
 size_t
 ToriRS_AnimationSizeOf(const struct ToriRS_Animation* anim)
 {
-    if( !anim )
-        return 0;
+    assert(anim);
 
     size_t bytes = sizeof(*anim);
     bytes += torirs_animbase_sizeof(anim->base);
@@ -401,8 +390,7 @@ torirs_bones_free(struct ToriRS_Bones* bones)
 static size_t
 torirs_bones_sizeof(const struct ToriRS_Bones* bones)
 {
-    if( !bones )
-        return 0;
+    assert(bones);
 
     size_t bytes = sizeof(*bones);
     if( bones->bones )
@@ -419,8 +407,7 @@ torirs_bones_sizeof(const struct ToriRS_Bones* bones)
 size_t
 ToriRS_ModelSizeOf(const struct ToriRS_Model* model)
 {
-    if( !model )
-        return 0;
+    assert(model);
 
     size_t bytes = sizeof(*model);
     if( model->vertices_x )
@@ -573,8 +560,7 @@ ToriRS_ModelFree(struct ToriRS_Model* model)
 size_t
 ToriRS_TextureSizeOf(const struct ToriRS_Texture* texture)
 {
-    if( !texture )
-        return 0;
+    assert(texture);
 
     size_t bytes = sizeof(*texture);
     if( texture->texels )
@@ -594,8 +580,7 @@ ToriRS_TextureFree(struct ToriRS_Texture* texture)
 size_t
 ToriRS_SequenceSizeOf(const struct ToriRS_Sequence* seq)
 {
-    if( !seq )
-        return 0;
+    assert(seq);
 
     size_t bytes = sizeof(*seq);
     if( seq->frames )
@@ -646,8 +631,7 @@ ToriRS_SequenceFree(struct ToriRS_Sequence* seq)
 static size_t
 torirs_sprite_frame_sizeof(const struct ToriRS_SpriteFrame* frame)
 {
-    if( !frame )
-        return 0;
+    assert(frame);
     size_t bytes = sizeof(*frame);
     if( frame->pixels_argb && frame->width > 0 && frame->height > 0 )
         bytes += (size_t)frame->width * (size_t)frame->height * sizeof(uint32_t);
@@ -666,8 +650,7 @@ ToriRS_SpriteFrameFree(struct ToriRS_SpriteFrame* frame)
 size_t
 ToriRS_SpriteSizeOf(const struct ToriRS_Sprite* sprite)
 {
-    if( !sprite )
-        return 0;
+    assert(sprite);
     size_t bytes = sizeof(*sprite);
     if( sprite->frames )
     {
@@ -695,8 +678,7 @@ ToriRS_SpriteFree(struct ToriRS_Sprite* sprite)
 size_t
 ToriRS_FontSizeOf(const struct ToriRS_Font* font)
 {
-    if( !font )
-        return 0;
+    assert(font);
     size_t bytes = sizeof(*font);
     for( int i = 0; i < TORIRS_FONT_GLYPH_COUNT; i++ )
     {
@@ -719,8 +701,7 @@ ToriRS_FontFree(struct ToriRS_Font* font)
 size_t
 ToriRS_SoundSizeOf(const struct ToriRS_Sound* sound)
 {
-    if( !sound )
-        return 0;
+    assert(sound);
     size_t samples = (size_t)(sound->sample_count > 0 ? sound->sample_count : 0);
     return sizeof(*sound) + (sound->pcm16 ? samples * sizeof(*sound->pcm16) : samples);
 }
@@ -869,8 +850,7 @@ ToriRS_ComponentPackFree(struct ToriRS_ComponentPack* pack)
 size_t
 ToriRS_ComponentPackSizeOf(const struct ToriRS_ComponentPack* pack)
 {
-    if( !pack )
-        return 0;
+    assert(pack);
 
     size_t bytes = sizeof(*pack);
     if( pack->components )

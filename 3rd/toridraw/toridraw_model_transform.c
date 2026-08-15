@@ -190,8 +190,7 @@ ToriDraw_ModelMoveArrays(
 struct ToriDraw_Model*
 ToriDraw_ModelSteal(struct ToriDraw_Model* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
     if( !dst )
@@ -204,8 +203,7 @@ ToriDraw_ModelSteal(struct ToriDraw_Model* src)
 struct ToriDraw_Model*
 ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 {
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Model* dst = calloc(1, sizeof(struct ToriDraw_Model));
     assert(dst && "ToriDraw_ModelCopy: failed to allocate destination model");
@@ -390,8 +388,9 @@ ToriDraw_ModelNewMerge(
     struct ToriDraw_Model** models,
     int model_count)
 {
-    if( !models || model_count <= 0 )
+    if( model_count <= 0 )
         return NULL;
+    assert(models);
     if( model_count == 1 )
         return ToriDraw_ModelCopy(models[0]);
 
@@ -663,8 +662,7 @@ ToriDraw_ModelRecolorHslArray(
     int color_src,
     int color_dst)
 {
-    if( !colors )
-        return;
+    assert(colors);
     for( int i = 0; i < count; i++ )
     {
         if( colors[i] == (hsl16_t)color_src )

@@ -1279,8 +1279,7 @@ claimed_in(
     const char* const* claimed,
     size_t count)
 {
-    if( !verb )
-        return NULL;
+    assert(verb);
     for( size_t i = 0; i < count; i++ )
         if( strcmp(verb, claimed[i]) == 0 )
             return claimed[i];
@@ -2811,8 +2810,7 @@ mock230_world_npc_set_follower(
     const struct Mock230Npc* npc,
     int slot)
 {
-    if( !player )
-        return;
+    assert(player);
     if( !npc || slot < 0 || slot >= MOCK230_NPC_MAX )
     {
         player->follower_slot = -1;
@@ -2851,8 +2849,7 @@ mock230_world_npc_set_owner(
     struct Mock230Npc* npc,
     const struct Mock230Player* player)
 {
-    if( !npc )
-        return;
+    assert(npc);
     if( !player || !player->active )
     {
         npc->owner_pid = 0;
@@ -5584,8 +5581,9 @@ obj_name_underscore(
 {
     size_t written = 0;
 
-    if( !out || size == 0 )
+    if( size == 0 )
         return;
+    assert(out);
     for( ; in && *in && written + 1 < size; in++ )
     {
         unsigned char c = (unsigned char)*in;
@@ -6849,7 +6847,8 @@ mock230_note_modal_mount(
 {
     struct Mock230Player* player;
 
-    if( !srv || !srv->active_player )
+    assert(srv);
+    if( !srv->active_player )
         return;
     player = srv->active_player;
     /* Compare against the live top's slots (bound by if_opentop), not the
@@ -6905,7 +6904,8 @@ mock230_world_close_modal_ex(
     int bank_was_open;
     int abort_dialog;
 
-    if( !srv || !srv->active_player )
+    assert(srv);
+    if( !srv->active_player )
         return;
     player = srv->active_player;
 
@@ -7347,7 +7347,8 @@ social_notify_followers(
     const char* strv[1];
     int count;
 
-    if( name37 == 0 || !display_name || !display_name[0] )
+    assert(display_name);
+    if( name37 == 0 || !display_name[0] )
         return;
 
     count = mock230_friends_followers(name37, followers, max);
@@ -7867,7 +7868,8 @@ mock230_world_handle(
     /* A packet from a session with no player is a packet from a connection that
      * was refused a slot, or one still mid-handshake. Dropping it is the only
      * safe answer: every handler below writes player state. */
-    if( !player || !player->active )
+    assert(player);
+    if( !player->active )
         return;
     srv = player->world;
     mock230_world_set_active(srv, player);
@@ -8456,7 +8458,8 @@ mock230_world_remove_player(
     int64_t name37;
     char display_name[sizeof(player->display_name)];
 
-    if( !player || !player->active )
+    assert(player);
+    if( !player->active )
         return;
     /* Session-local mechanic state must not reach [logout] or a reused slot. */
     player->action_locked = 0;
@@ -8665,7 +8668,8 @@ mock230_world_set_display_name(
     struct Mock230Player* player,
     const char* name)
 {
-    if( !name || !name[0] )
+    assert(name);
+    if( !name[0] )
         return;
     snprintf(player->display_name, sizeof(player->display_name), "%s", name);
     /* The base-37 form is derived here and nowhere else: it is the key the
@@ -11159,8 +11163,10 @@ selftest_capture_find_varp_large(
 {
     int opcode;
 
-    if( !capture || !wire || varp_id < 0 )
+    if( varp_id < 0 )
         return -1;
+    assert(capture);
+    assert(wire);
     opcode = mock230_wire_opcode(wire, PKT_NAME_VARP_LARGE);
     for( int i = 0; i < capture->count; i++ )
     {
@@ -11189,8 +11195,11 @@ selftest_capture_has_if_settext(
 {
     int opcode;
 
-    if( !capture || !wire || component_id <= 0 || !expected )
+    if( component_id <= 0 )
         return 0;
+    assert(capture);
+    assert(wire);
+    assert(expected);
     opcode = mock230_wire_opcode(wire, PKT_NAME_IF_SETTEXT);
     for( int i = 0; i < capture->count; i++ )
     {
@@ -11281,8 +11290,8 @@ selftest_capture_synth_count(
     int opcode;
     int seen = 0;
 
-    if( !capture || !wire )
-        return 0;
+    assert(capture);
+    assert(wire);
     opcode = mock230_wire_opcode(wire, PKT_NAME_SYNTH_SOUND);
     for( int i = 0; i < capture->count; i++ )
     {
@@ -11307,8 +11316,8 @@ selftest_capture_has_clientscript(
 {
     int opcode;
 
-    if( !capture || !wire )
-        return 0;
+    assert(capture);
+    assert(wire);
     opcode = mock230_wire_opcode(wire, PKT_NAME_RUNCLIENTSCRIPT);
     for( int i = 0; i < capture->count; i++ )
     {

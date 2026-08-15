@@ -166,8 +166,7 @@ ev_model_from_rs(struct RSCache_Model* rs)
     struct ToriRS_Model* mid;
     struct ToriDraw_Model* model;
 
-    if( !rs )
-        return NULL;
+    assert(rs);
     /* ToriRS_ModelFromRSCache moves the arrays out; `rs` is a shell afterwards. */
     mid = ToriRS_ModelFromRSCache(rs);
     RSCache_ModelFree(rs);
@@ -300,7 +299,8 @@ ev_map_add(
     int face_first)
 {
     struct EV_PlayerPart* p;
-    if( !map || map->count >= EV_PLAYER_MAX_PARTS )
+    assert(map);
+    if( map->count >= EV_PLAYER_MAX_PARTS )
         return;
     p = &map->parts[map->count++];
     p->source_id = source_id;

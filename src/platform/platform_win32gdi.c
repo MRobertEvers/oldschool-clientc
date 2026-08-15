@@ -235,8 +235,10 @@ gdi_paint_latest(struct PlatformSDL2* p, HDC dc)
     int image_right;
     int image_bottom;
 
-    if( !p || !dc || !p->gdi_frame_valid || !p->mem_dc || !p->pixels )
+    assert(p);
+    if( !p->gdi_frame_valid || !p->mem_dc || !p->pixels )
         return;
+    assert(dc);
 
     GetClientRect(p->hwnd, &client);
     win_w = client.right - client.left;

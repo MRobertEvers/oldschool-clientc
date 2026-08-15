@@ -978,8 +978,9 @@ webgl1_scale_pixel_alpha(
     int alpha)
 {
     size_t i;
-    if( !buf || alpha >= 255 )
+    if( alpha >= 255 )
         return;
+    assert(buf);
     if( alpha < 0 )
         alpha = 0;
     for( i = 0; i < count; i++ )
@@ -1023,8 +1024,9 @@ webgl1_clamp_to_nominal(
     uint32_t* dst;
     int y;
     int x;
-    if( !src || nominal_w <= 0 || nominal_h <= 0 || src_w <= 0 || src_h <= 0 )
+    if( nominal_w <= 0 || nominal_h <= 0 || src_w <= 0 || src_h <= 0 )
         return NULL;
+    assert(src);
     dst = calloc((size_t)nominal_w * (size_t)nominal_h, sizeof(uint32_t));
     if( !dst )
         return NULL;
@@ -1085,7 +1087,8 @@ webgl1_sprite_prepare_pixels(
     int oy;
     size_t pixel_count;
     uint32_t* spr_px;
-    if( !sp || !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
+    assert(sp);
+    if( !sp->pixels_argb || sp->width <= 0 || sp->height <= 0 )
         return false;
     sw = sp->width;
     sh = sp->height;
@@ -1435,8 +1438,10 @@ webgl1_rotmask_upload_to_slot(
     int w,
     int h)
 {
-    if( !slot || !rgba || w <= 0 || h <= 0 )
+    if( w <= 0 || h <= 0 )
         return false;
+    assert(slot);
+    assert(rgba);
     if( !slot->texture )
         glGenTextures(1, &slot->texture);
     if( !slot->texture )
@@ -1476,8 +1481,10 @@ webgl1_sprite_ensure_rotated_masked(
     int dst_w;
     int dst_h;
     uint32_t const* baked;
-    if( !out_texture || cmd->scene_id <= 0 || cmd->mask_scene_id <= 0 || !renderer->scene || !sp )
+    if( cmd->scene_id <= 0 || cmd->mask_scene_id <= 0 || !renderer->scene )
         return false;
+    assert(out_texture);
+    assert(sp);
     dst_w = cmd->w > 0 ? cmd->w : sp->width;
     dst_h = cmd->h > 0 ? cmd->h : sp->height;
     if( dst_w <= 0 || dst_h <= 0 )
@@ -1745,7 +1752,8 @@ webgl1_font_line_break_at(
     char const* p,
     int* advance_out)
 {
-    if( !p || p[0] == '\0' )
+    assert(p);
+    if( p[0] == '\0' )
         return false;
     if( p[0] == '\\' && p[1] == 'n' )
     {
@@ -1970,7 +1978,8 @@ webgl1_font_collect_lines(
     int line_lens[])
 {
     int line_count = 0;
-    if( !text || text[0] == '\0' )
+    assert(text);
+    if( text[0] == '\0' )
         return 0;
 
     int const resolved_lh =
@@ -4725,8 +4734,9 @@ ToriRS_GL3_SetViewport(
     int width,
     int height)
 {
-    if( !renderer || width <= 0 || height <= 0 )
+    if( width <= 0 || height <= 0 )
         return;
+    assert(renderer);
     if( renderer->width == width && renderer->height == height )
         return;
     renderer->width = width;

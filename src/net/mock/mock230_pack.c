@@ -25,6 +25,7 @@
  */
 
 #include "content/content_register.h"
+#include <assert.h>
 #include "cp_membership.h"
 #include "mock230.h"
 #include "mock230_content.h"
@@ -118,8 +119,7 @@ loc_has_open_op(
     const struct RSCache_Dat2ConfigLoc* config,
     const char* verb)
 {
-    if( !config )
-        return 0;
+    assert(config);
     for( int i = 0; i < 5; i++ )
     {
         if( config->actions[i] && strcmp(config->actions[i], verb) == 0 )
@@ -891,8 +891,7 @@ archive_holds_id(
     const struct RSCache_Dat2DiskArchive* archive,
     int id)
 {
-    if( !archive )
-        return 0;
+    assert(archive);
     if( !archive->file_ids )
         return id >= 0 && id < archive->file_count;
     for( int i = 0; i < archive->file_count; i++ )

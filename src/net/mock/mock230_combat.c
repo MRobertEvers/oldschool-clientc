@@ -972,8 +972,9 @@ mock230_combat_poison_npc(
 {
     struct Mock230Npc* npc;
 
-    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX || severity <= 0 )
+    if( slot < 0 || slot >= MOCK230_NPC_MAX || severity <= 0 )
         return;
+    assert(srv);
     npc = &srv->npcs[slot];
     if( !npc->active || npc->death_tick >= 0 )
         return;
@@ -996,8 +997,9 @@ mock230_combat_npc_poison_tick(struct Mock230Server* srv, int slot)
     struct Mock230Player* saved_active;
     int damage;
 
-    if( !srv || slot < 0 || slot >= MOCK230_NPC_MAX )
+    if( slot < 0 || slot >= MOCK230_NPC_MAX )
         return;
+    assert(srv);
     npc = &srv->npcs[slot];
     if( !npc->active || npc->poison_severity <= 0 )
         return;

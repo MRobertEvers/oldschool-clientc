@@ -1,4 +1,5 @@
 #include "engine/png_decode.h"
+#include <assert.h>
 
 #include "miniz.h"
 
@@ -105,8 +106,9 @@ PngDecode_Rgb(
     int offset = 8;
     bool ok = false;
 
-    if( !data || data_size < 8 || memcmp(bytes, signature, sizeof(signature)) != 0 )
+    if( data_size < 8 || memcmp(bytes, signature, sizeof(signature)) != 0 )
         return false;
+    assert(data);
 
     while( offset + 8 <= data_size )
     {

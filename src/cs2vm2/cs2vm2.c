@@ -242,8 +242,9 @@ static struct CS2VM2_Array*
 cs2vm2_array_from_handle(struct CS2VM2_Thread* vm, char* handle)
 {
     ptrdiff_t off = handle - (char*)vm->arrays;
-    if( !handle || off < 0 || off >= (ptrdiff_t)sizeof(vm->arrays) )
+    if( off < 0 || off >= (ptrdiff_t)sizeof(vm->arrays) )
         return NULL;
+    assert(handle);
     if( off % (ptrdiff_t)sizeof(struct CS2VM2_Array) != 0 )
         return NULL;
     struct CS2VM2_Array* array = (struct CS2VM2_Array*)handle;
@@ -266,7 +267,8 @@ cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slo
 static int
 cs2vm2_array_track(struct CS2VM2_Thread* vm, struct CS2VM2_Array* array, int index)
 {
-    if( !array || !array->defined || index < 0 || index >= array->size )
+    assert(array);
+    if( !array->defined || index < 0 || index >= array->size )
         return 0;
     if( vm->undo_log_len < CS2VM2_ARRAY_UNDO_MAX )
     {

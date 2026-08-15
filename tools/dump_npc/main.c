@@ -45,8 +45,8 @@ str_contains_ci(
     size_t hlen;
     size_t i;
 
-    if( !haystack || !needle )
-        return 0;
+    assert(haystack);
+    assert(needle);
     nlen = strlen(needle);
     hlen = strlen(haystack);
     if( nlen == 0 )

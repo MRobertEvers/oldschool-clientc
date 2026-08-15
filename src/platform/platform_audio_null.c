@@ -55,8 +55,7 @@ PlatformAudio_Init(
     struct PlatformAudio* audio,
     int sample_rate)
 {
-    if( !audio )
-        return false;
+    assert(audio);
     audio->sample_rate = sample_rate > 0 ? sample_rate : TORIRS_AUDIO_SAMPLE_RATE;
     ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
     /* Deliberately false: there is no device. The game uses this to skip
@@ -78,8 +77,8 @@ PlatformAudio_Submit(
     struct PlatformAudio* audio,
     const struct ToriRS_AudioCommand* command)
 {
-    if( !audio || !command )
-        return;
+    assert(audio);
+    assert(command);
     audio->commands++;
     if( command->kind == TORIRS_AUDIO_CMD_VOICE_START )
         audio->last_voice_start_source = command->source_id;
@@ -92,8 +91,8 @@ PlatformAudio_SubmitAll(
     const struct ToriRS_AudioCommand* commands,
     int count)
 {
-    if( !audio || !commands )
-        return;
+    assert(audio);
+    assert(commands);
     for( int i = 0; i < count; i++ )
         PlatformAudio_Submit(audio, &commands[i]);
 }
@@ -104,8 +103,7 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     int peak = 0;
     long energy = 0;
 
-    if( !audio )
-        return;
+    assert(audio);
     ToriRS_Mixer_Render(&audio->mixer, audio->block, NULL_AUDIO_FRAMES_PER_UPDATE);
     for( int i = 0; i < NULL_AUDIO_FRAMES_PER_UPDATE * TORIRS_AUDIO_CHANNELS; i++ )
     {
@@ -124,8 +122,7 @@ PlatformAudio_Feedback(
     struct PlatformAudio* audio,
     struct ToriRS_AudioFeedback* out)
 {
-    if( !out )
-        return;
+    assert(out);
     memset(out, 0, sizeof(*out));
     if( !audio )
         return;
@@ -146,8 +143,7 @@ PlatformAudio_Stats(struct PlatformAudio* audio)
     struct ToriRS_MixerStats mixer_stats;
 
     memset(&stats, 0, sizeof(stats));
-    if( !audio )
-        return stats;
+    assert(audio);
     mixer_stats = ToriRS_Mixer_Stats(&audio->mixer);
     stats.commands = audio->commands;
     stats.assets_live = mixer_stats.assets_live;

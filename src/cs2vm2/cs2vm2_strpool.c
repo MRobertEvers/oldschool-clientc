@@ -158,8 +158,7 @@ CS2VM2_StrPool_Dup(
     char const* text)
 {
     assert(pool);
-    if( !text )
-        return NULL;
+    assert(text);
     return CS2VM2_StrPool_DupLen(pool, text, strlen(text));
 }
 
@@ -170,8 +169,7 @@ CS2VM2_StrPool_DupLen(
     size_t len)
 {
     assert(pool);
-    if( !text )
-        return NULL;
+    assert(text);
 
     char* out = CS2VM2_StrPool_Alloc(pool, len);
     if( len > 0 )

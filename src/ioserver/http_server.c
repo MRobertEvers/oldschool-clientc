@@ -1,4 +1,5 @@
 #include "http_server.h"
+#include <assert.h>
 
 /* mingw-w64 (see src/platform/sockstream.c for the same split on the client
  * side) has no POSIX socket headers at all -- Winsock2 is a different API,
@@ -267,8 +268,10 @@ HttpRequest_Header(
 
     if( len )
         *len = 0;
-    if( !req || !req->headers || !name )
+    assert(req);
+    if( !req->headers )
         return NULL;
+    assert(name);
     name_len = strlen(name);
 
     for( i = 0; i + (int)name_len + 1 < req->headers_len; i++ )
@@ -310,7 +313,8 @@ HttpRequest_MatchesETag(
     char const* value = HttpRequest_Header(req, "If-None-Match", &len);
     size_t etag_len;
 
-    if( !value || !etag || !etag[0] )
+    assert(etag);
+    if( !value || !etag[0] )
         return 0;
     etag_len = strlen(etag);
     /* "*" matches any current representation. */

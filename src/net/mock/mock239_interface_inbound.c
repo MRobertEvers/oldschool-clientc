@@ -1,4 +1,5 @@
 #include "net/mock/mock239_interface_inbound.h"
+#include <assert.h>
 
 #include <string.h>
 
@@ -25,8 +26,10 @@ mock239_if_button_decode(
     int expected = has_subop ? 10 : 9;
     RSProt_Buffer b;
 
-    if( !payload || !out || payload_len != expected )
+    if( payload_len != expected )
         return 0;
+    assert(payload);
+    assert(out);
     memset(out, 0, sizeof(*out));
     RSProt_BufferWrapRead(&b, payload, payload_len);
     out->component_id = RSProt_BufferG4Be(&b);
@@ -50,7 +53,8 @@ mock239_if_button_route(const struct Mock239IfButton* button)
 int
 mock239_if_button_backpack_op(const struct Mock239IfButton* button)
 {
-    if( !button || button->object_id == MOCK239_IF_OBJ_NONE )
+    assert(button);
+    if( button->object_id == MOCK239_IF_OBJ_NONE )
         return 0;
     /* The revision-239 backpack's script_7779 uses enum_4303, rather than
      * consecutive IF_BUTTONX operations: generic Use owns op 1, then its
@@ -112,8 +116,10 @@ mock239_if_script_trigger_decode(
     uint16_t child;
     int typed_pos = 0;
 
-    if( !payload || !out || payload_len < 12 )
+    if( payload_len < 12 )
         return 0;
+    assert(payload);
+    assert(out);
     memset(out, 0, sizeof(*out));
 
     /* Statics.method9637's initial p2 is the outer VAR_SHORT length. The live
@@ -198,8 +204,10 @@ mock239_resume_text_decode(
     int payload_len,
     struct Mock239ByteString* out)
 {
-    if( !payload || !out || payload_len < 1 || payload[payload_len - 1] != 0 )
+    assert(payload);
+    if( payload_len < 1 || payload[payload_len - 1] != 0 )
         return 0;
+    assert(out);
     /* The golden gjstr writer rejects embedded NULs. */
     if( payload_len > 1 && memchr(payload, 0, (size_t)payload_len - 1) )
         return 0;
@@ -216,8 +224,10 @@ mock239_resume_count_long_decode(
 {
     RSProt_Buffer b;
 
-    if( !payload || !out || payload_len != 8 )
+    if( payload_len != 8 )
         return 0;
+    assert(payload);
+    assert(out);
     RSProt_BufferWrapRead(&b, payload, payload_len);
     *out = RSProt_BufferG8Be(&b);
     return RSProt_BufferOk(&b);
@@ -231,8 +241,10 @@ mock239_resume_object_decode(
 {
     RSProt_Buffer b;
 
-    if( !payload || !out || payload_len != 2 )
+    if( payload_len != 2 )
         return 0;
+    assert(payload);
+    assert(out);
     RSProt_BufferWrapRead(&b, payload, payload_len);
     *out = RSProt_BufferG2Be(&b);
     return RSProt_BufferOk(&b);

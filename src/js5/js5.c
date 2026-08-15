@@ -1,4 +1,5 @@
 #include "js5.h"
+#include <assert.h>
 
 #include "platform/sockstream.h"
 
@@ -194,8 +195,7 @@ static int js5_validate_local_group(struct Js5Client* client, int archive, int g
 static char*
 js5_string_duplicate(const char* value)
 {
-    if( !value )
-        return NULL;
+    assert(value);
     size_t size = strlen(value) + 1u;
     char* copy = (char*)malloc(size);
     if( copy )
@@ -507,8 +507,7 @@ js5_sockstream_close(void* user, void* opaque)
 void
 Js5ConfigInit(struct Js5Config* config)
 {
-    if( !config )
-        return;
+    assert(config);
     memset(config, 0, sizeof(*config));
     config->primary_port = 43594u;
     config->fallback_port = 443u;
@@ -531,8 +530,7 @@ Js5ArchiveSelectionSet(
     bool background,
     bool optional)
 {
-    if( !selection )
-        return;
+    assert(selection);
     js5_mask_set(selection->enabled, archive, enabled);
     js5_mask_set(selection->background, archive, enabled && background);
     js5_mask_set(selection->optional, archive, enabled && optional);
@@ -870,7 +868,8 @@ js5_decode_reference(
     size_t* container_size_out)
 {
     size_t container_size = 0u;
-    if( !raw || !RSCache_ArchiveRawContainerLength(raw, raw_size, &container_size) )
+    assert(raw);
+    if( !RSCache_ArchiveRawContainerLength(raw, raw_size, &container_size) )
         return NULL;
     size_t trailer_size = raw_size - container_size;
     if( trailer_size != 0u && trailer_size != 2u && trailer_size != 4u )
@@ -1200,7 +1199,8 @@ Js5ClientRegisterArchive(
     bool background,
     bool optional)
 {
-    if( !client || archive_id < 0 || archive_id >= 255 || client->state == JS5_STATE_FAILED )
+    assert(client);
+    if( archive_id < 0 || archive_id >= 255 || client->state == JS5_STATE_FAILED )
         return false;
     struct Js5Archive* archive = &client->archives[archive_id];
     if( archive->registered )
@@ -1967,7 +1967,8 @@ js5_active_read(struct Js5Client* client)
 void
 Js5ClientSetLoggedIn(struct Js5Client* client, bool logged_in)
 {
-    if( !client || client->config.logged_in == logged_in )
+    assert(client);
+    if( client->config.logged_in == logged_in )
         return;
     client->config.logged_in = logged_in;
     if( client->state == JS5_STATE_ACTIVE )
@@ -1977,16 +1978,15 @@ Js5ClientSetLoggedIn(struct Js5Client* client, bool logged_in)
 void
 Js5ClientSetSeeds(struct Js5Client* client, const uint32_t seeds[4])
 {
-    if( !client || !seeds )
-        return;
+    assert(client);
+    assert(seeds);
     memcpy(client->config.seeds, seeds, sizeof(client->config.seeds));
 }
 
 int
 Js5ClientTick(struct Js5Client* client, uint64_t now_ms)
 {
-    if( !client )
-        return -1;
+    assert(client);
     client->now_ms = now_ms;
     if( client->state == JS5_STATE_FAILED )
         return -1;
@@ -2121,8 +2121,10 @@ Js5ClientTick(struct Js5Client* client, uint64_t now_ms)
 bool
 Js5ClientNextCompletion(struct Js5Client* client, struct Js5Completion* completion)
 {
-    if( !client || !completion || !client->completion_first )
+    assert(client);
+    if( !client->completion_first )
         return false;
+    assert(completion);
     struct Js5CompletionNode* node = client->completion_first;
     client->completion_first = node->next;
     if( !client->completion_first )
@@ -2135,8 +2137,7 @@ Js5ClientNextCompletion(struct Js5Client* client, struct Js5Completion* completi
 void
 Js5ClientGetProgress(const struct Js5Client* client, struct Js5Progress* progress)
 {
-    if( !progress )
-        return;
+    assert(progress);
     memset(progress, 0, sizeof(*progress));
     if( !client )
         return;
@@ -2183,7 +2184,8 @@ Js5ClientArchiveReady(const struct Js5Client* client, int archive)
 bool
 Js5ClientMetadataReady(const struct Js5Client* client)
 {
-    if( !client || !client->master_ready )
+    assert(client);
+    if( !client->master_ready )
         return false;
     for( int archive = 0; archive < 255; archive++ )
     {

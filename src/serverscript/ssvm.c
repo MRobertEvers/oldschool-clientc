@@ -1,4 +1,5 @@
 #include "ssvm.h"
+#include <assert.h>
 
 #include "ss_opcode.h"
 
@@ -102,8 +103,7 @@ SSVM_Abort(
 {
     va_list args;
 
-    if( !state )
-        return;
+    assert(state);
 
     va_start(args, fmt);
     vsnprintf(state->err.message, sizeof(state->err.message), fmt, args);
@@ -125,7 +125,8 @@ SSVM_Backtrace(struct SSVM_State* state)
     int32_t frame;
 
     buffer[0] = '\0';
-    if( !state || state->execution != SSVM_ABORTED )
+    assert(state);
+    if( state->execution != SSVM_ABORTED )
         return buffer;
 
     used += (size_t)snprintf(buffer + used, sizeof(buffer) - used, "%s\n", state->err.message);
@@ -1322,8 +1323,7 @@ ssvm_now_us(void)
 enum SSVM_Exec
 SSVM_Execute(struct SSVM_State* state)
 {
-    if( !state )
-        return SSVM_ABORTED;
+    assert(state);
 
     /* Re-entering a settled state is a no-op rather than a restart: the engine
      * calls this from a tick phase that does not always know a parked script
@@ -1426,8 +1426,8 @@ SSVM_StateAlloc(
     struct SSVM_State* state;
     int i;
 
-    if( !env || !script )
-        return NULL;
+    assert(env);
+    assert(script);
 
     if( int_arg_count != script->int_arg_count || str_arg_count != script->string_arg_count )
         return NULL;
@@ -1524,8 +1524,7 @@ SSVM_EnvInit(
     struct SSVM_Env* env,
     struct SSVM_Provider* provider)
 {
-    if( !env )
-        return;
+    assert(env);
 
     memset(env, 0, sizeof(*env));
     env->provider = provider;

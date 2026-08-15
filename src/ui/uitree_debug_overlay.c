@@ -1,4 +1,5 @@
 #include "uitree_debug_overlay.h"
+#include <assert.h>
 
 /* The only include with any content in it: `static const int` advance tables
  * emitted by fontbake. Nothing else in this file reaches outside the C
@@ -131,6 +132,8 @@ ToriDbgUI_MeasureText(int font_slot, char const* text)
     int w = 0;
     unsigned char const* p;
 
+    /* Widget text and labels are optional (a checkbox may carry no label), so
+     * "no string" is a width of 0 rather than a caller bug. */
     if( !text )
         return 0;
     for( p = (unsigned char const*)text; *p; p++ )
@@ -228,8 +231,7 @@ dbg_damage_add(struct ToriDbgUI* ui, struct ToriDbgRect r)
 void
 ToriDbgUI_Init(struct ToriDbgUI* ui)
 {
-    if( !ui )
-        return;
+    assert(ui);
     memset(ui, 0, sizeof(*ui));
     ui->theme = toridbg_theme_default;
     ui->focus = -1;
@@ -242,8 +244,7 @@ ToriDbgUI_Init(struct ToriDbgUI* ui)
 void
 ToriDbgUI_Reset(struct ToriDbgUI* ui)
 {
-    if( !ui )
-        return;
+    assert(ui);
     /* Everything on screen is going away, so all of it is invalid. */
     for( int i = 0; i < ui->panel_count; i++ )
         dbg_damage_add(ui, ui->panels[i].last_rect);
@@ -261,8 +262,8 @@ ToriDbgUI_Reset(struct ToriDbgUI* ui)
 void
 ToriDbgUI_SetTheme(struct ToriDbgUI* ui, struct ToriDbgTheme const* theme)
 {
-    if( !ui || !theme )
-        return;
+    assert(ui);
+    assert(theme);
     if( memcmp(&ui->theme, theme, sizeof(*theme)) == 0 )
         return;
     ui->theme = *theme;
@@ -492,7 +493,8 @@ void
 ToriDbgUI_SetCaretVisible(struct ToriDbgUI* ui, int visible)
 {
     visible = visible ? 1 : 0;
-    if( !ui || ui->caret_visible == visible )
+    assert(ui);
+    if( ui->caret_visible == visible )
         return;
     ui->caret_visible = visible;
     /* Only the panel holding the focused input repaints for a blink. */
@@ -929,8 +931,7 @@ dbg_build_menu(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
 int
 ToriDbgUI_Build(struct ToriDbgUI* ui)
 {
-    if( !ui )
-        return 0;
+    assert(ui);
     /* The retained-mode payoff: a frame in which nothing moved does no
      * measurement, no layout and no display-list work at all. */
     if( !ui->dirty )
@@ -992,7 +993,8 @@ ToriDbgUI_Prims(struct ToriDbgUI const* ui, int* out_count)
 int
 ToriDbgUI_Damage(struct ToriDbgUI const* ui, struct ToriDbgRect* out)
 {
-    if( !ui || ui->damage.w <= 0 || ui->damage.h <= 0 )
+    assert(ui);
+    if( ui->damage.w <= 0 || ui->damage.h <= 0 )
         return 0;
     if( out )
         *out = ui->damage;
@@ -1002,8 +1004,7 @@ ToriDbgUI_Damage(struct ToriDbgUI const* ui, struct ToriDbgRect* out)
 void
 ToriDbgUI_DamageClear(struct ToriDbgUI* ui)
 {
-    if( !ui )
-        return;
+    assert(ui);
     ui->damage.x = 0;
     ui->damage.y = 0;
     ui->damage.w = 0;
@@ -1038,8 +1039,7 @@ ToriDbgUI_HitTest(struct ToriDbgUI const* ui, int x, int y)
 {
     int panel;
 
-    if( !ui )
-        return -1;
+    assert(ui);
     panel = dbg_panel_at(ui, x, y);
     if( panel < 0 )
         return -1;
@@ -1059,8 +1059,7 @@ ToriDbgUI_MouseMove(struct ToriDbgUI* ui, int x, int y)
 {
     int hit;
 
-    if( !ui )
-        return 0;
+    assert(ui);
     hit = ToriDbgUI_HitTest(ui, x, y);
     if( hit != ui->hover )
     {
@@ -1077,8 +1076,7 @@ ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y)
 {
     int hit;
 
-    if( !ui )
-        return 0;
+    assert(ui);
     hit = ToriDbgUI_HitTest(ui, x, y);
     ui->press = hit;
     if( hit >= 0 && ui->widgets[hit].kind == TORIDBG_W_TEXTINPUT )
@@ -1104,8 +1102,7 @@ ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y)
 {
     int hit;
 
-    if( !ui )
-        return 0;
+    assert(ui);
     hit = ToriDbgUI_HitTest(ui, x, y);
     /* Press and release must land on the same widget, so a drag off a checkbox
      * cancels rather than toggles. */
@@ -1133,7 +1130,8 @@ ToriDbgUI_KeyChar(struct ToriDbgUI* ui, int ch)
     struct ToriDbgWidget* w;
     int len;
 
-    if( !ui || ui->focus < 0 )
+    assert(ui);
+    if( ui->focus < 0 )
         return 0;
     if( ch < 0x20 || ch > 0x7E )
         return 0;
@@ -1158,7 +1156,8 @@ ToriDbgUI_KeyEdit(struct ToriDbgUI* ui, int key)
     struct ToriDbgWidget* w;
     int len;
 
-    if( !ui || ui->focus < 0 )
+    assert(ui);
+    if( ui->focus < 0 )
         return 0;
     w = &ui->widgets[ui->focus];
     len = (int)strlen(w->text);

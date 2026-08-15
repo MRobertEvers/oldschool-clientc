@@ -48,6 +48,7 @@
  */
 
 #include "anim_affinity.h"
+#include <assert.h>
 #include "asset_access.h"
 #include "lc_pack.h"
 #include "tool_profile.h"
@@ -138,8 +139,7 @@ static void
 tokenise(const char* name, struct Tokens* out)
 {
     out->count = 0;
-    if( !name )
-        return;
+    assert(name);
 
     const char* p = name;
     while( *p && out->count < MAX_TOKENS )
@@ -197,8 +197,7 @@ token_score(const struct Tokens* a, const struct Tokens* b)
 static void
 csv_name(FILE* f, const char* s)
 {
-    if( !s )
-        return;
+    assert(s);
     int quote = strchr(s, ',') || strchr(s, '"') ? 1 : 0;
     if( quote )
         fputc('"', f);

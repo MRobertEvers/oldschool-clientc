@@ -563,7 +563,8 @@ add_chat_template_row(
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
 
-    if( !tmpl || tmpl[0] == '\0' || action == 0 )
+    assert(tmpl);
+    if( tmpl[0] == '\0' || action == 0 )
         return;
     format_chat_template(text, sizeof(text), tmpl, sender);
     if( text[0] == '\0' )

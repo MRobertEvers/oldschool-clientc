@@ -37,7 +37,8 @@ mock230_item_get_var(
 {
     int i;
 
-    if( !item || item->obj_id < 0 )
+    assert(item);
+    if( item->obj_id < 0 )
         return 0;
     for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
     {
@@ -93,8 +94,8 @@ mock230_item_vars_copy(
 {
     int i;
 
-    if( !dst || !src )
-        return;
+    assert(dst);
+    assert(src);
     for( i = 0; i < MOCK230_ITEM_VAR_MAX; i++ )
     {
         dst->var_key[i] = src->var_key[i];
@@ -267,8 +268,10 @@ mock230_container_adopt(
 {
     struct Mock230Container* row;
 
-    if( !player || inv_id < 0 || !items || slots <= 0 )
+    if( inv_id < 0 || slots <= 0 )
         return NULL;
+    assert(player);
+    assert(items);
 
     row = find_row(player->containers, MOCK230_CONTAINER_MAX, inv_id);
     if( row && row->owns_items )
@@ -315,8 +318,7 @@ mock230_container_forget(
 {
     struct Mock230Container* row;
 
-    if( !player )
-        return;
+    assert(player);
     row = find_row(player->containers, MOCK230_CONTAINER_MAX, inv_id);
     if( !row )
         return;
@@ -328,8 +330,7 @@ mock230_container_forget(
 void
 mock230_container_shutdown_player(struct Mock230Player* player)
 {
-    if( !player )
-        return;
+    assert(player);
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
     {
         struct Mock230Container* row = &player->containers[i];
@@ -343,8 +344,7 @@ mock230_container_shutdown_player(struct Mock230Player* player)
 void
 mock230_container_shutdown(struct Mock230Server* srv)
 {
-    if( !srv )
-        return;
+    assert(srv);
     for( int i = 0; i < MOCK230_PLAYER_MAX; i++ )
         mock230_container_shutdown_player(&srv->players[i]);
     for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
@@ -381,7 +381,8 @@ mock230_container_mark(
     struct Mock230Container* container,
     int slot)
 {
-    if( !container || !container->used )
+    assert(container);
+    if( !container->used )
         return;
     if( container->per_slot )
     {
@@ -400,7 +401,8 @@ mock230_container_mark(
 void
 mock230_container_mark_all(struct Mock230Container* container)
 {
-    if( !container || !container->used )
+    assert(container);
+    if( !container->used )
         return;
     if( container->per_slot )
     {
@@ -426,7 +428,8 @@ mock230_container_set(
 {
     struct Mock230Item* item;
 
-    if( !container || !container->used || !container->items )
+    assert(container);
+    if( !container->used || !container->items )
         return;
     if( slot < 0 || slot >= container->slots )
         return;
@@ -516,8 +519,9 @@ mock230_container_placeholder_slot(
     const struct Mock230ObjInfo* info = mock230_objinfo(obj_id);
     int placeholder;
 
-    if( !items || slots <= 0 )
+    if( slots <= 0 )
         return -1;
+    assert(items);
     if( info->placeholder_template >= 0 || info->placeholder_id < 0 )
         return -1;
     placeholder = info->placeholder_id;
@@ -591,7 +595,8 @@ mock230_container_clear_slot(
 {
     int obj_id;
 
-    if( !container || !container->used || !container->items )
+    assert(container);
+    if( !container->used || !container->items )
         return;
     if( slot < 0 || slot >= container->slots )
         return;
@@ -628,7 +633,8 @@ mock230_container_add_ex(
 
     if( out_slot )
         *out_slot = -1;
-    if( !container || !container->used || !container->items )
+    assert(container);
+    if( !container->used || !container->items )
         return 0;
     if( obj_id < 0 || count <= 0 )
         return 0;
@@ -741,7 +747,8 @@ mock230_container_add_out_slot(
 void
 mock230_container_clean(struct Mock230Container* container)
 {
-    if( !container || !container->used )
+    assert(container);
+    if( !container->used )
         return;
     *slot_mask_of(container) = 0;
     *dirty_of(container) = 0;
@@ -844,8 +851,7 @@ mock230_container_unbind(
 {
     int dropped = 0;
 
-    if( !player )
-        return 0;
+    assert(player);
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
         dropped += unbind_row(&player->containers[i], player, component);
     if( srv )
@@ -866,8 +872,9 @@ mock230_container_bind(
     struct Mock230Container* row = mock230_container_resolve(srv, player, inv_id);
     int listener_i;
 
-    if( !row || !player )
+    if( !row )
         return 0;
+    assert(player);
 
     /* Same (inv, com[, player on a shared row]) already listening — LostCity's
      * early return. */
@@ -907,8 +914,7 @@ mock230_container_bind(
 void
 mock230_container_flush(struct Mock230Player* player)
 {
-    if( !player )
-        return;
+    assert(player);
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
     {
         struct Mock230Container* row = &player->containers[i];
@@ -971,8 +977,7 @@ mock230_container_flush(struct Mock230Player* player)
 void
 mock230_container_flush_world(struct Mock230Server* srv)
 {
-    if( !srv )
-        return;
+    assert(srv);
     for( int i = 0; i < MOCK230_WORLD_CONTAINER_MAX; i++ )
     {
         struct Mock230Container* row = &srv->world_containers[i];

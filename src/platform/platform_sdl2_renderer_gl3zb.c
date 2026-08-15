@@ -9,6 +9,7 @@
  */
 
 #include "platform/platform_sdl2_renderer_gl3zb.h"
+#include <assert.h>
 
 #include "platform/platform_sdl2_renderer_gl3_internal.h"
 
@@ -88,8 +89,7 @@ gl3_world_face_pass(
 static void
 gl3_material_pose_clear(struct GL3MaterialPose* pose)
 {
-    if( !pose )
-        return;
+    assert(pose);
     free(pose->face_passes);
     memset(pose, 0, sizeof(*pose));
 }
@@ -104,8 +104,9 @@ gl3_material_pose_set(
     int face_count = trspk_toridraw_face_count(handle);
     uint8_t* passes;
 
-    if( !pose || face_count <= 0 )
+    if( face_count <= 0 )
         return false;
+    assert(pose);
     passes = pose->face_count == (uint32_t)face_count && pose->face_passes
                  ? pose->face_passes
                  : (uint8_t*)realloc(pose->face_passes, (size_t)face_count);
@@ -235,8 +236,7 @@ GL3ZB_ForgetElement(
     int element_id)
 {
     struct GL3MaterialTable* table;
-    if( !renderer )
-        return;
+    assert(renderer);
     table = &renderer->materials;
     if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count )
         return;
@@ -260,8 +260,7 @@ GL3ZB_ForgetTrack(
 {
     struct GL3MaterialTable* table;
     struct GL3MaterialTrack* track;
-    if( !renderer )
-        return;
+    assert(renderer);
     table = &renderer->materials;
     if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count ||
         anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
@@ -319,7 +318,8 @@ gl3_world_face_front_facing(
     int64_t dx2;
     int64_t dy2;
 
-    if( !scene || !scene->screen_vertices_x || !scene->screen_vertices_y )
+    assert(scene);
+    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
         return false;
     if( handle.kind == TORIDRAWMK_MODEL && handle.u.model.model )
     {
@@ -388,8 +388,10 @@ gl3_queue_alpha_submission(
 {
     struct GL3AlphaSubmission* submission;
 
-    if( !renderer || !indices || index_count == 0u )
+    if( index_count == 0u )
         return false;
+    assert(renderer);
+    assert(indices);
     if( renderer->alpha_index_count > UINT32_MAX - index_count )
         return false;
     if( renderer->alpha_index_count + index_count > renderer->alpha_index_capacity )
@@ -656,8 +658,7 @@ GL3ZB_Free(struct ToriRS_GL3* renderer)
 void
 GL3ZB_ResetFrame(struct ToriRS_GL3* renderer)
 {
-    if( !renderer )
-        return;
+    assert(renderer);
     renderer->alpha_submission_count = 0u;
     renderer->alpha_index_count = 0u;
 }
@@ -670,7 +671,8 @@ GL3ZB_BeginPass(
     int gl_w,
     int gl_h)
 {
-    if( !renderer || !renderer->z_buffer_enabled )
+    assert(renderer);
+    if( !renderer->z_buffer_enabled )
         return;
     /*
      * Once per world pass, scissored to the world viewport so the UI drawn
@@ -697,8 +699,8 @@ GL3ZB_ApplyProjectionDepth(
     float far_z = TRSPK_GL3_WORLD_FAR;
     float range;
 
-    if( !renderer || !camera )
-        return;
+    assert(renderer);
+    assert(camera);
     /*
      * Give the matrix a real depth row.
      *

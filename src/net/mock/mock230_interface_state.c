@@ -1,6 +1,7 @@
 /* See mock230_interface_state.h. */
 
 #include "mock230_interface_state.h"
+#include <assert.h>
 
 #include <rsareabuf.h>
 
@@ -32,8 +33,7 @@ event_compare(const void* a_, const void* b_)
 void
 mock230_ifstate_init(struct Mock230InterfaceState* state)
 {
-    if( !state )
-        return;
+    assert(state);
     memset(state, 0, sizeof(*state));
     state->root_interface = -1;
 }
@@ -43,8 +43,7 @@ mock230_ifstate_open_top(
     struct Mock230InterfaceState* state,
     int interface_id)
 {
-    if( !state )
-        return;
+    assert(state);
     state->root_interface = interface_id;
     state->mount_count = 0;
     /* Event overrides are server authority, not widget-instance state. A real
@@ -60,8 +59,7 @@ mount_index(
     const struct Mock230InterfaceState* state,
     int target_uid)
 {
-    if( !state )
-        return -1;
+    assert(state);
     for( int i = 0; i < state->mount_count; i++ )
         if( state->mounts[i].target_uid == target_uid )
             return i;
@@ -90,8 +88,7 @@ mock230_ifstate_close_sub(
     int index;
     int changed;
 
-    if( !state )
-        return 0;
+    assert(state);
     index = mount_index(state, target_uid);
     if( index < 0 )
         return 0;
@@ -150,8 +147,9 @@ mock230_ifstate_open_sub(
     int interface_id,
     int type)
 {
-    if( !state || !u16_or_minus_one(interface_id) || type < 0 || type > 255 )
+    if( !u16_or_minus_one(interface_id) || type < 0 || type > 255 )
         return 0;
+    assert(state);
     if( mount_index(state, target_uid) >= 0 )
         mock230_ifstate_close_sub(state, target_uid);
     if( state->mount_count >= MOCK230_IF_MOUNT_MAX )
@@ -172,8 +170,7 @@ mock230_ifstate_move_sub(
     struct Mock230IfMount moving;
     int source;
 
-    if( !state )
-        return 0;
+    assert(state);
     if( source_uid == dest_uid )
         return mount_index(state, source_uid) >= 0;
     source = mount_index(state, source_uid);
@@ -208,8 +205,9 @@ mock230_ifstate_setevents_v2(
     struct Mock230IfEventRange next[MOCK230_IF_EVENT_RANGE_MAX];
     int count = 0;
 
-    if( !state || !u16_or_minus_one(start) || !u16_or_minus_one(end) || start > end )
+    if( !u16_or_minus_one(start) || !u16_or_minus_one(end) || start > end )
         return 0;
+    assert(state);
 
     for( int i = 0; i < state->event_count; i++ )
     {
@@ -275,8 +273,7 @@ mock230_ifstate_encode_setevents_v2(
     uint32_t events1,
     uint32_t events2)
 {
-    if( !buf )
-        return;
+    assert(buf);
     /* RSProt revision-239 IfSetEventsV2Encoder. */
     rsab_p2_alt2(buf, end);
     rsab_p4(buf, (int32_t)events2);
@@ -290,8 +287,7 @@ mock230_ifstate_encode_clearinv(
     struct RSAreaBuf* buf,
     int component_uid)
 {
-    if( !buf )
-        return;
+    assert(buf);
     /* RSProt revision-239 IfClearInvEncoder: pCombinedIdAlt2. */
     rsab_p4_alt2(buf, component_uid);
 }
@@ -310,8 +306,10 @@ mock230_ifstate_encode_resync_v2(
     struct RSAreaBuf* buf,
     const struct Mock230InterfaceState* state)
 {
-    if( !buf || !state || mock230_ifstate_resync_payload_size(state) == 0 )
+    assert(state);
+    if( mock230_ifstate_resync_payload_size(state) == 0 )
         return;
+    assert(buf);
 
     /* RSProt revision-239 IfResyncV2Encoder. There is deliberately no events
      * count: after the stated sub-interface count, all remaining 16-byte

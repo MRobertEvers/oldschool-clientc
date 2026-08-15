@@ -12,6 +12,155 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * "Can the client be given pixels for this texture id?"
+ *
+ * Defaults to no, which is the pre-texture behaviour: every textured face falls
+ * back to its flat colour. The server installs a predicate that answers out of
+ * the cache's baked texture set.
+ */
+static int (*g_texture_available_fn)(int id, void* user) = NULL;
+static void* g_texture_available_user = NULL;
+
+void
+ev_build_set_texture_available(int (*fn)(int, void*), void* user)
+{
+    g_texture_available_fn = fn;
+    g_texture_available_user = user;
+}
+
+static int
+ev_build_texture_available(int id)
+{
+    if( id < 0 )
+        return 0;
+    if( !g_texture_available_fn )
+        return 0;
+    return g_texture_available_fn(id, g_texture_available_user);
+}
+
+
+/*
+ * The per-textured-face mapping parameters, accumulated across a merge.
+ *
+ * ToriDraw_ModelMerge concatenates textured faces in part order, so these are
+ * built the same way: part 0's parameters, then part 1's, and so on. Any other
+ * order would pair a face with another face's projection — which does not fail,
+ * it draws the wrong texture orientation and looks like a bad decode.
+ *
+ * They cannot be read back off the merged ToriDraw_Model because they are not
+ * on it: only the RSCache_Model carries them, and it is freed per part.
+ */
+struct EV_TexParams
+{
+    int32_t* scale_x;
+    int32_t* scale_y;
+    int32_t* scale_z;
+    int8_t* rotation;
+    int8_t* direction;
+    int8_t* speed;
+    int8_t* trans_u;
+    int8_t* trans_v;
+    int count;
+    int capacity;
+    /** Cleared when a part turns out to carry no mapping data, so a partial
+     *  set is never handed to the mapping builder. */
+    bool valid;
+};
+
+static void
+tex_params_free(struct EV_TexParams* p)
+{
+    if( !p )
+        return;
+    free(p->scale_x);
+    free(p->scale_y);
+    free(p->scale_z);
+    free(p->rotation);
+    free(p->direction);
+    free(p->speed);
+    free(p->trans_u);
+    free(p->trans_v);
+    memset(p, 0, sizeof(*p));
+}
+
+static bool
+tex_params_reserve(struct EV_TexParams* p, int want)
+{
+    if( want <= p->capacity )
+        return true;
+    int cap = p->capacity ? p->capacity : 32;
+    while( cap < want )
+        cap *= 2;
+
+#define EV_GROW(field, type)                                                   \
+    do                                                                         \
+    {                                                                          \
+        type* grown = (type*)realloc(p->field, (size_t)cap * sizeof(type));    \
+        if( !grown )                                                           \
+            return false;                                                      \
+        p->field = grown;                                                      \
+    } while( 0 )
+
+    EV_GROW(scale_x, int32_t);
+    EV_GROW(scale_y, int32_t);
+    EV_GROW(scale_z, int32_t);
+    EV_GROW(rotation, int8_t);
+    EV_GROW(direction, int8_t);
+    EV_GROW(speed, int8_t);
+    EV_GROW(trans_u, int8_t);
+    EV_GROW(trans_v, int8_t);
+#undef EV_GROW
+
+    p->capacity = cap;
+    return true;
+}
+
+/**
+ * Append one part's mapping parameters.
+ *
+ * A part with textured faces but no parameter arrays still has to contribute
+ * `n` entries, or every later part's parameters shift onto the wrong faces.
+ * Zeros are the right filler: they are what a plain plane-projected face reads
+ * as, and plane projection ignores all of these.
+ */
+static void
+tex_params_append(struct EV_TexParams* p, const struct RSCache_Model* rs)
+{
+    int n = rs ? rs->textured_face_count : 0;
+    if( n <= 0 )
+        return;
+    if( !tex_params_reserve(p, p->count + n) )
+    {
+        p->valid = false;
+        return;
+    }
+
+    for( int i = 0; i < n; i++ )
+    {
+        int at = p->count + i;
+        p->scale_x[at] = rs->texture_scale_x ? rs->texture_scale_x[i] : 0;
+        p->scale_y[at] = rs->texture_scale_y ? rs->texture_scale_y[i] : 0;
+        p->scale_z[at] = rs->texture_scale_z ? rs->texture_scale_z[i] : 0;
+        p->rotation[at] = rs->texture_rotation ? rs->texture_rotation[i] : 0;
+        p->direction[at] = rs->texture_direction ? rs->texture_direction[i] : 0;
+        p->speed[at] = rs->texture_speed ? rs->texture_speed[i] : 0;
+        p->trans_u[at] = rs->texture_trans_u ? rs->texture_trans_u[i] : 0;
+        p->trans_v[at] = rs->texture_trans_v ? rs->texture_trans_v[i] : 0;
+    }
+    p->count += n;
+
+    /* Anything beyond plane projection needs real parameters; a model that has
+     * such faces and no arrays cannot be mapped and must not pretend. */
+    if( rs->texture_render_types && !rs->texture_scale_x )
+        for( int i = 0; i < n; i++ )
+            if( rs->texture_render_types[i] != 0 )
+            {
+                p->valid = false;
+                break;
+            }
+}
+
 /* ---- RSCache_Model -> ToriDraw_Model ------------------------------------ */
 
 /*
@@ -52,10 +201,12 @@ CacheProvider_TextureIsSd(
     return true;
 }
 
-struct ToriDraw_Model*
-ev_build_npc_model(
+/* The shared body. `out_params` is NULL for the plain build. */
+static struct ToriDraw_Model*
+build_npc_model(
     struct Tool_Dat2Cache* c,
-    int npc_id)
+    int npc_id,
+    struct EV_TexParams* out_params)
 {
     struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(c, npc_id);
     if( !npc )
@@ -79,6 +230,11 @@ ev_build_npc_model(
         struct RSCache_Model* rs = tool_dat2_model_load(c, npc->models[i]);
         if( !rs )
             continue;
+
+        /* Before the conversion: ToriRS_ModelFromRSCache moves the arrays out
+         * and leaves `rs` hollow, and the mapping parameters go with them. */
+        if( out_params )
+            tex_params_append(out_params, rs);
 
         /* ToriRS_ModelFromRSCache *moves* the arrays out and leaves `rs`
          * hollow, so the free below releases a shell, not the geometry. */
@@ -106,6 +262,8 @@ ev_build_npc_model(
              * shape that looks wrong can be attributed to the model that
              * actually contains it rather than guessed at from the composite. */
             const char* only = getenv("EV_ONLY_PART");
+            if( only && out_params )
+                out_params->valid = false; /* dropping a part desyncs the order */
             if( only && atoi(only) != i )
                 ToriDraw_ModelFree(part);
             else
@@ -180,15 +338,24 @@ ev_build_npc_model(
     for( int i = 0; i < npc->retexture_count; i++ )
         ToriDraw_ModelRetexture(merged, npc->retexture_to_find[i], npc->retexture_to_replace[i]);
 
-    /* The browser renderer receives geometry but no material table or texture
-     * pixels. Its missing-texture rule skips a textured face entirely, which
-     * made texture-driven backports such as the Summoning models bake
-     * successfully and then render as a blank canvas. The reference client
-     * also falls back to the face colour when a texture is unavailable, so do
-     * that here before lighting bakes the per-corner colours. */
+    /*
+     * Drop the texture ids the browser will not have pixels for.
+     *
+     * Its missing-texture rule skips a textured face *entirely*, which made
+     * texture-driven backports such as the Summoning models bake successfully
+     * and then render as a blank canvas. The reference client falls back to the
+     * face colour instead, so that is what a stripped id gets — and it has to
+     * happen here, before lighting bakes the per-corner colours.
+     *
+     * The predicate is the caller's because only it knows what it can ship. It
+     * was unconditional until textures were loadable at all, and leaving it that
+     * way would mean every texture in the cache stayed invisible for the same
+     * reason the untextured fallback existed.
+     */
     if( merged->face_textures )
         for( int face = 0; face < merged->face_count; face++ )
-            merged->face_textures[face] = (faceint_t)-1;
+            if( !ev_build_texture_available(merged->face_textures[face]) )
+                merged->face_textures[face] = (faceint_t)-1;
 
     /* Npc opcodes 97/98. Missing here until now, so every npc with a scale of
      * its own — a giant, a small pet — rendered at the model's raw size. */
@@ -206,6 +373,75 @@ ev_build_npc_model(
 
     RSCache_Dat2ConfigNpcFree(npc);
     return merged;
+}
+
+struct ToriDraw_Model*
+ev_build_npc_model(
+    struct Tool_Dat2Cache* c,
+    int npc_id)
+{
+    return build_npc_model(c, npc_id, NULL);
+}
+
+struct ToriDraw_ModelHD*
+ev_build_npc_model_hd(
+    struct Tool_Dat2Cache* c,
+    int npc_id)
+{
+    struct EV_TexParams params;
+    memset(&params, 0, sizeof(params));
+    params.valid = true;
+
+    struct ToriDraw_Model* model = build_npc_model(c, npc_id, &params);
+    if( !model )
+    {
+        tex_params_free(&params);
+        return NULL;
+    }
+
+    /*
+     * Only worth an HD model when a face actually needs one.
+     *
+     * Plane projection is what the classic raster already does, so promoting a
+     * plane-only model buys nothing and costs a second pointer per model — the
+     * exact bloat the HD variant exists to avoid.
+     */
+    int needs_mapping = 0;
+    if( model->texture_render_types )
+        for( int i = 0; i < model->textured_face_count; i++ )
+            if( model->texture_render_types[i] != 0 )
+            {
+                needs_mapping = 1;
+                break;
+            }
+
+    if( !needs_mapping || !params.valid || params.count != model->textured_face_count )
+    {
+        if( needs_mapping && getenv("EV_HD_DEBUG") )
+            fprintf(
+                stderr,
+                "  npc %d: mapped faces but no usable parameters (valid=%d, %d of %d)\n",
+                npc_id, params.valid, params.count, model->textured_face_count);
+        tex_params_free(&params);
+        ToriDraw_ModelFree(model);
+        return NULL;
+    }
+
+    struct ToriDraw_ModelHD* hd = ToriDraw_ModelHDFromModel(model);
+    if( !hd )
+    {
+        tex_params_free(&params);
+        ToriDraw_ModelFree(model);
+        return NULL;
+    }
+
+    /* The mappings are derived from the bind pose, so this has to happen before
+     * anything animates the model. */
+    ToriDraw_ModelBuildTextureMappings(
+        hd, params.scale_x, params.scale_y, params.scale_z, params.rotation,
+        params.direction, params.speed, params.trans_u, params.trans_v);
+    tex_params_free(&params);
+    return hd;
 }
 
 /* ---- sequence -> animation ---------------------------------------------- */

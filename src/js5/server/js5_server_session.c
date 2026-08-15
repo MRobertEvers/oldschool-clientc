@@ -1,4 +1,5 @@
 #include "js5_server_session.h"
+#include <assert.h>
 
 #include "js5_server_cache.h"
 
@@ -122,8 +123,7 @@ js5_queue_pop(
 void
 Js5ServerSessionConfigInit(struct Js5ServerSessionConfig* config)
 {
-    if( !config )
-        return;
+    assert(config);
     memset(config, 0, sizeof(*config));
     config->revision = 239u;
     config->max_pending_per_lane = 200u;
@@ -380,8 +380,9 @@ Js5ServerSessionPeekOutput(
     const uint8_t** data,
     size_t* size)
 {
-    if( !session || !data || !size )
-        return -1;
+    assert(session);
+    assert(data);
+    assert(size);
     *data = NULL;
     *size = 0u;
     if( session->state == JS5_SERVER_SESSION_FAILED ||
@@ -434,7 +435,8 @@ Js5ServerSessionConsumeOutput(
 {
     size_t available;
 
-    if( !session || session->scratch_position > session->scratch_size )
+    assert(session);
+    if( session->scratch_position > session->scratch_size )
         return -1;
     available = session->scratch_size - session->scratch_position;
     if( size > available )
@@ -497,8 +499,7 @@ Js5ServerSessionGetStats(
     const struct Js5ServerSession* session,
     struct Js5ServerSessionStats* stats)
 {
-    if( !stats )
-        return;
+    assert(stats);
     memset(stats, 0, sizeof(*stats));
     if( !session )
         return;

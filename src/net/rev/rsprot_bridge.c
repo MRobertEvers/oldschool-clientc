@@ -1,5 +1,6 @@
 /* See rsprot_bridge.h — the rsprot codecs, wired into the inbound path. */
 #include "rsprot_bridge.h"
+#include <assert.h>
 
 #include "rsprot_exec.h"
 
@@ -61,8 +62,7 @@
 int
 rsprot_bridge_revision(struct GameProtoRevTable const* rev)
 {
-    if( !rev )
-        return 0;
+    assert(rev);
     switch( rev->revision )
     {
     case GAMEPROTO_REVISION_OSRS230:
@@ -92,8 +92,7 @@ dup_borrowed(char const* s)
     size_t n;
     char* out;
 
-    if( !s )
-        return NULL;
+    assert(s);
     n = strlen(s);
     out = (char*)malloc(n + 1);
     if( !out )

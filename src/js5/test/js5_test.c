@@ -7,6 +7,7 @@
 #endif
 
 #include "js5/js5.h"
+#include <assert.h>
 #include "js5/js5_rscache.h"
 #include "js5/server/js5_server_cache.h"
 
@@ -188,7 +189,8 @@ fake_open(void* user, const char* host, int port, int timeout_ms)
 {
     struct FakeJs5Transport* fake = (struct FakeJs5Transport*)user;
     (void)timeout_ms;
-    if( !fake || !host || strcmp(host, "mock") != 0 || port != 43594 )
+    assert(host);
+    if( !fake || strcmp(host, "mock") != 0 || port != 43594 )
         return NULL;
     fake->connected = true;
     fake->handshake_complete = false;
@@ -209,8 +211,9 @@ static int
 fake_write(void* user, void* stream, const uint8_t* data, size_t size)
 {
     struct FakeJs5Transport* fake = (struct FakeJs5Transport*)user;
-    if( stream != fake || !fake->connected || !data || size == 0u )
+    if( stream != fake || !fake->connected || size == 0u )
         return -1;
+    assert(data);
     size_t take = 1u + fake->write_calls++ % 5u;
     if( take > size )
         take = size;
@@ -241,8 +244,9 @@ fake_read(void* user, void* stream, uint8_t* data, size_t size)
 {
     static const uint8_t chunks[] = { 1u, 2u, 7u, 3u, 29u, 5u, 11u, 17u };
     struct FakeJs5Transport* fake = (struct FakeJs5Transport*)user;
-    if( stream != fake || !fake->connected || !data || size == 0u )
+    if( stream != fake || !fake->connected || size == 0u )
         return -1;
+    assert(data);
     size_t available = fake->incoming_size - fake->incoming_position;
     if( available == 0u )
         return 0;

@@ -252,8 +252,7 @@ mock230_send(
      * so. What is left of the old "send to the server's one player" shape is
      * this line: the capture is a property of the world, because a test asserts
      * on what the *server* emitted, not on what one client received. */
-    if( !player )
-        return;
+    assert(player);
     srv = player->world;
 
     /*
@@ -565,8 +564,9 @@ mock230_slotmap_world(
     /* NULL-safe because the inbound handlers reach it through
      * `srv->active_player`, and "whose turn is it" is a question with a
      * `NULL` answer between sessions. */
-    if( !player || client_slot < 0 || client_slot >= MOCK230_CLIENT_NPC_SLOTS )
+    if( client_slot < 0 || client_slot >= MOCK230_CLIENT_NPC_SLOTS )
         return -1;
+    assert(player);
     return player->npc_slots.world_of[client_slot];
 }
 
@@ -584,8 +584,9 @@ mock230_slotmap_client(
     const struct Mock230Player* player,
     int world_slot)
 {
-    if( !player || world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
+    if( world_slot < 0 || world_slot >= MOCK230_NPC_MAX )
         return -1;
+    assert(player);
     return player->npc_slots.client_of[world_slot];
 }
 
@@ -1292,7 +1293,8 @@ mock230_send_run_clientscript_typed(
 {
     struct RSAreaBuf buf;
 
-    if( !player || !wire_is_v5(player) )
+    assert(player);
+    if( !wire_is_v5(player) )
         return 0;
 
     /* RUNCLIENTSCRIPT is VAR_SHORT, so 65535 is the protocol ceiling. Leave
@@ -3201,7 +3203,8 @@ wire_var_class(const struct Mock230Wire* wire, int pkt_name)
     int opcode;
     int size;
 
-    if( !wire || !wire->payload_size )
+    assert(wire);
+    if( !wire->payload_size )
         return 0;
     opcode = mock230_wire_opcode(wire, pkt_name);
     if( opcode < 0 )

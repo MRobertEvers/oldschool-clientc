@@ -1,4 +1,5 @@
 #include "audio/torirs_pcm.h"
+#include <assert.h>
 
 #include <math.h>
 #include <string.h>
@@ -59,8 +60,7 @@ ToriRS_PcmVoice_Start(
     int pan,
     int loop_count)
 {
-    if( !voice )
-        return;
+    assert(voice);
     memset(voice, 0, sizeof(*voice));
     if( !sound || !sound->samples || sound->sample_count <= 0 )
         return;
@@ -121,7 +121,8 @@ ToriRS_PcmVoice_SetGain(
     int right;
     int span;
 
-    if( !voice || !voice->active )
+    assert(voice);
+    if( !voice->active )
         return;
     voice->volume = volume;
     voice->pan = pan;
@@ -170,7 +171,8 @@ ToriRS_PcmVoice_SetRate(
 {
     int magnitude;
 
-    if( !voice || !voice->active )
+    assert(voice);
+    if( !voice->active )
         return;
     magnitude = step_for_rate(rate_numerator, rate_denominator);
     /* Direction is loop state, not a rate property: a ping-pong voice halfway
@@ -183,7 +185,8 @@ ToriRS_PcmVoice_Stop(
     struct ToriRS_PcmVoice* voice,
     int ramp_frames)
 {
-    if( !voice || !voice->active )
+    assert(voice);
+    if( !voice->active )
         return;
     if( ramp_frames <= 0 || (voice->left_gain == 0 && voice->right_gain == 0) )
     {
@@ -214,7 +217,8 @@ ToriRS_PcmVoice_Seek(
     struct ToriRS_PcmVoice* voice,
     int sample_position)
 {
-    if( !voice || !voice->sound )
+    assert(voice);
+    if( !voice->sound )
         return;
     if( sample_position < 0 )
         sample_position = 0;
@@ -230,7 +234,8 @@ ToriRS_PcmVoice_SeekFixed(
 {
     int limit;
 
-    if( !voice || !voice->sound )
+    assert(voice);
+    if( !voice->sound )
         return;
     limit = voice->sound->sample_count << TORIRS_PCM_POSITION_SHIFT;
     if( fixed_position < 0 )
@@ -245,8 +250,7 @@ ToriRS_PcmVoice_SetStep(
     struct ToriRS_PcmVoice* voice,
     int step)
 {
-    if( !voice )
-        return;
+    assert(voice);
     if( step < 1 )
         step = 1;
     if( step > 64 * TORIRS_PCM_POSITION_ONE )
@@ -261,8 +265,7 @@ ToriRS_PcmVoice_SetBackwards(
 {
     int magnitude;
 
-    if( !voice )
-        return;
+    assert(voice);
     magnitude = voice->step < 0 ? -voice->step : voice->step;
     voice->step = backwards ? -magnitude : magnitude;
 }
@@ -270,7 +273,8 @@ ToriRS_PcmVoice_SetBackwards(
 bool
 ToriRS_PcmVoice_Exhausted(const struct ToriRS_PcmVoice* voice)
 {
-    if( !voice || !voice->sound )
+    assert(voice);
+    if( !voice->sound )
         return true;
     return voice->position < 0 ||
            voice->position >= (voice->sound->sample_count << TORIRS_PCM_POSITION_SHIFT);
@@ -421,8 +425,7 @@ ToriRS_PcmVoice_StartExternal(
     int volume,
     int pan)
 {
-    if( !voice )
-        return;
+    assert(voice);
     memset(voice, 0, sizeof(*voice));
     voice->volume = volume;
     voice->pan = pan;
@@ -441,8 +444,10 @@ ToriRS_PcmVoice_MixExternal(
     int32_t* out,
     int frames)
 {
-    if( !voice || !voice->active || !out )
+    assert(voice);
+    if( !voice->active )
         return voice && voice->active;
+    assert(out);
 
     for( int i = 0; i < frames; i++ )
     {
@@ -472,8 +477,10 @@ ToriRS_PcmVoice_Mix(
     int32_t* out,
     int frames)
 {
-    if( !voice || !voice->active || !voice->sound || !out )
+    assert(voice);
+    if( !voice->active || !voice->sound )
         return voice && voice->active;
+    assert(out);
 
     for( int i = 0; i < frames; i++ )
     {
@@ -506,7 +513,8 @@ ToriRS_PcmVoice_Skip(
     struct ToriRS_PcmVoice* voice,
     int frames)
 {
-    if( !voice || !voice->active || !voice->sound )
+    assert(voice);
+    if( !voice->active || !voice->sound )
         return;
     for( int i = 0; i < frames; i++ )
     {

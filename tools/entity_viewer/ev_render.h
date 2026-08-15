@@ -57,6 +57,20 @@ ev_model_hd_active(void);
  * run — which is the only way the cylinder / cube / sphere routing is
  * observable at all. The page labels it.
  */
+/**
+ * Install the texture set both render paths draw with (an EVT1 blob).
+ *
+ * Textures come over the wire rather than out of a cache because this file is
+ * compiled into the browser too, where there is no cache. Returns how many
+ * textures were installed.
+ */
+int
+ev_set_textures(const uint8_t* data, int len);
+
+/** How many textures are currently installed. */
+int
+ev_texture_count(void);
+
 void
 ev_set_hd_placeholder(int on);
 
@@ -157,6 +171,27 @@ ev_set_frame_height(int height);
  *  wasm-ABI-compatible. */
 void
 ev_set_pan(int x, int y);
+
+/**
+ * Fly the viewpoint one step.
+ *
+ * `forward` and `right` are world units on the ground plane, turned by `yaw`
+ * (the same 0..2047 value passed to ev_render) so W always goes where the
+ * camera is looking. `up` is the world y axis and ignores yaw. Steps
+ * accumulate; ev_move_reset returns to the framed view.
+ *
+ * This is not ev_set_pan. Pan slides the image on the canvas without changing
+ * depth; this moves through the scene, so distance, culling and apparent size
+ * all change with it.
+ */
+void
+ev_move(int forward, int right, int up, int yaw);
+
+void
+ev_move_reset(void);
+
+void
+ev_move_get(int* out_x, int* out_y, int* out_z);
 
 /** Choose the render discipline: 0 (default) is the painter's sort honouring
  *  face priorities; 1 depth-tests instead, which also drops priorities — the

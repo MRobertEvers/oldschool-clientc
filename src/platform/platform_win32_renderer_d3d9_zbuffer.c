@@ -24,6 +24,7 @@
  */
 
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include <assert.h>
 
 #include "perf/torirs_perf.h"
 
@@ -182,8 +183,7 @@ d3d9_world_face_pass(
 static void
 d3d9_material_pose_clear(struct D3D9MaterialPose* pose)
 {
-    if( !pose )
-        return;
+    assert(pose);
     free(pose->face_passes);
     memset(pose, 0, sizeof(*pose));
 }
@@ -196,8 +196,7 @@ d3d9_material_pose_set(
 {
     int face_count;
     uint8_t* passes;
-    if( !pose )
-        return false;
+    assert(pose);
     face_count = trspk_toridraw_face_count(handle);
     if( face_count <= 0 )
         return false;
@@ -335,8 +334,7 @@ d3d9_material_table_remove_element(
 static void
 d3d9_material_table_clear(struct D3D9MaterialTable* table)
 {
-    if( !table )
-        return;
+    assert(table);
     for( uint32_t element = 0u; element < table->element_count; element++ )
         d3d9_material_table_remove_element(table, (int)element);
     table->element_count = 0u;
@@ -372,7 +370,8 @@ d3d9_world_face_front_facing(
     int64_t dy1;
     int64_t dx2;
     int64_t dy2;
-    if( !scene || !scene->screen_vertices_x || !scene->screen_vertices_y )
+    assert(scene);
+    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
         return false;
     if( handle.kind == TORIDRAWMK_MODEL && handle.u.model.model )
     {
@@ -498,7 +497,8 @@ static void
 d3d9_build_alpha_chain(struct D3D9ZBufferWorld* world)
 {
     uint32_t i;
-    if( !world || !world->alpha_ibo_chain || world->alpha_submission_count == 0u )
+    assert(world);
+    if( !world->alpha_ibo_chain || world->alpha_submission_count == 0u )
         return;
     qsort(
         world->alpha_submissions,

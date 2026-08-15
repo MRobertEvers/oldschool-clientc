@@ -437,8 +437,9 @@ InvManager_ApplyPartial(
     int count)
 {
     assert(mgr);
-    if( !slots || count <= 0 )
+    if( count <= 0 )
         return false;
+    assert(slots);
 
     struct InvContainer* container = InvManager_GetContainer(mgr, container_id);
     if( !container )

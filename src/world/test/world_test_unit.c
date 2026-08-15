@@ -263,7 +263,6 @@ test_pickset(void)
     TEST_ASSERT(set.count == 4, "pick count");
     TEST_ASSERT(set.items[1].type == WORLD_PICK_SCENERY && set.items[1].tile_x == 1, "scenery pick");
 
-    World_PickSetReset(NULL);
     World_PickSetReset(&set);
     TEST_ASSERT(set.count == 0, "reset again");
 }

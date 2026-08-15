@@ -233,8 +233,8 @@ mock230_db_column_index(
     const struct Mock230DbTable* table,
     const char* name)
 {
-    if( !table || !name )
-        return -1;
+    assert(table);
+    assert(name);
     for( int i = 0; i < table->column_count; i++ )
     {
         if( table->columns[i].name && strcmp(table->columns[i].name, name) == 0 )

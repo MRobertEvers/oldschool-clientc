@@ -1236,7 +1236,8 @@ dat1_buildcache_sprite_ref_acquire(
     int sprite_id;
 
     assert(dat1_buildcache);
-    if( !ref || ref[0] == '\0' )
+    assert(ref);
+    if( ref[0] == '\0' )
         return -1;
 
     sprite_id = CacheProvider_SpriteIdByName(&dat1_buildcache->base, ref);

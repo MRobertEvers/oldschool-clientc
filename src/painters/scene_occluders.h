@@ -13,6 +13,7 @@
  */
 
 #include "painters.h"
+#include <assert.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -207,7 +208,8 @@ scene_occluders_point_hidden(
     int i;
     int n;
 
-    if( !occ || occ->active_count == 0 )
+    assert(occ);
+    if( occ->active_count == 0 )
         return false;
 
     /* OCCLUDER_HIDES_WEST_OF_PLANE: camera is east; hide points west of plane. */

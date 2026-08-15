@@ -100,7 +100,8 @@ npc_trace_type_of(struct App* app, int world_idx)
 {
     struct WorldEntity_NPC* npc;
 
-    if( !app || !app->world || world_idx < 0 )
+    assert(app);
+    if( !app->world || world_idx < 0 )
         return -1;
     npc = World_EntityPoolGet(&app->world->entities.npc, world_idx);
     return npc ? npc->npc_id : -1;
@@ -995,8 +996,9 @@ CreateTask_ExecPlayerInfo(
     struct Task_ExecPlayerInfo* task;
 
     assert(app);
-    if( !data || length <= 0 )
+    if( length <= 0 )
         return NULL;
+    assert(data);
     task = calloc(1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_ExecPlayerInfo_VTable;
@@ -1715,8 +1717,9 @@ CreateTask_ExecNpcInfo(
     struct Task_ExecNpcInfo* task;
 
     assert(app);
-    if( !data || length <= 0 )
+    if( length <= 0 )
         return NULL;
+    assert(data);
     task = calloc(1, sizeof(*task));
     assert(task);
     task->task.vtable = &Task_ExecNpcInfo_VTable;

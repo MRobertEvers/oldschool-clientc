@@ -64,8 +64,7 @@ Dat2GroupCache_Free(struct Dat2GroupCache* cache)
 void
 Dat2GroupCache_Clear(struct Dat2GroupCache* cache)
 {
-    if( !cache )
-        return;
+    assert(cache);
     for( int i = 0; i < DAT2_GROUP_CACHE_SLOTS; i++ )
         dat2_group_cache_release(&cache->slots[i], &cache->bytes);
     assert(cache->bytes == 0);
@@ -101,8 +100,7 @@ Dat2GroupCache_Get(
 {
     struct Dat2GroupCacheSlot* slot;
 
-    if( !cache )
-        return NULL;
+    assert(cache);
     slot = dat2_group_cache_find(cache, table, group);
     if( !slot )
         return NULL;
@@ -149,8 +147,7 @@ dat2_group_filelist_bytes(struct RSCache_FileList const* filelist)
 {
     size_t total = sizeof(struct RSCache_FileList);
 
-    if( !filelist )
-        return 0;
+    assert(filelist);
     total += (size_t)filelist->file_count * (sizeof(char*) + sizeof(int));
     for( int i = 0; i < filelist->file_count; i++ )
     {
@@ -172,8 +169,8 @@ Dat2GroupCache_Put(
     int* file_ids = NULL;
     size_t bytes;
 
-    if( !cache || !archive )
-        return NULL;
+    assert(cache);
+    assert(archive);
 
     slot = dat2_group_cache_find(cache, table, group);
     if( slot )
@@ -238,7 +235,8 @@ Dat2Group_IndexOf(
     struct Dat2Group const* group,
     int file_id)
 {
-    if( !group || !group->filelist )
+    assert(group);
+    if( !group->filelist )
         return -1;
 
     if( !group->file_ids )

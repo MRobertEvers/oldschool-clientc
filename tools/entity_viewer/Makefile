@@ -142,6 +142,15 @@ $(BUILD)/ev_render.o: ev_render.c | $(BUILD)
 $(BUILD)/torirs_types.o: $(REPO)/src/engine/torirs_types.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
+# The real texture pipeline, taken from the client rather than reimplemented:
+# the procedural evaluator and the palette/gamma rules. ev_textures.c is a
+# synchronous driver over these, so the viewer and the client agree on colour.
+$(BUILD)/proctex_generator.o: $(REPO)/src/engine/proctex/proctex_generator.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
+$(BUILD)/texture_palette_bake.o: $(REPO)/src/engine/texture_palette_bake.c | $(BUILD)
+	$(CC) $(DEP_CFLAGS) -c $< -o $@
+
 # torirs_types.c's component teardown calls into this; it is self-contained
 # (torirs_types.h plus libc), so it costs nothing to carry and the link fails
 # without it.
@@ -167,7 +176,8 @@ $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 # list because it links rscache; the merge it would otherwise own lives in
 # ev_render.c precisely so the browser can do it too.
 NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_wire.o \
-	$(BUILD)/ev_render.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
+	$(BUILD)/ev_render.o $(BUILD)/ev_caches.o $(BUILD)/ev_textures.o $(BUILD)/proctex_generator.o \
+	$(BUILD)/texture_palette_bake.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
 	$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
 	$(BUILD)/toridraw_animation_from_rscache.o \
 	$(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
@@ -187,6 +197,58 @@ $(BUILD)/ev_swing.o: ev_swing.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 ev_swing: $(BUILD)/ev_swing.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_export: a subject's models and animations, to disk ---------------
+#
+# Produces the checked-in set under docs/hdmodels so the viewer's file picker
+# has something to open without a 461 MB cache. Models go out as raw archives
+# (the viewer decodes them, which is the point); animations as ev_wire, because
+# a sequence names frames which name a framemap and a raw export would be inert.
+$(BUILD)/ev_textures.o: ev_textures.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/ev_caches.o: ev_caches.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/ev_export.o: ev_export.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# ---- ev_textures_probe: does the texture loader actually produce pixels ----
+#
+# Reports the shape of what came out, not just a count: a loader that returns
+# 4000 uniformly-white 128x128 buffers "succeeds" by every count it keeps, and
+# that is exactly the failure it exists to catch.
+$(BUILD)/ev_textures_probe.o: test/ev_textures_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_textures_probe: $(BUILD)/ev_textures_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_move_probe.o: test/ev_move_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_move_probe: $(BUILD)/ev_move_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_array_probe.o: test/ev_array_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_array_probe: $(BUILD)/ev_array_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_texture_render_probe.o: test/ev_texture_render_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_texture_render_probe: $(BUILD)/ev_texture_render_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+ev_export: $(BUILD)/ev_export.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
@@ -210,7 +272,7 @@ ev_swing: $(BUILD)/ev_swing.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 
 EMCC ?= emcc
 SIMD ?= 1
-EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_malloc,_free
+EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_ev_w_set_textures,_ev_w_texture_count,_ev_w_move,_ev_w_move_reset,_malloc,_free
 
 EM_OPT := -O3 -flto -mnontrapping-fptoint
 ifeq ($(SIMD),1)

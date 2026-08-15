@@ -723,8 +723,9 @@ ToriDraw_SpriteNewGraphicOutline(
     int pass;
     int passes;
 
-    if( outline <= 0 || !src || sw <= 0 || sh <= 0 )
+    if( outline <= 0 || sw <= 0 || sh <= 0 )
         return NULL;
+    assert(src);
 
     dst = malloc((size_t)sw * (size_t)sh * sizeof(uint32_t));
     if( !dst )
@@ -781,8 +782,9 @@ ToriDraw_SpriteNewGraphicShadow(
     int* out_w,
     int* out_h)
 {
-    if( shadow_colour == 0 || !src )
+    if( shadow_colour == 0 )
         return NULL;
+    assert(src);
 
     int pad = 2;
     int dw = sw + pad;

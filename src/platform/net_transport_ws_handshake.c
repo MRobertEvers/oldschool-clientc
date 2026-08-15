@@ -8,6 +8,7 @@
  */
 
 #include "platform/net_transport_ws_handshake.h"
+#include <assert.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -250,8 +251,10 @@ WsHandshake_Consume(
     char accept[64];
     char const* body_start;
 
-    if( !data || !out || len < 0 )
+    if( len < 0 )
         return WS_HANDSHAKE_ERROR;
+    assert(data);
+    assert(out);
     memset(out, 0, sizeof(*out));
     if( len > WS_HANDSHAKE_REQUEST_MAX )
         return WS_HANDSHAKE_ERROR;

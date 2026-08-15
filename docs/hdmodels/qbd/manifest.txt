@@ -1,0 +1,27 @@
+Queen Black Dragon
+exported by ev_export from cache.rs727_preeoc (profile rs727)
+
+Models are RAW cache archives: the viewer decodes them itself, so these
+exercise format detection and the complex-texture decode. Animations are
+ev_wire blobs (.eva) because a sequence is not self-contained - it names
+frames which name a framemap - so a raw export would need the cache back.
+
+An animation only moves a model that shares its rig; the rig id is below.
+
+npc 15454 "Queen Black Dragon"
+  model 70260  OB3   100833 bytes  verts  4816  faces  6863  texcoords  233  [plane 226 cyl 0 cube 7 sph 0]  alpha faces 166
+  model 69766  OB3    32194 bytes  verts  1407  faces  2149  texcoords   10  [plane 2 cyl 0 cube 8 sph 0]  alpha faces 9
+  bas   2502   (idle 16715 walk -1 back -1 left -1 right -1)
+  anim  16715  bas idle               rig 3474  frames  48   68720 bytes
+
+npc 15506 "Queen Black Dragon"
+  model 70267  OB3    99530 bytes  verts  4713  faces  6794  texcoords  233  [plane 224 cyl 0 cube 9 sph 0]  alpha faces 166
+  model 69766  OB3    32194 bytes  verts  1407  faces  2149  texcoords   10  [plane 2 cyl 0 cube 8 sph 0]  alpha faces 9
+  bas   2502   (idle 16715 walk -1 back -1 left -1 right -1)
+  anim  16715  bas idle               (already exported)
+
+npc 15507 "Queen Black Dragon"
+  model 70268  OB3   101013 bytes  verts  4814  faces  6863  texcoords  241  [plane 232 cyl 0 cube 9 sph 0]  alpha faces 166
+  model 69766  OB3    32194 bytes  verts  1407  faces  2149  texcoords   10  [plane 2 cyl 0 cube 8 sph 0]  alpha faces 9
+  bas   2502   (idle 16715 walk -1 back -1 left -1 right -1)
+  anim  16715  bas idle               (already exported)

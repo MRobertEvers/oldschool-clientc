@@ -14,6 +14,7 @@
 
 #if defined(_WIN32)
 #include <stdlib.h>
+#include <assert.h>
 #include <string.h>
 
 /* XP's system msvcrt.dll exports _putenv, but not the Vista-era _putenv_s.
@@ -27,8 +28,10 @@ torirs_win32_putenv(const char* name, const char* value)
     char* assignment;
     int result;
 
-    if( !name || !name[0] || !value || strchr(name, '=') )
+    assert(name);
+    if( !name[0] || strchr(name, '=') )
         return -1;
+    assert(value);
 
     name_len = strlen(name);
     value_len = strlen(value);
@@ -54,8 +57,8 @@ torirs_win32_putenv(const char* name, const char* value)
 static __inline int
 setenv(const char* name, const char* value, int overwrite)
 {
-    if( !name || !value )
-        return -1;
+    assert(name);
+    assert(value);
     if( !overwrite )
     {
         const char* existing = getenv(name);

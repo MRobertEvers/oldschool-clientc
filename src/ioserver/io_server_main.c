@@ -86,7 +86,8 @@ struct IoServer
 static int
 cache_dir_is_safe(char const* dir)
 {
-    if( !dir || !dir[0] )
+    assert(dir);
+    if( !dir[0] )
         return 0;
     if( dir[0] == '/' )
         return 0;

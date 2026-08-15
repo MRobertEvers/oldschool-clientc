@@ -103,8 +103,10 @@ loginproto_recv(
     uint8_t* data,
     int size)
 {
-    if( !loginproto || !data || size <= 0 )
+    if( size <= 0 )
         return 0;
+    assert(loginproto);
+    assert(data);
 
     {
         int to_read_cnt = loginproto->await_recv_cnt > size ? size : loginproto->await_recv_cnt;

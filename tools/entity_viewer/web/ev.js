@@ -101,6 +101,10 @@ function wasmCall(mod) {
     hdStats: mod.cwrap('ev_w_hd_stats', 'number', []),
     hdStatsCount: mod.cwrap('ev_w_hd_stats_count', 'number', []),
     setHdPlaceholder: mod.cwrap('ev_w_set_hd_placeholder', null, ['number']),
+    setTextures: mod.cwrap('ev_w_set_textures', 'number', ['number', 'number']),
+    textureCount: mod.cwrap('ev_w_texture_count', 'number', []),
+    move: mod.cwrap('ev_w_move', null, ['number', 'number', 'number', 'number']),
+    moveReset: mod.cwrap('ev_w_move_reset', null, []),
     mod,
   };
 }
@@ -110,12 +114,54 @@ async function feed(url, fn) {
   const res = await fetch(url);
   if (!res.ok) return 0;
   const bytes = new Uint8Array(await res.arrayBuffer());
+  return push(bytes, fn);
+}
+
+/** The same, for bytes already in hand. */
+function push(bytes, fn) {
   const ptr = state.wasm.alloc(bytes.length);
   if (!ptr) return 0;
   state.wasm.mod.HEAPU8.set(bytes, ptr);
   const out = fn(ptr, bytes.length);
   state.wasm.release(ptr);
   return out;
+}
+
+/*
+ * Load a model AND the textures its faces name.
+ *
+ * The two are separate requests because they have different lifetimes — a
+ * texture set belongs to the cache, a model to the subject — but they have to
+ * arrive together, or the first frame draws a textured model with nothing to
+ * sample. The server names the ids in a header rather than embedding them, so
+ * the model blob stays the renderer's own format.
+ *
+ * An HD blob is routed to setModelHd: an RS2-era npc's faces are mostly
+ * cylinder- and cube-mapped, and the classic raster can only plane-map, so
+ * feeding one to setModel drops every mapped face.
+ */
+async function loadModelWithTextures(url) {
+  const res = await fetch(url);
+  if (!res.ok) return 0;
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const magic = magicOf(bytes);
+  const faces = push(bytes, (p, n) =>
+    magic === EV_MAGIC_MODEL_HD ? state.wasm.setModelHd(p, n) : state.wasm.setModel(p, n));
+
+  if (magic !== EV_MAGIC_MODEL_HD) state.wasm.clearModelHd();
+
+  const ids = res.headers.get('X-Texture-Ids');
+  state.textureCount = 0;
+  if (ids) {
+    state.textureCount =
+      await feed(`/api/textures.bin?ids=${encodeURIComponent(ids)}`,
+                 (p, n) => state.wasm.setTextures(p, n));
+  } else {
+    /* Clear rather than keep: the previous subject's textures are the previous
+     * subject's, and stale ids would be sampled by the new model's faces. */
+    push(new Uint8Array(0), (p, n) => state.wasm.setTextures(p, n));
+  }
+  return faces;
 }
 
 /* ---- a model file off disk ----------------------------------------------
@@ -173,11 +219,85 @@ function hdShowStats() {
   el.classList.remove('hidden');
 }
 
+/*
+ * An exported animation (.eva) is already ev_wire, so it loads straight into
+ * the module with no server round trip — unlike a model archive, which is cache
+ * bytes and needs rscache to decode. Sniffing the magic is what lets one code
+ * path serve both, and what makes a wrong file say so instead of being POSTed
+ * to an endpoint that will reject it for the wrong reason.
+ */
+const EV_MAGIC_ANIM = 'EVA1';
+const EV_MAGIC_MODEL = 'EVM1';
+const EV_MAGIC_MODEL_HD = 'EVH1';
+
+function magicOf(bytes) {
+  if (bytes.length < 4) return '';
+  return String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+}
+
+async function hdLoadAnimFile(file) {
+  const info = document.getElementById('hdInfo');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const magic = magicOf(bytes);
+
+  if (magic !== EV_MAGIC_ANIM) {
+    info.textContent =
+      `${file.name}: not an ev_wire animation (magic "${magic}", expected EVA1)`;
+    return;
+  }
+
+  const ptr = state.wasm.alloc(bytes.length);
+  if (!ptr) { info.textContent = 'out of memory'; return; }
+  state.wasm.mod.HEAPU8.set(bytes, ptr);
+  const frames = state.wasm.setAnim(ptr, bytes.length);
+  state.wasm.release(ptr);
+
+  if (!frames) { info.textContent = `${file.name}: rejected by the renderer`; return; }
+
+  /* Drive playback off the animation's own delays, exactly as a cache-loaded
+   * sequence does — an uploaded animation is not a special case once adopted. */
+  state.bodyDelays = [];
+  for (let i = 0; i < frames; i++) state.bodyDelays.push(state.wasm.frameDelay(i));
+  state.bodyTotal = state.bodyDelays.reduce((a, b) => a + b, 0);
+  state.cycle = 0;
+  state.frame = 0;
+  state.playing = true;
+  const play = document.getElementById('playBtn');
+  if (play) play.textContent = 'Pause';
+  const slider = document.getElementById('frameSlider');
+  if (slider) { slider.max = Math.max(0, state.bodyTotal - 1); slider.value = 0; }
+
+  info.textContent =
+    `${info.textContent.split(' — ')[0]} — animation ${file.name}, ${frames} frames`;
+}
+
 async function hdLoadFile(file) {
   const info = document.getElementById('hdInfo');
   info.textContent = `reading ${file.name}…`;
 
   const bytes = new Uint8Array(await file.arrayBuffer());
+
+  /* An ev_wire blob needs no server: it is already the renderer's own format. */
+  const magic = magicOf(bytes);
+  if (magic === EV_MAGIC_ANIM) {
+    info.textContent = `${file.name} is an animation, not a model — loading it as one`;
+    await hdLoadAnimFile(file);
+    return;
+  }
+  if (magic === EV_MAGIC_MODEL || magic === EV_MAGIC_MODEL_HD) {
+    const ptr = state.wasm.alloc(bytes.length);
+    if (!ptr) { info.textContent = 'out of memory'; return; }
+    state.wasm.mod.HEAPU8.set(bytes, ptr);
+    const faces = magic === EV_MAGIC_MODEL_HD
+      ? state.wasm.setModelHd(ptr, bytes.length)
+      : state.wasm.setModel(ptr, bytes.length);
+    state.wasm.release(ptr);
+    if (!faces) { info.textContent = `${file.name}: blob rejected`; return; }
+    info.textContent = `${file.name} — ev_wire ${magic}, ${faces} faces`;
+    document.getElementById('hdClear').disabled = false;
+    return;
+  }
+
   let res;
   try {
     res = await fetch('/api/modelfile', { method: 'POST', body: bytes });
@@ -243,8 +363,19 @@ function hdInstall() {
     if (input.files && input.files[0]) hdLoadFile(input.files[0]);
     input.value = '';
   });
+
+  const animPick = document.getElementById('hdAnimPick');
+  const animInput = document.getElementById('hdAnimInput');
+  if (animPick && animInput) {
+    animPick.addEventListener('click', () => animInput.click());
+    animInput.addEventListener('change', () => {
+      if (animInput.files && animInput.files[0]) hdLoadAnimFile(animInput.files[0]);
+      animInput.value = '';
+    });
+  }
   clear.addEventListener('click', () => {
     state.wasm.clearModelHd();
+    state.wasm.clearAnim();
     clear.disabled = true;
     document.getElementById('hdInfo').textContent = 'no file loaded';
     document.getElementById('hdStats').classList.add('hidden');
@@ -356,7 +487,7 @@ async function selectNpc(id) {
     `${detail.name || '(unnamed)'} — npc ${id}` +
     (detail.gameval ? ` · ${detail.gameval}` : '');
 
-  const faces = await feed(`/api/npc/${id}.model`, (p, n) => state.wasm.setModel(p, n));
+  const faces = await loadModelWithTextures(`/api/npc/${id}.model`);
   if (!faces) {
     document.getElementById('stageMeta').textContent = 'this npc has no renderable model';
   } else {
@@ -369,7 +500,8 @@ async function selectNpc(id) {
     document.getElementById('stageMeta').textContent =
       `${faces} faces · rigs ${detail.framemaps.join(', ') || 'none'}` +
       (detail.skinned ? ' · animaya skinned' : '') +
-      ' · drag to orbit · wheel to zoom';
+      (state.textureCount ? ` · ${state.textureCount} textures` : '') +
+      ' · drag to orbit · wheel to zoom · WASD/RF to fly';
   }
 
   state.wasm.clearAnim();
@@ -780,6 +912,45 @@ function wireInput() {
     e.preventDefault();
     state.zoom = Math.max(200, Math.min(12000, state.zoom + e.deltaY * 3));
   }, { passive: false });
+
+  /*
+   * Free-fly: WASD over the ground plane, R/F on the world's up axis.
+   *
+   * Held keys, not one step per keydown: the OS auto-repeat rate is a user
+   * setting and would make movement speed differ between machines. So the key
+   * set is tracked and applied once per rendered frame, which also lets two
+   * keys combine into a diagonal.
+   *
+   * The step scales with the zoom because the same distance means something
+   * different at either end of the range — 40 units is a stride next to a
+   * chicken and imperceptible next to a boss.
+   */
+  const held = new Set();
+  const FLY_KEYS = new Set(['w', 'a', 's', 'd', 'r', 'f']);
+
+  window.addEventListener('keydown', (e) => {
+    /* A search box has the keyboard; typing "was" into it must not fly. */
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'x') { state.wasm.moveReset(); e.preventDefault(); return; }
+    if (!FLY_KEYS.has(k)) return;
+    held.add(k);
+    e.preventDefault();
+  });
+  window.addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
+  /* Losing focus mid-key never delivers the keyup, which would leave the view
+   * drifting with nothing held. */
+  window.addEventListener('blur', () => held.clear());
+
+  state.applyFly = () => {
+    if (!held.size || !state.wasm) return;
+    const step = Math.max(8, Math.round(state.zoom / 24));
+    const forward = (held.has('w') ? step : 0) - (held.has('s') ? step : 0);
+    const right = (held.has('d') ? step : 0) - (held.has('a') ? step : 0);
+    const up = (held.has('r') ? step : 0) - (held.has('f') ? step : 0);
+    if (forward || right || up) state.wasm.move(forward, right, up, state.yaw);
+  };
 
   document.getElementById('npcSearch').addEventListener('input', renderNpcList);
   /* The animation query survives changing npc on purpose: comparing "what is

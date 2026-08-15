@@ -13,6 +13,7 @@
  */
 
 #include "mock230_embed.h"
+#include <assert.h>
 
 #include "mock230.h"
 #include "mock230_bank.h"
@@ -61,8 +62,9 @@ client_at(
     struct Mock230Embed* embed,
     int client)
 {
-    if( !embed || client < 0 || client >= MOCK230_EMBED_CLIENT_MAX )
+    if( client < 0 || client >= MOCK230_EMBED_CLIENT_MAX )
         return NULL;
+    assert(embed);
     return embed->clients[client].open ? &embed->clients[client] : NULL;
 }
 
@@ -173,8 +175,7 @@ mock230_embed_disconnect(
 void
 mock230_embed_stop(struct Mock230Embed* embed)
 {
-    if( !embed )
-        return;
+    assert(embed);
 
     for( int i = 0; i < MOCK230_EMBED_CLIENT_MAX; i++ )
     {

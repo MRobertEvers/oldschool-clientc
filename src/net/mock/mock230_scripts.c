@@ -23,6 +23,7 @@
  */
 
 #include <dirent.h>
+#include <assert.h>
 
 #include "mock230.h"
 
@@ -1252,7 +1253,8 @@ mock230_scripts_close_dialogue(struct Mock230Server* srv)
     struct Mock230Player* player;
     struct SSVM_State* state;
 
-    if( !srv || !srv->active_player )
+    assert(srv);
+    if( !srv->active_player )
         return 0;
     player = srv->active_player;
     state = player->active_script;
@@ -1309,8 +1311,9 @@ mock230_scripts_run_hook_sv(
     /* A NULL script is a no-op — used by the by-name helpers when a name is
      * not in the pack, and by internal callers that may pass a resolved pointer
      * that legitimately came back empty. */
-    if( !srv->scripts_ok || !script )
+    if( !srv->scripts_ok )
         return 0;
+    assert(script);
 
     state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
     if( state && srv->active_player )
@@ -1416,8 +1419,10 @@ mock230_scripts_run_hook_int_sv(
     struct SSVM_State* state;
     enum SSVM_Exec status;
 
-    if( !srv->scripts_ok || !out || !script )
+    if( !srv->scripts_ok )
         return 0;
+    assert(out);
+    assert(script);
 
     state = SSVM_StateAlloc(srv->script_env, script, args, argc, strv, strc);
     if( state && srv->active_player )
@@ -1513,8 +1518,9 @@ mock230_scripts_queue_hook(
 {
     struct Mock230Player* player;
 
-    if( !srv->scripts_ok || !script )
+    if( !srv->scripts_ok )
         return 0;
+    assert(script);
 
     player = srv->active_player;
     for( int i = 0; i < MOCK230_QUEUE_MAX; i++ )
@@ -3647,8 +3653,7 @@ container_listener_row(
     struct Mock230Player* player,
     int32_t component)
 {
-    if( !player )
-        return NULL;
+    assert(player);
     for( int i = 0; i < MOCK230_CONTAINER_MAX; i++ )
     {
         struct Mock230Container* row = &player->containers[i];
@@ -9758,8 +9763,9 @@ mock230_scripts_run_hook_on_npc(
 {
     struct SSVM_State* state;
 
-    if( !srv->scripts_ok || !script )
+    if( !srv->scripts_ok )
         return 0;
+    assert(script);
     state = SSVM_StateAlloc(srv->script_env, script, NULL, 0, NULL, 0);
     if( state && srv->active_player )
         state->last_int = srv->active_player->last_int;

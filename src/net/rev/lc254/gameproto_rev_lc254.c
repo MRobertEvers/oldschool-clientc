@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include <assert.h>
 #include "packetin.h"
 #include "packetout.h"
 
@@ -78,8 +79,7 @@ GameProtoRev_LC254(void)
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name)
 {
-    if( !name )
-        return NULL;
+    assert(name);
     if( strcmp(name, "lc254") == 0 )
         return GameProtoRev_LC254();
     if( strcmp(name, "lc245_2") == 0 )

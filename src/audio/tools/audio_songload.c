@@ -1,4 +1,5 @@
 #include "audio/tools/audio_songload.h"
+#include <assert.h>
 
 #include "audio/torirs_audio.h"
 
@@ -121,8 +122,7 @@ AudioSongLoad_Open(
     struct RSCache_Dat2DiskArchive* archive;
     int song_table;
 
-    if( !out )
-        return false;
+    assert(out);
     memset(out, 0, sizeof(*out));
     ToriRS_SoundBank_Init(&out->bank);
 

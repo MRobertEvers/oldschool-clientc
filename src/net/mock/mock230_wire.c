@@ -1,4 +1,5 @@
 #include "mock230_wire.h"
+#include <assert.h>
 
 #include "mock230_interface_state.h"
 #include "mock239_interface_setters.h"
@@ -1220,8 +1221,7 @@ static const struct Mock230Wire k_wire_osrs239 = {
 const struct Mock230Wire*
 mock230_wire_by_name(char const* name)
 {
-    if( !name )
-        return NULL;
+    assert(name);
     if( strcmp(name, "osrs230") == 0 )
         return &k_wire_osrs230;
     if( strcmp(name, "osrs239") == 0 )
@@ -1343,7 +1343,8 @@ int
 mock230_wire_opcode(const struct Mock230Wire* wire, int pkt_name)
 {
     int op;
-    if( !wire || !wire->opcode )
+    assert(wire);
+    if( !wire->opcode )
         return -1;
     op = wire->opcode(pkt_name);
     if( op >= 0 )
@@ -1361,7 +1362,8 @@ mock230_wire_opcode(const struct Mock230Wire* wire, int pkt_name)
 int
 mock230_wire_can_write(const struct Mock230Wire* wire, int pkt_name)
 {
-    if( !wire || !wire->payload || !wire->transcribed )
+    assert(wire);
+    if( !wire->payload || !wire->transcribed )
         return 1;
     for( int i = 0; i < wire->transcribed_count; i++ )
         if( wire->transcribed[i] == pkt_name )

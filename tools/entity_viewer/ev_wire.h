@@ -48,6 +48,28 @@ struct ToriDraw_Animation;
 #define EV_WIRE_HD_MAPPING_WORDS 20
 #define EV_WIRE_ANIM_MAGIC  0x31415645u /* "EVA1" */
 
+/*
+ * "EVT1" — a texture set.
+ *
+ * Textures cannot travel with the model: the browser half has no cache, and a
+ * model names texture *ids* whose pixels live in whichever cache it came from.
+ * So the server bakes them (ev_textures.c, both the sprite-backed and the
+ * procedural system) and ships the ones a given model actually names.
+ *
+ * Only the named ids, not the table: a full RS727 set is 2315 x 128 x 128 x 4
+ * = 151 MB, while a model typically names under thirty.
+ *
+ *   u32 magic
+ *   u32 count
+ *   per texture:
+ *     u32 id
+ *     u16 size          (width == height)
+ *     u8  opaque
+ *     u8  reserved
+ *     u32 texels[size*size]   ARGB8888
+ */
+#define EV_WIRE_TEXTURES_MAGIC 0x31545645u
+
 /* ---- writing (server side) ---------------------------------------------- */
 
 /**
@@ -118,6 +140,35 @@ int
 ev_wire_is_model_hd(
     const uint8_t* data,
     size_t len);
+
+/**
+ * One texture out of an EVT1 blob, by position (not by id).
+ *
+ * The reader hands back pointers *into* the blob rather than copies, so the
+ * caller owns the lifetime question: everything here dangles once the blob is
+ * freed.
+ */
+struct EV_WireTexture
+{
+    int id;
+    int size;
+    int opaque;
+    const uint32_t* texels;
+};
+
+/** Number of textures in an EVT1 blob, or 0 (also for a blob that is not one). */
+int
+ev_wire_texture_count(
+    const uint8_t* data,
+    size_t len);
+
+/** Texture `index` of an EVT1 blob. Returns 0 when out of range or malformed. */
+int
+ev_wire_read_texture(
+    const uint8_t* data,
+    size_t len,
+    int index,
+    struct EV_WireTexture* out);
 
 /** Rebuild an animation. Free with ev_wire_free_anim. */
 struct ToriDraw_Animation*

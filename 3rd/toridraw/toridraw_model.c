@@ -342,7 +342,8 @@ ToriDraw_BonesFree(struct ToriDraw_Bones* bones)
 struct ToriDraw_Bones*
 ToriDraw_BonesCopy(const struct ToriDraw_Bones* src)
 {
-    if( !src || src->bones_count <= 0 || !src->bones || !src->bones_sizes )
+    assert(src);
+    if( src->bones_count <= 0 || !src->bones || !src->bones_sizes )
         return NULL;
 
     struct ToriDraw_Bones* dst = calloc(1, sizeof(struct ToriDraw_Bones));
@@ -426,6 +427,29 @@ ToriDraw_ModelFree_arrays(struct ToriDraw_Model* m)
         free(m->animaya_scales);
     }
     free(m->animaya_group_counts);
+}
+
+struct ToriDraw_ModelHD*
+ToriDraw_ModelHDFromModel(struct ToriDraw_Model* model)
+{
+    struct ToriDraw_ModelHD* hd;
+
+    if( !model )
+        return NULL;
+
+    hd = (struct ToriDraw_ModelHD*)calloc(1, sizeof(*hd));
+    if( !hd )
+    {
+        ToriDraw_ModelFree(model);
+        return NULL;
+    }
+
+    /* By value: the arrays are pointers and move with the struct, so freeing
+     * the shell afterwards must not go through ToriDraw_ModelFree — that would
+     * release the arrays the HD model now owns. */
+    hd->base = *model;
+    free(model);
+    return hd;
 }
 
 void

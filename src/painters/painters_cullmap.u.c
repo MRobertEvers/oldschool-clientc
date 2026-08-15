@@ -456,7 +456,8 @@ painters_cullmap_visible_keyed(
     int dz,
     size_t camera_key)
 {
-    if( !cm || cm->all_visible )
+    assert(cm);
+    if( cm->all_visible )
         return 1;
 
     if( dx < -cm->radius || dx > cm->radius || dz < -cm->radius || dz > cm->radius )
@@ -483,7 +484,8 @@ painters_cullmap_slice_visible_count(
     int n = 0;
     int gs;
 
-    if( !cm || cm->all_visible || !cm->visibility )
+    assert(cm);
+    if( cm->all_visible || !cm->visibility )
         return cm && cm->all_visible ? cm->grid_side * cm->grid_side : 0;
 
     painters_cullmap_indices_from_angles(cm, pitch, yaw, &pitch_idx, &yaw_idx);

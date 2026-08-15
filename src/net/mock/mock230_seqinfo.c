@@ -23,6 +23,7 @@
  */
 
 #include "mock230.h"
+#include <assert.h>
 
 #include "mock230_content.h"
 
@@ -204,8 +205,7 @@ mock230_seq_priority_known(int seq_id)
 int
 mock230_seq_by_name(const char* name)
 {
-    if( !name )
-        return -1;
+    assert(name);
     for( int i = 0; i < g_seq_count; i++ )
     {
         if( strcmp(g_seqs[i].name, name) == 0 )

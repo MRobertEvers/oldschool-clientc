@@ -42,6 +42,15 @@ EV_EXPORT const int* ev_w_hd_stats(void) { return ev_hd_stats(); }
 EV_EXPORT int ev_w_hd_stats_count(void) { return ev_hd_stats_count(); }
 EV_EXPORT void ev_w_set_hd_placeholder(int on) { ev_set_hd_placeholder(on); }
 
+/* Textures, baked server-side and shipped as an EVT1 blob — the browser has no
+ * cache to bake them from. */
+EV_EXPORT int ev_w_set_textures(const uint8_t* d, int n) { return ev_set_textures(d, n); }
+EV_EXPORT int ev_w_texture_count(void) { return ev_texture_count(); }
+
+/* Free-fly movement. */
+EV_EXPORT void ev_w_move(int f, int r, int u, int yaw) { ev_move(f, r, u, yaw); }
+EV_EXPORT void ev_w_move_reset(void) { ev_move_reset(); }
+
 EV_EXPORT uint8_t*
 ev_w_render(int w, int h, int yaw, int pitch, int zoom, int frame)
 {

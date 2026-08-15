@@ -18,8 +18,9 @@ trspk_toridraw_texture_is_animated(
     struct ToriDraw_Scene* ctx,
     int tex_id)
 {
-    if( tex_id < 0 || !ctx )
+    if( tex_id < 0 )
         return false;
+    assert(ctx);
 
     struct ToriDraw_TextureState* tex = ToriDraw_SceneTexState(ctx);
     struct ToriDraw_Texture* tex_obj =

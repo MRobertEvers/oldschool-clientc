@@ -525,8 +525,7 @@ UITree_LayoutGetBounds(
     int* out_w,
     int* out_h)
 {
-    if( !position )
-        return;
+    assert(position);
 
     int x = position->x;
     int y = position->y;
@@ -558,8 +557,9 @@ UITree_SnapshotResizeHooks(
     int count = 0;
 
     assert(tree);
-    if( !out_entries || max_entries <= 0 )
+    if( max_entries <= 0 )
         return 0;
+    assert(out_entries);
 
     for( int i = 0; i < tree->resize_hooks.count && count < max_entries; i++ )
     {

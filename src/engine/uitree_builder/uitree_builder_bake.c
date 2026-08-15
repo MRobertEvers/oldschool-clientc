@@ -77,7 +77,8 @@ type_from_string(char const* type)
 static enum UITreeSlotTag
 slot_tag_from_string(char const* slot)
 {
-    if( !slot || !slot[0] )
+    assert(slot);
+    if( !slot[0] )
         return UITREE_SLOT_NONE;
     if( strcmp(slot, "main_modal") == 0 )
         return UITREE_SLOT_MAIN_MODAL;
@@ -424,7 +425,8 @@ find_op_node(
     int op_count,
     char const* name)
 {
-    if( !name || name[0] == '\0' )
+    assert(name);
+    if( name[0] == '\0' )
         return -1;
     for( int i = 0; i < op_count; i++ )
     {

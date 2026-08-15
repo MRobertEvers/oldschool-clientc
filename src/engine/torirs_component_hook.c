@@ -75,8 +75,7 @@ ToriRS_ComponentHooksFree(struct ToriRS_Component* component)
 int
 ToriRS_ComponentHasAnyHook(struct ToriRS_Component const* component)
 {
-    if( !component )
-        return 0;
+    assert(component);
     for( int i = 0; i < TORIRS_COMPONENT_HOOK_COUNT; i++ )
         if( component->hooks[i] )
             return 1;

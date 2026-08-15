@@ -16,6 +16,7 @@
  */
 
 #include "platform/platform_win32_renderer_d3d9_core.h"
+#include <assert.h>
 
 #include "core/trspk_drawrangeex.h"
 #include "core/trspk_math.h"
@@ -208,7 +209,8 @@ static void
 d3d9_ui_flush(struct ToriRS_D3D9* renderer)
 {
     struct D3D9UIBatch* batch;
-    if( !renderer || !renderer->device )
+    assert(renderer);
+    if( !renderer->device )
         return;
     batch = &renderer->ui_batch;
     if( batch->vertex_count == 0u )
@@ -603,7 +605,8 @@ d3d9_device_ready(struct ToriRS_D3D9* renderer)
     HRESULT cooperative;
     bool size_changed;
 
-    if( !renderer || !renderer->device || renderer->scene_active )
+    assert(renderer);
+    if( !renderer->device || renderer->scene_active )
         return renderer && renderer->device && renderer->scene_active;
     if( !d3d9_read_client_size(renderer, &width, &height) || width <= 0 || height <= 0 )
         return false;
@@ -666,7 +669,8 @@ static void
 d3d9_end_frame_scene(struct ToriRS_D3D9* renderer)
 {
     HRESULT hr;
-    if( !renderer || !renderer->device || !renderer->scene_active )
+    assert(renderer);
+    if( !renderer->device || !renderer->scene_active )
         return;
     hr = IDirect3DDevice9_EndScene(renderer->device);
     renderer->scene_active = false;
@@ -700,8 +704,9 @@ static void
 d3d9_ui_rotmask_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
 {
     uint32_t i;
-    if( !renderer || scene_id <= 0 )
+    if( scene_id <= 0 )
         return;
+    assert(renderer);
     for( i = 0u; i < renderer->ui_rotmask_count; i++ )
     {
         struct D3D9UIRotmaskSlot* slot = &renderer->ui_rotmasks[i];
@@ -767,8 +772,9 @@ d3d9_ui_upload_sprite_pixels(
     size_t count;
     size_t i;
     bool inserted;
-    if( !source || width <= 0 || height <= 0 )
+    if( width <= 0 || height <= 0 )
         return false;
+    assert(source);
     count = (size_t)width * (size_t)height;
     argb = (uint32_t*)malloc(count * sizeof(*argb));
     if( !argb )
@@ -900,8 +906,9 @@ d3d9_ui_clamp_sprite(
     uint32_t* result;
     int x;
     int y;
-    if( !source || source_width <= 0 || source_height <= 0 || width <= 0 || height <= 0 )
+    if( source_width <= 0 || source_height <= 0 || width <= 0 || height <= 0 )
         return NULL;
+    assert(source);
     result = (uint32_t*)calloc((size_t)width * (size_t)height, sizeof(*result));
     if( !result )
         return NULL;
@@ -1206,8 +1213,11 @@ d3d9_ui_rotmask_upload_source(
     int sx;
     int sy;
     int y;
-    if( !renderer || !slot || !sprite || !sprite->pixels_argb )
+    assert(sprite);
+    if( !sprite->pixels_argb )
         return false;
+    assert(renderer);
+    assert(slot);
     if( slot->source_texture )
     {
         /* Content refresh (e.g. minimap floor change, world map rebake): the
@@ -1274,8 +1284,11 @@ d3d9_ui_rotmask_upload_mask(
     D3DLOCKED_RECT locked;
     int x;
     int y;
-    if( !renderer || !slot || !mask || !mask->pixels_argb )
+    assert(mask);
+    if( !mask->pixels_argb )
         return false;
+    assert(renderer);
+    assert(slot);
     if( slot->mask_texture )
     {
         HRESULT hr = IDirect3DTexture9_LockRect(slot->mask_texture, 0u, &locked, NULL, 0u);
@@ -1957,7 +1970,8 @@ d3d9_ui_bake_font(
     int atlas_y = 0;
     int i;
     int y;
-    if( !slot || !(font = slot->font) )
+    assert(slot);
+    if( !(font = slot->font) )
         return false;
     if( slot->baked )
         return true;
@@ -2164,7 +2178,8 @@ d3d9_ui_char_equal_ignore_case(char a, char b)
 static bool
 d3d9_ui_font_line_break(const char* text, int* advance)
 {
-    if( !text || !text[0] )
+    assert(text);
+    if( !text[0] )
         return false;
     if( text[0] == '\\' && text[1] == 'n' )
     {
@@ -2435,8 +2450,9 @@ static bool
 d3d9_ui_font_segment_has_visible_content(const char* text, int length)
 {
     int i;
-    if( !text || length <= 0 )
+    if( length <= 0 )
         return false;
+    assert(text);
     for( i = 0; i < length; i++ )
     {
         unsigned char emit_char = 0;
@@ -3144,7 +3160,8 @@ d3d9_decode_texture_rgba(
 {
     uint32_t y;
     memset(rgba, 0, (size_t)tile_size * tile_size * 4u);
-    if( !texture || !texture->texels || texture->width <= 0 || texture->height <= 0 )
+    assert(texture);
+    if( !texture->texels || texture->width <= 0 || texture->height <= 0 )
         return;
 
     for( y = 0u; y < tile_size; y++ )
@@ -3655,8 +3672,9 @@ d3d9_reclassify_texture_faces(
     float origin_v;
     uint32_t group_index;
 
-    if( !renderer || tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
+    if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
         return;
+    assert(renderer);
 
     slot = renderer->tex_slot_of_id[tex_id];
     if( !animated && slot < 0 )
@@ -3840,8 +3858,9 @@ d3d9_static_batch_slot(
 {
     uint32_t i;
     uint32_t reusable = UINT32_MAX;
-    if( !renderer || batch_id < 0 )
+    if( batch_id < 0 )
         return -1;
+    assert(renderer);
     for( i = 0u; i < renderer->static_batch_count; i++ )
     {
         if( renderer->static_batches[i].batch_id == batch_id )
@@ -3876,8 +3895,7 @@ static void
 d3d9_rebuild_batch_pose_table(struct ToriRS_D3D9* renderer)
 {
     uint32_t batch_slot;
-    if( !renderer )
-        return;
+    assert(renderer);
     trspk_pose_table_clear(&renderer->batch_poses);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
@@ -3957,7 +3975,8 @@ d3d9_static_batch_ensure_chunk_storage(
     uint32_t old_capacity;
     uint32_t capacity;
     uint32_t i;
-    if( !renderer || batch_slot >= renderer->static_batch_count )
+    assert(renderer);
+    if( batch_slot >= renderer->static_batch_count )
         return false;
     batch = &renderer->static_batches[batch_slot];
     if( chunk_count <= batch->page_id_capacity )
@@ -3993,7 +4012,8 @@ d3d9_static_batch_assign_page(
 {
     struct D3D9StaticBatch* batch;
     uint32_t page_id;
-    if( !renderer || batch_slot >= renderer->static_batch_count )
+    assert(renderer);
+    if( batch_slot >= renderer->static_batch_count )
         return false;
     batch = &renderer->static_batches[batch_slot];
     if( chunk_index >= batch->page_id_capacity )
@@ -4026,8 +4046,9 @@ d3d9_ensure_static_batch_vbo(
     HRESULT hr;
     if( out_recreated )
         *out_recreated = false;
-    if( !renderer || required_pages == 0u )
+    if( required_pages == 0u )
         return renderer != NULL;
+    assert(renderer);
     if( renderer->static_batch_vbo &&
         renderer->static_batch_gpu_page_capacity >= required_pages )
         return true;
@@ -4145,8 +4166,7 @@ static void
 d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer)
 {
     uint32_t batch_slot;
-    if( !renderer )
-        return;
+    assert(renderer);
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
     {
         struct D3D9StaticBatch* batch = &renderer->static_batches[batch_slot];
@@ -4173,7 +4193,8 @@ d3d9_static_batch_commit(struct ToriRS_D3D9* renderer, uint32_t batch_slot)
     uint32_t chunk_count;
     uint32_t i;
     bool recreated = false;
-    if( !renderer || batch_slot >= renderer->static_batch_count )
+    assert(renderer);
+    if( batch_slot >= renderer->static_batch_count )
         return false;
     batch = &renderer->static_batches[batch_slot];
     if( !batch->cpu )
@@ -4224,8 +4245,7 @@ static bool
 d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer)
 {
     uint32_t batch_slot;
-    if( !renderer )
-        return false;
+    assert(renderer);
     if( !renderer->static_batch_upload_pending )
         return true;
     for( batch_slot = 0u; batch_slot < renderer->static_batch_count; batch_slot++ )
@@ -4321,8 +4341,7 @@ d3d9_rebuild_static_pose_table(struct ToriRS_D3D9* renderer)
     struct TRSPK_ModelArena* arena;
     uint32_t slot_index;
 
-    if( !renderer )
-        return;
+    assert(renderer);
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
     trspk_pose_table_clear(&renderer->poses);
     if( !arena )
@@ -4352,8 +4371,7 @@ d3d9_compact_static_group(struct ToriRS_D3D9* renderer)
 {
     struct TRSPK_ModelArena* arena;
     struct TRSPK_ModelArenaGCResult result;
-    if( !renderer )
-        return;
+    assert(renderer);
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
     if( !arena )
         return;
@@ -4369,8 +4387,9 @@ d3d9_pose_element_is_retained(
 {
     uint32_t element_index;
     int track;
-    if( !renderer || element_id < 0 )
+    if( element_id < 0 )
         return false;
+    assert(renderer);
     element_index = (uint32_t)element_id;
     for( track = 0; track < TRSPK_POSE_TRACK_COUNT; track++ )
         if( renderer->poses.elements &&
@@ -4655,7 +4674,8 @@ d3d9_model_load(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand_ModelLoad* command)
 {
-    if( !command || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
+    assert(command);
+    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
     /* A model replacement invalidates every pose from the old geometry, not
      * only the rest-pose slot. */
@@ -4759,8 +4779,7 @@ d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed)
     uint16_t* grown;
     uint32_t capacity;
     size_t byte_count;
-    if( !renderer )
-        return false;
+    assert(renderer);
     if( needed <= renderer->model_index_capacity )
         return true;
     capacity = renderer->model_index_capacity
@@ -4802,8 +4821,9 @@ d3d9_begin_3d(
     D3DMATRIX world;
     uint32_t group;
 
-    if( !renderer->device || !command )
+    if( !renderer->device )
         return;
+    assert(command);
     if( renderer->ibo_chain )
         trspk_ibochain_reset(renderer->ibo_chain);
     renderer->cur_3d = *command;
@@ -5128,8 +5148,9 @@ d3d9_binding_cpu_source(
     const struct TRSPK_VBO** out_vbo,
     const struct TRSPK_Triangles** out_triangles)
 {
-    if( !renderer || !out_vbo || !out_triangles )
-        return false;
+    assert(renderer);
+    assert(out_vbo);
+    assert(out_triangles);
     if( binding < TRSPK_VBO_GROUP_COUNT )
     {
         *out_vbo = renderer->groups[binding].vbo_cpu;
@@ -5161,8 +5182,11 @@ d3d9_build_draw_ranges16(
 {
     const struct TRSPK_IBOChainNode* node;
     uint32_t gpu_cursor = 0u;
-    if( !renderer || !chain || !renderer->draw_ranges || !dst )
+    assert(renderer);
+    if( !renderer->draw_ranges )
         return UINT32_MAX;
+    assert(chain);
+    assert(dst);
     trspk_drawrangelist_clear(renderer->draw_ranges);
 
     for( node = chain->head; node; node = node->next )
@@ -5454,8 +5478,10 @@ d3d9_batch_begin(
     struct D3D9StaticBatch* batch;
     uint32_t i;
     int slot;
-    if( !renderer || !command || command->batch_id < 0 )
+    assert(command);
+    if( command->batch_id < 0 )
         return;
+    assert(renderer);
     slot = d3d9_static_batch_slot(renderer, command->batch_id, true);
     if( slot < 0 )
         return;
@@ -5486,7 +5512,8 @@ d3d9_batch_add(
     int pose_id;
     int face_count;
     uint32_t vertex_count;
-    if( !command || command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
+    assert(command);
+    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
         return;
     if( renderer->current_batch_slot < 0 ||
         (uint32_t)renderer->current_batch_slot >= renderer->static_batch_count )
@@ -5528,8 +5555,8 @@ d3d9_batch_end(
 {
     struct D3D9StaticBatch* batch;
     int slot;
-    if( !renderer || !command )
-        return;
+    assert(renderer);
+    assert(command);
     slot = renderer->current_batch_slot;
     if( slot < 0 || (uint32_t)slot >= renderer->static_batch_count )
         return;
@@ -5549,8 +5576,7 @@ d3d9_batch_clear(
     bool clear_all)
 {
     uint32_t i;
-    if( !renderer )
-        return;
+    assert(renderer);
     if( renderer->device )
         IDirect3DDevice9_SetStreamSource(renderer->device, 0u, NULL, 0u, 0u);
     for( i = 0u; i < renderer->static_batch_count; i++ )
@@ -5579,8 +5605,8 @@ d3d9_dispatch(
     struct ToriRS_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
 {
-    if( !renderer || !command )
-        return;
+    assert(renderer);
+    assert(command);
     switch( command->kind )
     {
     case TORIRSRC_BEGIN_3D:
@@ -5841,8 +5867,10 @@ ToriRS_D3D9_AttachSceneHeadlessForTest(
     struct ToriRS_D3D9* renderer,
     struct ToriDraw_Scene* scene)
 {
-    if( !renderer || !scene || renderer->device )
+    assert(renderer);
+    if( renderer->device )
         return false;
+    assert(scene);
     renderer->scene = scene;
     return true;
 }
@@ -5853,8 +5881,8 @@ ToriRS_D3D9_GetRetainedStats(
     struct ToriRS_D3D9RetainedStats* out_stats)
 {
     uint32_t group_index;
-    if( !renderer || !out_stats )
-        return false;
+    assert(renderer);
+    assert(out_stats);
     memset(out_stats, 0, sizeof(*out_stats));
     for( group_index = 0u; group_index < TRSPK_VBO_GROUP_COUNT; group_index++ )
     {
@@ -5891,8 +5919,8 @@ ToriRS_D3D9_GetPoseBase(
     uint32_t* out_vertex_base)
 {
     uint32_t locator;
-    if( !renderer || !out_vertex_base )
-        return false;
+    assert(renderer);
+    assert(out_vertex_base);
     if( trspk_pose_table_get(
             &renderer->batch_poses,
             element_id,
@@ -5992,8 +6020,11 @@ ToriRS_D3D9_Init(
     HRESULT hr;
     int width;
     int height;
-    if( !renderer || !native_window || !scene || renderer->device )
+    assert(renderer);
+    if( renderer->device )
         return false;
+    assert(native_window);
+    assert(scene);
     /* This is the one place the two world implementations are chosen between.
      * Creating the depth state selects d3d9_zbuffer_*; leaving it NULL selects
      * d3d9_painter_*, which has nothing to allocate. */
@@ -6110,8 +6141,7 @@ ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
 void
 ToriRS_D3D9_SetPick(struct ToriRS_D3D9* renderer, int mouse_x, int mouse_y)
 {
-    if( !renderer )
-        return;
+    assert(renderer);
     renderer->pick_enabled = true;
     renderer->pick_mouse_x = mouse_x;
     renderer->pick_mouse_y = mouse_y;
@@ -6140,7 +6170,8 @@ ToriRS_D3D9_DrawBootBar(struct ToriRS_D3D9* renderer, int progress)
     int bar_x;
     int bar_y;
     int fill_w;
-    if( !renderer || !d3d9_begin_frame_scene(renderer) )
+    assert(renderer);
+    if( !d3d9_begin_frame_scene(renderer) )
         return;
     progress = d3d9_clampi(progress, 0, 100);
     d3d9_set_full_viewport(renderer);
@@ -6161,8 +6192,10 @@ void
 ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand command;
-    if( !renderer || !frame || !d3d9_begin_frame_scene(renderer) )
+    assert(renderer);
+    if( !d3d9_begin_frame_scene(renderer) )
         return;
+    assert(frame);
     renderer->has_3d = false;
     renderer->in3d = false;
     renderer->in2d = false;
@@ -6187,7 +6220,8 @@ void
 ToriRS_D3D9_Present(struct ToriRS_D3D9* renderer)
 {
     HRESULT hr;
-    if( !renderer || renderer->scene_active || !d3d9_device_ready(renderer) )
+    assert(renderer);
+    if( renderer->scene_active || !d3d9_device_ready(renderer) )
         return;
     hr = IDirect3DDevice9_Present(renderer->device, NULL, NULL, NULL, NULL);
     if( hr == D3DERR_DEVICELOST || hr == D3DERR_DEVICENOTRESET )

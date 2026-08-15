@@ -278,8 +278,7 @@ select_area(
     int x;
     int y;
 
-    if( !area )
-        return;
+    assert(area);
 
     state->current_area = area;
     state->icon_index = 0;
@@ -385,7 +384,8 @@ RS_WorldMap_IsLoaded(struct RS_WorldMapState const* state)
 int
 RS_WorldMap_CurrentMapId(struct RS_WorldMapState const* state)
 {
-    if( !state || !state->current_area )
+    assert(state);
+    if( !state->current_area )
         return -1;
     return state->current_area->id;
 }
@@ -395,8 +395,7 @@ RS_WorldMap_Area(
     struct RS_WorldMapState* state,
     int map_id)
 {
-    if( !state )
-        return NULL;
+    assert(state);
     return ToriRS_WorldMapAreasGet(state->areas, map_id);
 }
 
@@ -450,7 +449,8 @@ RS_WorldMap_ZoomScale(struct RS_WorldMapState const* state)
 int
 RS_WorldMap_ZoomScaleFp(struct RS_WorldMapState const* state)
 {
-    if( !state || state->zoom_scale_now_fp <= 0 )
+    assert(state);
+    if( state->zoom_scale_now_fp <= 0 )
         return RS_WORLDMAP_ZOOM_SCALE_ONE * 4;
     return state->zoom_scale_now_fp;
 }
@@ -825,8 +825,7 @@ RS_WorldMap_IconVisible(
     int element_id,
     int category_id)
 {
-    if( !state )
-        return false;
+    assert(state);
     /* An element with no category (-1) is only ever gated by its own id and by
      * the global switch — the reference short-circuits the category test the
      * same way, so "hide category -1" cannot hide every uncategorised icon. */
@@ -840,7 +839,8 @@ RS_WorldMap_ShouldFlashIcon(
     int element_id,
     int category_id)
 {
-    if( !state || !has_active_flashes(state) )
+    assert(state);
+    if( !has_active_flashes(state) )
         return false;
     if( state->flash_cycle < 0 || state->cycles_per_flash <= 0 )
         return false;

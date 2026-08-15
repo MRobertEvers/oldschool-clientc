@@ -1,4 +1,5 @@
 #include "toridraw_animation.h"
+#include <assert.h>
 
 #include <stdlib.h>
 #include <string.h>
@@ -25,8 +26,8 @@ ToriDraw_AnimationSetSeqMeta(
     struct ToriDraw_Animation* anim,
     struct ToriDraw_AnimSeqMeta const* meta)
 {
-    if( !anim || !meta )
-        return;
+    assert(anim);
+    assert(meta);
 
     free(anim->walkmerge);
     anim->walkmerge = NULL;
@@ -54,8 +55,10 @@ ToriDraw_AnimationAdvanceObjectFrame(struct ToriDraw_Animation const* anim, int*
 {
     int next;
 
-    if( !anim || !frame || anim->frame_count <= 0 )
+    assert(anim);
+    if( anim->frame_count <= 0 )
         return false;
+    assert(frame);
 
     next = *frame + 1;
     if( next < anim->frame_count )
@@ -124,8 +127,11 @@ ToriDraw_AnimationAdvanceLoopCycles(
 {
     int cycle;
 
-    if( !anim || !frame || !frame_cycle || !anim->frames || anim->frame_count <= 0 )
+    assert(anim);
+    if( !anim->frames || anim->frame_count <= 0 )
         return;
+    assert(frame);
+    assert(frame_cycle);
     if( *frame < 0 || *frame >= anim->frame_count )
         *frame = 0;
 

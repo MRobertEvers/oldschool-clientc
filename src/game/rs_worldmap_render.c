@@ -151,8 +151,7 @@ RS_WorldMapRender_New(void)
 void
 RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
 {
-    if( !render )
-        return;
+    assert(render);
     render->bakes_this_frame = 0;
     render->loads_this_frame = 0;
     /* TORIRS_WORLDMAP_STATS=1: running totals of why regions did not draw.
@@ -192,8 +191,7 @@ RS_WorldMapRender_Clear(
     struct RS_WorldMapRender* render,
     struct ToriDraw_Scene* scene)
 {
-    if( !render )
-        return;
+    assert(render);
     for( int i = 0; i < WORLDMAP_REGION_SLOTS; i++ )
     {
         if( render->slots[i].key >= 0 && scene )
@@ -786,8 +784,9 @@ RS_WorldMapRender_RegionIcons(
 {
     int slot = scene_id & ~WORLDMAP_REGION_SCENE_BASE;
 
-    if( !render || (scene_id & WORLDMAP_REGION_SCENE_BASE) != WORLDMAP_REGION_SCENE_BASE )
+    if( (scene_id & WORLDMAP_REGION_SCENE_BASE) != WORLDMAP_REGION_SCENE_BASE )
         return -1;
+    assert(render);
     if( slot < 0 || slot >= WORLDMAP_REGION_SLOTS || render->slots[slot].key < 0 )
         return -1;
 

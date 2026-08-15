@@ -52,8 +52,7 @@ RS_Audio_Init(struct RS_Audio* audio)
 void
 RS_Audio_Shutdown(struct RS_Audio* audio)
 {
-    if( !audio )
-        return;
+    assert(audio);
     ToriRS_Music_Free(&audio->music);
 }
 
@@ -62,8 +61,8 @@ RS_Audio_SetFeatures(
     struct RS_Audio* audio,
     struct ToriRS_FeatureTable const* features)
 {
-    if( !audio || !features )
-        return;
+    assert(audio);
+    assert(features);
     audio->effects_monophonic = features->effects_monophonic != 0;
     AUDIO_TRACE(
         "rs_audio: era '%s', effects %s\n",
@@ -337,8 +336,7 @@ publish_sound(
     struct ToriRS_Sound* decoded;
     int16_t* widened;
 
-    if( !scene )
-        return NULL;
+    assert(scene);
     published = ToriDraw_SceneSoundGet(scene, sound_id);
     if( published )
         return published;
@@ -402,8 +400,8 @@ drain_scene_events(
     struct ToriDraw_EventQueue* events;
     struct ToriRS_AudioCommand command;
 
-    if( !scene || !out )
-        return;
+    assert(scene);
+    assert(out);
     events = ToriDraw_SceneEvents(scene);
     if( !events )
         return;
@@ -465,8 +463,7 @@ play_entry(
     int volume = TORIRS_AUDIO_VOLUME_MAX;
     int pan = TORIRS_AUDIO_PAN_CENTRE;
 
-    if( !out )
-        return;
+    assert(out);
 
     ticks = length_in_ticks(sound->sample_count, sound->sample_rate);
     if( audio->effects_monophonic &&
@@ -993,8 +990,7 @@ RS_Audio_SetSoundscapes(
     struct RS_Audio* audio,
     struct RS_Soundscapes const* soundscapes)
 {
-    if( !audio )
-        return;
+    assert(audio);
     audio->soundscapes = soundscapes;
     /* A bed already playing was resolved against the old table -- which, at
      * boot, is the empty one. Re-resolve it rather than leaving the region
@@ -1008,8 +1004,7 @@ RS_Audio_SetAmbient(
     int id,
     int fade_ms)
 {
-    if( !audio )
-        return;
+    assert(audio);
     if( audio->ambient_sound_id == id )
         return;
     audio->ambient_sound_id = id;
@@ -1243,8 +1238,7 @@ RS_Audio_Song(
     int fade_out_ms,
     int fade_in_ms)
 {
-    if( !audio )
-        return;
+    assert(audio);
     ToriRS_Music_Request(
         &audio->music, song_id, TORIRS_MUSIC_SOURCE_TRACK, loop, fade_out_ms, fade_in_ms);
 }
@@ -1257,8 +1251,7 @@ RS_Audio_SongWithSecondary(
     int fade_out_ms,
     int fade_in_ms)
 {
-    if( !audio )
-        return;
+    assert(audio);
     ToriRS_Music_Request(
         &audio->music, primary_id, TORIRS_MUSIC_SOURCE_TRACK, true, fade_out_ms, fade_in_ms);
     /* After the request: an ordinary track request is what clears any variant
@@ -1272,8 +1265,7 @@ RS_Audio_SongSwap(
     int fade_out_ms,
     int fade_in_ms)
 {
-    if( !audio )
-        return;
+    assert(audio);
     ToriRS_Music_Swap(&audio->music, fade_out_ms, fade_in_ms);
 }
 
@@ -1282,8 +1274,7 @@ RS_Audio_SongStop(
     struct RS_Audio* audio,
     int fade_out_ms)
 {
-    if( !audio )
-        return;
+    assert(audio);
     ToriRS_Music_Stop(&audio->music, fade_out_ms);
 }
 
@@ -1293,8 +1284,7 @@ RS_Audio_Jingle(
     int jingle_id,
     int length_ms)
 {
-    if( !audio )
-        return;
+    assert(audio);
     /* `length_ms` is the server's hint at how long the jingle runs. It is not
      * needed to play one -- the sequencer knows when the track ends -- so it is
      * only traced. Trusting it would cut a jingle short on a slow load. */
@@ -1352,8 +1342,7 @@ RS_Audio_SetBusVolume(
     struct ToriRS_AudioCommand command;
     int effective;
 
-    if( !audio )
-        return;
+    assert(audio);
     if( volume < 0 )
         volume = 0;
     if( volume > TORIRS_AUDIO_VOLUME_MAX )
@@ -1396,8 +1385,7 @@ RS_Audio_SetMasterVolume(
     int area;
     int music;
 
-    if( !audio )
-        return;
+    assert(audio);
     if( volume < 0 )
         volume = 0;
     if( volume > TORIRS_AUDIO_VOLUME_MAX )
@@ -1449,8 +1437,7 @@ RS_Audio_StopAll(
 {
     struct ToriRS_AudioCommand command;
 
-    if( !audio )
-        return;
+    assert(audio);
     audio->count = 0;
     audio->ambient_sound_id = -1;
     stop_ambient_streams(audio, NULL);

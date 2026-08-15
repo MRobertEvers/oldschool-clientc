@@ -61,8 +61,10 @@ ringbuf_init(
     void* buffer,
     size_t capacity)
 {
-    if( !rb || !buffer || capacity == 0 )
+    if( capacity == 0 )
         return RINGBUF_BADARG;
+    assert(rb);
+    assert(buffer);
 
     rb->buffer = (unsigned char*)buffer;
     rb->capacity = capacity;
@@ -97,16 +99,14 @@ ringbuf_capacity(const struct RingBuf* rb)
 size_t
 ringbuf_used(const struct RingBuf* rb)
 {
-    if( !rb )
-        return 0;
+    assert(rb);
     return (rb->tail - rb->head + rb->capacity) % rb->capacity;
 }
 
 size_t
 ringbuf_avail(const struct RingBuf* rb)
 {
-    if( !rb )
-        return 0;
+    assert(rb);
     /* One slot reserved to distinguish full from empty */
     return rb->capacity - ringbuf_used(rb) - 1;
 }
@@ -120,8 +120,7 @@ ringbuf_empty(const struct RingBuf* rb)
 bool
 ringbuf_full(const struct RingBuf* rb)
 {
-    if( !rb )
-        return false;
+    assert(rb);
     return (rb->tail + 1) % rb->capacity == rb->head;
 }
 
@@ -135,8 +134,8 @@ ringbuf_write(
     const void* data,
     size_t len)
 {
-    if( !rb || !data )
-        return RINGBUF_BADARG;
+    assert(rb);
+    assert(data);
     if( len == 0 )
         return RINGBUF_OK;
     if( len > ringbuf_avail(rb) )
@@ -164,8 +163,7 @@ ringbuf_putc(
     struct RingBuf* rb,
     unsigned char c)
 {
-    if( !rb )
-        return RINGBUF_BADARG;
+    assert(rb);
     if( ringbuf_full(rb) )
         return RINGBUF_FULL;
     rb->buffer[rb->tail] = c;
@@ -183,8 +181,8 @@ ringbuf_putback(
     const void* data,
     size_t len)
 {
-    if( !rb || !data )
-        return RINGBUF_BADARG;
+    assert(rb);
+    assert(data);
     if( len == 0 )
         return RINGBUF_OK;
     if( len > ringbuf_avail(rb) )
@@ -216,8 +214,10 @@ ringbuf_read(
     void* dst,
     size_t len)
 {
-    if( !rb || !dst || len == 0 )
+    if( len == 0 )
         return 0;
+    assert(rb);
+    assert(dst);
 
     size_t used = ringbuf_used(rb);
     if( len > used )
@@ -245,8 +245,8 @@ ringbuf_getc(
     struct RingBuf* rb,
     unsigned char* out)
 {
-    if( !rb || !out )
-        return RINGBUF_BADARG;
+    assert(rb);
+    assert(out);
     if( ringbuf_empty(rb) )
         return RINGBUF_EMPTY;
     *out = rb->buffer[rb->head];
@@ -274,8 +274,10 @@ ringbuf_peek_at(
     void* dst,
     size_t len)
 {
-    if( !rb || !dst || len == 0 )
+    if( len == 0 )
         return 0;
+    assert(rb);
+    assert(dst);
 
     size_t used = ringbuf_used(rb);
     if( offset >= used )
@@ -307,8 +309,7 @@ ringbuf_skip(
     struct RingBuf* rb,
     size_t len)
 {
-    if( !rb )
-        return 0;
+    assert(rb);
     size_t used = ringbuf_used(rb);
     if( len > used )
         len = used;

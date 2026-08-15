@@ -168,8 +168,7 @@ strlist_contains(
     int count,
     const char* name)
 {
-    if( !name )
-        return false;
+    assert(name);
     for( int i = 0; i < count; i++ )
     {
         if( entries[i] && strcmp(entries[i], name) == 0 )
@@ -185,8 +184,7 @@ strlist_add(
     int* cap,
     const char* name)
 {
-    if( !name )
-        return;
+    assert(name);
     if( strlist_contains(*entries, *count, name) )
         return;
     if( !ensure_strlist_capacity(entries, count, cap) )
@@ -200,8 +198,7 @@ strlist_remove(
     int* count,
     const char* name)
 {
-    if( !name )
-        return;
+    assert(name);
     for( int i = 0; i < *count; i++ )
     {
         if( (*entries)[i] && strcmp((*entries)[i], name) == 0 )
@@ -376,8 +373,7 @@ LootStore_SourceItemCount(
     const char* source_name)
 {
     assert(store);
-    if( !source_name )
-        return 0;
+    assert(source_name);
     const struct LootSource* src = find_source_by_name(store, source_name);
     return src ? src->row_count : 0;
 }
@@ -388,8 +384,7 @@ LootStore_SourceKillCount(
     const char* source_name)
 {
     assert(store);
-    if( !source_name )
-        return 0;
+    assert(source_name);
     const struct LootSource* src = find_source_by_name(store, source_name);
     return src ? src->kill_count : 0;
 }
@@ -433,8 +428,7 @@ LootStore_RowCountByName(
     const char* source_name)
 {
     assert(store);
-    if( !source_name )
-        return 0;
+    assert(source_name);
     const struct LootSource* src = find_source_by_name(store, source_name);
     return src ? src->row_count : 0;
 }
@@ -458,8 +452,7 @@ LootStore_RowByName(
     int* out_qty)
 {
     assert(store);
-    if( !source_name )
-        return false;
+    assert(source_name);
     /* Ops 7611/4298 and 7612/4452 index rows from 1 (see script4452:
      * `$i = 1; while ($i <= _7610) { _7612(id, $i) }`). */
     const struct LootSource* src = find_source_by_name(store, source_name);
@@ -505,8 +498,9 @@ LootStore_AuxUpsert(
     int flag)
 {
     assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX || !str )
+    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
         return;
+    assert(str);
 
     (void)flag;
     struct LootAuxList* aux = &store->aux[kind];
@@ -530,8 +524,9 @@ LootStore_AuxRemove(
     int flag)
 {
     assert(store);
-    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX || !str )
+    if( kind < 0 || kind >= LOOT_AUX_KIND_MAX )
         return;
+    assert(str);
 
     (void)flag;
     struct LootAuxList* aux = &store->aux[kind];
@@ -758,8 +753,7 @@ LootStore_ClearSourceByName(
     const char* name)
 {
     assert(store);
-    if( !name )
-        return;
+    assert(name);
 
     for( int i = 0; i < store->source_count; i++ )
     {

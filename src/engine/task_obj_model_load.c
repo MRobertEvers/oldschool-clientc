@@ -356,8 +356,9 @@ CreateTask_ObjModelLoad(
     struct Task_ObjModelLoad* task;
 
     assert(provider);
-    if( !obj_ids || n <= 0 )
+    if( n <= 0 )
         return NULL;
+    assert(obj_ids);
     if( !obj_model_batch_needs_work(provider, obj_ids, counts, n) )
         return NULL;
 

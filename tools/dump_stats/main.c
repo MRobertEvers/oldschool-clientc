@@ -75,8 +75,7 @@ static void
 csv_str(FILE* f, int* first, const char* s)
 {
     csv_sep(f, first);
-    if( !s )
-        return;
+    assert(s);
 
     int needs_quote = 0;
     for( const char* p = s; *p; p++ )
@@ -120,8 +119,7 @@ static void
 csv_ints(FILE* f, int* first, const int* v, int count)
 {
     csv_sep(f, first);
-    if( !v )
-        return;
+    assert(v);
     for( int i = 0; i < count; i++ )
         fprintf(f, i ? " %d" : "%d", v[i]);
 }
@@ -132,8 +130,8 @@ static void
 csv_head_icons(FILE* f, int* first, const int* archives, const short* sprites, int count)
 {
     csv_sep(f, first);
-    if( !archives || !sprites )
-        return;
+    assert(archives);
+    assert(sprites);
     for( int i = 0; i < count; i++ )
         fprintf(f, i ? " %d:%d" : "%d:%d", archives[i], (int)sprites[i]);
 }
@@ -143,8 +141,8 @@ static void
 csv_pairs(FILE* f, int* first, const int* from, const int* to, int count)
 {
     csv_sep(f, first);
-    if( !from || !to )
-        return;
+    assert(from);
+    assert(to);
     for( int i = 0; i < count; i++ )
         fprintf(f, i ? " %d>%d" : "%d>%d", from[i], to[i]);
 }
@@ -304,8 +302,7 @@ struct RawSink
 static int
 raw_open(struct RawSink* raw, const char* dir, const char* what)
 {
-    if( !dir )
-        return 1;
+    assert(dir);
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/%s.bin", dir, what);
@@ -341,7 +338,8 @@ raw_close(struct RawSink* raw)
 static void
 raw_write(struct RawSink* raw, int id, const char* data, int size)
 {
-    if( !raw || !raw->blob )
+    assert(raw);
+    if( !raw->blob )
         return;
     fwrite(data, 1, (size_t)size, raw->blob);
     fprintf(raw->index, "%d %ld %d\n", id, raw->offset, size);

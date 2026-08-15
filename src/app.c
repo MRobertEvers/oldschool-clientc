@@ -411,8 +411,7 @@ App_IfEventsGetAt(
     int com_id,
     int sub_id)
 {
-    if( !app )
-        return 0;
+    assert(app);
     for( int i = 0; i < app->if_event_count; i++ )
     {
         if( app->if_events[i].com_id == com_id &&
@@ -429,8 +428,7 @@ app_if_events_override_get(
     int sub_id,
     unsigned* out_events)
 {
-    if( !app )
-        return 0;
+    assert(app);
     for( int i = 0; i < app->if_event_count; i++ )
     {
         if( app->if_events[i].com_id == com_id &&
@@ -477,7 +475,8 @@ app_if_button_target(
 
     *out_com = com_id;
     *out_sub = -1;
-    if( !app || !app->tree )
+    assert(app);
+    if( !app->tree )
         return;
 
     idx = UITree_FindByComponentId(app->tree, com_id);
@@ -508,8 +507,7 @@ App_IfEventsGetEffective(
     unsigned events;
     int32_t idx;
 
-    if( !app )
-        return 0;
+    assert(app);
 
     /* rev239 class545.method12093 first consults the server's per-widget /
      * per-child override table and falls back to the widget's decoded flags
@@ -1979,7 +1977,8 @@ app_overlay_build_chat(
     int height = app_entity_model_height(app, element_id);
     int screen_x, screen_y;
 
-    if( !chat || chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
+    assert(chat);
+    if( chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
         return;
     if( !app_world_project(
             app, (int)draw_position->x, (int)draw_position->z, height, &screen_x, &screen_y) )
@@ -3210,7 +3209,8 @@ app_loc_transform_depends_on_varp(
     struct ToriRS_Location const* loc,
     int varp_id)
 {
-    if( !loc || loc->transform_count <= 0 || !loc->transforms )
+    assert(loc);
+    if( loc->transform_count <= 0 || !loc->transforms )
         return 0;
     if( loc->transform_varp == varp_id )
         return 1;
@@ -3507,7 +3507,8 @@ App_SendCommand(
     char const* text)
 {
     assert(app);
-    if( !text || !*text )
+    assert(text);
+    if( !*text )
         return false;
     /* Reports whether it went out. The caller cannot know when login finishes
      * — the world renders before the connection reaches GAME — so a harness
@@ -7826,8 +7827,10 @@ app_play_frame_sounds(
     int chosen;
     struct ToriDraw_AnimFrameSound const* sound;
 
-    if( !anim || !app || anim->frame_sounds.count <= 0 )
+    assert(anim);
+    if( anim->frame_sounds.count <= 0 )
         return;
+    assert(app);
 
     right = anim->frame_sounds.count - 1;
     while( left <= right )
@@ -9329,8 +9332,7 @@ app_try_move_npc(struct App* app, struct WorldEntity_NPC const* npc, int ctrl_he
     struct CollisionApproach approach = { 0 };
     int size;
 
-    if( !npc )
-        return 0;
+    assert(npc);
     size = app->features->npc_approach_uses_size && npc->size > 0 ? npc->size : 1;
     if( app->features->approach_model == TORIRS_APPROACH_RECT )
         collision_approach_from_shape(-2, 0, size, size, 0, 1, &approach);
@@ -9353,8 +9355,7 @@ app_try_move_player(struct App* app, struct WorldEntity_Player const* player, in
 {
     struct CollisionApproach approach = { 0 };
 
-    if( !player )
-        return 0;
+    assert(player);
     if( app->features->approach_model == TORIRS_APPROACH_RECT )
         collision_approach_from_shape(-2, 0, 1, 1, 0, 1, &approach);
     else
@@ -10088,7 +10089,8 @@ app_world_scene_element_create(
 static int
 app_anim_playable(struct ToriDraw_Animation const* anim)
 {
-    if( !anim || anim->frame_count <= 0 )
+    assert(anim);
+    if( anim->frame_count <= 0 )
         return 0;
     return (anim->frames && anim->base) || anim->skeletal != NULL;
 }
@@ -10126,8 +10128,9 @@ app_world_catch_up_object_seq(
 {
     struct ToriDraw_SceneElement* element;
 
-    if( !anim || elapsed_cycles <= 0 )
+    if( elapsed_cycles <= 0 )
         return;
+    assert(anim);
     element = ToriDraw_SceneElementGet(app->scene, element_id);
     if( !element )
         return;
@@ -10420,8 +10423,7 @@ app_model_apply_import_render_flags(struct ToriDraw_Model* model, bool imported)
 {
     uint8_t const both =
         (uint8_t)(TORIDRAW_MODEL_FLAG_ZBUFFER | TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY);
-    if( !model )
-        return;
+    assert(model);
     model->flags &= (uint8_t)~both;
     if( !imported )
         return;
@@ -13653,8 +13655,9 @@ app_measure_text_cb(
 {
     struct App* app = (struct App*)user;
     struct ToriDraw_Font* font = ToriDraw_SceneFontGet(app->scene, font_id);
-    if( !font || !text )
+    if( !font )
         return 0;
+    assert(text);
     return ToriDraw2D_MeasureString(font, text);
 }
 
@@ -13980,7 +13983,8 @@ app_targetsel_dispatch_hook(
     int32_t idx;
     struct UITreeRuntimeScriptHook hook;
 
-    if( !app || !app->tree || app->targetsel.component_id < 0 )
+    assert(app);
+    if( !app->tree || app->targetsel.component_id < 0 )
         return;
     idx = UITree_FindByComponentId(app->tree, app->targetsel.component_id);
     if( idx < 0 )
@@ -13995,7 +13999,8 @@ static void
 app_targetsel_clear(
     struct App* app)
 {
-    if( !app || !app->targetsel.active )
+    assert(app);
+    if( !app->targetsel.active )
         return;
     app_targetsel_dispatch_hook(app, 0);
     app->targetsel.active = 0;
@@ -14017,8 +14022,7 @@ app_selection_clear(
 {
     int was_armed;
 
-    if( !app )
-        return 0;
+    assert(app);
     was_armed = app->objsel.active || app->targetsel.active;
     if( !was_armed )
         return 0;

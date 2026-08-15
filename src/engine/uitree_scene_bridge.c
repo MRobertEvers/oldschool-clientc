@@ -48,7 +48,8 @@ bridge_publish_model_textures(
 {
     struct ToriDraw_TextureState* tex_state;
 
-    if( !rs_model || !rs_model->face_textures )
+    assert(rs_model);
+    if( !rs_model->face_textures )
         return;
     tex_state = ToriDraw_SceneTexState(bridge->scene);
     if( !tex_state )
@@ -194,8 +195,9 @@ bridge_map_get(
     int cache_id)
 {
     struct MapEntry_BridgeId* entry;
-    if( !map || cache_id < 0 )
+    if( cache_id < 0 )
         return -1;
+    assert(map);
     entry = (struct MapEntry_BridgeId*)hmap_search(map, &cache_id, HMAP_FIND);
     if( !entry )
         return -1;
@@ -225,7 +227,8 @@ UITreeSceneBridge_SpriteCacheIdForScene(
     struct MapEntry_BridgeId* entry;
     int cache_id = -1;
 
-    if( !bridge || !bridge->sprite_map || scene_id < 0 )
+    assert(bridge);
+    if( !bridge->sprite_map || scene_id < 0 )
         return -1;
 
     iter = hmap_iter_new(bridge->sprite_map);
@@ -789,8 +792,9 @@ bridge_resolve_count_variant(
     int i;
     int countobj_id = -1;
 
-    if( !provider || obj_id <= 0 )
+    if( obj_id <= 0 )
         return NULL;
+    assert(provider);
     obj = CacheProvider_ObjtypeGet(provider, obj_id);
     if( !obj )
         return NULL;
@@ -843,7 +847,8 @@ bridge_rasterize_obj_icon(
     int render_zoom;
     int i;
 
-    if( !obj || obj->inventory_model_id <= 0 )
+    assert(obj);
+    if( obj->inventory_model_id <= 0 )
         return NULL;
     if( !CacheProvider_ModelHas(bridge->provider, obj->inventory_model_id) )
         return NULL;
@@ -942,7 +947,9 @@ bridge_composite_over(
 {
     int pixel_count;
 
-    if( !dst || !src || !dst->pixels_argb || !src->pixels_argb )
+    assert(dst);
+    assert(src);
+    if( !dst->pixels_argb || !src->pixels_argb )
         return;
     if( dst->width != src->width || dst->height != src->height )
         return;
@@ -1247,7 +1254,8 @@ bridge_texture_from_torirs(const struct ToriRS_Texture* rs)
     struct ToriDraw_Texture* texture;
     size_t texel_bytes;
 
-    if( !rs || !rs->texels || rs->width <= 0 || rs->height <= 0 )
+    assert(rs);
+    if( !rs->texels || rs->width <= 0 || rs->height <= 0 )
         return NULL;
 
     texture = calloc(1, sizeof(*texture));

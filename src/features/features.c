@@ -1,4 +1,5 @@
 #include "features/features.h"
+#include <assert.h>
 
 #include "engine/torirs_types.h" /* TORIRS_TARGET_MASK_HELD_* */
 #include "rscache_profile.h"     /* enum RSCache_Epoch */
@@ -155,7 +156,8 @@ ToriRS_Features_ServerRouted(void)
 struct ToriRS_FeatureTable const*
 ToriRS_Features_ByName(char const* name)
 {
-    if( !name || !name[0] )
+    assert(name);
+    if( !name[0] )
         return NULL;
     if( strcmp(name, "lostcity") == 0 )
         return ToriRS_Features_LostCity();
@@ -181,7 +183,8 @@ static struct
 int
 ToriRS_Features_NearestModelByName(char const* name)
 {
-    if( !name || !name[0] )
+    assert(name);
+    if( !name[0] )
         return -1;
     for( size_t i = 0; i < sizeof(k_nearest_models) / sizeof(k_nearest_models[0]); i++ )
     {

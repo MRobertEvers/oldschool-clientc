@@ -471,8 +471,7 @@ ToriDraw_SceneGraphInit(struct ToriDraw_Scene* scene)
 void
 ToriDraw_SceneGraphShutdown(struct ToriDraw_Scene* scene)
 {
-    if( !scene )
-        return;
+    assert(scene);
 
     td_scene_free_all_elements(scene);
 

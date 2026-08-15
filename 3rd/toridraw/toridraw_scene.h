@@ -2,6 +2,7 @@
 #define TORIDRAW_SCENE_H
 
 #include "toridraw_types.h"
+#include <assert.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -332,8 +333,9 @@ ToriDraw_SceneElementOcclusionHeight(
     struct ToriDraw_Model* model;
     int h;
 
-    if( !scene || element_id < 0 )
+    if( element_id < 0 )
         return 0;
+    assert(scene);
     if( !ToriDraw_SceneElementIsLive(scene, element_id) )
         return 0;
     el = ToriDraw_SceneElementGet(scene, element_id);

@@ -5,8 +5,7 @@
 void
 World_PickSetReset(struct World_PickSet* pickset)
 {
-    if( !pickset )
-        return;
+    assert(pickset);
     pickset->count = 0;
 }
 

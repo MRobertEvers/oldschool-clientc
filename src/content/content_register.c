@@ -3,6 +3,7 @@
  */
 
 #include "content_register.h"
+#include <assert.h>
 
 #include "3rd/ini/ini.h"
 
@@ -304,8 +305,7 @@ ContentRegister_Find(
     const struct ContentRegister* reg,
     const char* name)
 {
-    if( !name )
-        return NULL;
+    assert(name);
     for( int i = 0; i < reg->count; i++ )
     {
         if( strcmp(reg->entries[i].name, name) == 0 )
@@ -323,8 +323,7 @@ ContentRegister_ForPackFile(
     const char* dot;
     size_t length;
 
-    if( !filename )
-        return NULL;
+    assert(filename);
     dot = strrchr(filename, '.');
     if( !dot )
         return NULL;

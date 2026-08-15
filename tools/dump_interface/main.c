@@ -12,6 +12,7 @@
  */
 
 #include "../dump_interface_common.h"
+#include <assert.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,8 +23,7 @@ json_escape(
     FILE* fp,
     char const* s)
 {
-    if( !s )
-        return;
+    assert(s);
     for( char const* p = s; *p; p++ )
     {
         if( *p == '"' || *p == '\\' )

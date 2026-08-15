@@ -622,8 +622,9 @@ VarPManager_ResolveTransform(
 {
     assert(mgr);
 
-    if( !transforms || transform_count <= 0 )
+    if( transform_count <= 0 )
         return -1;
+    assert(transforms);
 
     int transform_index = -1;
 

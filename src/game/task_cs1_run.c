@@ -211,7 +211,8 @@ CreateTask_CS1Eval(struct RS_CS1Host* host)
 {
     struct Task_CS1Eval* self;
 
-    if( !host || !host->tree || !host->provider )
+    assert(host);
+    if( !host->tree || !host->provider )
         return NULL;
     if( host->tree->component_count == 0 )
         return NULL;
