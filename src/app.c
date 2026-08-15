@@ -13942,7 +13942,7 @@ app_minimenu_inv_action(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 obj_id, slot, com_id, app->objsel.obj_id, app->objsel.slot,
                 app->objsel.component_id));
-        app->objsel.active = 0;
+        app_selection_clear(app);
         app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
@@ -13956,7 +13956,7 @@ app_minimenu_inv_action(
             net_out_opheldt(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 obj_id, slot, com_id, app->targetsel.component_id));
-        app_targetsel_clear(app);
+        app_selection_clear(app);
         app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
@@ -14888,8 +14888,8 @@ app_minimenu_run_option(
         default:
             break;
         }
-        app->objsel.active = 0;
-        app_targetsel_clear(app);
+        /* The selection was just consumed by the target it was aimed at. */
+        app_selection_clear(app);
         return 0;
     }
 
@@ -15063,7 +15063,7 @@ app_minimenu_run_option(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     npc->server_slot, app->objsel.obj_id, app->objsel.slot,
                     app->objsel.component_id));
-            app->objsel.active = 0;
+            app_selection_clear(app);
         }
         else
         {
@@ -15092,7 +15092,7 @@ app_minimenu_run_option(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     player->server_pid, app->objsel.obj_id, app->objsel.slot,
                     app->objsel.component_id));
-            app->objsel.active = 0;
+            app_selection_clear(app);
         }
         else
         {
@@ -15123,7 +15123,7 @@ app_minimenu_run_option(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     abs_x, abs_z, loc_id, app->objsel.obj_id, app->objsel.slot,
                     app->objsel.component_id));
-            app->objsel.active = 0;
+            app_selection_clear(app);
         }
         else
         {
@@ -15154,7 +15154,7 @@ app_minimenu_run_option(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                     abs_x, abs_z, obj_id, app->objsel.obj_id, app->objsel.slot,
                     app->objsel.component_id));
-            app->objsel.active = 0;
+            app_selection_clear(app);
         }
         else
         {

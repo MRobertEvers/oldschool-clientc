@@ -100,12 +100,16 @@ def main() -> int:
                 "TORIRS_SIM_CLICK_AT": click_spec,
             }
         )
+        # Repo-relative argv, run from REPO: the boot path resolves data files
+        # against the working directory, and an absolute cache/manifest pair
+        # boots to the login screen and never logs in.
+        rel = lambda p: os.path.join(".", os.path.relpath(p.resolve(), REPO))
         result = subprocess.run(
             [
-                str(args.client.resolve()),
-                str(args.cache.resolve()),
+                rel(args.client),
+                rel(args.cache),
                 "--manifest",
-                str(args.manifest.resolve()),
+                rel(args.manifest),
                 "--soft3d",
             ],
             cwd=REPO,

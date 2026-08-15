@@ -7,10 +7,13 @@ Two things the cache does not state are supplied here and sourced in the
 comments they are written into:
 
   drain   the 2011 wiki gives seconds-per-prayer-point; this engine's
-          [timer,prayer_drain] wants a per-tick accumulator value. The
-          conversion is drain = 36 / seconds-per-point, calibrated exactly
-          against Thick Skin (drain 1, and the client tooltip says 36s).
-          See ANCIENT_CURSES.md §6.1.
+          [timer,prayer_drain] wants a per-tick accumulator value. Two
+          conversions, not one: drain = 36 / seconds-per-point (calibrated
+          exactly against Thick Skin, drain 1, client tooltip "1pt per 36s"),
+          and the wiki's seconds are per point of a TEN-TIMES pool — 990
+          points at 99 Prayer, where this engine has 99. Same wall-clock
+          duration therefore means ten times the seconds per point here:
+          drain = 3.6 / wiki-seconds-per-point. See ANCIENT_CURSES.md §6.1.
 
   group   mutual-exclusion sets, from Void_RS2011Server's prayers.toml.
 
@@ -29,10 +32,17 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / "docs/rs558_ancient_curses/tables/curses_book.csv"
 LANE = ROOT / "OSRS-Content/osrs239-content/server/scripts/ported_rs558_ancient_curses"
 
-# drain = 36 / seconds-per-point (ANCIENT_CURSES.md §6.1)
-DRAIN_EXACT = {"Protect Item": 20, "Berserker": 20, "Wrath": 30,
-               "Soul Split": 180, "Turmoil": 180}
-DRAIN_FAMILY = (("Sap", 150), ("Deflect", 120), ("Leech", 100))
+# drain = 3.6 / wiki-seconds-per-point (ANCIENT_CURSES.md §6.1)
+#
+# These were ten times larger at launch, from reading the wiki's seconds-per-
+# point as if its pool were this engine's. It is not: 99 Prayer is 990 points
+# there and 99 here, so a curse that lasts 3m18s in 2011 emptied a bar in 20
+# seconds here. Deflect Melee is the check that settles it — an overhead
+# protect prayer drains the same in every era, and the standard book in this
+# tree gives Protect from Melee drain 12, which is what Deflect Melee is now.
+DRAIN_EXACT = {"Protect Item": 2, "Berserker": 2, "Wrath": 3,
+               "Soul Split": 18, "Turmoil": 18}
+DRAIN_FAMILY = (("Sap", 15), ("Deflect", 12), ("Leech", 10))
 
 # Mutual-exclusion groups, from Void_RS2011Server/data/skill/prayer/prayers.toml.
 GROUPS = {
@@ -158,8 +168,9 @@ def main() -> int:
         "column=bit,int,INDEXED,REQUIRED\n")
 
     body = [GENERATED,
-            "// Levels and names are the cache's; drain is 36/seconds-per-point from the",
-            "// 2011 wiki; groups are Void_RS2011Server's.", ""]
+            "// Levels and names are the cache's; drain is 3.6/seconds-per-point from",
+            "// the 2011 wiki (whose seconds are per point of a ten-times pool, so the",
+            "// divisor is 3.6 and not 36); groups are Void_RS2011Server's.", ""]
     for r in rows:
         name = r["name"]
         s = slug(name)
