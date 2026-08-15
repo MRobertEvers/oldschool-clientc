@@ -306,11 +306,11 @@ def static_contract(expect: object) -> None:
         "Dreadfowl debug hook bypasses the real pouch interaction",
     )
     check(
-        "~summoning_familiar_body_model(%summoning_familiar_type)" in script
-        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in script
-        and "if_setanim(summoning_familiar:model, $ready_seq);" in script
+        "~summoning_familiar_npc(%summoning_familiar_type)" in script
+        and "if_setnpchead(" in script
+        and "if_setanim(summoning_familiar:model," not in script
         and 'if_settext(summoning_familiar:title, $name);' in script,
-        "sidebar does not bind the selected familiar body, ready sequence, and title",
+        "sidebar does not bind the selected familiar head icon and title",
     )
     check(
         "npc_add(movecoord(coord, 1, 0, 0), $npc, 0);" in script

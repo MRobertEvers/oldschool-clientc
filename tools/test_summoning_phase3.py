@@ -231,12 +231,12 @@ def main() -> int:
         "Dreadfowl interact/dismiss handlers are absent",
     )
     expect(
-        "~summoning_familiar_body_model(%summoning_familiar_type)" in source
-        and "~summoning_familiar_ready_seq(%summoning_familiar_type)" in source
-        and "if_setanim(summoning_familiar:model, $ready_seq);" in source
+        "~summoning_familiar_npc(%summoning_familiar_type)" in source
+        and "if_setnpchead(" in source
+        and "if_setanim(summoning_familiar:model," not in source
         and "if_settext(summoning_familiar:title, $name);" in source
         and "npc_20000" not in familiar_cs2,
-        "sidebar body model, animation, or name is not selected by persisted familiar type",
+        "sidebar head icon or name is not selected by persisted familiar type",
     )
     expect(
         source.count("if_opensub(wornitems:universe, summoning_familiar, 1);") == 1

@@ -279,7 +279,14 @@ read_v5(
      */
     {
         int icon = g1s(rsbuf);
-        op_value(w, PKT_APPEARANCE_OP_HEAD_ICON, icon < 0 ? 0 : (1 << icon));
+        /* The wire field is a byte, the op is a 32-bit mask, and a shift past
+         * the width of an int is undefined rather than merely wrong — so an
+         * index the mask cannot hold draws nothing instead of corrupting the
+         * whole set. 0..30 covers every icon any cache in this tree ships
+         * (`headicons_prayer` is 24 frames at rev 239, 30 with the Ancient
+         * Curses lane's six appended). */
+        op_value(w, PKT_APPEARANCE_OP_HEAD_ICON,
+                 (icon < 0 || icon > 30) ? 0 : (1 << icon));
     }
 
     /* `equipment` — what is actually drawn. */

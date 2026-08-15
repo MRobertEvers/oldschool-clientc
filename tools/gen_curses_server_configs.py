@@ -45,10 +45,17 @@ GROUPS = {
     "Turmoil": [10, 11, 13, 14, 15, 16],
 }
 
-# Overhead icons. The Deflect four reuse the standard book's protect-prayer
-# icons; Wrath and Soul Split have their own. -1 means the curse draws none.
-HEADICON = {"Deflect Melee": 0, "Deflect Missiles": 1, "Deflect Magic": 2,
-            "Deflect Summoning": 7, "Wrath": 3, "Soul Split": 5}
+# Overhead icons — frames of the `headicons_prayer` sprite group, which the lane
+# ships whole (tools/gen_curses_headicons.py) with rev558's own six curse icons
+# appended after the base cache's 24. -1 means the curse draws none.
+#
+# These were 0/1/2/7/3/5 at launch, which is to say the standard book's Protect
+# from Melee/Missiles/Magic, a melee+missiles COMBINED icon, Retribution and
+# Redemption. Every one was the wrong picture — a Soul Split player wore
+# Redemption's heart — and the wrongness was invisible from the content side,
+# because -1 and 0..7 are all valid numbers in a column of numbers.
+HEADICON = {"Deflect Melee": 24, "Deflect Missiles": 25, "Deflect Magic": 26,
+            "Deflect Summoning": 27, "Wrath": 28, "Soul Split": 29}
 
 GROUP_NAMES = [
     ("^curse_group_deathfx", 8), ("^curse_group_summoning", 9),
@@ -89,6 +96,37 @@ def main() -> int:
     out += ["", f"^curse_count = {len(rows)}", "",
             "// Mutual-exclusion group ids, carried as a LIST on each row."]
     out += [f"{n} = {v}" for n, v in GROUP_NAMES]
+    # Everything below was hand-added to the generated file after this tool last
+    # ran, in spite of its "do not hand-edit" header — which is a fair sign the
+    # header is not enough on its own. Folded in here so the next regeneration
+    # keeps them: dropping ^curse_stat_* alone would fail the whole tree's
+    # compile, and ^curse_berserker_percent is live in
+    # player/scripts/stat_restore.rs2.
+    out += ["",
+            "// Stat selectors for the leech/drain meters. A varp cannot be addressed by",
+            "// index, so these pick a branch rather than an array slot.",
+            "^curse_stat_attack = 0",
+            "^curse_stat_strength = 1",
+            "^curse_stat_defence = 2",
+            "^curse_stat_ranged = 3",
+            "^curse_stat_magic = 4",
+            "",
+            "// 2011 wiki ceilings: a leech boost tops out at 10%, a sap/leech drain at 25%.",
+            "^curse_leech_cap = 10",
+            "^curse_drain_cap = 25",
+            "",
+            "// Berserker: \"Boosted combat stats last 15% longer\" (2011 wiki). Read by",
+            "// player/scripts/stat_restore.rs2, which lengthens its restore interval by this",
+            "// percentage while the curse is on.",
+            "^curse_berserker_percent = 15"]
+    out += ["",
+            "// Overhead icons — frames of the `headicons_prayer` sprite group. The",
+            "// base cache ends at 23; 24 and up are rev558's own, appended by",
+            "// tools/gen_curses_headicons.py and present only in the curses cache.",
+            "// Named here for the same reason skill_prayer names its six: a raw",
+            "// number in the headicon column is indistinguishable from a wrong one."]
+    out += [f"^headicon_curse_{slug(name)} = {icon}"
+            for name, icon in sorted(HEADICON.items(), key=lambda kv: kv[1])]
     (LANE / "configs/curses.constant").write_text("\n".join(out) + "\n")
 
     (LANE / "configs/curses.dbtable").write_text(
@@ -120,7 +158,7 @@ def main() -> int:
                  f"data=curse,^curse_{s}", f"data=bit,{r['bit']}",
                  f"data=name,{name}", f"data=level,{r['level']}",
                  f"data=drain,{drain_for(name)}",
-                 f"data=headicon,{HEADICON.get(name, -1)}"]
+                 f"data=headicon,{('^headicon_curse_' + s) if name in HEADICON else -1}"]
         body += [f"data=group,{g}" for g in GROUPS[name]]
         body.append("")
     (LANE / "configs/curses.dbrow").write_text("\n".join(body) + "\n")

@@ -38,6 +38,21 @@ LANE_CONFIGS = ("curses.obj", "curses.enum", "curses.varp", "curses.varbit")
 # base copies rather than sit beside them.
 LANE_COMPACKS = ("all.varp.compack", "all.varbit.compack")
 
+# Asset groups the lane REPLACES rather than adds to, staged under the base
+# tree's own name instead of under `ported/rs558_ancient_curses/`.
+#
+# There is exactly one, and it has to work this way. Six curses draw an overhead
+# icon, the client finds that art by resolving the name `headicons_prayer`
+# (static_sprites.c), and a name is a whole group — there is no way to add a
+# frame to a group from beside it. So the lane ships the group entire: the base
+# cache's 24 frames plus its own six appended, written by
+# tools/gen_curses_headicons.py. Staged here rather than through ASSET_ROOTS
+# because the destination is `sprites/headicons_prayer`, NOT
+# `sprites/ported/rs558_ancient_curses/...` — the packed gameval name has to stay
+# byte-identical or the client's lookup fails and every overhead in the game,
+# player and npc, stops drawing.
+LANE_SPRITE_OVERRIDES = ("headicons_prayer",)
+
 
 def fail(message: str) -> SystemExit:
     return SystemExit(f"stage_curses_overlay: {message}")
@@ -143,6 +158,18 @@ def main() -> int:
     if assets == 0:
         raise fail("no assets staged; the lane cannot be asset-free")
     copied += assets
+
+    for name in LANE_SPRITE_OVERRIDES:
+        source = lane / "sprites_override" / name
+        if not source.is_dir():
+            raise fail(
+                f"missing sprite override: {source}\n"
+                "  regenerate with tools/gen_curses_headicons.py")
+        staged = copy_tree(source, out / "sprites" / name)
+        if staged == 0:
+            raise fail(f"empty sprite override: {source}")
+        assets += staged
+        copied += staged
 
     print(f"staged {copied} file(s) into {out}")
     print(f"  configs {len(LANE_CONFIGS) + 2}  packs {staged_packs}  "

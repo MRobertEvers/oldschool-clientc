@@ -28,6 +28,15 @@ separate and wider question, and since 2026-08-14 it is derived separately:
 `isCombatFamiliar()` plus a style plus an admitted attack animation, with the
 burden-beast and peaceful exclusions applying to auto-assist alone.
 
+One fact does not come from the 2009scape checkout at all.  How fast a familiar
+swings is not in `npc_configs.json` for 65 of the 78, and nocturne does not
+state it either — both read it from the cache.  It comes from a checked-in
+dump of that cache param instead:
+
+  docs/summoning_port/familiar_attack_speed_preeoc.csv
+      npc param 14 (attack speed, ticks) for all 78 familiar records, read out
+      of cache.rs727_preeoc — see PREEOC_SPEEDS for how to regenerate it.
+
 Outputs, all regenerated together so they cannot drift:
 
   docs/summoning_port/familiar_normal_combat_530.csv
@@ -130,12 +139,18 @@ DEFAULT_ATTACK_SPEED = 5
 PREEOC_SPEEDS = os.path.join(DOCS, "familiar_attack_speed_preeoc.csv")
 
 # The six familiar records with no param 14 are the five foragers (Beaver,
-# Macaw, Magpie, Ibis, Fruit bat) and the Vampyre bat.  Only the bat is armed,
-# so only the bat's rate is a live question, and 8 is what every other familiar
-# in the same cache answers.  Stated as its own constant rather than folded into
-# DEFAULT_ATTACK_SPEED so the two defaults cannot be confused: five is
-# 2009scape's engine fallback, eight is the roster's own measured rate.
-PREEOC_FALLBACK_SPEED = 8
+# Macaw, Magpie, Ibis, Fruit bat) and the Vampyre bat.  A rate is not inferred
+# for them: no stated attack speed means the record does not describe something
+# that attacks, so those familiars are neither armed nor auto-assisting, and the
+# panel's Attack badge is hidden for them (2026-08-14 design call — see `armed`
+# in build() and `~summoning_sidebar_arm_attack_target`).
+#
+# The alternative was to give the six the 8 every other familiar states.  It is
+# rejected because it invents combat for a familiar the data declines to give
+# any, and because the five foragers were already unarmed by two other tests —
+# only the Vampyre bat actually changes hands, and a Vampyre bat that cannot
+# fight is a claim the cache makes, not one this generator makes up.
+NO_ATTACK_SPEED = None
 
 # npc_configs.json writes `bonuses` as a 15-value comma-separated vector, and
 # the source handlers index it as the tree's Steel Titan block already
@@ -453,8 +468,15 @@ def build(source):
         defend_seq = resolve_seq(row, ("defend_seq",), seq_admitted, seq_review)
         death_seq = resolve_seq(row, ("death_seq",), seq_admitted, seq_review)
 
+        # How fast this familiar swings, or None when nothing states it.  It is
+        # resolved before both questions below because it now gates both: a
+        # record with no attack speed does not describe something that attacks,
+        # so such a familiar neither joins a fight nor accepts one it is sent
+        # at, and the panel hides its Attack badge (2026-08-14 design call).
+        speed = preeoc.get(src, NO_ATTACK_SPEED)
+
         # A familiar auto-assists only when the source's own conjunction holds.
-        assists = is_combat and not peaceful and not burden
+        assists = is_combat and not peaceful and not burden and speed is not None
 
         # Being ARMED is a different question, and since 2026-08-14 it is asked
         # independently: not "does this familiar join a fight it was not told
@@ -502,7 +524,15 @@ def build(source):
             "attack_seq": attack_seq,
             "defend_seq": defend_seq,
             "death_seq": death_seq,
-            "attack_speed": num(cfg, "attack_speed", DEFAULT_ATTACK_SPEED),
+            # The cache's own rate for this familiar wins over 2009scape's
+            # config, which states one for only 13 familiars and repeats the
+            # engine default for 11 of those.  `attack_speed_source` keeps which
+            # of the three answered, so a row that had to be inferred is visible
+            # in the audit rather than indistinguishable from a measured one.
+            "attack_speed": preeoc.get(src, PREEOC_FALLBACK_SPEED),
+            "attack_speed_source": "preeoc_param14" if src in preeoc
+                                   else "preeoc_roster_uniform",
+            "attack_speed_530": num(cfg, "attack_speed", DEFAULT_ATTACK_SPEED),
             "attack_level": num(cfg, "attack_level", 0),
             "strength_level": num(cfg, "strength_level", 0),
             "defence_level": num(cfg, "defence_level", 0),
@@ -518,7 +548,8 @@ CSV_FIELDS = [
     "type", "entry", "npc", "source_npc", "pouch", "combat_familiar", "peaceful",
     "burden_beast", "auto_assist", "armed", "style", "style_source", "reach",
     "attack_seq", "defend_seq", "death_seq", "attack_sound", "defend_sound",
-    "death_sound", "attack_speed", "attack_level", "strength_level",
+    "death_sound", "attack_speed", "attack_speed_source", "attack_speed_530",
+    "attack_level", "strength_level",
     "defence_level", "magic_level", "range_level", "lifepoints", "bonuses",
 ]
 
@@ -783,7 +814,7 @@ def write_table(rows):
     body += switch(
         "summoning_familiar_attack_speed", "int",
         lambda r: str(r["attack_speed"]) if r["armed"] else None,
-        str(DEFAULT_ATTACK_SPEED))
+        str(PREEOC_FALLBACK_SPEED))
     body += switch(
         "summoning_familiar_attack_reach", "int",
         lambda r: str(r["reach"]) if r["armed"] else None, "1")
