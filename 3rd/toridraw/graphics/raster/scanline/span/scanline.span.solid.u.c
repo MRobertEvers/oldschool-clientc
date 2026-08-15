@@ -2,7 +2,7 @@
 #define TORIDRAW_RASTER_SCANLINE_SPAN_SOLID_U_C
 
 /**
- * Solid-colour span kernels for the `scanline` family (flat + gouraud).
+ * Solid-colour span kernels for the `scanline` family (flat + gouraudhsllightness).
  *
  * Every kernel takes an already-clipped pixel run: a base offset and a count.
  * All bounds work happened once per segment in the walker, so these loops are
@@ -66,7 +66,7 @@ scanline_span_flat_alpha(
     }
 }
 
-/* --------------------------------------------------------------- gouraud */
+/* --------------------------------------------------- gouraudhsllightness */
 
 /**
  * One palette lookup per four pixels, matching the `s4` kernels: the HSL16
@@ -78,7 +78,7 @@ scanline_span_flat_alpha(
  * flat fill instead of walking an accumulator.
  */
 static inline void
-scanline_span_gouraud_opaque(
+scanline_span_gouraudhsllightness_opaque(
     toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int count,
@@ -123,7 +123,7 @@ scanline_span_gouraud_opaque(
 }
 
 static inline void
-scanline_span_gouraud_alpha(
+scanline_span_gouraudhsllightness_alpha(
     toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int count,

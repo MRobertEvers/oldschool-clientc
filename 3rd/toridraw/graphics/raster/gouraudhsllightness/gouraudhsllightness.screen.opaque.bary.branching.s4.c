@@ -1,9 +1,9 @@
-#ifndef GOURAUD_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
-#define GOURAUD_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
+#ifndef GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
+#define GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_BRANCHING_S4_C
 
 #include "graphics/tori_compat.h"
 #include "graphics/dash_restrict.h"
-#include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/raster/flat/flat_screen_edges.h"
 
 #include "graphics/shared_tables.h"
@@ -15,7 +15,7 @@
  * For E-Cores, this is faster. E.g. Running in lower power mode.
  */
 static inline void
-draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
@@ -83,7 +83,7 @@ draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
  * and x_end < screen_width hold by construction here.
  */
 static inline void
-draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
     toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int x_start_ish16,
@@ -136,7 +136,7 @@ draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
 }
 
 static inline void
-raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -170,9 +170,9 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
      * This is derived from a barycentric coordinate.
      */
     int step_x_hsl_ish8 =
-        gouraud_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
     int step_y_hsl_ish8 =
-        gouraud_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
 
     int step_edge_x_AC_ish16;
     int step_edge_x_AB_ish16;
@@ -293,7 +293,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
         {
             if( noclip_s1 )
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
                     pixel_buffer,
                     offset,
                     edge_x_AB_ish16,
@@ -303,7 +303,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
             }
             else
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                     pixel_buffer,
                     offset,
                     screen_width,
@@ -326,7 +326,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
         {
             if( noclip_s2 )
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
                     pixel_buffer,
                     offset,
                     edge_x_BC_ish16,
@@ -336,7 +336,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
             }
             else
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                     pixel_buffer,
                     offset,
                     screen_width,
@@ -384,7 +384,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
         {
             if( noclip_s1 )
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
                     pixel_buffer,
                     offset,
                     edge_x_AC_ish16,
@@ -394,7 +394,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
             }
             else
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                     pixel_buffer,
                     offset,
                     screen_width,
@@ -416,7 +416,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
         {
             if( noclip_s2 )
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
                     pixel_buffer,
                     offset,
                     edge_x_AC_ish16,
@@ -426,7 +426,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
             }
             else
             {
-                draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered(
+                draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                     pixel_buffer,
                     offset,
                     screen_width,
@@ -446,7 +446,7 @@ raster_gouraud_screen_opaque_bary_branching_s4_ordered(
     }
 }
 static inline void
-raster_gouraud_screen_opaque_bary_branching_s4(
+raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -479,7 +479,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
             if( y2 < 0 || y0 > screen_height )
                 return;
 
-            raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -500,7 +500,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
             if( y1 < 0 || y0 > screen_height )
                 return;
 
-            raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -527,7 +527,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
             if( y0 < 0 || y1 > screen_height )
                 return;
 
-            raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -548,7 +548,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
             if( y2 < 0 || y1 > screen_height )
                 return;
 
-            raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -575,7 +575,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
             if( y1 < 0 || y2 > screen_height )
                 return;
 
-            raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -596,7 +596,7 @@ raster_gouraud_screen_opaque_bary_branching_s4(
             if( y0 < 0 || y2 > screen_height )
                 return;
 
-            raster_gouraud_screen_opaque_bary_branching_s4_ordered(
+            raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
                 pixel_buffer,
                 stride,
                 screen_width,

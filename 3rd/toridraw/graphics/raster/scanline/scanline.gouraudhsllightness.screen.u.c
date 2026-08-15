@@ -1,5 +1,5 @@
-#ifndef TORIDRAW_RASTER_SCANLINE_GOURAUD_SCREEN_U_C
-#define TORIDRAW_RASTER_SCANLINE_GOURAUD_SCREEN_U_C
+#ifndef TORIDRAW_RASTER_SCANLINE_GOURAUDHSLLIGHTNESSHSLLIGHTNESS_SCREEN_U_C
+#define TORIDRAW_RASTER_SCANLINE_GOURAUDHSLLIGHTNESSHSLLIGHTNESS_SCREEN_U_C
 
 /**
  * Gouraud triangles, `scanline` walk, barycentric colour plane.
@@ -7,7 +7,7 @@
  * Variant IDs: `gouraud.screen.opaque.bary.scanline.s4`,
  *              `gouraud.screen.alpha.bary.scanline.s4`.
  *
- * Drop-in replacements for `raster_gouraud_screen_{opaque,alpha}_bary_branching_s4`.
+ * Drop-in replacements for `raster_gouraudhsllightness_screen_{opaque,alpha}_bary_branching_s4`.
  *
  * The colour gradient is a plane, so it is invariant under the y-sort: it is
  * derived from the *unsorted* vertices and the sorted signed area is recovered
@@ -79,7 +79,7 @@ scanline_gouraud_plane(
 }
 
 static inline void
-raster_gouraud_screen_opaque_bary_scanline_s4(
+raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -129,7 +129,7 @@ raster_gouraud_screen_opaque_bary_scanline_s4(
                 int x_start = l_ish16 >> 16;
                 int count = (r_ish16 >> 16) - x_start;
                 if( count > 0 )
-                    scanline_span_gouraud_opaque(
+                    scanline_span_gouraudhsllightness_opaque(
                         pixel_buffer,
                         offset + x_start,
                         count,
@@ -149,7 +149,7 @@ raster_gouraud_screen_opaque_bary_scanline_s4(
                 int x_start;
                 int count = scanline_row_clip(l_ish16, r_ish16, screen_width, &x_start);
                 if( count > 0 )
-                    scanline_span_gouraud_opaque(
+                    scanline_span_gouraudhsllightness_opaque(
                         pixel_buffer,
                         offset + x_start,
                         count,
@@ -166,7 +166,7 @@ raster_gouraud_screen_opaque_bary_scanline_s4(
 }
 
 static inline void
-raster_gouraud_screen_alpha_bary_scanline_s4(
+raster_gouraudhsllightness_screen_alpha_bary_scanline_s4(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -217,7 +217,7 @@ raster_gouraud_screen_alpha_bary_scanline_s4(
                 int x_start = l_ish16 >> 16;
                 int count = (r_ish16 >> 16) - x_start;
                 if( count > 0 )
-                    scanline_span_gouraud_alpha(
+                    scanline_span_gouraudhsllightness_alpha(
                         pixel_buffer,
                         offset + x_start,
                         count,
@@ -238,7 +238,7 @@ raster_gouraud_screen_alpha_bary_scanline_s4(
                 int x_start;
                 int count = scanline_row_clip(l_ish16, r_ish16, screen_width, &x_start);
                 if( count > 0 )
-                    scanline_span_gouraud_alpha(
+                    scanline_span_gouraudhsllightness_alpha(
                         pixel_buffer,
                         offset + x_start,
                         count,

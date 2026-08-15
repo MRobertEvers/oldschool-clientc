@@ -1,5 +1,5 @@
-#ifndef GOURAUD_BARYCENTRIC_STEPS_H
-#define GOURAUD_BARYCENTRIC_STEPS_H
+#ifndef GOURAUDHSLLIGHTNESS_BARYCENTRIC_STEPS_H
+#define GOURAUDHSLLIGHTNESS_BARYCENTRIC_STEPS_H
 
 /**
  * Note: both gouraud colour gradients divide by this same `sarea`, so sharing
@@ -11,7 +11,7 @@
  * as-is deliberately.
  */
 static inline int
-gouraud_barycentric_hsl_step_ish8(
+gouraudhsllightness_barycentric_hsl_step_ish8(
     int numerator,
     int sarea)
 {

@@ -6,6 +6,22 @@ This document is the **standalone export** of the master variant table, includin
 
 - **Plan (SIMD, naming, migration):** [Raster variant catalogue](../.cursor/plans/raster_variant_catalogue_2aabb9e0.plan.md)
 
+> **The `gouraud` family is now `gouraudhsllightness`.** The name was always
+> describing what the kernel does *not* do: it interpolates the packed HSL16
+> word and resolves it through the palette, so hue and saturation ride in the
+> high bits and only lightness is meant to vary. A gradient between two
+> vertices of genuinely different hue walks *through* the palette rather than
+> between the two colours. The rename is confined to the kernel layer - the
+> directory, the files, and the `raster_*` / `draw_scanline_*` / `scanline_span_*`
+> symbols. `ToriDraw_TriangleFaceGouraud*`, `FACE_TYPE_GOURAUD` and
+> `TORIDRAW_ZBUF_MODE_GOURAUD` are shading-mode names, not kernel names, and are
+> unchanged.
+>
+> **`gouraudrgb` (GR1/GR2) is the family that does interpolate colour**, per
+> channel, with no palette in the path. **TS12/TS13** add per-face alpha to the
+> perspective textured kernels of the `branching` family, which previously had
+> no path for it at all — see the note under SL4.
+
 **Primary include graph (live client):** [`dash.c`](../src/graphics/dash.c) includes [`render_flat.u.c`](../src/graphics/old/render_flat.u.c), [`render_gouraud.u.c`](../src/graphics/render_gouraud.u.c), and [`render_texture.u.c`](../src/graphics/old/render_texture.u.c) (which pulls in affine routing via [`render_texture_affine.u.c`](../src/graphics/old/render_texture_affine.u.c)).
 
 ---
@@ -23,17 +39,17 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | F3 | `flat.screen.opaque.branching.s4.ordered` / `flat.screen.alpha.branching.s4.ordered` | Flat | screen | ordered-walk helpers | `raster_flat_screen_opaque_branching_s4_ordered`, `raster_flat_screen_alpha_branching_s4_ordered` | same as F1/F2 (`raster/flat/flat.screen.*.branching.s4.c`) |
 | F4 | `legacy:flat.screen.opaque.sort.s4` / `legacy:flat.screen.alpha.sort.s4` | Flat (legacy) | screen | opaque / alpha s4 path | `raster_flat_screen_opaque_sort_s4`, `raster_flat_screen_alpha_sort_s4` | [`flat.u.c`](../src/graphics/old/flat.u.c) → [`raster/flat/flat.screen.opaque.sort.s4.u.c`](../src/graphics/raster/flat/flat.screen.opaque.sort.s4.u.c), [`flat.screen.alpha.sort.s4.u.c`](../src/graphics/raster/flat/flat.screen.alpha.sort.s4.u.c) (not called from `render_flat` today) |
 | F5 | `flat.screen.face` | Flat | screen | dispatch + clip faces | `raster_flat`, `raster_face_flat*`, `raster_face_flat_near_clip` | `render_flat.u.c` |
-| G1 | `gouraud.screen.opaque.bary.branching.s4` | Gouraud | screen | opaque bs4 barycentric | `raster_gouraud_screen_opaque_bary_branching_s4` | [`gouraud_branching_barycentric.c`](../src/graphics/old/gouraud_branching_barycentric.c) → [`raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c`](../src/graphics/raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c) |
-| G2 | `gouraud.screen.alpha.bary.branching.s4` | Gouraud | screen | alpha bs4 barycentric | `raster_gouraud_screen_alpha_bary_branching_s4` | `gouraud_branching_barycentric.c` → [`raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c) |
-| G3 | `gouraud.screen.opaque.bary.branching.s4.ordered` / `gouraud.screen.alpha.bary.branching.s4.ordered` | Gouraud | screen | ordered bary variants | `raster_gouraud_screen_opaque_bary_branching_s4_ordered`, `raster_gouraud_screen_alpha_bary_branching_s4_ordered` | same as G1/G2 (`raster/gouraud/gouraud.screen.*.bary.branching.s4.c`) |
+| G1 | `gouraudhsllightness.screen.opaque.bary.branching.s4` | Gouraud | screen | opaque bs4 barycentric | `raster_gouraudhsllightness_screen_opaque_bary_branching_s4` | [`gouraud_branching_barycentric.c`](../src/graphics/old/gouraud_branching_barycentric.c) → [`raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c) |
+| G2 | `gouraudhsllightness.screen.alpha.bary.branching.s4` | Gouraud | screen | alpha bs4 barycentric | `raster_gouraudhsllightness_screen_alpha_bary_branching_s4` | `gouraud_branching_barycentric.c` → [`raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c) |
+| G3 | `gouraudhsllightness.screen.opaque.bary.branching.s4.ordered` / `gouraudhsllightness.screen.alpha.bary.branching.s4.ordered` | Gouraud | screen | ordered bary variants | `raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered`, `raster_gouraudhsllightness_screen_alpha_bary_branching_s4_ordered` | same as G1/G2 (`raster/gouraudhsllightness/gouraudhsllightness.screen.*.bary.branching.s4.c`) |
 | G4 | `gouraud.screen.opaque.bary.branching.s1` | Gouraud | screen | opaque branching s1 barycentric | `raster_gouraud_bary_branching_s1` | `gouraud_s1_branching_barycentric.c` |
 | G5 | `gouraud.screen.opaque.bary.branching.s1.ordered` | Gouraud | screen | ordered s1 helper | `raster_gouraud_bary_branching_s1_ordered` | `gouraud_s1_branching_barycentric.c` |
-| G5a | `gouraud.screen.alpha.bary.branching.s1` | Gouraud | screen | alpha branching s1 (smooth path) | `raster_gouraud_screen_alpha_bary_branching_s1`, `raster_gouraud_screen_alpha_bary_branching_s1_ordered` | [`gouraud_s1_branching_barycentric.c`](../src/graphics/old/gouraud_s1_branching_barycentric.c) → [`raster/gouraud/gouraud.screen.alpha.bary.branching.s1.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s1.c) |
+| G5a | `gouraudhsllightness.screen.alpha.bary.branching.s1` | Gouraud | screen | alpha branching s1 (smooth path) | `raster_gouraudhsllightness_screen_alpha_bary_branching_s1`, `raster_gouraudhsllightness_screen_alpha_bary_branching_s1_ordered` | [`gouraud_s1_branching_barycentric.c`](../src/graphics/old/gouraud_s1_branching_barycentric.c) → [`raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c) |
 | G6 | `gouraud.screen.face` | Gouraud | screen | dispatch + clip faces | `raster_gouraud`, `raster_gouraud_s1`, `raster_face_gouraud*`, `raster_face_gouraud_near_clip*` | [`render_gouraud.u.c`](../src/graphics/render_gouraud.u.c) |
-| G7 | `legacy:gouraud.screen.opaque.edge.sort.s4` / `gouraud.screen.alpha.edge.sort.s4` | Gouraud (legacy S4) | screen | edge-walk s4 + alpha | `raster_gouraud_screen_opaque_edge_sort_s4`, `raster_gouraud_screen_alpha_edge_sort_s4` | [`gouraud.u.c`](../src/graphics/old/gouraud.u.c) → [`raster/gouraud/gouraud.screen.opaque.edge.sort.s4.u.c`](../src/graphics/raster/gouraud/gouraud.screen.opaque.edge.sort.s4.u.c), [`gouraud.screen.alpha.edge.sort.s4.u.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.edge.sort.s4.u.c) (s4 opaque commented out in render; alpha still used from s1 path) |
+| G7 | `legacy:gouraud.screen.opaque.edge.sort.s4` / `gouraud.screen.alpha.edge.sort.s4` | Gouraud (legacy S4) | screen | edge-walk s4 + alpha | `raster_gouraud_screen_opaque_edge_sort_s4`, `raster_gouraud_screen_alpha_edge_sort_s4` | [`gouraud.u.c`](../src/graphics/old/gouraud.u.c) → [`raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.edge.sort.s4.u.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.edge.sort.s4.u.c), [`gouraud.screen.alpha.edge.sort.s4.u.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.edge.sort.s4.u.c) (s4 opaque commented out in render; alpha still used from s1 path) |
 | G8 | `gouraud.screen.opaque.bary_s4` | Gouraud (alt bary) | screen | full-triangle bary s4 | `raster_gouraud_s4_bary` | `gouraud_barycentric.u.c` (included from `gouraud.u.c`; not render default) |
-| G9 | `gouraud.screen.alpha.span_alpha.vec` | Gouraud span blend | screen | per-pixel alpha span | `raster_linear_alpha_s4` | [`raster/gouraud/span/gouraud.screen.alpha.span.u.c`](../src/graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c) (via [`gouraud.u.c`](../src/graphics/old/gouraud.u.c); SIMD — see plan § SIMD Integration) |
-| G10 | `gouraud.screen.opaque.edge.sort.s1` / `gouraud.screen.alpha.edge.sort.s1` | Gouraud (parallel TU) | screen | s1 edge path | `raster_gouraud_screen_opaque_edge_sort_s1`, `raster_gouraud_screen_alpha_edge_sort_s1` | [`gouraud_s1.u.c`](../src/graphics/old/gouraud_s1.u.c) → [`raster/gouraud/gouraud.screen.opaque.edge.sort.s1.u.c`](../src/graphics/raster/gouraud/gouraud.screen.opaque.edge.sort.s1.u.c), [`gouraud.screen.alpha.edge.sort.s1.u.c`](../src/graphics/raster/gouraud/gouraud.screen.alpha.edge.sort.s1.u.c) (alternate TU; `GOURAUD_S1_U_C`) |
+| G9 | `gouraudhsllightness.screen.alpha.span_alpha.vec` | Gouraud span blend | screen | per-pixel alpha span | `raster_linear_alpha_s4` | [`raster/gouraudhsllightness/span/gouraudhsllightness.screen.alpha.span.u.c`](../src/graphics/raster/gouraudhsllightness/span/gouraudhsllightness.screen.alpha.span.u.c) (via [`gouraud.u.c`](../src/graphics/old/gouraud.u.c); SIMD — see plan § SIMD Integration) |
+| G10 | `gouraud.screen.opaque.edge.sort.s1` / `gouraud.screen.alpha.edge.sort.s1` | Gouraud (parallel TU) | screen | s1 edge path | `raster_gouraud_screen_opaque_edge_sort_s1`, `raster_gouraud_screen_alpha_edge_sort_s1` | [`gouraud_s1.u.c`](../src/graphics/old/gouraud_s1.u.c) → [`raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.edge.sort.s1.u.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.edge.sort.s1.u.c), [`gouraud.screen.alpha.edge.sort.s1.u.c`](../src/graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.edge.sort.s1.u.c) (alternate TU; `GOURAUD_S1_U_C`) |
 | G11 | `unused:gouraud.screen.opaque.branching.s4` / `unused:gouraud.screen.opaque.branching.s4.ordered` | Gouraud (unused TU) | screen | non-bary branching bs4 | `raster_gouraud_bs4`, `raster_gouraud_ordered_bs4` | [`archive/gouraud_branching.c`](../src/graphics/archive/gouraud_branching.c) (never `#include`d in repo) |
 | G12 | `unused:gouraud.screen.opaque.branching.s1.ordered` / `unused:gouraud.screen.opaque.branching.s4` | Gouraud (unused TU) | screen | bs1 + misnamed bs4 | `raster_gouraud_ordered_bs1`, `raster_gouraud_bs4` | [`archive/gouraud_s1_branching.c`](../src/graphics/archive/gouraud_s1_branching.c) (never `#include`d) |
 | G13 | `reference:gouraud.screen.ref_deob` | Gouraud (reference) | n/a | decomp triangle | `gouraud_deob_draw_triangle`, `gouraud_deob_draw_scanline` | [`reference/gouraud_deob.c`](../src/graphics/reference/gouraud_deob.c) (standalone reference; not in `dash.c`) |
@@ -55,6 +71,11 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | TS8 | `texshadeblend.persp.texopaque.lerp8.span.vec` / `texshadeblend.persp.textrans.lerp8.span.vec` / `texshadeblend.persp.texopaque.lerp8_v3.span.vec` / `texshadeblend.persp.textrans.lerp8_v3.span.vec` | Texture (SIMD kernel) | perspective | 8-pixel lerp8 + v3 | `raster_linear_*_blend_lerp8[_v3]`; parallel **texshadeflat** entry `raster_linear_{opaque,transparent}_texshadeflat_lerp8` (forwards to blend lerp8) | [`raster/texture/span/tex.span.u.c`](../src/graphics/raster/texture/span/tex.span.u.c) → `tex.span.{scalar,sse2,sse41,avx,neon}.u.c` |
 | TS9 | `texshadeblend.persp.texopaque.branching.lerp8_v3.scanline` / `texshadeblend.persp.textrans.branching.lerp8_v3.scanline` | Texture (SIMD scan) | perspective | scanline branching.lerp8 v3 | `draw_texture_scanline_*_blend_branching_lerp8_v3_ordered` | `raster/texture/span/tex.span.*.u.c` (scalar + SIMD: both gates) |
 | TS10 | `texshadeblend.affine.texopaque.branching.lerp8.scanline` / `texshadeblend.affine.textrans.branching.lerp8.scanline` / `texshadeblend.affine.texopaque.branching.lerp8_v3.scanline` / `texshadeblend.affine.textrans.branching.lerp8_v3.scanline` | Texture (SIMD scan) | affine | ordered scanline (non-ish16 + ish16 v3) | `draw_texture_scanline_*_blend_affine_branching_lerp8_ordered`, `draw_texture_scanline_*_blend_affine_branching_lerp8_ish16_ordered` | `raster/texture/span/tex.span.*.u.c` (all ISAs including scalar) |
+| GR1 | `gouraudrgb.screen.opaque.bary.branching.s4` | Gouraud RGB | screen | per-channel RGB, opaque | `raster_gouraudrgb_screen_opaque_bary_branching_s4`, `raster_gouraudrgb_screen_opaque_bary_branching_s4_ordered` | [`raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c) + shared walker [`gouraudrgb.screen.bary.branching.s4.inc`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.bary.branching.s4.inc) |
+| GR2 | `gouraudrgb.screen.alpha.bary.branching.s4` | Gouraud RGB | screen | per-channel RGB, alpha blended | `raster_gouraudrgb_screen_alpha_bary_branching_s4`, `..._ordered` | [`raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c`](../3rd/toridraw/graphics/raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c) (same template) |
+| TS12 | `texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3` | Texture Gouraud | perspective | opaque texture + per-face alpha | `raster_texshadeblend_persp_texopaque_facealpha_branching_lerp8_v3` | [`texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3.u.c`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.texopaque.facealpha.branching.lerp8_v3.u.c) + shared walker [`texshadeblend.persp.facealpha.branching.lerp8_v3.inc`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.facealpha.branching.lerp8_v3.inc); TS14 span |
+| TS13 | `texshadeblend.persp.textrans.facealpha.branching.lerp8_v3` | Texture Gouraud | perspective | colour-keyed texture + per-face alpha | `raster_texshadeblend_persp_textrans_facealpha_branching_lerp8_v3` | [`texshadeblend.persp.textrans.facealpha.branching.lerp8_v3.u.c`](../3rd/toridraw/graphics/raster/texture/texshadeblend.persp.textrans.facealpha.branching.lerp8_v3.u.c) (same template); TS14 span |
+| TS14 | `texshadeblend.persp.{texopaque,textrans}.facealpha.lerp8_v3.span` | Texture (span) | perspective | 8-pixel read-modify-write | `raster_linear_{opaque,transparent}_blend_facealpha_lerp8_v3`, `draw_texture_scanline_{opaque,transparent}_blend_facealpha_branching_lerp8_v3_ordered`, `tex_span_exact_block_facealpha` | [`span/tex.span.facealpha.u.c`](../3rd/toridraw/graphics/raster/texture/span/tex.span.facealpha.u.c) + [`span/tex.span.facealpha_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/span/tex.span.facealpha_tmpl.inc). **Outside the ISA rotation** — scalar only, for the same read-modify-write reason SL4's spans are (see TS8) |
 | TS11 | `texshadeblend.persp.texopaque.sort.lerp8` / `texshadeblend.persp.textrans.sort.lerp8` | Texture Gouraud | perspective | SWAP-sorted triangle lerp8 | `raster_texshadeblend_persp_texopaque_sort_lerp8`, `raster_texshadeblend_persp_textrans_sort_lerp8` | [`texture.u.c`](../src/graphics/old/texture.u.c) + [`raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c), [`texshadeblend.persp.textrans.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.u.c) + scanlines [`texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c), [`texshadeblend.persp.textrans.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.scanline.u.c) (`raster_texshadeblend_persp_*_sort_lerp8_scanline`; legacy path; TS8 span) |
 
 ---
@@ -90,15 +111,33 @@ pixel (see [`scanline_common.h`](../3rd/toridraw/graphics/raster/scanline/scanli
 | Row | Variant_ID | Category | Symbol(s) | Source |
 |-----|------------|----------|-----------|--------|
 | SL1 | `flat.screen.opaque.scanline.s8` / `flat.screen.alpha.scanline.s8` | Flat | `raster_flat_screen_{opaque,alpha}_scanline_s8` | [`scanline.flat.screen.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.flat.screen.u.c) |
-| SL2 | `gouraud.screen.opaque.bary.scanline.s4` / `gouraud.screen.alpha.bary.scanline.s4` | Gouraud | `raster_gouraud_screen_{opaque,alpha}_bary_scanline_s4` | [`scanline.gouraud.screen.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.gouraud.screen.u.c) |
+| SL2 | `gouraudhsllightness.screen.opaque.bary.scanline.s4` / `gouraudhsllightness.screen.alpha.bary.scanline.s4` | Gouraud | `raster_gouraudhsllightness_screen_{opaque,alpha}_bary_scanline_s4` | [`scanline.gouraudhsllightness.screen.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.gouraudhsllightness.screen.u.c) |
 | SL3 | `texshade{flat,blend}.{persp,affine}.{texopaque,textrans}.scanline.lerp8` (8 IDs) | Texture | `raster_texshade*_scanline_lerp8` | [`scanline.texture.u.c`](../3rd/toridraw/graphics/raster/scanline/scanline.texture.u.c) + [`scanline.texture_tmpl.inc`](../3rd/toridraw/graphics/raster/scanline/scanline.texture_tmpl.inc) |
 | SL4 | `texshade{flat,blend}.{persp,affine}.{texopaque,textrans}.facealpha.scanline.lerp8` (8 IDs) | Texture | `raster_texshade*_facealpha_scanline_lerp8` | same template |
-| SL5 | `scanline.span.solid` | Span | `scanline_span_{flat,gouraud}_{opaque,alpha}` | [`span/scanline.span.solid.u.c`](../3rd/toridraw/graphics/raster/scanline/span/scanline.span.solid.u.c) |
+| SL5 | `scanline.span.solid` | Span | `scanline_span_{flat,gouraudhsllightness}_{opaque,alpha}` | [`span/scanline.span.solid.u.c`](../3rd/toridraw/graphics/raster/scanline/span/scanline.span.solid.u.c) |
 
-**SL4 is new capability, not a port**: per-face alpha on a *textured* span has no
-`branching` counterpart, so alpha-blended textured geometry previously had to be
-drawn opaque. The 8-pixel inner kernels are the existing per-ISA SIMD spans
-(**TS8**) except in the facealpha variants, which need a read-modify-write.
+**SL4 was new capability, not a port**: per-face alpha on a *textured* span had
+no `branching` counterpart, so alpha-blended textured geometry had to be drawn
+opaque. The 8-pixel inner kernels are the existing per-ISA SIMD spans (**TS8**)
+except in the facealpha variants, which need a read-modify-write.
+
+**TS12/TS13 close that gap for `branching`** — the perspective `texshadeblend`
+gates now have facealpha twins too, sharing one walker template with their plain
+siblings so the two cannot drift. Two things to know about them:
+
+- **`facealpha(0xFF)` is not the plain kernel.** `alpha_blend` rounds a 0xFF
+  channel down to 0xFE, so the two agree on *which* pixels they touch and not on
+  the exact value. Coverage is the invariant worth asserting, and it is what the
+  test asserts.
+- **The colour key and the alpha are independent.** A texel-0 pixel under
+  `textrans` is skipped outright, which is not the same as blending it at alpha
+  0 — `alpha_blend(0, dst, src)` also rounds `dst` down, so a pixel that should
+  have been untouched would be measurably altered.
+
+Neither gate is reachable from the model raster yet: `toridraw_raster.u.c` passes
+no alpha for textured faces, so a textured face carrying `face_alphas` still
+draws opaque. Wiring that up is a deliberate separate step — it changes how
+existing content renders.
 
 ### Where it is and is not bit-identical
 
@@ -121,6 +160,18 @@ drawn opaque. The 8-pixel inner kernels are the existing per-ISA SIMD spans
 
 ### Testing
 
+- `make -C src test-gouraudrgb` — [`toridraw_gouraudrgb_test.c`](../3rd/toridraw/toridraw_gouraudrgb_test.c).
+  GR1/GR2 have no reference rasterizer to diff against, so the checks are
+  properties: coverage identical to the `gouraudhsllightness` twin (the walker is
+  a verbatim copy, so every clip branch shows up here), a constant colour
+  reproduced exactly, the colour plane against a double-precision plane (tight on
+  a purely vertical gradient, bounded by the s4 stair otherwise), the channel
+  clamp against `gouraudrgb_pack_ish8` directly, and the alpha algebra per pixel.
+- `make -C src test-texture-facealpha` — [`toridraw_texture_facealpha_test.c`](../3rd/toridraw/toridraw_texture_facealpha_test.c).
+  TS12/TS13 against their plain twins. Coverage is recovered by rendering the
+  plain kernel over two different backgrounds and taking the pixels that agree,
+  rather than by comparing against a background sentinel — an alpha blend can
+  land back on the background, so "changed" is not "covered".
 - `make -C src test-scanline` — [`toridraw_scanline_parity_test.c`](../3rd/toridraw/toridraw_scanline_parity_test.c).
   Diffs every variant against its `branching` counterpart over a triangle set
   covering interior / clipped / degenerate / inverted cases, then chains the
@@ -205,16 +256,16 @@ F2   flat.screen.alpha.branching.s4                       Flat screen alpha tria
 F3   flat.screen.opaque.branching.s4.ordered / ...alpha... Flat ordered helpers
 F4   legacy:flat.screen.opaque.sort.s4 / ...alpha...      Flat legacy sort.s4
 F5   flat.screen.face                                     Flat face dispatch
-G1   gouraud.screen.opaque.bary.branching.s4              Gouraud opaque bary bs4
-G2   gouraud.screen.alpha.bary.branching.s4               Gouraud alpha bary bs4
-G3   gouraud.screen.opaque.bary.branching.s4.ordered / ... Gouraud ordered bary
+G1   gouraudhsllightness.screen.opaque.bary.branching.s4  HSL16-lightness gouraud opaque bary bs4
+G2   gouraudhsllightness.screen.alpha.bary.branching.s4   HSL16-lightness gouraud alpha bary bs4
+G3   gouraudhsllightness.screen.opaque.bary.branching.s4.ordered / ...  ordered bary
 G4   gouraud.screen.opaque.bary.branching.s1              Gouraud opaque bary branching s1
 G5   gouraud.screen.opaque.bary.branching.s1.ordered      Gouraud ordered s1
-G5a  gouraud.screen.alpha.bary.branching.s1               Gouraud alpha branching s1 (smooth path)
+G5a  gouraudhsllightness.screen.alpha.bary.branching.s1   alpha branching s1 (smooth path)
 G6   gouraud.screen.face                                   Gouraud face dispatch
 G7   legacy:gouraud.screen.opaque.edge.sort.s4 / gouraud...alpha.edge.sort.s4  Gouraud legacy s4 + alpha
 G8   gouraud.screen.opaque.bary_s4                        Gouraud alt bary s4
-G9   gouraud.screen.alpha.span_alpha.vec                   Gouraud SIMD alpha span
+G9   gouraudhsllightness.screen.alpha.span_alpha.vec      SIMD alpha span
 G10  gouraud.screen.opaque.edge.sort.s1 / ...alpha.edge.sort.s1  Gouraud s1 edge TU
 G11  unused:gouraud.screen.opaque.branching.s4 / ...ordered  archive/gouraud_branching.c
 G12  unused:gouraud.screen.opaque.branching.s1.ordered / ... archive/gouraud_s1_branching.c

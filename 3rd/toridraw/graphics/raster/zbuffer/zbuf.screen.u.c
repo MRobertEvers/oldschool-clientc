@@ -44,7 +44,7 @@
 #include "graphics/clamp.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/projection.u.c"
-#include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/shade.h"
 #include "graphics/shared_tables.h"
 #include "graphics/zdepth.h"
@@ -388,9 +388,9 @@ raster_zbuf_screen_ordered(
         int const d_hsl_AC = tri->shade[2] - tri->shade[0];
 
         s.hsl_step_dx_ish8 =
-            gouraud_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
         d.hsl_dy_ish8 =
-            gouraud_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
+            gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
         s.hsl_ish8 = s.hsl_step_dx_ish8 + (tri->shade[0] << 8) - (x0 * s.hsl_step_dx_ish8);
     }
     else if( tri->mode == TORIDRAW_ZBUF_MODE_FLAT )

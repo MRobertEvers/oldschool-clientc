@@ -983,6 +983,18 @@ test-proctex-coverage: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rsca
 # Reproducible, explicitly approximate RS727 procedural-material bridge used by
 # the isolated QBD/TD cache overlay. The binary defaults to dry-run; --apply is
 # required before it writes sprites, texture records, the ledger or remapped OB3s.
+.PHONY: rs2012-qbd-kernel-survey
+
+# Which raster kernels the RS727 QBD *source* models demand: texture render
+# types, face shading, face alpha, and the per-material compositing properties.
+# Reads the RS727 cache read-only and writes nothing.
+rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs2012_qbd_kernel_survey \
+		engine/proctex/test/rs2012_qbd_kernel_survey.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
 rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
 		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o
@@ -1760,14 +1772,37 @@ test-walkmerge: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o
 	./$(OBJ_DIR)/walkmerge_test
 
 # Parity of the `scanline` raster family against the shipping `branching`
-# kernels: every flat / gouraud / textured variant over a triangle set covering
-# interior, clipped, degenerate and inverted-winding cases. Standalone TU, no
-# cache or disk.
+# kernels: every flat / gouraudhsllightness / textured variant over a triangle
+# set covering interior, clipped, degenerate and inverted-winding cases.
+# Standalone TU, no cache or disk.
 test-scanline: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/scanline_parity_test \
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
+
+# The `gouraudrgb` family: per-channel RGB interpolation, as opposed to
+# `gouraudhsllightness`, which walks a packed HSL16 word through the palette.
+# No reference rasterizer produces the same pixels, so the checks are
+# properties - coverage against the HSL twin (same walker), the colour plane
+# against a double-precision plane, the channel clamp, and the alpha algebra.
+# Standalone TU, no cache or disk.
+test-gouraudrgb: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/gouraudrgb_test \
+		$(TORIDRAW_DIR)/toridraw_gouraudrgb_test.c -lm
+	./$(OBJ_DIR)/gouraudrgb_test
+
+# Textured per-face alpha on the `branching` family: each new kernel against
+# its plain twin, which supplies both the expected coverage and the colour the
+# blend starts from. Standalone TU, no cache or disk.
+.PHONY: test-scanline test-gouraudrgb test-texture-facealpha
+
+test-texture-facealpha: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texture_facealpha_test \
+		$(TORIDRAW_DIR)/toridraw_texture_facealpha_test.c -lm
+	./$(OBJ_DIR)/texture_facealpha_test
 
 # Side-by-side viewer: a textured, alpha-blended model out of a dat1 cache
 # rendered with both raster families plus an amplified difference pane.

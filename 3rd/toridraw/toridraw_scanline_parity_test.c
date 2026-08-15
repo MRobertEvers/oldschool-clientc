@@ -42,8 +42,8 @@ int g_toridraw_raster_scanline = 0;
 
 #include "graphics/raster/flat/flat.screen.opaque.branching.s4.c"
 #include "graphics/raster/flat/flat.screen.alpha.branching.s4.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
 
 #include "graphics/projection.u.c"
 #include "graphics/raster/texture/span/tex.span.u.c"
@@ -258,12 +258,12 @@ test_flat(int* ref, int* got)
     }
 }
 
-/* --------------------------------------------------------------- gouraud */
+/* --------------------------------------------------- gouraudhsllightness */
 
 static void
-test_gouraud(int* ref, int* got)
+test_gouraudhsllightness(int* ref, int* got)
 {
-    printf("gouraud.screen.opaque / alpha (bary)\n");
+    printf("gouraudhsllightness.screen.opaque / alpha (bary)\n");
 
     for( int i = 0; i < TRI_COUNT; i++ )
     {
@@ -271,34 +271,34 @@ test_gouraud(int* ref, int* got)
 
         buf_reset(ref);
         buf_reset(got);
-        raster_gouraud_screen_opaque_bary_branching_s4(
+        raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
             ref + GUARD, W, W, H, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], 0x1000,
             0x2800, 0x4000);
-        raster_gouraud_screen_opaque_bary_scanline_s4(
+        raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
             got + GUARD, W, W, H, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], 0x1000,
             0x2800, 0x4000);
-        report("gouraud.screen.opaque.bary.scanline.s4", t, ref, got);
+        report("gouraudhsllightness.screen.opaque.bary.scanline.s4", t, ref, got);
 
         buf_reset(ref);
         buf_reset(got);
-        raster_gouraud_screen_alpha_bary_branching_s4(
+        raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
             ref + GUARD, W, W, H, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], 0x1000,
             0x2800, 0x4000, 0x80);
-        raster_gouraud_screen_alpha_bary_scanline_s4(
+        raster_gouraudhsllightness_screen_alpha_bary_scanline_s4(
             got + GUARD, W, W, H, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], 0x1000,
             0x2800, 0x4000, 0x80);
-        report("gouraud.screen.alpha.bary.scanline.s4", t, ref, got);
+        report("gouraudhsllightness.screen.alpha.bary.scanline.s4", t, ref, got);
 
         /* Constant colour exercises the flat-span degeneration path. */
         buf_reset(ref);
         buf_reset(got);
-        raster_gouraud_screen_opaque_bary_branching_s4(
+        raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
             ref + GUARD, W, W, H, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], 0x2A31,
             0x2A31, 0x2A31);
-        raster_gouraud_screen_opaque_bary_scanline_s4(
+        raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
             got + GUARD, W, W, H, t->x[0], t->x[1], t->x[2], t->y[0], t->y[1], t->y[2], 0x2A31,
             0x2A31, 0x2A31);
-        report("gouraud.scanline (constant colour)", t, ref, got);
+        report("gouraudhsllightness.scanline (constant colour)", t, ref, got);
     }
 }
 
@@ -312,7 +312,7 @@ test_gouraud(int* ref, int* got)
  * undershoot at the opposite side of a triangle.
  */
 static void
-test_gouraud_hsl16_palette_bounds(void)
+test_gouraudhsllightness_palette_bounds(void)
 {
     enum
     {
@@ -327,7 +327,7 @@ test_gouraud_hsl16_palette_bounds(void)
     int const high_rgb = g_hsl16_to_rgb_table[0xFFFF];
     int const low_rgb = g_hsl16_to_rgb_table[0];
 
-    printf("gouraud HSL16 palette bounds (36x32 obj icon tail)\n");
+    printf("gouraudhsllightness HSL16 palette bounds (36x32 obj icon tail)\n");
 
     if( ToriDraw_Hsl16Ish8ToRgb(high_ish8) != high_rgb ||
         ToriDraw_Hsl16Ish8ToRgb(low_ish8) != low_rgb )
@@ -340,7 +340,7 @@ test_gouraud_hsl16_palette_bounds(void)
     for( int i = 0; i < ICON_W * ICON_H; i++ )
         icon[i] = 0x00112233;
 
-    draw_scanline_gouraud_screen_opaque_bary_branching_s4_ordered_noclip(
+    draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip(
         icon,
         ICON_ROW * ICON_W,
         ICON_X << 16,
@@ -396,7 +396,7 @@ static const struct TexVerts g_texverts_flat = {
  * (x - 1) >> 16, which begins a row one pixel earlier whenever the left edge
  * lands exactly on a pixel boundary - and, because that shifts the 8-pixel
  * block alignment, changes uv for the whole row. The scanline family uses one
- * rule everywhere so textured faces do not seam against the flat and gouraud
+ * rule everywhere so textured faces do not seam against the flat and gouraudhsllightness
  * faces they share edges with, which means it cannot be bit-identical to both
  * reference conventions at once.
  */
@@ -796,8 +796,8 @@ main(void)
         return 1;
 
     test_flat(ref, got);
-    test_gouraud(ref, got);
-    test_gouraud_hsl16_palette_bounds();
+    test_gouraudhsllightness(ref, got);
+    test_gouraudhsllightness_palette_bounds();
     test_texture_anchor(ref, got);
     test_texture_chain(ref, got);
     test_texture_facealpha_blend(ref, got);

@@ -154,6 +154,40 @@ project_perspective(
     //     return projected_vertex;
     // }
 
+    /*
+     * The near clip is also what bounds how large a projected coordinate can
+     * get, and the raster kernels have a hard ceiling on that.
+     *
+     * A scanline kernel's first act is `edge_x_ish16 = x << 16`, so a projected
+     * x past +/-32,768 px overflows before a single pixel is walked -- and the
+     * off-screen edge pre-steps below it have the same ceiling. 16.16 is the
+     * representation; there is no wider path, and widening it would only turn a
+     * meaningless coordinate into a meaningless coordinate without UB.
+     *
+     * Projection is `x_screen = x_camera * 512 / z`, so |x_screen| passes 32,768
+     * exactly when a vertex is more than 64x further sideways than it is deep:
+     *
+     *     z =  50 (the client's near plane)  ->  needs |x_camera| > 3,200  (25 tiles)
+     *     z = 100                            ->  needs |x_camera| > 6,400  (50 tiles)
+     *     z = 200                            ->  needs |x_camera| > 12,800 (100 tiles)
+     *
+     * Both coordinates have to belong to ONE triangle, so an ordinary model
+     * cannot reach it -- a 128-unit npc has no vertex 3,200 units from another.
+     * It takes a model whose own extent is thousands of units. The Queen Black
+     * Dragon (bounds radius ~3,000) is the largest thing in the game here, and
+     * even she would need a vertex at z < ~47 while the near plane sits at 50:
+     * right at the edge of the envelope, and just outside it.
+     *
+     * So this is currently unreachable, BY THE NEAR PLANE -- not by any check in
+     * the kernels. Three changes put it in range: lowering near_plane_z
+     * (TORIRS_NEAR_PLANE overrides it), raising the projection scale / narrowing
+     * the FOV, or importing a model larger than the QBD. If any of those happen,
+     * the fix is a domain check on the projected vertices -- clamp, or route to a
+     * kernel that can represent them -- not wider arithmetic downstream.
+     * TORIDRAW_PROJECTED_COORD_LIMIT (8192) is that domain, at a 4x margin; it is
+     * measured per model as fixed16_vertices/fixed16_faces, but only under
+     * TORIDRAW_SORT_DEBUG, and nothing acts on it today.
+     */
     if( z < near_clip )
     {
         projected_vertex.z = z;

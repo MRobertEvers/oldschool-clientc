@@ -11,11 +11,11 @@
 #include <stdbool.h>
 
 // clang-format off
-#include "graphics/raster/gouraud/span/gouraud.screen.alpha.span.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.bary.sort.s1.u.c"
-#include "graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s1.c"
-#include "graphics/raster/gouraud/gouraud.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraud/gouraud.screen.alpha.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/span/gouraudhsllightness.screen.alpha.span.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.sort.s1.u.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s1.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.alpha.bary.branching.s4.c"
 // clang-format on
 
 static inline void
@@ -39,7 +39,7 @@ ToriDraw_TriangleGouraud(
     {
         if( alpha == 0xFF )
         {
-            raster_gouraud_screen_opaque_bary_scanline_s4(
+            raster_gouraudhsllightness_screen_opaque_bary_scanline_s4(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -56,7 +56,7 @@ ToriDraw_TriangleGouraud(
         }
         else
         {
-            raster_gouraud_screen_alpha_bary_scanline_s4(
+            raster_gouraudhsllightness_screen_alpha_bary_scanline_s4(
                 pixel_buffer,
                 stride,
                 screen_width,
@@ -77,8 +77,8 @@ ToriDraw_TriangleGouraud(
 
     if( alpha == 0xFF )
     {
-        // raster_gouraud_screen_opaque_edge_sort_s4(
-        raster_gouraud_screen_opaque_bary_branching_s4(
+        // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
+        raster_gouraudhsllightness_screen_opaque_bary_branching_s4(
             pixel_buffer,
             stride,
             screen_width,
@@ -95,7 +95,7 @@ ToriDraw_TriangleGouraud(
     }
     else
     {
-        raster_gouraud_screen_alpha_bary_branching_s4(
+        raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
             pixel_buffer,
             stride,
             screen_width,
@@ -152,7 +152,7 @@ ToriDraw_TriangleGouraudS1(
 
     if( alpha == 0xFF )
     {
-        raster_gouraud_screen_opaque_bary_sort_s1(
+        raster_gouraudhsllightness_screen_opaque_bary_sort_s1(
             pixel_buffer,
             stride,
             screen_width,
@@ -169,7 +169,7 @@ ToriDraw_TriangleGouraudS1(
     }
     else
     {
-        raster_gouraud_screen_alpha_bary_branching_s1(
+        raster_gouraudhsllightness_screen_alpha_bary_branching_s1(
             pixel_buffer,
             stride,
             screen_width,

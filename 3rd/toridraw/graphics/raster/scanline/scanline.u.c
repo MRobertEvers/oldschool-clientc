@@ -7,7 +7,7 @@
  * Include this before the triangles/ dispatchers; it brings in every variant:
  *
  *   flat.screen.{opaque,alpha}.scanline.s8
- *   gouraud.screen.{opaque,alpha}.bary.scanline.s4
+ *   gouraudhsllightness.screen.{opaque,alpha}.bary.scanline.s4
  *   texshade{flat,blend}.{persp,affine}.{texopaque,textrans}[.facealpha].scanline.lerp8
  *
  * See scanline_common.h for what the family does differently from `branching`
@@ -20,7 +20,7 @@
 #include "graphics/raster/scanline/span/scanline.span.solid.u.c"
 
 #include "graphics/raster/scanline/scanline.flat.screen.u.c"
-#include "graphics/raster/scanline/scanline.gouraud.screen.u.c"
+#include "graphics/raster/scanline/scanline.gouraudhsllightness.screen.u.c"
 
 #ifndef TORIDRAW_PIXEL16
 #include "graphics/raster/scanline/scanline.texture.u.c"

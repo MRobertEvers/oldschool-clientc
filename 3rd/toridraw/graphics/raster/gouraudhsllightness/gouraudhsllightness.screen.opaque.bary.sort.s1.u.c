@@ -1,8 +1,8 @@
-#ifndef GOURAUD_SCREEN_OPAQUE_BARY_SORT_S1_U_C
-#define GOURAUD_SCREEN_OPAQUE_BARY_SORT_S1_U_C
+#ifndef GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_SORT_S1_U_C
+#define GOURAUDHSLLIGHTNESS_SCREEN_OPAQUE_BARY_SORT_S1_U_C
 
 #include "graphics/dash_restrict.h"
-#include "graphics/raster/gouraud/gouraud_barycentric_steps.h"
+#include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 
 #include "graphics/shared_tables.h"
 
@@ -14,7 +14,7 @@
 #endif
 
 static inline void
-draw_scanline_gouraud_screen_opaque_bary_sort_s1(
+draw_scanline_gouraudhsllightness_screen_opaque_bary_sort_s1(
     toripixel_t* RESTRICT pixel_buffer,
     int offset,
     int screen_width,
@@ -56,7 +56,7 @@ draw_scanline_gouraud_screen_opaque_bary_sort_s1(
 }
 
 static inline void
-raster_gouraud_screen_opaque_bary_sort_s1(
+raster_gouraudhsllightness_screen_opaque_bary_sort_s1(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -136,9 +136,9 @@ raster_gouraud_screen_opaque_bary_sort_s1(
     int d_hsl_AC = color2_hsl16 - color0_hsl16;
 
     int step_x_hsl_ish8 =
-        gouraud_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AB * dy_AC - d_hsl_AC * dy_AB, sarea);
     int step_y_hsl_ish8 =
-        gouraud_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
+        gouraudhsllightness_barycentric_hsl_step_ish8(d_hsl_AC * dx_AB - d_hsl_AB * dx_AC, sarea);
 
     int dx_BC = x2 - x1;
     int dy_BC = y2 - y1;
@@ -205,7 +205,7 @@ raster_gouraud_screen_opaque_bary_sort_s1(
         int x_lo = MIN(edge_x_AC_ish16, edge_x_AB_ish16);
         int x_hi = MAX(edge_x_AC_ish16, edge_x_AB_ish16);
 
-        draw_scanline_gouraud_screen_opaque_bary_sort_s1(
+        draw_scanline_gouraudhsllightness_screen_opaque_bary_sort_s1(
             pixel_buffer, offset, screen_width, i, x_lo, x_hi, hsl_ish8, step_x_hsl_ish8);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;
@@ -225,7 +225,7 @@ raster_gouraud_screen_opaque_bary_sort_s1(
         int x_lo = MIN(edge_x_AC_ish16, edge_x_BC_ish16);
         int x_hi = MAX(edge_x_AC_ish16, edge_x_BC_ish16);
 
-        draw_scanline_gouraud_screen_opaque_bary_sort_s1(
+        draw_scanline_gouraudhsllightness_screen_opaque_bary_sort_s1(
             pixel_buffer, offset, screen_width, i, x_lo, x_hi, hsl_ish8, step_x_hsl_ish8);
 
         edge_x_AC_ish16 += step_edge_x_AC_ish16;

@@ -296,7 +296,7 @@ scanline_row_clip(
     return x_end - x_start;
 }
 
-/** Barycentric attribute gradient, matching gouraud_barycentric_hsl_step_ish8. */
+/** Barycentric attribute gradient, matching gouraudhsllightness_barycentric_hsl_step_ish8. */
 static inline int
 scanline_bary_step_ish8(
     int numerator,

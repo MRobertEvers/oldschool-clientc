@@ -4089,6 +4089,11 @@ App_Init(
     app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
     app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
     app->world_camera.fov_rpi2048 = TORIDRAW_PROJ_FOV_DEFAULT;
+    /* 50 also load-bearing for the raster, not just for what gets drawn: the
+     * near plane is what keeps projected coordinates inside the kernels' 16.16
+     * edge representation (+/-32,768 px). Lowering it moves the largest models
+     * into overflow range -- see the note at the near clip in
+     * graphics/projection.u.c before changing it or TORIRS_NEAR_PLANE. */
     app->world_camera.near_plane_z = (getenv("TORIRS_NEAR_PLANE") ? atoi(getenv("TORIRS_NEAR_PLANE")) : 50);
     app->world_camera.pitch = 148;
     app->world_camera_pos.z = -800;
