@@ -1702,6 +1702,20 @@ static int g_face_synth_cap = 0;
 static long g_face_synth_parents = 0;
 static long g_face_synth_faces = 0;
 static long g_face_synth_holes = 0;
+static long g_face_synth_mixed_label = 0;
+
+/* Face render priorities are a painter's-algorithm crutch. The RS727 client
+ * these models came from resolved visibility with a z-buffer, so the priority
+ * bytes it shipped never had to order anything and do not describe a usable
+ * painter order -- honouring them here overrides ToriDraw's depth sort with
+ * values nobody authored for it, which on the QBD sorts the neck inside-out.
+ * The lane is drawn with param=zbuffer_model, so nothing wants them. Stripping
+ * during the bake keeps it a property of the backport rather than a separate
+ * in-place pass over the lane that a re-bake silently undoes -- which is
+ * exactly how the shipping models got their priorities back.
+ * See src/engine/proctex/test/rs2012_strip_priorities.c, the standalone form. */
+static bool g_strip_priorities = true;
+static long g_priorities_stripped = 0;
 
 static void
 face_synth_record(
@@ -1797,6 +1811,42 @@ face_bake_synthesize(struct RSCache_Model* model)
         int pa = model->face_indices_a[rec->face];
         int pb = model->face_indices_b[rec->face];
         int pc = model->face_indices_c[rec->face];
+
+        /* Rig labels for the vertices this parent is about to be replaced by.
+         *
+         * A vertex carries exactly ONE label, so animation moves it rigidly
+         * with that one bone. A parent triangle whose corners carry DIFFERENT
+         * labels is a triangle spanning a joint: its three corners are pulled
+         * apart by different transforms and the face stretches smoothly
+         * between them, which is what the source client drew. Tessellating it
+         * does not preserve that. Every fabricated vertex would have to pick
+         * one label out of the three, so the smooth stretch becomes a
+         * staircase of rigidly-snapped sub-triangles that tear open along the
+         * label boundary the moment the joint moves -- the parent face had no
+         * interior vertices to tear, and now it has (K-1)(K-2)/2 of them.
+         *
+         * There is no label assignment that fixes this, because the format
+         * cannot express "follow both bones". So a parent whose corners
+         * disagree is declined: it keeps its flat bake, which animates exactly
+         * as the source model did. Only a parent that lies wholly inside one
+         * rig group is tessellated, and then every fabricated vertex inherits
+         * that single label and cannot be pulled anywhere its parent was not.
+         *
+         * This is the same "decline rather than guess" the animaya check above
+         * makes, at face granularity instead of model granularity. */
+        int synth_label = -1;
+        if( model->vertex_bone_map )
+        {
+            int la = model->vertex_bone_map[pa];
+            int lb = model->vertex_bone_map[pb];
+            int lc = model->vertex_bone_map[pc];
+            if( la != lb || lb != lc )
+            {
+                g_face_synth_mixed_label++;
+                continue;
+            }
+            synth_label = la;
+        }
         /* Resolve every grid point to a model vertex. Barycentric weight ba
          * belongs to corner a, matching face_bake_corner_uvs order. */
         int vert[FACE_SYNTH_K_MAX + 1][FACE_SYNTH_K_MAX + 1];
@@ -1830,10 +1880,21 @@ face_bake_synthesize(struct RSCache_Model* model)
                 int zi = (int)floor(
                     ba * model->vertices_z[pa] + bb * model->vertices_z[pb] +
                     bc * model->vertices_z[pc] + 0.5);
+                /* Dedup so shared edges stay watertight -- but only against a
+                 * vertex carrying the SAME label. Two fabricated vertices can
+                 * land on one integer coordinate while belonging to different
+                 * rig groups (adjacent shells touch, and the grid rounds to
+                 * whole units); welding those would hand one of the two
+                 * surfaces a vertex driven by the other's bone, dragging a
+                 * shard of geometry across the model whenever the two groups
+                 * move apart. Matching the label as well keeps the weld to
+                 * vertices that were always going to move together. */
                 int found = -1;
                 for( int v = base_vert; v < model->vertex_count; v++ )
                     if( model->vertices_x[v] == xi &&
-                        model->vertices_y[v] == yi && model->vertices_z[v] == zi )
+                        model->vertices_y[v] == yi && model->vertices_z[v] == zi &&
+                        (!model->vertex_bone_map ||
+                         model->vertex_bone_map[v] == (uint8_t)synth_label) )
                     {
                         found = v;
                         break;
@@ -1844,16 +1905,11 @@ face_bake_synthesize(struct RSCache_Model* model)
                     model->vertices_x[found] = xi;
                     model->vertices_y[found] = yi;
                     model->vertices_z[found] = zi;
+                    /* All three corners agreed, so there is nothing to choose:
+                     * the fabricated vertex follows the same bone as every
+                     * point of the surface it was carved out of. */
                     if( model->vertex_bone_map )
-                    {
-                        int dom = pc;
-                        if( ba >= bb && ba >= bc )
-                            dom = pa;
-                        else if( bb >= bc )
-                            dom = pb;
-                        model->vertex_bone_map[found] =
-                            model->vertex_bone_map[dom];
-                    }
+                        model->vertex_bone_map[found] = (uint8_t)synth_label;
                 }
                 vert[i][j] = found;
             }
@@ -2435,6 +2491,22 @@ prepare_model_outputs(
         if( g_face_alpha_bake && model->face_alphas &&
             provenance->header_flag_count > 2 && provenance->header_flags[2] == 0 )
             provenance->header_flags[2] = 1;
+        if( g_strip_priorities && (model->face_priorities || model->model_priority) )
+        {
+            /* Both forms go: a NULL face table with a zero model priority is
+             * how the encoder writes "no priorities" and how ToriDraw reads
+             * "depth sort this". The encoder prefers the provenance's recorded
+             * header byte over anything derived from the model and rejects a
+             * header claiming per-face priorities (255) once the array is
+             * gone; header_flags[1] is that byte, and clearing only it leaves
+             * the OB3 tail (particle/billboard sections) intact. */
+            free(model->face_priorities);
+            model->face_priorities = NULL;
+            model->model_priority = 0;
+            if( provenance->header_flag_count > 1 )
+                provenance->header_flags[1] = 0;
+            g_priorities_stripped++;
+        }
         uint32_t bound = RSCache_ModelEncodeBound(model, provenance);
         uint8_t* encoded = bound ? malloc(bound) : NULL;
         uint32_t written = encoded ? RSCache_ModelEncodeFormat(
@@ -2452,7 +2524,8 @@ prepare_model_outputs(
         struct RSCache_Model* check = RSCache_ModelNewDecodeProvenance(
             encoded, (int)written, &check_provenance);
         if( !check || !check_provenance || check->face_count != model->face_count ||
-            check_provenance->format != RSCACHE_MODEL_FORMAT_OB3 )
+            check_provenance->format != RSCACHE_MODEL_FORMAT_OB3 ||
+            (g_strip_priorities && (check->face_priorities || check->model_priority)) )
         {
             fprintf(stderr, "rs2012_material_bake: remapped model %d failed decode check\n",
                     models->values[i]);
@@ -3021,6 +3094,7 @@ usage(const char* argv0)
             "         [--face-color-bake off|tint|modulate] [--face-color-strength 0-100]\n"
             "         [--no-face-alpha-bake] [--face-bake-debug MODEL] [--models-out DIR]\n"
             "         [--matte 0-100] [--wisp-alpha screen|capped|off]\n"
+            "         [--keep-priorities]\n"
             "Defaults: cache.rs727_preeoc and OSRS-Content/osrs239-content.\n"
             "The default backport composites each erased material's baked frame into\n"
             "the face colours it falls back to (modulate) and turns the frame's alpha\n"
@@ -3037,7 +3111,11 @@ usage(const char* argv0)
             "surface opaque, capped lets the guess soften a surface but not erase\n"
             "it, screen restores the uncapped v10-m60 behaviour that ghosted the\n"
             "arena rocks. Authored translucency (alpha_mode 2, cutout) is reached\n"
-            "on other paths and is unaffected at every setting.\n",
+            "on other paths and is unaffected at every setting.\n"
+            "Face render priorities are dropped by default: these models were\n"
+            "authored against a z-buffered client, so their priority bytes never\n"
+            "ordered anything and honouring them overrides ToriDraw's depth sort.\n"
+            "--keep-priorities restores them for an A/B.\n",
             argv0);
 }
 
@@ -3056,6 +3134,10 @@ main(int argc, char** argv)
             g_ground_mesh_fallback = false;
         else if( strcmp(argv[i], "--alpha-report") == 0 )
             g_alpha_report = true;
+        else if( strcmp(argv[i], "--keep-priorities") == 0 )
+            g_strip_priorities = false;
+        else if( strcmp(argv[i], "--strip-priorities") == 0 )
+            g_strip_priorities = true;
         else if( strcmp(argv[i], "--face-color-bake") == 0 && i + 1 < argc )
         {
             i++;
@@ -3295,10 +3377,13 @@ main(int argc, char** argv)
                    : g_wisp_alpha == WISP_ALPHA_CAPPED ? "capped"
                                                        : "off",
                    g_face_bake_wisp_faces);
-        if( g_face_synth_parents > 0 )
-            printf("  face_synth: parents=%ld sub_faces=%ld holes=%ld (K=%d hole=%.2f)\n",
+        if( g_face_synth_parents > 0 || g_face_synth_mixed_label > 0 )
+            printf("  face_synth: parents=%ld sub_faces=%ld holes=%ld "
+                   "declined_mixed_label=%ld (K=%d hole=%.2f)\n",
                    g_face_synth_parents, g_face_synth_faces, g_face_synth_holes,
-                   g_face_synth_k, g_face_synth_hole);
+                   g_face_synth_mixed_label, g_face_synth_k, g_face_synth_hole);
+        printf("  face_priorities: %s (%ld model(s) stripped)\n",
+               g_strip_priorities ? "stripped" : "kept", g_priorities_stripped);
         if( g_face_matte && g_face_matte_faces > 0 )
             printf("  matte=%d%%: faces=%ld mean_light_shift=%.2f (knee=%d)\n",
                    g_face_matte, g_face_matte_faces,

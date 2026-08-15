@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdlib.h>
 #include "graphics/dash_restrict.h"
 #include "graphics/projection.h"
@@ -111,10 +112,30 @@ toridraw_dbg_log(
 // #define TORIDRAW_CYLINDER_FAR_PLANE_Z 3500
 #define TORIDRAW_CYLINDER_FAR_PLANE_Z 7500
 
+/*
+ * z_sum / 3, via the 16.16 reciprocal (21845 == 65536/3).
+ *
+ * The multiply is done in 64 bit because the 32-bit form overflows at
+ * z_sum > 98,304 -- i.e. an average projected depth of ~32,768 per vertex --
+ * and UBSan caught it live in the face sort:
+ *
+ *   toridraw_render.u.c: signed integer overflow:
+ *     98647 * 21845 cannot be represented in type 'int'
+ *
+ * That threshold is why the failure is VIEWING-ANGLE dependent, which is the
+ * clue that identified it: projected depth is smallest looking at a model
+ * head-on and grows as the camera swings around, so the same scene renders
+ * correctly from one side and corrupts its depth sort from another. A wrapped
+ * z_sum becomes a negative depth, the face buckets outside the table, and the
+ * model loses faces or disappears entirely -- with nothing wrong upstream.
+ *
+ * 64-bit here is free: the shift already forces a widening on any 64-bit host,
+ * and this is one multiply per face rather than per pixel.
+ */
 static inline int
 div3_fast_fixedpoint(int z_sum)
 {
-    return (z_sum * 21845) >> 16;
+    return (int)(((int64_t)z_sum * 21845) >> 16);
 }
 
 /*
@@ -700,6 +721,35 @@ toridraw_projection_debug_print(
         position->roll);
 }
 
+/*
+ * Above this the cull arithmetic stops being trustworthy.
+ *
+ * Both cheap culls project world-space offsets through a perspective divide,
+ * and the screen extents they produce are only meaningful while the inputs stay
+ * inside the rasterizer's coordinate domain. A model whose bounds have been
+ * driven to the vertexint_t rails by a bad pose (the QBD reached radius 43,425
+ * with its y extents pinned at +/-32768) overflows those intermediates, and the
+ * wrapped result reports the model entirely off-screen -- so the one thing big
+ * enough to fill the viewport is the thing that gets culled from it.
+ *
+ * Culling is an OPTIMISATION. When its inputs cannot be trusted the answer must
+ * be "draw", never "skip": drawing something that turns out to be off-screen
+ * costs a few wasted triangles, whereas skipping something on-screen deletes it.
+ * One comparison against a constant, so nothing ordinary pays for it.
+ */
+#define TORIDRAW_CULL_TRUSTWORTHY_EXTENT (TORIDRAW_PROJECTED_COORD_LIMIT * 2)
+
+static inline bool
+toridraw_bounds_too_large_to_cull(const struct ToriDraw_BoundsCylinder* bc)
+{
+    if( !bc )
+        return false;
+    return bc->radius > TORIDRAW_CULL_TRUSTWORTHY_EXTENT ||
+           bc->max_y > TORIDRAW_CULL_TRUSTWORTHY_EXTENT ||
+           -bc->min_y > TORIDRAW_CULL_TRUSTWORTHY_EXTENT ||
+           bc->min_z_depth_any_rotation > TORIDRAW_CULL_TRUSTWORTHY_EXTENT;
+}
+
 static inline int
 ToriDraw_AabbCull(
     struct ToriDraw_AABB* aabb,
@@ -761,6 +811,11 @@ ToriDraw_FastCull(
     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
     if( !bc )
         return TORIDRAW_CULL_ERROR;
+
+    /* Early switch: a model too large for the cull math is declared visible
+     * rather than measured. See toridraw_bounds_too_large_to_cull. */
+    if( toridraw_bounds_too_large_to_cull(bc) )
+        return TORIDRAW_CULL_VISIBLE;
 
     int model_edge_radius = bc->radius;
 
@@ -998,15 +1053,42 @@ ToriDraw_CalculateCylinderAabb8point(
     aabb->min_screen_y = min_sy + cy;
     aabb->max_screen_y = max_sy + cy;
 
+    /* Same rule as the fast cull: at these magnitudes the eight projected
+     * corners are saturated garbage, and a box built from them typically lands
+     * entirely off-screen -- culling the one model big enough to fill the view.
+     * Report a box that covers everything so the caller draws instead of
+     * measuring. See toridraw_bounds_too_large_to_cull. */
+    if( toridraw_bounds_too_large_to_cull(bcyl) )
+    {
+        aabb->min_screen_x = 0;
+        aabb->min_screen_y = 0;
+        aabb->max_screen_x = view_port->width;
+        aabb->max_screen_y = view_port->height;
+    }
+
     aabb->kind = TORIDRAW_AABB_KIND_CYLINDER_8POINT;
 }
 
+/*
+ * Split so the shift is chosen ONCE, not per face.
+ *
+ * `depth_shift` is zero for every ordinary model, and the wrapper below calls
+ * this with a literal 0 in that case: the `>> 0` folds away and the inner loop
+ * is byte-for-byte what it was before the large-model support existed. Only a
+ * model that actually needs coarser buckets reaches the variable-shift
+ * instantiation. Marked always_inline because the whole point is that the
+ * constant reaches the loop body.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
 static inline int
-bucket_sort_by_average_depth(
+bucket_sort_by_average_depth_impl(
     faceint_t* RESTRICT face_depth_buckets,
     faceint_t* RESTRICT face_depth_bucket_counts,
     int depth_levels,
     int depth_stride,
+    int depth_shift,
     struct ToriDraw_FaceSortDebugStats* debug_stats,
     bool near_clipped,
     int model_min_depth,
@@ -1049,7 +1131,11 @@ bucket_sort_by_average_depth(
         if( clip_candidate || toridraw_winding_front_facing(winding) )
         {
             int z_sum = vz[a] + vz[b] + vz[c];
-            int depth_avg = div3_fast_fixedpoint(z_sum) + model_min_depth;
+            /* `depth_shift` makes the table a RESOLUTION budget rather than a
+             * hard range limit -- see the note at its computation. Zero for any
+             * model that already fits, so those bucket bit-identically to
+             * before. */
+            int depth_avg = (div3_fast_fixedpoint(z_sum) + model_min_depth) >> depth_shift;
 
             if( debug_stats )
             {
@@ -1130,6 +1216,36 @@ bucket_sort_by_average_depth(
     if( min_d > max_d )
         return 0;
     return (min_d) | (max_d << 16);
+}
+
+/* The early switch: ordinary models take the unshifted instantiation. */
+static inline int
+bucket_sort_by_average_depth(
+    faceint_t* RESTRICT face_depth_buckets,
+    faceint_t* RESTRICT face_depth_bucket_counts,
+    int depth_levels,
+    int depth_stride,
+    int depth_shift,
+    struct ToriDraw_FaceSortDebugStats* debug_stats,
+    bool near_clipped,
+    int model_min_depth,
+    int num_faces,
+    const int* RESTRICT vx,
+    const int* RESTRICT vy,
+    const int* RESTRICT vz,
+    const faceint_t* RESTRICT face_a,
+    const faceint_t* RESTRICT face_b,
+    const faceint_t* RESTRICT face_c)
+{
+    if( depth_shift == 0 )
+        return bucket_sort_by_average_depth_impl(
+            face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, 0,
+            debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b,
+            face_c);
+    return bucket_sort_by_average_depth_impl(
+        face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, depth_shift,
+        debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b,
+        face_c);
 }
 
 /**
@@ -1526,11 +1642,42 @@ ToriDraw_ComputeProjectedFaceOrder(
         0,
         (size_t)scene->depth_levels * sizeof(scene->tmp_depth_face_count[0]));
 
+    /*
+     * How much depth precision this model has to give up to be sortable.
+     *
+     * The bucket sort quantises a face's average depth into a fixed table, and
+     * a model spans [0, 2*bias] of it -- so a model whose bias exceeds half the
+     * table cannot be represented AT ALL: every face falls outside the buckets,
+     * the sort emits nothing, and the model vanishes while still picking. That
+     * is a hard cliff, and it is reached by exactly the things least able to
+     * afford it: physically large imports, and any model an animation has
+     * stretched (the QBD hit a bias of 54,402 against a 16,384-level table).
+     *
+     * Shifting the quantisation right by just enough makes the table a budget
+     * on PRECISION instead of a limit on SIZE. A large model sorts into coarser
+     * depth bands -- the only cost is that two faces closer together than one
+     * band may tie, which is a sort-order nicety, not a visibility cliff -- and
+     * everything that already fit keeps a shift of zero and buckets exactly as
+     * it did before, bit for bit.
+     *
+     * Derived rather than tuned: the smallest shift for which 2*bias+1 fits.
+     */
+    int depth_shift = 0;
+    {
+        long long span = (long long)model_min_depth * 2 + 1;
+        while( span > (long long)scene->depth_levels && depth_shift < 30 )
+        {
+            span >>= 1;
+            depth_shift++;
+        }
+    }
+
     int bounds = bucket_sort_by_average_depth(
         scene->tmp_depth_faces,
         scene->tmp_depth_face_count,
         scene->depth_levels,
         scene->depth_stride,
+        depth_shift,
         debug_stats,
         scene->near_clipped,
         model_min_depth,

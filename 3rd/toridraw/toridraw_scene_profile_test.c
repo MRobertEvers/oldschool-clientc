@@ -110,13 +110,24 @@ check_selectable_depth_capacity(void)
               ToriDraw_SceneSize(TORIDRAW_SCENE_FULL, TORIDRAW_SCRATCH_BUFFER_LOW_2K) ==
           (size_t)(16384 - 1500) * (512 + 1) * sizeof(faceint_t));
 
-    /* Animated QBD reaches a 4,791-unit conservative radius.  The sorter adds
-     * that radius to relative face depth, so its safe table requirement is
-     * 2*4,791+1 = 9,583 levels. */
+    /*
+     * Animated QBD reaches a 4,791-unit conservative radius. The sorter adds
+     * that radius to relative face depth, so representing it exactly wants
+     * 2*4,791+1 = 9,583 levels -- more than the 1,500-level reference table.
+     *
+     * That used to mean the model VANISHED on the reference table: every face
+     * quantised outside the buckets, the sort emitted nothing, and the model
+     * was invisible while still picking. The table is now a budget on depth
+     * PRECISION rather than a limit on model SIZE -- an oversized model is
+     * bucketed through a right shift and sorts coarsely instead of
+     * disappearing -- so both tables must order the face, and the deep table
+     * (which needs no shift) remains exact.
+     */
     bounds.min_z_depth_any_rotation = 4791;
     seed_one_face_at_depth(reference, hnd, 4791);
     seed_one_face_at_depth(deep, hnd, 4791);
-    CHECK(ToriDraw_FaceOrderCount(reference) == 0);
+    CHECK(ToriDraw_FaceOrderCount(reference) == 1);
+    CHECK(ToriDraw_FaceOrder(reference)[0] == 0);
     CHECK(ToriDraw_FaceOrderCount(deep) == 1);
     CHECK(ToriDraw_FaceOrder(deep)[0] == 0);
 

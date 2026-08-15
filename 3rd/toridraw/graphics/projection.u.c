@@ -1,6 +1,7 @@
 #ifndef PROJECTION_U_C
 #define PROJECTION_U_C
 
+#include <stdint.h>
 #include "projection.h"
 
 #include "graphics/tori_compat.h"
@@ -290,16 +291,37 @@ project_orthographic_fast_trig(
     int cos_camera_yaw = trig->cos(camera_yaw, trig->user);
     int sin_camera_yaw = trig->sin(camera_yaw, trig->user);
 
+    /*
+     * TEMPORARY (2026-08-15): the fixed-point rotations below are done in 64 bit.
+     *
+     * sin/cos are 16.16, so each product is a coordinate scaled by up to 65536
+     * and the SUM of two of them is what gets shifted back down. In 32 bit that
+     * overflows once a coordinate passes roughly +/-32,000 -- UBSan caught it
+     * live at this function's first rotation:
+     *
+     *   projection.u.c:312: signed integer overflow:
+     *     -1955684628 + -930180736 cannot be represented in type 'int'
+     *
+     * The wrapped result becomes the projected vertex, so everything downstream
+     * (screen AABB, both cheap culls, the depth bias) inherits nonsense -- which
+     * is how a model large enough to fill the viewport gets judged off-screen.
+     *
+     * Marked temporary because it is under evaluation: it widens every projected
+     * vertex on this path, and the SIMD kernels beside it are NOT widened, so
+     * this is deliberately the scalar path only. If it does not resolve the
+     * symptom it should be reverted rather than left as an unmeasured cost --
+     * and if it does, the right permanent shape is probably the same early
+     * switch used for the depth sort and the culls: detect out-of-range
+     * coordinates once per model and route only those through a wide path.
+     */
     int x_rotated = x;
     int z_rotated = z;
     if( yaw != 0 )
     {
         int sin_yaw = trig->sin(yaw, trig->user);
         int cos_yaw = trig->cos(yaw, trig->user);
-        x_rotated = x * cos_yaw + z * sin_yaw;
-        x_rotated >>= 16;
-        z_rotated = z * cos_yaw - x * sin_yaw;
-        z_rotated >>= 16;
+        x_rotated = (int)(((int64_t)x * cos_yaw + (int64_t)z * sin_yaw) >> 16);
+        z_rotated = (int)(((int64_t)z * cos_yaw - (int64_t)x * sin_yaw) >> 16);
     }
 
     // Translate points relative to camera position
@@ -309,16 +331,16 @@ project_orthographic_fast_trig(
 
     // Apply perspective rotation
     // First rotate around Y-axis (scene yaw)
-    int x_scene = x_rotated * cos_camera_yaw + z_rotated * sin_camera_yaw;
-    x_scene >>= 16;
-    int z_scene = z_rotated * cos_camera_yaw - x_rotated * sin_camera_yaw;
-    z_scene >>= 16;
+    int x_scene =
+        (int)(((int64_t)x_rotated * cos_camera_yaw + (int64_t)z_rotated * sin_camera_yaw) >> 16);
+    int z_scene =
+        (int)(((int64_t)z_rotated * cos_camera_yaw - (int64_t)x_rotated * sin_camera_yaw) >> 16);
 
     // Then rotate around X-axis (scene pitch)
-    int y_scene = y_rotated * cos_camera_pitch - z_scene * sin_camera_pitch;
-    y_scene >>= 16;
-    int z_final_scene = y_rotated * sin_camera_pitch + z_scene * cos_camera_pitch;
-    z_final_scene >>= 16;
+    int y_scene =
+        (int)(((int64_t)y_rotated * cos_camera_pitch - (int64_t)z_scene * sin_camera_pitch) >> 16);
+    int z_final_scene =
+        (int)(((int64_t)y_rotated * sin_camera_pitch + (int64_t)z_scene * cos_camera_pitch) >> 16);
 
     projected_vertex->x = x_scene;
     projected_vertex->y = y_scene;

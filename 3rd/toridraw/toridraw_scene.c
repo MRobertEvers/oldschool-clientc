@@ -1591,6 +1591,43 @@ ToriDraw_SceneElementApplyAnimation(
 
         ToriDraw_ModelAnimateFrame(model, animation->base, &animation->frames[frame]);
 
+
+        /*
+         * TORIRS_ANIM_BLOWUP: name the sequence and frame whose transforms blow
+         * a model's geometry out, and nothing else.
+         *
+         * This is the question left over once the magnitude cliffs are closed:
+         * the model no longer vanishes, but a pose that reaches radius 43,425
+         * is still wrong, and the only thing worth knowing is WHICH keyframe
+         * did it. Edge-triggered on a large jump in the bounds radius, so a
+         * whole session produces a handful of lines instead of one per pose --
+         * TORIRS_ANIM_DEBUG's per-frame firehose is why this was never legible.
+         */
+        if( model->bounds_cylinder && getenv("TORIRS_ANIM_BLOWUP") )
+        {
+            /* Per ELEMENT. A single shared `last` compares one model's radius
+             * against whatever was posed immediately before it, which fires on
+             * every scene that draws two differently-sized models -- noise that
+             * says nothing about any animation. */
+            static int last_radius[256];
+            static bool last_seen[256];
+            int const key = element_id & 255;
+            int const r = model->bounds_cylinder->radius;
+            int const prev = last_seen[key] ? last_radius[key] : -1;
+
+            if( prev >= 0 && (r > prev * 2 + 64 || prev > r * 2 + 64) )
+                fprintf(
+                    stderr,
+                    "anim_blowup: element=%d seq=%d frame=%d radius %d -> %d "
+                    "(min_y=%d max_y=%d bias=%d) -- this keyframe changed the "
+                    "model's extent by more than 2x\n",
+                    element_id, element->anim_seq_id, frame, prev, r,
+                    model->bounds_cylinder->min_y, model->bounds_cylinder->max_y,
+                    model->bounds_cylinder->min_z_depth_any_rotation);
+            last_radius[key] = r;
+            last_seen[key] = true;
+        }
+
         /* TORIRS_ANIM_DEBUG: one line per (element, frame) with the resulting
          * bounds cylinder, to catch a keyframe whose decoded transforms blow
          * the model's geometry out to a radius the camera/culling can't

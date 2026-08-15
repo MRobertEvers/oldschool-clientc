@@ -7,6 +7,7 @@
 #include "toridraw_model_transform.h"
 
 #include <assert.h>
+#include <stdint.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,9 +19,27 @@ struct ToriDraw_AnimTransform
     int origin_z;
 };
 
+/*
+ * Clamp, as the name has always claimed -- it used to be a bare truncating cast.
+ *
+ * `vertexint_t` is int16_t, so a transform that drives a coordinate past 32767
+ * WRAPS to the opposite extreme, and every face touching that vertex becomes a
+ * screen-crossing shard. Clamping keeps the damage local to the vertex that
+ * overflowed instead of teleporting it, which is the difference between a
+ * visibly distorted limb and geometry sprayed across the arena.
+ *
+ * This is containment, not a fix: a model reaching these values is already
+ * wrong upstream (the QBD hit radius 32,969 and a depth bias of 38,548 against
+ * a 16,384-level table, which is what made her vanish). Clamping stops the
+ * wrap; it does not stop the explosion.
+ */
 static vertexint_t
 ToriDraw_AnimVertexintClamp(int v)
 {
+    if( v > 32767 )
+        return (vertexint_t)32767;
+    if( v < -32768 )
+        return (vertexint_t)(-32768);
     return (vertexint_t)v;
 }
 
@@ -85,6 +104,38 @@ ToriDraw_AnimApplyTransform(
             transform->origin_y = arg_y;
             transform->origin_z = arg_z;
         }
+
+        /*
+         * TORIRS_ORIGIN_PROBE: an ORIGIN (type 0) op that lands far outside the
+         * model it pivots.
+         *
+         * Every later rotate in the frame is relative to this point, so a bad
+         * pivot is what turns a plausible keyframe into geometry at the far
+         * rail -- and it is the difference between "this animation asks for a
+         * big pose" and "this frame decoded wrong". `arg_*` is the frame's own
+         * decoded value; the averaged term is the centroid of the bone group it
+         * names. Printing both says which half is unreasonable: a wild `arg`
+         * means the frame data, a wild centroid means the bone group (a label
+         * naming vertices this model does not have).
+         */
+        if( getenv("TORIRS_ORIGIN_PROBE") )
+        {
+            int const ox = transform->origin_x;
+            int const oy = transform->origin_y;
+            int const oz = transform->origin_z;
+            int const worst = model->bounds_cylinder ? model->bounds_cylinder->radius : 0;
+            int const limit = worst > 4096 ? worst * 4 : 16384;
+
+            if( ox > limit || ox < -limit || oy > limit || oy < -limit || oz > limit ||
+                oz < -limit )
+                fprintf(
+                    stderr,
+                    "origin_probe: model=%p vc=%d ORIGIN=(%d,%d,%d) from arg=(%d,%d,%d) + "
+                    "centroid=(%d,%d,%d) over %d verts in %d bone group(s) [model radius %d]\n",
+                    (void*)model, model->vertex_count, ox, oy, oz, arg_x, arg_y, arg_z,
+                    avg_x / count, avg_y / count, avg_z / count, count, bone_group_length,
+                    worst);
+        }
         break;
     }
     case 1:
@@ -139,30 +190,51 @@ ToriDraw_AnimApplyTransform(
                 int roll = (arg_z & 255) * 8;
                 int var17;
 
+                /*
+                 * TEMPORARY (2026-08-15), same treatment as the projection.
+                 *
+                 * sin/cos are 16.16, so each product is a coordinate scaled by
+                 * up to 65536 and it is the 32-bit product -- not the shifted
+                 * result -- that overflows. UBSan caught it live here:
+                 *
+                 *   toridraw_model.c:173: signed integer overflow:
+                 *     -65358 * -35657 cannot be represented in type 'int'
+                 *
+                 * Note the coordinate: 35,657 is already outside vertexint_t.
+                 * These are RELATIVE to `transform->origin_*`, so a large pivot
+                 * makes the operand large even when every stored vertex is in
+                 * range -- and the wrapped product then writes a vertex at the
+                 * far rail. That is the geometry explosion: the Queen's radius
+                 * going 3,076 -> 11,952 -> 32,839 across one keyframe of seq
+                 * 22009, each pass feeding bigger operands into the next.
+                 *
+                 * Temporary because it is under evaluation with the projection
+                 * change; if the pair does not resolve the symptom, revert both.
+                 */
                 if( roll != 0 )
                 {
-                    int sin_roll = ToriDraw_Sin(roll);
-                    int cos_roll = ToriDraw_Cos(roll);
-                    var17 = (sin_roll * y + cos_roll * x) >> 16;
-                    y = (cos_roll * y - sin_roll * x) >> 16;
+                    int64_t sin_roll = ToriDraw_Sin(roll);
+                    int64_t cos_roll = ToriDraw_Cos(roll);
+                    var17 = (int)((sin_roll * y + cos_roll * x) >> 16);
+                    y = (int)((cos_roll * y - sin_roll * x) >> 16);
                     x = var17;
                 }
 
                 if( pitch != 0 )
                 {
-                    int sin_pitch = ToriDraw_Sin(pitch);
-                    int cos_pitch = ToriDraw_Cos(pitch);
-                    var17 = (cos_pitch * y - sin_pitch * z) >> 16;
-                    z = (sin_pitch * y + cos_pitch * z) >> 16;
+                    int64_t sin_pitch = ToriDraw_Sin(pitch);
+                    int64_t cos_pitch = ToriDraw_Cos(pitch);
+                    var17 = (int)((cos_pitch * y - sin_pitch * z) >> 16);
+                    z = (int)((sin_pitch * y + cos_pitch * z) >> 16);
                     y = var17;
                 }
 
                 if( yaw != 0 )
                 {
-                    int sin_yaw = ToriDraw_Sin(yaw);
-                    int cos_yaw = ToriDraw_Cos(yaw);
-                    var17 = (sin_yaw * z + cos_yaw * x) >> 16;
-                    z = (cos_yaw * z - sin_yaw * x) >> 16;
+                    int64_t sin_yaw = ToriDraw_Sin(yaw);
+                    int64_t cos_yaw = ToriDraw_Cos(yaw);
+                    var17 = (int)((sin_yaw * z + cos_yaw * x) >> 16);
+                    z = (int)((cos_yaw * z - sin_yaw * x) >> 16);
                     x = var17;
                 }
 
@@ -193,9 +265,10 @@ ToriDraw_AnimApplyTransform(
                 int x = (int)vertices_x[vertex_index] - transform->origin_x;
                 int y = (int)vertices_y[vertex_index] - transform->origin_y;
                 int z = (int)vertices_z[vertex_index] - transform->origin_z;
-                x = arg_x * x / 128;
-                y = arg_y * y / 128;
-                z = arg_z * z / 128;
+                /* Same 32-bit hazard as the rotate above. */
+                x = (int)(((int64_t)arg_x * x) / 128);
+                y = (int)(((int64_t)arg_y * y) / 128);
+                z = (int)(((int64_t)arg_z * z) / 128);
                 vertices_x[vertex_index] = ToriDraw_AnimVertexintClamp(x + transform->origin_x);
                 vertices_y[vertex_index] = ToriDraw_AnimVertexintClamp(y + transform->origin_y);
                 vertices_z[vertex_index] = ToriDraw_AnimVertexintClamp(z + transform->origin_z);

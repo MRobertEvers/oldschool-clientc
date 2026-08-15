@@ -782,6 +782,14 @@ soft3d_draw_model_widget(
 /* TORIRS_DRAW_TRACE=<min_vertex_count>, 0/unset = off. Vertex count rather than
  * an element id because element ids change every time the entity respawns and
  * the model that matters here is the largest thing in the scene. */
+/* Edge-triggered: remember the last verdict so the trace can be left on for a
+ * whole session and still only speak when something changes. Per-frame logging
+ * is what made the first version unusable -- the volume buried the one frame
+ * that mattered. */
+static int g_draw_trace_last_cull = -999;
+static int g_draw_trace_last_sorted = -999;
+static int g_draw_trace_drawn_frames = 0;
+
 static int
 draw_trace_min_vertices(void)
 {
@@ -838,18 +846,23 @@ soft3d_draw_model(
     position = cmd->position;
     cull = ToriDraw_RenderModel1Project(
         cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
-    if( trace_this )
+    if( trace_this && cull != g_draw_trace_last_cull )
     {
         struct ToriDraw_Model const* m = cmd->model.u.model.model;
         struct ToriDraw_BoundsCylinder const* bc = m->bounds_cylinder;
         fprintf(
             stderr,
-            "draw_trace: element=%d vc=%d faces=%d cull=%d pos=(%d,%d,%d) radius=%d "
-            "min_y=%d max_y=%d bias=%d\n",
-            cmd->element_id, m->vertex_count, m->face_count, (int)cull, position.x, position.y,
-            position.z, bc ? bc->radius : -1, bc ? bc->min_y : 0, bc ? bc->max_y : 0,
-            bc ? bc->min_z_depth_any_rotation : -1);
+            "draw_trace: element=%d vc=%d faces=%d CULL %d -> %d (0=visible) pos=(%d,%d,%d) "
+            "radius=%d min_y=%d max_y=%d bias=%d after %d drawn frames\n",
+            cmd->element_id, m->vertex_count, m->face_count, g_draw_trace_last_cull, (int)cull,
+            position.x, position.y, position.z, bc ? bc->radius : -1, bc ? bc->min_y : 0,
+            bc ? bc->max_y : 0, bc ? bc->min_z_depth_any_rotation : -1,
+            g_draw_trace_drawn_frames);
+        g_draw_trace_last_cull = (int)cull;
+        g_draw_trace_drawn_frames = 0;
     }
+    if( trace_this && cull != TORIDRAW_CULL_VISIBLE )
+        g_draw_trace_drawn_frames++;
     if( cull != TORIDRAW_CULL_VISIBLE )
         return;
 
@@ -877,8 +890,21 @@ soft3d_draw_model(
         return;
     {
         int const sorted = ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene);
-        if( trace_this )
-            fprintf(stderr, "draw_trace: element=%d sorted=%d\n", cmd->element_id, sorted);
+        /* Only the transitions matter: went-to-zero is the invisible-but-
+         * clickable state, came-back is the recovery. A drifting face count on
+         * a model that keeps drawing is noise. */
+        if( trace_this && ((sorted <= 0) != (g_draw_trace_last_sorted <= 0)) )
+        {
+            fprintf(
+                stderr, "draw_trace: element=%d SORTED %d -> %d %s after %d frames\n",
+                cmd->element_id, g_draw_trace_last_sorted, sorted,
+                sorted <= 0 ? "(RASTERIZES NOTHING - invisible but still clickable)"
+                            : "(drawing again)",
+                g_draw_trace_drawn_frames);
+            g_draw_trace_drawn_frames = 0;
+        }
+        g_draw_trace_last_sorted = sorted;
+        g_draw_trace_drawn_frames++;
         if( sorted <= 0 )
             return;
     }
