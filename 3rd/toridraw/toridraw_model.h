@@ -17,9 +17,11 @@ ToriDraw_BufCopy(
     size_t count,
     size_t elem_size)
 {
-    if( count == 0 )
+    /* Optional model arrays (face_alphas, face_textures, ...) are copied with
+     * the model's face_count, so a NULL src with a non-zero count means "this
+     * array is absent" -- absent in, absent out. Not a caller bug. */
+    if( count == 0 || !src )
         return NULL;
-    assert(src);
     void* dst = malloc(count * elem_size);
     if( dst )
         memcpy(dst, src, count * elem_size);

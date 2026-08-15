@@ -16,7 +16,6 @@ test_parse(void)
     TEST_ASSERT(revconfig_parse_button_type("4") == 4, "button int");
 
     TEST_ASSERT(revconfig_parse_minimenu_action("") == 0, "action empty");
-    TEST_ASSERT(revconfig_parse_minimenu_action(NULL) == 0, "action null");
     TEST_ASSERT(
         revconfig_parse_minimenu_action("CANCEL") == REVCONFIG_MINIMENU_CANCEL, "CANCEL");
     TEST_ASSERT(

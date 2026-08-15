@@ -662,6 +662,9 @@ function frameLoop(t) {
   const dt = state.lastT ? t - state.lastT : 0;
   state.lastT = t;
 
+  /* Once per frame, not per keydown: see wireInput. */
+  if (state.applyFly) state.applyFly();
+
   if (state.playing && state.bodyTotal > 0) {
     state.cycleAcc += dt;
     while (state.cycleAcc >= TICK_MS) {
@@ -884,6 +887,88 @@ async function setMode(mode) {
 
 /* ---- input --------------------------------------------------------------- */
 
+/* ---- the cache registry -------------------------------------------------
+ *
+ * Every mutation returns the whole list, so there is one render path and no
+ * chance of the page's idea of what is active drifting from the server's.
+ */
+async function renderCaches(data) {
+  const list = document.getElementById('cacheList');
+  const active = document.getElementById('cacheActive');
+  if (!list) return;
+
+  list.innerHTML = '';
+  (data.caches || []).forEach((c) => {
+    const row = document.createElement('div');
+    row.className = 'row' + (c.index === data.active ? ' sel' : '');
+    const counts = c.indexed
+      ? `${c.npcs} npcs · ${c.seqs} seqs · ${c.models} models`
+      : 'not yet indexed';
+    row.innerHTML =
+      `<span class="cname">${c.label}</span>` +
+      `<span class="meta">${c.rev} · ${counts}</span>`;
+    row.title = c.path;
+    row.onclick = async () => {
+      document.getElementById('cacheInfo').textContent = `switching to ${c.label}…`;
+      const res = await fetch(`/api/caches/select?index=${c.index}`);
+      const next = await res.json();
+      await renderCaches(next);
+      /* The npc list, the animations and any loaded subject all belong to the
+       * cache that was open — reload rather than leave the previous cache's
+       * ids labelled with this one's name. */
+      await reloadForCache();
+    };
+
+    const drop = document.createElement('button');
+    drop.className = 'x';
+    drop.textContent = '×';
+    drop.title = 'remove from the list (does not delete anything)';
+    drop.onclick = async (e) => {
+      e.stopPropagation();
+      const res = await fetch(`/api/caches/remove?index=${c.index}`);
+      renderCaches(await res.json());
+    };
+    row.appendChild(drop);
+    list.appendChild(row);
+  });
+
+  const cur = (data.caches || [])[data.active];
+  if (active) active.textContent = cur ? `${cur.label} (${cur.rev})` : 'none';
+  document.getElementById('cacheInfo').textContent =
+    `${(data.caches || []).length} listed`;
+  state.caches = data;
+}
+
+async function reloadForCache() {
+  const res = await fetch('/api/npcs.json');
+  state.npcs = await res.json();
+  renderNpcList();
+  document.getElementById('npcCount').textContent = `${state.npcs.length} npcs`;
+}
+
+function wireCaches() {
+  const add = document.getElementById('cacheAdd');
+  if (!add) return;
+
+  add.onclick = async () => {
+    const path = document.getElementById('cachePath').value.trim();
+    const rev = document.getElementById('cacheRev').value.trim();
+    if (!path) return;
+    document.getElementById('cacheInfo').textContent = 'adding…';
+    const res = await fetch(
+      `/api/caches/add?path=${encodeURIComponent(path)}&rev=${encodeURIComponent(rev)}`);
+    renderCaches(await res.json());
+  };
+
+  document.getElementById('cacheScan').onclick = async () => {
+    document.getElementById('cacheInfo').textContent = 'scanning…';
+    const res = await fetch('/api/caches/discover');
+    renderCaches(await res.json());
+  };
+
+  fetch('/api/caches.json').then((r) => r.json()).then(renderCaches);
+}
+
 function wireInput() {
   let dragging = false;
   let lastX = 0;
@@ -952,6 +1037,7 @@ function wireInput() {
     if (forward || right || up) state.wasm.move(forward, right, up, state.yaw);
   };
 
+  wireCaches();
   document.getElementById('npcSearch').addEventListener('input', renderNpcList);
   /* The animation query survives changing npc on purpose: comparing "what is
    * each of these creatures' death animation" is the reason to have it. */

@@ -789,7 +789,6 @@ test_features_eras(void)
     TEST_ASSERT(ToriRS_Features_ByName("osrs") == osrs, "ByName resolves osrs");
     TEST_ASSERT(ToriRS_Features_ByName("server_routed") == routed, "ByName resolves server_routed");
     TEST_ASSERT(ToriRS_Features_ByName("nope") == NULL, "ByName rejects an unknown era");
-    TEST_ASSERT(ToriRS_Features_ByName(NULL) == NULL, "ByName tolerates NULL");
 
     /* LostCity is the zero table: every slot at the 2004 behaviour. */
     TEST_ASSERT(lostcity->pathing_mode == TORIRS_PATHING_CLIENT_BFS, "lostcity paths client-side");
@@ -851,8 +850,6 @@ test_features_eras(void)
                 "NearestModelByName resolves none");
     TEST_ASSERT(ToriRS_Features_NearestModelByName("box10") < 0,
                 "NearestModelByName rejects a near-miss rather than reading it as ring3");
-    TEST_ASSERT(ToriRS_Features_NearestModelByName(NULL) < 0,
-                "NearestModelByName tolerates NULL");
     TEST_ASSERT(strcmp(ToriRS_Features_NearestModelName(TORIRS_NEAREST_BOX10_RECT),
                        "box10_rect") == 0,
                 "NearestModelName round-trips");

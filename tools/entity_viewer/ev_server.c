@@ -562,6 +562,33 @@ static void
 handle_npcs_json(int fd)
 {
     struct Str s = { 0 };
+
+    /*
+     * No catalog: answer from the index instead of an empty list.
+     *
+     * The catalog is what supplies the rig matching, and it takes minutes to
+     * build — so a cache the user just added has none. Returning [] there makes
+     * a perfectly good cache look empty. The index has every npc's id and name,
+     * which is what the list is; the rig columns simply read as zero.
+     */
+    if( g_npc_count == 0 && g_index.npc_count > 0 )
+    {
+        str_add(&s, "[");
+        for( int i = 0; i < g_index.npc_count; i++ )
+        {
+            str_add(&s, i ? ",{" : "{");
+            str_add(&s, "\"id\":%d,\"name\":", g_index.npcs[i].id);
+            str_add_json(&s, g_index.npcs[i].name);
+            str_add(&s, ",\"gameval\":");
+            str_add_json(&s, NULL);
+            str_add(&s, ",\"rig\":0,\"skeletal\":0,\"skinned\":false,\"maybe\":0}");
+        }
+        str_add(&s, "]");
+        send_response(fd, "200 OK", "application/json", s.p, s.len);
+        free(s.p);
+        return;
+    }
+
     str_add(&s, "[");
     for( int i = 0; i < g_npc_count; i++ )
     {
@@ -2164,11 +2191,20 @@ main(int argc, char** argv)
             cache_dir = argv[i];
     }
 
-    if( !rev_name || !cache_dir || !catalog_dir )
+    /*
+     * The catalog is optional now.
+     *
+     * It used to be the only source of the npc list, so no catalog meant no
+     * page. The per-cache index supplies that directly, in about a tenth of a
+     * second against the five minutes ev_catalog takes — so requiring one would
+     * make "switch to this cache" a coffee break. What the catalog still adds,
+     * when present, is the rig matching.
+     */
+    if( !rev_name || !cache_dir )
     {
         fprintf(
             stderr,
-            "Usage: %s --rev osrs239 <cache_dir> --catalog <dir> "
+            "Usage: %s --rev osrs239 <cache_dir> [--catalog <dir>] "
             "[--port 8099] [--web DIR] [--names CONTENT_DIR]\n",
             argv[0]);
         return 1;
@@ -2212,8 +2248,8 @@ main(int argc, char** argv)
         fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models\n",
                 e->label, e->rev, e->npc_count, e->seq_count, e->model_count);
     }
-    if( !load_catalog(catalog_dir) )
-        return 1;
+    if( catalog_dir && !load_catalog(catalog_dir) )
+        fprintf(stderr, "catalog at %s could not be read — rig matching is off\n", catalog_dir);
 
     if( names_dir )
     {

@@ -176,7 +176,9 @@ occluder_footprint_tile_visible(
     int dz)
 {
     int idx;
-    assert(span);
+    /* No span -> visible, per the contract stated above. */
+    if( !span )
+        return 1;
     if( span->empty )
         return 1;
     if( dz < span->dz_min || dz > span->dz_max )

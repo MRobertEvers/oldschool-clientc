@@ -97,7 +97,10 @@ ToriDraw_ModelTextureWantsTake(
 static struct ToriDraw_Bones*
 bones_from_torirs(const struct ToriRS_Bones* src)
 {
-    assert(src);
+    /* vertex_bones/face_bones are optional -- an unrigged model has neither, so
+     * "no source bones" means "no destination bones", not a caller bug. */
+    if( !src )
+        return NULL;
 
     struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
     if( !bones )
