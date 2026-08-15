@@ -273,7 +273,9 @@ test_corpus(const char* corpus)
     snprintf(path, sizeof(path), "%s/script.idx", dir);
     file = fopen(path, "rb");
     sizes = (int32_t*)calloc((size_t)provider.count, sizeof(int32_t));
-    if( file && sizes )
+    assert(sizes);
+    /* A missing .idx is a real runtime condition; the allocation is not. */
+    if( file )
     {
         uint8_t header[4];
         size_t got = fread(header, 1, 4, file);

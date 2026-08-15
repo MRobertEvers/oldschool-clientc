@@ -1931,69 +1931,71 @@ main(int argc, char** argv)
                     int* id_zb2 = (int*)malloc(tile_n * sizeof(int));
                     int* z_zb2 = (int*)malloc(tile_n * sizeof(int));
 
-                    if( reversed && id_rev && z_rev && id_zb2 && z_zb2 )
+                    assert(reversed);
+                    assert(id_rev);
+                    assert(z_rev);
+                    assert(id_zb2);
+                    assert(z_zb2);
+                    const int* svz = scene->screen_vertices_z;
+                    int run_start = 0;
+
+                    for( int i2 = 0; i2 < order_count; i2++ )
+                        reversed[i2] = order[i2];
+                    for( int i2 = 1; i2 <= order_count; i2++ )
                     {
-                        const int* svz = scene->screen_vertices_z;
-                        int run_start = 0;
+                        bool boundary = i2 == order_count;
 
-                        for( int i2 = 0; i2 < order_count; i2++ )
-                            reversed[i2] = order[i2];
-                        for( int i2 = 1; i2 <= order_count; i2++ )
+                        if( !boundary )
                         {
-                            bool boundary = i2 == order_count;
-
-                            if( !boundary )
-                            {
-                                int const fa = order[i2 - 1];
-                                int const fb = order[i2];
-                                int const za = (svz[model->face_indices_a[fa]] +
-                                                svz[model->face_indices_b[fa]] +
-                                                svz[model->face_indices_c[fa]]) / 3;
-                                int const zb = (svz[model->face_indices_a[fb]] +
-                                                svz[model->face_indices_b[fb]] +
-                                                svz[model->face_indices_c[fb]]) / 3;
-                                boundary =
-                                    face_priority_of(model, fa) !=
-                                        face_priority_of(model, fb) ||
-                                    zb - za > 2 || za - zb > 2;
-                            }
-                            if( boundary )
-                            {
-                                for( int lo = run_start, hi = i2 - 1; lo < hi;
-                                     lo++, hi-- )
-                                {
-                                    int const tmp = reversed[lo];
-                                    reversed[lo] = reversed[hi];
-                                    reversed[hi] = tmp;
-                                }
-                                run_start = i2;
-                            }
+                            int const fa = order[i2 - 1];
+                            int const fb = order[i2];
+                            int const za = (svz[model->face_indices_a[fa]] +
+                                            svz[model->face_indices_b[fa]] +
+                                            svz[model->face_indices_c[fa]]) / 3;
+                            int const zb = (svz[model->face_indices_a[fb]] +
+                                            svz[model->face_indices_b[fb]] +
+                                            svz[model->face_indices_c[fb]]) / 3;
+                            boundary =
+                                face_priority_of(model, fa) !=
+                                    face_priority_of(model, fb) ||
+                                zb - za > 2 || za - zb > 2;
                         }
-                        raster_id_z(
-                            model,
-                            scene,
-                            reversed,
-                            order_count,
-                            tile,
-                            tile,
-                            vp.x_center,
-                            vp.y_center,
-                            id_rev,
-                            z_rev,
-                            id_zb2,
-                            z_zb2);
-                        write_id_dump(
-                            id_dump_prefix,
-                            view,
-                            tile,
-                            yaw,
-                            pitch,
-                            id_painter,
-                            z_painter,
-                            id_zbuf,
-                            z_zbuf,
-                            id_rev);
+                        if( boundary )
+                        {
+                            for( int lo = run_start, hi = i2 - 1; lo < hi;
+                                 lo++, hi-- )
+                            {
+                                int const tmp = reversed[lo];
+                                reversed[lo] = reversed[hi];
+                                reversed[hi] = tmp;
+                            }
+                            run_start = i2;
+                        }
                     }
+                    raster_id_z(
+                        model,
+                        scene,
+                        reversed,
+                        order_count,
+                        tile,
+                        tile,
+                        vp.x_center,
+                        vp.y_center,
+                        id_rev,
+                        z_rev,
+                        id_zb2,
+                        z_zb2);
+                    write_id_dump(
+                        id_dump_prefix,
+                        view,
+                        tile,
+                        yaw,
+                        pitch,
+                        id_painter,
+                        z_painter,
+                        id_zbuf,
+                        z_zbuf,
+                        id_rev);
                     free(reversed);
                     free(id_rev);
                     free(z_rev);

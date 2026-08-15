@@ -89,12 +89,10 @@ ev_config_record(
         if( global != record_id || files->file_sizes[i] <= 0 )
             continue;
         *out_bytes = malloc((size_t)files->file_sizes[i]);
-        if( *out_bytes )
-        {
-            memcpy(*out_bytes, files->files[i], (size_t)files->file_sizes[i]);
-            *out_size = files->file_sizes[i];
-            found = 1;
-        }
+        assert(*out_bytes);
+        memcpy(*out_bytes, files->files[i], (size_t)files->file_sizes[i]);
+        *out_size = files->file_sizes[i];
+        found = 1;
         break;
     }
 

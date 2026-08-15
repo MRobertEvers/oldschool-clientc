@@ -238,6 +238,18 @@ ev_textures_probe: $(BUILD)/ev_textures_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
+# ---- ev_cache_load_probe: does the loader read this cache, or only open it ----
+#
+# Detection, index and geometry in one pass, per cache directory. The failure it
+# exists to catch has no error attached: a wrong revision profile still lists
+# npcs and still returns models, they are just made of the wrong bytes.
+$(BUILD)/ev_cache_load_probe.o: test/ev_cache_load_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_cache_load_probe: $(BUILD)/ev_cache_load_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
 $(BUILD)/ev_index_cache_probe.o: test/ev_index_cache_probe.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 

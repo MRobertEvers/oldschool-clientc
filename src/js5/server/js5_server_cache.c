@@ -481,11 +481,7 @@ Js5ServerCacheBuildResponse(
     }
     capacity = 3u + blob.size + markers;
     *out = (uint8_t*)malloc(capacity);
-    if( !*out )
-    {
-        Js5ServerBlobFree(&blob);
-        return JS5_SERVER_CACHE_ERROR;
-    }
+    assert(*out);
 
     (*out)[position++] = archive;
     (*out)[position++] = (uint8_t)(group >> 8u);

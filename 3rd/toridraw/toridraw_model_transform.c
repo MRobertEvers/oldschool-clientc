@@ -236,22 +236,12 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
             dst->original_vertices_z = (vertexint_t*)malloc(nbytes);
             /* All three or none: the reset gates on x alone and would memcpy
              * from a NULL y/z. */
-            if( dst->original_vertices_x && dst->original_vertices_y &&
-                dst->original_vertices_z )
-            {
-                memcpy(dst->original_vertices_x, src->original_vertices_x, nbytes);
-                memcpy(dst->original_vertices_y, src->original_vertices_y, nbytes);
-                memcpy(dst->original_vertices_z, src->original_vertices_z, nbytes);
-            }
-            else
-            {
-                free(dst->original_vertices_x);
-                free(dst->original_vertices_y);
-                free(dst->original_vertices_z);
-                dst->original_vertices_x = NULL;
-                dst->original_vertices_y = NULL;
-                dst->original_vertices_z = NULL;
-            }
+            assert(dst->original_vertices_x);
+            assert(dst->original_vertices_y);
+            assert(dst->original_vertices_z);
+            memcpy(dst->original_vertices_x, src->original_vertices_x, nbytes);
+            memcpy(dst->original_vertices_y, src->original_vertices_y, nbytes);
+            memcpy(dst->original_vertices_z, src->original_vertices_z, nbytes);
         }
     }
 

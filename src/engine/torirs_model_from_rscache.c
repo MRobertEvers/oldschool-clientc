@@ -340,27 +340,27 @@ torirs_model_move_from_rscache(
         skin->group_counts = malloc((size_t)vc);
         skin->groups = calloc((size_t)vc, sizeof(uint8_t*));
         skin->scales = calloc((size_t)vc, sizeof(uint8_t*));
-        if( skin->group_counts && skin->groups && skin->scales )
+        assert(skin->group_counts);
+        assert(skin->groups);
+        assert(skin->scales);
+        memcpy(skin->group_counts, src->animaya_group_counts, (size_t)vc);
+        for( int i = 0; i < vc; i++ )
         {
-            memcpy(skin->group_counts, src->animaya_group_counts, (size_t)vc);
-            for( int i = 0; i < vc; i++ )
-            {
-                int cnt = skin->group_counts[i];
-                if( cnt <= 0 )
-                    continue;
-                skin->groups[i] = malloc((size_t)cnt);
-                skin->scales[i] = malloc((size_t)cnt);
-                if( skin->groups[i] && src->animaya_groups[i] )
-                    memcpy(skin->groups[i], src->animaya_groups[i], (size_t)cnt);
-                if( skin->scales[i] && src->animaya_scales[i] )
-                    memcpy(skin->scales[i], src->animaya_scales[i], (size_t)cnt);
-            }
-            dst->animaya_skin = skin;
+            int cnt = skin->group_counts[i];
+            if( cnt <= 0 )
+                continue;
+            skin->groups[i] = malloc((size_t)cnt);
+            skin->scales[i] = malloc((size_t)cnt);
+            assert(skin->groups[i]);
+            assert(skin->scales[i]);
+            /* The source arrays stay guarded: a decoded model may carry a group
+             * count for a vertex it has no group data for. */
+            if( src->animaya_groups[i] )
+                memcpy(skin->groups[i], src->animaya_groups[i], (size_t)cnt);
+            if( src->animaya_scales[i] )
+                memcpy(skin->scales[i], src->animaya_scales[i], (size_t)cnt);
         }
-        else
-        {
-            ToriRS_AnimayaSkinFree(skin);
-        }
+        dst->animaya_skin = skin;
     }
 
     if( dst->vertex_count > 0 && dst->vertices_x && dst->vertices_y && dst->vertices_z )

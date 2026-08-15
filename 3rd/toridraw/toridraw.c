@@ -256,10 +256,13 @@ ToriDraw_SceneAllocBuffers(
     scene->orthographic_vertices_z = malloc((size_t)caps->max_vertices * sizeof(int));
     scene->tmp_face_order = malloc((size_t)caps->max_faces * sizeof(int));
 
-    if( !scene->screen_vertices_x || !scene->screen_vertices_y || !scene->screen_vertices_z ||
-        !scene->orthographic_vertices_x || !scene->orthographic_vertices_y ||
-        !scene->orthographic_vertices_z || !scene->tmp_face_order )
-        return false;
+    assert(scene->screen_vertices_x);
+    assert(scene->screen_vertices_y);
+    assert(scene->screen_vertices_z);
+    assert(scene->orthographic_vertices_x);
+    assert(scene->orthographic_vertices_y);
+    assert(scene->orthographic_vertices_z);
+    assert(scene->tmp_face_order);
 
     if( caps->small_mode )
     {

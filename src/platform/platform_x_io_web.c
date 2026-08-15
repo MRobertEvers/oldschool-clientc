@@ -511,7 +511,8 @@ web_client_file(struct ToriRS_IOItem* item)
             return -1;
         }
         data = malloc((size_t)size > 0 ? (size_t)size : 1);
-        if( !data || (size > 0 && fread(data, 1, (size_t)size, fp) != (size_t)size) )
+        assert(data);
+        if( size > 0 && fread(data, 1, (size_t)size, fp) != (size_t)size )
         {
             free(data);
             fclose(fp);

@@ -633,12 +633,10 @@ decode_tile(
         td->textured_m_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
         td->textured_n_coordinate = (faceint_t*)malloc(sizeof(faceint_t));
         td->face_texture_coords = (faceint_t*)calloc((size_t)face_count, sizeof(faceint_t));
-        if( !td->textured_p_coordinate || !td->textured_m_coordinate ||
-            !td->textured_n_coordinate || !td->face_texture_coords )
-        {
-            ToriDraw_ModelFree(td);
-            return NULL;
-        }
+        assert(td->textured_p_coordinate);
+        assert(td->textured_m_coordinate);
+        assert(td->textured_n_coordinate);
+        assert(td->face_texture_coords);
         td->textured_p_coordinate[0] = 0;
         td->textured_m_coordinate[0] = 1;
         td->textured_n_coordinate[0] = 3;

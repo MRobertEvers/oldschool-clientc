@@ -275,6 +275,26 @@ hd_draw_face(struct hd_ctx* ctx, int face)
     int ib = m->face_indices_b[face];
     int ic = m->face_indices_c[face];
 
+    /*
+     * Screen coordinates, centred.
+     *
+     * `screen_vertices_*` are relative to the projection origin, and the flat
+     * and gouraud kernels take offset_x/offset_y and add it themselves. The
+     * textured kernels have no such parameter — they rasterise the coordinates
+     * they are handed — so the centring has to happen here.
+     *
+     * Missing it does not look like an offset bug. The untextured faces of the
+     * same model draw in the right place while every textured one lands half a
+     * screen up and left, so the model appears to lose its textured geometry
+     * and a magnified fragment of it piles into the top-left corner.
+     */
+    int sx_a = ctx->scene->screen_vertices_x[ia] + ctx->offset_x;
+    int sx_b = ctx->scene->screen_vertices_x[ib] + ctx->offset_x;
+    int sx_c = ctx->scene->screen_vertices_x[ic] + ctx->offset_x;
+    int sy_a = ctx->scene->screen_vertices_y[ia] + ctx->offset_y;
+    int sy_b = ctx->scene->screen_vertices_y[ib] + ctx->offset_y;
+    int sy_c = ctx->scene->screen_vertices_y[ic] + ctx->offset_y;
+
     const struct ToriDraw_TexMapping* mapping = NULL;
     if( render_type >= 1 && ctx->hd && ctx->hd->texture_mappings && coord >= 0 &&
         coord < m->textured_face_count )
@@ -315,10 +335,8 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         g_hd_plane[gate][use_facealpha][use_modulate](
             ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
             ctx->camera_cot16,
-            ctx->scene->screen_vertices_x[ia], ctx->scene->screen_vertices_x[ib],
-            ctx->scene->screen_vertices_x[ic],
-            ctx->scene->screen_vertices_y[ia], ctx->scene->screen_vertices_y[ib],
-            ctx->scene->screen_vertices_y[ic],
+            sx_a, sx_b, sx_c,
+            sy_a, sy_b, sy_c,
             ctx->scene->orthographic_vertices_x[tp], ctx->scene->orthographic_vertices_x[tm],
             ctx->scene->orthographic_vertices_x[tn],
             ctx->scene->orthographic_vertices_y[tp], ctx->scene->orthographic_vertices_y[tm],
@@ -343,10 +361,8 @@ hd_draw_face(struct hd_ctx* ctx, int face)
 
     g_hd_mapped[render_type - 1][gate][use_facealpha][use_modulate](
         ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
-        ctx->scene->screen_vertices_x[ia], ctx->scene->screen_vertices_x[ib],
-        ctx->scene->screen_vertices_x[ic],
-        ctx->scene->screen_vertices_y[ia], ctx->scene->screen_vertices_y[ib],
-        ctx->scene->screen_vertices_y[ic],
+        sx_a, sx_b, sx_c,
+        sy_a, sy_b, sy_c,
         ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
         ctx->scene->orthographic_vertices_z[ic],
         m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],

@@ -72,6 +72,48 @@ The test is whether a real caller can reach it with NULL as a *meaningful*
 value. "A caller might be buggy" is not such a reason — that is the case the
 assert exists to catch.
 
+## An allocation failure is an assertion, not an `if`
+
+`malloc`/`calloc`/`realloc`/`strdup` returning NULL is not a case to handle —
+handling it is what turns an out-of-memory into a blank model, an empty npc
+table, or a truncated packet that reads as valid data. Assert the result.
+
+```c
+/* NO — every one of these silently produces a wrong-but-plausible program. */
+struct ToriDraw_Sprite* sprite = malloc(sizeof(*sprite));
+if( !sprite )
+    return NULL;
+
+g_npcs = calloc(count, sizeof(*g_npcs));
+if( !g_npcs ) { g_npc_count = 0; return 0; }   /* now "there are no npcs" */
+
+if( pixels )                                    /* silently skips the work */
+{
+    ...fill pixels...
+}
+
+/* YES */
+struct ToriDraw_Sprite* sprite = malloc(sizeof(*sprite));
+assert(sprite);
+```
+
+This covers the `if( p ) { ...use p... }` shape too: the success-conditional is
+the same silent skip written the other way round.
+
+The one exception is a path that **already fails loudly** — `die()`,
+`SSVM_Abort()`, `abort()`, `exit()`. Those carry a better message than an
+assert would; leave them.
+
+When a compound guard mixes an allocation with something else, split it, and
+mind the order — an assert must precede a guard that reads the pointer:
+
+```c
+data = malloc(size);
+assert(data);
+if( fread(data, 1, size, f) != size )
+    return -1;
+```
+
 ### Do not write tests that pin silent-failure behaviour
 
 `TEST_ASSERT(f(NULL) == 0, "f tolerates NULL")` freezes the exact habit above.

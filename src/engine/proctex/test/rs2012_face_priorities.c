@@ -1800,8 +1800,8 @@ stock_setup(
             TORIDRAW_SCENE_FULL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
             TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
         j->pixels[t] = (toripixel_t*)calloc((size_t)tile * (size_t)tile, sizeof(toripixel_t));
-        if( !j->scenes[t] || !j->pixels[t] ||
-            !ToriDraw_SceneZBufferResize(j->scenes[t], tile, tile) )
+        assert(j->pixels[t]);
+        if( !j->scenes[t] || !ToriDraw_SceneZBufferResize(j->scenes[t], tile, tile) )
             return false;
     }
 
@@ -1913,9 +1913,15 @@ run_measure(
     face_ghost_views = (long*)calloc((size_t)g->face_count, sizeof(long));
     ref_id = (int*)malloc((size_t)res * res * sizeof(int));
     ref_z = (int*)malloc((size_t)res * res * sizeof(int));
-    if( !fband || !zeroband || !view_ref_px || !view_paint_px || !face_ghost_px ||
-        !face_ghost_views || !ref_id || !ref_z ||
-        !raster_scratch_alloc(&r, res, g->vertex_count, g->face_count) )
+    assert(fband);
+    assert(zeroband);
+    assert(view_ref_px);
+    assert(view_paint_px);
+    assert(face_ghost_px);
+    assert(face_ghost_views);
+    assert(ref_id);
+    assert(ref_z);
+    if( !raster_scratch_alloc(&r, res, g->vertex_count, g->face_count) )
         goto out;
 
     for( int i = 0; i < input_count; i++ )

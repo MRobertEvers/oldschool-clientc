@@ -490,7 +490,8 @@ serve_file(
         return;
     }
     data = malloc((size_t)size ? (size_t)size : 1);
-    if( !data || (size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size) )
+    assert(data);
+    if( size > 0 && fread(data, 1, (size_t)size, file) != (size_t)size )
     {
         free(data);
         fclose(file);

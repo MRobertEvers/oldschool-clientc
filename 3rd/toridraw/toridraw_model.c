@@ -642,17 +642,9 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
     model->original_vertices_z = malloc(vc * sizeof(vertexint_t));
     /* ToriDraw_ModelAnimateReset gates on original_vertices_x alone, so a
      * partial capture would let it memcpy from a NULL y/z. All three or none. */
-    if( !model->original_vertices_x || !model->original_vertices_y ||
-        !model->original_vertices_z )
-    {
-        free(model->original_vertices_x);
-        free(model->original_vertices_y);
-        free(model->original_vertices_z);
-        model->original_vertices_x = NULL;
-        model->original_vertices_y = NULL;
-        model->original_vertices_z = NULL;
-        return;
-    }
+    assert(model->original_vertices_x);
+    assert(model->original_vertices_y);
+    assert(model->original_vertices_z);
 
     memcpy(model->original_vertices_x, model->vertices_x, vc * sizeof(vertexint_t));
     memcpy(model->original_vertices_y, model->vertices_y, vc * sizeof(vertexint_t));
