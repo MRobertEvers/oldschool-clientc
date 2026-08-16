@@ -1805,6 +1805,14 @@ frame_loop_step(void)
      * drain/resize/present picks up the new size. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_WINDOW_SYNC)
     {
+        /* "Interface scaling" (device option 27) shrinks the canvas the window
+         * is letterboxed from, so it is a canvas change and nothing else — no
+         * window call, and no bus round trip, because the click that caused it
+         * is already in the recorded stream and the canvas is a pure function
+         * of it and the window size. The surface reconcile at the top of the
+         * next frame picks up the new backbuffer size. */
+        App_SyncUiScale(&app);
+
         if( App_WindowMode(&app) == CS2VM_WINDOW_MODE_FIXED &&
             App_SyncFixedChromeInset(&app) )
         {

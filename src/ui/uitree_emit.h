@@ -103,6 +103,10 @@ struct UITreeEmitDesc
     int model_y_offset;
     uint8_t model_orthog;
     uint8_t model_fixed_zoom;
+    /* This MODEL node is drawing an OBJ (CC_SETOBJECT), so it wants the obj
+     * icon's composition: the model's own vertical centring, which an ordinary
+     * widget model does not get because its record already places it. */
+    uint8_t model_obj_composed;
     int inv_source_id;
     int inv_slot;
     int obj_id;

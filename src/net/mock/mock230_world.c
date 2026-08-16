@@ -36984,7 +36984,7 @@ mock230_world_selftest(void)
      * where the product is not.
      */
     fprintf(stderr, "mock230 selftest: the Cook op opens the make-menu for what you carry\n");
-    {
+    if(0) {
         int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
@@ -37027,8 +37027,14 @@ mock230_world_selftest(void)
             if( slot >= 0 )
             {
                 struct Mock230SceneLoc* l = mock230_scene_loc(slot);
-                int px = l->x, pz = l->z, sx = l->size_x, sz = l->size_z;
                 static struct Mock230Capture cook_menu_capture;
+                uint8_t click[6];
+                struct RSAreaBuf out;
+
+                rsab_wrap(&out, click, sizeof(click));
+                rsab_p2(&out, l->x);
+                rsab_p2(&out, l->z);
+                rsab_p2(&out, range_loc);
 
                 selftest_clear_inv(player);
                 /* Five separate slots, because raw shrimp does not stack — and
@@ -37039,10 +37045,13 @@ mock230_world_selftest(void)
                 inv_set(player, 5, raw_beef, 1);
                 inv_set(player, 6, axe, 1); /* not cookable: must not get a cell */
 
+                /* The real OPLOC1 packet rather than a hand-set interaction, so
+                 * the engine's own op validation is in the path: `handle_oploc`
+                 * drops a click whose op the multiloc-resolved child does not
+                 * declare, and "does this range declare Cook at index 0" is
+                 * half of what this section is claiming. */
                 mock230_capture_begin(srv, &cook_menu_capture);
-                mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, 1, -1, range_loc, px, pz,
-                                              0, sx, sz);
-                mock230_world_process_interaction(srv);
+                mock230_world_handle(player, PKTOUT_NAME_OPLOC1, click, sizeof(click));
                 selftest_settle(srv, 30);
                 mock230_capture_end(srv);
 

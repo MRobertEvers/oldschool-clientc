@@ -491,6 +491,7 @@ UITree_EmitFill(
 
             if( box > 0 )
                 out->model_zoom = component->u.rs_model.zoom * UITREE_OBJ_ICON_RASTER_H / box;
+            out->model_obj_composed = 1;
         }
         out->model_xan = component->u.rs_model.xan;
         out->model_yan = component->u.rs_model.yan;

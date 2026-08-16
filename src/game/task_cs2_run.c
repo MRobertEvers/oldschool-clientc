@@ -1772,6 +1772,31 @@ struct Task_CS2StatTransmitDispatch
     int hook_count;
 };
 
+/* One line per hook the stat dispatch considered, under TORIRS_STAT_DEBUG.
+ * The env is read once: this runs per hook per dispatch, and a getenv on that
+ * path is measurable. */
+static void
+stat_dispatch_trace(
+    struct RS_CS2Host const* host,
+    struct RS_CS2StatTransmitHook const* hook,
+    int hook_index,
+    char const* what)
+{
+    static int on = -1;
+
+    assert(host);
+    assert(hook);
+    assert(what);
+    if( on < 0 )
+        on = getenv("TORIRS_STAT_DEBUG") ? 1 : 0;
+    if( !on )
+        return;
+    fprintf(
+        stderr, "statdisp: %-16s hook %d/%d com=0x%x script=%d triggers=%d serial=%u\n", what,
+        hook_index, host->stat_transmit_hook_count, hook->component_id, hook->script_id,
+        hook->trigger_count, host->stat_change_serial);
+}
+
 static int
 hook_matches_stat(
     struct RS_CS2StatTransmitHook const* hook,
@@ -1829,40 +1854,34 @@ Task_CS2StatTransmitDispatch_Run(
         if( self->hook_index >= self->host->stat_transmit_hook_count )
             break; /* compacted mid-dispatch (a component was reclaimed) */
         hook = &self->host->stat_transmit_hooks[self->hook_index];
-#define STATDISP_SKIP(why)                                                              \
-    do {                                                                                \
-        if( getenv("TORIRS_STAT_DEBUG") )                                               \
-        {                                                                               \
-            fprintf(stderr, "statdisp: SKIP hook %d/%d com=0x%x script=%d serial=%u %s trig=%d[", \
-                    self->hook_index, self->host->stat_transmit_hook_count,             \
-                    hook->component_id, hook->script_id,                                \
-                    self->host->stat_change_serial, why, hook->trigger_count);          \
-            for( int _t = 0; _t < hook->trigger_count && _t < 32; _t++ )                \
-                fprintf(stderr, "%d,", hook->trigger_ids[_t]);                          \
-            fprintf(stderr, "] changed=%d[", self->stat_count);                         \
-            for( int _t = 0; _t < self->stat_count; _t++ )                              \
-                fprintf(stderr, "%d,", self->stat_ids[_t]);                             \
-            fprintf(stderr, "]\n");                                                     \
-        }                                                                               \
-        continue;                                                                       \
-    } while( 0 )
+        /* TORIRS_STAT_DEBUG prints the SKIPS as well as the runs, and that is
+         * what this loop is worth debugging with: every one of the five gates
+         * below presents identically from the outside — the panel draws
+         * nothing. "hidden" and "already-seen" are ordinary, "no-trigger-match"
+         * on a hook that should have no filter at all is the shape of a bad
+         * registration (see rs_cs2_copy_transmit_triggers). */
         if( !hook_matches_stat(hook, self->stat_ids, self->stat_count) )
-            STATDISP_SKIP("no-trigger-match");
+        {
+            stat_dispatch_trace(self->host, hook, self->hook_index, "no-trigger-match");
+            continue;
+        }
         if( hook->script_id <= 0 )
-            STATDISP_SKIP("no-script");
+            continue;
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
         {
             hook->last_seen_serial = self->host->stat_change_serial;
-            STATDISP_SKIP("not-in-tree");
+            stat_dispatch_trace(self->host, hook, self->hook_index, "not-in-tree");
+            continue;
         }
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
-            STATDISP_SKIP("hidden");
+        {
+            stat_dispatch_trace(self->host, hook, self->hook_index, "hidden");
+            continue;
+        }
         if( hook->last_seen_serial >= self->host->stat_change_serial )
-            STATDISP_SKIP("already-seen");
+            continue;
         hook->last_seen_serial = self->host->stat_change_serial;
-        if( getenv("TORIRS_STAT_DEBUG") )
-            fprintf(stderr, "statdisp: hook %d com=0x%x script=%d serial=%u\n", self->hook_index,
-                    hook->component_id, hook->script_id, self->host->stat_change_serial);
+        stat_dispatch_trace(self->host, hook, self->hook_index, "run");
 
         {
             char const* str_ptrs[CS2VM_SETON_STR_ARG_MAX];

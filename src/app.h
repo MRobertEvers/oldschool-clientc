@@ -1123,6 +1123,15 @@ struct App
     /** Re-entrancy guard for optimistic modal close (rev-230 field267): while
      *  locally unmounting type-0/3 subs, nested if_close must not re-enter. */
     int closing_modals;
+
+    /** The last unscaled window size the shell reported (TORIRS_CMD_WINDOW_RESIZE),
+     *  before interface scaling divides it into the canvas. Kept because the
+     *  canvas is a lossy function of it: at 200% a 1600x900 window and a
+     *  1601x901 one both become 800x450, so the canvas cannot be scaled back up
+     *  when the player changes the scale again. 0 until the first resize
+     *  arrives. */
+    int window_w;
+    int window_h;
 };
 
 /** Smallest client canvas. The reference's resizable mode will not go below the
@@ -1189,6 +1198,26 @@ App_FixedCanvasWidth(struct App const* app);
  */
 int
 App_SyncFixedChromeInset(struct App* app);
+
+/**
+ * Apply a pending "Interface scaling" change (device option 27), if a
+ * clientscript made one since the last call. Returns 1 if the canvas changed.
+ *
+ * The scale is realised as a *smaller canvas*, not as a second coordinate
+ * space: the whole client — UI tree, world viewport, backbuffer — lays out and
+ * draws at window/scale, and the shell's existing letterbox blows that up to
+ * the window. 200% therefore means "half as many pixels across, each twice the
+ * size", which is what makes every interface element twice as big without a
+ * single widget knowing about it. The cost is the honest one and the same one
+ * the mobile client pays: the 3D viewport renders at the reduced resolution
+ * too.
+ *
+ * Fixed mode is deliberately unaffected — its canvas is pinned to the classic
+ * frame and already letterboxed to fill the window, so there is nothing left
+ * for a scale to do. App_SetCanvasSize's floor enforces that on its own.
+ */
+int
+App_SyncUiScale(struct App* app);
 
 /**
  * Take a pending SETWINDOWMODE, if a clientscript issued one since the last

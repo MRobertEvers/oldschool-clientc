@@ -3035,7 +3035,7 @@ d3d9_ui_draw_model_widget(
         command->model_zan,
         command->model_x_offset,
         command->model_y_offset,
-        0,
+        command->model_center_y,
         command->model_orthog != 0,
         command->model_fixed_zoom != 0);
     if( !d3d9_widget_model_project(

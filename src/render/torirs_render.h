@@ -114,6 +114,11 @@ struct ToriRS_RenderCommand_ModelWidget
     int model_zan;
     int model_x_offset;
     int model_y_offset;
+    /* Vertical centring term, added to the y translation only (the reference's
+     * `model_min_y / 2` — see ToriDraw_SpriteNewFromObjIconRaster, which is the
+     * composition an obj icon is authored against). 0 for an ordinary widget
+     * model, which is positioned by its own record. */
+    int model_center_y;
     uint8_t model_orthog;
     uint8_t model_fixed_zoom;
 };

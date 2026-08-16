@@ -846,6 +846,21 @@ translate_ui_cmd(
         out->u.model_widget.model_y_offset = desc->model_y_offset;
         out->u.model_widget.model_orthog = desc->model_orthog;
         out->u.model_widget.model_fixed_zoom = desc->model_fixed_zoom;
+        /*
+         * An obj on a MODEL widget is composed the way its icon is, and half
+         * the composition is this: the icon rasteriser translates by
+         * `-bounds->min_y / 2` so the model sits centred rather than hanging
+         * off its origin. Widget models pass 0 here because their own record
+         * places them; an obj has no such record, and without the term the
+         * make-menu drew every item high and left of its cell.
+         */
+        if( desc->model_obj_composed )
+        {
+            struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+
+            if( bounds )
+                out->u.model_widget.model_center_y = -bounds->min_y / 2;
+        }
         return true;
     }
 

@@ -62,8 +62,18 @@ torirs_cc_debug(void)
     return cached;
 }
 
-/** UIZOOM_RESET / UIZOOM_GETDEFAULT constant (1000 = 100%, reference scheme). */
-#define RS_CS2_UIZOOM_DEFAULT 1000
+/*
+ * UIZOOM_RESET / UIZOOM_GETDEFAULT constant.
+ *
+ * 100, not 1000: the one caller of GETDEFAULT in the cache is script_3334
+ * ("Reset interface scaling"), and its whole body is
+ * `deviceoption_set(27, uizoom_getdefault)` — it feeds the value straight into
+ * the interface-scale option, whose domain script_3054 states as
+ * max(~script3333, min(400, v)) with ~script3333 = 100 on desktop. A 1000 here
+ * (the value this held while nothing consumed it) made the reset button ask
+ * for 1000%, which the clamp then turns into 400%.
+ */
+#define RS_CS2_UIZOOM_DEFAULT RS_CS2_UI_SCALE_MIN
 
 /* =========================================================================
  * Helpers
@@ -818,7 +828,10 @@ RS_CS2Host_Init(
     host->viewport_fov_max_clamp = 32767;
     host->viewport_aspect_min = 1;
     host->viewport_aspect_max = 32767;
-    host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
+    /* The interface scale is device_options[27], already seeded to 100% by the
+     * OptionDefault loop above; a boot value is not a player choice, so it must
+     * not raise ui_scale_dirty. */
+    host->ui_scale_dirty = false;
     /* Facing north; overwritten every logic tick by RS_CS2Host_SetCameraAngles
      * once a world is up, so this only covers the pre-login window. The pitch
      * default matches app.c's orbit_pitch (the reference orbitCameraPitch). */
@@ -1216,6 +1229,13 @@ static const struct OptionSpec device_option_spec[] = {
     { 14, true },  /* draw distance */
     { 19, true },  /* master volume — see above */
     { 22, false }, /* retired: the reference discards it on load */
+    /* Interface scaling. Persisted: it is a device preference in exactly the
+     * sense the rest of this table means — chosen once, wanted at every
+     * launch. Listing it here is also what makes CLIENTOPTION_SET/GET (3209 /
+     * 3215, the generic id-keyed spelling) resolve 27 to the device table;
+     * before it, RS_CS2Host_ClientOptionKind answered -1 and the write was
+     * dropped on the floor. */
+    { RS_CS2_DEVICEOPTION_UI_SCALE, true },
 };
 
 static const struct OptionSpec game_option_spec[] = {
@@ -1307,6 +1327,11 @@ RS_CS2Host_OptionDefault(
      */
     if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_MASTER_VOLUME )
         return 0;
+    /* Unscaled. Zero would be the table's answer otherwise, and this id is a
+     * divisor — a canvas computed from a 0% scale is not a smaller canvas, it
+     * is a division by zero. */
+    if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_UI_SCALE )
+        return RS_CS2_UI_SCALE_MIN;
     /* Full volume for the per-bus ones: an option nothing has written must not
      * read back as silence, or unmuting would restore nothing. Every other
      * option is zero, which is CS2's answer for an option no script has set. */
@@ -1361,6 +1386,19 @@ RS_CS2Host_SetOption(
         return;
     if( option_is_volume(kind, option_id) )
         value = clamp_percent(value);
+    /* script_3054 clamps before it writes, so a value out of range here came
+     * from somewhere that does not — a hand-edited preferences file, or the
+     * generic CLIENTOPTION_SET spelling. Clamp it in the store rather than
+     * trust the caller: everything downstream divides by it. */
+    if( kind == RS_CS2_OPTION_DEVICE && option_id == RS_CS2_DEVICEOPTION_UI_SCALE )
+    {
+        if( value < RS_CS2_UI_SCALE_MIN )
+            value = RS_CS2_UI_SCALE_MIN;
+        if( value > RS_CS2_UI_SCALE_MAX )
+            value = RS_CS2_UI_SCALE_MAX;
+        if( table[option_id] != value )
+            host->ui_scale_dirty = true;
+    }
     table[option_id] = value;
     if( !option_is_volume(kind, option_id) )
         return;
@@ -1371,6 +1409,21 @@ RS_CS2Host_SetOption(
     else if( option_id == RS_CS2_GAMEOPTION_AREA_VOLUME && kind == RS_CS2_OPTION_GAME )
         host->volume_area_sounds = value;
     host->audio_settings_dirty = true;
+}
+
+int
+RS_CS2Host_UiScalePercent(
+    struct RS_CS2Host const* host)
+{
+    int value;
+
+    assert(host);
+    value = host->device_options[RS_CS2_DEVICEOPTION_UI_SCALE];
+    if( value < RS_CS2_UI_SCALE_MIN )
+        return RS_CS2_UI_SCALE_MIN;
+    if( value > RS_CS2_UI_SCALE_MAX )
+        return RS_CS2_UI_SCALE_MAX;
+    return value;
 }
 
 bool
@@ -2458,8 +2511,17 @@ exec_viewport(
     }
 }
 
-/* UI zoom (6210..6214). SET/GET/RESET are host-owned state; GETDEFAULT answers
- * the fixed RS_CS2_UIZOOM_DEFAULT constant without touching that state. */
+/*
+ * UI zoom (6210..6214). GETDEFAULT answers the fixed RS_CS2_UIZOOM_DEFAULT
+ * constant; SET/GET/RESET are the interface-scale option under a second name.
+ *
+ * They share one store for the same reason CLIENTOPTION_SET does above: the
+ * cache reaches this setting both ways — script_3054 through
+ * `deviceoption_set(27, ...)` and this family directly — and a client that
+ * kept two copies would answer whichever one the reader happened to use. The
+ * settings row reads deviceoption 27, so a UIZOOM_SET into a private field
+ * changed nothing the player could see.
+ */
 static int
 exec_uizoom(
     struct RS_CS2Host* host,
@@ -2469,12 +2531,15 @@ exec_uizoom(
     switch( request.opcode )
     {
     case CS2_OP_UIZOOM_SET:
-        host->ui_zoom = request.value;
+        RS_CS2Host_SetOption(
+            host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE, request.value);
         return CS2VM_EXECNO_OK;
     case CS2_OP_UIZOOM_GET:
-        return CS2VM2_PushInt(thread, host->ui_zoom);
+        return CS2VM2_PushInt(thread, RS_CS2Host_UiScalePercent(host));
     case CS2_OP_UIZOOM_RESET:
-        host->ui_zoom = RS_CS2_UIZOOM_DEFAULT;
+        RS_CS2Host_SetOption(
+            host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_UI_SCALE,
+            RS_CS2_UIZOOM_DEFAULT);
         return CS2VM_EXECNO_OK;
     case CS2_OP_UIZOOM_GETDEFAULT:
         return CS2VM2_PushInt(thread, RS_CS2_UIZOOM_DEFAULT);
@@ -3281,12 +3346,17 @@ exec_set_object(
                         objtype->xan2d,
                         objtype->yan2d,
                         objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
-                    /* The offsets are the other half of the same composition
-                     * and are not optional: `arrow_shaft` carries yof2d -29,
-                     * and without it the shaft projects clean out of its cell
-                     * — the fletching menu's first cell drew nothing at all. */
-                    (void)UITree_ApplyModelOffset(
-                        tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
+                    /* yof2d is the other half of the same composition and is
+                     * not optional: `arrow_shaft` carries -29, and without it
+                     * the shaft projects clean out of its cell.
+                     *
+                     * xof2d is deliberately NOT passed. The widget transform
+                     * has no X translation — every backend maps the emit's
+                     * `model_x_offset` onto `orientation`, a ROTATION — so
+                     * handing it xof2d would spin the model rather than shift
+                     * it. The values are -3..7, small enough that dropping the
+                     * shift beats introducing a tilt. */
+                    (void)UITree_ApplyModelOffset(tree, component_id, 0, objtype->offset_y2d);
                 }
                 return CS2VM_EXECNO_OK;
             }
@@ -4513,6 +4583,38 @@ RS_CS2Host_ClearHooksForInterfaceGroup(
  * hook lists varps. The XP drops list all 24, which is why they want a filter at
  * all — without one every skill change would re-run every registered hook.
  */
+/*
+ * Copy a transmit hook's trigger filter into the registry, clamped to its
+ * ceiling.
+ *
+ * The count and the ids are ONE fact, and the assert is the point of the
+ * function. A request carrying a count with no ids is not "a hook with no
+ * triggers" — the ids array is zeroed, so the hook reads as *filtered to id 0*
+ * and everything else is dropped. That is exactly what an uninitialised
+ * `trigger_count` in `cs2vm2_op_if_set_on_transmit` did: the XP-drop listener
+ * matched stat 0 (attack) and nothing else, so combat drew drops and cooking,
+ * prayer and the rest silently drew none. Left as a tolerated NULL, it took a
+ * session to find; asserted, it stops at the frame that caused it.
+ */
+static void
+rs_cs2_copy_transmit_triggers(
+    int* out_ids,
+    int* out_count,
+    int const* trigger_ids,
+    int trigger_count)
+{
+    assert(out_ids);
+    assert(out_count);
+    assert(trigger_count >= 0);
+    assert(trigger_count == 0 || trigger_ids);
+
+    if( trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
+        trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
+    *out_count = trigger_count;
+    if( trigger_count > 0 )
+        memcpy(out_ids, trigger_ids, (size_t)trigger_count * sizeof(int));
+}
+
 static int
 exec_set_on_stat_transmit(
     struct RS_CS2Host* host,
@@ -4532,23 +4634,8 @@ exec_set_on_stat_transmit(
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
     memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
     RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
-    hook->trigger_count = request->trigger_count;
-    if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
-        hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
-    if( request->trigger_ids && hook->trigger_count > 0 )
-        memcpy(hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
-    if( getenv("TORIRS_STAT_DEBUG") )
-    {
-        fprintf(stderr, "statarm: com=0x%x script=%d args=%d raw_trig=%d ids=[",
-                request->component_id, request->script_id, request->int_arg_count,
-                request->trigger_count);
-        for( int t = 0; t < request->trigger_count && t < 40; t++ )
-            fprintf(stderr, "%d,", request->trigger_ids ? request->trigger_ids[t] : -999);
-        fprintf(stderr, "] intargs=[");
-        for( int t = 0; t < request->int_arg_count && t < 40; t++ )
-            fprintf(stderr, "%d,", request->int_args[t]);
-        fprintf(stderr, "]\n");
-    }
+    rs_cs2_copy_transmit_triggers(
+        hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
     return CS2VM_EXECNO_OK;
 }
 
@@ -4569,11 +4656,8 @@ exec_set_on_var_transmit(
         hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
     memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
     RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
-    hook->trigger_count = request->trigger_count;
-    if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
-        hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
-    if( request->trigger_ids && hook->trigger_count > 0 )
-        memcpy(hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
+    rs_cs2_copy_transmit_triggers(
+        hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
     return CS2VM_EXECNO_OK;
 }
 
@@ -4648,12 +4732,8 @@ exec_set_on_cc_transmit(
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
         memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
         RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
-        hook->trigger_count = request->trigger_count;
-        if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
-            hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
-        if( request->trigger_ids && hook->trigger_count > 0 )
-            memcpy(
-                hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
+        rs_cs2_copy_transmit_triggers(
+            hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
         return CS2VM_EXECNO_OK;
     }
 
@@ -4670,14 +4750,8 @@ exec_set_on_cc_transmit(
             hook->int_arg_count = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
         memcpy(hook->int_args, request->int_args, sizeof(hook->int_args));
         RS_CS2_COPY_HOOK_STR_ARGS(hook, request);
-        hook->trigger_count = request->trigger_count;
-        if( hook->trigger_count > RS_CS2_HOST_TRANSMIT_TRIGGER_MAX )
-            hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
-        if( request->trigger_ids && hook->trigger_count > 0 )
-            memcpy(
-                hook->trigger_ids,
-                request->trigger_ids,
-                (size_t)hook->trigger_count * sizeof(int));
+        rs_cs2_copy_transmit_triggers(
+            hook->trigger_ids, &hook->trigger_count, request->trigger_ids, request->trigger_count);
         return CS2VM_EXECNO_OK;
     }
 

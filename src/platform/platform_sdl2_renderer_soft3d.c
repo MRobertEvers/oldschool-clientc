@@ -755,7 +755,7 @@ soft3d_draw_model_widget(
         cmd->model_zan,
         cmd->model_x_offset,
         cmd->model_y_offset,
-        0,
+        cmd->model_center_y,
         cmd->model_orthog != 0,
         cmd->model_fixed_zoom != 0,
         (toripixel_t*)soft->pixels,

@@ -88,6 +88,23 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_GAMEOPTION_SOUND_VOLUME 8
 #define RS_CS2_GAMEOPTION_AREA_VOLUME 9
 #define RS_CS2_DEVICEOPTION_MASTER_VOLUME 19
+/* "Interface scaling" (All Settings > Display). The row is built by cache
+ * script_3850 and applied by script_3967 case 79 -> script_3054, whose whole
+ * body is `deviceoption_set(27, max(~script3333, min(400, v)))`; the label
+ * comes back through script_9116 case 79 -> `deviceoption_get(27)` rendered as
+ * "<n>%". So the id is a PERCENTAGE and its domain is stated by the script,
+ * not by us: ~script3333 is 100 on desktop (175 on mobile) and the ceiling is
+ * 400.
+ *
+ * It is not in the rev-239 Java client's device-option table (deob class64
+ * lists ids -1/2/3/4/5/6/14/19/22 and throws "Unrecognized device option" for
+ * anything else) — the row is gated behind ~script100, which is true only for
+ * the enhanced/mobile client types, and this client reports clienttype 10.
+ * There is therefore no reference implementation to copy; the semantics below
+ * are the ones the scripts state. */
+#define RS_CS2_DEVICEOPTION_UI_SCALE 27
+#define RS_CS2_UI_SCALE_MIN 100
+#define RS_CS2_UI_SCALE_MAX 400
 #define RS_CS2_OPTION_MAX 64
 
 /**
@@ -442,10 +459,13 @@ struct RS_CS2Host
     int viewport_aspect_min;
     int viewport_aspect_max;
 
-    /** UI zoom, backing UIZOOM_SET/GET/RESET (GETDEFAULT is a fixed constant,
-     *  not read from here). Host-owned so it round-trips like the other
-     *  settings values above. */
-    int ui_zoom;
+    /** Raised whenever the interface scale (device option 27) changes value.
+     *  Drained by the App, which owns the canvas — same shape as
+     *  `window_mode_dirty`. The scale itself is NOT a separate field: it lives
+     *  in `device_options[RS_CS2_DEVICEOPTION_UI_SCALE]` so the two spellings
+     *  the cache uses for it (deviceoption 27 and the UIZOOM_* opcode family)
+     *  cannot disagree. */
+    bool ui_scale_dirty;
 
     /** Backing CAM_GETYAW. There is no setter opcode and no live link yet from
      *  this host to the render-side camera (app->world_camera.yaw, reached via
@@ -793,6 +813,15 @@ RS_CS2Host_SetOption(
     int kind,
     int option_id,
     int value);
+
+/**
+ * The interface scale as a percentage, clamped to
+ * RS_CS2_UI_SCALE_MIN..RS_CS2_UI_SCALE_MAX. Never 0 — an option table that
+ * nothing has written still answers 100 here, so callers can divide by it.
+ */
+int
+RS_CS2Host_UiScalePercent(
+    struct RS_CS2Host const* host);
 
 bool
 RS_CS2Host_TakeTriggerOp(

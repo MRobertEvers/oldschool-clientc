@@ -15682,6 +15682,39 @@ App_SyncFixedChromeInset(struct App* app)
     return App_SetCanvasSize(app, want_w, APP_CANVAS_MIN_H);
 }
 
+/* One window axis through the interface scale. Rounds down, so 100% is exact
+ * and every other scale errs towards a slightly larger element rather than a
+ * canvas that overruns the window it is stretched into. */
+static int
+app_ui_scaled_axis(
+    struct App const* app,
+    int window_px)
+{
+    int const percent = RS_CS2Host_UiScalePercent(&app->host);
+
+    assert(app);
+    assert(percent >= RS_CS2_UI_SCALE_MIN);
+    if( window_px <= 0 )
+        return window_px;
+    return window_px * 100 / percent;
+}
+
+int
+App_SyncUiScale(struct App* app)
+{
+    assert(app);
+    if( !app->host.ui_scale_dirty )
+        return 0;
+    /* Nothing has told us how big the window is yet — a boot-time restore from
+     * preferences lands here before the shell's first resize. Keep the flag:
+     * the scale is real, it just has nothing to divide yet. */
+    if( app->window_w <= 0 || app->window_h <= 0 )
+        return 0;
+    app->host.ui_scale_dirty = false;
+    return App_SetCanvasSize(
+        app, app_ui_scaled_axis(app, app->window_w), app_ui_scaled_axis(app, app->window_h));
+}
+
 int
 App_WindowMode(
     struct App const* app)
@@ -15771,7 +15804,18 @@ App_DrainCommands(
             {
                 struct ToriRS_CmdWindowResize const* cmd =
                     (struct ToriRS_CmdWindowResize const*)payload;
-                App_SetCanvasSize(app, cmd->width, cmd->height);
+                /* The raw window size is latched before the scale divides it:
+                 * the canvas is what the client draws, but the window is what
+                 * a later scale change has to be recomputed from. Both fixed
+                 * and resizable pushes are latched — leaving fixed restores
+                 * the real window size through the same command. */
+                app->window_w = cmd->width;
+                app->window_h = cmd->height;
+                app->host.ui_scale_dirty = false;
+                App_SetCanvasSize(
+                    app,
+                    app_ui_scaled_axis(app, cmd->width),
+                    app_ui_scaled_axis(app, cmd->height));
             }
             break;
         default:

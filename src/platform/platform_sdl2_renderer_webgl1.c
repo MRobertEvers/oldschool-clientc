@@ -4437,7 +4437,7 @@ webgl1_ev_model_widget(
         wcmd->model_zan,
         wcmd->model_x_offset,
         wcmd->model_y_offset,
-        0,
+        wcmd->model_center_y,
         wcmd->model_orthog != 0,
         wcmd->model_fixed_zoom != 0);
     g = &renderer->groups[TRSPK_VBO_GROUP_DYNAMIC];
