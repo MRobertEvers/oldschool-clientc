@@ -446,6 +446,28 @@ hd_draw_face(struct hd_ctx* ctx, int face)
     int sy_b = ctx->scene->screen_vertices_y[ib] + ctx->offset_y;
     int sy_c = ctx->scene->screen_vertices_y[ic] + ctx->offset_y;
 
+    /*
+     * Model-space positions for the PROJECTION — the uv solve — as opposed to
+     * the posed positions the projection to screen used above.
+     *
+     * These are the BIND POSE, never the animated vertices. The reference
+     * computes a face's uv once, from the unanimated mesh, and keeps it while
+     * animation moves the vertices; that is what makes a texture deform with
+     * its face. Solving from the posed vertices instead recomputes the uv every
+     * frame from geometry that has moved, and moved DIFFERENTLY from the thing
+     * the uv is measured against: a P/M/N frame is a set of helper vertices
+     * that need not be rigged with the faces that reference it, and a mapped
+     * face's centre is a fixed bind-pose point. Either way the texture slides
+     * across the face as the pose changes — the same "parallax" the frame
+     * kernel fixed for a turning camera, brought back by a playing animation.
+     *
+     * A model that has never captured its originals is at its bind pose, so
+     * its live vertices are the bind pose.
+     */
+    const vertexint_t* bx = m->original_vertices_x ? m->original_vertices_x : m->vertices_x;
+    const vertexint_t* by = m->original_vertices_y ? m->original_vertices_y : m->vertices_y;
+    const vertexint_t* bz = m->original_vertices_z ? m->original_vertices_z : m->vertices_z;
+
     const struct ToriDraw_TexMapping* mapping = NULL;
     if( render_type >= 1 && ctx->hd && ctx->hd->texture_mappings && coord >= 0 &&
         coord < m->textured_face_count )
@@ -465,10 +487,11 @@ hd_draw_face(struct hd_ctx* ctx, int face)
     {
         /* The frame projector: p/m/n are vertex indices, from the mapping entry
          * when there is one and from the face's own vertices otherwise. Read
-         * from the MODEL-space arrays, like the face's own vertices below: the
-         * frame is a fixed uv basis, and only in model space does it stay put
-         * as the camera moves. Handing the kernel the camera-space positions
-         * instead is precisely the eye-ray plane walk this family replaces. */
+         * from the bind-pose MODEL-space arrays, like the face's own vertices
+         * below: the frame is a fixed uv basis, and only there does it stay put
+         * as the camera moves and the animation plays. Handing the kernel the
+         * camera-space positions instead is precisely the eye-ray plane walk
+         * this family replaces. */
         int tp = ia, tm = ib, tn = ic;
         if( coord >= 0 && coord < m->textured_face_count && m->textured_p_coordinate )
         {
@@ -488,9 +511,9 @@ hd_draw_face(struct hd_ctx* ctx, int face)
             st->drawn_plane++;
 
         struct ToriDraw_TexPlaneFrame frame = {
-            m->vertices_x[tp], m->vertices_y[tp], m->vertices_z[tp],
-            m->vertices_x[tm], m->vertices_y[tm], m->vertices_z[tm],
-            m->vertices_x[tn], m->vertices_y[tn], m->vertices_z[tn],
+            bx[tp], by[tp], bz[tp],
+            bx[tm], by[tm], bz[tm],
+            bx[tn], by[tn], bz[tn],
         };
 
         if( ctx->zbuffer )
@@ -501,9 +524,9 @@ hd_draw_face(struct hd_ctx* ctx, int face)
                 sy_a, sy_b, sy_c,
                 ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
                 ctx->scene->orthographic_vertices_z[ic],
-                m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
-                m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
-                m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+                bx[ia], by[ia], bz[ia],
+                bx[ib], by[ib], bz[ib],
+                bx[ic], by[ic], bz[ic],
                 shade_a, shade_b, shade_c, &frame, &sampler,
                 hd_vertex_key(ctx, ia), hd_vertex_key(ctx, ib), hd_vertex_key(ctx, ic),
                 ctx->zbuffer);
@@ -516,15 +539,15 @@ hd_draw_face(struct hd_ctx* ctx, int face)
             sy_a, sy_b, sy_c,
             ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
             ctx->scene->orthographic_vertices_z[ic],
-            m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
-            m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
-            m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+            bx[ia], by[ia], bz[ia],
+            bx[ib], by[ib], bz[ib],
+            bx[ic], by[ic], bz[ic],
             shade_a, shade_b, shade_c, &frame, &sampler);
         return;
     }
 
-    /* A mapping projects from MODEL space, so it needs the model's own
-     * vertices, not the camera-space ones. */
+    /* A mapping projects from MODEL space — the bind pose, per the note above
+     * — not the camera-space positions. */
     if( st )
     {
         if( render_type == 1 )
@@ -543,9 +566,9 @@ hd_draw_face(struct hd_ctx* ctx, int face)
             sy_a, sy_b, sy_c,
             ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
             ctx->scene->orthographic_vertices_z[ic],
-            m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
-            m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
-            m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+            bx[ia], by[ia], bz[ia],
+            bx[ib], by[ib], bz[ib],
+            bx[ic], by[ic], bz[ic],
             shade_a, shade_b, shade_c, mapping, &sampler,
             hd_vertex_key(ctx, ia), hd_vertex_key(ctx, ib), hd_vertex_key(ctx, ic),
             ctx->zbuffer);
@@ -558,9 +581,9 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         sy_a, sy_b, sy_c,
         ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
         ctx->scene->orthographic_vertices_z[ic],
-        m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
-        m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
-        m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+        bx[ia], by[ia], bz[ia],
+        bx[ib], by[ib], bz[ib],
+        bx[ic], by[ic], bz[ic],
         shade_a, shade_b, shade_c, mapping, &sampler);
 }
 

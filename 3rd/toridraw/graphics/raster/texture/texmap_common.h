@@ -19,15 +19,22 @@
  * non-linear in the vertex (arctangent, arcsine), so there is no plane to walk
  * even in principle.
  *
- * ## Why the projection happens in the kernel
+ * ## Why the projection happens in the kernel, and from WHICH positions
  *
- * It could be a pre-pass writing a uv array, and for a static model that would
- * be cheaper. It is here instead because the uv depends on the *animated*
- * vertex positions: a rigged model would have to rebuild that whole array every
- * frame, where doing it in triangle setup touches exactly the three vertices
- * being drawn. It also keeps each family self-contained — the projection and its
- * seam fixup are the thing that makes `texsphere` a different kernel from
- * `texcube` rather than a different name for it.
+ * It could be a pre-pass writing a uv array, and for a model drawn many times
+ * that would be cheaper. Doing it in triangle setup touches exactly the three
+ * vertices being drawn and keeps each family self-contained — the projection
+ * and its seam fixup are the thing that makes `texsphere` a different kernel
+ * from `texcube` rather than a different name for it.
+ *
+ * The positions it takes are the BIND POSE, not the animated vertices. The
+ * reference solves a face's uv once from the unanimated mesh and keeps it while
+ * animation moves the vertices — that is what makes a texture deform with its
+ * face. Solving from posed vertices against a fixed mapping centre (or a P/M/N
+ * frame that is not rigged with the faces that use it) recomputes a different uv
+ * every frame, and the texture slides across the face as the animation plays.
+ * The caller (ToriDraw_RenderHD) reads `original_vertices_*` for these
+ * arguments; a model that never captured originals is at its bind pose.
  *
  * ## Angles
  *

@@ -394,9 +394,12 @@ static void restamp_after_removal(const struct Mock230SceneLoc* removed);
  * has to keep mirroring it: the whole value of this file is that both ends
  * block the same tiles.
  *
- * LINK_BELOW: stamp onto collision level-1 (Client-TS ClientBuild /
- * LostCity place-time shift). Geometry / loc->level stay at the raw cache
- * level. See docs/COLLISION_MAP.md.
+ * LINK_BELOW is not this function's business any more: `loc->level` is the
+ * level the loc is *walked from*, shifted once by `record_loc_at` where the
+ * map square is read (LostCity GameMap.loadLocations `actualLevel`), and a
+ * `loc_add` names that same level because it comes from a content coord. This
+ * used to shift again here, which meant a runtime loc on a bridge deck asked
+ * for collision level -1 and got none at all. See docs/COLLISION_MAP.md.
  */
 static void
 apply_loc_collision(
@@ -408,7 +411,6 @@ apply_loc_collision(
     enum CollisionLocAngle angle;
     int blockrange;
     int scene_x, scene_z;
-    int coll_level;
 
     if( !config || loc->level < 0 || loc->level >= SCENE_LEVELS )
         return;
@@ -418,13 +420,7 @@ apply_loc_collision(
     if( scene_x < 0 || scene_x >= SCENE_TILES || scene_z < 0 || scene_z >= SCENE_TILES )
         return;
 
-    coll_level = loc->level;
-    if( g_link_below[scene_x][scene_z] )
-        coll_level--;
-    if( coll_level < 0 )
-        return;
-
-    map = g_collision[coll_level];
+    map = g_collision[loc->level];
     if( !map )
         return;
 
@@ -597,6 +593,19 @@ restamp_after_removal(const struct Mock230SceneLoc* removed)
  * because the instanced build passes a *transformed* placement: the same cache
  * record lands on a different tile, on a different plane, turned by the zone's
  * rotation. The cache path passes the record's own values.
+ *
+ * The level the record carries is the *cache* level, and a bridge deck is
+ * authored one level above the level it is walked from. LostCity's
+ * `GameMap.loadLocations` resolves that once, at read time, and hands
+ * `actualLevel` to both the collision stamp and `Zone.addStaticLoc` — so a
+ * player standing on a bridge is on the same plane as the locs he can see and
+ * click, and content addressing them with a plain coord finds them. This
+ * server only shifted the collision stamp, which left every bridged loc a
+ * plane above every lookup that could reach it: `mock230_scene_find_loc` (the
+ * click), `loc_find` (content), and the ZoneMap the wire is built from. The
+ * Dragonkin coffer is the case that surfaced it — `~rs2012_qbd_prepare_coffer`
+ * found nothing on the player's level and added a *second* coffer beside the
+ * one the map had already placed.
  */
 static void
 record_loc_at(
@@ -612,6 +621,11 @@ record_loc_at(
     if( !config )
         return;
     if( !mock230_scene_contains(abs_x, abs_z) )
+        return;
+
+    if( g_link_below[abs_x - g_base_x][abs_z - g_base_z] )
+        level--;
+    if( level < 0 )
         return;
 
     if( g_loc_count == g_loc_capacity )

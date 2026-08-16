@@ -747,6 +747,31 @@ scenery_load_model(
             rotation);
     }
 
+    /*
+     * TORIRS_ZBUFFER_LOCS=1: draw every loc model through the depth-tested
+     * kernels, the way `zbuffer_model` already does for imported NPCs
+     * (app_npc_wants_zbuffer / app_model_apply_import_render_flags).
+     *
+     * An investigation knob, not a feature: locs have no `zbuffer_model`
+     * equivalent, so a backported model whose parts interpenetrate is resolved
+     * by the painter's face sort alone — and the rs2012 bake stripped its face
+     * priorities on the stated premise that "the lane is drawn with
+     * param=zbuffer_model", which is true of its npcs and false of its locs.
+     * Flipping this says whether a reported flicker is that gap or something
+     * else, without editing content.
+     */
+    {
+        static int zbuffer_locs = -1;
+        if( zbuffer_locs < 0 )
+        {
+            char const* env = getenv("TORIRS_ZBUFFER_LOCS");
+            zbuffer_locs = (env && *env && *env != '0') ? 1 : 0;
+        }
+        if( zbuffer_locs )
+            model->flags |= (uint8_t)(TORIDRAW_MODEL_FLAG_ZBUFFER |
+                                      TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY);
+    }
+
     ToriDraw_ModelSetBoundsCylinder(model);
 
     int element_id = ToriDraw_SceneElementAdd(builder->scene);

@@ -155,6 +155,50 @@ World_TileFlagGet(
     return world->tile_flags[x + z * world->_scene_size + level * world->_scene_size * world->_scene_size];
 }
 
+/* Same value RSCACHE_FLOFLAG_LINK_BELOW carries, redeclared so this stays leaf
+ * — minimap.h does the same for the two flags its bake reads. */
+#define WORLD_TILE_FLAG_LINK_BELOW 0x02
+
+/* LINK_BELOW is a property of the whole column and is read at cache level 1,
+ * which is why both helpers below ask level 1 whatever level they were given. */
+static int
+world_column_link_below(
+    struct World const* world,
+    int x,
+    int z)
+{
+    return (World_TileFlagGet(world, x, z, 1) & WORLD_TILE_FLAG_LINK_BELOW) != 0;
+}
+
+int
+World_LocPaintLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int cache_level)
+{
+    if( cache_level < 0 || cache_level >= WORLD_MAP_TERRAIN_LEVELS )
+        return cache_level;
+    if( !world_column_link_below(world, x, z) )
+        return cache_level;
+    /* The same shuffle painter_tile_copyto performs: 1->0, 2->1, 3->2, 0->3. */
+    return cache_level == 0 ? WORLD_MAP_TERRAIN_LEVELS - 1 : cache_level - 1;
+}
+
+int
+World_LocCacheLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int wire_level)
+{
+    if( wire_level < 0 || wire_level >= WORLD_MAP_TERRAIN_LEVELS - 1 )
+        return wire_level;
+    if( !world_column_link_below(world, x, z) )
+        return wire_level;
+    return wire_level + 1;
+}
+
 static int
 world_obj_raise_idx(
     struct World const* world,

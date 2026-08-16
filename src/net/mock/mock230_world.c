@@ -36194,6 +36194,56 @@ mock230_world_selftest(void)
                                    "without an SSVM abort; queue=%d close=%d active=%p",
                                    arrival_queues, close_armed,
                                    (void*)player->active_script);
+
+                    /*
+                     * One coffer, not two.
+                     *
+                     * The Dragonkin coffer stands on a bridge deck: m20_95
+                     * bakes it on cache level 1, over a column whose level-1
+                     * tiles carry LINK_BELOW, and the player walks that deck on
+                     * level 0. A bridged loc belongs on the level it is walked
+                     * from — LostCity `GameMap.loadLocations` places it at
+                     * `actualLevel`, not at the raw cache level — so
+                     * `~rs2012_qbd_prepare_coffer` finds it with the plain
+                     * reward coord and swaps it in place. Leave it on the cache
+                     * level and the loc_find misses, the proc loc_adds a second
+                     * coffer one level below the first, and the room draws two
+                     * chests 32 units apart and a half-turn out of phase.
+                     */
+                    {
+                        int coffer_lx = mock230_content_constant_int(
+                            "rs2012_qbd_reward_coffer_lx", -1);
+                        int coffer_lz = mock230_content_constant_int(
+                            "rs2012_qbd_reward_coffer_lz", -1);
+                        int inst_x = 0;
+                        int inst_z = 0;
+                        int coffers = 0;
+                        int coffer_level = -1;
+
+                        mock230_mapinstance_base(handle, &inst_x, &inst_z);
+                        for( int level = 0; level < MOCK230_ZONE_LEVELS; level++ )
+                        {
+                            struct Mock230SceneLoc* placed = mock230_scene_loc(
+                                mock230_scene_find_loc_exact(inst_x + coffer_lx,
+                                                             inst_z + coffer_lz, level,
+                                                             10 /* centrepiece_straight */));
+
+                            if( placed && placed->active )
+                            {
+                                coffers++;
+                                coffer_level = level;
+                            }
+                        }
+                        SELFTEST_CHECK(coffer_lx >= 0 && coffer_lz >= 0,
+                                       "the coffer fixture should resolve its local tile, "
+                                       "got %d,%d",
+                                       coffer_lx, coffer_lz);
+                        SELFTEST_CHECK(coffers == 1 && coffer_level == player->level,
+                                       "the reward room should hold one Dragonkin coffer, on "
+                                       "the level the player walks; got %d on level %d "
+                                       "(player level %d)",
+                                       coffers, coffer_level, player->level);
+                    }
                 }
                 else
                 {

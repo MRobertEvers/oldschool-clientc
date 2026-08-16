@@ -328,6 +328,44 @@ World_TileFlagGet(
     int z,
     int level);
 
+/**
+ * Bridge columns: the three level spaces a loc lives in, and how to travel
+ * between them.
+ *
+ * A bridge deck is authored one plane above the plane it is walked from
+ * (LINK_BELOW on the column's cache level 1). Three different consumers
+ * disagree about which plane that means, and each one is right:
+ *
+ *  - the **cache** level is what the map stream says and what the world keeps —
+ *    scenery pool, collision stamps, heightmap reads. Client-TS ClientBuild
+ *    places locs on the raw level and lets `World.pushDown` sort the drawing.
+ *  - the **paint** level is where the push-down parked that tile
+ *    (WorldBuilder_RebuildCenterzoneEnd): cache 1 -> paint 0, and the underside,
+ *    cache 0, is parked at paint 3.
+ *  - the **wire** level is the plane the server names, which is the plane the
+ *    player walks — LostCity `GameMap.loadLocations` shifts once at read time
+ *    and every zone event, click and `loc_find` uses that.
+ *
+ * Non-bridge columns collapse all three, which is why getting this wrong is
+ * invisible until a bridge deck carries a loc something mutates.
+ */
+int
+World_LocPaintLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int cache_level);
+
+/** Wire (walked) level -> cache level, the trip a zone loc packet has to make
+ *  before it can name the loc the map placed. Mirrors app_world_height's own
+ *  +1 for heights (Client.ts getAvH), including its `level < 3` guard. */
+int
+World_LocCacheLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int wire_level);
+
 /** Ground-stack raise height for a scene tile (0 if none / out of range). */
 int
 World_ObjRaiseGet(

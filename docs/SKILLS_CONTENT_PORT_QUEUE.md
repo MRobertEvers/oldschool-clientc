@@ -206,13 +206,13 @@ unblocked row per tick.
 | 46 | Modern gems / zenyte jewellery | wiki+cache | pending | Gem table through dragonstone; no amethyst/onyx/zenyte rows |
 | 47 | Pottery urns / modern pottery | wiki+cache | pending | pottery.rs2 pot/pie dish/bowl only; wiki urns/cups absent |
 | 48 | Crafting cape | wiki+cache | pending | Skillcape perk absent |
-| 49 | Essence / pure essence rocks | LC | pending | mining.rs2 + CONTENT 7b/8k deferred; essence tele live, rock mining absent |
-| 50 | Gem rocks + glory gem table | LC | pending | Deferred gem rocks / necklace boost; random 1/256 gem table while mining absent |
-| 51 | Members ore rocks (limestone/sandstone/granite/amethyst) | wiki+cache | pending | mine.dbrow clay..runite+blurite only |
-| 52 | Higher pickaxes (black/dragon/crystal/infernal) | wiki+cache | pending | dragon/crystal/infernal/3a already in pickaxe_checker + Rock Knocker spec (specwep.rs2) + infernal smelt proc; checker still missing black/gilded/dragon_pretty/gauntlet_hm; Nurmof repair deferred CONTENT 8x. See MINING_COMPLETION_PLAN.md §1.3/§5 |
-| 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | pending | celestial ring/signet + crystal pickaxe charge drain already live (enchanted_jewellry/, crystal_equipment.rs2); double-ore / depleted-save / soft clay / XP outfit / cape boost still absent. See MINING_COMPLETION_PLAN.md §6 |
+| 49 | Essence / pure essence rocks | LC | done | blankrunestone/big_essence_rock/lunar_runestone_top wired (get_ore_essence); 30+Mining members branch to blankrune_high |
+| 50 | Gem rocks + glory gem table | LC | done | gemrock/gemrock1 (get_ore_gem_rock) + gem_rock_table drop roll (~roll_on_drop_table, new) + 1/256→1/86 gem-find on ordinary rocks; village_gem_rock1-3 deferred (unverified mechanic) |
+| 51 | Members ore rocks (limestone/sandstone/granite/amethyst) | wiki+cache | done | limestone×3 + Trahaearn soft clay + Desert Quarry sandstone/granite (weighted tier, get_ore_quarry) + amethyst live; quest_enakhraslament's guaranteed-material shortcut replaced by real mining |
+| 52 | Higher pickaxes (black/dragon/crystal/infernal) | wiki+cache | done | full ladder (bronze→crystal, 14 objs) via oc_category=weapon_pickaxe + pickaxes.obj param overlay (mining_rate/mining_animation); Nurmof repair still deferred CONTENT 8x |
+| 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | done | mining_gear.rs2: prospector XP (+2.5% cap), Varrock armour 4 double-ore, mining/superior/expert gloves (deterministic per-rock saves), bracelet of clay (28-charge player varp), cape +1 boost, unidentified minerals (amethyst only). Gem bag/coal bag storage deferred — see MINING_COMPLETION_PLAN.md §6 |
 | 54 | Mining special activities (Blast/Volcanic/Stars) | wiki → Kronos | blocked | Motherlode already KRONOS §13 done (veins/paydirt/hopper/sack) + Mining Guild 60 gate (mining_guild.rs2); remaining post-2009 activities stay KRONOS lane. See MINING_COMPLETION_PLAN.md §9 |
-| 55 | Miscellania mining intercept | LC | pending | mining.rs2 + CONTENT 20g Miner Magnus deferred intercept |
+| 55 | Miscellania mining intercept | LC | done | ~magnus_intercept_ore (miner_magnus.rs2), called from get_ore_normal/get_ore_fast before inv_add — ore-only, same scope as LostCity's own version |
 | 56 | Cannonballs | LC | pending | CONTENT 7g / smelting.rs2 deferred; pairs with Ranged #19 dwarf multicannon |
 | 57 | Anvil members products (darts/knives/arrows/wire/studs/bolts/limbs/claws) | LC | pending | smithing.rs2 deferred list; F2P weapon/armour kinds live bronze→rune |
 | 58 | Dragon sq shield + special anvil products | LC | pending | CONTENT 7g deferred dragon sq; claws already in #57 |
