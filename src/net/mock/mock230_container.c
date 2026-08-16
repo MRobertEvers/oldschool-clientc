@@ -415,6 +415,48 @@ mock230_container_mark_all(struct Mock230Container* container)
         container->owner->masks |= MOCK230_PMASK_APPEARANCE;
 }
 
+/*
+ * May this cell hold an obj at a count of zero?
+ *
+ * Two things do, and the encoder writes the pair independently for exactly this
+ * reason (mock230_encode.c: "`obj_id >= 0` is the occupancy test, not
+ * `count > 0`"):
+ *
+ *   - A **bank placeholder**. An obj that carries a placeholder *template* is
+ *     one (mock230.h's table: 14730 has template 14401 and stands for 1277),
+ *     and it exists only to hold a slot at zero. Content creates it through
+ *     `inv_setslot(bank, $slot, $placeholder, 0)` — `~bank_leave_placeholder`,
+ *     interface_bank/scripts/bank_placeholder.rs2:77.
+ *   - A **shop's baseline line**, kept in place at zero rather than deleted so
+ *     it still draws, still prices and can still restock. See
+ *     mock230_container_clear_slot for the three bugs deleting it caused, and
+ *     mock230_shop.c's restock walk, which reaches zero by subtraction.
+ *
+ * Everything else at zero is a wedge. `obj_id >= 0` is the occupancy test in
+ * every free-slot scan the server has — `mock230_container_add`'s,
+ * `inv_freespace`, `inv_itemspace`, mock230_bank.c's `inv_free_slots` — so such
+ * a cell counts as full while holding nothing, and for an unstackable it never
+ * heals: the add loop only writes cells whose obj is negative. A backpack
+ * collecting these starts answering "did not fit" over cells the player can see
+ * are empty.
+ *
+ * Both predicates are about the container and the obj, not about the caller,
+ * which is why the rule lives here rather than at the two opcodes that let
+ * content name a count (`inv_setslot`, `inv_changeslot`).
+ */
+static int
+zero_count_is_meaningful(
+    const struct Mock230Container* container,
+    int obj_id)
+{
+    assert(container);
+    if( obj_id < 0 )
+        return 0;
+    if( mock230_objinfo(obj_id)->placeholder_template >= 0 )
+        return 1;
+    return mock230_shop_has_stock_line(container->inv_id, obj_id) != 0;
+}
+
 void
 mock230_container_set(
     struct Mock230Container* container,
@@ -430,7 +472,7 @@ mock230_container_set(
     if( slot < 0 || slot >= container->slots )
         return;
     item = &container->items[slot];
-    if( obj_id < 0 )
+    if( obj_id < 0 || (count <= 0 && !zero_count_is_meaningful(container, obj_id)) )
     {
         item->obj_id = -1;
         item->count = 0;

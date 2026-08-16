@@ -565,6 +565,12 @@ mock230_ops_inv(
         row = container(state, values[0], opcode);
         if( !row )
             return 1;
+        if( values[3] < 0 )
+        {
+            SSVM_Abort(state, "inv_changeslot replace count %d in container %d", values[3],
+                       values[0]);
+            return 1;
+        }
         for( int slot = 0; slot < row->slots; slot++ )
         {
             /* The reference skips an empty cell before it compares, so an empty
@@ -574,6 +580,10 @@ mock230_ops_inv(
                 continue;
             if( row->items[slot].obj_id != (int)values[1] )
                 continue;
+            /* A zero replace count releases the cell rather than parking an obj
+             * at a count no free-slot scan will reuse; `mock230_container_set`
+             * owns that rule and the two containers it does not apply to
+             * (`zero_count_is_meaningful`). */
             mock230_container_set(row, slot, (int)values[2], (int)values[3]);
             return 1;
         }

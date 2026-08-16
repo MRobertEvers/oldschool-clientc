@@ -859,6 +859,8 @@ RS_CS2Host_Init(
     host->client_layout_dirty = false;
     /* pack/12_clientscripts.pack: 3998=script_3998; decompile name settings_client_mode */
     host->script_settings_client_mode = 3998;
+    host->script_settings_client_apply = 3967;
+    host->varbit_settings_last_changed = 9657;
     host->bridge = NULL;
     /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
      * first dispatch after registration (widget-loaded parity). */
@@ -2547,6 +2549,72 @@ exec_uizoom(
         fprintf(stderr, "exec_uizoom: unhandled opcode %d\n", request.opcode);
         return CS2VM_EXECNO_ERROR;
     }
+}
+
+/*
+ * The All Settings panel's client-side apply hub, script_3967, opens with
+ * `%varbit9657 = $int0` and then switches on that same setting id. Setting 12
+ * is the client layout, and the switch has no case for it — so a layout picked
+ * in All Settings updated the dropdown's own label and nothing else. (The side
+ * Display panel's copy of the row works because the *server* arms it and
+ * answers with ~gameframe_select_mode; the All Settings copy is armed by
+ * nobody, and its enclosing script kind is the one the cache marks
+ * client-applied.)
+ *
+ * The missing case is supplied here, from the one place that can see both
+ * halves: the varbit write names the setting, and the writing frame's locals
+ * carry the chosen value. The body is script_3998's, which is what the row
+ * would have called — window class from the choice, plus the three-way latch
+ * WINDOW_STATUS carries so the server remounts the matching gameframe.
+ *
+ * Returns nothing: a setting id this does not claim simply falls through to
+ * the ordinary varbit write, which still has to happen either way.
+ */
+static void
+rs_cs2_settings_apply_client_layout(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int varbit_id,
+    int value)
+{
+    struct CS2VM2_Frame* frame;
+    int want_mode;
+    int layout;
+
+    assert(host);
+    if( host->varbit_settings_last_changed <= 0 ||
+        varbit_id != host->varbit_settings_last_changed )
+        return;
+    if( value != RS_CS2_SETTING_CLIENT_LAYOUT )
+        return;
+    if( !vm || vm->frame_sp <= 0 )
+        return;
+    frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script ||
+        frame->script->script_id != host->script_settings_client_apply )
+        return;
+
+    /* script_3967's parameters are (setting id, value, secondary value); the
+     * dropdown path fills the second and passes -1 for the third. */
+    layout = frame->int_locals[1];
+    if( layout < 0 || layout > 2 )
+        return;
+
+    want_mode = layout == 0 ? CS2VM_WINDOW_MODE_FIXED : CS2VM_WINDOW_MODE_RESIZABLE;
+    if( host->window_mode != want_mode )
+    {
+        host->window_mode = want_mode;
+        host->window_mode_dirty = true;
+    }
+    /* script_3998 writes the default too, and it is a player choice by the same
+     * argument SETDEFAULTWINDOWMODE's handler makes — so it persists. */
+    if( host->default_window_mode != want_mode )
+    {
+        host->default_window_mode = want_mode;
+        host->default_window_mode_from_script = true;
+    }
+    host->client_layout_mode = layout;
+    host->client_layout_dirty = true;
 }
 
 /* Safe-area bounds (6220..6223, 6231). Desktop client, no notch/home indicator:
@@ -6153,6 +6221,9 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT:
+        rs_cs2_settings_apply_client_layout(
+            host, vm, request->u.vars_write_varbit.varbit_id,
+            request->u.vars_write_varbit.value);
         RS_CS2Host_ScriptWriteVarbit(
             host, request->u.vars_write_varbit.varbit_id, request->u.vars_write_varbit.value);
         return CS2VM_EXECNO_OK;

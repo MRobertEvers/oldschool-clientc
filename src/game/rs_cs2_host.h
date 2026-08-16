@@ -105,6 +105,12 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_DEVICEOPTION_UI_SCALE 27
 #define RS_CS2_UI_SCALE_MIN 100
 #define RS_CS2_UI_SCALE_MAX 400
+
+/* Settings-panel setting ids (struct param_1077), as switched on by the cache's
+ * settings hubs script_3962 (read) and script_3967 (apply). Only the ones this
+ * client has to recognise by name are listed. */
+#define RS_CS2_SETTING_CLIENT_LAYOUT 12
+#define RS_CS2_SETTING_UI_SCALE 79
 #define RS_CS2_OPTION_MAX 64
 
 /**
@@ -372,6 +378,19 @@ struct RS_CS2Host
     /** Cache id of settings_client_mode (pack name script_3998). Dialect/cache
      *  surface for observing the dropdown's mode arg on SETWINDOWMODE. */
     int script_settings_client_mode;
+    /** Cache id of the All Settings panel's client-side apply hub (script_3967)
+     *  and of the varbit its first statement writes (9657, "the setting the
+     *  player just changed").
+     *
+     *  Together they are this client's only view of a selection made in the
+     *  All Settings panel: the panel is built entirely by clientscripts, and a
+     *  dropdown row's whole apply path is `~script3967(<setting id>, <choice>,
+     *  -1)`. Every setting that hub knows is applied inside it — except the
+     *  client layout (setting 12), which has no case there in any cache this
+     *  client can read, so picking a layout in All Settings changed nothing at
+     *  all. See RS_CS2Host_Exec's varbit case. */
+    int script_settings_client_apply;
+    int varbit_settings_last_changed;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */

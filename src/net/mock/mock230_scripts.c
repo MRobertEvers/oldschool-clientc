@@ -9357,6 +9357,16 @@ mock230_script_command(
      * flag, which is the only reason this is three lines: a per-slot mask for a
      * 28-slot backpack and a whole-container flag for a 500-slot one are the
      * same call here.
+     *
+     * A count of zero is not this opcode's to interpret: writing an obj at zero
+     * is how content creates a bank placeholder (`~bank_leave_placeholder`) and
+     * is meaningless anywhere else, and `mock230_container_set` is where that
+     * distinction lives — see `zero_count_is_meaningful` for the cell it used to
+     * build in a backpack, which counted as full while holding nothing.
+     *
+     * A *negative* count has no reading at all, so it aborts where it was
+     * written rather than at the frame that later finds the container one slot
+     * short.
      */
     case SS_OP_INV_SETSLOT:
     {
@@ -9378,6 +9388,12 @@ mock230_script_command(
         {
             SSVM_Abort(state, "inv_setslot slot %d outside container %d (%d slots)",
                        values[1], values[0], row->slots);
+            return 1;
+        }
+        if( values[3] < 0 )
+        {
+            SSVM_Abort(state, "inv_setslot count %d into container %d slot %d", values[3],
+                       values[0], values[1]);
             return 1;
         }
         mock230_container_set(row, (int)values[1], (int)values[2], (int)values[3]);

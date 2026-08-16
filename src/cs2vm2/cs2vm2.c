@@ -11024,8 +11024,79 @@ CS2VM2_SetActiveAndDotComponentId(
     return CS2VM_EXECNO_OK;
 }
 
-int
-CS2VM2_RunScript(struct CS2VM2_Thread* vm)
+/*
+ * TORIRS_CS2_PROFILE=1: wall time and opcode count per *entry* script.
+ *
+ * The frame-stage timers (TORIRS_PERF) say "the cs2 stage spiked to 22 ms";
+ * they cannot say which script did it, and a stage that runs a hundred cache
+ * scripts per tick needs that answer to be useful. Gosubs are inside one
+ * RunScript call, so the cost lands on the script that was entered — which is
+ * the unit a caller can actually do something about. Resumes after a yield
+ * accumulate into the same row.
+ */
+#define CS2_PROFILE_ROWS 512
+
+struct cs2_profile_row
+{
+    int script_id;
+    uint64_t ns;
+    uint32_t calls;
+};
+
+static struct cs2_profile_row g_cs2_profile[CS2_PROFILE_ROWS];
+static int g_cs2_profile_rows;
+static int g_cs2_profile_on = -1;
+
+static uint64_t
+cs2_profile_now_ns(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+static void
+cs2_profile_report(void)
+{
+    fprintf(stderr, "=== cs2 script profile (top 20 by total wall time) ===\n");
+    for( int rank = 0; rank < 20 && rank < g_cs2_profile_rows; rank++ )
+    {
+        int best = -1;
+        for( int i = 0; i < g_cs2_profile_rows; i++ )
+        {
+            if( g_cs2_profile[i].calls == 0 )
+                continue;
+            if( best < 0 || g_cs2_profile[i].ns > g_cs2_profile[best].ns )
+                best = i;
+        }
+        if( best < 0 )
+            break;
+        fprintf(
+            stderr, "  script %-6d %8.3f ms total  %6u calls  %8.3f us/call\n",
+            g_cs2_profile[best].script_id, (double)g_cs2_profile[best].ns / 1e6,
+            g_cs2_profile[best].calls,
+            (double)g_cs2_profile[best].ns / 1e3 / (double)g_cs2_profile[best].calls);
+        g_cs2_profile[best].calls = 0; /* consumed: this pass is a selection sort */
+    }
+    fprintf(stderr, "=== end cs2 script profile ===\n");
+}
+
+static struct cs2_profile_row*
+cs2_profile_row_for(int script_id)
+{
+    for( int i = 0; i < g_cs2_profile_rows; i++ )
+    {
+        if( g_cs2_profile[i].script_id == script_id )
+            return &g_cs2_profile[i];
+    }
+    if( g_cs2_profile_rows >= CS2_PROFILE_ROWS )
+        return NULL;
+    g_cs2_profile[g_cs2_profile_rows].script_id = script_id;
+    return &g_cs2_profile[g_cs2_profile_rows++];
+}
+
+static int
+cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 {
     assert(vm);
     assert(vm->frame_sp > 0);
@@ -11118,6 +11189,36 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_CYCLES, cycles);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_ABORTS, 1);
     return CS2VM_EXECNO_ERROR;
+}
+
+int
+CS2VM2_RunScript(struct CS2VM2_Thread* vm)
+{
+    struct cs2_profile_row* row;
+    uint64_t begin_ns;
+    int result;
+
+    assert(vm);
+    assert(vm->frame_sp > 0);
+
+    if( g_cs2_profile_on < 0 )
+    {
+        g_cs2_profile_on = getenv("TORIRS_CS2_PROFILE") ? 1 : 0;
+        if( g_cs2_profile_on )
+            atexit(cs2_profile_report);
+    }
+    if( !g_cs2_profile_on )
+        return cs2vm2_run_script_body(vm);
+
+    row = cs2_profile_row_for(CS2VM_FRAME(vm)->script->script_id);
+    begin_ns = cs2_profile_now_ns();
+    result = cs2vm2_run_script_body(vm);
+    if( row )
+    {
+        row->ns += cs2_profile_now_ns() - begin_ns;
+        row->calls++;
+    }
+    return result;
 }
 
 static int

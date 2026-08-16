@@ -2767,6 +2767,12 @@ struct Mock230Player
     /** Last Display-panel clientMode (0/1/2) from WINDOW_STATUS.
      *  Persisted in the player save; login restores via ~gameframe_set_mode. */
     int client_layout_mode;
+    /** Index last chosen in the All Settings panel's shared dropdown list
+     *  (settings:dropdown_buttons), or -1. Not a setting on its own: the panel
+     *  reuses one list for every row, so the op says which entry was picked
+     *  and not which setting it belonged to. handle_window_status is what
+     *  gives it a meaning, and consumes it. Session state, never saved. */
+    int settings_dropdown_choice;
     /** Percent / grams last put on the wire, so UPDATE_RUNENERGY and
      *  UPDATE_RUNWEIGHT go out only when the orb would actually change. */
     int run_energy_sent;

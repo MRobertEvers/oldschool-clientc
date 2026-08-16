@@ -159,6 +159,21 @@ say(
 /* Containers                                                          */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Write one backpack cell.
+ *
+ * `count <= 0` empties it rather than parking an obj there at zero: the
+ * backpack's occupancy test is `obj_id >= 0` everywhere that counts free slots
+ * (`mock230_container_add`, `inv_freespace`, `inv_free_slots`), so a cell
+ * holding zero of something is full and empty at once — and for an unstackable
+ * it is dead for good, since the add loop only writes cells whose obj_id is
+ * negative. mock230_bank.c's `inv_write` is the same writer with the same rule;
+ * see SS_OP_INV_SETSLOT's header (mock230_scripts.c) for the whole shape.
+ *
+ * The two containers that do legitimately hold an obj at zero — bank
+ * placeholders, shop baseline lines — are not the backpack and do not come
+ * through here.
+ */
 static void
 inv_set(
     struct Mock230Player* player,
@@ -168,7 +183,7 @@ inv_set(
 {
     if( slot < 0 || slot >= MOCK230_INV_SLOTS )
         return;
-    if( obj_id < 0 )
+    if( obj_id < 0 || count <= 0 )
     {
         player->inv[slot].obj_id = -1;
         player->inv[slot].count = 0;
@@ -6382,6 +6397,10 @@ handle_cheat(
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
     {
         int slot = inv_first_free(player);
+        /* `::give` clamps its count the same way. A typed 0 means the typist
+         * wants one of the thing, not an empty cell announced as "Spawned". */
+        if( count < 1 )
+            count = 1;
         if( slot >= 0 )
         {
             inv_set(player, slot, obj_id, count);
@@ -6782,7 +6801,36 @@ handle_if_button_op(
             MOCK230_PACK_COMPONENT,
             "settings_side:display_dynamic_setting_1_buttons");
         if( layout_buttons > 0 && uid == layout_buttons )
+        {
             srv->active_player->client_layout_mode = sub - 1;
+            /* This row is authoritative and immediate; a choice still sitting
+             * in the All Settings latch below is older and must not outrank
+             * it on the WINDOW_STATUS that follows. */
+            srv->active_player->settings_dropdown_choice = -1;
+        }
+    }
+
+    /*
+     * The same problem in the All Settings panel (interface 134), whose layout
+     * row has one dropdown list shared with every other row on the page —
+     * `settings:dropdown_buttons`, rebuilt per row by clientscript 9114 as
+     * three dynamic children per choice with `Select` on the third. So the op
+     * names the chosen INDEX and nothing else; whether the open dropdown was
+     * the layout one is not on the wire.
+     *
+     * What settles it is WINDOW_STATUS: this client sends that packet from
+     * exactly one place, the drain of a client-layout change (src/main.c), and
+     * the All Settings layout row is the only thing in that panel which raises
+     * it. So the index is only latched here, and handle_window_status is what
+     * decides it meant a layout — every other dropdown selection latches a
+     * value that the next selection overwrites and nothing ever reads.
+     */
+    if( op_num == 1 && sub >= 2 && (sub - 2) % 3 == 0 )
+    {
+        int dropdown = mock230_content_symbol(
+            MOCK230_PACK_COMPONENT, "settings:dropdown_buttons");
+        if( dropdown > 0 && uid == dropdown )
+            srv->active_player->settings_dropdown_choice = (sub - 2) / 3;
     }
     /*
      * Latch first, then resume — same order as LostCity's IfButtonHandler.
@@ -7766,10 +7814,21 @@ handle_window_status(
                 window_mode, width, height, player->client_layout_mode);
     if( srv->wire && srv->wire->revision >= 239 )
     {
+        /* Consumed here whatever this packet turns out to mean: a choice that
+         * survives its own WINDOW_STATUS is a choice from some other dropdown,
+         * and leaving it latched would let it decide the NEXT layout change. */
+        int const dropdown_choice = player->settings_dropdown_choice;
+
+        player->settings_dropdown_choice = -1;
         if( window_mode != 1 && window_mode != 2 )
             return;
         if( window_mode == 1 )
             layout_mode = 0;
+        /* The All Settings row (see handle_if_button) — newer than the belief
+         * below, and the only thing that can tell Classic from Modern when the
+         * change came from that panel. */
+        else if( dropdown_choice == 1 || dropdown_choice == 2 )
+            layout_mode = dropdown_choice;
         else if( player->client_layout_mode == 1 || player->client_layout_mode == 2 )
             layout_mode = player->client_layout_mode;
         else
@@ -9036,6 +9095,9 @@ mock230_world_player_init(struct Mock230Player* player)
     /* Display-panel layout: Resizable Classic. The save overlays this; login
      * must not reset it after load. */
     player->client_layout_mode = 1;
+    /* -1 is "no dropdown selection pending", and 0 is a real choice (Fixed),
+     * so this cannot be left at the memset default. */
+    player->settings_dropdown_choice = -1;
 
     for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
     {
@@ -20973,6 +21035,61 @@ mock230_world_selftest(void)
                                mock230_wire_opcode(srv->wire, PKT_NAME_IF_OPENTOP),
                                0) >= 0,
                            "layout selection should emit IF_OPENTOP");
+        }
+
+        /*
+         * The same choice made in the All Settings panel (interface 134).
+         *
+         * That panel is built entirely by clientscripts and shares ONE dropdown
+         * list across every row, so the op names the chosen index and not the
+         * setting — `settings:dropdown_buttons` sub 8 is choice (8-2)/3 = 2.
+         * What gives it a meaning is the WINDOW_STATUS the client sends when
+         * it applies a layout, and only then. Two packets, in that order, must
+         * reach Modern exactly as the Display side row does above.
+         */
+        if( srv->scripts_ok )
+        {
+            static struct Mock230Capture capture;
+            uint8_t button[6];
+            uint8_t status[5];
+            struct RSAreaBuf out;
+            int dropdown = mock230_content_symbol(
+                MOCK230_PACK_COMPONENT, "settings:dropdown_buttons");
+
+            player->client_layout_mode = 1; /* Resizable – Classic */
+            mock230_gameframe_opentop(player, ids->iface_gameframe);
+            SELFTEST_CHECK(dropdown > 0,
+                           "settings:dropdown_buttons should resolve, got %d", dropdown);
+            rsab_wrap(&out, button, sizeof(button));
+            rsab_p4(&out, dropdown);
+            rsab_p2(&out, 8);
+            mock230_capture_begin(srv, &capture);
+            handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, button, (int)rsab_len(&out));
+            SELFTEST_CHECK(player->settings_dropdown_choice == 2,
+                           "dropdown sub 8 should latch choice 2, got %d",
+                           player->settings_dropdown_choice);
+            /* The client's own packet: resizable, at the canvas it is using. */
+            status[0] = 2;
+            status[1] = 3;
+            status[2] = 0; /* 768 */
+            status[3] = 1;
+            status[4] = 247; /* 503 */
+            mock230_world_handle(player, PKTOUT_NAME_WINDOW_STATUS, status, 5);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
+            mock230_world_tick(srv);
+            mock230_capture_end(srv);
+
+            SELFTEST_CHECK(player->client_layout_mode == 2,
+                           "All Settings choice 2 + WINDOW_STATUS should reach Modern, got %d",
+                           player->client_layout_mode);
+            SELFTEST_CHECK(player->settings_dropdown_choice == -1,
+                           "the latched choice must be consumed by the WINDOW_STATUS it "
+                           "explained, got %d",
+                           player->settings_dropdown_choice);
+            SELFTEST_CHECK(player->gameframe_iface == ids->iface_toplevel_pre_eoc,
+                           "Modern should remount root %d, got %d",
+                           ids->iface_toplevel_pre_eoc, player->gameframe_iface);
         }
 
         /* Put later fixtures back on the stretch login default. */
@@ -35937,6 +36054,67 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: a zero count empties a cell rather than wedging it\n");
+    {
+        /*
+         * `inv_setslot(inv, slot, obj, 0)` and `inv_changeslot(…, 0)` used to
+         * write the pair verbatim, leaving a cell holding zero of an obj.
+         * `obj_id >= 0` is the occupancy test in every free-slot scan the
+         * server has — `mock230_container_add`'s, `inv_freespace`,
+         * `inv_itemspace`, mock230_bank.c's `inv_free_slots` — so the cell was
+         * full and empty at the same time, and an unstackable could never take
+         * it back: the add loop only writes cells whose obj is negative.
+         *
+         * Driven through the opcodes rather than through `mock230_container_set`
+         * on purpose. The setter still writes a zero count verbatim and must:
+         * a bank placeholder and a shop's out-of-stock baseline line are both a
+         * real obj at zero, and both are the container's own doing rather than
+         * a count content named. The guard belongs at the two opcodes where the
+         * count is content's, which is exactly what these three procs reach.
+         *
+         * 28 free slots is a released cell; 27 is the wedge.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int32_t out = 0;
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_zero_count_reset]", NULL, 0);
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(srv, "[proc,selftest_zero_count_setslot]",
+                                                        NULL, 0, &out) &&
+                               out == MOCK230_INV_SLOTS,
+                           "inv_setslot(…, 0) should release the cell, %d/%d free", out,
+                           MOCK230_INV_SLOTS);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_zero_count_reset]", NULL, 0);
+            SELFTEST_CHECK(
+                mock230_scripts_run_proc_int(srv, "[proc,selftest_zero_count_changeslot]", NULL, 0,
+                                             &out) &&
+                    out == MOCK230_INV_SLOTS,
+                "inv_changeslot(…, 0) should release the cell, %d/%d free", out,
+                MOCK230_INV_SLOTS);
+
+            /* And the released cell takes an unstackable again — the half of
+             * the wedge that never healed on its own. */
+            mock230_scripts_run_proc(srv, "[proc,selftest_zero_count_reset]", NULL, 0);
+            SELFTEST_CHECK(mock230_scripts_run_proc_int(srv, "[proc,selftest_zero_count_refill]",
+                                                        NULL, 0, &out) &&
+                               out == MOCK230_INV_SLOTS,
+                           "a whole backpack of unstackables should fit afterwards, got %d", out);
+
+            mock230_scripts_run_proc(srv, "[proc,selftest_zero_count_reset]", NULL, 0);
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: worn-item opheld dispatch\n");
     {
         /*
@@ -36984,7 +37162,7 @@ mock230_world_selftest(void)
      * where the product is not.
      */
     fprintf(stderr, "mock230 selftest: the Cook op opens the make-menu for what you carry\n");
-    if(0) {
+    {
         int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
         if( !loaded )
