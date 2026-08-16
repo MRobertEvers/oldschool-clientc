@@ -549,6 +549,58 @@ int g_toridraw_raster_scanline = 0;
 #include "graphics/raster/texture/texsphere.persp.textrans.facealpha.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texsphere.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texsphere.persp.textrans.modulate.branching.lerp8_v3.u.c"
+/* The depth-tested twins of all 48, one for one. Same four families, same
+ * twelve compositing points; the walk and the uv fit are the plain kernel's
+ * and only the per-pixel depth test is added. ToriDraw_RenderHDZBuffered is
+ * the only caller. */
+#include "graphics/raster/texture/texplane.persp.texalpha.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texalpha.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texalpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texalpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.texopaque.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texplane.persp.textrans.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texalpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.texopaque.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcylinder.persp.textrans.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texalpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.texopaque.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texcube.persp.textrans.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texalpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.texopaque.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texsphere.persp.textrans.zbuf.branching.lerp8_v3.u.c"
 // clang-format on
 
 #include "toridraw_raster.u.c"
@@ -632,4 +684,40 @@ ToriDraw_RenderModel3Raster(
 {
     ToriDraw_Raster(scene, scene->active_hnd, view_port, camera, pixel_buffer, smooth);
     return TORIDRAW_CULL_VISIBLE;
+}
+
+int
+ToriDraw_RenderZBuffered(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+#ifdef TORIDRAW_PIXEL16
+    /* There is no depth-tested family in a 16-bit build (see the include block
+     * above), so this entry point cannot keep its promise there. Saying so beats
+     * quietly drawing by face order under a name that says otherwise. */
+    assert(false && "ToriDraw_RenderZBuffered needs the 32-bit raster");
+    (void)hnd;
+    (void)scene;
+    (void)position;
+    (void)view_port;
+    (void)camera;
+    (void)pixel_buffer;
+    (void)smooth;
+    return TORIDRAW_CULL_ERROR;
+#else
+    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return cull;
+
+    /* Deliberately no ToriDraw_RenderModel2SortFaces: the depth buffer is the
+     * visibility answer here, and the face order — priorities included — is the
+     * thing this entry point exists to discard. */
+    ToriDraw_RasterZBuffered(scene, hnd, view_port, camera, pixel_buffer, smooth);
+    return TORIDRAW_CULL_VISIBLE;
+#endif
 }

@@ -68,6 +68,37 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth);
 
+/**
+ * ToriDraw_RenderModel, resolved per pixel instead of per face.
+ *
+ * Project, then raster through the depth-tested (`zbuf`) family with **no face
+ * sort at all** — no depth buckets, no `face_priorities`, no `model_priority`.
+ * Faces are drawn in the order the model stores them and the z-buffer decides
+ * what is visible. Back-facing faces are still culled: the face sort is what
+ * used to do that, and there is no face sort here.
+ *
+ * TORIDRAW_MODEL_FLAG_ZBUFFER is a different feature and is not consulted. That
+ * flag keeps the sort and adds a depth test on top of it, which is the
+ * conservative choice for a game frame; this discards the sort outright, which
+ * is the right choice when the order is the problem — a model whose parts
+ * interpenetrate, or one carrying priority bytes from a client that meant
+ * something else by them. Layering BETWEEN models is untouched either way; the
+ * scene's painter order still applies and the buffer is reset per model.
+ *
+ * The scene needs no TORIDRAW_SCENE_MODEL_ZBUFFER flag: calling this is the
+ * opt-in and the depth scratch is sized on the first call. Returns the cull
+ * result, as ToriDraw_RenderModel1Project does.
+ */
+int
+ToriDraw_RenderZBuffered(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth);
+
 /** Bounding-box hit test against the last projected model (reference
  *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face
  *  test — the reference uses it for npcs, players and ground objs. */

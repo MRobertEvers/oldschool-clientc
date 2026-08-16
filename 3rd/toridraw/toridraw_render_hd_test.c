@@ -236,6 +236,20 @@ render(
     return st;
 }
 
+/** The same render through the depth-tested twins, with no face sort. */
+static struct ToriDraw_HDRenderStats
+render_zbuf(
+    struct render_env* e,
+    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_HDMaterials* materials)
+{
+    struct ToriDraw_HDRenderStats st;
+    memset(e->pixels, 0, (size_t)W * H * sizeof(int));
+    ToriDraw_RenderHDZBuffered(
+        hnd, e->scene, &e->pos, &e->vp, &e->cam, e->pixels, materials, &st);
+    return st;
+}
+
 static long
 covered(const struct render_env* e)
 {
@@ -435,6 +449,280 @@ test_routing_changes_pixels(struct render_env* e)
     ToriDraw_ModelHDFree(hd);
 }
 
+/*
+ * The depth twins land on the same pixels as their plain siblings.
+ *
+ * On geometry where nothing overlaps, a depth test can reject nothing, so the
+ * two disciplines must agree exactly — and that is the strongest statement
+ * available about 48 kernels at once: every quad of this fixture takes a
+ * different projection family, and the second pass puts every gate, facealpha
+ * and modulate combination the fixture can reach through the same comparison.
+ *
+ * A difference here means a depth twin drifted from its sibling in the WALK,
+ * not in the depth test: coverage, uv fit, shade plane and composite are all
+ * meant to be the plain kernel's, untouched.
+ */
+static void
+test_zbuffered_matches_when_nothing_overlaps(struct render_env* e)
+{
+    printf("depth twins draw the same pixels when nothing overlaps\n");
+
+    for( int pass = 0; pass < 2; pass++ )
+    {
+        struct ToriDraw_ModelHD* hd = build_model(pass /* alpha on the last quad */);
+        ToriDraw_ModelBuildTextureMappings(hd, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+        struct ToriDraw_HDMaterial mats[QUADS];
+        memset(mats, 0, sizeof(mats));
+        for( int q = 0; q < QUADS; q++ )
+        {
+            mats[q].width = TEX_W;
+            mats[q].texels = (q == 2) ? g_texels_alpha : g_texels_opaque;
+        }
+        /* Second pass: spread the compositing matrix over the four quads, so the
+         * comparison covers gates and modulate as well as the four projections. */
+        if( pass )
+        {
+            mats[1].gate = TORIDRAW_HD_GATE_TRANS;
+            mats[2].gate = TORIDRAW_HD_GATE_ALPHA;
+            mats[1].modulate = 1;
+            mats[3].modulate = 1;
+        }
+        struct ToriDraw_HDMaterials table = { mats, QUADS };
+        struct ToriDraw_ModelHandle hnd = ToriDraw_ModelHandleFromHD(hd);
+
+        struct ToriDraw_HDRenderStats sorted = render(e, hnd, &table);
+        int* first = (int*)malloc((size_t)W * H * sizeof(int));
+        memcpy(first, e->pixels, (size_t)W * H * sizeof(int));
+        long const sorted_covered = covered(e);
+
+        struct ToriDraw_HDRenderStats depth = render_zbuf(e, hnd, &table);
+
+        long differ = 0;
+        for( int i = 0; i < W * H; i++ )
+            if( first[i] != e->pixels[i] )
+                differ++;
+
+        char what[96];
+        snprintf(what, sizeof(what), "pass %d: identical pixels", pass);
+        check(differ == 0, what, NULL);
+        check(sorted_covered > 0, "the sorted render drew something", NULL);
+
+        snprintf(what, sizeof(what), "pass %d: same routing", pass);
+        check(
+            depth.drawn_plane == sorted.drawn_plane &&
+                depth.drawn_cylinder == sorted.drawn_cylinder &&
+                depth.drawn_cube == sorted.drawn_cube &&
+                depth.drawn_sphere == sorted.drawn_sphere &&
+                depth.with_facealpha == sorted.with_facealpha &&
+                depth.with_modulate == sorted.with_modulate,
+            what, NULL);
+
+        free(first);
+        ToriDraw_ModelHDFree(hd);
+    }
+}
+
+/* ------------------------------------------------- interpenetration fixture */
+
+/*
+ * Two textured quads crossing like an X: A runs near-left to far-right, B the
+ * other way. Each is partly in front of the other, so NO order of whole faces
+ * produces the right picture — which is what makes this the fixture that
+ * separates "depth-tested" from "sorted".
+ */
+#define XW 80
+#define XH 50
+#define XZ 60
+
+static struct ToriDraw_ModelHD*
+build_crossing_model(void)
+{
+    struct ToriDraw_ModelHD* hd =
+        (struct ToriDraw_ModelHD*)calloc(1, sizeof(struct ToriDraw_ModelHD));
+    struct ToriDraw_Model* m = &hd->base;
+    /* z per corner, per quad: A tilts one way about y, B the other. */
+    static const int qz[2][4] = { { -XZ, XZ, XZ, -XZ }, { XZ, -XZ, -XZ, XZ } };
+
+    m->vertex_count = 8;
+    m->face_count = 4;
+    m->textured_face_count = 2;
+
+    m->vertices_x = (vertexint_t*)calloc(8, sizeof(vertexint_t));
+    m->vertices_y = (vertexint_t*)calloc(8, sizeof(vertexint_t));
+    m->vertices_z = (vertexint_t*)calloc(8, sizeof(vertexint_t));
+    m->original_vertices_x = (vertexint_t*)calloc(8, sizeof(vertexint_t));
+    m->original_vertices_y = (vertexint_t*)calloc(8, sizeof(vertexint_t));
+    m->original_vertices_z = (vertexint_t*)calloc(8, sizeof(vertexint_t));
+
+    m->face_indices_a = (faceint_t*)calloc(4, sizeof(faceint_t));
+    m->face_indices_b = (faceint_t*)calloc(4, sizeof(faceint_t));
+    m->face_indices_c = (faceint_t*)calloc(4, sizeof(faceint_t));
+    m->face_colors_a = (hsl16_t*)calloc(4, sizeof(hsl16_t));
+    m->face_colors_b = (hsl16_t*)calloc(4, sizeof(hsl16_t));
+    m->face_colors_c = (hsl16_t*)calloc(4, sizeof(hsl16_t));
+    m->face_infos = (int*)calloc(4, sizeof(int));
+    m->face_textures = (faceint_t*)calloc(4, sizeof(faceint_t));
+    m->face_texture_coords = (faceint_t*)calloc(4, sizeof(faceint_t));
+
+    m->texture_render_types = (uint8_t*)calloc(2, sizeof(uint8_t));
+    m->textured_p_coordinate = (faceint_t*)calloc(2, sizeof(faceint_t));
+    m->textured_m_coordinate = (faceint_t*)calloc(2, sizeof(faceint_t));
+    m->textured_n_coordinate = (faceint_t*)calloc(2, sizeof(faceint_t));
+
+    for( int q = 0; q < 2; q++ )
+    {
+        int const v = q * 4;
+        int const f = q * 2;
+
+        m->vertices_x[v + 0] = -XW; m->vertices_y[v + 0] = -XH;
+        m->vertices_x[v + 1] = XW;  m->vertices_y[v + 1] = -XH;
+        m->vertices_x[v + 2] = XW;  m->vertices_y[v + 2] = XH;
+        m->vertices_x[v + 3] = -XW; m->vertices_y[v + 3] = XH;
+        for( int k = 0; k < 4; k++ )
+            m->vertices_z[v + k] = (vertexint_t)qz[q][k];
+
+        m->face_indices_a[f] = (faceint_t)(v + 0);
+        m->face_indices_b[f] = (faceint_t)(v + 2);
+        m->face_indices_c[f] = (faceint_t)(v + 1);
+        m->face_indices_a[f + 1] = (faceint_t)(v + 0);
+        m->face_indices_b[f + 1] = (faceint_t)(v + 3);
+        m->face_indices_c[f + 1] = (faceint_t)(v + 2);
+
+        for( int k = 0; k < 2; k++ )
+        {
+            m->face_colors_a[f + k] = 90;
+            m->face_colors_b[f + k] = 90;
+            m->face_colors_c[f + k] = 90;
+            m->face_textures[f + k] = (faceint_t)q;
+            m->face_texture_coords[f + k] = (faceint_t)q;
+        }
+
+        m->texture_render_types[q] = 0; /* the plane projector */
+        m->textured_p_coordinate[q] = (faceint_t)(v + 0);
+        m->textured_m_coordinate[q] = (faceint_t)(v + 1);
+        m->textured_n_coordinate[q] = (faceint_t)(v + 3);
+    }
+
+    memcpy(m->original_vertices_x, m->vertices_x, 8 * sizeof(vertexint_t));
+    memcpy(m->original_vertices_y, m->vertices_y, 8 * sizeof(vertexint_t));
+    memcpy(m->original_vertices_z, m->vertices_z, 8 * sizeof(vertexint_t));
+
+    ToriDraw_ModelSetBoundsCylinder(m);
+    return hd;
+}
+
+/* Quad A's texture is red, quad B's is blue; which channel dominates says which
+ * SURFACE won, with no dependence on the exact shade arithmetic. */
+static int g_texels_red[TEX_W * TEX_W];
+static int g_texels_blue[TEX_W * TEX_W];
+
+/** 0 = quad A (red), 1 = quad B (blue), -1 = background or neither. */
+static int
+surface_at(const struct render_env* e, int x, int y)
+{
+    int const px = e->pixels[y * W + x];
+    int const r = (px >> 16) & 0xFF;
+    int const b = px & 0xFF;
+
+    if( (px & 0x00FFFFFF) == 0 )
+        return -1;
+    if( r > b + 8 )
+        return 0;
+    if( b > r + 8 )
+        return 1;
+    return -1;
+}
+
+/**
+ * How many drawn pixels show the farther surface.
+ *
+ * The quads meet on the model's x == 0 plane, which projects to the frame's
+ * centre column, so left of it quad A is nearer and right of it quad B is.
+ * `margin` skips a band about the meeting line where the two surfaces are within
+ * a fraction of a unit of each other and either answer is defensible; a pixel
+ * only one quad covers is on the near side of that quad by the same rule, so it
+ * needs no special case.
+ *
+ * Counted over the whole overlap rather than sampled at two points: the face
+ * sort ranks TRIANGLES, and a two-triangle quad can come out right at any
+ * particular pixel by luck while still being unable to express the crossing.
+ */
+static void
+count_crossing_errors(const struct render_env* e, int margin, long* out_wrong, long* out_checked)
+{
+    long wrong = 0;
+    long checked = 0;
+
+    for( int y = 0; y < H; y++ )
+    {
+        for( int x = 0; x < W; x++ )
+        {
+            int const dx = x - W / 2;
+            int const got = surface_at(e, x, y);
+
+            if( got < 0 || (dx > -margin && dx < margin) )
+                continue;
+            checked++;
+            if( got != (dx < 0 ? 0 : 1) )
+                wrong++;
+        }
+    }
+
+    *out_wrong = wrong;
+    *out_checked = checked;
+}
+
+/*
+ * The case the whole feature exists for: two surfaces each in front of the other
+ * somewhere. The sorted render CANNOT get both halves right — that is the
+ * negative control, and without it "the depth render is correct" would be a
+ * claim about a fixture that never needed depth.
+ */
+static void
+test_zbuffered_resolves_interpenetration(struct render_env* e)
+{
+    printf("interpenetrating quads resolve per pixel, and the sort cannot\n");
+
+    for( int i = 0; i < TEX_W * TEX_W; i++ )
+    {
+        g_texels_red[i] = (int)0xFFFF3030u;
+        g_texels_blue[i] = (int)0xFF3030FFu;
+    }
+
+    struct ToriDraw_ModelHD* hd = build_crossing_model();
+    struct ToriDraw_HDMaterial mats[2];
+    memset(mats, 0, sizeof(mats));
+    mats[0].texels = g_texels_red;
+    mats[1].texels = g_texels_blue;
+    mats[0].width = mats[1].width = TEX_W;
+
+    struct ToriDraw_HDMaterials table = { mats, 2 };
+    struct ToriDraw_ModelHandle hnd = ToriDraw_ModelHandleFromHD(hd);
+
+    long wrong;
+    long checked;
+    char detail[128];
+
+    struct ToriDraw_HDRenderStats st = render(e, hnd, &table);
+    check_eq(st.drawn_plane, 4, "all four faces drew through texplane");
+
+    count_crossing_errors(e, 3, &wrong, &checked);
+    snprintf(detail, sizeof(detail), "%ld of %ld pixels wrong", wrong, checked);
+    check(checked > 2000, "the crossing covers enough pixels to judge", detail);
+    check(
+        wrong > checked / 8,
+        "the painter's sort resolved the crossing — the fixture no longer exercises the "
+        "case the depth kernels exist for", detail);
+
+    render_zbuf(e, hnd, &table);
+    count_crossing_errors(e, 3, &wrong, &checked);
+    snprintf(detail, sizeof(detail), "%ld of %ld pixels show the farther quad", wrong, checked);
+    check(wrong == 0, "the depth kernels resolve every pixel to the nearer surface", detail);
+
+    ToriDraw_ModelHDFree(hd);
+}
+
 int
 main(void)
 {
@@ -449,6 +737,8 @@ main(void)
     test_missing_material_is_visible(&e);
     test_gate_alpha_modulate_selection(&e);
     test_routing_changes_pixels(&e);
+    test_zbuffered_matches_when_nothing_overlaps(&e);
+    test_zbuffered_resolves_interpenetration(&e);
 
     env_free(&e);
 

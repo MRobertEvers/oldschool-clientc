@@ -5,6 +5,7 @@
  *   TSFA_FN       triangle entry point name
  *   TSFA_ORDERED  y-sorted helper name
  *   TSFA_SPAN     scanline kernel from span/tex.span.tex2.u.c
+ *   TSFA_ZBUF     1 = depth-tested variant (optional; absent means 0)
  *
  * The walk, the uv basis and the shade plane are
  * texshadeblend.persp.{texopaque,textrans}.branching.lerp8_v3 verbatim. Every
@@ -18,7 +19,29 @@
  * meant to land on exactly the same pixels as its plain twin, so any divergence
  * here would show up as a seam between an alpha face and the opaque faces it
  * shares edges with. That invariant is what the coverage test pins.
+ *
+ * A TSFA_ZBUF variant takes three more corner values — the depth KEYS its caller
+ * derived (graphics/zdepth.h) — and a z-buffer, and changes nothing else about
+ * the walk. The keys permute with x/y/shade through the six-way dispatch, for
+ * the same reason the shades do: they are per corner, unlike the uv basis, which
+ * is anchored to the p/m/n vertices the projector named and must not move.
  */
+
+#ifndef TSFA_ZBUF
+#define TSFA_ZBUF 0
+#endif
+
+#if TSFA_ZBUF
+#define TSFA_ZKEY_PARAMS , float key_a, float key_b, float key_c, torizdepth_t* RESTRICT zbuffer
+#define TSFA_ZKEY_ARGS(ka, kb, kc) , (ka), (kb), (kc), zbuffer
+#define TSFA_ZROW_ARGS , zbuffer, key_row, depth.step_dx
+#define TSFA_ZADVANCE() (key_row += depth.step_dy)
+#else
+#define TSFA_ZKEY_PARAMS
+#define TSFA_ZKEY_ARGS(ka, kb, kc)
+#define TSFA_ZROW_ARGS
+#define TSFA_ZADVANCE() ((void)0)
+#endif
 
 static inline void
 TSFA_ORDERED(
@@ -45,7 +68,7 @@ TSFA_ORDERED(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    const struct ToriDraw_TexSampler* RESTRICT sampler)
+    const struct ToriDraw_TexSampler* RESTRICT sampler TSFA_ZKEY_PARAMS)
 {
     if( y0 > screen_height )
         return;
@@ -59,6 +82,16 @@ TSFA_ORDERED(
     int sarea_abc = dx_AC * dy_AB - dx_AB * dy_AC;
     if( sarea_abc == 0 )
         return;
+
+#if TSFA_ZBUF
+    /* Solved from the corners as they arrived, before the y clip moves y0: the
+     * plane is stated in absolute screen coordinates and the row key is read out
+     * of it at whichever row the walk actually starts on. */
+    struct ToriDraw_ZbufPlane depth;
+    if( !toridraw_zbuf_plane_solve(
+            &depth, x0, y0, key_a, x1, y1, key_b, x2, y2, key_c) )
+        return;
+#endif
 
     int dy_BC = y2 - y1;
     int dx_BC = x2 - x1;
@@ -160,6 +193,10 @@ TSFA_ORDERED(
 
     int offset = y0 * stride;
 
+#if TSFA_ZBUF
+    float key_row = toridraw_zbuf_plane_row(&depth, y0);
+#endif
+
     if( y1 > screen_height )
     {
         y1 = screen_height;
@@ -187,7 +224,7 @@ TSFA_ORDERED(
             vUVPlane_normal_xhat,                                                                  \
             shade8bit_edge_ish8,                                                                   \
             shade8bit_xhat_ish8,                                                                   \
-            sampler);                                                                              \
+            sampler TSFA_ZROW_ARGS);                                                               \
     } while( 0 )
 
 #define TSFA_ADVANCE()                                                                             \
@@ -198,6 +235,7 @@ TSFA_ORDERED(
         cw += vUVPlane_normal_yhat;                                                                \
         shade8bit_edge_ish8 += shade8bit_yhat_ish8;                                                \
         offset += stride;                                                                          \
+        TSFA_ZADVANCE();                                                                           \
     } while( 0 )
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
@@ -277,9 +315,9 @@ TSFA_FN(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    const struct ToriDraw_TexSampler* RESTRICT sampler)
+    const struct ToriDraw_TexSampler* RESTRICT sampler TSFA_ZKEY_PARAMS)
 {
-#define TSFA_ORDERED_CALL(xa, xb, xc, ya, yb, yc, sa, sb, sc)                                      \
+#define TSFA_ORDERED_CALL(xa, xb, xc, ya, yb, yc, sa, sb, sc, ka, kb, kc)                          \
     TSFA_ORDERED(                                                                                  \
         pixel_buffer,                                                                              \
         stride,                                                                                    \
@@ -304,10 +342,14 @@ TSFA_FN(
         (sa),                                                                                      \
         (sb),                                                                                      \
         (sc),                                                                                      \
-        sampler)
+        sampler TSFA_ZKEY_ARGS((ka), (kb), (kc)))
+
+    /* `key_a/b/c` below are macro arguments that only the depth variants'
+     * TSFA_ZKEY_ARGS keeps; in a plain variant they are discarded with the rest
+     * of the expansion and never reach the compiler. */
 
     /* The uv basis is anchored to vertices 0/1/2 as the projector named them,
-     * so only the screen positions and shades permute here. */
+     * so only the screen positions, shades and depth keys permute here. */
     if( y0 <= y1 && y0 <= y2 )
     {
         if( y1 <= y2 )
@@ -315,14 +357,16 @@ TSFA_FN(
             if( y2 < 0 || y0 > screen_height )
                 return;
             TSFA_ORDERED_CALL(
-                x0, x1, x2, y0, y1, y2, shade7bit_a, shade7bit_b, shade7bit_c);
+                x0, x1, x2, y0, y1, y2, shade7bit_a, shade7bit_b, shade7bit_c, key_a, key_b,
+                key_c);
         }
         else
         {
             if( y1 < 0 || y0 > screen_height )
                 return;
             TSFA_ORDERED_CALL(
-                x0, x2, x1, y0, y2, y1, shade7bit_a, shade7bit_c, shade7bit_b);
+                x0, x2, x1, y0, y2, y1, shade7bit_a, shade7bit_c, shade7bit_b, key_a, key_c,
+                key_b);
         }
     }
     else if( y1 <= y2 )
@@ -332,14 +376,16 @@ TSFA_FN(
             if( y0 < 0 || y1 > screen_height )
                 return;
             TSFA_ORDERED_CALL(
-                x1, x2, x0, y1, y2, y0, shade7bit_b, shade7bit_c, shade7bit_a);
+                x1, x2, x0, y1, y2, y0, shade7bit_b, shade7bit_c, shade7bit_a, key_b, key_c,
+                key_a);
         }
         else
         {
             if( y2 < 0 || y1 > screen_height )
                 return;
             TSFA_ORDERED_CALL(
-                x1, x0, x2, y1, y0, y2, shade7bit_b, shade7bit_a, shade7bit_c);
+                x1, x0, x2, y1, y0, y2, shade7bit_b, shade7bit_a, shade7bit_c, key_b, key_a,
+                key_c);
         }
     }
     else
@@ -349,20 +395,28 @@ TSFA_FN(
             if( y1 < 0 || y2 > screen_height )
                 return;
             TSFA_ORDERED_CALL(
-                x2, x0, x1, y2, y0, y1, shade7bit_c, shade7bit_a, shade7bit_b);
+                x2, x0, x1, y2, y0, y1, shade7bit_c, shade7bit_a, shade7bit_b, key_c, key_a,
+                key_b);
         }
         else
         {
             if( y0 < 0 || y2 > screen_height )
                 return;
             TSFA_ORDERED_CALL(
-                x2, x1, x0, y2, y1, y0, shade7bit_c, shade7bit_b, shade7bit_a);
+                x2, x1, x0, y2, y1, y0, shade7bit_c, shade7bit_b, shade7bit_a, key_c, key_b,
+                key_a);
         }
     }
 
 #undef TSFA_ORDERED_CALL
 }
 
+#undef TSFA_ZKEY_PARAMS
+#undef TSFA_ZKEY_ARGS
+#undef TSFA_ZROW_ARGS
+#undef TSFA_ZADVANCE
+
 #undef TSFA_FN
 #undef TSFA_ORDERED
 #undef TSFA_SPAN
+#undef TSFA_ZBUF

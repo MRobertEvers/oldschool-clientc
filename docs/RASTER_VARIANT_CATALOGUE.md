@@ -1,6 +1,6 @@
 # Rasterization variant catalogue
 
-This document is the **standalone export** of the master variant table, including a **Variant_ID** column for every **F** / **G** / **TF** / **TS** row. IDs follow the grammar documented in the Cursor plan (see link below): `<family>.<space>.<gate>.<kernel>[.<walk>][.<layer>][.vec]`, with optional `legacy:`, `unused:`, or `reference:` prefixes.
+This document is the **standalone export** of the master variant table, including a **Variant_ID** column for every **F** / **G** / **TF** / **TS** / **Z** row. IDs follow the grammar documented in the Cursor plan (see link below): `<family>.<space>.<gate>.<kernel>[.<walk>][.<layer>][.vec]`, with optional `legacy:`, `unused:`, or `reference:` prefixes.
 
 **Canonical narrative** (SIMD chains, face/scanline/span naming, proposed file layout, migration notes) lives in the plan — do not duplicate it here unless you need an offline copy.
 
@@ -87,6 +87,12 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | TS17 | `texture_uv` | UV generation | — | per-vertex uv for render types 0-3, from the decoded mapping parameters | `ToriDraw_ComputeTextureUv`, `ToriDraw_ComputeTextureUvBases` | [`toridraw_texture_uv.c`](../3rd/toridraw/toridraw_texture_uv.c) |
 | TS15 | `tex_sampler` | Texture (sampler) | — | per-triangle sampler state: texels, width/shift/masks, per-axis clamp, face alpha, per-channel tint | `ToriDraw_TexSampler`, `tex_sampler_index`, `tex_sampler_mul255`, `tex_sampler_tint` | [`tex_sampler.h`](../3rd/toridraw/graphics/raster/texture/tex_sampler.h) |
 | TS11 | `texshadeblend.persp.texopaque.sort.lerp8` / `texshadeblend.persp.textrans.sort.lerp8` | Texture Gouraud | perspective | SWAP-sorted triangle lerp8 | `raster_texshadeblend_persp_texopaque_sort_lerp8`, `raster_texshadeblend_persp_textrans_sort_lerp8` | [`texture.u.c`](../src/graphics/old/texture.u.c) + [`raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c), [`texshadeblend.persp.textrans.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.u.c) + scanlines [`texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c), [`texshadeblend.persp.textrans.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.scanline.u.c) (`raster_texshadeblend_persp_*_sort_lerp8_scanline`; legacy path; TS8 span) |
+| Z1 | `zbuf.screen` | Depth | screen | one walker, three shading modes (flat / gouraud / perspective texture), depth-tested per pixel | `raster_zbuf_screen`, `raster_zbuf_screen_ordered`, `zbuf_span` | [`raster/zbuffer/zbuf.screen.u.c`](../3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c) |
+| Z2 | `zbuf.screen.face` | Depth | screen | face entry + near-clip rebuild + the per-model buffer reset | `ToriDraw_TriangleFaceZBuffered`, `toridraw_zbuf_reset` | [`triangles/toridraw_triangle_zbuf.u.c`](../3rd/toridraw/triangles/toridraw_triangle_zbuf.u.c) |
+| Z3 | `zbuf.plane` | Depth (setup) | — | the depth-key plane every textured depth twin interpolates | `ToriDraw_ZbufPlane`, `toridraw_zbuf_plane_solve`, `toridraw_zbuf_plane_row` | [`raster/zbuffer/zbuf_plane.h`](../3rd/toridraw/graphics/raster/zbuffer/zbuf_plane.h) |
+| Z4 | `texplane.persp.<gate>[.facealpha][.modulate].zbuf.branching.lerp8_v3` (12 IDs) | Depth (texture) | perspective | the depth-tested twin of every TS12 point | `raster_texplane_persp_*_zbuf_branching_lerp8_v3` | one file per variant, `texplane.persp.*.zbuf.branching.lerp8_v3.u.c`, over the TS12 template with `TSFA_ZBUF` |
+| Z5 | `tex{cylinder,cube,sphere}.persp.<gate>[.facealpha][.modulate].zbuf.branching.lerp8_v3` (36 IDs) | Depth (texture) | perspective | the depth-tested twin of every TS13 point | `raster_tex{cylinder,cube,sphere}_persp_*_zbuf_branching_lerp8_v3` | one file per variant, over the TS13 template with `TMAP_ZBUF` |
+| Z6 | `tex.span.gates.zbuf` (12 IDs) | Depth (span) | perspective | the depth-tested spans Z4/Z5 walk | `draw_texture_scanline_<gate>[_facealpha][_modulate]_zbuf_branching_lerp8_v3_ordered` | [`span/tex.span.gates.u.c`](../3rd/toridraw/graphics/raster/texture/span/tex.span.gates.u.c) + `tex.span.gates_tmpl.inc` with `TS2_ZBUF`. Scalar only, like TS14 |
 
 ---
 
@@ -297,10 +303,91 @@ end-to-end one**: at world scale the transform and sort dominate.
 
 ---
 
+## The depth-tested family (Z1–Z6)
+
+A fifth axis, orthogonal to the walk: **is this pixel behind something already
+drawn?** Everything else — coverage, uv, shade, composite — is the plain
+kernel's, unchanged.
+
+The scene owns one z-buffer, and the model that draws through these kernels
+**resets it first**. That reset is the whole scoping mechanism: one model's
+depths can never reject another model's pixels, so layering *between* models is
+still the scene's painter order and the reference's rules still hold. Only a
+model's own faces are resolved differently. Storage is 2 bytes per pixel where
+the toolchain has a real `_Float16`, 4 otherwise
+([`graphics/zdepth.h`](../3rd/toridraw/graphics/zdepth.h)).
+
+**The stored value is a depth KEY, not a depth**: larger is nearer, and under
+perspective it is `4096 / z`. The reciprocal is not an optimisation — it is what
+makes the key exactly linear in screen space, so three corners determine a plane
+(Z3) and a span advances it with one add per pixel while staying
+perspective-correct. Interpolating `z` bows away from the surface between
+vertices, worst in the middle of long triangles, which is where interpenetrating
+parts have to be resolved.
+
+Two shapes, for two reasons:
+
+- **Z1 is ONE walker with three shading modes**, not depth-tested copies of the
+  eight untextured kernels. The mode is constant for every pixel of a model, so
+  the branch predicts perfectly, and the alternative was eight files that could
+  drift in their *coverage* rules — which is exactly what must not drift. Its
+  texture mode takes the reference's per-pixel divide rather than an 8-pixel fit.
+- **Z4/Z5 are 48 twins, one per point of the matrix**, generated from the TS12 /
+  TS13 templates under `TSFA_ZBUF` / `TMAP_ZBUF`. Here twinning is the cheaper
+  answer: the compositing point already decides the file, and the depth test
+  folds into the one macro (`TS2_EMIT`) every variant already routes its pixel
+  through. The 8-pixel uv fit **survives** — the fit decides which texel a pixel
+  samples and depth decides whether it is written, and those are independent —
+  so a depth twin samples exactly what its sibling sampled and differs only in
+  which pixels survive.
+
+**Which variants write depth is decided at compile time, by which point of the
+matrix a kernel is.** A surface the destination shows through must not occlude
+what is drawn after it, and that is precisely the `texalpha` gate and the
+`facealpha` column: those test and never write. `textrans` still writes — a
+colour-keyed pixel is either fully opaque or absent, and the store sits behind
+the same test that decides to draw it.
+
+### Reaching them
+
+| entry point | sorts faces? | honours priorities? | opted in by |
+|---|:--:|:--:|---|
+| `ToriDraw_RenderModel` | yes | yes | — |
+| `TORIDRAW_MODEL_FLAG_ZBUFFER` | yes | **no** (the sort drops them) | a model flag |
+| `ToriDraw_RenderZBuffered` | **no** | **no** | calling it |
+| `ToriDraw_RenderHDZBuffered` | **no** | **no** | calling it |
+
+The flag and the two entry points are different features, not two strengths of
+one. The flag keeps the painter's sort and depth-tests underneath it, which is
+the conservative choice for a game frame. The entry points discard the sort
+outright — no depth buckets, no `face_priorities`, no `model_priority` — and
+that is the right choice when the ORDER is the problem: a model whose parts
+interpenetrate, or one carrying priority bytes from a client that meant
+something else by them.
+
+Dropping the sort drops its other job too, so both entry points do their own
+**back-face cull** with the same winding test and the same near-clip exemption
+the bucketer uses. Without it a model draws its own interior surfaces.
+
+Neither needs `TORIDRAW_SCENE_MODEL_ZBUFFER`; the depth scratch is sized on the
+first call. Under `TORIDRAW_PIXEL16` there is no depth family at all and
+`ToriDraw_RenderZBuffered` asserts rather than quietly drawing by face order.
+
+Tested by `make -C src test-zbuffer` (the SD family, the unsorted entry point,
+and an exact-depth-tie fixture that makes draw order observable — without one,
+"priorities are ignored" is unfalsifiable, because a depth test resolves ordinary
+geometry the same way whatever order it arrives in) and `make -C src
+test-render-hd` (the 48 twins: identical pixels to their siblings where nothing
+overlaps, and correct resolution where the sort demonstrably fails).
+
+---
+
 ## The textured variant matrix
 
 Four **projection** families, twelve **compositing** variants each — 48 kernels,
-one file per variant, four shared walker templates.
+one file per variant, four shared walker templates. Each has a depth-tested
+twin (**Z4** / **Z5**) from the same template, so the matrix is 96 kernels over
+the same twelve compositing points.
 
 | | `texopaque` | `textrans` | `texalpha` |
 |---|:--:|:--:|:--:|
@@ -392,6 +479,10 @@ spans about seven orders of magnitude and the small end is not representable in
 - **Perspective shaded path today:** `raster_texture_blend` uses the **v3 branching.lerp8** symbols (**TS1**: `raster_texshadeblend_persp_texopaque_branching_lerp8_v3`, etc.), not the older `texture.u.c` triangle rasterizers (**TS11**). **Perspective flat** (`raster_texture_flat`) uses **TF1/TF2** (`raster_texshadeflat_persp_texopaque_branching_lerp8`, etc.); sort variants remain in the same TU for parity / benches.
 - **SIMD:** **G9** and **TS8–TS10** — see the plan’s **SIMD Integration** section. Perspective **texshadeflat** scanlines use **`raster_linear_*_texshadeflat_lerp8`** (same ISA files as **TS8**; thin forwarders to `raster_linear_*_blend_lerp8`).
 - **Scalar TS9:** `draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered` is implemented in [`tex.span.scalar.u.c`](../src/graphics/raster/texture/span/tex.span.scalar.u.c) (parity with other ISAs).
+- **Depth-tested (Z1–Z6):** a fifth axis, not a fifth walk — Z1 is one walker for
+  flat/gouraud/texture, Z4–Z6 are the depth twins of the 48 textured kernels and
+  their spans. Reached by `TORIDRAW_MODEL_FLAG_ZBUFFER` (keeps the sort) or by
+  `ToriDraw_Render{,HD}ZBuffered` (drops it).
 - **Repo-only / not in `dash.c`:** F4, G8, G10–G13, standalone [`texture_opaque_blend_affine.c`](../src/graphics/archive/texture_opaque_blend_affine.c) / [`texture_transparent_blend_affine.c`](../src/graphics/archive/texture_transparent_blend_affine.c), and [`gouraud_raster.c`](gouraud_raster.c) (standalone demo in this folder).
 
 ---
@@ -441,6 +532,12 @@ TS8  texshadeblend.persp.texopaque.lerp8[_v3].span.vec (4)  SIMD 8-pixel kernels
 TS9  texshadeblend.persp.texopaque.branching.lerp8_v3.scanline / ...  SIMD persp scanlines (scalar has both)
 TS10 texshadeblend.affine.texopaque.branching.lerp8.scanline / ...branching.lerp8_v3.scanline / ... SIMD affine scanlines
 TS11 texshadeblend.persp.texopaque.sort.lerp8 / ...trans...    Legacy shadeblend (SWAP sort)
+Z1   zbuf.screen                                          Depth-tested walker: flat / gouraud / persp texture
+Z2   zbuf.screen.face                                     Depth face entry, near-clip rebuild, per-model reset
+Z3   zbuf.plane                                           Depth-key plane solve (Z4/Z5 setup)
+Z4   texplane.persp.<gate>[.facealpha][.modulate].zbuf.branching.lerp8_v3   Depth twins of TS12 (12 IDs)
+Z5   tex{cylinder,cube,sphere}.persp.<gate>[...].zbuf.branching.lerp8_v3    Depth twins of TS13 (36 IDs)
+Z6   tex.span.gates.zbuf                                  Depth-tested spans for Z4/Z5 (12 IDs, scalar)
 ```
 
 ---

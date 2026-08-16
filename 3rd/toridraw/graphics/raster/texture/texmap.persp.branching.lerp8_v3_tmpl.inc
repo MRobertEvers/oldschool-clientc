@@ -5,6 +5,7 @@
  *   TMAP_FN    triangle entry point name
  *   TMAP_SPAN  scanline kernel from span/tex.span.gates.u.c
  *   TMAP_KIND  1 = cylinder, 2 = cube, 3 = sphere
+ *   TMAP_ZBUF  1 = depth-tested variant (optional; absent means 0)
  *
  * The three families share this walker and differ only in TMAP_KIND, which
  * selects the projection and its seam fixup. They are separate kernels rather
@@ -26,7 +27,34 @@
  * Model-space vertex positions as well as screen and camera-space ones. The
  * mapping is defined in model space about the face group's centre, and after
  * animation only the model-space positions still relate to it.
+ *
+ * ## The depth variant
+ *
+ * A TMAP_ZBUF variant takes the three corners' depth KEYS (graphics/zdepth.h)
+ * and a z-buffer, and changes nothing else. The keys do NOT ride the y sort
+ * below, for the same reason the shade plane's coefficients do not: a plane is
+ * invariant under permutation, so it is solved once from the unsorted triangle.
+ *
+ * The keys are supplied rather than derived from z0/z1/z2 here, even though
+ * those are the camera depths the key is a function of, because the FUNCTION
+ * differs by projection mode — a reciprocal under perspective, a negated scale
+ * under a parallel camera — and the kernel has no way to know which one it is
+ * drawing. The caller does.
  */
+
+#ifndef TMAP_ZBUF
+#define TMAP_ZBUF 0
+#endif
+
+#if TMAP_ZBUF
+#define TMAP_ZKEY_PARAMS , float key_a, float key_b, float key_c, torizdepth_t* RESTRICT zbuffer
+#define TMAP_ZROW_ARGS , zbuffer, key_row, depth.step_dx
+#define TMAP_ZADVANCE() (key_row += depth.step_dy)
+#else
+#define TMAP_ZKEY_PARAMS
+#define TMAP_ZROW_ARGS
+#define TMAP_ZADVANCE() ((void)0)
+#endif
 
 static inline void
 TMAP_FN(
@@ -58,7 +86,7 @@ TMAP_FN(
     int shade7bit_b,
     int shade7bit_c,
     const struct ToriDraw_TexMapping* RESTRICT mapping,
-    const struct ToriDraw_TexSampler* RESTRICT sampler)
+    const struct ToriDraw_TexSampler* RESTRICT sampler TMAP_ZKEY_PARAMS)
 {
     /* ---------------------------------------------------- 1. projection */
 
@@ -199,6 +227,14 @@ TMAP_FN(
     if( sarea == 0 )
         return;
 
+#if TMAP_ZBUF
+    /* From the UNSORTED corners, like every other plane here. */
+    struct ToriDraw_ZbufPlane depth;
+    if( !toridraw_zbuf_plane_solve(
+            &depth, x0, y0, key_a, x1, y1, key_b, x2, y2, key_c) )
+        return;
+#endif
+
     int dblend_ab = sh[1] - sh[0];
     int dblend_ac = sh[2] - sh[0];
 
@@ -270,6 +306,10 @@ TMAP_FN(
     int cw = uv.cw;
     int offset = ry0 * stride;
 
+#if TMAP_ZBUF
+    float key_row = toridraw_zbuf_plane_row(&depth, ry0);
+#endif
+
     /* ---------------------------------------------------------- 5. walk */
 
 #define TMAP_ROW(left, right)                                                                      \
@@ -287,7 +327,7 @@ TMAP_FN(
         uv.step_cw_dx,                                                                             \
         shade8bit_edge_ish8,                                                                       \
         shade8bit_xhat_ish8,                                                                       \
-        sampler)
+        sampler TMAP_ZROW_ARGS)
 
 #define TMAP_ADVANCE()                                                                             \
     do                                                                                             \
@@ -297,6 +337,7 @@ TMAP_FN(
         cw += uv.step_cw_dy;                                                                       \
         shade8bit_edge_ish8 += shade8bit_yhat_ish8;                                                \
         offset += stride;                                                                          \
+        TMAP_ZADVANCE();                                                                           \
     } while( 0 )
 
     int seg1 = ry1 - ry0;
@@ -348,6 +389,11 @@ TMAP_FN(
 #undef TMAP_ADVANCE
 }
 
+#undef TMAP_ZKEY_PARAMS
+#undef TMAP_ZROW_ARGS
+#undef TMAP_ZADVANCE
+
 #undef TMAP_FN
 #undef TMAP_SPAN
 #undef TMAP_KIND
+#undef TMAP_ZBUF

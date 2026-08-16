@@ -346,7 +346,7 @@ The signature attack. Full specification in §6.
 ### 6.1 What the player experiences
 
 `The Queen Black Dragon takes a huge breath.` (orange) — she rears up
-(16746, 3 s) and exhales a **wall of licking orange flame spanning the full
+(16846) and exhales a **wall of licking orange flame spanning the full
 19-square platform**. The wall detaches from her at row z=38 and sweeps south
 at **one tile per tick**, burning past the last platform row (z=19) before
 dissipating (~11.4 s of travel). Each wall has exactly one cool gap, and the
@@ -391,11 +391,13 @@ front itself.
 
 | Tick | Event |
 |---|---|
-| T0 | orange warning line; 16746 wind-up begins |
+| T0 | orange warning line; the breath OPENS on 16846 |
 | T0+3 | wave 1 wall materialises across z=38 |
 | T0+3+k | wave 1 occupies row z=38−k; that row and the one behind it burn |
 | T0+10 | wave 2 materialises (phase ≥ 2), next gap type |
+| T0+11 | 16846 ends; 16747 takes over and loops — she holds the breath |
 | T0+17 | wave 3 materialises (phase ≥ 3), next gap type |
+| T0+17 | the last wall has left her: 16748 closes the breath |
 | T0+22 | wave 1 passes z=19 and dissipates |
 | T0+29 / T0+36 | waves 2 / 3 dissipate |
 

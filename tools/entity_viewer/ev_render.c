@@ -371,6 +371,20 @@ static int g_frame_height = 0;
  * run: a search that rendered with --zbuffer is judged z-tested, so the
  * viewer must show the same picture. */
 static int g_zbuffer = 0;
+/*
+ * The other depth discipline, and it is NOT a stronger g_zbuffer.
+ *
+ * g_zbuffer keeps the painter's sort and adds a depth test underneath it; this
+ * one throws the sort away entirely and draws through the `zbuf` kernels in the
+ * model's own face order (ToriDraw_RenderZBuffered / ToriDraw_RenderHDZBuffered).
+ * Face priorities never enter the picture because nothing ranks the faces at
+ * all — which is the question this toggle answers: is what I am looking at a
+ * depth problem, or an ORDER problem the depth test is not allowed to overrule?
+ *
+ * Independent of "ignore priorities" for the same reason: that one still sorts,
+ * by depth, and a wrong picture under both is a wrong DEPTH, not a wrong rank.
+ */
+static int g_zbuffer_kernels = 0;
 
 /** Background behind the model. Matches the page's panel colour so the canvas
  *  does not read as a hole when the model is small. */
@@ -506,6 +520,21 @@ ev_set_zbuffer(int on)
         else
             targets[i]->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
     }
+}
+
+void
+ev_set_zbuffer_kernels(int on)
+{
+    /* Nothing to propagate to the models: this discipline is chosen at the
+     * render call, not carried on a model flag, which is also why it works on an
+     * adopted HD model that no flag on `g_model` would ever reach. */
+    g_zbuffer_kernels = on ? 1 : 0;
+}
+
+int
+ev_zbuffer_kernels(void)
+{
+    return g_zbuffer_kernels;
 }
 
 /** Adopt an animation. Returns its frame count, 0 when the blob did not parse. */
@@ -977,8 +1006,11 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     position.z -= g_fly_z;
 
     /*
-     * Both paths sort through ToriDraw_RenderModel2SortFaces, so hiding the
-     * priorities here covers the HD and the classic route alike.
+     * The two SORTING paths both rank through ToriDraw_RenderModel2SortFaces, so
+     * hiding the priorities here covers the HD and the classic route alike. The
+     * zbuffered-kernel paths below never sort, so this is simply inert for them
+     * — "ignore priorities" and "no order at all" are different questions and
+     * the toggles do not have to agree.
      */
     faceint_t* saved_priorities = subject->face_priorities;
     int saved_model_priority = subject->model_priority;
@@ -1002,9 +1034,23 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
          */
         struct ToriDraw_ModelHandle hd_hnd = ToriDraw_ModelHandleFromHD(g_model_hd);
         struct ToriDraw_HDMaterials table = { g_hd_mats, g_hd_mat_count };
-        g_last_cull = ToriDraw_RenderHD(
-            hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
-            g_hd_mats ? &table : NULL, &g_hd_stats);
+        const struct ToriDraw_HDMaterials* mats = g_hd_mats ? &table : NULL;
+
+        /* The depth-tested twin of the same routing, so the per-face stats above
+         * stay comparable between the two disciplines — the counters say which
+         * kernel family a face reached, and that decision is unchanged. */
+        g_last_cull = g_zbuffer_kernels
+                          ? ToriDraw_RenderHDZBuffered(
+                                hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
+                                mats, &g_hd_stats)
+                          : ToriDraw_RenderHD(
+                                hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
+                                mats, &g_hd_stats);
+    }
+    else if( g_zbuffer_kernels )
+    {
+        g_last_cull = ToriDraw_RenderZBuffered(
+            hnd, g_scene, &position, &view_port, &camera, g_pixels, false);
     }
     else
     {

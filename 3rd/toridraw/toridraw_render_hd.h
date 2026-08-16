@@ -218,6 +218,46 @@ ToriDraw_RenderHD(
     struct ToriDraw_HDRenderStats* out_stats);
 
 /**
+ * The same render, resolved per pixel instead of per face.
+ *
+ * Draws through the depth-tested twin of every kernel above, and — the part that
+ * is not just "z-buffered ToriDraw_RenderHD" — **does not sort the faces at
+ * all**. No depth buckets, no `face_priorities`, no `model_priority`: faces are
+ * drawn in the order the model stores them and the z-buffer decides what is
+ * visible. Back-facing faces are still culled, because the face sort is what
+ * used to do that and there is no face sort here.
+ *
+ * ## When this is the right entry point
+ *
+ * A model whose parts interpenetrate cannot be drawn correctly by ANY ordering
+ * of whole faces, and one imported from a client whose priority bytes mean
+ * something else is worse off still — the sort then actively enforces a wrong
+ * order. Both are exactly the cases where throwing the order away is an
+ * improvement rather than a loss.
+ *
+ * It is not free and it is not a drop-in for the game path: the reference's
+ * layering rules live in the sort, so a model that was authored against them
+ * (a cape over a body, a face over a hood) will lose them here. Between MODELS
+ * nothing changes — the scene's painter order still applies, and the buffer is
+ * reset per model.
+ *
+ * The scene needs no TORIDRAW_SCENE_MODEL_ZBUFFER flag and the model needs no
+ * TORIDRAW_MODEL_FLAG_ZBUFFER: calling this is the opt-in, and the depth scratch
+ * is sized on the first call. Same arguments, same return value and the same
+ * per-face stats as ToriDraw_RenderHD.
+ */
+int
+ToriDraw_RenderHDZBuffered(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats);
+
+/**
  * Build the per-face-group mappings for an HD model from a decoder's raw
  * fields, and take ownership of the result on `hd->texture_mappings`.
  *

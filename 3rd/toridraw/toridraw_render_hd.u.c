@@ -92,6 +92,70 @@ static const hd_mapped_fn g_hd_mapped[3][3][2][2] = {
 };
 #undef HD_MAPPED_GATES
 
+/*
+ * The same matrix again, depth-tested: 48 twins, one per point, for
+ * ToriDraw_RenderHDZBuffered.
+ *
+ * A second pair of tables rather than a flag on the first, because a depth twin
+ * takes MORE ARGUMENTS than its plain sibling — three corner depth keys and the
+ * buffer to test against — and there is no honest way to spell that as one
+ * function pointer type. Keeping them apart also keeps the plain call sites
+ * exactly as they were: nothing on the sorted path pays for a feature it does
+ * not use, not even a null check.
+ *
+ * The two tables are laid out identically on purpose. `[gate][facealpha]
+ * [modulate]` indexes both, so the routing decision is made once, in
+ * hd_draw_face, and only the call it lands on differs.
+ */
+typedef void (*hd_plane_zbuf_fn)(
+    int*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
+    int, int, int, int, int, const struct ToriDraw_TexSampler*, float, float, float,
+    torizdepth_t*);
+
+static const hd_plane_zbuf_fn g_hd_plane_zbuf[3][2][2] = {
+    /* texopaque */
+    { { raster_texplane_persp_texopaque_zbuf_branching_lerp8_v3,
+        raster_texplane_persp_texopaque_modulate_zbuf_branching_lerp8_v3 },
+      { raster_texplane_persp_texopaque_facealpha_zbuf_branching_lerp8_v3,
+        raster_texplane_persp_texopaque_facealpha_modulate_zbuf_branching_lerp8_v3 } },
+    /* textrans */
+    { { raster_texplane_persp_textrans_zbuf_branching_lerp8_v3,
+        raster_texplane_persp_textrans_modulate_zbuf_branching_lerp8_v3 },
+      { raster_texplane_persp_textrans_facealpha_zbuf_branching_lerp8_v3,
+        raster_texplane_persp_textrans_facealpha_modulate_zbuf_branching_lerp8_v3 } },
+    /* texalpha */
+    { { raster_texplane_persp_texalpha_zbuf_branching_lerp8_v3,
+        raster_texplane_persp_texalpha_modulate_zbuf_branching_lerp8_v3 },
+      { raster_texplane_persp_texalpha_facealpha_zbuf_branching_lerp8_v3,
+        raster_texplane_persp_texalpha_facealpha_modulate_zbuf_branching_lerp8_v3 } },
+};
+
+typedef void (*hd_mapped_zbuf_fn)(
+    int*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
+    int, int, int, int, int, int, int, const struct ToriDraw_TexMapping*,
+    const struct ToriDraw_TexSampler*, float, float, float, torizdepth_t*);
+
+#define HD_MAPPED_ZBUF_GATES(fam)                                                                  \
+    { { { raster_##fam##_persp_texopaque_zbuf_branching_lerp8_v3,                                  \
+          raster_##fam##_persp_texopaque_modulate_zbuf_branching_lerp8_v3 },                       \
+        { raster_##fam##_persp_texopaque_facealpha_zbuf_branching_lerp8_v3,                        \
+          raster_##fam##_persp_texopaque_facealpha_modulate_zbuf_branching_lerp8_v3 } },           \
+      { { raster_##fam##_persp_textrans_zbuf_branching_lerp8_v3,                                   \
+          raster_##fam##_persp_textrans_modulate_zbuf_branching_lerp8_v3 },                        \
+        { raster_##fam##_persp_textrans_facealpha_zbuf_branching_lerp8_v3,                         \
+          raster_##fam##_persp_textrans_facealpha_modulate_zbuf_branching_lerp8_v3 } },            \
+      { { raster_##fam##_persp_texalpha_zbuf_branching_lerp8_v3,                                   \
+          raster_##fam##_persp_texalpha_modulate_zbuf_branching_lerp8_v3 },                        \
+        { raster_##fam##_persp_texalpha_facealpha_zbuf_branching_lerp8_v3,                         \
+          raster_##fam##_persp_texalpha_facealpha_modulate_zbuf_branching_lerp8_v3 } } }
+
+static const hd_mapped_zbuf_fn g_hd_mapped_zbuf[3][3][2][2] = {
+    HD_MAPPED_ZBUF_GATES(texcylinder),
+    HD_MAPPED_ZBUF_GATES(texcube),
+    HD_MAPPED_ZBUF_GATES(texsphere),
+};
+#undef HD_MAPPED_ZBUF_GATES
+
 /* ------------------------------------------------------------ the tint */
 
 
@@ -175,7 +239,36 @@ struct hd_ctx
     int camera_cot16;
     const struct ToriDraw_HDMaterials* materials;
     struct ToriDraw_HDRenderStats* stats;
+
+    /*
+     * Depth state. `zbuffer` is NULL on the sorted path and nothing below reads
+     * the rest; when it is set, every face of this model routes to the depth
+     * twins and the buffer has already been reset for this model.
+     */
+    torizdepth_t* zbuffer;
+    bool parallel;
+    /** The model's camera-space centre depth, which the projection subtracted
+     *  out of screen_vertices_z. See ToriDraw_ZbufTarget.model_mid_z. */
+    int model_mid_z;
+    /** For the untextured faces, which go through the shared SD depth family. */
+    struct ToriDraw_ZbufTarget zbuf_target;
+    struct ToriDraw_ZbufFaceSource zbuf_source;
 };
+
+/**
+ * The depth key of one projected vertex.
+ *
+ * From screen z plus the model's mid-z, not from the orthographic scratch: the
+ * projection only fills that scratch for models that carry textures, and an HD
+ * model whose faces are all untextured would read whatever the last textured one
+ * left there.
+ */
+static inline float
+hd_vertex_key(const struct hd_ctx* ctx, int vertex)
+{
+    return toridraw_zdepth_key(
+        ctx->scene->screen_vertices_z[vertex] + ctx->model_mid_z, ctx->parallel);
+}
 
 static const struct ToriDraw_HDMaterial*
 hd_material(const struct hd_ctx* ctx, int texture_id)
@@ -246,6 +339,35 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         bool const flat = (color_c == TORIDRAWHSL16_FLAT);
         if( st )
             st->drawn_untextured++;
+
+        if( ctx->zbuffer )
+        {
+            /*
+             * The SD depth family, shared rather than twinned: flat and gouraud
+             * already have depth-tested kernels and they take the same face the
+             * stock ones take. Only the textured half of the matrix needed new
+             * variants. A flat face carries the TORIDRAWHSL16_FLAT selector in
+             * colors_b/c rather than colours, so it passes colors_a three times.
+             */
+            ToriDraw_TriangleFaceZBuffered(
+                &ctx->zbuf_target,
+                &ctx->zbuf_source,
+                face,
+                flat ? TORIDRAW_ZBUF_MODE_FLAT : TORIDRAW_ZBUF_MODE_GOURAUD,
+                color_a,
+                flat ? color_a : color_b,
+                flat ? color_a : color_c,
+                face_alpha,
+                TORIDRAW_ZBUF_TEX_OPAQUE,
+                0,
+                0,
+                0,
+                NULL,
+                0,
+                false,
+                ctx->scene->near_clipped);
+            return;
+        }
 
         if( flat )
             ToriDraw_TriangleFaceFlat(
@@ -383,6 +505,28 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         if( st )
             st->drawn_plane++;
 
+        if( ctx->zbuffer )
+        {
+            g_hd_plane_zbuf[gate][use_facealpha][use_modulate](
+                ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
+                ctx->camera_cot16,
+                sx_a, sx_b, sx_c,
+                sy_a, sy_b, sy_c,
+                ctx->scene->orthographic_vertices_x[tp],
+                ctx->scene->orthographic_vertices_x[tm],
+                ctx->scene->orthographic_vertices_x[tn],
+                ctx->scene->orthographic_vertices_y[tp],
+                ctx->scene->orthographic_vertices_y[tm],
+                ctx->scene->orthographic_vertices_y[tn],
+                ctx->scene->orthographic_vertices_z[tp],
+                ctx->scene->orthographic_vertices_z[tm],
+                ctx->scene->orthographic_vertices_z[tn],
+                shade_a, shade_b, shade_c, &sampler,
+                hd_vertex_key(ctx, ia), hd_vertex_key(ctx, ib), hd_vertex_key(ctx, ic),
+                ctx->zbuffer);
+            return;
+        }
+
         g_hd_plane[gate][use_facealpha][use_modulate](
             ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
             ctx->camera_cot16,
@@ -410,6 +554,23 @@ hd_draw_face(struct hd_ctx* ctx, int face)
             st->drawn_sphere++;
     }
 
+    if( ctx->zbuffer )
+    {
+        g_hd_mapped_zbuf[render_type - 1][gate][use_facealpha][use_modulate](
+            ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
+            sx_a, sx_b, sx_c,
+            sy_a, sy_b, sy_c,
+            ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
+            ctx->scene->orthographic_vertices_z[ic],
+            m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
+            m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
+            m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+            shade_a, shade_b, shade_c, mapping, &sampler,
+            hd_vertex_key(ctx, ia), hd_vertex_key(ctx, ib), hd_vertex_key(ctx, ic),
+            ctx->zbuffer);
+        return;
+    }
+
     g_hd_mapped[render_type - 1][gate][use_facealpha][use_modulate](
         ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
         sx_a, sx_b, sx_c,
@@ -420,6 +581,62 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
         m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
         shade_a, shade_b, shade_c, mapping, &sampler);
+}
+
+/**
+ * Everything both entry points need, and the clip rebasing they must agree on.
+ *
+ * Returns the rebased clip origin through `out_clip_left` / `out_clip_top`
+ * because the depth path has to advance the z-buffer by the same amount it
+ * advances the frame buffer: one index walks both, and a z-buffer that was not
+ * rebased with the pixels tests each row against the wrong row.
+ */
+static void
+hd_ctx_setup(
+    struct hd_ctx* ctx,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    int* out_clip_left,
+    int* out_clip_top)
+{
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->m = model_as_full(hnd);
+    ctx->hd = ToriDraw_ModelAsHD(hnd);
+    ctx->scene = scene;
+    ctx->materials = materials;
+    ctx->stats = out_stats;
+
+    /* Same clip rebasing the stock raster does: left/top become 0 so the
+     * existing x_start<0 clamps apply, and the projection origin is the centre
+     * of the rebased clip rect, which is where the textured kernels anchor. */
+    int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
+    int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
+    int clip_right = view_port->clip_right > 0 ? view_port->clip_right : view_port->width;
+    int clip_bottom = view_port->clip_bottom > 0 ? view_port->clip_bottom : view_port->height;
+    if( clip_right < clip_left )
+        clip_right = clip_left;
+    if( clip_bottom < clip_top )
+        clip_bottom = clip_top;
+
+    ctx->stride = view_port->stride ? view_port->stride : view_port->width;
+    ctx->screen_width = clip_right - clip_left;
+    ctx->screen_height = clip_bottom - clip_top;
+    ctx->offset_x = ctx->screen_width >> 1;
+    ctx->offset_y = ctx->screen_height >> 1;
+    ctx->camera_cot16 =
+        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
+    ctx->pixel_buffer = pixel_buffer + clip_left + clip_top * ctx->stride;
+
+    if( out_stats )
+        out_stats->faces = ctx->m->face_count;
+
+    *out_clip_left = clip_left;
+    *out_clip_top = clip_top;
 }
 
 int
@@ -446,39 +663,141 @@ ToriDraw_RenderHD(
     ToriDraw_RenderModel2SortFaces(hnd, scene);
 
     struct hd_ctx ctx;
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.m = model_as_full(hnd);
-    ctx.hd = ToriDraw_ModelAsHD(hnd);
-    ctx.scene = scene;
-    ctx.materials = materials;
-    ctx.stats = out_stats;
-
-    /* Same clip rebasing the stock raster does: left/top become 0 so the
-     * existing x_start<0 clamps apply, and the projection origin is the centre
-     * of the rebased clip rect, which is where the textured kernels anchor. */
-    int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
-    int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
-    int clip_right = view_port->clip_right > 0 ? view_port->clip_right : view_port->width;
-    int clip_bottom = view_port->clip_bottom > 0 ? view_port->clip_bottom : view_port->height;
-    if( clip_right < clip_left )
-        clip_right = clip_left;
-    if( clip_bottom < clip_top )
-        clip_bottom = clip_top;
-
-    ctx.stride = view_port->stride ? view_port->stride : view_port->width;
-    ctx.screen_width = clip_right - clip_left;
-    ctx.screen_height = clip_bottom - clip_top;
-    ctx.offset_x = ctx.screen_width >> 1;
-    ctx.offset_y = ctx.screen_height >> 1;
-    ctx.camera_cot16 =
-        toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
-    ctx.pixel_buffer = pixel_buffer + clip_left + clip_top * ctx.stride;
-
-    if( out_stats )
-        out_stats->faces = ctx.m->face_count;
+    int clip_left;
+    int clip_top;
+    hd_ctx_setup(
+        &ctx, hnd, scene, view_port, camera, pixel_buffer, materials, out_stats, &clip_left,
+        &clip_top);
 
     for( int i = 0; i < scene->tmp_face_order_count; i++ )
         hd_draw_face(&ctx, scene->tmp_face_order[i]);
+
+    return TORIDRAW_CULL_VISIBLE;
+}
+
+/**
+ * Is this face facing the camera?
+ *
+ * The unsorted entry points have to ask, because on the sorted path the face
+ * SORT is what answers it — the depth bucketer drops a back-facing triangle
+ * before it ever reaches a kernel. Skipping the sort therefore skips the cull
+ * too, and a model drawn without it renders its own inside surfaces: with a
+ * depth buffer they mostly lose, but "mostly" is exactly the wrong guarantee on
+ * a model with interior geometry, and drawing them costs a full raster each.
+ *
+ * Same test, same sign convention (TORIDRAW_FLIP_WINDING included), and the same
+ * exemption: a face with a vertex behind the near plane has no screen-space
+ * winding yet, so the reference keeps it and lets the near-clip rebuild decide.
+ */
+static inline bool
+hd_face_front_facing(const struct hd_ctx* ctx, int face)
+{
+    const struct ToriDraw_Model* m = ctx->m;
+    const int* vx = ctx->scene->screen_vertices_x;
+    const int* vy = ctx->scene->screen_vertices_y;
+
+    int const a = m->face_indices_a[face];
+    int const b = m->face_indices_b[face];
+    int const c = m->face_indices_c[face];
+
+    if( ctx->scene->near_clipped &&
+        (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED || vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+         vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
+        return true;
+
+    long long const dx1 = (long long)vx[a] - vx[b];
+    long long const dy1 = (long long)vy[a] - vy[b];
+    long long const dx2 = (long long)vx[c] - vx[b];
+    long long const dy2 = (long long)vy[c] - vy[b];
+
+    return toridraw_winding_front_facing(dx1 * dy2 - dy1 * dx2);
+}
+
+int
+ToriDraw_RenderHDZBuffered(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats)
+{
+    if( out_stats )
+        memset(out_stats, 0, sizeof(*out_stats));
+
+    if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
+        return TORIDRAW_CULL_ERROR;
+
+    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return cull;
+
+    /* No ToriDraw_RenderModel2SortFaces. That is the whole difference at this
+     * level: no depth buckets, no priority passes, no face order. */
+
+    struct hd_ctx ctx;
+    int clip_left;
+    int clip_top;
+    hd_ctx_setup(
+        &ctx, hnd, scene, view_port, camera, pixel_buffer, materials, out_stats, &clip_left,
+        &clip_top);
+
+    /* Calling this entry point IS the opt-in, so the buffer is sized here rather
+     * than gated on TORIDRAW_SCENE_MODEL_ZBUFFER or on a per-model flag. */
+    int const rows = clip_top + ctx.screen_height;
+    ToriDraw_SceneZBufferResize(scene, ctx.stride, rows);
+    assert(ToriDraw_SceneHasZBuffer(scene, ctx.stride, rows));
+
+    ctx.parallel = toridraw_proj_is_parallel(camera->proj_mode);
+    ctx.model_mid_z = scene->projected_vertex.z;
+    /* Rebased by the same amount as the frame buffer, so one offset walks both. */
+    ctx.zbuffer = scene->zbuffer + clip_left + clip_top * ctx.stride;
+
+    ctx.zbuf_target.pixel_buffer = ctx.pixel_buffer;
+    ctx.zbuf_target.zbuffer = ctx.zbuffer;
+    ctx.zbuf_target.stride = ctx.stride;
+    ctx.zbuf_target.screen_width = ctx.screen_width;
+    ctx.zbuf_target.screen_height = ctx.screen_height;
+    ctx.zbuf_target.camera_cot16 = ctx.camera_cot16;
+    ctx.zbuf_target.offset_x = ctx.offset_x;
+    ctx.zbuf_target.offset_y = ctx.offset_y;
+    ctx.zbuf_target.near_plane_z = scene->projection_near_plane_z;
+    ctx.zbuf_target.model_mid_z = ctx.model_mid_z;
+    ctx.zbuf_target.parallel = ctx.parallel;
+
+    ctx.zbuf_source.face_indices_a = ctx.m->face_indices_a;
+    ctx.zbuf_source.face_indices_b = ctx.m->face_indices_b;
+    ctx.zbuf_source.face_indices_c = ctx.m->face_indices_c;
+    ctx.zbuf_source.screen_vertices_x = scene->screen_vertices_x;
+    ctx.zbuf_source.screen_vertices_y = scene->screen_vertices_y;
+    ctx.zbuf_source.screen_vertices_z = scene->screen_vertices_z;
+    ctx.zbuf_source.orthographic_vertices_x = scene->orthographic_vertices_x;
+    ctx.zbuf_source.orthographic_vertices_y = scene->orthographic_vertices_y;
+    ctx.zbuf_source.orthographic_vertices_z = scene->orthographic_vertices_z;
+
+    /* Before the first face, not after the last: the reset is what confines the
+     * depth test to this model, so it happens even if the model draws nothing. */
+    toridraw_zbuf_reset(
+        ctx.zbuffer,
+        ctx.stride,
+        ctx.screen_width,
+        ctx.screen_height,
+        scene->screen_vertices_x,
+        scene->screen_vertices_y,
+        ctx.m->vertex_count,
+        ctx.offset_x,
+        ctx.offset_y,
+        scene->near_clipped,
+        ctx.parallel);
+
+    for( int face = 0; face < ctx.m->face_count; face++ )
+    {
+        if( !hd_face_front_facing(&ctx, face) )
+            continue;
+        hd_draw_face(&ctx, face);
+    }
 
     return TORIDRAW_CULL_VISIBLE;
 }

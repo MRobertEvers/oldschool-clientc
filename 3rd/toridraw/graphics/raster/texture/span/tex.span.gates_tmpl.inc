@@ -8,6 +8,8 @@
  *                 2 = the texel's own alpha  (texalpha)
  *   TS2_FACEALPHA 1 = additionally weight by the face's alpha
  *   TS2_MODULATE  1 = additionally tint by the face's colour
+ *   TS2_ZBUF      1 = depth-test every pixel against the scene z-buffer
+ *                 (optional; absent means 0)
  *
  * The uv walk is draw_texture_scanline_*_blend_branching_lerp8_v3_ordered from
  * tex.span.scalar.u.c, unchanged: same span clipping, same carried-forward block
@@ -23,12 +25,71 @@
  * frame buffer; every variant here either reads the destination back or does
  * per-pixel work the SIMD chain is not shaped for. The `scanline` family reached
  * the same conclusion for its own facealpha variants.
+ *
+ * ## The depth dimension (TS2_ZBUF)
+ *
+ * A depth-tested variant is its plain twin plus two things and nothing else: a
+ * compare before the composite, and a store after it. The uv walk above it is
+ * untouched — in particular the eight-pixel linear fit STAYS, because the fit
+ * decides which texel a pixel samples and depth decides whether that pixel is
+ * written. Those are independent, so a face draws the same texels through both
+ * variants and only loses the ones something nearer already covered. (The SD
+ * `zbuf.screen` walker drops to a per-pixel divide instead; it is one walker for
+ * three shading modes and had no fitted block to keep.)
+ *
+ * Whether a variant WRITES depth is decided here, at compile time, by which
+ * point of the matrix it is: a face that can let the destination show through
+ * must not occlude what is drawn after it, and that is exactly the `texalpha`
+ * gate and the `facealpha` variants. `textrans` still writes — a colour key
+ * either draws a pixel opaquely or does not draw it at all, and the store sits
+ * behind the same test that decides to draw.
  */
+
+/* ------------------------------------------------------------- depth */
+
+#ifndef TS2_ZBUF
+#define TS2_ZBUF 0
+#endif
+
+#if TS2_ZBUF
+
+/* Extra span/helper parameters, appended so the plain variants' argument order
+ * is untouched and the two shapes stay diffable. */
+#define TS2_ZSPAN_PARAMS , torizdepth_t* RESTRICT zbuffer, float key_edge, float key_step_dx
+#define TS2_ZPARAMS , torizdepth_t* RESTRICT zbuffer, float key, float key_step
+#define TS2_ZARGS(at_column) , zbuffer, key_edge + key_step_dx * (float)(at_column), key_step
+
+/* Strictly nearer wins. Equal depth keeps what is already there, which is what
+ * stops the shared edge between two faces of one model from fighting. */
+#define TS2_ZPASS(at) (key > (float)zbuffer[(at)])
+#define TS2_ZADVANCE() (key += key_step)
+
+#if TS2_GATE == 2 || TS2_FACEALPHA
+/* Translucent: tests, never writes. */
+#define TS2_ZWRITE(at) ((void)0)
+#else
+#define TS2_ZWRITE(at) (zbuffer[(at)] = (torizdepth_t)key)
+#endif
+
+#else
+
+#define TS2_ZSPAN_PARAMS
+#define TS2_ZPARAMS
+#define TS2_ZARGS(at_column)
+#define TS2_ZPASS(at) 1
+#define TS2_ZADVANCE() ((void)0)
+#define TS2_ZWRITE(at) ((void)0)
+
+#endif
 
 /* ---------------------------------------------------------- per pixel */
 
 /*
- * Compose one texel into `dst_ref`.
+ * Compose one texel into `pixel_buffer[at]`.
+ *
+ * Takes an INDEX rather than an lvalue because the depth variants index a second
+ * buffer at the same offset — the z-buffer is allocated at the frame buffer's
+ * stride and rebased with it precisely so one index walks both.
  *
  * Order is load-bearing: the shade multiplies the texel (SD's `texel x
  * lightness` contract), the tint then multiplies that result, and only the
@@ -36,25 +97,36 @@
  * rather than before is what keeps a lightness-0 face from collapsing to black —
  * the authored lightness already arrived as `shade`, so a tint carrying it too
  * would count it twice.
+ *
+ * The depth test wraps the whole composite, so a rejected pixel costs one
+ * compare: it does not sample, shade, tint or blend. Advancing `key` is the
+ * CALLER's job, at every pixel of the run including the ones that never reach
+ * here — see TS2_ZADVANCE at each loop below.
  */
-#define TS2_EMIT(dst_ref, texel_expr, shade)                                                       \
+#define TS2_EMIT(at, texel_expr, shade)                                                            \
     do                                                                                             \
     {                                                                                              \
-        int ts2_texel_ = (texel_expr);                                                             \
-        int ts2_rgb_ = ts2_texel_ & 0x00FFFFFF;                                                    \
-        int ts2_skip_ = 0;                                                                         \
-        int ts2_alpha_ = 0xFF;                                                                     \
+        int ts2_at_ = (at);                                                                        \
                                                                                                    \
-        (void)ts2_skip_;                                                                           \
-        (void)ts2_alpha_;                                                                          \
-                                                                                                   \
-        TS2_GATE_APPLY(ts2_texel_, ts2_rgb_, ts2_skip_, ts2_alpha_);                               \
-                                                                                                   \
-        if( !ts2_skip_ )                                                                           \
+        if( TS2_ZPASS(ts2_at_) )                                                                   \
         {                                                                                          \
-            int ts2_out_ = TS2_SHADE_AND_MODULATE(ts2_rgb_, (shade));                              \
-            TS2_FACEALPHA_APPLY(ts2_alpha_);                                                       \
-            TS2_STORE(dst_ref, ts2_out_, ts2_alpha_);                                              \
+            int ts2_texel_ = (texel_expr);                                                         \
+            int ts2_rgb_ = ts2_texel_ & 0x00FFFFFF;                                                \
+            int ts2_skip_ = 0;                                                                     \
+            int ts2_alpha_ = 0xFF;                                                                 \
+                                                                                                   \
+            (void)ts2_skip_;                                                                       \
+            (void)ts2_alpha_;                                                                      \
+                                                                                                   \
+            TS2_GATE_APPLY(ts2_texel_, ts2_rgb_, ts2_skip_, ts2_alpha_);                           \
+                                                                                                   \
+            if( !ts2_skip_ )                                                                       \
+            {                                                                                      \
+                int ts2_out_ = TS2_SHADE_AND_MODULATE(ts2_rgb_, (shade));                          \
+                TS2_FACEALPHA_APPLY(ts2_alpha_);                                                   \
+                TS2_STORE(pixel_buffer[ts2_at_], ts2_out_, ts2_alpha_);                            \
+                TS2_ZWRITE(ts2_at_);                                                               \
+            }                                                                                      \
         }                                                                                          \
     } while( 0 )
 
@@ -138,16 +210,17 @@ TS2_CAT(TS2_SPAN_FN, _block8)(
     int v_scan,
     int step_u,
     int step_v,
-    int shade)
+    int shade TS2_ZPARAMS)
 {
     for( int i = 0; i < 8; i++ )
     {
         TS2_EMIT(
-            pixel_buffer[offset + i],
+            offset + i,
             sampler->texels[tex_sampler_index(sampler, u_scan, v_scan)],
             shade);
         u_scan += step_u;
         v_scan += step_v;
+        TS2_ZADVANCE();
     }
 }
 
@@ -168,7 +241,7 @@ TS2_CAT(TS2_SPAN_FN, _exact)(
     int step_au_dx,
     int step_bv_dx,
     int step_cw_dx,
-    int shade)
+    int shade TS2_ZPARAMS)
 {
     for( int i = 0; i < count; i++ )
     {
@@ -187,13 +260,17 @@ TS2_CAT(TS2_SPAN_FN, _exact)(
             int v = sampler->clamp_t ? clamp(v_raw, 0, sampler->width - 1)
                                      : (v_raw & (sampler->width - 1));
             TS2_EMIT(
-                pixel_buffer[offset + i],
+                offset + i,
                 sampler->texels[u + (v << sampler->shift)],
                 shade);
         }
         au += step_au_dx;
         bv += step_bv_dx;
         cw += step_cw_dx;
+        /* Outside the `w != 0` guard: a pixel the mapping cannot place is still
+         * a pixel of the run, and a key that skipped it would run the rest of
+         * the span one column short. */
+        TS2_ZADVANCE();
     }
 }
 
@@ -214,7 +291,7 @@ TS2_SPAN_FN(
     int step_cw_dx,
     int shade8bit_ish8,
     int step_shade8bit_dx_ish8,
-    const struct ToriDraw_TexSampler* RESTRICT sampler)
+    const struct ToriDraw_TexSampler* RESTRICT sampler TS2_ZSPAN_PARAMS)
 {
     int x0 = (screen_x0_ish16 - 1) >> 16;
     if( x0 < 0 )
@@ -236,6 +313,19 @@ TS2_SPAN_FN(
     int steps = x1 - x0;
     int offset = pixel_offset + x0;
     shade8bit_ish8 += step_shade8bit_dx_ish8 * x0;
+
+#if TS2_ZBUF
+    /*
+     * The absolute column `offset` currently points at, so each block's starting
+     * key is EVALUATED from the plane rather than accumulated across blocks.
+     * Accumulating would work too, but the two paths below advance the key at
+     * different granularities (per pixel inside a block, per block out here) and
+     * a re-evaluation costs one multiply-add per eight pixels to make them
+     * agree exactly.
+     */
+    int zx = x0;
+    float const key_step = key_step_dx;
+#endif
 
     int blocks = steps >> 3;
     int remaining = steps & 7;
@@ -300,7 +390,7 @@ TS2_SPAN_FN(
                     tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift),
                     s_u,
                     s_v,
-                    shade8bit_ish8 >> 8);
+                    shade8bit_ish8 >> 8 TS2_ZARGS(zx));
             }
             else
             {
@@ -315,7 +405,7 @@ TS2_SPAN_FN(
                     step_au_dx,
                     step_bv_dx,
                     step_cw_dx,
-                    shade8bit_ish8 >> 8);
+                    shade8bit_ish8 >> 8 TS2_ZARGS(zx));
             }
 
             cur_u = nxt_u;
@@ -331,6 +421,9 @@ TS2_SPAN_FN(
         cw += step_cw8;
         offset += 8;
         shade8bit_ish8 += (step_shade8bit_dx_ish8 << 3);
+#if TS2_ZBUF
+        zx += 8;
+#endif
     }
 
     if( remaining > 0 && (cw >> texture_shift) != 0 )
@@ -370,7 +463,7 @@ TS2_SPAN_FN(
                 step_au_dx,
                 step_bv_dx,
                 step_cw_dx,
-                shade);
+                shade TS2_ZARGS(zx));
             return;
         }
 
@@ -380,14 +473,19 @@ TS2_SPAN_FN(
         int u_scan = tex_span_wrapped_scan_start(cur_u, texture_width, texture_shift);
         int v_scan = tex_span_wrapped_scan_start(cur_v, texture_width, texture_shift);
 
+#if TS2_ZBUF
+        float key = key_edge + key_step_dx * (float)zx;
+#endif
+
         for( int i = 0; i < remaining; i++ )
         {
             TS2_EMIT(
-                pixel_buffer[offset + i],
+                offset + i,
                 sampler->texels[tex_sampler_index(sampler, u_scan, v_scan)],
                 shade);
             u_scan += s_u;
             v_scan += s_v;
+            TS2_ZADVANCE();
         }
     }
 }
@@ -398,7 +496,15 @@ TS2_SPAN_FN(
 #undef TS2_FACEALPHA_APPLY
 #undef TS2_STORE
 
+#undef TS2_ZSPAN_PARAMS
+#undef TS2_ZPARAMS
+#undef TS2_ZARGS
+#undef TS2_ZPASS
+#undef TS2_ZADVANCE
+#undef TS2_ZWRITE
+
 #undef TS2_SPAN_FN
 #undef TS2_GATE
 #undef TS2_FACEALPHA
 #undef TS2_MODULATE
+#undef TS2_ZBUF

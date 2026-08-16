@@ -219,6 +219,25 @@ ev_move_get(int* out_x, int* out_y, int* out_z);
 void
 ev_set_zbuffer(int on);
 
+/**
+ * Draw through the depth-tested (`zbuf`) kernels with NO face sort at all.
+ *
+ * A third discipline, not a stronger ev_set_zbuffer. That one sets
+ * TORIDRAW_MODEL_FLAG_ZBUFFER, which keeps the painter's sort and depth-tests
+ * underneath it; this calls ToriDraw_RenderZBuffered / ToriDraw_RenderHDZBuffered
+ * instead, which rank nothing — faces are drawn in the model's own order and the
+ * depth buffer alone decides. Face priorities cannot matter here, so a picture
+ * that is still wrong under this toggle is wrong about DEPTH, not about order.
+ *
+ * Applies to the classic and HD subjects alike, and unlike the flag it needs
+ * nothing written to the model — so it reaches an adopted HD model too.
+ */
+void
+ev_set_zbuffer_kernels(int on);
+
+int
+ev_zbuffer_kernels(void);
+
 /** Pose the model for `frame`; -1 is the bind pose. Branches between classic
  *  and skeletal animation, and is the only place that does. */
 void

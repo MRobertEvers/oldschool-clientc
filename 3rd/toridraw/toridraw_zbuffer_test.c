@@ -115,6 +115,7 @@ struct Mesh
     hsl16_t cc[MAX_FACES];
     alphaint_t alpha[MAX_FACES];
     int infos[MAX_FACES];
+    uint8_t priorities[MAX_FACES];
 };
 
 static void
@@ -572,6 +573,171 @@ test_crossing_quads(struct ToriDraw_Scene* scene)
         "depth test left %ld/%ld pixels showing the farther quad",
         wrong,
         checked);
+}
+
+/**
+ * Render through ToriDraw_RenderZBuffered — the entry point that skips the sort.
+ *
+ * Deliberately does not touch `flags`: this path is opted into by CALLING it,
+ * and a test that set the flag anyway could not tell the two features apart.
+ */
+static bool
+render_model_unsorted(
+    struct ToriDraw_Scene* scene,
+    struct Mesh* mesh,
+    struct Frame* frame)
+{
+    struct ToriDraw_ViewPort vp = viewport();
+    struct ToriDraw_Camera cam = camera();
+    struct ToriDraw_Position pos = position();
+
+    return ToriDraw_RenderZBuffered(
+               mesh->hnd, scene, &pos, &vp, &cam, frame->pixels, false) ==
+           TORIDRAW_CULL_VISIBLE;
+}
+
+/**
+ * The unsorted entry point resolves the crossing, on a model carrying no flag.
+ *
+ * Two claims, and the second is the one worth the fixture: that it works at all,
+ * and that it lands on the SAME picture the flagged, sorted depth render does.
+ * The second is what says "no sort" removed a step rather than changed an
+ * answer — the sort's other job, back-face culling, still has to happen, and if
+ * it did not this frame would carry the quads' reverse windings on top of them.
+ */
+static void
+test_unsorted_entry_point(struct ToriDraw_Scene* scene)
+{
+    struct Mesh mesh;
+    struct Frame unsorted;
+    struct Frame sorted_depth;
+    long wrong;
+    long checked;
+
+    build_crossing_quads(&mesh);
+    mesh.model.flags = 0;
+
+    frame_clear(&unsorted);
+    CHECK(render_model_unsorted(scene, &mesh, &unsorted), "unsorted render culled");
+    CHECK(mesh.model.flags == 0, "the entry point wrote TORIDRAW_MODEL_FLAG_ZBUFFER back");
+
+    count_crossing_errors(&unsorted, 3, &wrong, &checked);
+    CHECK(checked > 1000, "unsorted render covered only %ld pixels", checked);
+    CHECK(
+        wrong == 0,
+        "unsorted depth render left %ld/%ld pixels showing the farther quad",
+        wrong,
+        checked);
+
+    frame_clear(&sorted_depth);
+    CHECK(render_model(scene, &mesh, &sorted_depth, true, ORDER_SORTED), "depth render culled");
+    CHECK(
+        frame_differences_outside_band(&unsorted, &sorted_depth, 2) == 0,
+        "sorted and unsorted depth renders differ on %ld pixels away from the equal-depth "
+        "crossing — dropping the sort changed more than the order",
+        frame_differences_outside_band(&unsorted, &sorted_depth, 2));
+}
+
+/**
+ * Two quads at exactly the same place and depth, different colours.
+ *
+ * The fixture exists because draw order is normally INVISIBLE under a depth
+ * test — that is the whole point of one — which makes "the sort was skipped"
+ * unfalsifiable on ordinary geometry. At an exact depth tie it is visible: the
+ * kernels take strictly-nearer, so a tie keeps what is already there and the
+ * face drawn FIRST is the one you see. The picture then names the order.
+ */
+static void
+build_coincident_quads(struct Mesh* m)
+{
+    int const v0 = 0;
+    int const v1 = 1;
+    int const v2 = 2;
+    int const v3 = 3;
+
+    mesh_init(m);
+
+    mesh_add_vertex(m, -EXTENT, -EXTENT, 0);
+    mesh_add_vertex(m, EXTENT, -EXTENT, 0);
+    mesh_add_vertex(m, EXTENT, EXTENT, 0);
+    mesh_add_vertex(m, -EXTENT, EXTENT, 0);
+
+    /* The same four vertices twice: identical geometry, identical depth. */
+    mesh_add_quad(m, v0, v1, v2, v3, HSL_NEAR_LEFT, 0);
+    mesh_add_quad(m, v0, v1, v2, v3, HSL_NEAR_RIGHT, 0);
+}
+
+/**
+ * Face priorities cannot reach the unsorted path, because nothing ranks faces.
+ *
+ * The evidence is an EQUALITY: the same model with and without priorities must
+ * produce the identical frame. That is only worth anything on geometry where
+ * the order is observable, hence the tie fixture — on the crossing quads the
+ * depth test resolves every pixel the same way whatever order they arrive in,
+ * so an equality there cannot tell "ignored" from "obeyed but harmless".
+ *
+ * The control is the painter render, which must CHANGE when the priorities are
+ * added. Without it, an equality could just as well mean the priority array
+ * never reached the engine at all.
+ */
+static void
+test_unsorted_ignores_priorities(struct ToriDraw_Scene* scene)
+{
+    struct Mesh mesh;
+    struct Frame plain;
+    struct Frame prioritised;
+    struct Frame painter_plain;
+    struct Frame painter_prioritised;
+
+    build_coincident_quads(&mesh);
+
+    frame_clear(&plain);
+    frame_clear(&painter_plain);
+    CHECK(render_model_unsorted(scene, &mesh, &plain), "unsorted render culled");
+    CHECK(
+        render_model(scene, &mesh, &painter_plain, false, ORDER_SORTED),
+        "painter render culled");
+
+    /*
+     * Quad B's faces are ranked AHEAD of quad A's, so any sorting path draws B
+     * first and B wins the tie — the reverse of the model's own face order.
+     * Priority 0 is emitted in the first run and 9 in the last but one, so
+     * giving B the 0 puts it first. mesh_add_quad emits four faces per quad
+     * (both windings of each triangle), so faces 0-3 are A and 4-7 are B.
+     *
+     * Priorities are stored packed, two faces to a byte — writing one byte per
+     * face gives every even face its neighbour's priority and every odd face a
+     * zero, which is a silent way to produce no ordering change at all.
+     */
+    for( int f = 0; f < mesh.model.face_count; f++ )
+    {
+        int const prio = (f < 4) ? 9 : 0;
+        uint8_t* byte = &mesh.priorities[f >> 1];
+
+        if( f & 1 )
+            *byte = (uint8_t)((*byte & 0x0F) | (prio << 4));
+        else
+            *byte = (uint8_t)((*byte & 0xF0) | prio);
+    }
+    mesh.model.face_priorities = mesh.priorities;
+
+    frame_clear(&prioritised);
+    frame_clear(&painter_prioritised);
+    CHECK(render_model_unsorted(scene, &mesh, &prioritised), "unsorted render culled");
+    CHECK(
+        render_model(scene, &mesh, &painter_prioritised, false, ORDER_SORTED),
+        "painter render culled");
+
+    CHECK(
+        frame_differences(&painter_plain, &painter_prioritised) > 0,
+        "adding face priorities changed nothing in the PAINTER render — the priority "
+        "array is not reaching the sort, so the equality below proves nothing");
+
+    CHECK(
+        frame_differences(&plain, &prioritised) == 0,
+        "%ld pixels changed when face priorities were added to a model drawn through "
+        "ToriDraw_RenderZBuffered, which does not sort at all",
+        frame_differences(&plain, &prioritised));
 }
 
 static void
@@ -1091,6 +1257,8 @@ main(void)
         TORIDRAW_ZDEPTH_HALF ? "16-bit half" : "32-bit float");
 
     test_crossing_quads(scene);
+    test_unsorted_entry_point(scene);
+    test_unsorted_ignores_priorities(scene);
     test_order_independence(scene);
     test_coverage_parity(scene);
     test_perspective_correct_depth(scene);

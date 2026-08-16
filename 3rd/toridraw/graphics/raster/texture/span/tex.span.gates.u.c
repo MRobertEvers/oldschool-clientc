@@ -15,6 +15,15 @@
  * mirrors the triangle variants that call them, in file-name order:
  *
  *     draw_texture_scanline_<gate>[_facealpha][_modulate]_branching_lerp8_v3_ordered
+ *
+ * Each of the twelve has a DEPTH-TESTED twin, generated from the same template
+ * with TS2_ZBUF, and named by inserting `zbuf` before the walk:
+ *
+ *     draw_texture_scanline_<gate>[_facealpha][_modulate]_zbuf_branching_lerp8_v3_ordered
+ *
+ * The twin takes three extra arguments (the z-buffer and the row's depth-key
+ * edge and step) and is otherwise the same uv walk, block fit included — see
+ * the depth section of the template for why the fit survives the test.
  */
 
 #include "graphics/alpha.h"
@@ -23,6 +32,7 @@
 #include "graphics/shade.h"
 #include "graphics/raster/texture/tex_sampler.h"
 #include "graphics/raster/texture/span/tex.span_uv.h"
+#include "graphics/zdepth.h"
 
 #include <stdint.h>
 
@@ -114,6 +124,101 @@
 #define TS2_GATE 2
 #define TS2_FACEALPHA 1
 #define TS2_MODULATE 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+/* ================================================== the depth-tested twelve */
+
+/* --------------------------------------------- zbuf texopaque (gate 0) */
+
+#define TS2_SPAN_FN draw_texture_scanline_texopaque_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 0
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 0
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_texopaque_facealpha_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 0
+#define TS2_FACEALPHA 1
+#define TS2_MODULATE 0
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_texopaque_modulate_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 0
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 1
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN                                                                                \
+    draw_texture_scanline_texopaque_facealpha_modulate_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 0
+#define TS2_FACEALPHA 1
+#define TS2_MODULATE 1
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+/* ---------------------------------------------- zbuf textrans (gate 1) */
+
+#define TS2_SPAN_FN draw_texture_scanline_textrans_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 1
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 0
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_textrans_facealpha_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 1
+#define TS2_FACEALPHA 1
+#define TS2_MODULATE 0
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_textrans_modulate_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 1
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 1
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN                                                                                \
+    draw_texture_scanline_textrans_facealpha_modulate_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 1
+#define TS2_FACEALPHA 1
+#define TS2_MODULATE 1
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+/* ---------------------------------------------- zbuf texalpha (gate 2) */
+
+#define TS2_SPAN_FN draw_texture_scanline_texalpha_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 2
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 0
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_texalpha_facealpha_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 2
+#define TS2_FACEALPHA 1
+#define TS2_MODULATE 0
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN draw_texture_scanline_texalpha_modulate_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 2
+#define TS2_FACEALPHA 0
+#define TS2_MODULATE 1
+#define TS2_ZBUF 1
+#include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
+
+#define TS2_SPAN_FN                                                                                \
+    draw_texture_scanline_texalpha_facealpha_modulate_zbuf_branching_lerp8_v3_ordered
+#define TS2_GATE 2
+#define TS2_FACEALPHA 1
+#define TS2_MODULATE 1
+#define TS2_ZBUF 1
 #include "graphics/raster/texture/span/tex.span.gates_tmpl.inc"
 
 #endif

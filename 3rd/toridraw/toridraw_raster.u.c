@@ -1089,6 +1089,11 @@ context_from_handle(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     bool smooth,
+    /* Draw depth-tested whatever the model's own flag says. This is how
+     * ToriDraw_RenderZBuffered opts a model in without writing to it: the entry
+     * point is the request, so the flag is not consulted and the scene's
+     * MODEL_ZBUFFER permission is not required either. */
+    bool force_zbuffer,
     struct ToriDrawModelRasterContext* ctx)
 {
     /* Set before the switch so a handle kind this function does not fill still
@@ -1181,15 +1186,19 @@ context_from_handle(
          * caller that never draws a z-buffered model never pays for one. A
          * failed allocation is not an error — the model simply draws by face
          * order, exactly as it did before the flag existed. */
-        if( (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) != 0 )
+        if( force_zbuffer || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) != 0 )
         {
             int const clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
             int const rows = clip_top + ctx->screen_height;
             int const stride = ctx->stride;
 
             if( !ToriDraw_SceneHasZBuffer(scene, stride, rows) &&
-                (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0 )
+                (force_zbuffer || (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0) )
                 ToriDraw_SceneZBufferResize(scene, stride, rows);
+
+            /* A forced request that produced no buffer would silently draw by
+             * face order, which is the one thing the caller asked not to do. */
+            assert(!force_zbuffer || ToriDraw_SceneHasZBuffer(scene, stride, rows));
 
             if( ToriDraw_SceneHasZBuffer(scene, stride, rows) )
             {
@@ -1227,6 +1236,39 @@ context_from_handle(
     }
 }
 
+/**
+ * Is this face facing the camera?
+ *
+ * Only the unsorted walk asks. On the sorted path the depth bucketer answers it
+ * — it drops back-facing triangles before they reach a kernel — so a walk that
+ * skips the sort has to do the cull itself or it draws the model's inside
+ * surfaces as well as its outside ones. Same test, same sign convention, and the
+ * same near-clip exemption: a face with a vertex behind the eye has no
+ * screen-space winding yet, so it is kept and the near-clip rebuild decides.
+ */
+static inline bool
+toridraw_raster_face_front_facing(
+    const struct ToriDrawModelRasterContext* ctx,
+    int face)
+{
+    int const a = ctx->face_indices_a[face];
+    int const b = ctx->face_indices_b[face];
+    int const c = ctx->face_indices_c[face];
+
+    if( ctx->near_clipped &&
+        (ctx->vertex_x[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+         ctx->vertex_x[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+         ctx->vertex_x[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED) )
+        return true;
+
+    long long const dx1 = (long long)ctx->vertex_x[a] - ctx->vertex_x[b];
+    long long const dy1 = (long long)ctx->vertex_y[a] - ctx->vertex_y[b];
+    long long const dx2 = (long long)ctx->vertex_x[c] - ctx->vertex_x[b];
+    long long const dy2 = (long long)ctx->vertex_y[c] - ctx->vertex_y[b];
+
+    return toridraw_winding_front_facing(dx1 * dy2 - dy1 * dx2);
+}
+
 static inline void
 ToriDraw_RasterWithFaceIndices(
     struct ToriDraw_Scene* scene,
@@ -1234,10 +1276,15 @@ ToriDraw_RasterWithFaceIndices(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
-    bool smooth)
+    bool smooth,
+    bool force_zbuffer,
+    /* Ignore scene->tmp_face_order and walk the model's own face order. Only
+     * meaningful with force_zbuffer: without a depth buffer the face order IS
+     * the visibility answer. */
+    bool unsorted)
 {
     struct ToriDrawModelRasterContext ctx;
-    context_from_handle(scene, hnd, view_port, camera, smooth, &ctx);
+    context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
     {
         int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
         int clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
@@ -1284,13 +1331,25 @@ ToriDraw_RasterWithFaceIndices(
         ctx.raster_debug = NULL;
     }
     /* #region agent log */
-    ctx.ordered_faces = scene->tmp_face_order_count;
+    ctx.ordered_faces = unsorted ? ctx.num_faces : scene->tmp_face_order_count;
     /* #endregion */
 
-    for( int i = 0; i < scene->tmp_face_order_count; i++ )
+    if( unsorted )
     {
-        int face = scene->tmp_face_order[i];
-        ToriDraw_RasterModelFace(face, &ctx);
+        for( int face = 0; face < ctx.num_faces; face++ )
+        {
+            if( !toridraw_raster_face_front_facing(&ctx, face) )
+                continue;
+            ToriDraw_RasterModelFace(face, &ctx);
+        }
+    }
+    else
+    {
+        for( int i = 0; i < scene->tmp_face_order_count; i++ )
+        {
+            int face = scene->tmp_face_order[i];
+            ToriDraw_RasterModelFace(face, &ctx);
+        }
     }
 
     if( ctx.raster_debug )
@@ -1312,7 +1371,32 @@ ToriDraw_Raster(
     case TORIDRAWMK_MODEL_HD:
     {
         return ToriDraw_RasterWithFaceIndices(
-            scene, hnd, view_port, camera, pixel_buffer, smooth);
+            scene, hnd, view_port, camera, pixel_buffer, smooth, false, false);
+    }
+    default:
+        assert(false && "Invalid model handle kind");
+        return;
+    }
+}
+
+/** ToriDraw_Raster with the depth buffer forced on and the face order thrown
+ *  away. See ToriDraw_RenderZBuffered, which is the only caller. */
+static inline void
+ToriDraw_RasterZBuffered(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_MODEL:
+    case TORIDRAWMK_MODEL_HD:
+    {
+        return ToriDraw_RasterWithFaceIndices(
+            scene, hnd, view_port, camera, pixel_buffer, smooth, true, true);
     }
     default:
         assert(false && "Invalid model handle kind");

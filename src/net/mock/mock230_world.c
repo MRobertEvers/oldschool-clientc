@@ -35238,32 +35238,66 @@ mock230_world_selftest(void)
                 }
 
                 /*
-                 * The head-down pose must cover the whole fire-wall cast.
+                 * The fire wall's breath must last as long as the fire does.
                  *
-                 * 16746 is a one-shot: content cannot loop a sequence, so the
-                 * pose is held by re-asserting it as it ends. A three-wave cast
-                 * runs to `3 + 2 * spacing` ticks while the animation is only
-                 * `anim_ticks`, and the three scheduled re-assertions plus the
-                 * initial play cover `4 * anim_ticks`. Retuning the wave spacing
-                 * without retuning the hold would put her back on her feet with
-                 * walls still to come — visible, and nothing else would say so.
+                 * It is three calls — 16846 opens, 16747 loops, 16748 closes —
+                 * and the loop is a real loop: `framestep=8` over eight frames
+                 * runs its own replays, so nothing has to re-assert it. What
+                 * still has to hold is the arithmetic that decides when each
+                 * leg fires, and it is spread over two files with nothing but
+                 * this connecting it.
+                 *
+                 * Retuning the wave spacing without retuning the breath is the
+                 * regression: she stands back up with walls still to come, and
+                 * nothing else would say so.
                  */
+                if( srv->scripts_ok )
                 {
-                    int const anim_ticks =
-                        mock230_content_constant_int("rs2012_qbd_wall_anim_ticks", -1);
+                    int const start =
+                        mock230_content_constant_int("rs2012_qbd_wall_start_anim_ticks", -1);
+                    int const stop_ticks =
+                        mock230_content_constant_int("rs2012_qbd_wall_stop_anim_ticks", -1);
                     int const spacing =
                         mock230_content_constant_int("rs2012_qbd_wall_wave_spacing", -1);
-                    int const last_wave = 3 + 2 * spacing;
+                    int const first =
+                        mock230_content_constant_int("rs2012_qbd_wall_first_wave_tick", -1);
+                    int const last_wave = first + 2 * spacing;
+                    /* What ~rs2012_qbd_wall_breath_ticks computes for 3 waves. */
+                    int const breath = last_wave > start ? last_wave : start;
+                    int const open727_recovery = 8 + 3 * 2;
 
-                    SELFTEST_CHECK(anim_ticks > 0 && spacing > 0,
-                                   "the wall pose constants should be stated, got anim=%d "
-                                   "spacing=%d",
-                                   anim_ticks, spacing);
-                    SELFTEST_CHECK(4 * anim_ticks >= last_wave,
-                                   "the wall breath pose covers %d ticks (4 x %d) but a "
-                                   "three-wave cast runs to tick %d — she stands back up "
-                                   "before the last wall spawns",
-                                   4 * anim_ticks, anim_ticks, last_wave);
+                    SELFTEST_CHECK(start > 0 && stop_ticks > 0 && spacing > 0 && first > 0,
+                                   "the wall breath constants should be stated, got "
+                                   "start=%d stop=%d spacing=%d first=%d",
+                                   start, stop_ticks, spacing, first);
+                    SELFTEST_CHECK(
+                        SSVM_ProviderGetByName(srv->scripts, "[queue,rs2012_qbd_wall_loop]") !=
+                                NULL &&
+                            SSVM_ProviderGetByName(srv->scripts,
+                                                   "[queue,rs2012_qbd_wall_stop]") != NULL,
+                        "the fire wall's sustaining loop and its stop must both exist as "
+                        "queues; without the stop she breathes 16747's full replay count");
+                    /* rs2012_seq_16846 is 325 cache cycles at ~30 a tick. It is
+                     * priority 5 against the loop's 6, so it is the one leg
+                     * that can be cut, and rounding this DOWN is how. */
+                    SELFTEST_CHECK(start >= 11,
+                                   "the wall's opening call is given %d tick(s); "
+                                   "rs2012_seq_16846 is 325 cycles = 10.83 ticks, so this "
+                                   "must round up to 11 or the loop pre-empts it",
+                                   start);
+                    SELFTEST_CHECK(breath >= last_wave,
+                                   "she stops breathing on tick %d but the last of three "
+                                   "waves leaves her on tick %d",
+                                   breath, last_wave);
+                    /* The recovery floor at the call site keeps her next attack
+                     * out of the breath. If open727's own spacing already
+                     * covered it the floor would be dead code, and a later
+                     * reader would delete it. */
+                    SELFTEST_CHECK(breath + stop_ticks > open727_recovery,
+                                   "the wall breath runs %d ticks against open727's %d-tick "
+                                   "recovery — the floor in rs2012_qbd_combat.rs2 is doing "
+                                   "nothing and should be revisited, not kept",
+                                   breath + stop_ticks, open727_recovery);
                 }
 
                 /*
@@ -35581,6 +35615,33 @@ mock230_world_selftest(void)
                                    "must be 15 or 16 or her death is cut short (or ends in "
                                    "her awake idle)",
                                    real);
+
+                    /* And the same for her other one. She has two
+                     * return-to-sleep animations of different lengths, so the
+                     * retype delay is chosen with the animation; collapsing
+                     * them onto one constant is the regression, and it is
+                     * invisible half the time by construction. */
+                    {
+                        int const alt =
+                            mock230_content_constant_int("rs2012_qbd_sleep_alt_anim_ticks", -1);
+                        int const alt_real = alt + 1;
+
+                        SELFTEST_CHECK(alt >= 0,
+                                       "^rs2012_qbd_sleep_alt_anim_ticks must be declared, "
+                                       "got %d",
+                                       alt);
+                        SELFTEST_CHECK(alt < 0 || (alt_real >= 16 && alt_real <= 17),
+                                       "the alternate QBD retype waits %d real tick(s); "
+                                       "rs2012_seq_16732 is 504 cycles = 16.8 ticks, so this "
+                                       "must be 16 or 17",
+                                       alt_real);
+                        SELFTEST_CHECK(alt < 0 || stored < 0 || alt != stored,
+                                       "both return-to-sleep animations wait %d ticks — "
+                                       "16732 is 48 cycles longer than 16742, so one of the "
+                                       "two deaths is being measured against the wrong "
+                                       "animation",
+                                       alt_real);
+                    }
                 }
 
                 /*

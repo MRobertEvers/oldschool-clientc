@@ -171,6 +171,14 @@
         mean draw order at all.
       -->
       <label class="hdopt" title="draw as if the model carried no face priorities"><input type="checkbox" id="noPriorities"> ignore priorities</label>
+      <!--
+        No face sort at all: the depth-tested kernels resolve the model per
+        pixel, in whatever order its faces are stored. "ignore priorities" still
+        sorts by depth and can still get an interpenetrating model wrong; this
+        cannot, because nothing is ranked. A model that still looks wrong here
+        is wrong about geometry or depth, not about draw order.
+      -->
+      <label class="hdopt" title="depth-test per pixel and skip the face sort entirely"><input type="checkbox" id="zbufKernels"> zbuffered kernels</label>
       <div class="meta" id="hdInfo">no file loaded</div>
       <div class="meta hdstats hidden" id="hdStats"></div>
     </div>

@@ -109,6 +109,7 @@ function wasmCall(mod) {
     textureCount: mod.cwrap('ev_w_texture_count', 'number', []),
     setPan: mod.cwrap('ev_w_set_pan', null, ['number', 'number']),
     setIgnorePriorities: mod.cwrap('ev_w_set_ignore_priorities', null, ['number']),
+    setZbufferKernels: mod.cwrap('ev_w_set_zbuffer_kernels', null, ['number']),
     move: mod.cwrap('ev_w_move', null, ['number', 'number', 'number']),
     moveReset: mod.cwrap('ev_w_move_reset', null, []),
     mod,
@@ -370,6 +371,16 @@ function hdInstall() {
   if (nopri) {
     nopri.addEventListener('change', () => {
       state.wasm.setIgnorePriorities(nopri.checked ? 1 : 0);
+    });
+  }
+
+  /* Independent of the one above on purpose: this drops the sort itself, that
+   * one only drops its ranking key. Both apply to cache npcs as well as to an
+   * uploaded file. */
+  const zbufk = document.getElementById('zbufKernels');
+  if (zbufk) {
+    zbufk.addEventListener('change', () => {
+      state.wasm.setZbufferKernels(zbufk.checked ? 1 : 0);
     });
   }
 
