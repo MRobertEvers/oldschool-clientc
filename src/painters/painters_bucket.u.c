@@ -657,8 +657,11 @@ painter_paint_bucket(
             tile_paint->near_wall_flags |= (uint8_t)~far_walls;
 
             struct SceneOccluders* occ = painter->occluders;
+            /* Occluders are optional; without them nothing is hidden. */
             int ground_hidden =
-                painter_tile_ground_hidden(occ, tile_paint, occlusion_level, tile_sx, tile_sz);
+                occ ? painter_tile_ground_hidden(
+                          occ, tile_paint, occlusion_level, tile_sx, tile_sz)
+                    : 0;
 
             if( tile->bridge_tile != -1 )
             {
@@ -1416,12 +1419,10 @@ painter_collect_visible_depth(
                     continue;
                 tile_paint->occlusion = TILE_OCCLUSION_UNKNOWN;
                 occlusion_level = painters_tile_get_mesh_level(tile);
-                ground_hidden = painter_tile_ground_hidden(
-                    occ,
-                    tile_paint,
-                    occlusion_level,
-                    sx,
-                    sz);
+                ground_hidden =
+                    occ ? painter_tile_ground_hidden(
+                              occ, tile_paint, occlusion_level, sx, sz)
+                        : 0;
 
                 if( tile->bridge_tile != -1 )
                 {

@@ -166,8 +166,8 @@ scene_occluders_ground_height(
 
 /** Footprint tile visible under the current frustum. Mirrors
  * painters_cullspan_visible using the public span fields so this TU does not
- * depend on painters.c internals. No span → treat as visible (conservative:
- * activates more occluders, never under-culls). */
+ * depend on painters.c internals. Requires a span: "no span at all" is the
+ * caller's condition (conservatively visible), tested at the call sites. */
 static int
 occluder_footprint_tile_visible(
     const struct PaintersCullSpan* span,
@@ -175,9 +175,7 @@ occluder_footprint_tile_visible(
     int dz)
 {
     int idx;
-    /* No span -> visible, per the contract stated above. */
-    if( !span )
-        return 1;
+    assert(span);
     if( span->empty )
         return 1;
     if( dz < span->dz_min || dz > span->dz_max )
@@ -324,8 +322,8 @@ scene_occluders_select_for_camera(
                 z1 = span_extent;
             while( z0 <= z1 )
             {
-                if( occluder_footprint_tile_visible(
-                        span, dx_vis - draw_distance, z0 - draw_distance) )
+                if( !span || occluder_footprint_tile_visible(
+                                 span, dx_vis - draw_distance, z0 - draw_distance) )
                 {
                     ok = 1;
                     break;
@@ -370,8 +368,8 @@ scene_occluders_select_for_camera(
                 x1 = span_extent;
             while( x0 <= x1 )
             {
-                if( occluder_footprint_tile_visible(
-                        span, x0 - draw_distance, dz_vis - draw_distance) )
+                if( !span || occluder_footprint_tile_visible(
+                                 span, x0 - draw_distance, dz_vis - draw_distance) )
                 {
                     ok = 1;
                     break;
@@ -430,8 +428,8 @@ scene_occluders_select_for_camera(
 
             for( x = x0; x <= x1 && !ok; x++ )
                 for( z = z0; z <= z1; z++ )
-                    if( occluder_footprint_tile_visible(
-                            span, x - draw_distance, z - draw_distance) )
+                    if( !span || occluder_footprint_tile_visible(
+                                     span, x - draw_distance, z - draw_distance) )
                     {
                         ok = 1;
                         break;

@@ -1279,10 +1279,7 @@ claimed_in(
     const char* const* claimed,
     size_t count)
 {
-    /* An op slot an npc does not define is a NULL verb -- most npcs define
-     * fewer than five -- so "no verb" claims nothing. */
-    if( !verb )
-        return NULL;
+    assert(verb);
     for( size_t i = 0; i < count; i++ )
         if( strcmp(verb, claimed[i]) == 0 )
             return claimed[i];
@@ -1299,9 +1296,10 @@ mock230_world_engine_claimed_verb(
         const struct Mock230NpcInfo* info = mock230_npcinfo((int)subject);
         int op_num = trigger - SS_TRIGGER_OPNPC1 + 1;
 
-        return info ? claimed_in(info->ops[op_num - 1], k_engine_npc_verbs,
-                                 sizeof(k_engine_npc_verbs) / sizeof(k_engine_npc_verbs[0]))
-                    : NULL;
+        if( !info || !info->ops[op_num - 1] )
+            return NULL;
+        return claimed_in(info->ops[op_num - 1], k_engine_npc_verbs,
+                          sizeof(k_engine_npc_verbs) / sizeof(k_engine_npc_verbs[0]));
     }
     /*
      * `[oploc<n>]`, `[opheld<n>]` and `[opobj<n>]` were all here and none is now.

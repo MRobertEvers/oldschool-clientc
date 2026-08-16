@@ -5099,10 +5099,8 @@ db_push_missing(
     struct RSCache_DbColumn const* col,
     int tuple)
 {
-    /* NULL is a real answer here, not a caller bug: db_column_of() returns NULL
-     * when neither the row nor the table describes the column, and an unknown
-     * column is answered with a single -1. */
-    if( !col || col->type_count <= 0 || !col->types )
+    assert(col);
+    if( col->type_count <= 0 || !col->types )
         return CS2VM2_PushInt(vm, -1);
 
     if( tuple >= 0 && tuple < col->type_count )
@@ -5292,7 +5290,11 @@ exec_db(
                 return code;
             col = db_column_of(row, dbtable, col_id);
             arity = col ? col->type_count : 0;
-            if( !col || arity <= 0 || index < 0 || index >= col->tuple_count || !col->values )
+            /* No column at all in either the row or the table: there is no
+             * arity to answer with, so it is a single -1. */
+            if( !col )
+                return CS2VM2_PushInt(vm, -1);
+            if( arity <= 0 || index < 0 || index >= col->tuple_count || !col->values )
                 return db_push_missing(vm, col, tuple);
             base = index * arity;
             if( tuple >= 0 && tuple < arity )

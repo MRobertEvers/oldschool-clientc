@@ -303,8 +303,12 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
 
     dst->model_priority = src->model_priority;
 
-    dst->vertex_bones = ToriDraw_BonesCopy(src->vertex_bones);
-    dst->face_bones = ToriDraw_BonesCopy(src->face_bones);
+    /* Most models are unrigged; having bones is the condition, and it is
+     * decided here rather than inside the copy. */
+    if( src->vertex_bones )
+        dst->vertex_bones = ToriDraw_BonesCopy(src->vertex_bones);
+    if( src->face_bones )
+        dst->face_bones = ToriDraw_BonesCopy(src->face_bones);
 
     if( src->animaya_vertex_count > 0 && src->animaya_group_counts &&
         src->animaya_groups && src->animaya_scales )

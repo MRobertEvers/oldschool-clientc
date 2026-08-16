@@ -14,8 +14,10 @@
  * under strict -std=c11. Redefine it with the always-available `__typeof__` spelling. */
 #undef TORIDRAW_MODEL_COPY
 #define TORIDRAW_MODEL_COPY(model, field, src, count)                                              \
-    ((model)->field = (__typeof__((model)->field))ToriDraw_BufCopy(                                \
-         (src), (size_t)(count), sizeof(*(model)->field)))
+    ((model)->field = ((src) && (count) > 0)                                                       \
+                          ? (__typeof__((model)->field))ToriDraw_BufCopy(                          \
+                                (src), (size_t)(count), sizeof(*(model)->field))                   \
+                          : NULL)
 
 /* Texture ids wanted by models built since the host last drained them. One flag
  * per id, so repeats collapse and the drain is a fixed-size walk regardless of
@@ -97,10 +99,7 @@ ToriDraw_ModelTextureWantsTake(
 static struct ToriDraw_Bones*
 bones_from_torirs(const struct ToriRS_Bones* src)
 {
-    /* vertex_bones/face_bones are optional -- an unrigged model has neither, so
-     * "no source bones" means "no destination bones", not a caller bug. */
-    if( !src )
-        return NULL;
+    assert(src);
 
     struct ToriDraw_Bones* bones = calloc(1, sizeof(struct ToriDraw_Bones));
     assert(bones);
@@ -185,8 +184,11 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
 
     dst->model_priority = src->model_priority;
 
-    dst->vertex_bones = bones_from_torirs(src->vertex_bones);
-    dst->face_bones = bones_from_torirs(src->face_bones);
+    /* Most models are unrigged; whether there are bones is decided here. */
+    if( src->vertex_bones )
+        dst->vertex_bones = bones_from_torirs(src->vertex_bones);
+    if( src->face_bones )
+        dst->face_bones = bones_from_torirs(src->face_bones);
 
     if( src->animaya_skin && src->animaya_skin->vertex_count > 0 )
     {

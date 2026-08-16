@@ -207,8 +207,7 @@ lighting_clamp_textured_vertex_colors(
     faceint_t* face_textures,
     int num_faces)
 {
-    if( !face_textures )
-        return;
+    assert(face_textures);
 
     for( int i = 0; i < num_faces; i++ )
     {
@@ -454,10 +453,13 @@ ToriDraw_ApplyLighting(
         }
     }
 
-    lighting_clamp_textured_vertex_colors(
-        face_colors_a_hsl16,
-        face_colors_b_hsl16,
-        face_colors_c_hsl16,
-        face_textures,
-        num_faces);
+    /* Whether the model HAS textures is decided here; an untextured model has
+     * no face_textures array and nothing to clamp. */
+    if( face_textures )
+        lighting_clamp_textured_vertex_colors(
+            face_colors_a_hsl16,
+            face_colors_b_hsl16,
+            face_colors_c_hsl16,
+            face_textures,
+            num_faces);
 }
