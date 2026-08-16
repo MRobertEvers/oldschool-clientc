@@ -13,6 +13,7 @@ Parallel to:
 - [`SCAPE2009_CONTENT_PORT_QUEUE.md`](SCAPE2009_CONTENT_PORT_QUEUE.md) — mid-era
 - [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md) — post-2009
 - [`QUESTHELPER_CONTENT_PORT_QUEUE.md`](QUESTHELPER_CONTENT_PORT_QUEUE.md) — quests only
+- [`HERBLORE_PORT_QUEUE.md`](HERBLORE_PORT_QUEUE.md) — owns Finish-queue #100–106
 
 **Do not steal slices** already `done` / owned on another queue. Route with
 `blocked → <queue> §N` instead of duplicating work.
@@ -256,13 +257,13 @@ unblocked row per tick.
 | 97 | Agility cape / graceful outfit | wiki+cache | pending | Cape perk + graceful energy restore absent |
 | 98 | Modern courses (Sepulchre/Prif/Shayzien/Wyrm) | wiki → Kronos | blocked | Post-2009 courses stay KRONOS lane |
 | 99 | Agility pet | wiki+cache | pending | Rooftop headers defer agility pet |
-| 100 | Decanting | LC | pending | CONTENT 8t deferred decant; no dose combine scripts |
-| 101 | Missing classic potions (sara brew/stamina/combat/sanfew/hunter/serum/relicym/coconut+) | LC | pending | brew.dbrow through magic/zam/antifire; wiki sara/stamina/combat/sanfew/antidote+/++ absent; coconut unfinisheds deferred |
-| 102 | Barbarian mixes / herb tar | LC | pending | CONTENT 8t deferred barbarian mixes + tar |
-| 103 | Quest mixes (Mort'ton serum / Eadgar / ogre) | LC | pending | CONTENT 8t deferred mort/eadgar/ogre quest potions |
-| 104 | Modern potions (divine/raids/Mixology) | wiki → Kronos | blocked | Post-2009 divine/raids/Mastering Mixology stay KRONOS lane |
-| 105 | Herblore cape / chemistry amulet / goggles | wiki+cache | pending | Cape perk + 4-dose / secondary-save gear absent |
-| 106 | Huasca + prayer regen | wiki+cache | pending | identify.dbrow deferred huasca; wiki prayer regeneration potion |
+| 100 | Decanting | LC | blocked → HERBLORE_PORT_QUEUE §4 | CONTENT 8t deferred decant; no dose combine scripts |
+| 101 | Missing classic potions (sara brew/stamina/combat/sanfew/hunter/serum/relicym/coconut+) | LC | blocked → HERBLORE_PORT_QUEUE §17–19 | brew.dbrow through magic/zam/antifire; wiki sara/stamina/combat/sanfew/antidote+/++ absent; coconut unfinisheds deferred |
+| 102 | Barbarian mixes / herb tar | LC | blocked → HERBLORE_PORT_QUEUE §29–30 | CONTENT 8t deferred barbarian mixes + tar |
+| 103 | Quest mixes (Mort'ton serum / Eadgar / ogre) | LC | blocked → HERBLORE_PORT_QUEUE §35 | CONTENT 8t deferred mort/eadgar/ogre quest potions |
+| 104 | Modern potions (divine/raids/Mixology) | wiki → Kronos | blocked → HERBLORE_PORT_QUEUE §18,24,36,37 | Post-2009 divine/raids/Mastering Mixology stay KRONOS lane; divine potions themselves tracked in HERBLORE_PORT_QUEUE (era-agnostic, cache already has them) |
+| 105 | Herblore cape / chemistry amulet / goggles | wiki+cache | blocked → HERBLORE_PORT_QUEUE §31–34 | Cape perk + 4-dose / secondary-save gear absent |
+| 106 | Huasca + prayer regen | wiki+cache | blocked → HERBLORE_PORT_QUEUE §14,18 | identify.dbrow deferred huasca; wiki prayer regeneration potion |
 | 107 | Expanded pickpockets (HAM/Master Farmer/elf/vyre/bandits/pirate) | wiki+cache | pending | pickpocket.dbrow man→hero; missing HAM/master farmer/modern targets; viking deferred |
 | 108 | Members/misc stalls (fruit/seed/viking markets) | LC | pending | CONTENT 8n/8o deferred viking/misc stalls; Ardougne bakery→gem live |
 | 109 | Blackjacking | wiki+cache | pending | Wiki The Feud bandit blackjack path absent |
