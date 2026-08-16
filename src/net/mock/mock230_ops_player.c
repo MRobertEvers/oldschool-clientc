@@ -103,9 +103,32 @@ mock230_ops_player(
          * `if (!locType.op || !locType.op[type]) return;` — the silent return.
          * The op number is 1-based here and 0-based there; `mock230_scene_loc_op`
          * takes the 1-based form, which is also what the packet carries.
+         *
+         * Against the multiloc-RESOLVED child, exactly as `handle_oploc` does,
+         * and this is the same gap that file's comment describes on the other
+         * side of the wire: a scene loc entity is always the BASE id, and a
+         * multiloc base commonly carries no ops at all — every op lives on the
+         * morph. `farming_veg_patch_1` is the shape: the base declares only
+         * `multivarbit` and its twelve `multiloc<N>` states, while `op1=Rake`
+         * is on `veg_patch_weeds_1/2/3`.
+         *
+         * Asking the base therefore answered "no such op" for the one case the
+         * check exists to allow, and `p_oploc` returned silently — so a skilling
+         * loop over a multiloc could not resume. It killed raking on the first
+         * call: `~farming_rake_patch` arms `%action_delay` and re-issues, and
+         * with the re-issue dropped the interaction was never re-latched, so the
+         * tick that adds the weeds and advances the patch state never arrived.
+         * No message, no anim past the first, no weeds — which reads as a
+         * content bug and is not one.
          */
-        if( !mock230_scene_loc_op(loc->loc_id, (int)op_num) )
-            return 1;
+        {
+            int resolved = mock230_loc_resolve_transform(srv->active_player, loc->loc_id);
+
+            if( resolved < 0 )
+                resolved = loc->loc_id;
+            if( !mock230_scene_loc_op(resolved, (int)op_num) )
+                return 1;
+        }
 
         /*
          * `stopAction()` then `setInteraction`. Clearing first matters for the

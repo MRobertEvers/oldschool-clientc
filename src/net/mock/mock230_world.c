@@ -10926,8 +10926,10 @@ phase_cleanup_player(struct Mock230Player* player)
      * before it is dropped. mock230_send_player_info used to clear it. */
     player->place_dirty = 0;
     /* With it: `tele_glide` qualifies one placement. Left set, the *next*
-     * teleport — a ladder, a lodestone — would ask the client to walk there. */
+     * teleport — a ladder, a lodestone — would ask the client to walk there,
+     * and observers would be handed last tick's steps for it. */
     player->tele_glide = 0;
+    player->tele_glide_step_count = 0;
     /*
      * `move_dirs`/`move_count` are NOT cleared here, and must not be: they are
      * read by every *other* player's PLAYER_INFO in phase 10, and phase 5 rewrites
@@ -35450,6 +35452,202 @@ mock230_world_selftest(void)
     }
 
     /*
+     * Farming: rake -> compost -> plant -> water, on a real allotment.
+     *
+     * This is a whole-loop test rather than a `[debugproc]` because the two
+     * defects it pins are both in the *dispatch*, not in the script — a
+     * debugproc calling the same procs directly passes with either bug present.
+     *
+     * 1. `p_oploc` checked the op against the BASE multiloc id. A scene loc is
+     *    always the base (`farming_veg_patch_1`), and a farming patch base
+     *    declares no ops at all — `op1=Rake` lives on the `veg_patch_weeds_N`
+     *    morphs. So the re-issue every skilling loop depends on returned
+     *    silently: `~farming_rake_patch` armed `%action_delay`, asked for the
+     *    next pulse, and never got it. One rake animation, no weeds, no state
+     *    change, and no message to say why.
+     *
+     *    Mutation: pass `loc->loc_id` instead of the resolved child in
+     *    `mock230_ops_player.c` and the weeds assertions below go red.
+     *
+     * 2. Nothing bound `[oplocu]` on a growing crop, so watering could not fire
+     *    anywhere in the tree — `~farming_apply_water` refuses a weedy or bare
+     *    patch by design, and weedy and bare were the only states that
+     *    dispatched. `skill_farming/configs/farming_crop.loc` puts all 1,102
+     *    crop morphs in one `farming_crop` category and
+     *    `[oplocu,_farming_crop]` answers for them.
+     *
+     *    Mutation: delete that trigger and the can stays full.
+     *
+     * The patch is Falador's NW allotment, found by scanning the scene rather
+     * than by a hardcoded tile — `mock230_scene_loc` slots do not survive the
+     * rebuild `selftest_park_player` triggers.
+     */
+    fprintf(stderr, "mock230 selftest: farming rake / compost / plant / water\n");
+    {
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int patch_loc = mock230_content_symbol(MOCK230_PACK_LOC, "farming_veg_patch_1");
+            int rake = mock230_content_symbol(MOCK230_PACK_OBJ, "rake");
+            int weeds = mock230_content_symbol(MOCK230_PACK_OBJ, "weeds");
+            int dibber = mock230_content_symbol(MOCK230_PACK_OBJ, "dibber");
+            int seed = mock230_content_symbol(MOCK230_PACK_OBJ, "potato_seed");
+            int can8 = mock230_content_symbol(MOCK230_PACK_OBJ, "watering_can_8");
+            int can7 = mock230_content_symbol(MOCK230_PACK_OBJ, "watering_can_7");
+            int compost = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_compost");
+            int seed_art = mock230_content_symbol(MOCK230_PACK_LOC, "potato_seed");
+            int wet_art = mock230_content_symbol(MOCK230_PACK_LOC, "potato_seed_watered");
+            int vb_state = mock230_content_symbol(MOCK230_PACK_VARBIT, "varbit_708");
+            int vb_show = mock230_content_symbol(MOCK230_PACK_VARBIT, "farming_transmit_a");
+            int slot = -1;
+
+            SELFTEST_CHECK(patch_loc > 0 && rake > 0 && weeds > 0 && seed > 0 && can8 > 0 &&
+                               compost > 0 && vb_state > 0 && vb_show > 0,
+                           "every farming symbol this section names should resolve");
+
+            /* Park inside Falador's farming square, then find the patch — the
+             * park rebuilds the scene and frees the loc array. */
+            selftest_park_player(srv, 3054, 3307);
+            for( int s = 0; slot < 0; s++ )
+            {
+                struct Mock230SceneLoc* l = mock230_scene_loc(s);
+
+                if( !l )
+                    break;
+                if( l->active && l->loc_id == patch_loc )
+                    slot = s;
+            }
+            SELFTEST_CHECK(slot >= 0, "Falador's NW allotment should be in the scene");
+
+            if( slot >= 0 )
+            {
+                struct Mock230SceneLoc* l = mock230_scene_loc(slot);
+                int px = l->x, pz = l->z, sx = l->size_x, sz = l->size_z;
+                uint8_t pay[16];
+                struct RSAreaBuf out;
+                int ticks;
+
+                selftest_clear_inv(player);
+                inv_set(player, 0, rake, 1);
+                inv_set(player, 1, dibber, 1);
+                inv_set(player, 2, seed, 3);
+                inv_set(player, 3, can8, 1);
+                inv_set(player, 4, compost, 1);
+                mock230_varbit_set(srv, vb_state, 0 /* full weeds */);
+                mock230_varbit_set(srv, vb_show, 0);
+                mock230_scripts_run_proc(srv, "[proc,farming_patch_reset_flags]",
+                                         (const int32_t[]){ patch_loc }, 1);
+
+                /* ---- rake ------------------------------------------------ */
+                mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, 1, -1, patch_loc, px, pz,
+                                              0, sx, sz);
+                mock230_world_process_interaction(srv);
+                ticks = selftest_settle(srv, 60);
+                SELFTEST_CHECK(ticks > 0, "raking should hold the interaction for several ticks, "
+                                          "got %d", ticks);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_state) == 3 /* weeded */,
+                               "raking should clear the patch to weeded, state is %d",
+                               mock230_varbit_get(player, vb_state));
+                SELFTEST_CHECK(selftest_count(player, weeds) == 3,
+                               "and yield one weeds per pull, three in all, got %d",
+                               selftest_count(player, weeds));
+
+                /* ---- compost the raked patch ----------------------------- */
+                rsab_wrap(&out, pay, sizeof(pay));
+                rsab_p2(&out, px);
+                rsab_p2(&out, pz);
+                rsab_p2(&out, patch_loc);
+                rsab_p2(&out, compost);
+                rsab_p2(&out, 4);
+                rsab_p2(&out, 0);
+                mock230_world_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)rsab_len(&out));
+                /* A use-on the player is already standing beside resolves inside the
+                 * packet handler and then `p_delay`s, so there is no interaction left
+                 * for selftest_settle to wait on — the work happens in the parked
+                 * script. Tick for it. */
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(selftest_count(player, compost) == 0,
+                               "the bucket of compost should be spent, %d left",
+                               selftest_count(player, compost));
+
+                /* ---- plant ----------------------------------------------- */
+                rsab_wrap(&out, pay, sizeof(pay));
+                rsab_p2(&out, px);
+                rsab_p2(&out, pz);
+                rsab_p2(&out, patch_loc);
+                rsab_p2(&out, seed);
+                rsab_p2(&out, 2);
+                rsab_p2(&out, 0);
+                mock230_world_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)rsab_len(&out));
+                /* A use-on the player is already standing beside resolves inside the
+                 * packet handler and then `p_delay`s, so there is no interaction left
+                 * for selftest_settle to wait on — the work happens in the parked
+                 * script. Tick for it. */
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_state) == 6 /* potato_seed */,
+                               "planting should put the patch in potato's first state, got %d",
+                               mock230_varbit_get(player, vb_state));
+                SELFTEST_CHECK(selftest_count(player, seed) == 0,
+                               "and consume all three seeds, %d left",
+                               selftest_count(player, seed));
+                SELFTEST_CHECK(mock230_loc_resolve_transform(player, patch_loc) == seed_art,
+                               "and the multiloc should draw potato_seed (%d), draws %d",
+                               seed_art, mock230_loc_resolve_transform(player, patch_loc));
+
+                /* ---- water ----------------------------------------------- */
+                rsab_wrap(&out, pay, sizeof(pay));
+                rsab_p2(&out, px);
+                rsab_p2(&out, pz);
+                rsab_p2(&out, patch_loc);
+                rsab_p2(&out, can8);
+                rsab_p2(&out, 3);
+                rsab_p2(&out, 0);
+                mock230_world_handle(player, PKTOUT_NAME_OPLOCU, pay, (int)rsab_len(&out));
+                /* A use-on the player is already standing beside resolves inside the
+                 * packet handler and then `p_delay`s, so there is no interaction left
+                 * for selftest_settle to wait on — the work happens in the parked
+                 * script. Tick for it. */
+                for( int t = 0; t < 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(selftest_count(player, can8) == 0 &&
+                                   selftest_count(player, can7) == 1,
+                               "watering should spend one dose of the can, have %d full / %d used",
+                               selftest_count(player, can8), selftest_count(player, can7));
+                /* The permanent varbit keeps the PLAIN growth state; only the
+                 * transmit varbit carries the +64 watered overlay. Asserting
+                 * both is the point — collapsing them would break every
+                 * `$state >= $grown` comparison in the skill. */
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_state) == 6,
+                               "the permanent state stays the plain growth state, got %d",
+                               mock230_varbit_get(player, vb_state));
+                SELFTEST_CHECK(mock230_varbit_get(player, vb_show) == 6 + 64,
+                               "the transmit varbit carries state+64, got %d",
+                               mock230_varbit_get(player, vb_show));
+                SELFTEST_CHECK(mock230_loc_resolve_transform(player, patch_loc) == wet_art,
+                               "so the patch draws potato_seed_watered (%d), draws %d", wet_art,
+                               mock230_loc_resolve_transform(player, patch_loc));
+
+                /* Leave the patch as the world found it. */
+                mock230_scripts_run_proc(srv, "[proc,farming_patch_reset_flags]",
+                                         (const int32_t[]){ patch_loc }, 1);
+                mock230_varbit_set(srv, vb_state, 0);
+                mock230_varbit_set(srv, vb_show, 0);
+                selftest_clear_inv(player);
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    /*
      * Lighting a fire: the step off the tile, and the fire after it.
      *
      * `[label,light_logs_ground]` (skill_firemaking/scripts/firemaking.rs2)
@@ -36795,6 +36993,285 @@ mock230_world_selftest(void)
                                "QBD logout should release the room without consuming reward");
             }
             mock230_scripts_free(srv);
+        }
+    }
+
+    /*
+     * The world's `Pick` locs hand over the right obj.
+     *
+     * `general_use/scripts/pickables.rs2` is a port of a 2004 tree that had one
+     * loc per crop, and the transcription kept that shape: `[oploc2,wheat]`,
+     * `[oploc2,cabbage]`, `[oploc2,onion]`. This cache has FIFTEEN wheat records
+     * and one of them is called `wheat` — it has 24 placements against the other
+     * fourteen's 2,644 — so the binding that looked complete answered for under
+     * one per cent of the wheat in the game. Varrock's fields, Draynor's,
+     * Braindeath Island's and every crop Varlamore added (sweetcorn, its cabbage
+     * and onion variants, Aldarin's grapevines) all said "Nothing interesting
+     * happens", which is `Player.defaultOp` and is indistinguishable from a loc
+     * that is *supposed* to do nothing.
+     *
+     * That is what makes this worth a stanza rather than a spot check: the
+     * failure is silent at every layer. The script compiles, the op is in the
+     * cache menu, the client sends the packet, the server routes it, and the
+     * only evidence is a sentence that thousands of other locs legitimately
+     * print. So the assertion is the whole chain, over the real OPLOC packet:
+     * a category-bound trigger fires for a record NOTHING binds by name, and the
+     * obj that lands in the backpack is the crop's own.
+     *
+     * Deliberately driven on the records that were broken, not on `wheat` /
+     * `cabbage` / `onion` — those three passed before this and would pass on a
+     * tree where the category rung is dead.
+     */
+    fprintf(stderr, "mock230 selftest: the world's Pick locs give the right obj\n");
+    {
+        int owned = 0;
+        int loaded = srv->scripts_ok;
+
+        if( !loaded )
+        {
+            loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+            if( !loaded )
+                loaded =
+                    mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+            owned = loaded != 0;
+        }
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            /*
+             * Every crop below is a record the tree did NOT bind by name, and
+             * each names the category it rides in so a group that stops
+             * resolving fails here rather than downstream. `nettles1` is the odd
+             * one out and is marked by `want_obj = -1`: the cache files no
+             * nettle under a category, so the fix there was seven stacked name
+             * headers over the one body, and what has to hold is that the op
+             * *binds* — the body's own gloves guard is Ghosts Ahoy's rule and is
+             * not this stanza's business.
+             *
+             * Crops are centrepieces (shape 10) in every map square that places
+             * one, which is what keeps the player off the loc's own tile.
+             */
+            const struct
+            {
+                const char* loc;
+                const char* category;
+                int op;
+                const char* want_obj;
+                const char* what;
+            } k_picks[] = {
+                { "fai_varrock_wheat", "pickable_wheat", 2, "grain",
+                  "Varrock's wheat — 1,618 placements, bound by nothing" },
+                { "brain_wheat_small", "pickable_wheat", 2, "grain",
+                  "and Braindeath Island's, in the same group" },
+                { "avium_onion01", "pickable_onion", 2, "onion", "Varlamore's onions" },
+                { "avium_cabbage01", "pickable_cabbage", 2, "cabbage",
+                  "Varlamore's cabbages" },
+                { "avium_corn01", "pickable_sweetcorn", 2, "sweetcorn",
+                  "Varlamore's sweetcorn — a crop with no reference line at all" },
+                { "aldarin_plant01_grapevine01", "pickable_grapevine", 1, "grapes",
+                  "Aldarin's grapevines, on op 1 rather than op 2" },
+                /* The two the cache files under NO category, stacked onto the
+                 * cabbage block by name. They are here because a name header is
+                 * the half of the fix a category test cannot see. */
+                { "brain_farm_cabbage", NULL, 2, "cabbage",
+                  "the uncategorised cabbage on Braindeath Island" },
+                { "draynor_magic_cabbage", NULL, 1, "cabbage",
+                  "and Draynor Manor's, which is op 1" },
+                { "nettles1", NULL, 1, NULL,
+                  "a nettle variant — 235 placements across the six the tree bound none of" },
+            };
+            const int crop_x = 3223;
+            const int crop_z = 3218;
+            const int crop_shape = 10;
+            struct Mock230Item saved_inv[MOCK230_INV_SLOTS];
+
+            /*
+             * Second to last, and the world is reset rather than borrowed.
+             *
+             * Both halves are forced by the same thing: this stanza is the only
+             * one here that has to run `mock230_world_tick` — the crop scripts
+             * suspend on their own `p_delay(0)` and nothing but a tick resumes
+             * them — and a tick moves every npc in the world. Placed earlier it
+             * pushed "npcs roam inside their radius" over its own 200-tick
+             * budget, failing a section forty ticks downstream of anything it
+             * asserts. `selftest_reset_world` in front does the same job in the
+             * other direction, so whatever the sections above left standing is
+             * not this one's input.
+             */
+            selftest_reset_world(srv, player, 402, 402);
+            selftest_park_player(srv, crop_x - 1, crop_z);
+            memcpy(saved_inv, player->inv, sizeof(saved_inv));
+
+            for( size_t i = 0; i < sizeof(k_picks) / sizeof(k_picks[0]); i++ )
+            {
+                int loc = mock230_content_symbol(MOCK230_PACK_LOC, k_picks[i].loc);
+                int obj = k_picks[i].want_obj
+                              ? mock230_content_symbol(MOCK230_PACK_OBJ, k_picks[i].want_obj)
+                              : -1;
+                int placed;
+
+                SELFTEST_CHECK(loc > 0, "%s: pack/loc.pack should name %s, got %d",
+                               k_picks[i].what, k_picks[i].loc, loc);
+                SELFTEST_CHECK(!k_picks[i].want_obj || obj > 0,
+                               "%s: pack/obj.pack should name %s, got %d", k_picks[i].what,
+                               k_picks[i].want_obj, obj);
+                if( loc <= 0 || (k_picks[i].want_obj && obj <= 0) )
+                    continue;
+
+                /* The category rung, where the record rides in one. Asserted
+                 * against the *name* rather than a number: which id the cache
+                 * gave the group is not this test's business, and spelling it
+                 * would turn a cache bump into a failure about the wrong thing.
+                 */
+                if( k_picks[i].category )
+                {
+                    int want = mock230_content_symbol(MOCK230_PACK_CATEGORY,
+                                                      k_picks[i].category);
+
+                    SELFTEST_CHECK(want > 0, "%s: pack/category.pack should name %s, got %d",
+                                   k_picks[i].what, k_picks[i].category, want);
+                    SELFTEST_CHECK(mock230_loc_category(loc) == want,
+                                   "%s: the cache should file it under %s (%d), got %d",
+                                   k_picks[i].what, k_picks[i].category, want,
+                                   mock230_loc_category(loc));
+                }
+
+                /* The op the client will actually offer, read off the record
+                 * rather than assumed — a stanza that drove op 2 on a record
+                 * whose Pick sits on op 1 would fail for a reason that has
+                 * nothing to do with the binding. */
+                {
+                    const char* verb = mock230_scene_loc_op(loc, k_picks[i].op);
+
+                    SELFTEST_CHECK(verb && strcmp(verb, "Pick") == 0,
+                                   "%s: op %d should read Pick, got %s", k_picks[i].what,
+                                   k_picks[i].op, verb ? verb : "(none)");
+                }
+
+                selftest_park_player(srv, crop_x - 1, crop_z);
+                selftest_clear_inv(player);
+                placed = mock230_world_loc_set(srv, crop_x, crop_z, 0, crop_shape, loc, 0,
+                                               MOCK230_LOC_SET_ADD);
+                SELFTEST_CHECK(placed >= 0, "%s: the crop should stand next to the player, got %d",
+                               k_picks[i].what, placed);
+
+                {
+                    uint8_t payload[6] = { (uint8_t)(crop_x >> 8), (uint8_t)crop_x,
+                                           (uint8_t)(crop_z >> 8), (uint8_t)crop_z,
+                                           (uint8_t)(loc >> 8),    (uint8_t)loc };
+
+                    mock230_world_handle(player, PKTOUT_NAME_OPLOC1 + (k_picks[i].op - 1),
+                                         payload, 6);
+                    /* Four: the click arms, the walk is already satisfied, the
+                     * script's own `p_delay(0)` costs one, and one spare. */
+                    for( int tick = 0; tick < 4; tick++ )
+                        mock230_world_tick(srv);
+                }
+
+                if( k_picks[i].want_obj )
+                {
+                    SELFTEST_CHECK(selftest_count(player, obj) == 1,
+                                   "%s: one %s should be in the backpack, got %d",
+                                   k_picks[i].what, k_picks[i].want_obj,
+                                   selftest_count(player, obj));
+                    /* `~pickup_loc_floor` ends in `loc_del`, so the crop is gone
+                     * until it respawns. Without this a script that printed the
+                     * line and added the obj without consuming the plant would
+                     * pass the count above and give infinite cabbages. */
+                    /* `mock230_scene_find_loc_id` and not `mock230_scene_find_loc`:
+                     * the latter is the *click* resolver and falls back to the
+                     * first loc on the tile, so it answers >= 0 for the ground
+                     * decor a Lumbridge square already has there. The question
+                     * here is "is this loc still this loc", which is the exact
+                     * corner-plus-id lookup. */
+                    SELFTEST_CHECK(mock230_scene_find_loc_id(crop_x, crop_z, 0, loc) < 0,
+                                   "%s: and the crop should be gone until it respawns",
+                                   k_picks[i].what);
+                }
+                else
+                {
+                    /* Binding only: a body that refuses on its own guard is
+                     * still a body that ran, and that is the whole of the fix
+                     * for the six nettle variants. */
+                    SELFTEST_CHECK(mock230_scripts_run_trigger_on_loc(
+                                       srv, SS_TRIGGER_OPLOC1 + (k_picks[i].op - 1), loc,
+                                       mock230_loc_category(loc),
+                                       mock230_scene_find_loc(crop_x, crop_z, 0, loc)) ==
+                                       MOCK230_TRIGGER_RAN,
+                                   "%s: the op should resolve to a script", k_picks[i].what);
+                }
+
+                mock230_world_loc_set(srv, crop_x, crop_z, 0, crop_shape, -1, 0,
+                                      MOCK230_LOC_SET_CHANGE);
+                mock230_world_interaction_clear(srv);
+            }
+
+            /*
+             * Flax, and the one rule that separates it from the six above: the
+             * plant does not go away.
+             *
+             * Every other crop here calls `~pickup_loc_floor`, whose last act is
+             * `loc_del($respawn_ticks)`. Flax does not — it is picked over and
+             * over off the same plant until the backpack is full. The reference
+             * keeps a `random(16) < 3` depletion roll from its own era and this
+             * tree drops it, so what is asserted is TWO picks off ONE plant with
+             * the plant still standing, which a roll of any kind would make
+             * flaky and a `loc_del` would fail outright.
+             */
+            {
+                int flax_loc = mock230_content_symbol(MOCK230_PACK_LOC, "flax");
+                int flax_obj = mock230_content_symbol(MOCK230_PACK_OBJ, "flax");
+
+                SELFTEST_CHECK(flax_loc > 0 && flax_obj > 0,
+                               "the flax loc and obj should both resolve: %d/%d", flax_loc,
+                               flax_obj);
+                if( flax_loc > 0 && flax_obj > 0 )
+                {
+                    uint8_t payload[6] = { (uint8_t)(crop_x >> 8),   (uint8_t)crop_x,
+                                           (uint8_t)(crop_z >> 8),   (uint8_t)crop_z,
+                                           (uint8_t)(flax_loc >> 8), (uint8_t)flax_loc };
+
+                    selftest_park_player(srv, crop_x - 1, crop_z);
+                    selftest_clear_inv(player);
+                    /* Seeded, and five picks rather than two, so that "the plant
+                     * survives" is a claim a depletion roll cannot pass by luck:
+                     * against the reference's `random(16) < 3` this seed deletes
+                     * the plant on pick 3. */
+                    srv->rng = 0x5eed1234u;
+                    mock230_world_loc_set(srv, crop_x, crop_z, 0, crop_shape, flax_loc, 0,
+                                          MOCK230_LOC_SET_ADD);
+
+                    for( int pick = 1; pick <= 5; pick++ )
+                    {
+                        mock230_world_handle(player, PKTOUT_NAME_OPLOC2, payload, 6);
+                        for( int tick = 0; tick < 4; tick++ )
+                            mock230_world_tick(srv);
+                        SELFTEST_CHECK(selftest_count(player, flax_obj) == pick,
+                                       "flax pick %d should leave %d flax in the backpack, got %d",
+                                       pick, pick, selftest_count(player, flax_obj));
+                        SELFTEST_CHECK(mock230_scene_find_loc_id(crop_x, crop_z, 0, flax_loc) >=
+                                           0,
+                                       "and the plant should still be standing after pick %d",
+                                       pick);
+                    }
+
+                    mock230_world_loc_set(srv, crop_x, crop_z, 0, crop_shape, -1, 0,
+                                          MOCK230_LOC_SET_CHANGE);
+                    mock230_world_interaction_clear(srv);
+                }
+            }
+
+            /* Put the player back on the tile the rest of the suite uses:
+             * every pick above `p_teleport`s onto the crop's own tile. */
+            memcpy(player->inv, saved_inv, sizeof(saved_inv));
+            player->inv_dirty = 0xfffffffu;
+            selftest_park_player(srv, 3222, 3218);
+            if( owned )
+                mock230_scripts_free(srv);
         }
     }
 
