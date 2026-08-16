@@ -39,6 +39,40 @@ python3 tools/memtrace/decode_memtrace.py tools/memtrace/bins/memtrace.bin
 
 ---
 
+## `runescript-lsp/` + `vscode-runescript/` — editor support
+
+Syntax highlighting and intellisense for `.rs2` (ServerScript), `.cs2`
+(ClientScript) and the whole declaration family — `.npc`, `.obj`, `.loc`,
+`.varp`, `.enum`, `.dbrow`, `.constant`, `.spawn`, and the `.alloc` / `.pack` /
+`.compack` ledgers. Go-to-definition on `%bankpin_code` offers the record, the
+allocation and the cache's name index; hover reports the id and the doc comment;
+diagnostics catch a name nothing declares.
+
+**Full documentation:** [`runescript-lsp/README.md`](runescript-lsp/README.md)
+· extension [`vscode-runescript/README.md`](vscode-runescript/README.md)
+
+**Quick start:**
+
+```bash
+tools/vscode-runescript/scripts/install.sh      # build the server, install the extension
+# then: Developer: Reload Window
+```
+
+The server on its own, for a non-VS Code editor:
+
+```bash
+make -C tools/runescript-lsp && make -C tools/runescript-lsp test
+```
+
+Structure comes from two tree-sitter grammars,
+[`tree-sitter-runescript/`](tree-sitter-runescript) and
+[`tree-sitter-runeconfig/`](tree-sitter-runeconfig), which parse 100% of this
+repo's 11,791 scripts and 4,899 declaration files. The runtime is vendored at
+[`3rd/tree-sitter`](../3rd/tree-sitter); the generated parsers are checked in,
+so building needs no Node.
+
+---
+
 ## Python scripts
 
 ### `check_crystal_set_contract.py`

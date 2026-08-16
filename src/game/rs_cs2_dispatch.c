@@ -4,8 +4,6 @@
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 void
@@ -116,9 +114,6 @@ RS_CS2_DispatchHook(
     assert(runner);
     if( !hook || hook->script_id <= 0 || component_id < 0 )
         return;
-    if( getenv("TEMPDBG_HOOK") )
-        fprintf(stderr, "TEMPDBG dispatch script=%d com=0x%08x\n", hook->script_id,
-                (unsigned)component_id);
 
     {
         char const* strp[UITREE_HOOK_STR_ARG_MAX];

@@ -303,6 +303,39 @@ def main():
     check(any("[opheldu,bow_string]" == entry["name"] for entry in symbols),
           "the script header is a document symbol", json.dumps(symbols)[:200])
 
+    print("\nthe clientscript dialect")
+    # A decompiled `.cs2` addresses locals, variables and scripts by id, and
+    # its constants come from the decompiler's vocabulary rather than this
+    # tree. None of that is a missing declaration — but a proc that really is
+    # missing still has to be reported, or the whole class has gone quiet.
+    client_uri = uri_of("scripts", "client.cs2")
+    client_text = read_fixture("scripts", "client.cs2")
+    server.notify("textDocument/didOpen", {
+        "textDocument": {"uri": client_uri, "languageId": "runescript",
+                         "version": 1, "text": client_text},
+    })
+    published = None
+    for _ in range(10):
+        message = server.read()
+        if message is None:
+            break
+        server.notifications.append(message)
+        if (message.get("method") == "textDocument/publishDiagnostics"
+                and message["params"]["uri"] == client_uri):
+            published = message["params"]["diagnostics"]
+            break
+    messages = [d["message"] for d in (published or [])]
+    check(not any("varbit542" in m or "var1356" in m or "varcint70" in m for m in messages),
+          "an id-addressed %variable is not reported", str(messages))
+    check(not any("int0" in m or "intarray0" in m for m in messages),
+          "a self-declaring $local is not reported", str(messages))
+    check(not any("script222" in m for m in messages),
+          "an id-addressed ~script is not reported", str(messages))
+    check(not any("clientscript" in m for m in messages),
+          "a client trigger word is not reported", str(messages))
+    check(any("genuinely_missing_proc" in m for m in messages),
+          "a ~proc that really is missing IS reported", str(messages))
+
     print("\nconfig files")
     varp_uri = uri_of("configs", "test.varp")
     varp_text = read_fixture("configs", "test.varp")

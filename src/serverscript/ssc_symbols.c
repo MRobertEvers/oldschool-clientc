@@ -880,9 +880,21 @@ load_dbtable_file(
             char* name = cursor + 7;
             char* comma = strchr(name, ',');
             char qualified[SSC_MAX_NAME];
+            /*
+             * Everything after the column name — its declared types and flags,
+             * `string` or `coord,int,int,int,LIST` — kept because `db_getfield`
+             * pushes onto the stack the FIRST of those types names, and nothing
+             * else in the compiler can know that. Dropping it made a string
+             * column read inside a string literal compile a TOSTRING over an
+             * empty int stack; see `last_dbcolumn_types` in ssc_compile.c.
+             */
+            const char* types = NULL;
 
             if( comma )
+            {
                 *comma = '\0';
+                types = comma + 1;
+            }
             if( table_id >= 0 && *name )
             {
                 snprintf(qualified, sizeof(qualified), "%s:%s", table_name, name);
@@ -891,7 +903,7 @@ load_dbtable_file(
                         qualified,
                         (table_id << 12) | (column_index << 4),
                         SSC_SYM_DBCOLUMN,
-                        NULL) )
+                        types) )
                     loaded++;
             }
             column_index++;

@@ -154,8 +154,18 @@ struct SSC_Symbol
     char name[SSC_MAX_NAME];
     int32_t value;
     enum SSC_SymbolKind kind;
-    /** Constants only: the literal text, so `^player_run_off` can expand to a
-     *  string as easily as to a number. */
+    /**
+     * The symbol's source text, for the two kinds that have one.
+     *
+     * SSC_SYM_CONSTANT: the literal, so `^player_run_off` can expand to a string
+     * as easily as to a number.
+     *
+     * SSC_SYM_DBCOLUMN: the `.dbtable` column's declared types and flags, the
+     * text after the column name (`string`, `coord,int,int,int,LIST`). It is the
+     * only record of which STACK a `db_getfield` on that column pushes onto —
+     * the opcode table cannot say, because the answer is data (ss_meta.h,
+     * `runtime_typed`).
+     */
     char* text;
     /** Constants only: `path:line`, kept so a duplicate declaration can name
      *  both sites. A constant is the one symbol kind whose source is a file the

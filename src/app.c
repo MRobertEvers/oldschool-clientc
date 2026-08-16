@@ -14075,8 +14075,24 @@ app_minimenu_inv_action(
     int slot = opt->pick.secondary_id;
     int com_id = opt->pick.id;
 
-    /* "Use <held> with <this item>": the previous click armed objsel; this
-     * click on an inventory item completes it (reference OPHELDU). */
+    /*
+     * "Use <held> with <this item>" / "<spell> <this item>": the previous click
+     * armed objsel or targetsel and this one completes it (reference OPHELDU /
+     * OPHELDT).
+     *
+     * NO `app_inv_cell_op_flash` on either. Client-TS does set selectedArea for
+     * both (Client.ts:9299/9322), but our IF3 stand-in for that flash is to
+     * dispatch the cell's own on_op with an op index — and these two rows are
+     * not component ops, so there is no index to report and passing 1 fabricates
+     * one. On rev-239's backpack op 1 is a LIVE op: the inventory slot builder
+     * puts the shift-click-drop handler there (script 6014, see
+     * `shift-click-drop-chain`), and it answers by naming the real Drop op
+     * through `cc_triggerop`. So every use-on between two carried items sent its
+     * OPHELDU and then an IF_BUTTON7 that dropped the target on the floor —
+     * "use knife on logs" put the logs on the ground. The flash is cosmetic; the
+     * op it fabricated was not. The `OPHELDT_START` arming case below already
+     * skips the flash for the same reason.
+     */
     if( app->objsel.active )
     {
         APP_NET_SEND(
@@ -14086,12 +14102,9 @@ app_minimenu_inv_action(
                 obj_id, slot, com_id, app->objsel.obj_id, app->objsel.slot,
                 app->objsel.component_id));
         app_selection_clear(app);
-        app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
 
-    /* "<spell> <this item>": cast a selected spell on the inventory item
-     * (reference TGT_HELD → OPHELDT). */
     if( opt->action == REVCONFIG_MINIMENU_TGT_HELD && app->targetsel.active )
     {
         APP_NET_SEND(
@@ -14100,7 +14113,6 @@ app_minimenu_inv_action(
                 app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf),
                 obj_id, slot, com_id, app->targetsel.component_id));
         app_selection_clear(app);
-        app_inv_cell_op_flash(app, com_id, slot, 1);
         return 1;
     }
 
@@ -16284,14 +16296,6 @@ App_RunOnce(
      * (OPHELDT_START). Client-TS never sets selectedArea for Use. Drop those
      * click intents here; the machine runs the default row itself, and
      * OPHELD1-5 / INV_BUTTON / IF_BUTTON re-fire on_op from inv_action. */
-    if( getenv("TEMPDBG_HOOK") && out.intent_count > 0 )
-        for( int i = 0; i < out.intent_count; i++ )
-            fprintf(stderr,
-                    "TEMPDBG intent[%d] com=0x%08x is_click=%d op=%d script=%d drag=%d\n", i,
-                    (unsigned)out.intents[i].component_id, out.intents[i].is_click,
-                    out.intents[i].op_index,
-                    out.intents[i].hook ? out.intents[i].hook->script_id : -1,
-                    app->inv_drag_com_id);
     if( app->inv_drag_com_id >= 0 )
     {
         int kept = 0;

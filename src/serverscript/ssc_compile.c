@@ -166,6 +166,27 @@ struct SSC_Compiler
      *  `settimer(x)` cannot pick up a `[proc,x]` that happens to share the name. */
     const char* arg_script_trigger;
 
+    /**
+     * The declared types of the last `table:column` an expression resolved, or
+     * NULL — the `.dbtable`'s own text ("string", "coord,int,int,int,LIST").
+     *
+     * `db_getfield` is the one command whose return type is *data*: the column
+     * decides which stack it pushes onto, so the opcode table's `str_out = 0`
+     * describes only the common int case (ss_meta.h `runtime_typed`). Nothing
+     * carried the column's answer to the caller, so a string column read inside
+     * a string literal — `mes("You hold the <db_getfield($data,
+     * runecraft_table:name, 0)> Talisman…")` — had TOSTRING appended to a value
+     * that was already on the *string* stack. The int stack was empty and the
+     * script aborted at the message, which is why the talisman-on-ruins
+     * teleport (runecraft.rs2:95) died after the animation and the sound with
+     * nothing said.
+     *
+     * Read and cleared per argument by parse_command, which keeps the one from
+     * `db_getfield`'s column position rather than whatever a nested call
+     * resolved last.
+     */
+    const char* last_dbcolumn_types;
+
     struct SSC_Build build;
     struct SSC_Lexer lexer;
     struct SSC_Diag* diag;
@@ -702,6 +723,26 @@ parse_call(
     return 1;
 }
 
+/*
+ * Does a `.dbtable` column's declared type list start with `string`?
+ *
+ * `types` is the text after the column name — "string", "coord,int,int,int,LIST",
+ * "namedobj,int,int". Only the first entry is consulted, because that is the
+ * only one an expression can be: a multi-value column pushes every value, and a
+ * caller reading one of them (an interpolation, a `def_string` initialiser)
+ * reads the first. A column mixing a string with an int is not something an
+ * expression can express either way.
+ */
+static int
+dbcolumn_first_type_is_string(const char* types)
+{
+    assert(types);
+    while( *types == ' ' || *types == '\t' )
+        types++;
+    return strncmp(types, "string", 6) == 0 &&
+           (types[6] == '\0' || types[6] == ',' || types[6] == ' ' || types[6] == '\t');
+}
+
 /** Emit a command call. `dot` selects the secondary-pointer form. */
 static int
 parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
@@ -710,6 +751,11 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     const struct SSVM_OpcodeMeta* meta;
     int dot = (name[0] == '.');
     int variadic = 0;
+    /* The `.dbtable` types of the column a `db_getfield` was handed, filled by
+     * the argument loop below and read by the return-type decision at the end.
+     * NULL for every other command, and for a `db_getfield` whose column came
+     * from a variable rather than a `table:column` literal. */
+    const char* column_types = NULL;
 
     /*
      * `queue*(script, delay)(args...)` is a different opcode from `queue`, not a
@@ -826,6 +872,11 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         const char* script_trigger = NULL;
         int saved_script_arg = compiler->arg_is_script_name;
         const char* saved_script_trigger = compiler->arg_script_trigger;
+        /* Argument position whose `table:column` decides this command's return
+         * type, or -1. `db_getfield` is the whole list: it is the only command
+         * that reads a column's declared type and pushes onto the stack that
+         * type names. See `last_dbcolumn_types`. */
+        int column_types_arg = (op_name && strcmp(op_name, "DB_GETFIELD") == 0) ? 1 : -1;
 
         if( op_name )
         {
@@ -940,6 +991,7 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                     compiler->last_call_int_returns = -1;
                     compiler->last_call_str_returns = -1;
                     compiler->saw_command_call = 0;
+                    compiler->last_dbcolumn_types = NULL;
                     compiler->arg_kind_hint =
                         arg_index < type_args ? SSC_SYM_TYPE : base_hint;
                     compiler->arg_is_script_name = arg_index < script_args;
@@ -949,6 +1001,12 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                         return 0;
                     compiler->arg_is_script_name = 0;
                     compiler->arg_script_trigger = NULL;
+                    /* `db_getfield(row, table:column, index)`: the column names
+                     * the stack the result lands on, and this is the only place
+                     * it is visible. Taken from position 1 alone so a nested
+                     * call's own column reference cannot stand in for it. */
+                    if( column_types_arg == arg_index )
+                        column_types = compiler->last_dbcolumn_types;
                     if( arg_is_proc && compiler->last_call_int_returns >= 0 )
                         arg_index += compiler->last_call_int_returns +
                                      compiler->last_call_str_returns;
@@ -1090,7 +1148,8 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     compiler->saw_command_call = 1;
 
     if( is_string )
-        *is_string = meta->str_out > 0;
+        *is_string = column_types ? dbcolumn_first_type_is_string(column_types)
+                                  : meta->str_out > 0;
     return 1;
 }
 
@@ -1604,6 +1663,10 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         symbol = SSC_SymbolsFindValue(compiler->symbols, text);
         if( symbol )
         {
+            /* A `table:column` carries its declared types along, for the one
+             * caller that needs them — see `last_dbcolumn_types`. */
+            if( symbol->kind == SSC_SYM_DBCOLUMN )
+                compiler->last_dbcolumn_types = symbol->text;
             emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
             SSC_LexNext(lexer);
             return 1;

@@ -1,0 +1,11 @@
+// A decompiled client script, in the shape the decompiler emits it.
+// 1050
+[clientscript,toplevel_compass_op](int $int0)
+if ($int0 > 4 | %varbit542 = 1 | %var1356 ! 0) {
+    return;
+}
+def_int $intarray0($int0);
+$intarray0(0) = %varcint70;
+if_settext("<col=ffffff>north</col>", interface_4:6);
+~script222($int0);
+~genuinely_missing_proc($int0);

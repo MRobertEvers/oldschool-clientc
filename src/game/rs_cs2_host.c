@@ -7076,12 +7076,6 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_TRIGGEROP:
-        /* TEMP DEBUG */
-        fprintf(stderr, "TEMPDBG cc_triggerop com=0x%08x op=%d from script %d pc %d\n",
-                (unsigned)request->u.cc_trigger_op.component_id,
-                request->u.cc_trigger_op.op_index,
-                CS2VM_FRAME(vm) && CS2VM_FRAME(vm)->script ? CS2VM_FRAME(vm)->script->script_id : -1,
-                CS2VM_FRAME(vm) ? CS2VM_FRAME(vm)->pc : -1);
         /* Queued for the same reason as IF_CALLONRESIZE above. */
         rs_cs2_trigger_op_push(
             host,
