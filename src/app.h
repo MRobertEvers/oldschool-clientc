@@ -1486,6 +1486,19 @@ App_WorldSpawnSyncedNpc(
     int scene_z,
     int level);
 
+/** Follow NpcType.multiNpc (opcode 106) to the variant that's actually live
+ * under the local player's current varp/varbit state, same rule as a loc
+ * transform table (VarPManager_ResolveTransform). A `multinpc` shell record
+ * carries no model of its own, so every wire npc type -- NPC_INFO's initial
+ * type and every CHANGE_TYPE -- must be resolved through this before it is
+ * used for anything (spawn, retype, preload). Returns `npc_id` unchanged when
+ * it doesn't name a shell, or on a lookup miss. Depth-capped at 4, matching
+ * tools/gen_multinpc_catalog.py's chain-walk. */
+int
+App_NpctypeResolveMultiId(
+    struct App* app,
+    int npc_id);
+
 struct UITreeMinimapDot;
 
 /** Build this frame's minimap dot overlay (the UITREE_HOST_GET_MINIMAP_DOTS

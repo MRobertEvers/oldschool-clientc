@@ -4593,7 +4593,23 @@ cs2vm2_op_if_set_on_transmit(
     assert(vm);
     assert(frame);
 
-    int widget_uid, script_id, trigger_count;
+    /*
+     * `trigger_count = 0` is load-bearing, not tidiness.
+     *
+     * Only a signature ending in 'Y' carries a trigger list; without one this
+     * variable is never written, and it used to be handed to the host anyway —
+     * stack garbage as a count, alongside a NULL `trigger_ids`. The host clamps
+     * the count to its own ceiling and leaves the ids at zero, so the hook ends
+     * up filtered to "stat/varp id 0 only".
+     *
+     * What that cost: the XP-drop listener (`script1003`'s
+     * `if_setonstattransmit`, which carries NO trigger list) matched stat 0 —
+     * attack. Combat that trained attack still drew drops; cooking, prayer,
+     * every non-attack skill was silently filtered out of the dispatch, and
+     * because the value was uninitialised the same session could behave
+     * differently from one login to the next.
+     */
+    int widget_uid, script_id, trigger_count = 0;
     int* trigger_ids = NULL;
 
     char* signature = NULL;

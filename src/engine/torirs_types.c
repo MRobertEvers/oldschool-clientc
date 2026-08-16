@@ -126,6 +126,7 @@ ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype)
     free(npctype->recolors_to);
     free(npctype->retextures_from);
     free(npctype->retextures_to);
+    free(npctype->transforms);
     free(npctype);
 }
 
@@ -147,6 +148,8 @@ ToriRS_NpctypeSizeOf(const struct ToriRS_Npctype* npctype)
         bytes += (size_t)npctype->retexture_count * sizeof(*npctype->retextures_from);
     if( npctype->retextures_to )
         bytes += (size_t)npctype->retexture_count * sizeof(*npctype->retextures_to);
+    if( npctype->transforms )
+        bytes += (size_t)npctype->transform_count * sizeof(*npctype->transforms);
     return bytes;
 }
 

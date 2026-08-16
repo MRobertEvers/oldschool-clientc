@@ -1322,8 +1322,15 @@ npc_apply_op(
     switch( op->kind )
     {
     case PKT_NPC_INFO_OPBITS_NPCTYPE:
-        /* Arrives right after ADD_NEW; spawn once the config/models load. */
-        self->pending_npc_type = (int)op->_bitvalue;
+        /* Arrives right after ADD_NEW; spawn once the config/models load.
+         * Resolved once here (App_NpctypeResolveMultiId) rather than at
+         * every downstream lookup: everything from here on -- model
+         * preload, spawn, and npc->npc_id itself -- reads pending_npc_type,
+         * so a `multinpc` shell (no model of its own) never leaks past this
+         * point. The world spawn roster names the shell id directly (e.g.
+         * "gertrude", not "gertrude_quest"), so this is the only place that
+         * substitution can happen. */
+        self->pending_npc_type = App_NpctypeResolveMultiId(app, (int)op->_bitvalue);
         if( self->cur_slot >= 0 && idx < 0 )
             return NPC_NEED_SPAWN;
         break;
@@ -1440,7 +1447,10 @@ npc_apply_op(
         }
         break;
     case PKT_NPC_INFO_OP_CHANGE_TYPE:
-        self->pending_npc_type = op->_change_type.npc_type;
+        /* Same resolution as OPBITS_NPCTYPE above -- a TRANSFORMATION can
+         * retype an npc onto another multinpc shell just as legitimately as
+         * ADD can. */
+        self->pending_npc_type = App_NpctypeResolveMultiId(app, op->_change_type.npc_type);
         if( idx >= 0 )
             return NPC_NEED_CHANGE_TYPE;
         break;

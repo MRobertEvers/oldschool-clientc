@@ -18,6 +18,13 @@
 #define INV_MANAGER_DEFAULT_BACKPACK_SLOTS 28
 #define INV_MANAGER_DEFAULT_WORN_SLOTS 14
 
+/** Ceiling on a container widened by the wire. The osrs230 parser already
+ *  refuses an UPDATE_INV_FULL capacity above this; a partial's slot index is a
+ *  gSmart and is not otherwise bounded, so growth stops here rather than
+ *  letting one bad index size the allocation. The largest real container is the
+ *  bank at 1410 slots. */
+#define INV_MANAGER_MAX_SLOTS 4096
+
 #define INV_MANAGER_SOURCE_INVALID (-1)
 #define INV_MANAGER_SOURCE_MAX 16
 #define INV_MANAGER_SOURCE_NAME_MAX 64

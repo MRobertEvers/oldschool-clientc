@@ -624,6 +624,14 @@ dump_loc(
         "  %-22s%d, %d, %d\n", "offset x,y,z", loc->offset_x, loc->offset_y, loc->offset_z);
     printf("  %-22s%d\n", "transform_varbit", loc->transform_varbit);
     printf("  %-22s%d\n", "transform_varp", loc->transform_varp);
+    printf("  %-22s%d\n", "category", loc->category);
+    /* The menu ops, 0-based here and 1-based in the `[oploc1..5]` a script
+     * binds — so "Cook" printed at [0] is the trigger `[oploc1]`. */
+    for( int i = 0; i < 10; i++ )
+    {
+        if( loc->actions[i] )
+            printf("  %-22s[%d] %s\n", "op", i, loc->actions[i]);
+    }
     if( loc->transform_count > 0 )
     {
         printf("  %-22s", "transforms");

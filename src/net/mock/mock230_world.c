@@ -12220,6 +12220,62 @@ selftest_npc_payload(
 }
 
 
+/*
+ * Did the capture carry a literal rev-239 script 600 —
+ * `if_settextalign(centre, centre, 16, com_uid)` — for this component?
+ *
+ * The cache ships `chat_left:text` and `messagebox:text` with no `valign`, so
+ * both draw their body copy hard against the top of a box that is 67 and 80
+ * pixels tall. There is no IF_SETTEXTALIGN packet at this revision; the cache
+ * exposes script 600 as the server-callable wrapper, and the dialogue toolkit
+ * calls it after each mount. Without the call the text sits about one line too
+ * high, which is a defect nothing else in the selftest can see — the packets
+ * that carry the *words* are all correct.
+ *
+ * Four ints, emitted in reverse on the wire, then the script id.
+ */
+/* Not `const`: rsab_wrap takes a mutable buffer, and the capture's packet
+ * bytes are what it has to read. */
+static int
+selftest_capture_has_textalign(
+    struct Mock230Capture* capture,
+    int com_uid)
+{
+    for( int p = 0; p < capture->count; p++ )
+    {
+        struct RSAreaBuf run;
+        char types[8];
+        int argc = 0;
+        int argv[4] = { 0, 0, 0, 0 };
+        int script_id;
+
+        if( capture->packets[p].opcode != 84 /* RUNCLIENTSCRIPT */ )
+            continue;
+
+        rsab_wrap(&run, capture->packets[p].data,
+                  (size_t)capture->packets[p].len);
+        while( argc < (int)sizeof(types) - 1 )
+        {
+            int c = rsab_g1(&run);
+            if( c == '\n' || !rsab_ok(&run) )
+                break;
+            types[argc++] = (char)c;
+        }
+        types[argc] = '\0';
+        if( strcmp(types, "iiii") != 0 )
+            continue;
+
+        for( int a = argc - 1; a >= 0; a-- )
+            argv[a] = rsab_g4(&run);
+        script_id = rsab_g4(&run);
+        if( rsab_ok(&run) && script_id == 600 && argv[0] == 1 && argv[1] == 1 &&
+            argv[2] == 16 && argv[3] == com_uid )
+            return 1;
+    }
+    return 0;
+}
+
+
 static int
 selftest_require_npc(
     struct Mock230Server* srv,
@@ -15069,53 +15125,16 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(mock230_capture_has_sequence(&capture, k_dialogue, 4),
                            "a dialogue should set the head, anim and text, then mount");
-            {
-                /*
-                 * The rev-239 cache defines chat_left:text as top-aligned.
-                 * Golden clientscript 600 (if_settextalign) is therefore part
-                 * of the NPC-chat contract: four ints, emitted in reverse on
-                 * the wire, followed by the script id. Without it Hans's body
-                 * copy renders roughly one text line too high.
-                 */
-                const int text_uid = (231 << 16) | 6;
-                int found_align = 0;
-
-                for( int p = 0; p < capture.count && !found_align; p++ )
-                {
-                    struct RSAreaBuf run;
-                    char types[8];
-                    int argc = 0;
-                    int argv[4] = { 0, 0, 0, 0 };
-                    int script_id;
-
-                    if( capture.packets[p].opcode != 84 /* RUNCLIENTSCRIPT */ )
-                        continue;
-
-                    rsab_wrap(&run, capture.packets[p].data,
-                              (size_t)capture.packets[p].len);
-                    while( argc < (int)sizeof(types) - 1 )
-                    {
-                        int c = rsab_g1(&run);
-                        if( c == '\n' || !rsab_ok(&run) )
-                            break;
-                        types[argc++] = (char)c;
-                    }
-                    types[argc] = '\0';
-                    if( strcmp(types, "iiii") != 0 )
-                        continue;
-
-                    for( int a = argc - 1; a >= 0; a-- )
-                        argv[a] = rsab_g4(&run);
-                    script_id = rsab_g4(&run);
-                    if( rsab_ok(&run) && script_id == 600 && argv[0] == 1 &&
-                        argv[1] == 1 && argv[2] == 16 && argv[3] == text_uid )
-                        found_align = 1;
-                }
-
-                SELFTEST_CHECK(found_align,
-                               "NPC chat must send literal rev-239 script600 "
-                               "if_settextalign(1,1,16,231:6)");
-            }
+            /*
+             * The rev-239 cache defines chat_left:text as top-aligned.
+             * Golden clientscript 600 (if_settextalign) is therefore part of
+             * the NPC-chat contract. Without it Hans's body copy renders
+             * roughly one text line too high.
+             */
+            SELFTEST_CHECK(selftest_capture_has_textalign(&capture,
+                                                          (231 << 16) | 6),
+                           "NPC chat must send literal rev-239 script600 "
+                           "if_settextalign(1,1,16,231:6)");
             SELFTEST_CHECK(player->active_script != NULL,
                            "p_pausebutton should park the script");
             SELFTEST_CHECK(player->resume_button_count == 1,
@@ -18707,6 +18726,7 @@ mock230_world_selftest(void)
                 int guard = selftest_require_npc(srv, 3254, g_home_x + 6, g_home_z - 2, 0);
                 int thieving = mock230_content_symbol(MOCK230_PACK_STAT, "thieving");
                 uint8_t npc_payload[2];
+                static struct Mock230Capture capture;
 
                 SELFTEST_CHECK(guard >= 0, "the fixture guard should exist");
                 SELFTEST_CHECK(thieving == 17, "thieving should be stat 17, got %d", thieving);
@@ -18722,10 +18742,23 @@ mock230_world_selftest(void)
                     player->x = srv->npcs[guard].x + 1;
                     player->z = srv->npcs[guard].z;
                     player->level = srv->npcs[guard].level;
+                    mock230_capture_begin(srv, &capture);
                     mock230_world_handle(player, PKTOUT_NAME_OPNPC3, npc_payload, 2);
+                    mock230_capture_end(srv);
                     SELFTEST_CHECK(player->active_script != NULL,
                                    "pickpocketing under the level requirement should "
                                    "park on its mesbox");
+                    /*
+                     * `messagebox:text` (229:3) has the same missing `valign`
+                     * as chat_left:text, so `~mesbox` owes the same script 600
+                     * call the NPC pages make. Assert it here because this is
+                     * the only section that reliably opens a speaker-less
+                     * message box: the level gate always refuses.
+                     */
+                    SELFTEST_CHECK(selftest_capture_has_textalign(&capture,
+                                                                  (229 << 16) | 3),
+                                   "mesbox must send literal rev-239 script600 "
+                                   "if_settextalign(1,1,16,229:3)");
                     /*
                      * Unpark before leaving, and note that PASSING is what
                      * makes this necessary.
@@ -36915,6 +36948,145 @@ mock230_world_selftest(void)
              * after this one rather than merely flagged. */
             mock230_world_tick(srv);
             mock230_world_set_active(srv, lighter);
+            mock230_scripts_free(srv);
+        }
+    }
+
+    /*
+     * Clicking a range's own "Cook" op opens the make-menu, filled from the
+     * inventory.
+     *
+     * A whole-loop test rather than a `[debugproc]` for the same reason the
+     * farming one above is: two of the three things that can be wrong here are
+     * in the dispatch, and a debugproc calling `~cook_menu` directly passes
+     * with either of them present.
+     *
+     * 1. Nothing bound `[oploc1]` on a range at all. Every category-687 record
+     *    in this cache carries "Cook" at op index 0 and the four F2P ranges
+     *    `cooking_sources.loc` overlays carry it too, so the option has always
+     *    been on the menu — it just did nothing. Mutation: delete
+     *    `[oploc1,_cooking_oven]` and the panel never opens.
+     *
+     * 2. Lumbridge's own range is `cooksquestrange`, which states no category
+     *    in the cache and is only `cooking_oven` because that overlay says so.
+     *    Testing on it rather than on a native-687 range means the overlay is
+     *    under test as well. Mutation: drop its stanza from
+     *    `cooking_sources.loc` and both halves below go red.
+     *
+     * 3. The cells come from the inventory, deduplicated, and the panel answers
+     *    with BOTH a cell and a quantity. Five raw shrimp in five slots plus
+     *    one raw beef is two cells, not six; and answering cell `a` with sub 5
+     *    has to cook five shrimp rather than one. A batch that dropped the
+     *    quantity would still cook — once — which is the failure worth pinning.
+     *
+     * The raw item is what is asserted on, not the cooked one: `inv_del` runs
+     * whether the roll burnt the food or not, so the count is deterministic
+     * where the product is not.
+     */
+    fprintf(stderr, "mock230 selftest: the Cook op opens the make-menu for what you carry\n");
+    {
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int range_loc = mock230_content_symbol(MOCK230_PACK_LOC, "cooksquestrange");
+            int raw_shrimp = mock230_content_symbol(MOCK230_PACK_OBJ, "raw_shrimp");
+            int raw_beef = mock230_content_symbol(MOCK230_PACK_OBJ, "raw_beef");
+            int shrimp = mock230_content_symbol(MOCK230_PACK_OBJ, "shrimp");
+            int burntfish = mock230_content_symbol(MOCK230_PACK_OBJ, "burntfish1");
+            int axe = mock230_content_symbol(MOCK230_PACK_OBJ, "bronze_axe");
+            int row_a = mock230_content_symbol(MOCK230_PACK_COMPONENT, "skillmulti:a");
+            int run_opcode = mock230_wire_opcode(srv->wire, PKT_NAME_RUNCLIENTSCRIPT);
+            int slot = -1;
+
+            SELFTEST_CHECK(range_loc > 0 && raw_shrimp > 0 && raw_beef > 0 && shrimp > 0 &&
+                               burntfish > 0 && axe > 0 && row_a > 0,
+                           "every cooking symbol this section names should resolve");
+
+            /* Lumbridge castle's kitchen. Found by scanning rather than by a
+             * hardcoded slot — the park rebuilds the scene and frees the loc
+             * array, exactly as the farming section notes. */
+            selftest_park_player(srv, 3211, 3215);
+            for( int s = 0; slot < 0; s++ )
+            {
+                struct Mock230SceneLoc* l = mock230_scene_loc(s);
+
+                if( !l )
+                    break;
+                if( l->active && l->loc_id == range_loc )
+                    slot = s;
+            }
+            SELFTEST_CHECK(slot >= 0, "the Lumbridge kitchen range should be in the scene");
+
+            if( slot >= 0 )
+            {
+                struct Mock230SceneLoc* l = mock230_scene_loc(slot);
+                int px = l->x, pz = l->z, sx = l->size_x, sz = l->size_z;
+                static struct Mock230Capture cook_menu_capture;
+
+                selftest_clear_inv(player);
+                /* Five separate slots, because raw shrimp does not stack — and
+                 * five slots of one obj collapsing to one cell IS the dedup
+                 * pass under test. */
+                for( int i = 0; i < 5; i++ )
+                    inv_set(player, i, raw_shrimp, 1);
+                inv_set(player, 5, raw_beef, 1);
+                inv_set(player, 6, axe, 1); /* not cookable: must not get a cell */
+
+                mock230_capture_begin(srv, &cook_menu_capture);
+                mock230_world_interaction_set(srv, MOCK230_INTERACT_LOC, 1, -1, range_loc, px, pz,
+                                              0, sx, sz);
+                mock230_world_process_interaction(srv);
+                selftest_settle(srv, 30);
+                mock230_capture_end(srv);
+
+                SELFTEST_CHECK(player->active_script != NULL,
+                               "clicking Cook should park the script on the make-menu");
+                SELFTEST_CHECK(mock230_capture_find(&cook_menu_capture, run_opcode, 0) >= 0,
+                               "and hand clientscript 2046 its product list");
+                SELFTEST_CHECK(player->resume_button_count == 2,
+                               "two distinct cookables should arm two cells, not five slots "
+                               "and not the axe — %d armed",
+                               player->resume_button_count);
+
+                if( player->active_script != NULL )
+                {
+                    /* Cell `a` is the first cookable in inventory order, i.e.
+                     * raw shrimp; sub 5 is the quantity the row carries. */
+                    uint8_t resume[6] = {
+                        (uint8_t)(row_a >> 24), (uint8_t)(row_a >> 16),
+                        (uint8_t)(row_a >> 8),  (uint8_t)row_a,
+                        0,                      5,
+                    };
+
+                    mock230_world_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume,
+                                         sizeof(resume));
+                    /* The batch runs in the released script, one `p_delay(1)`
+                     * per item, so it needs ticks rather than an interaction to
+                     * settle on. */
+                    for( int t = 0; t < 40; t++ )
+                        mock230_world_tick(srv);
+
+                    SELFTEST_CHECK(selftest_count(player, raw_shrimp) == 0,
+                                   "all five raw shrimp should be cooked, %d left",
+                                   selftest_count(player, raw_shrimp));
+                    SELFTEST_CHECK(selftest_count(player, shrimp) +
+                                           selftest_count(player, burntfish) ==
+                                       5,
+                                   "and come back as five shrimp or burnt fish, got %d + %d",
+                                   selftest_count(player, shrimp),
+                                   selftest_count(player, burntfish));
+                    SELFTEST_CHECK(selftest_count(player, raw_beef) == 1,
+                                   "the beef the player did not pick should be untouched, %d left",
+                                   selftest_count(player, raw_beef));
+                }
+            }
             mock230_scripts_free(srv);
         }
     }

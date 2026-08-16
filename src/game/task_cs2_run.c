@@ -1829,19 +1829,36 @@ Task_CS2StatTransmitDispatch_Run(
         if( self->hook_index >= self->host->stat_transmit_hook_count )
             break; /* compacted mid-dispatch (a component was reclaimed) */
         hook = &self->host->stat_transmit_hooks[self->hook_index];
+#define STATDISP_SKIP(why)                                                              \
+    do {                                                                                \
+        if( getenv("TORIRS_STAT_DEBUG") )                                               \
+        {                                                                               \
+            fprintf(stderr, "statdisp: SKIP hook %d/%d com=0x%x script=%d serial=%u %s trig=%d[", \
+                    self->hook_index, self->host->stat_transmit_hook_count,             \
+                    hook->component_id, hook->script_id,                                \
+                    self->host->stat_change_serial, why, hook->trigger_count);          \
+            for( int _t = 0; _t < hook->trigger_count && _t < 32; _t++ )                \
+                fprintf(stderr, "%d,", hook->trigger_ids[_t]);                          \
+            fprintf(stderr, "] changed=%d[", self->stat_count);                         \
+            for( int _t = 0; _t < self->stat_count; _t++ )                              \
+                fprintf(stderr, "%d,", self->stat_ids[_t]);                             \
+            fprintf(stderr, "]\n");                                                     \
+        }                                                                               \
+        continue;                                                                       \
+    } while( 0 )
         if( !hook_matches_stat(hook, self->stat_ids, self->stat_count) )
-            continue;
+            STATDISP_SKIP("no-trigger-match");
         if( hook->script_id <= 0 )
-            continue;
+            STATDISP_SKIP("no-script");
         if( UITree_FindByComponentId(self->host->tree, hook->component_id) < 0 )
         {
             hook->last_seen_serial = self->host->stat_change_serial;
-            continue;
+            STATDISP_SKIP("not-in-tree");
         }
         if( UITree_ComponentOrAncestorHidden(self->host->tree, hook->component_id) )
-            continue;
+            STATDISP_SKIP("hidden");
         if( hook->last_seen_serial >= self->host->stat_change_serial )
-            continue;
+            STATDISP_SKIP("already-seen");
         hook->last_seen_serial = self->host->stat_change_serial;
         if( getenv("TORIRS_STAT_DEBUG") )
             fprintf(stderr, "statdisp: hook %d com=0x%x script=%d serial=%u\n", self->hook_index,

@@ -329,6 +329,76 @@ test_clear_selected_slot_deselects(void)
     InvManager_Free(&mgr);
 }
 
+/*
+ * The bug this pins: a container sized from the first packet about it, then
+ * unable to hold anything past that size for the rest of the session.
+ *
+ * mock230 writes UPDATE_INV_FULL's capacity as the *used prefix* of the
+ * container, so a login that restored 17 backpack items announces 17 slots.
+ * Every UPDATE_INV_PARTIAL after that names a real slot 0..27, and the eleven
+ * above the prefix were being dropped: the server placed the item (it fills the
+ * first free slot, and always did), the client never heard about it, and the
+ * inventory grid drew an empty cell there. `::give` then said "did not fit"
+ * while the player was looking at cells that only existed server-side.
+ */
+static void
+test_container_grows_past_first_capacity(void)
+{
+    printf("TEST: a container widens past the capacity it was first announced with\n");
+
+    struct InvManager mgr;
+    InvManager_Init(&mgr);
+
+    /* Login: UPDATE_INV_FULL for the backpack, capacity = the used prefix. */
+    int const src =
+        InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 17, "server-inv");
+    TEST_ASSERT(src != INV_MANAGER_SOURCE_INVALID, "backpack registered");
+
+    /* UPDATE_INV_PARTIAL: the server put a raw chicken in slot 17. */
+    struct InvSlot chicken = { .obj_id = 2138, .obj_count = 1, .scene_id = -1, .atlas_index = 0 };
+    TEST_ASSERT(InvManager_SetSlot(&mgr, src, 17, &chicken), "slot past the prefix accepted");
+
+    struct InvSlot out;
+    TEST_ASSERT(InvManager_GetSlot(&mgr, src, 17, &out), "slot 17 readable");
+    TEST_ASSERT(out.obj_id == 2138, "slot 17 holds the chicken");
+    TEST_ASSERT(InvManager_Size(&mgr, INV_MANAGER_CONTAINER_BACKPACK) >= 18, "container widened");
+
+    /* And the whole 28-slot backpack is reachable, one partial at a time. */
+    struct InvSlot last = { .obj_id = 2140, .obj_count = 1, .scene_id = -1, .atlas_index = 0 };
+    TEST_ASSERT(InvManager_SetSlot(&mgr, src, 27, &last), "last backpack slot accepted");
+    TEST_ASSERT(InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 27) == 2140, "slot 27");
+
+    /* A later, shorter FULL still clears its tail — that is the server saying
+     * those slots are empty, not that the container shrank. */
+    int const ids[3] = { 995, 0, 0 };
+    int const counts[3] = { 12, 0, 0 };
+    TEST_ASSERT(InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BACKPACK, ids, counts, 3),
+                "short full applied");
+    TEST_ASSERT(InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 27) ==
+                    INV_MANAGER_EMPTY_OBJ_ID,
+                "tail cleared");
+    TEST_ASSERT(InvManager_Size(&mgr, INV_MANAGER_CONTAINER_BACKPACK) >= 28, "and still 28 wide");
+
+    /* A FULL wider than the container widens it rather than truncating: the
+     * bank's shape, where every update is a whole-container resend. */
+    int bank_ids[40];
+    int bank_counts[40];
+    for( int i = 0; i < 40; i++ )
+    {
+        bank_ids[i] = 1000 + i;
+        bank_counts[i] = 1;
+    }
+    TEST_ASSERT(InvManager_EnsureContainer(&mgr, INV_MANAGER_CONTAINER_BANK, 8, "bank") !=
+                    INV_MANAGER_SOURCE_INVALID,
+                "bank registered at its prefix");
+    TEST_ASSERT(InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BANK, bank_ids, bank_counts, 40),
+                "wider bank full applied");
+    TEST_ASSERT(InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BANK, 39) == 1039,
+                "bank slot 39 survived");
+
+    InvManager_Free(&mgr);
+}
+
 int
 main(void)
 {
@@ -342,6 +412,7 @@ main(void)
     test_selection();
     test_swap_slots();
     test_clear_selected_slot_deselects();
+    test_container_grows_past_first_capacity();
 
     if( g_failures )
     {

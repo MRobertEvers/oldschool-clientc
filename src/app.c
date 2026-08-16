@@ -17537,6 +17537,41 @@ App_WorldSpawnSyncedNpc(
     return app_world_spawn_npc_now(app, npc_id, scene_x, scene_z, level);
 }
 
+/* See the declaration in app.h. Reference NPCType.method461 (getMultiNPC):
+ * every call site that turns an npc id into a NpcType is supposed to go
+ * through this, not CacheProvider_NpctypeGet directly, or a shell (no model,
+ * no real ops) is what gets used. Wired at the one point every wire npc type
+ * passes through -- see PKT_NPC_INFO_OPBITS_NPCTYPE / OP_CHANGE_TYPE in
+ * task_exec_entity_info.c -- so nothing downstream (model preload, spawn,
+ * retype, and npc->npc_id itself) has to know shells exist. */
+int
+App_NpctypeResolveMultiId(
+    struct App* app,
+    int npc_id)
+{
+    assert(app);
+
+    for( int guard = 0; guard < 4 && npc_id >= 0; guard++ )
+    {
+        struct ToriRS_Npctype* npctype = CacheProvider_NpctypeGet(app->provider, npc_id);
+        int resolved;
+
+        if( !npctype || npctype->transform_count <= 0 )
+            return npc_id;
+
+        resolved = VarPManager_ResolveTransform(
+            &app->varps,
+            npctype->transforms,
+            npctype->transform_count,
+            npctype->transform_varbit,
+            npctype->transform_varp);
+        if( resolved < 0 || resolved == npc_id )
+            return npc_id;
+        npc_id = resolved;
+    }
+    return npc_id;
+}
+
 /* Ground item stacks (zone OBJ_* packets). The objtype + its inventory
  * model must already be cached (the packet task awaits the loads). */
 int

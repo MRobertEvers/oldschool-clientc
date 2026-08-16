@@ -4537,6 +4537,18 @@ exec_set_on_stat_transmit(
         hook->trigger_count = RS_CS2_HOST_TRANSMIT_TRIGGER_MAX;
     if( request->trigger_ids && hook->trigger_count > 0 )
         memcpy(hook->trigger_ids, request->trigger_ids, (size_t)hook->trigger_count * sizeof(int));
+    if( getenv("TORIRS_STAT_DEBUG") )
+    {
+        fprintf(stderr, "statarm: com=0x%x script=%d args=%d raw_trig=%d ids=[",
+                request->component_id, request->script_id, request->int_arg_count,
+                request->trigger_count);
+        for( int t = 0; t < request->trigger_count && t < 40; t++ )
+            fprintf(stderr, "%d,", request->trigger_ids ? request->trigger_ids[t] : -999);
+        fprintf(stderr, "] intargs=[");
+        for( int t = 0; t < request->int_arg_count && t < 40; t++ )
+            fprintf(stderr, "%d,", request->int_args[t]);
+        fprintf(stderr, "]\n");
+    }
     return CS2VM_EXECNO_OK;
 }
 

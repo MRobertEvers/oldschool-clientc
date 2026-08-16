@@ -152,6 +152,10 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->sound_radius = 0;
     npctype->ambient_sound_volume = 255;
 
+    /* dat1's NpcType has no multiNpc opcode. */
+    npctype->transform_varbit = -1;
+    npctype->transform_varp = -1;
+
     return npctype;
 }
 
@@ -293,6 +297,23 @@ ToriRS_NpctypeFromRSCacheDat2(
             continue;
         if( src->params.values[i] )
             npctype->zbuffer_model = *(int*)src->params.values[i];
+    }
+
+    /*
+     * NpcType.multiNpc (opcode 106) -- a shell record with no model of its
+     * own, resolved through VarPManager_ResolveTransform exactly like a
+     * loc's transform table. `configs` already carries the decoder's own
+     * -1 sentinel for a hidden entry (0xFFFF on the wire), so it copies
+     * straight across.
+     */
+    npctype->transform_varbit = src->varbit_id;
+    npctype->transform_varp = src->varp_index;
+    if( src->configs_count > 0 )
+    {
+        npctype->transforms = malloc((size_t)src->configs_count * sizeof(int));
+        assert(npctype->transforms);
+        memcpy(npctype->transforms, src->configs, (size_t)src->configs_count * sizeof(int));
+        npctype->transform_count = src->configs_count;
     }
 
     return npctype;

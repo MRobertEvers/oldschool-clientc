@@ -10102,7 +10102,7 @@ mock230_scripts_resume_countdialog(
  *
  * A thin wrapper over run_proc/run_proc_sv, because the alternative at twenty
  * call sites is twenty four-line blocks declaring an argument array. `name` is
- * the bare proc name — "equip_message", not "[proc,equip_message]" — since
+ * the bare proc name — "unequip_message", not "[proc,unequip_message]" — since
  * every caller of this is naming a message and the brackets are noise.
  *
  * Silent when the script is missing: a server with no content tree says nothing

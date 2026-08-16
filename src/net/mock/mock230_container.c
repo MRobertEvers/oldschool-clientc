@@ -774,14 +774,32 @@ mock230_container_slot_mask(const struct Mock230Container* container)
 /* Bindings                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Slots up to and including the last occupied one. UPDATE_INV_FULL clears
- *  everything past the capacity it carries, so the empty tail costs nothing
- *  and sending it costs 7 bytes a slot — 9.8 KB on a full-size bank. */
+/*
+ * How many slots UPDATE_INV_FULL carries.
+ *
+ * The field is named `capacity` on the wire and the client sizes its container
+ * from it, so trimming it is not free the way trimming a payload would be. A
+ * client told the backpack holds 17 slots draws 17 cells, answers `inv_size`
+ * with 17, and — until it learned to widen (inv_manager.c's
+ * `inv_container_ensure_slots`) — dropped every partial update for a slot above
+ * that. The player saw empty cells the server had already filled.
+ *
+ * So a container small enough to transmit per slot sends its real capacity: the
+ * backpack's 28 and the worn set's 14 cost a few dozen bytes and are exactly
+ * the two whose size the grid and CS2 read.
+ *
+ * A big one still sends only the used prefix — the bank is 1,410 slots at up to
+ * 7 bytes each, and it re-sends whole on every change. UPDATE_INV_FULL clears
+ * everything past what it carries, so the tail is still correct; the client
+ * widens on demand when a later update reaches past it.
+ */
 static int
-used_prefix(const struct Mock230Container* row)
+full_capacity(const struct Mock230Container* row)
 {
     int used = 0;
 
+    if( row->per_slot )
+        return row->slots;
     for( int i = 0; i < row->slots; i++ )
         if( row->items[i].obj_id >= 0 )
             used = i + 1;
@@ -902,7 +920,7 @@ mock230_container_bind(
      * interface being painted needs it: a paint hook only runs on a transmit,
      * so a panel mounted before the container existed stays empty otherwise.
      * Only this listener's first_seen is cleared — other listeners keep theirs. */
-    mock230_send_inv_full(player, (int)component, (int)inv_id, row->items, used_prefix(row));
+    mock230_send_inv_full(player, (int)component, (int)inv_id, row->items, full_capacity(row));
     row->listeners[listener_i].first_seen = 0;
     return 1;
 }
@@ -963,7 +981,7 @@ mock230_container_flush(struct Mock230Player* player)
                                          row->slots, mock230_container_slot_mask(row));
             else
                 mock230_send_inv_full(player, (int)component, (int)row->inv_id, row->items,
-                                      used_prefix(row));
+                                      full_capacity(row));
             row->listeners[l].first_seen = 0;
         }
         mock230_container_clean(row);
@@ -1018,7 +1036,7 @@ mock230_container_flush_world(struct Mock230Server* srv)
                                          row->slots, mock230_container_slot_mask(row));
             else
                 mock230_send_inv_full(target, (int)component, (int)row->inv_id, row->items,
-                                      used_prefix(row));
+                                      full_capacity(row));
             row->listeners[l].first_seen = 0;
         }
         mock230_container_clean(row);

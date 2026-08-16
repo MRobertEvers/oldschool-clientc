@@ -399,6 +399,16 @@ struct ToriRS_Npctype
      *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does
      *  not name it, which is the shipping behaviour. */
     int zbuffer_model;
+    /** NpcType.multiNpc (dat2 opcode 106) -- same shape as a loc's transform
+     *  table (ToriRS_Location.transform_*), resolved the same way, through
+     *  VarPManager_ResolveTransform. A shell record with transform_count > 0
+     *  carries no model of its own; `transforms[N]` is the live variant's id
+     *  for varp/varbit value N, and the last entry is the fallback. -1 dat1
+     *  and any record with no opcode 106. */
+    int transform_varbit;
+    int transform_varp;
+    int* transforms;
+    int transform_count;
 };
 
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).
