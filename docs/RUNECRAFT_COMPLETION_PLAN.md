@@ -394,61 +394,81 @@ set = 60%) hooks §1.2's essence/output proc whenever GotR does land.
 
 ---
 
-## 9. Ordering
+## 9. Ordering — status
 
-| # | slice | depends on | closes |
-|---|---|---|---|
-| 0 | Correct the stale queue rows (§0.2) | — | bookkeeping |
-| 1 | `rune_type` param + `runecraft.param`/`.obj`; collapse both switch procs (§1.1) | — | gates everything |
-| 2 | Talisman category + elemental/catalytic (§1.4) | 1 | #37 part |
-| 3 | Essence ladder: pure + daeyalt, members gate (§1.2) | 1 | #37 part |
-| 4 | `rc_no_tally_required_*` refresh on equip (§1.3) | — | unblocks tiaras |
-| 5 | Tiara crafting (§2) | 1, 3, 4 | **#37** |
-| 6 | Essence-mine teleporters (§3) | — | **#40** |
-| 7 | Wrath + true blood altar rows (§4) | 1, 3 | #38 part |
-| 8 | Kourend dark/blood/soul chain (§4) | 1, 3, 7 | **#38** |
-| 9 | Essence pouches (§6) | 3 | #39 part |
-| 10 | The Abyss (§7) | 1, 9 | #39 part |
-| 11 | Combination runes + binding necklace (§5) | 1, 2, 3 | #42 part |
-| 12 | Runecraft cape (§5) | 9, 11 | **#42** |
-| 13 | Ourania (§8) | 1, 3 | **#39** |
-| 14 | Selftest coverage (§10) | all | — |
+All 14 slices are landed. `#38` and `#40` are fully closed; `#37`, `#39` and
+`#42` are landed except for the pieces §4 and §5 name as blocked on real-world
+coordinates or out of scope.
+
+| # | slice | depends on | closes | status |
+|---|---|---|---|---|
+| 0 | Correct the stale queue rows (§0.2) | — | bookkeeping | done |
+| 1 | `rune_type` param + `runecraft.param`/`.obj`; collapse both switch procs (§1.1) | — | gates everything | done |
+| 2 | Talisman category + elemental/catalytic (§1.4) | 1 | #37 part | done |
+| 3 | Essence ladder: pure + daeyalt, members gate (§1.2) | 1 | #37 part | done |
+| 4 | `rc_no_tally_required_*` refresh on equip (§1.3) | — | unblocks tiaras | done |
+| 5 | Tiara crafting (§2) | 1, 3, 4 | **#37** | done |
+| 6 | Essence-mine teleporters (§3) | — | **#40** | done — already live, corrected the queue note |
+| 7 | Wrath + true blood altar rows (§4) | 1, 3 | #38 part | param/category done; dbrow rows blocked on real coordinates |
+| 8 | Kourend dark/blood/soul chain (§4) | 1, 3, 7 | **#38** | done |
+| 9 | Essence pouches (§6) | 3 | #39 part | done |
+| 10 | The Abyss (§7) | 1, 9 | #39 part | done |
+| 11 | Combination runes + binding necklace (§5) | 1, 2, 3 | #42 part | done |
+| 12 | Runecraft cape (§5) | 9, 11 | **#42** | done (boost only; guild-teleport perk needs a coordinate) |
+| 13 | Ourania (§8) | 1, 3 | **#39** | done (output weights are a documented approximation — §8) |
+| 14 | Selftest coverage (§10) | all | — | done — `runecraft_selftest.rs2`, `::runecraftrun` |
 
 ---
 
 ## 10. Verification
 
-**There is no runecraft coverage in `selftest*.rs2` today** — `grep -rn
-runecraft server/scripts/selftest*.rs2` returns nothing. Every slice above lands
-untested unless this changes; treat it as part of the work.
+Landed: `skill_runecraft/scripts/runecraft_selftest.rs2`, a `[debugproc,
+runecraftrun]` in the same shape as `::miningrun`/`::fishingrun` — one FAIL
+line and stop, or `runecraftrun OK - N checks passed`, restoring every stat/
+inventory/worn change it makes. It covers, each by mutating the implementation
+rather than trusting a clean pass:
 
-For each assertion, **mutate the implementation to prove it can fail** before
-trusting it — a `.dbrow` typo makes most of these pass vacuously, and the
-existing failure mode (`db_findnext = null` → `~displaymessage(^dm_default)`)
-reads as a UI bug rather than a data bug.
+1. **Row integrity** — every landed `runecraft_table` row (types 1–11)
+   resolves through `~get_runecraft_data`.
+2. **Essence priority** — daeyalt beats pure beats rune when a player holds
+   all three.
+3. **Members gate** — rune essence refuses to resolve for a members-only rune.
+4. **Multiplier boundary** — air's multiplier yields 1 rune/essence at level
+   10 and 2 at level 11, not a slipped-by-one.
+5. **Talisman set membership** — elemental opens water but not mind;
+   catalytic opens mind but not air.
+6. **Tiara varbit** — `rc_no_tally_required_air` flips to 1 wearing a tiara
+   and back to 0 removing it.
+7. **Pouch round-trip** — fill removes essence from the inventory, empty
+   restores the exact original count.
+8. **Pouch degrade boundary** — 269/270 essence does not degrade a medium
+   pouch, 270/270 does, swapping the obj and resetting the wear counter.
+9. **Combo row lookup** — mist resolves from both the air altar (with a water
+   rune) and the water altar (with an air rune).
+10. **Abyss chance cap** — level 99 caps the pass chance at 100, not 100+1.
 
-Minimum suite, in a new `skill_runecraft/scripts/runecraft_selftest.rs2`:
+**Not covered**, scoped out for the reasons stated where each is implemented:
+XP-amount assertions (would pin the ×10 scale rather than test a real
+invariant), the binding necklace's 16-charge crumble (needs 16 simulated
+crafts, higher value than cost here), and the drop-spill behaviour the pouch
+header names as unmodelled (no on-drop opcode exists to test against).
 
-1. **Row integrity** — every `runecraft_table` row resolves its altar/ruins/portal
-   locs, and every loc carrying `rune_type` has a row. This is the check that
-   catches §1.1 regressions.
-2. **Essence ladder** — rune essence refuses a members altar, pure essence is
-   accepted everywhere, daeyalt pays +50%.
-3. **Multiplier thresholds** — air at 1/11/22/…/99 yields 1…10 runes; death at
-   65 yields 1 and at 99 yields 2.
-4. **Tiara** — talisman consumed, correct `tiara_*` produced, correct XP, and
-   `rc_no_tally_required_<type>` flips to 1 when it is worn and back to 0 when
-   removed.
-5. **Combination** — over N rolls the bind rate sits at 50%, and a worn binding
-   necklace forces 16 successes then crumbles.
-6. **Pouches** — fill/empty round-trips essence count, degrade fires at the
-   documented fill count, the Runecraft cape suppresses it, and a dropped filled
-   pouch spills.
-7. **Abyss** — obstacle success is (level+1)%, 25 XP per pass, tool requirements
-   enforced, and each rift lands on the matching `enter_coord`.
+**Executed this session:** `make mock230-scripts` after every slice (0
+errors, final count 19,007 scripts), and a full `mock230-dev` boot against a
+scratch `MOCK230_SAVES` with every config above loaded — no `CONTENT_ERROR`,
+confirming the `.dbtable`/`.dbrow`/`.loc`/`.obj`/`.param`/`.varp` files parse
+at runtime, not just at script-compile time.
 
-Run headless against a throwaway `MOCK230_SAVES` directory — headless runs share
-state, and a stale profile's Runecraft level decides the result of every level
-gate above.
+**Not executed this session, and the natural next step:** actually running
+`::runecraftrun` against a live client connection. `mock230_pack
+--check-only` — the other standard gate — has a pre-existing, unrelated link
+gap (`MOCK230_PACK_SRCS` in `src/makefile` is missing `mock230_scene.c`/
+`mock230_bank.c`/`mock230_shop.c`, so the standalone checker binary won't
+link) that blocks that specific command; it predates this plan and is out of
+scope for a content-only skill slice. Firing the debug command itself needs
+either a real client connection or a generic debugproc-invoking test harness,
+which does not exist yet (`embed_test.c` runs one fixed scenario, not
+arbitrary commands) — building one is its own piece of work, not a to-do
+folded into this plan.
 
 Pack check after every slice: `mock230_pack` must stay at **0 errors**.

@@ -30,12 +30,12 @@
  *
  * ## What the caller supplies
  *
- * Model-space vertex positions as well as screen and camera-space ones. The
- * mapping is defined in model space about the face group's centre, and after
- * animation only the model-space positions still relate to it. The same goes
- * for a P/M/N frame: its three vertices animate with the rest of the model, so
- * the caller reads them from the same animated array the face's own vertices
- * come from.
+ * Screen and camera-space positions from the POSED projection, and BIND-POSE
+ * model-space positions for the uv solve — for the face's own three vertices
+ * and, for kind 0, the P/M/N frame alike. The mapping is defined about a
+ * bind-pose centre and the frame is a set of helper vertices that need not be
+ * rigged with the faces that use it, so only the bind pose gives a uv that
+ * stays put while an animation plays. See texmap_common.h.
  *
  * ## The depth variant
  *

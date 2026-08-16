@@ -957,6 +957,43 @@ test_foreign_frame_is_view_independent(struct render_env* e)
             "moving the model does not move its texture", detail);
     }
 
+    /*
+     * Now POSE it: move the quad's four vertices as an animation would and
+     * leave the frame's three where they are — a frame not rigged with the
+     * faces that use it, which is what HD helper vertices are. The uv must
+     * come from the bind pose (`original_vertices_*`, which the fixture
+     * captured), so the centroid texel is unchanged. Solving from the posed
+     * vertices instead moves it by 4-5 texels here.
+     */
+    {
+        for( int i = 0; i < 4; i++ )
+        {
+            m->vertices_x[i] = (vertexint_t)(m->original_vertices_x[i] + 20);
+            m->vertices_y[i] = (vertexint_t)(m->original_vertices_y[i] + 10);
+        }
+        render(e, hnd, &table);
+
+        int a = m->face_indices_a[0], b = m->face_indices_b[0], c = m->face_indices_c[0];
+        int cx = (e->scene->screen_vertices_x[a] + e->scene->screen_vertices_x[b] +
+                  e->scene->screen_vertices_x[c]) /
+                     3 +
+                 W / 2;
+        int cy = (e->scene->screen_vertices_y[a] + e->scene->screen_vertices_y[b] +
+                  e->scene->screen_vertices_y[c]) /
+                     3 +
+                 H / 2;
+        int pu;
+        int pv;
+        decode_uv_texel(e->pixels[cy * W + cx], &pu, &pv);
+        char detail[96];
+        snprintf(
+            detail, sizeof(detail), "bind pose texel (%d,%d), posed texel (%d,%d)", got_u[1],
+            got_v[1], pu, pv);
+        check(
+            texel_dist(pu, got_u[1]) <= 1 && texel_dist(pv, got_v[1]) <= 1,
+            "posing the face does not move its texture", detail);
+    }
+
     ToriDraw_ModelHDFree(hd);
 }
 

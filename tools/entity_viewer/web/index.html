@@ -235,7 +235,20 @@
     <div class="meta" id="animCount"></div>
   </div>
 
-  <script src="ev_wasm.js"></script>
+  <!-- ?san on the page URL loads the AddressSanitizer/UBSan module built by
+       `make wasm-san` instead of the plain one. Same exports and same
+       EXPORT_NAME, so ev.js below is unchanged either way; it is a separate
+       file only because web/ev_wasm.js is tracked and the instrumented build
+       must not be committed over it. Reports land in the devtools console.
+
+       document.write rather than appending a <script>: the tag has to be
+       fetched and executed before ev.js, which calls EVModule() at top level,
+       and only document.write keeps that ordering guarantee. -->
+  <script>
+    document.write('<script src="' +
+      (/[?&]san\b/.test(location.search) ? 'ev_wasm_san.js' : 'ev_wasm.js') +
+      '"><\/script>');
+  </script>
   <script src="ev.js"></script>
 </body>
 </html>

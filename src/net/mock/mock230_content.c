@@ -1260,6 +1260,19 @@ apply_param(
         resolved = def->death_drop;
     }
     /*
+     * Fishing spot relocation target (docs/FISHING_COMPLETION_PLAN.md S10).
+     * Script-visible only via `nc_param` — no dedicated `def` field, same
+     * shape as `death_drop` above minus the C-side read.
+     */
+    else if( strcmp(text, "fishing_movement_enum") == 0 )
+    {
+        int enum_id;
+
+        if( !param_symbol(&enum_id, MOCK230_PACK_ENUM, text, value, where) )
+            return 0;
+        resolved = enum_id;
+    }
+    /*
      * The three combat sounds, and the one place in this function that takes a
      * bare integer where its neighbours take a name.
      *

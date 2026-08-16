@@ -1,3 +1,5 @@
 build/
 ev_catalog
 ev_server
+web/ev_wasm_san.js
+web/ev_wasm_san.wasm

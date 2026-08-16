@@ -670,6 +670,58 @@ test_scenery(void)
     World_Free(world);
 }
 
+/*
+ * Bridge columns: three level spaces, and both directions between them.
+ *
+ * Every assertion here is about a *direction*, and a direction is the one thing
+ * a reader cannot check by eye — swap the +1 for a -1 in either helper and the
+ * flat world below still agrees, because a column without LINK_BELOW collapses
+ * all three spaces onto one number. So the bridged column is the whole test and
+ * the flat one is only there to say the helpers are inert off a bridge.
+ */
+void
+test_bridge_levels(void)
+{
+    printf("TEST: bridge level mapping\n");
+
+    struct World* world = World_TestMakeReady(64);
+    int const bx = 20;
+    int const bz = 30;
+    int const flat_x = 21;
+    int const flat_z = 30;
+
+    /* LINK_BELOW is read at cache level 1 and speaks for the whole column. */
+    world->tile_flags[bx + bz * 64 + 1 * 64 * 64] = 0x02;
+
+    /* Paint: the build's push-down parked cache 1 on paint 0 and pushed the
+     * underside, cache 0, out to paint 3 (WorldBuilder_RebuildCenterzoneEnd). */
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 1) == 0, "bridge deck paints at level 0");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 2) == 1, "bridge cache 2 paints at 1");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 3) == 2, "bridge cache 3 paints at 2");
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, 0) == 3, "bridge underside paints at 3");
+
+    /* Wire: the server names the level the deck is walked from, one below the
+     * level the map authored it on. */
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 0) == 1, "walked level 0 is cache level 1");
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 2) == 3, "walked level 2 is cache level 3");
+    TEST_ASSERT(World_LocCacheLevel(world, bx, bz, 3) == 3, "the top level has nowhere to climb");
+
+    /* And a zone loc packet for the deck must round-trip to the tile the
+     * painter drew it on — that round trip is the whole point of the pair. */
+    TEST_ASSERT(World_LocPaintLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
+                "a walked-level-0 loc paints back on level 0");
+
+    for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+    {
+        TEST_ASSERT(World_LocPaintLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no paint shift");
+        TEST_ASSERT(World_LocCacheLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no wire shift");
+    }
+
+    World_Free(world);
+}
+
 /* Reference entity-facing update. Yaw units are 2048/turn with 0 =
  * north(+z) and the sign convention of `atan2(e.x - target.x, e.z - target.z)`
  * — i.e. the yaw an entity holds while looking AT the target. */

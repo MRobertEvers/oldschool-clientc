@@ -224,6 +224,31 @@ zone_tile_at(
     *out_level = at->level;
 }
 
+/*
+ * Same tile, but the level a *loc* packet means.
+ *
+ * A zone names the plane the player walks. On a bridge column that is one below
+ * the plane the map authored the deck's locs on, and the scene keeps them where
+ * the map put them (the push-down moves the painter tile, not the loc). So a
+ * LOC_ADD_CHANGE arriving for a deck has to climb back to the cache level or it
+ * cannot find the loc it is replacing — it spawns a second one on the plane
+ * below instead, which is two chests inside each other in the QBD reward room.
+ * Entities do not need this: their levels are walked levels all the way to the
+ * painter, and app_world_height makes the same climb for their heights.
+ */
+static void
+zone_loc_tile_at(
+    struct App const* app,
+    struct ZoneAt const* at,
+    int pos,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    zone_tile_at(at, pos, out_x, out_z, out_level);
+    *out_level = World_LocCacheLevel(app->world, *out_x, *out_z, *out_level);
+}
+
 /* Copy one zone sub-packet payload into a PktZoneSubPacket by name. Returns 0
  * for a name that is not a zone sub-packet (nothing to queue). */
 static int
@@ -403,7 +428,7 @@ exec_zone_sub_packet_at(
     case PKT_NAME_LOC_DEL:
     {
         struct PktLocDel const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         /* Remove the loc in this shape's layer (scene + collision). shape =
          * info >> 2 keys the layer so a door (WALL) removal only hits the WALL
          * loc, not a centrepiece/floor-decor sharing the tile. loc_id = -1 = no
@@ -420,7 +445,7 @@ exec_zone_sub_packet_at(
          * preload, so the change applies once they're resident (reference
          * changeLocAvailable gate in locChangeDoQueue). */
         struct PktLocAddChange const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldLocChange(
             app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
         if( getenv("TORIRS_NET_DEBUG") )
@@ -438,7 +463,7 @@ exec_zone_sub_packet_at(
     case PKT_NAME_LOC_ANIM:
     {
         struct PktLocAnim const* pkt = payload;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         App_WorldSceneryAnim(app, tile_x, tile_z, level, pkt->info >> 2, pkt->seq_id);
         break;
     }
@@ -522,7 +547,7 @@ exec_zone_sub_packet_at(
          * loc model rides with them (Client-TS zonePacket P_LOCMERGE). */
         struct PktLocMerge const* pkt = payload;
         int pid;
-        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        zone_loc_tile_at(app, at, pkt->pos, &tile_x, &tile_z, &level);
         pid = pkt->pid;
         App_WorldLocMerge(
             app,

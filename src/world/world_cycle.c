@@ -1187,9 +1187,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
             continue;
         int grid_x = sc->grid_position.x;
         int grid_z = sc->grid_position.z;
+        int paint_level;
         if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
             grid_z >= world->_scene_size )
             continue;
+        /* The scenery pool holds cache levels; the painter wants the level the
+         * build's bridge push-down parked that tile on, which is the one the
+         * static locs beside this one ended up in. */
+        paint_level = World_LocPaintLevel(world, grid_x, grid_z, sc->grid_position.level);
         /* Wall locs re-register with their recorded wallside so the painter
          * orders them like a built wall (drawn on the correct side of the
          * tile); the removal path released the tile slot and reset_to_static
@@ -1197,14 +1202,14 @@ World_CycleRegisterPainterDynamics(struct World* world)
          * safe. Everything else draws as normal scenery. */
         if( sc->painter_wall_ab >= 0 )
             painter_add_wall(
-                world->painter, grid_x, grid_z, sc->grid_position.level, sc->element_id,
+                world->painter, grid_x, grid_z, paint_level, sc->element_id,
                 sc->painter_wall_ab, sc->painter_wall_side);
         else
             painter_add_normal_scenery(
                 world->painter,
                 grid_x,
                 grid_z,
-                sc->grid_position.level,
+                paint_level,
                 sc->element_id,
                 sc->size_x > 0 ? sc->size_x : 1,
                 sc->size_z > 0 ? sc->size_z : 1,

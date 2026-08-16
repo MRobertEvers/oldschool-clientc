@@ -132,11 +132,11 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 5 | Ranged | `skill_combat/` | [Ranged](https://oldschool.runescape.wiki/w/Ranged) · [F2P Ranged](https://oldschool.runescape.wiki/w/Free-to-play_Ranged_training) · [P2P Ranged](https://oldschool.runescape.wiki/w/Pay-to-play_Ranged_training) | done | F2P bow+arrow + XP styles live (CONTENT 8u); finish #16–22; specs→#1 |
 | 6 | Prayer | `skill_prayer/` | [Prayer](https://oldschool.runescape.wiki/w/Prayer) · [Training](https://oldschool.runescape.wiki/w/Prayer/Training) | done | Toggle/drain/bury/altar/quickprayer/Redemption live; finish #23–29 |
 | 7 | Magic | `skill_magic/` + `skill_combat/` | [Magic](https://oldschool.runescape.wiki/w/Magic) · [Training](https://oldschool.runescape.wiki/w/Magic/Training) | done | F2P utility+strike→wave live (8p/8q); finish #30–36; magic def→#9; MTA live do not park |
-| 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | Air..death + essence mine live (CONTENT 8k); finish #37–40, #42 (#41 stays a minigame). See RUNECRAFT_COMPLETION_PLAN.md |
+| 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | #37–40, #42 landed (tiara, pure/daeyalt essence, Kourend dark essence, pouches, Abyss, Ourania, combo runes, cape). Wrath/true-blood altar rows blocked on real coordinates; #41 (GotR) stays a minigame. See RUNECRAFT_COMPLETION_PLAN.md |
 | 9 | Crafting | `skill_crafting/` | [Crafting](https://oldschool.runescape.wiki/w/Crafting) · [Training](https://oldschool.runescape.wiki/w/Crafting/Training) | done | Broad LC suite live (pottery/gems/leather/jewellery/glass/…); finish #43–48 |
 | 10 | Mining | `skill_mining/` | [Mining](https://oldschool.runescape.wiki/w/Mining) · [Training](https://oldschool.runescape.wiki/w/Mining/Training) | done | Clay..runite+blurite+prospect live; finish #49–55; Motherlode→KRONOS done |
 | 11 | Smithing | `skill_smithing/` | [Smithing](https://oldschool.runescape.wiki/w/Smithing) · [Training](https://oldschool.runescape.wiki/w/Smithing/Training) | done | F2P smelt+anvil live; finish #56–62; Blast Furnace→SCAPE2009 done |
-| 12 | Fishing | `skill_fishing/` | [Fishing](https://oldschool.runescape.wiki/w/Fishing) · [Training](https://oldschool.runescape.wiki/w/Fishing/Training) | done | F2P salt/fresh/rare through swordfish live; finish #63–70 |
+| 12 | Fishing | `skill_fishing/` | [Fishing](https://oldschool.runescape.wiki/w/Fishing) · [Training](https://oldschool.runescape.wiki/w/Fishing/Training) | done | Full member roster + barbarian + guild + cape/outfit live (#63-65,68 done); #66 movement lands, #67 blocked on Miscellania; Trawler/Tempoross remain #69-70 |
 | 13 | Cooking | `skill_cooking/` | [Cooking](https://oldschool.runescape.wiki/w/Cooking) · [Training](https://oldschool.runescape.wiki/w/Cooking/Training) | done | F2P cook+dough/wine+gnome live; gauntlets/cookomatic wired; finish #71–77 |
 | 14 | Firemaking | `skill_firemaking/` | [Firemaking](https://oldschool.runescape.wiki/w/Firemaking) · [Training](https://oldschool.runescape.wiki/w/Firemaking/Training) | done | Normal→magic logs live; finish #78–84; Wintertodt→KRONOS |
 | 15 | Woodcutting | `skill_woodcutting/` | [Woodcutting](https://oldschool.runescape.wiki/w/Woodcutting) · [Training](https://oldschool.runescape.wiki/w/Woodcutting/Training) | done | Normal→magic+hollow+WC Guild gates live; finish #85–91 |
@@ -194,12 +194,12 @@ unblocked row per tick.
 | 34 | Magic utility remainder | MAGIC | blocked | → MAGIC **M5** done (peaches + Magic Dart; PvP/post-LC teles deferred) |
 | 35 | Magic potion consume | MAGIC | blocked | → MAGIC **M2** done (`magic_potion.rs2`); battlemage/divine deferred in plan |
 | 36 | Magic cape / surge spells | MAGIC | blocked | → MAGIC **M10** |
-| 37 | Runecraft tiara craft + pure essence | wiki+cache | pending | LostCity has no tiara or pure-essence logic at all — both are wiki-only. Tiara `Enter` on ruins is NOT partially live: the varbit it keys on (`rc_no_tally_required_*`) is never written, so `*_ruined_new` is unreachable. See RUNECRAFT_COMPLETION_PLAN.md §1.3, §2 |
-| 38 | Blood / Soul / Wrath altars | wiki+cache | pending | Wiki Arceuus blood/soul + wrath; constants exist; no altar rows/paths (CONTENT 8k deferred soul/blood). See RUNECRAFT_COMPLETION_PLAN.md §4 |
-| 39 | Ourania / Zeah RC + abyss | wiki+cache | pending | CONTENT 8k deferred Ourania/zeah; no abyss obstacle course / pouches in tree. See RUNECRAFT_COMPLETION_PLAN.md §6–§8 |
+| 37 | Runecraft tiara craft + pure essence | wiki+cache | done | Tiara crafting, pure/daeyalt essence ladder, and the `rc_no_tally_required_*` varbit refresh (unblocking tiara `Enter`) landed. See RUNECRAFT_COMPLETION_PLAN.md §1.3, §2 |
+| 38 | Blood / Soul / Wrath altars | wiki+cache | done | Kourend dark essence chain (mine→infuse→chisel→bind) fully landed. True wrath/blood altars: param+category landed, dbrow rows blocked on real-world coordinates this port has no way to source from text configs — see §4 |
+| 39 | Ourania / Zeah RC + abyss | wiki+cache | done | Ourania altar (approximated output weights, flagged), essence pouches (fill/empty/check/degrade), and the Abyss (obstacle course + rifts + Dark mage repair) all landed. See RUNECRAFT_COMPLETION_PLAN.md §6–§8 |
 | 40 | Essence mine teleporter remainder | wiki+cache | done | Correction: all five (Aubury/Sedridor/Distentor/Cromperty/Brimstail) + Aubury's shop were already live in areas/ — queue note was stale. See RUNECRAFT_COMPLETION_PLAN.md §3 |
 | 41 | Guardians of the Rift | wiki+cache | blocked | Wiki primary modern RC training; Temple of the Eye quest gate — no minigame tree. Scoped out of RUNECRAFT_COMPLETION_PLAN.md §8 as its own minigame build, not a skill-interaction slice |
-| 42 | Runecraft cape / combination runes | wiki+cache | pending | Cape perk absent; combo runes (mist/dust/…) not in runecraft_table. See RUNECRAFT_COMPLETION_PLAN.md §5 |
+| 42 | Runecraft cape / combination runes | wiki+cache | done | Combination runes (mist/dust/mud/smoke/steam/lava) + binding necklace, and the Runecraft cape's +1 boost, landed. Cape's guild-teleport perk deferred, same coordinate gap as #38. See RUNECRAFT_COMPLETION_PLAN.md §5 |
 | 43 | Crafting weaving (loom) | wiki+cache | pending | Wiki sacks/baskets/drift nets/cloth bolts; no loom scripts in skill_crafting |
 | 44 | Crafting IF + batch craft polish | LC | pending | CONTENT deferred leather_crafting IF, crafting_jewelry.if, weakqueue batch; p_choice menus live |
 | 45 | Glass lens / lantern remainder | LC | pending | glass.rs2 deferred lens_mould/telescope disc + lantern glass |
@@ -220,12 +220,12 @@ unblocked row per tick.
 | 60 | Smithing IF / batch polish | LC | pending | CONTENT 7g deferred CS2 smithing.if; p_choice menus live |
 | 61 | Smithing gear perks (gauntlets/cape/Smiths' Uniform) | wiki+cache | pending | Goldsmith gauntlets gold XP, cape, anvil tick-speed uniform absent |
 | 62 | Blast Furnace remainder | SCAPE2009 | blocked | Enter+machine already SCAPE2009 §13/13b done; breakage/belt NPCs stay that lane |
-| 63 | Members fish (shark/monkfish/big-net/karambwan/angler/dark crab/eels) | LC | pending | fishing.rs2 deferred memberfish; XP table stops at swordfish |
-| 64 | Barbarian / barehand fishing | wiki+cache | pending | Wiki leaping fish + barehand harpoon; pairs Strength #8; no barb rod spots |
-| 65 | Fishing Guild | LC | pending | fishing.rs2 deferred guild; level-68 gate + guild spots absent |
-| 66 | Fishing spot movement / whirlpools | LC | pending | CONTENT 7d + fishing.rs2 deferred fishing_movement/whirlpools/afk macros |
-| 67 | Miscellania fishing intercept | LC | pending | CONTENT 20h Frodi deferred fishing intercept |
-| 68 | Fishing cape / angler outfit | wiki+cache | pending | Skillcape perk + angler XP bonus absent |
+| 63 | Members fish (shark/monkfish/big-net/karambwan/angler/dark crab/eels) | LC | done | FISHING_COMPLETION_PLAN.md S1-S9,S13; monkfish/anglerfish/dark crab/cave eel/frogspawn/infernal eel/sacred eel/rainbow fish live, table-driven; shark/karambwan/big-net already live |
+| 64 | Barbarian / barehand fishing | wiki+cache | done | FISHING_COMPLETION_PLAN.md S9; leaping trout/salmon/sturgeon live (dual Fishing+Agility+Strength gate, off-skill xp); barehand harpoon not wiki-documented, not attempted |
+| 65 | Fishing Guild | LC | done | Door/gate/Master Fisher/shop already live; S13 fixed 6 mis-mechanic'd guild-area spots (were shark+junk, now correct monkfish/tuna/swordfish) |
+| 66 | Fishing spot movement / whirlpools | LC | pending | FISHING_COMPLETION_PLAN.md S10 landed (ai_timer relocation, coords generated from this tree's own spawn roster via tools/gen_fishing_movement.py — not ported); live-session relocation unconfirmed. Whirlpools/afk macros still deferred tree-wide (era decision, not fishing-specific) |
+| 67 | Miscellania fishing intercept | LC | blocked | Needs a worker/resource allocation system that does not exist anywhere in area_miscellania/ yet — not a fishing-sized task, see FISHING_COMPLETION_PLAN.md S15 |
+| 68 | Fishing cape / angler outfit | wiki+cache | done | FISHING_COMPLETION_PLAN.md S14; skillcape_boost.rs2 +1 Fishing, angler's outfit 0.4/0.8/0.6/0.2%+0.5% set xp bonus (wiki-verified). Fish barrel/spirit flakes not implemented |
 | 69 | Fishing Trawler remainder | CONTENT | blocked | Murphy+hull/net/bail live (19d/19f); control timer+%npc_* varn blocked on CONTENT skip list |
 | 70 | Tempoross / aerial / drift-net fishing | wiki → Kronos | blocked | Post-2009 activities stay KRONOS lane |
 | 71 | Members fish cookables (shark/monkfish/karambwan/angler/…) | LC | pending | cooking.rs2 + cooking_generic deferred members fish; table stops at swordfish |

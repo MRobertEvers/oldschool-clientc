@@ -18,6 +18,7 @@ main(void)
     test_spotanim_immediate_activation();
     test_spotanim_catchup_activation();
     test_scenery();
+    test_bridge_levels();
     test_cycle_movers();
     test_delaymove_gate();
     test_entity_face();

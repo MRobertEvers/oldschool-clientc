@@ -739,6 +739,43 @@ ev_spot_vertex_first(void)
 }
 
 int
+ev_face_screen_centroid(int face, int* out_x, int* out_y)
+{
+    struct ToriDraw_Model* m = draw_model();
+    if( !m || !g_scene || g_last_cull != TORIDRAW_CULL_VISIBLE || face < 0 ||
+        face >= m->face_count )
+        return 0;
+
+    int idx[3] = { m->face_indices_a[face], m->face_indices_b[face], m->face_indices_c[face] };
+    /*
+     * The projection of the face's 3D centroid, not the centroid of its
+     * projected corners: those differ on a face that is tilted in depth, and
+     * the difference moves as the face turns. Weighting each corner's screen
+     * position by 1/z is perspective-correct interpolation of position at the
+     * barycentric centre, which is the point on the face that stays the same
+     * point of the face from every view and every pose.
+     */
+    double sx = 0.0;
+    double sy = 0.0;
+    double sw = 0.0;
+    for( int k = 0; k < 3; k++ )
+    {
+        int z = g_scene->orthographic_vertices_z[idx[k]];
+        if( g_scene->screen_vertices_x[idx[k]] == TORIDRAW_SCREEN_X_NEAR_CLIPPED || z <= 0 )
+            return 0;
+        double w = 1.0 / (double)z;
+        sx += g_scene->screen_vertices_x[idx[k]] * w;
+        sy += g_scene->screen_vertices_y[idx[k]] * w;
+        sw += w;
+    }
+    /* Projected coordinates are relative to the canvas centre; the HD and the
+     * stock raster both add the same half-extent back. */
+    *out_x = (int)(sx / sw + 0.5) + g_pix_w / 2;
+    *out_y = (int)(sy / sw + 0.5) + g_pix_h / 2;
+    return 1;
+}
+
+int
 ev_frame_count(void)
 {
     return g_anim ? g_anim->frame_count : 0;

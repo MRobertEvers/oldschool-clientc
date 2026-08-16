@@ -56,7 +56,16 @@ endif
 ASAN_COMPAT_OBJ ?=
 ASAN_DYLD_SHIM ?=
 
-BUILD := build
+# ENABLE_ASAN=1 is a distinct object flavor and must not share an objdir with
+# the plain one. Compiler flags are not part of make's up-to-date test, so with
+# a shared build/ an ASan link happily picks up objects compiled *without*
+# -fsanitize=address: the binary loads the ASan runtime, runs to completion and
+# reports nothing. A clean run then means nothing at all, which is worse than
+# not having the sanitizer -- it retires a hypothesis that was never tested.
+# Measured here: `make ENABLE_ASAN=1 ev_hd_sheet` over a warm build/ produced a
+# binary linked against libclang_rt.asan with not one instrumented object in it.
+# src/Makefile suffixes OBJ_DIR for the same reason.
+BUILD := build$(if $(filter 1,$(ENABLE_ASAN)),_asan,)
 
 COMMON_SRCS := \
 	$(COMMON)/tool_profile.c \
@@ -122,7 +131,7 @@ $(BUILD)/asan_compat.o: $(REPO)/src/platform/asan_compat.c | $(BUILD)
 
 $(BUILD)/asan_dyld_shim.dylib: $(REPO)/src/platform/asan_dyld_shim.c | $(BUILD)
 	$(CC) -dynamiclib -fblocks -DTORIRS_ENABLE_ASAN=1 \
-		-install_name @loader_path/build/asan_dyld_shim.dylib -o $@ $<
+		-install_name @loader_path/$(BUILD)/asan_dyld_shim.dylib -o $@ $<
 
 ev_catalog: $(BUILD)/ev_catalog.o $(BUILD)/lc_pack.o $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
@@ -364,10 +373,18 @@ EMCC ?= emcc
 SIMD ?= 1
 EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_ev_w_set_textures,_ev_w_texture_count,_ev_w_move,_ev_w_move_reset,_ev_w_set_ignore_priorities,_ev_w_set_zbuffer_kernels,_malloc,_free
 
-EM_OPT := -O3 -flto -mnontrapping-fptoint
-ifeq ($(SIMD),1)
-EM_OPT += -msimd128
-endif
+EM_SIMD := $(if $(filter 1,$(SIMD)),-msimd128,)
+EM_OPT := -O3 -flto -mnontrapping-fptoint $(EM_SIMD)
+
+# The sources and the link settings both flavors share. Only the optimization
+# set, the sanitizer flags and the memory settings differ below, so the two
+# modules cannot drift in what they export or how the page reaches them.
+EM_SRCS := ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c \
+	$(TORIDRAW)/toridraw_font.c
+EM_LINK := -sMODULARIZE=1 -sEXPORT_NAME=EVModule \
+	-sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=0 -sENVIRONMENT=web \
+	-sEXPORTED_FUNCTIONS='[$(EM_EXPORTS)]' \
+	-sEXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8"]'
 
 wasm: web/ev_wasm.js
 
@@ -378,18 +395,103 @@ wasm: web/ev_wasm.js
 EM_HEADERS := $(wildcard ev_*.h) $(wildcard $(TORIDRAW)/*.h) \
 	$(wildcard $(TORIDRAW)/graphics/*.h) $(wildcard $(TORIDRAW)/graphics/raster/*/*.h)
 
-web/ev_wasm.js: ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c $(EM_HEADERS)
+web/ev_wasm.js: $(EM_SRCS) $(EM_HEADERS)
 	$(EMCC) $(EM_OPT) -std=c11 -w $(INCLUDES) \
 		-I$(REPO)/v0 \
-		-o $@ ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c \
-		$(TORIDRAW)/toridraw_font.c \
-		-sMODULARIZE=1 -sEXPORT_NAME=EVModule \
-		-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sFILESYSTEM=0 \
-		-sASSERTIONS=0 -sENVIRONMENT=web \
-		-sEXPORTED_FUNCTIONS='[$(EM_EXPORTS)]' \
-		-sEXPORTED_RUNTIME_METHODS='["cwrap","HEAPU8"]'
+		-o $@ $(EM_SRCS) \
+		$(EM_LINK) \
+		-sINITIAL_MEMORY=67108864 -sASSERTIONS=0
+
+# ---- browser, instrumented: `make wasm-san` ------------------------------
+#
+# The same module built with AddressSanitizer and UndefinedBehaviorSanitizer.
+# Both work under emscripten: ASan gets a real shadow map over linear memory
+# and reports heap-buffer-overflow / use-after-free / double-free with a wasm
+# stack trace; UBSan reports carry their own file:line.
+#
+# This is the only way to see a heap defect in this module at all. Wasm linear
+# memory has no unmapped pages and no guard bands, so an overrun, a stale
+# pointer or a read past a freed model does not trap -- it returns ordinary
+# addressable bytes and the renderer carries on with them. That is why the
+# symptom is "the animation stops at frame 37" or "the model draws wrong after
+# a switch" rather than a crash, and why reasoning about it from the browser
+# alone does not converge. See the frames==NULL note in README.md, which is
+# exactly this shape.
+#
+# It is a SEPARATE output on purpose: web/ev_wasm.js and web/ev_wasm.wasm are
+# tracked files, and the instrumented module is several times their size, so
+# building over them would stage the sanitized build into a commit.
+# web/ev_wasm_san.* is gitignored, and index.html loads it instead when the
+# page URL carries ?san.
+#
+# The settings that are not simply -fsanitize=:
+#   no -flto, -O1  inlining is what turns a usable trace into "somewhere in the
+#                  render loop". Override with EM_SAN_OPT.
+#   -g2            function names in the wasm name section, which is what ASan
+#                  prints its stack frames from. (ASan file:line additionally
+#                  needs full DWARF and a browser that reads it; UBSan carries
+#                  its source location in the check either way.)
+#   INITIAL_MEMORY ASan's shadow map lives below the heap in the same linear
+#                  memory, so the module needs materially more than the 64MB
+#                  the plain build starts at.
+#   STACK_SIZE     every instrumented frame carries redzones; the default 64KB
+#                  stack overflows inside the raster.
+#   STACK_OVERFLOW_CHECK=2  a wasm stack overflow otherwise walks silently into
+#                  static data, which is itself memory corruption and would be
+#                  attributed to whatever it landed on.
+#
+# ASAN/UBSAN below are this lane's knobs (ENABLE_ASAN is the native side's, and
+# does not reach emcc). Both default on: the pair is what makes a report
+# trustworthy, and each catches what the other cannot.
+ASAN  ?= 1
+UBSAN ?= 1
+EM_SAN_OPT ?= -O1 -g2 -mnontrapping-fptoint $(EM_SIMD)
+# `undefined` minus the two classes toridraw trips deliberately: its fixed-point
+# code left-shifts negative values and relies on signed wrap in the span
+# kernels, so leaving those in fires first and buries every other report.
+# src/Makefile excludes the same two, for the same reason. Pass
+# UBSAN_FLAGS='-fsanitize=undefined' when arithmetic is what is suspected.
+UBSAN_FLAGS ?= -fsanitize=undefined -fno-sanitize=shift,signed-integer-overflow
+
+EM_SAN_CFLAGS := $(if $(filter 1,$(ASAN)),-fsanitize=address,) \
+	$(if $(filter 1,$(UBSAN)),$(UBSAN_FLAGS),)
+
+ifneq ($(filter wasm-san web/ev_wasm_san.js,$(MAKECMDGOALS)),)
+ifeq ($(ASAN)$(UBSAN),00)
+$(error wasm-san with ASAN=0 and UBSAN=0 builds an UNinstrumented module under \
+the sanitized name — a clean run would then mean nothing. Pick at least one)
+endif
+endif
+
+# A flavour stamp. ASAN=1 and ASAN=1 UBSAN=1 write the same file, and make
+# compares timestamps rather than flags -- so without this, a second build with
+# different sanitizers is a no-op that reports success while the browser keeps
+# running the previous instrumentation. This tool has already lost time twice to
+# a stale artifact (see the header-dependency note above); a silently
+# uninstrumented module is the same failure with a worse conclusion attached.
+EM_SAN_STAMP := $(BUILD)/.wasm_san_flavour
+EM_SAN_FLAVOUR := asan=$(ASAN) ubsan=$(UBSAN) simd=$(SIMD) opt=$(EM_SAN_OPT) ub=$(UBSAN_FLAGS)
+
+.PHONY: wasm-san FORCE
+FORCE:
+
+$(EM_SAN_STAMP): FORCE | $(BUILD)
+	@printf '%s\n' '$(EM_SAN_FLAVOUR)' > $@.tmp
+	@cmp -s $@.tmp $@ || mv -f $@.tmp $@
+	@rm -f $@.tmp
+
+wasm-san: web/ev_wasm_san.js
+
+web/ev_wasm_san.js: $(EM_SRCS) $(EM_HEADERS) $(EM_SAN_STAMP)
+	$(EMCC) $(EM_SAN_OPT) $(EM_SAN_CFLAGS) -std=c11 -w $(INCLUDES) \
+		-I$(REPO)/v0 \
+		-o $@ $(EM_SRCS) \
+		$(EM_LINK) \
+		-sINITIAL_MEMORY=268435456 -sASSERTIONS=1 \
+		-sSTACK_SIZE=4194304 -sSTACK_OVERFLOW_CHECK=2
 
 -include $(wildcard $(BUILD)/*.d)
 
 clean:
-	rm -rf $(BUILD) ev_catalog ev_server ev_swing web/ev_wasm.js web/ev_wasm.wasm
+	rm -rf $(BUILD) ev_catalog ev_server ev_swing web/ev_wasm.js web/ev_wasm.wasm \
+		web/ev_wasm_san.js web/ev_wasm_san.wasm

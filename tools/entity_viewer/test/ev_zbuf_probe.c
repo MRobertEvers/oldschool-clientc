@@ -6,6 +6,7 @@
  *
  *   tools/entity_viewer/ev_zbuf_probe cache.rs727_preeoc rs727 2745 --out /tmp/probe
  *   options: --tile N --zoom N --pitch N --start YAW --step N --count N --sorted
+ *            --anim <seq id | ready> --frame N   (pose through ev_set_anim/ev_render)
  *
  * EV_COPLANAR=1 skips the render and instead reports, for every type-0 face,
  * how far its P/M/N texture frame sits from the face's own plane. This is the
@@ -91,6 +92,21 @@ main(int argc, char** argv)
     int zbuf_kernels = 1;
     int yaw_start = 0, yaw_step = 100, yaw_count = 8;
     int zoom_override = 0;
+    /* --anim <seq id | ready>: pose through the viewer's own path; --frame N
+     * picks the frame (default 0). Without --anim the bind pose is drawn. */
+    const char* anim_arg = NULL;
+    int anim_frame = 0;
+    /* --track-face F --frames N: instead of the yaw sweep, hold the camera and
+     * step the animation, printing the pixel at face F's screen centroid each
+     * frame. With a texture attached to its face that colour holds while the
+     * face moves; a texture solved from posed geometry wanders. */
+    int track_face = -1;
+    int track_frames = 0;
+    /* --uvtex: replace every material's texels with a ramp that names its own
+     * texel (R = 2u, G = 2v on a 128 square, no tint), so a rendered pixel
+     * decodes to the texel it sampled and drift can be read in TEXELS rather
+     * than guessed from colour on a busy detail map. */
+    int uvtex = 0;
 
     for( int i = 4; i < argc; i++ )
     {
@@ -112,6 +128,16 @@ main(int argc, char** argv)
             yaw_count = atoi(argv[++i]);
         else if( !strcmp(argv[i], "--zoom") && i + 1 < argc )
             zoom_override = atoi(argv[++i]);
+        else if( !strcmp(argv[i], "--anim") && i + 1 < argc )
+            anim_arg = argv[++i];
+        else if( !strcmp(argv[i], "--frame") && i + 1 < argc )
+            anim_frame = atoi(argv[++i]);
+        else if( !strcmp(argv[i], "--track-face") && i + 1 < argc )
+            track_face = atoi(argv[++i]);
+        else if( !strcmp(argv[i], "--frames") && i + 1 < argc )
+            track_frames = atoi(argv[++i]);
+        else if( !strcmp(argv[i], "--uvtex") )
+            uvtex = 1;
     }
 
     ToriDraw_Init();
@@ -235,9 +261,9 @@ main(int argc, char** argv)
             at += 4;
             b[at++] = (uint8_t)(t->size & 0xFF);
             b[at++] = (uint8_t)((t->size >> 8) & 0xFF);
-            b[at++] = (uint8_t)(t->alpha_mode >= 0 && t->alpha_mode <= 2 ? t->alpha_mode : 0);
-            b[at++] =
-                (uint8_t)((t->repeat_s ? 0 : 1) | (t->repeat_t ? 0 : 2) | (t->modulate ? 4 : 0));
+            b[at++] = (uint8_t)(uvtex ? 0 : (t->alpha_mode >= 0 && t->alpha_mode <= 2 ? t->alpha_mode : 0));
+            b[at++] = (uint8_t)(
+                (t->repeat_s ? 0 : 1) | (t->repeat_t ? 0 : 2) | ((t->modulate && !uvtex) ? 4 : 0));
             b[at++] = (uint8_t)(t->mean_luma < 1 ? 1 : t->mean_luma);
             b[at++] = 0;
             b[at++] = 0;
@@ -245,6 +271,13 @@ main(int argc, char** argv)
             for( int p = 0; p < t->size * t->size; p++ )
             {
                 uint32_t v = (uint32_t)t->texels[p];
+                if( uvtex )
+                {
+                    int u = p % t->size, vv = p / t->size;
+                    int scale = 256 / t->size; /* 2 for 128, 4 for 64 */
+                    v = 0xFF000000u | ((uint32_t)(u * scale) << 16) | ((uint32_t)(vv * scale) << 8) |
+                        0x40u;
+                }
                 memcpy(b + at, &v, 4);
                 at += 4;
             }
@@ -260,16 +293,102 @@ main(int argc, char** argv)
 
     ev_set_zbuffer_kernels(zbuf_kernels);
 
+    int render_frame = 0;
+    if( anim_arg )
+    {
+        int seq_id = -1;
+        if( !strcmp(anim_arg, "ready") )
+        {
+            /* RS727 keeps idle/walk in a shared BasType the npc points at;
+             * the OldSchool per-npc field is -1 on every subject here. */
+            struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(&cache, npc_id);
+            if( npc )
+            {
+                seq_id = npc->standing_animation;
+                if( seq_id < 0 && npc->bas_type_id >= 0 )
+                {
+                    struct RSCache_Dat2ConfigBas* bas = tool_dat2_bas_load(&cache, npc->bas_type_id);
+                    if( bas )
+                    {
+                        seq_id = bas->idle_seq_id;
+                        RSCache_Dat2ConfigBasFree(bas);
+                    }
+                }
+                RSCache_Dat2ConfigNpcFree(npc);
+            }
+        }
+        else
+            seq_id = atoi(anim_arg);
+        int framemap_id = -1;
+        struct ToriDraw_Animation* anim =
+            seq_id >= 0 ? ev_build_seq_anim(&cache, seq_id, &framemap_id) : NULL;
+        if( !anim )
+        {
+            fprintf(stderr, "no animation for --anim %s (seq %d)\n", anim_arg, seq_id);
+            return 1;
+        }
+        struct EV_WireBuf ab = { 0 };
+        ev_wire_write_anim(&ab, anim);
+        int nframes = ev_set_anim(ab.data, (int)ab.len);
+        printf("anim: seq %d, %d frames, posing frame %d\n", seq_id, nframes, anim_frame);
+        ev_wire_free(&ab);
+        ToriDraw_AnimationFree(anim);
+        render_frame = anim_frame;
+    }
+
     int zoom = zoom_override ? zoom_override : (int)(ev_model_height() * frame);
     if( zoom < 260 )
         zoom = 260;
+
+    if( track_face >= 0 )
+    {
+        int yaw = yaw_start;
+        int n = track_frames > 0 ? track_frames : 1;
+        int rmin = 255, rmax = 0, gmin = 255, gmax = 0, bmin = 255, bmax = 0, seen = 0;
+        printf("face %d at yaw %d, %d frame(s):\n", track_face, yaw, n);
+        for( int f = 0; f < n; f++ )
+        {
+            const unsigned char* rgba = ev_render(tile, tile, yaw, pitch, zoom, anim_arg ? f : 0);
+            int cx, cy;
+            if( !rgba || !ev_face_screen_centroid(track_face, &cx, &cy) || cx < 0 || cy < 0 ||
+                cx >= tile || cy >= tile )
+            {
+                printf("  frame %3d: face not on screen\n", f);
+                continue;
+            }
+            const unsigned char* p = rgba + (cy * tile + cx) * 4;
+            if( uvtex )
+            {
+                /* Shade is the face's own lightness, constant across frames but
+                 * unknown here; the ramp is linear so ratios survive it. Decode
+                 * against the first on-screen frame's shade estimate: R+G+B of a
+                 * texel is 2u+2v+0x40 before shading, so shade = px_sum/(...)
+                 * is unknowable per pixel — instead report the raw R,G and let
+                 * the SPREAD, not the absolute, carry the answer: a stable texel
+                 * has a stable colour whatever the shade. */
+                printf("  frame %3d: centroid (%3d,%3d)  R %3d G %3d (uv ramp, x%d)\n", f, cx, cy, p[0], p[1], 256 / 128);
+            }
+            else
+                printf("  frame %3d: centroid (%3d,%3d)  rgb (%3d,%3d,%3d)\n", f, cx, cy, p[0], p[1], p[2]);
+            if( p[0] < rmin ) rmin = p[0]; if( p[0] > rmax ) rmax = p[0];
+            if( p[1] < gmin ) gmin = p[1]; if( p[1] > gmax ) gmax = p[1];
+            if( p[2] < bmin ) bmin = p[2]; if( p[2] > bmax ) bmax = p[2];
+            seen++;
+        }
+        if( seen )
+            printf("  spread over %d frames: r %d  g %d  b %d\n", seen, rmax - rmin, gmax - gmin, bmax - bmin);
+        ev_wire_free(&wb);
+        ev_textures_free(&g_set);
+        tool_dat2_close(&cache);
+        return 0;
+    }
 
     int n_yaws = yaw_count;
 
     for( int i = 0; i < n_yaws; i++ )
     {
         int yaw = yaw_start + i * yaw_step;
-        const unsigned char* rgba = ev_render(tile, tile, yaw, pitch, zoom, 0);
+        const unsigned char* rgba = ev_render(tile, tile, yaw, pitch, zoom, render_frame);
         if( !rgba )
         {
             fprintf(stderr, "render failed at yaw %d\n", yaw);

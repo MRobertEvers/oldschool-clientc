@@ -286,4 +286,17 @@ ev_drawn_model(void);
 int
 ev_spot_vertex_first(void);
 
+/**
+ * Where a face of the drawn model landed in the LAST ev_render: the screen
+ * centroid of its three projected vertices, in pixels of that render's canvas.
+ * Returns 0 when nothing has been rendered, the face is out of range, or a
+ * vertex was near-clipped (then no screen position exists for it).
+ *
+ * This is how "does the texture stay on the face" is measured rather than
+ * eyeballed: read the pixel here across camera moves or animation frames. The
+ * geometry moves, the sampled texel must not.
+ */
+int
+ev_face_screen_centroid(int face, int* out_x, int* out_y);
+
 #endif

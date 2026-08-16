@@ -990,13 +990,20 @@ WorldBuilder_ApplyLocChange(
                     }
                 }
             }
+            /* Both releases address the PAINT grid, so a bridge column has to
+             * make the push-down trip first (World_LocPaintLevel): the deck's
+             * baked slot was moved from cache level 1 to paint level 0 when the
+             * scene was built, and releasing at the cache level would silently
+             * find nothing there. */
+            int paint_level = World_LocPaintLevel(world, scene_x, scene_z, level);
             /* A removed WALL loc must also release its exclusive painter tile
              * slot (wall_a/wall_b): the dead static element would otherwise
              * keep the slot claimed, blocking the replacement wall's per-frame
              * registration and leaving a stale reference. */
             if( old->shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
                 old->shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER && world->painter )
-                painter_release_wall(world->painter, scene_x, scene_z, level, old->element_id);
+                painter_release_wall(
+                    world->painter, scene_x, scene_z, paint_level, old->element_id);
             /* Same for a centrepiece/decoration: the baked static scenery element
              * has to leave its tile chains, or it keeps drawing whatever scene
              * element id it holds — and that id is handed straight back to the
@@ -1004,7 +1011,7 @@ WorldBuilder_ApplyLocChange(
              * different depths. See painter_release_scenery. */
             if( world->painter )
                 painter_release_scenery(
-                    world->painter, scene_x, scene_z, level, old->element_id);
+                    world->painter, scene_x, scene_z, paint_level, old->element_id);
         }
         World_SceneryRemove(world, idx);
     }
