@@ -210,6 +210,12 @@ struct Mock230Ids
     int varbit_bank_showincinerator;
     int varbit_bank_hidedepositworn;
     int varbit_bank_side_slot_ignore;
+    /** The stamina potion's 70% run-drain cut — read by `run_energy_tick`,
+     *  written only by content (`%stamina_active`). Here rather than looked up
+     *  per tick, and a varbit rather than a varp: the varp lookup it used to go
+     *  through answered -1 for this name and the drain was decided by an
+     *  out-of-bounds read. */
+    int varbit_stamina_active;
 
     /* --- Constants (`.constant`) --- */
 

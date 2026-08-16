@@ -2005,13 +2005,25 @@ run_energy_tick(
             weight_kg = 64;
         drain = 67 + (67 * weight_kg) / 64;
 
-        /* Stamina potion: wiki says drain is cut 70% while `%stamina_active`
+        /*
+         * Stamina potion: wiki says drain is cut 70% while `%stamina_active`
          * is armed. Content owns the duration countdown
          * (player/scripts/consumption/inferno_potions.rs2's
          * `[timer,stamina_expire]`) and only ever writes 0 or 1 here; this is
          * the one piece of the effect a script cannot express, since
-         * run-energy drain itself has no content-facing op. */
-        if( player->varps[mock230_world_varp("stamina_active")] )
+         * run-energy drain itself has no content-facing op.
+         *
+         * `stamina_active` is a **varbit** (25, a bit of
+         * `inferno_temp_noprotect_transmit`), which content's own `%` prefix
+         * hides — the name resolves in both namespaces from a script and only
+         * one of them from here. This read was
+         * `player->varps[mock230_world_varp("stamina_active")]`, and
+         * `mock230_world_varp` is a varp lookup: it answered -1 for a varbit
+         * name and the drain was decided by `varps[-1]`, the int before the
+         * array. It read nonzero, so every player in the world ran at the
+         * potion rate — 40 instead of 134 — and no potion was involved.
+         */
+        if( mock230_varbit_get(player, mock230_ids()->varbit_stamina_active) )
             drain = drain * 3 / 10;
 
         player->run_energy -= drain;
@@ -10315,6 +10327,38 @@ mock230_world_loc_reverts(struct Mock230Server* srv)
          * (docs/osrs230_mockserver.md §6.1 step 1), not this table's, and it is
          * reported rather than swallowed.
          */
+        /*
+         * Undoing a `loc_add` takes away the loc that was added, and never the
+         * map square's own.
+         *
+         * The two can end up looking alike. `loc_add` puts a dynamic loc over an
+         * inactive static one and `mock230_zone_loc_changed` then *retires* the
+         * ZoneMap record, because the tile is back to the id and angle the cache
+         * states and there is nothing left to replay — which is right, and which
+         * means the next scene rebuild re-reads the square and the dynamic loc is
+         * simply gone. The timer this entry armed is not: it fires later against a
+         * tile whose only loc is the static one, and removing that deletes a
+         * record of the world the cache owns. It does not come back on a rebuild
+         * either, because this same call records `loc_id = -1` in the ZoneMap and
+         * `mock230_world_locs_reapply` faithfully re-deletes it every time.
+         *
+         * Lumbridge's castle door is where it was found. `[proc,door_open_active]`
+         * is `loc_del(500)` + `loc_add(…, 500)` and closing it again is another
+         * pair five ticks behind, so 500 ticks after any door in the world is
+         * opened and shut the door's own tile is emptied: `mock230 --selftest`'s
+         * use-on section, which runs long after the doors section, found
+         * `dugupsoil2_grey` where the door should be. A door that is opened and
+         * left open is unaffected — its ZoneMap record stands, so the added loc is
+         * still there for the timer to find.
+         */
+        if( entry->loc_id < 0 )
+        {
+            struct Mock230SceneLoc* standing = mock230_scene_loc(mock230_scene_find_loc_exact(
+                entry->x, entry->z, entry->level, entry->shape));
+
+            if( standing && standing->active && standing->is_static )
+                continue;
+        }
         if( !mock230_world_loc_set(srv, entry->x, entry->z, entry->level, entry->shape,
                                    entry->loc_id, entry->angle, MOCK230_LOC_SET_CHANGE) &&
             srv->verbose )
@@ -11257,22 +11301,6 @@ mock230_world_tick(struct Mock230Server* srv)
     }
 
 #undef BD_MARK
-
-    if( getenv("MOCK230_DOORWATCH") )
-    {
-        static int last = -2;
-        int pd = mock230_content_symbol(MOCK230_PACK_LOC, "poordoor");
-        int slot = mock230_scene_find_loc(3226, 3223, 0, pd);
-        struct Mock230SceneLoc* l = mock230_scene_loc(slot);
-        int now = l ? l->loc_id : -1;
-
-        if( now != last )
-        {
-            fprintf(stderr, "  DOORWATCH tick=%d slot=%d loc=%d (was %d)\n", srv->tick, slot, now,
-                    last);
-            last = now;
-        }
-    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -13550,6 +13578,11 @@ mock230_world_selftest(void)
                 memset(familiar, 0, sizeof(*familiar));
                 familiar->active = 1;
                 familiar->type = 1;
+                /* A spawn never hands out generation 0 (`mock230_world_npc_spawn`
+                 * rolls 0 forward to 1) and the follower link is generation-checked,
+                 * so a hand-built npc left at 0 is one no `npc_findfollower` can
+                 * ever resolve — the fixture has to be as real as the check. */
+                familiar->generation = 1;
                 player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
                 other->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
 
@@ -13584,6 +13617,39 @@ mock230_world_selftest(void)
                         .int_operands = owner_operands,
                         .string_operands = owner_strings,
                     };
+                    /* `NPC_FINDOWNED` alone, result and all: the miss has to be
+                     * observable, because "owned" and "followed" are two
+                     * different bindings now and only the second one answers. */
+                    uint16_t miss_ops[] = {
+                        SS_OP_NPC_FINDOWNED, SS_OP_POP_VARP, SS_OP_RETURN,
+                    };
+                    int32_t miss_operands[] = {
+                        0, SELFTEST_VARP_QUEST_PROGRESS, 0,
+                    };
+                    char* miss_strings[] = { NULL, NULL, NULL };
+                    struct SSVM_Script miss_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_findowned_miss]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 3,
+                        .opcodes = miss_ops,
+                        .int_operands = miss_operands,
+                        .string_operands = miss_strings,
+                    };
+                    uint16_t follow_ops[] = { SS_OP_NPC_SETFOLLOWER, SS_OP_RETURN };
+                    int32_t follow_operands[] = { 0, 0 };
+                    char* follow_strings[] = { NULL, NULL };
+                    struct SSVM_Script follow_script = {
+                        .id = -1,
+                        .name = "[selftest,npc_setfollower]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 2,
+                        .opcodes = follow_ops,
+                        .int_operands = follow_operands,
+                        .string_operands = follow_strings,
+                    };
                     uint16_t find_ops[] = {
                         SS_OP_NPC_FINDOWNED, SS_OP_NPC_OWNER,
                         SS_OP_POP_VARP, SS_OP_RETURN,
@@ -13614,6 +13680,32 @@ mock230_world_selftest(void)
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
                                            player->pid,
                                    "NPC_OWNER returns the bound pid");
+
+                    /*
+                     * Owning is not following, and that is the whole point of
+                     * the op.
+                     *
+                     * `NPC_FINDOWNED` used to *scan* for the lowest-numbered npc
+                     * this player owns, which in a private minigame instance is
+                     * the minigame's own boss rather than the familiar; it
+                     * resolves the explicit follower link now
+                     * (`mock230_world_npc_follower`) and `npc_findfollower` is
+                     * the same operation under the name new content should use.
+                     * This half is what the scan cannot answer correctly, so it
+                     * is asserted before the hit: an owned-but-not-followed npc
+                     * is a miss, and the script goes on running rather than
+                     * aborting on an active npc it was never given.
+                     */
+                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    SELFTEST_CHECK(mock230_scripts_run_hook(
+                                       srv, &miss_script, NULL, 0) &&
+                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                                   "an owned npc that is not the follower is NOT found, got %d",
+                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+
+                    SELFTEST_CHECK(mock230_scripts_run_hook_on_npc(
+                                       srv, &follow_script, slot),
+                                   "NPC_SETFOLLOWER executes through the VM");
                     player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                     SELFTEST_CHECK(mock230_scripts_run_hook(
                                        srv, &find_script, NULL, 0) &&
@@ -25822,6 +25914,16 @@ mock230_world_selftest(void)
         steps_clear(player);
         player->run_energy = MOCK230_RUN_ENERGY_MAX;
         player->run_toggle = 1;
+        /*
+         * Sober, explicitly.
+         *
+         * `stamina_active` cuts the drain by 70% and it is player state that
+         * outlives whatever section armed it — `selftest_park_player` resets
+         * nothing of the sort. Set here so the base rate below is the base rate,
+         * and so the discounted one is measured against a potion this section
+         * armed rather than one it inherited.
+         */
+        mock230_varbit_set(srv, mock230_ids()->varbit_stamina_active, 0);
 
         /* Drain is per tile, not per tick, and it is the carried weight that
          * decides the rate. The starting kit is heavy enough that the loaded
@@ -25843,6 +25945,31 @@ mock230_world_selftest(void)
              * assertion previously encoded the doubled form. */
             int expect = 67 + (67 * weight_kg) / 64;
             SELFTEST_CHECK(spent == expect, "a running tick costs %d, got %d", expect, spent);
+
+            /*
+             * And the stamina cut, on the same tick and the same weight: the
+             * only piece of the potion no script can express, since run-energy
+             * drain has no content-facing op — and the half that had never been
+             * measured, which is how the read behind it stayed an out-of-bounds
+             * `varps[-1]` (a varbit name through a varp lookup) long enough for
+             * every player in the world to run at the potion rate.
+             */
+            steps_clear(player);
+            player->run_energy = MOCK230_RUN_ENERGY_MAX;
+            player->run_toggle = 1;
+            mock230_varbit_set(srv, mock230_ids()->varbit_stamina_active, 1);
+            mock230_world_walk_to(srv, player->x + 6, player->z);
+            energy_before = player->run_energy;
+            mock230_world_tick(srv);
+            spent = energy_before - player->run_energy;
+            SELFTEST_CHECK(spent == expect * 3 / 10,
+                           "a stamina potion cuts that to %d, got %d", expect * 3 / 10, spent);
+            mock230_varbit_set(srv, mock230_ids()->varbit_stamina_active, 0);
+
+            /* Left below full and off the walk queue, because "standing still
+             * regenerates" below measures a climb from here. */
+            steps_clear(player);
+            player->run_toggle = 1;
         }
 
         /* Standing still refills, and never past full. */
@@ -31825,7 +31952,9 @@ mock230_world_selftest(void)
              *
              * Levels are lifted to 99 for the duration: a level gate answers
              * with the same "nothing happened" a missed rung does, and this
-             * stanza is about dispatch.
+             * stanza is about dispatch. The Tourist Trap dart unlock is
+             * granted for the same reason — without it `~make_darts` refuses
+             * before it ever looks at the pair, which reads as a dead rung.
              */
             {
                 int stats[2] = { mock230_content_symbol(MOCK230_PACK_STAT, "fletching"),
@@ -31834,6 +31963,12 @@ mock230_world_selftest(void)
                 int crafting = stats[1];
                 int saved_level[2] = { 0, 0 };
                 int saved_xp[2] = { 0, 0 };
+                /* `%desertrescue` >= ^desertrescue_learned_darts (16). */
+                int desertrescue = mock230_world_varp("desertrescue");
+                int saved_desertrescue = desertrescue >= 0 ? player->varps[desertrescue] : 0;
+
+                if( desertrescue >= 0 )
+                    player->varps[desertrescue] = 16;
 
                 struct
                 {
@@ -31944,6 +32079,8 @@ mock230_world_selftest(void)
                         mock230_combat_set_level(player, stats[i], saved_level[i]);
                         player->stat_xp_tenths[stats[i]] = saved_xp[i];
                     }
+                if( desertrescue >= 0 )
+                    player->varps[desertrescue] = saved_desertrescue;
                 player->active_script = NULL;
                 memcpy(player->inv, saved_inv_useon, sizeof(saved_inv_useon));
             }
