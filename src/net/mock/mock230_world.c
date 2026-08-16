@@ -1627,9 +1627,36 @@ interaction_try(
         {
             int ap = interaction_ap_trigger(kind, op_num, 1, 0);
             int trigger_type = kind == MOCK230_INTERACT_LOC ? loc_trigger_type : target_id;
+            int ran = MOCK230_TRIGGER_NONE;
 
-            if( ap < 0 || mock230_scripts_run_trigger(srv, ap + 7, trigger_type, category, slot) ==
-                              MOCK230_TRIGGER_NONE )
+            /*
+             * A loc use-on goes through `run_trigger_on_loc`, exactly as the
+             * `[oploc<n>]` arm below does, and for the same reason: only that
+             * entry point hands the script its active loc. This arm used to
+             * call `mock230_scripts_run_trigger`, whose last parameter is the
+             * *npc* slot — which is -1 for a loc — so every `[oplocu]` script
+             * tree-wide ran with no active loc and the first `loc_param`,
+             * `loc_coord`, `loc_angle`, `loc_shape`, `loc_change` or `loc_del`
+             * in it aborted with "requires an active entity".
+             *
+             * The comment in mock230_scripts.c's dispatch records this exact
+             * class of bug being fixed for `[oploc<n>]`/`[aploc<n>]` on
+             * 2026-08-02; the use-on arm was missed, and stayed broken because
+             * the only symptom is an abort on the *second* line of a script —
+             * the trigger binds and matches, so it reads as a content bug.
+             * `[aplocu]` was never affected: it resolves through
+             * `run_interaction_trigger`, which already branches on LOC.
+             */
+            if( ap >= 0 )
+            {
+                if( kind == MOCK230_INTERACT_LOC )
+                    ran = mock230_scripts_run_trigger_on_loc(
+                        srv, ap + 7, trigger_type, category,
+                        find_interaction_loc(loc_x, loc_z, loc_level, target_id));
+                else
+                    ran = mock230_scripts_run_trigger(srv, ap + 7, trigger_type, category, slot);
+            }
+            if( ran == MOCK230_TRIGGER_NONE )
                 mock230_say(srv, "nothing_interesting_message", NULL);
             return 1;
         }
@@ -11165,6 +11192,36 @@ enum
             g_selftest_failures++;                                                                 \
         }                                                                                          \
     } while( 0 )
+
+/*
+ * Read `count` bits, MSB-first, out of a captured packet body, advancing the
+ * cursor. Returns -1 when the read would run off the end, which is a real
+ * answer rather than a guard: PLAYER_INFO's bit section is variable-length by
+ * construction, and a test walking it has to be able to say "the packet did not
+ * contain that field" instead of reading a zero out of the padding.
+ */
+static int
+selftest_getbits(
+    const uint8_t* data,
+    int len,
+    int* cursor,
+    int count)
+{
+    int value = 0;
+
+    assert(data);
+    assert(cursor);
+    if( *cursor + count > len * 8 )
+        return -1;
+    for( int i = 0; i < count; i++ )
+    {
+        int bit = *cursor + i;
+
+        value = (value << 1) | ((data[bit >> 3] >> (7 - (bit & 7))) & 1);
+    }
+    *cursor += count;
+    return value;
+}
 
 /* Locate one wide varp write in a captured login flight. Rev 239 applies an
  * Alt2 transform to the id; the other mock wires use the legacy p2 id. */
@@ -30989,9 +31046,16 @@ mock230_world_selftest(void)
             mock230_world_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
             SELFTEST_CHECK(selftest_settle(srv, 40) > 0,
                            "a use-on out of reach walks first, like every other interaction");
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
-                           "[oplocu,cooksquestrange] runs on arrival, with the bucket in "
-                           "last_useitem, got %d",
+            /* 11 and not 10 since the script gained a `loc_coord` read ahead of
+             * the item check: 18 means it ran WITHOUT an active loc, which is
+             * the state every `[oplocu]` in the tree was in until the use-on arm
+             * of the arrival dispatch started routing locs through
+             * `mock230_scripts_run_trigger_on_loc`. 0 means it aborted outright,
+             * which is what a missing active loc did before `loc_coord` was
+             * given a null to return. */
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 11,
+                           "[oplocu,cooksquestrange] runs on arrival with an ACTIVE LOC and the "
+                           "bucket in last_useitem, got %d",
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
 
             /*
@@ -35446,11 +35510,48 @@ mock230_world_selftest(void)
             int seat_free_while_burning = 1;
             int glides = 0;
             int snaps = 0;
+            /*
+             * A second player, three tiles north, watching. The observer's
+             * stream is a different section of PLAYER_INFO with a different
+             * vocabulary — the local player has move op 3 and a jump bit, a
+             * tracked player has neither — so "the fire-lighter walks" has to
+             * be asserted twice, once on each side.
+             */
+            struct Mock230Player* lighter = srv->active_player;
+            struct Mock230Player* watcher = NULL;
+            int watcher_steps = 0;
+            int watcher_removes = 0;
+            int watcher_unparsed = 0;
+            int watcher_dir = -1;
+
+            if( named )
+            {
+                watcher = mock230_world_add_player(srv, NULL);
+                if( watcher )
+                {
+                    /* A memset slot has no stats and no hitpoints, and the
+                     * per-player phases divide by the latter. Copy the
+                     * lighter's rather than invent a fixture: this player only
+                     * has to stand there and be sent packets. */
+                    memcpy(watcher->stat_level, lighter->stat_level,
+                           sizeof(watcher->stat_level));
+                    memcpy(watcher->stat_boosted, lighter->stat_boosted,
+                           sizeof(watcher->stat_boosted));
+                    watcher->max_hitpoints = lighter->max_hitpoints;
+                    watcher->hitpoints = lighter->max_hitpoints;
+                    watcher->level = 0;
+                    watcher->x = g_home_x;
+                    watcher->z = g_home_z + 3;
+                    watcher->place_dirty = 1;
+                }
+                mock230_world_set_active(srv, lighter);
+            }
 
             for( int round = 0; round < 2 && named; round++ )
             {
-                struct Mock230Player* p = srv->active_player;
+                struct Mock230Player* p = lighter;
 
+                mock230_world_set_active(srv, p);
                 selftest_clear_ground(srv);
                 selftest_park_player(srv, fire_x[round], fire_z[round]);
                 selftest_clear_inv(p);
@@ -35462,12 +35563,14 @@ mock230_world_selftest(void)
                 mock230_world_obj_add(srv, logs, 1, fire_x[round], fire_z[round], 0,
                                       mock230_ids()->lootdrop_duration);
                 /* Settle the park's own placement out of the way first — it is
-                 * a teleport too, and its jump bit is not the one under test. */
+                 * a teleport too, and its jump bit is not the one under test —
+                 * and give the watcher a tick to enter view and a second to be
+                 * *tracked*, which is the section this stanza reads. */
                 mock230_world_tick(srv);
                 mock230_world_tick(srv);
+                mock230_world_tick(srv);
+                mock230_world_set_active(srv, p);
 
-                if( round == 0 )
-                    mock230_capture_begin(srv, &fire_capture);
                 {
                     uint8_t payload[6] = {
                         (uint8_t)(fire_x[round] >> 8), (uint8_t)fire_x[round],
@@ -35482,42 +35585,119 @@ mock230_world_selftest(void)
                  * four-tick attempts. */
                 for( int t = 0; t < 60 && !lit[round]; t++ )
                 {
+                    /*
+                     * One tick per capture, because the two halves of the
+                     * assertion have to be read out of the SAME tick: the
+                     * lighter's packet is the one carrying local move op 3, and
+                     * once it is identified the only other PLAYER_INFO in the
+                     * window is the watcher's.
+                     */
+                    int local_glided = 0;
+                    int watcher_packet = -1;
+
+                    if( round == 0 )
+                        mock230_capture_begin(srv, &fire_capture);
                     mock230_world_tick(srv);
+                    if( round == 0 )
+                        mock230_capture_end(srv);
+                    mock230_world_set_active(srv, p);
+
+                    if( round == 0 )
+                    {
+                        for( int i = mock230_capture_find_named(&fire_capture,
+                                                                PKT_NAME_PLAYER_INFO, 0);
+                             i >= 0;
+                             i = mock230_capture_find_named(&fire_capture,
+                                                            PKT_NAME_PLAYER_INFO, i + 1) )
+                        {
+                            const struct Mock230CapturedPacket* packet =
+                                &fire_capture.packets[i];
+                            int cursor = 0;
+                            int has_update =
+                                selftest_getbits(packet->data, packet->len, &cursor, 1);
+                            int op = has_update == 1
+                                         ? selftest_getbits(packet->data, packet->len,
+                                                            &cursor, 2)
+                                         : -1;
+
+                            /*
+                             * The local-player section: has-update(1), op(2),
+                             * level(2), x(7), z(7), jump(1). Op 3 here is an
+                             * absolute placement — the teleport — and the jump
+                             * bit after the coordinates is the whole question.
+                             */
+                            if( op != 3 )
+                            {
+                                watcher_packet = i;
+                                continue;
+                            }
+                            selftest_getbits(packet->data, packet->len, &cursor, 2 + 7 + 7);
+                            if( selftest_getbits(packet->data, packet->len, &cursor, 1) == 1 )
+                                snaps++;
+                            else
+                                glides++;
+                            local_glided = 1;
+                        }
+                    }
+
+                    /*
+                     * And the observer's copy of the same move. Its packet says
+                     * nothing about its own player, so the cursor is already at
+                     * the tracked section: count(8), then per entry
+                     * has-update(1), op(2), and the op's operands. Op 1 is one
+                     * step — what a short p_teleport must become here. Op 3 is
+                     * "remove", which is the bug: the entering-view loop re-adds
+                     * them a few bits later and a re-add always snaps.
+                     */
+                    if( local_glided && watcher_packet >= 0 )
+                    {
+                        const struct Mock230CapturedPacket* packet =
+                            &fire_capture.packets[watcher_packet];
+                        int cursor = 0;
+                        int local = selftest_getbits(packet->data, packet->len, &cursor, 1);
+                        int tracked;
+
+                        /* The watcher stands still and says nothing, so its own
+                         * section is the one-bit form. Anything else means this
+                         * is not the packet this read assumes. */
+                        if( local != 0 )
+                        {
+                            watcher_unparsed++;
+                            continue;
+                        }
+                        tracked = selftest_getbits(packet->data, packet->len, &cursor, 8);
+                        if( tracked != 1 ||
+                            selftest_getbits(packet->data, packet->len, &cursor, 1) != 1 )
+                        {
+                            watcher_unparsed++;
+                            continue;
+                        }
+                        switch( selftest_getbits(packet->data, packet->len, &cursor, 2) )
+                        {
+                        case 1:
+                            watcher_steps++;
+                            watcher_dir =
+                                selftest_getbits(packet->data, packet->len, &cursor, 3);
+                            break;
+                        case 3:
+                            watcher_removes++;
+                            break;
+                        default:
+                            watcher_unparsed++;
+                            break;
+                        }
+                    }
+
                     if( mock230_zone_loc_find_id(srv, fire_x[round], fire_z[round], 0,
                                                  fire_loc) )
                         lit[round] = 1;
                 }
-                if( round == 0 )
-                    mock230_capture_end(srv);
 
                 stepped_off[round] = p->x != fire_x[round] || p->z != fire_z[round];
                 /* `~firemaking_success` belongs to the world queue now, not to
                  * the player. A seat still held here is bug 2 exactly. */
                 if( p->active_script )
                     seat_free_while_burning = 0;
-            }
-
-            /*
-             * The jump bit, read off the wire. The rev-230 local-player section
-             * opens the bit stream: has-update(1), op(2), level(2), x(7), z(7),
-             * jump(1) — so byte 2 bit 4 is the answer whenever the op is 3.
-             */
-            for( int i = mock230_capture_find_named(&fire_capture, PKT_NAME_PLAYER_INFO, 0);
-                 i >= 0;
-                 i = mock230_capture_find_named(&fire_capture, PKT_NAME_PLAYER_INFO, i + 1) )
-            {
-                const struct Mock230CapturedPacket* packet = &fire_capture.packets[i];
-
-                if( packet->len < 3 )
-                    continue;
-                if( !(packet->data[0] & 0x80) )
-                    continue;
-                if( ((packet->data[0] >> 5) & 0x3) != 3 )
-                    continue;
-                if( packet->data[2] & 0x10 )
-                    snaps++;
-                else
-                    glides++;
             }
 
             SELFTEST_CHECK(named,
@@ -35531,12 +35711,40 @@ mock230_world_selftest(void)
                            "clear (%d glide(s), %d snap(s))",
                            glides, snaps);
             SELFTEST_CHECK(snaps == 0, "and nothing in the window snaps, got %d", snaps);
+            SELFTEST_CHECK(watcher != NULL, "a second player should fit in the world");
+            SELFTEST_CHECK(!watcher_unparsed,
+                           "the watcher's PLAYER_INFO should be the shape this reads "
+                           "(%d packet(s) were not)",
+                           watcher_unparsed);
+            SELFTEST_CHECK(watcher_steps > 0,
+                           "a watcher is told the lighter took a STEP, got %d step(s)",
+                           watcher_steps);
+            SELFTEST_CHECK(!watcher_removes,
+                           "and is never told to drop them — a remove/re-add is a snap "
+                           "on the observer's screen (%d)",
+                           watcher_removes);
+            /* `~push_player` tries west first and the fire is in the open, so
+             * the step is west: direction 3 in `mock230_step_direction`. Pinned
+             * rather than left as "some step", because a step in the wrong
+             * direction reads as a step here and as a teleport on screen. */
+            SELFTEST_CHECK(watcher_dir == 3,
+                           "and the step is the one the player actually took (west=3), "
+                           "got %d",
+                           watcher_dir);
             SELFTEST_CHECK(seat_free_while_burning,
                            "world_delay hands the state to the world queue and frees the "
                            "player's script seat");
             SELFTEST_CHECK(lit[1],
                            "so a second fire lights while the first is still burning");
             SELFTEST_CHECK(stepped_off[1], "and steps the player off that one too");
+
+            if( watcher )
+                mock230_world_player_free(srv, watcher->pid);
+            mock230_world_set_active(srv, lighter);
+            /* Through the reap, so the pid is genuinely free for the sections
+             * after this one rather than merely flagged. */
+            mock230_world_tick(srv);
+            mock230_world_set_active(srv, lighter);
             mock230_scripts_free(srv);
         }
     }

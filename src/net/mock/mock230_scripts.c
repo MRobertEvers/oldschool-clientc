@@ -3981,6 +3981,50 @@ mock230_script_command(
             player->tele_glide =
                 opcode == SS_OP_P_TELEPORT && player->level == was_level &&
                 abs(player->x - was_x) <= 2 && abs(player->z - was_z) <= 2;
+            /*
+             * The same glide, decomposed into the steps an *observer's* stream
+             * can carry.
+             *
+             * The local player has move op 3 to itself and a jump bit to lower.
+             * The tracked section has neither: its four ops are "nothing", one
+             * step, two steps, and remove — so a teleport there used to be a
+             * remove plus a re-add, and a re-add is a jump by construction.
+             * A second player watching you light a fire saw you blink.
+             *
+             * Sending the re-add with the bit down is what the reference does
+             * (`add(..., other.jump)`), and it does not port: its client keeps
+             * `players[pid]` alive across the pair, so the re-add glides from
+             * the entity's real previous tile. Ours destroys the entity
+             * (`RS_EntitySync_RemovePlayer`) and respawns it on the *observer's*
+             * tile, so a re-add with the bit down would slide the other player
+             * out of the watcher's own feet.
+             *
+             * Which leaves the better answer anyway: a move of two tiles or
+             * less IS one or two steps, so say so and never remove them at all.
+             * The observer's copy keeps its identity, its appearance and its
+             * animation, and no re-add block is spent.
+             *
+             * The first step takes one tile of each axis and the second takes
+             * what is left, which is always inside a single step because the
+             * glide test above bounds both axes at two.
+             */
+            player->tele_glide_step_count = 0;
+            if( player->tele_glide )
+            {
+                int dx = player->x - was_x;
+                int dz = player->z - was_z;
+                int first_x = dx < 0 ? -1 : (dx > 0 ? 1 : 0);
+                int first_z = dz < 0 ? -1 : (dz > 0 ? 1 : 0);
+                int first = mock230_step_direction(first_x, first_z);
+                int second = mock230_step_direction(dx - first_x, dz - first_z);
+
+                if( first >= 0 )
+                {
+                    player->tele_glide_steps[player->tele_glide_step_count++] = first;
+                    if( second >= 0 )
+                        player->tele_glide_steps[player->tele_glide_step_count++] = second;
+                }
+            }
             player->waypoint_index = -1;
             /*
              * A plane change is the case place_dirty does not cover. The scene

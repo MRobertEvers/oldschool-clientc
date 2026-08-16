@@ -2888,6 +2888,23 @@ struct Mock230Player
      */
     int tele_glide;
 
+    /**
+     * The same glide written as the step directions an observer's stream can
+     * carry, and how many there are (0, 1 or 2).
+     *
+     * The local player's section has move op 3 and a jump bit; the tracked
+     * section has neither, so a teleport there was a remove plus a re-add and
+     * a re-add always snaps. Two tiles or less is one or two steps, so PLAYER_INFO
+     * says that instead and never drops the observer's copy — see the note at
+     * `SS_OP_P_TELEPORT`, which is also where the reference's own answer
+     * (`add(..., other.jump)`) is shown not to port to this client.
+     *
+     * Zero when the placement is not expressible as steps; observers fall back
+     * to the remove/re-add. Cleared with `tele_glide`.
+     */
+    int tele_glide_steps[2];
+    int tele_glide_step_count;
+
     /*
      * ── What this client has been told about ─────────────────────────
      *

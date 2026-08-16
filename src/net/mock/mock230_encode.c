@@ -3807,14 +3807,32 @@ mock230_send_player_info(struct Mock230Player* player)
         int pid = player->tracked_players[i];
         struct Mock230Player* other = &srv->players[pid];
         int other_extended;
+        /*
+         * A short `p_teleport` is not a teleport as far as this section is
+         * concerned — it is one or two steps, and steps are the one thing the
+         * section CAN say. Taking that branch is what keeps the observer's copy
+         * of the entity alive across the move; without it the pair below drops
+         * and respawns them, and a respawn snaps.
+         *
+         * `move_count` decides between them rather than being merged with them:
+         * a player who both walked and teleported this tick has a route the
+         * steps already describe, and appending the glide would move them
+         * twice. The remove/re-add is the honest answer there.
+         */
+        int glide_steps = other->place_dirty && other->tele_glide &&
+                                  other->move_count == 0
+                              ? other->tele_glide_step_count
+                              : 0;
+        int const* step_dirs = glide_steps ? other->tele_glide_steps : other->move_dirs;
+        int step_count = glide_steps ? glide_steps : other->move_count;
 
         /*
-         * `place_dirty` is a teleport, and the tracked section has no way to
-         * express one: its four movement ops are "nothing", one step, two
-         * steps, and remove. So a teleport *is* a remove — and the entering-view
-         * loop below re-adds them, in the same packet, at their new tile. The
-         * client's reader handles the pair in order, so the entity is dropped
-         * and respawned inside one tick.
+         * `place_dirty` past that is a real teleport, and the tracked section
+         * has no way to express one: its four movement ops are "nothing", one
+         * step, two steps, and remove. So a teleport *is* a remove — and the
+         * entering-view loop below re-adds them, in the same packet, at their
+         * new tile. The client's reader handles the pair in order, so the
+         * entity is dropped and respawned inside one tick.
          *
          * Without this, the observer's copy of a player who teleported stays
          * where they were until they take a step, and then walks there from the
@@ -3830,7 +3848,7 @@ mock230_send_player_info(struct Mock230Player* player)
          * into this pid" and reads the new occupant as an ordinary
          * continuation of the old one.
          */
-        if( other->place_dirty || !player_in_view(player, other) ||
+        if( (other->place_dirty && !glide_steps) || !player_in_view(player, other) ||
             other->login_generation != player->tracked_player_generation[i] )
         {
             /* Op 3 on a tracked player is "remove". It is the one op that does
@@ -3844,19 +3862,19 @@ mock230_send_player_info(struct Mock230Player* player)
         kept_generation[kept_count] = other->login_generation;
         kept[kept_count++] = pid;
         other_extended = other->masks != 0;
-        if( other->move_count == 2 )
+        if( step_count == 2 )
         {
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 2);
-            rsab_pbit(&buf, 3, other->move_dirs[0]);
-            rsab_pbit(&buf, 3, other->move_dirs[1]);
+            rsab_pbit(&buf, 3, step_dirs[0]);
+            rsab_pbit(&buf, 3, step_dirs[1]);
             rsab_pbit(&buf, 1, other_extended);
         }
-        else if( other->move_count == 1 )
+        else if( step_count == 1 )
         {
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 1);
-            rsab_pbit(&buf, 3, other->move_dirs[0]);
+            rsab_pbit(&buf, 3, step_dirs[0]);
             rsab_pbit(&buf, 1, other_extended);
         }
         else if( other_extended )
