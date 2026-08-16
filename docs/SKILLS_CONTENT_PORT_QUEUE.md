@@ -131,7 +131,7 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 5 | Ranged | `skill_combat/` | [Ranged](https://oldschool.runescape.wiki/w/Ranged) · [F2P Ranged](https://oldschool.runescape.wiki/w/Free-to-play_Ranged_training) · [P2P Ranged](https://oldschool.runescape.wiki/w/Pay-to-play_Ranged_training) | done | F2P bow+arrow + XP styles live (CONTENT 8u); finish #16–22; specs→#1 |
 | 6 | Prayer | `skill_prayer/` | [Prayer](https://oldschool.runescape.wiki/w/Prayer) · [Training](https://oldschool.runescape.wiki/w/Prayer/Training) | done | Toggle/drain/bury/altar/quickprayer/Redemption live; finish #23–29 |
 | 7 | Magic | `skill_magic/` + `skill_combat/` | [Magic](https://oldschool.runescape.wiki/w/Magic) · [Training](https://oldschool.runescape.wiki/w/Magic/Training) | done | F2P utility+strike→wave live (8p/8q); finish #30–36; magic def→#9; MTA live do not park |
-| 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | Air..death + essence mine live (CONTENT 8k); finish #37–42 |
+| 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | Air..death + essence mine live (CONTENT 8k); finish #37–40, #42 (#41 stays a minigame). See RUNECRAFT_COMPLETION_PLAN.md |
 | 9 | Crafting | `skill_crafting/` | [Crafting](https://oldschool.runescape.wiki/w/Crafting) · [Training](https://oldschool.runescape.wiki/w/Crafting/Training) | done | Broad LC suite live (pottery/gems/leather/jewellery/glass/…); finish #43–48 |
 | 10 | Mining | `skill_mining/` | [Mining](https://oldschool.runescape.wiki/w/Mining) · [Training](https://oldschool.runescape.wiki/w/Mining/Training) | done | Clay..runite+blurite+prospect live; finish #49–55; Motherlode→KRONOS done |
 | 11 | Smithing | `skill_smithing/` | [Smithing](https://oldschool.runescape.wiki/w/Smithing) · [Training](https://oldschool.runescape.wiki/w/Smithing/Training) | done | F2P smelt+anvil live; finish #56–62; Blast Furnace→SCAPE2009 done |
@@ -193,12 +193,12 @@ unblocked row per tick.
 | 34 | Magic utility remainder | MAGIC | blocked | → MAGIC **M5** done (peaches + Magic Dart; PvP/post-LC teles deferred) |
 | 35 | Magic potion consume | MAGIC | blocked | → MAGIC **M2** done (`magic_potion.rs2`); battlemage/divine deferred in plan |
 | 36 | Magic cape / surge spells | MAGIC | blocked | → MAGIC **M10** |
-| 37 | Runecraft tiara craft + pure essence | LC | pending | CONTENT 8k / runecraft.rs2 deferred tiara crafting + pure essence mining; tiara enter path partially live (`*_ruined_new`) |
-| 38 | Blood / Soul / Wrath altars | wiki+cache | pending | Wiki Arceuus blood/soul + wrath; constants exist; no altar rows/paths (CONTENT 8k deferred soul/blood) |
-| 39 | Ourania / Zeah RC + abyss | wiki+cache | pending | CONTENT 8k deferred Ourania/zeah; no abyss obstacle course / pouches in tree |
-| 40 | Essence mine teleporter remainder | LC | pending | Aubury/Sedridor live; deferred Brimstail/Disentor/Cromperty + Aubury shop (CONTENT 8k) |
-| 41 | Guardians of the Rift | wiki+cache | pending | Wiki primary modern RC training; Temple of the Eye quest gate — no minigame tree |
-| 42 | Runecraft cape / combination runes | wiki+cache | pending | Cape perk absent; combo runes (mist/dust/…) not in runecraft_table |
+| 37 | Runecraft tiara craft + pure essence | wiki+cache | pending | LostCity has no tiara or pure-essence logic at all — both are wiki-only. Tiara `Enter` on ruins is NOT partially live: the varbit it keys on (`rc_no_tally_required_*`) is never written, so `*_ruined_new` is unreachable. See RUNECRAFT_COMPLETION_PLAN.md §1.3, §2 |
+| 38 | Blood / Soul / Wrath altars | wiki+cache | pending | Wiki Arceuus blood/soul + wrath; constants exist; no altar rows/paths (CONTENT 8k deferred soul/blood). See RUNECRAFT_COMPLETION_PLAN.md §4 |
+| 39 | Ourania / Zeah RC + abyss | wiki+cache | pending | CONTENT 8k deferred Ourania/zeah; no abyss obstacle course / pouches in tree. See RUNECRAFT_COMPLETION_PLAN.md §6–§8 |
+| 40 | Essence mine teleporter remainder | wiki+cache | pending | Aubury/Sedridor live; deferred Brimstail/Disentor/Cromperty + Aubury shop (CONTENT 8k). See RUNECRAFT_COMPLETION_PLAN.md §3 |
+| 41 | Guardians of the Rift | wiki+cache | blocked | Wiki primary modern RC training; Temple of the Eye quest gate — no minigame tree. Scoped out of RUNECRAFT_COMPLETION_PLAN.md §8 as its own minigame build, not a skill-interaction slice |
+| 42 | Runecraft cape / combination runes | wiki+cache | pending | Cape perk absent; combo runes (mist/dust/…) not in runecraft_table. See RUNECRAFT_COMPLETION_PLAN.md §5 |
 | 43 | Crafting weaving (loom) | wiki+cache | pending | Wiki sacks/baskets/drift nets/cloth bolts; no loom scripts in skill_crafting |
 | 44 | Crafting IF + batch craft polish | LC | pending | CONTENT deferred leather_crafting IF, crafting_jewelry.if, weakqueue batch; p_choice menus live |
 | 45 | Glass lens / lantern remainder | LC | pending | glass.rs2 deferred lens_mould/telescope disc + lantern glass |
@@ -208,9 +208,9 @@ unblocked row per tick.
 | 49 | Essence / pure essence rocks | LC | pending | mining.rs2 + CONTENT 7b/8k deferred; essence tele live, rock mining absent |
 | 50 | Gem rocks + glory gem table | LC | pending | Deferred gem rocks / necklace boost; random 1/256 gem table while mining absent |
 | 51 | Members ore rocks (limestone/sandstone/granite/amethyst) | wiki+cache | pending | mine.dbrow clay..runite+blurite only |
-| 52 | Higher pickaxes (black/dragon/crystal/infernal) | wiki+cache | pending | pickaxe_checker bronze→rune only; Nurmof repair deferred CONTENT 8x |
-| 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | pending | Wiki double-ore / depleted-save / soft clay / XP outfit absent |
-| 54 | Mining special activities (Blast/Volcanic/Stars) | wiki → Kronos | blocked | Motherlode already KRONOS §13 done; remaining post-2009 activities stay KRONOS lane |
+| 52 | Higher pickaxes (black/dragon/crystal/infernal) | wiki+cache | pending | dragon/crystal/infernal/3a already in pickaxe_checker + Rock Knocker spec (specwep.rs2) + infernal smelt proc; checker still missing black/gilded/dragon_pretty/gauntlet_hm; Nurmof repair deferred CONTENT 8x. See MINING_COMPLETION_PLAN.md §1.3/§5 |
+| 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | pending | celestial ring/signet + crystal pickaxe charge drain already live (enchanted_jewellry/, crystal_equipment.rs2); double-ore / depleted-save / soft clay / XP outfit / cape boost still absent. See MINING_COMPLETION_PLAN.md §6 |
+| 54 | Mining special activities (Blast/Volcanic/Stars) | wiki → Kronos | blocked | Motherlode already KRONOS §13 done (veins/paydirt/hopper/sack) + Mining Guild 60 gate (mining_guild.rs2); remaining post-2009 activities stay KRONOS lane. See MINING_COMPLETION_PLAN.md §9 |
 | 55 | Miscellania mining intercept | LC | pending | mining.rs2 + CONTENT 20g Miner Magnus deferred intercept |
 | 56 | Cannonballs | LC | pending | CONTENT 7g / smelting.rs2 deferred; pairs with Ranged #19 dwarf multicannon |
 | 57 | Anvil members products (darts/knives/arrows/wire/studs/bolts/limbs/claws) | LC | pending | smithing.rs2 deferred list; F2P weapon/armour kinds live bronze→rune |

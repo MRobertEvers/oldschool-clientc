@@ -353,7 +353,16 @@ Dynamic platform stages used by the controller:
 - phase-2 descent 70844, second path 70845;
 - phase-3 descent 70846, third path 70847;
 - phase-4 descent 70848, fourth path 70849;
-- completion: 70837 and 70840 plus staircase 70790.
+- completion: 70838 and 70841 plus staircase 70790.
+
+Each arena half is one loc in three states — intact (70836/70839), seams lit
+(70837/70840), stairwell hole (70838/70841) — so completion is a REPLACEMENT on
+the map slab's own `(tile, level, shape)` slot, not a second loc laid over it.
+The slabs are map-placed on **plane 0** at (21,24) and (33,24), one tile west of
+the rev-727 anchors (LARGE_LOCS_PAINTER.md §16), and all six carry the matching
+footprint correction from `[footprint:loc]` in the manifest. Adding a state on
+the arena level, or on the rev-727 anchor, gives it its own slot and leaves the
+arena wearing two floors.
 
 ### 4.2 Reward chamber
 

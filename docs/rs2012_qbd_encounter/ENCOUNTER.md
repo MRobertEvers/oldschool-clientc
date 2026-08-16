@@ -150,8 +150,9 @@ whole family without fighting for it.
    resumes combat in phase n+1 — her **first attack comes 20 ticks after the
    restoration**, giving the player the documented breather. The first
    restoration switches music to 1118 *Queen Black Dragon*.
-6. **Completion**: artefact 4 → every surviving add removed, the finished
-   southern floor (70837 at (22,24) and 70840 at (34,24), both `^loc_west`)
+6. **Completion**: artefact 4 → every surviving add removed, the arena floor
+   opens (70838 at (21,24) and 70841 at (33,24) on plane 0, both `^loc_west`,
+   each *replacing* the intact slab on its own slot rather than stacking on it)
    and the reward stairs (70790 at (31,29), `^loc_west`) appear, artefact 1's
    restored loc (70778) is deleted because the 5x-scaled staircase reaches over
    its tile, and the coffer is rolled once into the persistent ten-slot

@@ -718,6 +718,35 @@ mock230_objinfo_free(void)
 }
 
 int
+mock230_objinfo_category_overlay(
+    int obj_id,
+    int category)
+{
+    assert(category > 0);
+
+    /*
+     * Rank 1 over rank 0, one field, in place — and in place is the difference
+     * from `mock230_objinfo_param_overlay`, which keeps its own table because a
+     * param has no home in `struct Mock230ObjInfo`. Category does have one, and
+     * every reader already goes through it (`mock230_objinfo(id)->category`), so
+     * a side table would be a second answer to a question with one field.
+     *
+     * Safe to write here only because the boot order puts `mock230_objinfo_load`
+     * before `mock230_content_load` (mock230_boot.c). An obj id the cache never
+     * decoded has no slot to overlay, and that is a content bug rather than a
+     * silent one — the caller reports it.
+     */
+    if( !g_objs || obj_id < 0 || obj_id >= g_obj_count )
+        return 0;
+    g_objs[obj_id].category = category;
+    /* An id the cache left unnamed is still overlayable, but it has to become
+     * `known` or `mock230_objinfo` hands back the shared blank and the category
+     * this line just set is unreachable. */
+    g_objs[obj_id].known = 1;
+    return 1;
+}
+
+int
 mock230_obj_category_members(int category)
 {
     int members = 0;

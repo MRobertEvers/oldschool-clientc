@@ -72,13 +72,50 @@ mock230_scene_find_loc(
 struct Mock230SceneLoc*
 mock230_scene_loc(int slot);
 
-/** The loc's `op_num`-th menu action from the cache ("Open", "Climb-up"), or
- *  NULL. This is where a stair's direction comes from: the cache already says
- *  it, so content does not have to. */
+/**
+ * The loc's `op_num`-th menu action ("Open", "Climb-up"), or NULL. This is where
+ * a stair's direction comes from: the cache already says it, so content does not
+ * have to.
+ *
+ * An authored `.loc` `opN=` wins over the cache record — rank 1 over rank 0, the
+ * order `mock230_loc_category` uses. See `mock230_scene_loc_op_overlay`.
+ */
 const char*
 mock230_scene_loc_op(
     int loc_id,
     int op_num);
+
+/**
+ * State a loc's op from the *server* side: a `.loc` block's `op1=`..`op5=`.
+ *
+ * The op that matters is the one the cache does not carry. LostCity's skilling
+ * loops resume on `p_oploc(3)` against an `op3=hidden`, and `p_oploc` returns
+ * silently when the op it names is empty — so with no way to state one, every
+ * chop and swing loop in this tree had to re-issue the *visible* op instead.
+ *
+ * "Hidden" needs no special handling and gets none: the client builds its menu
+ * from its own cache group, so an op stated here and absent there is one no menu
+ * offers, and `mock230_world.c`'s OPLOC handler drops the literal string
+ * `hidden` off the wire. Authoring one widens what a script may re-issue, never
+ * what a client may ask for.
+ *
+ * `op_num` is 1-based, as the packet and `p_oploc` both spell it. Copies `text`.
+ */
+void
+mock230_scene_loc_op_overlay(
+    int loc_id,
+    int op_num,
+    const char* text);
+
+/** Drop every authored op. Paired with the content tree's own reload. */
+void
+mock230_scene_loc_op_overlay_reset(void);
+
+/** How many locs carry an authored op — a count for the boot report, and the
+ *  one number that distinguishes "the overlay is empty" from "the overlay
+ *  disagrees", which otherwise look identical from a failing script. */
+int
+mock230_scene_loc_op_overlay_count(void);
 
 /**
  * Multiloc resolve for a player's current varbits (OpenRS2 LocType.getMultiLoc /

@@ -22,6 +22,7 @@
 #include "reference_table.h"
 #include "tool_profile.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -41,6 +42,19 @@
 struct Import_Export { int source_id; char name[96]; };
 struct Import_List { struct Import_Export* v; int n, cap; };
 struct Import_Ints { int* v; int n, cap; };
+/*
+ * A loc's footprint, restated by the manifest.
+ *
+ * The two tile sizes are not decoration: the client places a loc's model at
+ * `tile * 128 + 64 * size` per axis, so they choose where the picture lands as
+ * well as which tiles the loc claims. That coupling is why the three model
+ * offsets travel with them here — a size the source record understates cannot
+ * be corrected on its own without sliding the model half a tile per unit, and
+ * a correction split across two files is a correction that gets half-applied.
+ * All five are stated together, and together they are the whole footprint.
+ */
+struct Import_Footprint { int source_id, size_x, size_z, offset_x, offset_y, offset_z; };
+struct Import_Footprints { struct Import_Footprint* v; int n, cap; };
 struct Import_Manifest
 {
     char from_rev[64], from_cache[1024], to_rev[64], to_tree[1024];
@@ -81,6 +95,7 @@ struct Import_Manifest
     struct Tool_IdMap texture_map;
     struct Import_List npcs, objs, models, seqs, spotanims, locs, synths;
     struct Import_List songs, patches, samples;
+    struct Import_Footprints loc_footprints;
 };
 
 static char* trim(char* s)
@@ -152,6 +167,30 @@ static int list_add_unique(struct Import_List* l, int id, const char* name)
     return list_find(l, id) >= 0 ? 1 : list_add(l, id, name);
 }
 
+static int footprints_add(struct Import_Footprints* l, const struct Import_Footprint* fp)
+{
+    assert(l);
+    assert(fp);
+    if( l->n == l->cap )
+    {
+        int cap = l->cap ? l->cap * 2 : 8;
+        void* p = realloc(l->v, (size_t)cap * sizeof(*l->v));
+        assert(p);
+        l->v = p; l->cap = cap;
+    }
+    l->v[l->n++] = *fp;
+    return 1;
+}
+
+static const struct Import_Footprint*
+footprints_find(const struct Import_Footprints* l, int source_id)
+{
+    assert(l);
+    for( int i = 0; i < l->n; i++ )
+        if( l->v[i].source_id == source_id ) return &l->v[i];
+    return NULL;
+}
+
 static int ints_add(struct Import_Ints* l, int id)
 {
     if( id < 0 ) return 1;
@@ -188,6 +227,77 @@ static int parse_nonnegative(const char* key, const char* value, int* out)
         return 0;
     }
     *out = (int)parsed;
+    return 1;
+}
+
+/* Model offsets are signed — an offset that can only push east is half a tool. */
+static int parse_signed(const char* key, const char* value, int* out)
+{
+    char* end = NULL;
+    errno = 0;
+    long parsed = strtol(value, &end, 10);
+    if( errno || !end || *end || value == end ||
+        parsed < -0x7fffffffL - 1 || parsed > 0x7fffffffL )
+    {
+        fprintf(stderr, "cachepack import: %s must be an integer (got %s)\n", key, value);
+        return 0;
+    }
+    *out = (int)parsed;
+    return 1;
+}
+
+/*
+ * `<source loc id> = <width>,<length>,<offsetx>,<offsety>,<offsetz>`
+ *
+ * Positional and complete on purpose. A footprint is five numbers that only
+ * mean anything together (see struct Import_Footprint), so the manifest states
+ * all five rather than letting a row patch one and leave the reader to work
+ * out what the other four still are.
+ */
+static int parse_footprint(const char* key, const char* value, struct Import_Footprint* out)
+{
+    assert(key);
+    assert(value);
+    assert(out);
+    char scratch[128];
+    if( strlen(value) >= sizeof(scratch) )
+    {
+        fprintf(stderr, "cachepack import: footprint %s is too long\n", key);
+        return 0;
+    }
+    snprintf(scratch, sizeof(scratch), "%s", value);
+    char* fields[5];
+    int n = 0;
+    for( char* cursor = scratch; n < 5; n++ )
+    {
+        fields[n] = cursor;
+        char* comma = strchr(cursor, ',');
+        if( !comma ) { n++; break; }
+        *comma = '\0';
+        cursor = comma + 1;
+    }
+    if( n != 5 || strchr(fields[4], ',') )
+    {
+        fprintf(stderr,
+                "cachepack import: footprint %s wants width,length,offsetx,offsety,offsetz "
+                "(got %s)\n", key, value);
+        return 0;
+    }
+    memset(out, 0, sizeof(*out));
+    if( !parse_nonnegative("footprint id", key, &out->source_id) ||
+        !parse_nonnegative("footprint width", trim(fields[0]), &out->size_x) ||
+        !parse_nonnegative("footprint length", trim(fields[1]), &out->size_z) ||
+        !parse_signed("footprint offsetx", trim(fields[2]), &out->offset_x) ||
+        !parse_signed("footprint offsety", trim(fields[3]), &out->offset_y) ||
+        !parse_signed("footprint offsetz", trim(fields[4]), &out->offset_z) )
+        return 0;
+    /* Opcodes 14/15 are one byte each and 1 is the smallest a loc can be. */
+    if( out->size_x < 1 || out->size_x > 255 || out->size_z < 1 || out->size_z > 255 )
+    {
+        fprintf(stderr, "cachepack import: footprint %s sizes must be 1..255 (got %d,%d)\n",
+                key, out->size_x, out->size_z);
+        return 0;
+    }
     return 1;
 }
 
@@ -389,8 +499,30 @@ static int manifest_load(const char* path, struct Import_Manifest* m)
             if( !parse_nonnegative("export id", key, &source_id) ||
                 !list_add_unique(list, source_id, name) ) { fclose(f); return 0; }
         }
+        else if( strcmp(section, "footprint:loc") == 0 )
+        {
+            struct Import_Footprint fp;
+            if( !parse_footprint(key, value, &fp) ) { fclose(f); return 0; }
+            if( footprints_find(&m->loc_footprints, fp.source_id) )
+            {
+                fprintf(stderr, "cachepack import: duplicate footprint for loc %d\n", fp.source_id);
+                fclose(f);
+                return 0;
+            }
+            if( !footprints_add(&m->loc_footprints, &fp) ) { fclose(f); return 0; }
+        }
     }
     fclose(f);
+    /* A footprint for a loc nobody exports is a typo that would otherwise sit
+     * in the manifest doing nothing, which is the failure this whole section
+     * exists to stop happening in a config file. */
+    for( int i = 0; i < m->loc_footprints.n; i++ )
+    {
+        if( list_find(&m->locs, m->loc_footprints.v[i].source_id) >= 0 ) continue;
+        fprintf(stderr, "cachepack import: footprint names loc %d, which [export:loc] does not\n",
+                m->loc_footprints.v[i].source_id);
+        return 0;
+    }
     if( m->legacy_scape2009 && m->texture_map.count == 0 && !load_texture_map_file(path, m) )
         return 0;
     /* The output stem is deliberately separate from prefix: prefix owns all
@@ -416,6 +548,7 @@ static void manifest_free(struct Import_Manifest* m)
     free(m->npcs.v); free(m->objs.v); free(m->models.v); free(m->seqs.v);
     free(m->spotanims.v); free(m->locs.v); free(m->synths.v);
     free(m->songs.v); free(m->patches.v); free(m->samples.v);
+    free(m->loc_footprints.v);
     tool_id_map_free(&m->texture_map);
 }
 
@@ -1850,6 +1983,18 @@ static int import_run(struct Import_Manifest* m, int apply)
     {
         locs[i] = loc_load(&src, m->locs.v[i].source_id);
         if( !locs[i] ) ok = 0;
+        if( !ok ) break;
+        const struct Import_Footprint* fp =
+            footprints_find(&m->loc_footprints, m->locs.v[i].source_id);
+        if( !fp ) continue;
+        printf("  loc %d footprint %dx%d -> %dx%d, offset %d,%d,%d\n",
+               m->locs.v[i].source_id, locs[i]->size_x, locs[i]->size_z,
+               fp->size_x, fp->size_z, fp->offset_x, fp->offset_y, fp->offset_z);
+        locs[i]->size_x = fp->size_x;
+        locs[i]->size_z = fp->size_z;
+        locs[i]->offset_x = fp->offset_x;
+        locs[i]->offset_y = fp->offset_y;
+        locs[i]->offset_z = fp->offset_z;
     }
 
     for( int i = 0; ok && i < seqs.n; i++ )

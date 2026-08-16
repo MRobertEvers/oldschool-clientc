@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    255  host commands
+ *    260  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,7 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    371  total, of 444 declared opcodes
+ *    376  total, of 448 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,8 +26,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 371
-#define MOCK230_OPCODE_DECLARED_COUNT 444
+#define MOCK230_OPCODE_COVERAGE_COUNT 376
+#define MOCK230_OPCODE_DECLARED_COUNT 448
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +36,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11040
+#define MOCK230_OPCODE_VALUE_LIMIT 11044
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -84,6 +84,7 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     1015, /* SS_OP_MAP_MULTIWAY (host commands) */
     1016, /* SS_OP_MAP_PLAYERCOUNT (host commands) */
     1017, /* SS_OP_MOVECOORD (host commands) */
+    1018, /* SS_OP_PLAYERCOUNT (host commands) */
     1019, /* SS_OP_PROJANIM_MAP (host commands) */
     1021, /* SS_OP_SPOTANIM_MAP (host commands) */
     1022, /* SS_OP_WORLD_DELAY (host commands) */
@@ -411,6 +412,10 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11037, /* SS_OP_NPC_ATTACKDELAY (host commands) */
     11038, /* SS_OP_AMBIENTSOUND (host commands) */
     11039, /* SS_OP_LAST_SUBOP (host commands) */
+    11040, /* SS_OP_NPC_COMBATPLAYER (host commands) */
+    11041, /* SS_OP_COMBAT_ASSIST_SINGLES (host commands) */
+    11042, /* SS_OP_NPC_SETFOLLOWER (host commands) */
+    11043, /* SS_OP_NPC_FINDFOLLOWER (host commands) */
 };
 
 #endif

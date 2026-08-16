@@ -8303,6 +8303,16 @@ mock230_script_command(
         return 1;
     }
 
+    /*
+     * The server-wide player count, no rectangle — LostCity's
+     * `~scale_by_playercount` (skill_mining/general/scripts/player_count.rs2)
+     * scales respawn ticks by world population and needs this rather than
+     * MAP_PLAYERCOUNT's zone-local answer.
+     */
+    case SS_OP_PLAYERCOUNT:
+        SSVM_PushInt(state, srv->player_count);
+        return 1;
+
     /* ---- enums ----------------------------------------------------- */
 
     /*

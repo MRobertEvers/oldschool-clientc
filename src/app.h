@@ -846,6 +846,16 @@ struct App
     int busy_frames;
     long busy_steps;
     int boot_interface_id;
+    /**
+     * The once-per-session half of Task_AppBoot has already run.
+     *
+     * Task_AppBoot runs again on every root remount (the Display panel's
+     * Fixed/Classic/Modern switch), and its preamble is not idempotent:
+     * `VarPManager_SetVarpTypes` reallocates the varp VALUE arrays, so a second
+     * pass calloc-zeroes every varp the server has sent this session. Cache type
+     * tables and device settings cannot change inside a session; session varp
+     * state can, and only the server can put it back. */
+    int boot_config_ready;
     /** Set when async work mutated the tree; App_RunOnce consumes it with a
      * relayout + CS1 re-eval request + redraw. */
     int pending_tree_refresh;

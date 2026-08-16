@@ -148,6 +148,104 @@ loc_config(int loc_id)
     return g_loc_configs[loc_id];
 }
 
+/* ------------------------------------------------------------------ */
+/* Authored loc ops (rank 1)                                           */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A `.loc` block's `op1=`..`op5=`, pushed in by the content loader.
+ *
+ * Pushed rather than pulled, which is the whole design of it. The obvious shape
+ * — `mock230_scene_loc_op` calling `mock230_content_loc` and reading the def —
+ * points this file at the content tree, and this file is deliberately the half
+ * that knows nothing about one: `collision_doors_test` links `mock230_scene.c`
+ * against the cache alone and would stop linking. So content *tells* the scene,
+ * the same way it tells `mock230_locinfo_param_overlay` about a param and
+ * `mock230_objinfo_category_overlay` about a category, and a binary with no
+ * content simply has no overlays and reads rank 0 — which is the right answer
+ * for one, not a degraded one.
+ *
+ * Keyed by loc id and sparse: sixteen trees and a handful of rock families is
+ * the whole of it today, so a linear scan over a growable array beats indexing
+ * 62,194 loc ids five pointers wide.
+ */
+struct LocOpOverlay
+{
+    int loc_id;
+    char* ops[5];
+};
+
+static struct LocOpOverlay* g_loc_op_overlays;
+static int g_loc_op_overlay_count;
+static int g_loc_op_overlay_capacity;
+
+static struct LocOpOverlay*
+loc_op_overlay(int loc_id)
+{
+    for( int i = 0; i < g_loc_op_overlay_count; i++ )
+    {
+        if( g_loc_op_overlays[i].loc_id == loc_id )
+            return &g_loc_op_overlays[i];
+    }
+    return NULL;
+}
+
+void
+mock230_scene_loc_op_overlay(
+    int loc_id,
+    int op_num,
+    const char* text)
+{
+    struct LocOpOverlay* entry;
+
+    assert(text);
+    assert(loc_id >= 0);
+    assert(op_num >= 1);
+    assert(op_num <= 5);
+
+    entry = loc_op_overlay(loc_id);
+    if( !entry )
+    {
+        if( g_loc_op_overlay_count == g_loc_op_overlay_capacity )
+        {
+            int capacity = g_loc_op_overlay_capacity ? g_loc_op_overlay_capacity * 2 : 32;
+            struct LocOpOverlay* grown = (struct LocOpOverlay*)realloc(
+                g_loc_op_overlays, (size_t)capacity * sizeof(*grown));
+
+            assert(grown);
+            g_loc_op_overlays = grown;
+            g_loc_op_overlay_capacity = capacity;
+        }
+        entry = &g_loc_op_overlays[g_loc_op_overlay_count++];
+        memset(entry, 0, sizeof(*entry));
+        entry->loc_id = loc_id;
+    }
+    /* Last statement wins, so a lane's overlay can restate a base tree's op. */
+    free(entry->ops[op_num - 1]);
+    entry->ops[op_num - 1] = strdup(text);
+    assert(entry->ops[op_num - 1]);
+}
+
+void
+mock230_scene_loc_op_overlay_reset(void)
+{
+    for( int i = 0; i < g_loc_op_overlay_count; i++ )
+    {
+        for( int op = 0; op < 5; op++ )
+            free(g_loc_op_overlays[i].ops[op]);
+    }
+    free(g_loc_op_overlays);
+    g_loc_op_overlays = NULL;
+    g_loc_op_overlay_count = 0;
+    g_loc_op_overlay_capacity = 0;
+}
+
+int
+mock230_scene_loc_op_overlay_count(void)
+{
+    return g_loc_op_overlay_count;
+}
+
 static void
 free_loc_configs(void)
 {
@@ -224,9 +322,30 @@ mock230_scene_loc_op(
     int loc_id,
     int op_num)
 {
-    const struct RSCache_Dat2ConfigLoc* config = loc_config(loc_id);
+    const struct LocOpOverlay* overlay;
+    const struct RSCache_Dat2ConfigLoc* config;
 
-    if( !config || op_num < 1 || op_num > 5 )
+    if( op_num < 1 || op_num > 5 )
+        return NULL;
+
+    /*
+     * Rank 1 over rank 0 — the same merge `mock230_loc_category` applies one
+     * field over, and for the same reason: the cache states what the *client*
+     * offers, and a server op the client must not offer has nowhere else to live.
+     * `op3=hidden` in a `.loc` block is the whole point, and until this read
+     * existed a skilling script could not resume on a hidden op, because the op
+     * it named was empty here and `p_oploc` returns silently on an empty op.
+     *
+     * Ungated on the cache record existing: a loc the overlay names and the cache
+     * does not is still a loc, and answering NULL for it would put an authored op
+     * back out of reach for exactly the records that need one most.
+     */
+    overlay = loc_op_overlay(loc_id);
+    if( overlay && overlay->ops[op_num - 1] )
+        return overlay->ops[op_num - 1];
+
+    config = loc_config(loc_id);
+    if( !config )
         return NULL;
     return config->actions[op_num - 1];
 }

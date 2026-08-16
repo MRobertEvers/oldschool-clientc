@@ -376,7 +376,8 @@ ash on a supercompost bin, 50 for the big bin) = −90%, +3 lives. All-tomato bi
 → [Rotten tomato](https://oldschool.runescape.wiki/w/Rotten_tomato). Bins:
 Falador, Port Phasmatys, Ardougne, Catherby, Hosidius, Prifddinas, Civitas illa
 Fortis, plus the Guild's big bin (45 Farming). Classic bins 1–4 are live;
-#133 covers 5–7 + Dump + potion conversion.
+#133 covers 5–7 + Dump + potion conversion. **The bin produces compost that
+nothing consumes** — applying a bucket to a patch does not exist (§2.13.1).
 
 ### 2.12 NPCs
 
@@ -436,36 +437,128 @@ One per patch cluster; stores tools, exchanges harvested produce for banknotes
 [Bologa](https://oldschool.runescape.wiki/w/Bologa) (Tithe Farm),
 [Hespori](https://oldschool.runescape.wiki/w/Hespori) (demi-boss).
 
-### 2.13 Interactions — the verb table
+### 2.13 Interactions
 
-Every player-facing action the skill needs. ✅ = implemented for at least one
-patch type.
+Measured from the trigger declarations in `skill_farming/scripts/*.rs2`, not
+inferred.
 
-| interaction | trigger shape | status |
-|---|---|---|
-| Rake weeds (3 stages) | `[oploc1,*_weeds_1..3]` | ✅ herb/allot/flower/tree/… |
-| Inspect patch | `[oploc*]` | ✅ |
-| Plant seed / sapling | `[oplocu,*_weeded]` | ✅ 7 types, 12 seeds |
-| Water patch | `[oplocu]` watering can | ✗ — needed for disease reduction |
-| Apply compost / super / ultra | `[oplocu]` | ✅ compost; ✗ ultra |
-| Bottomless bucket fill/apply | `[oplocu]` + `[opheld]` | ✗ |
-| Cure diseased plant (plant cure) | `[oplocu]` | ✗ **#132** |
-| Prune diseased tree/bush (secateurs, 75%) | `[oplocu]` | ✗ **#132** |
-| Cure Plant (Lunar spell) | spell-on-loc | ✗ |
-| Check health | `[oploc*]` | ✅ tree/fruit/bush |
-| Harvest crop (lives roll) | `[oploc*]` | ✅ |
-| Pick fruit / berries (regrow) | `[oploc*]` | ✅ |
-| Chop grown tree → stump | `[oploc*]` | ✅ tree |
-| Dig up stump / dead plant (spade) | `[oploc*]` | ✅ partial |
-| Pay gardener to protect | NPC dialogue + item take | ✗ **#132** |
-| Place / remove scarecrow | `[oplocu]` + spade | ✗ |
-| Fill plant pot (trowel), add seed, water | `[opheldu]` chain | partial |
-| Tool leprechaun: store / withdraw | interface 125/126 | ✅ |
-| Tool leprechaun: note harvest | NPC op | ✗ **#136** |
-| Open `farming_view` (Geomancy / tab) | `if_openmain` | partial — panel paints, opener deferred (**#135**) |
-| Spirit tree teleport menu | `[oploc*]` | ✗ **#134** |
-| Farming contract accept / complete | NPC dialogue | ✗ |
-| Fight Hespori | boss encounter | ✗ **#138** |
+> **IMPLEMENTED 2026-08-15 — 5 of 31 → 26 of 31.** Before this pass only two
+> items dispatched on a patch (`rake`, the seed/sapling), `skill_farming/`
+> declared **zero `[opheldu,…]` triggers**, and **compost was never applied to
+> a patch at all** — the bins produced buckets nothing consumed while
+> `farming_plant.rs2` hardcoded three harvest lives, making the +1/+2/+3 in
+> §2.14 documented and unreachable. New files: `farming_items.rs2` (item →
+> patch), `farming_craft.rs2` (item → item, item → scenery),
+> `farming_state.rs2` + `farming_state.varp` (per-patch compost / watered /
+> diseased / dead / protected / scarecrow word), `saplings.dbtable` +
+> `saplings.dbrow` (23 seed → seedling → watered → sapling chains, every one of
+> the 92 obj names checked against `all.obj`). Compost now seeds harvest lives
+> as `3 + tier` and is cleared when the patch returns to weeds.
+>
+> **The five that remain**, and why:
+> 1. **Gricoller's can** — no `gricoller*` symbol exists in this cache; the
+>    Tithe reward item has to be identified first.
+> 2. **Cure Plant (Lunar)** — a spell-on-loc trigger, not an item interaction.
+> 3. **Herb sack** (`slayer_herb_sack`) and 4. **seed box** (`seed_box`) — both
+>    need a real container, which is the same `container_for` work
+>    `farming_server_reqs.md` left untouched.
+> 5. The **disease roll** itself is still Phase 3. Plant cure and secateurs are
+>    implemented and read `^farming_flag_diseased`, but nothing sets that flag
+>    yet, so both currently answer "This patch is not diseased." The item side
+>    is done; the simulation that makes it fire is not.
+>
+> One correction to the table below from building it: **filling a plant pot is
+> item-on-*patch*, not item-on-item** — the wiki is explicit that you "use the
+> empty pot on any farming patch, while carrying a gardening trowel". It has
+> moved to §2.13.1.
+
+#### 2.13.1 Item → patch (`[oplocu]`)
+
+| item | target state | effect | status |
+|---|---|---|---|
+| Rake | weedy patch, any type | clear one weed stage | ✅ all 7 wired types |
+| Seed | weeded allotment/flower/herb/hops/bush patch | plant | ✅ 9 seeds |
+| Sapling (`plantpot_*`) | weeded tree/fruit patch | plant | ✅ oak, apple |
+| Compost | any planted patch | +1 life, −50 % disease | ✅ |
+| Supercompost | any planted patch | +2 lives, −80 % | ✅ |
+| Ultracompost | any planted patch | +3 lives, −90 % | ✅ |
+| Bottomless compost bucket | any planted patch | apply stored charge | ✅ |
+| Watering can 1–8 | growing allotment/flower/hops | water; −disease this cycle | ✅ |
+| Gricoller's can | same | same, 1,000 doses | ✗ no cache item |
+| Plant cure | diseased allot/flower/herb/hops/cactus/belladonna/mushroom/calquat | cure | ✅ (awaits the disease roll) |
+| Secateurs / magic secateurs | diseased bush or tree | prune, 75 % success | ✅ (awaits the disease roll) |
+| Spade | dead plant, spent crop, stump | clear to weeded | ✅ |
+| Scarecrow | empty flower patch | place; protects sweetcorn | ✅ server-side flag; patch varbit value unmeasured |
+| *Cure Plant* (Lunar) | diseased patch | cure, no item | ✗ |
+
+Seed dibber is correctly modelled as a held *requirement*
+(`~farming_has_dibber`), not a use-on-patch — that matches OSRS.
+
+#### 2.13.2 Item → compost bin (`[oplocu]`)
+
+| item | target state | effect | status |
+|---|---|---|---|
+| Compostable item | open bin, 0–14 filled | add one, 15 closes it | ✅ 54 compostables |
+| Bucket (empty) | finished bin | withdraw one bucket | ✅ |
+| Compost potion | compost-filled bin | → supercompost | ✅ |
+| Volcanic ash ×25 (×50 big bin) | supercompost-filled bin | → ultracompost | ✅ |
+| Bottomless compost bucket | finished bin | bulk fill | ✅ |
+
+#### 2.13.3 Item → item (`[opheldu]`) — **zero implemented**
+
+| item A | item B | result | status |
+|---|---|---|---|
+| Gardening trowel | Plant pot (empty) | Plant pot (soil) | ✅ — moved to §2.13.1, it is item-on-patch |
+| Tree/fruit/special seed | Filled plant pot | seed in pot | ✅ 23 chains |
+| Watering can | Seed in pot | watered → sapling over time | ✅ + sprout softtimer |
+| Compost potion | Bucket of compost | Supercompost | ✅ |
+| Volcanic ash | Supercompost bucket | Ultracompost | ✅ ×2 ash, 1.1 XP |
+| Empty sack | Hay | Hay sack | ✅ sack on `haystack` loc |
+| Hay sack + bronze spear + watermelon | — | Scarecrow | ✅ two steps, 23 Farming |
+| Grimy herb | Herb sack | store | ✗ needs a container |
+| Seed | Seed box | store | ✗ needs a container |
+| Bologa's blessing | Grapes | Zamorak's grapes | ✅ |
+
+#### 2.13.4 Item → scenery (non-patch)
+
+| item | target | effect | status |
+|---|---|---|---|
+| Watering can (0–7) | fountain / sink / well / water source | refill to 8 | ✅ |
+| Bucket | water source | Bucket of water | ✅ |
+
+#### 2.13.5 Loc ops (no item held)
+
+| op | status |
+|---|---|
+| Inspect patch | ✅ |
+| Rake (op on the weeds loc) | ✅ |
+| Check health | ✅ tree / fruit / bush |
+| Harvest crop, lives roll | ✅ |
+| Pick fruit / berries, with regrowth | ✅ |
+| Chop grown tree → stump | ✅ |
+| Clear stump / dead plant | ✅ partial (stump only) |
+| Spirit tree teleport menu | ✗ **#134** |
+
+#### 2.13.6 NPC ops
+
+| op | status |
+|---|---|
+| Tool leprechaun: store / withdraw (interfaces 125/126) | ✅ |
+| Tool leprechaun: exchange harvest for banknotes | ✗ **#136** |
+| Gardener: talk → pay → protect | ✗ **#132** |
+| Guildmaster Jane: accept / complete contract | ✗ |
+| Farmer Gricoller / Bologa: Tithe shop | ✗ **#138** |
+| Martin: buy Farming cape | ✗ **#137** |
+| Fight Hespori | ✗ **#138** |
+
+#### 2.13.7 Interface
+
+| op | status |
+|---|---|
+| Open `farming_view` (Geomancy / tab) | partial — panel paints, opener deferred **#135** |
+
+**Tally of item interactions: 26 of 31 exist** (was 5) — 13 of 15 on patches,
+5 of 5 on bins, 6 of 8 item-on-item, 2 of 2 on water sources.
 
 ### 2.14 Boosts and rewards
 
@@ -476,7 +569,7 @@ patch type.
 | Attas | [link](https://oldschool.runescape.wiki/w/Attas_seed) | ×1.05 chance to save |
 | Farmer's outfit | [link](https://oldschool.runescape.wiki/w/Farmer%27s_outfit) | 0.4/0.8/0.6/0.2 % + 0.5 % set = **2.5 %** XP |
 | Achievement diaries | [link](https://oldschool.runescape.wiki/w/Achievement_Diary) | disease-free patches; +10…+25 flat save bonus |
-| Compost tiers | [link](https://oldschool.runescape.wiki/w/Compost) | +1/+2/+3 lives, −50/80/90 % disease |
+| Compost tiers | [link](https://oldschool.runescape.wiki/w/Compost) | +1/+2/+3 lives, −50/80/90 % disease — **unreachable today**, see §2.13 |
 | Seed packs | [link](https://oldschool.runescape.wiki/w/Seed_pack) | tiers 1–5, from contracts and Tithe |
 | Tangleroot | [link](https://oldschool.runescape.wiki/w/Tangleroot) | pet, 1/5,375–1/4,525 from Hespori |
 
@@ -566,8 +659,13 @@ Data, not code, once Phase 1 lands.
     already-transcribed charge table in `farming_tools.constant` load-bearing.
 14. **Gardener payment** — dialogue on each of the 26 NPCs in §2.12, exact-item
     payment including noted form, per-patch protected flag.
-15. **Compost completion** — ultracompost via volcanic ash, compost potion
-    conversion, Dump-all, bottomless bucket, big compost bin, bins 5–7.
+15. **Compost application first, then completion.** Applying a compost bucket
+    to a patch does not exist at all: the bin makes compost and nothing
+    consumes it, while `farming_plant.rs2:83` hardcodes 3 lives. Wire the three
+    tiers into a per-patch compost field that seeds lives (3/4/5/6) and feeds
+    the disease multiplier, *then* add ultracompost via volcanic ash, compost
+    potion conversion, Dump-all, bottomless bucket, big compost bin and bins
+    5–7. This is a prerequisite for item 11, not a sibling of it.
 16. **Correct yield model** — replace the `rand(256)` approximation with the
     CTS formula, add per-crop CTS pairs, wire magic secateurs, Farming cape,
     Attas and diary bonuses.
@@ -603,6 +701,7 @@ Follow the pattern `farming_tools` already set — a named section in
 | two registry patches keep independent state | swap their `state_varbit` |
 | growth catch-up survives logout | shift `planted_minute` past the grown state |
 | compost adds exactly +1/+2/+3 lives | drop one tier's row |
+| an uncomposted patch starts at exactly 3 lives | hardcode 3 in the composted path too — the current bug, and it must fail |
 | diseased crop stops advancing | force the disease roll to always miss |
 | gardener payment consumes the exact items | change one payment quantity |
 | flower protection gates on *grown*, not planted | plant the flower, don't grow it |

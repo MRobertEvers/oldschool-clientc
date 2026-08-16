@@ -303,40 +303,63 @@ RSCache_Dat2ConfigLocEncodeFlags(
     if( loc->shapes_and_model_count > 0 && loc->models )
     {
         bool use_int_ids = false;
-        if( loc->shapes )
+        int total_models = 0;
+        for( int i = 0; i < loc->shapes_and_model_count; i++ )
         {
-            for( int i = 0; i < loc->shapes_and_model_count; i++ )
-            {
-                if( loc->models[i][0] < 0 || loc->models[i][0] > 0xFFFF )
-                {
+            int group = loc->lengths ? loc->lengths[i] : 1;
+            total_models += group;
+            for( int j = 0; j < group; j++ )
+                if( loc->models[i][j] < 0 || loc->models[i][j] > 0xFFFF )
                     use_int_ids = true;
-                    break;
-                }
-            }
+        }
+
+        /*
+         * An RS2/rev-727 shape group can hold SEVERAL models; the modern form is
+         * one (model, shape) pair per entry and cannot nest. Writing only
+         * `models[i][0]` — which this did — drops every model after the first
+         * with no diagnostic: 86 of them across the rs2012 QBD lane, including
+         * the glow overlay that is the only thing distinguishing the finished
+         * arena floor from the one already on the map.
+         *
+         * A single shape-10 group is exactly opcode 5's meaning, and both this
+         * decoder and the reference merge a centrepiece's whole list, so that
+         * case converts. Only a group that already holds one model keeps
+         * opcode 1 — the form is not interchangeable there, since 5 answers
+         * every shape the map asks for and 1 answers only its own.
+         */
+        bool flat = !loc->shapes;
+        if( !flat && total_models > loc->shapes_and_model_count &&
+            loc->shapes_and_model_count == 1 && loc->shapes[0] == 10 )
+            flat = true;
+        /* The entry count is one byte in every form. */
+        assert(total_models <= 0xFF);
+
+        if( !flat )
+        {
             p1(&buffer, use_int_ids ? 6 : 1);
-            p1(&buffer, loc->shapes_and_model_count);
+            p1(&buffer, total_models);
             for( int i = 0; i < loc->shapes_and_model_count; i++ )
             {
-                if( use_int_ids )
-                    p4(&buffer, loc->models[i][0]);
-                else
-                    LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[i][0]);
-                p1(&buffer, loc->shapes[i]);
+                int group = loc->lengths ? loc->lengths[i] : 1;
+                /* A group of N repeats its shape N times. Every builder that
+                 * merges by shape reads that back whole; one that stops at the
+                 * first match still draws what the truncating encoder gave it. */
+                for( int j = 0; j < group; j++ )
+                {
+                    if( use_int_ids )
+                        p4(&buffer, loc->models[i][j]);
+                    else
+                        LOC_WRITE_MODEL_ID(&buffer, flags, loc->models[i][j]);
+                    p1(&buffer, loc->shapes[i]);
+                }
             }
         }
         else
         {
-            for( int i = 0; i < loc->lengths[0]; i++ )
-            {
-                if( loc->models[0][i] < 0 || loc->models[0][i] > 0xFFFF )
-                {
-                    use_int_ids = true;
-                    break;
-                }
-            }
+            int group = loc->lengths ? loc->lengths[0] : 1;
             p1(&buffer, use_int_ids ? 7 : 5);
-            p1(&buffer, loc->lengths[0]);
-            for( int i = 0; i < loc->lengths[0]; i++ )
+            p1(&buffer, group);
+            for( int i = 0; i < group; i++ )
             {
                 if( use_int_ids )
                     p4(&buffer, loc->models[0][i]);

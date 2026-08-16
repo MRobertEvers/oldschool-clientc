@@ -671,6 +671,17 @@ struct Mock230LocDef
     int next_loc_stage;
 };
 
+/*
+ * A `.loc` block's `op1=`..`op5=` are deliberately NOT a field here.
+ *
+ * They go straight to `mock230_scene_loc_op_overlay` as they are parsed, because
+ * the only reader is `mock230_scene_loc_op` and `mock230_scene.c` is the half of
+ * the server that knows nothing about a content tree — `collision_doors_test`
+ * links it against the cache alone. Storing them here and having the scene pull
+ * them back out would reverse that, for no gain: nothing else asks a loc def
+ * what its ops are.
+ */
+
 const struct Mock230LocDef*
 mock230_content_loc(int loc_id);
 

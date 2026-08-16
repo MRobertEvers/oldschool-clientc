@@ -22,6 +22,9 @@
 #include "content/content_fields.h"
 #include "content/content_register.h"
 #include "mock230.h"
+/* A `.loc` block's `opN=` is pushed straight to the scene as it is parsed —
+ * see the note beside `struct Mock230LocDef`. */
+#include "mock230_scene.h"
 #include "mock230_servercodec.h"
 #include "mock230_servpack.h"
 #include "mock230_shop.h"
@@ -1734,6 +1737,35 @@ obj_config_key(
     int param_id;
     int resolved;
 
+    /*
+     * `category=<name>` — the cache's own opcode 94, and the one key on this
+     * grammar that a cache genuinely cannot always state.
+     *
+     * It is the same id space and the same overlay-beats-cache order the `.loc`
+     * and `.npc` grammars already have. What makes it worth having here is the
+     * shape it retires: `[opheld1,_pickaxe]` binds one script to every pickaxe,
+     * and without an authorable category a tool ladder has to be written out as a
+     * `switch_obj` over all eight ids — once for the level gate, once for the
+     * rate, once for the swing anim, in every skill that holds a tool. This cache
+     * groups bones (category 6) and it does not group pickaxes.
+     */
+    if( strcmp(key, "category") == 0 )
+    {
+        int category = mock230_content_symbol(MOCK230_PACK_CATEGORY, value);
+
+        if( category < 0 )
+            CONTENT_ERROR("%s: `%s` is not in pack/category.pack — a category is named "
+                          "there or it is not a category\n",
+                          where, value);
+        else if( category == 0 )
+            CONTENT_ERROR("%s: `%s` resolves to category 0, which is the decoder's "
+                          "\"unstated\" and must never be a name\n",
+                          where, value);
+        else if( !mock230_objinfo_category_overlay(obj_id, category) )
+            CONTENT_ERROR("%s: obj %d is outside the decoded obj table\n", where, obj_id);
+        return;
+    }
+
     if( strcmp(key, "param") != 0 )
     {
         /* Every other LostCity obj key states something the cache already does.
@@ -2590,12 +2622,26 @@ load_varp_config(const char* path)
  * script got the declared default and a door opened into loc 0. One value, two
  * readers, resolved once.
  *
- * The value is resolved through `pack/loc.pack`, i.e. this grammar assumes a
- * loc-typed param. `fields/loc.ini` says so (`ref = loc`) and cachepack honours
- * it on the bake side, but `struct ContentField` carries no `ref`, so C cannot
- * ask. Only `next_loc_stage` is declared today; the second loc param whose type
- * is not `loc` is what makes carrying `ref` into C worth doing, and it will fail
- * loudly here ("is not in configs/all.loc.compack") rather than quietly.
+ * The value's *type* comes from `fields/loc.ini`'s `ref`, which C can ask for
+ * since 2026-08-15 (`struct ContentField.ref`). Before that this grammar
+ * resolved every value through `pack/loc.pack` regardless, so the only
+ * authorable loc param was a loc-typed one and `param=rune_type,7` failed with
+ * "is not in configs/all.loc.compack" — the second loc param was exactly what
+ * this header predicted would make carrying `ref` worth doing.
+ *
+ *   no ref        a decimal literal, and nothing else. cp_fields.h's own
+ *                 default, and the right one: a number needs no pack to agree.
+ *   ref = <ns>    a name resolved through that namespace's pack, by the same
+ *                 spelling `mock230_content_pack_name` gives it — `loc`, `obj`,
+ *                 `seq`, `npc`, `category`, `stat`, … A decimal literal is still
+ *                 accepted, because `configs/all.loc` is a machine export and
+ *                 writes numbers where an authored block writes names.
+ *
+ * `next_loc_stage` keeps one extra effect no other param has: resolving it also
+ * fills `Mock230LocDef.next_loc_stage`, the field the engine's own door swap
+ * reads. That is bound to the register row's *name*, not to "the first param
+ * that came along" — which is what it used to be, so a second param on the same
+ * loc silently redirected every door in the block.
  */
 
 struct PendingStage
@@ -2603,8 +2649,55 @@ struct PendingStage
     int def_index;
     /** The param the overlay line named, resolved through pack/param.pack. */
     int param_id;
+    /** The namespace the value is spelled in, or MOCK230_PACK_COUNT for
+     *  "decimal literal only" — `fields/loc.ini`'s `ref`, resolved once here so
+     *  the deferred pass does not re-read the register. */
+    enum Mock230PackKind ref;
+    /** 1 when this row also owns `Mock230LocDef.next_loc_stage`. */
+    int is_next_stage;
     char* symbol;
 };
+
+/**
+ * `ref = <namespace>` → the pack kind, or MOCK230_PACK_COUNT when unnamed.
+ *
+ * Reads `pack_kind_name`'s own table backwards rather than restating it: a
+ * spelling that appears in only one of the two directions is how `synth` would
+ * quietly become authorable as `ref = synth` while resolving against nothing
+ * (its pack name is `4_soundeffects`, and `fields/npc.ini` says out loud that
+ * there is no `ref = synth`).
+ */
+static enum Mock230PackKind
+pack_kind_from_ref(const char* ref)
+{
+    if( !ref || !*ref )
+        return MOCK230_PACK_COUNT;
+    for( int k = 0; k < MOCK230_PACK_COUNT; k++ )
+    {
+        if( strcmp(pack_kind_name((enum Mock230PackKind)k), ref) == 0 )
+            return (enum Mock230PackKind)k;
+    }
+    return MOCK230_PACK_COUNT;
+}
+
+/** 1 when every character is a digit (after an optional `-`), i.e. the value is
+ *  a literal and needs no pack. */
+static int
+is_decimal_literal(const char* value)
+{
+    const char* p = value;
+
+    if( *p == '-' )
+        p++;
+    if( !*p )
+        return 0;
+    for( ; *p; p++ )
+    {
+        if( *p < '0' || *p > '9' )
+            return 0;
+    }
+    return 1;
+}
 
 static struct PendingStage* g_pending;
 static int g_pending_count;
@@ -2729,9 +2822,39 @@ load_loc_config(const char* path)
                                  sizeof(*g_pending));
                 g_pending[g_pending_count].def_index = def_index;
                 g_pending[g_pending_count].param_id = param_id;
+                g_pending[g_pending_count].ref = pack_kind_from_ref(field->ref);
+                /* By the register row's name, so the door field belongs to the
+                 * door field's row and to nothing that happens to be parsed
+                 * beside it. See this section's header. */
+                g_pending[g_pending_count].is_next_stage =
+                    strcmp(field->name, "next_loc_stage") == 0;
                 g_pending[g_pending_count].symbol = strdup(comma + 1);
                 g_pending_count++;
             }
+        }
+        else if( strlen(line) == 3 && strncmp(line, "op", 2) == 0 && line[2] >= '1' &&
+                 line[2] <= '5' )
+        {
+            /*
+             * `op3=hidden` — the resume slot every skilling loop in the reference
+             * turns on, and the reason each one in this tree resumes on op 1
+             * instead.
+             *
+             * `mock230_scene_loc_op` used to answer from the decoded client record
+             * alone, so a loc's server-side op set was exactly its client-side one.
+             * `p_oploc(3)` on a tree therefore hit the reference's own silent
+             * return (`if (!locType.op || !locType.op[type]) return;`) and the
+             * resume died, which is why `woodcut.rs2` and `mining.rs2` both had to
+             * re-issue the *visible* op and re-run its guards every tick.
+             *
+             * `hidden` is not a special case here, it is the ordinary one: an op
+             * this file states and the client's cache record does not is invisible
+             * in the menu by construction, because the menu is built from the
+             * cache. `mock230_world.c`'s OPLOC handler already refused the literal
+             * string — "Hidden / missing ops are a lagging client — drop" — so the
+             * packet path was waiting for this to exist.
+             */
+            mock230_scene_loc_op_overlay(def->loc_id, line[2] - '0', value);
         }
         else
         {
@@ -2758,18 +2881,47 @@ resolve_loc_stages(void)
     for( int i = 0; i < g_pending_count; i++ )
     {
         int index = g_pending[i].def_index;
-        int target = mock230_content_symbol(MOCK230_PACK_LOC, g_pending[i].symbol);
+        const char* symbol = g_pending[i].symbol;
+        enum Mock230PackKind ref = g_pending[i].ref;
+        int target;
 
-        if( target < 0 )
-            CONTENT_ERROR("next_loc_stage `%s` is not in configs/all.loc.compack\n",
-                          g_pending[i].symbol);
-        else if( index >= 0 && index < g_loc_def_count )
+        /*
+         * A literal first, whatever the ref says. `configs/all.loc` is a machine
+         * export and writes `param=next_loc_stage,1817`; an authored block writes
+         * the name. Both have to reach the same row or the two spellings of one
+         * config disagree.
+         */
+        if( is_decimal_literal(symbol) )
+            target = atoi(symbol);
+        else if( ref == MOCK230_PACK_COUNT )
         {
-            g_loc_defs[index].next_loc_stage = target;
-            /* …and into the param table, so `loc_param(next_loc_stage)` answers
-             * the same number the field does. See this section's header. */
+            CONTENT_ERROR("loc param `%s` takes a number — declare `ref = <namespace>` "
+                          "in fields/loc.ini to spell it as a name\n",
+                          symbol);
+            free(g_pending[i].symbol);
+            continue;
+        }
+        else
+        {
+            target = mock230_content_symbol(ref, symbol);
+            if( target < 0 )
+            {
+                CONTENT_ERROR("loc param value `%s` is not in pack/%s.pack\n", symbol,
+                              pack_kind_name(ref));
+                free(g_pending[i].symbol);
+                continue;
+            }
+        }
+
+        if( index >= 0 && index < g_loc_def_count )
+        {
+            /* Into the param table, so `loc_param(<name>)` answers what this line
+             * says — and, for the door pairing alone, into the field the engine's
+             * own door swap reads. See this section's header. */
             mock230_locinfo_param_overlay(g_loc_defs[index].loc_id, g_pending[i].param_id,
                                           target);
+            if( g_pending[i].is_next_stage )
+                g_loc_defs[index].next_loc_stage = target;
         }
         free(g_pending[i].symbol);
     }
@@ -4236,6 +4388,7 @@ mock230_content_free(void)
     free(g_npc_defs);
     g_npc_defs = NULL;
     g_npc_def_count = g_npc_def_capacity = 0;
+    mock230_scene_loc_op_overlay_reset();
     free(g_loc_defs);
     g_loc_defs = NULL;
     g_loc_def_count = g_loc_def_capacity = 0;

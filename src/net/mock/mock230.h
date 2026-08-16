@@ -1043,6 +1043,27 @@ mock230_obj_param(int obj_id, int param_id);
 void
 mock230_objinfo_param_overlay(int obj_id, int param_id, int value);
 
+/**
+ * Overlay an obj's category (rank-1 `.obj` `category=<name>`). Returns 0 when
+ * `obj_id` is outside the decoded table, which is a content bug worth reporting.
+ *
+ * Why an obj needs this and an npc does not: an npc's category can be *stated*
+ * in a `.npc` block because that grammar already carries the cache's own fields,
+ * while `.obj` accepted `param=` and nothing else — `obj_config_key` answered
+ * every other key with "is the cache's to state, ignored". So a grouping the
+ * cache does not make was unauthorable, and only that kind: the tool ladders are
+ * not the example, because this cache already groups all nine axes under 35 and
+ * all eight pickaxes under 67. `gem_necklace` is — no record in cache.osrs239
+ * carries a category for it, which is why `pack/category.pack` had to allocate
+ * one (8212) from the server band, and an allocated id nothing can be assigned
+ * to is a name with no members.
+ *
+ * The id space is `pack/category.pack`, shared with npc and loc; 0 is the
+ * decoder's "unstated" and is refused rather than stored.
+ */
+int
+mock230_objinfo_category_overlay(int obj_id, int category);
+
 const struct Mock230ObjInfo*
 mock230_objinfo(int obj_id);
 

@@ -124,6 +124,22 @@ struct ContentField
      *  `next_loc_stage` is is the pack file's business and it has already been
      *  renumbered once. */
     char param_name[48];
+    /**
+     * The namespace a *symbolic* value is spelled in — `ref = loc`, `ref = seq`.
+     *
+     * Spelled and meant exactly as `cp_fields.h` §`ref` states it, because it is
+     * the same key in the same file read by two programs; the two parsers agreeing
+     * by construction is the whole point of the register. Empty means the field
+     * accepts only a decimal literal, which is the right default: a number is
+     * unambiguous and a name is only resolvable against a pack somebody named.
+     *
+     * C could not ask this until 2026-08-15, and `mock230_content.c`'s loc-param
+     * grammar said so in its own header: every authored `param=` on a `.loc` was
+     * resolved through `pack/loc.pack` no matter what it was, so the *only*
+     * authorable loc param was a loc-typed one. `param=rune_type,7` failed with
+     * "is not in configs/all.loc.compack" — the failure that header predicted.
+     */
+    char ref[32];
 };
 
 enum

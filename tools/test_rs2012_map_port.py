@@ -113,6 +113,31 @@ PLACEMENT_ANCHOR_OVERRIDES = {
     ("22_99", 70839, 34, 24, 10, 0): (33, 24, 12, 18),  # east 12x18 slab
 }
 
+# The other four states of those same two slabs. 70836/70839 are the intact
+# floor the map places; 70837/70840 light the seams and 70838/70841 open the
+# stairwell hole, and the encounter script `loc_add`s them onto the map slabs'
+# own (tile, level, shape) so each one REPLACES the floor rather than stacking a
+# second one on the arena. That makes them subject to the same origin invariant
+# as the map placements -- and to a second one a map diff cannot see at all,
+# because their anchor lives in a script constant rather than in the .jl2.
+#
+# Both drifted apart once already: the anchor override above moved the map a
+# tile west in Aug 2026 and the script kept adding at the source coordinate on
+# the wrong plane, so the completed arena wore two floors. Nothing downstream
+# reported it.
+#
+# source_id -> constant names of the anchor the script places it on.
+SCRIPT_PLACED_FLOOR_STATES = {
+    70837: ("rs2012_qbd_floor_west_lx", "rs2012_qbd_floor_west_lz"),
+    70838: ("rs2012_qbd_floor_west_lx", "rs2012_qbd_floor_west_lz"),
+    70840: ("rs2012_qbd_floor_east_lx", "rs2012_qbd_floor_east_lz"),
+    70841: ("rs2012_qbd_floor_east_lx", "rs2012_qbd_floor_east_lz"),
+}
+# Every one of the six is 12x18 at rev 727; §16 of LARGE_LOCS_PAINTER.md has the
+# per-model overhang that decides which of them also needs the length.
+FLOOR_STATE_SOURCE_SIZE = (12, 18)
+QBD_SCRIPTS = Path("server/scripts/minigames/minigame_rs2012_qbd")
+
 
 def read_inventory(
     path: Path,
@@ -350,6 +375,54 @@ def main() -> int:
             f"{square} loc {source_id}: offsetz does not cancel the anchor move "
             f"(model origin would shift {new_z * 128 + 64 * length + offset_z - (src_z * 128 + 64 * src_length)} units)"
         )
+    # Same invariant for the four floor states the encounter script places, plus
+    # the one the .jl2 cannot express: the script must add them on the map
+    # slabs' anchor and plane, or the wire gives them their own slot and the
+    # arena keeps both floors.
+    constants = {
+        match.group(1): int(match.group(2))
+        for match in re.finditer(
+            r"^\^(\w+)\s*=\s*(-?\d+)$",
+            (tree / QBD_SCRIPTS / "configs/rs2012_qbd.constant").read_text(),
+            re.MULTILINE,
+        )
+    }
+    session = (tree / QBD_SCRIPTS / "scripts/rs2012_qbd_session.rs2").read_text()
+    src_width, src_length = FLOOR_STATE_SOURCE_SIZE
+    for (square, source_id, src_x, src_z, _shape, _angle), (
+        map_x,
+        map_z,
+        _w,
+        _l,
+    ) in PLACEMENT_ANCHOR_OVERRIDES.items():
+        assert (src_width, src_length) == (_w, _l), f"floor slab {source_id} is not 12x18 at source"
+    for source_id, (lx_name, lz_name) in SCRIPT_PLACED_FLOOR_STATES.items():
+        anchor_x, anchor_z = constants[lx_name], constants[lz_name]
+        assert (anchor_x, anchor_z) in {
+            (x, z) for x, z, _w, _l in PLACEMENT_ANCHOR_OVERRIDES.values()
+        }, f"loc {source_id} is placed on ({anchor_x},{anchor_z}), which no floor slab is anchored on"
+        block = loc_cfg[f"rs2012_loc_{source_id}"]
+        width = int(block.get("width", 1))
+        length = int(block.get("length", 1))
+        offset_x = int(block.get("offsetx", 0))
+        offset_z = int(block.get("offsetz", 0))
+        # The state and the slab it replaces are the same picture, so they must
+        # land on the same origin: the source placement's, one tile east.
+        assert anchor_x * 128 + 64 * width + offset_x == (anchor_x + 1) * 128 + 64 * src_width, (
+            f"loc {source_id}: footprint/offset move the art off the slab it replaces"
+        )
+        assert anchor_z * 128 + 64 * length + offset_z == anchor_z * 128 + 64 * src_length, (
+            f"loc {source_id}: offsetz does not cancel the length bump"
+        )
+        # A state added on the arena level lands beside the slab, not on it.
+        assert (
+            f"~rs2012_qbd_floor_coord(^{lx_name}, ^{lz_name}), rs2012_loc_{source_id}" in session
+            or f"rs2012_loc_{source_id}" not in session
+        ), f"loc {source_id} is placed without ~rs2012_qbd_floor_coord"
+    assert constants["rs2012_qbd_floor_level"] != constants["rs2012_qbd_arena_level"], (
+        "the floor slabs are map-placed on plane 0; the arena level is the actors' plane"
+    )
+
     assert len(config_blocks(lane / "configs/rs2012.underlay")) == len(underlays) == 12
     assert len(config_blocks(lane / "configs/rs2012.overlay")) == len(overlays) == 12
     assert len(pack_rows(lane / "pack/underlay.alloc")) == len(underlays)

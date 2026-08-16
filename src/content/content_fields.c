@@ -49,6 +49,9 @@ struct FieldDefault
     enum ContentFieldScope scope;
     enum ContentFieldClient client;
     const char* param_name;
+    /** `ref`, as `fields/<type>.ini` spells it. "" for a decimal-only field,
+     *  which is every row here but the one door pairing. */
+    const char* ref;
 };
 
 static const struct FieldDefault k_defaults[] = {
@@ -59,18 +62,18 @@ static const struct FieldDefault k_defaults[] = {
      * `attackrate`, which is param 14 — a param the *cache* defines, so an npc's
      * attack rate lands where a client reading the cache alone would look for it.
      */
-    { "npc", "hitpoints",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "hitpoints"     },
-    { "npc", "attack",        CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "attacklevel"   },
-    { "npc", "strength",      CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "strengthlevel" },
-    { "npc", "defence",       CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "defencelevel"  },
-    { "npc", "respawnrate",   CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "respawnrate"   },
-    { "npc", "wanderrange",   CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "wanderrange"   },
-    { "npc", "huntrange",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "huntrange"     },
-    { "npc", "attackrate",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "attackrate"    },
-    { "npc", "death_drop",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "death_drop"    },
-    { "npc", "attack_anim",   CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "attack_anim"   },
-    { "npc", "defend_anim",   CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "defend_anim"   },
-    { "npc", "death_anim",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "death_anim"    },
+    { "npc", "hitpoints",      CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "hitpoints",      "" },
+    { "npc", "attack",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "attacklevel",    "" },
+    { "npc", "strength",       CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "strengthlevel",  "" },
+    { "npc", "defence",        CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "defencelevel",   "" },
+    { "npc", "respawnrate",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "respawnrate",    "" },
+    { "npc", "wanderrange",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "wanderrange",    "" },
+    { "npc", "huntrange",      CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "huntrange",      "" },
+    { "npc", "attackrate",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "attackrate",     "" },
+    { "npc", "death_drop",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "death_drop",     "" },
+    { "npc", "attack_anim",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "attack_anim",    "" },
+    { "npc", "defend_anim",    CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "defend_anim",    "" },
+    { "npc", "death_anim",     CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "death_anim",     "" },
     /*
      * Authored, and deliberately not projected.
      *
@@ -79,28 +82,28 @@ static const struct FieldDefault k_defaults[] = {
      * number nobody agreed on. `huntmode` and `nomove` are behaviour the server
      * decides and the client never asks about.
      */
-    { "npc", "magic",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,  ""              },
-    { "npc", "ranged",        CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,  ""              },
-    { "npc", "huntmode",      CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,  ""              },
-    { "npc", "nomove",        CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,  ""              },
+    { "npc", "magic",          CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
+    { "npc", "ranged",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
+    { "npc", "huntmode",       CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
+    { "npc", "nomove",         CONTENT_SCOPE_SERVER, CONTENT_CLIENT_DROP,   "",               "" },
 
     /*
      * Stated by the client's own record, so an overlay that repeats one is patching
      * the cache rather than adding to it — which the loader now says out loud
      * instead of silently accepting.
      */
-    { "npc", "name",          CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "desc",          CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "vislevel",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "size",          CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "category",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "walkanim",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "readyanim",     CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "op1",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "op2",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "op3",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "op4",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
-    { "npc", "op5",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""              },
+    { "npc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "vislevel",       CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "size",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "category",       CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "walkanim",       CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "readyanim",      CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "op1",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "op2",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "op3",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "op4",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "npc", "op5",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
 
     /*
      * A door's other half.
@@ -110,17 +113,17 @@ static const struct FieldDefault k_defaults[] = {
      * as a param and so does this, which is what lets the engine's door handler be
      * one generic rule.
      */
-    { "loc", "next_loc_stage", CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM, "next_loc_stage" },
+    { "loc", "next_loc_stage", CONTENT_SCOPE_SERVER, CONTENT_CLIENT_PARAM,  "next_loc_stage", "loc" },
 
     /* As above: stated by the client's own record, so an overlay repeating one is
      * patching the cache. */
-    { "loc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
-    { "loc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
-    { "loc", "op1",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
-    { "loc", "op2",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
-    { "loc", "op3",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
-    { "loc", "op4",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
-    { "loc", "op5",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, ""               },
+    { "loc", "name",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "loc", "desc",           CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "loc", "op1",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "loc", "op2",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "loc", "op3",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "loc", "op4",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
+    { "loc", "op5",            CONTENT_SCOPE_CLIENT, CONTENT_CLIENT_NATIVE, "",               "" },
 };
 
 static void
@@ -138,6 +141,9 @@ push(
     entry->scope = row->scope;
     entry->client = row->client;
     snprintf(entry->param_name, sizeof(entry->param_name), "%s", row->param_name);
+    /* Most rows state no `ref` and leave the member NULL; "" is what the
+     * parsed-from-file path produces for the same absence. */
+    snprintf(entry->ref, sizeof(entry->ref), "%s", row->ref ? row->ref : "");
 }
 
 int
@@ -371,6 +377,24 @@ ContentFields_Load(
              * provably in-bounds regardless of the ini value's length. */
             snprintf(current->param_name, sizeof(current->param_name), "%.*s",
                      (int)sizeof(current->param_name) - 1, element._keyval.value);
+        }
+        /*
+         * `ref = <namespace>` — which pack a symbolic value resolves against.
+         *
+         * The same line `cp_fields.c` already had; this parser simply stopped
+         * skipping it. Both programs read one file, so a key only one of them
+         * understands is a fact the register states and half the tree acts on.
+         */
+        else if( strcmp(element._keyval.name, "ref") == 0 )
+        {
+            if( strlen(element._keyval.value) >= sizeof(current->ref) )
+                fprintf(stderr,
+                        "fields/%s.ini: [%s.%s] ref \"%s\" is %zu bytes, "
+                        "truncating to %zu\n",
+                        type, type, current->name, element._keyval.value,
+                        strlen(element._keyval.value), sizeof(current->ref) - 1);
+            snprintf(current->ref, sizeof(current->ref), "%.*s",
+                     (int)sizeof(current->ref) - 1, element._keyval.value);
         }
     }
 

@@ -23365,6 +23365,67 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: authored loc ops\n");
+    {
+        /*
+         * `op3=hidden` on a `.loc` block, which is the resume slot every skilling
+         * loop in the reference runs on.
+         *
+         * The three facts that have to hold together, and the middle one is the
+         * one worth a test rather than a comment:
+         *
+         *   1. the server sees the op, so `p_oploc(3)` does not take the
+         *      reference's silent return for an empty op and the chop loop dies
+         *      on its first tick;
+         *   2. the *client* cache record still states no op 3, so the menu the
+         *      player right-clicks is unchanged — "hidden" is not a menu entry
+         *      spelled oddly, it is an op that reaches the server and nothing
+         *      else;
+         *   3. the OPLOC packet path refuses it, so a hand-rolled client cannot
+         *      chop by naming an op no menu offers.
+         *
+         * `tree` is the subject because `skill_woodcutting/configs/trees.loc`
+         * authors it and `woodcut.rs2` resumes on it. Read through the pack, not
+         * as a number: which id `tree` is belongs to the cache.
+         */
+        int tree = mock230_content_symbol(MOCK230_PACK_LOC, "tree");
+        const char* op3 = tree >= 0 ? mock230_scene_loc_op(tree, 3) : NULL;
+        const char* op1 = tree >= 0 ? mock230_scene_loc_op(tree, 1) : NULL;
+
+        SELFTEST_CHECK(tree >= 0, "`tree` should be in configs/all.loc.compack, got %d", tree);
+        SELFTEST_CHECK(op3 && strcmp(op3, "hidden") == 0,
+                       "trees.loc authors op3=hidden and the server reads it, got `%s`",
+                       op3 ? op3 : "(none)");
+        /* The overlay adds an op; it must not replace the cache's own. A tree
+         * still says "Chop down", and if this ever answered the overlay for op1
+         * the menu and the server would disagree about every loc in the file. */
+        SELFTEST_CHECK(op1 && strcmp(op1, "hidden") != 0,
+                       "and the cache's own op1 survives the overlay, got `%s`",
+                       op1 ? op1 : "(none)");
+        /*
+         * And the overlay is a *merge*, not a replacement: trees.loc states one
+         * op across sixteen blocks, so the sixteen rows carry op3 and nothing
+         * else, and every op1 above came from rank 0. Asserted as a count rather
+         * than by matching "Chop down", because the menu text is the cache's to
+         * change and a test that pins it would fail on a revision bump for no
+         * reason.
+         */
+        SELFTEST_CHECK(mock230_scene_loc_op_overlay_count() > 0,
+                       "the content tree authors loc ops at all, got %d rows",
+                       mock230_scene_loc_op_overlay_count());
+        /* A loc nobody authored an op for reads straight through to the cache,
+         * which is the half that would break silently: an overlay table
+         * consulted first and answered from unconditionally turns every
+         * unauthored loc into one with no ops at all. */
+        {
+            int door = mock230_content_symbol(MOCK230_PACK_LOC, "poordoor");
+            const char* door_op1 = door >= 0 ? mock230_scene_loc_op(door, 1) : NULL;
+
+            SELFTEST_CHECK(door < 0 || door_op1,
+                           "an unauthored op still comes from the cache record");
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: extended info masks\n");
     {
         static struct Mock230Capture capture;
@@ -34939,6 +35000,60 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::chargesrun should report no failures");
             SELFTEST_CHECK(said_ok, "::chargesrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::fishingrun\n");
+    {
+        /*
+         * The fishing_catch/fishing_equipment table refactor
+         * (skill_fishing/scripts/fishing_selftest.rs2), same shape as
+         * `::chargesrun` just above: asserted on the OK line, run
+         * unconditionally, because `::fishingrun` only ever touches `inv` and
+         * one stat's boosted level and restores both itself before its last
+         * line runs.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture fishingrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &fishingrun_capture);
+            mock230_scripts_run_debugproc(srv, "fishingrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&fishingrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&fishingrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &fishingrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "fishingrun OK", 13) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "fishingrun FAIL", 15) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::fishingrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::fishingrun should reach its OK line");
             mock230_scripts_free(srv);
         }
     }

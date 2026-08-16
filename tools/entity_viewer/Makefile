@@ -277,6 +277,13 @@ ev_hd_sheet: $(BUILD)/ev_hd_sheet.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
+$(BUILD)/ev_zbuf_probe.o: test/ev_zbuf_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_zbuf_probe: $(BUILD)/ev_zbuf_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
 $(BUILD)/ev_mat_probe.o: test/ev_mat_probe.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 

@@ -5583,18 +5583,37 @@ Task_AppBoot_Run(
      * has no loader and the classic revisions this tree boots have no
      * clientcode-driven settings, so it stays untyped there.
      */
-    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+    /*
+     * Everything from here to `boot_config_ready = 1` is ONCE PER SESSION, not
+     * once per boot — and this task boots again on every root remount (the
+     * Display panel's Fixed/Classic/Modern switch, App_OpenRootInterface).
+     *
+     * `VarPManager_SetVarpTypes` reallocates the varp *value* arrays, so a
+     * second pass over the loads below calloc-zeroes every varp the server has
+     * sent this session. Measured on a layout switch: varp 1737 went
+     * -2147483648 -> 0 across the remount, which clears varbit 8119
+     * (`has_displayname_transmitter`), and the chatbox's own onload then paints
+     * "You must set a name before you can chat." over the input line. The name
+     * bit is only the visible one; run/attack-style/prayer/bank/settings varps
+     * go with it, and the server transmits a varp on WRITE, so nothing puts
+     * them back until content happens to write each one again.
+     *
+     * The seeds further down are the same shape: they are what the client
+     * believes before a server speaks, so re-running them mid-session would
+     * overwrite what the server said with a boot-time default.
+     */
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarpLoad(app->provider, &app->varps));
 
-    if( app->cfg.cache_kind == APP_CACHE_DAT1 )
+    if( !app->boot_config_ready && app->cfg.cache_kind == APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
-    else
+    else if( !app->boot_config_ready )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarbitLoad(app->provider, &app->varps));
 
     /* Hitsplat types. dat1 has no such config group — it keeps the splat
      * graphics in a "hitmarks" sprite archive, which the static-sprite path
      * binds — so this is a dat2-only load and an absent group is not an error. */
-    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2HitsplatLoad(app->provider, &app->hitsplats));
 
     /*
@@ -5604,7 +5623,7 @@ Task_AppBoot_Run(
      * the table unconditionally is deliberate: the empty case is a supported
      * reading, not a failure to load.
      */
-    if( app->cfg.cache_kind != APP_CACHE_DAT1 )
+    if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2SoundscapeLoad(app->provider, &app->soundscapes));
     RS_Audio_SetSoundscapes(&app->audio, &app->soundscapes);
 
@@ -5618,11 +5637,15 @@ Task_AppBoot_Run(
      * the store is what GAMEOPTION_GET answers with, and the four varps below
      * are then seeded from it, so both halves of interface 116 agree.
      */
-    app->prefs_path = RS_Prefs_Path();
-    RS_Prefs_Defaults(&app->prefs);
-    if( app->prefs_path )
+    if( !app->boot_config_ready )
+    {
+        app->prefs_path = RS_Prefs_Path();
+        RS_Prefs_Defaults(&app->prefs);
+    }
+    if( !app->boot_config_ready && app->prefs_path )
         PT_TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
-    RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+    if( !app->boot_config_ready )
+        RS_Prefs_ApplyToHost(&app->prefs, &app->host);
 
     /*
      * A window mode the manifest or command line stated wins over the saved
@@ -5633,7 +5656,7 @@ Task_AppBoot_Run(
      * VARP over the seeded volumes: an explicit instruction for this run beats
      * what the last run happened to leave behind.
      */
-    if( app->cfg.window_mode )
+    if( !app->boot_config_ready && app->cfg.window_mode )
         app->host.default_window_mode = app->cfg.window_mode;
 
     /*
@@ -5660,24 +5683,30 @@ Task_AppBoot_Run(
      * snapshot stays in agreement with the varps; and before the tree is built,
      * so 116 constructs its bobbles green rather than needing a repaint.
      */
-    VarPManager_SetVarpOptimistic(
-        &app->varps, RS_CS2_VARP_MASTER_VOLUME,
-        RS_CS2Host_GetOption(
-            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
-    VarPManager_SetVarpOptimistic(
-        &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
-        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
-    VarPManager_SetVarpOptimistic(
-        &app->varps, RS_CS2_VARP_SOUND_VOLUME,
-        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
-    VarPManager_SetVarpOptimistic(
-        &app->varps, RS_CS2_VARP_AREA_VOLUME,
-        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
+    if( !app->boot_config_ready )
+    {
+        VarPManager_SetVarpOptimistic(
+            &app->varps, RS_CS2_VARP_MASTER_VOLUME,
+            RS_CS2Host_GetOption(
+                &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MASTER_VOLUME));
+        VarPManager_SetVarpOptimistic(
+            &app->varps, RS_CS2_VARP_MUSIC_VOLUME,
+            RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_MUSIC_VOLUME));
+        VarPManager_SetVarpOptimistic(
+            &app->varps, RS_CS2_VARP_SOUND_VOLUME,
+            RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_SOUND_VOLUME));
+        VarPManager_SetVarpOptimistic(
+            &app->varps, RS_CS2_VARP_AREA_VOLUME,
+            RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_GAME, RS_CS2_GAMEOPTION_AREA_VOLUME));
+    }
 
     /* Baseline for the change detection below: what is in the host now is what
      * is on disk, so nothing written here counts as a change worth saving. */
-    RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
-    app->prefs_dirty_cycle = 0;
+    if( !app->boot_config_ready )
+    {
+        RS_Prefs_CaptureFromHost(&app->prefs, &app->host);
+        app->prefs_dirty_cycle = 0;
+    }
     if( getenv("TORIRS_AUDIO_TRACE") || getenv("TORIRS_AUDIO_DEBUG") )
         fprintf(
             stderr,
@@ -5710,9 +5739,13 @@ Task_AppBoot_Run(
      * Optimistic, before the tree is built, and overridable by a server VARP —
      * all three for the reasons stated above the volumes.
      */
-    if( app->features->varbit_interface_resizing > 0 )
+    if( !app->boot_config_ready && app->features->varbit_interface_resizing > 0 )
         VarPManager_SetVarbitOptimistic(
             &app->varps, app->features->varbit_interface_resizing, 1);
+
+    /* End of the once-per-session half. A remount from here down rebuilds the
+     * tree against the var state the session already has. */
+    app->boot_config_ready = 1;
 
     /* `[ui:varc]` — the var writes that accompany the login IF_OPENSUB burst.
      * Before the tree opens, because the root's onLoad scripts branch on them.
