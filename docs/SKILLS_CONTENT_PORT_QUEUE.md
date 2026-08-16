@@ -196,7 +196,7 @@ unblocked row per tick.
 | 37 | Runecraft tiara craft + pure essence | wiki+cache | pending | LostCity has no tiara or pure-essence logic at all — both are wiki-only. Tiara `Enter` on ruins is NOT partially live: the varbit it keys on (`rc_no_tally_required_*`) is never written, so `*_ruined_new` is unreachable. See RUNECRAFT_COMPLETION_PLAN.md §1.3, §2 |
 | 38 | Blood / Soul / Wrath altars | wiki+cache | pending | Wiki Arceuus blood/soul + wrath; constants exist; no altar rows/paths (CONTENT 8k deferred soul/blood). See RUNECRAFT_COMPLETION_PLAN.md §4 |
 | 39 | Ourania / Zeah RC + abyss | wiki+cache | pending | CONTENT 8k deferred Ourania/zeah; no abyss obstacle course / pouches in tree. See RUNECRAFT_COMPLETION_PLAN.md §6–§8 |
-| 40 | Essence mine teleporter remainder | wiki+cache | pending | Aubury/Sedridor live; deferred Brimstail/Disentor/Cromperty + Aubury shop (CONTENT 8k). See RUNECRAFT_COMPLETION_PLAN.md §3 |
+| 40 | Essence mine teleporter remainder | wiki+cache | done | Correction: all five (Aubury/Sedridor/Distentor/Cromperty/Brimstail) + Aubury's shop were already live in areas/ — queue note was stale. See RUNECRAFT_COMPLETION_PLAN.md §3 |
 | 41 | Guardians of the Rift | wiki+cache | blocked | Wiki primary modern RC training; Temple of the Eye quest gate — no minigame tree. Scoped out of RUNECRAFT_COMPLETION_PLAN.md §8 as its own minigame build, not a skill-interaction slice |
 | 42 | Runecraft cape / combination runes | wiki+cache | pending | Cape perk absent; combo runes (mist/dust/…) not in runecraft_table. See RUNECRAFT_COMPLETION_PLAN.md §5 |
 | 43 | Crafting weaving (loom) | wiki+cache | pending | Wiki sacks/baskets/drift nets/cloth bolts; no loom scripts in skill_crafting |

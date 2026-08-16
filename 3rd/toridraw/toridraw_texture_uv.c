@@ -273,7 +273,11 @@ ToriDraw_ComputeTextureUvBases(
     return true;
 }
 
-/** The render-type-0 plane solve, straight from the reference. */
+/**
+ * The render-type-0 plane solve. The arithmetic is toridraw_texmap_project_plane
+ * — the same function the `texpmn` kernels run per face — so the generator and
+ * the rasterizer cannot disagree about where a type-0 texel lands.
+ */
 static void
 project_plane(
     const struct ToriDraw_TextureUvSource* model,
@@ -288,87 +292,18 @@ project_plane(
     int i1 = model->face_indices_b[face];
     int i2 = model->face_indices_c[face];
 
-    float ox = (float)model->vertices_x[p];
-    float oy = (float)model->vertices_y[p];
-    float oz = (float)model->vertices_z[p];
+    struct ToriDraw_TexPlaneFrame frame = {
+        model->vertices_x[p], model->vertices_y[p], model->vertices_z[p],
+        model->vertices_x[m], model->vertices_y[m], model->vertices_z[m],
+        model->vertices_x[n], model->vertices_y[n], model->vertices_z[n],
+    };
 
-    float mu_x = (float)model->vertices_x[m] - ox;
-    float mu_y = (float)model->vertices_y[m] - oy;
-    float mu_z = (float)model->vertices_z[m] - oz;
-    float nv_x = (float)model->vertices_x[n] - ox;
-    float nv_y = (float)model->vertices_y[n] - oy;
-    float nv_z = (float)model->vertices_z[n] - oz;
-
-    float d0x = (float)model->vertices_x[i0] - ox;
-    float d0y = (float)model->vertices_y[i0] - oy;
-    float d0z = (float)model->vertices_z[i0] - oz;
-    float d1x = (float)model->vertices_x[i1] - ox;
-    float d1y = (float)model->vertices_y[i1] - oy;
-    float d1z = (float)model->vertices_z[i1] - oz;
-    float d2x = (float)model->vertices_x[i2] - ox;
-    float d2y = (float)model->vertices_y[i2] - oy;
-    float d2z = (float)model->vertices_z[i2] - oz;
-
-    float nx = mu_y * nv_z - mu_z * nv_y;
-    float ny = mu_z * nv_x - mu_x * nv_z;
-    float nz = mu_x * nv_y - mu_y * nv_x;
-
-    float ax = nv_y * nz - nv_z * ny;
-    float ay = nv_z * nx - nv_x * nz;
-    float az = nv_x * ny - nv_y * nx;
-    float det_u = ax * mu_x + ay * mu_y + az * mu_z;
-    /*
-     * A degenerate projector — p, m and n collinear, or two of them the same
-     * vertex — makes this determinant zero. The reference divides anyway and
-     * gets Infinity, which JS carries harmlessly into a Float32Array; here it
-     * would reach a rasterizer, and a non-finite uv poisons an entire triangle
-     * rather than one texel. Measured at 467 of 6,395,265 type-0 faces across
-     * cache.rs727_preeoc, so it is rare and real. Leaving uv at zero collapses
-     * the face to one texel, which is what a projector with no extent means.
-     */
-    if( det_u == 0.0f )
-    {
-        u[0] = u[1] = u[2] = 0.0f;
-        v[0] = v[1] = v[2] = 0.0f;
-        return;
-    }
-    float inv = 1.0f / det_u;
-
-    u[0] = (ax * d0x + ay * d0y + az * d0z) * inv;
-    u[1] = (ax * d1x + ay * d1y + az * d1z) * inv;
-    u[2] = (ax * d2x + ay * d2y + az * d2z) * inv;
-
-    ax = mu_y * nz - mu_z * ny;
-    ay = mu_z * nx - mu_x * nz;
-    az = mu_x * ny - mu_y * nx;
-    float det_v = ax * nv_x + ay * nv_y + az * nv_z;
-    if( det_v == 0.0f )
-    {
-        u[0] = u[1] = u[2] = 0.0f;
-        v[0] = v[1] = v[2] = 0.0f;
-        return;
-    }
-    inv = 1.0f / det_v;
-
-    v[0] = (ax * d0x + ay * d0y + az * d0z) * inv;
-    v[1] = (ax * d1x + ay * d1y + az * d1z) * inv;
-    v[2] = (ax * d2x + ay * d2y + az * d2z) * inv;
-
-    /* The reference's snap-to-1 pass. A projector whose u span lands within a
-     * hair of exactly one tile is snapped so adjacent faces share an edge
-     * exactly; the asymmetric ordering is the reference's. */
-    if( u[1] - u[0] > 0.99f && u[1] - u[0] < 1.1f )
-        u[1] = 1.0f;
-    if( u[2] - u[1] > 0.99f && u[2] - u[1] < 1.1f )
-        u[2] = 1.0f;
-    if( u[0] - u[2] > 0.99f && u[0] - u[2] < 1.1f )
-        u[0] = 1.0f;
-    if( u[0] - u[1] > 0.99f && u[0] - u[1] < 1.1f )
-        u[0] = 1.0f;
-    if( u[1] - u[2] > 0.99f && u[1] - u[2] < 1.1f )
-        u[1] = 1.0f;
-    if( u[2] - u[0] > 0.99f && u[2] - u[0] < 1.1f )
-        u[2] = 1.0f;
+    toridraw_texmap_project_plane(
+        &frame,
+        model->vertices_x[i0], model->vertices_y[i0], model->vertices_z[i0],
+        model->vertices_x[i1], model->vertices_y[i1], model->vertices_z[i1],
+        model->vertices_x[i2], model->vertices_y[i2], model->vertices_z[i2],
+        u, v);
 }
 
 bool

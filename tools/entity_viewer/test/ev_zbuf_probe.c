@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 static struct EV_TextureSet g_set;
 
@@ -130,6 +131,72 @@ main(int argc, char** argv)
     {
         fprintf(stderr, "npc %d has no HD model\n", npc_id);
         return 1;
+    }
+
+    /* --coplanar: how far each type-0 face's P/M/N texture frame sits from the
+     * face's own plane. Zero means the SD eye-ray plane walk and the HD
+     * per-vertex projection agree; anything else and they diverge with view. */
+    if( getenv("EV_COPLANAR") )
+    {
+        struct ToriDraw_Model* m = &hd->base;
+        int n_type0 = 0, n_own = 0, n_off = 0;
+        double worst = 0;
+        int hist[6] = { 0 };
+        for( int f = 0; f < m->face_count; f++ )
+        {
+            int coord = m->face_texture_coords ? m->face_texture_coords[f] : -1;
+            if( coord < 0 || coord >= m->textured_face_count )
+                continue;
+            int ty = m->texture_render_types ? (m->texture_render_types[coord] & 0xFF) : 0;
+            if( ty != 0 )
+                continue;
+            n_type0++;
+            int ia = m->face_indices_a[f], ib = m->face_indices_b[f], ic = m->face_indices_c[f];
+            int tp = m->textured_p_coordinate[coord], tm = m->textured_m_coordinate[coord],
+                tn = m->textured_n_coordinate[coord];
+            int own = 0;
+            int idx[3] = { ia, ib, ic }, pmn[3] = { tp, tm, tn };
+            for( int k = 0; k < 3; k++ )
+                for( int j = 0; j < 3; j++ )
+                    if( idx[k] == pmn[j] )
+                        own++;
+            if( own == 3 )
+            {
+                n_own++;
+                continue;
+            }
+            /* face plane */
+            double ax = m->vertices_x[ia], ay = m->vertices_y[ia], az = m->vertices_z[ia];
+            double bx = m->vertices_x[ib] - ax, by = m->vertices_y[ib] - ay,
+                   bz = m->vertices_z[ib] - az;
+            double cx = m->vertices_x[ic] - ax, cy = m->vertices_y[ic] - ay,
+                   cz = m->vertices_z[ic] - az;
+            double nx = by * cz - bz * cy, ny = bz * cx - bx * cz, nz = bx * cy - by * cx;
+            double nl = sqrt(nx * nx + ny * ny + nz * nz);
+            if( nl == 0 )
+                continue;
+            double edge = sqrt(bx * bx + by * by + bz * bz);
+            double dmax = 0;
+            for( int j = 0; j < 3; j++ )
+            {
+                double px = m->vertices_x[pmn[j]] - ax, py = m->vertices_y[pmn[j]] - ay,
+                       pz = m->vertices_z[pmn[j]] - az;
+                double d = fabs((px * nx + py * ny + pz * nz) / nl);
+                if( d > dmax )
+                    dmax = d;
+            }
+            double rel = edge > 0 ? dmax / edge : 0;
+            n_off++;
+            if( rel > worst )
+                worst = rel;
+            int b = rel < 0.01 ? 0 : rel < 0.1 ? 1 : rel < 0.5 ? 2 : rel < 1 ? 3 : rel < 5 ? 4 : 5;
+            hist[b]++;
+        }
+        printf(
+            "type-0 faces %d: own-vertex PMN %d, foreign PMN %d\n"
+            "  foreign PMN off-plane distance / face edge: <1%%: %d  <10%%: %d  <50%%: %d  <1x: %d  <5x: %d  >=5x: %d  worst %.1fx\n",
+            n_type0, n_own, n_off, hist[0], hist[1], hist[2], hist[3], hist[4], hist[5], worst);
+        return 0;
     }
 
     struct EV_WireBuf wb = { 0 };

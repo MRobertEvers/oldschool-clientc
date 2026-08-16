@@ -53,7 +53,7 @@ generic exit portal and an Aubury/Sedridor essence-mine loop.
 | Ourania (ZMI) | ❌ | [Ourania Altar](https://oldschool.runescape.wiki/w/Ourania_Altar) |
 | Guardians of the Rift | ❌ | [Guardians of the Rift](https://oldschool.runescape.wiki/w/Guardians_of_the_Rift) |
 | Runecraft cape / Raiments of the Eye | ❌ | [Raiments of the Eye](https://oldschool.runescape.wiki/w/Raiments_of_the_Eye) |
-| Remaining teleporters (Distentor, Cromperty, Brimstail) | ❌ | [Rune Essence Mine](https://oldschool.runescape.wiki/w/Rune_Essence_Mine) |
+| Remaining teleporters (Distentor, Cromperty, Brimstail) | ✅ live in `areas/`, queue row was stale | [Rune Essence Mine](https://oldschool.runescape.wiki/w/Rune_Essence_Mine) |
 
 ### 0.2 The queue rows are stale — correct them in slice 0
 
@@ -178,31 +178,30 @@ variants exist at `all.obj:357785`) come with §1.4's `~talisman_opens`.
 
 ---
 
-## 3. Slice #40 — the remaining essence-mine teleporters
+## 3. Slice #40 — the remaining essence-mine teleporters (already done)
 
 Wiki: [Rune Essence Mine](https://oldschool.runescape.wiki/w/Rune_Essence_Mine)
 
-`@teleport_to_essence_mine` is generic and already takes the return coord; the
-constants for all five destinations already exist
-(`runecraft.constant:^essence_mine_to_*`). This is pure NPC binding.
+**Correction, found while implementing this plan:** all five teleporters are
+already live, in `areas/`, not `skill_runecraft/` — the queue row's "deferred"
+note was stale. Nothing to build here.
 
-| NPC | cache name | gate | return constant |
+| NPC | Talk-to | Teleport | file |
 |---|---|---|---|
-| Aubury | `aubury`, `aubury_2op`, `aubury_3op` | live | `^essence_mine_to_aubury` |
-| Archmage Sedridor | `head_wizard_1op` (`all.npc:378782`) | live | `^essence_mine_to_sedridor` |
-| Wizard Distentor | `guild_wizard_1op` (`all.npc:378099`) | 66 Magic (Wizards' Guild) | `^essence_mine_to_disentor` |
-| Wizard Cromperty | `cromperty_pre_diary`, `cromperty_post_diary` | members | `^essence_mine_to_cromperty` |
-| Brimstail | `gnome_brimstail`, `_1op`, `_2op` | members | `^essence_mine_to_brimstail` |
+| Aubury | `[opnpc1,aubury]` | `[opnpc4,aubury]` | `areas/varrock/scripts/aubury.rs2` |
+| Archmage Sedridor | live | live | `areas/wizard_tower/scripts/sedridor.rs2` |
+| Wizard Distentor | `[opnpc1,guild_wizard]` | `[opnpc3,guild_wizard]` | `areas/area_yanille/scripts/yanille_thin_npcs.rs2` |
+| Wizard Cromperty | `[opnpc1,ardounge_wizard]`+aliases | `[opnpc3,...]` | `areas/area_ardougne_east/scripts/wizard_cromperty.rs2` |
+| Brimstail | `[opnpc1,gnome_brimstail]` | `[opnpc3,gnome_brimstail]` | `areas/area_gnome/scripts/brimstail.rs2` |
 
-Note the cache names are **not** the display names — Sedridor is
-`head_wizard_1op` and Distentor is `guild_wizard_1op`. Bind the `_1op`/`_2op`
-variants too; those are the right-click `Teleport` forms.
+Each gates Talk-to's teleport option on `%runemysteries = ^runemysteries_complete`
+and calls the shared `@teleport_to_essence_mine(^essence_mine_to_*)` label from
+`skill_runecraft/scripts/essence_mine.rs2`. Aubury's rune shop
+(`shop/varrock/scripts/auburys_rune_shop__1.rs2`, `[opnpc3,aubury]`) is live
+too and does not collide with the op4 teleport binding.
 
 `~eta_charge_orb` is already called from `@teleport_to_essence_mine`, so Enter
-the Abyss's three-location requirement starts working the moment these land.
-
-Aubury's rune shop is a separate `shop/` wiring job — scope it here but land it
-after, it shares nothing with the teleport.
+the Abyss's three-location requirement (§7) already works today.
 
 ---
 

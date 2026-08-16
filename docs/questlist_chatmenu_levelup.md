@@ -160,6 +160,30 @@ Still open (named so they are not rediscovered): ops 4/5 wiki, op 6 "Pin journal
 and the other 56 LostCity per-quest journals (quests
 with no gameplay here).
 
+### 1.6 `::complete <quest>` — finishing a quest without playing it
+
+`quests/scripts/quest_cheat.rs2`, a `[debugproc,complete]` taking the quest's
+**dbrow name**: `::complete quest_cooksassistant`. One arm per quest, keyed on
+the same dbrow `~quest_journal_open_by_id` dispatches journals on, each writing
+the progress varp that quest's own completion writes to that quest's own
+`^*_complete` constant. `~quest_award_points` then pays the row's
+`quest:questpoints`, so the QP header above stays consistent with the rows under
+it. Rewards — XP, items, the completion scroll — are deliberately not granted:
+they live behind dialogue and inventory context a cheat is not standing in.
+
+Engine half: `dbrow` became a resolvable debugproc argument type
+(`debugproc_arg_type`, ScriptVarType char 208 → `MOCK230_PACK_DBROW`). Without
+it the word would have been read as an int and every quest name would have
+arrived as row 0.
+
+166 quests have an arm — every one in the tree that reaches
+`~quest_complete_rewards`. A quest with no arm says so rather than doing
+nothing quietly. Verified in `mock230 --selftest` ("quest journal" section):
+Cook's Assistant is checked against the row's own `endstate`/`questpoints`
+columns, and every quest row is then completed twice — the second run must find
+it already complete and pay nothing, which is what catches an arm that writes
+some other quest's variable.
+
 ---
 
 ## 2. `chatmenu` (219)

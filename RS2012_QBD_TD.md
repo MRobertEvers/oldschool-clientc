@@ -353,16 +353,38 @@ Dynamic platform stages used by the controller:
 - phase-2 descent 70844, second path 70845;
 - phase-3 descent 70846, third path 70847;
 - phase-4 descent 70848, fourth path 70849;
-- completion: 70838 and 70841 plus staircase 70790.
+- completion: 70837 and 70840, then staircase 70790 + stairwell 70775.
 
-Each arena half is one loc in three states — intact (70836/70839), seams lit
-(70837/70840), stairwell hole (70838/70841) — so completion is a REPLACEMENT on
-the map slab's own `(tile, level, shape)` slot, not a second loc laid over it.
+Each arena half is one loc in three states — intact (70836/70839), completion
+(70837/70840), collapsed (70838/70841) — so completion is a REPLACEMENT on the
+map slab's own `(tile, level, shape)` slot, not a second loc laid over it.
 The slabs are map-placed on **plane 0** at (21,24) and (33,24), one tile west of
 the rev-727 anchors (LARGE_LOCS_PAINTER.md §16), and all six carry the matching
 footprint correction from `[footprint:loc]` in the manifest. Adding a state on
 the arena level, or on the rev-727 anchor, gives it its own slot and leaves the
 arena wearing two floors.
+
+**The completion state is 70837/70840, not 70838/70841.** This section said the
+opposite until 2026-08-15 and the port followed it, which ended every fight with
+the arena floor gone. open727's `QueenBlackDragon.switchPhase` case 5 spawns
+70837 at (22,24,-1) and 70840 at (34,24,-1) and never places 70838/70841 at all,
+and the models agree: 70837 is `models=110139,110140` — the 8,211-face floor half
+plus a 79-face lit-seam overlay — while 70838's lone 110141 is a 601-face rim
+spread across the whole 12×18 footprint with none of the plates in it. Rendered
+by itself (`rs2012_model_view --pitch 512`) 110141 is a dark outline of the slab
+and nothing else; 110144 (400 faces) is the same for the east half. They are the
+half AFTER it falls away, not a floor with a stairwell in it.
+
+The stairwell itself is **70775** — model 110109, 9,379 faces standing 3,131
+units over a 5×5 footprint, `anim=rs2012_seq_16766` (12 frames, ~90 cycles,
+sound 15636), `randomanimstart=no`. open727 places it at (31,29,-1) two ticks
+after the floor state, on the same beat as clickable staircase 70790 at
+(31,29,0). The `-1` is the floor plane, which is where this port puts it too:
+on that plane it replaces the map's own central plate 70788 — same tile, level,
+shape and 5×5 `blockwalk`, so the collision map does not move — while 70790
+stays on the arena level with the player. An earlier note claimed 70775 could
+not be placed because the wire carries one loc per (tile, layer) and it would
+take 70790's slot; that is only true if both sit on the arena level.
 
 ### 4.2 Reward chamber
 

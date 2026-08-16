@@ -3221,6 +3221,13 @@ debugproc_arg_type(
     case 83: /* stat */
         *out_kind = MOCK230_PACK_STAT;
         return 2;
+    case 208: /* dbrow */
+        /* Not one the reference resolves — its cheats predate the db tables.
+         * It is here because a row name is the only printable handle a db row
+         * has: `::complete quest_cooksassistant` against a table whose ids are
+         * the cache's, which no cheat could be expected to type. */
+        *out_kind = MOCK230_PACK_DBROW;
+        return 2;
     case 99: /* coord */
         return 3;
     default:

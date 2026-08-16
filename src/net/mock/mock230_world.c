@@ -16291,6 +16291,177 @@ mock230_world_selftest(void)
                                "an unwritten quest should still mount questjournal");
             }
 
+            /*
+             * `::complete <quest>` — quests/scripts/quest_cheat.rs2.
+             *
+             * Driven through `handle_cheat` with the CLIENT_CHEAT body rather
+             * than through `mock230_scripts_run_debugproc`, because the half
+             * that is engine is the *argument*: `dbrow` had no arm in
+             * `debugproc_arg_type`, so the word would have been taken as an int
+             * and every quest name would have arrived as 0 — dbrow 0, a real
+             * row, silently the wrong one. A direct proc call passes the id
+             * already resolved and could not see that.
+             *
+             * Asserted against the cache's own `quest` row rather than against
+             * 2 and 1: `endstate` is what the row says finishing this quest
+             * looks like and `questpoints` is what it is worth, so a content
+             * arm that writes a different state, or an award that pays a
+             * different number, fails here rather than agreeing with a
+             * hardcoded copy of itself.
+             */
+            {
+                static const uint8_t command[] = "complete quest_cooksassistant\n";
+                static const uint8_t unknown[] = "complete quest_no_such_quest\n";
+                int qp = mock230_content_symbol(MOCK230_PACK_VARP, "qp");
+                int endstate = -1;
+                int points = -1;
+                int qp_before;
+
+                if( found && table )
+                {
+                    int end_col = mock230_db_column_index(table, "endstate");
+                    int points_col = mock230_db_column_index(table, "questpoints");
+
+                    if( end_col >= 0 && found->columns[end_col].count >= 1 )
+                        endstate = found->columns[end_col].values[0].value;
+                    if( points_col >= 0 && found->columns[points_col].count >= 1 )
+                        points = found->columns[points_col].values[0].value;
+                }
+                SELFTEST_CHECK(cookquest > 0 && qp > 0,
+                               "cookquest / qp should resolve out of the content pack");
+                SELFTEST_CHECK(endstate > 0 && points > 0,
+                               "quest_cooksassistant should carry endstate and questpoints "
+                               "(got %d, %d)",
+                               endstate, points);
+
+                if( cookquest > 0 && qp > 0 && endstate > 0 && points > 0 )
+                {
+                    player->varps[cookquest] = 0;
+                    qp_before = player->varps[qp];
+
+                    handle_cheat(srv, command, (int)sizeof(command) - 1);
+                    SELFTEST_CHECK(player->varps[cookquest] == endstate,
+                                   "::complete quest_cooksassistant should leave %%cookquest at "
+                                   "the row's endstate %d, got %d",
+                                   endstate, player->varps[cookquest]);
+                    SELFTEST_CHECK(player->varps[qp] == qp_before + points,
+                                   "::complete should pay the row's %d quest point(s) (%d -> %d)",
+                                   points, qp_before, player->varps[qp]);
+
+                    /* The already-complete arm. Paying twice for one quest is
+                     * the failure a `=`-instead-of-`>=` state test also
+                     * produces, so this is where both are caught. */
+                    handle_cheat(srv, command, (int)sizeof(command) - 1);
+                    SELFTEST_CHECK(player->varps[qp] == qp_before + points,
+                                   "a second ::complete on a finished quest must not pay again "
+                                   "(%d -> %d)",
+                                   qp_before + points, player->varps[qp]);
+
+                    /* A word the dbrow pack does not name arrives as null, and
+                     * null must not fall into an arm. */
+                    player->varps[cookquest] = 0;
+                    handle_cheat(srv, unknown, (int)sizeof(unknown) - 1);
+                    SELFTEST_CHECK(player->varps[cookquest] == 0,
+                                   "::complete with an unknown quest name must write nothing, "
+                                   "got %%cookquest %d",
+                                   player->varps[cookquest]);
+                    SELFTEST_CHECK(player->varps[qp] == qp_before + points,
+                                   "::complete with an unknown quest name must pay nothing");
+
+                    /* Put the section's state back: the journal checks above
+                     * run on `%cookquest` 1, and `%qp` is read by the character
+                     * summary section that follows. */
+                    player->varps[qp] = qp_before;
+                    player->varps[cookquest] = 1;
+                }
+            }
+
+            /*
+             * The other 165 arms, without 165 more stanzas.
+             *
+             * One quest proves the wiring; it cannot prove that an arm exists
+             * for each quest, or that the arm for quest N writes quest N's own
+             * progress variable. The second is the one that matters and the one
+             * a hand-written dispatcher gets wrong: an arm that writes the
+             * neighbouring quest's varp still pays the right points and still
+             * looks like it worked.
+             *
+             * Running each quest twice catches it with no per-quest knowledge
+             * on this side. The second `::complete` reads back what the first
+             * wrote, so an arm whose write lands anywhere else finds its quest
+             * unfinished and pays a second time. That is the assert.
+             *
+             * A quest with no arm pays nothing at all and is counted, not
+             * failed — 47 of the cache's rows are quests this tree cannot
+             * finish, and the floor below is what notices if that number starts
+             * climbing because the dispatcher stopped resolving.
+             */
+            {
+                static int32_t varps_before[MOCK230_VARP_COUNT];
+                int qp = mock230_content_symbol(MOCK230_PACK_VARP, "qp");
+                int points_col = table ? mock230_db_column_index(table, "questpoints") : -1;
+                int rows = mock230_db_row_count(quest_table);
+                int covered = 0;
+                int paid_twice = 0;
+                int wrong_award = 0;
+                const char* first_bad = NULL;
+
+                memcpy(varps_before, player->varps, sizeof(varps_before));
+                for( int i = 0; i < rows && qp > 0 && points_col >= 0; i++ )
+                {
+                    const struct Mock230DbRow* row =
+                        mock230_db_row_in_table(quest_table, i);
+                    const struct Mock230DbRowColumn* store;
+                    uint8_t command[128];
+                    int points;
+                    int before;
+                    int once;
+
+                    if( !row || !row->symbol )
+                        continue;
+                    store = &row->columns[points_col];
+                    points = store->count >= 1 ? store->values[0].value : 0;
+
+                    if( (int)strlen(row->symbol) + 11 >= (int)sizeof(command) )
+                        continue;
+                    snprintf((char*)command, sizeof(command), "complete %s\n", row->symbol);
+
+                    before = player->varps[qp];
+                    handle_cheat(srv, command, (int)strlen((const char*)command));
+                    once = player->varps[qp];
+                    handle_cheat(srv, command, (int)strlen((const char*)command));
+
+                    if( once == before )
+                        continue; /* no arm, or a quest worth no points */
+                    covered++;
+                    if( once - before != points )
+                    {
+                        wrong_award++;
+                        if( !first_bad )
+                            first_bad = row->symbol;
+                    }
+                    if( player->varps[qp] != once )
+                    {
+                        paid_twice++;
+                        if( !first_bad )
+                            first_bad = row->symbol;
+                    }
+                }
+                SELFTEST_CHECK(covered >= 150,
+                               "::complete should cover the quests this tree can finish, "
+                               "got %d arms that paid points",
+                               covered);
+                SELFTEST_CHECK(wrong_award == 0,
+                               "every ::complete arm should pay its row's questpoints "
+                               "(%d disagreed, first %s)",
+                               wrong_award, first_bad ? first_bad : "?");
+                SELFTEST_CHECK(paid_twice == 0,
+                               "a completed quest must read back as complete — %d arm(s) paid "
+                               "twice, first %s (that arm writes the wrong variable)",
+                               paid_twice, first_bad ? first_bad : "?");
+                memcpy(player->varps, varps_before, sizeof(varps_before));
+            }
+
             mock230_scripts_free(srv);
         }
     }

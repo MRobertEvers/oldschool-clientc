@@ -496,10 +496,16 @@ int g_toridraw_raster_scanline = 0;
 #include "triangles/toridraw_triangle_zbuf.u.c"
 #endif
 #include "toridraw_render.u.c"
-/* The HD kernel set: four projection families x twelve compositing variants.
- * One file per variant; they share four templates. Included here rather than
- * from the triangle wrappers because nothing in the stock path calls them —
- * only ToriDraw_RenderHD does. */
+/* The HD kernel set: five projection families x twelve compositing variants,
+ * each with a depth-tested twin. One file per variant; they share two
+ * templates. Included here rather than from the triangle wrappers because
+ * nothing in the stock path calls them — only ToriDraw_RenderHD does.
+ *
+ * `texplane` is the SD eye-ray plane walk over the sampler matrix. RenderHD no
+ * longer routes to it — render type 0 goes to `texpmn`, the HD reference's
+ * per-vertex frame projection (see texmap_common.h) — but it stays: it is the
+ * bridge test-texture-matrix uses to prove every sampler span kernel against
+ * its plain SD twin, which no other family can be compared to. */
 // clang-format off
 #include "graphics/raster/texture/texplane.persp.texalpha.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
@@ -513,6 +519,18 @@ int g_toridraw_raster_scanline = 0;
 #include "graphics/raster/texture/texplane.persp.textrans.facealpha.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.textrans.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.facealpha.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.facealpha.modulate.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.modulate.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texcylinder.persp.texalpha.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.modulate.branching.lerp8_v3.u.c"
@@ -565,6 +583,18 @@ int g_toridraw_raster_scanline = 0;
 #include "graphics/raster/texture/texplane.persp.textrans.facealpha.zbuf.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texplane.persp.textrans.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texalpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.texopaque.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.facealpha.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
+#include "graphics/raster/texture/texpmn.persp.textrans.zbuf.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.modulate.zbuf.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texcylinder.persp.texalpha.facealpha.zbuf.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texcylinder.persp.texalpha.modulate.zbuf.branching.lerp8_v3.u.c"

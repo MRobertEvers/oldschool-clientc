@@ -1,17 +1,23 @@
 /*
  * Mapped textured triangle, `branching` walk. Included once per variant by the
- * `texcylinder`, `texcube` and `texsphere` families. The includer defines:
+ * `texpmn`, `texcylinder`, `texcube` and `texsphere` families. The includer
+ * defines:
  *
  *   TMAP_FN    triangle entry point name
  *   TMAP_SPAN  scanline kernel from span/tex.span.gates.u.c
- *   TMAP_KIND  1 = cylinder, 2 = cube, 3 = sphere
+ *   TMAP_KIND  0 = P/M/N plane frame, 1 = cylinder, 2 = cube, 3 = sphere
  *   TMAP_ZBUF  1 = depth-tested variant (optional; absent means 0)
  *
- * The three families share this walker and differ only in TMAP_KIND, which
+ * The four families share this walker and differ only in TMAP_KIND, which
  * selects the projection and its seam fixup. They are separate kernels rather
  * than one kernel with a runtime mode because the projection is the thing that
  * distinguishes them: a per-pixel branch on a per-triangle property is waste,
  * and a name that says `texsphere` should not be able to draw a cube.
+ *
+ * Kind 0 takes a `struct ToriDraw_TexPlaneFrame` (the P/M/N model-space
+ * positions) where the other three take a `struct ToriDraw_TexMapping`; see
+ * TMAP_MAP_T. Why type 0 is drawn here and not by `texplane` is the note above
+ * toridraw_texmap_project_plane in texmap_common.h.
  *
  * ## Why there is no ordered helper
  *
@@ -26,7 +32,10 @@
  *
  * Model-space vertex positions as well as screen and camera-space ones. The
  * mapping is defined in model space about the face group's centre, and after
- * animation only the model-space positions still relate to it.
+ * animation only the model-space positions still relate to it. The same goes
+ * for a P/M/N frame: its three vertices animate with the rest of the model, so
+ * the caller reads them from the same animated array the face's own vertices
+ * come from.
  *
  * ## The depth variant
  *
@@ -44,6 +53,15 @@
 
 #ifndef TMAP_ZBUF
 #define TMAP_ZBUF 0
+#endif
+
+/* What the "mapping" argument is: a P/M/N frame for kind 0, a face-group
+ * mapping for the rest. Same slot in the signature either way, so the render
+ * dispatch tables line up. */
+#if TMAP_KIND == 0
+#define TMAP_MAP_T struct ToriDraw_TexPlaneFrame
+#else
+#define TMAP_MAP_T struct ToriDraw_TexMapping
 #endif
 
 #if TMAP_ZBUF
@@ -85,7 +103,7 @@ TMAP_FN(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    const struct ToriDraw_TexMapping* RESTRICT mapping,
+    const TMAP_MAP_T* RESTRICT mapping,
     const struct ToriDraw_TexSampler* RESTRICT sampler TMAP_ZKEY_PARAMS)
 {
     /* ---------------------------------------------------- 1. projection */
@@ -93,7 +111,12 @@ TMAP_FN(
     float u[3];
     float v[3];
 
-#if TMAP_KIND == 1
+#if TMAP_KIND == 0
+    /* Fixed per-vertex uv in the frame; nothing here depends on the camera.
+     * No seam fixup: a plane projection has no seam. */
+    toridraw_texmap_project_plane(
+        mapping, mx0, my0, mz0, mx1, my1, mz1, mx2, my2, mz2, u, v);
+#elif TMAP_KIND == 1
     toridraw_texmap_project_cylinder(mapping, mx0, my0, mz0, &u[0], &v[0]);
     toridraw_texmap_project_cylinder(mapping, mx1, my1, mz1, &u[1], &v[1]);
     toridraw_texmap_project_cylinder(mapping, mx2, my2, mz2, &u[2], &v[2]);
@@ -392,6 +415,7 @@ TMAP_FN(
 #undef TMAP_ZKEY_PARAMS
 #undef TMAP_ZROW_ARGS
 #undef TMAP_ZADVANCE
+#undef TMAP_MAP_T
 
 #undef TMAP_FN
 #undef TMAP_SPAN

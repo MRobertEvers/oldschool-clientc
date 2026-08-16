@@ -35,37 +35,29 @@
 /* ------------------------------------------------------------ dispatch */
 
 /*
- * [gate][facealpha][modulate]. The plane family's twelve.
+ * Every textured face goes through the mapped-kernel shape: uv solved per
+ * vertex in model space, then interpolated perspective-correctly. The two plain
+ * gates use the sampler-shaped scalar kernels rather than the faster SIMD ones,
+ * because the HD path always has a sampler to honour — a material may ask for
+ * clamp addressing, which the SIMD entry points cannot express.
  *
- * The two plain gates use the sampler-shaped scalar kernels rather than the
- * faster SIMD ones, because the HD path always has a sampler to honour — a
- * material may ask for clamp addressing, which the SIMD entry points cannot
- * express. A caller that knows its material is repeat-addressed and needs the
- * speed can still call the SIMD kernel directly.
+ * Render type 0 is NOT drawn by `texplane`. That kernel walks the P/M/N plane in
+ * camera space and intersects eye rays with it, which is only right when the
+ * face lies in that plane — OSRS content always does, HD content routinely
+ * does not, and the result is a texture that slides across its face as the view
+ * turns. `texpmn` projects each vertex onto the frame along the frame's normal
+ * instead, as the HD reference does; texmap_common.h has the full account.
+ *
+ * `[gate][facealpha][modulate]` for the frame family; the same again behind
+ * `[kind-1]` for cylinder, cube, sphere. The two differ only in the type of the
+ * mapping argument, so the routing decision is made once and only the table
+ * it lands in differs.
  */
-typedef void (*hd_plane_fn)(
+typedef void (*hd_pmn_fn)(
     int*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
-    int, int, int, int, int, const struct ToriDraw_TexSampler*);
+    int, int, int, int, int, int, int, const struct ToriDraw_TexPlaneFrame*,
+    const struct ToriDraw_TexSampler*);
 
-static const hd_plane_fn g_hd_plane[3][2][2] = {
-    /* texopaque */
-    { { raster_texplane_persp_texopaque_branching_lerp8_v3,
-        raster_texplane_persp_texopaque_modulate_branching_lerp8_v3 },
-      { raster_texplane_persp_texopaque_facealpha_branching_lerp8_v3,
-        raster_texplane_persp_texopaque_facealpha_modulate_branching_lerp8_v3 } },
-    /* textrans */
-    { { raster_texplane_persp_textrans_branching_lerp8_v3,
-        raster_texplane_persp_textrans_modulate_branching_lerp8_v3 },
-      { raster_texplane_persp_textrans_facealpha_branching_lerp8_v3,
-        raster_texplane_persp_textrans_facealpha_modulate_branching_lerp8_v3 } },
-    /* texalpha */
-    { { raster_texplane_persp_texalpha_branching_lerp8_v3,
-        raster_texplane_persp_texalpha_modulate_branching_lerp8_v3 },
-      { raster_texplane_persp_texalpha_facealpha_branching_lerp8_v3,
-        raster_texplane_persp_texalpha_facealpha_modulate_branching_lerp8_v3 } },
-};
-
-/* [kind-1][gate][facealpha][modulate] — cylinder, cube, sphere. */
 typedef void (*hd_mapped_fn)(
     int*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
     int, int, int, int, int, int, int, const struct ToriDraw_TexMapping*,
@@ -84,6 +76,8 @@ typedef void (*hd_mapped_fn)(
           raster_##fam##_persp_texalpha_modulate_branching_lerp8_v3 },                             \
         { raster_##fam##_persp_texalpha_facealpha_branching_lerp8_v3,                              \
           raster_##fam##_persp_texalpha_facealpha_modulate_branching_lerp8_v3 } } }
+
+static const hd_pmn_fn g_hd_pmn[3][2][2] = HD_MAPPED_GATES(texpmn);
 
 static const hd_mapped_fn g_hd_mapped[3][3][2][2] = {
     HD_MAPPED_GATES(texcylinder),
@@ -107,28 +101,10 @@ static const hd_mapped_fn g_hd_mapped[3][3][2][2] = {
  * [modulate]` indexes both, so the routing decision is made once, in
  * hd_draw_face, and only the call it lands on differs.
  */
-typedef void (*hd_plane_zbuf_fn)(
+typedef void (*hd_pmn_zbuf_fn)(
     int*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
-    int, int, int, int, int, const struct ToriDraw_TexSampler*, float, float, float,
-    torizdepth_t*);
-
-static const hd_plane_zbuf_fn g_hd_plane_zbuf[3][2][2] = {
-    /* texopaque */
-    { { raster_texplane_persp_texopaque_zbuf_branching_lerp8_v3,
-        raster_texplane_persp_texopaque_modulate_zbuf_branching_lerp8_v3 },
-      { raster_texplane_persp_texopaque_facealpha_zbuf_branching_lerp8_v3,
-        raster_texplane_persp_texopaque_facealpha_modulate_zbuf_branching_lerp8_v3 } },
-    /* textrans */
-    { { raster_texplane_persp_textrans_zbuf_branching_lerp8_v3,
-        raster_texplane_persp_textrans_modulate_zbuf_branching_lerp8_v3 },
-      { raster_texplane_persp_textrans_facealpha_zbuf_branching_lerp8_v3,
-        raster_texplane_persp_textrans_facealpha_modulate_zbuf_branching_lerp8_v3 } },
-    /* texalpha */
-    { { raster_texplane_persp_texalpha_zbuf_branching_lerp8_v3,
-        raster_texplane_persp_texalpha_modulate_zbuf_branching_lerp8_v3 },
-      { raster_texplane_persp_texalpha_facealpha_zbuf_branching_lerp8_v3,
-        raster_texplane_persp_texalpha_facealpha_modulate_zbuf_branching_lerp8_v3 } },
-};
+    int, int, int, int, int, int, int, const struct ToriDraw_TexPlaneFrame*,
+    const struct ToriDraw_TexSampler*, float, float, float, torizdepth_t*);
 
 typedef void (*hd_mapped_zbuf_fn)(
     int*, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int, int,
@@ -148,6 +124,8 @@ typedef void (*hd_mapped_zbuf_fn)(
           raster_##fam##_persp_texalpha_modulate_zbuf_branching_lerp8_v3 },                        \
         { raster_##fam##_persp_texalpha_facealpha_zbuf_branching_lerp8_v3,                         \
           raster_##fam##_persp_texalpha_facealpha_modulate_zbuf_branching_lerp8_v3 } } }
+
+static const hd_pmn_zbuf_fn g_hd_pmn_zbuf[3][2][2] = HD_MAPPED_ZBUF_GATES(texpmn);
 
 static const hd_mapped_zbuf_fn g_hd_mapped_zbuf[3][3][2][2] = {
     HD_MAPPED_ZBUF_GATES(texcylinder),
@@ -476,7 +454,7 @@ hd_draw_face(struct hd_ctx* ctx, int face)
     if( render_type >= 1 && !mapping )
     {
         /* The render type names a projection the model has no mapping for.
-         * Drawing it through the plane kernel is wrong, but it is visible and
+         * Drawing it through the frame kernel is wrong, but it is visible and
          * counted, which beats a hole in the mesh. */
         if( st )
             st->fallback_no_mapping++;
@@ -485,8 +463,12 @@ hd_draw_face(struct hd_ctx* ctx, int face)
 
     if( render_type == 0 )
     {
-        /* The plane projector: p/m/n are vertex indices, from the mapping entry
-         * when there is one and from the face's own vertices otherwise. */
+        /* The frame projector: p/m/n are vertex indices, from the mapping entry
+         * when there is one and from the face's own vertices otherwise. Read
+         * from the MODEL-space arrays, like the face's own vertices below: the
+         * frame is a fixed uv basis, and only in model space does it stay put
+         * as the camera moves. Handing the kernel the camera-space positions
+         * instead is precisely the eye-ray plane walk this family replaces. */
         int tp = ia, tm = ib, tn = ic;
         if( coord >= 0 && coord < m->textured_face_count && m->textured_p_coordinate )
         {
@@ -505,45 +487,44 @@ hd_draw_face(struct hd_ctx* ctx, int face)
         if( st )
             st->drawn_plane++;
 
+        struct ToriDraw_TexPlaneFrame frame = {
+            m->vertices_x[tp], m->vertices_y[tp], m->vertices_z[tp],
+            m->vertices_x[tm], m->vertices_y[tm], m->vertices_z[tm],
+            m->vertices_x[tn], m->vertices_y[tn], m->vertices_z[tn],
+        };
+
         if( ctx->zbuffer )
         {
-            g_hd_plane_zbuf[gate][use_facealpha][use_modulate](
+            g_hd_pmn_zbuf[gate][use_facealpha][use_modulate](
                 ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
-                ctx->camera_cot16,
                 sx_a, sx_b, sx_c,
                 sy_a, sy_b, sy_c,
-                ctx->scene->orthographic_vertices_x[tp],
-                ctx->scene->orthographic_vertices_x[tm],
-                ctx->scene->orthographic_vertices_x[tn],
-                ctx->scene->orthographic_vertices_y[tp],
-                ctx->scene->orthographic_vertices_y[tm],
-                ctx->scene->orthographic_vertices_y[tn],
-                ctx->scene->orthographic_vertices_z[tp],
-                ctx->scene->orthographic_vertices_z[tm],
-                ctx->scene->orthographic_vertices_z[tn],
-                shade_a, shade_b, shade_c, &sampler,
+                ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
+                ctx->scene->orthographic_vertices_z[ic],
+                m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
+                m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
+                m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+                shade_a, shade_b, shade_c, &frame, &sampler,
                 hd_vertex_key(ctx, ia), hd_vertex_key(ctx, ib), hd_vertex_key(ctx, ic),
                 ctx->zbuffer);
             return;
         }
 
-        g_hd_plane[gate][use_facealpha][use_modulate](
+        g_hd_pmn[gate][use_facealpha][use_modulate](
             ctx->pixel_buffer, ctx->stride, ctx->screen_width, ctx->screen_height,
-            ctx->camera_cot16,
             sx_a, sx_b, sx_c,
             sy_a, sy_b, sy_c,
-            ctx->scene->orthographic_vertices_x[tp], ctx->scene->orthographic_vertices_x[tm],
-            ctx->scene->orthographic_vertices_x[tn],
-            ctx->scene->orthographic_vertices_y[tp], ctx->scene->orthographic_vertices_y[tm],
-            ctx->scene->orthographic_vertices_y[tn],
-            ctx->scene->orthographic_vertices_z[tp], ctx->scene->orthographic_vertices_z[tm],
-            ctx->scene->orthographic_vertices_z[tn],
-            shade_a, shade_b, shade_c, &sampler);
+            ctx->scene->orthographic_vertices_z[ia], ctx->scene->orthographic_vertices_z[ib],
+            ctx->scene->orthographic_vertices_z[ic],
+            m->vertices_x[ia], m->vertices_y[ia], m->vertices_z[ia],
+            m->vertices_x[ib], m->vertices_y[ib], m->vertices_z[ib],
+            m->vertices_x[ic], m->vertices_y[ic], m->vertices_z[ic],
+            shade_a, shade_b, shade_c, &frame, &sampler);
         return;
     }
 
     /* A mapping projects from MODEL space, so it needs the model's own
-     * vertices, not the camera-space ones the plane path walks. */
+     * vertices, not the camera-space ones. */
     if( st )
     {
         if( render_type == 1 )
