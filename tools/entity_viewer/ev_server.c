@@ -14,6 +14,7 @@
  *   GET /api/spot/<id>.model     one graphic's model in ev_wire format
  *   GET /api/spot/<id>.json      that graphic's own sequence id
  *   GET /api/rig/<id>.json       every sequence on one framemap
+ *   GET /api/rigs.json           how far along the active cache's rig walk is
  *   GET /<anything else>        static files from the web directory
  *
  * Single-threaded and blocking on purpose: one viewer, one browser tab, and a
@@ -27,6 +28,7 @@
 #include "ev_build.h"
 #include <assert.h>
 #include "ev_caches.h"
+#include "ev_rigs.h"
 #include "ev_textures.h"
 
 /* The client's own RSCache_Model -> ToriDraw_Model pair, for POST /api/modelfile.
@@ -99,6 +101,20 @@ static struct NpcRow* g_npcs = NULL;
 static int g_npc_count = 0;
 static struct NameMatchRow* g_name_matches = NULL;
 static int g_name_match_count = 0;
+
+/*
+ * The catalog describes ONE cache — whichever `--catalog` named, which is the
+ * cache the server booted with. Its npc ids, sequence ids and rig matches mean
+ * something else in any other cache, so every reader below is gated on the
+ * catalog's cache being the open one.
+ *
+ * This used to be done by zeroing the counts on the first switch, which also
+ * meant the catalog never came back when you switched to it again. Rig matching
+ * no longer depends on it either way (see ev_rigs.h): what it still adds is the
+ * gameval names and the name-similarity guesses, which nothing else has.
+ */
+static int g_catalog_cache = -1;
+static int g_catalog_active = 0;
 
 static struct Tool_Dat2Cache g_cache;
 static const char* g_web_dir = NULL;
@@ -435,6 +451,8 @@ load_catalog(const char* dir)
 static const struct NpcRow*
 npc_row(int id)
 {
+    if( !g_catalog_active )
+        return NULL;
     for( int i = 0; i < g_npc_count; i++ )
         if( g_npcs[i].npc_id == id )
             return &g_npcs[i];
@@ -444,6 +462,8 @@ npc_row(int id)
 static const char*
 seq_name(int seq_id)
 {
+    if( !g_catalog_active )
+        return NULL;
     for( int i = 0; i < g_seq_count; i++ )
         if( g_seqs[i].seq_id == seq_id )
             return g_seqs[i].name;
@@ -558,118 +578,140 @@ str_add_json(struct Str* s, const char* text)
     str_add(s, "\"");
 }
 
+/*
+ * The npc list: the active cache's index, with whatever else is known layered
+ * on per row.
+ *
+ * One path, not two. It used to answer from the catalog when there was one and
+ * from the index when there was not, which is how the rig counts came to be a
+ * property of the cache the server booted with: the catalog's rows were the
+ * only ones carrying them. The index is per-cache and always there, so it is
+ * the list; the rig walk fills in the counts for whichever cache is open, and
+ * the catalog adds the gameval name and the name-guess count for its own.
+ */
 static void
 handle_npcs_json(int fd)
 {
+    const struct EV_RigIndex* rigs = ev_rigs_current();
+
     struct Str s = { 0 };
-
-    /*
-     * No catalog: answer from the index instead of an empty list.
-     *
-     * The catalog is what supplies the rig matching, and it takes minutes to
-     * build — so a cache the user just added has none. Returning [] there makes
-     * a perfectly good cache look empty. The index has every npc's id and name,
-     * which is what the list is; the rig columns simply read as zero.
-     */
-    if( g_npc_count == 0 && g_index.npc_count > 0 )
-    {
-        str_add(&s, "[");
-        for( int i = 0; i < g_index.npc_count; i++ )
-        {
-            str_add(&s, i ? ",{" : "{");
-            str_add(&s, "\"id\":%d,\"name\":", g_index.npcs[i].id);
-            str_add_json(&s, g_index.npcs[i].name);
-            str_add(&s, ",\"gameval\":");
-            str_add_json(&s, NULL);
-            str_add(&s, ",\"rig\":0,\"skeletal\":0,\"skinned\":false,\"maybe\":0}");
-        }
-        str_add(&s, "]");
-        send_response(fd, "200 OK", "application/json", s.p, s.len);
-        free(s.p);
-        return;
-    }
-
     str_add(&s, "[");
-    for( int i = 0; i < g_npc_count; i++ )
+    for( int i = 0; i < g_index.npc_count; i++ )
     {
-        const struct NpcRow* r = &g_npcs[i];
+        int id = g_index.npcs[i].id;
+        const struct NpcRow* r = npc_row(id);
+        const struct EV_RigNpc* rig = ev_rigs_npc(rigs, id);
+
         str_add(&s, i ? ",{" : "{");
-        str_add(&s, "\"id\":%d,\"name\":", r->npc_id);
-        str_add_json(&s, r->name);
+        str_add(&s, "\"id\":%d,\"name\":", id);
+        str_add_json(&s, g_index.npcs[i].name);
         str_add(&s, ",\"gameval\":");
-        str_add_json(&s, r->gameval);
+        str_add_json(&s, r ? r->gameval : NULL);
         str_add(
             &s,
             ",\"rig\":%d,\"skeletal\":%d,\"skinned\":%s,\"maybe\":%d}",
-            r->rig_match_seqs,
-            r->rig_match_skeletal,
-            r->animaya_skinned ? "true" : "false",
-            r->name_match_seqs);
+            rig ? rig->seq_count : 0,
+            rig ? rig->skeletal_count : 0,
+            r && r->animaya_skinned ? "true" : "false",
+            r ? r->name_match_seqs : 0);
     }
     str_add(&s, "]");
     send_response(fd, "200 OK", "application/json", s.p, s.len);
     free(s.p);
 }
 
+/**
+ * Can a skeletal sequence pose this npc at all?
+ *
+ * A skeletal animation drives per-vertex bone influences; a model without an
+ * Animaya skin is left in its bind pose rather than mis-animated, so the rig
+ * match and this have to be read together before a row is worth clicking.
+ *
+ * Answered here, from the cache, rather than in the rig walk: it needs the npc's
+ * models decoded, and doing that for every npc in the cache is precisely what
+ * makes ev_catalog a five-minute job. For the one npc being looked at it is a
+ * few milliseconds.
+ */
+static int
+npc_animaya_skinned(int npc_id)
+{
+    if( !g_cache_open )
+        return 0;
+
+    struct RSCache_Dat2ConfigNpc* npc = tool_dat2_npc_load(&g_cache, npc_id);
+    if( !npc )
+        return 0;
+
+    int skinned = 0;
+    for( int m = 0; m < npc->models_count && !skinned; m++ )
+    {
+        struct RSCache_Model* model = tool_dat2_model_load(&g_cache, npc->models[m]);
+        if( !model )
+            continue;
+        if( model->animaya_vertex_count > 0 )
+            skinned = 1;
+        RSCache_ModelFree(model);
+    }
+    RSCache_Dat2ConfigNpcFree(npc);
+    return skinned;
+}
+
+/** The cache record's display name for an npc, from the active cache's index. */
+static const char*
+index_npc_name(int npc_id)
+{
+    for( int i = 0; i < g_index.npc_count; i++ )
+        if( g_index.npcs[i].id == npc_id )
+            return g_index.npcs[i].name;
+    return NULL;
+}
+
 static void
 handle_npc_json(int fd, int npc_id)
 {
     const struct NpcRow* r = npc_row(npc_id);
-    if( !r )
+    const char* name = index_npc_name(npc_id);
+    if( !name && !r && g_index.npc_count > 0 )
     {
-        /*
-         * No catalog row. Answer from the index rather than 404 — the page
-         * fetches this before drawing anything, so a 404 here aborts the boot
-         * chain and leaves an empty canvas for a cache that is perfectly fine.
-         *
-         * The animation lists are empty because they are exactly what the
-         * catalog computes; everything else the page needs to render the npc is
-         * in the model endpoint, not here.
-         */
-        const char* name = NULL;
-        for( int i = 0; i < g_index.npc_count; i++ )
-            if( g_index.npcs[i].id == npc_id )
-            {
-                name = g_index.npcs[i].name;
-                break;
-            }
-        if( !name && g_index.npc_count == 0 )
-        {
-            send_404(fd);
-            return;
-        }
-
-        struct Str fallback = { 0 };
-        str_add(&fallback, "{\"id\":%d,\"name\":", npc_id);
-        str_add_json(&fallback, name);
-        str_add(&fallback,
-                ",\"gameval\":null,\"skinned\":false,\"framemaps\":[],"
-                "\"rig\":[],\"maybe\":[],\"no_catalog\":true}");
-        send_response(fd, "200 OK", "application/json", fallback.p, fallback.len);
-        free(fallback.p);
+        /* An id this cache does not have. Everything else — including "the
+         * walk has not started yet" — is answered rather than 404'd, because
+         * the page fetches this before drawing anything and a 404 leaves an
+         * empty canvas for a cache that is perfectly fine. */
+        send_404(fd);
         return;
     }
 
-    struct Str s = { 0 };
-    str_add(&s, "{\"id\":%d,\"name\":", r->npc_id);
-    str_add_json(&s, r->name);
-    str_add(&s, ",\"gameval\":");
-    str_add_json(&s, r->gameval);
+    const struct EV_RigIndex* rigs = ev_rigs_current();
+    struct EV_RigNpc row;
+    memset(&row, 0, sizeof(row));
+    /* From the walk's own npc pass if it has got that far, and straight from
+     * the cache if it has not — which is the common case for the first seconds
+     * after a switch, and exactly when someone is clicking an npc. */
+    ev_rigs_npc_lookup(rigs, g_cache_open ? &g_cache : NULL, npc_id, &row);
 
-    str_add(&s, ",\"skinned\":%s", r->animaya_skinned ? "true" : "false");
+    struct Str s = { 0 };
+    str_add(&s, "{\"id\":%d,\"name\":", npc_id);
+    str_add_json(&s, name ? name : (r ? r->name : NULL));
+    str_add(&s, ",\"gameval\":");
+    str_add_json(&s, r ? r->gameval : NULL);
+
+    str_add(&s, ",\"skinned\":%s", npc_animaya_skinned(npc_id) ? "true" : "false");
+    /* False once the sequence sweep has published: from there on an empty rig
+     * list means this npc names no animation, not that the answer is coming. */
+    str_add(&s, ",\"rigs_pending\":%s", rigs ? "false" : "true");
     str_add(&s, ",\"framemaps\":[");
-    for( int i = 0; i < r->framemap_count; i++ )
-        str_add(&s, i ? ",%d" : "%d", r->framemaps[i]);
+    for( int i = 0; i < row.framemap_count; i++ )
+        str_add(&s, i ? ",%d" : "%d", row.framemaps[i]);
     str_add(&s, "]");
 
     /* Rigging matches: every sequence built on any of this npc's rigs. */
     str_add(&s, ",\"rig\":[");
     int first = 1;
-    for( int i = 0; i < g_seq_count; i++ )
+    for( int i = 0; rigs && i < rigs->seq_count; i++ )
     {
         int hit = 0;
-        for( int k = 0; k < r->framemap_count; k++ )
-            if( g_seqs[i].framemap_id == r->framemaps[k] )
+        for( int k = 0; k < row.framemap_count; k++ )
+            if( rigs->seqs[i].framemap_id == row.framemaps[k] )
                 hit = 1;
         if( !hit )
             continue;
@@ -678,19 +720,22 @@ handle_npc_json(int fd, int npc_id)
         str_add(
             &s,
             "\"seq\":%d,\"frames\":%d,\"framemap\":%d,\"skeletal\":%s,\"name\":",
-            g_seqs[i].seq_id,
-            g_seqs[i].frame_count,
-            g_seqs[i].framemap_id,
-            g_seqs[i].skeletal ? "true" : "false");
-        str_add_json(&s, g_seqs[i].name);
+            rigs->seqs[i].seq_id,
+            rigs->seqs[i].frame_count,
+            rigs->seqs[i].framemap_id,
+            rigs->seqs[i].skeletal ? "true" : "false");
+        str_add_json(&s, seq_name(rigs->seqs[i].seq_id));
         str_add(&s, "}");
     }
     str_add(&s, "]");
 
-    /* Name guesses, each carrying whether the rig walk already found it. */
+    /* Name guesses, each carrying whether the rig walk already found it. They
+     * come from the catalog and only from it — a gameval name is content, not
+     * cache — so they are there for the cache --catalog described and absent
+     * for every other. */
     str_add(&s, ",\"maybe\":[");
     first = 1;
-    for( int i = 0; i < g_name_match_count; i++ )
+    for( int i = 0; g_catalog_active && i < g_name_match_count; i++ )
     {
         if( g_name_matches[i].npc_id != npc_id )
             continue;
@@ -945,12 +990,14 @@ handle_textures_bin(int fd, const char* query)
         {
             /* alpha_mode 0/1/2 maps straight onto the kernel gates
              * opaque/cutout/blend; clamp is the inverse of the repeat flags. */
-            uint8_t flags = (uint8_t)((tex->repeat_s ? 0 : 1) | (tex->repeat_t ? 0 : 2));
+            uint8_t flags = (uint8_t)((tex->repeat_s ? 0 : 1) | (tex->repeat_t ? 0 : 2) |
+                                      (tex->modulate ? 4 : 0));
             uint8_t gate = (uint8_t)(tex->alpha_mode >= 0 && tex->alpha_mode <= 2
                                          ? tex->alpha_mode
                                          : 0);
-            uint8_t hdr[4] = { (uint8_t)(tex->size & 0xFF), (uint8_t)((tex->size >> 8) & 0xFF),
-                               gate, flags };
+            uint8_t hdr[8] = { (uint8_t)(tex->size & 0xFF), (uint8_t)((tex->size >> 8) & 0xFF),
+                               gate, flags,
+                               (uint8_t)(tex->mean_luma < 1 ? 1 : tex->mean_luma), 0, 0, 0 };
             bytes_put_u32(&body, (uint32_t)id);
             bytes_put(&body, hdr, sizeof(hdr));
             for( int i = 0; i < tex->size * tex->size; i++ )
@@ -1205,20 +1252,59 @@ handle_config_ids_json(int fd, enum RSCache_Type type, int kind, const struct LC
 static void
 handle_rig_json(int fd, int framemap_id)
 {
+    const struct EV_RigIndex* rigs = ev_rigs_current();
+
     struct Str s = { 0 };
-    str_add(&s, "{\"framemap\":%d,\"rig\":[", framemap_id);
+    str_add(&s, "{\"framemap\":%d,\"rigs_pending\":%s,\"rig\":[",
+            framemap_id, rigs ? "false" : "true");
     int n = 0;
-    for( int i = 0; i < g_seq_count; i++ )
+    for( int i = 0; rigs && i < rigs->seq_count; i++ )
     {
-        if( g_seqs[i].framemap_id != framemap_id )
+        if( rigs->seqs[i].framemap_id != framemap_id )
             continue;
         str_add(&s, n++ ? ",{" : "{");
-        str_add(&s, "\"seq\":%d,\"frames\":%d,\"skeletal\":%d,\"name\":", g_seqs[i].seq_id,
-                g_seqs[i].frame_count, g_seqs[i].skeletal);
-        str_add_json(&s, g_seqs[i].name);
+        str_add(&s, "\"seq\":%d,\"frames\":%d,\"skeletal\":%d,\"name\":", rigs->seqs[i].seq_id,
+                rigs->seqs[i].frame_count, rigs->seqs[i].skeletal);
+        str_add_json(&s, seq_name(rigs->seqs[i].seq_id));
         str_add(&s, "}");
     }
     str_add(&s, "],\"maybe\":[]}");
+    send_response(fd, "200 OK", "application/json", s.p, s.len);
+    free(s.p);
+}
+
+/**
+ * How far along the active cache's rig walk is.
+ *
+ * The page polls this after a switch. `ready` is the sequence half — enough to
+ * list one npc's animations — and `npcs` is the pass behind it that fills the
+ * match counts in the npc list, so the two are reported separately rather than
+ * as one percentage that would understate what is already usable.
+ */
+static void
+handle_rigs_json(int fd)
+{
+    struct EV_RigStatus status;
+    ev_rigs_status(&status);
+    const struct EV_RigIndex* rigs = ev_rigs_current();
+
+    static const char* const STAGE[] = { "sequences", "rigs", "npcs", "done" };
+
+    struct Str s = { 0 };
+    str_add(&s, "{\"state\":\"%s\",\"stage\":\"%s\",\"done\":%d,\"total\":%d,\"ms\":%d",
+            status.state == EV_RIG_READY      ? "ready"
+            : status.state == EV_RIG_BUILDING ? "building"
+            : status.state == EV_RIG_FAILED   ? "failed"
+                                              : "idle",
+            STAGE[status.stage],
+            status.done,
+            status.total,
+            status.ms);
+    str_add(&s, ",\"ready\":%s,\"npcs\":%s,\"seqs\":%d,\"distinct_rigs\":%d}",
+            rigs ? "true" : "false",
+            rigs && rigs->npcs_complete ? "true" : "false",
+            rigs ? rigs->seq_count : 0,
+            rigs ? rigs->distinct_rigs : 0);
     send_response(fd, "200 OK", "application/json", s.p, s.len);
     free(s.p);
 }
@@ -1501,13 +1587,14 @@ done_params:
 
 
 /**
- * Make `index` the active cache: reopen, reindex, and pick up a catalog if one
- * happens to sit beside it.
+ * Make `index` the active cache: reopen, reindex, and start its rig walk.
  *
- * The catalog is looked for at `<cache>.anims` and `out/<basename>_anims`,
- * which are where ev_catalog's documented invocations put it. Not finding one
- * is normal and not an error — the index alone answers every search; the
- * catalog only adds rig matching.
+ * Three things describe a cache here and they have very different costs, which
+ * is why they are three things: the index (a tenth of a second, and cached on
+ * disk) is the id lists the pickers read; the rig walk (seconds, in the
+ * background) is which animations apply to what; the catalog (minutes, offline)
+ * is the gameval names and the name-similarity guesses, and belongs to one
+ * cache only.
  */
 static int
 select_cache(int index)
@@ -1537,19 +1624,19 @@ select_cache(int index)
     g_cache_open = 1;
 
     /*
-     * Drop the catalog. It describes the cache that WAS open — its npc rows,
-     * its sequence ids, its rig matches — and none of that transfers. Keeping
-     * it means the list still shows the old cache's npcs under the new cache's
-     * name, and clicking one asks for an id that means something else.
-     *
-     * The rows themselves are not freed here: a catalog is loaded once at
-     * startup from --catalog and there is no per-cache one to load in its
-     * place, so zeroing the counts is what makes every reader fall through to
-     * the index. See handle_npcs_json.
+     * Hide the catalog unless this is the cache it describes. Its npc rows and
+     * sequence ids mean something else anywhere else, and the rows are kept
+     * rather than freed so switching back brings them straight back.
      */
-    g_npc_count = 0;
-    g_seq_count = 0;
-    g_name_match_count = 0;
+    g_catalog_active = (index == g_catalog_cache);
+
+    /*
+     * The rig walk, on a worker thread: which animations apply to which npc,
+     * computed from this cache rather than from a catalog that may describe
+     * another one. Two to nine seconds depending on the cache, which is why it
+     * is not done here — the switch has to answer now.
+     */
+    ev_rigs_start(e->path, e->rev);
 
     ev_index_free(&g_index);
     clock_t index_t0 = clock();
@@ -1677,6 +1764,8 @@ handle_request(int fd, const char* target, const char* query)
         handle_spot_json(fd, id);
     else if( route_id(target, "/api/rig/", ".json", &id) )
         handle_rig_json(fd, id);
+    else if( strcmp(target, "/api/rigs.json") == 0 )
+        handle_rigs_json(fd);
     /* The cache registry and the searches over the active cache's index. */
     else if( strcmp(target, "/api/caches.json") == 0 )
         handle_caches_json(fd);
@@ -2319,9 +2408,25 @@ main(int argc, char** argv)
         e->indexed = true;
         fprintf(stderr, "cache: %s (%s) — %d npcs, %d sequences, %d models [index %d ms]\n",
                 e->label, e->rev, e->npc_count, e->seq_count, e->model_count, index_ms);
+        /* Same walk the switch does, so the boot cache is not a special case
+         * with a different source of animations. */
+        ev_rigs_start(e->path, e->rev);
     }
-    if( catalog_dir && !load_catalog(catalog_dir) )
-        fprintf(stderr, "catalog at %s could not be read — rig matching is off\n", catalog_dir);
+    if( catalog_dir )
+    {
+        if( load_catalog(catalog_dir) )
+        {
+            /* The catalog describes the cache named on the command line, and
+             * only that one. */
+            g_catalog_cache = startup_index;
+            g_catalog_active = 1;
+        }
+        else
+            fprintf(stderr,
+                    "catalog at %s could not be read — gameval names and name "
+                    "guesses are off\n",
+                    catalog_dir);
+    }
 
     if( names_dir )
     {
@@ -2369,6 +2474,11 @@ main(int argc, char** argv)
         int fd = accept(srv, NULL, NULL);
         if( fd < 0 )
             continue;
+
+        /* Between requests, never inside one: this is where a finished rig walk
+         * becomes the current one and the index it replaces is freed, and a
+         * handler must not have that happen underneath it. */
+        ev_rigs_collect();
 
         /*
          * One read is enough for a GET, whose whole request fits comfortably.

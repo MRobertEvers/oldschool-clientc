@@ -52,6 +52,10 @@ const state = {
   /* The attached graphic: `spotanim_pl`'s three arguments and the sequence the
    * record names. */
   fx: { id: null, seq: -1, height: 100, delay: 16, orient: -1 },
+
+  /* The server's rig walk over the active cache. `null` until the first poll
+   * answers; see watchRigs. */
+  rigs: null,
 };
 
 /** Which frame of a sequence is showing at `cycle`, or -1 once it has run out.
@@ -104,6 +108,7 @@ function wasmCall(mod) {
     setTextures: mod.cwrap('ev_w_set_textures', 'number', ['number', 'number']),
     textureCount: mod.cwrap('ev_w_texture_count', 'number', []),
     setPan: mod.cwrap('ev_w_set_pan', null, ['number', 'number']),
+    setIgnorePriorities: mod.cwrap('ev_w_set_ignore_priorities', null, ['number']),
     move: mod.cwrap('ev_w_move', null, ['number', 'number', 'number']),
     moveReset: mod.cwrap('ev_w_move_reset', null, []),
     mod,
@@ -359,6 +364,15 @@ function hdInstall() {
     });
   }
 
+  /* Applies to every subject, not just an uploaded file: the question "are this
+   * model's priorities meaningful" is asked of cache npcs at least as often. */
+  const nopri = document.getElementById('noPriorities');
+  if (nopri) {
+    nopri.addEventListener('change', () => {
+      state.wasm.setIgnorePriorities(nopri.checked ? 1 : 0);
+    });
+  }
+
   pick.addEventListener('click', () => input.click());
   input.addEventListener('change', () => {
     if (input.files && input.files[0]) hdLoadFile(input.files[0]);
@@ -555,6 +569,20 @@ function renderAnimList() {
     const unplayable = a.skeletal && !d.skinned;
     const badge = (a.skeletal ? 'skeletal · ' : '') + `${a.frames} frames`;
     frag.appendChild(animRow(a.seq, a.name, badge, false, unplayable));
+  }
+
+  /* An empty list means two entirely different things and they must not look
+   * alike: this npc names no animation, or the walk that would find them has
+   * not finished. The second is temporary and the page is already polling. */
+  if (!rig.length) {
+    const n = document.createElement('div');
+    n.className = 'note';
+    n.textContent = d.rigs_pending
+      ? 'Searching this cache for the animations that apply…'
+      : d.rig.length
+        ? 'No rigging matches match the search.'
+        : 'This npc names no animation, so nothing shares its rig.';
+    frag.appendChild(n);
   }
 
   const allMaybes = d.maybe.filter((m) => !m.in_rig);
@@ -961,6 +989,88 @@ async function reloadForCache() {
   state.npcs = await res.json();
   renderNpcList();
   document.getElementById('npcCount').textContent = `${state.npcs.length} npcs`;
+  watchRigs();
+}
+
+/*
+ * Follow the server's rig walk over the newly opened cache.
+ *
+ * The walk is why animations exist for a cache nobody built a catalog for, and
+ * it lands in two pieces: the sequence sweep (a second or so) is enough to list
+ * the animations for ONE npc, and the npc pass behind it (seconds more) is what
+ * fills the match counts on every row of the npc list. So this refreshes the
+ * two things separately, as each arrives, rather than making the panel wait for
+ * the whole walk.
+ *
+ * One poller at a time: a second cache switch supersedes the first, and two
+ * loops racing would refetch the npc list twice and could apply the older
+ * answer last.
+ */
+let rigPollToken = 0;
+
+async function watchRigs() {
+  const token = ++rigPollToken;
+  let sawSeqs = false;
+
+  for (;;) {
+    let status;
+    try {
+      status = await (await fetch('/api/rigs.json')).json();
+    } catch (e) {
+      return;
+    }
+    if (token !== rigPollToken) return;
+    state.rigs = status;
+    renderRigStatus(status);
+
+    if (status.ready && !sawSeqs) {
+      sawSeqs = true;
+      /* The animation panel can be filled in now. Re-asking for the npc detail
+       * is the whole refresh: the rig list is computed per request. */
+      if (state.mode === 'npc' && state.npcId !== null) {
+        const detail = await (await fetch(`/api/npc/${state.npcId}.json`)).json();
+        if (token !== rigPollToken) return;
+        state.detail = detail;
+        renderAnimList();
+      } else if (state.mode === 'player') {
+        state.detail = await (await fetch('/api/rig/0.json')).json();
+        if (token !== rigPollToken) return;
+        renderAnimList();
+      }
+    }
+
+    if (status.npcs || status.state === 'failed' || status.state === 'idle') {
+      if (status.npcs) {
+        /* The badges. Only now: before the npc pass they are all zero, and a
+         * list that says 0/0 for every row reads as "this cache has none". */
+        state.npcs = await (await fetch('/api/npcs.json')).json();
+        if (token !== rigPollToken) return;
+        renderNpcList();
+      }
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+}
+
+function renderRigStatus(s) {
+  const el = document.getElementById('rigStatus');
+  if (!el) return;
+  if (s.state === 'failed') {
+    el.textContent = 'animation search failed for this cache';
+    return;
+  }
+  if (s.npcs) {
+    el.textContent =
+      `${s.seqs} sequences on ${s.distinct_rigs} rigs · searched in ${(s.ms / 1000).toFixed(1)}s`;
+    return;
+  }
+  if (!s.ready) {
+    el.textContent = 'searching for animations: reading sequences…';
+    return;
+  }
+  const pct = s.total ? Math.round((s.done * 100) / s.total) : 0;
+  el.textContent = `animations ready · matching npcs ${pct}%`;
 }
 
 function wireCaches() {
@@ -1272,6 +1382,9 @@ async function applyHash(p) {
 
   state.npcs = await (await fetch('/api/npcs.json')).json();
   renderNpcList();
+  /* The boot cache's rig walk is running too — it is the same walk a switch
+   * starts — so follow it from here rather than only after a switch. */
+  watchRigs();
   wireInput();
   hdInstall();
   requestAnimationFrame(frameLoop);

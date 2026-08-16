@@ -145,6 +145,18 @@ $(BUILD)/ini.o: $(THIRD)/ini/ini.c | $(BUILD)
 $(BUILD)/common_%.o: $(TOOLS)/common/%.c | $(BUILD)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
+# Those .d files say which objects a header reaches; they cannot say whether an
+# object was actually built from the source on disk. Make settles that by
+# mtime, and mtimes here are not trustworthy — a tree copy stamps sources and
+# objects alike, leaving an object that is "current" by timestamp and stale by
+# content. These tools bake the cache the client then loads, so a stale one
+# writes a wrong cache rather than failing. See tools/objverify.py for the
+# incident that produced this.
+OBJVERIFY := $(abspath $(TOOLS)/../../..)/tools/objverify.py
+OBJVERIFY_REPORT := $(shell command -v python3 >/dev/null 2>&1 && \
+	python3 '$(OBJVERIFY)' '$(BUILD)' --sig '$(CC)|$(CFLAGS)|$(DEP_CFLAGS)' 2>&1)
+$(if $(OBJVERIFY_REPORT),$(info $(OBJVERIFY_REPORT)))
+
 -include $(BUILD)/*.d
 
 $(TOOLS)/find_anims/find_anims: $(TOOLS)/find_anims/main.c $(COMMON_OBJS) $(LIB_OBJS)

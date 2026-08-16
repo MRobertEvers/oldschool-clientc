@@ -71,6 +71,23 @@ ev_set_textures(const uint8_t* data, int len);
 int
 ev_texture_count(void);
 
+/**
+ * Draw as if the model carried no face priorities.
+ *
+ * The painter's sort ranks by priority before depth. If a model's priorities
+ * are wrong — or mean something other than draw order, which is the open
+ * question for the HD models — the result is faces stacked in front of things
+ * they belong behind, and that is not distinguishable from a depth bug by
+ * looking at it. Turning them off answers which one it is.
+ *
+ * Reversible: the arrays are hidden for the duration of a render, not freed.
+ */
+void
+ev_set_ignore_priorities(int on);
+
+int
+ev_ignore_priorities(void);
+
 void
 ev_set_hd_placeholder(int on);
 

@@ -73,6 +73,46 @@ struct EV_Texture
     /** From the material's repeat_s/repeat_t; false means clamp. */
     bool repeat_s;
     bool repeat_t;
+
+    /*
+     * Whether the texel modulates the face's authored colour.
+     *
+     * This era's textures are frequently luminance MASKS, not pictures: of the
+     * seven TzTok-Jad uses in RS727, three have a maximum chroma of exactly 0
+     * and the faces carrying them are authored deep red. Drawn untinted they
+     * come out grey, which is a plausible-looking wrong answer rather than a
+     * missing one.
+     *
+     * On for the material system and off for the sprite-backed one, where the
+     * texel IS the colour and the reference does not consult the face colour.
+     */
+    bool modulate;
+
+    /**
+     * Mean luminance of the baked texels, 1..255.
+     *
+     * The neutral point of the detail map: an average texel should reproduce
+     * the face colour unchanged. These range from about 99 to 233 across one
+     * cache, so any single global neutral either clips the bright textures or
+     * darkens the dark ones.
+     */
+    int mean_luma;
+
+    /**
+     * MEAN (max channel - min channel) across the texels, 0..255.
+     *
+     * Decides whether the texture carries a hue of its own. A mask averages
+     * near 0 and needs the face colour to mean anything; a picture is already
+     * coloured, and tinting it applies its hue twice — the RS727 lava/eye
+     * texture modulated by its gold face colour clamps to white, which is how
+     * TzTok-Jad lost its eyes.
+     *
+     * The mean and not the maximum: a mostly-grey rock with a few coloured
+     * specks has a max chroma in the seventies and is still a mask. Judging by
+     * the maximum excluded the texture covering a third of Jad's faces and
+     * turned the whole model beige.
+     */
+    int mean_chroma;
 };
 
 struct EV_TextureSet

@@ -75,6 +75,27 @@ tool_dat2_build_framemap_index(
     struct Tool_Dat2Cache* c,
     struct Tool_FramemapIndex* out);
 
+/**
+ * Unify framemap ids that decode to the identical rig.
+ *
+ * A framemap id is an allocation address, not a rig identity: independent
+ * backport ledgers mint several destination ids from one source rig, and a
+ * sequence built on one of them then fails to match an npc seeded on another
+ * even though the two rigs are byte-identical. Rewrites `index`'s framemap ids
+ * in place to one representative per distinct rig, so the npc-rig/sequence join
+ * is over identities rather than addresses.
+ *
+ * `max_framemap` is the largest id in the index. Reports how many distinct rigs
+ * were found and how many ids were folded away.
+ */
+void
+tool_dat2_canonicalise_framemap_index(
+    struct Tool_Dat2Cache* cache,
+    struct Tool_FramemapIndex* index,
+    int max_framemap,
+    int* out_distinct,
+    int* out_aliases);
+
 /** Collect every seq_id whose framemap is in `seed_fms`. */
 int
 tool_framemap_index_query(

@@ -462,16 +462,10 @@ ToriDraw_ComputeTextureUv(
                         model->vertices_z[idx[k]],
                         &u[k], &v[k]);
 
-                float half = map.scale_z / 2.0f;
-                float* axis = (map.direction & 1) ? v : u;
-                if( axis[1] - axis[0] > half )
-                    axis[1] -= map.scale_z;
-                else if( axis[0] - axis[1] > half )
-                    axis[1] += map.scale_z;
-                if( axis[2] - axis[0] > half )
-                    axis[2] -= map.scale_z;
-                else if( axis[0] - axis[2] > half )
-                    axis[2] += map.scale_z;
+                /* Shared with the kernels, which need the identical unwrap —
+                 * see toridraw_texmap_unwrap_seam. */
+                toridraw_texmap_unwrap_seam(
+                    map.direction, map.scale_z > 0.0f ? map.scale_z : 1.0f, u, v);
             }
             else if( type == 2 )
             {

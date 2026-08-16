@@ -63,6 +63,18 @@ struct ToriDraw_HDMaterial
     /** Non-zero tints the shaded texel by the face's own colour — for the
      *  greyscale detail maps whose RGB is not the surface colour. */
     int modulate;
+    /**
+     * The texel value that leaves the face colour unchanged, per texture.
+     *
+     * A detail map should be neutral on AVERAGE, and these textures average
+     * anywhere from 99 to 233 — so one global constant either clips the bright
+     * ones or darkens the dark ones. Using each texture's own mean makes an
+     * average texel reproduce the face colour exactly, which is the property
+     * that makes it a detail map rather than a multiplier.
+     *
+     * 0 falls back to the tuning value.
+     */
+    int texture_neutral;
 };
 
 /** The table, indexed by texture id. */
@@ -114,6 +126,86 @@ struct ToriDraw_HDRenderStats
  * Returns the cull result, as ToriDraw_RenderModel1Project does;
  * TORIDRAW_CULL_ERROR for a handle that carries no model.
  */
+/*
+ * The modulate tint, from the face's own colour.
+ *
+ * Hue and saturation only — the authored lightness is NOT folded in. For a
+ * textured face the lighting pass has already overwritten colors_a/b/c with
+ * plain lightness, and that lightness arrives at the kernel as the shade; using
+ * it here as well counts it twice and collapses every lightness-0 face to black.
+ * That exact bug is on record (docs/rs2012_materials_backport/
+ * HISTORICAL_alpha_kernels.md §2: material 2164 vanished). So the hsl16 is
+ * rebuilt at the midpoint of the lightness range, where the palette gives the
+ * pure hue, and only the chroma survives.
+ */
+#define TORIDRAW_HD_MODULATE_LIGHTNESS 64
+
+/*
+ * The texel value that leaves the face colour unchanged.
+ *
+ * These textures are DETAIL MAPS, not pictures: they average around 200 and
+ * their job is to vary a surface, not to define it. Multiplying from black
+ * (neutral 256) therefore darkens every textured face by ~22% and, worse,
+ * compresses the range — the reference render's deep black shadows and bright
+ * lit faces both collapse toward the middle, which is the "muddy, flat" look.
+ *
+ * Normalising at mid-grey instead makes a 128 texel the exact identity, so the
+ * texture brightens as often as it darkens and the authored colour survives.
+ * Measured on TzTok-Jad this doubles luminance contrast (28.0 -> 56.2 stddev)
+ * while leaving mean brightness alone.
+ */
+#define TORIDRAW_HD_TEXTURE_NEUTRAL 128
+
+/*
+ * Tuning knobs for matching a reference render.
+ *
+ * These exist because the HD compositing rules are being recovered by
+ * comparison, not read off a specification: the shipped defaults are the
+ * current best understanding and the harness sweeps alternatives. Everything
+ * here defaults to the behaviour that would happen without it, so a caller
+ * that never touches this sees no difference.
+ *
+ * Not per material on purpose — a knob under investigation should be one value
+ * for the whole frame, or a sweep cannot attribute what changed.
+ */
+struct ToriDraw_HDTuning
+{
+    /** Lightness the modulate tint is keyed at, 0..127. Negative — the default
+     *  — means use the face's own authored lightness. */
+    int tint_lightness;
+    /** Percent applied to the tint. 100 is the identity. */
+    int tint_scale;
+    /** Forces one global neutral, overriding each material's own mean. 0 — the
+     *  default — leaves the per-texture rule in place. */
+    int texture_neutral;
+    /**
+     * How much of the face colour's saturation survives, 0..100.
+     *
+     * A pure multiply preserves the authored hue's saturation exactly, because
+     * a grey texel scales all three channels alike. That is right for a mildly
+     * coloured face and wrong for a strongly saturated one: the rs643 Jad is
+     * authored 4E0903, and reproducing that ratio faithfully gives a render
+     * whose green and blue are near zero — far more saturated than the
+     * reference, which shows the rock's grey through the red.
+     *
+     * Below 100 the tint is blended toward white, which lets the texture's own
+     * neutrality desaturate the surface.
+     */
+    int tint_saturation;
+};
+
+#define TORIDRAW_HD_TUNING_DEFAULT_INIT                                        \
+    {                                                                          \
+        -1, 100, 0, 100                                                        \
+    }
+
+/** NULL restores the defaults. */
+void
+ToriDraw_HDSetTuning(const struct ToriDraw_HDTuning* tuning);
+
+void
+ToriDraw_HDGetTuning(struct ToriDraw_HDTuning* out);
+
 int
 ToriDraw_RenderHD(
     struct ToriDraw_ModelHandle hnd,

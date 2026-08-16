@@ -51,6 +51,9 @@ EV_EXPORT int ev_w_texture_count(void) { return ev_texture_count(); }
 EV_EXPORT void ev_w_move(int f, int r, int u) { ev_move(f, r, u); }
 EV_EXPORT void ev_w_move_reset(void) { ev_move_reset(); }
 
+/* Face priorities off, to tell a bad priority from a bad depth sort. */
+EV_EXPORT void ev_w_set_ignore_priorities(int on) { ev_set_ignore_priorities(on); }
+
 EV_EXPORT uint8_t*
 ev_w_render(int w, int h, int yaw, int pitch, int zoom, int frame)
 {

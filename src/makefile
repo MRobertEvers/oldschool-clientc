@@ -3250,6 +3250,40 @@ clean-lane:
 		$(foreach s,$(CLEAN_FLAVOR_SUFFIXES),$(PLATFORM_OBJ_BASE)$(s)) \
 		$(PLATFORM_TARGET) $(PLATFORM_TARGET)$(PLATFORM_TARGET_MEMTRACE_SUFFIX)
 
+# Those .d files answer "which objects does this header reach". They cannot
+# answer "is this object actually built from the source on disk" -- make settles
+# that by comparing mtimes, and mtimes in this tree are not trustworthy. A tree
+# copy (rsync, tar, a worktree synced back) stamps sources AND objects with
+# whole-second times from the copy, so an object can carry an mtime equal to its
+# source while holding pre-copy code, and make will never rebuild it.
+#
+# It has already shipped a wrong binary: on 2026-08-15 run-live.sh aborted in
+# ToriRS_ModelAssertPnmTextureInvariant on an assert the source on disk cannot
+# reach, because build_asan_opt_asan_ubsan_nosimd_es/torirs_types.o predated the
+# commit that added the render-type gate while every neighbouring object was
+# current. Nine objects in that directory were in that state.
+#
+# So verify by content before make evaluates anything: objverify.py hashes each
+# object's whole prerequisite set plus the flag signature, remembers the verdict
+# in $(OBJ_DIR)/.objverify, and deletes any object whose sources have moved
+# underneath it. $(shell) at parse time is the point of it -- the deletions have
+# to land before make builds its DAG. Silent when the directory is clean.
+# tools/test_objverify.py covers the cases.
+OBJVERIFY := $(REPO_ROOT)/tools/objverify.py
+# CC and the compile flag sets only: LDFLAGS cannot invalidate an object, and
+# putting it here would rebuild the world every time a link option moved.
+OBJVERIFY_SIG := $(CC)|$(CFLAGS)|$(RSCACHE_CFLAGS)|$(RSPROT_CFLAGS)|$(TORIDRAW_CFLAGS)
+OBJVERIFY_REPORT := $(shell command -v python3 >/dev/null 2>&1 && \
+	python3 '$(OBJVERIFY)' '$(OBJ_DIR)' --sig '$(OBJVERIFY_SIG)' 2>&1)
+$(if $(OBJVERIFY_REPORT),$(info $(OBJVERIFY_REPORT)))
+
+# Its cases are built by hand in a temp directory: the failure being tested is a
+# timestamp relationship between an object and its sources, and no real compile
+# can be made to produce one on demand.
+.PHONY: test-objverify
+test-objverify:
+	python3 $(REPO_ROOT)/tools/test_objverify.py
+
 # Header dependency tracking: -MMD writes a .d next to each .o; include them so
 # editing a header rebuilds every object that includes it (stale objects read
 # struct fields at old offsets otherwise).

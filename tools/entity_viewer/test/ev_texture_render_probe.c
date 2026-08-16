@@ -93,7 +93,7 @@ build_blob(const struct ToriDraw_Model* m, size_t* out_len)
     for( int i = 0; i < n; i++ )
     {
         const struct EV_Texture* t = ev_textures_get(&g_set, ids[i]);
-        if( t ) cap += 8 + (size_t)t->size * t->size * 4;
+        if( t ) cap += 12 + (size_t)t->size * t->size * 4;
     }
     uint8_t* b = malloc(cap);
     size_t at = 0;
@@ -110,7 +110,10 @@ build_blob(const struct ToriDraw_Model* m, size_t* out_len)
         b[at++] = (uint8_t)(t->size & 0xFF);
         b[at++] = (uint8_t)((t->size >> 8) & 0xFF);
         b[at++] = (uint8_t)(t->alpha_mode >= 0 && t->alpha_mode <= 2 ? t->alpha_mode : 0);
-        b[at++] = (uint8_t)((t->repeat_s ? 0 : 1) | (t->repeat_t ? 0 : 2));
+        b[at++] = (uint8_t)((t->repeat_s ? 0 : 1) | (t->repeat_t ? 0 : 2) |
+                            (t->modulate ? 4 : 0));
+        b[at++] = (uint8_t)(t->mean_luma < 1 ? 1 : t->mean_luma);
+        b[at++] = 0; b[at++] = 0; b[at++] = 0;
         for( int p = 0; p < t->size * t->size; p++ )
         {
             uint32_t v = (uint32_t)t->texels[p];
@@ -240,7 +243,7 @@ main(int argc, char** argv)
         {
             int sz = blob[q + 4] | (blob[q + 5] << 8);
             blob[q + 6] = 0; /* gate: opaque */
-            q += 8 + (size_t)sz * sz * 4;
+            q += 12 + (size_t)sz * sz * 4;
         }
 
     int n = ev_set_textures(blob, (int)blob_len);

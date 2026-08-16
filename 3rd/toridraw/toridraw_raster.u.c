@@ -307,6 +307,34 @@ toridraw_raster_debug_print(
         hist_buf);
 }
 
+/**
+ * Does texture coordinate `texture_face` hold VERTEX INDICES in p/m/n?
+ *
+ * Only render type 0 (plane) does. Types 1-3 (cylinder, cube, sphere) store a
+ * raw projection axis in the very same fields — m/32767 is the axis's y
+ * component, so a clean -Y axis is the value -32767 — and this raster
+ * plane-maps only, so it has nothing to do with them. Indexing the vertex
+ * arrays with an axis is an out-of-range read; the caller must take the face's
+ * own triangle instead, which every textured face lacking an explicit texture
+ * triangle already uses and which is in range by construction.
+ *
+ * The fields were zero until the decoder learned to fill them, so this path
+ * used to read a degenerate p=m=n=0 triangle and quietly draw nothing. The
+ * mapping those types actually want is on the HD path (toridraw_render_hd.*) —
+ * that is what TORIDRAWMK_MODEL_HD is for, and no SD model reaches it.
+ */
+static inline bool
+toridraw_raster_coord_is_plane_mapped(
+    const struct ToriDrawModelRasterContext* ctx,
+    int texture_face)
+{
+    if( !ctx->texture_render_types_nullable )
+        return true;
+    if( texture_face < 0 || texture_face >= ctx->num_textured_faces )
+        return true;
+    return ctx->texture_render_types_nullable[texture_face] == 0;
+}
+
 static inline void
 ToriDraw_RasterModelFace(
     int face,
@@ -683,7 +711,9 @@ ToriDraw_RasterModelFace(
             assert(ctx->orthographic_vertex_y_nullable != NULL);
             assert(ctx->orthographic_vertex_z_nullable != NULL);
 
-            if( ctx->face_texture_coords && ctx->face_texture_coords[face] != -1 )
+            if( ctx->face_texture_coords && ctx->face_texture_coords[face] != -1 &&
+                toridraw_raster_coord_is_plane_mapped(
+                    ctx, ctx->face_texture_coords[face]) )
             {
                 assert(ctx->face_p_coordinate_nullable != NULL);
                 assert(ctx->face_m_coordinate_nullable != NULL);
@@ -697,10 +727,16 @@ ToriDraw_RasterModelFace(
             }
             else
             {
-                texture_face = face;
-                tp_vertex = ctx->face_indices_a[texture_face];
-                tm_vertex = ctx->face_indices_b[texture_face];
-                tn_vertex = ctx->face_indices_c[texture_face];
+                /* Keep the coordinate index for the mapping-mode tests below —
+                 * it is what says cylinder/cube/sphere — but map from the
+                 * face's own triangle, the only one in range here. */
+                texture_face = (ctx->face_texture_coords &&
+                                ctx->face_texture_coords[face] != -1)
+                                   ? ctx->face_texture_coords[face]
+                                   : face;
+                tp_vertex = ctx->face_indices_a[face];
+                tm_vertex = ctx->face_indices_b[face];
+                tn_vertex = ctx->face_indices_c[face];
             }
             // texture_id = ctx->face_textures[index];
             // texture_face = ctx->face_infos[index] >> 2;
@@ -864,7 +900,9 @@ ToriDraw_RasterModelFace(
             assert(ctx->orthographic_vertex_y_nullable != NULL);
             assert(ctx->orthographic_vertex_z_nullable != NULL);
 
-            if( ctx->face_texture_coords && ctx->face_texture_coords[face] != -1 )
+            if( ctx->face_texture_coords && ctx->face_texture_coords[face] != -1 &&
+                toridraw_raster_coord_is_plane_mapped(
+                    ctx, ctx->face_texture_coords[face]) )
             {
                 texture_face = ctx->face_texture_coords[face];
 
@@ -874,10 +912,17 @@ ToriDraw_RasterModelFace(
             }
             else
             {
-                texture_face = face;
-                tp_vertex = ctx->face_indices_a[texture_face];
-                tm_vertex = ctx->face_indices_b[texture_face];
-                tn_vertex = ctx->face_indices_c[texture_face];
+                /* See the gouraud branch above: a cylinder/cube/sphere coord
+                 * has no vertex indices to give, so the face's own triangle is
+                 * the mapping, while texture_face still names the coord so the
+                 * mapping-mode tests below stay right. */
+                texture_face = (ctx->face_texture_coords &&
+                                ctx->face_texture_coords[face] != -1)
+                                   ? ctx->face_texture_coords[face]
+                                   : face;
+                tp_vertex = ctx->face_indices_a[face];
+                tm_vertex = ctx->face_indices_b[face];
+                tn_vertex = ctx->face_indices_c[face];
             }
             // texture_id = ctx->face_textures[index];
             // texture_face = ctx->face_infos[index] >> 2;

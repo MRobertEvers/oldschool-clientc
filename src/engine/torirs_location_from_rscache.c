@@ -48,7 +48,16 @@ torirs_location_copy_shapes_models(
     const struct RSCache_Dat2ConfigLoc* src)
 {
     dst->shapes_and_model_count = src->shapes_and_model_count;
-    dst->shapes = torirs_dup_int_array(src->shapes, src->shapes_and_model_count);
+    /* A loc encoded with opcode 5 is a single-model loc: the decoder sets a
+     * count of 1 and leaves `shapes` NULL on purpose, because shape_select is
+     * not used for it. Absent in, absent out — every reader of this field
+     * already answers NULL with the implicit shape (world_scenery.u.c,
+     * task_world_load.c, task_dat2_loc_load.c). `lengths` carries no such
+     * case: both decode paths allocate it whenever the count is set, so a NULL
+     * there is a decoder bug and the assert inside must keep catching it. */
+    dst->shapes = src->shapes
+                      ? torirs_dup_int_array(src->shapes, src->shapes_and_model_count)
+                      : NULL;
     dst->lengths = torirs_dup_int_array(src->lengths, src->shapes_and_model_count);
 
     if( !src->models || src->shapes_and_model_count <= 0 )

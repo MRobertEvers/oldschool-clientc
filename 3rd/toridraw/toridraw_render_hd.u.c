@@ -94,30 +94,69 @@ static const hd_mapped_fn g_hd_mapped[3][3][2][2] = {
 
 /* ------------------------------------------------------------ the tint */
 
-/*
- * The modulate tint, from the face's own colour.
- *
- * Hue and saturation only — the authored lightness is NOT folded in. For a
- * textured face the lighting pass has already overwritten colors_a/b/c with
- * plain lightness, and that lightness arrives at the kernel as the shade; using
- * it here as well counts it twice and collapses every lightness-0 face to black.
- * That exact bug is on record (docs/rs2012_materials_backport/
- * HISTORICAL_alpha_kernels.md §2: material 2164 vanished). So the hsl16 is
- * rebuilt at the midpoint of the lightness range, where the palette gives the
- * pure hue, and only the chroma survives.
- */
-#define TORIDRAW_HD_MODULATE_LIGHTNESS 64
+
+static struct ToriDraw_HDTuning g_hd_tuning = TORIDRAW_HD_TUNING_DEFAULT_INIT;
+
+void
+ToriDraw_HDSetTuning(const struct ToriDraw_HDTuning* tuning)
+{
+    struct ToriDraw_HDTuning defaults = TORIDRAW_HD_TUNING_DEFAULT_INIT;
+    g_hd_tuning = tuning ? *tuning : defaults;
+}
+
+void
+ToriDraw_HDGetTuning(struct ToriDraw_HDTuning* out)
+{
+    if( out )
+        *out = g_hd_tuning;
+}
 
 static void
-hd_face_tint(int hsl16, struct ToriDraw_TexSampler* sampler)
+hd_face_tint(int hsl16, int material_neutral, struct ToriDraw_TexSampler* sampler)
 {
-    int keyed = (hsl16 & 0xFF80) | TORIDRAW_HD_MODULATE_LIGHTNESS;
+    /*
+     * `tint_lightness` < 0 means "use the face's own authored lightness".
+     * The default keeps it fixed at the midpoint — see the note on
+     * TORIDRAW_HD_MODULATE_LIGHTNESS above for why the authored lightness is
+     * normally excluded.
+     */
+    int lightness = g_hd_tuning.tint_lightness < 0 ? (hsl16 & 0x7F)
+                                                   : (g_hd_tuning.tint_lightness & 0x7F);
+    int keyed = (hsl16 & 0xFF80) | lightness;
     int rgb = g_hsl16_to_rgb_table[keyed & 0xFFFF];
+    int scale = g_hd_tuning.tint_scale > 0 ? g_hd_tuning.tint_scale : 100;
+    /*
+     * The material's own average is the rule; an explicitly tuned neutral
+     * OVERRIDES it, because a sweep that cannot force one global value cannot
+     * measure what the per-texture rule is worth.
+     */
+    int neutral = g_hd_tuning.texture_neutral > 0
+                      ? g_hd_tuning.texture_neutral
+                      : (material_neutral > 0 ? material_neutral : 256);
 
-    /* 0..256, so a white tint is the exact identity: (c * 256) >> 8 == c. */
-    sampler->tint_r = (((rgb >> 16) & 0xFF) * 256) / 255;
-    sampler->tint_g = (((rgb >> 8) & 0xFF) * 256) / 255;
-    sampler->tint_b = ((rgb & 0xFF) * 256) / 255;
+    /*
+     * The sampler multiplies by this and shifts down 8, so a tint of 256 is the
+     * identity for a 255 texel. Dividing by `neutral` rather than 255 makes a
+     * MID-GREY texel the identity instead — see TORIDRAW_HD_TEXTURE_NEUTRAL.
+     */
+    int tr = (rgb >> 16) & 0xFF, tg = (rgb >> 8) & 0xFF, tb = rgb & 0xFF;
+
+    /* Blend the tint toward its own luminance — toward grey, not toward white,
+     * so desaturating does not also brighten. */
+    int sat = g_hd_tuning.tint_saturation;
+    if( sat < 0 )
+        sat = 0;
+    if( sat < 100 )
+    {
+        int luma = (2126 * tr + 7152 * tg + 722 * tb) / 10000;
+        tr = luma + (tr - luma) * sat / 100;
+        tg = luma + (tg - luma) * sat / 100;
+        tb = luma + (tb - luma) * sat / 100;
+    }
+
+    sampler->tint_r = (tr * 256 * scale) / (neutral * 100);
+    sampler->tint_g = (tg * 256 * scale) / (neutral * 100);
+    sampler->tint_b = (tb * 256 * scale) / (neutral * 100);
 }
 
 /* ---------------------------------------------------------- per model */
@@ -246,13 +285,25 @@ hd_draw_face(struct hd_ctx* ctx, int face)
     int use_facealpha = (face_alpha < 0xFF) ? 1 : 0;
     int use_modulate = mat->modulate ? 1 : 0;
 
+    /*
+     * The tint comes from the face's AUTHORED colour, not from colors_a.
+     *
+     * colors_a is the shade by this point — the lighting pass overwrites
+     * colors_a/b/c of a textured face with plain 0..127 lightness. Feeding that
+     * to the tint masks `hsl16 & 0xFF80`, which is 0 for every value under 128,
+     * so every face tints with hue 0 saturation 0: a grey wash, i.e. no tint at
+     * all with extra steps. `face_colors` is the flat authored HSL16 and is the
+     * only place the hue still lives.
+     */
+    int tint_hsl = m->face_colors ? m->face_colors[face] : 0;
+
     struct ToriDraw_TexSampler sampler;
     ToriDraw_TexSamplerInit(&sampler, mat->texels, mat->width);
     sampler.clamp_s = mat->clamp_s;
     sampler.clamp_t = mat->clamp_t;
     sampler.face_alpha = face_alpha;
     if( use_modulate )
-        hd_face_tint(color_a, &sampler);
+        hd_face_tint(tint_hsl, mat->texture_neutral, &sampler);
 
     if( st )
     {
@@ -558,8 +609,23 @@ ToriDraw_ModelBuildTextureMappings(
 
         if( type == 1 )
         {
-            /* The cylinder's u wrap width, which its seam fixup folds against. */
-            out[i].scale_z = scale_x ? (float)scale_x[i] / 1024.0f : 0.0f;
+            /*
+             * The cylinder's post-atan2 u multiplier, and it must mirror the
+             * three-branch rule the basis generator uses for the same field
+             * (toridraw_texture_uv.c): only a POSITIVE scale_x becomes a u
+             * wrap. Zero and negative both mean "no wrap" — a negative one is
+             * spent on the matrix's x axis instead, and is already folded in
+             * there by the time this runs.
+             *
+             * Dividing unconditionally made scale_x == 0 produce scale_z == 0,
+             * and the kernel applies anything that is not exactly 1: `u *= 0`
+             * collapses every vertex of the face onto one column of the
+             * texture. That does not look like a scale bug, it looks like
+             * banding, and the uv SPAN stays healthy because v still varies —
+             * which is why a span check alone never caught it.
+             */
+            int sx = scale_x ? scale_x[i] : 0;
+            out[i].scale_z = sx > 0 ? (float)sx / 1024.0f : 1.0f;
         }
         else if( type == 2 )
         {

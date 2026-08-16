@@ -26,6 +26,10 @@ INCLUDES := -I$(RSCACHE)/include -I$(RSCACHE)/src -I$(RSCACHE) -I$(COMMON) -I$(P
 # -O2: a catalog run walks every npc, every sequence and the framemap of each.
 CFLAGS  ?= -std=c11 -g -O2 -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
 CFLAGS  += $(INCLUDES)
+# The server's rig walk runs on a worker thread so a cache switch does not stall
+# the accept loop (ev_rigs.c). -pthread rather than -lpthread: it is the flag
+# that is right at compile time and link time on both clang and gcc.
+CFLAGS  += -pthread
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
 
 # Header dependencies.
@@ -187,7 +191,8 @@ $(BUILD)/ev_server.o: ev_server.c | $(BUILD)
 # list because it links rscache; the merge it would otherwise own lives in
 # ev_render.c precisely so the browser can do it too.
 NATIVE_CORE := $(BUILD)/ev_build.o $(BUILD)/ev_player.o $(BUILD)/ev_wire.o \
-	$(BUILD)/ev_render.o $(BUILD)/ev_caches.o $(BUILD)/ev_textures.o $(BUILD)/proctex_generator.o \
+	$(BUILD)/ev_render.o $(BUILD)/ev_caches.o $(BUILD)/ev_rigs.o \
+	$(BUILD)/ev_textures.o $(BUILD)/proctex_generator.o \
 	$(BUILD)/texture_palette_bake.o $(BUILD)/torirs_types.o $(BUILD)/torirs_component_hook.o \
 	$(BUILD)/torirs_model_from_rscache.o $(BUILD)/toridraw_model_from_torirs.o \
 	$(BUILD)/toridraw_animation_from_rscache.o \
@@ -223,6 +228,9 @@ $(BUILD)/ev_textures.o: ev_textures.c | $(BUILD)
 $(BUILD)/ev_caches.o: ev_caches.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/ev_rigs.o: ev_rigs.c | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(BUILD)/ev_export.o: ev_export.c | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -250,10 +258,55 @@ ev_cache_load_probe: $(BUILD)/ev_cache_load_probe.o $(NATIVE_CORE) $(COMMON_OBJS
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
+# ---- ev_hd_sheet: HD compositing hypotheses, side by side ----------------
+#
+# One process renders every variant at identical framing into one contact
+# sheet. Judging two renders seen minutes apart is how a change that makes
+# things slightly worse gets kept.
+$(BUILD)/ev_uv_span.o: test/ev_uv_span.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_uv_span: $(BUILD)/ev_uv_span.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_hd_sheet.o: test/ev_hd_sheet.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_hd_sheet: $(BUILD)/ev_hd_sheet.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_mat_probe.o: test/ev_mat_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_mat_probe: $(BUILD)/ev_mat_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+$(BUILD)/ev_fmt_probe.o: test/ev_fmt_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_fmt_probe: $(BUILD)/ev_fmt_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
 $(BUILD)/ev_index_cache_probe.o: test/ev_index_cache_probe.c | $(BUILD)
 	$(CC) $(CFLAGS) -I. -c $< -o $@
 
 ev_index_cache_probe: $(BUILD)/ev_index_cache_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
+		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
+# ---- ev_rig_probe: does a catalog-less cache produce animations -----------
+#
+# And does a cache switch mid-walk abandon the walk it started? Both failures
+# are silent: an empty animation list looks like an npc that has no animations,
+# and a late publish from the previous cache looks like a correct one.
+$(BUILD)/ev_rig_probe.o: test/ev_rig_probe.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_rig_probe: $(BUILD)/ev_rig_probe.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
@@ -302,7 +355,7 @@ ev_export: $(BUILD)/ev_export.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 
 EMCC ?= emcc
 SIMD ?= 1
-EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_ev_w_set_textures,_ev_w_texture_count,_ev_w_move,_ev_w_move_reset,_malloc,_free
+EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_ev_w_set_textures,_ev_w_texture_count,_ev_w_move,_ev_w_move_reset,_ev_w_set_ignore_priorities,_malloc,_free
 
 EM_OPT := -O3 -flto -mnontrapping-fptoint
 ifeq ($(SIMD),1)

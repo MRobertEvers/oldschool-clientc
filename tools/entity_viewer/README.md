@@ -107,6 +107,67 @@ cylinder- and cube-mapped, and the classic raster can only plane-map — it
 nearly all its faces are mapped, invisible. `ev_build_npc_model_hd` returns NULL
 for models that do not need this, which is every OldSchool npc.
 
+### Textures modulate the face colour
+
+This era's textures are often luminance **masks**, not pictures: three of the
+seven TzTok-Jad uses in RS727 have a maximum chroma of exactly 0, and the faces
+carrying them are authored deep red. So the texel multiplies the face's colour,
+and drawing it untinted produces a grey model — a wrong answer that looks like a
+plausible one.
+
+The tint comes from `face_colors`, the flat authored HSL16. It cannot come from
+`face_colors_a`: the lighting pass overwrites colors_a/b/c of a textured face
+with plain 0..127 lightness, which is what reaches the kernel as the *shade*, and
+masking `hsl16 & 0xFF80` on a value below 128 yields 0 — hue 0, saturation 0, a
+tint that does nothing. Modulate is on for the material system and off for the
+sprite-backed one, where the texel is the colour outright.
+
+### Matching the reference render
+
+The HD compositing rules are being recovered by comparison, so there is a
+harness for it rather than a rebuild-and-squint loop:
+
+```sh
+make -C tools/entity_viewer ev_hd_sheet ev_uv_span
+tools/entity_viewer/ev_hd_sheet cache.rs727_preeoc rs727 2745 --out /tmp/sheet.bmp
+tools/entity_viewer/ev_uv_span  cache.void634 rs643 2745
+```
+
+`ev_hd_sheet` renders every hypothesis in one process into one contact sheet at
+identical framing — a wrong variant is obvious beside its neighbours in a way it
+never is alone — and prints metrics, because "looks better" and "is closer"
+diverge. **clip%** (channels pinned at 255) is the one that catches damage the
+mean cannot see: a clipped channel has lost the texture's variation entirely.
+
+`ev_uv_span` also counts faces straddling the **atan2 seam**, before and after
+the unwrap — after must be 0. The cylinder and sphere projections wrap, so a
+triangle across the branch cut gets 0.98 / 0.99 / 0.02, and the rasteriser
+interpolates the long way round and smears the entire texture across that one
+face. The direct generator had always unwrapped it; the kernels had not.
+
+`ev_uv_span` measures uv spans through the **kernel's** matrix path. The existing
+`rs2012_qbd_kernel_survey` measures the *direct* generator, and the two are
+separate implementations of one projection — so a matrix-form bug hid behind a
+survey reporting healthy spans. That is exactly how the cylinder `scale_z`
+collapse survived: with `u` pinned to zero the span still looked fine, because
+`v` still varied.
+
+### Ignoring face priorities
+
+**ignore priorities** in the sidebar (`--no-priorities` on `ev_hd_sheet`) draws
+as if the model carried none. The painter's sort ranks priority ahead of depth,
+so a model whose priorities are wrong stacks faces in front of things they sit
+behind — which is not distinguishable from a broken depth sort by looking at it.
+
+The flag hides the arrays for the duration of a render rather than freeing them,
+so it toggles without reloading the subject.
+
+What it has established so far: the OB3/HD models (rs727 TzTok-Jad, the QBD) do
+carry priorities that change the sort, while the rs643 and OldSchool models here
+have no per-face array at all. It also ruled a theory out — Jad's missing eyes
+were not a priority burial, because turning priorities off did not bring them
+back. They were the lava/eye texture being tinted and clamping to white.
+
 ## Moving around
 
 Drag orbits, the wheel zooms, **WASD** flies the viewpoint over the ground

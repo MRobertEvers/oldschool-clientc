@@ -338,6 +338,216 @@ tool_framemap_index_query(
     return 1;
 }
 
+/* ---- rig identity ------------------------------------------------------- */
+
+/* Framemap ids are allocation addresses, not rig identities. Independent
+ * backport ledgers can mint several destination ids from one source framemap;
+ * the Summoning cohorts and their special moves do exactly that. Compare the
+ * decoded payload and canonicalise exact copies before building either side of
+ * the npc-rig/sequence join. */
+static uint64_t
+rig_hash_i32(uint64_t h, int v)
+{
+    uint32_t u = (uint32_t)v;
+    for( int i = 0; i < 4; i++ )
+    {
+        h ^= (uint8_t)(u >> (i * 8));
+        h *= UINT64_C(1099511628211);
+    }
+    return h;
+}
+
+static uint64_t
+framemap_hash(const struct RSCache_Dat2Framemap* fm)
+{
+    uint64_t h = UINT64_C(1469598103934665603);
+    h = rig_hash_i32(h, fm->length);
+    for( int i = 0; i < fm->length; i++ )
+    {
+        int group_count = fm->bone_groups_lengths ? fm->bone_groups_lengths[i] : 0;
+        h = rig_hash_i32(h, fm->types ? fm->types[i] : 0);
+        h = rig_hash_i32(h, group_count);
+        for( int j = 0; j < group_count; j++ )
+            h = rig_hash_i32(h, fm->bone_groups && fm->bone_groups[i] ?
+                                    fm->bone_groups[i][j] : 0);
+    }
+
+    h = rig_hash_i32(h, fm->has_transform_actor ? 1 : 0);
+    if( fm->has_transform_actor )
+        for( int i = 0; i < fm->length; i++ )
+            h = rig_hash_i32(h, fm->transform_actor ? fm->transform_actor[i] : 0);
+
+    h = rig_hash_i32(h, fm->has_masks ? 1 : 0);
+    if( fm->has_masks )
+        for( int i = 0; i < fm->length; i++ )
+            h = rig_hash_i32(h, fm->masks ? fm->masks[i] : 0);
+
+    h = rig_hash_i32(h, fm->tail_size);
+    for( int i = 0; i < fm->tail_size; i++ )
+    {
+        h ^= fm->tail ? fm->tail[i] : 0;
+        h *= UINT64_C(1099511628211);
+    }
+    return h;
+}
+
+static int
+framemap_equal(
+    const struct RSCache_Dat2Framemap* a,
+    const struct RSCache_Dat2Framemap* b)
+{
+    if( a->length != b->length ||
+        a->has_transform_actor != b->has_transform_actor ||
+        a->has_masks != b->has_masks || a->tail_size != b->tail_size )
+        return 0;
+
+    for( int i = 0; i < a->length; i++ )
+    {
+        int at = a->types ? a->types[i] : 0;
+        int bt = b->types ? b->types[i] : 0;
+        int an = a->bone_groups_lengths ? a->bone_groups_lengths[i] : 0;
+        int bn = b->bone_groups_lengths ? b->bone_groups_lengths[i] : 0;
+        if( at != bt || an != bn )
+            return 0;
+        for( int j = 0; j < an; j++ )
+        {
+            int ag = a->bone_groups && a->bone_groups[i] ? a->bone_groups[i][j] : 0;
+            int bg = b->bone_groups && b->bone_groups[i] ? b->bone_groups[i][j] : 0;
+            if( ag != bg )
+                return 0;
+        }
+        if( a->has_transform_actor )
+        {
+            int av = a->transform_actor ? a->transform_actor[i] : 0;
+            int bv = b->transform_actor ? b->transform_actor[i] : 0;
+            if( av != bv )
+                return 0;
+        }
+        if( a->has_masks )
+        {
+            int av = a->masks ? a->masks[i] : 0;
+            int bv = b->masks ? b->masks[i] : 0;
+            if( av != bv )
+                return 0;
+        }
+    }
+
+    if( a->tail_size > 0 )
+    {
+        if( !a->tail || !b->tail )
+            return a->tail == b->tail;
+        if( memcmp(a->tail, b->tail, (size_t)a->tail_size) != 0 )
+            return 0;
+    }
+    return 1;
+}
+
+void
+tool_dat2_canonicalise_framemap_index(
+    struct Tool_Dat2Cache* cache,
+    struct Tool_FramemapIndex* index,
+    int max_framemap,
+    int* out_distinct,
+    int* out_aliases)
+{
+    assert(cache);
+    assert(index);
+    assert(out_distinct);
+    assert(out_aliases);
+
+    int n = max_framemap + 1;
+    uint8_t* referenced = calloc((size_t)n, 1);
+    int* canonical = malloc((size_t)n * sizeof(*canonical));
+    uint64_t* hashes = calloc((size_t)n, sizeof(*hashes));
+    struct RSCache_Dat2Framemap** maps = calloc((size_t)n, sizeof(*maps));
+    assert(referenced);
+    assert(canonical);
+    assert(hashes);
+    assert(maps);
+
+    for( int id = 0; id < n; id++ )
+        canonical[id] = -1;
+
+    int referenced_count = 0;
+    for( int i = 0; i < index->count; i++ )
+    {
+        int id = index->entries[i].framemap_id;
+        if( id >= 0 && id < n && !referenced[id] )
+        {
+            referenced[id] = 1;
+            referenced_count++;
+        }
+    }
+
+    int table_cap = 16;
+    while( table_cap < referenced_count * 2 )
+        table_cap *= 2;
+    int* table = malloc((size_t)table_cap * sizeof(*table));
+    assert(table);
+    for( int i = 0; i < table_cap; i++ )
+        table[i] = -1;
+
+    int distinct = 0;
+    int aliases = 0;
+    for( int id = 0; id < n; id++ )
+    {
+        if( !referenced[id] )
+            continue;
+
+        struct RSCache_Dat2Framemap* fm = tool_dat2_framemap_load(cache, id);
+        if( !fm )
+        {
+            canonical[id] = id;
+            distinct++;
+            continue;
+        }
+
+        uint64_t hash = framemap_hash(fm);
+        int slot = (int)(hash & (uint64_t)(table_cap - 1));
+        int matched = 0;
+        while( table[slot] >= 0 )
+        {
+            int other = table[slot];
+            if( hashes[other] == hash && framemap_equal(maps[other], fm) )
+            {
+                canonical[id] = other;
+                aliases++;
+                matched = 1;
+                break;
+            }
+            slot = (slot + 1) & (table_cap - 1);
+        }
+
+        if( matched )
+            RSCache_Dat2FramemapFree(fm);
+        else
+        {
+            canonical[id] = id;
+            hashes[id] = hash;
+            maps[id] = fm;
+            table[slot] = id;
+            distinct++;
+        }
+    }
+
+    for( int i = 0; i < index->count; i++ )
+    {
+        int id = index->entries[i].framemap_id;
+        if( id >= 0 && id < n && canonical[id] >= 0 )
+            index->entries[i].framemap_id = canonical[id];
+    }
+
+    for( int id = 0; id < n; id++ )
+        RSCache_Dat2FramemapFree(maps[id]);
+    free(table);
+    free(maps);
+    free(hashes);
+    free(canonical);
+    free(referenced);
+    *out_distinct = distinct;
+    *out_aliases = aliases;
+}
+
 void
 tool_framemap_label_set(
     const struct RSCache_Dat2Framemap* fm,

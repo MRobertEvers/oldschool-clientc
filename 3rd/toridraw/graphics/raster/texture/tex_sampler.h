@@ -129,6 +129,37 @@ tex_sampler_mul255(int a, int b)
 }
 
 /** Per-channel tint. 256 is the exact identity, see the field comment. */
+/**
+ * Shade and tint in ONE multiply, per channel.
+ *
+ * The obvious composition — shade the texel, then tint the result — rounds
+ * twice, and the second step multiplies the first step's rounding error along
+ * with the colour. A tint above unity (which a detail map normalised on its own
+ * mean routinely is) therefore amplifies the quantisation of an already
+ * 8-bit-truncated value, and a smooth gradient comes apart into steps. That is
+ * visible as streaking, and only on modulated faces, because only they amplify.
+ *
+ * Folding the two factors into a single shift keeps the full precision of the
+ * product and rounds once. `shade` is 0..256 and the tint is 0..~1024, so the
+ * widest product is 255 * 256 * 1024, well inside int32.
+ */
+static inline int
+tex_sampler_shade_tint(const struct ToriDraw_TexSampler* s, int rgb, int shade)
+{
+    int r = (((rgb >> 16) & 0xFF) * shade * s->tint_r) >> 16;
+    int g = (((rgb >> 8) & 0xFF) * shade * s->tint_g) >> 16;
+    int b = ((rgb & 0xFF) * shade * s->tint_b) >> 16;
+
+    if( r > 0xFF )
+        r = 0xFF;
+    if( g > 0xFF )
+        g = 0xFF;
+    if( b > 0xFF )
+        b = 0xFF;
+
+    return (r << 16) | (g << 8) | b;
+}
+
 static inline int
 tex_sampler_tint(const struct ToriDraw_TexSampler* s, int rgb)
 {

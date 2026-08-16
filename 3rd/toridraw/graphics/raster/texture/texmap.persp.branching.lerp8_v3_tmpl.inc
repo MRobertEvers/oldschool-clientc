@@ -69,6 +69,8 @@ TMAP_FN(
     toridraw_texmap_project_cylinder(mapping, mx0, my0, mz0, &u[0], &v[0]);
     toridraw_texmap_project_cylinder(mapping, mx1, my1, mz1, &u[1], &v[1]);
     toridraw_texmap_project_cylinder(mapping, mx2, my2, mz2, &u[2], &v[2]);
+    toridraw_texmap_unwrap_seam(
+        mapping->direction, mapping->scale_z > 0.0f ? mapping->scale_z : 1.0f, u, v);
 
     /*
      * Seam fixup. A vertex that wrapped the cylinder the long way round is
@@ -128,6 +130,8 @@ TMAP_FN(
     toridraw_texmap_project_sphere(mapping, mx0, my0, mz0, &u[0], &v[0]);
     toridraw_texmap_project_sphere(mapping, mx1, my1, mz1, &u[1], &v[1]);
     toridraw_texmap_project_sphere(mapping, mx2, my2, mz2, &u[2], &v[2]);
+    /* The sphere's longitude wraps once over the full turn. */
+    toridraw_texmap_unwrap_seam(mapping->direction, 1.0f, u, v);
 
     /*
      * The sphere's seam fixup folds against a whole turn rather than against a

@@ -19,6 +19,10 @@
 #define EV_TEX_SIZE 128
 #define EV_TEX_DEP_MAX 64
 
+/* Above this MEAN chroma a texture is treated as carrying its own colour and is
+ * not tinted. See EV_Texture.mean_chroma. */
+#define EV_TEXTURE_MASK_CHROMA_MAX 40
+
 /* ---- the flattened-sprite cache the procedural evaluator reads through ----- */
 
 /*
@@ -472,18 +476,53 @@ set_put(
     set->items[set->count].opaque = opaque;
     set->items[set->count].procedural = procedural;
 
+    /* Weighted the way the eye weights it, so a green-dominant detail map is
+     * not treated as darker than it looks. Clamped away from 0: a neutral of
+     * zero would make the tint a divide-by-zero and, worse, silently fall back
+     * to the global default for the one texture most in need of its own. */
+    {
+        long long sum = 0;
+        int n = EV_TEX_SIZE * EV_TEX_SIZE;
+        long long chroma_sum = 0;
+        for( int i = 0; i < n; i++ )
+        {
+            int px = texels[i];
+            int r = (px >> 16) & 0xFF, g = (px >> 8) & 0xFF, b = px & 0xFF;
+            sum += (2126 * r + 7152 * g + 722 * b) / 10000;
+
+            int hi = r > g ? (r > b ? r : b) : (g > b ? g : b);
+            int lo = r < g ? (r < b ? r : b) : (g < b ? g : b);
+            chroma_sum += hi - lo;
+        }
+        int mean = (int)(sum / n);
+        set->items[set->count].mean_luma = mean < 1 ? 1 : (mean > 255 ? 255 : mean);
+        set->items[set->count].mean_chroma = (int)(chroma_sum / n);
+    }
+
     if( mat && mat->exists )
     {
         set->items[set->count].alpha_mode = mat->alpha_mode;
         set->items[set->count].repeat_s = mat->repeat_s;
         set->items[set->count].repeat_t = mat->repeat_t;
+        /*
+         * Tint only a texture that has no hue of its own.
+         *
+         * A mask (chroma ~0) is meaningless untinted; a picture is already
+         * coloured, and multiplying its hue by the face's applies the colour
+         * twice and clamps. The threshold is deliberately generous — a detail
+         * map can carry a slight cast without being a picture.
+         */
+        set->items[set->count].modulate =
+            set->items[set->count].mean_chroma < EV_TEXTURE_MASK_CHROMA_MAX;
     }
     else
     {
-        /* No material to ask: fall back to the texels. */
+        /* No material to ask: fall back to the texels, and do not tint — the
+         * sprite-backed reference takes the texel as the colour outright. */
         set->items[set->count].alpha_mode = opaque ? 0 : 2;
         set->items[set->count].repeat_s = true;
         set->items[set->count].repeat_t = true;
+        set->items[set->count].modulate = false;
     }
     set->count++;
 }
@@ -719,18 +758,20 @@ ev_textures_load(struct Tool_Dat2Cache* cache, struct EV_TextureSet* out)
         RSCache_Dat2MaterialTableFree(materials);
     set_index(out);
 
-    int blend = 0, cutout = 0, clamped = 0;
+    int blend = 0, cutout = 0, clamped = 0, tinted = 0;
     for( int i = 0; i < out->count; i++ )
     {
         if( out->items[i].alpha_mode == 2 ) blend++;
         else if( out->items[i].alpha_mode == 1 ) cutout++;
         if( !out->items[i].repeat_s || !out->items[i].repeat_t ) clamped++;
+        if( out->items[i].modulate ) tinted++;
     }
     fprintf(
         stderr,
-        "textures: %s system — %d loaded, %d failed, %d blend, %d cutout, %d clamped\n",
+        "textures: %s system — %d loaded, %d failed, %d blend, %d cutout, "
+        "%d clamped, %d tinted (masks)\n",
         out->procedural_system ? "procedural (RS2 materials)" : "sprite-backed",
-        out->loaded, out->failed, blend, cutout, clamped);
+        out->loaded, out->failed, blend, cutout, clamped, tinted);
     return ok;
 }
 

@@ -3,6 +3,9 @@ build/
 build_*/
 build_opt/
 cache/
+.codex_tmp_live_projection*/*
+.mta_restore_backup*/*
+.tmp_*/
 # ...but src/cache/ is source, not cache data: rscache_io.h is included by every
 # engine/dat2 loader. The bare `cache/` rule above matched it, so it was never
 # tracked, and a fresh clone or `git worktree add` could not build the targets

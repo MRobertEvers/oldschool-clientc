@@ -52,8 +52,7 @@
                                                                                                    \
         if( !ts2_skip_ )                                                                           \
         {                                                                                          \
-            int ts2_out_ = shade_blend(ts2_rgb_, (shade));                                         \
-            TS2_MODULATE_APPLY(ts2_out_);                                                          \
+            int ts2_out_ = TS2_SHADE_AND_MODULATE(ts2_rgb_, (shade));                              \
             TS2_FACEALPHA_APPLY(ts2_alpha_);                                                       \
             TS2_STORE(dst_ref, ts2_out_, ts2_alpha_);                                              \
         }                                                                                          \
@@ -85,14 +84,17 @@
     } while( 0 )
 #endif
 
+/*
+ * Shade, and tint when this variant modulates — as one operation.
+ *
+ * Not two: shading down to 8 bits and then multiplying back up rounds twice and
+ * amplifies the first rounding, which streaks a smooth gradient. See
+ * tex_sampler_shade_tint.
+ */
 #if TS2_MODULATE
-#define TS2_MODULATE_APPLY(rgb)                                                                    \
-    do                                                                                             \
-    {                                                                                              \
-        (rgb) = tex_sampler_tint(sampler, (rgb));                                                  \
-    } while( 0 )
+#define TS2_SHADE_AND_MODULATE(rgb, shade) tex_sampler_shade_tint(sampler, (rgb), (shade))
 #else
-#define TS2_MODULATE_APPLY(rgb) ((void)0)
+#define TS2_SHADE_AND_MODULATE(rgb, shade) shade_blend((rgb), (shade))
 #endif
 
 #if TS2_FACEALPHA
@@ -391,7 +393,7 @@ TS2_SPAN_FN(
 
 #undef TS2_EMIT
 #undef TS2_GATE_APPLY
-#undef TS2_MODULATE_APPLY
+#undef TS2_SHADE_AND_MODULATE
 #undef TS2_FACEALPHA_APPLY
 #undef TS2_STORE
 

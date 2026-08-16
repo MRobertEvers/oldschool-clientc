@@ -65,7 +65,9 @@ struct ToriDraw_Animation;
  *     u32 id
  *     u16 size          (width == height)
  *     u8  gate          0 opaque, 1 cutout, 2 blend
- *     u8  flags         bit0 clamp_s, bit1 clamp_t
+ *     u8  flags         bit0 clamp_s, bit1 clamp_t, bit2 modulate
+ *     u8  mean_luma     neutral point of the detail map, 1..255
+ *     u8  reserved[3]
  *     u32 texels[size*size]   ARGB8888
  *
  * `gate` is the MATERIAL's compositing decision, not a property of the texels.
@@ -161,6 +163,11 @@ struct EV_WireTexture
     int gate;
     int clamp_s;
     int clamp_t;
+    /** Tint the texel by the face's authored colour: this era's textures are
+     *  often luminance masks that carry no hue of their own. */
+    int modulate;
+    /** Mean luminance; the texel value that leaves the face colour unchanged. */
+    int mean_luma;
     const uint32_t* texels;
 };
 

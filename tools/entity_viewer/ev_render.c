@@ -50,6 +50,22 @@ static struct ToriDraw_HDRenderStats g_hd_stats;
  * names. It is a lie about the ASSET and it is labelled as one in the page; it
  * is the truth about the ROUTING, which is the question being asked.
  */
+/*
+ * Draw as if the model carried no face priorities.
+ *
+ * The painter's sort puts a face's priority ahead of its depth, which is what
+ * makes an RS model's overlapping parts stack correctly. Modern HD models carry
+ * priorities too, and the working theory is that they either mean something
+ * else at this revision or are simply wrong — either way the symptom is faces
+ * drawn in front of things they sit behind, which is indistinguishable from a
+ * depth bug until the priorities are taken out of the picture.
+ *
+ * Applied around the render and undone immediately after, rather than by
+ * dropping the arrays: the toggle has to be reversible without reloading the
+ * subject, and a model whose priorities were freed cannot get them back.
+ */
+static int g_ignore_priorities = 0;
+
 static int g_hd_placeholder = 0;
 static int g_hd_tex[128 * 128];
 static struct ToriDraw_HDMaterial* g_hd_mats = NULL;
@@ -72,6 +88,8 @@ struct EV_LoadedTexture
     int gate;
     int clamp_s;
     int clamp_t;
+    int modulate;
+    int mean_luma;
 };
 static struct EV_LoadedTexture* g_textures = NULL;
 static int g_texture_count = 0;
@@ -167,6 +185,8 @@ hd_materials_build(void)
         m->gate = t->gate;
         m->clamp_s = t->clamp_s;
         m->clamp_t = t->clamp_t;
+        m->modulate = t->modulate;
+        m->texture_neutral = t->mean_luma;
     }
     g_hd_mat_count = maxid + 1;
 }
@@ -233,6 +253,8 @@ ev_set_textures(const uint8_t* data, int len)
         slot->gate = wt.gate;
         slot->clamp_s = wt.clamp_s;
         slot->clamp_t = wt.clamp_t;
+        slot->modulate = wt.modulate;
+        slot->mean_luma = wt.mean_luma;
         g_texture_count++;
 
         /*
@@ -263,6 +285,18 @@ int
 ev_texture_count(void)
 {
     return g_texture_count;
+}
+
+void
+ev_set_ignore_priorities(int on)
+{
+    g_ignore_priorities = on ? 1 : 0;
+}
+
+int
+ev_ignore_priorities(void)
+{
+    return g_ignore_priorities;
 }
 
 void
@@ -942,6 +976,18 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     position.y += g_fly_y;
     position.z -= g_fly_z;
 
+    /*
+     * Both paths sort through ToriDraw_RenderModel2SortFaces, so hiding the
+     * priorities here covers the HD and the classic route alike.
+     */
+    faceint_t* saved_priorities = subject->face_priorities;
+    int saved_model_priority = subject->model_priority;
+    if( g_ignore_priorities )
+    {
+        subject->face_priorities = NULL;
+        subject->model_priority = 0;
+    }
+
     if( g_model_hd )
     {
         /*
@@ -970,6 +1016,9 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
             ToriDraw_RenderModel3Raster(g_scene, &view_port, &camera, g_pixels, false);
         }
     }
+
+    subject->face_priorities = saved_priorities;
+    subject->model_priority = saved_model_priority;
 
     /* toripixel_t is 0x00RRGGBB; the canvas wants RGBA bytes and every pixel is
      * opaque because the background was painted first. */

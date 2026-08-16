@@ -133,6 +133,12 @@
         <button id="cacheScan" title="scan the repo root for cache directories">Scan</button>
       </div>
       <div class="meta" id="cacheInfo"></div>
+      <!-- The rig walk over the active cache, which is what the animation
+           lists are made of. It runs in the background on every switch, so a
+           cache with no prebuilt catalog still lists animations - and while it
+           is running the panels are honestly incomplete rather than silently
+           empty. -->
+      <div class="meta" id="rigStatus"></div>
     </details>
 
     <h2 id="subjectHead">Subject</h2>
@@ -157,6 +163,14 @@
       <input type="file" id="hdInput" hidden>
       <input type="file" id="hdAnimInput" accept=".eva" hidden>
       <label class="hdopt"><input type="checkbox" id="hdPlaceholder"> placeholder texture</label>
+      <!--
+        Face priorities off. The painter's sort ranks priority ahead of depth,
+        so a model whose priorities are wrong draws faces in front of things
+        they sit behind — which looks exactly like a broken depth sort. This
+        separates the two, and is how to check whether the HD models' priorities
+        mean draw order at all.
+      -->
+      <label class="hdopt" title="draw as if the model carried no face priorities"><input type="checkbox" id="noPriorities"> ignore priorities</label>
       <div class="meta" id="hdInfo">no file loaded</div>
       <div class="meta hdstats hidden" id="hdStats"></div>
     </div>

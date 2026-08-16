@@ -89,6 +89,44 @@ toridraw_texmap_direction(int direction, float* u, float* v)
     }
 }
 
+/**
+ * Unwrap a triangle's uv across the projection's seam.
+ *
+ * `atan2` has a branch cut, so a triangle straddling it gets values like 0.98,
+ * 0.99, 0.02. Nothing about those is wrong per vertex, but the rasteriser
+ * interpolates between them the LONG way round and smears the entire texture
+ * across the face. On a rock surface that reads as streaking, and only on the
+ * handful of faces that happen to cross the seam — 53 of the rs643 TzTok-Jad's
+ * 380 cylinder faces, scattered over the model.
+ *
+ * `wrap` is the width the coordinate repeats over: the cylinder's u multiplier
+ * for type 1, and 1.0 for the sphere. Direction 1 and 3 swap u and v, so the
+ * wrapped axis moves with them.
+ *
+ * Shared with ToriDraw_ComputeTextureUv rather than duplicated: the generator
+ * has always done this, the kernels never did, and one copy is what stops them
+ * disagreeing again.
+ */
+static inline void
+toridraw_texmap_unwrap_seam(int direction, float wrap, float* u, float* v)
+{
+    float* axis = (direction & 1) ? v : u;
+    float half = wrap / 2.0f;
+
+    if( wrap <= 0.0f )
+        return;
+
+    if( axis[1] - axis[0] > half )
+        axis[1] -= wrap;
+    else if( axis[0] - axis[1] > half )
+        axis[1] += wrap;
+
+    if( axis[2] - axis[0] > half )
+        axis[2] -= wrap;
+    else if( axis[0] - axis[2] > half )
+        axis[2] += wrap;
+}
+
 /** Centre and rotate a model-space vertex into mapping space. */
 static inline void
 toridraw_texmap_to_mapping_space(
