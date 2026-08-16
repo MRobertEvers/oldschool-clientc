@@ -29,6 +29,24 @@ is_letter(int c)
 }
 
 /**
+ * Is `c` a character that can only ever close a name, never open a right
+ * operand? `read_ident`'s trailing-sign rule needs this for cache names that
+ * end the sign run right at the name's own end — `weapon_poison+`,
+ * `antidote++`, `unfinished_weapon_poison++` — where nothing ident-shaped
+ * follows the last sign at all. The same whitespace-around-operators
+ * invariant `read_ident`'s header already relies on makes this safe: a
+ * `calc()` operator immediately followed by one of these, with no space, is
+ * not a token this corpus ever writes, because it would leave the operator
+ * without a right-hand side.
+ */
+static int
+is_name_boundary(int c)
+{
+    return c == ')' || c == ']' || c == ',' || c == ':' ||
+           c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ';';
+}
+
+/**
  * Does the run starting at `pos` spell a name rather than a number?
  *
  * Names may begin with digits — `3dose1strength`, `2_handedsign` — and some
@@ -122,6 +140,18 @@ skip_trivia(struct SSC_Lexer* lexer)
  * digit on the far side. That is safe because no calc() expression in the whole
  * corpus writes an operator without surrounding whitespace, and a `$local`
  * after the sign never merges either way.
+ *
+ * Some names end the sign run at the name's own end rather than opening a
+ * further letter/digit run — `weapon_poison+`, `antidote++`,
+ * `unfinished_weapon_poison++` are real cache bracket names, and the second
+ * one has TWO consecutive signs with nothing ident-shaped after either. The
+ * same whitespace invariant covers this: a sign tight against a name and
+ * immediately followed by a boundary character (`)`, `]`, `,`, whitespace,
+ * …) or another sign can only be part of the name, never an operator — a
+ * real operator there would have nothing to its right. `is_name_boundary`
+ * is that second check; it only fires once at least one ident/sign
+ * character has already been consumed (`lexer->pos > start`), so a bare
+ * leading `+`/`-` token is untouched.
  */
 static void
 read_ident(struct SSC_Lexer* lexer, struct SSC_Token* token)
@@ -138,6 +168,17 @@ read_ident(struct SSC_Lexer* lexer, struct SSC_Token* token)
             (lexer->source[lexer->pos] == '+' || lexer->source[lexer->pos] == '-') &&
             (is_ident_start(lexer->source[lexer->pos + 1]) ||
              is_digit(lexer->source[lexer->pos + 1])) )
+        {
+            lexer->pos++;
+            continue;
+        }
+
+        if( lexer->pos > start && lexer->pos < lexer->length &&
+            (lexer->source[lexer->pos] == '+' || lexer->source[lexer->pos] == '-') &&
+            (lexer->pos + 1 >= lexer->length ||
+             lexer->source[lexer->pos + 1] == '+' ||
+             lexer->source[lexer->pos + 1] == '-' ||
+             is_name_boundary(lexer->source[lexer->pos + 1])) )
         {
             lexer->pos++;
             continue;

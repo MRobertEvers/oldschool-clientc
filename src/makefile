@@ -2095,6 +2095,10 @@ SUMMONING_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/scape2009_summoning
 RS2012_QBD_TD_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs2012_qbd_td
 CURSES_SERVER_LANE = $(MOCK230_CONTENT_DIR)/server/scripts/ported_rs558_ancient_curses
 CURSES_CLIENT_LANE = $(MOCK230_CONTENT_DIR)/ported/rs558_ancient_curses
+# Genuinely new items authored outside the cache (HERBLORE_PORT_QUEUE.md
+# slice 30 — herb tar). Same shape as the lanes above: its own pack/obj.alloc
+# + obj.client, registered as its own --pack root below.
+HERBLORE_ITEMS_LANE = $(MOCK230_CONTENT_DIR)/ported/herblore_items
 SUMMONING_CONSTANTS_OFF = $(REPO_ROOT)/build/summoning-constants-off
 SUMMONING_CONSTANTS_ON = $(REPO_ROOT)/build/summoning-constants-on
 # Allocate first, then compile.
@@ -2153,6 +2157,7 @@ mock230-scripts: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2179,6 +2184,7 @@ mock230-scripts-summoning: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2208,6 +2214,7 @@ mock230-scripts-curses: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
@@ -2224,7 +2231,7 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # fallback, unlike the script pack's, whose absence now turns the engine's
 # trigger fallbacks off rather than on (osrs230_mockserver.md §3.18).
 .PHONY: test-rs2012-server-overlay mock230-cache-rs2012 test-cache-overlay-stale \
-	test-droptable-versions
+	test-droptable-versions test-loc-var-audit check-loc-var-carriers
 
 # The freshness predicate the launchers (run-live.sh, run-live.bat) apply before
 # asking for a marked-lane bake at all. It decides whether a lane's records are
@@ -2233,6 +2240,21 @@ test-summoning-phase3: mock230-scripts mock230-scripts-summoning test-mock239-pl
 # prerequisite of both bakes so it cannot rot alongside a lane's layout.
 test-cache-overlay-stale:
 	@cd $(REPO_ROOT) && python3 tools/test_cache_overlay_stale.py
+
+# tools/loc_var_audit.py's own tests. Hermetic and sub-second.
+test-loc-var-audit:
+	@cd $(REPO_ROOT) && python3 tools/test_loc_var_audit.py
+
+# A varbit is a bit range inside a varp, and only the varp goes on the wire: a
+# script that sets a loc's transform varbit whose carrier is not declared
+# `transmit=yes` updates the server and nothing else, and the multiloc never
+# moves for anybody. Nothing else in the build can see it — sscompile only
+# checks that the varbit resolves, and mock230_world_mark_varp drops the packet
+# without a word. 204 written varbits were in that state, over 1,811 loc
+# placements, before this ran.
+check-loc-var-carriers:
+	@cd $(REPO_ROOT) && python3 tools/loc_var_audit.py --tree $(MOCK230_CONTENT_DIR) \
+		--check-carriers
 
 # The two drop-table invariants that shipped broken and that nothing else can
 # see: every roster npc must *state* `param=death_drop` rather than inherit the
@@ -2587,6 +2609,7 @@ mock230-scripts-summoning-curses: sscompile check-crystal-set-contract
 		--pack $(SUMMONING_VARBIT_STAGE) \
 		--pack $(RS2012_QBD_TD_CLIENT_LANE)/pack \
 		--pack $(CURSES_CLIENT_LANE)/pack \
+		--pack $(HERBLORE_ITEMS_LANE)/pack \
 		--component-root $(SUMMONING_CLIENT_LANE) \
 		--component-root $(SUMMONING_CLIENT_LANE)/interface_overlays \
 		--component-root $(RS2012_QBD_TD_CLIENT_LANE) \
