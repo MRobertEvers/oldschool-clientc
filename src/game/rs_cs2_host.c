@@ -3211,6 +3211,76 @@ exec_set_object(
          * the icon from what did arrive; the raster skips missing faces. */
     }
 
+    /*
+     * A type-6 (MODEL) widget draws the obj in 3D, not as its 2D icon.
+     *
+     * The reference's `IfType.getModel` prefers `objectId` over `modelId` and
+     * builds the ObjType's interface model from it; only the type-5 GRAPHIC
+     * path uses the baked 32x32 sprite. Handing a MODEL node the sprite id
+     * left `rs_model.gamecache_model_id` at the -1 CC_CREATE gives it, and the
+     * emit arm reads exactly that field — so the node described as "nothing to
+     * draw" and the cell rendered as an empty button.
+     *
+     * Found on `skillmulti` (the make-menu), whose eighteen product cells are
+     * `cc_create(^iftype_model)` + `cc_setobject_nonum` — every cell drew its
+     * beige button, its keyboard hint and its tooltip, and no item.
+     *
+     * `EnsureObjModel` takes no count: it is the base inventory model, so a
+     * stackable's cell shows one of the thing rather than the pile variant
+     * `count` would select. The panel never draws a number on these cells
+     * (num_mode 2), so the pile is decoration the reference happens to have
+     * and this does not.
+     */
+    if( host->bridge )
+    {
+        int32_t model_idx = tree ? UITree_FindByComponentId(tree, component_id) : -1;
+
+        if( model_idx >= 0 && tree->components[model_idx].type == UIELEM_RS_MODEL )
+        {
+            int obj_model = UITreeSceneBridge_EnsureObjModel(host->bridge, obj_id);
+
+            if( obj_model > 0 )
+            {
+                /* Both: the obj is what the minimenu and the tooltip read, the
+                 * model is what the emit walk draws. */
+                (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
+                (void)UITree_ApplyModel(tree, component_id, obj_model);
+                /*
+                 * ...and the objtype's own 2D presentation on top, or the cell
+                 * shows a close-up of one face rather than an item.
+                 *
+                 * CC_CREATE leaves a MODEL node at zoom 100, and 100 in these
+                 * units is a camera roughly twenty times too close: `zoom2d`
+                 * is what the icon rasteriser uses (default 2000, see
+                 * bridge_rasterize_obj_icon) and it is the same scale the
+                 * widget draw wants. The angles come from the same three
+                 * fields for the same reason — an item drawn at its model's
+                 * own orientation is not the shape players recognise.
+                 *
+                 * This is the CS2 twin of the IF_SETOBJECT packet path in
+                 * app.c, which reaches the identical fields through
+                 * App_SetInterfaceObjModel. The two differ only in where the
+                 * divisor comes from: the packet carries a wire zoom, the
+                 * opcode's second argument is a COUNT, so there is nothing to
+                 * divide by here.
+                 */
+                struct ToriRS_Objtype* objtype =
+                    provider ? CacheProvider_ObjtypeGet(provider, obj_id) : NULL;
+
+                if( objtype )
+                    (void)UITree_ApplyModelAngle(
+                        tree,
+                        component_id,
+                        objtype->xan2d,
+                        objtype->yan2d,
+                        objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
+                return CS2VM_EXECNO_OK;
+            }
+            /* No model for this obj — fall through to the icon, which is at
+             * least something the player can identify. */
+        }
+    }
+
     if( host->bridge )
         scene_id = UITreeSceneBridge_EnsureObjIcon(host->bridge, obj_id, count);
     else
