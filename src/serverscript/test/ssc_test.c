@@ -427,12 +427,26 @@ test_arguments_and_locals(void)
     if( !fixture_compile(&fixture,
                          "[proc,subtract](int $a, int $b)(int)\n"
                          "def_int $result = calc($a - $b);\n"
-                         "return($result);\n",
+                         "return($result);\n"
+                         "[proc,branch_local](int $first_arm)(int)\n"
+                         "if ($first_arm = 1) {\n"
+                         "    def_int $option = 1;\n"
+                         "    if ($option = 1) { return(11); }\n"
+                         "} else {\n"
+                         "    def_int $option = 2;\n"
+                         "    if ($option = 2) { return(22); }\n"
+                         "}\n"
+                         "return(99);\n",
                          "arguments") )
         return;
 
     if( run_script(&fixture, "[proc,subtract]", args, 2, &result, "arguments") )
         CHECK_EQ(result, 7, "arguments bind in source order");
+
+    args[0] = 0;
+    if( run_script(&fixture, "[proc,branch_local]", args, 1, &result,
+                    "branch-local redeclaration") )
+        CHECK_EQ(result, 22, "a local redeclared in the other branch reuses its slot");
 
     fixture_close(&fixture);
 }

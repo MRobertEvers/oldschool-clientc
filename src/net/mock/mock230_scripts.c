@@ -4052,6 +4052,8 @@ mock230_script_command(
         return 1;
     if( mock230_ops_player(state, opcode, dot) )
         return 1;
+    if( mock230_ops_poh(state, opcode, dot) )
+        return 1;
 
     switch( opcode )
     {

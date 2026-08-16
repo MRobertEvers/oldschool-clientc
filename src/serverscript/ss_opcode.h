@@ -472,10 +472,19 @@
 #define SS_OP_NPC_FINDFOLLOWER 11043
 #define SS_OP_TRIGGER_DECLINE 11044
 #define SS_OP_NPC_FACING_COORD 11045
+#define SS_OP_POH_STATE_RESET 11046
+#define SS_OP_POH_STATE_GET 11047
+#define SS_OP_POH_STATE_SET 11048
+#define SS_OP_POH_ROOM_ADD 11049
+#define SS_OP_POH_ROOM_COUNT 11050
+#define SS_OP_POH_ROOM_GET 11051
+#define SS_OP_POH_DECOR_SET 11052
+#define SS_OP_POH_DECOR_GET 11053
+#define SS_OP_POH_STATE_COMMIT 11054
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11046
+#define SS_OPCODE_MAX 11055
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 450
+#define SS_OPCODE_COUNT 459
 
 #endif

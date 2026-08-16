@@ -105,6 +105,14 @@ test_fixture(const char* build_dir)
     write_file(path, "1530=poordoor\n");
     snprintf(path, sizeof(path), "%s/all.param.compack", configs);
     write_file(path, "14=attackrate\n");
+    snprintf(path, sizeof(path), "%s/all.dbtable.compack", configs);
+    write_file(path, "111=poh_room\n");
+    snprintf(path, sizeof(path), "%s/all.dbtable", configs);
+    write_file(path,
+               "[poh_room]\n"
+               "columns=12\n"
+               "columndef=0:name,string\n"
+               "columndef=5:source_offset,int,int\n");
 
     /* One level down, which is why the walk has to recurse. */
     snprintf(path, sizeof(path), "%s/bankmain.compack", interfaces);
@@ -113,6 +121,7 @@ test_fixture(const char* build_dir)
     SSC_SymbolsInit(&symbols);
     SSC_SymbolsLoadPackDir(&symbols, pack);
     SSC_SymbolsLoadPackDir(&symbols, configs);
+    SSC_SymbolsLoadDbTableDir(&symbols, configs);
     /* After the packs: it needs the interface ids to compose against. */
     SSC_SymbolsLoadComponentDir(&symbols, root);
 
@@ -125,6 +134,16 @@ test_fixture(const char* build_dir)
     check(resolved(&symbols, "coins", SSC_SYM_OBJ) == 995, "and objs");
     check(resolved(&symbols, "poordoor", SSC_SYM_LOC) == 1530, "and locs");
     check(resolved(&symbols, "attackrate", SSC_SYM_PARAM) == 14, "and params");
+    check(resolved(&symbols, "poh_room:source_offset", SSC_SYM_DBCOLUMN) ==
+              ((111 << 12) | (5 << 4)),
+          "an exported columndef keeps its explicit cache column index");
+    {
+        const struct SSC_Symbol* column =
+            SSC_SymbolsFind(&symbols, "poh_room:source_offset", SSC_SYM_DBCOLUMN);
+
+        check(column && column->text && strcmp(column->text, "int,int") == 0,
+              "an exported columndef keeps its tuple types");
+    }
     check(resolved(&symbols, "bankmain", SSC_SYM_INTERFACE) == 12,
           "`3_interfaces.pack` still resolves as an interface");
     check(resolved(&symbols, "door_open", SSC_SYM_SYNTH) == 7,

@@ -293,6 +293,28 @@ declare_local(struct SSC_Compiler* compiler, const char* name, int is_string)
     struct SSC_Build* build = &compiler->build;
     struct SSC_Local* local;
 
+    /* Locals are script-scoped. A declaration in each arm of an `if` names
+     * the same slot: only one arm executes, but both are compiled into the one
+     * locals table. Allocating a second slot while find_local() kept resolving
+     * the first made this shape silently read an uninitialised value:
+     *
+     *     if (...) { def_int $option = 1; ... }
+     *     else     { def_int $option = 2; if ($option = 2) ... }
+     *
+     * The second assignment went to slot 1 and the comparison read slot 0.
+     * Reuse an existing declaration, and reject a spelling that attempts to
+     * change stacks because no single slot can represent both types. */
+    local = find_local(compiler, name);
+    if( local )
+    {
+        if( local->is_string != is_string )
+        {
+            fail(compiler, "local '$%s' redeclared with a different type", name);
+            return NULL;
+        }
+        return local;
+    }
+
     if( build->local_count >= SSC_MAX_LOCALS )
     {
         fail(compiler, "more than %d locals in one script", SSC_MAX_LOCALS);

@@ -542,6 +542,23 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # patrolling guard only notices a door while looking toward it.
     "NPC_FACING_COORD": (11045, 1, 0, 1, 0),
 
+    # ---- durable Player-owned House storage (11046..11054) ---------------
+    #
+    # Construction policy remains RuneScript and cache DB data. These commands
+    # expose only the versioned player record which content cannot represent in
+    # temp varps: room rows, hotspot furniture rows, and durable house settings.
+    "POH_STATE_RESET": (11046, 0, 0, 0, 0),
+    "POH_STATE_GET": (11047, 1, 0, 1, 0),
+    "POH_STATE_SET": (11048, 2, 0, 1, 0),
+    "POH_ROOM_ADD": (11049, 6, 0, 1, 0),
+    "POH_ROOM_COUNT": (11050, 0, 0, 1, 0),
+    "POH_ROOM_GET": (11051, 2, 0, 1, 0),
+    "POH_DECOR_SET": (11052, 5, 0, 1, 0),
+    "POH_DECOR_GET": (11053, 3, 0, 1, 0),
+    # Atomic whole-player write after content has committed inventory, varp,
+    # and house mutations in one non-suspending script turn.
+    "POH_STATE_COMMIT": (11054, 0, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -825,6 +842,15 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
         (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
         0,
     ),
+    "POH_STATE_RESET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_STATE_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_STATE_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_ADD": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_COUNT": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_DECOR_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_DECOR_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_STATE_COMMIT": (1 << POINTER_BITS["p_active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

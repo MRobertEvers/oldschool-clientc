@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11046] = {
+static const char* const g_ss_opcode_names[11055] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -457,6 +457,15 @@ static const char* const g_ss_opcode_names[11046] = {
     [11043] = "NPC_FINDFOLLOWER",
     [11044] = "TRIGGER_DECLINE",
     [11045] = "NPC_FACING_COORD",
+    [11046] = "POH_STATE_RESET",
+    [11047] = "POH_STATE_GET",
+    [11048] = "POH_STATE_SET",
+    [11049] = "POH_ROOM_ADD",
+    [11050] = "POH_ROOM_COUNT",
+    [11051] = "POH_ROOM_GET",
+    [11052] = "POH_DECOR_SET",
+    [11053] = "POH_DECOR_GET",
+    [11054] = "POH_STATE_COMMIT",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -466,7 +475,7 @@ static const char* const g_ss_opcode_names[11046] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11046] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11055] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -917,6 +926,15 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11046] = {
     [11043] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* NPC_FINDFOLLOWER */
     [11044] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* TRIGGER_DECLINE */
     [11045] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_FACING_COORD */
+    [11046] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_STATE_RESET */
+    [11047] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_STATE_GET */
+    [11048] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_STATE_SET */
+    [11049] = { 6, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_ROOM_ADD */
+    [11050] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_ROOM_COUNT */
+    [11051] = { 2, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_ROOM_GET */
+    [11052] = { 5, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_DECOR_SET */
+    [11053] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_DECOR_GET */
+    [11054] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x004, 0x000 }, /* POH_STATE_COMMIT */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

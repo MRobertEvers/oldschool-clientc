@@ -100,6 +100,7 @@
 
 #include "mock230_bank.h"
 #include "mock230_interface_state.h"
+#include "mock230_poh.h"
 #include "mock230_wire.h"
 #include "mock239_runclientscript.h"
 #include "mock230_zone.h"
@@ -3113,6 +3114,11 @@ struct Mock230Player
      *  `if_opensub` survives. */
     int32_t varps[MOCK230_VARP_COUNT];
 
+    /** Durable POH model. Active instance coordinates and loc handles never
+     *  enter this record; Construction content rebuilds those from these room
+     *  and decoration rows whenever the owner enters. */
+    struct Mock230PohState poh;
+
     /** The bank: container 95 plus the settings its interface reads out of
      *  varbits. Heap-allocated, so mock230_bank_shutdown has to run before the
      *  player struct is cleared. See mock230_bank.h. */
@@ -5666,6 +5672,13 @@ mock230_ops_inv(
  *  the engine's handler and what goes wrong when it is. */
 int
 mock230_ops_player(
+    struct SSVM_State* state,
+    int opcode,
+    int dot);
+
+/** Versioned POH storage operations. Construction policy remains content. */
+int
+mock230_ops_poh(
     struct SSVM_State* state,
     int opcode,
     int dot);

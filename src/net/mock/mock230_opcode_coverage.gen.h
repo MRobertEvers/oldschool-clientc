@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     63  VM core
- *    260  host commands
+ *    262  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -18,7 +18,8 @@
  *     13  host commands (obj)
  *      2  host commands (param)
  *      3  host commands (player)
- *    376  total, of 448 declared opcodes
+ *      9  host commands (poh)
+ *    387  total, of 459 declared opcodes
  */
 
 #ifndef SRC_NET_MOCK_MOCK230_OPCODE_COVERAGE_GEN_H
@@ -26,8 +27,8 @@
 
 #include <stdint.h>
 
-#define MOCK230_OPCODE_COVERAGE_COUNT 376
-#define MOCK230_OPCODE_DECLARED_COUNT 448
+#define MOCK230_OPCODE_COVERAGE_COUNT 387
+#define MOCK230_OPCODE_DECLARED_COUNT 459
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -36,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define MOCK230_OPCODE_VALUE_LIMIT 11044
+#define MOCK230_OPCODE_VALUE_LIMIT 11055
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
@@ -416,6 +417,17 @@ static const uint16_t MOCK230_OPCODE_COVERAGE[MOCK230_OPCODE_COVERAGE_COUNT] = {
     11041, /* SS_OP_COMBAT_ASSIST_SINGLES (host commands) */
     11042, /* SS_OP_NPC_SETFOLLOWER (host commands) */
     11043, /* SS_OP_NPC_FINDFOLLOWER (host commands) */
+    11044, /* SS_OP_TRIGGER_DECLINE (host commands) */
+    11045, /* SS_OP_NPC_FACING_COORD (host commands) */
+    11046, /* SS_OP_POH_STATE_RESET (host commands (poh)) */
+    11047, /* SS_OP_POH_STATE_GET (host commands (poh)) */
+    11048, /* SS_OP_POH_STATE_SET (host commands (poh)) */
+    11049, /* SS_OP_POH_ROOM_ADD (host commands (poh)) */
+    11050, /* SS_OP_POH_ROOM_COUNT (host commands (poh)) */
+    11051, /* SS_OP_POH_ROOM_GET (host commands (poh)) */
+    11052, /* SS_OP_POH_DECOR_SET (host commands (poh)) */
+    11053, /* SS_OP_POH_DECOR_GET (host commands (poh)) */
+    11054, /* SS_OP_POH_STATE_COMMIT (host commands (poh)) */
 };
 
 #endif

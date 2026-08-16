@@ -159,6 +159,55 @@ write_item_vars(
     }
 }
 
+static void
+write_poh(
+    FILE* file,
+    const struct Mock230PohState* poh)
+{
+    fprintf(file,
+            "\n[poh]\n"
+            "schema_version = %d\n"
+            "owns_house = %d\n"
+            "location = %d\n"
+            "style = %d\n"
+            "locked = %d\n"
+            "door_mode = %d\n"
+            "teleport_inside = %d\n"
+            "default_build_mode = %d\n"
+            "grid_size = %d\n"
+            "servant_type = %d\n"
+            "servant_paid = %d\n"
+            "servant_last_task = %d\n"
+            "money_bag = %d\n",
+            poh->schema_version, poh->owns_house, poh->location, poh->style,
+            poh->locked, poh->door_mode, poh->teleport_inside,
+            poh->default_build_mode, poh->grid_size, poh->servant_type,
+            poh->servant_paid, poh->servant_last_task, poh->money_bag);
+
+    fprintf(file,
+            "\n[poh_rooms]\n"
+            "; <slot> = <room_dbrow> <x> <z> <level> <rotation> <door_mask>\n");
+    for( int i = 0; i < poh->room_count; i++ )
+    {
+        const struct Mock230PohRoom* room = &poh->rooms[i];
+
+        fprintf(file, "%d = %d %d %d %d %d %d\n", i, room->dbrow, room->x,
+                room->z, room->level, room->rotation, room->door_mask);
+    }
+
+    fprintf(file,
+            "\n[poh_decorations]\n"
+            "; <slot> = <room> <hotspot> <furniture_dbrow> <rotation> <flags>\n");
+    for( int i = 0; i < poh->decoration_count; i++ )
+    {
+        const struct Mock230PohDecoration* decoration = &poh->decorations[i];
+
+        fprintf(file, "%d = %d %d %d %d %d\n", i, decoration->room,
+                decoration->hotspot, decoration->furniture_dbrow,
+                decoration->rotation, decoration->flags);
+    }
+}
+
 int
 mock230_save_player(
     const struct Mock230Player* player,
@@ -272,6 +321,8 @@ mock230_save_player(
         fprintf(file, "%d = %d\n", varp, (int)player->varps[varp]);
     }
 
+    write_poh(file, &player->poh);
+
     fclose(file);
 
     if( rename(temp, path) != 0 )
@@ -299,6 +350,9 @@ enum SaveSection
     SAVE_WORN_VAR,
     SAVE_BANK_VAR,
     SAVE_VARPS,
+    SAVE_POH,
+    SAVE_POH_ROOMS,
+    SAVE_POH_DECORATIONS,
     /** A `[container.<inv>]` section; the id is in `section_inv`. */
     SAVE_CONTAINER,
     /** A `[container_var.<inv>]` section; same `section_inv` / `section_row`. */
@@ -359,6 +413,7 @@ mock230_load_player(
     int section_inv = -1;
     struct Mock230Container* section_row = NULL;
     int version = 0;
+    int poh_version = 0;
 
     assert(path);
     if( !*path )
@@ -385,6 +440,12 @@ mock230_load_player(
         return 0;
     }
     fclose(file);
+
+    /* Loading overlays a live player in selftests as well as a fresh login.
+     * Clear the old house first so absent rows cannot survive from the previous
+     * record. An absent save returned above and leaves the new-character
+     * default alone. */
+    mock230_poh_init(&player->poh);
 
     ini_reader_init(&reader);
     while( ini_reader_next(&reader, data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
@@ -413,6 +474,12 @@ mock230_load_player(
                 section = SAVE_BANK_VAR;
             else if( strcmp(element._section.name, "varps") == 0 )
                 section = SAVE_VARPS;
+            else if( strcmp(element._section.name, "poh") == 0 )
+                section = SAVE_POH;
+            else if( strcmp(element._section.name, "poh_rooms") == 0 )
+                section = SAVE_POH_ROOMS;
+            else if( strcmp(element._section.name, "poh_decorations") == 0 )
+                section = SAVE_POH_DECORATIONS;
             else if( strncmp(element._section.name, "container_var.", 14) == 0 )
             {
                 section = SAVE_CONTAINER_VAR;
@@ -558,6 +625,76 @@ mock230_load_player(
             break;
         }
 
+        case SAVE_POH:
+            if( strcmp(key, "schema_version") == 0 )
+                poh_version = atoi(value);
+            else if( strcmp(key, "owns_house") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_OWNS_HOUSE, atoi(value));
+            else if( strcmp(key, "location") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCATION, atoi(value));
+            else if( strcmp(key, "style") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_STYLE, atoi(value));
+            else if( strcmp(key, "locked") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCKED, atoi(value));
+            else if( strcmp(key, "door_mode") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_DOOR_MODE, atoi(value));
+            else if( strcmp(key, "teleport_inside") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_TELEPORT_INSIDE, atoi(value));
+            else if( strcmp(key, "default_build_mode") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_DEFAULT_BUILD_MODE, atoi(value));
+            else if( strcmp(key, "grid_size") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_GRID_SIZE, atoi(value));
+            else if( strcmp(key, "servant_type") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_SERVANT_TYPE, atoi(value));
+            else if( strcmp(key, "servant_paid") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_SERVANT_PAID, atoi(value));
+            else if( strcmp(key, "servant_last_task") == 0 )
+                mock230_poh_set(
+                    &player->poh, MOCK230_POH_FIELD_SERVANT_LAST_TASK, atoi(value));
+            else if( strcmp(key, "money_bag") == 0 )
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_MONEY_BAG, atoi(value));
+            break;
+
+        case SAVE_POH_ROOMS:
+        {
+            int slot = atoi(key);
+            int dbrow;
+            int x;
+            int z;
+            int level;
+            int rotation;
+            int door_mask;
+
+            if( slot != player->poh.room_count )
+                break;
+            if( sscanf(value, "%d %d %d %d %d %d", &dbrow, &x, &z, &level,
+                       &rotation, &door_mask) != 6 )
+                break;
+            mock230_poh_room_add(&player->poh, dbrow, x, z, level, rotation, door_mask);
+            break;
+        }
+
+        case SAVE_POH_DECORATIONS:
+        {
+            int slot = atoi(key);
+            int room;
+            int hotspot;
+            int furniture;
+            int rotation;
+            int flags;
+
+            if( slot != player->poh.decoration_count )
+                break;
+            if( sscanf(value, "%d %d %d %d %d", &room, &hotspot, &furniture,
+                       &rotation, &flags) != 5 )
+                break;
+            mock230_poh_decoration_set(
+                &player->poh, room, hotspot, furniture, rotation, flags);
+            break;
+        }
+
         case SAVE_NONE:
         default:
             break;
@@ -571,5 +708,16 @@ mock230_load_player(
                 "mock230: %s is version %d and this server writes %d — fields this "
                 "server does not know were ignored\n",
                 path, version, MOCK230_SAVE_VERSION);
+    if( poh_version > MOCK230_POH_SCHEMA_VERSION )
+        fprintf(stderr,
+                "mock230: %s has POH schema %d and this server writes %d — "
+                "unknown POH fields were ignored\n",
+                path, poh_version, MOCK230_POH_SCHEMA_VERSION);
+    if( !mock230_poh_validate(&player->poh) )
+    {
+        fprintf(stderr, "mock230: %s contains an invalid POH record; using an empty house\n",
+                path);
+        mock230_poh_init(&player->poh);
+    }
     return 1;
 }

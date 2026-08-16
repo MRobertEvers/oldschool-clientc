@@ -160,8 +160,23 @@ main(int argc, char** argv)
         }
         component_count += loaded;
     }
+    /* Imported cache schemas live beside their all.<type>.compack indexes.
+     * Load them only after every pack directory has contributed table names;
+     * a column token needs the table id in order to be composed. */
+    for( i = 0; i < pack_count; i++ )
+    {
+        int loaded = SSC_SymbolsLoadDbTableDir(&symbols, packs[i]);
+
+        if( loaded > 0 )
+            dbcolumn_count += loaded;
+    }
     constant_count = SSC_SymbolsLoadConstantDir(&symbols, constants);
-    dbcolumn_count = SSC_SymbolsLoadDbTableDir(&symbols, constants);
+    {
+        int loaded = SSC_SymbolsLoadDbTableDir(&symbols, constants);
+
+        if( loaded > 0 )
+            dbcolumn_count += loaded;
+    }
     SSC_SymbolsSeedBuiltins(&symbols);
 
     /*

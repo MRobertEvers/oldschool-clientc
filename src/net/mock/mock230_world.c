@@ -7820,6 +7820,8 @@ handle_window_status(
     dropdown_choice = player->settings_dropdown_choice;
     player->settings_dropdown_choice = -1;
 
+    mock230_poh_init(&player->poh);
+
     if( srv->wire && srv->wire->revision >= 239 )
     {
         if( window_mode != 1 && window_mode != 2 )
@@ -21100,6 +21102,68 @@ mock230_world_selftest(void)
         remove(path);
     }
 
+    fprintf(stderr, "mock230 selftest: durable POH persistence\n");
+    {
+        const char* path = mock230_save_path("poh_state_selftest");
+        int garden =
+            mock230_content_symbol(MOCK230_PACK_DBROW, "poh_dummy_garden");
+        int parlour =
+            mock230_content_symbol(MOCK230_PACK_DBROW, "poh_dummy_parlour");
+        int plant =
+            mock230_content_symbol(MOCK230_PACK_DBROW, "poh_plantsmall1a");
+
+        SELFTEST_CHECK(garden >= 0 && parlour >= 0 && plant >= 0,
+                       "POH fixture rows should resolve (%d/%d/%d)", garden,
+                       parlour, plant);
+        mock230_world_set_display_name(player, "poh_state_selftest");
+        remove(path);
+        mock230_poh_reset(&player->poh);
+        SELFTEST_CHECK(
+            mock230_poh_set(
+                &player->poh, MOCK230_POH_FIELD_OWNS_HOUSE, 1) &&
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCATION, 1) &&
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_STYLE, 2) &&
+                mock230_poh_set(&player->poh, MOCK230_POH_FIELD_LOCKED, 1),
+            "POH fixture settings should be accepted");
+        SELFTEST_CHECK(
+            mock230_poh_room_add(&player->poh, garden, 4, 3, 1, 0, 15) == 0 &&
+                mock230_poh_room_add(&player->poh, parlour, 4, 4, 1, 2, 4) == 1,
+            "POH fixture rooms should be accepted in stable slots");
+        SELFTEST_CHECK(
+            mock230_poh_decoration_set(&player->poh, 0, 7, plant, 3, 5),
+            "POH fixture decoration should be accepted");
+        SELFTEST_CHECK(mock230_save_player(player, path),
+                       "wrote durable POH save");
+
+        mock230_poh_reset(&player->poh);
+        SELFTEST_CHECK(mock230_load_player(player, path),
+                       "read durable POH save");
+        SELFTEST_CHECK(mock230_poh_validate(&player->poh),
+                       "reloaded POH record should validate");
+        SELFTEST_CHECK(player->poh.owns_house && player->poh.location == 1 &&
+                           player->poh.style == 2 && player->poh.locked,
+                       "POH ownership, location, style, and lock should round-trip");
+        SELFTEST_CHECK(player->poh.room_count == 2 &&
+                           mock230_poh_room_get(
+                               &player->poh, 1, MOCK230_POH_ROOM_DBROW) == parlour &&
+                           mock230_poh_room_get(
+                               &player->poh, 1, MOCK230_POH_ROOM_ROTATION) == 2,
+                       "POH room definitions and rotations should round-trip");
+        SELFTEST_CHECK(
+            player->poh.decoration_count == 1 &&
+                mock230_poh_decoration_get(
+                    &player->poh, 0, 7,
+                    MOCK230_POH_DECOR_FURNITURE_DBROW) == plant &&
+                mock230_poh_decoration_get(
+                    &player->poh, 0, 7, MOCK230_POH_DECOR_ROTATION) == 3 &&
+                mock230_poh_decoration_get(
+                    &player->poh, 0, 7, MOCK230_POH_DECOR_FLAGS) == 5,
+            "POH hotspot furniture and metadata should round-trip");
+
+        remove(path);
+        mock230_poh_reset(&player->poh);
+    }
+
     fprintf(stderr, "mock230 selftest: gameframe HUD role alias under Fixed\n");
     {
         /*
@@ -25570,6 +25634,25 @@ mock230_world_selftest(void)
                        "::pray 18 is protect from melee");
         SELFTEST_CHECK(!mock230_scripts_run_debugproc(srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
+
+        /*
+         * H.A.M. Storerooms' reward table and spatial contracts live in
+         * content, but they include every one of the 150 reward rolls plus the
+         * host-backed NPC front-arc query. Run that content test here so a
+         * normal `test-mock230-dev` invocation cannot omit it accidentally.
+         */
+        {
+            int saved_progress = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
+
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "hamstoreroomtest") ==
+                               MOCK230_TRIGGER_RAN,
+                           "::hamstoreroomtest should reach content");
+            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                           "H.A.M. Storerooms deterministic contracts should pass, got %d",
+                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_progress;
+        }
 
         /*
          * `::run <percent>` — a *set*, built out of the only mutator content

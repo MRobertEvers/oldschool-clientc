@@ -831,9 +831,17 @@ SSC_SymbolsLoadConstantDir(
  *   column=spell,int,INDEXED,REQUIRED
  *   column=spellcom,component
  *
+ * Cache exports spell the same data with explicit indices:
+ *
+ *   [poh_room]
+ *   columns=12
+ *   columndef=5:source_offset,int,int
+ *
  * A `table:column` reference compiles to (table << 12) | (column << 4), matching
  * how DbOps.ts unpacks it; the low nibble is a tuple index the corpus does not
- * use. The table id comes from dbtable.pack, so that has to be loaded first.
+ * use. The table id comes from the dbtable symbol packs, so those have to be
+ * loaded first. Supporting both spellings lets scripts query imported cache
+ * tables without maintaining a second, hand-transcribed schema.
  */
 static int
 load_dbtable_file(
@@ -873,13 +881,39 @@ load_dbtable_file(
             continue;
         }
 
-        if( strncmp(cursor, "column=", 7) != 0 )
-            continue;
-
         {
-            char* name = cursor + 7;
-            char* comma = strchr(name, ',');
+            char* name;
+            char* comma;
             char qualified[SSC_MAX_NAME];
+            int explicit_index = -1;
+            int field_index;
+
+            if( strncmp(cursor, "column=", 7) == 0 )
+            {
+                name = cursor + 7;
+                field_index = column_index++;
+            }
+            else if( strncmp(cursor, "columndef=", 10) == 0 )
+            {
+                char* colon;
+
+                name = cursor + 10;
+                colon = strchr(name, ':');
+                if( !colon )
+                    continue;
+                *colon = '\0';
+                explicit_index = atoi(name);
+                if( explicit_index < 0 || explicit_index > 255 )
+                    continue;
+                name = colon + 1;
+                field_index = explicit_index;
+                if( column_index <= explicit_index )
+                    column_index = explicit_index + 1;
+            }
+            else
+                continue;
+
+            comma = strchr(name, ',');
             /*
              * Everything after the column name — its declared types and flags,
              * `string` or `coord,int,int,int,LIST` — kept because `db_getfield`
@@ -901,12 +935,11 @@ load_dbtable_file(
                 if( SSC_SymbolsAdd(
                         symbols,
                         qualified,
-                        (table_id << 12) | (column_index << 4),
+                        (table_id << 12) | (field_index << 4),
                         SSC_SYM_DBCOLUMN,
                         types) )
                     loaded++;
             }
-            column_index++;
         }
     }
     fclose(file);
